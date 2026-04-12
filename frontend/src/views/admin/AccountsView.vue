@@ -126,6 +126,15 @@
               </button>
             </template>
           </AccountTableActions>
+          <span
+            v-if="totalAICredits > 0"
+            class="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            AI Credits: ${{ totalAICredits.toFixed(2) }}
+          </span>
         </div>
         <div
           v-if="hasPendingListSync"
@@ -170,11 +179,11 @@
             <div class="flex flex-col">
               <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
               <span
-                v-if="row.extra?.email_address"
+                v-if="getAccountEmail(row)"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
-                :title="row.extra.email_address"
+                :title="getAccountEmail(row)"
               >
-                {{ row.extra.email_address }}
+                {{ getAccountEmail(row) }}
               </span>
             </div>
           </template>
@@ -455,6 +464,52 @@ const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
 const usageManualRefreshToken = ref(0)
 
+function getAccountEmail(row: { extra?: Record<string, unknown>; credentials?: Record<string, unknown> }): string | undefined {
+  const email = row.extra?.email_address || row.credentials?.email
+  return typeof email === 'string' ? email : undefined
+}
+
+const totalAICredits = ref(0)
+const aiCreditsLoading = ref(false)
+
+async function refreshAICreditsTotal() {
+  const antigravityAccounts = accounts.value.filter(a => a.platform === 'antigravity')
+  if (antigravityAccounts.length === 0) {
+    totalAICredits.value = 0
+    return
+  }
+
+  // Deduplicate by email: same Google account shares AI Credits balance
+  const uniqueAccounts: typeof antigravityAccounts = []
+  const seenEmails = new Set<string>()
+  for (const a of antigravityAccounts) {
+    const email = typeof a.credentials?.email === 'string' ? a.credentials.email : ''
+    if (email && seenEmails.has(email)) continue
+    if (email) seenEmails.add(email)
+    uniqueAccounts.push(a)
+  }
+
+  aiCreditsLoading.value = true
+  try {
+    const results = await Promise.allSettled(
+      uniqueAccounts.map(a => adminAPI.accounts.getUsage(a.id))
+    )
+    let sum = 0
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value.ai_credits) {
+        for (const credit of result.value.ai_credits) {
+          sum += credit.amount ?? 0
+        }
+      }
+    }
+    totalAICredits.value = sum
+  } catch {
+    // ignore
+  } finally {
+    aiCreditsLoading.value = false
+  }
+}
+
 const buildDefaultTodayStats = (): WindowStats => ({
   requests: 0,
   tokens: 0,
@@ -682,6 +737,7 @@ const load = async () => {
     delete requestParams.lite
   }
   await refreshTodayStatsBatch()
+  refreshAICreditsTotal()
 }
 
 const reload = async () => {
@@ -690,6 +746,7 @@ const reload = async () => {
   pendingTodayStatsRefresh.value = false
   await baseReload()
   await refreshTodayStatsBatch()
+  refreshAICreditsTotal()
 }
 
 const debouncedReload = () => {

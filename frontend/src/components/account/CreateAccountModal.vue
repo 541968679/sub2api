@@ -45,7 +45,7 @@
       @submit.prevent="handleSubmit"
       class="space-y-5"
     >
-      <div>
+      <div v-if="!(form.platform === 'antigravity' && useEmailAsName)">
         <label class="input-label">{{ t('admin.accounts.accountName') }}</label>
         <input
           v-model="form.name"
@@ -2440,6 +2440,18 @@
             </div>
           </div>
         </div>
+        <div v-if="form.platform === 'antigravity'" class="mt-3 flex items-center gap-2">
+          <label class="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              v-model="useEmailAsName"
+              class="h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+            />
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t('admin.accounts.useEmailAsName') }}
+            </span>
+          </label>
+        </div>
 
         <!-- Group Selection - 仅标准模式显示 -->
         <GroupSelector
@@ -2982,6 +2994,7 @@ const codexCLIOnlyEnabled = ref(false)
 const anthropicPassthroughEnabled = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
+const useEmailAsName = ref(false) // For antigravity batch import: use email as account name
 const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigravity: oauth or upstream
 const upstreamBaseUrl = ref('') // For upstream type: base URL
 const upstreamApiKey = ref('') // For upstream type: API key
@@ -3710,6 +3723,7 @@ const resetForm = () => {
   customBaseUrlEnabled.value = false
   customBaseUrl.value = ''
   allowOverages.value = false
+  useEmailAsName.value = false
   antigravityAccountType.value = 'oauth'
   upstreamBaseUrl.value = ''
   upstreamApiKey.value = ''
@@ -4325,8 +4339,10 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
 
         const credentials = antigravityOAuth.buildCredentials(tokenInfo)
         
-        // Generate account name with index for batch
-        const accountName = refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
+        // Generate account name: use email if option enabled, otherwise use name with index
+        const accountName = useEmailAsName.value && tokenInfo.email
+          ? tokenInfo.email
+          : refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
 
         const createPayload = withAntigravityConfirmFlag({
           name: accountName,
@@ -4448,6 +4464,9 @@ const handleAntigravityExchange = async (authCode: string) => {
 		)
 		if (antigravityModelMapping) {
 			credentials.model_mapping = antigravityModelMapping
+		}
+		if (useEmailAsName.value && tokenInfo.email) {
+			form.name = tokenInfo.email
 		}
 		const extra = buildAntigravityExtra()
 		await createAccountAndFinish('antigravity', 'oauth', credentials, extra)

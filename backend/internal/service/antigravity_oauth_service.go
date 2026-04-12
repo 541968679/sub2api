@@ -227,6 +227,11 @@ func (s *AntigravityOAuthService) ValidateRefreshToken(ctx context.Context, refr
 		return nil, err
 	}
 
+	// Google OAuth 刷新时通常不返回新的 refresh_token，需要回填用户传入的原始值
+	if tokenInfo.RefreshToken == "" {
+		tokenInfo.RefreshToken = refreshToken
+	}
+
 	// 获取用户信息（email）
 	client, err := antigravity.NewClient(proxyURL)
 	if err != nil {

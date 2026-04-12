@@ -528,7 +528,13 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 		}
 	}
 	if search != "" {
-		q = q.Where(dbaccount.NameContainsFold(search))
+		q = q.Where(dbpredicate.Account(func(s *entsql.Selector) {
+			s.Where(entsql.Or(
+				entsql.ContainsFold(s.C(dbaccount.FieldName), search),
+				sqljson.StringContains(dbaccount.FieldCredentials, strings.ToLower(search), sqljson.Path("email")),
+				sqljson.StringContains(dbaccount.FieldExtra, strings.ToLower(search), sqljson.Path("email_address")),
+			))
+		}))
 	}
 	if groupID == service.AccountListGroupUngrouped {
 		q = q.Where(dbaccount.Not(dbaccount.HasAccountGroups()))
