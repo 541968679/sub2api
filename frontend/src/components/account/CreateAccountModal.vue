@@ -3843,7 +3843,7 @@ const normalizePoolModeRetryCount = (value: number) => {
 const handleSubmit = async () => {
   // For OAuth-based type, handle OAuth flow (goes to step 2)
   if (isOAuthFlow.value) {
-    if (!form.name.trim()) {
+    if (!useEmailAsName.value && !form.name.trim()) {
       appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
       return
     }
@@ -3917,7 +3917,7 @@ const handleSubmit = async () => {
 
   // For Antigravity upstream type, create directly
   if (form.platform === 'antigravity' && antigravityAccountType.value === 'upstream') {
-    if (!form.name.trim()) {
+    if (!useEmailAsName.value && !form.name.trim()) {
       appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
       return
     }
