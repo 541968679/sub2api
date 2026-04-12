@@ -556,6 +556,20 @@ export async function getAntigravityDefaultModelMapping(): Promise<Record<string
 }
 
 /**
+ * Update Antigravity default model mapping
+ * @param mapping - Model mapping (from -> to)
+ */
+export async function updateAntigravityDefaultModelMapping(
+  mapping: Record<string, string>
+): Promise<Record<string, string>> {
+  const { data } = await apiClient.put<Record<string, string>>(
+    '/admin/accounts/antigravity/default-model-mapping',
+    mapping
+  )
+  return data
+}
+
+/**
  * Refresh OpenAI token using refresh token
  * @param refreshToken - The refresh token
  * @param proxyId - Optional proxy ID
@@ -661,6 +675,7 @@ export const accountsAPI = {
   exportData,
   importData,
   getAntigravityDefaultModelMapping,
+  updateAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
   setPrivacy

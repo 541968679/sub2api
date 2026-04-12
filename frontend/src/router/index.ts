@@ -372,6 +372,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/model-config',
+    name: 'AdminModelConfig',
+    component: () => import('@/views/admin/ModelConfigView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Model Config',
+      titleKey: 'admin.modelConfig.title',
+      descriptionKey: 'admin.modelConfig.description'
+    }
+  },
+  {
     path: '/admin/announcements',
     name: 'AdminAnnouncements',
     component: () => import('@/views/admin/AnnouncementsView.vue'),

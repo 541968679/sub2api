@@ -340,6 +340,7 @@ export default {
     channels: 'Channels',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
+    modelConfig: 'Model Config',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
     ops: 'Ops',
@@ -1951,6 +1952,23 @@ export default {
         },
         tip: 'Tip: Only groups with billing type "Subscription" and status "Active" appear in the group dropdown. If no options are available, create one in Group Management first.'
       }
+    },
+
+    // Model Config
+    modelConfig: {
+      title: 'Model Config',
+      description: 'Manage global default model mappings per platform',
+      antigravityMapping: 'Antigravity Default Model Mapping',
+      antigravityMappingHint: 'Applies to all Antigravity accounts without custom mappings. Per-account custom mappings take priority.',
+      addMapping: 'Add Mapping',
+      mappingCount: 'mappings',
+      requestedModel: 'Requested model',
+      upstreamModel: 'Upstream model',
+      noMappings: 'No mappings configured',
+      resetToDefault: 'Reset to Built-in Default',
+      confirmReset: 'Reset to built-in default mapping? Custom configuration will be cleared.',
+      resetSuccess: 'Reset to built-in default mapping',
+      saved: 'Model mapping saved',
     },
 
     // Accounts

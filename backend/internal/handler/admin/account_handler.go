@@ -58,6 +58,7 @@ type AccountHandler struct {
 	sessionLimitCache       service.SessionLimitCache
 	rpmCache                service.RPMCache
 	tokenCacheInvalidator   service.TokenCacheInvalidator
+	settingService          *service.SettingService
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -75,6 +76,7 @@ func NewAccountHandler(
 	sessionLimitCache service.SessionLimitCache,
 	rpmCache service.RPMCache,
 	tokenCacheInvalidator service.TokenCacheInvalidator,
+	settingService *service.SettingService,
 ) *AccountHandler {
 	return &AccountHandler{
 		adminService:            adminService,
@@ -90,6 +92,7 @@ func NewAccountHandler(
 		sessionLimitCache:       sessionLimitCache,
 		rpmCache:                rpmCache,
 		tokenCacheInvalidator:   tokenCacheInvalidator,
+		settingService:          settingService,
 	}
 }
 
@@ -2127,7 +2130,26 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) {
 // GetAntigravityDefaultModelMapping 获取 Antigravity 平台的默认模型映射
 // GET /api/v1/admin/accounts/antigravity/default-model-mapping
 func (h *AccountHandler) GetAntigravityDefaultModelMapping(c *gin.Context) {
-	response.Success(c, domain.DefaultAntigravityModelMapping)
+	mapping := h.settingService.GetAntigravityDefaultModelMapping(c.Request.Context())
+	if mapping == nil {
+		mapping = domain.DefaultAntigravityModelMapping
+	}
+	response.Success(c, mapping)
+}
+
+// UpdateAntigravityDefaultModelMapping 更新 Antigravity 平台的全局默认模型映射
+// PUT /api/v1/admin/accounts/antigravity/default-model-mapping
+func (h *AccountHandler) UpdateAntigravityDefaultModelMapping(c *gin.Context) {
+	var mapping map[string]string
+	if err := c.ShouldBindJSON(&mapping); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetAntigravityDefaultModelMapping(c.Request.Context(), mapping); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, mapping)
 }
 
 // sanitizeExtraBaseRPM 对 extra map 中的 base_rpm 值进行范围校验和归一化。

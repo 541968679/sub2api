@@ -166,6 +166,9 @@ const (
 	SettingKeyFallbackModelGemini      = "fallback_model_gemini"
 	SettingKeyFallbackModelAntigravity = "fallback_model_antigravity"
 
+	// Global default model mappings (stored as JSON in settings table)
+	SettingKeyAntigravityDefaultModelMapping = "antigravity_default_model_mapping"
+
 	// Request identity patch (Claude -> Gemini systemInstruction injection)
 	SettingKeyEnableIdentityPatch = "enable_identity_patch"
 	SettingKeyIdentityPatchPrompt = "identity_patch_prompt"

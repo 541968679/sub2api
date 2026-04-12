@@ -340,6 +340,7 @@ export default {
     channels: '渠道管理',
     subscriptions: '订阅管理',
     accounts: '账号管理',
+    modelConfig: '模型配置',
     proxies: 'IP管理',
     redeemCodes: '兑换码',
     ops: '运维监控',
@@ -2029,6 +2030,23 @@ export default {
         },
         tip: '提示：订阅分组下拉列表中只会显示计费类型为「订阅」且状态为「正常」的分组。如果没有可选项，请先到分组管理中创建。'
       }
+    },
+
+    // Model Config
+    modelConfig: {
+      title: '模型配置',
+      description: '管理各平台的全局默认模型映射',
+      antigravityMapping: 'Antigravity 默认模型映射',
+      antigravityMappingHint: '对所有未配置自定义映射的 Antigravity 账号生效。单个账号的自定义映射优先级更高。',
+      addMapping: '添加映射',
+      mappingCount: '条映射',
+      requestedModel: '请求模型名',
+      upstreamModel: '上游模型名',
+      noMappings: '暂无映射配置',
+      resetToDefault: '重置为内置默认',
+      confirmReset: '确定重置为内置默认映射？当前自定义配置将被清除。',
+      resetSuccess: '已重置为内置默认映射',
+      saved: '模型映射保存成功',
     },
 
     // Accounts Management

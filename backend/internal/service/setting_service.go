@@ -2126,3 +2126,29 @@ func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings 
 
 	return s.settingRepo.Set(ctx, SettingKeyStreamTimeoutSettings, string(data))
 }
+
+// GetAntigravityDefaultModelMapping 获取全局 Antigravity 默认模型映射（settings 表优先，否则返回内置常量）
+func (s *SettingService) GetAntigravityDefaultModelMapping(ctx context.Context) map[string]string {
+	val, err := s.settingRepo.GetValue(ctx, SettingKeyAntigravityDefaultModelMapping)
+	if err != nil || strings.TrimSpace(val) == "" {
+		return nil // 调用方应回退到 domain.DefaultAntigravityModelMapping
+	}
+	var mapping map[string]string
+	if err := json.Unmarshal([]byte(val), &mapping); err != nil {
+		slog.Warn("failed to parse antigravity default model mapping from settings", "error", err)
+		return nil
+	}
+	if len(mapping) == 0 {
+		return nil
+	}
+	return mapping
+}
+
+// SetAntigravityDefaultModelMapping 保存全局 Antigravity 默认模型映射到 settings 表
+func (s *SettingService) SetAntigravityDefaultModelMapping(ctx context.Context, mapping map[string]string) error {
+	data, err := json.Marshal(mapping)
+	if err != nil {
+		return fmt.Errorf("marshal antigravity default model mapping: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyAntigravityDefaultModelMapping, string(data))
+}

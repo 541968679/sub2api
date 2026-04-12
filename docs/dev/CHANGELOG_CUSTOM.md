@@ -19,6 +19,23 @@
 
 ## 变更记录
 
+## [2026-04-12] feat: 独立"模型配置"管理页面 — Antigravity 全局默认映射
+
+**影响范围**: 前后端多文件
+**上游兼容性**: 中风险，新增文件为主，但修改了 account.go 的默认映射回退逻辑和 wire_gen.go
+**变更详情**:
+- 后端: 新增 setting key `antigravity_default_model_mapping`，存储在 settings 表
+- 后端: SettingService 新增 Get/Set 方法
+- 后端: AccountHandler 新增 PUT API，修改 GET API 优先读 settings
+- 后端: domain.constants.go 新增 `GetAntigravityDefaultMappingOverride` 函数变量
+- 后端: account.go 中 `resolveModelMapping` 改为调用 `domain.ResolveAntigravityDefaultMapping()`
+- 后端: wire_gen.go 注入 override 函数 + settingService 传入 AccountHandler
+- 前端: 新建 ModelConfigView.vue（独立页面，管理员可见）
+- 前端: 新增路由 `/admin/model-config`、侧边栏菜单项
+- 前端: accounts API 新增 `updateAntigravityDefaultModelMapping`
+- 前端: zh.ts/en.ts 新增 modelConfig i18n 文本
+- 优先级: 单账号自定义映射 > 全局映射（settings）> 内置默认（constants.go）
+
 ## [2026-04-12] fix: Antigravity 批量创建账号 allow_overages 未生效
 
 **影响范围**: frontend/src/components/account/CreateAccountModal.vue
