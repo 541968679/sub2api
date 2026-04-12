@@ -1025,7 +1025,8 @@ type TestConnectionResult struct {
 // TestConnection 测试 Antigravity 账号连接。
 // 复用 antigravityRetryLoop 的完整重试 / credits overages / 智能重试逻辑，
 // 与真实调度行为一致。差异：不做账号切换（测试指定账号）、不记录 ops 错误。
-func (s *AntigravityGatewayService) TestConnection(ctx context.Context, account *Account, modelID string) (*TestConnectionResult, error) {
+// prompt 为空时使用最小 token 消耗的默认请求（"." + MaxTokens:1）。
+func (s *AntigravityGatewayService) TestConnection(ctx context.Context, account *Account, modelID string, prompt ...string) (*TestConnectionResult, error) {
 
 	// 获取 token
 	if s.tokenProvider == nil {
@@ -1046,9 +1047,19 @@ func (s *AntigravityGatewayService) TestConnection(ctx context.Context, account 
 	}
 
 	// 构建请求体
+	customPrompt := ""
+	if len(prompt) > 0 && prompt[0] != "" {
+		customPrompt = prompt[0]
+	}
 	var requestBody []byte
 	if strings.HasPrefix(modelID, "gemini-") {
-		requestBody, err = s.buildGeminiTestRequest(projectID, mappedModel)
+		if customPrompt != "" {
+			requestBody, err = s.buildGeminiTestRequestWithPrompt(projectID, mappedModel, customPrompt)
+		} else {
+			requestBody, err = s.buildGeminiTestRequest(projectID, mappedModel)
+		}
+	} else if customPrompt != "" {
+		requestBody, err = s.buildClaudeTestRequestWithPrompt(projectID, mappedModel, customPrompt)
 	} else {
 		requestBody, err = s.buildClaudeTestRequest(projectID, mappedModel)
 	}
@@ -1147,6 +1158,30 @@ func (s *AntigravityGatewayService) buildGeminiTestRequest(projectID, model stri
 	return s.wrapV1InternalRequest(projectID, model, payloadBytes)
 }
 
+// buildGeminiTestRequestWithPrompt 构建带自定义 prompt 的 Gemini 格式测试请求
+func (s *AntigravityGatewayService) buildGeminiTestRequestWithPrompt(projectID, model, prompt string) ([]byte, error) {
+	payload := map[string]any{
+		"contents": []map[string]any{
+			{
+				"role": "user",
+				"parts": []map[string]any{
+					{"text": prompt},
+				},
+			},
+		},
+		"systemInstruction": map[string]any{
+			"parts": []map[string]any{
+				{"text": antigravity.GetDefaultIdentityPatch()},
+			},
+		},
+		"generationConfig": map[string]any{
+			"maxOutputTokens": 256,
+		},
+	}
+	payloadBytes, _ := json.Marshal(payload)
+	return s.wrapV1InternalRequest(projectID, model, payloadBytes)
+}
+
 // buildClaudeTestRequest 构建 Claude 格式测试请求并转换为 Gemini 格式
 // 使用最小 token 消耗：输入 "." + MaxTokens: 1
 func (s *AntigravityGatewayService) buildClaudeTestRequest(projectID, mappedModel string) ([]byte, error) {
@@ -1159,6 +1194,26 @@ func (s *AntigravityGatewayService) buildClaudeTestRequest(projectID, mappedMode
 			},
 		},
 		MaxTokens: 1,
+		Stream:    false,
+	}
+	return antigravity.TransformClaudeToGemini(claudeReq, projectID, mappedModel)
+}
+
+// buildClaudeTestRequestWithPrompt 构建带自定义 prompt 的 Claude 格式测试请求
+func (s *AntigravityGatewayService) buildClaudeTestRequestWithPrompt(projectID, mappedModel, prompt string) ([]byte, error) {
+	contentJSON, err := json.Marshal(prompt)
+	if err != nil {
+		return nil, fmt.Errorf("marshal prompt: %w", err)
+	}
+	claudeReq := &antigravity.ClaudeRequest{
+		Model: mappedModel,
+		Messages: []antigravity.ClaudeMessage{
+			{
+				Role:    "user",
+				Content: json.RawMessage(contentJSON),
+			},
+		},
+		MaxTokens: 256,
 		Stream:    false,
 	}
 	return antigravity.TransformClaudeToGemini(claudeReq, projectID, mappedModel)
