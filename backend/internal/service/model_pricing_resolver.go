@@ -8,6 +8,7 @@ import (
 // PricingSource 定价来源标识
 const (
 	PricingSourceChannel  = "channel"
+	PricingSourceGlobal   = "global"
 	PricingSourceLiteLLM  = "litellm"
 	PricingSourceFallback = "fallback"
 )
@@ -37,17 +38,19 @@ type ResolvedPricing struct {
 }
 
 // ModelPricingResolver 统一模型定价解析器。
-// 解析链：Channel → LiteLLM → Fallback。
+// 解析链：Channel → Global → LiteLLM → Fallback。
 type ModelPricingResolver struct {
-	channelService *ChannelService
-	billingService *BillingService
+	channelService     *ChannelService
+	billingService     *BillingService
+	globalPricingRepo  GlobalModelPricingRepository // 可选，nil 时跳过全局覆盖
 }
 
 // NewModelPricingResolver 创建定价解析器实例
-func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService) *ModelPricingResolver {
+func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, globalPricingRepo GlobalModelPricingRepository) *ModelPricingResolver {
 	return &ModelPricingResolver{
-		channelService: channelService,
-		billingService: billingService,
+		channelService:    channelService,
+		billingService:    billingService,
+		globalPricingRepo: globalPricingRepo,
 	}
 }
 
@@ -79,8 +82,20 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	return resolved
 }
 
-// resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
+// resolveBasePricing 获取基础定价：Global → LiteLLM → Fallback
 func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, string) {
+	// 1. 尝试全局覆盖（新增，可选）
+	if r.globalPricingRepo != nil {
+		gp, err := r.globalPricingRepo.GetByModel(context.Background(), model)
+		if err != nil {
+			slog.Debug("failed to check global model pricing override",
+				"model", model, "error", err)
+		} else if gp != nil && gp.Enabled {
+			return gp.ToModelPricing(), PricingSourceGlobal
+		}
+	}
+
+	// 2. 尝试 LiteLLM（现有）
 	pricing, err := r.billingService.GetModelPricing(model)
 	if err != nil {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback",

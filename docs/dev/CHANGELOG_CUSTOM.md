@@ -19,6 +19,21 @@
 
 ## 变更记录
 
+## [2026-04-12] feat: 统一模型定价管理界面
+
+**影响范围**: backend(migrations, service, repository, handler, routes, wire), frontend(views, components, api, i18n)
+**上游兼容性**: 低风险，新增功能，不修改现有计费逻辑
+**变更详情**:
+- 新增 `global_model_pricing` 数据库表，支持管理员设置全局模型定价覆盖
+- 定价解析链扩展为：Channel → Global → LiteLLM → Fallback（向下兼容，表为空时行为不变）
+- 后端新增 GlobalModelPricingRepository、GlobalModelPricingService、ModelPricingHandler
+- 新增 API 端点 GET/POST/PUT/DELETE /admin/model-pricing，含费率乘数概览
+- PricingService 新增 GetAllModels() 方法供管理后台展示所有 LiteLLM 模型
+- 前端模型配置页改为 Tab 布局：模型定价（新增）| 模型映射（现有）| 费率概览（新增）
+- 模型定价 Tab：全模型列表 + 搜索/筛选 + 全局覆盖编辑弹窗 + 渠道覆盖展示
+- 费率概览 Tab：只读展示各分组费率乘数，链接到分组管理页
+- 中英文 i18n 翻译完整
+
 ## [2026-04-12] feat: 模型配置页面添加模型测试功能
 
 **影响范围**: frontend/src/views/admin/ModelConfigView.vue, i18n

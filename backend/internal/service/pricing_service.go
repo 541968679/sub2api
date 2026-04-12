@@ -826,6 +826,29 @@ func (s *PricingService) generateOpenAIModelVariants(model string, datePattern *
 	return variants
 }
 
+// LiteLLMModelEntry 用于管理后台展示的 LiteLLM 模型条目
+type LiteLLMModelEntry struct {
+	Model    string              // 模型名称
+	Provider string              // 平台标识
+	Pricing  *LiteLLMModelPricing // 定价数据
+}
+
+// GetAllModels 获取所有已加载的 LiteLLM 模型名称和定价数据（管理后台用）
+func (s *PricingService) GetAllModels() []LiteLLMModelEntry {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]LiteLLMModelEntry, 0, len(s.pricingData))
+	for name, pricing := range s.pricingData {
+		result = append(result, LiteLLMModelEntry{
+			Model:    name,
+			Provider: pricing.LiteLLMProvider,
+			Pricing:  pricing,
+		})
+	}
+	return result
+}
+
 // GetStatus 获取服务状态
 func (s *PricingService) GetStatus() map[string]any {
 	s.mu.RLock()
