@@ -211,10 +211,15 @@ async function loadAccounts() {
   try {
     const resp = await adminAPI.accounts.list(1, 100, { platform: 'antigravity' })
     const items = resp.items || []
-    antigravityAccounts.value = items.filter((a: Account) => a.status === 'active')
+    antigravityAccounts.value = items.filter((a: Account) =>
+      a.status === 'active' &&
+      a.schedulable &&
+      !a.error_message &&
+      !a.temp_unschedulable_until &&
+      !a.rate_limited_at
+    )
     if (antigravityAccounts.value.length > 0 && !testAccountId.value) {
-      const schedulable = antigravityAccounts.value.find(a => a.schedulable)
-      testAccountId.value = (schedulable || antigravityAccounts.value[0]).id
+      testAccountId.value = antigravityAccounts.value[0].id
     }
   } catch { /* ignore */ }
 }
