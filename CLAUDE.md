@@ -8,6 +8,14 @@ Sub2API is an AI API gateway platform that aggregates multiple AI subscription a
 - **License**: MIT
 - **Run Modes**: `standard` (full SaaS with billing) / `simple` (internal use, no billing)
 
+## Quick Reference
+
+- `docs/dev/codebase/` — 结构化代码地图（按模块拆分，探索结果沉淀，修改前先读）
+- `docs/dev/CHANGELOG_CUSTOM.md` — 二开变更日志
+- `docs/dev/DEPLOYMENT.md` — 部署运维手册
+- `docs/dev/SECONDARY_DEV.md` — 二开指南
+- `DEV_GUIDE.md` — 开发环境配置和常见坑点
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -110,13 +118,14 @@ make secret-scan          # Python security scanner
 
 1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. Push to origin after commit.
 2. **Every change must be logged** — append an entry to `docs/dev/CHANGELOG_CUSTOM.md` describing what changed, why, and which files were affected.
-3. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
-4. **pnpm-lock.yaml must be committed** — CI uses `--frozen-lockfile`.
-5. **Ent schema changes** → run `go generate ./ent` and commit generated files.
-6. **Wire DI changes** → run `go generate ./cmd/server` and commit `wire_gen.go`.
-7. **Interface changes** → update ALL test stubs/mocks that implement the interface.
-8. **Frontend embeds into backend** — `pnpm build` output goes to `backend/internal/web/dist`, compiled into the Go binary with `-tags embed`.
-9. **Windows dev notes**: use `127.0.0.1` not `localhost` for psql; no Chinese paths for psql; no native `make` (use raw commands).
+3. **Exploration results → Codebase Map** — after deep exploration of a module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code.
+4. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
+5. **pnpm-lock.yaml must be committed** — CI uses `--frozen-lockfile`.
+6. **Ent schema changes** → run `go generate ./ent` and commit generated files.
+7. **Wire DI changes** → run `go generate ./cmd/server` and commit `wire_gen.go`.
+8. **Interface changes** → update ALL test stubs/mocks that implement the interface.
+9. **Frontend embeds into backend** — `pnpm build` output goes to `backend/internal/web/dist`, compiled into the Go binary with `-tags embed`.
+10. **Windows dev notes**: use `127.0.0.1` not `localhost` for psql; no Chinese paths for psql; no native `make` (use raw commands).
 
 ## Configuration
 
