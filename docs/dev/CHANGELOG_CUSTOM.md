@@ -19,6 +19,16 @@
 
 ## 变更记录
 
+## [2026-04-12] feat: 模型配置页面添加模型测试功能
+
+**影响范围**: frontend/src/views/admin/ModelConfigView.vue, i18n
+**上游兼容性**: 低风险，仅前端改动
+**变更详情**:
+- ModelConfigView 改为左右布局：左侧映射配置，右侧模型测试
+- 测试区域：账号选择（自动选第一个可用，可手动切换）、模型下拉、提示词输入
+- 复用 POST /admin/accounts/:id/test API，SSE 流式展示上游响应
+- 终端风格输出区域，色彩区分（cyan=信息, green=内容, red=错误, emerald=成功）
+
 ## [2026-04-12] feat: 独立"模型配置"管理页面 — Antigravity 全局默认映射
 
 **影响范围**: 前后端多文件

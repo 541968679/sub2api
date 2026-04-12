@@ -1969,6 +1969,15 @@ export default {
       confirmReset: 'Reset to built-in default mapping? Custom configuration will be cleared.',
       resetSuccess: 'Reset to built-in default mapping',
       saved: 'Model mapping saved',
+      testTitle: 'Model Test',
+      testHint: 'Select a model and account to send a test request',
+      testAccount: 'Test Account',
+      selectModel: 'Select Model',
+      testPrompt: 'Prompt',
+      testPromptPlaceholder: 'Enter test prompt...',
+      sendTest: 'Send Test',
+      testing: 'Testing...',
+      noAccounts: 'No available Antigravity accounts',
     },
 
     // Accounts

@@ -2047,6 +2047,15 @@ export default {
       confirmReset: '确定重置为内置默认映射？当前自定义配置将被清除。',
       resetSuccess: '已重置为内置默认映射',
       saved: '模型映射保存成功',
+      testTitle: '模型测试',
+      testHint: '选择模型和账号，发送请求验证上游返回',
+      testAccount: '测试账号',
+      selectModel: '选择模型',
+      testPrompt: '提示词',
+      testPromptPlaceholder: '输入测试提示词...',
+      sendTest: '发送测试',
+      testing: '测试中...',
+      noAccounts: '无可用的 Antigravity 账号',
     },
 
     // Accounts Management

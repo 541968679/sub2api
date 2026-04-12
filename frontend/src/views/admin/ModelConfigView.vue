@@ -1,87 +1,119 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+    <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('admin.modelConfig.title') }}</h1>
         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.modelConfig.description') }}</p>
       </div>
 
-      <!-- Antigravity Default Model Mapping -->
-      <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-        <div class="mb-4 flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-              {{ t('admin.modelConfig.antigravityMapping') }}
-            </h2>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.modelConfig.antigravityMappingHint') }}
-            </p>
-          </div>
-          <div class="flex gap-2">
-            <button
-              @click="resetToBuiltin"
-              class="btn btn-secondary text-sm"
-              :disabled="saving"
-            >
-              {{ t('admin.modelConfig.resetToDefault') }}
-            </button>
-            <button
-              @click="saveMapping"
-              class="btn btn-primary text-sm"
-              :disabled="saving || !hasChanges"
-            >
-              <span v-if="saving" class="mr-1.5 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-              {{ t('common.save') }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Loading -->
-        <div v-if="loading" class="flex items-center justify-center py-12">
-          <span class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></span>
-        </div>
-
-        <!-- Mapping Table -->
-        <div v-else>
-          <div class="mb-3 flex items-center gap-2">
-            <button @click="addRow" class="btn btn-secondary text-xs px-2 py-1">
-              + {{ t('admin.modelConfig.addMapping') }}
-            </button>
-            <span class="text-xs text-gray-400">{{ mappings.length }} {{ t('admin.modelConfig.mappingCount') }}</span>
-          </div>
-
-          <div class="space-y-2 max-h-[60vh] overflow-y-auto">
-            <div
-              v-for="(row, index) in mappings"
-              :key="index"
-              class="flex items-center gap-2"
-            >
-              <input
-                v-model="row.from"
-                type="text"
-                class="input flex-1 text-sm"
-                :placeholder="t('admin.modelConfig.requestedModel')"
-              />
-              <span class="text-gray-400 dark:text-gray-500">&rarr;</span>
-              <input
-                v-model="row.to"
-                type="text"
-                class="input flex-1 text-sm"
-                :placeholder="t('admin.modelConfig.upstreamModel')"
-              />
-              <button
-                @click="removeRow(index)"
-                class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+      <div class="flex gap-6">
+        <!-- Left: Mapping Config -->
+        <div class="flex-1 min-w-0 rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div class="mb-4 flex items-center justify-between">
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t('admin.modelConfig.antigravityMapping') }}
+              </h2>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.modelConfig.antigravityMappingHint') }}
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <button @click="resetToBuiltin" class="btn btn-secondary text-sm" :disabled="saving">
+                {{ t('admin.modelConfig.resetToDefault') }}
+              </button>
+              <button @click="saveMapping" class="btn btn-primary text-sm" :disabled="saving || !hasChanges">
+                <span v-if="saving" class="mr-1.5 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+                {{ t('common.save') }}
               </button>
             </div>
           </div>
 
-          <div v-if="mappings.length === 0" class="py-8 text-center text-sm text-gray-400">
-            {{ t('admin.modelConfig.noMappings') }}
+          <div v-if="loading" class="flex items-center justify-center py-12">
+            <span class="h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></span>
+          </div>
+
+          <div v-else>
+            <div class="mb-3 flex items-center gap-2">
+              <button @click="addRow" class="btn btn-secondary text-xs px-2 py-1">
+                + {{ t('admin.modelConfig.addMapping') }}
+              </button>
+              <span class="text-xs text-gray-400">{{ mappings.length }} {{ t('admin.modelConfig.mappingCount') }}</span>
+            </div>
+
+            <div class="space-y-2 max-h-[60vh] overflow-y-auto">
+              <div v-for="(row, index) in mappings" :key="index" class="flex items-center gap-2">
+                <input v-model="row.from" type="text" class="input flex-1 text-sm" :placeholder="t('admin.modelConfig.requestedModel')" />
+                <span class="text-gray-400 dark:text-gray-500">&rarr;</span>
+                <input v-model="row.to" type="text" class="input flex-1 text-sm" :placeholder="t('admin.modelConfig.upstreamModel')" />
+                <button @click="removeRow(index)" class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="mappings.length === 0" class="py-8 text-center text-sm text-gray-400">
+              {{ t('admin.modelConfig.noMappings') }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Model Test -->
+        <div class="w-96 flex-shrink-0 rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.modelConfig.testTitle') }}
+          </h2>
+
+          <!-- Account Select -->
+          <div class="mb-3">
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.modelConfig.testAccount') }}</label>
+            <select v-model="testAccountId" class="input text-sm w-full" :disabled="testRunning">
+              <option v-if="antigravityAccounts.length === 0" :value="0">{{ t('admin.modelConfig.noAccounts') }}</option>
+              <option v-for="acc in antigravityAccounts" :key="acc.id" :value="acc.id">
+                {{ acc.credentials?.email || acc.name }} (ID: {{ acc.id }})
+              </option>
+            </select>
+          </div>
+
+          <!-- Model Select -->
+          <div class="mb-3">
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.modelConfig.selectModel') }}</label>
+            <select v-model="testModelId" class="input text-sm w-full" :disabled="testRunning">
+              <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+            </select>
+          </div>
+
+          <!-- Prompt -->
+          <div class="mb-3">
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.modelConfig.testPrompt') }}</label>
+            <textarea
+              v-model="testPrompt"
+              rows="2"
+              class="input w-full text-sm resize-none"
+              :placeholder="t('admin.modelConfig.testPromptPlaceholder')"
+              :disabled="testRunning"
+            ></textarea>
+          </div>
+
+          <!-- Send Button -->
+          <button
+            @click="runTest"
+            class="btn btn-primary w-full text-sm mb-3"
+            :disabled="testRunning || !testAccountId || !testModelId"
+          >
+            <span v-if="testRunning" class="mr-1.5 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
+            {{ testRunning ? t('admin.modelConfig.testing') : t('admin.modelConfig.sendTest') }}
+          </button>
+
+          <!-- Output Terminal -->
+          <div
+            ref="terminalRef"
+            class="rounded-md bg-gray-900 p-3 text-xs font-mono text-green-400 max-h-[40vh] overflow-y-auto whitespace-pre-wrap"
+          >
+            <div v-if="testOutput.length === 0" class="text-gray-500">{{ t('admin.modelConfig.testHint') }}</div>
+            <div v-for="(line, i) in testOutput" :key="i" :class="line.cls">{{ line.text }}</div>
           </div>
         </div>
       </div>
@@ -90,45 +122,40 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { AppLayout } from '@/components/layout'
+import type { Account } from '@/types'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const authStore = useAuthStore()
 
-interface MappingRow {
-  from: string
-  to: string
-}
+// ===================== Mapping Config =====================
+interface MappingRow { from: string; to: string }
 
 const loading = ref(true)
 const saving = ref(false)
 const mappings = ref<MappingRow[]>([])
 const originalJson = ref('')
 
-const hasChanges = computed(() => {
-  return JSON.stringify(toRecord()) !== originalJson.value
-})
+const hasChanges = computed(() => JSON.stringify(toRecord()) !== originalJson.value)
 
 function toRecord(): Record<string, string> {
   const result: Record<string, string> = {}
   for (const row of mappings.value) {
     const from = row.from.trim()
     const to = row.to.trim()
-    if (from && to) {
-      result[from] = to
-    }
+    if (from && to) result[from] = to
   }
   return result
 }
 
 function fromRecord(record: Record<string, string>): MappingRow[] {
-  return Object.entries(record)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([from, to]) => ({ from, to }))
+  return Object.entries(record).sort(([a], [b]) => a.localeCompare(b)).map(([from, to]) => ({ from, to }))
 }
 
 async function loadMapping() {
@@ -137,11 +164,8 @@ async function loadMapping() {
     const data = await adminAPI.accounts.getAntigravityDefaultModelMapping()
     mappings.value = fromRecord(data)
     originalJson.value = JSON.stringify(data)
-  } catch (e) {
-    appStore.showError(t('common.error'))
-  } finally {
-    loading.value = false
-  }
+  } catch { appStore.showError(t('common.error')) }
+  finally { loading.value = false }
 }
 
 async function saveMapping() {
@@ -151,35 +175,140 @@ async function saveMapping() {
     await adminAPI.accounts.updateAntigravityDefaultModelMapping(record)
     originalJson.value = JSON.stringify(record)
     appStore.showSuccess(t('admin.modelConfig.saved'))
-  } catch (e) {
-    appStore.showError(t('common.error'))
-  } finally {
-    saving.value = false
-  }
+  } catch { appStore.showError(t('common.error')) }
+  finally { saving.value = false }
 }
 
 async function resetToBuiltin() {
   if (!confirm(t('admin.modelConfig.confirmReset'))) return
   saving.value = true
   try {
-    // Send empty object to clear custom mapping, backend will fall back to builtin
     await adminAPI.accounts.updateAntigravityDefaultModelMapping({})
     await loadMapping()
     appStore.showSuccess(t('admin.modelConfig.resetSuccess'))
-  } catch (e) {
-    appStore.showError(t('common.error'))
+  } catch { appStore.showError(t('common.error')) }
+  finally { saving.value = false }
+}
+
+function addRow() { mappings.value.push({ from: '', to: '' }) }
+function removeRow(index: number) { mappings.value.splice(index, 1) }
+
+// ===================== Model Test =====================
+const antigravityAccounts = ref<Account[]>([])
+const testAccountId = ref<number>(0)
+const testModelId = ref('')
+const testPrompt = ref('Hello, please respond with one short sentence.')
+const testRunning = ref(false)
+const testOutput = ref<{ text: string; cls: string }[]>([])
+const terminalRef = ref<HTMLElement | null>(null)
+
+const modelOptions = computed(() => {
+  const models = mappings.value.map(r => r.from.trim()).filter(Boolean)
+  return [...new Set(models)].sort()
+})
+
+async function loadAccounts() {
+  try {
+    const resp = await adminAPI.accounts.list(1, 100, { platform: 'antigravity' })
+    const items = resp.items || []
+    antigravityAccounts.value = items.filter((a: Account) => a.status === 'active')
+    if (antigravityAccounts.value.length > 0 && !testAccountId.value) {
+      const schedulable = antigravityAccounts.value.find(a => a.schedulable)
+      testAccountId.value = (schedulable || antigravityAccounts.value[0]).id
+    }
+  } catch { /* ignore */ }
+}
+
+function appendOutput(text: string, cls = 'text-green-400') {
+  testOutput.value.push({ text, cls })
+  nextTick(() => {
+    if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight
+  })
+}
+
+async function runTest() {
+  if (!testAccountId.value || !testModelId.value) return
+  testRunning.value = true
+  testOutput.value = []
+
+  appendOutput(`> Model: ${testModelId.value}`, 'text-cyan-400')
+  appendOutput(`> Account: ${antigravityAccounts.value.find(a => a.id === testAccountId.value)?.credentials?.email || testAccountId.value}`, 'text-cyan-400')
+  appendOutput(`> Prompt: ${testPrompt.value}`, 'text-gray-500')
+  appendOutput('', 'text-gray-500')
+
+  try {
+    const token = authStore.token
+    const resp = await fetch(`/api/v1/admin/accounts/${testAccountId.value}/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ model_id: testModelId.value, prompt: testPrompt.value })
+    })
+
+    if (!resp.ok || !resp.body) {
+      appendOutput(`Error: HTTP ${resp.status}`, 'text-red-400')
+      return
+    }
+
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const jsonStr = line.slice(6).trim()
+        if (!jsonStr || jsonStr === '[DONE]') continue
+        try {
+          const event = JSON.parse(jsonStr)
+          if (event.type === 'content' && event.text) {
+            // Append to last content line or create new
+            const last = testOutput.value[testOutput.value.length - 1]
+            if (last && last.cls === 'text-green-400' && !last.text.startsWith('>')) {
+              last.text += event.text
+            } else {
+              appendOutput(event.text)
+            }
+            nextTick(() => {
+              if (terminalRef.value) terminalRef.value.scrollTop = terminalRef.value.scrollHeight
+            })
+          } else if (event.type === 'test_start') {
+            appendOutput(`> Testing model: ${event.model || testModelId.value}`, 'text-cyan-400')
+          } else if (event.type === 'test_complete') {
+            appendOutput('')
+            if (event.success) {
+              appendOutput('> Test passed', 'text-emerald-400')
+            } else {
+              appendOutput(`> Test failed: ${event.error || 'unknown'}`, 'text-red-400')
+            }
+          } else if (event.type === 'error') {
+            appendOutput(`> Error: ${event.error || event.text || 'unknown'}`, 'text-red-400')
+          }
+        } catch { /* skip malformed JSON */ }
+      }
+    }
+  } catch (e: any) {
+    appendOutput(`> Error: ${e.message || 'Connection failed'}`, 'text-red-400')
   } finally {
-    saving.value = false
+    testRunning.value = false
   }
 }
 
-function addRow() {
-  mappings.value.push({ from: '', to: '' })
-}
-
-function removeRow(index: number) {
-  mappings.value.splice(index, 1)
-}
-
-onMounted(loadMapping)
+// ===================== Init =====================
+onMounted(async () => {
+  await loadMapping()
+  await loadAccounts()
+  if (modelOptions.value.length > 0) {
+    testModelId.value = modelOptions.value[0]
+  }
+})
 </script>
