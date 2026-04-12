@@ -229,7 +229,7 @@ function removeRow(index: number) { mappings.value.splice(index, 1) }
 const antigravityAccounts = ref<Account[]>([])
 const testAccountId = ref<number>(0)
 const testModelId = ref('')
-const testPrompt = ref('Hello, please respond with one short sentence.')
+const testPrompt = ref('你好，你是什么模型')
 const testRunning = ref(false)
 const testOutput = ref<{ text: string; cls: string }[]>([])
 const terminalRef = ref<HTMLElement | null>(null)
