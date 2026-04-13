@@ -2728,7 +2728,16 @@ export default {
 	          aiStudioNotConfiguredTip:
 	            'AI Studio OAuth is not configured: set GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET and add Redirect URI: http://localhost:1455/auth/callback (Consent screen scopes must include https://www.googleapis.com/auth/generative-language.retriever)',
 	          aiStudioNotConfigured:
-	            'AI Studio OAuth is not configured: set GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET and add Redirect URI: http://localhost:1455/auth/callback'
+	            'AI Studio OAuth is not configured: set GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET and add Redirect URI: http://localhost:1455/auth/callback',
+	          // Refresh token bulk import (google_one only; RT must be issued by the built-in Gemini CLI OAuth client)
+	          refreshTokenAuth: 'Paste RT',
+	          refreshTokenDesc:
+	            'Paste your existing Google One Gemini refresh tokens (issued by the built-in Gemini CLI OAuth client), one per line. The system will validate each and create an account.',
+	          refreshTokenPlaceholder: 'Paste your Gemini Google One refresh token(s)...\nOne per line',
+	          validating: 'Validating...',
+	          validateAndCreate: 'Validate and create account',
+	          pleaseEnterRefreshToken: 'Please enter a refresh token',
+	          failedToValidateRT: 'Failed to validate refresh token'
 	        },
         // Antigravity specific
         antigravity: {

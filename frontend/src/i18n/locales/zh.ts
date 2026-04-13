@@ -2861,7 +2861,16 @@ export default {
           aiStudioNotConfiguredTip:
             'AI Studio OAuth 未配置：请先设置 GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET，并在 Google OAuth Client 添加 Redirect URI：http://localhost:1455/auth/callback（Consent Screen scopes 需包含 https://www.googleapis.com/auth/generative-language.retriever）',
           aiStudioNotConfigured:
-            'AI Studio OAuth 未配置：请先设置 GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET，并在 Google OAuth Client 添加 Redirect URI：http://localhost:1455/auth/callback'
+            'AI Studio OAuth 未配置：请先设置 GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET，并在 Google OAuth Client 添加 Redirect URI：http://localhost:1455/auth/callback',
+          // Refresh Token 批量导入（仅 google_one，RT 必须由内置 Gemini CLI OAuth client 签发）
+          refreshTokenAuth: '手动输入 RT',
+          refreshTokenDesc:
+            '输入您已有的 Google One Gemini Refresh Token（需由内置 Gemini CLI OAuth 客户端签发），支持批量输入（每行一个），系统将自动验证并创建账号。',
+          refreshTokenPlaceholder: '粘贴您的 Gemini Google One Refresh Token...\n支持多个，每行一个',
+          validating: '验证中...',
+          validateAndCreate: '验证并创建账号',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToValidateRT: '验证 Refresh Token 失败'
         },
         // Antigravity specific
         antigravity: {

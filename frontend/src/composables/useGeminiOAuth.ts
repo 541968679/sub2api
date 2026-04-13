@@ -13,6 +13,7 @@ export interface GeminiTokenInfo {
   project_id?: string
   oauth_type?: string
   tier_id?: string
+  email?: string
   extra?: Record<string, unknown>
   [key: string]: unknown
 }
@@ -115,6 +116,31 @@ export function useGeminiOAuth() {
     }
   }
 
+  const validateGoogleOneRefreshToken = async (
+    refreshToken: string,
+    proxyId?: number | null
+  ): Promise<GeminiTokenInfo | null> => {
+    if (!refreshToken.trim()) {
+      error.value = t('admin.accounts.oauth.gemini.pleaseEnterRefreshToken')
+      return null
+    }
+
+    loading.value = true
+    error.value = ''
+
+    try {
+      const tokenInfo = await adminAPI.gemini.refreshGeminiToken(refreshToken.trim(), proxyId)
+      return tokenInfo as GeminiTokenInfo
+    } catch (err: any) {
+      error.value =
+        err.response?.data?.detail || t('admin.accounts.oauth.gemini.failedToValidateRT')
+      // Don't surface as global toast — batch validation aggregates errors at the caller.
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
   const buildCredentials = (tokenInfo: GeminiTokenInfo): Record<string, unknown> => {
     let expiresAt: string | undefined
     if (typeof tokenInfo.expires_at === 'number' && Number.isFinite(tokenInfo.expires_at)) {
@@ -123,7 +149,7 @@ export function useGeminiOAuth() {
       expiresAt = tokenInfo.expires_at.trim()
     }
 
-    return {
+    const creds: Record<string, unknown> = {
       access_token: tokenInfo.access_token,
       refresh_token: tokenInfo.refresh_token,
       token_type: tokenInfo.token_type,
@@ -133,6 +159,8 @@ export function useGeminiOAuth() {
       oauth_type: tokenInfo.oauth_type,
       tier_id: tokenInfo.tier_id
     }
+    if (tokenInfo.email) creds.email = tokenInfo.email
+    return creds
   }
 
   const buildExtraInfo = (tokenInfo: GeminiTokenInfo): Record<string, unknown> | undefined => {
@@ -158,6 +186,7 @@ export function useGeminiOAuth() {
     resetState,
     generateAuthUrl,
     exchangeAuthCode,
+    validateGoogleOneRefreshToken,
     buildCredentials,
     buildExtraInfo,
     getCapabilities

@@ -45,7 +45,7 @@
       @submit.prevent="handleSubmit"
       class="space-y-5"
     >
-      <div v-if="!(form.platform === 'antigravity' && useEmailAsName)">
+      <div v-if="!(isEmailAsNameAvailable && useEmailAsName)">
         <label class="input-label">{{ t('admin.accounts.accountName') }}</label>
         <input
           v-model="form.name"
@@ -2440,7 +2440,7 @@
             </div>
           </div>
         </div>
-        <div v-if="form.platform === 'antigravity'" class="mt-3 flex items-center gap-2">
+        <div v-if="isEmailAsNameAvailable" class="mt-3 flex items-center gap-2">
           <label class="flex cursor-pointer items-center gap-2">
             <input
               type="checkbox"
@@ -2479,7 +2479,7 @@
         :show-proxy-warning="form.platform !== 'openai' && !!form.proxy_id"
         :allow-multiple="form.platform === 'anthropic'"
         :show-cookie-option="form.platform === 'anthropic'"
-        :show-refresh-token-option="form.platform === 'openai' || form.platform === 'antigravity'"
+        :show-refresh-token-option="form.platform === 'openai' || form.platform === 'antigravity' || (form.platform === 'gemini' && geminiOAuthType === 'google_one')"
         :show-mobile-refresh-token-option="form.platform === 'openai'"
         :show-session-token-option="false"
         :show-access-token-option="false"
@@ -3079,6 +3079,15 @@ const geminiSelectedTier = computed(() => {
     default:
       return geminiTierAIStudio.value
   }
+})
+
+// "Use email as account name" is supported by the two OAuth flows that surface
+// a Google email via userinfo during bulk RT validation: Antigravity, and
+// Gemini when using google_one (built-in Gemini CLI OAuth client + userinfo scope).
+const isEmailAsNameAvailable = computed(() => {
+  if (form.platform === 'antigravity') return true
+  if (form.platform === 'gemini' && geminiOAuthType.value === 'google_one') return true
+  return false
 })
 
 const openAIWSModeOptions = computed(() => [
@@ -4043,6 +4052,8 @@ const handleValidateRefreshToken = (rt: string) => {
     handleOpenAIValidateRT(rt)
   } else if (form.platform === 'antigravity') {
     handleAntigravityValidateRT(rt)
+  } else if (form.platform === 'gemini' && geminiOAuthType.value === 'google_one') {
+    handleGeminiGoogleOneValidateRT(rt)
   }
 }
 
@@ -4390,6 +4401,101 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
     }
   } finally {
     antigravityOAuth.loading.value = false
+  }
+}
+
+// Gemini Google One 手动 RT 批量验证和创建（仅 google_one 支持 —— RT 绑定内置 Gemini CLI OAuth client）
+const handleGeminiGoogleOneValidateRT = async (refreshTokenInput: string) => {
+  if (!refreshTokenInput.trim()) return
+
+  const refreshTokens = refreshTokenInput
+    .split('\n')
+    .map((rt) => rt.trim())
+    .filter((rt) => rt)
+
+  if (refreshTokens.length === 0) {
+    geminiOAuth.error.value = t('admin.accounts.oauth.gemini.pleaseEnterRefreshToken')
+    return
+  }
+
+  geminiOAuth.loading.value = true
+  geminiOAuth.error.value = ''
+
+  let successCount = 0
+  let failedCount = 0
+  const errors: string[] = []
+
+  try {
+    for (let i = 0; i < refreshTokens.length; i++) {
+      try {
+        const tokenInfo = await geminiOAuth.validateGoogleOneRefreshToken(
+          refreshTokens[i],
+          form.proxy_id
+        )
+        if (!tokenInfo) {
+          failedCount++
+          errors.push(`#${i + 1}: ${geminiOAuth.error.value || 'Validation failed'}`)
+          geminiOAuth.error.value = ''
+          continue
+        }
+
+        const credentials = geminiOAuth.buildCredentials(tokenInfo)
+        const extra = geminiOAuth.buildExtraInfo(tokenInfo)
+
+        // Naming: prefer email when toggle enabled; otherwise fall back to form.name (append #i for batch).
+        const accountName = useEmailAsName.value && tokenInfo.email
+          ? tokenInfo.email
+          : refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
+
+        // Apply temp-unschedulable config to credentials (mirrors other flows).
+        if (!applyTempUnschedConfig(credentials)) {
+          continue
+        }
+
+        await adminAPI.accounts.create({
+          name: accountName,
+          notes: form.notes,
+          platform: 'gemini',
+          type: 'oauth',
+          credentials,
+          extra,
+          proxy_id: form.proxy_id,
+          concurrency: form.concurrency,
+          load_factor: form.load_factor ?? undefined,
+          priority: form.priority,
+          rate_multiplier: form.rate_multiplier,
+          group_ids: form.group_ids,
+          expires_at: form.expires_at,
+          auto_pause_on_expired: autoPauseOnExpired.value
+        })
+        successCount++
+      } catch (error: any) {
+        failedCount++
+        const errMsg = error.response?.data?.detail || error.message || 'Unknown error'
+        errors.push(`#${i + 1}: ${errMsg}`)
+      }
+    }
+
+    if (successCount > 0 && failedCount === 0) {
+      appStore.showSuccess(
+        refreshTokens.length > 1
+          ? t('admin.accounts.oauth.batchSuccess', { count: successCount })
+          : t('admin.accounts.accountCreated')
+      )
+      emit('created')
+      handleClose()
+    } else if (successCount > 0 && failedCount > 0) {
+      appStore.showWarning(
+        t('admin.accounts.oauth.batchPartialSuccess', { success: successCount, failed: failedCount })
+      )
+      geminiOAuth.error.value = errors.join('\n')
+      emit('created')
+    } else {
+      geminiOAuth.error.value = errors.join('\n')
+      appStore.showError(t('admin.accounts.oauth.batchFailed'))
+    }
+  } finally {
+    geminiOAuth.loading.value = false
   }
 }
 

@@ -42,8 +42,14 @@ export type GeminiTokenInfo = {
   project_id?: string
   oauth_type?: string
   tier_id?: string
+  email?: string
   extra?: Record<string, unknown>
   [key: string]: unknown
+}
+
+export interface GeminiRefreshTokenRequest {
+  refresh_token: string
+  proxy_id?: number
 }
 
 export async function generateAuthUrl(
@@ -69,4 +75,21 @@ export async function getCapabilities(): Promise<GeminiOAuthCapabilities> {
   return data
 }
 
-export default { generateAuthUrl, exchangeCode, getCapabilities }
+// refreshGeminiToken validates a Google One refresh_token and returns the full
+// token info (access_token + email + project_id + tier_id + drive extra) ready
+// for bulk account creation, mirroring the Antigravity flow.
+export async function refreshGeminiToken(
+  refreshToken: string,
+  proxyId?: number | null
+): Promise<GeminiTokenInfo> {
+  const payload: GeminiRefreshTokenRequest = { refresh_token: refreshToken }
+  if (proxyId) payload.proxy_id = proxyId
+
+  const { data } = await apiClient.post<GeminiTokenInfo>(
+    '/admin/gemini/oauth/refresh-token',
+    payload
+  )
+  return data
+}
+
+export default { generateAuthUrl, exchangeCode, getCapabilities, refreshGeminiToken }
