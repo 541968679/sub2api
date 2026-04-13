@@ -724,6 +724,7 @@ func TestGeminiOAuthService_Stop_NoPanic(t *testing.T) {
 type mockGeminiOAuthClient struct {
 	exchangeCodeFunc func(ctx context.Context, oauthType, code, codeVerifier, redirectURI, proxyURL string) (*geminicli.TokenResponse, error)
 	refreshTokenFunc func(ctx context.Context, oauthType, refreshToken, proxyURL string) (*geminicli.TokenResponse, error)
+	getUserInfoFunc  func(ctx context.Context, accessToken, proxyURL string) (*geminicli.UserInfo, error)
 }
 
 func (m *mockGeminiOAuthClient) ExchangeCode(ctx context.Context, oauthType, code, codeVerifier, redirectURI, proxyURL string) (*geminicli.TokenResponse, error) {
@@ -738,6 +739,14 @@ func (m *mockGeminiOAuthClient) RefreshToken(ctx context.Context, oauthType, ref
 		return m.refreshTokenFunc(ctx, oauthType, refreshToken, proxyURL)
 	}
 	panic("RefreshToken not implemented")
+}
+
+func (m *mockGeminiOAuthClient) GetUserInfo(ctx context.Context, accessToken, proxyURL string) (*geminicli.UserInfo, error) {
+	if m.getUserInfoFunc != nil {
+		return m.getUserInfoFunc(ctx, accessToken, proxyURL)
+	}
+	// Default: return empty userinfo so existing tests that don't care about email still work.
+	return &geminicli.UserInfo{}, nil
 }
 
 // =====================

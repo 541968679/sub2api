@@ -123,6 +123,34 @@ func (h *GeminiOAuthHandler) ExchangeCode(c *gin.Context) {
 	response.Success(c, tokenInfo)
 }
 
+// GeminiRefreshTokenRequest represents the request for validating a Google One
+// Gemini refresh token in bulk-import flows. Only google_one is supported today —
+// the RT must have been issued by the built-in Gemini CLI OAuth client.
+type GeminiRefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+	ProxyID      *int64 `json:"proxy_id"`
+}
+
+// RefreshToken validates a Google One Gemini refresh token and returns full token info
+// (access_token, email, project_id, tier_id + Drive storage metadata when available),
+// mirroring the Antigravity RefreshToken endpoint used for bulk account creation.
+// POST /api/v1/admin/gemini/oauth/refresh-token
+func (h *GeminiOAuthHandler) RefreshToken(c *gin.Context) {
+	var req GeminiRefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	tokenInfo, err := h.geminiOAuthService.ValidateGoogleOneRefreshToken(c.Request.Context(), req.RefreshToken, req.ProxyID)
+	if err != nil {
+		response.BadRequest(c, "Failed to validate refresh token: "+err.Error())
+		return
+	}
+
+	response.Success(c, tokenInfo)
+}
+
 func deriveGeminiRedirectURI(c *gin.Context) string {
 	origin := strings.TrimSpace(c.GetHeader("Origin"))
 	if origin != "" {

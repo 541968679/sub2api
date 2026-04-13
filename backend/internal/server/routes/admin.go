@@ -328,6 +328,7 @@ func registerGeminiOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		gemini.POST("/oauth/auth-url", h.Admin.GeminiOAuth.GenerateAuthURL)
 		gemini.POST("/oauth/exchange-code", h.Admin.GeminiOAuth.ExchangeCode)
+		gemini.POST("/oauth/refresh-token", h.Admin.GeminiOAuth.RefreshToken)
 		gemini.GET("/oauth/capabilities", h.Admin.GeminiOAuth.GetCapabilities)
 	}
 }

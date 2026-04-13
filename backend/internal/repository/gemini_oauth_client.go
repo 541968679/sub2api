@@ -117,6 +117,27 @@ func (c *geminiOAuthClient) RefreshToken(ctx context.Context, oauthType, refresh
 	return &tokenResp, nil
 }
 
+func (c *geminiOAuthClient) GetUserInfo(ctx context.Context, accessToken, proxyURL string) (*geminicli.UserInfo, error) {
+	client, err := createGeminiReqClient(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("create HTTP client: %w", err)
+	}
+
+	var userInfo geminicli.UserInfo
+	resp, err := client.R().
+		SetContext(ctx).
+		SetHeader("Authorization", "Bearer "+accessToken).
+		SetSuccessResult(&userInfo).
+		Get(geminicli.UserInfoURL)
+	if err != nil {
+		return nil, fmt.Errorf("userinfo request failed: %w", err)
+	}
+	if !resp.IsSuccessState() {
+		return nil, fmt.Errorf("userinfo request failed: status %d, body: %s", resp.StatusCode, geminicli.SanitizeBodyForLogs(resp.String()))
+	}
+	return &userInfo, nil
+}
+
 func createGeminiReqClient(proxyURL string) (*req.Client, error) {
 	return getSharedReqClient(reqClientOptions{
 		ProxyURL: proxyURL,

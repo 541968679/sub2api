@@ -204,6 +204,7 @@ type GeminiTokenInfo struct {
 	ProjectID    string         `json:"project_id,omitempty"`
 	OAuthType    string         `json:"oauth_type,omitempty"` // "code_assist" 或 "ai_studio"
 	TierID       string         `json:"tier_id,omitempty"`    // Canonical tier id (e.g. google_one_free, gcp_standard, aistudio_free)
+	Email        string         `json:"email,omitempty"`      // Google account email, filled from userinfo
 	Extra        map[string]any `json:"extra,omitempty"`      // Drive metadata
 }
 
@@ -730,6 +731,89 @@ func isNonRetryableGeminiOAuthError(err error) bool {
 	return false
 }
 
+// ValidateGoogleOneRefreshToken validates a Google One refresh_token (issued by the
+// built-in Gemini CLI OAuth client) and returns a fully populated GeminiTokenInfo:
+//   - access_token refreshed and expires_at computed (with 5-min safety window)
+//   - refresh_token backfilled (Google's refresh endpoint does not return a new RT)
+//   - email fetched from userinfo (non-blocking: warn and continue on failure)
+//   - project_id auto-detected via Code Assist / Cloud Resource Manager (required for
+//     google_one — fails the RT if not obtainable)
+//   - tier_id + Drive storage extra fetched via Drive API (fallback to google_one_free
+//     when Drive scope is missing or the call fails)
+//
+// This mirrors AntigravityOAuthService.ValidateRefreshToken to enable a parallel
+// "paste multiple RTs, create one account each" bulk import UX in the admin console.
+func (s *GeminiOAuthService) ValidateGoogleOneRefreshToken(ctx context.Context, refreshToken string, proxyID *int64) (*GeminiTokenInfo, error) {
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return nil, fmt.Errorf("refresh_token is required")
+	}
+
+	var proxyURL string
+	if proxyID != nil {
+		proxy, err := s.proxyRepo.GetByID(ctx, *proxyID)
+		if err == nil && proxy != nil {
+			proxyURL = proxy.URL()
+		}
+	}
+
+	// Refresh token → access_token (google_one always uses the built-in Gemini CLI client).
+	tokenInfo, err := s.RefreshToken(ctx, "google_one", refreshToken, proxyURL)
+	if err != nil {
+		// Add actionable hint for the common "RT was issued against a different client" error.
+		if strings.Contains(err.Error(), "unauthorized_client") {
+			return nil, fmt.Errorf("%w (the refresh_token must be issued by the built-in Gemini CLI OAuth client; RTs from a custom OAuth client are not supported by bulk import)", err)
+		}
+		return nil, err
+	}
+	tokenInfo.OAuthType = "google_one"
+
+	// Google OAuth token refresh generally does not return a new refresh_token; backfill
+	// with the user-provided value so subsequent refreshes keep working.
+	if strings.TrimSpace(tokenInfo.RefreshToken) == "" {
+		tokenInfo.RefreshToken = refreshToken
+	}
+
+	// Fetch userinfo for email (non-blocking — warn on failure and continue).
+	if userInfo, uiErr := s.oauthClient.GetUserInfo(ctx, tokenInfo.AccessToken, proxyURL); uiErr != nil {
+		logger.LegacyPrintf("service.gemini_oauth", "[GeminiOAuth] warn: failed to fetch userinfo for google_one RT: %v", uiErr)
+	} else if userInfo != nil {
+		tokenInfo.Email = strings.TrimSpace(userInfo.Email)
+	}
+
+	// Google One accounts rely on cloudaicompanion, which requires a project_id. Auto-detect.
+	projectID, _, fetchErr := s.fetchProjectID(ctx, tokenInfo.AccessToken, proxyURL)
+	if fetchErr != nil {
+		return nil, fmt.Errorf("google One RT requires a project_id, failed to auto-detect: %w", fetchErr)
+	}
+	if strings.TrimSpace(projectID) == "" {
+		return nil, fmt.Errorf("google One RT requires a project_id, auto-detect returned empty result")
+	}
+	tokenInfo.ProjectID = projectID
+
+	// Tier detection via Drive API (requires drive.readonly scope). Failures fall back to free tier.
+	tierID, storageInfo, tierErr := s.FetchGoogleOneTier(ctx, tokenInfo.AccessToken, proxyURL)
+	if tierErr != nil {
+		logger.LegacyPrintf("service.gemini_oauth", "[GeminiOAuth] warn: failed to fetch Drive tier for google_one RT: %v", tierErr)
+		tierID = ""
+	}
+	tierID = canonicalGeminiTierIDForOAuthType("google_one", tierID)
+	if tierID == "" || tierID == GeminiTierGoogleOneUnknown {
+		tierID = GeminiTierGoogleOneFree
+	}
+	tokenInfo.TierID = tierID
+
+	if storageInfo != nil {
+		tokenInfo.Extra = map[string]any{
+			"drive_storage_limit":   storageInfo.Limit,
+			"drive_storage_usage":   storageInfo.Usage,
+			"drive_tier_updated_at": time.Now().Format(time.RFC3339),
+		}
+	}
+
+	return tokenInfo, nil
+}
+
 func (s *GeminiOAuthService) RefreshAccountToken(ctx context.Context, account *Account) (*GeminiTokenInfo, error) {
 	if account.Platform != PlatformGemini || account.Type != AccountTypeOAuth {
 		return nil, fmt.Errorf("account is not a Gemini OAuth account")
@@ -905,6 +989,11 @@ func (s *GeminiOAuthService) BuildAccountCredentials(tokenInfo *GeminiTokenInfo)
 	}
 	if tokenInfo.OAuthType != "" {
 		creds["oauth_type"] = tokenInfo.OAuthType
+	}
+	if tokenInfo.Email != "" {
+		// Mirror Antigravity: store email alongside credentials so account list search
+		// (credentials->email LIKE) and UI display can key on the same field.
+		creds["email"] = tokenInfo.Email
 	}
 	// Store extra metadata (Drive info) if present
 	if len(tokenInfo.Extra) > 0 {

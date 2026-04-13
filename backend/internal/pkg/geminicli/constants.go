@@ -9,6 +9,9 @@ const (
 
 	AuthorizeURL = "https://accounts.google.com/o/oauth2/v2/auth"
 	TokenURL     = "https://oauth2.googleapis.com/token"
+	// UserInfoURL returns the Google user profile for a valid access token carrying
+	// the userinfo.email / userinfo.profile scopes.
+	UserInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 	// AIStudioOAuthRedirectURI is the default redirect URI used for AI Studio OAuth.
 	// This matches the "copy/paste callback URL" flow used by OpenAI OAuth in this project.
