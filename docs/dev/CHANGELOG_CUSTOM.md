@@ -19,6 +19,35 @@
 
 ## 变更记录
 
+## [2026-04-13] feat: Gemini Google One 批量 Refresh Token 导入
+
+**影响范围**:
+- backend/internal/pkg/geminicli/{constants.go, token_types.go}
+- backend/internal/service/{gemini_oauth.go, gemini_oauth_service.go, gemini_oauth_service_test.go}
+- backend/internal/repository/gemini_oauth_client.go
+- backend/internal/handler/admin/gemini_oauth_handler.go
+- backend/internal/server/routes/admin.go
+- frontend/src/api/admin/gemini.ts
+- frontend/src/composables/useGeminiOAuth.ts
+- frontend/src/components/account/CreateAccountModal.vue
+- frontend/src/i18n/locales/{zh,en}.ts
+
+**上游兼容性**: 中风险 — GeminiOAuthClient 接口新增 GetUserInfo；CreateAccountModal 多处条件合并，合并上游时可能冲突
+
+**变更详情**:
+- 后端：
+  - `geminicli` 新增 `UserInfoURL` 常量 + `UserInfo` 类型（复用 Google userinfo 端点）
+  - `GeminiOAuthClient` 接口新增 `GetUserInfo(ctx, accessToken, proxyURL)`；`geminiOAuthClient` 实现 + 测试 mock 同步更新
+  - `GeminiTokenInfo` 加 `Email` 字段；`BuildAccountCredentials` 在 email 非空时写入 `credentials.email`（与 Antigravity 对齐，复用账号列表搜索 `credentials->email` 索引）
+  - 新增 `ValidateGoogleOneRefreshToken` 服务方法：refresh → 回填 RT → `GetUserInfo` 拿 email（失败打 warning 不阻断）→ `fetchProjectID`（必需）→ `FetchGoogleOneTier`（失败回落 free）
+  - 新增 `POST /admin/gemini/oauth/refresh-token` handler + 路由注册
+- 前端：
+  - `useGeminiOAuth` 加 `validateGoogleOneRefreshToken` 方法，`buildCredentials` 透传 email
+  - `CreateAccountModal`：`isEmailAsNameAvailable` 计算属性统一 Antigravity / Gemini+google_one 的"用邮箱作为账号名"开关；`handleValidateRefreshToken` 加 gemini 分支；新增 `handleGeminiGoogleOneValidateRT`（循环 RT → 单个创建）
+  - OAuthAuthorizationFlow 的 `show-refresh-token-option` 扩展覆盖 `gemini + google_one`
+  - zh/en i18n 补齐 `admin.accounts.oauth.gemini` 的 RT 批量导入文案
+- 限制：仅支持 `google_one`；RT 必须由内置 Gemini CLI OAuth client 签发（自建 client 的 RT 会报 `unauthorized_client`，错误提示已包含相应说明）
+
 ## [2026-04-12] feat: 统一模型定价管理界面
 
 **影响范围**: backend(migrations, service, repository, handler, routes, wire), frontend(views, components, api, i18n)

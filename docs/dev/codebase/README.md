@@ -4,7 +4,7 @@
 
 | 模块 | 文件 | 说明 | 最后更新 |
 |------|------|------|---------|
-| 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity OAuth、AI Credits、批量导入 | 2026-04-12 |
+| 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity/Gemini OAuth、AI Credits、批量导入 | 2026-04-13 |
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符 | 2026-04-12 |
 | 计费系统 | [billing.md](billing.md) | 三级定价链、费用计算、费率乘数、缓存命中计费 | 2026-04-12 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式 | - |
