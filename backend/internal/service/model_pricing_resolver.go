@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"log/slog"
 )
 
 // PricingSource 定价来源标识
@@ -38,19 +37,22 @@ type ResolvedPricing struct {
 }
 
 // ModelPricingResolver 统一模型定价解析器。
-// 解析链：Channel → Global → LiteLLM → Fallback。
+// 解析链：(LiteLLM/Fallback 为底) → Global 叠加 → Channel 叠加。
+// 注意：Global 与 Channel 均为"叠加覆盖"语义——仅替换非 nil 字段，其余保留底层值。
+// 这样可以在不丢失 Priority tier、长上下文倍率、缓存 5m/1h 分级等字段的前提下
+// 让管理员自定义单价。
 type ModelPricingResolver struct {
 	channelService     *ChannelService
 	billingService     *BillingService
-	globalPricingRepo  GlobalModelPricingRepository // 可选，nil 时跳过全局覆盖
+	globalPricingCache *GlobalPricingCache // 可选，nil 时跳过全局覆盖
 }
 
 // NewModelPricingResolver 创建定价解析器实例
-func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, globalPricingRepo GlobalModelPricingRepository) *ModelPricingResolver {
+func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, globalPricingCache *GlobalPricingCache) *ModelPricingResolver {
 	return &ModelPricingResolver{
-		channelService:    channelService,
-		billingService:    billingService,
-		globalPricingRepo: globalPricingRepo,
+		channelService:     channelService,
+		billingService:     billingService,
+		globalPricingCache: globalPricingCache,
 	}
 }
 
@@ -61,15 +63,16 @@ type PricingInput struct {
 }
 
 // Resolve 解析模型定价。
-// 1. 获取基础定价（LiteLLM → Fallback）
-// 2. 如果指定了 GroupID，查找渠道定价并覆盖
+// 1. 获取基础定价（LiteLLM/Fallback 为底，若存在全局覆盖则叠加之）
+// 2. 如果指定了 GroupID，查找渠道定价并再次叠加
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
-	// 1. 获取基础定价
-	basePricing, source := r.resolveBasePricing(input.Model)
+	// 1. 获取基础定价（含全局覆盖）
+	basePricing, baseMode, defaultPerRequest, source := r.resolveBasePricing(input.Model)
 
 	resolved := &ResolvedPricing{
-		Mode:                   BillingModeToken,
+		Mode:                   baseMode,
 		BasePricing:            basePricing,
+		DefaultPerRequestPrice: defaultPerRequest,
 		Source:                 source,
 		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
 	}
@@ -82,27 +85,80 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	return resolved
 }
 
-// resolveBasePricing 获取基础定价：Global → LiteLLM → Fallback
-func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, string) {
-	// 1. 尝试全局覆盖（新增，可选）
-	if r.globalPricingRepo != nil {
-		gp, err := r.globalPricingRepo.GetByModel(context.Background(), model)
-		if err != nil {
-			slog.Debug("failed to check global model pricing override",
-				"model", model, "error", err)
-		} else if gp != nil && gp.Enabled {
-			return gp.ToModelPricing(), PricingSourceGlobal
+// resolveBasePricing 构建基础定价：先从 LiteLLM/Fallback 取完整 ModelPricing，
+// 再用全局覆盖的非 nil 字段叠加。
+//
+// 返回：(定价, 计费模式, 按次默认价, 来源)。
+//   - 计费模式：若全局覆盖指定了 BillingMode 则用之，否则默认 Token
+//   - 按次默认价：仅当模式为 per_request/image 且全局覆盖设置了 PerRequestPrice 时有值
+//
+// 为什么不简单地把 Global 覆盖构造成独立的 ModelPricing：因为 LiteLLM 的
+// ModelPricing 包含 Priority tier 单价、长上下文阈值/倍率、缓存 5m/1h 分级等
+// 字段——这些都是管理员在前端 UI 里没法配置的，但后端计费仍然依赖它们。
+// 若直接替换，GPT-5.4 超过 272K 的双倍输入费、Claude 的 priority tier 溢价
+// 都会静默消失。叠加式实现保证这些字段被保留。
+func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, BillingMode, float64, string) {
+	// 1. 先从 LiteLLM/Fallback 获取完整基础定价
+	basePricing, err := r.billingService.GetModelPricing(model)
+	baseSource := PricingSourceLiteLLM
+	if err != nil {
+		// GetModelPricing 未找到模型时返回 err；这里不记录 debug 日志避免
+		// 对未知自定义模型频繁噪声
+		basePricing = nil
+		baseSource = PricingSourceFallback
+	}
+
+	// 2. 查询全局覆盖并叠加
+	if r.globalPricingCache != nil {
+		if gp := r.globalPricingCache.Get(model); gp != nil && gp.Enabled {
+			if basePricing == nil {
+				basePricing = &ModelPricing{}
+			}
+			applyGlobalPricingOverride(basePricing, gp)
+
+			mode := gp.BillingMode
+			if mode == "" {
+				mode = BillingModeToken
+			}
+			defaultPerRequest := 0.0
+			if gp.PerRequestPrice != nil {
+				defaultPerRequest = *gp.PerRequestPrice
+			}
+			return basePricing, mode, defaultPerRequest, PricingSourceGlobal
 		}
 	}
 
-	// 2. 尝试 LiteLLM（现有）
-	pricing, err := r.billingService.GetModelPricing(model)
-	if err != nil {
-		slog.Debug("failed to get model pricing from LiteLLM, using fallback",
-			"model", model, "error", err)
-		return nil, PricingSourceFallback
+	return basePricing, BillingModeToken, 0, baseSource
+}
+
+// applyGlobalPricingOverride 将全局覆盖的非 nil 字段叠加到基础定价上。
+// 语义与 applyTokenOverrides（渠道覆盖）保持一致：非 nil 替换、Priority 字段同步。
+//
+// 为什么 Priority 字段也被同步：管理员在前端只配置一个"输入价格"，没有区分
+// 普通和 priority tier。叠加后让 Priority 等于普通价是合理默认——相当于声明
+// "这个模型我按固定价计费，不再区分 tier"。如果 LiteLLM 底层有 priority
+// 单价而我们想保留它，只要不配全局覆盖即可（即不叠加）。
+func applyGlobalPricingOverride(pricing *ModelPricing, gp *GlobalModelPricing) {
+	if gp.InputPrice != nil {
+		pricing.InputPricePerToken = *gp.InputPrice
+		pricing.InputPricePerTokenPriority = *gp.InputPrice
 	}
-	return pricing, PricingSourceLiteLLM
+	if gp.OutputPrice != nil {
+		pricing.OutputPricePerToken = *gp.OutputPrice
+		pricing.OutputPricePerTokenPriority = *gp.OutputPrice
+	}
+	if gp.CacheWritePrice != nil {
+		pricing.CacheCreationPricePerToken = *gp.CacheWritePrice
+		pricing.CacheCreation5mPrice = *gp.CacheWritePrice
+		pricing.CacheCreation1hPrice = *gp.CacheWritePrice
+	}
+	if gp.CacheReadPrice != nil {
+		pricing.CacheReadPricePerToken = *gp.CacheReadPrice
+		pricing.CacheReadPricePerTokenPriority = *gp.CacheReadPrice
+	}
+	if gp.ImageOutputPrice != nil {
+		pricing.ImageOutputPricePerToken = *gp.ImageOutputPrice
+	}
 }
 
 // applyChannelOverrides 应用渠道定价覆盖

@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -660,4 +661,196 @@ func TestFilterValidIntervals(t *testing.T) {
 			require.Len(t, result, tt.wantLen)
 		})
 	}
+}
+
+// ===========================================================================
+// 9. Global pricing override tests — exercises applyGlobalPricingOverride via Resolve
+// ===========================================================================
+
+// newTestBillingServiceWithRichPricing 创建一个 fallback 带 Priority、长上下文、
+// 缓存 5m/1h 分级等完整字段的 BillingService，用于验证全局覆盖叠加后这些字段
+// 不会丢失。
+func newTestBillingServiceWithRichPricing() *BillingService {
+	bs := &BillingService{
+		fallbackPrices: make(map[string]*ModelPricing),
+	}
+	bs.fallbackPrices["claude-sonnet-4"] = &ModelPricing{
+		InputPricePerToken:             3e-6,
+		InputPricePerTokenPriority:     6e-6, // priority tier 溢价
+		OutputPricePerToken:            15e-6,
+		OutputPricePerTokenPriority:    30e-6,
+		CacheCreationPricePerToken:     3.75e-6,
+		CacheCreation5mPrice:           3.75e-6,
+		CacheCreation1hPrice:           6e-6,
+		CacheReadPricePerToken:         0.3e-6,
+		CacheReadPricePerTokenPriority: 0.6e-6,
+		SupportsCacheBreakdown:         true,
+		LongContextInputThreshold:      200000,
+		LongContextInputMultiplier:     2.0,
+		LongContextOutputMultiplier:    1.5,
+	}
+	return bs
+}
+
+// newTestGlobalPricingCache 构造一个预加载好的缓存，绕过 repo 调用。
+// 直接写入内部字段在同包测试中是合法的。
+func newTestGlobalPricingCache(entries ...*GlobalModelPricing) *GlobalPricingCache {
+	c := &GlobalPricingCache{
+		byModel: make(map[string]*GlobalModelPricing),
+		loaded:  true, // 标记已加载，阻止 Get 触发 repo 查询
+	}
+	for _, e := range entries {
+		c.byModel[strings.ToLower(e.Model)] = e
+	}
+	return c
+}
+
+// TestResolve_GlobalOverride_PreservesPriorityAndLongContext 是对 Bug C 的回归测试。
+// 关键验证：管理员配了全局覆盖（只改 input/output 单价），叠加后：
+//   - Priority tier 字段被同步到新价（而不是归零）
+//   - 长上下文阈值/倍率从 LiteLLM 基础继承下来
+//   - 缓存分级（SupportsCacheBreakdown + 5m/1h）在未显式覆盖时保留
+func TestResolve_GlobalOverride_PreservesPriorityAndLongContext(t *testing.T) {
+	bs := newTestBillingServiceWithRichPricing()
+
+	newInput := 10e-6
+	newOutput := 50e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		ID:          1,
+		Model:       "claude-sonnet-4",
+		BillingMode: BillingModeToken,
+		InputPrice:  &newInput,
+		OutputPrice: &newOutput,
+		Enabled:     true,
+	})
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "claude-sonnet-4",
+		GroupID: nil,
+	})
+
+	require.NotNil(t, resolved)
+	require.Equal(t, BillingModeToken, resolved.Mode)
+	require.Equal(t, PricingSourceGlobal, resolved.Source)
+	require.NotNil(t, resolved.BasePricing)
+
+	// Input/Output 按覆盖值（Priority 同步到覆盖值）
+	require.InDelta(t, 10e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 10e-6, resolved.BasePricing.InputPricePerTokenPriority, 1e-12,
+		"priority tier input price must be synced to override value, not zeroed")
+	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 50e-6, resolved.BasePricing.OutputPricePerTokenPriority, 1e-12)
+
+	// 未在覆盖中显式设置的字段：从 LiteLLM 基础继承
+	require.InDelta(t, 0.3e-6, resolved.BasePricing.CacheReadPricePerToken, 1e-12,
+		"cache read price must be inherited from base when not overridden")
+	require.InDelta(t, 3.75e-6, resolved.BasePricing.CacheCreation5mPrice, 1e-12,
+		"cache 5m price must be inherited from base")
+	require.InDelta(t, 6e-6, resolved.BasePricing.CacheCreation1hPrice, 1e-12,
+		"cache 1h price must be inherited from base")
+	require.True(t, resolved.BasePricing.SupportsCacheBreakdown,
+		"SupportsCacheBreakdown must be inherited from base")
+	require.True(t, resolved.SupportsCacheBreakdown,
+		"ResolvedPricing.SupportsCacheBreakdown mirrors base")
+
+	// 长上下文参数必须从 LiteLLM 继承，否则 GPT-5.4 / Gemini 超阈值溢价会丢
+	require.Equal(t, 200000, resolved.BasePricing.LongContextInputThreshold)
+	require.InDelta(t, 2.0, resolved.BasePricing.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, resolved.BasePricing.LongContextOutputMultiplier, 1e-12)
+}
+
+// TestResolve_GlobalOverride_CacheWriteSyncsAllCacheFields 验证覆盖 cache write
+// 价格时，会同时同步到 Creation5m/1h，避免某些字段保留旧值造成计费不一致。
+func TestResolve_GlobalOverride_CacheWriteSyncsAllCacheFields(t *testing.T) {
+	bs := newTestBillingServiceWithRichPricing()
+
+	newCacheWrite := 2e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:           "claude-sonnet-4",
+		BillingMode:     BillingModeToken,
+		CacheWritePrice: &newCacheWrite,
+		Enabled:         true,
+	})
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+
+	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4"})
+
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, 2e-6, resolved.BasePricing.CacheCreationPricePerToken, 1e-12)
+	require.InDelta(t, 2e-6, resolved.BasePricing.CacheCreation5mPrice, 1e-12)
+	require.InDelta(t, 2e-6, resolved.BasePricing.CacheCreation1hPrice, 1e-12)
+}
+
+// TestResolve_GlobalOverride_DisabledIsIgnored 验证 enabled=false 的覆盖不生效。
+func TestResolve_GlobalOverride_DisabledIsIgnored(t *testing.T) {
+	bs := newTestBillingServiceWithRichPricing()
+
+	newInput := 99e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:      "claude-sonnet-4",
+		InputPrice: &newInput,
+		Enabled:    false, // 被禁用
+	})
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+
+	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4"})
+
+	require.Equal(t, PricingSourceLiteLLM, resolved.Source,
+		"disabled override must not affect source")
+	require.InDelta(t, 3e-6, resolved.BasePricing.InputPricePerToken, 1e-12,
+		"disabled override must not change price")
+}
+
+// TestResolve_GlobalOverride_BillingModeRespected 是对 Bug B 的回归测试。
+// 全局覆盖指定 BillingMode=per_request 时，ResolvedPricing.Mode 必须反映它，
+// 并且 DefaultPerRequestPrice 也要从 PerRequestPrice 字段读出。
+func TestResolve_GlobalOverride_BillingModeRespected(t *testing.T) {
+	bs := newTestBillingServiceWithRichPricing()
+
+	perReq := 0.02
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:           "claude-sonnet-4",
+		BillingMode:     BillingModePerRequest,
+		PerRequestPrice: &perReq,
+		Enabled:         true,
+	})
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+
+	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4"})
+
+	require.Equal(t, BillingModePerRequest, resolved.Mode,
+		"global override BillingMode must propagate to ResolvedPricing.Mode")
+	require.Equal(t, PricingSourceGlobal, resolved.Source)
+	require.InDelta(t, 0.02, resolved.DefaultPerRequestPrice, 1e-12,
+		"PerRequestPrice must populate DefaultPerRequestPrice for per_request mode")
+}
+
+// TestResolve_ChannelOverride_BeatsGlobalOverride 验证叠加优先级：
+// Channel > Global > LiteLLM。配了 Channel 覆盖时，Global 不生效且 source=channel。
+func TestResolve_ChannelOverride_BeatsGlobalOverride(t *testing.T) {
+	// 先配好 Channel（通过已有 helper）
+	r := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:    "anthropic",
+		Models:      []string{"claude-sonnet-4"},
+		BillingMode: BillingModeToken,
+		InputPrice:  testPtrFloat64(99e-6), // 渠道价 99
+	}})
+	// 再手动塞一个全局覆盖（通过 ChannelService 里用的 bs 已经是 fallback 版本）
+	globalInput := 50e-6
+	r.globalPricingCache = newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:      "claude-sonnet-4",
+		InputPrice: &globalInput, // 全局价 50，应被渠道 99 覆盖
+		Enabled:    true,
+	})
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "claude-sonnet-4",
+		GroupID: groupIDPtr(),
+	})
+
+	require.Equal(t, PricingSourceChannel, resolved.Source,
+		"channel override must win over global override")
+	require.InDelta(t, 99e-6, resolved.BasePricing.InputPricePerToken, 1e-12,
+		"channel price (99) must be applied, not global (50)")
 }

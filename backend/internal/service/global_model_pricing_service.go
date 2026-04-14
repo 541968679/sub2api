@@ -12,6 +12,7 @@ import (
 // GlobalModelPricingService 全局模型定价管理服务
 type GlobalModelPricingService struct {
 	repo           GlobalModelPricingRepository
+	cache          *GlobalPricingCache
 	pricingService *PricingService
 	channelService *ChannelService
 	groupRepo      GroupRepository
@@ -20,12 +21,14 @@ type GlobalModelPricingService struct {
 // NewGlobalModelPricingService 创建全局模型定价管理服务实例
 func NewGlobalModelPricingService(
 	repo GlobalModelPricingRepository,
+	cache *GlobalPricingCache,
 	pricingService *PricingService,
 	channelService *ChannelService,
 	groupRepo GroupRepository,
 ) *GlobalModelPricingService {
 	return &GlobalModelPricingService{
 		repo:           repo,
+		cache:          cache,
 		pricingService: pricingService,
 		channelService: channelService,
 		groupRepo:      groupRepo,
@@ -271,18 +274,31 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 }
 
 // CreateOverride 创建全局定价覆盖
+// CUD 操作必须 invalidate 缓存，否则热路径会继续用旧值计费。
 func (s *GlobalModelPricingService) CreateOverride(ctx context.Context, pricing *GlobalModelPricing) error {
-	return s.repo.Create(ctx, pricing)
+	if err := s.repo.Create(ctx, pricing); err != nil {
+		return err
+	}
+	s.cache.Invalidate()
+	return nil
 }
 
 // UpdateOverride 更新全局定价覆盖
 func (s *GlobalModelPricingService) UpdateOverride(ctx context.Context, pricing *GlobalModelPricing) error {
-	return s.repo.Update(ctx, pricing)
+	if err := s.repo.Update(ctx, pricing); err != nil {
+		return err
+	}
+	s.cache.Invalidate()
+	return nil
 }
 
 // DeleteOverride 删除全局定价覆盖
 func (s *GlobalModelPricingService) DeleteOverride(ctx context.Context, id int64) error {
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+	s.cache.Invalidate()
+	return nil
 }
 
 // GetOverrideByID 按 ID 获取全局覆盖

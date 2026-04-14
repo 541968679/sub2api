@@ -19,6 +19,84 @@
 
 ## 变更记录
 
+## [2026-04-14] fix(billing): 修复全局模型定价覆盖在 Anthropic 网关失效及多处计费漏洞
+
+**影响范围**:
+- backend/internal/service/model_pricing_resolver.go（核心解析器重写）
+- backend/internal/service/global_model_pricing.go（删除有 bug 的 ToModelPricing）
+- backend/internal/service/global_model_pricing_cache.go（新增）
+- backend/internal/service/global_model_pricing_service.go（注入缓存并在 CUD 时失效）
+- backend/internal/service/gateway_service.go（resolveChannelPricing 同时接受 Global 来源）
+- backend/internal/service/wire.go（Provider set 追加 NewGlobalPricingCache）
+- backend/cmd/server/wire_gen.go（手动同步 DI 接线）
+- backend/internal/handler/admin/model_pricing_handler.go（UpdateOverride 差量更新）
+- backend/internal/service/model_pricing_resolver_test.go（新增 5 个回归测试）
+
+**上游兼容性**: 高度可能产生冲突 —— 触及上游 resolver 与 gateway_service 的核心
+计费路径，以及 wire_gen.go。合并上游时如果官方重构了 ModelPricingResolver 或
+GatewayService.calculateTokenCost 需要重新整合本修复。
+
+**背景**:
+审计管理后台"模型配置 → Pricing"页面的「全局覆盖」功能是否端到端生效，
+发现它在多条路径上被静默绕过或丢失字段，详见本次 commit 说明。
+
+**变更详情**（按 bug 对应修复）:
+
+- **Bug A — Anthropic 网关热路径绕过全局覆盖**
+  `gateway_service.go:resolveChannelPricing` 原本只在 `Source==Channel` 时返回
+  resolved，导致「只配了全局覆盖、没配渠道」的情形会回落到 `CalculateCost` 旧
+  路径。旧路径完全不查 GlobalPricingRepository，全局覆盖 → 静默失效。修复：
+  放宽条件为 `Source==Channel || Source==Global`，同时保留函数名以减少 diff。
+
+- **Bug B — ResolvedPricing.Mode 忽略全局覆盖的 BillingMode**
+  原 `Resolve` 把 `Mode` 硬编码为 `BillingModeToken`，只在渠道叠加分支里改。
+  后果：管理员在全局覆盖里选 `per_request` / `image` → 后端仍按 token 计费 →
+  单价全为 0 → 用户免费。修复：`resolveBasePricing` 返回 `(pricing, mode,
+  defaultPerRequestPrice, source)` 四元组，`Resolve` 原样塞进 `ResolvedPricing`。
+
+- **Bug C — ToModelPricing 丢失 Priority/长上下文/缓存分级字段**
+  原 `GlobalModelPricing.ToModelPricing()` 只设 5 个字段，导致 Priority tier 单价
+  归零、GPT-5.4 长上下文双倍费丢失、缓存 5m/1h 分级失效等。修复：
+  1. 删除该方法
+  2. `resolveBasePricing` 先从 `BillingService.GetModelPricing` 拿完整基础定价
+     （含 LiteLLM 的所有字段），再用 `applyGlobalPricingOverride` 把全局覆盖的
+     非 nil 字段叠加上去；语义与 `applyTokenOverrides`（渠道覆盖）完全对齐，
+     包括 Priority 字段与覆盖价同步、`CacheWritePrice` 同时写入 5m/1h。
+  3. 未被覆盖的字段（Priority 单价差、长上下文倍率等）继承自 LiteLLM 基础。
+
+- **Bug D — 每个请求一次 SQL 无缓存**
+  原实现在热路径对 `global_model_pricing` 表每请求一次 `SELECT`。修复：新增
+  `GlobalPricingCache`（sync.RWMutex + 惰性加载），首次访问时一次性读入所有
+  `enabled=true` 条目到内存 map，后续 O(1) 查询；管理后台在 Create/Update/
+  Delete 后调用 `Invalidate()` 清空缓存。
+
+- **Bug E — resolveBasePricing 使用 context.Background**
+  原实现丢弃调用者 ctx 导致请求超时无法传递。修复：缓存化之后热路径不再进 DB，
+  ctx 问题自然消失；仅在缓存首次加载时用 background ctx 执行一次性全量查询。
+
+- **Bug F — UpdateOverride 把所有未提供字段清零**
+  原 handler 对 `InputPrice` 等指针字段无条件赋值，PATCH 漏带任何一个字段都会
+  把已有价格覆盖成 nil。修复：统一改为"非 nil 才覆盖"的差量更新（与
+  `Model` / `Provider` / `Enabled` 字段的处理对齐）。要清除某个价格请
+  delete 覆盖后重建。
+
+**回归测试**（`model_pricing_resolver_test.go` 新增）:
+1. `TestResolve_GlobalOverride_PreservesPriorityAndLongContext` — 覆盖 input/output
+   后验证 Priority 同步、长上下文阈值/倍率/缓存 5m/1h 从 LiteLLM 继承
+2. `TestResolve_GlobalOverride_CacheWriteSyncsAllCacheFields` — 覆盖 CacheWritePrice
+   后 Creation/5m/1h 三字段全部同步
+3. `TestResolve_GlobalOverride_DisabledIsIgnored` — enabled=false 不生效
+4. `TestResolve_GlobalOverride_BillingModeRespected` — per_request 模式正确传递
+   BillingMode 和 DefaultPerRequestPrice
+5. `TestResolve_ChannelOverride_BeatsGlobalOverride` — 优先级 Channel > Global
+
+所有新测试通过；既有 `./internal/service/...` 单元测试套件全绿（76 秒）；
+`go build ./...` 通过。
+
+**关联 Issue/PR**: 无（本地审计发现）
+
+---
+
 ## [2026-04-14] feat(frontend): 代理批量导入支持 host:port:user:pass 等简写格式
 
 **影响范围**:

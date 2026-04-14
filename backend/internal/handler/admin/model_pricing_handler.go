@@ -148,7 +148,8 @@ func (h *ModelPricingHandler) UpdateOverride(c *gin.Context) {
 		return
 	}
 
-	// 应用更新
+	// 应用更新：价格字段也采用"非 nil 才覆盖"的差量语义，避免 PATCH 漏带
+	// 某个字段时把已有价格意外清零。要清除某个价格，请删除整条覆盖后重建。
 	if req.Model != "" {
 		existing.Model = req.Model
 	}
@@ -158,16 +159,30 @@ func (h *ModelPricingHandler) UpdateOverride(c *gin.Context) {
 	if req.BillingMode != "" {
 		existing.BillingMode = service.BillingMode(req.BillingMode)
 	}
-	existing.InputPrice = req.InputPrice
-	existing.OutputPrice = req.OutputPrice
-	existing.CacheWritePrice = req.CacheWritePrice
-	existing.CacheReadPrice = req.CacheReadPrice
-	existing.ImageOutputPrice = req.ImageOutputPrice
-	existing.PerRequestPrice = req.PerRequestPrice
+	if req.InputPrice != nil {
+		existing.InputPrice = req.InputPrice
+	}
+	if req.OutputPrice != nil {
+		existing.OutputPrice = req.OutputPrice
+	}
+	if req.CacheWritePrice != nil {
+		existing.CacheWritePrice = req.CacheWritePrice
+	}
+	if req.CacheReadPrice != nil {
+		existing.CacheReadPrice = req.CacheReadPrice
+	}
+	if req.ImageOutputPrice != nil {
+		existing.ImageOutputPrice = req.ImageOutputPrice
+	}
+	if req.PerRequestPrice != nil {
+		existing.PerRequestPrice = req.PerRequestPrice
+	}
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled
 	}
-	existing.Notes = req.Notes
+	if req.Notes != "" {
+		existing.Notes = req.Notes
+	}
 
 	if err := h.svc.UpdateOverride(c.Request.Context(), existing); err != nil {
 		response.ErrorFrom(c, err)

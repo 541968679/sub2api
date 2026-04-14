@@ -7794,13 +7794,20 @@ func (s *GatewayService) calculateRecordUsageCost(
 
 // resolveChannelPricing 检查指定模型是否存在渠道级别定价。
 // 返回非 nil 的 ResolvedPricing 表示有渠道定价，nil 表示走默认定价路径。
+// resolveChannelPricing 统一的"是否有上层覆盖"入口：若解析结果来自 Channel
+// 或 Global 覆盖则返回该结果（由 CalculateCostUnified 消化），否则返回 nil
+// 让调用方回退到旧路径（直接按 LiteLLM 计费）。
+//
+// 名称保留"Channel"是为了少动调用点——语义上已经是 Channel+Global 的并集。
+// 之前的实现只看 Source==Channel，导致 Global 全局覆盖在 Anthropic 网关路径
+// 完全失效（走到 `CalculateCost` 旧路径，该路径不查 GlobalPricingCache）。
 func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
 	if s.resolver == nil || apiKey.Group == nil {
 		return nil
 	}
 	gid := apiKey.Group.ID
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
-	if resolved.Source == PricingSourceChannel {
+	if resolved.Source == PricingSourceChannel || resolved.Source == PricingSourceGlobal {
 		return resolved
 	}
 	return nil
