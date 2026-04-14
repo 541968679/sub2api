@@ -476,6 +476,17 @@
       <!-- Batch Add Form -->
       <div v-else class="space-y-5">
         <div>
+          <label class="input-label">{{ t('admin.proxies.batchDefaultProtocol') }}</label>
+          <Select
+            v-model="batchDefaultProtocol"
+            :options="protocolSelectOptions"
+            @update:modelValue="parseBatchInput"
+          />
+          <p class="input-hint mt-2">
+            {{ t('admin.proxies.batchDefaultProtocolHint') }}
+          </p>
+        </div>
+        <div>
           <label class="input-label">{{ t('admin.proxies.batchInput') }}</label>
           <textarea
             v-model="batchInput"
@@ -1007,6 +1018,7 @@ const qualityReport = ref<ProxyQualityCheckResult | null>(null)
 // Batch import state
 const createMode = ref<'standard' | 'batch'>('standard')
 const batchInput = ref('')
+const batchDefaultProtocol = ref<ProxyProtocol>('http')
 const batchParseResult = reactive({
   total: 0,
   valid: 0,
@@ -1142,6 +1154,7 @@ const closeCreateModal = () => {
   createForm.password = ''
   createPasswordVisible.value = false
   batchInput.value = ''
+  batchDefaultProtocol.value = 'http'
   batchParseResult.total = 0
   batchParseResult.valid = 0
   batchParseResult.invalid = 0
@@ -1154,9 +1167,15 @@ const handleDataImported = () => {
   loadProxies()
 }
 
-// Parse proxy URL: protocol://user:pass@host:port or protocol://host:port
+// Parse a single proxy line. Supports the following formats:
+//   A. protocol://[user:pass@]host:port     (explicit URL style, protocol from line)
+//   B. user:pass@host:port                  (no protocol, uses defaultProtocol)
+//   C. host:port:user:pass                  (colon-separated, uses defaultProtocol)
+//   D. host:port                            (no auth, uses defaultProtocol)
+// For A, the captured protocol always wins over defaultProtocol.
 const parseProxyUrl = (
-  line: string
+  line: string,
+  defaultProtocol: ProxyProtocol = 'http'
 ): {
   protocol: ProxyProtocol
   host: string
@@ -1167,24 +1186,66 @@ const parseProxyUrl = (
   const trimmed = line.trim()
   if (!trimmed) return null
 
-  // Regex to parse proxy URL (supports http, https, socks5, socks5h)
-  const regex = /^(https?|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i
-  const match = trimmed.match(regex)
-
-  if (!match) return null
-
-  const [, protocol, username, password, host, port] = match
-  const portNum = parseInt(port, 10)
-
-  if (portNum < 1 || portNum > 65535) return null
-
-  return {
-    protocol: protocol.toLowerCase() as ProxyProtocol,
-    host: host.trim(),
-    port: portNum,
-    username: username?.trim() || '',
-    password: password?.trim() || ''
+  const buildResult = (
+    protocol: ProxyProtocol,
+    host: string,
+    port: string,
+    username: string,
+    password: string
+  ) => {
+    const portNum = parseInt(port, 10)
+    if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) return null
+    const trimmedHost = host.trim()
+    if (!trimmedHost) return null
+    return {
+      protocol,
+      host: trimmedHost,
+      port: portNum,
+      username: username.trim(),
+      password: password.trim()
+    }
   }
+
+  // A. Full URL: protocol://[user:pass@]host:port
+  const urlRegex = /^(https?|socks5h?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/i
+  const urlMatch = trimmed.match(urlRegex)
+  if (urlMatch) {
+    const [, protocol, username, password, host, port] = urlMatch
+    return buildResult(
+      protocol.toLowerCase() as ProxyProtocol,
+      host,
+      port,
+      username || '',
+      password || ''
+    )
+  }
+
+  // B. user:pass@host:port (no protocol prefix)
+  const atRegex = /^([^:@\s]+):([^@\s]+)@([^:@\s]+):(\d+)$/
+  const atMatch = trimmed.match(atRegex)
+  if (atMatch) {
+    const [, username, password, host, port] = atMatch
+    return buildResult(defaultProtocol, host, port, username, password)
+  }
+
+  // C. host:port:user:pass (colon-separated). Password may contain characters
+  // other than whitespace; it is captured greedily as everything after the 3rd colon.
+  const colonRegex = /^([^:\s]+):(\d+):([^:\s]+):(.+)$/
+  const colonMatch = trimmed.match(colonRegex)
+  if (colonMatch) {
+    const [, host, port, username, password] = colonMatch
+    return buildResult(defaultProtocol, host, port, username, password)
+  }
+
+  // D. host:port (no auth)
+  const hostPortRegex = /^([^:\s]+):(\d+)$/
+  const hostPortMatch = trimmed.match(hostPortRegex)
+  if (hostPortMatch) {
+    const [, host, port] = hostPortMatch
+    return buildResult(defaultProtocol, host, port, '', '')
+  }
+
+  return null
 }
 
 const parseBatchInput = () => {
@@ -1195,7 +1256,7 @@ const parseBatchInput = () => {
   let duplicate = 0
 
   for (const line of lines) {
-    const parsed = parseProxyUrl(line)
+    const parsed = parseProxyUrl(line, batchDefaultProtocol.value)
     if (!parsed) {
       invalid++
       continue

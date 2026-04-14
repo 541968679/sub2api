@@ -19,6 +19,28 @@
 
 ## 变更记录
 
+## [2026-04-14] feat(frontend): 代理批量导入支持 host:port:user:pass 等简写格式
+
+**影响范围**:
+- frontend/src/views/admin/ProxiesView.vue
+- frontend/src/i18n/locales/{zh,en}.ts
+
+**上游兼容性**: 纯前端改动，仅扩展解析逻辑和 UI 文案；未触碰后端 API。合并上游若改 `parseProxyUrl` 或 `batchInputPlaceholder/Hint` 可能产生冲突。
+
+**变更详情**:
+- `parseProxyUrl` 从单一 URL 正则扩展为四段 fallback 解析：
+  - A. `protocol://[user:pass@]host:port`（原有，协议来自行内，优先级最高）
+  - B. `user:pass@host:port`（新，无协议前缀）
+  - C. `host:port:user:pass`（新，ProxyScrape / 911 类供应商常见格式；密码保留行尾所有非空白字符）
+  - D. `host:port`（新，无认证）
+  - 提取出 `buildResult` 辅助函数统一做端口/主机校验。
+- 在"快捷添加"Tab 顶部新增"默认协议"下拉（`batchDefaultProtocol`，默认 `http`），简写格式 B/C/D 的行会套用这个协议；切换时通过 `@update:modelValue` 触发 `parseBatchInput` 重算，无需用户重新编辑文本。
+- 关闭弹窗时在 `closeCreateModal` 里重置 `batchDefaultProtocol`。
+- i18n：扩充 `batchInputPlaceholder`、`batchInputHint` 示例；新增 `batchDefaultProtocol`、`batchDefaultProtocolHint` 两条 key（中英双语对齐）。
+- 后端 `BatchCreate` 接口不变（仍接收 `{protocol,host,port,username,password}`），无需迁移。
+
+**关联 Issue/PR**: 无
+
 ## [2026-04-13] feat: Gemini Google One 批量 Refresh Token 导入
 
 **影响范围**:

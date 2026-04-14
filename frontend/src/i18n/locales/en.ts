@@ -3146,9 +3146,12 @@ export default {
       batchAdd: 'Quick Add',
       batchInput: 'Proxy List',
       batchInputPlaceholder:
-        "Enter one proxy per line in the following formats:\nsocks5://user:pass{'@'}192.168.1.1:1080\nhttp://192.168.1.1:8080\nhttps://user:pass{'@'}proxy.example.com:443",
+        "Enter one proxy per line in any of the following formats:\nsocks5://user:pass{'@'}192.168.1.1:1080\nhttp://192.168.1.1:8080\nhttps://user:pass{'@'}proxy.example.com:443\n192.168.1.1:1080\n192.168.1.1:1080:user:pass\nuser:pass{'@'}192.168.1.1:1080",
       batchInputHint:
-        "Supports http, https, socks5 protocols. Format: protocol://[user:pass{'@'}]host:port",
+        "Accepts URL form (protocol://[user:pass{'@'}]host:port) or short form host:port[:user:pass]. Short-form lines use the default protocol above.",
+      batchDefaultProtocol: 'Default Protocol',
+      batchDefaultProtocolHint:
+        'Applied to lines without a protocol prefix, e.g. host:port:user:pass or host:port.',
       parsedCount: '{count} valid',
       invalidCount: '{count} invalid',
       duplicateCount: '{count} duplicate',
