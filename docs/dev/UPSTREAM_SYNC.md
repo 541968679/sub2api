@@ -85,10 +85,11 @@ git push origin main
   或 `model_pricing_resolver` 需要重新整合本地 Bug A-C 的修复（详见
   `docs/dev/CHANGELOG_CUSTOM.md` 2026-04-14 第一条）
 
-- **部署**: 合并后尚未部署到生产。部署指令：
+- **部署**: 已于 2026-04-14 部署到生产（`sub2api-custom:latest` 重建 + 健康检查通过）。部署指令：
   ```bash
-  python deploy/remote_exec.py "/opt/sub2api/update.sh"
+  python deploy/remote_exec.py --update
   ```
+  （旧的 `python deploy/remote_exec.py "/opt/sub2api/update.sh"` 在 Git Bash 环境会被 MSYS2 把 `/opt/...` 转成 Windows 路径，已弃用；详见 `deploy/remote_exec.py` docstring）
 
 ### 2026-04-12 — 初始克隆
 

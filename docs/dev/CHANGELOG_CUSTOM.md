@@ -19,6 +19,52 @@
 
 ## 变更记录
 
+## [2026-04-14] chore(deploy): remote_exec.py 增加 --update 快捷方式避开 MSYS2 路径转换
+
+**影响范围**:
+- `deploy/remote_exec.py`（**未 tracked，本地改动**，.gitignore 中；因含明文 SSH 凭证不入库）
+- `CLAUDE.md`（workflow + 生产服务器章节）
+- `docs/dev/UPSTREAM_SYNC.md`（部署指令范例）
+
+**上游兼容性**: 仅影响本地工作流，不涉及任何上游文件。
+
+**背景**:
+2026-04-14 v0.1.112 合并完成准备部署时，在 Git Bash 下执行
+`python deploy/remote_exec.py "/opt/sub2api/update.sh"` 报
+`bash: line 1: D:/program: No such file or directory` 失败。
+定位后确认是 MSYS2 argv path conversion：Git Bash 会把任何看起来像
+POSIX 绝对路径的 argv 参数（`/opt/...`）悄悄转成 Windows 路径后才交给
+Python，于是 argv[1] 变成了 `D:\program files\...\opt\sub2api\update.sh`，
+SSH 远端收到一个不存在的路径自然失败。
+
+**变更详情**:
+- `deploy/remote_exec.py`
+  - 新增 `SHORTCUTS` 字典 + `--update` 快捷方式，内部用 Python 字符串字面量
+    `"bash /opt/sub2api/update.sh"`，完全绕过 MSYS2 argv 转换
+  - 新增 `--env` 模式从 `REMOTE_CMD` 环境变量读命令（但仍需配合
+    `MSYS_NO_PATHCONV=1` 才能让 Git Bash 不转 env 里的路径；作为 escape hatch）
+  - 新增结构化 docstring 说明 MSYS2 陷阱和四种 workaround 优先级
+  - `run()` 默认 timeout 从 300s 提升到 600s，适配 Docker build 场景
+  - 输出 decode 加 `errors="replace"`，避免二进制污染时 UnicodeDecodeError
+
+- `CLAUDE.md` workflow 步骤 4/5 与「生产服务器」章节
+  - 部署命令改为 `python deploy/remote_exec.py --update`
+  - 追加 MSYS2 gotcha 警告和指向 remote_exec.py docstring 的引用
+  - 生产服务器 SSH 字段说明 ad-hoc 命令仅限不以 `/` 开头的命令
+
+- `docs/dev/UPSTREAM_SYNC.md`
+  - 本次部署条目追加已部署标记
+  - 部署指令范例改用 `--update` 并注明旧用法被弃用的原因
+
+**部署验证**:
+- `python deploy/remote_exec.py --update` 端到端跑通：pull（已 up-to-date）→
+  docker build → docker compose up → health check `{"status":"ok"}` → ps 显示
+  sub2api 容器 `Up 8 seconds (healthy)`。
+
+**关联**: 无 issue。修复源于 2026-04-14 v0.1.112 同步部署过程中发现。
+
+---
+
 ## [2026-04-14] fix(billing): 修复全局模型定价覆盖在 Anthropic 网关失效及多处计费漏洞
 
 **影响范围**:

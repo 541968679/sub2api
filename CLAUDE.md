@@ -185,13 +185,15 @@ git push origin main
 
 ```bash
 # Option A: Via remote_exec.py (Claude Code can run this directly)
-python deploy/remote_exec.py "/opt/sub2api/update.sh"
+python deploy/remote_exec.py --update
 
 # Option B: Manual SSH
-ssh root@172.245.247.80 "/opt/sub2api/update.sh"
+ssh root@172.245.247.80 "bash /opt/sub2api/update.sh"
 ```
 
 The update.sh script: pulls code → builds Docker image → restarts container → health check.
+
+**Git Bash / MSYS2 gotcha**: do NOT call `python deploy/remote_exec.py "/opt/sub2api/update.sh"` directly on Windows — MSYS2 silently converts `/opt/...` to a Windows path before Python sees it and the SSH side fails with `No such file or directory`. Always use `--update` (or add a new shortcut to `SHORTCUTS` inside `remote_exec.py`). See the docstring in `deploy/remote_exec.py` for details and escape hatches.
 
 ### 5. Sync Upstream (Official) Updates
 
@@ -200,7 +202,7 @@ git fetch upstream
 git merge upstream/main    # Git preserves our custom changes
 # Resolve conflicts if any, then:
 git push origin main
-python deploy/remote_exec.py "/opt/sub2api/update.sh"
+python deploy/remote_exec.py --update
 ```
 
 Track all custom changes in `docs/dev/CHANGELOG_CUSTOM.md` and sync history in `docs/dev/UPSTREAM_SYNC.md`.
@@ -210,7 +212,7 @@ Track all custom changes in `docs/dev/CHANGELOG_CUSTOM.md` and sync history in `
 - **URL**: https://zerocode.kaynlab.com
 - **Admin**: admin@zerocode.kaynlab.com
 - **Server**: 172.245.247.80 (RackNerd, LA, Ubuntu 24.04, 5C/6G)
-- **SSH**: `python deploy/remote_exec.py "<command>"` (uses deploy/remote_exec.py)
+- **SSH**: `python deploy/remote_exec.py --update` for deploys; `python deploy/remote_exec.py "<command>"` for ad-hoc commands that don't start with `/` (Git Bash will break POSIX paths in argv — see `deploy/remote_exec.py` docstring)
 - **Stack**: Docker Compose (sub2api-custom:latest + PG 18 + Redis 8) + Caddy (auto HTTPS)
 - **Firewall**: UFW, ports 22/80/443 only
 - **Paths**: repo at `/opt/sub2api/repo`, compose at `/opt/sub2api/docker-compose.yml`
