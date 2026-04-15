@@ -35,7 +35,7 @@
           <option value="">{{ t('admin.modelPricing.allProviders') }}</option>
           <option value="anthropic">Anthropic</option>
           <option value="openai">OpenAI</option>
-          <option value="vertex_ai">Gemini</option>
+          <option value="gemini">Gemini</option>
           <option value="antigravity">Antigravity</option>
         </select>
         <select v-model="sourceFilter" @change="loadData" class="input text-sm">

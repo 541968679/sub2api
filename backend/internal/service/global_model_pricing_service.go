@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
@@ -154,6 +155,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		if modelSet[modelLower] {
 			continue
 		}
+		modelSet[modelLower] = true
 		item := ModelPricingListItem{
 			Model:                gp.Model,
 			Provider:             gp.Provider,
@@ -165,6 +167,23 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			item.EffectiveSource = PricingSourceGlobal
 		}
 		items = append(items, item)
+	}
+
+	// 补全 Antigravity 可用模型：有些模型（如 gemini-3-pro-high、tab_flash_lite_preview）
+	// 只存在于 DefaultAntigravityModelMapping 里，LiteLLM 和全局覆盖都没有。为了让
+	// provider=antigravity 过滤时这些模型能被用户看到并管理定价，补一条 stub。
+	for requestModel := range domain.ResolveAntigravityDefaultMapping() {
+		modelLower := strings.ToLower(requestModel)
+		if modelSet[modelLower] {
+			continue
+		}
+		modelSet[modelLower] = true
+		items = append(items, ModelPricingListItem{
+			Model:                requestModel,
+			Provider:             "antigravity",
+			ChannelOverrideCount: channelOverrideCounts[modelLower],
+			EffectiveSource:      PricingSourceFallback,
+		})
 	}
 
 	// 5. 筛选
@@ -345,12 +364,24 @@ func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, se
 	searchLower := strings.ToLower(search)
 	providerLower := strings.ToLower(provider)
 
+	// Antigravity 过滤走"模型名是否在 DefaultAntigravityModelMapping 的 key 集合里"，
+	// 因为 Antigravity 平台复用底层模型（provider 实际是 anthropic/gemini/vertex_ai），
+	// 只比较 provider 字段会漏掉大部分可用模型。
+	var antigravityModelSet map[string]bool
+	if providerLower == "antigravity" {
+		mapping := domain.ResolveAntigravityDefaultMapping()
+		antigravityModelSet = make(map[string]bool, len(mapping))
+		for k := range mapping {
+			antigravityModelSet[strings.ToLower(k)] = true
+		}
+	}
+
 	var filtered []ModelPricingListItem
 	for _, item := range items {
 		if searchLower != "" && !strings.Contains(strings.ToLower(item.Model), searchLower) {
 			continue
 		}
-		if providerLower != "" && strings.ToLower(item.Provider) != providerLower {
+		if providerLower != "" && !providerMatches(item, providerLower, antigravityModelSet) {
 			continue
 		}
 		if source != "" {
@@ -372,6 +403,34 @@ func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, se
 		filtered = append(filtered, item)
 	}
 	return filtered
+}
+
+// providerMatches 判断单条目是否命中 provider 筛选，处理 LiteLLM 的各种子分类别名。
+// 前端下拉传入的是统一的大类名（anthropic/openai/gemini/antigravity），而 LiteLLM JSON
+// 里实际值会带后缀（如 vertex_ai-language-models、text-completion-openai），严格相等
+// 匹配会漏掉大量模型。Antigravity 特殊处理：按模型名命中 Antigravity 默认映射即算匹配。
+func providerMatches(item ModelPricingListItem, providerLower string, antigravityModelSet map[string]bool) bool {
+	itemProvider := strings.ToLower(item.Provider)
+	switch providerLower {
+	case "gemini":
+		// LiteLLM 里 Gemini 家族的实际 provider：gemini、vertex_ai-language-models、
+		// vertex_ai-vision-models、vertex_ai-embedding-models。
+		return itemProvider == "gemini" || strings.HasPrefix(itemProvider, "vertex_ai")
+	case "openai":
+		// text-completion-openai 是老版本 completion 接口，也应归入 OpenAI 大类。
+		return itemProvider == "openai" || itemProvider == "text-completion-openai"
+	case "antigravity":
+		// 显式覆盖写的 provider=antigravity，或模型名在 Antigravity 默认映射里。
+		if itemProvider == "antigravity" {
+			return true
+		}
+		if antigravityModelSet != nil && antigravityModelSet[strings.ToLower(item.Model)] {
+			return true
+		}
+		return false
+	default:
+		return itemProvider == providerLower
+	}
 }
 
 func (s *GlobalModelPricingService) getChannelOverrideCounts(ctx context.Context) map[string]int {

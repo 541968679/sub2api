@@ -19,6 +19,35 @@
 
 ## 变更记录
 
+## [2026-04-15] fix(admin): 模型定价页 Gemini/Antigravity 过滤失效
+
+**影响范围**:
+- `backend/internal/service/global_model_pricing_service.go`（filterItems 别名匹配 + Antigravity 模型补全）
+- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`（Gemini 下拉 value 对齐）
+
+**上游兼容性**: 低风险。`filterItems`/`ListAllModels` 是二开 2026-04-12 新增的统一定价管理界面（见下文），上游没有同名函数；唯一可能冲突点是 `domain.ResolveAntigravityDefaultMapping` 的引入。
+
+**背景**:
+管理后台「模型配置 → 模型定价」Tab 里，provider 下拉选 Gemini 或 Antigravity 时列表为空。根因：
+
+1. **Gemini**：前端下拉 value 是 `vertex_ai`，但 LiteLLM JSON 里 Gemini 家族的 `litellm_provider` 字段实际值是 `gemini`（Google AI Studio）或带后缀的 `vertex_ai-language-models` / `vertex_ai-vision-models` / `vertex_ai-embedding-models`（Vertex AI），`filterItems` 的 `strings.ToLower(item.Provider) != providerLower` 严格相等匹配一个都命不中。
+2. **Antigravity**：Antigravity 是二开自研平台，LiteLLM 里不存在任何 `antigravity` provider 条目；同时 `DefaultAntigravityModelMapping` 里定义的 Antigravity 可用模型（如 `gemini-3-pro-high`、`tab_flash_lite_preview`）根本不在列表枚举来源（LiteLLM + 全局覆盖）里。
+
+**变更详情**:
+- 抽出 `providerMatches(item, providerLower, antigravityModelSet)` 把严格相等改为别名感知：
+  - `gemini` → 匹配 `gemini` 或 `vertex_ai` 前缀
+  - `openai` → 匹配 `openai` 或 `text-completion-openai`
+  - `antigravity` → 匹配 `provider=antigravity` 或模型名命中 `domain.ResolveAntigravityDefaultMapping()` 的 key
+  - 其它（anthropic/bedrock 等）→ 保留原严格相等
+- `ListAllModels` 合并阶段新增一轮遍历 `ResolveAntigravityDefaultMapping()`，对 LiteLLM 和全局覆盖都没有的模型名补一条 provider=antigravity 的 stub ListItem，保证 Antigravity 专有模型在列表里可见可管。
+- 前端 `ModelPricingTab.vue` 的下拉把 `<option value="vertex_ai">Gemini</option>` 改为 `value="gemini"`，与后端新别名对齐。
+- `modelSet` 合并循环新增的写入确保 Antigravity stub 去重时 dedup 基准完整（之前 all-overrides 循环漏写 modelSet，偶发重复；一起修掉）。
+
+**验证**:
+- `go build ./internal/service/ ./internal/handler/admin/` 通过
+- `go vet ./internal/service/` 无告警
+- `pnpm run typecheck` 无错误
+
 ## [2026-04-15] feat(tools): 新增图片生成 API 压力测试脚本
 
 **影响范围**:
