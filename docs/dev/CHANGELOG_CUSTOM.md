@@ -19,6 +19,39 @@
 
 ## 变更记录
 
+## [2026-04-15] feat(tools): 新增图片生成 API 压力测试脚本
+
+**影响范围**:
+- `tools/image_stress_test.py`（新增，单文件 Python 异步压测脚本，~580 行）
+
+**上游兼容性**: 纯新增客户端工具，不触碰 backend/frontend/deploy，无上游冲突风险。
+
+**背景**:
+客户反馈通过 API 调用 Gemini 图片生成模型（`gemini-3-pro-image` / `gemini-2.5-flash-image` 等）时错误率很高，需要一个可复现、可诊断的工具去定位问题到底出在上游账号池、调度器、还是 Anthropic 兼容翻译层。
+
+**变更详情**:
+- 用 `httpx[http2]` + `asyncio` 实现受控并发压测
+- 支持两条入口路径的对比：
+  1. `gemini-native`：`POST /v1beta/models/{model}:generateContent`
+  2. `anthropic-messages`：`POST /v1/messages`（走 `GeminiMessagesCompatService` 翻译层）
+- 也支持 `--stream` 走 `:streamGenerateContent`，命中代码里 `handleGeminiStreamToNonStreaming` 的流式分支
+- 错误分类对齐服务端的失败信号：`empty_stream` / `safety_block` / `google_config_error` / `signature_error` / `overloaded_529` / `rate_limit_429` / `gateway_5xx` / `auth_401_403` / `client_4xx` / `timeout` / `network_error`
+- 特别识别 "200 OK 但无图"（`candidates[0].content.parts` 里无 `inlineData`，或 `finishReason` 属于 safety 类）—— 这是客户最容易把它当 bug 报的 case
+- 每个请求记录 `X-Request-ID`，`summary.md` 会列出 top 失败 request_id 便于 SSH 到服务器关联日志
+- 输出结构：`output/stress-<timestamp>/{run.json, requests.jsonl, summary.md}`，`output/` 已在 `.gitignore`
+- 默认目标 `https://zerocode.kaynlab.com`，API key 从 `$SUB2API_KEY` 读取
+- Windows 友好：自动把 stdout/stderr 重配置为 UTF-8 避免 cp936 乱码
+
+**使用**:
+```bash
+export SUB2API_KEY=sk-xxx
+python tools/image_stress_test.py --total 50 --concurrency 5 --mode gemini-native
+```
+
+完整执行流程（冒烟 → 基线 → 并发扫 → 模式对比 → 模型对比 → 流式）见 `tools/image_stress_test.py` 模块注释顶部。
+
+---
+
 ## [2026-04-14] chore(deploy): remote_exec.py 增加 --update 快捷方式避开 MSYS2 路径转换
 
 **影响范围**:
