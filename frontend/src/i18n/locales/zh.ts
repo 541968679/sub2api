@@ -2069,6 +2069,8 @@ export default {
       searchPlaceholder: '搜索模型名称...',
       allProviders: '全部平台',
       allSources: '全部来源',
+      providerLabel: '平台：',
+      sourceLabel: '来源：',
       hasGlobalOverride: '有全局覆盖',
       hasChannelOverride: '有渠道覆盖',
       litellmOnly: '仅 LiteLLM',
@@ -2083,6 +2085,7 @@ export default {
       actions: '操作',
       noModels: '未找到模型',
       viewDetail: '查看详情 / 编辑覆盖',
+      createPricing: '创建定价',
       showing: '显示 {from}-{to}，共 {total} 条',
       defaultPrices: '默认价格',
       globalOverride: '全局覆盖',
@@ -2096,6 +2099,38 @@ export default {
       rateMultiplier: '费率乘数',
       groupName: '分组名称',
       noGroups: '未找到活跃分组',
+      // 来源层级 tooltip（渠道 > 全局 > LiteLLM）
+      sourceHierarchyTooltip: '优先级：渠道覆盖 > 全局覆盖 > LiteLLM 默认。同一模型同时存在时，渠道覆盖作用于该渠道的请求，全局覆盖对其他请求生效。',
+      // 差异高亮 tooltip
+      priceDeltaTooltip: 'LiteLLM 基准 {baseline} · 差异 {delta}',
+      noBaseline: '此模型无 LiteLLM 参考价',
+      // 内联编辑提示
+      inlineEditHint: '提示：点击表格中的价格数字可快速编辑。',
+      inlineEditTitle: '快速编辑',
+      openFullDialog: '详细设置…',
+      baselinePrefix: '基准',
+      saveInline: '保存',
+      // 计费基准说明 banner
+      billingBasisTitle: '计费基准说明',
+      billingBasisIntro: '全局定价按"生效模型名"(billingModel) 查表，该名字由请求所属渠道的计费基准决定：',
+      billingBasisRequested: 'requested：用客户端原始请求的模型名计费（渠道无模型映射或显式选择此模式时使用）',
+      billingBasisUpstream: 'upstream：用账号映射后发给上游的模型名计费（按实际上游成本核算）',
+      billingBasisChannelMapped: 'channel_mapped：用渠道级映射的结果计费（渠道默认选项，推荐）',
+      billingBasisNoChannel: '没有绑定渠道的请求路径（本系统大部分请求）默认按 requested 计费。',
+      billingBasisColumnNote: '表格中的"计费模式"列是从映射关系自动推断的展示标签，不可修改——实际计费基准由请求所属渠道的配置决定。',
+      // 新增双列 + 计费模式列
+      requestedModelName: '请求模型名',
+      upstreamModelName: '上游模型名',
+      billingMode: '计费模式',
+      billingModeByRequested: '按请求',
+      billingModeByUpstream: '按上游',
+      billingModeRequestEqualsUpstream: '请求=上游',
+      // 多对一映射 tooltip：其他同样映射到此上游名的请求名
+      mappedFromMultiple: '+{count}',
+      mappedFromMultipleTooltip: '还有 {count} 个请求名也映射到此上游名：{list}',
+      // 建议价
+      suggestedPricesHint: '建议价（来自 {from}）',
+      applySuggested: '应用建议',
     },
 
     // Accounts Management

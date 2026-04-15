@@ -1991,6 +1991,8 @@ export default {
       searchPlaceholder: 'Search model name...',
       allProviders: 'All Providers',
       allSources: 'All Sources',
+      providerLabel: 'Provider:',
+      sourceLabel: 'Source:',
       hasGlobalOverride: 'Has Global Override',
       hasChannelOverride: 'Has Channel Override',
       litellmOnly: 'LiteLLM Only',
@@ -2005,6 +2007,7 @@ export default {
       actions: 'Actions',
       noModels: 'No models found',
       viewDetail: 'View detail / Edit override',
+      createPricing: 'Create pricing',
       showing: 'Showing {from}-{to} of {total}',
       defaultPrices: 'Default Prices',
       globalOverride: 'Global Override',
@@ -2018,6 +2021,38 @@ export default {
       rateMultiplier: 'Rate Multiplier',
       groupName: 'Group Name',
       noGroups: 'No active groups found',
+      // Source hierarchy tooltip
+      sourceHierarchyTooltip: 'Priority: Channel override > Global override > LiteLLM default. When both exist, channel override applies to requests routed through that channel; global override applies to all other requests.',
+      // Price delta highlight
+      priceDeltaTooltip: 'LiteLLM baseline {baseline} · delta {delta}',
+      noBaseline: 'No LiteLLM reference price for this model',
+      // Inline edit hints
+      inlineEditHint: 'Tip: click a price value in the table to edit it quickly.',
+      inlineEditTitle: 'Quick edit',
+      openFullDialog: 'More fields…',
+      baselinePrefix: 'Baseline',
+      saveInline: 'Save',
+      // Billing basis explainer
+      billingBasisTitle: 'How pricing lookup works',
+      billingBasisIntro: 'Global pricing is looked up by the "billing model" — the name chosen based on the channel\'s billing_model_source:',
+      billingBasisRequested: 'requested: use the original client-requested model name (for channels without mapping, or when explicitly selected)',
+      billingBasisUpstream: 'upstream: use the model name actually forwarded to the upstream provider (for real-cost accounting)',
+      billingBasisChannelMapped: 'channel_mapped: use the channel-mapped model name (the default, recommended)',
+      billingBasisNoChannel: 'Requests without a channel (the majority in this system) default to the "requested" basis.',
+      billingBasisColumnNote: 'The "Billing Mode" column is a read-only label derived from the mapping relationship. The actual billing basis is controlled by the channel the request goes through.',
+      // New split columns + billing mode column
+      requestedModelName: 'Requested Model',
+      upstreamModelName: 'Upstream Model',
+      billingMode: 'Billing Mode',
+      billingModeByRequested: 'By requested',
+      billingModeByUpstream: 'By upstream',
+      billingModeRequestEqualsUpstream: 'Requested = Upstream',
+      // Many-to-one mapping tooltip
+      mappedFromMultiple: '+{count}',
+      mappedFromMultipleTooltip: '{count} more request names mapped to this upstream: {list}',
+      // Suggested prices
+      suggestedPricesHint: 'Suggested prices (from {from})',
+      applySuggested: 'Apply suggested',
     },
 
     // Accounts

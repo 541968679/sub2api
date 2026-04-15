@@ -38,13 +38,37 @@ func NewGlobalModelPricingService(
 
 // ModelPricingListItem 模型定价列表项（管理后台用）
 type ModelPricingListItem struct {
-	Model                string          `json:"model"`
-	Provider             string          `json:"provider"`
-	LiteLLMPrices        *LiteLLMPrices  `json:"litellm_prices"`
-	GlobalOverride       *GlobalOverride `json:"global_override"`
-	ChannelOverrideCount int             `json:"channel_override_count"`
-	EffectiveSource      string          `json:"effective_source"` // "global", "litellm", "fallback"
+	Model                string            `json:"model"`
+	Provider             string            `json:"provider"`
+	LiteLLMPrices        *LiteLLMPrices    `json:"litellm_prices"`
+	GlobalOverride       *GlobalOverride   `json:"global_override"`
+	ChannelOverrideCount int               `json:"channel_override_count"`
+	EffectiveSource      string            `json:"effective_source"` // "global", "litellm", "fallback"
+	BillingBasisHint     *BillingBasisHint `json:"billing_basis_hint,omitempty"`
 }
+
+// BillingBasisHint 说明此模型在平台级模型映射（当前仅 Antigravity 默认映射）中
+// 扮演的角色。对应"模型名三元组"（客户端请求名 / 上游名 / 计费名）中的前两维。
+//
+// Type 取值：
+//
+//	requested_equals_upstream —— 请求名 == 上游名（同名映射或普通直通模型；related_models 为空）
+//	upstream_only             —— 只扮演"上游名"角色，客户端不直接请求它；related_models 列出所有映射源请求名
+//	requested_only            —— 只扮演"请求名"角色，被映射到别的名字发给上游；related_models 通常只有一个（映射目标上游名）
+//
+// 对不在 Antigravity 默认映射里的普通 LiteLLM 模型，徽标为 nil，不展示。
+// upstream_only 情况下可能多对一（多个请求名映射到同一个上游名），前端按首个 + "+N" 呈现，
+// tooltip 展开全部 RelatedModels。
+type BillingBasisHint struct {
+	Type          string   `json:"type"`
+	RelatedModels []string `json:"related_models,omitempty"`
+}
+
+const (
+	BillingHintRequestedEqualsUpstream = "requested_equals_upstream"
+	BillingHintUpstreamOnly            = "upstream_only"
+	BillingHintRequestedOnly           = "requested_only"
+)
 
 // LiteLLMPrices 管理后台展示用的 LiteLLM 价格
 type LiteLLMPrices struct {
@@ -172,7 +196,8 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 	// 补全 Antigravity 可用模型：有些模型（如 gemini-3-pro-high、tab_flash_lite_preview）
 	// 只存在于 DefaultAntigravityModelMapping 里，LiteLLM 和全局覆盖都没有。为了让
 	// provider=antigravity 过滤时这些模型能被用户看到并管理定价，补一条 stub。
-	for requestModel := range domain.ResolveAntigravityDefaultMapping() {
+	antigravityMapping := domain.ResolveAntigravityDefaultMapping()
+	for requestModel := range antigravityMapping {
 		modelLower := strings.ToLower(requestModel)
 		if modelSet[modelLower] {
 			continue
@@ -184,6 +209,83 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			ChannelOverrideCount: channelOverrideCounts[modelLower],
 			EffectiveSource:      PricingSourceFallback,
 		})
+	}
+
+	// 基于 Antigravity 默认映射构造三分法徽标索引。徽标含义是"此模型名在平台级
+	// 模型映射里扮演的角色"，对应用户心智模型中的"客户端请求名 / 上游名"二元组
+	// （计费名由顶部 banner 统一解释）。
+	//
+	// 优先级：same_name > upstream_only > requested_only。
+	// 理由：同名映射表达该模型自洽（既是请求名又是上游名），信息最完整；其次
+	// "仅上游"对管理员更重要（改它会影响映射源请求）；最后才是"仅请求"（这类
+	// 配置其实无效——请求会被映射走）。
+	//
+	// 多对一场景：Antigravity 默认映射里可能有多个请求名映射到同一个上游名
+	// （如 claude-opus-4-5-thinking / claude-opus-4-5-20251101 / claude-opus-4-6
+	// 都映射到 claude-opus-4-6-thinking）。upstream_only 徽标的 RelatedModels
+	// 收集所有映射源请求名，保持字典序稳定。
+	type hintBucket struct {
+		sameName           bool
+		upstreamFromList   []string // 若非空：此模型是 value，收集所有来源 key
+		requestedTargetKey string   // 若非空：此模型是 key，映射到该 value
+	}
+	hintIndex := make(map[string]*hintBucket, len(antigravityMapping))
+	getBucket := func(lower string) *hintBucket {
+		b := hintIndex[lower]
+		if b == nil {
+			b = &hintBucket{}
+			hintIndex[lower] = b
+		}
+		return b
+	}
+	for k, v := range antigravityMapping {
+		kl := strings.ToLower(k)
+		vl := strings.ToLower(v)
+		if kl == vl {
+			getBucket(kl).sameName = true
+			continue
+		}
+		// key != value
+		if getBucket(kl).requestedTargetKey == "" {
+			getBucket(kl).requestedTargetKey = v
+		}
+		b := getBucket(vl)
+		b.upstreamFromList = append(b.upstreamFromList, k)
+	}
+	// 稳定排序 upstreamFromList，避免 map 遍历顺序导致前端展示跳动
+	for _, b := range hintIndex {
+		if len(b.upstreamFromList) > 1 {
+			sort.Strings(b.upstreamFromList)
+		}
+	}
+
+	for i := range items {
+		b, ok := hintIndex[strings.ToLower(items[i].Model)]
+		if !ok {
+			continue
+		}
+		switch {
+		case b.sameName:
+			// 同名优先：request == upstream；但若同时有其他请求名映射到它
+			// （真实的 Antigravity 默认映射几乎总是这种情况，例如
+			// `claude-opus-4-6-thinking` 既有同名自映射也是 claude-opus-4-6 的目标），
+			// 用 RelatedModels 额外承载"被哪些请求名映射到"，前端展示 +N 提示。
+			hint := &BillingBasisHint{Type: BillingHintRequestedEqualsUpstream}
+			if len(b.upstreamFromList) > 0 {
+				hint.RelatedModels = b.upstreamFromList
+			}
+			items[i].BillingBasisHint = hint
+		case len(b.upstreamFromList) > 0:
+			items[i].BillingBasisHint = &BillingBasisHint{
+				Type:          BillingHintUpstreamOnly,
+				RelatedModels: b.upstreamFromList,
+			}
+		case b.requestedTargetKey != "":
+			items[i].BillingBasisHint = &BillingBasisHint{
+				Type:          BillingHintRequestedOnly,
+				RelatedModels: []string{b.requestedTargetKey},
+			}
+		}
 	}
 
 	// 5. 筛选
@@ -238,11 +340,15 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 
 // ModelPricingDetail 单模型定价详情
 type ModelPricingDetail struct {
-	Model           string                     `json:"model"`
-	Provider        string                     `json:"provider"`
-	LiteLLMPrices   *LiteLLMPrices             `json:"litellm_prices"`
-	GlobalOverride  *GlobalOverride            `json:"global_override"`
-	ChannelOverrides []ChannelOverrideSummary  `json:"channel_overrides"`
+	Model            string                   `json:"model"`
+	Provider         string                   `json:"provider"`
+	LiteLLMPrices    *LiteLLMPrices           `json:"litellm_prices"`
+	GlobalOverride   *GlobalOverride          `json:"global_override"`
+	ChannelOverrides []ChannelOverrideSummary `json:"channel_overrides"`
+	// SuggestedPrices 当模型既无 LiteLLM 数据又无全局覆盖时，按命名近似推断的建议价
+	SuggestedPrices *LiteLLMPrices `json:"suggested_prices,omitempty"`
+	// SuggestedFrom 建议价来自哪个模型（用于前端提示"来自 xxx"）
+	SuggestedFrom string `json:"suggested_from,omitempty"`
 }
 
 // ChannelOverrideSummary 渠道覆盖摘要
@@ -262,15 +368,21 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 	}
 
 	// LiteLLM 价格
-	litellmPricing := s.pricingService.GetModelPricing(model)
-	if litellmPricing != nil {
-		detail.Provider = litellmPricing.LiteLLMProvider
-		detail.LiteLLMPrices = &LiteLLMPrices{
-			InputPrice:       litellmPricing.InputCostPerToken,
-			OutputPrice:      litellmPricing.OutputCostPerToken,
-			CacheWritePrice:  litellmPricing.CacheCreationInputTokenCost,
-			CacheReadPrice:   litellmPricing.CacheReadInputTokenCost,
-			ImageOutputPrice: litellmPricing.OutputCostPerImageToken,
+	// 注意：pricingService.GetModelPricing 带模糊匹配，会把 "gpt-oss-120b-medium" 这种
+	// Antigravity 专有模型错误匹配到不相关的模型。这里先判断 model 是否是 Antigravity
+	// 专有 stub（出现在映射表 keys 里但不在 LiteLLM 精确 keys 里），是则跳过 LiteLLM
+	// 查表，避免误导用户。这与 ListAllModels 的精确匹配语义保持一致。
+	if !s.isAntigravityStubModel(model) {
+		litellmPricing := s.pricingService.GetModelPricing(model)
+		if litellmPricing != nil {
+			detail.Provider = litellmPricing.LiteLLMProvider
+			detail.LiteLLMPrices = &LiteLLMPrices{
+				InputPrice:       litellmPricing.InputCostPerToken,
+				OutputPrice:      litellmPricing.OutputCostPerToken,
+				CacheWritePrice:  litellmPricing.CacheCreationInputTokenCost,
+				CacheReadPrice:   litellmPricing.CacheReadInputTokenCost,
+				ImageOutputPrice: litellmPricing.OutputCostPerImageToken,
+			}
 		}
 	}
 
@@ -289,7 +401,126 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 	// 渠道覆盖
 	detail.ChannelOverrides = s.getChannelOverridesForModel(ctx, model)
 
+	// 建议价：仅当既无 LiteLLM 数据又无全局覆盖时（典型是 Antigravity 专有 stub）
+	// 才尝试按命名近似推断一个建议价，供管理员一键填入
+	if detail.LiteLLMPrices == nil && detail.GlobalOverride == nil {
+		if suggested, from := s.suggestPricing(model); suggested != nil {
+			detail.SuggestedPrices = suggested
+			detail.SuggestedFrom = from
+		}
+	}
+
 	return detail, nil
+}
+
+// antigravityProprietarySuggestMap 为无法用前缀规则推断的 Antigravity 专有模型
+// 提供显式建议价来源。每次 Google / OpenAI 发新版本时可能需要补条目。
+var antigravityProprietarySuggestMap = map[string]string{
+	"tab_flash_lite_preview": "gemini-2.5-flash-lite",
+	"gpt-oss-120b-medium":    "gpt-4o-mini",
+}
+
+// isAntigravityStubModel 判断模型是否是 Antigravity 专有的 stub（即出现在
+// DefaultAntigravityModelMapping 的 key 里，但不存在于 LiteLLM 精确模型列表）。
+// 这类模型被 pricingService.GetModelPricing 的模糊匹配误匹配时会返回完全不相关的
+// 价格，详情接口应该把它们视作无 LiteLLM 数据并改走 suggestPricing。
+func (s *GlobalModelPricingService) isAntigravityStubModel(model string) bool {
+	mapping := domain.ResolveAntigravityDefaultMapping()
+	if _, ok := mapping[model]; !ok {
+		return false
+	}
+	// 遍历 LiteLLM 精确模型列表，比对是否存在
+	for _, entry := range s.pricingService.GetAllModels() {
+		if strings.EqualFold(entry.Model, model) {
+			return false
+		}
+	}
+	return true
+}
+
+// suggestPricing 按命名近似为模型推断一个建议基准价。
+// 返回 (*LiteLLMPrices, 源模型名)。全部匹配失败返回 (nil, "")。
+//
+// 匹配链（从精确到模糊）：
+//  1. 显式映射表 antigravityProprietarySuggestMap
+//  2. 剥离 Gemini 档位后缀：-high / -low / -medium（保留 -flash / -pro 家族）
+//  3. 剥离 claude -thinking 后缀
+//  4. Gemini 版本降级：3 → 2.5；3.1 → 3.x → 2.5
+func (s *GlobalModelPricingService) suggestPricing(model string) (*LiteLLMPrices, string) {
+	tryFrom := func(name string) (*LiteLLMPrices, string) {
+		if name == "" || strings.EqualFold(name, model) {
+			return nil, ""
+		}
+		lp := s.pricingService.GetModelPricing(name)
+		if lp == nil {
+			return nil, ""
+		}
+		return &LiteLLMPrices{
+			InputPrice:       lp.InputCostPerToken,
+			OutputPrice:      lp.OutputCostPerToken,
+			CacheWritePrice:  lp.CacheCreationInputTokenCost,
+			CacheReadPrice:   lp.CacheReadInputTokenCost,
+			ImageOutputPrice: lp.OutputCostPerImageToken,
+		}, name
+	}
+
+	// 1) 显式映射
+	if target, ok := antigravityProprietarySuggestMap[strings.ToLower(model)]; ok {
+		if p, from := tryFrom(target); p != nil {
+			return p, from
+		}
+	}
+
+	// 2) 剥离 Gemini 档位后缀（-high / -low / -medium）
+	for _, suffix := range []string{"-high", "-low", "-medium"} {
+		if strings.HasSuffix(model, suffix) {
+			base := strings.TrimSuffix(model, suffix)
+			if p, from := tryFrom(base); p != nil {
+				return p, from
+			}
+			// 降级链：gemini-3-pro-high → gemini-3-pro → gemini-2.5-pro
+			if downgraded := downgradeGeminiVersion(base); downgraded != "" {
+				if p, from := tryFrom(downgraded); p != nil {
+					return p, from
+				}
+			}
+		}
+	}
+
+	// 3) 剥离 claude -thinking 后缀
+	if strings.HasSuffix(model, "-thinking") {
+		base := strings.TrimSuffix(model, "-thinking")
+		if p, from := tryFrom(base); p != nil {
+			return p, from
+		}
+	}
+
+	// 4) Gemini 版本直接降级
+	if downgraded := downgradeGeminiVersion(model); downgraded != "" {
+		if p, from := tryFrom(downgraded); p != nil {
+			return p, from
+		}
+	}
+
+	return nil, ""
+}
+
+// downgradeGeminiVersion 将 gemini-3.x / gemini-3 系列降级到 gemini-2.5 作为建议价兜底。
+// 不认识的命名返回空字符串。
+func downgradeGeminiVersion(model string) string {
+	lower := strings.ToLower(model)
+	if !strings.HasPrefix(lower, "gemini-") {
+		return ""
+	}
+	// gemini-3.1-pro → gemini-2.5-pro
+	if strings.HasPrefix(lower, "gemini-3.1-") {
+		return "gemini-2.5-" + strings.TrimPrefix(lower, "gemini-3.1-")
+	}
+	// gemini-3-pro → gemini-2.5-pro
+	if strings.HasPrefix(lower, "gemini-3-") {
+		return "gemini-2.5-" + strings.TrimPrefix(lower, "gemini-3-")
+	}
+	return ""
 }
 
 // CreateOverride 创建全局定价覆盖

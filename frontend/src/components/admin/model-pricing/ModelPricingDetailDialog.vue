@@ -33,6 +33,31 @@
           </label>
         </div>
 
+        <!-- Suggested prices hint (only for stub models without litellm + without existing override) -->
+        <div
+          v-if="detail.suggested_prices && !detail.global_override"
+          class="mb-3 flex items-start justify-between gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs dark:bg-amber-900/20"
+        >
+          <div class="min-w-0 flex-1 text-amber-800 dark:text-amber-300">
+            <p class="font-semibold">
+              💡 {{ t('admin.modelPricing.suggestedPricesHint', { from: detail.suggested_from || '' }) }}
+            </p>
+            <p class="mt-0.5 font-mono text-[11px] text-amber-700 dark:text-amber-400">
+              <span>In: {{ toMTok(detail.suggested_prices.input_price) }}/MTok</span>
+              <span class="ml-2">Out: {{ toMTok(detail.suggested_prices.output_price) }}/MTok</span>
+              <span v-if="detail.suggested_prices.cache_write_price > 0" class="ml-2">CacheW: {{ toMTok(detail.suggested_prices.cache_write_price) }}</span>
+              <span v-if="detail.suggested_prices.cache_read_price > 0" class="ml-2">CacheR: {{ toMTok(detail.suggested_prices.cache_read_price) }}</span>
+            </p>
+          </div>
+          <button
+            @click="applySuggested"
+            class="btn btn-secondary shrink-0 text-xs"
+            :disabled="saving"
+          >
+            {{ t('admin.modelPricing.applySuggested') }}
+          </button>
+        </div>
+
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.inputPrice') }} ($/MTok)</label>
@@ -229,6 +254,18 @@ async function handleSave() {
   } finally {
     saving.value = false
   }
+}
+
+function applySuggested() {
+  const sp = detail.value?.suggested_prices
+  if (!sp) return
+  // 把建议价按字段写入表单（per-token → MTok）。不立即提交，让管理员确认后手动保存。
+  const put = (val: number): string | number => (val > 0 ? (perTokenToMTok(val) ?? '') : '')
+  form.input_price = put(sp.input_price)
+  form.output_price = put(sp.output_price)
+  form.cache_write_price = put(sp.cache_write_price)
+  form.cache_read_price = put(sp.cache_read_price)
+  form.image_output_price = put(sp.image_output_price)
 }
 
 async function handleDelete() {

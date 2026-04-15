@@ -19,6 +19,83 @@
 
 ## 变更记录
 
+## [2026-04-15] feat(admin): 模型定价页深度优化（下划线 tab / 内联 popover / 建议价 / billing hint）
+
+**影响范围**:
+- `backend/internal/service/global_model_pricing_service.go`（ModelPricingListItem/Detail 加字段、suggestPricing、isAntigravityStubModel、Antigravity 反扫 mapping value）
+- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`（下划线 tab 筛选器、computePriceDelta 涨跌染色、折叠 banner、inline popover 接入、行级徽标）
+- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue`（建议价展示 + 应用按钮）
+- `frontend/src/components/admin/model-pricing/ModelPricingInlinePopover.vue`（新建，308 行）
+- `frontend/src/api/admin/modelPricing.ts`（类型扩充：suggested_prices/suggested_from/billing_basis_hint）
+- `frontend/src/i18n/locales/zh.ts` & `en.ts`（~20 条新 key）
+
+**上游兼容性**: 中等。所有改动集中在二开独有的「模型定价」管理界面（2026-04-12 新增的 ModelPricingTab 和相关服务方法上游不存在），与上游主线无冲突。GlobalModelPricing 实体没有新增 DB 字段，零 migration。需要留意的是上游未来若给 `ModelPricingListItem` / `ModelPricingDetail` 增加字段时要避免和本次新增字段命名冲突。
+
+**背景**:
+
+此前「模型配置 → 模型定价」Tab 已能正确展示 Gemini/Antigravity 筛选结果，但管理员真正使用该页面管理全局定价时还有四个痛点：
+1. 表格里每个价格字段到底来自 LiteLLM 还是被 global/channel 覆盖看不清，只有 input/output 列有简单颜色，cache 列完全没标
+2. 来源筛选 Tab 顺序是「全部 / 全局覆盖 / 渠道覆盖 / 仅 LiteLLM」，但实际计费优先级是 `Channel > Global > LiteLLM`，顺序反了且页面没有任何位置说明这个优先级
+3. 改一个模型的 input 价要点铅笔图标弹全屏 dialog → 翻找 → 改 → 保存 → 关闭，对高频调参场景太重
+4. 上一轮补的 Antigravity 专有 stub（`gemini-3-pro-high`、`gpt-oss-120b-medium`、`tab_flash_lite_preview` 等 8+ 个）一排 `-`，管理员无从下手；且这些模型涉及账号级映射，与渠道定价的 `billing_model_source` 机制强相关
+
+**设计决策**：
+
+经过 Explore+Plan 子代分析，关键发现：`model_pricing_resolver.go` 的 `resolveBasePricing(model)` 收到的 `model` 已经是被 `BillingModelSource` 过滤的 `billingModel`，全局覆盖的查表 key **天然跟随每个请求所属渠道的 billing_model_source**。也就是说系统已实质一致，缺的只是**让管理员看到这个隐式行为**。因此本轮选**方案 A**（前端明示隐式行为），不加后端字段，零 migration。
+
+**变更详情**:
+
+1. **筛选顺序 + 层级说明**：sourceTabs 顺序改为 `全部 / 有渠道覆盖 / 有全局覆盖 / 仅 LiteLLM`；Source label 右侧加 ⓘ 图标，hover 显示"优先级：渠道 > 全局 > LiteLLM"tooltip。
+2. **差异高亮**：`formatPrice` 重构为 `computePriceDelta`，返回 `{text, className, tooltip}`。以 LiteLLM 为基准计算相对百分比差异，±1% 内视作等同。涨价 `text-rose-600`、跌价 `text-emerald-600`、等同或无基准 `text-primary-600`、纯 LiteLLM 默认灰。cache_write/cache_read 一并启用。每个数字上 `title` 显示"LiteLLM 基准 $X · 差异 +Y%"。
+3. **折叠 banner（计费基准说明）**：stats 卡下方加 `<details>` 折叠块，默认收起。展开解释 requested/upstream/channel_mapped 三种基准含义 + "渠道默认 channel_mapped，无渠道路径默认 requested"。
+4. **内联 popover 编辑**：
+   - 新建 `ModelPricingInlinePopover.vue`：Teleport 到 body 避免表格 overflow 裁切；fixed 定位自动避开视口边界（下方 → 上方、右侧 → 左对齐）；4 个核心价格字段 + enabled 复选框 + 保存/删除/详细设置 3 按钮；每个字段带 LiteLLM 基准 placeholder；Enter 提交
+   - 表格 4 个价格 `<td>` 加 `@click` 触发 popover + `cursor-pointer hover:bg-primary-50/50`
+   - 保存时**不整表 reload**，父组件 `handleInlineSaved` 就地替换 items 并差量更新 stats.global_override_count
+   - Popover 保留原 override 的 provider/notes/image_output_price/per_request_price 等字段（PATCH 差量），避免清零
+   - `< lg` 断点 `window.matchMedia('(max-width: 1023px)')` 回退到原 dialog；stub 模型（需要配 provider/notes/建议价）也回退到 dialog
+   - 筛选器下方加灰色小字提示"点击表格中的价格数字可快速编辑"
+5. **Antigravity stub 可配置 + 建议价**：
+   - 表格铅笔图标对 stub 行 tooltip 切换为"创建定价"
+   - 后端 `ModelPricingDetail` 加 `SuggestedPrices` / `SuggestedFrom` 字段，仅在无 LiteLLM + 无 global_override 时填充
+   - 新 `suggestPricing` 方法按以下链匹配：显式映射表（`tab_flash_lite_preview → gemini-2.5-flash-lite`、`gpt-oss-120b-medium → gpt-4o-mini`）→ 剥离 `-high/-low/-medium` 档位后缀 → 剥离 `-thinking` → Gemini 版本降级（3.x → 2.5）
+   - `ModelPricingDetailDialog.vue` 在 Global Override section 顶部展示"💡 建议价（来自 xxx）· 应用"行，点击应用把值填入 form（需管理员确认保存，不自动入库）
+   - 修复一个副作用 bug：`pricingService.GetModelPricing` 带模糊匹配，对 Antigravity 专有 stub 会错误匹配到不相关的 LiteLLM 模型价格。新增 `isAntigravityStubModel` 检测（model 在 Antigravity mapping keys 但不在 LiteLLM 精确模型列表），详情接口对 stub 跳过 LiteLLM 并走 suggestPricing，与列表接口的精确匹配语义一致
+6. **双列模型名 + 计费模式列**（迭代过 badge 方案后的最终形态）：
+   用户反馈小 badge 太抽象，于是把信息提升为正式表格列——直接体现"客户端请求名 / 上游名 / 计费模式"三元组心智模型。
+   - 后端 `ModelPricingListItem.BillingBasisHint` 从单字符串升级为结构体 `{ type, related_models }`
+     三种 type：
+     - `requested_equals_upstream`——同名映射或纯 LiteLLM 模型，请求名 = 上游名
+     - `upstream_only`——模型是映射 value，客户端不直接请求它；related_models 列出所有映射源请求名（支持多对一）
+     - `requested_only`——模型是映射 key，被映射到其他名字；related_models 单元素为上游目标
+     优先级 `same_name > upstream_only > requested_only`；sameName 情况也填 related_models 承载"被谁映射到我"信息，避免信息丢失
+   - 前端 `ModelPricingTab.vue` 把原 Model 单列拆成「请求模型名 / 上游模型名」双列，并新增「计费模式」列（只读标签：按请求 / 按上游 / 请求=上游）
+     每行根据 hint 推导两列展示值：
+     - `requested_equals_upstream`：两列相同 = model 自身，若 related_models 非空展示 `+N` 小徽标 + hover 列全
+     - `requested_only`：请求 = model，上游 = related_models[0]
+     - `upstream_only`：请求 = related_models[0]（+N 表示多对一），上游 = model
+   - Provider / Channels 列改为 `xl:table-cell`（< 1280px 隐藏），节省宽度
+   - 计费模式列**不可编辑**，因为它不是这条记录的属性——它是从映射关系自动推断的展示标签，实际计费基准由请求所属渠道的 `billing_model_source` 决定
+   - banner 的展开内容里补一条 `billingBasisColumnNote` 警告式说明，明确告知用户"这一列只读 + 实际由渠道决定"
+
+**验证**:
+- `pnpm run typecheck` 通过
+- `go build ./...` 通过，`go vet ./internal/service/` 无告警
+- 本地 API 实测：
+  - `provider=antigravity` 返回 30 条，各 type 分布符合预期：
+    - `requested_equals_upstream`：`claude-opus-4-6-thinking`（related_models=[opus-4-5-20251101, opus-4-5-thinking, opus-4-6] 表示被 3 个请求映射到）、`claude-sonnet-4-6`（被 haiku-4-5 / haiku-4-5-20251001 映射到）、`gemini-3.1-flash-image`（被 3 个 image 模型映射到）等
+    - `requested_only`：`claude-haiku-4-5 → claude-sonnet-4-6`、`claude-opus-4-6 → claude-opus-4-6-thinking`、`gemini-3-pro-preview → gemini-3-pro-high` 等
+    - `upstream_only`：Antigravity 默认映射的 value 基本都有同名自映射，所以本类别暂时没数据——这是符合数据集现状的预期
+  - `GET /admin/model-pricing/gemini-3-pro-high` → 建议价来自 `gemini-2.5-pro`
+  - `GET /admin/model-pricing/tab_flash_lite_preview` → 建议价来自 `gemini-2.5-flash-lite`
+  - `GET /admin/model-pricing/gpt-oss-120b-medium` → 建议价来自 `gpt-4o-mini`（之前被 LiteLLM 模糊匹配污染成 `1.25e-6 / 1e-5` 错价，已修复）
+  - `GET /admin/model-pricing/claude-opus-4-6-thinking` → 正常返回 LiteLLM 价格，不触发 suggestPricing
+
+**已知限制**:
+- 显式建议价映射表 `antigravityProprietarySuggestMap` 需要在 Google/OpenAI 发新模型时维护，目前只对 `tab_flash_lite_preview` / `gpt-oss-120b-medium` 两条
+- Popover 仅支持 4 个核心价格字段；provider/notes/image_output_price/per_request_price/billing_mode 仍需走原 dialog（通过 popover 的"详细设置…"按钮跳转）
+- 方案 A 的保守选择：未来若出现"同一模型在不同 billing_model_source 下需要不同价"的实际业务场景，需要升级到方案 B（给 GlobalModelPricing 加 billing_model_source 字段 + 二维缓存），本次不阻塞该扩展
+
 ## [2026-04-15] fix(admin): 模型定价页 Gemini/Antigravity 过滤失效
 
 **影响范围**:

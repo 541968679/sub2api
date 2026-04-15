@@ -30,6 +30,17 @@ export interface GlobalOverride {
   notes: string
 }
 
+export interface BillingBasisHint {
+  /**
+   * 模型名在平台级模型映射里扮演的角色：
+   * - requested_equals_upstream: 同名映射（请求名 == 上游名）
+   * - upstream_only: 只是上游名，related_models 列出所有映射源请求名（可能多对一）
+   * - requested_only: 只是请求名，related_models 单元素为映射目标上游名
+   */
+  type: 'requested_equals_upstream' | 'upstream_only' | 'requested_only'
+  related_models?: string[]
+}
+
 export interface ModelPricingItem {
   model: string
   provider: string
@@ -37,6 +48,7 @@ export interface ModelPricingItem {
   global_override: GlobalOverride | null
   channel_override_count: number
   effective_source: 'channel' | 'global' | 'litellm' | 'fallback'
+  billing_basis_hint?: BillingBasisHint | null
 }
 
 export interface ModelPricingStats {
@@ -62,6 +74,10 @@ export interface ModelPricingDetail {
   litellm_prices: LiteLLMPrices | null
   global_override: GlobalOverride | null
   channel_overrides: ChannelOverrideSummary[]
+  /** 建议价：当 LiteLLM 和 global_override 都不存在时，后端按命名近似推断的参考 */
+  suggested_prices?: LiteLLMPrices | null
+  /** 建议价来源模型名（用于前端展示"来自 xxx"） */
+  suggested_from?: string
 }
 
 export interface ChannelOverrideSummary {
