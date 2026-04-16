@@ -77,8 +77,10 @@ do_deploy() {
     git pull origin main 2>&1 | tee -a "$LOG_FILE"
 
     # 2. Build to staging tag (old image stays intact during build)
-    log "--- Building image to staging tag ---"
-    if ! docker build -t "$STAGING_TAG" . 2>&1 | tee -a "$LOG_FILE"; then
+    #    --no-cache ensures code changes are always picked up (Docker's
+    #    COPY layer cache can miss in-place git-pull updates).
+    log "--- Building image to staging tag (no-cache) ---"
+    if ! docker build --no-cache -t "$STAGING_TAG" . 2>&1 | tee -a "$LOG_FILE"; then
         log "ERROR: Build failed! Production is still running the old image, no downtime."
         return 1
     fi
