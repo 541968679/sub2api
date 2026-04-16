@@ -367,9 +367,9 @@ export default {
   // Auth
   auth: {
     login: {
-      badge: 'UNIFIED API GATEWAY',
-      headingLine1: 'One Gateway',
-      headingLine2: 'All Top Models',
+      badge: 'ZEROCODE',
+      headingLine1: 'ZeroCode',
+      headingLine2: 'All-in-One API for Top AI Models',
       description: 'A unified API gateway for developers and teams. One interface, pay-as-you-go billing, full usage tracking — no more juggling multiple platforms.',
       featurePrice: 'From $0.6 / 1$',
       featurePayAsYouGo: 'Pay as you go',
@@ -4577,7 +4577,7 @@ export default {
         backendModeDescription:
           'Disables user registration, public site, and self-service features. Only admin can log in and manage the platform.',
         siteName: 'Site Name',
-        siteNamePlaceholder: 'Sub2API',
+        siteNamePlaceholder: 'ZeroCode',
         siteNameHint: 'Displayed in emails and page titles',
         siteSubtitle: 'Site Subtitle',
         siteSubtitlePlaceholder: 'Subscription to API Conversion Platform',
@@ -4784,7 +4784,7 @@ export default {
         fromEmail: 'From Email',
         fromEmailPlaceholder: "noreply{'@'}example.com",
         fromName: 'From Name',
-        fromNamePlaceholder: 'Sub2API',
+        fromNamePlaceholder: 'ZeroCode',
         useTls: 'Use TLS',
         useTlsHint: 'Enable TLS encryption for SMTP connection'
       },

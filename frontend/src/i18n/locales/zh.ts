@@ -367,9 +367,9 @@ export default {
   // Auth
   auth: {
     login: {
-      badge: 'UNIFIED API GATEWAY',
-      headingLine1: '一个入口',
-      headingLine2: '调用主流模型',
+      badge: 'ZEROCODE',
+      headingLine1: 'ZeroCode',
+      headingLine2: '顶级大模型一站式API解决方案',
       description: '面向开发者和团队的多模型中转站。统一接口、按量计费、调用记录可查，减少切换不同平台和不同计费规则的成本。',
       featurePrice: '0.6 / 1$ 起',
       featurePayAsYouGo: '按量使用',
@@ -4740,7 +4740,7 @@ export default {
           '禁用用户注册、公开页面和自助服务功能。仅管理员可以登录和管理平台。',
         siteName: '站点名称',
         siteNameHint: '显示在邮件和页面标题中',
-        siteNamePlaceholder: 'Sub2API',
+        siteNamePlaceholder: 'ZeroCode',
         siteSubtitle: '站点副标题',
         siteSubtitleHint: '显示在登录和注册页面',
         siteSubtitlePlaceholder: '订阅转 API 转换平台',
@@ -4948,7 +4948,7 @@ export default {
         fromEmail: '发件人邮箱',
         fromEmailPlaceholder: "noreply{'@'}example.com",
         fromName: '发件人名称',
-        fromNamePlaceholder: 'Sub2API',
+        fromNamePlaceholder: 'ZeroCode',
         useTls: '使用 TLS',
         useTlsHint: '为 SMTP 连接启用 TLS 加密'
       },

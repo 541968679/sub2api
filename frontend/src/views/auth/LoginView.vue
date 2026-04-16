@@ -314,7 +314,7 @@ const appStore = useAppStore()
 
 // ==================== Site Info (replaces AuthLayout) ====================
 
-const siteName = computed(() => appStore.siteName || 'Sub2API')
+const siteName = computed(() => appStore.siteName || 'ZeroCode')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 const docUrl = computed(() => appStore.docUrl)
