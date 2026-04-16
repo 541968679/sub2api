@@ -111,7 +111,9 @@ func (r *globalModelPricingRepository) GetByID(ctx context.Context, id int64) (*
 		&p.ID, &p.Model, &p.Provider, &p.BillingMode,
 		&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheReadPrice,
 		&p.ImageOutputPrice, &p.PerRequestPrice,
-		&p.Enabled, &p.Notes, &p.CreatedAt, &p.UpdatedAt,
+		&p.Enabled, &p.Notes,
+		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
+		&p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -131,7 +133,9 @@ func (r *globalModelPricingRepository) GetByModel(ctx context.Context, model str
 		&p.ID, &p.Model, &p.Provider, &p.BillingMode,
 		&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheReadPrice,
 		&p.ImageOutputPrice, &p.PerRequestPrice,
-		&p.Enabled, &p.Notes, &p.CreatedAt, &p.UpdatedAt,
+		&p.Enabled, &p.Notes,
+		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
+		&p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
