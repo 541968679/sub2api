@@ -1058,16 +1058,29 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 		cfg.Gateway.UserMessageQueue.Mode = ""
 	}
 
-	// Auto-generate TOTP encryption key if not set (32 bytes = 64 hex chars for AES-256)
+	// Auto-generate TOTP encryption key if not set (32 bytes = 64 hex chars for AES-256).
+	// When auto-generated, persist to a file so the same key survives restarts —
+	// otherwise encrypted payment provider configs become unrecoverable.
 	cfg.Totp.EncryptionKey = strings.TrimSpace(cfg.Totp.EncryptionKey)
 	if cfg.Totp.EncryptionKey == "" {
-		key, err := generateJWTSecret(32) // Reuse the same random generation function
-		if err != nil {
-			return nil, fmt.Errorf("generate totp encryption key error: %w", err)
+		if persisted, err := loadPersistedEncryptionKey(); err == nil && persisted != "" {
+			cfg.Totp.EncryptionKey = persisted
+			cfg.Totp.EncryptionKeyConfigured = false
+			slog.Info("TOTP encryption key loaded from persisted file (.encryption_key)")
+		} else {
+			key, err := generateJWTSecret(32)
+			if err != nil {
+				return nil, fmt.Errorf("generate totp encryption key error: %w", err)
+			}
+			cfg.Totp.EncryptionKey = key
+			cfg.Totp.EncryptionKeyConfigured = false
+			if persistErr := persistEncryptionKey(key); persistErr != nil {
+				slog.Warn("failed to persist auto-generated encryption key — key will change on next restart",
+					"error", persistErr)
+			} else {
+				slog.Info("TOTP encryption key auto-generated and persisted to .encryption_key")
+			}
 		}
-		cfg.Totp.EncryptionKey = key
-		cfg.Totp.EncryptionKeyConfigured = false
-		slog.Warn("TOTP encryption key auto-generated. Consider setting a fixed key for production.")
 	} else {
 		cfg.Totp.EncryptionKeyConfigured = true
 	}
@@ -2274,6 +2287,50 @@ func generateJWTSecret(byteLength int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+// encryptionKeyFileName is the file used to persist auto-generated encryption keys.
+const encryptionKeyFileName = ".encryption_key"
+
+// encryptionKeyDir returns the directory where the encryption key file is stored.
+// Priority: DATA_DIR env → /app/data (Docker) → current working directory.
+func encryptionKeyDir() string {
+	if d := os.Getenv("DATA_DIR"); d != "" {
+		return d
+	}
+	if info, err := os.Stat("/app/data"); err == nil && info.IsDir() {
+		return "/app/data"
+	}
+	return "."
+}
+
+// loadPersistedEncryptionKey reads a previously persisted encryption key from disk.
+func loadPersistedEncryptionKey() (string, error) {
+	path := encryptionKeyDir() + "/" + encryptionKeyFileName
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	key := strings.TrimSpace(string(data))
+	// Basic validation: must be 64 hex chars (32 bytes)
+	if len(key) != 64 {
+		return "", fmt.Errorf("persisted key has wrong length %d, expected 64", len(key))
+	}
+	if _, err := hex.DecodeString(key); err != nil {
+		return "", fmt.Errorf("persisted key is not valid hex: %w", err)
+	}
+	return key, nil
+}
+
+// persistEncryptionKey writes an auto-generated encryption key to disk so it
+// survives process restarts. The file is created with mode 0600 (owner-only).
+func persistEncryptionKey(key string) error {
+	dir := encryptionKeyDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	path := dir + "/" + encryptionKeyFileName
+	return os.WriteFile(path, []byte(key+"\n"), 0600)
 }
 
 // GetServerAddress returns the server address (host:port) from config file or environment variable.

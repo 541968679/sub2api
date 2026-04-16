@@ -117,6 +117,7 @@ backend/data/
 backend/config.yaml
 deploy/config.yaml
 backend/.installed
+.encryption_key
 
 # ===================
 # 其他
