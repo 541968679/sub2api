@@ -574,7 +574,9 @@ export default {
     redeemCode: 'Redeem Code',
     addBalanceWithCode: 'Add balance with a code',
     topUp: 'Top Up / Subscribe',
-    topUpHint: 'Recharge balance with bonus credits'
+    topUpHint: 'Recharge balance with bonus credits',
+    quickStart: 'Quick Start Guide',
+    quickStartHint: 'Learn how to set up and use your API keys'
   },
 
   // Groups (shared)
@@ -702,6 +704,21 @@ export default {
       claudeCodeDesc: 'Import as Claude Code configuration',
       geminiCli: 'Gemini CLI',
       geminiCliDesc: 'Import as Gemini CLI configuration',
+    },
+    // Getting started guide
+    guide: {
+      title: 'Getting Started',
+      subtitle: 'Follow these steps to start using AI coding tools',
+      dismiss: 'Got it, hide this',
+      step1Title: 'Create an API Key',
+      step1Desc: 'Click below to generate your first API key. Choose a name and select a group.',
+      step1Action: 'Create Key',
+      step2Title: 'Install CC Switch',
+      step2Desc: 'CC Switch is a desktop app that lets you import API keys into coding tools like Claude Code and Gemini CLI with one click.',
+      step2Download: 'Download from GitHub',
+      step3Title: 'Use Your Key',
+      step3Desc: 'Click "Import to CCS" next to your key for auto setup, or click "Use Key" for manual configuration.',
+      step3DescNoCcs: 'Click "Use Key" next to your key to see setup instructions for coding tools.',
     },
     // Quota and expiration
     quotaLimit: 'Quota Limit',

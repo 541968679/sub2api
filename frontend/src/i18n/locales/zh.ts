@@ -573,7 +573,9 @@ export default {
     redeemCode: '兑换码',
     addBalanceWithCode: '使用兑换码充值',
     topUp: '充值/订阅',
-    topUpHint: '充值余额，赠送更多额度'
+    topUpHint: '充值余额，赠送更多额度',
+    quickStart: '快速入门指引',
+    quickStartHint: '了解如何配置和使用 API 密钥'
   },
 
   // Groups (shared)
@@ -706,6 +708,21 @@ export default {
       claudeCodeDesc: '导入为 Claude Code 配置',
       geminiCli: 'Gemini CLI',
       geminiCliDesc: '导入为 Gemini CLI 配置'
+    },
+    // 快速入门指引
+    guide: {
+      title: '快速入门',
+      subtitle: '按照以下步骤开始使用 AI 编码工具',
+      dismiss: '知道了，隐藏指引',
+      step1Title: '创建 API 密钥',
+      step1Desc: '点击下方按钮生成您的第一个 API 密钥，选择名称和分组即可。',
+      step1Action: '创建密钥',
+      step2Title: '安装 CC Switch',
+      step2Desc: 'CC Switch 是一款桌面应用，可以一键将 API 密钥导入到 Claude Code、Gemini CLI 等编码工具。',
+      step2Download: '前往 GitHub 下载',
+      step3Title: '使用密钥',
+      step3Desc: '点击密钥操作列的「导入到 CCS」自动配置，或点击「使用密钥」查看手动配置说明。',
+      step3DescNoCcs: '点击密钥操作列的「使用密钥」查看各编码工具的配置方法。',
     },
     // 配额和有效期
     quotaLimit: '额度限制',

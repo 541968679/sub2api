@@ -1,6 +1,16 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <div class="keys-page-wrapper">
+      <!-- Getting Started Guide -->
+      <GettingStartedGuide
+        v-if="!guideDismissed"
+        :has-keys="apiKeys.length > 0"
+        :hide-ccs-import="publicSettings?.hide_ccs_import_button === true"
+        @create-key="showCreateModal = true"
+        @dismiss="dismissGuide"
+      />
+
+    <TablePageLayout :class="{ 'keys-table-section': !guideDismissed }">
       <template #filters>
         <div class="flex flex-col gap-3">
           <div class="flex flex-wrap items-center gap-3">
@@ -383,6 +393,7 @@
         />
       </template>
     </TablePageLayout>
+    </div>
 
     <!-- Create/Edit Modal -->
     <BaseDialog
@@ -1045,14 +1056,16 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, computed, onMounted, onUnmounted, watch, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
+	import { useRoute } from 'vue-router'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
+const route = useRoute()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -1066,6 +1079,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
+	import GettingStartedGuide from '@/components/keys/GettingStartedGuide.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
@@ -1116,6 +1130,21 @@ let resetTimer: ReturnType<typeof setInterval> | null = null
 const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
 const userGroupRates = ref<Record<number, number>>({})
 
+// Guide state
+const guideDismissed = ref(localStorage.getItem('sub2api_guide_dismissed') === 'true')
+
+const dismissGuide = () => {
+  guideDismissed.value = true
+  localStorage.setItem('sub2api_guide_dismissed', 'true')
+}
+
+// Restore guide when navigated with ?guide=1 from dashboard
+watch(() => route.query.guide, (val) => {
+  if (val === '1') {
+    guideDismissed.value = false
+    localStorage.removeItem('sub2api_guide_dismissed')
+  }
+}, { immediate: true })
 const pagination = ref({
   page: 1,
   page_size: getPersistedPageSize(),
@@ -1818,3 +1847,24 @@ onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
+
+<style scoped>
+.keys-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px - 4rem);
+  gap: 1rem;
+}
+
+.keys-table-section {
+  flex: 1;
+  min-height: 0;
+  height: auto !important;
+}
+
+@media (max-width: 1023px) {
+  .keys-page-wrapper {
+    height: auto;
+  }
+}
+</style>

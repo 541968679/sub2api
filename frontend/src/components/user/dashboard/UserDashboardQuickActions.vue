@@ -4,6 +4,22 @@
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.quickActions') }}</h2>
     </div>
     <div class="space-y-3 p-4">
+      <!-- Quick Start Guide -->
+      <button @click="router.push('/keys?guide=1')" class="group flex w-full items-center gap-4 rounded-xl bg-gradient-to-r from-primary-50 to-blue-50 p-4 text-left border border-primary-200/50 transition-all duration-200 hover:from-primary-100 hover:to-blue-100 dark:from-primary-900/20 dark:to-blue-900/20 dark:hover:from-primary-900/30 dark:hover:to-blue-900/30 dark:border-primary-700/30">
+        <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary-400 to-blue-500 shadow-md transition-transform group-hover:scale-105">
+          <Icon name="book" size="lg" class="text-white" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-primary-900 dark:text-primary-200">{{ t('dashboard.quickStart') }}</p>
+          <p class="text-xs text-primary-700/70 dark:text-primary-400/60">{{ t('dashboard.quickStartHint') }}</p>
+        </div>
+        <Icon
+          name="chevronRight"
+          size="md"
+          class="text-primary-400 transition-colors group-hover:text-blue-500 dark:text-primary-600"
+        />
+      </button>
+
       <button v-if="showTopUp" @click="router.push('/purchase')" class="group flex w-full items-center gap-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 p-4 text-left border border-amber-200/50 transition-all duration-200 hover:from-amber-100 hover:to-orange-100 dark:from-amber-900/20 dark:to-orange-900/20 dark:hover:from-amber-900/30 dark:hover:to-orange-900/30 dark:border-amber-700/30">
         <div class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 shadow-md transition-transform group-hover:scale-105">
           <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
