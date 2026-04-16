@@ -298,35 +298,74 @@ func (s *PaymentConfigService) getStripePublishableKey(ctx context.Context) stri
 // nil-check before serialisation — this is inherent to patch-style update patterns
 // and cannot be meaningfully decomposed without introducing unnecessary abstraction.
 func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req UpdatePaymentConfigRequest) error {
-	m := map[string]string{
-		SettingPaymentEnabled:      formatBoolOrEmpty(req.Enabled),
-		SettingMinRechargeAmount:   formatPositiveFloat(req.MinAmount),
-		SettingMaxRechargeAmount:   formatPositiveFloat(req.MaxAmount),
-		SettingDailyRechargeLimit:  formatPositiveFloat(req.DailyLimit),
-		SettingOrderTimeoutMinutes: formatPositiveInt(req.OrderTimeoutMin),
-		SettingMaxPendingOrders:    formatPositiveInt(req.MaxPendingOrders),
-		SettingBalancePayDisabled:  formatBoolOrEmpty(req.BalanceDisabled),
-		SettingLoadBalanceStrategy: derefStr(req.LoadBalanceStrategy),
-		SettingProductNamePrefix:   derefStr(req.ProductNamePrefix),
-		SettingProductNameSuffix:   derefStr(req.ProductNameSuffix),
-		SettingHelpImageURL:        derefStr(req.HelpImageURL),
-		SettingHelpText:            derefStr(req.HelpText),
-		SettingCancelRateLimitOn:   formatBoolOrEmpty(req.CancelRateLimitEnabled),
-		SettingCancelRateLimitMax:  formatPositiveInt(req.CancelRateLimitMax),
-		SettingCancelWindowSize:    formatPositiveInt(req.CancelRateLimitWindow),
-		SettingCancelWindowUnit:    derefStr(req.CancelRateLimitUnit),
-		SettingCancelWindowMode:    derefStr(req.CancelRateLimitMode),
-		SettingCNYPerUSD:           formatPositiveFloat(req.CNYPerUSD),
+	m := make(map[string]string)
+	// Only include fields that were explicitly provided (non-nil).
+	// This prevents partial updates (e.g. from RechargeConfigView) from
+	// wiping out fields they didn't send.
+	if req.Enabled != nil {
+		m[SettingPaymentEnabled] = strconv.FormatBool(*req.Enabled)
+	}
+	if req.MinAmount != nil {
+		m[SettingMinRechargeAmount] = formatPositiveFloat(req.MinAmount)
+	}
+	if req.MaxAmount != nil {
+		m[SettingMaxRechargeAmount] = formatPositiveFloat(req.MaxAmount)
+	}
+	if req.DailyLimit != nil {
+		m[SettingDailyRechargeLimit] = formatPositiveFloat(req.DailyLimit)
+	}
+	if req.OrderTimeoutMin != nil {
+		m[SettingOrderTimeoutMinutes] = formatPositiveInt(req.OrderTimeoutMin)
+	}
+	if req.MaxPendingOrders != nil {
+		m[SettingMaxPendingOrders] = formatPositiveInt(req.MaxPendingOrders)
+	}
+	if req.BalanceDisabled != nil {
+		m[SettingBalancePayDisabled] = strconv.FormatBool(*req.BalanceDisabled)
+	}
+	if req.LoadBalanceStrategy != nil {
+		m[SettingLoadBalanceStrategy] = *req.LoadBalanceStrategy
+	}
+	if req.ProductNamePrefix != nil {
+		m[SettingProductNamePrefix] = *req.ProductNamePrefix
+	}
+	if req.ProductNameSuffix != nil {
+		m[SettingProductNameSuffix] = *req.ProductNameSuffix
+	}
+	if req.HelpImageURL != nil {
+		m[SettingHelpImageURL] = *req.HelpImageURL
+	}
+	if req.HelpText != nil {
+		m[SettingHelpText] = *req.HelpText
+	}
+	if req.CancelRateLimitEnabled != nil {
+		m[SettingCancelRateLimitOn] = strconv.FormatBool(*req.CancelRateLimitEnabled)
+	}
+	if req.CancelRateLimitMax != nil {
+		m[SettingCancelRateLimitMax] = formatPositiveInt(req.CancelRateLimitMax)
+	}
+	if req.CancelRateLimitWindow != nil {
+		m[SettingCancelWindowSize] = formatPositiveInt(req.CancelRateLimitWindow)
+	}
+	if req.CancelRateLimitUnit != nil {
+		m[SettingCancelWindowUnit] = *req.CancelRateLimitUnit
+	}
+	if req.CancelRateLimitMode != nil {
+		m[SettingCancelWindowMode] = *req.CancelRateLimitMode
+	}
+	if req.CNYPerUSD != nil {
+		m[SettingCNYPerUSD] = formatPositiveFloat(req.CNYPerUSD)
 	}
 	if req.EnabledTypes != nil {
 		m[SettingEnabledPaymentTypes] = strings.Join(req.EnabledTypes, ",")
-	} else {
-		m[SettingEnabledPaymentTypes] = ""
 	}
 	if req.BonusTiers != nil {
 		if b, err := json.Marshal(*req.BonusTiers); err == nil {
 			m[SettingBonusTiers] = string(b)
 		}
+	}
+	if len(m) == 0 {
+		return nil
 	}
 	return s.settingRepo.SetMultiple(ctx, m)
 }

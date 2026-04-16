@@ -43,14 +43,71 @@
           <template v-if="activeTab === 'recharge'">
             <!-- Recharge Account Card -->
             <div class="card p-5">
-              <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
-              <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
+                  <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
+                  <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }}{{ t('payment.usdUnit') }}</p>
+                </div>
+                <div v-if="hasConversion" class="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-center dark:border-primary-700/40 dark:bg-primary-900/20">
+                  <p class="text-[10px] text-primary-500 dark:text-primary-400">{{ t('payment.currentRate') }}</p>
+                  <p class="text-sm font-bold text-primary-700 dark:text-primary-300">&yen;{{ cnyPerUsd }}{{ t('payment.yuanUnit') }} = $1{{ t('payment.usdUnit') }}</p>
+                </div>
+              </div>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
+            <!-- Bonus Tiers Cards -->
+            <div v-if="sortedBonusTiers.length > 0" class="card p-5">
+              <p class="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">{{ t('payment.bonusTiersTitle') }}</p>
+              <div class="flex gap-3 overflow-x-auto pb-1">
+                <button
+                  v-for="(tier, idx) in sortedBonusTiers"
+                  :key="tier.min_amount"
+                  type="button"
+                  @click="selectTierAmount(tier.min_amount)"
+                  :class="[
+                    'relative flex-shrink-0 cursor-pointer rounded-xl border-2 p-3 text-center transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]',
+                    amount === tier.min_amount
+                      ? 'border-primary-500 ring-2 ring-primary-300/50 dark:ring-primary-700/50'
+                      : tierVisualLevel(idx, sortedBonusTiers.length) === 3
+                        ? 'border-amber-400 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-100 shadow-lg ring-1 ring-amber-300/40 dark:border-amber-500/60 dark:from-amber-900/30 dark:via-yellow-900/20 dark:to-orange-900/30'
+                        : tierVisualLevel(idx, sortedBonusTiers.length) === 2
+                          ? 'border-orange-300 bg-gradient-to-br from-amber-50 to-orange-100 shadow-md dark:border-orange-600/40 dark:from-amber-900/20 dark:to-orange-900/20'
+                          : tierVisualLevel(idx, sortedBonusTiers.length) === 1
+                            ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm dark:border-blue-700/30 dark:from-blue-900/20 dark:to-indigo-900/20'
+                            : 'border-gray-200 bg-white dark:border-dark-600 dark:bg-dark-800'
+                  ]"
+                  :style="{ minWidth: tierVisualLevel(idx, sortedBonusTiers.length) >= 2 ? '140px' : '120px' }"
+                >
+                  <!-- Best Value / HOT badge -->
+                  <span v-if="tierVisualLevel(idx, sortedBonusTiers.length) === 3" class="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">{{ t('payment.bestValue') }}</span>
+                  <span v-else-if="tierVisualLevel(idx, sortedBonusTiers.length) === 2" class="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-orange-400 to-red-400 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm">HOT</span>
+                  <!-- Amount -->
+                  <p :class="[
+                    'font-bold',
+                    tierVisualLevel(idx, sortedBonusTiers.length) >= 2 ? 'text-lg text-amber-800 dark:text-amber-300' : 'text-base text-gray-800 dark:text-gray-200'
+                  ]">&yen;{{ tier.min_amount }}{{ t('payment.yuanUnit') }}</p>
+                  <!-- Bonus -->
+                  <p :class="[
+                    'mt-1 font-semibold',
+                    tierVisualLevel(idx, sortedBonusTiers.length) >= 2 ? 'text-sm text-green-600 dark:text-green-400' : 'text-xs text-green-600 dark:text-green-400'
+                  ]">{{ t('payment.bonusLabel') }}${{ tier.bonus_usd }}{{ t('payment.usdUnit') }}</p>
+                  <!-- Total credit -->
+                  <p v-if="hasConversion" :class="[
+                    'mt-1 font-bold',
+                    tierVisualLevel(idx, sortedBonusTiers.length) >= 2 ? 'text-base text-gray-900 dark:text-white' : 'text-sm text-gray-800 dark:text-gray-200'
+                  ]">{{ t('payment.tierTotal') }}${{ (tier.min_amount / cnyPerUsd + tier.bonus_usd).toFixed(0) }}{{ t('payment.usdUnit') }}</p>
+                  <!-- Discount as X折 -->
+                  <p v-if="hasConversion" :class="[
+                    'mt-0.5 font-bold',
+                    tierVisualLevel(idx, sortedBonusTiers.length) >= 2 ? 'text-sm text-orange-600 dark:text-orange-400' : 'text-xs text-orange-500 dark:text-orange-400'
+                  ]">{{ tierDiscountLabel(tier) }}</p>
+                </button>
+              </div>
+            </div>
             <div class="card p-6">
               <AmountInput
                 v-model="amount"
@@ -71,28 +128,28 @@
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                  <span class="text-gray-900 dark:text-white">&yen;{{ validAmount.toFixed(2) }}</span>
+                  <span class="text-gray-900 dark:text-white">&yen;{{ validAmount.toFixed(2) }}{{ t('payment.yuanUnit') }}</span>
                 </div>
                 <div v-if="feeRate > 0" class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">&yen;{{ feeAmount.toFixed(2) }}</span>
+                  <span class="text-gray-900 dark:text-white">&yen;{{ feeAmount.toFixed(2) }}{{ t('payment.yuanUnit') }}</span>
                 </div>
                 <div v-if="feeRate > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">&yen;{{ totalAmount.toFixed(2) }}</span>
+                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">&yen;{{ totalAmount.toFixed(2) }}{{ t('payment.yuanUnit') }}</span>
                 </div>
                 <div v-if="hasConversion || bonusAmount > 0" class="border-t border-gray-200 pt-2 space-y-2 dark:border-dark-600">
                   <div v-if="hasConversion" class="flex justify-between">
-                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.baseCredit') }} <span class="text-xs">&yen;{{ cnyPerUsd }}/{{ t('payment.perUsd') }}</span></span>
-                    <span class="text-gray-900 dark:text-white">${{ baseCredit.toFixed(2) }}</span>
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.baseCredit') }}</span>
+                    <span class="text-gray-900 dark:text-white">${{ baseCredit.toFixed(2) }}{{ t('payment.usdUnit') }}</span>
                   </div>
                   <div v-if="bonusAmount > 0" class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.bonus') }}</span>
-                    <span class="text-green-600 dark:text-green-400">+${{ bonusAmount.toFixed(2) }}</span>
+                    <span class="text-green-600 dark:text-green-400">+${{ bonusAmount.toFixed(2) }}{{ t('payment.usdUnit') }}</span>
                   </div>
                   <div class="flex justify-between">
                     <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.creditAmount') }}</span>
-                    <span class="text-lg font-bold text-green-600 dark:text-green-400">${{ creditAmount.toFixed(2) }}</span>
+                    <span class="text-lg font-bold text-green-600 dark:text-green-400">${{ creditAmount.toFixed(2) }}{{ t('payment.usdUnit') }}</span>
                   </div>
                 </div>
               </div>
@@ -102,7 +159,7 @@
                 <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                 {{ t('common.processing') }}
               </span>
-              <span v-else>{{ t('payment.createOrder') }} &yen;{{ (feeRate > 0 && validAmount > 0 ? totalAmount : validAmount).toFixed(2) }}<template v-if="hasConversion"> &rarr; ${{ creditAmount.toFixed(2) }}</template></span>
+              <span v-else>{{ t('payment.createOrder') }} &yen;{{ (feeRate > 0 && validAmount > 0 ? totalAmount : validAmount).toFixed(2) }}{{ t('payment.yuanUnit') }}<template v-if="hasConversion"> &rarr; ${{ creditAmount.toFixed(2) }}{{ t('payment.usdUnit') }}</template></span>
             </button>
             <div v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20">
               <p class="text-sm text-red-700 dark:text-red-400">{{ errorMessage }}</p>
@@ -417,6 +474,35 @@ const totalAmount = computed(() =>
     ? Math.round((validAmount.value + feeAmount.value) * 100) / 100
     : validAmount.value
 )
+
+const sortedBonusTiers = computed(() =>
+  [...(checkout.value.bonus_tiers || [])].sort((a, b) => a.min_amount - b.min_amount)
+)
+
+function tierVisualLevel(idx: number, total: number): number {
+  if (total <= 1) return 3
+  if (idx === total - 1) return 3
+  if (idx === total - 2) return 2
+  if (idx >= total / 2) return 1
+  return 0
+}
+
+function selectTierAmount(amt: number) {
+  amount.value = amt
+}
+
+function tierDiscountLabel(tier: { min_amount: number; bonus_usd: number }): string {
+  const base = tier.min_amount / cnyPerUsd.value
+  const total = base + tier.bonus_usd
+  // "X折" = base / total * 10, e.g. 200/220 * 10 = 9.09 → "9折"
+  const zhe = (base / total * 10)
+  // Round to 1 decimal: 8.8折, or integer if clean: 8折
+  const rounded = Math.round(zhe * 10) / 10
+  if (rounded === Math.floor(rounded)) {
+    return Math.floor(rounded) + t('payment.zhe')
+  }
+  return rounded.toFixed(1) + t('payment.zhe')
+}
 
 const cnyPerUsd = computed(() => checkout.value.cny_per_usd || 1)
 const hasConversion = computed(() => cnyPerUsd.value > 0 && cnyPerUsd.value !== 1)

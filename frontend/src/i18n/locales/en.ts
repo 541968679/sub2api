@@ -544,7 +544,9 @@ export default {
     viewUsage: 'View Usage',
     checkDetailedLogs: 'Check detailed usage logs',
     redeemCode: 'Redeem Code',
-    addBalanceWithCode: 'Add balance with a code'
+    addBalanceWithCode: 'Add balance with a code',
+    topUp: 'Top Up / Subscribe',
+    topUpHint: 'Recharge balance with bonus credits'
   },
 
   // Groups (shared)
@@ -5374,6 +5376,14 @@ export default {
     creditAmount: 'Credit Amount',
     baseCredit: 'Base Credit',
     bonus: 'Bonus',
+    bonusLabel: 'Bonus',
+    bonusTiersTitle: 'Recharge Bonuses',
+    bestValue: 'BEST',
+    tierTotal: 'Total ',
+    zhe: ' off',
+    yuanUnit: ' CNY',
+    usdUnit: ' USD',
+    currentRate: 'Rate',
     perUsd: 'USD',
     createOrder: 'Confirm Payment',
     methods: {

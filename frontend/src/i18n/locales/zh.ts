@@ -543,7 +543,9 @@ export default {
     viewUsage: '查看使用记录',
     checkDetailedLogs: '查看详细的使用日志',
     redeemCode: '兑换码',
-    addBalanceWithCode: '使用兑换码充值'
+    addBalanceWithCode: '使用兑换码充值',
+    topUp: '充值/订阅',
+    topUpHint: '充值余额，赠送更多额度'
   },
 
   // Groups (shared)
@@ -5562,6 +5564,14 @@ export default {
     creditAmount: '到账金额',
     baseCredit: '基础到账',
     bonus: '赠送额度',
+    bonusLabel: '送',
+    bonusTiersTitle: '充值赠送',
+    bestValue: '超值',
+    tierTotal: '总计',
+    zhe: '折',
+    yuanUnit: '元',
+    usdUnit: '刀',
+    currentRate: '充值比例',
     perUsd: '刀',
     createOrder: '确认支付',
     methods: {
