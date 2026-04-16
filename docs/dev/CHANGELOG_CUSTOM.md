@@ -19,6 +19,32 @@
 
 ## 变更记录
 
+## [2026-04-16] fix(pricing): 修复编辑用户展示设置后模型价格接口500错误
+
+**影响范围**:
+- `backend/internal/repository/global_model_pricing_repo.go`
+
+**上游兼容性**: 无冲突，修复自己引入的bug
+
+**变更详情**:
+- `GetByID` 和 `GetByModel` 方法 SELECT 了 18 列但 Scan 只接收 14 个字段
+- 漏掉了 `display_input_price`, `display_output_price`, `display_rate_multiplier`, `cache_transfer_ratio` 四个字段
+- 当 display 字段为 NULL 时偶尔不报错，设置了非 NULL 值后必现 500
+
+## [2026-04-16] feat(deploy): 安全部署脚本，支持自动回滚
+
+**影响范围**:
+- `deploy/update.sh`（新增）
+
+**上游兼容性**: 无冲突，新增独立文件
+
+**变更详情**:
+- 构建到临时 staging tag，旧镜像在构建期间保持不变
+- 保留上一个版本镜像 (`sub2api-custom:prev`) 用于即时回滚
+- 部署后 health check 失败自动回滚到前一版本
+- 支持 `--rollback` 手动回滚
+- 全过程日志记录到 `/opt/sub2api/deploy.log`
+
 ## [2026-04-16] feat(branding): 新增强调安全与稳定气质的两版粗犷图标
 
 **影响范围**:
