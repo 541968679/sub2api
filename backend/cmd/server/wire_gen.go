@@ -99,7 +99,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	usageLogRepository := repository.NewUsageLogRepository(client, db)
 	usageBillingRepository := repository.NewUsageBillingRepository(client, db)
 	usageService := service.NewUsageService(usageLogRepository, userRepository, client, apiKeyAuthCacheInvalidator)
-	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
+	var usageHandler *handler.UsageHandler // initialized after globalModelPricingService
 	redeemHandler := handler.NewRedeemHandler(redeemService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 	announcementRepository := repository.NewAnnouncementRepository(client)
@@ -212,7 +212,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	adminSubscriptionHandler := admin.NewSubscriptionHandler(subscriptionService)
 	usageCleanupRepository := repository.NewUsageCleanupRepository(client, db)
 	usageCleanupService := service.ProvideUsageCleanupService(usageCleanupRepository, timingWheelService, dashboardAggregationService, configConfig)
-	adminUsageHandler := admin.NewUsageHandler(usageService, apiKeyService, adminService, usageCleanupService)
+	var adminUsageHandler *admin.UsageHandler // initialized after globalModelPricingService
 	userAttributeDefinitionRepository := repository.NewUserAttributeDefinitionRepository(client)
 	userAttributeValueRepository := repository.NewUserAttributeValueRepository(client)
 	userAttributeService := service.NewUserAttributeService(userAttributeDefinitionRepository, userAttributeValueRepository)
@@ -230,6 +230,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	channelHandler := admin.NewChannelHandler(channelService, billingService)
 	globalModelPricingService := service.NewGlobalModelPricingService(globalModelPricingRepository, globalPricingCache, pricingService, channelService, groupRepository)
 	modelPricingHandler := admin.NewModelPricingHandler(globalModelPricingService)
+	usageHandler = handler.NewUsageHandler(usageService, apiKeyService, globalModelPricingService)
+	adminUsageHandler = admin.NewUsageHandler(usageService, apiKeyService, adminService, usageCleanupService, globalModelPricingService)
 	adminPaymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
 	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, modelPricingHandler, adminPaymentHandler)
 	usageRecordWorkerPool := service.NewUsageRecordWorkerPool(configConfig)

@@ -18,15 +18,17 @@ import (
 
 // UsageHandler handles usage-related requests
 type UsageHandler struct {
-	usageService  *service.UsageService
-	apiKeyService *service.APIKeyService
+	usageService        *service.UsageService
+	apiKeyService       *service.APIKeyService
+	modelPricingService *service.GlobalModelPricingService
 }
 
 // NewUsageHandler creates a new UsageHandler
-func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService) *UsageHandler {
+func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService, modelPricingService *service.GlobalModelPricingService) *UsageHandler {
 	return &UsageHandler{
-		usageService:  usageService,
-		apiKeyService: apiKeyService,
+		usageService:        usageService,
+		apiKeyService:       apiKeyService,
+		modelPricingService: modelPricingService,
 	}
 }
 
@@ -142,9 +144,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 		return
 	}
 
+	displayMap := h.loadDisplayPricingMap(c)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
-		out = append(out, *dto.UsageLogFromService(&records[i]))
+		out = append(out, *dto.UsageLogFromService(&records[i], displayMap))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -176,7 +179,7 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UsageLogFromService(record))
+	response.Success(c, dto.UsageLogFromService(record, h.loadDisplayPricingMap(c)))
 }
 
 // Stats handles getting usage statistics
@@ -415,4 +418,15 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"stats": stats})
+}
+
+func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingMap {
+	if h.modelPricingService == nil {
+		return nil
+	}
+	pricings, err := h.modelPricingService.GetAllEnabledPricings(c.Request.Context())
+	if err != nil {
+		return nil
+	}
+	return dto.BuildDisplayPricingMap(pricings)
 }

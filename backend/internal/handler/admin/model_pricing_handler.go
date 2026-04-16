@@ -35,6 +35,11 @@ type createGlobalOverrideRequest struct {
 	PerRequestPrice  *float64 `json:"per_request_price" binding:"omitempty,min=0"`
 	Enabled          *bool    `json:"enabled"`
 	Notes            string   `json:"notes"`
+
+	DisplayInputPrice     *float64 `json:"display_input_price" binding:"omitempty,min=0"`
+	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
+	CacheTransferRatio    *float64 `json:"cache_transfer_ratio" binding:"omitempty,min=0,max=1"`
 }
 
 type updateGlobalOverrideRequest struct {
@@ -49,6 +54,11 @@ type updateGlobalOverrideRequest struct {
 	PerRequestPrice  *float64 `json:"per_request_price" binding:"omitempty,min=0"`
 	Enabled          *bool    `json:"enabled"`
 	Notes            string   `json:"notes"`
+
+	DisplayInputPrice     *float64 `json:"display_input_price"`
+	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 }
 
 // List 列出所有模型及其定价信息（合并 LiteLLM + 全局覆盖）
@@ -114,6 +124,11 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 		PerRequestPrice:  req.PerRequestPrice,
 		Enabled:          enabled,
 		Notes:            req.Notes,
+
+		DisplayInputPrice:     req.DisplayInputPrice,
+		DisplayOutputPrice:    req.DisplayOutputPrice,
+		DisplayRateMultiplier: req.DisplayRateMultiplier,
+		CacheTransferRatio:    req.CacheTransferRatio,
 	}
 
 	if err := h.svc.CreateOverride(c.Request.Context(), pricing); err != nil {
@@ -182,6 +197,18 @@ func (h *ModelPricingHandler) UpdateOverride(c *gin.Context) {
 	}
 	if req.Notes != "" {
 		existing.Notes = req.Notes
+	}
+	if req.DisplayInputPrice != nil {
+		existing.DisplayInputPrice = req.DisplayInputPrice
+	}
+	if req.DisplayOutputPrice != nil {
+		existing.DisplayOutputPrice = req.DisplayOutputPrice
+	}
+	if req.DisplayRateMultiplier != nil {
+		existing.DisplayRateMultiplier = req.DisplayRateMultiplier
+	}
+	if req.CacheTransferRatio != nil {
+		existing.CacheTransferRatio = req.CacheTransferRatio
 	}
 
 	if err := h.svc.UpdateOverride(c.Request.Context(), existing); err != nil {

@@ -111,6 +111,30 @@
           </div>
         </div>
 
+        <!-- Display Pricing Overrides -->
+        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800/30 dark:bg-amber-900/10">
+          <p class="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-400">{{ t('admin.modelPricing.displayPricingTitle') }}</p>
+          <p class="mb-3 text-[10px] text-amber-600/70 dark:text-amber-500/60">{{ t('admin.modelPricing.displayPricingHint') }}</p>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayInputPrice') }}</label>
+              <input v-model="form.display_input_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayOutputPrice') }}</label>
+              <input v-model="form.display_output_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayRateMultiplier') }}</label>
+              <input v-model="form.display_rate_multiplier" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.cacheTransferRatio') }}</label>
+              <input v-model="form.cache_transfer_ratio" type="number" step="0.01" min="0" max="1" class="input text-sm w-full" placeholder="0" />
+            </div>
+          </div>
+        </div>
+
         <div class="mt-3">
           <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.notes') }}</label>
           <input v-model="form.notes" type="text" class="input text-sm w-full" />
@@ -199,6 +223,10 @@ const form = reactive({
   per_request_price: '' as string | number,
   provider: '',
   notes: '',
+  display_input_price: '' as string | number,
+  display_output_price: '' as string | number,
+  display_rate_multiplier: '' as string | number,
+  cache_transfer_ratio: '' as string | number,
 })
 
 const billingModeOptions = computed(() => [
@@ -244,6 +272,10 @@ async function loadDetail() {
       form.per_request_price = go.per_request_price != null ? go.per_request_price : ''
       form.provider = go.provider
       form.notes = go.notes
+      form.display_input_price = go.display_input_price != null ? perTokenToMTok(go.display_input_price) ?? '' : ''
+      form.display_output_price = go.display_output_price != null ? perTokenToMTok(go.display_output_price) ?? '' : ''
+      form.display_rate_multiplier = go.display_rate_multiplier != null ? go.display_rate_multiplier : ''
+      form.cache_transfer_ratio = go.cache_transfer_ratio != null ? go.cache_transfer_ratio : ''
     } else {
       form.enabled = true
       form.billing_mode = 'token'
@@ -255,6 +287,10 @@ async function loadDetail() {
       form.per_request_price = ''
       form.provider = detail.value.provider || ''
       form.notes = ''
+      form.display_input_price = ''
+      form.display_output_price = ''
+      form.display_rate_multiplier = ''
+      form.cache_transfer_ratio = ''
     }
   } catch {
     appStore.showError(t('common.error'))
@@ -280,6 +316,10 @@ async function handleSave() {
       per_request_price: perReqVal,
       enabled: form.enabled,
       notes: form.notes,
+      display_input_price: mTokToPerToken(form.display_input_price),
+      display_output_price: mTokToPerToken(form.display_output_price),
+      display_rate_multiplier: form.display_rate_multiplier !== '' ? Number(form.display_rate_multiplier) || null : null,
+      cache_transfer_ratio: form.cache_transfer_ratio !== '' ? Number(form.cache_transfer_ratio) || null : null,
     }
 
     if (detail.value.global_override) {

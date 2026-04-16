@@ -418,6 +418,9 @@ type AdminUsageLog struct {
 
 	// Account 最小账号信息（避免泄露敏感字段）
 	Account *AccountSummary `json:"account,omitempty"`
+
+	// DisplayFields 展示价格转换后的值（管理员双列对比用，nil = 无展示配置）
+	DisplayFields *DisplayUsageFields `json:"display_fields,omitempty"`
 }
 
 type UsageCleanupFilters struct {

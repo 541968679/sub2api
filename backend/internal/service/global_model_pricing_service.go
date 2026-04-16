@@ -93,6 +93,11 @@ type GlobalOverride struct {
 	PerRequestPrice  *float64 `json:"per_request_price"`
 	Enabled          bool     `json:"enabled"`
 	Notes            string   `json:"notes"`
+
+	DisplayInputPrice     *float64 `json:"display_input_price"`
+	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 }
 
 // ModelPricingListResult 分页列表结果
@@ -729,5 +734,16 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 		PerRequestPrice:  gp.PerRequestPrice,
 		Enabled:          gp.Enabled,
 		Notes:            gp.Notes,
+
+		DisplayInputPrice:     gp.DisplayInputPrice,
+		DisplayOutputPrice:    gp.DisplayOutputPrice,
+		DisplayRateMultiplier: gp.DisplayRateMultiplier,
+		CacheTransferRatio:    gp.CacheTransferRatio,
 	}
+}
+
+// GetAllEnabledPricings returns all enabled global model pricing entries.
+// Used by usage handlers to build the display pricing map.
+func (s *GlobalModelPricingService) GetAllEnabledPricings(ctx context.Context) ([]GlobalModelPricing, error) {
+	return s.repo.GetAllEnabled(ctx)
 }

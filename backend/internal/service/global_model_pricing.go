@@ -26,8 +26,15 @@ type GlobalModelPricing struct {
 	PerRequestPrice  *float64    // 按次计费价格
 	Enabled          bool        // 是否启用
 	Notes            string      // 管理员备注
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+
+	// Display overrides — only affect user-facing usage log display, not actual billing.
+	DisplayInputPrice     *float64 // 展示给用户的输入单价
+	DisplayOutputPrice    *float64 // 展示给用户的输出单价
+	DisplayRateMultiplier *float64 // 展示给用户的倍率
+	CacheTransferRatio    *float64 // 缓存 token 转移到输入 token 的比例 (0~1)
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // GlobalModelPricingRepository 全局模型定价数据访问接口

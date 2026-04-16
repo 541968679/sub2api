@@ -58,7 +58,7 @@ func (r *globalModelPricingRepository) List(ctx context.Context, params paginati
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderAsc)
 
 	query := fmt.Sprintf(
-		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, created_at, updated_at
+		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio, created_at, updated_at
 		 FROM global_model_pricing %s ORDER BY %s %s LIMIT $%d OFFSET $%d`,
 		where, sortBy, sortOrder, argIdx, argIdx+1,
 	)
@@ -77,7 +77,9 @@ func (r *globalModelPricingRepository) List(ctx context.Context, params paginati
 			&p.ID, &p.Model, &p.Provider, &p.BillingMode,
 			&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheReadPrice,
 			&p.ImageOutputPrice, &p.PerRequestPrice,
-			&p.Enabled, &p.Notes, &p.CreatedAt, &p.UpdatedAt,
+			&p.Enabled, &p.Notes,
+			&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
+			&p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, nil, fmt.Errorf("scan global model pricing: %w", err)
 		}
@@ -103,7 +105,7 @@ func (r *globalModelPricingRepository) List(ctx context.Context, params paginati
 func (r *globalModelPricingRepository) GetByID(ctx context.Context, id int64) (*service.GlobalModelPricing, error) {
 	var p service.GlobalModelPricing
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, created_at, updated_at
+		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio, created_at, updated_at
 		 FROM global_model_pricing WHERE id = $1`, id,
 	).Scan(
 		&p.ID, &p.Model, &p.Provider, &p.BillingMode,
@@ -123,7 +125,7 @@ func (r *globalModelPricingRepository) GetByID(ctx context.Context, id int64) (*
 func (r *globalModelPricingRepository) GetByModel(ctx context.Context, model string) (*service.GlobalModelPricing, error) {
 	var p service.GlobalModelPricing
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, created_at, updated_at
+		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio, created_at, updated_at
 		 FROM global_model_pricing WHERE LOWER(model) = $1`, strings.ToLower(model),
 	).Scan(
 		&p.ID, &p.Model, &p.Provider, &p.BillingMode,
@@ -146,13 +148,14 @@ func (r *globalModelPricingRepository) Create(ctx context.Context, pricing *serv
 		billingMode = service.BillingModeToken
 	}
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO global_model_pricing (model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		`INSERT INTO global_model_pricing (model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		 RETURNING id, created_at, updated_at`,
 		pricing.Model, pricing.Provider, billingMode,
 		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheReadPrice,
 		pricing.ImageOutputPrice, pricing.PerRequestPrice,
 		pricing.Enabled, pricing.Notes,
+		pricing.DisplayInputPrice, pricing.DisplayOutputPrice, pricing.DisplayRateMultiplier, pricing.CacheTransferRatio,
 	).Scan(&pricing.ID, &pricing.CreatedAt, &pricing.UpdatedAt)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -170,12 +173,14 @@ func (r *globalModelPricingRepository) Update(ctx context.Context, pricing *serv
 	}
 	result, err := r.db.ExecContext(ctx,
 		`UPDATE global_model_pricing
-		 SET model = $1, provider = $2, billing_mode = $3, input_price = $4, output_price = $5, cache_write_price = $6, cache_read_price = $7, image_output_price = $8, per_request_price = $9, enabled = $10, notes = $11, updated_at = NOW()
-		 WHERE id = $12`,
+		 SET model = $1, provider = $2, billing_mode = $3, input_price = $4, output_price = $5, cache_write_price = $6, cache_read_price = $7, image_output_price = $8, per_request_price = $9, enabled = $10, notes = $11, display_input_price = $12, display_output_price = $13, display_rate_multiplier = $14, cache_transfer_ratio = $15, updated_at = NOW()
+		 WHERE id = $16`,
 		pricing.Model, pricing.Provider, billingMode,
 		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheReadPrice,
 		pricing.ImageOutputPrice, pricing.PerRequestPrice,
-		pricing.Enabled, pricing.Notes, pricing.ID,
+		pricing.Enabled, pricing.Notes,
+		pricing.DisplayInputPrice, pricing.DisplayOutputPrice, pricing.DisplayRateMultiplier, pricing.CacheTransferRatio,
+		pricing.ID,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -204,7 +209,7 @@ func (r *globalModelPricingRepository) Delete(ctx context.Context, id int64) err
 
 func (r *globalModelPricingRepository) GetAllEnabled(ctx context.Context) ([]service.GlobalModelPricing, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, created_at, updated_at
+		`SELECT id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_read_price, image_output_price, per_request_price, enabled, notes, display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio, created_at, updated_at
 		 FROM global_model_pricing WHERE enabled = true ORDER BY model`,
 	)
 	if err != nil {
@@ -219,7 +224,9 @@ func (r *globalModelPricingRepository) GetAllEnabled(ctx context.Context) ([]ser
 			&p.ID, &p.Model, &p.Provider, &p.BillingMode,
 			&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheReadPrice,
 			&p.ImageOutputPrice, &p.PerRequestPrice,
-			&p.Enabled, &p.Notes, &p.CreatedAt, &p.UpdatedAt,
+			&p.Enabled, &p.Notes,
+			&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
+			&p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan global model pricing: %w", err)
 		}

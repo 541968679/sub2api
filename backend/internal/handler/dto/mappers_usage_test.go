@@ -22,10 +22,10 @@ func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 		OpenAIWSMode: false,
 	}
 
-	require.True(t, UsageLogFromService(wsLog).OpenAIWSMode)
-	require.False(t, UsageLogFromService(httpLog).OpenAIWSMode)
-	require.True(t, UsageLogFromServiceAdmin(wsLog).OpenAIWSMode)
-	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
+	require.True(t, UsageLogFromService(wsLog, nil).OpenAIWSMode)
+	require.False(t, UsageLogFromService(httpLog, nil).OpenAIWSMode)
+	require.True(t, UsageLogFromServiceAdmin(wsLog, nil).OpenAIWSMode)
+	require.False(t, UsageLogFromServiceAdmin(httpLog, nil).OpenAIWSMode)
 }
 
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
@@ -39,8 +39,8 @@ func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 		OpenAIWSMode: false,
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := UsageLogFromService(log, nil)
+	adminDTO := UsageLogFromServiceAdmin(log, nil)
 
 	require.Equal(t, "ws_v2", userDTO.RequestType)
 	require.True(t, userDTO.Stream)
@@ -88,8 +88,8 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 		AccountRateMultiplier: f64Ptr(1.5),
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := UsageLogFromService(log, nil)
+	adminDTO := UsageLogFromServiceAdmin(log, nil)
 
 	require.NotNil(t, userDTO.ServiceTier)
 	require.Equal(t, serviceTier, *userDTO.ServiceTier)
@@ -118,8 +118,8 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 		UpstreamModel:  &upstreamModel,
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := UsageLogFromService(log, nil)
+	adminDTO := UsageLogFromServiceAdmin(log, nil)
 
 	require.Equal(t, "claude-sonnet-4", userDTO.Model)
 	require.Equal(t, "claude-sonnet-4", adminDTO.Model)
@@ -141,8 +141,8 @@ func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *
 		Model:     "claude-3",
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := UsageLogFromService(log, nil)
+	adminDTO := UsageLogFromServiceAdmin(log, nil)
 
 	require.Equal(t, "claude-3", userDTO.Model)
 	require.Equal(t, "claude-3", adminDTO.Model)

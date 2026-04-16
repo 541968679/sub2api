@@ -21,10 +21,11 @@ import (
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
-	usageService   *service.UsageService
-	apiKeyService  *service.APIKeyService
-	adminService   service.AdminService
-	cleanupService *service.UsageCleanupService
+	usageService        *service.UsageService
+	apiKeyService       *service.APIKeyService
+	adminService        service.AdminService
+	cleanupService      *service.UsageCleanupService
+	modelPricingService *service.GlobalModelPricingService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -33,12 +34,14 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
+	modelPricingService *service.GlobalModelPricingService,
 ) *UsageHandler {
 	return &UsageHandler{
-		usageService:   usageService,
-		apiKeyService:  apiKeyService,
-		adminService:   adminService,
-		cleanupService: cleanupService,
+		usageService:        usageService,
+		apiKeyService:       apiKeyService,
+		adminService:        adminService,
+		cleanupService:      cleanupService,
+		modelPricingService: modelPricingService,
 	}
 }
 
@@ -192,9 +195,10 @@ func (h *UsageHandler) List(c *gin.Context) {
 		return
 	}
 
+	displayMap := h.loadDisplayPricingMap(c)
 	out := make([]dto.AdminUsageLog, 0, len(records))
 	for i := range records {
-		out = append(out, *dto.UsageLogFromServiceAdmin(&records[i]))
+		out = append(out, *dto.UsageLogFromServiceAdmin(&records[i], displayMap))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -591,4 +595,15 @@ func (h *UsageHandler) CancelCleanupTask(c *gin.Context) {
 	}
 	logger.LegacyPrintf("handler.admin.usage", "[UsageCleanup] 清理任务已取消: task=%d operator=%d", taskID, subject.UserID)
 	response.Success(c, gin.H{"id": taskID, "status": service.UsageCleanupStatusCanceled})
+}
+
+func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingMap {
+	if h.modelPricingService == nil {
+		return nil
+	}
+	pricings, err := h.modelPricingService.GetAllEnabledPricings(c.Request.Context())
+	if err != nil {
+		return nil
+	}
+	return dto.BuildDisplayPricingMap(pricings)
 }

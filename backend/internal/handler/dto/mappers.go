@@ -582,22 +582,30 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
 // It excludes Account details and IP address - users should not see these.
-func UsageLogFromService(l *service.UsageLog) *UsageLog {
+// When displayMap is provided, display pricing transforms are applied.
+func UsageLogFromService(l *service.UsageLog, displayMap DisplayPricingMap) *UsageLog {
 	if l == nil {
 		return nil
 	}
 	u := usageLogFromServiceUser(l)
+	if displayMap != nil {
+		if cfg := displayMap[toLowerModel(u.Model)]; cfg != nil {
+			ApplyDisplayTransform(&u, cfg)
+		}
+	}
 	return &u
 }
 
 // UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.
 // It includes minimal Account info (ID, Name only) and IP address.
-func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
+// Display fields are computed for dual-column comparison but real values are preserved.
+func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap) *AdminUsageLog {
 	if l == nil {
 		return nil
 	}
-	return &AdminUsageLog{
-		UsageLog:              usageLogFromServiceUser(l),
+	base := usageLogFromServiceUser(l)
+	admin := &AdminUsageLog{
+		UsageLog:              base,
 		UpstreamModel:         l.UpstreamModel,
 		ChannelID:             l.ChannelID,
 		ModelMappingChain:     l.ModelMappingChain,
@@ -606,6 +614,12 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		IPAddress:             l.IPAddress,
 		Account:               AccountSummaryFromService(l.Account),
 	}
+	if displayMap != nil {
+		if cfg := displayMap[toLowerModel(base.Model)]; cfg != nil {
+			admin.DisplayFields = ComputeDisplayFields(&base, cfg)
+		}
+	}
+	return admin
 }
 
 func UsageCleanupTaskFromService(task *service.UsageCleanupTask) *UsageCleanupTask {
