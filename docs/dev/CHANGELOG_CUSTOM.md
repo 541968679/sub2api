@@ -19,6 +19,21 @@
 
 ## 变更记录
 
+## [2026-04-16] fix: AI Credits 被临时限流误标为积分耗尽导致账号锁定 5 小时
+
+**影响范围**:
+- `backend/internal/service/antigravity_credits_overages.go`
+- `backend/internal/service/antigravity_credits_overages_test.go`
+
+**上游兼容性**: 无冲突（二开新增功能）
+
+**变更详情**:
+- `shouldMarkCreditsExhausted` 中 `"resource has been exhausted"` 关键词匹配了 Google API 所有 429 响应（包括临时 RPM 限流），导致 credits 被错误标记为耗尽。一旦误标形成自锁（`isCreditsExhausted` 阻止重试 → `clearCreditsExhausted` 永不触发），账号被锁定完整 5 小时。
+- 移除过于宽泛的 `"resource has been exhausted"` 关键词，其余关键词（`insufficient credit`、`credit exhausted` 等）已足够精确
+- `shouldMarkCreditsExhausted` 排除 429 状态码，临时限流不应判定为积分耗尽
+
+---
+
 ## [2026-04-16] feat(admin): 模型定价页合并映射 CRUD + 模型测试，删除旧 mapping tab
 
 **影响范围**:
