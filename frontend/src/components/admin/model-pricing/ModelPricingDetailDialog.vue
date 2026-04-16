@@ -113,7 +113,17 @@
 
         <!-- Display Pricing Overrides -->
         <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800/30 dark:bg-amber-900/10">
-          <p class="mb-2 text-xs font-semibold text-amber-700 dark:text-amber-400">{{ t('admin.modelPricing.displayPricingTitle') }}</p>
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-xs font-semibold text-amber-700 dark:text-amber-400">{{ t('admin.modelPricing.displayPricingTitle') }}</p>
+            <button
+              v-if="hasDisplaySuggestion"
+              @click="applyDisplaySuggested"
+              class="btn btn-secondary shrink-0 text-xs"
+              :disabled="saving"
+            >
+              {{ t('admin.modelPricing.applySuggested') }}
+            </button>
+          </div>
           <p class="mb-3 text-[10px] text-amber-600/70 dark:text-amber-500/60">{{ t('admin.modelPricing.displayPricingHint') }}</p>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
@@ -347,6 +357,42 @@ function applySuggested() {
   form.cache_write_price = put(sp.cache_write_price)
   form.cache_read_price = put(sp.cache_read_price)
   form.image_output_price = put(sp.image_output_price)
+}
+
+/**
+ * 有可用的展示价建议源：LiteLLM 价格、建议价、或已填写的计费价格任一存在即可。
+ */
+const hasDisplaySuggestion = computed(() => {
+  if (!detail.value) return false
+  return !!(detail.value.litellm_prices || detail.value.suggested_prices || form.input_price || form.output_price)
+})
+
+/**
+ * 将当前生效的计费价格填入展示价字段。
+ * 优先级：表单已填的计费价 > LiteLLM > 建议价。
+ * 倍率默认 1，缓存转移比例默认 0.1。
+ */
+function applyDisplaySuggested() {
+  const d = detail.value
+  if (!d) return
+
+  // 取 per-token 源：优先表单已填值（MTok→perToken），再 litellm，再 suggested
+  const formInput = mTokToPerToken(form.input_price)
+  const formOutput = mTokToPerToken(form.output_price)
+  const lp = d.litellm_prices
+  const sp = d.suggested_prices
+
+  const inputPerToken = formInput ?? lp?.input_price ?? sp?.input_price ?? null
+  const outputPerToken = formOutput ?? lp?.output_price ?? sp?.output_price ?? null
+
+  form.display_input_price = inputPerToken != null ? (perTokenToMTok(inputPerToken) ?? '') : ''
+  form.display_output_price = outputPerToken != null ? (perTokenToMTok(outputPerToken) ?? '') : ''
+  if (!form.display_rate_multiplier || form.display_rate_multiplier === '') {
+    form.display_rate_multiplier = 1
+  }
+  if (!form.cache_transfer_ratio || form.cache_transfer_ratio === '') {
+    form.cache_transfer_ratio = 0.1
+  }
 }
 
 async function handleDelete() {
