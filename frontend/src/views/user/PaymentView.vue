@@ -43,16 +43,23 @@
           <template v-if="activeTab === 'recharge'">
             <!-- Recharge Account Card -->
             <div class="card p-5">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
-                  <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-                  <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }}{{ t('payment.usdUnit') }}</p>
-                </div>
-                <div v-if="hasConversion" class="rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-center dark:border-primary-700/40 dark:bg-primary-900/20">
-                  <p class="text-[10px] text-primary-500 dark:text-primary-400">{{ t('payment.currentRate') }}</p>
-                  <p class="text-sm font-bold text-primary-700 dark:text-primary-300">&yen;{{ cnyPerUsd }}{{ t('payment.yuanUnit') }} = $1{{ t('payment.usdUnit') }}</p>
-                </div>
+              <div>
+                <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
+                <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
+                <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }}{{ t('payment.usdUnit') }}</p>
+              </div>
+            </div>
+            <!-- Info Notice: rate + invoice support -->
+            <div class="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 dark:border-blue-800/30 dark:bg-blue-900/10">
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <span v-if="hasConversion" class="flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-primary-500 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span>{{ t('payment.currentRate') }}: <strong class="text-primary-600 dark:text-primary-400">&yen;{{ cnyPerUsd }}{{ t('payment.yuanUnit') }} = $1{{ t('payment.usdUnit') }}</strong></span>
+                </span>
+                <span class="flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span>{{ t('payment.invoiceSupport') }}</span>
+                </span>
               </div>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">

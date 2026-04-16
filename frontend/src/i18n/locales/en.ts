@@ -5418,6 +5418,7 @@ export default {
     yuanUnit: ' CNY',
     usdUnit: ' USD',
     currentRate: 'Rate',
+    invoiceSupport: 'Official invoicing supported. Contact support for invoicing requests.',
     perUsd: 'USD',
     createOrder: 'Confirm Payment',
     methods: {

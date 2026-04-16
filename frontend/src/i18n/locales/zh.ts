@@ -5606,6 +5606,7 @@ export default {
     yuanUnit: '元',
     usdUnit: '刀',
     currentRate: '充值比例',
+    invoiceSupport: '支持开具发票，如需开票请联系客服',
     perUsd: '刀',
     createOrder: '确认支付',
     methods: {
