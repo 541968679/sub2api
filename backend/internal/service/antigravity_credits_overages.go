@@ -45,7 +45,6 @@ var (
 		"minimumcreditamountforusage",
 		"minimum credit amount for usage",
 		"minimum credit",
-		"resource has been exhausted",
 	}
 )
 
@@ -148,9 +147,13 @@ func shouldMarkCreditsExhausted(resp *http.Response, respBody []byte, reqErr err
 	if resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout {
 		return false
 	}
-	// 注意：不再检查 isURLLevelRateLimit。此函数仅在积分重试失败后调用，
-	// 如果注入 enabledCreditTypes 后仍返回 "Resource has been exhausted"，
-	// 说明积分也已耗尽，应该标记。clearCreditsExhausted 会在后续成功时自动清除。
+	// 429 是限流的标准状态码，在缺少结构化 RetryInfo 的情况下不应仅凭关键词
+	// 判定为积分耗尽——Google API 的临时 RPM/TPD 限流也返回 429，误标会导致
+	// 账号被锁 5 小时（自锁：isCreditsExhausted 阻止重试 → clearCreditsExhausted 永不触发）。
+	// 真正的积分耗尽通常返回非 429 状态码（如 402/403）或带有明确 credit 错误体。
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return false
+	}
 	if info := parseAntigravitySmartRetryInfo(respBody); info != nil {
 		return false
 	}

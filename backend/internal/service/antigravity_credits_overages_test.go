@@ -406,16 +406,28 @@ func TestShouldMarkCreditsExhausted(t *testing.T) {
 		require.False(t, shouldMarkCreditsExhausted(resp, []byte(`{"error":"Insufficient credits"}`), nil))
 	})
 
-	t.Run("Resource has been exhausted 应标记为积分耗尽", func(t *testing.T) {
+	t.Run("429 不标记——临时限流不应误判为积分耗尽", func(t *testing.T) {
 		resp := &http.Response{StatusCode: http.StatusTooManyRequests}
 		body := []byte(`{"error":{"message":"Resource has been exhausted"}}`)
-		require.True(t, shouldMarkCreditsExhausted(resp, body, nil))
+		require.False(t, shouldMarkCreditsExhausted(resp, body, nil))
 	})
 
-	t.Run("Resource has been exhausted (check quota) 完整格式应标记", func(t *testing.T) {
+	t.Run("429 + 完整 RESOURCE_EXHAUSTED 不标记", func(t *testing.T) {
 		resp := &http.Response{StatusCode: http.StatusTooManyRequests}
 		body := []byte(`{"error":{"code":429,"message":"Resource has been exhausted (e.g. check quota).","status":"RESOURCE_EXHAUSTED"}}`)
-		require.True(t, shouldMarkCreditsExhausted(resp, body, nil))
+		require.False(t, shouldMarkCreditsExhausted(resp, body, nil))
+	})
+
+	t.Run("429 + insufficient credits 关键词仍不标记（429 统一排除）", func(t *testing.T) {
+		resp := &http.Response{StatusCode: http.StatusTooManyRequests}
+		body := []byte(`{"error":{"message":"Insufficient credits"}}`)
+		require.False(t, shouldMarkCreditsExhausted(resp, body, nil))
+	})
+
+	t.Run("403 + Resource has been exhausted 不标记（关键词已移除）", func(t *testing.T) {
+		resp := &http.Response{StatusCode: http.StatusForbidden}
+		body := []byte(`{"error":{"message":"Resource has been exhausted"}}`)
+		require.False(t, shouldMarkCreditsExhausted(resp, body, nil))
 	})
 
 	t.Run("结构化限流不标记", func(t *testing.T) {
