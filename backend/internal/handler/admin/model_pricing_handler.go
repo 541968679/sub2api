@@ -121,7 +121,7 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, pricing)
+	response.Success(c, service.ToGlobalOverride(pricing))
 }
 
 // UpdateOverride 更新全局定价覆盖
@@ -189,7 +189,7 @@ func (h *ModelPricingHandler) UpdateOverride(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, existing)
+	response.Success(c, service.ToGlobalOverride(existing))
 }
 
 // DeleteOverride 删除全局定价覆盖

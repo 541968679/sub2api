@@ -164,7 +164,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 
 		// 全局覆盖
 		if gp, ok := overrideMap[modelLower]; ok {
-			item.GlobalOverride = toGlobalOverride(gp)
+			item.GlobalOverride = ToGlobalOverride(gp)
 			if gp.Enabled {
 				item.EffectiveSource = PricingSourceGlobal
 			}
@@ -183,7 +183,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		item := ModelPricingListItem{
 			Model:                gp.Model,
 			Provider:             gp.Provider,
-			GlobalOverride:       toGlobalOverride(&gp),
+			GlobalOverride:       ToGlobalOverride(&gp),
 			ChannelOverrideCount: channelOverrideCounts[modelLower],
 			EffectiveSource:      PricingSourceFallback,
 		}
@@ -392,7 +392,7 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 		return nil, fmt.Errorf("get global override: %w", err)
 	}
 	if gp != nil {
-		detail.GlobalOverride = toGlobalOverride(gp)
+		detail.GlobalOverride = ToGlobalOverride(gp)
 		if detail.Provider == "" {
 			detail.Provider = gp.Provider
 		}
@@ -712,7 +712,10 @@ func (s *GlobalModelPricingService) getChannelOverridesForModel(ctx context.Cont
 	return result
 }
 
-func toGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
+// ToGlobalOverride 把内部 GlobalModelPricing 实体转为 API 返回用的 GlobalOverride
+// （带 json tag 的 snake_case 字段名）。handler 层需要用此函数包装 Create/Update
+// 返回值，否则前端收到的是 PascalCase JSON，字段全部 undefined。
+func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 	return &GlobalOverride{
 		ID:               gp.ID,
 		Model:            gp.Model,
