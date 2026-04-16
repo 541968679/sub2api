@@ -146,9 +146,13 @@ const MODEL_SCOPE_LABELS: Record<string, string> = {
   gemini_image: 'Imagen',
 }
 
+const ALL_MODEL_SCOPES = Object.keys(MODEL_SCOPE_LABELS)
+
 const modelScopeLabels = computed(() => {
   const scopes = props.plan.supported_model_scopes
   if (!scopes || scopes.length === 0) return []
+  // If all scopes are included, it means "no restriction" — hide the row
+  if (scopes.length >= ALL_MODEL_SCOPES.length && ALL_MODEL_SCOPES.every(s => scopes.includes(s))) return []
   return scopes.map(s => MODEL_SCOPE_LABELS[s] || s)
 })
 
