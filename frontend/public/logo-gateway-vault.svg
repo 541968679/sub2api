@@ -1,0 +1,57 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="74" y1="50" x2="440" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#15356C"/>
+      <stop offset="0.58" stop-color="#0B214B"/>
+      <stop offset="1" stop-color="#081027"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 212) rotate(90) scale(238 228)">
+      <stop offset="0" stop-color="#13A7A3" stop-opacity="0.34"/>
+      <stop offset="0.6" stop-color="#13A7A3" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#13A7A3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="frame" x1="150" y1="110" x2="362" y2="354" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7EF5C6"/>
+      <stop offset="0.48" stop-color="#62DDF4"/>
+      <stop offset="1" stop-color="#5981FF"/>
+    </linearGradient>
+    <linearGradient id="wheel" x1="212" y1="184" x2="304" y2="276" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DEFFF9"/>
+      <stop offset="1" stop-color="#A7C3FF"/>
+    </linearGradient>
+    <filter id="shadow" x="104" y="88" width="304" height="334" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="14"/>
+      <feGaussianBlur stdDeviation="18"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0157 0 0 0 0 0.1294 0 0 0 0 0.3294 0 0 0 0.42 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect x="4" y="4" width="504" height="504" rx="116" fill="url(#bg)"/>
+  <rect x="4" y="4" width="504" height="504" rx="116" fill="url(#halo)"/>
+  <rect x="4.75" y="4.75" width="502.5" height="502.5" rx="115.25" stroke="#3D619E" stroke-opacity="0.42" stroke-width="1.5"/>
+
+  <g filter="url(#shadow)">
+    <path d="M192 118H320C342.091 118 360 135.909 360 158V314C360 336.091 342.091 354 320 354H192C169.909 354 152 336.091 152 314V158C152 135.909 169.909 118 192 118Z" fill="#0A193B"/>
+    <path d="M192 118H320C342.091 118 360 135.909 360 158V314C360 336.091 342.091 354 320 354H192C169.909 354 152 336.091 152 314V158C152 135.909 169.909 118 192 118Z" stroke="url(#frame)" stroke-width="20"/>
+
+    <path d="M214 144H298C309.046 144 318 152.954 318 164V308H194V164C194 152.954 202.954 144 214 144Z" stroke="url(#frame)" stroke-width="16" stroke-linejoin="round"/>
+    <circle cx="256" cy="226" r="44" fill="#0C1B40" stroke="url(#frame)" stroke-width="14"/>
+    <circle cx="256" cy="226" r="18" fill="url(#wheel)" fill-opacity="0.96"/>
+    <path d="M256 182V200" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M256 252V270" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M212 226H230" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M282 226H300" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M225 195L238 208" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M274 244L287 257" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M225 257L238 244" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M274 208L287 195" stroke="url(#wheel)" stroke-width="10" stroke-linecap="round"/>
+
+    <path d="M196 338H316" stroke="url(#frame)" stroke-width="18" stroke-linecap="round"/>
+    <path d="M216 378H296" stroke="#CFFFF8" stroke-opacity="0.3" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -19,6 +19,19 @@
 
 ## 变更记录
 
+## [2026-04-16] feat(branding): 新增强调安全与稳定气质的两版粗犷图标
+
+**影响范围**:
+- `frontend/public/logo-gateway-fortress.svg`
+- `frontend/public/logo-gateway-vault.svg`
+
+**上游兼容性**: 无冲突，仅新增静态品牌资源
+
+**变更详情**:
+- 新增 `logo-gateway-fortress.svg`，方向偏“护盾 + 基础设施堡垒”，用厚重对称结构强化安全、稳固、可信赖的第一印象
+- 新增 `logo-gateway-vault.svg`，方向偏“金库门 + 稳定中枢”，通过更粗的门框和锁芯语义突出可靠托管与资产安全感
+- 两版都比前面的方案更大胆、更厚重，优先服务“安全、稳定、靠谱”的品牌心智
+
 ## [2026-04-16] feat(branding): 新增两版原创图标备选方案
 
 **影响范围**:
