@@ -2128,6 +2128,24 @@ export default {
       // 多对一映射 tooltip：其他同样映射到此上游名的请求名
       mappedFromMultiple: '+{count}',
       mappedFromMultipleTooltip: '还有 {count} 个请求名也映射到此上游名：{list}',
+      // 映射 CRUD
+      addMapping: '添加映射',
+      editMapping: '编辑映射',
+      deleteMapping: '删除映射',
+      confirmDeleteMapping: '确认删除映射 "{from}" 吗？此操作会从 Antigravity 默认映射表里移除该条目。',
+      mappingFromPlaceholder: '如 claude-opus-4-6',
+      mappingToPlaceholder: '如 claude-opus-4-6-thinking',
+      mappingToHint: '客户端请求"请求模型名"时，系统会把请求发给此上游模型名。同名映射（请求=上游）直接填相同值。',
+      // 模型测试
+      testModel: '测试模型',
+      testModelTitle: '测试模型 "{model}"',
+      testAccount: '测试账号',
+      testNoAccount: '无可用的 Antigravity 账号',
+      testPrompt: '测试提示词',
+      testPromptPlaceholder: '输入测试提示词...',
+      sendTest: '发送测试',
+      testing: '测试中...',
+      testHint: '流式输出会显示在这里',
       // 建议价
       suggestedPricesHint: '建议价（来自 {from}）',
       applySuggested: '应用建议',

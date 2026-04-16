@@ -2050,6 +2050,24 @@ export default {
       // Many-to-one mapping tooltip
       mappedFromMultiple: '+{count}',
       mappedFromMultipleTooltip: '{count} more request names mapped to this upstream: {list}',
+      // Mapping CRUD
+      addMapping: 'Add Mapping',
+      editMapping: 'Edit Mapping',
+      deleteMapping: 'Delete Mapping',
+      confirmDeleteMapping: 'Delete mapping "{from}"? This removes the entry from the Antigravity default mapping table.',
+      mappingFromPlaceholder: 'e.g. claude-opus-4-6',
+      mappingToPlaceholder: 'e.g. claude-opus-4-6-thinking',
+      mappingToHint: 'When clients request the "Requested Model", the system forwards to this upstream model. For same-name mapping (requested = upstream), just use the same value.',
+      // Model test
+      testModel: 'Test Model',
+      testModelTitle: 'Test Model "{model}"',
+      testAccount: 'Test Account',
+      testNoAccount: 'No available Antigravity accounts',
+      testPrompt: 'Test Prompt',
+      testPromptPlaceholder: 'Enter test prompt...',
+      sendTest: 'Send Test',
+      testing: 'Testing...',
+      testHint: 'Streaming output will appear here',
       // Suggested prices
       suggestedPricesHint: 'Suggested prices (from {from})',
       applySuggested: 'Apply suggested',

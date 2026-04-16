@@ -19,6 +19,71 @@
 
 ## 变更记录
 
+## [2026-04-16] feat(admin): 模型定价页合并映射 CRUD + 模型测试，删除旧 mapping tab
+
+**影响范围**:
+- `frontend/src/views/admin/ModelConfigView.vue`（**大幅精简**：删除 mapping tab 全部模板和 script，只保留 pricing 和 rate 两个 tab）
+- `frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue`（**新建**）
+- `frontend/src/components/admin/model-pricing/ModelTestDialog.vue`（**新建**）
+- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`（表格顶部加"+ 添加映射"按钮；行操作列加"编辑映射"和"测试"两个条件显示按钮；接入两个新组件）
+- `frontend/src/i18n/locales/zh.ts` & `en.ts`（新增 ~20 条 key：映射 CRUD + 模型测试）
+
+**上游兼容性**: 低风险。全部集中在二开独有的模型配置界面。API 复用现有的 `adminAPI.accounts.getAntigravityDefaultModelMapping` / `updateAntigravityDefaultModelMapping`（上游已有），以及 SSE 测试接口 `POST /admin/accounts/:id/test`。
+
+**背景**:
+
+上一轮把模型定价页重构为"双列模型名 + 计费模式"风格后，用户反馈："映射关系和计费模式不能修改"。经讨论：
+- 计费模式保留只读（本身是从映射关系推断的标签，不是可配置属性）
+- 映射关系**应该**能改，且决定把「模型映射」独立 tab 合并到定价页（后续渐进删除独立 tab）
+- 模型测试功能搬到定价页行操作里做成小按钮
+
+方向确定后本轮实施彻底的合并。
+
+**变更详情**:
+
+1. **新建 `ModelMappingInlinePopover.vue`**（~210 行）：
+   - 三种操作：新增映射（mode="add"）/ 修改映射（mode="edit"）/ 删除映射（edit 模式底部按钮）
+   - 两个 input：请求模型名 + 上游模型名，下方带一行灰字提示"同名映射直接填相同值"
+   - 走现有 API：`GET /admin/accounts/antigravity/default-model-mapping` 读全表 → 局部修改 → `PUT` 整表写回
+   - 改名场景（edit 时把 from 也改了）正确处理：先 delete 旧 key 再 set 新 key/value
+   - Teleport + fixed 定位（参考 ModelPricingInlinePopover 设计），自动避开视口边界
+   - Enter 保存、红字 inline 错误反馈
+
+2. **新建 `ModelTestDialog.vue`**（~160 行）：
+   - 从原 `ModelConfigView.vue` 的 mapping tab 右侧测试面板搬迁，逻辑基本保留
+   - 固定传入 `model` prop（从行按钮触发时锁定），不再需要模型下拉
+   - 内部加载 Antigravity 账号列表（仅 active / schedulable / 无 error 的）
+   - SSE 流式消费 `/api/v1/admin/accounts/:id/test`，解析 `test_start / content / test_complete / error` 事件类型
+   - `testRunning` 时阻止关闭 dialog 避免用户误操作
+
+3. **`ModelPricingTab.vue` 接入**：
+   - 表格顶部（搜索行右侧、刷新按钮左侧）新增"+ 添加映射"按钮，锚点 ref 用于 popover 定位
+   - 行操作列三按钮（条件显示）：
+     - ⇄ **编辑映射**：仅 `canEditMapping` 行（hint type=requested_only 或 requested_equals_upstream）
+     - ▶ **测试模型**：`canTest` 行（有 billing_basis_hint 或 provider=antigravity）
+     - ✎ 查看详情 / 创建定价：所有行（保持原行为）
+   - `handleMappingSaved` 事件回调调用 `loadData` 整表刷新（映射变化影响所有徽标和 related_models）
+   - `RowDisplay` 接口扩 `canEditMapping` / `canTest` 字段，在 `displayRows` computed 里按 hint 类型推导
+
+4. **删除旧 mapping tab**：
+   - `ModelConfigView.vue` 从 350 行精简到 40 行，只保留 pricing 和 rate 两个 tab + 必要的 AppLayout 壳
+   - 历史 URL 兼容：`?tab=mapping` 被自动回退到 pricing
+   - 旧 i18n key（`admin.modelConfig.antigravityMapping` / `testTitle` 等）暂未清理，留着不用不影响行为，后续可随上游同步一起清除
+
+**验证**:
+- `pnpm run typecheck` 通过
+- 前端 dev server 热重载后手测流程：
+  - 点"+ 添加映射" → 填 from/to → 保存 → 表格 reload 新映射出现
+  - 点某行"编辑映射" → 改上游名 → 保存 → 列表更新；徽标和 +N 计数正确联动
+  - 编辑 popover 底部点"删除映射" → 确认 → 该映射从表中消失
+  - 点某行"测试" → dialog 弹出 → 选账号 → 发送 → 流式输出正确显示
+  - 旧 mapping tab 彻底消失，只剩 Pricing 和 Rate Multipliers 两个 tab
+
+**已知限制 / 未来迭代**:
+- `upstream_only` 类型的行（仅作为映射 value 存在、无同名自映射）不提供"编辑映射"按钮；当前 Antigravity 默认映射里此类型为空（所有 value 都有同名自映射），实际无影响
+- 账号级 `credentials.model_mapping` 的管理仍走原账号编辑界面，本次没有合并（用户明确只要求平台级映射管理合入）
+- 旧 `admin.modelConfig.*` 下的 mapping 相关 i18n key 暂留未清理
+
 ## [2026-04-15] feat(admin): 模型定价页深度优化（下划线 tab / 内联 popover / 建议价 / billing hint）
 
 **影响范围**:

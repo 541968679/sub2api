@@ -55,6 +55,17 @@
           />
         </div>
         <div class="sm:ml-auto flex gap-2">
+          <button
+            ref="addMappingAnchor"
+            @click="openAddMapping"
+            class="btn btn-secondary text-sm"
+            :title="t('admin.modelPricing.addMapping')"
+          >
+            <svg class="mr-1 inline-block h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            {{ t('admin.modelPricing.addMapping') }}
+          </button>
           <button @click="loadData" :disabled="loading" class="btn btn-secondary text-sm">
             <svg class="h-4 w-4" :class="loading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -203,15 +214,38 @@
               <span v-else class="text-xs text-gray-300">-</span>
             </td>
             <td class="px-4 py-2.5 text-right">
-              <button
-                @click="openDetail(row.item.model)"
-                class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-                :title="row.stub ? t('admin.modelPricing.createPricing') : t('admin.modelPricing.viewDetail')"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                </svg>
-              </button>
+              <div class="flex justify-end gap-0.5">
+                <button
+                  v-if="row.canEditMapping"
+                  @click="openEditMapping($event, row)"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-gray-700 dark:hover:text-primary-400"
+                  :title="t('admin.modelPricing.editMapping')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                </button>
+                <button
+                  v-if="row.canTest"
+                  @click="openTestDialog(row.item.model)"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-gray-700 dark:hover:text-emerald-400"
+                  :title="t('admin.modelPricing.testModel')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+                <button
+                  @click="openDetail(row.item.model)"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                  :title="row.stub ? t('admin.modelPricing.createPricing') : t('admin.modelPricing.viewDetail')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                  </svg>
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -270,6 +304,24 @@
       @saved="handleInlineSaved"
       @open-full-dialog="popoverFallbackToDialog"
     />
+
+    <!-- Mapping CRUD Popover -->
+    <ModelMappingInlinePopover
+      :show="mappingPopoverState.show"
+      :anchor="mappingPopoverState.anchor"
+      :mode="mappingPopoverState.mode"
+      :original-from="mappingPopoverState.originalFrom"
+      :original-to="mappingPopoverState.originalTo"
+      @close="closeMappingPopover"
+      @saved="handleMappingSaved"
+    />
+
+    <!-- Model Test Dialog -->
+    <ModelTestDialog
+      :show="testDialogState.show"
+      :model="testDialogState.model"
+      @close="testDialogState.show = false"
+    />
   </div>
 </template>
 
@@ -282,6 +334,8 @@ import type { ModelPricingItem, ModelPricingStats, GlobalOverride, LiteLLMPrices
 import { perTokenToMTok } from '@/components/admin/channel/types'
 import ModelPricingDetailDialog from './ModelPricingDetailDialog.vue'
 import ModelPricingInlinePopover from './ModelPricingInlinePopover.vue'
+import ModelMappingInlinePopover from './ModelMappingInlinePopover.vue'
+import ModelTestDialog from './ModelTestDialog.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -378,6 +432,64 @@ function popoverFallbackToDialog() {
   const model = popoverState.model
   closeInlinePopover()
   if (model) openDetail(model)
+}
+
+// 映射编辑 popover 状态
+const addMappingAnchor = ref<HTMLElement | null>(null)
+interface MappingPopoverState {
+  show: boolean
+  anchor: HTMLElement | null
+  mode: 'add' | 'edit'
+  originalFrom: string
+  originalTo: string
+}
+const mappingPopoverState = reactive<MappingPopoverState>({
+  show: false,
+  anchor: null,
+  mode: 'add',
+  originalFrom: '',
+  originalTo: '',
+})
+
+function openAddMapping() {
+  mappingPopoverState.show = true
+  mappingPopoverState.anchor = addMappingAnchor.value
+  mappingPopoverState.mode = 'add'
+  mappingPopoverState.originalFrom = ''
+  mappingPopoverState.originalTo = ''
+}
+
+function openEditMapping(event: MouseEvent, row: RowDisplay) {
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+  mappingPopoverState.show = true
+  mappingPopoverState.anchor = target
+  mappingPopoverState.mode = 'edit'
+  mappingPopoverState.originalFrom = row.item.model
+  // 对 requested_only 类型，row.upstreamDisplay 就是映射目标；
+  // 对 requested_equals_upstream，上游名 == 模型本身（同名映射的 value）
+  mappingPopoverState.originalTo = row.upstreamDisplay
+}
+
+function closeMappingPopover() {
+  mappingPopoverState.show = false
+  mappingPopoverState.anchor = null
+}
+
+function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; from: string; to?: string }) {
+  // 映射变化会影响所有徽标和 related_models，必须整表 reload
+  loadData()
+}
+
+// 模型测试 dialog 状态
+const testDialogState = reactive<{ show: boolean; model: string }>({
+  show: false,
+  model: '',
+})
+
+function openTestDialog(model: string) {
+  testDialogState.model = model
+  testDialogState.show = true
 }
 
 let searchTimeout: ReturnType<typeof setTimeout>
@@ -532,6 +644,9 @@ interface RowDisplay {
   upstreamDisplay: string
   billingModeLabel: string
   billingModeClass: string
+  // 行操作是否可用
+  canEditMapping: boolean
+  canTest: boolean
 }
 
 function deriveNameColumns(item: ModelPricingItem): {
@@ -596,6 +711,13 @@ function deriveNameColumns(item: ModelPricingItem): {
 const displayRows = computed<RowDisplay[]>(() =>
   items.value.map((item) => {
     const nameCols = deriveNameColumns(item)
+    const hintType = item.billing_basis_hint?.type
+    // 编辑映射按钮：仅对 Antigravity 映射的 key 行显示
+    // （requested_only 是 key != value 的 key；requested_equals_upstream 是同名 key）
+    // upstream_only 行只作为 value 不是 key，不显示编辑入口（要改要去对应 key 行）
+    const canEditMapping = hintType === 'requested_only' || hintType === 'requested_equals_upstream'
+    // 测试按钮：所有 Antigravity 认可的模型（有 hint 即在映射里），以及 provider=antigravity 的 stub
+    const canTest = !!hintType || item.provider === 'antigravity'
     return {
       item,
       stub: isStubRow(item),
@@ -605,6 +727,8 @@ const displayRows = computed<RowDisplay[]>(() =>
         cache_write: computePriceDelta(item, 'cache_write'),
         cache_read: computePriceDelta(item, 'cache_read'),
       },
+      canEditMapping,
+      canTest,
       ...nameCols,
     }
   })
