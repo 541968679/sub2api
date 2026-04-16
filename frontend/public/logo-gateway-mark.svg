@@ -1,0 +1,43 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="76" y1="52" x2="438" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#223A7A"/>
+      <stop offset="1" stop-color="#0A163C"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(210 166) rotate(48.5) scale(278 300)">
+      <stop offset="0" stop-color="#2E4EA0" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#2E4EA0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="116" y1="118" x2="399" y2="389" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7BF7B8"/>
+      <stop offset="0.48" stop-color="#5AD9F5"/>
+      <stop offset="1" stop-color="#2E6BFF"/>
+    </linearGradient>
+    <linearGradient id="node" x1="146" y1="170" x2="370" y2="342" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#AFFFF2"/>
+      <stop offset="1" stop-color="#6BB5FF"/>
+    </linearGradient>
+    <filter id="shadow" x="46" y="58" width="420" height="396" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="10"/>
+      <feGaussianBlur stdDeviation="14"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.025 0 0 0 0 0.168 0 0 0 0 0.39 0 0 0 0.42 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect x="4" y="4" width="504" height="504" rx="116" fill="url(#bg)"/>
+  <rect x="4" y="4" width="504" height="504" rx="116" fill="url(#bgGlow)"/>
+  <rect x="4.75" y="4.75" width="502.5" height="502.5" rx="115.25" stroke="#2F4F97" stroke-opacity="0.55" stroke-width="1.5"/>
+
+  <g filter="url(#shadow)">
+    <path d="M118 196.5C118 190.425 120.414 184.599 124.711 180.302L176.301 128.711C180.599 124.414 186.425 122 192.5 122H332.746C339.236 122 345.414 124.771 349.734 129.613L395.886 181.323C408.421 195.367 398.448 217.618 379.622 217.618H330.515C324.585 217.618 318.905 215.272 314.702 211.092L282.474 179.033H208.291L149.89 237.365L284.149 313.919C297.716 321.652 300.635 340.332 290.11 351.891L269.882 374.109C265.514 378.905 259.321 381.633 252.834 381.633H177.421C170.655 381.633 164.214 378.758 159.673 373.718L120.454 330.202C107.495 315.826 117.698 293 137.053 293H178.782C185.38 293 191.648 295.893 195.93 300.915L214.542 322.743H283.055L341.893 256.042L207.31 179.1C193.95 171.461 191.084 153.131 201.346 141.566L221.777 118.545C226.142 113.626 232.403 110.809 239.432 110.809H330.337C337.162 110.809 343.654 113.734 348.174 118.84L397.325 174.397C410.011 188.73 399.825 211.203 380.684 211.203H337.697L306.312 175.738H236.779L178.744 233.712L314.709 311.438C328.223 319.165 331.111 337.768 320.661 349.331L299.653 372.57C295.29 377.398 289.065 380.15 282.544 380.15H188.96C182.125 380.15 175.626 377.195 171.111 372.045L116.57 309.839C104.009 295.514 114.18 273.3 133.231 273.3H144.681C151.277 273.3 157.542 276.191 161.824 281.21L193.587 318.448H271.225L320.219 262.874L135.464 157.133C124.628 150.93 118 139.403 118 126.922V196.5Z" fill="url(#mark)"/>
+    <path d="M246.936 202.713C252.582 197.994 260.756 197.184 267.25 200.665L361.98 251.45C371.728 256.675 373.473 269.923 365.466 277.491L272.317 365.545C268.245 369.394 262.852 371.54 257.249 371.54H205.109C197.682 371.54 190.658 368.207 186.001 362.471L169.923 342.673C160.763 331.392 168.79 314.5 183.321 314.5H211.734C218.405 314.5 224.741 317.411 229.08 322.473L240.946 336.314H250.483L307.725 282.171L243.846 247.926C233.52 242.391 231.969 228.416 240.84 220.817L246.936 202.713Z" fill="url(#node)" fill-opacity="0.95"/>
+    <circle cx="143" cy="184" r="13" fill="#A8FFF0"/>
+    <circle cx="186" cy="329" r="11" fill="#7AE9FF"/>
+    <circle cx="356" cy="256" r="12" fill="#74A4FF"/>
+  </g>
+</svg>
