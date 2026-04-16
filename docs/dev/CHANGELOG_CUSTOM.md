@@ -19,6 +19,19 @@
 
 ## 变更记录
 
+## [2026-04-16] feat(branding): 新增两版原创图标备选方案
+
+**影响范围**:
+- `frontend/public/logo-gateway-orbit.svg`
+- `frontend/public/logo-gateway-portal.svg`
+
+**上游兼容性**: 无冲突，仅新增静态品牌资源
+
+**变更详情**:
+- 新增 `logo-gateway-orbit.svg`，方向偏“网络中枢 / 控制面 / 调度节点”，核心是环形汇聚与三路接入
+- 新增 `logo-gateway-portal.svg`，方向偏“入口 / 通道 / 网关门户”，核心是分层门框与向心聚合
+- 两版都刻意避开上游 `sub2api` 常见的字母化几何造型，优先建立你自己的品牌识别
+
 ## [2026-04-16] feat(branding): 图标重构为原创网关中枢造型，避开上游视觉关联
 
 **影响范围**:
