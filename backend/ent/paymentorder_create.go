@@ -67,6 +67,20 @@ func (_c *PaymentOrderCreate) SetPayAmount(v float64) *PaymentOrderCreate {
 	return _c
 }
 
+// SetCreditAmount sets the "credit_amount" field.
+func (_c *PaymentOrderCreate) SetCreditAmount(v float64) *PaymentOrderCreate {
+	_c.mutation.SetCreditAmount(v)
+	return _c
+}
+
+// SetNillableCreditAmount sets the "credit_amount" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillableCreditAmount(v *float64) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetCreditAmount(*v)
+	}
+	return _c
+}
+
 // SetFeeRate sets the "fee_rate" field.
 func (_c *PaymentOrderCreate) SetFeeRate(v float64) *PaymentOrderCreate {
 	_c.mutation.SetFeeRate(v)
@@ -493,6 +507,10 @@ func (_c *PaymentOrderCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *PaymentOrderCreate) defaults() {
+	if _, ok := _c.mutation.CreditAmount(); !ok {
+		v := paymentorder.DefaultCreditAmount
+		_c.mutation.SetCreditAmount(v)
+	}
 	if _, ok := _c.mutation.FeeRate(); !ok {
 		v := paymentorder.DefaultFeeRate
 		_c.mutation.SetFeeRate(v)
@@ -553,6 +571,9 @@ func (_c *PaymentOrderCreate) check() error {
 	}
 	if _, ok := _c.mutation.PayAmount(); !ok {
 		return &ValidationError{Name: "pay_amount", err: errors.New(`ent: missing required field "PaymentOrder.pay_amount"`)}
+	}
+	if _, ok := _c.mutation.CreditAmount(); !ok {
+		return &ValidationError{Name: "credit_amount", err: errors.New(`ent: missing required field "PaymentOrder.credit_amount"`)}
 	}
 	if _, ok := _c.mutation.FeeRate(); !ok {
 		return &ValidationError{Name: "fee_rate", err: errors.New(`ent: missing required field "PaymentOrder.fee_rate"`)}
@@ -695,6 +716,10 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.PayAmount(); ok {
 		_spec.SetField(paymentorder.FieldPayAmount, field.TypeFloat64, value)
 		_node.PayAmount = value
+	}
+	if value, ok := _c.mutation.CreditAmount(); ok {
+		_spec.SetField(paymentorder.FieldCreditAmount, field.TypeFloat64, value)
+		_node.CreditAmount = value
 	}
 	if value, ok := _c.mutation.FeeRate(); ok {
 		_spec.SetField(paymentorder.FieldFeeRate, field.TypeFloat64, value)
@@ -976,6 +1001,24 @@ func (u *PaymentOrderUpsert) UpdatePayAmount() *PaymentOrderUpsert {
 // AddPayAmount adds v to the "pay_amount" field.
 func (u *PaymentOrderUpsert) AddPayAmount(v float64) *PaymentOrderUpsert {
 	u.Add(paymentorder.FieldPayAmount, v)
+	return u
+}
+
+// SetCreditAmount sets the "credit_amount" field.
+func (u *PaymentOrderUpsert) SetCreditAmount(v float64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldCreditAmount, v)
+	return u
+}
+
+// UpdateCreditAmount sets the "credit_amount" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateCreditAmount() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldCreditAmount)
+	return u
+}
+
+// AddCreditAmount adds v to the "credit_amount" field.
+func (u *PaymentOrderUpsert) AddCreditAmount(v float64) *PaymentOrderUpsert {
+	u.Add(paymentorder.FieldCreditAmount, v)
 	return u
 }
 
@@ -1618,6 +1661,27 @@ func (u *PaymentOrderUpsertOne) AddPayAmount(v float64) *PaymentOrderUpsertOne {
 func (u *PaymentOrderUpsertOne) UpdatePayAmount() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.UpdatePayAmount()
+	})
+}
+
+// SetCreditAmount sets the "credit_amount" field.
+func (u *PaymentOrderUpsertOne) SetCreditAmount(v float64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetCreditAmount(v)
+	})
+}
+
+// AddCreditAmount adds v to the "credit_amount" field.
+func (u *PaymentOrderUpsertOne) AddCreditAmount(v float64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddCreditAmount(v)
+	})
+}
+
+// UpdateCreditAmount sets the "credit_amount" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateCreditAmount() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateCreditAmount()
 	})
 }
 
@@ -2508,6 +2572,27 @@ func (u *PaymentOrderUpsertBulk) AddPayAmount(v float64) *PaymentOrderUpsertBulk
 func (u *PaymentOrderUpsertBulk) UpdatePayAmount() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.UpdatePayAmount()
+	})
+}
+
+// SetCreditAmount sets the "credit_amount" field.
+func (u *PaymentOrderUpsertBulk) SetCreditAmount(v float64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetCreditAmount(v)
+	})
+}
+
+// AddCreditAmount adds v to the "credit_amount" field.
+func (u *PaymentOrderUpsertBulk) AddCreditAmount(v float64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.AddCreditAmount(v)
+	})
+}
+
+// UpdateCreditAmount sets the "credit_amount" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateCreditAmount() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateCreditAmount()
 	})
 }
 

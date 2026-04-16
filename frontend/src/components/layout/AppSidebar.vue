@@ -705,6 +705,12 @@ const adminNavItems = computed((): NavItem[] => {
               { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
             ],
           },
+          {
+            path: '/admin/recharge-config',
+            label: t('nav.rechargeConfig'),
+            icon: RechargeSubscriptionIcon,
+            hideInSimpleMode: true,
+          },
         ]
       : []),
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }

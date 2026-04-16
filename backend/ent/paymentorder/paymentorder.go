@@ -26,6 +26,8 @@ const (
 	FieldAmount = "amount"
 	// FieldPayAmount holds the string denoting the pay_amount field in the database.
 	FieldPayAmount = "pay_amount"
+	// FieldCreditAmount holds the string denoting the credit_amount field in the database.
+	FieldCreditAmount = "credit_amount"
 	// FieldFeeRate holds the string denoting the fee_rate field in the database.
 	FieldFeeRate = "fee_rate"
 	// FieldRechargeCode holds the string denoting the recharge_code field in the database.
@@ -110,6 +112,7 @@ var Columns = []string{
 	FieldUserNotes,
 	FieldAmount,
 	FieldPayAmount,
+	FieldCreditAmount,
 	FieldFeeRate,
 	FieldRechargeCode,
 	FieldOutTradeNo,
@@ -158,6 +161,8 @@ var (
 	UserEmailValidator func(string) error
 	// UserNameValidator is a validator for the "user_name" field. It is called by the builders before save.
 	UserNameValidator func(string) error
+	// DefaultCreditAmount holds the default value on creation for the "credit_amount" field.
+	DefaultCreditAmount float64
 	// DefaultFeeRate holds the default value on creation for the "fee_rate" field.
 	DefaultFeeRate float64
 	// RechargeCodeValidator is a validator for the "recharge_code" field. It is called by the builders before save.
@@ -234,6 +239,11 @@ func ByAmount(opts ...sql.OrderTermOption) OrderOption {
 // ByPayAmount orders the results by the pay_amount field.
 func ByPayAmount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPayAmount, opts...).ToFunc()
+}
+
+// ByCreditAmount orders the results by the credit_amount field.
+func ByCreditAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCreditAmount, opts...).ToFunc()
 }
 
 // ByFeeRate orders the results by the fee_rate field.

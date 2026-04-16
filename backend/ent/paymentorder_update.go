@@ -133,6 +133,27 @@ func (_u *PaymentOrderUpdate) AddPayAmount(v float64) *PaymentOrderUpdate {
 	return _u
 }
 
+// SetCreditAmount sets the "credit_amount" field.
+func (_u *PaymentOrderUpdate) SetCreditAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetCreditAmount()
+	_u.mutation.SetCreditAmount(v)
+	return _u
+}
+
+// SetNillableCreditAmount sets the "credit_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableCreditAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetCreditAmount(*v)
+	}
+	return _u
+}
+
+// AddCreditAmount adds value to the "credit_amount" field.
+func (_u *PaymentOrderUpdate) AddCreditAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddCreditAmount(v)
+	return _u
+}
+
 // SetFeeRate sets the "fee_rate" field.
 func (_u *PaymentOrderUpdate) SetFeeRate(v float64) *PaymentOrderUpdate {
 	_u.mutation.ResetFeeRate()
@@ -838,6 +859,12 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.AddedPayAmount(); ok {
 		_spec.AddField(paymentorder.FieldPayAmount, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.CreditAmount(); ok {
+		_spec.SetField(paymentorder.FieldCreditAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditAmount(); ok {
+		_spec.AddField(paymentorder.FieldCreditAmount, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.FeeRate(); ok {
 		_spec.SetField(paymentorder.FieldFeeRate, field.TypeFloat64, value)
 	}
@@ -1144,6 +1171,27 @@ func (_u *PaymentOrderUpdateOne) SetNillablePayAmount(v *float64) *PaymentOrderU
 // AddPayAmount adds value to the "pay_amount" field.
 func (_u *PaymentOrderUpdateOne) AddPayAmount(v float64) *PaymentOrderUpdateOne {
 	_u.mutation.AddPayAmount(v)
+	return _u
+}
+
+// SetCreditAmount sets the "credit_amount" field.
+func (_u *PaymentOrderUpdateOne) SetCreditAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetCreditAmount()
+	_u.mutation.SetCreditAmount(v)
+	return _u
+}
+
+// SetNillableCreditAmount sets the "credit_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableCreditAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetCreditAmount(*v)
+	}
+	return _u
+}
+
+// AddCreditAmount adds value to the "credit_amount" field.
+func (_u *PaymentOrderUpdateOne) AddCreditAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddCreditAmount(v)
 	return _u
 }
 
@@ -1881,6 +1929,12 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if value, ok := _u.mutation.AddedPayAmount(); ok {
 		_spec.AddField(paymentorder.FieldPayAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.CreditAmount(); ok {
+		_spec.SetField(paymentorder.FieldCreditAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCreditAmount(); ok {
+		_spec.AddField(paymentorder.FieldCreditAmount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.FeeRate(); ok {
 		_spec.SetField(paymentorder.FieldFeeRate, field.TypeFloat64, value)

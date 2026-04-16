@@ -80,6 +80,8 @@ type CreateOrderResponse struct {
 	OrderID      int64     `json:"order_id"`
 	Amount       float64   `json:"amount"`
 	PayAmount    float64   `json:"pay_amount"`
+	CreditAmount float64   `json:"credit_amount"`
+	CNYPerUSD    float64   `json:"cny_per_usd"`
 	FeeRate      float64   `json:"fee_rate"`
 	Status       string    `json:"status"`
 	PaymentType  string    `json:"payment_type"`

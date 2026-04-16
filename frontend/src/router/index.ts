@@ -494,6 +494,18 @@ const routes: RouteRecordRaw[] = [
       requiresPayment: true
     }
   },
+  {
+    path: '/admin/recharge-config',
+    name: 'AdminRechargeConfig',
+    component: () => import('@/views/admin/RechargeConfigView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Recharge Config',
+      titleKey: 'nav.rechargeConfig',
+      requiresPayment: true
+    }
+  },
 
   // ==================== 404 Not Found ====================
   {

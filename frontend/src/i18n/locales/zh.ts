@@ -360,7 +360,8 @@ export default {
     orderManagement: '订单管理',
     paymentDashboard: '支付概览',
     paymentConfig: '支付配置',
-    paymentPlans: '订阅套餐'
+    paymentPlans: '订阅套餐',
+    rechargeConfig: '充值管理'
   },
 
   // Auth
@@ -971,6 +972,26 @@ export default {
 
   // Admin
   admin: {
+    // Recharge Config
+    recharge: {
+      title: '充值管理',
+      description: '管理充值单价与赠送阶梯',
+      priceTitle: '充值单价',
+      priceDescription: '设置人民币兑美元的售价比例',
+      cnyPerUsd: '单价 (元/刀)',
+      cnyPerUsdHint: '每 $1 USD 的人民币售价。例如 0.5 表示 ¥0.5 = $1。设为 0 表示 1:1 不转换。',
+      preview: '预览',
+      bonusTitle: '充值赠送阶梯',
+      bonusDescription: '充值金额达到门槛时，额外赠送 USD 额度',
+      noTiers: '暂无赠送阶梯，点击下方按钮添加',
+      tierMinAmount: '充值门槛 (CNY)',
+      tierMinPlaceholder: '如 100',
+      tierBonusUsd: '赠送额度 (USD)',
+      tierBonusPlaceholder: '如 5',
+      addTier: '添加阶梯',
+      previewExample: '赠送预览（基础转换 + 赠送）',
+      saved: '充值配置已保存',
+    },
     // Dashboard
     dashboard: {
       title: '管理控制台',
@@ -2091,6 +2112,11 @@ export default {
       globalOverride: '全局覆盖',
       enabled: '启用',
       notes: '备注',
+      billingModeLabel: '计费模式',
+      billingModeToken: '按量 (Token)',
+      billingModePerRequest: '按次',
+      billingModeImage: '图片',
+      perRequestPrice: '单次请求价格',
       noLitellmData: '此模型无 LiteLLM 数据',
       confirmDeleteOverride: '确定删除此全局定价覆盖？',
       edit: '编辑',
@@ -4761,6 +4787,8 @@ export default {
         enabledPaymentTypes: '启用的服务商',
         enabledPaymentTypesHint: '禁用服务商将同时禁用对应的实例。',
         findProvider: '正在寻找合适的 EasyPay 服务商？',
+        cnyPerUsd: '单价 (元/刀)',
+        cnyPerUsdHint: '0 = 1:1 不转换',
         minAmount: '最低金额',
         maxAmount: '最高金额',
         dailyLimit: '每日限额',
@@ -5531,6 +5559,10 @@ export default {
     paymentMethod: '支付方式',
     fee: '手续费',
     actualPay: '实付金额',
+    creditAmount: '到账金额',
+    baseCredit: '基础到账',
+    bonus: '赠送额度',
+    perUsd: '刀',
     createOrder: '确认支付',
     methods: {
       easypay: '易支付',

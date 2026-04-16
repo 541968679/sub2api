@@ -188,6 +188,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PaymentProductNameSuffix:             paymentCfg.ProductNameSuffix,
 		PaymentHelpImageURL:                  paymentCfg.HelpImageURL,
 		PaymentHelpText:                      paymentCfg.HelpText,
+		PaymentCNYPerUSD:                     paymentCfg.CNYPerUSD,
+		PaymentBonusTiers:                    paymentCfg.BonusTiers,
 		PaymentCancelRateLimitEnabled:        paymentCfg.CancelRateLimitEnabled,
 		PaymentCancelRateLimitMax:            paymentCfg.CancelRateLimitMax,
 		PaymentCancelRateLimitWindow:         paymentCfg.CancelRateLimitWindow,
@@ -318,6 +320,8 @@ type UpdateSettingsRequest struct {
 	PaymentProductNameSuffix *string  `json:"payment_product_name_suffix"`
 	PaymentHelpImageURL      *string  `json:"payment_help_image_url"`
 	PaymentHelpText          *string  `json:"payment_help_text"`
+	PaymentCNYPerUSD         *float64             `json:"payment_cny_per_usd"`
+	PaymentBonusTiers        *[]service.BonusTier `json:"payment_bonus_tiers"`
 
 	// Cancel rate limit
 	PaymentCancelRateLimitEnabled *bool   `json:"payment_cancel_rate_limit_enabled"`
@@ -905,6 +909,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			ProductNameSuffix:      req.PaymentProductNameSuffix,
 			HelpImageURL:           req.PaymentHelpImageURL,
 			HelpText:               req.PaymentHelpText,
+			CNYPerUSD:              req.PaymentCNYPerUSD,
+			BonusTiers:             req.PaymentBonusTiers,
 			CancelRateLimitEnabled: req.PaymentCancelRateLimitEnabled,
 			CancelRateLimitMax:     req.PaymentCancelRateLimitMax,
 			CancelRateLimitWindow:  req.PaymentCancelRateLimitWindow,
@@ -1040,6 +1046,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentProductNameSuffix:             updatedPaymentCfg.ProductNameSuffix,
 		PaymentHelpImageURL:                  updatedPaymentCfg.HelpImageURL,
 		PaymentHelpText:                      updatedPaymentCfg.HelpText,
+		PaymentCNYPerUSD:                     updatedPaymentCfg.CNYPerUSD,
+		PaymentBonusTiers:                    updatedPaymentCfg.BonusTiers,
 		PaymentCancelRateLimitEnabled:        updatedPaymentCfg.CancelRateLimitEnabled,
 		PaymentCancelRateLimitMax:            updatedPaymentCfg.CancelRateLimitMax,
 		PaymentCancelRateLimitWindow:         updatedPaymentCfg.CancelRateLimitWindow,
@@ -1058,7 +1066,8 @@ func hasPaymentFields(req UpdateSettingsRequest) bool {
 		req.PaymentProductNameSuffix != nil || req.PaymentHelpImageURL != nil ||
 		req.PaymentHelpText != nil || req.PaymentCancelRateLimitEnabled != nil ||
 		req.PaymentCancelRateLimitMax != nil || req.PaymentCancelRateLimitWindow != nil ||
-		req.PaymentCancelRateLimitUnit != nil || req.PaymentCancelRateLimitMode != nil
+		req.PaymentCancelRateLimitUnit != nil || req.PaymentCancelRateLimitMode != nil ||
+		req.PaymentCNYPerUSD != nil || req.PaymentBonusTiers != nil
 }
 
 func (h *SettingHandler) auditSettingsUpdate(c *gin.Context, before *service.SystemSettings, after *service.SystemSettings, req UpdateSettingsRequest) {

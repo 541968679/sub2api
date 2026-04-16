@@ -65,6 +65,13 @@ export interface CheckoutInfoResponse {
   help_text: string
   help_image_url: string
   stripe_publishable_key: string
+  cny_per_usd: number
+  bonus_tiers: BonusTier[]
+}
+
+export interface BonusTier {
+  min_amount: number
+  bonus_usd: number
 }
 
 // ==================== Orders ====================
@@ -157,6 +164,8 @@ export interface CreateOrderResult {
   qr_code?: string
   client_secret?: string
   pay_amount: number
+  credit_amount?: number
+  cny_per_usd?: number
   expires_at: string
   payment_mode?: string
 }

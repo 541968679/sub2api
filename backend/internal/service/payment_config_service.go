@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -30,6 +31,8 @@ const (
 	SettingCancelWindowSize    = "CANCEL_RATE_LIMIT_WINDOW"
 	SettingCancelWindowUnit    = "CANCEL_RATE_LIMIT_UNIT"
 	SettingCancelWindowMode    = "CANCEL_RATE_LIMIT_WINDOW_MODE"
+	SettingCNYPerUSD          = "CNY_PER_USD"
+	SettingBonusTiers         = "RECHARGE_BONUS_TIERS"
 )
 
 // Default values for payment configuration settings.
@@ -37,6 +40,13 @@ const (
 	defaultOrderTimeoutMin  = 30
 	defaultMaxPendingOrders = 3
 )
+
+// BonusTier defines a recharge bonus tier: when the user recharges
+// at least MinAmount CNY, they receive an extra BonusUSD credited.
+type BonusTier struct {
+	MinAmount float64 `json:"min_amount"` // threshold in CNY
+	BonusUSD  float64 `json:"bonus_usd"`  // extra USD credited
+}
 
 // PaymentConfig holds the payment system configuration.
 type PaymentConfig struct {
@@ -54,6 +64,10 @@ type PaymentConfig struct {
 	HelpImageURL         string   `json:"help_image_url"`
 	HelpText             string   `json:"help_text"`
 	StripePublishableKey string   `json:"stripe_publishable_key,omitempty"`
+
+	// Exchange rate: CNY per 1 USD (e.g. 0.5 means ¥0.5 = $1)
+	CNYPerUSD  float64     `json:"cny_per_usd"`
+	BonusTiers []BonusTier `json:"bonus_tiers"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled bool   `json:"cancel_rate_limit_enabled"`
@@ -78,6 +92,8 @@ type UpdatePaymentConfigRequest struct {
 	ProductNameSuffix   *string  `json:"product_name_suffix"`
 	HelpImageURL        *string  `json:"help_image_url"`
 	HelpText            *string  `json:"help_text"`
+	CNYPerUSD           *float64     `json:"cny_per_usd"`
+	BonusTiers          *[]BonusTier `json:"bonus_tiers"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled *bool   `json:"cancel_rate_limit_enabled"`
@@ -176,6 +192,28 @@ func (s *PaymentConfigService) IsPaymentEnabled(ctx context.Context) bool {
 	return val == "true"
 }
 
+// EffectiveCNYPerUSD returns the CNY-per-USD rate, defaulting to 1.0 (no conversion).
+func (c *PaymentConfig) EffectiveCNYPerUSD() float64 {
+	if c.CNYPerUSD <= 0 {
+		return 1.0
+	}
+	return c.CNYPerUSD
+}
+
+// MatchedBonus returns the bonus USD for a given CNY amount based on bonus tiers.
+// It returns the bonus from the highest tier whose MinAmount is <= amount.
+func MatchedBonus(amount float64, tiers []BonusTier) float64 {
+	var best float64
+	var bestThreshold float64
+	for _, t := range tiers {
+		if amount >= t.MinAmount && t.MinAmount >= bestThreshold {
+			best = t.BonusUSD
+			bestThreshold = t.MinAmount
+		}
+	}
+	return best
+}
+
 // GetPaymentConfig returns the full payment configuration.
 func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentConfig, error) {
 	keys := []string{
@@ -186,6 +224,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 		SettingHelpImageURL, SettingHelpText,
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
 		SettingCancelWindowSize, SettingCancelWindowUnit, SettingCancelWindowMode,
+		SettingCNYPerUSD, SettingBonusTiers,
 	}
 	vals, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
@@ -212,6 +251,8 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		HelpImageURL:        vals[SettingHelpImageURL],
 		HelpText:            vals[SettingHelpText],
 
+		CNYPerUSD: pcParseFloat(vals[SettingCNYPerUSD], 0),
+
 		CancelRateLimitEnabled: vals[SettingCancelRateLimitOn] == "true",
 		CancelRateLimitMax:     pcParseInt(vals[SettingCancelRateLimitMax], 10),
 		CancelRateLimitWindow:  pcParseInt(vals[SettingCancelWindowSize], 1),
@@ -228,6 +269,9 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 				cfg.EnabledTypes = append(cfg.EnabledTypes, t)
 			}
 		}
+	}
+	if raw := vals[SettingBonusTiers]; raw != "" {
+		_ = json.Unmarshal([]byte(raw), &cfg.BonusTiers)
 	}
 	return cfg
 }
@@ -272,11 +316,17 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		SettingCancelWindowSize:    formatPositiveInt(req.CancelRateLimitWindow),
 		SettingCancelWindowUnit:    derefStr(req.CancelRateLimitUnit),
 		SettingCancelWindowMode:    derefStr(req.CancelRateLimitMode),
+		SettingCNYPerUSD:           formatPositiveFloat(req.CNYPerUSD),
 	}
 	if req.EnabledTypes != nil {
 		m[SettingEnabledPaymentTypes] = strings.Join(req.EnabledTypes, ",")
 	} else {
 		m[SettingEnabledPaymentTypes] = ""
+	}
+	if req.BonusTiers != nil {
+		if b, err := json.Marshal(*req.BonusTiers); err == nil {
+			m[SettingBonusTiers] = string(b)
+		}
 	}
 	return s.settingRepo.SetMultiple(ctx, m)
 }

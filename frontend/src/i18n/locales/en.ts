@@ -360,7 +360,8 @@ export default {
     orderManagement: 'Orders',
     paymentDashboard: 'Payment Dashboard',
     paymentConfig: 'Payment Config',
-    paymentPlans: 'Plans'
+    paymentPlans: 'Plans',
+    rechargeConfig: 'Recharge Config'
   },
 
   // Auth
@@ -967,6 +968,26 @@ export default {
 
   // Admin
   admin: {
+    // Recharge Config
+    recharge: {
+      title: 'Recharge Config',
+      description: 'Manage recharge pricing and bonus tiers',
+      priceTitle: 'Unit Price',
+      priceDescription: 'Set the CNY-to-USD price ratio',
+      cnyPerUsd: 'Price (CNY/USD)',
+      cnyPerUsdHint: 'CNY per $1 USD. E.g. 0.5 means ¥0.5 = $1. Set to 0 for 1:1.',
+      preview: 'Preview',
+      bonusTitle: 'Bonus Tiers',
+      bonusDescription: 'Extra USD credited when recharge amount reaches a threshold',
+      noTiers: 'No bonus tiers yet. Click below to add one.',
+      tierMinAmount: 'Threshold (CNY)',
+      tierMinPlaceholder: 'e.g. 100',
+      tierBonusUsd: 'Bonus (USD)',
+      tierBonusPlaceholder: 'e.g. 5',
+      addTier: 'Add Tier',
+      previewExample: 'Bonus Preview (base conversion + bonus)',
+      saved: 'Recharge config saved',
+    },
     // Dashboard
     dashboard: {
       title: 'Admin Dashboard',
@@ -2013,6 +2034,11 @@ export default {
       globalOverride: 'Global Override',
       enabled: 'Enabled',
       notes: 'Notes',
+      billingModeLabel: 'Billing Mode',
+      billingModeToken: 'Token',
+      billingModePerRequest: 'Per Request',
+      billingModeImage: 'Image',
+      perRequestPrice: 'Per Request Price',
       noLitellmData: 'No LiteLLM data available for this model',
       confirmDeleteOverride: 'Delete this global pricing override?',
       edit: 'Edit',
@@ -4597,6 +4623,8 @@ export default {
         enabledPaymentTypes: 'Enabled Providers',
         enabledPaymentTypesHint: 'Disabling a provider will also disable its instances.',
         findProvider: 'Looking for a suitable EasyPay provider?',
+        cnyPerUsd: 'Price (CNY/USD)',
+        cnyPerUsdHint: '0 = 1:1 no conversion',
         minAmount: 'Minimum Amount',
         maxAmount: 'Maximum Amount',
         dailyLimit: 'Daily Limit',
@@ -5343,6 +5371,10 @@ export default {
     paymentMethod: 'Payment Method',
     fee: 'Fee',
     actualPay: 'Actual Payment',
+    creditAmount: 'Credit Amount',
+    baseCredit: 'Base Credit',
+    bonus: 'Bonus',
+    perUsd: 'USD',
     createOrder: 'Confirm Payment',
     methods: {
       easypay: 'EasyPay',

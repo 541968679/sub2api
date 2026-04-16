@@ -67,19 +67,33 @@
                 @select="selectedMethod = $event"
               />
             </div>
-            <div v-if="feeRate > 0 && validAmount > 0" class="card p-6">
+            <div v-if="validAmount > 0" class="card p-6">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                  <span class="text-gray-900 dark:text-white">${{ validAmount.toFixed(2) }}</span>
+                  <span class="text-gray-900 dark:text-white">&yen;{{ validAmount.toFixed(2) }}</span>
                 </div>
-                <div class="flex justify-between">
+                <div v-if="feeRate > 0" class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">${{ feeAmount.toFixed(2) }}</span>
+                  <span class="text-gray-900 dark:text-white">&yen;{{ feeAmount.toFixed(2) }}</span>
                 </div>
-                <div class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
+                <div v-if="feeRate > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">${{ totalAmount.toFixed(2) }}</span>
+                  <span class="text-lg font-bold text-primary-600 dark:text-primary-400">&yen;{{ totalAmount.toFixed(2) }}</span>
+                </div>
+                <div v-if="hasConversion || bonusAmount > 0" class="border-t border-gray-200 pt-2 space-y-2 dark:border-dark-600">
+                  <div v-if="hasConversion" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.baseCredit') }} <span class="text-xs">&yen;{{ cnyPerUsd }}/{{ t('payment.perUsd') }}</span></span>
+                    <span class="text-gray-900 dark:text-white">${{ baseCredit.toFixed(2) }}</span>
+                  </div>
+                  <div v-if="bonusAmount > 0" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.bonus') }}</span>
+                    <span class="text-green-600 dark:text-green-400">+${{ bonusAmount.toFixed(2) }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.creditAmount') }}</span>
+                    <span class="text-lg font-bold text-green-600 dark:text-green-400">${{ creditAmount.toFixed(2) }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -88,7 +102,7 @@
                 <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                 {{ t('common.processing') }}
               </span>
-              <span v-else>{{ t('payment.createOrder') }} ${{ (feeRate > 0 && validAmount > 0 ? totalAmount : validAmount).toFixed(2) }}</span>
+              <span v-else>{{ t('payment.createOrder') }} &yen;{{ (feeRate > 0 && validAmount > 0 ? totalAmount : validAmount).toFixed(2) }}<template v-if="hasConversion"> &rarr; ${{ creditAmount.toFixed(2) }}</template></span>
             </button>
             <div v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-900/20">
               <p class="text-sm text-red-700 dark:text-red-400">{{ errorMessage }}</p>
@@ -343,6 +357,8 @@ function onStripeRedirect(orderId: number, payUrl: string) {
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
   plans: [], balance_disabled: false, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  cny_per_usd: 1,
+  bonus_tiers: [],
 })
 
 const tabs = computed(() => {
@@ -400,6 +416,28 @@ const totalAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
     ? Math.round((validAmount.value + feeAmount.value) * 100) / 100
     : validAmount.value
+)
+
+const cnyPerUsd = computed(() => checkout.value.cny_per_usd || 1)
+const hasConversion = computed(() => cnyPerUsd.value > 0 && cnyPerUsd.value !== 1)
+const bonusAmount = computed(() => {
+  const tiers = checkout.value.bonus_tiers || []
+  if (tiers.length === 0 || validAmount.value <= 0) return 0
+  let best = 0
+  let bestThreshold = 0
+  for (const t of tiers) {
+    if (validAmount.value >= t.min_amount && t.min_amount >= bestThreshold) {
+      best = t.bonus_usd
+      bestThreshold = t.min_amount
+    }
+  }
+  return best
+})
+const baseCredit = computed(() =>
+  hasConversion.value ? Math.floor(validAmount.value / cnyPerUsd.value * 100) / 100 : validAmount.value
+)
+const creditAmount = computed(() =>
+  Math.round((baseCredit.value + bonusAmount.value) * 100) / 100
 )
 
 const amountError = computed(() => {

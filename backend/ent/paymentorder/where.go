@@ -85,6 +85,11 @@ func PayAmount(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldPayAmount, v))
 }
 
+// CreditAmount applies equality check predicate on the "credit_amount" field. It's identical to CreditAmountEQ.
+func CreditAmount(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldCreditAmount, v))
+}
+
 // FeeRate applies equality check predicate on the "fee_rate" field. It's identical to FeeRateEQ.
 func FeeRate(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRate, v))
@@ -543,6 +548,46 @@ func PayAmountLT(v float64) predicate.PaymentOrder {
 // PayAmountLTE applies the LTE predicate on the "pay_amount" field.
 func PayAmountLTE(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldLTE(FieldPayAmount, v))
+}
+
+// CreditAmountEQ applies the EQ predicate on the "credit_amount" field.
+func CreditAmountEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldCreditAmount, v))
+}
+
+// CreditAmountNEQ applies the NEQ predicate on the "credit_amount" field.
+func CreditAmountNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldCreditAmount, v))
+}
+
+// CreditAmountIn applies the In predicate on the "credit_amount" field.
+func CreditAmountIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldCreditAmount, vs...))
+}
+
+// CreditAmountNotIn applies the NotIn predicate on the "credit_amount" field.
+func CreditAmountNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldCreditAmount, vs...))
+}
+
+// CreditAmountGT applies the GT predicate on the "credit_amount" field.
+func CreditAmountGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldCreditAmount, v))
+}
+
+// CreditAmountGTE applies the GTE predicate on the "credit_amount" field.
+func CreditAmountGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldCreditAmount, v))
+}
+
+// CreditAmountLT applies the LT predicate on the "credit_amount" field.
+func CreditAmountLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldCreditAmount, v))
+}
+
+// CreditAmountLTE applies the LTE predicate on the "credit_amount" field.
+func CreditAmountLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldCreditAmount, v))
 }
 
 // FeeRateEQ applies the EQ predicate on the "fee_rate" field.

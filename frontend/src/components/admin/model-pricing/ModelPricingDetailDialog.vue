@@ -58,7 +58,19 @@
           </button>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div class="mb-3 grid grid-cols-2 gap-3">
+          <div>
+            <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.billingModeLabel') }}</label>
+            <Select v-model="form.billing_mode" :options="billingModeOptions" class="w-full" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs text-gray-500">Provider</label>
+            <input v-model="form.provider" type="text" class="input text-sm w-full" :placeholder="detail.provider || ''" />
+          </div>
+        </div>
+
+        <!-- Token mode fields -->
+        <div v-if="form.billing_mode === 'token'" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.inputPrice') }} ($/MTok)</label>
             <input v-model="form.input_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('input_price')" />
@@ -79,9 +91,23 @@
             <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.imageOutputPrice') }} ($/MTok)</label>
             <input v-model="form.image_output_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('image_output_price')" />
           </div>
+        </div>
+
+        <!-- Per-request mode fields -->
+        <div v-else-if="form.billing_mode === 'per_request'" class="w-48">
+          <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.perRequestPrice') }} ($)</label>
+          <input v-model="form.per_request_price" type="number" step="any" min="0" class="input text-sm w-full" />
+        </div>
+
+        <!-- Image mode fields -->
+        <div v-else-if="form.billing_mode === 'image'" class="grid grid-cols-2 gap-3">
           <div>
-            <label class="mb-1 block text-xs text-gray-500">Provider</label>
-            <input v-model="form.provider" type="text" class="input text-sm w-full" :placeholder="detail.provider || ''" />
+            <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.imageOutputPrice') }} ($/MTok)</label>
+            <input v-model="form.image_output_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('image_output_price')" />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.perRequestPrice') }} ($)</label>
+            <input v-model="form.per_request_price" type="number" step="any" min="0" class="input text-sm w-full" />
           </div>
         </div>
 
@@ -143,6 +169,7 @@ import { adminAPI } from '@/api/admin'
 import type { ModelPricingDetail } from '@/api/admin/modelPricing'
 import { perTokenToMTok, mTokToPerToken } from '@/components/admin/channel/types'
 import { BaseDialog } from '@/components/common'
+import Select from '@/components/common/Select.vue'
 
 const props = defineProps<{
   show: boolean
@@ -163,14 +190,22 @@ const detail = ref<ModelPricingDetail | null>(null)
 
 const form = reactive({
   enabled: true,
+  billing_mode: 'token' as string,
   input_price: '' as string | number,
   output_price: '' as string | number,
   cache_write_price: '' as string | number,
   cache_read_price: '' as string | number,
   image_output_price: '' as string | number,
+  per_request_price: '' as string | number,
   provider: '',
   notes: '',
 })
+
+const billingModeOptions = computed(() => [
+  { value: 'token', label: t('admin.modelPricing.billingModeToken') },
+  { value: 'per_request', label: t('admin.modelPricing.billingModePerRequest') },
+  { value: 'image', label: t('admin.modelPricing.billingModeImage') },
+])
 
 const litellmFields = computed(() => [
   { key: 'input_price', label: t('admin.modelPricing.inputPrice') + ' ($/MTok)' },
@@ -200,20 +235,24 @@ async function loadDetail() {
     const go = detail.value.global_override
     if (go) {
       form.enabled = go.enabled
+      form.billing_mode = go.billing_mode || 'token'
       form.input_price = go.input_price != null ? perTokenToMTok(go.input_price) ?? '' : ''
       form.output_price = go.output_price != null ? perTokenToMTok(go.output_price) ?? '' : ''
       form.cache_write_price = go.cache_write_price != null ? perTokenToMTok(go.cache_write_price) ?? '' : ''
       form.cache_read_price = go.cache_read_price != null ? perTokenToMTok(go.cache_read_price) ?? '' : ''
       form.image_output_price = go.image_output_price != null ? perTokenToMTok(go.image_output_price) ?? '' : ''
+      form.per_request_price = go.per_request_price != null ? go.per_request_price : ''
       form.provider = go.provider
       form.notes = go.notes
     } else {
       form.enabled = true
+      form.billing_mode = 'token'
       form.input_price = ''
       form.output_price = ''
       form.cache_write_price = ''
       form.cache_read_price = ''
       form.image_output_price = ''
+      form.per_request_price = ''
       form.provider = detail.value.provider || ''
       form.notes = ''
     }
@@ -228,15 +267,17 @@ async function handleSave() {
   if (!detail.value) return
   saving.value = true
   try {
+    const perReqVal = form.per_request_price === '' ? null : Number(form.per_request_price)
     const payload = {
       model: props.model,
       provider: form.provider,
-      billing_mode: 'token' as const,
+      billing_mode: form.billing_mode,
       input_price: mTokToPerToken(form.input_price),
       output_price: mTokToPerToken(form.output_price),
       cache_write_price: mTokToPerToken(form.cache_write_price),
       cache_read_price: mTokToPerToken(form.cache_read_price),
       image_output_price: mTokToPerToken(form.image_output_price),
+      per_request_price: perReqVal,
       enabled: form.enabled,
       notes: form.notes,
     }

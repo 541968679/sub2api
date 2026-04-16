@@ -134,6 +134,8 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		HelpText:             cfg.HelpText,
 		HelpImageURL:         cfg.HelpImageURL,
 		StripePublishableKey: cfg.StripePublishableKey,
+		CNYPerUSD:            cfg.EffectiveCNYPerUSD(),
+		BonusTiers:           cfg.BonusTiers,
 	})
 }
 
@@ -146,6 +148,8 @@ type checkoutInfoResponse struct {
 	HelpText             string                          `json:"help_text"`
 	HelpImageURL         string                          `json:"help_image_url"`
 	StripePublishableKey string                          `json:"stripe_publishable_key"`
+	CNYPerUSD            float64                         `json:"cny_per_usd"`
+	BonusTiers           []service.BonusTier             `json:"bonus_tiers"`
 }
 
 type checkoutPlan struct {
