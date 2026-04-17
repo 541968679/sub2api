@@ -96,6 +96,7 @@ type GlobalOverride struct {
 
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 }
@@ -737,6 +738,7 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 
 		DisplayInputPrice:     gp.DisplayInputPrice,
 		DisplayOutputPrice:    gp.DisplayOutputPrice,
+		DisplayCacheReadPrice: gp.DisplayCacheReadPrice,
 		DisplayRateMultiplier: gp.DisplayRateMultiplier,
 		CacheTransferRatio:    gp.CacheTransferRatio,
 	}

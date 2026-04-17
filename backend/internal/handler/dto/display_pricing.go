@@ -10,6 +10,7 @@ import (
 type DisplayPricingConfig struct {
 	DisplayInputPrice     *float64
 	DisplayOutputPrice    *float64
+	DisplayCacheReadPrice *float64
 	DisplayRateMultiplier *float64
 	CacheTransferRatio    *float64
 }
@@ -28,6 +29,7 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 		m[toLowerModel(p.Model)] = &DisplayPricingConfig{
 			DisplayInputPrice:     p.DisplayInputPrice,
 			DisplayOutputPrice:    p.DisplayOutputPrice,
+			DisplayCacheReadPrice: p.DisplayCacheReadPrice,
 			DisplayRateMultiplier: p.DisplayRateMultiplier,
 			CacheTransferRatio:    p.CacheTransferRatio,
 		}
@@ -36,7 +38,7 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 }
 
 func hasDisplayOverride(p *service.GlobalModelPricing) bool {
-	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil ||
+	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil ||
 		p.DisplayRateMultiplier != nil || (p.CacheTransferRatio != nil && *p.CacheTransferRatio > 0)
 }
 
@@ -102,11 +104,14 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 		d.OutputCost = float64(d.OutputTokens) * *cfg.DisplayOutputPrice
 	}
 
-	// Cache read tokens: if input price is overridden but cache isn't, scale cache similarly
+	// Cache read tokens rescaling
 	if d.CacheReadTokens > 0 && d.CacheReadCost > 0 {
 		realCacheCostTotal := d.CacheReadCost * d.RateMultiplier
-		// Use real cache price for display (no override for cache read display price)
-		if d.RateMultiplier != displayRate {
+		if cfg.DisplayCacheReadPrice != nil && *cfg.DisplayCacheReadPrice > 0 {
+			displayTokens := realCacheCostTotal / (*cfg.DisplayCacheReadPrice * displayRate)
+			d.CacheReadTokens = int(math.Round(displayTokens))
+			d.CacheReadCost = float64(d.CacheReadTokens) * *cfg.DisplayCacheReadPrice
+		} else if d.RateMultiplier != displayRate {
 			cachePrice := d.CacheReadCost / float64(d.CacheReadTokens)
 			displayTokens := realCacheCostTotal / (cachePrice * displayRate)
 			d.CacheReadTokens = int(math.Round(displayTokens))

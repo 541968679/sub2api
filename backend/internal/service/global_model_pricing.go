@@ -30,6 +30,7 @@ type GlobalModelPricing struct {
 	// Display overrides — only affect user-facing usage log display, not actual billing.
 	DisplayInputPrice     *float64 // 展示给用户的输入单价
 	DisplayOutputPrice    *float64 // 展示给用户的输出单价
+	DisplayCacheReadPrice *float64 // 展示给用户的缓存读取单价
 	DisplayRateMultiplier *float64 // 展示给用户的倍率
 	CacheTransferRatio    *float64 // 缓存 token 转移到输入 token 的比例 (0~1)
 
