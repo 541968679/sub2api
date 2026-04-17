@@ -36,66 +36,90 @@
         <div class="flex flex-1 flex-col rounded-[38px] border border-white/[0.08] bg-white/[0.03] lg:flex-row">
 
           <!-- LEFT PANEL - Marketing (hidden on mobile) -->
-          <div class="hidden flex-1 flex-col justify-between rounded-l-[32px] bg-gradient-to-br from-[#18D8AA]/[0.16] to-[#4BA8FF]/[0.04] border border-white/[0.08] p-8 lg:flex xl:p-12">
-            <!-- Badge -->
+          <div class="hidden flex-1 flex-col justify-between rounded-l-[32px] bg-gradient-to-br from-[#18D8AA]/[0.16] to-[#4BA8FF]/[0.04] border border-white/[0.08] p-8 lg:flex xl:p-10">
+            <!-- Badge + Heading -->
             <div>
               <span class="inline-block rounded-[20px] bg-[#ECFFF9] px-4 py-2 text-[13px] font-extrabold tracking-wide text-[#0D2A3C]">
                 {{ t('auth.login.badge') }}
               </span>
 
-              <!-- Heading -->
-              <h1 class="mt-12 text-[48px] font-extrabold leading-[1.15] text-white xl:text-[56px]">
+              <h1 class="mt-8 text-[40px] font-extrabold leading-[1.15] text-white xl:text-[48px]">
                 {{ t('auth.login.headingLine1') }}
               </h1>
-              <h1 class="text-[48px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[56px]">
+              <h1 class="text-[40px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[48px]">
                 {{ t('auth.login.headingLine2') }}
               </h1>
-              <p class="mt-4 max-w-[540px] text-base leading-relaxed text-[#A9BDCF]">
+              <p class="mt-3 max-w-[540px] text-sm leading-relaxed text-[#A9BDCF]">
                 {{ t('auth.login.description') }}
               </p>
 
               <!-- Feature Pills -->
-              <div class="mt-6 flex flex-wrap gap-3">
-                <span class="rounded-[27px] bg-[#ECFFF9] px-5 py-3 text-lg font-extrabold text-[#0F2638]">
+              <div class="mt-4 flex flex-wrap gap-2.5">
+                <span class="rounded-[27px] bg-[#ECFFF9] px-4 py-2.5 text-base font-extrabold text-[#0F2638]">
                   {{ t('auth.login.featurePrice') }}
                 </span>
-                <span class="rounded-[27px] bg-white/[0.08] px-5 py-3 text-base font-bold text-[#F1F5F9]">
+                <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
                   {{ t('auth.login.featurePayAsYouGo') }}
                 </span>
-                <span class="rounded-[27px] bg-white/[0.08] px-5 py-3 text-base font-bold text-[#F1F5F9]">
+                <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
                   {{ t('auth.login.featureNoCharge') }}
                 </span>
               </div>
             </div>
 
             <!-- Supported Models -->
-            <div class="-mt-[60px]">
-              <p class="mb-3 text-base font-bold text-[#EAF6FF]">{{ t('auth.login.supportedModels') }}</p>
-              <div class="flex flex-wrap gap-3">
+            <div>
+              <p class="mb-3 text-sm font-bold text-[#EAF6FF]">{{ t('auth.login.supportedModels') }}</p>
+              <div class="grid grid-cols-3 gap-2.5">
                 <div
-                  v-for="(model, index) in modelCards"
-                  :key="model"
-                  :class="index === 0
-                    ? 'rounded-[22px] bg-[#ECFFF9] px-5 py-4 text-lg font-extrabold text-[#0F2638]'
-                    : 'rounded-[22px] border border-[#29475F] bg-[#102233] px-5 py-4 text-lg font-extrabold text-[#F4FAFF]'"
+                  v-for="channel in modelChannels"
+                  :key="channel.name"
+                  class="rounded-2xl px-3.5 py-3"
+                  :class="channel.highlighted
+                    ? 'border border-[#D97757]/40 bg-[#0F1E2E] shadow-[0_0_16px_rgba(217,119,87,0.12)]'
+                    : 'border border-[#29475F] bg-[#0F1E2E]'"
                 >
-                  {{ model }}
+                  <!-- Channel header -->
+                  <div class="mb-2 flex items-center gap-2">
+                    <span class="inline-block h-2 w-2 rounded-full" :style="{ backgroundColor: channel.color }"></span>
+                    <span class="text-xs font-bold text-[#EAF5FF]">{{ channel.name }}</span>
+                  </div>
+                  <!-- Model list -->
+                  <div class="flex flex-col gap-1">
+                    <div
+                      v-for="model in channel.models"
+                      :key="model"
+                      class="flex items-center gap-1.5"
+                    >
+                      <template v-if="model === channel.flagship">
+                        <span class="text-[13px] font-extrabold" :style="{ color: channel.color }">{{ model }}</span>
+                        <span
+                          v-if="channel.highlighted"
+                          class="rounded px-1 py-0.5 text-[9px] font-bold leading-none bg-[#D97757]/20 text-[#D97757]"
+                        >HOT</span>
+                      </template>
+                      <template v-else>
+                        <span class="text-[12px] font-medium text-[#8EA6BD]">{{ model }}</span>
+                      </template>
+                    </div>
+                  </div>
                 </div>
               </div>
+              <p class="mt-2 text-xs text-[#7A95AD]">{{ t('auth.login.modelsDesc') }}</p>
 
               <!-- Feature Cards -->
-              <div class="mt-5 flex flex-wrap gap-3">
-                <div class="flex-1 min-w-[160px] rounded-[24px] border border-[#29465D] bg-[#102233] px-5 py-4">
-                  <div class="text-lg font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureUnifiedApi') }}</div>
-                  <div class="mt-1 text-xs text-[#9FB4C8]">{{ t('auth.login.featureUnifiedApiDesc') }}</div>
+              <div class="mt-3 flex flex-wrap gap-2.5">
+                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
+                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureUnifiedApi') }}</div>
+                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureUnifiedApiDesc') }}</div>
                 </div>
-                <div class="flex-1 min-w-[160px] rounded-[24px] border border-[#29465D] bg-[#102233] px-5 py-4">
-                  <div class="text-lg font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureTransparentBilling') }}</div>
-                  <div class="mt-1 text-xs text-[#9FB4C8]">{{ t('auth.login.featureTransparentBillingDesc') }}</div>
+                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
+                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureTransparentBilling') }}</div>
+                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureTransparentBillingDesc') }}</div>
                 </div>
-                <div class="flex-1 min-w-[160px] rounded-[24px] border border-[#29465D] bg-[#102233] px-5 py-4">
-                  <div class="text-lg font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureAuditTrail') }}</div>
-                  <div class="mt-1 text-xs text-[#9FB4C8]">{{ t('auth.login.featureAuditTrailDesc') }}</div>
+                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
+                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureAuditTrail') }}</div>
+                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureAuditTrailDesc') }}</div>
                 </div>
               </div>
             </div>
@@ -321,10 +345,28 @@ const docUrl = computed(() => appStore.docUrl)
 
 // ==================== Model Cards ====================
 
-const modelCards = [
-  'Claude 4.6',
-  'Gemini 3.1',
-  'GPT 5.4',
+const modelChannels = [
+  {
+    name: 'Claude',
+    color: '#D97757',
+    models: ['Opus 4.7', 'Opus 4.6', 'Sonnet 4.6'],
+    flagship: 'Opus 4.7',
+    highlighted: true,
+  },
+  {
+    name: 'GPT',
+    color: '#10A37F',
+    models: ['GPT-5.4', 'GPT-4o', 'o3'],
+    flagship: 'GPT-5.4',
+    highlighted: false,
+  },
+  {
+    name: 'Gemini',
+    color: '#4285F4',
+    models: ['Gemini 3.1 Pro', 'Gemini 2.5 Flash'],
+    flagship: 'Gemini 3.1 Pro',
+    highlighted: false,
+  },
 ]
 
 // ==================== State ====================
