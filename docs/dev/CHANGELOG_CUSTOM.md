@@ -19,6 +19,32 @@
 
 ## 变更记录
 
+## [2026-04-17] feat(billing): 用户级展示倍率 (User Display Rate Multiplier)
+
+**影响范围**:
+- `backend/migrations/104_add_display_rate_multiplier.sql` — 新增
+- `backend/internal/service/user_group_rate.go` — 扩展 UserGroupRateEntry, GroupRateMultiplierInput, 新增 UserGroupRateData
+- `backend/internal/repository/user_group_rate_repo.go` — 支持 display_rate_multiplier 读写
+- `backend/internal/handler/dto/display_pricing.go` — 新增 ApplyUserDisplayRate()
+- `backend/internal/handler/usage_handler.go` — 使用记录应用用户级展示变换
+- `backend/internal/handler/api_key_handler.go` — /groups/rates 返回展示倍率
+- `backend/internal/service/api_key_service.go` — 新增 GetUserGroupRatesFull()
+- `backend/internal/service/admin_service.go` — UpdateUser 支持 GroupRatesFull
+- `backend/internal/handler/admin/user_handler.go` — 支持 group_rates_full
+- `frontend/src/types/index.ts` — 新增 UserGroupRateData, group_display_rates
+- `frontend/src/api/groups.ts` — 返回 UserGroupRateData
+- `frontend/src/views/user/KeysView.vue` — GroupBadge 展示展示倍率
+- `frontend/src/components/admin/user/UserAllowedGroupsModal.vue` — 展示倍率编辑UI
+- `frontend/src/i18n/locales/{en,zh}.ts` — 国际化
+
+**上游兼容性**: 低冲突风险，新增字段和方法，不修改现有逻辑
+
+**变更详情**:
+- 管理员可为每个用户在每个分组设置独立的"展示倍率"，用户看到展示倍率而非真实计费倍率
+- 展示倍率独立于真实专属倍率，即使用户使用分组默认倍率也可单独设展示倍率
+- 使用记录通过缩放 token 数量实现自洽：actual_cost 不变，total_cost × display_rate ≈ actual_cost
+- 与模型级展示价格链式叠加，用户级优先级更高
+
 ## [2026-04-16] fix(pricing): 修复编辑用户展示设置后模型价格接口500错误
 
 **影响范围**:

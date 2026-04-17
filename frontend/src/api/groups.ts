@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './client'
-import type { Group } from '@/types'
+import type { Group, UserGroupRateData } from '@/types'
 
 /**
  * Get available groups that the current user can bind to API keys
@@ -19,11 +19,11 @@ export async function getAvailable(): Promise<Group[]> {
 }
 
 /**
- * Get current user's custom group rate multipliers
- * @returns Map of group_id to custom rate_multiplier
+ * Get current user's custom group rate multipliers (including display rates)
+ * @returns Map of group_id to UserGroupRateData
  */
-export async function getUserGroupRates(): Promise<Record<number, number>> {
-  const { data } = await apiClient.get<Record<number, number> | null>('/groups/rates')
+export async function getUserGroupRates(): Promise<Record<number, UserGroupRateData>> {
+  const { data } = await apiClient.get<Record<number, UserGroupRateData> | null>('/groups/rates')
   return data || {}
 }
 

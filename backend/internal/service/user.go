@@ -25,6 +25,10 @@ type User struct {
 	// map[groupID]rateMultiplier
 	GroupRates map[int64]float64
 
+	// GroupDisplayRates 用户专属分组展示倍率配置
+	// map[groupID]displayRateMultiplier
+	GroupDisplayRates map[int64]float64
+
 	// TOTP 双因素认证字段
 	TotpSecretEncrypted *string    // AES-256-GCM 加密的 TOTP 密钥
 	TotpEnabled         bool       // 是否启用 TOTP

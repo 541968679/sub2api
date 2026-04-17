@@ -152,3 +152,34 @@ type DisplayUsageFields struct {
 	TotalCost      float64 `json:"display_total_cost"`
 	RateMultiplier float64 `json:"display_rate_multiplier"`
 }
+
+// ApplyUserDisplayRate applies a user-level display rate multiplier transform.
+// Like ApplyDisplayTransform, actual_cost is NEVER changed.
+// Token counts and costs are scaled so that new_total_cost × displayRate ≈ actual_cost.
+func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
+	currentRate := d.RateMultiplier
+	if displayRate <= 0 || displayRate == currentRate {
+		return
+	}
+	scale := currentRate / displayRate
+
+	if d.InputTokens > 0 {
+		d.InputTokens = int(math.Round(float64(d.InputTokens) * scale))
+		d.InputCost *= scale
+	}
+	if d.OutputTokens > 0 {
+		d.OutputTokens = int(math.Round(float64(d.OutputTokens) * scale))
+		d.OutputCost *= scale
+	}
+	if d.CacheReadTokens > 0 {
+		d.CacheReadTokens = int(math.Round(float64(d.CacheReadTokens) * scale))
+		d.CacheReadCost *= scale
+	}
+	if d.CacheCreationTokens > 0 {
+		d.CacheCreationTokens = int(math.Round(float64(d.CacheCreationTokens) * scale))
+		d.CacheCreationCost *= scale
+	}
+
+	d.TotalCost = d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
+	d.RateMultiplier = displayRate
+}

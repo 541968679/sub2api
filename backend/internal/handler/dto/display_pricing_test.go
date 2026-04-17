@@ -198,3 +198,124 @@ func TestBuildDisplayPricingMap_OnlyIncludesModelsWithOverrides(t *testing.T) {
 		t.Errorf("expected 2 entries, got %d", len(m))
 	}
 }
+
+func TestApplyUserDisplayRate_ScalesTokensAndPreservesActualCost(t *testing.T) {
+	// Real: 1000 input @ $3/MTok, 500 output @ $15/MTok, rate=2.0
+	// actual_cost = total_cost * rate = 0.012 * 2.0 = 0.024
+	log := UsageLog{
+		InputTokens:    1000,
+		OutputTokens:   500,
+		CacheReadTokens: 200,
+		InputCost:      0.003,
+		OutputCost:     0.0075,
+		CacheReadCost:  0.0006,
+		TotalCost:      0.0111,
+		ActualCost:     0.0222,
+		RateMultiplier: 2.0,
+	}
+	savedActual := log.ActualCost
+
+	// Display rate: 1.0x (half of real 2.0x)
+	// Scale = 2.0 / 1.0 = 2.0 → tokens and costs double
+	ApplyUserDisplayRate(&log, 1.0)
+
+	// actual_cost must be unchanged
+	if math.Abs(log.ActualCost-savedActual) > 1e-9 {
+		t.Errorf("actual_cost changed: got %.9f, want %.9f", log.ActualCost, savedActual)
+	}
+	// rate_multiplier should be display rate
+	if log.RateMultiplier != 1.0 {
+		t.Errorf("rate_multiplier should be 1.0, got %.2f", log.RateMultiplier)
+	}
+	// tokens should be doubled (scale=2.0)
+	if log.InputTokens != 2000 {
+		t.Errorf("input_tokens should be 2000, got %d", log.InputTokens)
+	}
+	if log.OutputTokens != 1000 {
+		t.Errorf("output_tokens should be 1000, got %d", log.OutputTokens)
+	}
+	if log.CacheReadTokens != 400 {
+		t.Errorf("cache_read_tokens should be 400, got %d", log.CacheReadTokens)
+	}
+	// total_cost * display_rate ≈ actual_cost
+	if math.Abs(log.TotalCost*log.RateMultiplier-savedActual) > 1e-6 {
+		t.Errorf("total_cost*rate should ≈ actual_cost: %.6f * %.1f = %.6f, want %.6f",
+			log.TotalCost, log.RateMultiplier, log.TotalCost*log.RateMultiplier, savedActual)
+	}
+}
+
+func TestApplyUserDisplayRate_SameRateNoOp(t *testing.T) {
+	log := UsageLog{
+		InputTokens: 1000, InputCost: 0.003,
+		TotalCost: 0.003, ActualCost: 0.006, RateMultiplier: 2.0,
+	}
+	ApplyUserDisplayRate(&log, 2.0)
+	if log.InputTokens != 1000 {
+		t.Errorf("same rate should be no-op, tokens changed to %d", log.InputTokens)
+	}
+}
+
+func TestApplyUserDisplayRate_ZeroDisplayRateNoOp(t *testing.T) {
+	log := UsageLog{
+		InputTokens: 1000, InputCost: 0.003,
+		TotalCost: 0.003, ActualCost: 0.006, RateMultiplier: 2.0,
+	}
+	ApplyUserDisplayRate(&log, 0)
+	if log.InputTokens != 1000 {
+		t.Errorf("zero display rate should be no-op, tokens changed to %d", log.InputTokens)
+	}
+}
+
+func TestApplyUserDisplayRate_HigherDisplayRate(t *testing.T) {
+	// Real rate 1.0, display rate 2.0 → scale = 0.5 → tokens halved
+	log := UsageLog{
+		InputTokens: 1000, OutputTokens: 500,
+		InputCost: 0.003, OutputCost: 0.0075,
+		TotalCost: 0.0105, ActualCost: 0.0105, RateMultiplier: 1.0,
+	}
+	savedActual := log.ActualCost
+
+	ApplyUserDisplayRate(&log, 2.0)
+
+	if math.Abs(log.ActualCost-savedActual) > 1e-9 {
+		t.Errorf("actual_cost changed: %.9f", log.ActualCost)
+	}
+	if log.InputTokens != 500 {
+		t.Errorf("input_tokens should be 500 (halved), got %d", log.InputTokens)
+	}
+	if log.OutputTokens != 250 {
+		t.Errorf("output_tokens should be 250 (halved), got %d", log.OutputTokens)
+	}
+	if log.RateMultiplier != 2.0 {
+		t.Errorf("rate should be 2.0, got %.1f", log.RateMultiplier)
+	}
+}
+
+func TestApplyUserDisplayRate_ChainsWithModelDisplayTransform(t *testing.T) {
+	// Simulate: model display transform already applied (rate changed from 2.0 to 0.8)
+	// Then user display rate applied (0.8 → 1.0)
+	log := UsageLog{
+		InputTokens: 1500, OutputTokens: 750,
+		InputCost: 0.00225, OutputCost: 0.005625,
+		CacheReadTokens: 0, CacheReadCost: 0,
+		CacheCreationTokens: 0, CacheCreationCost: 0,
+		TotalCost:      0.007875,
+		ActualCost:     0.0063,
+		RateMultiplier: 0.8,
+	}
+	savedActual := log.ActualCost
+
+	ApplyUserDisplayRate(&log, 1.0)
+
+	if math.Abs(log.ActualCost-savedActual) > 1e-9 {
+		t.Errorf("actual_cost changed after chained transform: %.9f", log.ActualCost)
+	}
+	if log.RateMultiplier != 1.0 {
+		t.Errorf("rate should be 1.0 after user display, got %.2f", log.RateMultiplier)
+	}
+	// Verify self-consistency: total_cost * rate ≈ actual_cost
+	computed := log.TotalCost * log.RateMultiplier
+	if math.Abs(computed-savedActual) > 1e-6 {
+		t.Errorf("total_cost*rate = %.6f, want ≈ %.6f (actual_cost)", computed, savedActual)
+	}
+}

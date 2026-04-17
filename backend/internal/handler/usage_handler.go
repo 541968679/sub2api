@@ -145,9 +145,16 @@ func (h *UsageHandler) List(c *gin.Context) {
 	}
 
 	displayMap := h.loadDisplayPricingMap(c)
+	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
-		out = append(out, *dto.UsageLogFromService(&records[i], displayMap))
+		u := dto.UsageLogFromService(&records[i], displayMap)
+		if userDisplayRates != nil && records[i].GroupID != nil {
+			if dr, ok := userDisplayRates[*records[i].GroupID]; ok && dr.DisplayRateMultiplier != nil {
+				dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
+			}
+		}
+		out = append(out, *u)
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -179,7 +186,16 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.UsageLogFromService(record, h.loadDisplayPricingMap(c)))
+	u := dto.UsageLogFromService(record, h.loadDisplayPricingMap(c))
+	if record.GroupID != nil {
+		userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
+		if userDisplayRates != nil {
+			if dr, ok := userDisplayRates[*record.GroupID]; ok && dr.DisplayRateMultiplier != nil {
+				dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
+			}
+		}
+	}
+	response.Success(c, u)
 }
 
 // Stats handles getting usage statistics
@@ -429,4 +445,15 @@ func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingM
 		return nil
 	}
 	return dto.BuildDisplayPricingMap(pricings)
+}
+
+func (h *UsageHandler) loadUserDisplayRates(c *gin.Context, userID int64) map[int64]service.UserGroupRateData {
+	if h.apiKeyService == nil {
+		return nil
+	}
+	rates, err := h.apiKeyService.GetUserGroupRatesFull(c.Request.Context(), userID)
+	if err != nil {
+		return nil
+	}
+	return rates
 }

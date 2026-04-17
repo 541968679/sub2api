@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -86,6 +87,7 @@ type AdminService interface {
 	CreateProxy(ctx context.Context, input *CreateProxyInput) (*Proxy, error)
 	UpdateProxy(ctx context.Context, id int64, input *UpdateProxyInput) (*Proxy, error)
 	DeleteProxy(ctx context.Context, id int64) error
+	ForceDeleteProxy(ctx context.Context, id int64) error
 	BatchDeleteProxies(ctx context.Context, ids []int64) (*ProxyBatchDeleteResult, error)
 	GetProxyAccounts(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error)
 	CheckProxyExists(ctx context.Context, host string, port int, username, password string) (bool, error)
@@ -100,6 +102,7 @@ type AdminService interface {
 	BatchDeleteRedeemCodes(ctx context.Context, ids []int64) (int64, error)
 	ExpireRedeemCode(ctx context.Context, id int64) (*RedeemCode, error)
 	ResetAccountQuota(ctx context.Context, id int64) error
+	BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error)
 }
 
 // CreateUserInput represents input for creating a new user via admin operations.
@@ -125,6 +128,9 @@ type UpdateUserInput struct {
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64
+	// GroupRatesFull 用户专属分组倍率配置（含展示倍率）
+	// 当提供此字段时优先于 GroupRates
+	GroupRatesFull map[int64]*UserGroupRateData
 }
 
 type CreateGroupInput struct {
@@ -204,6 +210,7 @@ type CreateAccountInput struct {
 	Credentials        map[string]any
 	Extra              map[string]any
 	ProxyID            *int64
+	AutoAssignProxy    bool // 如果为 true 且 ProxyID 为空，则从代理池自动分配
 	Concurrency        int
 	Priority           int
 	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
@@ -285,22 +292,24 @@ type BulkUpdateAccountsResult struct {
 }
 
 type CreateProxyInput struct {
-	Name     string
-	Protocol string
-	Host     string
-	Port     int
-	Username string
-	Password string
+	Name        string
+	Protocol    string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	PoolEnabled bool
 }
 
 type UpdateProxyInput struct {
-	Name     string
-	Protocol string
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Status   string
+	Name        string
+	Protocol    string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	Status      string
+	PoolEnabled *bool
 }
 
 type GenerateRedeemCodesInput struct {
@@ -441,10 +450,6 @@ type adminServiceImpl struct {
 	privacyClientFactory PrivacyClientFactory
 }
 
-type userGroupRateBatchReader interface {
-	GetByUserIDs(ctx context.Context, userIDs []int64) (map[int64]map[int64]float64, error)
-}
-
 // NewAdminService creates a new AdminService
 func NewAdminService(
 	userRepo UserRepository,
@@ -491,21 +496,21 @@ func (s *adminServiceImpl) ListUsers(ctx context.Context, page, pageSize int, fi
 	if err != nil {
 		return nil, 0, err
 	}
-	// 批量加载用户专属分组倍率
+	// 批量加载用户专属分组倍率（含展示倍率）
 	if s.userGroupRateRepo != nil && len(users) > 0 {
-		if batchRepo, ok := s.userGroupRateRepo.(userGroupRateBatchReader); ok {
+		if batchRepo, ok := s.userGroupRateRepo.(UserGroupRateFullBatchReader); ok {
 			userIDs := make([]int64, 0, len(users))
 			for i := range users {
 				userIDs = append(userIDs, users[i].ID)
 			}
-			ratesByUser, err := batchRepo.GetByUserIDs(ctx, userIDs)
+			fullByUser, err := batchRepo.GetFullByUserIDs(ctx, userIDs)
 			if err != nil {
 				logger.LegacyPrintf("service.admin", "failed to load user group rates in batch: err=%v", err)
 				s.loadUserGroupRatesOneByOne(ctx, users)
 			} else {
 				for i := range users {
-					if rates, ok := ratesByUser[users[i].ID]; ok {
-						users[i].GroupRates = rates
+					if fullRates, ok := fullByUser[users[i].ID]; ok {
+						splitGroupRates(fullRates, &users[i])
 					}
 				}
 			}
@@ -521,12 +526,12 @@ func (s *adminServiceImpl) loadUserGroupRatesOneByOne(ctx context.Context, users
 		return
 	}
 	for i := range users {
-		rates, err := s.userGroupRateRepo.GetByUserID(ctx, users[i].ID)
+		fullRates, err := s.userGroupRateRepo.GetFullByUserID(ctx, users[i].ID)
 		if err != nil {
 			logger.LegacyPrintf("service.admin", "failed to load user group rates: user_id=%d err=%v", users[i].ID, err)
 			continue
 		}
-		users[i].GroupRates = rates
+		splitGroupRates(fullRates, &users[i])
 	}
 }
 
@@ -535,16 +540,38 @@ func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error)
 	if err != nil {
 		return nil, err
 	}
-	// 加载用户专属分组倍率
+	// 加载用户专属分组倍率（含展示倍率）
 	if s.userGroupRateRepo != nil {
-		rates, err := s.userGroupRateRepo.GetByUserID(ctx, id)
+		fullRates, err := s.userGroupRateRepo.GetFullByUserID(ctx, id)
 		if err != nil {
 			logger.LegacyPrintf("service.admin", "failed to load user group rates: user_id=%d err=%v", id, err)
 		} else {
-			user.GroupRates = rates
+			splitGroupRates(fullRates, user)
 		}
 	}
 	return user, nil
+}
+
+func splitGroupRates(fullRates map[int64]UserGroupRateData, user *User) {
+	if len(fullRates) == 0 {
+		return
+	}
+	rates := make(map[int64]float64)
+	displayRates := make(map[int64]float64)
+	for groupID, data := range fullRates {
+		if data.RateMultiplier != nil {
+			rates[groupID] = *data.RateMultiplier
+		}
+		if data.DisplayRateMultiplier != nil {
+			displayRates[groupID] = *data.DisplayRateMultiplier
+		}
+	}
+	if len(rates) > 0 {
+		user.GroupRates = rates
+	}
+	if len(displayRates) > 0 {
+		user.GroupDisplayRates = displayRates
+	}
 }
 
 func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInput) (*User, error) {
@@ -633,9 +660,13 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	}
 
 	// 同步用户专属分组倍率
-	if input.GroupRates != nil && s.userGroupRateRepo != nil {
+	if input.GroupRatesFull != nil && s.userGroupRateRepo != nil {
+		if err := s.userGroupRateRepo.SyncUserGroupRatesFull(ctx, user.ID, input.GroupRatesFull); err != nil {
+			return nil, fmt.Errorf("sync user group rates: %w", err)
+		}
+	} else if input.GroupRates != nil && s.userGroupRateRepo != nil {
 		if err := s.userGroupRateRepo.SyncUserGroupRates(ctx, user.ID, input.GroupRates); err != nil {
-			logger.LegacyPrintf("service.admin", "failed to sync user group rates: user_id=%d err=%v", user.ID, err)
+			return nil, fmt.Errorf("sync user group rates: %w", err)
 		}
 	}
 
@@ -1518,6 +1549,16 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
+	// 如果没有指定代理且开启了自动分配，从代理池中分配
+	proxyID := input.ProxyID
+	if proxyID == nil && input.AutoAssignProxy {
+		assignedID, err := s.assignProxyFromPool(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("auto assign proxy: %w", err)
+		}
+		proxyID = assignedID
+	}
+
 	account := &Account{
 		Name:        input.Name,
 		Notes:       normalizeAccountNotes(input.Notes),
@@ -1525,7 +1566,7 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		Type:        input.Type,
 		Credentials: input.Credentials,
 		Extra:       input.Extra,
-		ProxyID:     input.ProxyID,
+		ProxyID:     proxyID,
 		Concurrency: input.Concurrency,
 		Priority:    input.Priority,
 		Status:      StatusActive,
@@ -1935,13 +1976,14 @@ func (s *adminServiceImpl) GetProxiesByIDs(ctx context.Context, ids []int64) ([]
 
 func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyInput) (*Proxy, error) {
 	proxy := &Proxy{
-		Name:     input.Name,
-		Protocol: input.Protocol,
-		Host:     input.Host,
-		Port:     input.Port,
-		Username: input.Username,
-		Password: input.Password,
-		Status:   StatusActive,
+		Name:        input.Name,
+		Protocol:    input.Protocol,
+		Host:        input.Host,
+		Port:        input.Port,
+		Username:    input.Username,
+		Password:    input.Password,
+		Status:      StatusActive,
+		PoolEnabled: input.PoolEnabled,
 	}
 	if err := s.proxyRepo.Create(ctx, proxy); err != nil {
 		return nil, err
@@ -1978,6 +2020,9 @@ func (s *adminServiceImpl) UpdateProxy(ctx context.Context, id int64, input *Upd
 	if input.Status != "" {
 		proxy.Status = input.Status
 	}
+	if input.PoolEnabled != nil {
+		proxy.PoolEnabled = *input.PoolEnabled
+	}
 
 	if err := s.proxyRepo.Update(ctx, proxy); err != nil {
 		return nil, err
@@ -1992,6 +2037,20 @@ func (s *adminServiceImpl) DeleteProxy(ctx context.Context, id int64) error {
 	}
 	if count > 0 {
 		return ErrProxyInUse
+	}
+	return s.proxyRepo.Delete(ctx, id)
+}
+
+// ForceDeleteProxy 强制删除代理：先解绑所有使用该代理的账号，再删除代理。
+func (s *adminServiceImpl) ForceDeleteProxy(ctx context.Context, id int64) error {
+	// 先确认代理存在
+	_, err := s.proxyRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	// 解绑所有账号
+	if _, err := s.proxyRepo.ClearProxyIDForAccounts(ctx, id); err != nil {
+		return fmt.Errorf("clear accounts proxy_id: %w", err)
 	}
 	return s.proxyRepo.Delete(ctx, id)
 }
@@ -2026,6 +2085,102 @@ func (s *adminServiceImpl) BatchDeleteProxies(ctx context.Context, ids []int64) 
 			continue
 		}
 		result.DeletedIDs = append(result.DeletedIDs, id)
+	}
+
+	return result, nil
+}
+
+// assignProxyFromPool 从代理池中自动分配一个代理（最小连接数负载均衡）。
+// 池为空时返回 nil（不报错）。
+func (s *adminServiceImpl) assignProxyFromPool(ctx context.Context) (*int64, error) {
+	proxies, err := s.proxyRepo.ListPoolEnabledWithAccountCount(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(proxies) == 0 {
+		return nil, nil
+	}
+
+	// 找最小 account_count
+	minCount := proxies[0].AccountCount
+	for i := 1; i < len(proxies); i++ {
+		if proxies[i].AccountCount < minCount {
+			minCount = proxies[i].AccountCount
+		}
+	}
+
+	// 收集并列候选
+	candidates := make([]int64, 0, len(proxies))
+	for i := range proxies {
+		if proxies[i].AccountCount == minCount {
+			candidates = append(candidates, proxies[i].ID)
+		}
+	}
+
+	// 随机选一个
+	chosen := candidates[rand.Intn(len(candidates))]
+	return &chosen, nil
+}
+
+// BatchAutoAssignProxy 对指定账号批量从代理池自动分配代理。
+// 跳过已有代理的账号。使用最小连接数算法，本地维护计数以确保批量分配均匀。
+func (s *adminServiceImpl) BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error) {
+	result := &BatchAutoAssignProxyResult{}
+	if len(accountIDs) == 0 {
+		return result, nil
+	}
+
+	// 获取池中可用代理及其当前账号数
+	poolProxies, err := s.proxyRepo.ListPoolEnabledWithAccountCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list pool proxies: %w", err)
+	}
+	if len(poolProxies) == 0 {
+		result.Skipped = len(accountIDs)
+		return result, nil
+	}
+
+	// 本地计数器，避免重复查询
+	counts := make(map[int64]int64, len(poolProxies))
+	proxyIDs := make([]int64, 0, len(poolProxies))
+	for i := range poolProxies {
+		counts[poolProxies[i].ID] = poolProxies[i].AccountCount
+		proxyIDs = append(proxyIDs, poolProxies[i].ID)
+	}
+
+	// 获取指定的账号
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get accounts: %w", err)
+	}
+
+	for _, acc := range accounts {
+		// 跳过已有代理的账号
+		if acc.ProxyID != nil {
+			result.Skipped++
+			continue
+		}
+
+		// 找当前计数最小的代理
+		var bestID int64
+		var bestCount int64 = -1
+		for _, pid := range proxyIDs {
+			c := counts[pid]
+			if bestCount < 0 || c < bestCount {
+				bestCount = c
+				bestID = pid
+			}
+		}
+
+		acc.ProxyID = &bestID
+		if err := s.accountRepo.Update(ctx, acc); err != nil {
+			slog.Warn("batch_auto_assign_proxy_update_failed", "account_id", acc.ID, "error", err)
+			result.Skipped++
+			continue
+		}
+
+		counts[bestID]++
+		result.Assigned++
 	}
 
 	return result, nil

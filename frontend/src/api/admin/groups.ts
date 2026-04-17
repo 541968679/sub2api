@@ -164,7 +164,8 @@ export interface GroupRateMultiplierEntry {
   user_email: string
   user_notes: string
   user_status: string
-  rate_multiplier: number
+  rate_multiplier: number | null
+  display_rate_multiplier?: number | null
 }
 
 /**
@@ -211,7 +212,7 @@ export async function clearGroupRateMultipliers(id: number): Promise<{ message: 
  */
 export async function batchSetGroupRateMultipliers(
   id: number,
-  entries: Array<{ user_id: number; rate_multiplier: number }>
+  entries: Array<{ user_id: number; rate_multiplier?: number | null; display_rate_multiplier?: number | null }>
 ): Promise<{ message: string }> {
   const { data } = await apiClient.put<{ message: string }>(
     `/admin/groups/${id}/rate-multipliers`,

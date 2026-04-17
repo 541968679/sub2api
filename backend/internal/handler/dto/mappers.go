@@ -59,9 +59,10 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		return nil
 	}
 	return &AdminUser{
-		User:       *base,
-		Notes:      u.Notes,
-		GroupRates: u.GroupRates,
+		User:             *base,
+		Notes:            u.Notes,
+		GroupRates:       u.GroupRates,
+		GroupDisplayRates: u.GroupDisplayRates,
 	}
 }
 
@@ -376,15 +377,16 @@ func ProxyFromService(p *service.Proxy) *Proxy {
 		return nil
 	}
 	return &Proxy{
-		ID:        p.ID,
-		Name:      p.Name,
-		Protocol:  p.Protocol,
-		Host:      p.Host,
-		Port:      p.Port,
-		Username:  p.Username,
-		Status:    p.Status,
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		ID:          p.ID,
+		Name:        p.Name,
+		Protocol:    p.Protocol,
+		Host:        p.Host,
+		Port:        p.Port,
+		Username:    p.Username,
+		Status:      p.Status,
+		PoolEnabled: p.PoolEnabled,
+		CreatedAt:   p.CreatedAt,
+		UpdatedAt:   p.UpdatedAt,
 	}
 }
 

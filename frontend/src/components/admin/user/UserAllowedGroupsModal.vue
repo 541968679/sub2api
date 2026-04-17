@@ -77,16 +77,30 @@
 
                 <!-- 专属倍率输入 -->
                 <div class="flex flex-shrink-0 items-center gap-3">
-                  <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    :value="config.customRate ?? ''"
-                    @input="updateCustomRate(config.groupId, ($event.target as HTMLInputElement).value)"
-                    :placeholder="String(config.defaultRate)"
-                    class="hide-spinner w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
-                  />
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      :value="config.customRate ?? ''"
+                      @input="updateCustomRate(config.groupId, ($event.target as HTMLInputElement).value)"
+                      :placeholder="String(config.defaultRate)"
+                      class="hide-spinner w-20 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
+                    />
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-medium text-amber-600 dark:text-amber-400">{{ t('admin.users.displayRate') }}</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      :value="config.displayRate ?? ''"
+                      @input="updateDisplayRate(config.groupId, ($event.target as HTMLInputElement).value)"
+                      :placeholder="t('admin.users.displayRatePlaceholder')"
+                      class="hide-spinner w-20 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm font-medium transition-colors focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:border-amber-700 dark:bg-amber-900/20 dark:focus:border-amber-500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -135,16 +149,30 @@
 
                 <!-- 专属倍率输入 -->
                 <div class="flex flex-shrink-0 items-center gap-3">
-                  <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    :value="config.customRate ?? ''"
-                    @input="updateCustomRate(config.groupId, ($event.target as HTMLInputElement).value)"
-                    :placeholder="String(config.defaultRate)"
-                    class="hide-spinner w-24 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
-                  />
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      :value="config.customRate ?? ''"
+                      @input="updateCustomRate(config.groupId, ($event.target as HTMLInputElement).value)"
+                      :placeholder="String(config.defaultRate)"
+                      class="hide-spinner w-20 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
+                    />
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-medium text-amber-600 dark:text-amber-400">{{ t('admin.users.displayRate') }}</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      :value="config.displayRate ?? ''"
+                      @input="updateDisplayRate(config.groupId, ($event.target as HTMLInputElement).value)"
+                      :placeholder="t('admin.users.displayRatePlaceholder')"
+                      class="hide-spinner w-20 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm font-medium transition-colors focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:border-amber-700 dark:bg-amber-900/20 dark:focus:border-amber-500"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -194,6 +222,7 @@ interface GroupRateConfig {
   isExclusive: boolean
   defaultRate: number
   customRate: number | null
+  displayRate: number | null
   isSelected: boolean
 }
 
@@ -205,6 +234,7 @@ const appStore = useAppStore()
 const groups = ref<Group[]>([])
 const groupConfigs = ref<GroupRateConfig[]>([])
 const originalGroupRates = ref<Record<number, number>>({}) // 记录原始专属倍率，用于检测删除
+const originalGroupDisplayRates = ref<Record<number, number>>({}) // 记录原始展示倍率
 const loading = ref(false)
 const submitting = ref(false)
 
@@ -234,9 +264,11 @@ const load = async () => {
     // 初始化配置
     const userAllowedGroups = props.user?.allowed_groups || []
     const userGroupRates = props.user?.group_rates || {}
+    const userGroupDisplayRates = props.user?.group_display_rates || {}
 
     // 保存原始专属倍率，用于检测删除操作
     originalGroupRates.value = { ...userGroupRates }
+    originalGroupDisplayRates.value = { ...userGroupDisplayRates }
 
     groupConfigs.value = groups.value.map((g) => ({
       groupId: g.id,
@@ -245,6 +277,7 @@ const load = async () => {
       isExclusive: g.is_exclusive,
       defaultRate: g.rate_multiplier,
       customRate: userGroupRates[g.id] ?? null,
+      displayRate: userGroupDisplayRates[g.id] ?? null,
       // 专属分组：检查是否在 allowed_groups 中
       // 公开分组：始终选中
       isSelected: g.is_exclusive ? userAllowedGroups.includes(g.id) : true,
@@ -275,6 +308,18 @@ const updateCustomRate = (groupId: number, value: string) => {
   }
 }
 
+const updateDisplayRate = (groupId: number, value: string) => {
+  const config = groupConfigs.value.find((c) => c.groupId === groupId)
+  if (config) {
+    if (value === '' || value === null || value === undefined) {
+      config.displayRate = null
+    } else {
+      const numValue = parseFloat(value)
+      config.displayRate = isNaN(numValue) ? null : numValue
+    }
+  }
+}
+
 const handleSave = async () => {
   if (!props.user) return
   submitting.value = true
@@ -283,25 +328,26 @@ const handleSave = async () => {
     // 构建 allowed_groups（仅包含专属分组中被勾选的）
     const allowedGroups = groupConfigs.value.filter((c) => c.isExclusive && c.isSelected).map((c) => c.groupId)
 
-    // 构建 group_rates
-    // - 有新专属倍率: 设置为该值
-    // - 原本有专属倍率但现在被清空: 设置为 null（表示删除）
-    const groupRates: Record<number, number | null> = {}
+    // 构建 group_rates_full（含展示倍率）
+    const groupRatesFull: Record<number, import('@/types').UserGroupRateData | null> = {}
     for (const c of groupConfigs.value) {
       const hadOriginalRate = originalGroupRates.value[c.groupId] !== undefined
+      const hadOriginalDisplayRate = originalGroupDisplayRates.value[c.groupId] !== undefined
+      const hasAnyValue = c.customRate !== null || c.displayRate !== null
 
-      if (c.customRate !== null) {
-        // 有专属倍率
-        groupRates[c.groupId] = c.customRate
-      } else if (hadOriginalRate) {
-        // 原本有专属倍率，现在被清空，需要显式删除
-        groupRates[c.groupId] = null
+      if (hasAnyValue) {
+        groupRatesFull[c.groupId] = {
+          rate: c.customRate,
+          display_rate: c.displayRate
+        }
+      } else if (hadOriginalRate || hadOriginalDisplayRate) {
+        groupRatesFull[c.groupId] = null
       }
     }
 
     await adminAPI.users.update(props.user.id, {
       allowed_groups: allowedGroups,
-      group_rates: Object.keys(groupRates).length > 0 ? groupRates : undefined,
+      group_rates_full: Object.keys(groupRatesFull).length > 0 ? groupRatesFull : undefined,
     })
 
     appStore.showSuccess(t('admin.users.groupConfigUpdated'))

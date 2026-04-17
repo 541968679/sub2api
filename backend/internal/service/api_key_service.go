@@ -806,6 +806,18 @@ func (s *APIKeyService) GetUserGroupRates(ctx context.Context, userID int64) (ma
 	return rates, nil
 }
 
+// GetUserGroupRatesFull 获取用户的分组倍率完整数据（含展示倍率）
+func (s *APIKeyService) GetUserGroupRatesFull(ctx context.Context, userID int64) (map[int64]UserGroupRateData, error) {
+	if s.userGroupRateRepo == nil {
+		return nil, nil
+	}
+	rates, err := s.userGroupRateRepo.GetFullByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user group rates full: %w", err)
+	}
+	return rates, nil
+}
+
 // CheckAPIKeyQuotaAndExpiry checks if the API key is valid for use (not expired, quota not exhausted)
 // Returns nil if valid, error if invalid
 func (s *APIKeyService) CheckAPIKeyQuotaAndExpiry(apiKey *APIKey) error {

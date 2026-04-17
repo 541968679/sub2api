@@ -27,8 +27,16 @@ func (s *userGroupRateRepoStubForGroupRate) GetByUserID(_ context.Context, _ int
 	panic("unexpected GetByUserID call")
 }
 
+func (s *userGroupRateRepoStubForGroupRate) GetFullByUserID(_ context.Context, _ int64) (map[int64]UserGroupRateData, error) {
+	panic("unexpected GetFullByUserID call")
+}
+
 func (s *userGroupRateRepoStubForGroupRate) GetByUserAndGroup(_ context.Context, _, _ int64) (*float64, error) {
 	panic("unexpected GetByUserAndGroup call")
+}
+
+func (s *userGroupRateRepoStubForGroupRate) GetDisplayRateByUserAndGroup(_ context.Context, _, _ int64) (*float64, error) {
+	panic("unexpected GetDisplayRateByUserAndGroup call")
 }
 
 func (s *userGroupRateRepoStubForGroupRate) GetByGroupID(_ context.Context, groupID int64) ([]UserGroupRateEntry, error) {
@@ -40,6 +48,10 @@ func (s *userGroupRateRepoStubForGroupRate) GetByGroupID(_ context.Context, grou
 
 func (s *userGroupRateRepoStubForGroupRate) SyncUserGroupRates(_ context.Context, _ int64, _ map[int64]*float64) error {
 	panic("unexpected SyncUserGroupRates call")
+}
+
+func (s *userGroupRateRepoStubForGroupRate) SyncUserGroupRatesFull(_ context.Context, _ int64, _ map[int64]*UserGroupRateData) error {
+	panic("unexpected SyncUserGroupRatesFull call")
 }
 
 func (s *userGroupRateRepoStubForGroupRate) SyncGroupRateMultipliers(_ context.Context, groupID int64, entries []GroupRateMultiplierInput) error {
@@ -62,8 +74,8 @@ func TestAdminService_GetGroupRateMultipliers(t *testing.T) {
 		repo := &userGroupRateRepoStubForGroupRate{
 			getByGroupIDData: map[int64][]UserGroupRateEntry{
 				10: {
-					{UserID: 1, UserName: "alice", UserEmail: "alice@test.com", RateMultiplier: 1.5},
-					{UserID: 2, UserName: "bob", UserEmail: "bob@test.com", RateMultiplier: 0.8},
+					{UserID: 1, UserName: "alice", UserEmail: "alice@test.com", RateMultiplier: testPtrFloat64(1.5)},
+					{UserID: 2, UserName: "bob", UserEmail: "bob@test.com", RateMultiplier: testPtrFloat64(0.8)},
 				},
 			},
 		}
@@ -74,9 +86,9 @@ func TestAdminService_GetGroupRateMultipliers(t *testing.T) {
 		require.Len(t, entries, 2)
 		require.Equal(t, int64(1), entries[0].UserID)
 		require.Equal(t, "alice", entries[0].UserName)
-		require.Equal(t, 1.5, entries[0].RateMultiplier)
+		require.Equal(t, testPtrFloat64(1.5), entries[0].RateMultiplier)
 		require.Equal(t, int64(2), entries[1].UserID)
-		require.Equal(t, 0.8, entries[1].RateMultiplier)
+		require.Equal(t, testPtrFloat64(0.8), entries[1].RateMultiplier)
 	})
 
 	t.Run("returns nil when repo is nil", func(t *testing.T) {
@@ -145,8 +157,8 @@ func TestAdminService_BatchSetGroupRateMultipliers(t *testing.T) {
 		svc := &adminServiceImpl{userGroupRateRepo: repo}
 
 		entries := []GroupRateMultiplierInput{
-			{UserID: 1, RateMultiplier: 1.5},
-			{UserID: 2, RateMultiplier: 0.8},
+			{UserID: 1, RateMultiplier: testPtrFloat64(1.5)},
+			{UserID: 2, RateMultiplier: testPtrFloat64(0.8)},
 		}
 		err := svc.BatchSetGroupRateMultipliers(context.Background(), 10, entries)
 		require.NoError(t, err)
@@ -168,7 +180,7 @@ func TestAdminService_BatchSetGroupRateMultipliers(t *testing.T) {
 		svc := &adminServiceImpl{userGroupRateRepo: repo}
 
 		err := svc.BatchSetGroupRateMultipliers(context.Background(), 10, []GroupRateMultiplierInput{
-			{UserID: 1, RateMultiplier: 1.0},
+			{UserID: 1, RateMultiplier: testPtrFloat64(1.0)},
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "sync failed")

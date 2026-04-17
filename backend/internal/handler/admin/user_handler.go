@@ -54,9 +54,12 @@ type UpdateUserRequest struct {
 	Concurrency   *int     `json:"concurrency"`
 	Status        string   `json:"status" binding:"omitempty,oneof=active disabled"`
 	AllowedGroups *[]int64 `json:"allowed_groups"`
-	// GroupRates 用户专属分组倍率配置
+	// GroupRates 用户专属分组倍率配置（兼容旧格式）
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64 `json:"group_rates"`
+	// GroupRatesFull 用户专属分组倍率配置（含展示倍率）
+	// 当提供此字段时优先于 GroupRates
+	GroupRatesFull map[int64]*service.UserGroupRateData `json:"group_rates_full"`
 }
 
 // UpdateBalanceRequest represents balance update request
@@ -215,15 +218,16 @@ func (h *UserHandler) Update(c *gin.Context) {
 
 	// 使用指针类型直接传递，nil 表示未提供该字段
 	user, err := h.adminService.UpdateUser(c.Request.Context(), userID, &service.UpdateUserInput{
-		Email:         req.Email,
-		Password:      req.Password,
-		Username:      req.Username,
-		Notes:         req.Notes,
-		Balance:       req.Balance,
-		Concurrency:   req.Concurrency,
-		Status:        req.Status,
-		AllowedGroups: req.AllowedGroups,
-		GroupRates:    req.GroupRates,
+		Email:          req.Email,
+		Password:       req.Password,
+		Username:       req.Username,
+		Notes:          req.Notes,
+		Balance:        req.Balance,
+		Concurrency:    req.Concurrency,
+		Status:         req.Status,
+		AllowedGroups:  req.AllowedGroups,
+		GroupRates:     req.GroupRates,
+		GroupRatesFull: req.GroupRatesFull,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

@@ -174,7 +174,7 @@
                       />
                     </td>
                     <td v-if="showFinalRate" class="whitespace-nowrap px-3 py-2 font-medium text-primary-600 dark:text-primary-400">
-                      {{ computeFinalRate(entry.rate_multiplier) }}
+                      {{ computeFinalRate(entry.rate_multiplier ?? 0) }}
                     </td>
                     <td class="px-2 py-2">
                       <button
@@ -427,7 +427,7 @@ const removeLocal = (userId: number) => {
 const applyBatchFactor = () => {
   if (!batchFactor.value || batchFactor.value <= 0) return
   for (const entry of localEntries.value) {
-    entry.rate_multiplier = parseFloat((entry.rate_multiplier * batchFactor.value).toFixed(6))
+    entry.rate_multiplier = parseFloat(((entry.rate_multiplier ?? 0) * batchFactor.value).toFixed(6))
   }
   batchFactor.value = null
 }

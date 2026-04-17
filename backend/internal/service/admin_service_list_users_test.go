@@ -66,8 +66,20 @@ func (s *userGroupRateRepoStubForListUsers) GetByUserAndGroup(_ context.Context,
 	panic("unexpected GetByUserAndGroup call")
 }
 
+func (s *userGroupRateRepoStubForListUsers) GetDisplayRateByUserAndGroup(_ context.Context, _, _ int64) (*float64, error) {
+	panic("unexpected GetDisplayRateByUserAndGroup call")
+}
+
+func (s *userGroupRateRepoStubForListUsers) GetFullByUserID(_ context.Context, _ int64) (map[int64]UserGroupRateData, error) {
+	panic("unexpected GetFullByUserID call")
+}
+
 func (s *userGroupRateRepoStubForListUsers) SyncUserGroupRates(_ context.Context, userID int64, rates map[int64]*float64) error {
 	panic("unexpected SyncUserGroupRates call")
+}
+
+func (s *userGroupRateRepoStubForListUsers) SyncUserGroupRatesFull(_ context.Context, _ int64, _ map[int64]*UserGroupRateData) error {
+	panic("unexpected SyncUserGroupRatesFull call")
 }
 
 func (s *userGroupRateRepoStubForListUsers) GetByGroupID(_ context.Context, _ int64) ([]UserGroupRateEntry, error) {

@@ -43,6 +43,8 @@ export interface AdminUser extends User {
   notes: string
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
+  // 用户专属分组展示倍率配置 (group_id -> display_rate_multiplier)
+  group_display_rates?: Record<number, number>
   // 当前并发数（仅管理员列表接口返回）
   current_concurrency?: number
 }
@@ -564,6 +566,7 @@ export interface Proxy {
   username: string | null
   password?: string | null
   status: 'active' | 'inactive'
+  pool_enabled: boolean
   account_count?: number // Number of accounts using this proxy
   latency_ms?: number
   latency_status?: 'success' | 'failed'
@@ -858,6 +861,7 @@ export interface CreateAccountRequest {
   credentials: Record<string, unknown>
   extra?: Record<string, unknown>
   proxy_id?: number | null
+  auto_assign_proxy?: boolean
   concurrency?: number
   load_factor?: number | null
   priority?: number
@@ -914,6 +918,7 @@ export interface CreateProxyRequest {
   port: number
   username?: string | null
   password?: string | null
+  pool_enabled?: boolean
 }
 
 export interface UpdateProxyRequest {
@@ -924,6 +929,7 @@ export interface UpdateProxyRequest {
   username?: string | null
   password?: string | null
   status?: 'active' | 'inactive'
+  pool_enabled?: boolean
 }
 
 export interface AdminDataPayload {
@@ -1281,6 +1287,14 @@ export interface UpdateUserRequest {
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率
   group_rates?: Record<number, number | null>
+  // 用户专属分组倍率配置（含展示倍率），优先于 group_rates
+  group_rates_full?: Record<number, UserGroupRateData | null>
+}
+
+// 用户分组倍率完整数据
+export interface UserGroupRateData {
+  rate?: number | null
+  display_rate?: number | null
 }
 
 export interface ChangePasswordRequest {

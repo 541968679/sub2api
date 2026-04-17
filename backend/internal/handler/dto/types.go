@@ -31,6 +31,9 @@ type AdminUser struct {
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
 	GroupRates map[int64]float64 `json:"group_rates,omitempty"`
+	// GroupDisplayRates 用户专属分组展示倍率配置
+	// map[groupID]displayRateMultiplier
+	GroupDisplayRates map[int64]float64 `json:"group_display_rates,omitempty"`
 }
 
 type APIKey struct {
@@ -236,16 +239,17 @@ type AccountGroup struct {
 }
 
 type Proxy struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Protocol  string    `json:"protocol"`
-	Host      string    `json:"host"`
-	Port      int       `json:"port"`
-	Username  string    `json:"username"`
-	Password  string    `json:"-"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Protocol    string    `json:"protocol"`
+	Host        string    `json:"host"`
+	Port        int       `json:"port"`
+	Username    string    `json:"username"`
+	Password    string    `json:"-"`
+	Status      string    `json:"status"`
+	PoolEnabled bool      `json:"pool_enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type ProxyWithAccountCount struct {
