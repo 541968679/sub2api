@@ -40,6 +40,16 @@
         />
       </div>
 
+      <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+        <input
+          type="checkbox"
+          v-model="autoAssignProxy"
+          class="rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+        />
+        {{ t('admin.accounts.autoAssignProxy') }}
+        <span class="text-xs text-gray-400">{{ t('admin.accounts.autoAssignProxyHint') }}</span>
+      </label>
+
       <div
         v-if="result"
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
@@ -110,6 +120,7 @@ const appStore = useAppStore()
 const importing = ref(false)
 const file = ref<File | null>(null)
 const result = ref<AdminDataImportResult | null>(null)
+const autoAssignProxy = ref(false)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const fileName = computed(() => file.value?.name || '')
@@ -122,6 +133,7 @@ watch(
     if (open) {
       file.value = null
       result.value = null
+      autoAssignProxy.value = false
       if (fileInput.value) {
         fileInput.value.value = ''
       }
@@ -174,7 +186,8 @@ const handleImport = async () => {
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
-      skip_default_group_bind: true
+      skip_default_group_bind: true,
+      auto_assign_proxy: autoAssignProxy.value || undefined
     })
 
     result.value = res

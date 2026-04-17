@@ -18263,6 +18263,7 @@ type ProxyMutation struct {
 	username        *string
 	password        *string
 	status          *string
+	pool_enabled    *bool
 	clearedFields   map[string]struct{}
 	accounts        map[int64]struct{}
 	removedaccounts map[int64]struct{}
@@ -18789,6 +18790,42 @@ func (m *ProxyMutation) ResetStatus() {
 	m.status = nil
 }
 
+// SetPoolEnabled sets the "pool_enabled" field.
+func (m *ProxyMutation) SetPoolEnabled(b bool) {
+	m.pool_enabled = &b
+}
+
+// PoolEnabled returns the value of the "pool_enabled" field in the mutation.
+func (m *ProxyMutation) PoolEnabled() (r bool, exists bool) {
+	v := m.pool_enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPoolEnabled returns the old "pool_enabled" field's value of the Proxy entity.
+// If the Proxy object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProxyMutation) OldPoolEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPoolEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPoolEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPoolEnabled: %w", err)
+	}
+	return oldValue.PoolEnabled, nil
+}
+
+// ResetPoolEnabled resets all changes to the "pool_enabled" field.
+func (m *ProxyMutation) ResetPoolEnabled() {
+	m.pool_enabled = nil
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by ids.
 func (m *ProxyMutation) AddAccountIDs(ids ...int64) {
 	if m.accounts == nil {
@@ -18877,7 +18914,7 @@ func (m *ProxyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProxyMutation) Fields() []string {
-	fields := make([]string, 0, 10)
+	fields := make([]string, 0, 11)
 	if m.created_at != nil {
 		fields = append(fields, proxy.FieldCreatedAt)
 	}
@@ -18908,6 +18945,9 @@ func (m *ProxyMutation) Fields() []string {
 	if m.status != nil {
 		fields = append(fields, proxy.FieldStatus)
 	}
+	if m.pool_enabled != nil {
+		fields = append(fields, proxy.FieldPoolEnabled)
+	}
 	return fields
 }
 
@@ -18936,6 +18976,8 @@ func (m *ProxyMutation) Field(name string) (ent.Value, bool) {
 		return m.Password()
 	case proxy.FieldStatus:
 		return m.Status()
+	case proxy.FieldPoolEnabled:
+		return m.PoolEnabled()
 	}
 	return nil, false
 }
@@ -18965,6 +19007,8 @@ func (m *ProxyMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldPassword(ctx)
 	case proxy.FieldStatus:
 		return m.OldStatus(ctx)
+	case proxy.FieldPoolEnabled:
+		return m.OldPoolEnabled(ctx)
 	}
 	return nil, fmt.Errorf("unknown Proxy field %s", name)
 }
@@ -19043,6 +19087,13 @@ func (m *ProxyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case proxy.FieldPoolEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPoolEnabled(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Proxy field %s", name)
@@ -19158,6 +19209,9 @@ func (m *ProxyMutation) ResetField(name string) error {
 		return nil
 	case proxy.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case proxy.FieldPoolEnabled:
+		m.ResetPoolEnabled()
 		return nil
 	}
 	return fmt.Errorf("unknown Proxy field %s", name)

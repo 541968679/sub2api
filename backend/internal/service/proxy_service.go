@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -25,31 +26,35 @@ type ProxyRepository interface {
 	ListWithFiltersAndAccountCount(ctx context.Context, params pagination.PaginationParams, protocol, status, search string) ([]ProxyWithAccountCount, *pagination.PaginationResult, error)
 	ListActive(ctx context.Context) ([]Proxy, error)
 	ListActiveWithAccountCount(ctx context.Context) ([]ProxyWithAccountCount, error)
+	ListPoolEnabledWithAccountCount(ctx context.Context) ([]ProxyWithAccountCount, error)
 
 	ExistsByHostPortAuth(ctx context.Context, host string, port int, username, password string) (bool, error)
 	CountAccountsByProxyID(ctx context.Context, proxyID int64) (int64, error)
+	ClearProxyIDForAccounts(ctx context.Context, proxyID int64) (int64, error)
 	ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error)
 }
 
 // CreateProxyRequest 创建代理请求
 type CreateProxyRequest struct {
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Name        string `json:"name"`
+	Protocol    string `json:"protocol"`
+	Host        string `json:"host"`
+	Port        int    `json:"port"`
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	PoolEnabled bool   `json:"pool_enabled"`
 }
 
 // UpdateProxyRequest 更新代理请求
 type UpdateProxyRequest struct {
-	Name     *string `json:"name"`
-	Protocol *string `json:"protocol"`
-	Host     *string `json:"host"`
-	Port     *int    `json:"port"`
-	Username *string `json:"username"`
-	Password *string `json:"password"`
-	Status   *string `json:"status"`
+	Name        *string `json:"name"`
+	Protocol    *string `json:"protocol"`
+	Host        *string `json:"host"`
+	Port        *int    `json:"port"`
+	Username    *string `json:"username"`
+	Password    *string `json:"password"`
+	Status      *string `json:"status"`
+	PoolEnabled *bool   `json:"pool_enabled"`
 }
 
 // ProxyService 代理管理服务
@@ -68,13 +73,14 @@ func NewProxyService(proxyRepo ProxyRepository) *ProxyService {
 func (s *ProxyService) Create(ctx context.Context, req CreateProxyRequest) (*Proxy, error) {
 	// 创建代理
 	proxy := &Proxy{
-		Name:     req.Name,
-		Protocol: req.Protocol,
-		Host:     req.Host,
-		Port:     req.Port,
-		Username: req.Username,
-		Password: req.Password,
-		Status:   StatusActive,
+		Name:        req.Name,
+		Protocol:    req.Protocol,
+		Host:        req.Host,
+		Port:        req.Port,
+		Username:    req.Username,
+		Password:    req.Password,
+		Status:      StatusActive,
+		PoolEnabled: req.PoolEnabled,
 	}
 
 	if err := s.proxyRepo.Create(ctx, proxy); err != nil {
@@ -147,6 +153,10 @@ func (s *ProxyService) Update(ctx context.Context, id int64, req UpdateProxyRequ
 		proxy.Status = *req.Status
 	}
 
+	if req.PoolEnabled != nil {
+		proxy.PoolEnabled = *req.PoolEnabled
+	}
+
 	if err := s.proxyRepo.Update(ctx, proxy); err != nil {
 		return nil, fmt.Errorf("update proxy: %w", err)
 	}
@@ -191,4 +201,36 @@ func (s *ProxyService) GetURL(ctx context.Context, id int64) (string, error) {
 	}
 
 	return proxy.URL(), nil
+}
+
+// AssignFromPool 从代理池中自动分配一个代理（最小连接数负载均衡）。
+// 返回被分配的代理 ID，如果池为空或没有可用代理则返回 nil。
+func (s *ProxyService) AssignFromPool(ctx context.Context) (*int64, error) {
+	proxies, err := s.proxyRepo.ListPoolEnabledWithAccountCount(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list pool proxies: %w", err)
+	}
+	if len(proxies) == 0 {
+		return nil, nil
+	}
+
+	// 找到账号数最少的代理（最小连接数）
+	minCount := proxies[0].AccountCount
+	for i := 1; i < len(proxies); i++ {
+		if proxies[i].AccountCount < minCount {
+			minCount = proxies[i].AccountCount
+		}
+	}
+
+	// 收集所有最小值的候选代理
+	candidates := make([]int64, 0, len(proxies))
+	for i := range proxies {
+		if proxies[i].AccountCount == minCount {
+			candidates = append(candidates, proxies[i].ID)
+		}
+	}
+
+	// 随机选一个（打散并列情况）
+	chosen := candidates[rand.Intn(len(candidates))]
+	return &chosen, nil
 }

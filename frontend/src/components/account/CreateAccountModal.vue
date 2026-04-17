@@ -2205,7 +2205,17 @@
 
       <div>
         <label class="input-label">{{ t('admin.accounts.proxy') }}</label>
-        <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
+        <ProxySelector v-model="form.proxy_id" :proxies="proxies" :disabled="form.auto_assign_proxy" />
+        <label class="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <input
+            type="checkbox"
+            v-model="form.auto_assign_proxy"
+            class="rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+            @change="form.auto_assign_proxy && (form.proxy_id = null)"
+          />
+          {{ t('admin.accounts.autoAssignProxy') }}
+          <span class="text-xs text-gray-400">{{ t('admin.accounts.autoAssignProxyHint') }}</span>
+        </label>
       </div>
 
       <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -3182,6 +3192,7 @@ const form = reactive({
   type: 'oauth' as AccountType, // Will be 'oauth', 'setup-token', or 'apikey'
   credentials: {} as Record<string, unknown>,
   proxy_id: null as number | null,
+  auto_assign_proxy: false,
   concurrency: 10,
   load_factor: null as number | null,
   priority: 1,
@@ -3672,6 +3683,7 @@ const resetForm = () => {
   form.type = 'oauth'
   form.credentials = {}
   form.proxy_id = null
+  form.auto_assign_proxy = false
   form.concurrency = 10
   form.load_factor = null
   form.priority = 1
@@ -4112,6 +4124,7 @@ const createAccountAndFinish = async (
     credentials,
     extra: finalExtra,
     proxy_id: form.proxy_id,
+    auto_assign_proxy: form.auto_assign_proxy,
     concurrency: form.concurrency,
     load_factor: form.load_factor ?? undefined,
     priority: form.priority,
@@ -4173,6 +4186,7 @@ const handleOpenAIExchange = async (authCode: string) => {
         credentials,
         extra,
         proxy_id: form.proxy_id,
+    auto_assign_proxy: form.auto_assign_proxy,
         concurrency: form.concurrency,
         load_factor: form.load_factor ?? undefined,
         priority: form.priority,
@@ -4264,6 +4278,7 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
             credentials,
             extra,
             proxy_id: form.proxy_id,
+    auto_assign_proxy: form.auto_assign_proxy,
             concurrency: form.concurrency,
             load_factor: form.load_factor ?? undefined,
             priority: form.priority,
@@ -4363,6 +4378,7 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
           credentials,
           extra: buildAntigravityExtra() ?? {},
           proxy_id: form.proxy_id,
+    auto_assign_proxy: form.auto_assign_proxy,
           concurrency: form.concurrency,
           load_factor: form.load_factor ?? undefined,
           priority: form.priority,
@@ -4460,6 +4476,7 @@ const handleGeminiGoogleOneValidateRT = async (refreshTokenInput: string) => {
           credentials,
           extra,
           proxy_id: form.proxy_id,
+    auto_assign_proxy: form.auto_assign_proxy,
           concurrency: form.concurrency,
           load_factor: form.load_factor ?? undefined,
           priority: form.priority,
@@ -4802,6 +4819,7 @@ const handleCookieAuth = async (sessionKey: string) => {
           credentials,
           extra,
           proxy_id: form.proxy_id,
+    auto_assign_proxy: form.auto_assign_proxy,
           concurrency: form.concurrency,
           load_factor: form.load_factor ?? undefined,
           priority: form.priority,

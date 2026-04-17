@@ -101,10 +101,12 @@ export async function update(id: number, updates: UpdateProxyRequest): Promise<P
 /**
  * Delete proxy
  * @param id - Proxy ID
+ * @param force - If true, unbind all accounts using this proxy before deleting
  * @returns Success confirmation
  */
-export async function deleteProxy(id: number): Promise<{ message: string }> {
-  const { data } = await apiClient.delete<{ message: string }>(`/admin/proxies/${id}`)
+export async function deleteProxy(id: number, force?: boolean): Promise<{ message: string }> {
+  const params = force ? { force: 'true' } : undefined
+  const { data } = await apiClient.delete<{ message: string }>(`/admin/proxies/${id}`, { params })
   return data
 }
 

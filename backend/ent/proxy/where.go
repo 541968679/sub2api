@@ -105,6 +105,11 @@ func Status(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldStatus, v))
 }
 
+// PoolEnabled applies equality check predicate on the "pool_enabled" field. It's identical to PoolEnabledEQ.
+func PoolEnabled(v bool) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldPoolEnabled, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Proxy {
 	return predicate.Proxy(sql.FieldEQ(FieldCreatedAt, v))
@@ -683,6 +688,16 @@ func StatusEqualFold(v string) predicate.Proxy {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.Proxy {
 	return predicate.Proxy(sql.FieldContainsFold(FieldStatus, v))
+}
+
+// PoolEnabledEQ applies the EQ predicate on the "pool_enabled" field.
+func PoolEnabledEQ(v bool) predicate.Proxy {
+	return predicate.Proxy(sql.FieldEQ(FieldPoolEnabled, v))
+}
+
+// PoolEnabledNEQ applies the NEQ predicate on the "pool_enabled" field.
+func PoolEnabledNEQ(v bool) predicate.Proxy {
+	return predicate.Proxy(sql.FieldNEQ(FieldPoolEnabled, v))
 }
 
 // HasAccounts applies the HasEdge predicate on the "accounts" edge.

@@ -37,6 +37,8 @@ type Proxy struct {
 	Password *string `json:"password,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
+	// Whether this proxy is available in the auto-assign pool.
+	PoolEnabled bool `json:"pool_enabled,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ProxyQuery when eager-loading is set.
 	Edges        ProxyEdges `json:"edges"`
@@ -66,6 +68,8 @@ func (*Proxy) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case proxy.FieldPoolEnabled:
+			values[i] = new(sql.NullBool)
 		case proxy.FieldID, proxy.FieldPort:
 			values[i] = new(sql.NullInt64)
 		case proxy.FieldName, proxy.FieldProtocol, proxy.FieldHost, proxy.FieldUsername, proxy.FieldPassword, proxy.FieldStatus:
@@ -156,6 +160,12 @@ func (_m *Proxy) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Status = value.String
 			}
+		case proxy.FieldPoolEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field pool_enabled", values[i])
+			} else if value.Valid {
+				_m.PoolEnabled = value.Bool
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -232,6 +242,9 @@ func (_m *Proxy) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)
+	builder.WriteString(", ")
+	builder.WriteString("pool_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PoolEnabled))
 	builder.WriteByte(')')
 	return builder.String()
 }

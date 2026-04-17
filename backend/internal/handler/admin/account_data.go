@@ -61,6 +61,7 @@ type DataAccount struct {
 type DataImportRequest struct {
 	Data                 DataPayload `json:"data"`
 	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
+	AutoAssignProxy      *bool       `json:"auto_assign_proxy"`
 }
 
 type DataImportResult struct {
@@ -194,6 +195,10 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 	if req.SkipDefaultGroupBind != nil {
 		skipDefaultGroupBind = *req.SkipDefaultGroupBind
 	}
+	autoAssignProxy := false
+	if req.AutoAssignProxy != nil {
+		autoAssignProxy = *req.AutoAssignProxy
+	}
 
 	dataPayload := req.Data
 	result := DataImportResult{}
@@ -309,6 +314,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			Credentials:          item.Credentials,
 			Extra:                item.Extra,
 			ProxyID:              proxyID,
+			AutoAssignProxy:      proxyID == nil && autoAssignProxy,
 			Concurrency:          item.Concurrency,
 			Priority:             item.Priority,
 			RateMultiplier:       item.RateMultiplier,

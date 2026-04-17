@@ -105,6 +105,7 @@ type CreateAccountRequest struct {
 	Credentials             map[string]any `json:"credentials" binding:"required"`
 	Extra                   map[string]any `json:"extra"`
 	ProxyID                 *int64         `json:"proxy_id"`
+	AutoAssignProxy         bool           `json:"auto_assign_proxy"`
 	Concurrency             int            `json:"concurrency"`
 	Priority                int            `json:"priority"`
 	RateMultiplier          *float64       `json:"rate_multiplier"`
@@ -530,6 +531,7 @@ func (h *AccountHandler) Create(c *gin.Context) {
 			Credentials:           req.Credentials,
 			Extra:                 req.Extra,
 			ProxyID:               req.ProxyID,
+			AutoAssignProxy:       req.AutoAssignProxy,
 			Concurrency:           req.Concurrency,
 			Priority:              req.Priority,
 			RateMultiplier:        req.RateMultiplier,
@@ -1154,6 +1156,26 @@ func (h *AccountHandler) BatchRefresh(c *gin.Context) {
 	})
 }
 
+// BatchAutoAssignProxy handles batch auto-assigning proxies from pool
+// POST /api/v1/admin/accounts/batch-auto-assign-proxy
+func (h *AccountHandler) BatchAutoAssignProxy(c *gin.Context) {
+	var req struct {
+		IDs []int64 `json:"ids" binding:"required,min=1"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	result, err := h.adminService.BatchAutoAssignProxy(c.Request.Context(), req.IDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, result)
+}
+
 // BatchCreate handles batch creating accounts
 // POST /api/v1/admin/accounts/batch
 func (h *AccountHandler) BatchCreate(c *gin.Context) {
@@ -1197,6 +1219,7 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 				Credentials:           item.Credentials,
 				Extra:                 item.Extra,
 				ProxyID:               item.ProxyID,
+				AutoAssignProxy:       item.AutoAssignProxy,
 				Concurrency:           item.Concurrency,
 				Priority:              item.Priority,
 				RateMultiplier:        item.RateMultiplier,

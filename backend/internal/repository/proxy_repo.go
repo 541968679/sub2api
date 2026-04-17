@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	entaccount "github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -38,7 +39,8 @@ func (r *proxyRepository) Create(ctx context.Context, proxyIn *service.Proxy) er
 		SetProtocol(proxyIn.Protocol).
 		SetHost(proxyIn.Host).
 		SetPort(proxyIn.Port).
-		SetStatus(proxyIn.Status)
+		SetStatus(proxyIn.Status).
+		SetPoolEnabled(proxyIn.PoolEnabled)
 	if proxyIn.Username != "" {
 		builder.SetUsername(proxyIn.Username)
 	}
@@ -89,7 +91,8 @@ func (r *proxyRepository) Update(ctx context.Context, proxyIn *service.Proxy) er
 		SetProtocol(proxyIn.Protocol).
 		SetHost(proxyIn.Host).
 		SetPort(proxyIn.Port).
-		SetStatus(proxyIn.Status)
+		SetStatus(proxyIn.Status).
+		SetPoolEnabled(proxyIn.PoolEnabled)
 	if proxyIn.Username != "" {
 		builder.SetUsername(proxyIn.Username)
 	} else {
@@ -311,6 +314,16 @@ func (r *proxyRepository) CountAccountsByProxyID(ctx context.Context, proxyID in
 	return count, nil
 }
 
+// ClearProxyIDForAccounts sets proxy_id = NULL for all accounts using the given proxy.
+// Returns the number of affected rows.
+func (r *proxyRepository) ClearProxyIDForAccounts(ctx context.Context, proxyID int64) (int64, error) {
+	affected, err := r.client.Account.Update().
+		Where(entaccount.ProxyIDEQ(proxyID)).
+		ClearProxyID().
+		Save(ctx)
+	return int64(affected), err
+}
+
 func (r *proxyRepository) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]service.ProxyAccountSummary, error) {
 	rows, err := r.sql.QueryContext(ctx, `
 		SELECT id, name, platform, type, notes
@@ -412,19 +425,49 @@ func (r *proxyRepository) ListActiveWithAccountCount(ctx context.Context) ([]ser
 	return result, nil
 }
 
+// ListPoolEnabledWithAccountCount returns all active + pool_enabled proxies with account count
+func (r *proxyRepository) ListPoolEnabledWithAccountCount(ctx context.Context) ([]service.ProxyWithAccountCount, error) {
+	proxies, err := r.client.Proxy.Query().
+		Where(proxy.StatusEQ(service.StatusActive), proxy.PoolEnabledEQ(true)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	counts, err := r.GetAccountCountsForProxies(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]service.ProxyWithAccountCount, 0, len(proxies))
+	for i := range proxies {
+		proxyOut := proxyEntityToService(proxies[i])
+		if proxyOut == nil {
+			continue
+		}
+		result = append(result, service.ProxyWithAccountCount{
+			Proxy:        *proxyOut,
+			AccountCount: counts[proxyOut.ID],
+		})
+	}
+
+	return result, nil
+}
+
 func proxyEntityToService(m *dbent.Proxy) *service.Proxy {
 	if m == nil {
 		return nil
 	}
 	out := &service.Proxy{
-		ID:        m.ID,
-		Name:      m.Name,
-		Protocol:  m.Protocol,
-		Host:      m.Host,
-		Port:      m.Port,
-		Status:    m.Status,
-		CreatedAt: m.CreatedAt,
-		UpdatedAt: m.UpdatedAt,
+		ID:          m.ID,
+		Name:        m.Name,
+		Protocol:    m.Protocol,
+		Host:        m.Host,
+		Port:        m.Port,
+		Status:      m.Status,
+		PoolEnabled: m.PoolEnabled,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
 	}
 	if m.Username != nil {
 		out.Username = *m.Username

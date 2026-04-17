@@ -150,7 +150,7 @@
         </div>
       </template>
       <template #table>
-        <AccountBulkActionsBar :selected-ids="selIds" @delete="handleBulkDelete" @reset-status="handleBulkResetStatus" @refresh-token="handleBulkRefreshToken" @edit="showBulkEdit = true" @clear="clearSelection" @select-page="selectPage" @toggle-schedulable="handleBulkToggleSchedulable" />
+        <AccountBulkActionsBar :selected-ids="selIds" @delete="handleBulkDelete" @reset-status="handleBulkResetStatus" @refresh-token="handleBulkRefreshToken" @edit="showBulkEdit = true" @clear="clearSelection" @select-page="selectPage" @toggle-schedulable="handleBulkToggleSchedulable" @auto-assign-proxy="handleBulkAutoAssignProxy" />
         <div ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
           :columns="cols"
@@ -1110,6 +1110,20 @@ const handleBulkRefreshToken = async () => {
     reload()
   } catch (error) {
     console.error('Failed to bulk refresh token:', error)
+    appStore.showError(String(error))
+  }
+}
+const handleBulkAutoAssignProxy = async () => {
+  if (!confirm(t('admin.accounts.bulkActions.autoAssignProxyConfirm', { count: selIds.value.length }))) return
+  try {
+    const result = await adminAPI.accounts.batchAutoAssignProxy(selIds.value)
+    appStore.showSuccess(t('admin.accounts.bulkActions.autoAssignProxyResult', { assigned: result.assigned, skipped: result.skipped }))
+    if (result.assigned > 0) {
+      clearSelection()
+      reload()
+    }
+  } catch (error) {
+    console.error('Failed to bulk auto-assign proxy:', error)
     appStore.showError(String(error))
   }
 }

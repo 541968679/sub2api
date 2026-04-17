@@ -536,10 +536,12 @@ export async function exportData(options?: {
 export async function importData(payload: {
   data: AdminDataPayload
   skip_default_group_bind?: boolean
+  auto_assign_proxy?: boolean
 }): Promise<AdminDataImportResult> {
   const { data } = await apiClient.post<AdminDataImportResult>('/admin/accounts/data', {
     data: payload.data,
-    skip_default_group_bind: payload.skip_default_group_bind
+    skip_default_group_bind: payload.skip_default_group_bind,
+    auto_assign_proxy: payload.auto_assign_proxy
   })
   return data
 }
@@ -641,6 +643,22 @@ export async function setPrivacy(id: number): Promise<Account> {
   return data
 }
 
+/**
+ * Batch auto-assign proxies from pool to accounts without proxy
+ * @param ids - Account IDs to assign
+ * @returns Assignment result
+ */
+export async function batchAutoAssignProxy(ids: number[]): Promise<{
+  assigned: number
+  skipped: number
+}> {
+  const { data } = await apiClient.post<{
+    assigned: number
+    skipped: number
+  }>('/admin/accounts/batch-auto-assign-proxy', { ids })
+  return data
+}
+
 export const accountsAPI = {
   list,
   listWithEtag,
@@ -678,7 +696,8 @@ export const accountsAPI = {
   updateAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
-  setPrivacy
+  setPrivacy,
+  batchAutoAssignProxy
 }
 
 export default accountsAPI

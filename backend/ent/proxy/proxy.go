@@ -35,6 +35,8 @@ const (
 	FieldPassword = "password"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldPoolEnabled holds the string denoting the pool_enabled field in the database.
+	FieldPoolEnabled = "pool_enabled"
 	// EdgeAccounts holds the string denoting the accounts edge name in mutations.
 	EdgeAccounts = "accounts"
 	// Table holds the table name of the proxy in the database.
@@ -61,6 +63,7 @@ var Columns = []string{
 	FieldUsername,
 	FieldPassword,
 	FieldStatus,
+	FieldPoolEnabled,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -101,6 +104,8 @@ var (
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DefaultPoolEnabled holds the default value on creation for the "pool_enabled" field.
+	DefaultPoolEnabled bool
 )
 
 // OrderOption defines the ordering options for the Proxy queries.
@@ -159,6 +164,11 @@ func ByPassword(opts ...sql.OrderTermOption) OrderOption {
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
+}
+
+// ByPoolEnabled orders the results by the pool_enabled field.
+func ByPoolEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPoolEnabled, opts...).ToFunc()
 }
 
 // ByAccountsCount orders the results by accounts count.

@@ -96,6 +96,12 @@ func (m *mockProxyRepoForOAuth) CountAccountsByProxyID(ctx context.Context, prox
 func (m *mockProxyRepoForOAuth) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]ProxyAccountSummary, error) {
 	panic("ListAccountSummariesByProxyID not implemented")
 }
+func (m *mockProxyRepoForOAuth) ListPoolEnabledWithAccountCount(ctx context.Context) ([]ProxyWithAccountCount, error) {
+	panic("ListPoolEnabledWithAccountCount not implemented")
+}
+func (m *mockProxyRepoForOAuth) ClearProxyIDForAccounts(ctx context.Context, proxyID int64) (int64, error) {
+	panic("ClearProxyIDForAccounts not implemented")
+}
 
 // =====================
 // 测试用例

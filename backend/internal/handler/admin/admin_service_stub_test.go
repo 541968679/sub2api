@@ -387,6 +387,10 @@ func (s *stubAdminService) DeleteProxy(ctx context.Context, id int64) error {
 	return nil
 }
 
+func (s *stubAdminService) ForceDeleteProxy(ctx context.Context, id int64) error {
+	return nil
+}
+
 func (s *stubAdminService) BatchDeleteProxies(ctx context.Context, ids []int64) (*service.ProxyBatchDeleteResult, error) {
 	return &service.ProxyBatchDeleteResult{DeletedIDs: ids}, nil
 }
@@ -486,6 +490,10 @@ func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 
 func (s *stubAdminService) ResetAccountQuota(ctx context.Context, id int64) error {
 	return nil
+}
+
+func (s *stubAdminService) BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*service.BatchAutoAssignProxyResult, error) {
+	return &service.BatchAutoAssignProxyResult{}, nil
 }
 
 func (s *stubAdminService) EnsureOpenAIPrivacy(ctx context.Context, account *service.Account) string {

@@ -215,6 +215,27 @@
             </span>
           </template>
 
+          <template #cell-pool="{ row }">
+            <button
+              type="button"
+              @click="togglePoolEnabled(row)"
+              :title="t('admin.proxies.poolEnabledTooltip')"
+              :class="[
+                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                row.pool_enabled
+                  ? 'bg-primary-500'
+                  : 'bg-gray-200 dark:bg-dark-600'
+              ]"
+            >
+              <span
+                :class="[
+                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  row.pool_enabled ? 'translate-x-4' : 'translate-x-0'
+                ]"
+              />
+            </button>
+          </template>
+
           <template #cell-latency="{ row }">
             <div class="flex flex-col gap-1">
               <span
@@ -917,6 +938,7 @@ const columns = computed<Column[]>(() => [
   { key: 'auth', label: t('admin.proxies.columns.auth'), sortable: false },
   { key: 'location', label: t('admin.proxies.columns.location'), sortable: false },
   { key: 'account_count', label: t('admin.proxies.columns.accounts'), sortable: true },
+  { key: 'pool', label: t('admin.proxies.poolColumn'), sortable: false },
   { key: 'latency', label: t('admin.proxies.columns.latency'), sortable: false },
   { key: 'status', label: t('admin.proxies.columns.status'), sortable: true },
   { key: 'actions', label: t('admin.proxies.columns.actions'), sortable: false }
@@ -1817,18 +1839,37 @@ const openBatchDelete = () => {
   showBatchDeleteDialog.value = true
 }
 
-const confirmDelete = async () => {
+const togglePoolEnabled = async (proxy: Proxy) => {
+  try {
+    const updated = await adminAPI.proxies.update(proxy.id, {
+      pool_enabled: !proxy.pool_enabled
+    })
+    proxy.pool_enabled = updated.pool_enabled
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || 'Failed to update pool status')
+  }
+}
+
+const confirmDelete = async (force = false) => {
   if (!deletingProxy.value) return
 
   try {
-    await adminAPI.proxies.delete(deletingProxy.value.id)
+    await adminAPI.proxies.delete(deletingProxy.value.id, force)
     appStore.showSuccess(t('admin.proxies.proxyDeleted'))
     showDeleteDialog.value = false
     removeSelectedProxies([deletingProxy.value.id])
     deletingProxy.value = null
     loadProxies()
   } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.proxies.failedToDelete'))
+    const detail = error.response?.data?.detail || ''
+    // If blocked because in use, offer force delete
+    if (!force && detail.includes('PROXY_IN_USE')) {
+      if (window.confirm(t('admin.proxies.forceDeleteConfirm'))) {
+        await confirmDelete(true)
+      }
+    } else {
+      appStore.showError(detail || t('admin.proxies.failedToDelete'))
+    }
     console.error('Error deleting proxy:', error)
   }
 }

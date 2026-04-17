@@ -823,6 +823,10 @@ func init() {
 	proxy.DefaultStatus = proxyDescStatus.Default.(string)
 	// proxy.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	proxy.StatusValidator = proxyDescStatus.Validators[0].(func(string) error)
+	// proxyDescPoolEnabled is the schema descriptor for pool_enabled field.
+	proxyDescPoolEnabled := proxyFields[7].Descriptor()
+	// proxy.DefaultPoolEnabled holds the default value on creation for the pool_enabled field.
+	proxy.DefaultPoolEnabled = proxyDescPoolEnabled.Default.(bool)
 	redeemcodeFields := schema.RedeemCode{}.Fields()
 	_ = redeemcodeFields
 	// redeemcodeDescCode is the schema descriptor for code field.

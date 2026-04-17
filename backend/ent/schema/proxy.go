@@ -52,6 +52,9 @@ func (Proxy) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default("active"),
+		field.Bool("pool_enabled").
+			Default(false).
+			Comment("Whether this proxy is available in the auto-assign pool."),
 	}
 }
 

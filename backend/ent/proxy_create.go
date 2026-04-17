@@ -131,6 +131,20 @@ func (_c *ProxyCreate) SetNillableStatus(v *string) *ProxyCreate {
 	return _c
 }
 
+// SetPoolEnabled sets the "pool_enabled" field.
+func (_c *ProxyCreate) SetPoolEnabled(v bool) *ProxyCreate {
+	_c.mutation.SetPoolEnabled(v)
+	return _c
+}
+
+// SetNillablePoolEnabled sets the "pool_enabled" field if the given value is not nil.
+func (_c *ProxyCreate) SetNillablePoolEnabled(v *bool) *ProxyCreate {
+	if v != nil {
+		_c.SetPoolEnabled(*v)
+	}
+	return _c
+}
+
 // AddAccountIDs adds the "accounts" edge to the Account entity by IDs.
 func (_c *ProxyCreate) AddAccountIDs(ids ...int64) *ProxyCreate {
 	_c.mutation.AddAccountIDs(ids...)
@@ -201,6 +215,10 @@ func (_c *ProxyCreate) defaults() error {
 		v := proxy.DefaultStatus
 		_c.mutation.SetStatus(v)
 	}
+	if _, ok := _c.mutation.PoolEnabled(); !ok {
+		v := proxy.DefaultPoolEnabled
+		_c.mutation.SetPoolEnabled(v)
+	}
 	return nil
 }
 
@@ -256,6 +274,9 @@ func (_c *ProxyCreate) check() error {
 		if err := proxy.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "Proxy.status": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.PoolEnabled(); !ok {
+		return &ValidationError{Name: "pool_enabled", err: errors.New(`ent: missing required field "Proxy.pool_enabled"`)}
 	}
 	return nil
 }
@@ -323,6 +344,10 @@ func (_c *ProxyCreate) createSpec() (*Proxy, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(proxy.FieldStatus, field.TypeString, value)
 		_node.Status = value
+	}
+	if value, ok := _c.mutation.PoolEnabled(); ok {
+		_spec.SetField(proxy.FieldPoolEnabled, field.TypeBool, value)
+		_node.PoolEnabled = value
 	}
 	if nodes := _c.mutation.AccountsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -524,6 +549,18 @@ func (u *ProxyUpsert) UpdateStatus() *ProxyUpsert {
 	return u
 }
 
+// SetPoolEnabled sets the "pool_enabled" field.
+func (u *ProxyUpsert) SetPoolEnabled(v bool) *ProxyUpsert {
+	u.Set(proxy.FieldPoolEnabled, v)
+	return u
+}
+
+// UpdatePoolEnabled sets the "pool_enabled" field to the value that was provided on create.
+func (u *ProxyUpsert) UpdatePoolEnabled() *ProxyUpsert {
+	u.SetExcluded(proxy.FieldPoolEnabled)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -720,6 +757,20 @@ func (u *ProxyUpsertOne) SetStatus(v string) *ProxyUpsertOne {
 func (u *ProxyUpsertOne) UpdateStatus() *ProxyUpsertOne {
 	return u.Update(func(s *ProxyUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetPoolEnabled sets the "pool_enabled" field.
+func (u *ProxyUpsertOne) SetPoolEnabled(v bool) *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetPoolEnabled(v)
+	})
+}
+
+// UpdatePoolEnabled sets the "pool_enabled" field to the value that was provided on create.
+func (u *ProxyUpsertOne) UpdatePoolEnabled() *ProxyUpsertOne {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdatePoolEnabled()
 	})
 }
 
@@ -1085,6 +1136,20 @@ func (u *ProxyUpsertBulk) SetStatus(v string) *ProxyUpsertBulk {
 func (u *ProxyUpsertBulk) UpdateStatus() *ProxyUpsertBulk {
 	return u.Update(func(s *ProxyUpsert) {
 		s.UpdateStatus()
+	})
+}
+
+// SetPoolEnabled sets the "pool_enabled" field.
+func (u *ProxyUpsertBulk) SetPoolEnabled(v bool) *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.SetPoolEnabled(v)
+	})
+}
+
+// UpdatePoolEnabled sets the "pool_enabled" field to the value that was provided on create.
+func (u *ProxyUpsertBulk) UpdatePoolEnabled() *ProxyUpsertBulk {
+	return u.Update(func(s *ProxyUpsert) {
+		s.UpdatePoolEnabled()
 	})
 }
 
