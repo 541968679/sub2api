@@ -35,6 +35,7 @@ func ProvideAdminHandlers(
 	scheduledTestHandler *admin.ScheduledTestHandler,
 	channelHandler *admin.ChannelHandler,
 	modelPricingHandler *admin.ModelPricingHandler,
+	userModelPricingHandler *admin.UserModelPricingHandler,
 	paymentHandler *admin.PaymentHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
@@ -64,6 +65,7 @@ func ProvideAdminHandlers(
 		ScheduledTest:         scheduledTestHandler,
 		Channel:               channelHandler,
 		ModelPricing:          modelPricingHandler,
+		UserModelPricing:      userModelPricingHandler,
 		Payment:               paymentHandler,
 	}
 }
@@ -159,6 +161,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewScheduledTestHandler,
 	admin.NewChannelHandler,
 	admin.NewModelPricingHandler,
+	admin.NewUserModelPricingHandler,
 	admin.NewPaymentHandler,
 
 	// AdminHandlers and Handlers constructors

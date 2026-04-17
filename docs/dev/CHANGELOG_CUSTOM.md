@@ -19,6 +19,36 @@
 
 ## 变更记录
 
+## [2026-04-17] feat(billing): 用户级模型定价覆盖 (User Model Pricing Override)
+
+**影响范围**:
+- `backend/migrations/106_add_user_model_pricing_overrides.sql` — 新增表
+- `backend/internal/service/user_model_pricing.go` — 实体 + 仓储接口
+- `backend/internal/service/user_model_pricing_service.go` — 业务逻辑层
+- `backend/internal/repository/user_model_pricing_repo.go` — 原生 SQL 实现
+- `backend/internal/service/model_pricing_resolver.go` — PricingInput 增加 UserID, Resolve 增加用户级覆盖叠加
+- `backend/internal/service/gateway_service.go` — 传递 UserID 到定价解析链路
+- `backend/internal/handler/dto/display_pricing.go` — 新增 BuildUserDisplayPricingMap
+- `backend/internal/handler/usage_handler.go` — 使用用户级展示覆盖
+- `backend/internal/handler/admin/user_model_pricing_handler.go` — Admin CRUD API
+- `backend/internal/service/global_model_pricing_service.go` — 列表增加 user_override_count, 详情增加 user_overrides
+- `backend/internal/service/admin_service.go` — 用户删除时级联清理
+- `backend/internal/handler/handler.go` — AdminHandlers 增加 UserModelPricing 字段
+- `backend/internal/handler/wire.go` — 注册新 handler
+- `backend/internal/repository/wire.go` — 注册新 repo
+- `backend/internal/service/wire.go` — 注册新 service
+- `backend/internal/server/routes/admin.go` — 注册新路由
+- `frontend/src/api/admin/userModelPricing.ts` — 前端 API 客户端
+- `frontend/src/components/admin/user/UserModelPricingModal.vue` — 管理模态框
+- `frontend/src/views/admin/UsersView.vue` — 用户操作菜单增加"模型定价"入口
+- `frontend/src/i18n/locales/en.ts` — 国际化文案
+
+**说明**: 新增用户级模型定价覆盖功能，支持管理员为特定用户的特定模型设置：
+1. 真实计费价格覆盖（input_price, output_price, cache_write_price, cache_read_price）
+2. 展示价格覆盖（display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio）
+
+完整定价优先级链：用户 > 渠道 > 全局 > LiteLLM/Fallback。不影响现有的全局覆盖、渠道覆盖、分组倍率和用户分组倍率机制。
+
 ## [2026-04-17] feat(billing): 用户级展示倍率 (User Display Rate Multiplier)
 
 **影响范围**:

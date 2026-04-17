@@ -112,7 +112,7 @@ func (r *globalModelPricingRepository) GetByID(ctx context.Context, id int64) (*
 		&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheReadPrice,
 		&p.ImageOutputPrice, &p.PerRequestPrice,
 		&p.Enabled, &p.Notes,
-		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
+		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayCacheReadPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
 		&p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {
@@ -134,7 +134,7 @@ func (r *globalModelPricingRepository) GetByModel(ctx context.Context, model str
 		&p.InputPrice, &p.OutputPrice, &p.CacheWritePrice, &p.CacheReadPrice,
 		&p.ImageOutputPrice, &p.PerRequestPrice,
 		&p.Enabled, &p.Notes,
-		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
+		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayCacheReadPrice, &p.DisplayRateMultiplier, &p.CacheTransferRatio,
 		&p.CreatedAt, &p.UpdatedAt,
 	)
 	if err != nil {

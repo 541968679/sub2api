@@ -32,6 +32,7 @@ type AdminHandlers struct {
 	ScheduledTest         *admin.ScheduledTestHandler
 	Channel               *admin.ChannelHandler
 	ModelPricing          *admin.ModelPricingHandler
+	UserModelPricing      *admin.UserModelPricingHandler
 	Payment               *admin.PaymentHandler
 }
 

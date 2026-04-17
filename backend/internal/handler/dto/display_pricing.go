@@ -188,3 +188,42 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 	d.TotalCost = d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
 	d.RateMultiplier = displayRate
 }
+
+// BuildUserDisplayPricingMap merges user-level display overrides on top of the global display map.
+// Priority: user-level > global-level. Only non-nil user fields replace global values.
+func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []service.UserModelPricingOverride) DisplayPricingMap {
+	merged := make(DisplayPricingMap, len(globalMap))
+	for k, v := range globalMap {
+		clone := *v
+		merged[k] = &clone
+	}
+	for i := range userOverrides {
+		o := &userOverrides[i]
+		if !o.Enabled {
+			continue
+		}
+		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil &&
+			o.DisplayRateMultiplier == nil && o.CacheTransferRatio == nil {
+			continue
+		}
+		key := toLowerModel(o.Model)
+		existing := merged[key]
+		if existing == nil {
+			existing = &DisplayPricingConfig{}
+			merged[key] = existing
+		}
+		if o.DisplayInputPrice != nil {
+			existing.DisplayInputPrice = o.DisplayInputPrice
+		}
+		if o.DisplayOutputPrice != nil {
+			existing.DisplayOutputPrice = o.DisplayOutputPrice
+		}
+		if o.DisplayRateMultiplier != nil {
+			existing.DisplayRateMultiplier = o.DisplayRateMultiplier
+		}
+		if o.CacheTransferRatio != nil {
+			existing.CacheTransferRatio = o.CacheTransferRatio
+		}
+	}
+	return merged
+}

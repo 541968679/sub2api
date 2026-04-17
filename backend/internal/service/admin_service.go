@@ -438,7 +438,8 @@ type adminServiceImpl struct {
 	proxyRepo            ProxyRepository
 	apiKeyRepo           APIKeyRepository
 	redeemCodeRepo       RedeemCodeRepository
-	userGroupRateRepo    UserGroupRateRepository
+	userGroupRateRepo      UserGroupRateRepository
+	userModelPricingRepo   UserModelPricingRepository
 	billingCacheService  *BillingCacheService
 	proxyProber          ProxyExitInfoProber
 	proxyLatencyCache    ProxyLatencyCache
@@ -459,6 +460,7 @@ func NewAdminService(
 	apiKeyRepo APIKeyRepository,
 	redeemCodeRepo RedeemCodeRepository,
 	userGroupRateRepo UserGroupRateRepository,
+	userModelPricingRepo UserModelPricingRepository,
 	billingCacheService *BillingCacheService,
 	proxyProber ProxyExitInfoProber,
 	proxyLatencyCache ProxyLatencyCache,
@@ -476,7 +478,8 @@ func NewAdminService(
 		proxyRepo:            proxyRepo,
 		apiKeyRepo:           apiKeyRepo,
 		redeemCodeRepo:       redeemCodeRepo,
-		userGroupRateRepo:    userGroupRateRepo,
+		userGroupRateRepo:      userGroupRateRepo,
+		userModelPricingRepo:   userModelPricingRepo,
 		billingCacheService:  billingCacheService,
 		proxyProber:          proxyProber,
 		proxyLatencyCache:    proxyLatencyCache,
@@ -712,6 +715,12 @@ func (s *adminServiceImpl) DeleteUser(ctx context.Context, id int64) error {
 	if err := s.userRepo.Delete(ctx, id); err != nil {
 		logger.LegacyPrintf("service.admin", "delete user failed: user_id=%d err=%v", id, err)
 		return err
+	}
+	if s.userGroupRateRepo != nil {
+		_ = s.userGroupRateRepo.DeleteByUserID(ctx, id)
+	}
+	if s.userModelPricingRepo != nil {
+		_ = s.userModelPricingRepo.DeleteByUserID(ctx, id)
 	}
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, id)

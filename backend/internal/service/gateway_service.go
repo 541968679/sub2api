@@ -7732,7 +7732,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 
 	// 计算费用
-	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, opts)
+	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, opts, user.ID)
 
 	// 判断计费方式：订阅模式 vs 余额模式
 	isSubscriptionBilling := subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
@@ -7782,14 +7782,16 @@ func (s *GatewayService) calculateRecordUsageCost(
 	billingModel string,
 	multiplier float64,
 	opts *recordUsageOpts,
+	userID int64,
 ) *CostBreakdown {
+	uid := &userID
 	// 图片生成计费
 	if result.ImageCount > 0 {
-		return s.calculateImageCost(ctx, result, apiKey, billingModel, multiplier)
+		return s.calculateImageCost(ctx, result, apiKey, billingModel, multiplier, uid)
 	}
 
 	// Token 计费
-	return s.calculateTokenCost(ctx, result, apiKey, billingModel, multiplier, opts)
+	return s.calculateTokenCost(ctx, result, apiKey, billingModel, multiplier, opts, uid)
 }
 
 // resolveChannelPricing 检查指定模型是否存在渠道级别定价。
@@ -7801,13 +7803,13 @@ func (s *GatewayService) calculateRecordUsageCost(
 // 名称保留"Channel"是为了少动调用点——语义上已经是 Channel+Global 的并集。
 // 之前的实现只看 Source==Channel，导致 Global 全局覆盖在 Anthropic 网关路径
 // 完全失效（走到 `CalculateCost` 旧路径，该路径不查 GlobalPricingCache）。
-func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
+func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey, userID *int64) *ResolvedPricing {
 	if s.resolver == nil || apiKey.Group == nil {
 		return nil
 	}
 	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
-	if resolved.Source == PricingSourceChannel || resolved.Source == PricingSourceGlobal {
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, UserID: userID})
+	if resolved.Source == PricingSourceChannel || resolved.Source == PricingSourceGlobal || resolved.Source == PricingSourceUser {
 		return resolved
 	}
 	return nil
@@ -7820,8 +7822,9 @@ func (s *GatewayService) calculateImageCost(
 	apiKey *APIKey,
 	billingModel string,
 	multiplier float64,
+	userID *int64,
 ) *CostBreakdown {
-	if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey); resolved != nil {
+	if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey, userID); resolved != nil {
 		tokens := UsageTokens{
 			InputTokens:       result.Usage.InputTokens,
 			OutputTokens:      result.Usage.OutputTokens,
@@ -7864,6 +7867,7 @@ func (s *GatewayService) calculateTokenCost(
 	billingModel string,
 	multiplier float64,
 	opts *recordUsageOpts,
+	userID *int64,
 ) *CostBreakdown {
 	tokens := UsageTokens{
 		InputTokens:           result.Usage.InputTokens,
@@ -7879,7 +7883,7 @@ func (s *GatewayService) calculateTokenCost(
 	var err error
 
 	// 优先尝试渠道定价 → CalculateCostUnified
-	if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey); resolved != nil {
+	if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey, userID); resolved != nil {
 		gid := apiKey.Group.ID
 		cost, err = s.billingService.CalculateCostUnified(CostInput{
 			Ctx:            ctx,
