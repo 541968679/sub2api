@@ -85,10 +85,18 @@
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="truncate font-medium">{{ proxy.name }}</span>
+                <!-- Geo location badge -->
+                <span
+                  v-if="proxy.country_code"
+                  class="inline-flex flex-shrink-0 items-center gap-0.5 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+                >
+                  {{ proxy.country_code }}<template v-if="proxy.city"> {{ proxy.city }}</template>
+                </span>
                 <!-- Account count badge -->
                 <span
                   v-if="proxy.account_count !== undefined"
                   class="inline-flex flex-shrink-0 items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-600 dark:text-gray-400"
+                  :title="proxy.account_count + ' accounts'"
                 >
                   {{ proxy.account_count }}
                 </span>
@@ -220,7 +228,8 @@ const selectedLabel = computed(() => {
     return t('admin.accounts.noProxy')
   }
   const proxy = selectedProxy.value
-  return `${proxy.name} (${proxy.protocol}://${proxy.host}:${proxy.port})`
+  const geo = proxy.country_code ? ` [${proxy.country_code}]` : ''
+  return `${proxy.name}${geo} (${proxy.protocol}://${proxy.host}:${proxy.port})`
 })
 
 const filteredProxies = computed(() => {
@@ -231,7 +240,9 @@ const filteredProxies = computed(() => {
   return props.proxies.filter((proxy) => {
     const name = proxy.name.toLowerCase()
     const host = proxy.host.toLowerCase()
-    return name.includes(query) || host.includes(query)
+    const country = (proxy.country_code || '').toLowerCase()
+    const city = (proxy.city || '').toLowerCase()
+    return name.includes(query) || host.includes(query) || country.includes(query) || city.includes(query)
   })
 })
 
