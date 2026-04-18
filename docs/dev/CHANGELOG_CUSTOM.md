@@ -19,6 +19,40 @@
 
 ## 变更记录
 
+## [2026-04-18] feat(usage): 管理员使用记录页新增 Antigravity Credits 成本分析
+
+**影响范围**:
+- `backend/ent/schema/ai_credit_snapshot.go` — 新 Ent schema：`AICreditSnapshot { email, credit_type, amount, captured_at }` + 复合索引
+- `backend/ent/aicreditsnapshot/`、`backend/ent/aicreditsnapshot*.go` — Ent 生成代码（`go generate ./ent`）
+- `backend/migrations/110_add_ai_credit_snapshots.sql` — 建表 + `(email, captured_at)` 与 `(captured_at)` 索引
+- `backend/internal/service/credit_snapshot.go` — `CreditSnapshot` 结构、`CreditSnapshotRepository`、`AntigravityUsageAggregator`、`AntigravityUsageRatio` 响应类型
+- `backend/internal/service/credit_snapshot_service.go` — `CreditSnapshotService`：15 分钟 ticker 定时采样、`TriggerManualCapture`（30 秒进程内冷却锁）、`GetAntigravityUsageRatio`（相邻采样点正向 delta 求和 + `usage_logs` 聚合）
+- `backend/internal/repository/credit_snapshot_repo.go` — 基于 Ent 的仓库实现（Insert/ListInRange/GetLatestBefore）
+- `backend/internal/repository/antigravity_usage_aggregator.go` — 独立小接口实现：`SELECT COUNT + SUM(total_cost) FROM usage_logs WHERE account_id = ANY($1) AND created_at ∈ [start,end)`
+- `backend/internal/handler/admin/usage_handler.go` — `NewUsageHandler` 加 `creditSnapshotService` 依赖；新增 `StatsAntigravity` / `RefreshAntigravityStats`；提取 `parseStatsDateRange` 辅助函数
+- `backend/internal/handler/admin/{usage_cleanup_handler_test,usage_handler_request_type_test}.go` — stub 补齐新参数位 `nil`
+- `backend/internal/server/routes/admin.go` — `GET /admin/usage/stats/antigravity`、`POST /admin/usage/stats/antigravity/refresh`
+- `backend/internal/service/wire.go` — 新增 `ProvideCreditSnapshotService` 并入 `ProviderSet`
+- `backend/internal/repository/wire.go` — `NewCreditSnapshotRepository` / `NewAntigravityUsageAggregator` 加入 `ProviderSet`
+- `backend/cmd/server/wire_gen.go` — 手动编排新 Repo + Service + Handler 依赖（主干 `go generate` 因历史 Payment 重复绑定失败，按现有模式插入）
+- `frontend/src/api/admin/usage.ts` — 新增 `AntigravityUsageRatio` 类型、`getAntigravityStats`、`refreshAntigravityStats`
+- `frontend/src/components/admin/usage/AntigravityRatioCard.vue` — 新组件：4 列指标卡 + 「立即采样」按钮 + 采样不足/冷却提示
+- `frontend/src/views/admin/UsageView.vue` — 引入卡片，与现有 `UsageStatsCards` 共用 `DateRangePicker`，同一刷新链路触发
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `usage.antigravity.*` 文案
+
+**上游兼容性**: 低。所有新增文件/字段均为 additive；仅 `admin/usage_handler.go` 构造器加参数（上游若重构 handler 初始化签名需同步）；`wire_gen.go` 仍需手工合并。`AntigravityUsageAggregator` 刻意没接入 `UsageLogRepository` 接口，避免日后改动十几处 stub。
+
+**变更详情**:
+1. Antigravity AI Credits 余额不可回溯查询（远端 API 只给当前值），因此新增 `ai_credit_snapshots` 表。`CreditSnapshotService` 每 15 分钟启动一次采样：按 `credentials.email` 去重（同 Google 账号共享 credits），复用 `AccountUsageService.GetUsage` 的 3 分钟缓存层拉余额，避免额外 API 压力。
+2. 聚合口径：对每个 email 在 `[start - 30 min lookback, end]` 内的快照按时间升序走相邻对，累加正向 delta。负向 delta（充值/重置）跳过。派生比率 `quota_per_credit = SUM(total_cost) / total_credits`、`calls_per_credit = COUNT(*) / total_credits`，`total_credits == 0` 时返回 null（前端展示"采样不足"提示）。
+3. 手动触发接口 `POST .../refresh` 加 30 秒进程内冷却锁（`sync.Mutex + lastManualAt`），冷却期内返回 `manual_refresh_throttled=true` 并不重复打远端。管理员误点不会放大 API 压力。
+4. 前端卡片接入现有 `startDate`/`endDate`，`loadStats()` 结束后并行拉 antigravity 聚合；失败只 `console.error` 不阻断主流程。
+5. 验证：`docker exec sub2api-pg-dev psql` 确认 migration 110 应用、`ai_credit_snapshots` 表结构正确；本地启动后 `[CreditSnapshot] Scheduler started` 与路由 `GET/POST /api/v1/admin/usage/stats/antigravity(/refresh)` 均已注册。
+
+**关联 Issue/PR**: 无
+
+---
+
 ## [2026-04-18] feat(pricing-page): 新增用户「模型计价」页 + 管理员可编辑文案
 
 **影响范围**:

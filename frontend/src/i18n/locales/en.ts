@@ -868,7 +868,22 @@ export default {
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    antigravity: {
+      title: 'Antigravity Credit Cost Analysis',
+      subtitle: 'AI Credits consumed vs antigravity quota & calls within the selected range',
+      refreshNow: 'Sample now',
+      loading: 'Loading…',
+      insufficientSnapshot: 'Not enough snapshots yet. Wait 15 minutes or click "Sample now".',
+      creditsConsumed: 'Credits consumed',
+      quotaUsed: 'Quota used',
+      calls: 'Calls',
+      quotaPerCredit: 'Quota / credit',
+      callsPerCredit: 'Calls / credit',
+      perCredit: '/ credit',
+      samplingMeta: '{emails} accounts, {snapshots} snapshots',
+      throttled: 'Sampling cooling down, showing latest result'
+    }
   },
 
   // Redeem

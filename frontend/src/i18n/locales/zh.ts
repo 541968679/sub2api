@@ -872,7 +872,22 @@ export default {
     exportExcelSuccess: '使用数据导出成功（Excel格式）',
     exportExcelFailed: '使用数据导出失败',
     imageUnit: '张',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    antigravity: {
+      title: 'Antigravity Credits 成本分析',
+      subtitle: '时间窗内 AI Credits 消耗与 antigravity 平台额度/调用的比率',
+      refreshNow: '立即采样',
+      loading: '正在加载...',
+      insufficientSnapshot: '采样数据不足，请在 15 分钟后或点击「立即采样」再试',
+      creditsConsumed: '消耗 Credits',
+      quotaUsed: '消耗额度',
+      calls: '调用次数',
+      quotaPerCredit: '每 Credit 额度',
+      callsPerCredit: '每 Credit 调用',
+      perCredit: '/ credit',
+      samplingMeta: '覆盖 {emails} 个账号，{snapshots} 个采样点',
+      throttled: '采样冷却中，展示最近一次结果'
+    }
   },
 
   // Redeem
