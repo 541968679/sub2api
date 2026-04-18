@@ -29,6 +29,21 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient)
 	return svc, nil
 }
 
+// ProvideCreditSnapshotService creates CreditSnapshotService and starts the background
+// ticker. Initialization failure does not block startup—the service is non-critical.
+func ProvideCreditSnapshotService(
+	repo CreditSnapshotRepository,
+	accountRepo AccountRepository,
+	usageService *AccountUsageService,
+	usageAgg AntigravityUsageAggregator,
+) *CreditSnapshotService {
+	svc := NewCreditSnapshotService(repo, accountRepo, usageService, usageAgg)
+	if err := svc.Initialize(); err != nil {
+		println("[Service] Warning: Credit snapshot service initialization failed:", err.Error())
+	}
+	return svc
+}
+
 // ProvideUpdateService creates UpdateService with BuildInfo
 func ProvideUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, buildInfo BuildInfo) *UpdateService {
 	return NewUpdateService(cache, githubClient, buildInfo.Version, buildInfo.BuildType)
@@ -468,6 +483,7 @@ var ProviderSet = wire.NewSet(
 	ProvidePaymentConfigService,
 	NewPaymentService,
 	ProvidePaymentOrderExpiryService,
+	ProvideCreditSnapshotService,
 )
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named

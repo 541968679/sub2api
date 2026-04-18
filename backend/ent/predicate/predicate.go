@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// AICreditSnapshot is the predicate function for aicreditsnapshot builders.
+type AICreditSnapshot func(*sql.Selector)
+
 // APIKey is the predicate function for apikey builders.
 type APIKey func(*sql.Selector)
 

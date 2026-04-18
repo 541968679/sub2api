@@ -10,6 +10,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
@@ -91,6 +92,33 @@ func (f TraverseFunc) Traverse(ctx context.Context, q ent.Query) error {
 		return err
 	}
 	return f(ctx, query)
+}
+
+// The AICreditSnapshotFunc type is an adapter to allow the use of ordinary function as a Querier.
+type AICreditSnapshotFunc func(context.Context, *ent.AICreditSnapshotQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f AICreditSnapshotFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.AICreditSnapshotQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.AICreditSnapshotQuery", q)
+}
+
+// The TraverseAICreditSnapshot type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseAICreditSnapshot func(context.Context, *ent.AICreditSnapshotQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseAICreditSnapshot) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseAICreditSnapshot) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.AICreditSnapshotQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.AICreditSnapshotQuery", q)
 }
 
 // The APIKeyFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -798,6 +826,8 @@ func (f TraverseUserSubscription) Traverse(ctx context.Context, q ent.Query) err
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
+	case *ent.AICreditSnapshotQuery:
+		return &query[*ent.AICreditSnapshotQuery, predicate.AICreditSnapshot, aicreditsnapshot.OrderOption]{typ: ent.TypeAICreditSnapshot, tq: q}, nil
 	case *ent.APIKeyQuery:
 		return &query[*ent.APIKeyQuery, predicate.APIKey, apikey.OrderOption]{typ: ent.TypeAPIKey, tq: q}, nil
 	case *ent.AccountQuery:

@@ -14,6 +14,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// AICreditSnapshot is the client for interacting with the AICreditSnapshot builders.
+	AICreditSnapshot *AICreditSnapshotClient
 	// APIKey is the client for interacting with the APIKey builders.
 	APIKey *APIKeyClient
 	// Account is the client for interacting with the Account builders.
@@ -197,6 +199,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.AICreditSnapshot = NewAICreditSnapshotClient(tx.config)
 	tx.APIKey = NewAPIKeyClient(tx.config)
 	tx.Account = NewAccountClient(tx.config)
 	tx.AccountGroup = NewAccountGroupClient(tx.config)
@@ -232,7 +235,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: APIKey.QueryXXX(), the query will be executed
+// applies a query, for example: AICreditSnapshot.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

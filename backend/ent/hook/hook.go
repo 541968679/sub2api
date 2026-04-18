@@ -9,6 +9,18 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent"
 )
 
+// The AICreditSnapshotFunc type is an adapter to allow the use of ordinary
+// function as AICreditSnapshot mutator.
+type AICreditSnapshotFunc func(context.Context, *ent.AICreditSnapshotMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AICreditSnapshotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AICreditSnapshotMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AICreditSnapshotMutation", m)
+}
+
 // The APIKeyFunc type is an adapter to allow the use of ordinary
 // function as APIKey mutator.
 type APIKeyFunc func(context.Context, *ent.APIKeyMutation) (ent.Value, error)
