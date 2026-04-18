@@ -19,7 +19,32 @@
 
 ## 变更记录
 
-## [2026-04-18] feat(usage): 管理员使用记录页新增 Antigravity Credits 成本分析
+## [2026-04-18] fix(settings): 登录页价格动态化 + 修复充值管理保存误清空注册等设置
+
+**影响范围**:
+- `backend/internal/service/settings_view.go` — `PublicSettings` 新增 `PaymentCNYPerUSD float64`
+- `backend/internal/service/setting_service.go` — `GetPublicSettings` 读取 `SettingCNYPerUSD`；`GetPublicSettingsForInjection` 注入匿名结构体同步新增字段
+- `backend/internal/handler/dto/settings.go` — 公开设置 DTO 新增 `payment_cny_per_usd`
+- `backend/internal/handler/setting_handler.go` — 在 `GetPublicSettings` 响应里填充新字段
+- `frontend/src/types/index.ts` — `PublicSettings` 接口新增 `payment_cny_per_usd: number`
+- `frontend/src/stores/app.ts` — 默认空配置补齐 `payment_cny_per_usd: 0`
+- `frontend/src/i18n/locales/zh.ts`、`en.ts` — `featurePrice` 改为带 `{price}` 占位的模板；新增 `featurePriceDefault` 作为未配置时的回退文案
+- `frontend/src/views/auth/LoginView.vue` — 新增 `paymentCnyPerUsd` ref，`onMounted` 从公开设置读取；feature pill 按配置动态渲染，未配置回退
+- `frontend/src/api/admin/settings.ts` — 新增 `systemSettingsToUpdateRequest(SystemSettings) => UpdateSettingsRequest` 映射函数；注入 `settingsAPI`
+- `frontend/src/views/admin/RechargeConfigView.vue` — `save()` 先 `getSettings()` 再整体 `updateSettings(...)`，只覆盖 `payment_cny_per_usd` / `payment_bonus_tiers`
+
+**上游兼容性**:
+- 后端新增字段为可选追加，合并上游时若上游也改动 `PublicSettings` / 公开设置 handler，留意冲突位置（均为结构体尾部或 return 字段列表）
+- 前端新增的 `systemSettingsToUpdateRequest` 是本地二开工具函数，独立于上游
+
+**变更详情**:
+- Bug 1 — 登录页价格硬编码：`LoginView` 原先渲染 `t('auth.login.featurePrice')` 的静态文案 `'0.6 / 1$ 起'`，与 admin 在"充值管理"设置的 `payment_cny_per_usd` 完全脱钩。现将该汇率通过 `/api/v1/settings/public` 暴露（与 SSR 注入路径保持一致），前端读取后以 `{price} / 1$ 起` 模板渲染；为 0 或未配置时回退到 `featurePriceDefault` 静态文案。
+- Bug 2 — "每次部署开放注册被重置"：真正根因不是部署脚本。后端 `UpdateSettingsRequest` 绝大多数 `bool` / `string` 字段是**非指针**，JSON 反序列化时缺失字段会被填 `false` / `""`；`RechargeConfigView.save()` 只发 `payment_cny_per_usd` 与 `payment_bonus_tiers`，handler 继续构造完整 `SystemSettings` 并 `SetMultiple` 回写，导致 `registration_enabled`、`site_name`、OIDC/LinuxDo 开关等被静默清空。修复采用最小改动：`RechargeConfigView` 先拉完整 settings，用新建的映射函数转成请求体，再覆盖两个 payment 字段发出，使回写是"读旧值写旧值"，避免误清空。凭据类字段（`smtp_password` 等）在映射函数中故意留空，后端"空值跳过覆盖"守护继续生效。
+
+**验证方式**:
+- `go build ./...` 通过；前端 `pnpm run typecheck` 通过；handler 相关单测通过（service 层受 `gemini_oauth_service_test.go` 预存在的 mock 接口不完整影响，未新增测试失败）
+- 手工：充值管理保存 `cny_per_usd=0.8` → 登录页显示 `0.8 / 1$ 起`；同时系统设置里"开放注册"等开关保持用户之前的值不变
+
 
 **影响范围**:
 - `backend/ent/schema/ai_credit_snapshot.go` — 新 Ent schema：`AICreditSnapshot { email, credit_type, amount, captured_at }` + 复合索引

@@ -171,6 +171,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyOIDCConnectEnabled,
 		SettingKeyOIDCConnectProviderName,
 		SettingPaymentEnabled,
+		SettingCNYPerUSD,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -238,6 +239,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		OIDCOAuthEnabled:                 oidcEnabled,
 		OIDCOAuthProviderName:            oidcProviderName,
 		PaymentEnabled:                   settings[SettingPaymentEnabled] == "true",
+		PaymentCNYPerUSD:                 pcParseFloat(settings[SettingCNYPerUSD], 0),
 	}, nil
 }
 
@@ -290,6 +292,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled                 bool            `json:"oidc_oauth_enabled"`
 		OIDCOAuthProviderName            string          `json:"oidc_oauth_provider_name"`
 		PaymentEnabled                   bool            `json:"payment_enabled"`
+		PaymentCNYPerUSD                 float64         `json:"payment_cny_per_usd,omitempty"`
 		Version                          string          `json:"version,omitempty"`
 	}{
 		RegistrationEnabled:              settings.RegistrationEnabled,
@@ -320,6 +323,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		PaymentEnabled:                   settings.PaymentEnabled,
+		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
 		Version:                          s.version,
 	}, nil
 }

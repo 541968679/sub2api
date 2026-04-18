@@ -56,7 +56,7 @@
               <!-- Feature Pills -->
               <div class="mt-4 flex flex-wrap gap-2.5">
                 <span class="rounded-[27px] bg-[#ECFFF9] px-4 py-2.5 text-base font-extrabold text-[#0F2638]">
-                  {{ t('auth.login.featurePrice') }}
+                  {{ paymentCnyPerUsd > 0 ? t('auth.login.featurePrice', { price: paymentCnyPerUsd }) : t('auth.login.featurePriceDefault') }}
                 </span>
                 <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
                   {{ t('auth.login.featurePayAsYouGo') }}
@@ -383,6 +383,7 @@ const backendModeEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
 const oidcOAuthProviderName = ref<string>('OIDC')
 const passwordResetEnabled = ref<boolean>(false)
+const paymentCnyPerUsd = ref<number>(0)
 
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -428,6 +429,7 @@ onMounted(async () => {
     oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
     backendModeEnabled.value = settings.backend_mode_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
+    paymentCnyPerUsd.value = Number(settings.payment_cny_per_usd) || 0
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }

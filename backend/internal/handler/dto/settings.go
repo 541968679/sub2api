@@ -186,6 +186,7 @@ type PublicSettings struct {
 	SoraClientEnabled                bool             `json:"sora_client_enabled"`
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool             `json:"payment_enabled"`
+	PaymentCNYPerUSD                 float64          `json:"payment_cny_per_usd"`
 	Version                          string           `json:"version"`
 }
 

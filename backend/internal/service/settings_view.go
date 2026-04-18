@@ -144,6 +144,7 @@ type PublicSettings struct {
 	OIDCOAuthEnabled      bool
 	OIDCOAuthProviderName string
 	PaymentEnabled        bool
+	PaymentCNYPerUSD      float64
 	Version               string
 }
 

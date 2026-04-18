@@ -60,6 +60,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		PaymentEnabled:                   settings.PaymentEnabled,
+		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
 		Version:                          h.version,
 	})
 }
