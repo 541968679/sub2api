@@ -78,6 +78,17 @@
 
 ---
 
+## [2026-04-18] fix(keys): 修正「入门指南」里 CC-Switch 的下载地址
+
+**影响范围**:
+- `frontend/src/components/keys/GettingStartedGuide.vue` — 第二步下载按钮 `href` 从 `github.com/nicepkg/cc-switch/releases`（错误仓库）改为 `github.com/farion1231/cc-switch/releases`（官方仓库）
+
+**上游兼容性**: 低。上游若未使用此链接则无冲突。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
 ## [2026-04-18] fix(pricing-page): 管理员编辑页未保存时预填默认文案
 
 **影响范围**:
