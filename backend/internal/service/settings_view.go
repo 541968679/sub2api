@@ -146,6 +146,32 @@ type PublicSettings struct {
 	PaymentEnabled        bool
 	PaymentCNYPerUSD      float64
 	Version               string
+
+	// LoginPage 登录页文案覆盖。nil 或字段空串时前端回落到 i18n 默认值。
+	LoginPage *LoginPageContent
+}
+
+// LoginPageContent 登录页管理员可编辑的文案。8 个字段一一对应 i18n auth.login.* 里
+// 的营销文案，未配置时前端按 i18n 兜底。
+type LoginPageContent struct {
+	Badge                string `json:"badge,omitempty"`
+	HeadingLine1         string `json:"heading_line1,omitempty"`
+	HeadingLine2         string `json:"heading_line2,omitempty"`
+	Description          string `json:"description,omitempty"`
+	SupportedModelsTitle string `json:"supported_models_title,omitempty"`
+	ModelsDesc           string `json:"models_desc,omitempty"`
+	FormTitle            string `json:"form_title,omitempty"`
+	FormSubtitle         string `json:"form_subtitle,omitempty"`
+}
+
+// IsEmpty 所有字段都为空视为「未配置」，上层可直接 nil 化以让前端 omit。
+func (c *LoginPageContent) IsEmpty() bool {
+	if c == nil {
+		return true
+	}
+	return c.Badge == "" && c.HeadingLine1 == "" && c.HeadingLine2 == "" &&
+		c.Description == "" && c.SupportedModelsTitle == "" && c.ModelsDesc == "" &&
+		c.FormTitle == "" && c.FormSubtitle == ""
 }
 
 // StreamTimeoutSettings 流超时处理配置（仅控制超时后的处理方式，超时判定由网关配置控制）

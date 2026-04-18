@@ -34,6 +34,7 @@ type AdminHandlers struct {
 	ModelPricing          *admin.ModelPricingHandler
 	UserModelPricing      *admin.UserModelPricingHandler
 	PricingPage           *admin.PricingPageHandler
+	LoginPage             *admin.LoginPageHandler
 	Payment               *admin.PaymentHandler
 }
 

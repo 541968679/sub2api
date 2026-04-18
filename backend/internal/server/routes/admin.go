@@ -94,6 +94,9 @@ func RegisterAdminRoutes(
 
 		// 用户「模型计价」页文案管理
 		registerPricingPageRoutes(admin, h)
+
+		// 登录页文案管理
+		registerLoginPageRoutes(admin, h)
 	}
 }
 
@@ -597,5 +600,15 @@ func registerPricingPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		pp.GET("/content", h.Admin.PricingPage.Get)
 		pp.PUT("/content", h.Admin.PricingPage.Update)
+	}
+}
+
+// registerLoginPageRoutes 登录页文案管理。8 个字段分别存到 settings 表的
+// login_page.* 键；空字符串被视为「未设置」，前端回落到 i18n auth.login.*。
+func registerLoginPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	lp := admin.Group("/login-page")
+	{
+		lp.GET("/content", h.Admin.LoginPage.Get)
+		lp.PUT("/content", h.Admin.LoginPage.Update)
 	}
 }
