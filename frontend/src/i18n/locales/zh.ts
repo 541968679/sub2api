@@ -334,8 +334,7 @@ export default {
     apiKeys: 'API 密钥',
     usage: '使用记录',
     modelPricing: '模型计价',
-    pricingPage: '计价页文案',
-    loginPage: '登录页文案',
+    pageContent: '页面文案',
     redeem: '兑换',
     profile: '个人资料',
     users: '用户管理',
@@ -2158,6 +2157,16 @@ export default {
           revokeDesc: '立即终止该用户的订阅，不可恢复'
         },
         tip: '提示：订阅分组下拉列表中只会显示计费类型为「订阅」且状态为「正常」的分组。如果没有可选项，请先到分组管理中创建。'
+      }
+    },
+
+    // Page Content hub (wrapper with tabs for pricing/login)
+    pageContent: {
+      title: '页面文案',
+      description: '集中管理「模型计价」页和「登录页」对外展示的文案。在下面的 tab 之间切换即可分别编辑。',
+      tabs: {
+        pricing: '模型计价页',
+        login: '登录页'
       }
     },
 

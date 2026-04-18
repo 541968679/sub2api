@@ -334,8 +334,7 @@ export default {
     apiKeys: 'API Keys',
     usage: 'Usage',
     modelPricing: 'Model Pricing',
-    pricingPage: 'Pricing Page Content',
-    loginPage: 'Login Page Content',
+    pageContent: 'Page Content',
     redeem: 'Redeem',
     profile: 'Profile',
     users: 'Users',
@@ -2080,6 +2079,16 @@ export default {
           revokeDesc: 'Immediately terminate the subscription (irreversible)'
         },
         tip: 'Tip: Only groups with billing type "Subscription" and status "Active" appear in the group dropdown. If no options are available, create one in Group Management first.'
+      }
+    },
+
+    // Page Content hub (wrapper with tabs for pricing/login)
+    pageContent: {
+      title: 'Page Content',
+      description: 'Edit the marketing copy shown on the Model Pricing page and the Login page. Use the tabs below to switch between them.',
+      tabs: {
+        pricing: 'Model Pricing page',
+        login: 'Login page'
       }
     },
 

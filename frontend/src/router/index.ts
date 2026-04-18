@@ -396,28 +396,25 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/admin/pricing-page',
-    name: 'AdminPricingPage',
-    component: () => import('@/views/admin/PricingPageView.vue'),
+    path: '/admin/page-content',
+    name: 'AdminPageContent',
+    component: () => import('@/views/admin/PageContentView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Pricing Page Content',
-      titleKey: 'admin.pricingPage.title',
-      descriptionKey: 'admin.pricingPage.description'
+      title: 'Page Content',
+      titleKey: 'admin.pageContent.title',
+      descriptionKey: 'admin.pageContent.description'
     }
+  },
+  // 老路径兼容：外部链接/书签平滑切到新的合并页面，保留 tab 选择。
+  {
+    path: '/admin/pricing-page',
+    redirect: { path: '/admin/page-content', query: { tab: 'pricing' } }
   },
   {
     path: '/admin/login-page',
-    name: 'AdminLoginPage',
-    component: () => import('@/views/admin/LoginPageView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Login Page Content',
-      titleKey: 'admin.loginPage.title',
-      descriptionKey: 'admin.loginPage.description'
-    }
+    redirect: { path: '/admin/page-content', query: { tab: 'login' } }
   },
   {
     path: '/admin/announcements',
