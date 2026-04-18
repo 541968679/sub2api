@@ -52,10 +52,32 @@
             </div>
           </div>
 
+          <!-- LiteLLM 标准价格参考 -->
+          <div v-if="item.model && modelInfoMap.get(item.model)" class="mb-3 rounded-md bg-blue-50 dark:bg-blue-900/20 p-2 text-xs">
+            <div class="font-medium text-blue-700 dark:text-blue-300 mb-1">{{ t('admin.users.litellmReference') }}</div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1 text-blue-600 dark:text-blue-400">
+              <span>{{ t('admin.modelPricing.inputPrice') }}: {{ getSuggestedMTok(item, 'input_price') ?? '-' }}</span>
+              <span>{{ t('admin.modelPricing.outputPrice') }}: {{ getSuggestedMTok(item, 'output_price') ?? '-' }}</span>
+              <span>{{ t('admin.modelPricing.cacheWritePrice') }}: {{ getSuggestedMTok(item, 'cache_write_price') ?? '-' }}</span>
+              <span>{{ t('admin.modelPricing.cacheReadPrice') }}: {{ getSuggestedMTok(item, 'cache_read_price') ?? '-' }}</span>
+              <span class="text-blue-400">($/MTok)</span>
+            </div>
+          </div>
+
           <div class="grid grid-cols-2 gap-4">
             <!-- 真实计费 -->
             <div class="space-y-2">
-              <h5 class="text-xs font-semibold text-gray-500 uppercase">{{ t('admin.users.billingPriceOverride') }}</h5>
+              <div class="flex items-center justify-between">
+                <h5 class="text-xs font-semibold text-gray-500 uppercase">{{ t('admin.users.billingPriceOverride') }}</h5>
+                <button
+                  v-if="item.model && modelInfoMap.get(item.model)"
+                  @click="applySuggestedBilling(item)"
+                  type="button"
+                  class="text-[10px] text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 underline"
+                >
+                  {{ t('admin.users.applySuggested') }}
+                </button>
+              </div>
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.inputPrice') }}</label>
@@ -82,7 +104,17 @@
 
             <!-- 展示覆盖 -->
             <div class="space-y-2">
-              <h5 class="text-xs font-semibold text-gray-500 uppercase">{{ t('admin.users.displayPriceOverride') }}</h5>
+              <div class="flex items-center justify-between">
+                <h5 class="text-xs font-semibold text-gray-500 uppercase">{{ t('admin.users.displayPriceOverride') }}</h5>
+                <button
+                  v-if="item.model && modelInfoMap.get(item.model)"
+                  @click="applySuggestedDisplay(item)"
+                  type="button"
+                  class="text-[10px] text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 underline"
+                >
+                  {{ t('admin.users.applySuggested') }}
+                </button>
+              </div>
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayInputPrice') }}</label>
@@ -183,11 +215,27 @@ interface OverrideRow {
 const props = defineProps<{ show: boolean; user: AdminUser | null }>()
 const emit = defineEmits(['close', 'success'])
 
+interface ModelInfo {
+  model: string
+  provider: string
+  input_price: number | null
+  output_price: number | null
+  cache_write_price: number | null
+  cache_read_price: number | null
+}
+
 const loading = ref(false)
 const saving = ref(false)
 const overrides = ref<OverrideRow[]>([])
 const originalIds = ref<Set<number>>(new Set())
-const availableModels = ref<Array<{ model: string; provider: string }>>([])
+const availableModels = ref<ModelInfo[]>([])
+const modelInfoMap = computed(() => {
+  const m = new Map<string, ModelInfo>()
+  for (const info of availableModels.value) {
+    m.set(info.model, info)
+  }
+  return m
+})
 
 const modelOptions = computed(() => {
   const seen = new Set<string>()
@@ -217,10 +265,46 @@ async function loadAvailableModels() {
     availableModels.value = (result.items || []).map((i: any) => ({
       model: i.model,
       provider: i.provider || '',
+      input_price: i.litellm_prices?.input_price ?? null,
+      output_price: i.litellm_prices?.output_price ?? null,
+      cache_write_price: i.litellm_prices?.cache_write_price ?? null,
+      cache_read_price: i.litellm_prices?.cache_read_price ?? null,
     }))
   } catch (e) {
     console.error('[UserModelPricing] failed to load model list:', e)
   }
+}
+
+/**
+ * 获取选中模型的 LiteLLM 标准价格，格式化为 $/MTok 用于表单填充。
+ * 若该字段没有 LiteLLM 价格则返回 null。
+ */
+function getSuggestedMTok(item: OverrideRow, field: 'input_price' | 'output_price' | 'cache_write_price' | 'cache_read_price'): number | null {
+  const info = modelInfoMap.value.get(item.model)
+  if (!info) return null
+  const perToken = info[field]
+  if (perToken == null) return null
+  return perTokenToMTok(perToken) ?? null
+}
+
+function applySuggestedBilling(item: OverrideRow) {
+  const fields: Array<'input_price' | 'output_price' | 'cache_write_price' | 'cache_read_price'> = [
+    'input_price', 'output_price', 'cache_write_price', 'cache_read_price',
+  ]
+  for (const f of fields) {
+    const v = getSuggestedMTok(item, f)
+    if (v != null) item[f] = v
+  }
+}
+
+function applySuggestedDisplay(item: OverrideRow) {
+  const inputMTok = getSuggestedMTok(item, 'input_price')
+  if (inputMTok != null) item.display_input_price = inputMTok
+  const outputMTok = getSuggestedMTok(item, 'output_price')
+  if (outputMTok != null) item.display_output_price = outputMTok
+  const cacheReadMTok = getSuggestedMTok(item, 'cache_read_price')
+  if (cacheReadMTok != null) item.display_cache_read_price = cacheReadMTok
+  if (!item.display_rate_multiplier) item.display_rate_multiplier = 1
 }
 
 watch(

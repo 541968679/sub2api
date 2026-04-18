@@ -1560,6 +1560,8 @@ export default {
       noModelOverrides: '尚未为此用户配置模型定价覆盖。',
       notesPlaceholder: '备注（可选）',
       duplicateModelError: '以下模型存在重复配置，请合并后再保存：{models}',
+      litellmReference: 'LiteLLM 标准价格',
+      applySuggested: '应用建议',
       groupConfigUpdated: '分组配置更新成功',
       replaceGroup: '替换分组',
       clickToReplace: '点击替换分组',

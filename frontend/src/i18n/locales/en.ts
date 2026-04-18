@@ -1497,6 +1497,8 @@ export default {
       noModelOverrides: 'No model pricing overrides configured for this user.',
       notesPlaceholder: 'Notes (optional)',
       duplicateModelError: 'Duplicate configurations detected for: {models}',
+      litellmReference: 'LiteLLM Reference Prices',
+      applySuggested: 'Apply Suggested',
       displayRatePlaceholder: 'Empty',
       groupConfigUpdated: 'Group configuration updated successfully',
       replaceGroup: 'Replace Group',
