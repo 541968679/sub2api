@@ -116,7 +116,7 @@ make secret-scan          # Python security scanner
 
 ## Key Development Rules
 
-1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. Push to origin after commit.
+1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. **Do NOT `git push` or deploy to production without explicit user permission** — local commits are fine, but pushing to `origin` (the fork, which drives production deploys) and running `deploy/remote_exec.py` both require the user to say "push"/"deploy" (or equivalent) for this specific change. A one-time earlier approval does not carry over to future commits.
 2. **Every change must be logged** — append an entry to `docs/dev/CHANGELOG_CUSTOM.md` describing what changed, why, and which files were affected.
 3. **Exploration results → Codebase Map** — after deep exploration of a module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code.
 4. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
