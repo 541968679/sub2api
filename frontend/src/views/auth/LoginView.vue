@@ -342,6 +342,9 @@ const siteName = computed(() => appStore.siteName || 'ZeroCode')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 const docUrl = computed(() => appStore.docUrl)
+// Read payment rate from the store so the server-injected window.__APP_CONFIG__
+// is used synchronously on first paint, avoiding a fallback→real-value flash.
+const paymentCnyPerUsd = computed(() => appStore.paymentCnyPerUsd || 0)
 
 // ==================== Model Cards ====================
 
@@ -383,7 +386,6 @@ const backendModeEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
 const oidcOAuthProviderName = ref<string>('OIDC')
 const passwordResetEnabled = ref<boolean>(false)
-const paymentCnyPerUsd = ref<number>(0)
 
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -429,7 +431,6 @@ onMounted(async () => {
     oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
     backendModeEnabled.value = settings.backend_mode_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
-    paymentCnyPerUsd.value = Number(settings.payment_cny_per_usd) || 0
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }

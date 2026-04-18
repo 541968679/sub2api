@@ -30,6 +30,7 @@ export const useAppStore = defineStore('app', () => {
   const contactInfo = ref<string>('')
   const apiBaseUrl = ref<string>('')
   const docUrl = ref<string>('')
+  const paymentCnyPerUsd = ref<number>(0)
   const cachedPublicSettings = ref<PublicSettings | null>(null)
 
   // Version cache state
@@ -294,6 +295,7 @@ export const useAppStore = defineStore('app', () => {
     contactInfo.value = config.contact_info || ''
     apiBaseUrl.value = config.api_base_url || ''
     docUrl.value = config.doc_url || ''
+    paymentCnyPerUsd.value = Number(config.payment_cny_per_usd) || 0
     publicSettingsLoaded.value = true
   }
 
@@ -400,6 +402,7 @@ export const useAppStore = defineStore('app', () => {
     contactInfo,
     apiBaseUrl,
     docUrl,
+    paymentCnyPerUsd,
     cachedPublicSettings,
 
     // Version state
