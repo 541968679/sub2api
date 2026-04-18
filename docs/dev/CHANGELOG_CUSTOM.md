@@ -89,6 +89,40 @@
 
 ---
 
+## [2026-04-18] feat(login-page): 管理员可编辑登录页文案
+
+**影响范围**:
+- `backend/internal/service/domain_constants.go` — 新增 8 个 `SettingKeyLoginPage*` 常量
+- `backend/internal/service/settings_view.go` — `LoginPageContent` 结构（json tag + `IsEmpty`）；`PublicSettings.LoginPage *LoginPageContent`
+- `backend/internal/service/setting_service.go` — `GetPublicSettings` 加 8 个 key 到批量读取列表；新增 `buildLoginPageContent`（空字段 trim 后整体 nil 化）；`GetPublicSettingsForInjection` 的匿名 struct 也加 `login_page`
+- `backend/internal/handler/dto/settings.go` — `PublicSettings` DTO 加 `LoginPage *LoginPageContent`；新增 `dto.LoginPageContent`
+- `backend/internal/handler/setting_handler.go` — 公开 `/settings/public` 输出映射 + `toDTOLoginPageContent` 辅助函数
+- `backend/internal/handler/admin/login_page_handler.go` — 新增：GET/PUT `/admin/login-page/content`；字段级 trim + 长度校验（short 255 / long 500）
+- `backend/internal/handler/handler.go` + `wire.go` + `backend/cmd/server/wire_gen.go` — `AdminHandlers.LoginPage` + provider，手动插入 wire_gen 与 pricing-page 保持同一模式
+- `backend/internal/server/routes/admin.go` — `registerLoginPageRoutes`
+- `frontend/src/api/loginPage.ts` — 新增 API client（`getAdminLoginPageContent` / `updateAdminLoginPageContent` / `resetAdminLoginPageContent`）
+- `frontend/src/api/index.ts` — 导出
+- `frontend/src/types/index.ts` — `LoginPageContent` 接口；`PublicSettings.login_page?` 可选字段
+- `frontend/src/views/auth/LoginView.vue` — 8 处 `t('auth.login.xxx')` 替换为 `loginXxx` computed；每个 computed 都用 `pickLoginText` 做 fallback（空串/未定义时用 i18n 原文）
+- `frontend/src/views/admin/LoginPageView.vue` — 新增管理员编辑页：3 个小分组（营销/模型区/登录框）8 个字段表单 + 预览链接 + 保存 + 恢复默认（带 confirm）；保存/恢复后触发 `appStore.fetchPublicSettings(true)` 立刻让其他未刷新的页面看到新值
+- `frontend/src/components/layout/AppSidebar.vue` — `adminNavItems` 增加「登录页文案」入口
+- `frontend/src/router/index.ts` — `/admin/login-page` 路由
+- `frontend/src/i18n/locales/{zh,en}.ts` — `nav.loginPage` + `admin.loginPage.*`（title/description/preview/fallbackHint/sections/fields 8 项/save/reset/reset-confirm）
+
+**上游兼容性**: 中。`PublicSettings` 结构被扩展（service + DTO + TS 类型），上游若将来改动这个结构需要同步；新增 key 命名用 `login_page.*` 命名空间，不与既有 key 冲突。路由 / handler / 前端文件都是新增，不覆盖上游。`wire_gen.go` 仍需手动合并。
+
+**变更详情**:
+1. 8 个 settings key（`login_page.badge` / `heading_line1` / `heading_line2` / `description` / `supported_models_title` / `models_desc` / `form_title` / `form_subtitle`）一一对应 i18n `auth.login.*` 里的营销文案字段。
+2. 任意字段空字符串 → 后端返回的 `LoginPage` 子结构为 nil（`omitempty` 整体 omit），前端拿不到就继续用 `t('auth.login.xxx')`，中英切换自动生效。
+3. 管理员保存后调用 `appStore.fetchPublicSettings(true)` 强制重新拉取 public settings，避免其他已打开的页面看到旧版。
+4. 「恢复默认」= 批量写入空串，不是物理删 key；语义更明确，且不用加删除接口。
+5. SSR 注入的 `window.__APP_CONFIG__` 也同步更新（`GetPublicSettingsForInjection`），首次渲染登录页就是最终文案，不闪屏。
+6. 验证：`curl /api/v1/settings/public | grep login_page` → 未保存时无 key；登录后 `curl /admin/login-page/content` 返回 8 字段全空对象；保存后 public 接口开始返回 `login_page` 子结构。
+
+**关联 Issue/PR**: 本地二开需求（续「模型计价页文案」）
+
+---
+
 ## [2026-04-18] fix(pricing-page): 管理员编辑页未保存时预填默认文案
 
 **影响范围**:
