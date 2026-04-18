@@ -89,6 +89,29 @@
 
 ---
 
+## [2026-04-18] refactor(page-content): 合并「计价页文案」和「登录页文案」为统一 Tab 页
+
+**影响范围**:
+- `frontend/src/views/admin/PageContentView.vue` — 新增合并父视图：`AppLayout` + 共享头部 + 两个 tab（模型计价页 / 登录页） + `?tab=pricing|login` URL 同步 + `<KeepAlive>` 保留表单输入不丢失
+- `frontend/src/components/admin/page-content/PricingContentForm.vue` — 由 `PricingPageView.vue` 剥出 AppLayout/页标题后得到，仅保留提示卡、两段 textarea、保存按钮
+- `frontend/src/components/admin/page-content/LoginContentForm.vue` — 由 `LoginPageView.vue` 剥出 AppLayout/页标题后得到，保留三组 8 字段 + 清空/保存/预览
+- `frontend/src/views/admin/PricingPageView.vue`、`frontend/src/views/admin/LoginPageView.vue` — 删除
+- `frontend/src/router/index.ts` — 新 `/admin/page-content` 路由；`/admin/pricing-page`、`/admin/login-page` 保留为 redirect 到新路径并带上 `?tab=` 参数，老书签不失效
+- `frontend/src/components/layout/AppSidebar.vue` — 管理员侧边栏去掉两条旧项，合成一条「页面文案」
+- `frontend/src/i18n/locales/{zh,en}.ts` — 删 `nav.pricingPage` / `nav.loginPage`；新增 `nav.pageContent` + `admin.pageContent.{title,description,tabs.{pricing,login}}`；保留 `admin.pricingPage.*` / `admin.loginPage.*`（两个子组件仍然消费）
+
+**上游兼容性**: 低。只动前端，后端 handler 和设置 key 不变。
+
+**变更详情**:
+1. 合并动机：两块都是「前台页面文案管理」，拆两个侧边栏条目偏冗余；未来如果还要加新页面（例如仪表盘、404 页）统一放进这个 tab 页即可。
+2. Tab 切换通过 URL `?tab=...` 同步，便于深链接 + 浏览器前进/后退；未指定时默认 `pricing`。
+3. `<KeepAlive>` 保留子组件状态，用户在两个 tab 之间切换时未保存的编辑不会丢。
+4. 老路径保留 redirect 到新路径，旧书签平滑过渡。
+
+**关联 Issue/PR**: 本地二开需求（紧接两次文案功能合并）
+
+---
+
 ## [2026-04-18] feat(login-page): 管理员可编辑登录页文案
 
 **影响范围**:
