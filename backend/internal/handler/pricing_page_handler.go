@@ -14,26 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 默认文案（首次部署 settings 里还没写入时返回给前端）。
-// 管理员在后台保存后会覆盖这两段；用户始终看到后台最新的值。
-const (
-	defaultPricingPageIntro = `## 本站计价模式
-
-我们按 **原厂真实 Token 计价**：每个模型的输入、输出、缓存读取单价都与上游（Anthropic / OpenAI / Google 等）官方价格一致，不加价、不打包、不隐藏倍率。
-
-每一次调用的花费都能在「使用记录」里逐条还原——看得见每一 Token，算得清每一分钱。`
-
-	defaultPricingPageEducation = `## 几种常见计价模式对比
-
-| 模式 | 描述 | 问题 |
-|------|------|------|
-| **按次计费** | 不管请求多大，每次固定扣一个单位 | 短请求亏，长请求白嫖；平台为了不亏必须把单价定得很高 |
-| **统一 Token 价** | 所有模型用同一个假 Token 单价 | 便宜模型被拉贵、昂贵模型被藏起来；用户永远不知道真实成本 |
-| **包月不限量** | 预付费换"无限" | 实际限流、降智、偷偷换小模型；到头来你根本不知道自己在用什么 |
-| **本站：按原厂 Token 计价** | 与官方单价完全一致，按消耗扣费 | —— |
-
-**我们的目标**：让你像用官方 API 一样透明地消费，同时享受多账号聚合、统一鉴权、自动故障转移带来的便利。`
-)
+// 默认文案见 admin.DefaultPricingPageIntro / admin.DefaultPricingPageEducation，
+// admin 的 Get 接口与这里共用同一份常量，管理员编辑页里看到的就是用户此刻实际看到的内容。
 
 // PricingPageHandler 用户侧「模型计价」页面聚合接口处理器。
 // 一次 HTTP 请求返回：两段 Markdown 文案 + 按平台分组的展示价格表。
@@ -92,12 +74,12 @@ func (h *PricingPageHandler) Get(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// 1. 文案
-	intro, err := h.loadContent(ctx, admin.SettingKeyPricingPageIntro, defaultPricingPageIntro)
+	intro, err := h.loadContent(ctx, admin.SettingKeyPricingPageIntro, admin.DefaultPricingPageIntro)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	edu, err := h.loadContent(ctx, admin.SettingKeyPricingPageEducation, defaultPricingPageEducation)
+	edu, err := h.loadContent(ctx, admin.SettingKeyPricingPageEducation, admin.DefaultPricingPageEducation)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

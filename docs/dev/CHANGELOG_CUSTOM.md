@@ -78,6 +78,20 @@
 
 ---
 
+## [2026-04-18] fix(pricing-page): 管理员编辑页未保存时预填默认文案
+
+**影响范围**:
+- `backend/internal/handler/admin/pricing_page_handler.go` — 导出 `DefaultPricingPageIntro` / `DefaultPricingPageEducation` 常量；`Get` 在 settings 未写 / 空串时回落到默认值；`loadValue` 多一个 fallback 入参
+- `backend/internal/handler/pricing_page_handler.go` — 删掉本地默认常量，复用 `admin.Default*`
+
+**上游兼容性**: 低。纯字段级调整，无 schema / 路由变化。
+
+**变更详情**: 原先管理员进编辑页时 settings 里还没写入，两个 textarea 都是空的，但用户计价页又显示的是 handler 内置默认文案，导致「编辑不到用户看到的东西」。现在 admin Get 接口与用户侧共用同一份常量，管理员第一次进来就能看到「用户此刻实际在看的内容」，直接改就行。
+
+**关联 Issue/PR**: 本地二开需求（上条变更的后续）
+
+---
+
 ## [2026-04-18] feat(pricing-page): 新增用户「模型计价」页 + 管理员可编辑文案
 
 **影响范围**:
