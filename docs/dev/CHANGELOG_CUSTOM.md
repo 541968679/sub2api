@@ -19,6 +19,44 @@
 
 ## 变更记录
 
+## [2026-04-18] feat(pricing-page): 新增用户「模型计价」页 + 管理员可编辑文案
+
+**影响范围**:
+- `backend/migrations/109_add_show_on_pricing_page.sql` — `global_model_pricing` 新增 `show_on_pricing_page BOOLEAN`
+- `backend/internal/service/global_model_pricing.go` — `GlobalModelPricing` 加 `ShowOnPricingPage` 字段；接口新增 `ListForPricingPage`
+- `backend/internal/repository/global_model_pricing_repo.go` — 所有 SELECT/INSERT/UPDATE 同步新字段；新增 `ListForPricingPage`
+- `backend/internal/service/global_model_pricing_service.go` — `GlobalOverride` DTO 加 `show_on_pricing_page`；`ToGlobalOverride` 同步；新增 `ListForPricingPage` 方法
+- `backend/internal/handler/admin/model_pricing_handler.go` — Create/Update 请求 DTO 加 `show_on_pricing_page *bool`
+- `backend/internal/handler/admin/pricing_page_handler.go` — 新增：GET/PUT `/admin/pricing-page/content`，读写 `settings` KV 两个 key
+- `backend/internal/handler/pricing_page_handler.go` — 新增用户侧：GET `/user/pricing-page`，聚合两段文案 + 按 provider 分组的展示价格
+- `backend/internal/handler/handler.go` — `AdminHandlers.PricingPage`、`Handlers.PricingPage` 新字段
+- `backend/internal/handler/wire.go` — 注册 `NewPricingPageHandler` / `NewPricingPageAdminHandler`
+- `backend/cmd/server/wire_gen.go` — 手动编排新 handler 依赖（`go generate` 在主干已预先失败，按现有模式插入）
+- `backend/internal/server/routes/admin.go` — `registerPricingPageRoutes`
+- `backend/internal/server/routes/user.go` — 注册 `/user/pricing-page`
+- `frontend/src/api/pricingPage.ts` — 新增 API client（用户 Get + 管理员 Get/Update）
+- `frontend/src/api/index.ts` — 导出 `pricingPageAPI`
+- `frontend/src/api/admin/modelPricing.ts` — `GlobalOverride`/`CreateOverrideRequest`/`UpdateOverrideRequest` 加 `show_on_pricing_page`
+- `frontend/src/views/user/PricingView.vue` — 新增用户页：三节内容（本站计价模式 / 计价模式科普 / 按平台分组的价格表），Markdown 用 `marked@17` + `DOMPurify` 渲染
+- `frontend/src/views/admin/PricingPageView.vue` — 新增管理员页：两段 textarea 编辑 + 保存 + 指向模型配置的引导
+- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue` — 编辑对话框加「在计价页展示」开关
+- `frontend/src/components/layout/AppSidebar.vue` — 用户/个人侧边栏新增「模型计价」菜单；管理员侧边栏新增「计价页文案」入口；新增 `PriceTagIcon`
+- `frontend/src/router/index.ts` — 新增 `/pricing` 与 `/admin/pricing-page` 路由
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `pricing.*`、`admin.pricingPage.*`、`admin.modelPricing.showOnPricingPage` 键以及 `nav.modelPricing`、`nav.pricingPage`
+
+**上游兼容性**: 中。新增字段 `show_on_pricing_page` 位于 `global_model_pricing` 表，迁移是 additive，上游若将来对该表结构做改动需手动合并。Handler / 路由均为新增，不覆盖上游文件的既有路径。`wire_gen.go` 手动编辑（因主干 Wire 生成预先失败，`ProvidePaymentConfigService` 等重复绑定），合并上游时需留意。
+
+**变更详情**:
+1. 管理员可在「模型配置 → 模型详情」里勾选「在计价页展示」，控制哪些模型出现在用户侧的计价页，独立于计费 `enabled` 开关。
+2. 管理员可在 `/admin/pricing-page` 编辑两段 Markdown 文案（本站计价模式、计价模式科普），保存到 `settings` 表的 `pricing_page.intro_markdown` / `pricing_page.education_markdown` 两个 key。未保存时用户侧回落到 handler 内置默认文案。
+3. 用户 `/pricing` 页一次拉取聚合接口：返回两段文案 + 按 provider 分组的展示价格表。展示价的优先级：用户级 display override > 全局 display override > 真实单价（fallback）。
+4. 价格表 per-token 价按 $/MTok 显示，per_request 按 $/次 显示。
+5. i18n 已补 zh/en 完整键值。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
 ## [2026-04-17] feat(billing): 用户级模型定价覆盖 (User Model Pricing Override)
 
 **影响范围**:
