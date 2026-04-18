@@ -18,6 +18,13 @@ export { paymentAPI } from './payment'
 export { userGroupsAPI } from './groups'
 export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
+export {
+  pricingPageAPI,
+  type PricingPageData,
+  type PricingPagePlatform,
+  type PricingPageModel,
+  type PricingPageContent
+} from './pricingPage'
 
 // Admin APIs
 export { adminAPI } from './admin'

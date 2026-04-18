@@ -333,6 +333,8 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
+    modelPricing: '模型计价',
+    pricingPage: '计价页文案',
     redeem: '兑换',
     profile: '个人资料',
     users: '用户管理',
@@ -764,6 +766,32 @@ export default {
       inactive: '已停用',
       quota_exhausted: '额度耗尽',
       expired: '已过期'
+    }
+  },
+
+  // Model Pricing Page (user-facing)
+  pricing: {
+    title: '模型计价',
+    description: '本站计价模式说明、计价模式对比，以及各平台模型的展示价格',
+    introTitle: '本站计价模式',
+    educationTitle: '计价模式科普',
+    tableTitle: '模型价格一览表',
+    modelsSuffix: '个模型',
+    unitHint: '展示价格单位：Token 计费以「$/百万 Token」显示；按次计费以「$/次」显示。',
+    perRequestUnit: '次',
+    emptyState: '管理员尚未配置要展示的模型。',
+    columns: {
+      model: '模型',
+      billingMode: '计费模式',
+      inputPrice: '输入价 $/MTok',
+      outputPrice: '输出价 $/MTok',
+      cacheReadPrice: '缓存读取 $/MTok',
+      multiplier: '倍率'
+    },
+    billingMode: {
+      perToken: '按 Token',
+      perRequest: '按次',
+      image: '按图片'
     }
   },
 
@@ -2116,6 +2144,23 @@ export default {
       }
     },
 
+    // Pricing Page Content (admin-edited)
+    pricingPage: {
+      title: '模型计价页文案',
+      description: '编辑用户「模型计价」页面上展示的两段 Markdown 文案。模型可见性开关在各模型的配置详情中。',
+      introLabel: '本站计价模式',
+      introHint: '第一段文案：简述本站的计价方式和定位。支持 Markdown。',
+      introPlaceholder: '例如：我们按原厂真实 Token 计价，不加价、不打包……',
+      educationLabel: '计价模式科普',
+      educationHint: '第二段文案：对比几种计价模式的差异，突出本站的透明与良心。支持 Markdown。',
+      educationPlaceholder: '例如：对比按次计费、按统一 Token 价、包月等模式……',
+      saveButton: '保存',
+      saveSuccess: '文案已保存',
+      previewButton: '预览用户页',
+      modelSelectHint: '要控制哪些模型出现在计价页，请前往「模型配置」页打开每个模型的详情，勾选「在计价页展示」。',
+      modelConfigLink: '去模型配置'
+    },
+
     // Model Config
     modelConfig: {
       title: '模型配置',
@@ -2174,6 +2219,8 @@ export default {
       defaultPrices: '默认价格',
       globalOverride: '全局覆盖',
       enabled: '启用',
+      showOnPricingPage: '在计价页展示',
+      showOnPricingPageHint: '勾选后此模型会出现在用户「模型计价」页价格表中，与计费启用开关解耦',
       notes: '备注',
       displayPricingTitle: '用户展示设置',
       displayPricingHint: '仅影响用户使用记录中的展示，不影响实际计费。留空 = 展示真实值。',

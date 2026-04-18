@@ -333,6 +333,8 @@ export default {
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
+    modelPricing: 'Model Pricing',
+    pricingPage: 'Pricing Page Content',
     redeem: 'Redeem',
     profile: 'Profile',
     users: 'Users',
@@ -761,6 +763,32 @@ export default {
       quota_exhausted: 'Quota Exhausted',
       expired: 'Expired',
     },
+  },
+
+  // Model Pricing Page (user-facing)
+  pricing: {
+    title: 'Model Pricing',
+    description: 'How we price models, how our model compares to common alternatives, and the display price for every exposed model.',
+    introTitle: 'Our Pricing Model',
+    educationTitle: 'Pricing Models Explained',
+    tableTitle: 'Model Price Reference',
+    modelsSuffix: 'models',
+    unitHint: 'Units: token-based billing shown per 1M tokens ($/MTok); per-request shown per call.',
+    perRequestUnit: 'request',
+    emptyState: 'No models have been exposed on this page yet.',
+    columns: {
+      model: 'Model',
+      billingMode: 'Billing',
+      inputPrice: 'Input $/MTok',
+      outputPrice: 'Output $/MTok',
+      cacheReadPrice: 'Cache Read $/MTok',
+      multiplier: 'Multiplier'
+    },
+    billingMode: {
+      perToken: 'Per token',
+      perRequest: 'Per request',
+      image: 'Per image'
+    }
   },
 
   // Usage
@@ -2038,6 +2066,23 @@ export default {
       }
     },
 
+    // Pricing Page Content (admin-edited)
+    pricingPage: {
+      title: 'Pricing Page Content',
+      description: 'Edit the two Markdown sections shown on the user Model Pricing page. Model visibility is configured per model in Model Config.',
+      introLabel: 'Our Pricing Model',
+      introHint: 'First section: explain how this site bills (real-token pricing). Markdown is supported.',
+      introPlaceholder: 'e.g. We price at the real per-token rates from Anthropic / OpenAI / Google…',
+      educationLabel: 'Pricing Models Explained',
+      educationHint: 'Second section: compare common pricing models and highlight the fairness of this one. Markdown is supported.',
+      educationPlaceholder: 'e.g. Compare per-request, flat-token, unlimited-plan pricing schemes…',
+      saveButton: 'Save',
+      saveSuccess: 'Content saved',
+      previewButton: 'Preview user page',
+      modelSelectHint: 'To control which models appear on the pricing page, open each model in Model Config and toggle "Show on pricing page".',
+      modelConfigLink: 'Open Model Config'
+    },
+
     // Model Config
     modelConfig: {
       title: 'Model Config',
@@ -2096,6 +2141,8 @@ export default {
       defaultPrices: 'Default Prices',
       globalOverride: 'Global Override',
       enabled: 'Enabled',
+      showOnPricingPage: 'Show on pricing page',
+      showOnPricingPageHint: 'When checked, this model appears in the user-facing Model Pricing page. Independent of the billing-enabled switch.',
       notes: 'Notes',
       displayPricingTitle: 'User Display Overrides',
       displayPricingHint: 'Only affects user-facing usage log display, not actual billing. Leave blank = show real values.',

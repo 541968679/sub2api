@@ -163,6 +163,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/pricing',
+    name: 'Pricing',
+    component: () => import('@/views/user/PricingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Model Pricing',
+      titleKey: 'pricing.title',
+      descriptionKey: 'pricing.description'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
@@ -381,6 +393,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Model Config',
       titleKey: 'admin.modelConfig.title',
       descriptionKey: 'admin.modelConfig.description'
+    }
+  },
+  {
+    path: '/admin/pricing-page',
+    name: 'AdminPricingPage',
+    component: () => import('@/views/admin/PricingPageView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Pricing Page Content',
+      titleKey: 'admin.pricingPage.title',
+      descriptionKey: 'admin.pricingPage.description'
     }
   },
   {
