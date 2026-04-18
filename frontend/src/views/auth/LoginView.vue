@@ -40,17 +40,17 @@
             <!-- Badge + Heading -->
             <div>
               <span class="inline-block rounded-[20px] bg-[#ECFFF9] px-4 py-2 text-[13px] font-extrabold tracking-wide text-[#0D2A3C]">
-                {{ t('auth.login.badge') }}
+                {{ loginBadge }}
               </span>
 
               <h1 class="mt-8 text-[40px] font-extrabold leading-[1.15] text-white xl:text-[48px]">
-                {{ t('auth.login.headingLine1') }}
+                {{ loginHeading1 }}
               </h1>
               <h1 class="text-[40px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[48px]">
-                {{ t('auth.login.headingLine2') }}
+                {{ loginHeading2 }}
               </h1>
               <p class="mt-3 max-w-[540px] text-sm leading-relaxed text-[#A9BDCF]">
-                {{ t('auth.login.description') }}
+                {{ loginDescription }}
               </p>
 
               <!-- Feature Pills -->
@@ -69,7 +69,7 @@
 
             <!-- Supported Models -->
             <div>
-              <p class="mb-3 text-sm font-bold text-[#EAF6FF]">{{ t('auth.login.supportedModels') }}</p>
+              <p class="mb-3 text-sm font-bold text-[#EAF6FF]">{{ loginSupportedModelsTitle }}</p>
               <div class="grid grid-cols-3 gap-2.5">
                 <div
                   v-for="channel in modelChannels"
@@ -105,7 +105,7 @@
                   </div>
                 </div>
               </div>
-              <p class="mt-2 text-xs text-[#7A95AD]">{{ t('auth.login.modelsDesc') }}</p>
+              <p class="mt-2 text-xs text-[#7A95AD]">{{ loginModelsDesc }}</p>
 
               <!-- Feature Cards -->
               <div class="mt-3 flex flex-wrap gap-2.5">
@@ -138,8 +138,8 @@
               </div>
 
               <!-- Title -->
-              <h2 class="text-[28px] font-extrabold text-[#F6FBFF]">{{ t('auth.login.title') }}</h2>
-              <p class="mt-2 text-[14px] text-[#8EA6BD]">{{ t('auth.login.subtitle') }}</p>
+              <h2 class="text-[28px] font-extrabold text-[#F6FBFF]">{{ loginFormTitle }}</h2>
+              <p class="mt-2 text-[14px] text-[#8EA6BD]">{{ loginFormSubtitle }}</p>
 
               <!-- Login Form -->
               <form class="mt-8" @submit.prevent="handleLogin">
@@ -345,6 +345,24 @@ const docUrl = computed(() => appStore.docUrl)
 // Read payment rate from the store so the server-injected window.__APP_CONFIG__
 // is used synchronously on first paint, avoiding a fallback→real-value flash.
 const paymentCnyPerUsd = computed(() => appStore.paymentCnyPerUsd || 0)
+
+// ==================== Login Page Content Overrides ====================
+// Admin-editable copy from settings (public). Empty / missing fields fall back
+// to the i18n defaults below, so deleting a field in admin = restoring the
+// original translation. Keeps every language correct without per-field branching.
+const loginPageOverrides = computed(() => appStore.cachedPublicSettings?.login_page ?? null)
+const pickLoginText = (value: string | undefined | null, fallback: string): string => {
+  const v = typeof value === 'string' ? value.trim() : ''
+  return v !== '' ? v : fallback
+}
+const loginBadge = computed(() => pickLoginText(loginPageOverrides.value?.badge, t('auth.login.badge')))
+const loginHeading1 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line1, t('auth.login.headingLine1')))
+const loginHeading2 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line2, t('auth.login.headingLine2')))
+const loginDescription = computed(() => pickLoginText(loginPageOverrides.value?.description, t('auth.login.description')))
+const loginSupportedModelsTitle = computed(() => pickLoginText(loginPageOverrides.value?.supported_models_title, t('auth.login.supportedModels')))
+const loginModelsDesc = computed(() => pickLoginText(loginPageOverrides.value?.models_desc, t('auth.login.modelsDesc')))
+const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.form_title, t('auth.login.title')))
+const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
 // ==================== Model Cards ====================
 

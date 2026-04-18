@@ -712,6 +712,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/model-config', label: t('nav.modelConfig'), icon: ModelConfigIcon },
     { path: '/admin/pricing-page', label: t('nav.pricingPage'), icon: PriceTagIcon },
+    { path: '/admin/login-page', label: t('nav.loginPage'), icon: PriceTagIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },

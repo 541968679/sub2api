@@ -335,6 +335,7 @@ export default {
     usage: 'Usage',
     modelPricing: 'Model Pricing',
     pricingPage: 'Pricing Page Content',
+    loginPage: 'Login Page Content',
     redeem: 'Redeem',
     profile: 'Profile',
     users: 'Users',
@@ -2080,6 +2081,34 @@ export default {
         },
         tip: 'Tip: Only groups with billing type "Subscription" and status "Active" appear in the group dropdown. If no options are available, create one in Group Management first.'
       }
+    },
+
+    // Login Page Content (admin-edited)
+    loginPage: {
+      title: 'Login Page Content',
+      description: 'Edit the marketing headings, description, and sign-in form labels on the login page. Leaving a field blank restores the translated default.',
+      preview: 'Preview login page',
+      fallbackHint: 'Empty fields automatically fall back to the current language\'s i18n default, so zh / en switching still works.',
+      sections: {
+        marketing: 'Left panel: marketing copy',
+        models: 'Supported models section',
+        form: 'Right panel: sign-in form'
+      },
+      fields: {
+        badge: 'Top badge',
+        headingLine1: 'Heading line 1',
+        headingLine2: 'Heading line 2 (accent)',
+        description: 'Description paragraph',
+        supportedModelsTitle: 'Models section title',
+        modelsDesc: 'Models section caption',
+        formTitle: 'Sign-in form title',
+        formSubtitle: 'Sign-in form subtitle'
+      },
+      saveButton: 'Save',
+      saveSuccess: 'Saved',
+      resetButton: 'Clear all (restore defaults)',
+      resetConfirm: 'Clear every field? The UI will fall back to the built-in translations.',
+      resetSuccess: 'Restored to defaults'
     },
 
     // Pricing Page Content (admin-edited)

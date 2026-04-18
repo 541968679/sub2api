@@ -408,6 +408,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/login-page',
+    name: 'AdminLoginPage',
+    component: () => import('@/views/admin/LoginPageView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Login Page Content',
+      titleKey: 'admin.loginPage.title',
+      descriptionKey: 'admin.loginPage.description'
+    }
+  },
+  {
     path: '/admin/announcements',
     name: 'AdminAnnouncements',
     component: () => import('@/views/admin/AnnouncementsView.vue'),

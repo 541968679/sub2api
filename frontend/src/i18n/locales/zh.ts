@@ -335,6 +335,7 @@ export default {
     usage: '使用记录',
     modelPricing: '模型计价',
     pricingPage: '计价页文案',
+    loginPage: '登录页文案',
     redeem: '兑换',
     profile: '个人资料',
     users: '用户管理',
@@ -2158,6 +2159,34 @@ export default {
         },
         tip: '提示：订阅分组下拉列表中只会显示计费类型为「订阅」且状态为「正常」的分组。如果没有可选项，请先到分组管理中创建。'
       }
+    },
+
+    // Login Page Content (admin-edited)
+    loginPage: {
+      title: '登录页文案',
+      description: '编辑登录页上的营销标题、描述和登录框标题。字段留空即恢复默认翻译。',
+      preview: '预览登录页',
+      fallbackHint: '任何字段留空时，前端会使用对应语言的 i18n 默认文案。中英切换不受影响。',
+      sections: {
+        marketing: '左栏：营销文案',
+        models: '模型展示区',
+        form: '右栏：登录框'
+      },
+      fields: {
+        badge: '顶部徽章',
+        headingLine1: '主标题第 1 行',
+        headingLine2: '主标题第 2 行（高亮色）',
+        description: '主标题下描述段',
+        supportedModelsTitle: '模型区标题',
+        modelsDesc: '模型区底部说明',
+        formTitle: '登录框标题',
+        formSubtitle: '登录框副标题'
+      },
+      saveButton: '保存',
+      saveSuccess: '已保存',
+      resetButton: '全部清空（恢复默认）',
+      resetConfirm: '确定清空所有字段吗？清空后前端会回落到 i18n 默认文案。',
+      resetSuccess: '已恢复默认'
     },
 
     // Pricing Page Content (admin-edited)

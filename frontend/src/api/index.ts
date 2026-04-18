@@ -25,6 +25,7 @@ export {
   type PricingPageModel,
   type PricingPageContent
 } from './pricingPage'
+export { loginPageAPI, type LoginPageContent } from './loginPage'
 
 // Admin APIs
 export { adminAPI } from './admin'
