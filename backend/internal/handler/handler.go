@@ -33,6 +33,7 @@ type AdminHandlers struct {
 	Channel               *admin.ChannelHandler
 	ModelPricing          *admin.ModelPricingHandler
 	UserModelPricing      *admin.UserModelPricingHandler
+	PricingPage           *admin.PricingPageHandler
 	Payment               *admin.PaymentHandler
 }
 
@@ -52,6 +53,7 @@ type Handlers struct {
 	Totp           *TotpHandler
 	Payment        *PaymentHandler
 	PaymentWebhook *PaymentWebhookHandler
+	PricingPage    *PricingPageHandler
 }
 
 // BuildInfo contains build-time information

@@ -90,5 +90,8 @@ func RegisterUserRoutes(
 			subscriptions.GET("/progress", h.Subscription.GetProgress)
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
+
+		// 模型计价页（两段文案 + 展示价格表，按 provider 分组）
+		authenticated.GET("/user/pricing-page", h.PricingPage.Get)
 	}
 }

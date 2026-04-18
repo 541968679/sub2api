@@ -103,6 +103,8 @@ type GlobalOverride struct {
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
+
+	ShowOnPricingPage bool `json:"show_on_pricing_page"`
 }
 
 // ModelPricingListResult 分页列表结果
@@ -824,6 +826,8 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 		DisplayCacheReadPrice: gp.DisplayCacheReadPrice,
 		DisplayRateMultiplier: gp.DisplayRateMultiplier,
 		CacheTransferRatio:    gp.CacheTransferRatio,
+
+		ShowOnPricingPage: gp.ShowOnPricingPage,
 	}
 }
 
@@ -831,4 +835,11 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 // Used by usage handlers to build the display pricing map.
 func (s *GlobalModelPricingService) GetAllEnabledPricings(ctx context.Context) ([]GlobalModelPricing, error) {
 	return s.repo.GetAllEnabled(ctx)
+}
+
+// ListForPricingPage 返回所有已启用且在「模型计价」页展示的模型。
+// 供用户侧 pricing-page 聚合接口调用，结果需再经 dto.BuildUserDisplayPricingMap
+// 合并用户级覆盖后展示给前端。
+func (s *GlobalModelPricingService) ListForPricingPage(ctx context.Context) ([]GlobalModelPricing, error) {
+	return s.repo.ListForPricingPage(ctx)
 }

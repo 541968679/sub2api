@@ -41,6 +41,8 @@ type createGlobalOverrideRequest struct {
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio" binding:"omitempty,min=0,max=1"`
+
+	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
 
 type updateGlobalOverrideRequest struct {
@@ -61,6 +63,8 @@ type updateGlobalOverrideRequest struct {
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
+
+	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
 
 // List 列出所有模型及其定价信息（合并 LiteLLM + 全局覆盖）
@@ -113,6 +117,10 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
+	showOnPricingPage := false
+	if req.ShowOnPricingPage != nil {
+		showOnPricingPage = *req.ShowOnPricingPage
+	}
 
 	pricing := &service.GlobalModelPricing{
 		Model:            req.Model,
@@ -132,6 +140,8 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 		DisplayCacheReadPrice: req.DisplayCacheReadPrice,
 		DisplayRateMultiplier: req.DisplayRateMultiplier,
 		CacheTransferRatio:    req.CacheTransferRatio,
+
+		ShowOnPricingPage: showOnPricingPage,
 	}
 
 	if err := h.svc.CreateOverride(c.Request.Context(), pricing); err != nil {
@@ -215,6 +225,9 @@ func (h *ModelPricingHandler) UpdateOverride(c *gin.Context) {
 	}
 	if req.CacheTransferRatio != nil {
 		existing.CacheTransferRatio = req.CacheTransferRatio
+	}
+	if req.ShowOnPricingPage != nil {
+		existing.ShowOnPricingPage = *req.ShowOnPricingPage
 	}
 
 	if err := h.svc.UpdateOverride(c.Request.Context(), existing); err != nil {

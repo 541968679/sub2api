@@ -36,6 +36,7 @@ func ProvideAdminHandlers(
 	channelHandler *admin.ChannelHandler,
 	modelPricingHandler *admin.ModelPricingHandler,
 	userModelPricingHandler *admin.UserModelPricingHandler,
+	pricingPageAdminHandler *admin.PricingPageHandler,
 	paymentHandler *admin.PaymentHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
@@ -66,6 +67,7 @@ func ProvideAdminHandlers(
 		Channel:               channelHandler,
 		ModelPricing:          modelPricingHandler,
 		UserModelPricing:      userModelPricingHandler,
+		PricingPage:           pricingPageAdminHandler,
 		Payment:               paymentHandler,
 	}
 }
@@ -96,6 +98,7 @@ func ProvideHandlers(
 	totpHandler *TotpHandler,
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
+	pricingPageHandler *PricingPageHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -114,6 +117,7 @@ func ProvideHandlers(
 		Totp:           totpHandler,
 		Payment:        paymentHandler,
 		PaymentWebhook: paymentWebhookHandler,
+		PricingPage:    pricingPageHandler,
 	}
 }
 
@@ -133,6 +137,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSettingHandler,
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
+	NewPricingPageHandler,
 
 	// Admin handlers
 	admin.NewDashboardHandler,
@@ -162,6 +167,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewChannelHandler,
 	admin.NewModelPricingHandler,
 	admin.NewUserModelPricingHandler,
+	admin.NewPricingPageAdminHandler,
 	admin.NewPaymentHandler,
 
 	// AdminHandlers and Handlers constructors

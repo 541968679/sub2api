@@ -91,6 +91,9 @@ func RegisterAdminRoutes(
 
 		// 模型定价管理
 		registerModelPricingRoutes(admin, h)
+
+		// 用户「模型计价」页文案管理
+		registerPricingPageRoutes(admin, h)
 	}
 }
 
@@ -582,5 +585,15 @@ func registerModelPricingRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		mp.POST("", h.Admin.ModelPricing.CreateOverride)
 		mp.PUT("/:id", h.Admin.ModelPricing.UpdateOverride)
 		mp.DELETE("/:id", h.Admin.ModelPricing.DeleteOverride)
+	}
+}
+
+// registerPricingPageRoutes 用户「模型计价」页面文案管理。两段 Markdown 存在 settings KV 里，
+// 可见模型列表由 global_model_pricing.show_on_pricing_page 控制，不在此处管理。
+func registerPricingPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	pp := admin.Group("/pricing-page")
+	{
+		pp.GET("/content", h.Admin.PricingPage.Get)
+		pp.PUT("/content", h.Admin.PricingPage.Update)
 	}
 }
