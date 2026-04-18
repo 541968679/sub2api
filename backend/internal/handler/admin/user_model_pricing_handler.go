@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strconv"
+	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -26,6 +27,7 @@ type createUserModelPricingRequest struct {
 	CacheReadPrice        *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
 	DisplayInputPrice     *float64 `json:"display_input_price" binding:"omitempty,min=0"`
 	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio" binding:"omitempty,min=0,max=1"`
 	Enabled               *bool    `json:"enabled"`
@@ -40,6 +42,7 @@ type updateUserModelPricingRequest struct {
 	CacheReadPrice        *float64 `json:"cache_read_price"`
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 	Enabled               *bool    `json:"enabled"`
@@ -86,15 +89,22 @@ func (h *UserModelPricingHandler) Create(c *gin.Context) {
 		enabled = *req.Enabled
 	}
 
+	model := strings.TrimSpace(req.Model)
+	if model == "" {
+		response.ErrorFrom(c, infraerrors.BadRequest("INVALID_MODEL", "Model name is required"))
+		return
+	}
+
 	o := &service.UserModelPricingOverride{
 		UserID:                userID,
-		Model:                 req.Model,
+		Model:                 model,
 		InputPrice:            req.InputPrice,
 		OutputPrice:           req.OutputPrice,
 		CacheWritePrice:       req.CacheWritePrice,
 		CacheReadPrice:        req.CacheReadPrice,
 		DisplayInputPrice:     req.DisplayInputPrice,
 		DisplayOutputPrice:    req.DisplayOutputPrice,
+		DisplayCacheReadPrice: req.DisplayCacheReadPrice,
 		DisplayRateMultiplier: req.DisplayRateMultiplier,
 		CacheTransferRatio:    req.CacheTransferRatio,
 		Enabled:               enabled,
@@ -134,7 +144,7 @@ func (h *UserModelPricingHandler) Update(c *gin.Context) {
 	}
 
 	if req.Model != "" {
-		existing.Model = req.Model
+		existing.Model = strings.TrimSpace(req.Model)
 	}
 	if req.InputPrice != nil {
 		existing.InputPrice = req.InputPrice
@@ -153,6 +163,9 @@ func (h *UserModelPricingHandler) Update(c *gin.Context) {
 	}
 	if req.DisplayOutputPrice != nil {
 		existing.DisplayOutputPrice = req.DisplayOutputPrice
+	}
+	if req.DisplayCacheReadPrice != nil {
+		existing.DisplayCacheReadPrice = req.DisplayCacheReadPrice
 	}
 	if req.DisplayRateMultiplier != nil {
 		existing.DisplayRateMultiplier = req.DisplayRateMultiplier
@@ -207,19 +220,24 @@ func (h *UserModelPricingHandler) BatchUpsert(c *gin.Context) {
 
 	overrides := make([]service.UserModelPricingOverride, 0, len(req.Overrides))
 	for _, r := range req.Overrides {
+		model := strings.TrimSpace(r.Model)
+		if model == "" {
+			continue // 静默跳过空模型名条目
+		}
 		enabled := true
 		if r.Enabled != nil {
 			enabled = *r.Enabled
 		}
 		overrides = append(overrides, service.UserModelPricingOverride{
 			UserID:                userID,
-			Model:                 r.Model,
+			Model:                 model,
 			InputPrice:            r.InputPrice,
 			OutputPrice:           r.OutputPrice,
 			CacheWritePrice:       r.CacheWritePrice,
 			CacheReadPrice:        r.CacheReadPrice,
 			DisplayInputPrice:     r.DisplayInputPrice,
 			DisplayOutputPrice:    r.DisplayOutputPrice,
+			DisplayCacheReadPrice: r.DisplayCacheReadPrice,
 			DisplayRateMultiplier: r.DisplayRateMultiplier,
 			CacheTransferRatio:    r.CacheTransferRatio,
 			Enabled:               enabled,

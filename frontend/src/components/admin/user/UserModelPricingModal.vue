@@ -33,12 +33,14 @@
         <!-- 覆盖列表 -->
         <div v-for="(item, idx) in overrides" :key="idx" class="rounded-xl border border-gray-200 p-4 dark:border-dark-600">
           <div class="flex items-center justify-between mb-3">
-            <input
-              v-model="item.model"
-              type="text"
-              :placeholder="t('admin.users.modelNamePlaceholder')"
-              class="w-64 rounded-lg border border-gray-300 px-3 py-1.5 text-sm dark:border-dark-500 dark:bg-dark-700"
-            />
+            <div class="w-64">
+              <Select
+                v-model="item.model"
+                :options="modelOptions"
+                :placeholder="t('admin.users.modelNamePlaceholder')"
+                searchable
+              />
+            </div>
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-1.5 text-sm">
                 <input v-model="item.enabled" type="checkbox" class="rounded text-primary-500" />
@@ -93,6 +95,11 @@
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
+                  <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayCacheReadPrice') }}</label>
+                  <input v-model.number="item.display_cache_read_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
+                </div>
+                <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayRateMultiplier') }}</label>
                   <input v-model.number="item.display_rate_multiplier" type="number" step="any" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
@@ -140,10 +147,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import Select from '@/components/common/Select.vue'
+import { perTokenToMTok, mTokToPerToken } from '@/components/admin/channel/types'
+import { adminAPI } from '@/api/admin'
 import {
   getUserModelPricing,
   batchUpsertUserModelPricing,
@@ -162,6 +172,7 @@ interface OverrideRow {
   cache_read_price: number | null
   display_input_price: number | null
   display_output_price: number | null
+  display_cache_read_price: number | null
   display_rate_multiplier: number | null
   cache_transfer_ratio: number | null
   enabled: boolean
@@ -176,6 +187,41 @@ const loading = ref(false)
 const saving = ref(false)
 const overrides = ref<OverrideRow[]>([])
 const originalIds = ref<Set<number>>(new Set())
+const availableModels = ref<Array<{ model: string; provider: string }>>([])
+
+const modelOptions = computed(() => {
+  const seen = new Set<string>()
+  const opts: Array<{ value: string; label: string }> = []
+  for (const m of availableModels.value) {
+    if (seen.has(m.model)) continue
+    seen.add(m.model)
+    opts.push({
+      value: m.model,
+      label: m.provider ? `${m.model}  ·  ${m.provider}` : m.model,
+    })
+  }
+  // Include any already-saved models that aren't in the list (e.g. retired models)
+  for (const o of overrides.value) {
+    if (o.model && !seen.has(o.model)) {
+      seen.add(o.model)
+      opts.push({ value: o.model, label: o.model })
+    }
+  }
+  return opts
+})
+
+async function loadAvailableModels() {
+  if (availableModels.value.length > 0) return
+  try {
+    const result = await adminAPI.modelPricing.list(1, 1000)
+    availableModels.value = (result.items || []).map((i: any) => ({
+      model: i.model,
+      provider: i.provider || '',
+    }))
+  } catch (e) {
+    console.error('[UserModelPricing] failed to load model list:', e)
+  }
+}
 
 watch(
   () => props.show,
@@ -183,16 +229,18 @@ watch(
     if (!val || !props.user) return
     loading.value = true
     try {
+      await loadAvailableModels()
       const data = await getUserModelPricing(props.user.id)
       overrides.value = (data || []).map((o: UserModelPricingOverride) => ({
         id: o.id,
         model: o.model,
-        input_price: o.input_price,
-        output_price: o.output_price,
-        cache_write_price: o.cache_write_price,
-        cache_read_price: o.cache_read_price,
-        display_input_price: o.display_input_price,
-        display_output_price: o.display_output_price,
+        input_price: perTokenToMTok(o.input_price) ?? null,
+        output_price: perTokenToMTok(o.output_price) ?? null,
+        cache_write_price: perTokenToMTok(o.cache_write_price) ?? null,
+        cache_read_price: perTokenToMTok(o.cache_read_price) ?? null,
+        display_input_price: perTokenToMTok(o.display_input_price) ?? null,
+        display_output_price: perTokenToMTok(o.display_output_price) ?? null,
+        display_cache_read_price: perTokenToMTok(o.display_cache_read_price) ?? null,
         display_rate_multiplier: o.display_rate_multiplier,
         cache_transfer_ratio: o.cache_transfer_ratio,
         enabled: o.enabled,
@@ -216,6 +264,7 @@ function addOverride() {
     cache_read_price: null,
     display_input_price: null,
     display_output_price: null,
+    display_cache_read_price: null,
     display_rate_multiplier: null,
     cache_transfer_ratio: null,
     enabled: true,
@@ -239,7 +288,34 @@ async function save() {
       }
     }
 
-    const toUpsert = overrides.value.filter((o) => o.model.trim())
+    const toUpsert = overrides.value
+      .filter((o) => o.model.trim())
+      .map((o) => ({
+        model: o.model.trim(),
+        input_price: mTokToPerToken(o.input_price),
+        output_price: mTokToPerToken(o.output_price),
+        cache_write_price: mTokToPerToken(o.cache_write_price),
+        cache_read_price: mTokToPerToken(o.cache_read_price),
+        display_input_price: mTokToPerToken(o.display_input_price),
+        display_output_price: mTokToPerToken(o.display_output_price),
+        display_cache_read_price: mTokToPerToken(o.display_cache_read_price),
+        display_rate_multiplier: o.display_rate_multiplier || null,
+        cache_transfer_ratio: o.cache_transfer_ratio || null,
+        enabled: o.enabled,
+        notes: o.notes || '',
+      }))
+
+    // 前端去重：同一模型名多条记录时告警并阻止保存
+    const modelCounts = new Map<string, number>()
+    for (const o of toUpsert) {
+      modelCounts.set(o.model, (modelCounts.get(o.model) || 0) + 1)
+    }
+    const dupes = Array.from(modelCounts.entries()).filter(([, c]) => c > 1).map(([m]) => m)
+    if (dupes.length > 0) {
+      alert(t('admin.users.duplicateModelError', { models: dupes.join(', ') }))
+      saving.value = false
+      return
+    }
     if (toUpsert.length > 0) {
       await batchUpsertUserModelPricing(userId, toUpsert)
     }
@@ -247,7 +323,7 @@ async function save() {
     emit('success')
     emit('close')
   } catch (e) {
-    console.error('Save user model pricing failed:', e)
+    console.error('[UserModelPricing] Save failed:', e)
   } finally {
     saving.value = false
   }

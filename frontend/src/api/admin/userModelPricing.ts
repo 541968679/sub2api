@@ -10,6 +10,7 @@ export interface UserModelPricingOverride {
   cache_read_price: number | null
   display_input_price: number | null
   display_output_price: number | null
+  display_cache_read_price: number | null
   display_rate_multiplier: number | null
   cache_transfer_ratio: number | null
   enabled: boolean
@@ -19,21 +20,21 @@ export interface UserModelPricingOverride {
 }
 
 export async function getUserModelPricing(userId: number) {
-  const { data } = await apiClient.get<{ data: UserModelPricingOverride[] }>(
+  const { data } = await apiClient.get<UserModelPricingOverride[]>(
     `/admin/users/${userId}/model-pricing`
   )
-  return data.data
+  return data
 }
 
 export async function createUserModelPricing(
   userId: number,
   override: Partial<UserModelPricingOverride>
 ) {
-  const { data } = await apiClient.post<{ data: UserModelPricingOverride }>(
+  const { data } = await apiClient.post<UserModelPricingOverride>(
     `/admin/users/${userId}/model-pricing`,
     override
   )
-  return data.data
+  return data
 }
 
 export async function updateUserModelPricing(
@@ -41,11 +42,11 @@ export async function updateUserModelPricing(
   overrideId: number,
   override: Partial<UserModelPricingOverride>
 ) {
-  const { data } = await apiClient.put<{ data: UserModelPricingOverride }>(
+  const { data } = await apiClient.put<UserModelPricingOverride>(
     `/admin/users/${userId}/model-pricing/${overrideId}`,
     override
   )
-  return data.data
+  return data
 }
 
 export async function deleteUserModelPricing(userId: number, overrideId: number) {
@@ -57,7 +58,7 @@ export async function batchUpsertUserModelPricing(
   userId: number,
   overrides: Partial<UserModelPricingOverride>[]
 ) {
-  const { data } = await apiClient.put(`/admin/users/${userId}/model-pricing/batch`, {
+  const { data } = await apiClient.post(`/admin/users/${userId}/model-pricing/batch`, {
     overrides,
   })
   return data

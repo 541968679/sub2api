@@ -86,6 +86,10 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	if cfg.DisplayRateMultiplier != nil && *cfg.DisplayRateMultiplier > 0 {
 		displayRate = *cfg.DisplayRateMultiplier
 	}
+	// Safety: never divide by 0 in the rescaling formulas below.
+	if displayRate <= 0 {
+		displayRate = 1
+	}
 
 	// Input tokens rescaling
 	if cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 && d.InputTokens > 0 {
@@ -199,10 +203,10 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 	}
 	for i := range userOverrides {
 		o := &userOverrides[i]
-		if !o.Enabled {
+		if !o.Enabled || o.Model == "" {
 			continue
 		}
-		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil &&
+		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil &&
 			o.DisplayRateMultiplier == nil && o.CacheTransferRatio == nil {
 			continue
 		}
@@ -217,6 +221,9 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		}
 		if o.DisplayOutputPrice != nil {
 			existing.DisplayOutputPrice = o.DisplayOutputPrice
+		}
+		if o.DisplayCacheReadPrice != nil {
+			existing.DisplayCacheReadPrice = o.DisplayCacheReadPrice
 		}
 		if o.DisplayRateMultiplier != nil {
 			existing.DisplayRateMultiplier = o.DisplayRateMultiplier

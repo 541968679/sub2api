@@ -231,9 +231,9 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// User model pricing overrides
 		users.GET("/:id/model-pricing", h.Admin.UserModelPricing.List)
 		users.POST("/:id/model-pricing", h.Admin.UserModelPricing.Create)
+		users.POST("/:id/model-pricing/batch", h.Admin.UserModelPricing.BatchUpsert)
 		users.PUT("/:id/model-pricing/:overrideId", h.Admin.UserModelPricing.Update)
 		users.DELETE("/:id/model-pricing/:overrideId", h.Admin.UserModelPricing.Delete)
-		users.PUT("/:id/model-pricing/batch", h.Admin.UserModelPricing.BatchUpsert)
 	}
 }
 

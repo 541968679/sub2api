@@ -432,7 +432,7 @@ const exportingData = ref(false)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'priority', 'rate_multiplier']
+const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'priority', 'rate_multiplier']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 
 // Sorting settings

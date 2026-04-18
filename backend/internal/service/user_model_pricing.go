@@ -11,27 +11,28 @@ import (
 // 叠加优先级：User > Channel > Global > LiteLLM/Fallback
 // 应用时机：ModelPricingResolver.Resolve 在 Channel 覆盖之后叠加此覆盖。
 type UserModelPricingOverride struct {
-	ID     int64
-	UserID int64
-	Model  string
+	ID     int64  `json:"id"`
+	UserID int64  `json:"user_id"`
+	Model  string `json:"model"`
 
 	// 真实计费覆盖（非 nil 字段替换上层链路值）
-	InputPrice      *float64
-	OutputPrice     *float64
-	CacheWritePrice *float64
-	CacheReadPrice  *float64
+	InputPrice      *float64 `json:"input_price"`
+	OutputPrice     *float64 `json:"output_price"`
+	CacheWritePrice *float64 `json:"cache_write_price"`
+	CacheReadPrice  *float64 `json:"cache_read_price"`
 
 	// 展示覆盖（仅影响用户看到的 usage log，不影响真实计费）
-	DisplayInputPrice     *float64
-	DisplayOutputPrice    *float64
-	DisplayRateMultiplier *float64
-	CacheTransferRatio    *float64
+	DisplayInputPrice     *float64 `json:"display_input_price"`
+	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 
-	Enabled bool
-	Notes   string
+	Enabled bool   `json:"enabled"`
+	Notes   string `json:"notes"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // UserModelPricingRepository 用户模型定价覆盖数据访问接口
