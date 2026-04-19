@@ -89,6 +89,24 @@
 
 ---
 
+## [2026-04-19] docs(architecture): 新增项目技术架构文档 + CLAUDE.md 规则
+
+**影响范围**:
+- `docs/dev/ARCHITECTURE.md` — 新增。顶层入口文档，覆盖技术栈、前后端目录分层、请求生命周期、Wire DI 装配方式、Settings/PublicSettings KV 模式、迁移约定、缓存策略、认证授权、模型定价解析；前端的路由/store/api client/布局/i18n/反馈约定；6 个常见开发任务的「抄写式」模板（新增 setting 字段 / 新增子结构 setting / 新增用户 API / 新增 ent 字段 / 新增前端页 / 新增 i18n 键）；本地化的「已知坑点」清单（Wire 主干失败、`docs/dev` gitignore、Git Bash POSIX 路径改写、Windows 端口冲突等）；模块深度文档导航
+- `docs/dev/codebase/README.md` — 在最上方加一段，把架构文档定位为「先读本架构、再按模块表深入」的入口
+- `CLAUDE.md` — Quick Reference 顶部加 ARCHITECTURE.md；Key Development Rules 第 3 条新增「探索代码前先读 ARCHITECTURE.md」+「何时更新 ARCHITECTURE.md」（新增模块、改跨切面约定、发现新坑、抽出可复用模板四类触发条件）；原「Codebase Map」规则编号从 3 顺移到 4，后续 4–10 全部 +1
+
+**上游兼容性**: 零。纯文档。
+
+**变更详情**:
+1. 文档定位：架构文档不是模块 deep-dive，而是「跨切面约定 + 入口导航」。模块细节继续放 `codebase/{module}.md`。
+2. 模板章节（§5）直接抄就能用：每条都给了具体的文件路径和顺序，比「等下次又得现摸索一遍」快很多。
+3. 已知坑（§6）把会反复踩的 Wire / docs/dev / Git Bash / Windows 端口等事故全部沉淀，避免下次又花时间复盘。
+
+**关联 Issue/PR**: 无（来自会话总结）
+
+---
+
 ## [2026-04-19] feat(login-page): 左栏改为 6 张卡片，合并推广邀请并移除副标题段
 
 **影响范围**:
