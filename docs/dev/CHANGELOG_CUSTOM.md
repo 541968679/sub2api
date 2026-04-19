@@ -89,6 +89,25 @@
 
 ---
 
+## [2026-04-19] style(login-page): 4 张 feature 卡视觉加重 + 关键词高亮
+
+**影响范围**:
+- `frontend/src/views/auth/LoginView.vue` — 每张卡新增顶部主题色光带、`10×10` 带色图标块、`17px` 粗标题、`14px` 正文；描述里特定关键词（价格、"超高性价比"、`Opus 4.7` / `GPT-5.4` / `Gemini 3.1 Pro`、"开票" 等）用 `splitWithTerms` 在运行时拆段并用主题色加粗；新增 `FeatureKey` 类型、`escapeRegExp`/`splitWithTerms` 辅助函数以及中英两套高亮词表；推广邀请块 padding / 标题字号略收，让 4 张卡片在视觉层级上更突出
+
+**文案**: 不变。`auth.login.features.*.{title,desc}` 和 `auth.login.referral.*` 全部与上一个提交一致，本次纯视觉层改动。
+
+**上游兼容性**: 低。只改登录页样板 + 组件级内部配置。
+
+**变更详情**:
+1. 每张卡有独立主题色：价格（青绿）/ 品质（蓝）/ 模型（紫）/ 企业（琥珀），图标背景 + 高亮词 + 顶部 2px 光带都跟着配色变。
+2. 高亮词是视觉规则，不是文案：用一份 `featureHighlightTermsZh|En` 在脚本里声明，运行时用正则拆描述串，匹配到就包 `<span>` 变粗加色；i18n 文案改动后若没命中，只是不高亮，不报错。
+3. 卡片 shell：`rounded-[22px]` + 渐变底 + 更强阴影 + hover 时变亮，整体体量明显超过推广块。
+4. 推广块：padding 从 `p-5` 调到 `px-5 py-4`，标题 18→16，让视觉焦点落在 4 张卡片上。
+
+**关联 Issue/PR**: 本地二开需求（接上条 feature 卡重设计）
+
+---
+
 ## [2026-04-19] feat(login-page): 左栏营销区改版：4 张 feature 卡 + 推广邀请
 
 **影响范围**:
