@@ -89,6 +89,25 @@
 
 ---
 
+## [2026-04-19] feat(login-page): 左栏营销区改版：4 张 feature 卡 + 推广邀请
+
+**影响范围**:
+- `frontend/src/views/auth/LoginView.vue` — 删除左栏下半区的 feature pills、模型展示网格、3 张旧 feature cards 和不再使用的 `modelChannels` / `paymentCnyPerUsd` / `loginSupportedModelsTitle` / `loginModelsDesc`；新增 2×2 的 4 张 feature 卡片（计算属性 `featureCards`）与推广邀请强调区块
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `auth.login.features.{metered,quality,models,enterprise}.{title,desc}` + `auth.login.referral.{tag,title,body}` 两组键；保留 `featurePrice`、`featureUnifiedApi*` 等旧键不动（避免影响其他组件 / 防止上游冲突），只是登录页模板不再引用
+
+**上游兼容性**: 低。前端样板重写 + 新增 i18n；后端、数据库不动。
+
+**变更详情**:
+1. 顶部区仍由 badge / 两行标题 / description 组成，沿用之前的管理员可编辑覆盖机制（`login_page.*` settings 字段）。
+2. 下半区一次放完 4 张卡片 + 1 张推广邀请卡，视觉层级：feature 卡（中性深色底）→ 推广卡（青绿渐变 + 荧光描边）把重点拉开。
+3. 4 张卡片当前走 i18n 硬编码（文案稳定），后续若需管理员可编辑，加字段到 `LoginPageContent` 即可。
+4. 推广邀请 `body` 为占位稿，等最终文案确定后直接改 i18n 或升级为管理员可编辑字段。
+5. 管理员编辑器里的 `supportedModelsTitle`、`modelsDesc` 两字段本次起不再影响登录页渲染（保留字段暂不删，后续统一清理）。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
 ## [2026-04-18] refactor(page-content): 合并「计价页文案」和「登录页文案」为统一 Tab 页
 
 **影响范围**:
