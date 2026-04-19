@@ -19,6 +19,25 @@
 
 ## 变更记录
 
+## [2026-04-19] feat(admin/usage): 新增"用户视角"对比预览接口（后端段）
+
+**影响范围**:
+- `backend/internal/handler/admin/usage_handler.go` — `UsageHandler` 新增 `userModelPricingService` 依赖；新增 `GetUserViewPreview` handler 与配套 DTO（`UserViewPreviewResponse` / `UserViewSnapshot` / `UserViewConfigUsed` / `snapshotFromDTO`）
+- `backend/internal/server/routes/admin.go` — 注册 `GET /api/v1/admin/usage/:id/user-view`
+- `backend/cmd/server/wire_gen.go` — `admin.NewUsageHandler` 调用增补 `userModelPricingService` 参数（`go generate` 因项目 Wire 已存在的多绑定问题失败，故手动 patch；不影响功能）
+- `backend/internal/handler/admin/usage_cleanup_handler_test.go`、`usage_handler_request_type_test.go` — 同步 `NewUsageHandler` 新签名（多传一个 nil）
+
+**上游兼容性**:
+- 纯新增端点 + 构造函数末位前一位插参，与上游 admin usage handler 改动可能产生小冲突，但参数顺序变化容易识别
+
+**变更详情**:
+- 目的：管理员排查某个用户（如 gybilly2023）"前端实际看到的 token / 成本"是否符合 `cache_transfer_ratio` + `display_input_price` 等"奸商"配置预期，目前唯一办法是登录该用户账号亲眼看
+- 新接口对单条 usage_log 重新跑三层 transform：全局 display 价 → user model overrides（`BuildUserDisplayPricingMap`）→ user group display rate（`ApplyUserDisplayRate`），返回 `real` / `user_view` 两列对比 + `config_used` 配置溯源（含 `has_user_override`、`user_group_rate`）
+- 完全复用 `dto.UsageLogFromService` / `ApplyDisplayTransform` / `ApplyUserDisplayRate` / `BuildUserDisplayPricingMap`，不写新计算逻辑
+- 不动现有列表查询逻辑——`AdminUsageLog.DisplayFields` 仍按全局 displayMap 算（保持向后兼容）
+- 已本地 `go run ./cmd/server` 验证路由正确注册、Gin 无 radix 冲突 panic
+- 前端入口与抽屉 UI 待下一段提交
+
 ## [2026-04-18] fix(settings): 登录页价格动态化 + 修复充值管理保存误清空注册等设置
 
 **影响范围**:

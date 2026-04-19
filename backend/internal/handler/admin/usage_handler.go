@@ -21,12 +21,13 @@ import (
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
-	usageService          *service.UsageService
-	apiKeyService         *service.APIKeyService
-	adminService          service.AdminService
-	cleanupService        *service.UsageCleanupService
-	modelPricingService   *service.GlobalModelPricingService
-	creditSnapshotService *service.CreditSnapshotService
+	usageService            *service.UsageService
+	apiKeyService           *service.APIKeyService
+	adminService            service.AdminService
+	cleanupService          *service.UsageCleanupService
+	modelPricingService     *service.GlobalModelPricingService
+	userModelPricingService *service.UserModelPricingService
+	creditSnapshotService   *service.CreditSnapshotService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -36,15 +37,17 @@ func NewUsageHandler(
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
 	modelPricingService *service.GlobalModelPricingService,
+	userModelPricingService *service.UserModelPricingService,
 	creditSnapshotService *service.CreditSnapshotService,
 ) *UsageHandler {
 	return &UsageHandler{
-		usageService:          usageService,
-		apiKeyService:         apiKeyService,
-		adminService:          adminService,
-		cleanupService:        cleanupService,
-		modelPricingService:   modelPricingService,
-		creditSnapshotService: creditSnapshotService,
+		usageService:            usageService,
+		apiKeyService:           apiKeyService,
+		adminService:            adminService,
+		cleanupService:          cleanupService,
+		modelPricingService:     modelPricingService,
+		userModelPricingService: userModelPricingService,
+		creditSnapshotService:   creditSnapshotService,
 	}
 }
 
@@ -694,4 +697,150 @@ func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingM
 		return nil
 	}
 	return dto.BuildDisplayPricingMap(pricings)
+}
+
+// UserViewSnapshot is one column of the side-by-side comparison.
+type UserViewSnapshot struct {
+	InputTokens         int     `json:"input_tokens"`
+	OutputTokens        int     `json:"output_tokens"`
+	CacheReadTokens     int     `json:"cache_read_tokens"`
+	CacheCreationTokens int     `json:"cache_creation_tokens"`
+	InputCost           float64 `json:"input_cost"`
+	OutputCost          float64 `json:"output_cost"`
+	CacheReadCost       float64 `json:"cache_read_cost"`
+	CacheCreationCost   float64 `json:"cache_creation_cost"`
+	TotalCost           float64 `json:"total_cost"`
+	ActualCost          float64 `json:"actual_cost"`
+	RateMultiplier      float64 `json:"rate_multiplier"`
+}
+
+// UserViewConfigUsed describes which display-pricing inputs produced the user_view column.
+type UserViewConfigUsed struct {
+	DisplayInputPrice     *float64 `json:"display_input_price"`
+	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
+	UserGroupRate         *float64 `json:"user_group_rate"`
+	HasUserOverride       bool     `json:"has_user_override"`
+	GroupID               *int64   `json:"group_id"`
+}
+
+// UserViewPreviewResponse is the payload returned to the admin compare drawer.
+type UserViewPreviewResponse struct {
+	LogID      int64              `json:"log_id"`
+	UserID     int64              `json:"user_id"`
+	Model      string             `json:"model"`
+	Real       UserViewSnapshot   `json:"real"`
+	UserView   UserViewSnapshot   `json:"user_view"`
+	ConfigUsed UserViewConfigUsed `json:"config_used"`
+}
+
+// GetUserViewPreview computes "what the owning user sees in their own /usage page" for a single
+// usage log row, by re-running the three layers of display transform (global pricing →
+// user model overrides → user group display rate) on a clone of the row.
+// GET /api/v1/admin/usage/:id/user-view
+func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid log id")
+		return
+	}
+
+	ctx := c.Request.Context()
+	log, err := h.usageService.GetByID(ctx, id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if log == nil {
+		response.NotFound(c, "Usage log not found")
+		return
+	}
+
+	// Layer 1: global display pricing
+	globalMap := h.loadDisplayPricingMap(c)
+
+	// Layer 2: user model overrides — merge on top of global
+	var userOverrides []service.UserModelPricingOverride
+	if h.userModelPricingService != nil {
+		userOverrides, _ = h.userModelPricingService.GetEnabledByUserID(ctx, log.UserID)
+	}
+	userMap := globalMap
+	if len(userOverrides) > 0 {
+		userMap = dto.BuildUserDisplayPricingMap(globalMap, userOverrides)
+	}
+
+	// Layer 3: per-user group display rate multiplier
+	var groupRates map[int64]service.UserGroupRateData
+	if h.apiKeyService != nil {
+		groupRates, _ = h.apiKeyService.GetUserGroupRatesFull(ctx, log.UserID)
+	}
+
+	// Real column: no displayMap → no transform
+	realDTO := dto.UsageLogFromService(log, nil)
+	// User view column: apply global+user override (in-place on a fresh DTO),
+	// then layer the user group display rate if present.
+	userDTO := dto.UsageLogFromService(log, userMap)
+	var groupDisplayRate *float64
+	if log.GroupID != nil && groupRates != nil {
+		if dr, ok := groupRates[*log.GroupID]; ok && dr.DisplayRateMultiplier != nil {
+			dto.ApplyUserDisplayRate(userDTO, *dr.DisplayRateMultiplier)
+			groupDisplayRate = dr.DisplayRateMultiplier
+		}
+	}
+
+	hasUserOverride := false
+	for i := range userOverrides {
+		if strings.EqualFold(userOverrides[i].Model, log.Model) {
+			hasUserOverride = true
+			break
+		}
+	}
+
+	cfg := UserViewConfigUsed{
+		HasUserOverride: hasUserOverride,
+		UserGroupRate:   groupDisplayRate,
+		GroupID:         log.GroupID,
+	}
+	if userMap != nil {
+		// display_pricing.toLowerModel is unexported; map keys are lowercased model names.
+		if entry, ok := userMap[strings.ToLower(log.Model)]; ok && entry != nil {
+			cfg.DisplayInputPrice = entry.DisplayInputPrice
+			cfg.DisplayOutputPrice = entry.DisplayOutputPrice
+			cfg.DisplayCacheReadPrice = entry.DisplayCacheReadPrice
+			cfg.DisplayRateMultiplier = entry.DisplayRateMultiplier
+			cfg.CacheTransferRatio = entry.CacheTransferRatio
+		}
+	}
+
+	resp := UserViewPreviewResponse{
+		LogID:      log.ID,
+		UserID:     log.UserID,
+		Model:      log.Model,
+		Real:       snapshotFromDTO(realDTO),
+		UserView:   snapshotFromDTO(userDTO),
+		ConfigUsed: cfg,
+	}
+	response.Success(c, resp)
+}
+
+func snapshotFromDTO(d *dto.UsageLog) UserViewSnapshot {
+	if d == nil {
+		return UserViewSnapshot{}
+	}
+	return UserViewSnapshot{
+		InputTokens:         d.InputTokens,
+		OutputTokens:        d.OutputTokens,
+		CacheReadTokens:     d.CacheReadTokens,
+		CacheCreationTokens: d.CacheCreationTokens,
+		InputCost:           d.InputCost,
+		OutputCost:          d.OutputCost,
+		CacheReadCost:       d.CacheReadCost,
+		CacheCreationCost:   d.CacheCreationCost,
+		TotalCost:           d.TotalCost,
+		ActualCost:          d.ActualCost,
+		RateMultiplier:      d.RateMultiplier,
+	}
 }

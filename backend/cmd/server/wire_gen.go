@@ -237,7 +237,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	creditSnapshotRepository := repository.NewCreditSnapshotRepository(client)
 	antigravityUsageAggregator := repository.NewAntigravityUsageAggregator(db)
 	creditSnapshotService := service.ProvideCreditSnapshotService(creditSnapshotRepository, accountRepository, accountUsageService, antigravityUsageAggregator)
-	adminUsageHandler = admin.NewUsageHandler(usageService, apiKeyService, adminService, usageCleanupService, globalModelPricingService, creditSnapshotService)
+	adminUsageHandler = admin.NewUsageHandler(usageService, apiKeyService, adminService, usageCleanupService, globalModelPricingService, userModelPricingService, creditSnapshotService)
 	adminPaymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
 	pricingPageAdminHandler := admin.NewPricingPageAdminHandler(settingRepository)
 	loginPageAdminHandler := admin.NewLoginPageAdminHandler(settingRepository)
