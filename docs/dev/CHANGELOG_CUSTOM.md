@@ -89,6 +89,26 @@
 
 ---
 
+## [2026-04-19] feat(login-page): 左栏改为 6 张卡片，合并推广邀请并移除副标题段
+
+**影响范围**:
+- `frontend/src/views/auth/LoginView.vue` — 删除副标题 `<p>` 以及 `loginDescription` computed；独立的推广邀请块移除；`FeatureKey` 扩到 6（加 `tutorial` / `referral`）；`featureCards` 配置加两张卡（青色 / 玫粉）并各配图标（book-open / gift）；`featureHighlightTerms{Zh,En}` 补 tutorial 和 referral 两组高亮词；grid 从 2×2 调为 2×3（仍是 `sm:grid-cols-2`）
+- `frontend/src/i18n/locales/{zh,en}.ts` — `auth.login.features.*` 新增 `tutorial.{title,desc}`；`auth.login.referral` 结构从 `{tag,title,body}` 合并进 `features.referral.{title,desc}`，正文按「可压缩」原则精简
+
+**文案**: `features.tutorial` 文字严格使用用户给定原文。`features.referral.desc` 为上一次占位稿的压缩版（授权压缩）。其余卡片（metered / quality / models / enterprise）完全没动。`auth.login.description` i18n 键保留但不再渲染。
+
+**上游兼容性**: 低。纯前端 + i18n 结构调整。
+
+**变更详情**:
+1. 副标题段（「面向开发者和团队的多模型中转站……」）按需求删除，`auth.login.description` 键暂时保留避免其他潜在引用。
+2. 新增第 5 张卡「完善的初学者教程」：青色（`#22D3EE`）主题，book-open 图标。
+3. 推广邀请从独立块变为第 6 张卡：玫粉（`#F472B6`）主题，gift 图标。描述压缩为一句，「丰厚奖励 / 持续返佣」两处用主题色高亮强调。
+4. 排列：row1 = metered + quality，row2 = models + tutorial，row3 = enterprise + referral，按「核心价值 → 产品能力 → 进阶/推广」自然收束。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
 ## [2026-04-19] style(login-page): 4 张 feature 卡视觉加重 + 关键词高亮
 
 **影响范围**:
