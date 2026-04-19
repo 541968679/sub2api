@@ -805,7 +805,7 @@ export default {
     educationTitle: '计价模式科普',
     tableTitle: '模型价格一览表',
     modelsSuffix: '个模型',
-    cnyBanner: 'USD → CNY：¥{rate} / 1 USD（来自充值管理，实时同步）',
+    cnyBanner: '1 USD = ¥{rate}',
     unitHint: '每 MTok = 一百万 Token。¥ 为按当前换算率结算的人民币实付金额，括号内 $ 为对应美元原价。',
     perRequestUnit: '次',
     emptyState: '管理员尚未配置要展示的模型。',
