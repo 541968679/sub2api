@@ -385,6 +385,31 @@ export default {
       featureTransparentBillingDesc: '按量扣费，充值越多价格越优。',
       featureAuditTrail: '记录可查',
       featureAuditTrailDesc: '每笔调用和消费都能追溯。',
+      // 新版 2×2 功能卡片
+      features: {
+        metered: {
+          title: '按量计费，全程透明',
+          desc: '每刀 0.7 元起，官方价格的 1/10，超高性价比。'
+        },
+        quality: {
+          title: '官方级品质',
+          desc: '美国高带宽服务器直连，低延迟、高缓存命中。'
+        },
+        models: {
+          title: '支持顶级大模型',
+          desc: 'Opus 4.7、GPT-5.4、Gemini 3.1 Pro 全线满血。'
+        },
+        enterprise: {
+          title: '企业对接',
+          desc: '支持大规模采购与开票，详情联系客服。'
+        }
+      },
+      // 推广邀请（文案 TBD，先放占位稿，之后确定后直接改这里）
+      referral: {
+        tag: '推广邀请',
+        title: '邀请好友，共享丰厚奖励',
+        body: '每成功邀请一位新用户，你和好友都能拿到账户余额奖励；受邀人消费还会按比例持续返佣。登录后在「邀请中心」查看你的专属链接与最新奖励规则。'
+      },
       title: '登录',
       subtitle: '进入控制台后查看余额、明细和完整模型列表。',
       submitButton: '登录并开始按量使用',

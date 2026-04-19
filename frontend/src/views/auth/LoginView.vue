@@ -52,75 +52,33 @@
               <p class="mt-3 max-w-[540px] text-sm leading-relaxed text-[#A9BDCF]">
                 {{ loginDescription }}
               </p>
-
-              <!-- Feature Pills -->
-              <div class="mt-4 flex flex-wrap gap-2.5">
-                <span class="rounded-[27px] bg-[#ECFFF9] px-4 py-2.5 text-base font-extrabold text-[#0F2638]">
-                  {{ paymentCnyPerUsd > 0 ? t('auth.login.featurePrice', { price: paymentCnyPerUsd }) : t('auth.login.featurePriceDefault') }}
-                </span>
-                <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
-                  {{ t('auth.login.featurePayAsYouGo') }}
-                </span>
-                <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
-                  {{ t('auth.login.featureNoCharge') }}
-                </span>
-              </div>
             </div>
 
-            <!-- Supported Models -->
-            <div>
-              <p class="mb-3 text-sm font-bold text-[#EAF6FF]">{{ loginSupportedModelsTitle }}</p>
-              <div class="grid grid-cols-3 gap-2.5">
+            <!-- Bottom section: 2×2 feature cards + referral highlight -->
+            <div class="space-y-5">
+              <!-- 2×2 Feature Grid -->
+              <div class="grid gap-3 sm:grid-cols-2">
                 <div
-                  v-for="channel in modelChannels"
-                  :key="channel.name"
-                  class="rounded-2xl px-3.5 py-3"
-                  :class="channel.highlighted
-                    ? 'border border-[#D97757]/40 bg-[#0F1E2E] shadow-[0_0_16px_rgba(217,119,87,0.12)]'
-                    : 'border border-[#29475F] bg-[#0F1E2E]'"
+                  v-for="card in featureCards"
+                  :key="card.title"
+                  class="rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3.5"
                 >
-                  <!-- Channel header -->
-                  <div class="mb-2 flex items-center gap-2">
-                    <span class="inline-block h-2 w-2 rounded-full" :style="{ backgroundColor: channel.color }"></span>
-                    <span class="text-xs font-bold text-[#EAF5FF]">{{ channel.name }}</span>
-                  </div>
-                  <!-- Model list -->
-                  <div class="flex flex-col gap-1">
-                    <div
-                      v-for="model in channel.models"
-                      :key="model"
-                      class="flex items-center gap-1.5"
-                    >
-                      <template v-if="model === channel.flagship">
-                        <span class="text-[13px] font-extrabold" :style="{ color: channel.color }">{{ model }}</span>
-                        <span
-                          v-if="channel.highlighted"
-                          class="rounded px-1 py-0.5 text-[9px] font-bold leading-none bg-[#D97757]/20 text-[#D97757]"
-                        >HOT</span>
-                      </template>
-                      <template v-else>
-                        <span class="text-[12px] font-medium text-[#8EA6BD]">{{ model }}</span>
-                      </template>
-                    </div>
-                  </div>
+                  <div class="text-[14px] font-extrabold text-[#EAF5FF]">{{ card.title }}</div>
+                  <div class="mt-1.5 text-[12px] leading-relaxed text-[#9FB4C8]">{{ card.desc }}</div>
                 </div>
               </div>
-              <p class="mt-2 text-xs text-[#7A95AD]">{{ loginModelsDesc }}</p>
 
-              <!-- Feature Cards -->
-              <div class="mt-3 flex flex-wrap gap-2.5">
-                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
-                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureUnifiedApi') }}</div>
-                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureUnifiedApiDesc') }}</div>
-                </div>
-                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
-                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureTransparentBilling') }}</div>
-                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureTransparentBillingDesc') }}</div>
-                </div>
-                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
-                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureAuditTrail') }}</div>
-                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureAuditTrailDesc') }}</div>
-                </div>
+              <!-- Referral Promotion: accent gradient to stand out from the 4 cards -->
+              <div class="rounded-[20px] border border-[#9BFFEA]/40 bg-gradient-to-br from-[#18D8AA]/[0.18] to-[#4BA8FF]/[0.08] p-5">
+                <span class="inline-block rounded-full bg-[#ECFFF9] px-3 py-1 text-[11px] font-extrabold tracking-wide text-[#0D2A3C]">
+                  {{ t('auth.login.referral.tag') }}
+                </span>
+                <h3 class="mt-3 text-[18px] font-extrabold leading-snug text-white">
+                  {{ t('auth.login.referral.title') }}
+                </h3>
+                <p class="mt-2 text-[13px] leading-relaxed text-[#C8E0E8]">
+                  {{ t('auth.login.referral.body') }}
+                </p>
               </div>
             </div>
           </div>
@@ -342,9 +300,6 @@ const siteName = computed(() => appStore.siteName || 'ZeroCode')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 const docUrl = computed(() => appStore.docUrl)
-// Read payment rate from the store so the server-injected window.__APP_CONFIG__
-// is used synchronously on first paint, avoiding a fallback→real-value flash.
-const paymentCnyPerUsd = computed(() => appStore.paymentCnyPerUsd || 0)
 
 // ==================== Login Page Content Overrides ====================
 // Admin-editable copy from settings (public). Empty / missing fields fall back
@@ -359,36 +314,31 @@ const loginBadge = computed(() => pickLoginText(loginPageOverrides.value?.badge,
 const loginHeading1 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line1, t('auth.login.headingLine1')))
 const loginHeading2 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line2, t('auth.login.headingLine2')))
 const loginDescription = computed(() => pickLoginText(loginPageOverrides.value?.description, t('auth.login.description')))
-const loginSupportedModelsTitle = computed(() => pickLoginText(loginPageOverrides.value?.supported_models_title, t('auth.login.supportedModels')))
-const loginModelsDesc = computed(() => pickLoginText(loginPageOverrides.value?.models_desc, t('auth.login.modelsDesc')))
 const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.form_title, t('auth.login.title')))
 const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
-// ==================== Model Cards ====================
-
-const modelChannels = [
+// ==================== Feature Cards (2×2 grid) ====================
+// 4 张卡片的文案来自 i18n auth.login.features.*；如果后续要让管理员编辑，
+// 可以扩展 login_page_handler 和 PublicSettings.LoginPage 加字段，
+// 然后在这里用 pickLoginText 做 fallback（与 badge/heading 同样的套路）。
+const featureCards = computed(() => [
   {
-    name: 'Claude',
-    color: '#D97757',
-    models: ['Opus 4.7', 'Opus 4.6', 'Sonnet 4.6'],
-    flagship: 'Opus 4.7',
-    highlighted: true,
+    title: t('auth.login.features.metered.title'),
+    desc: t('auth.login.features.metered.desc')
   },
   {
-    name: 'GPT',
-    color: '#10A37F',
-    models: ['GPT-5.4', 'GPT-4o', 'o3'],
-    flagship: 'GPT-5.4',
-    highlighted: false,
+    title: t('auth.login.features.quality.title'),
+    desc: t('auth.login.features.quality.desc')
   },
   {
-    name: 'Gemini',
-    color: '#4285F4',
-    models: ['Gemini 3.1 Pro', 'Gemini 2.5 Flash'],
-    flagship: 'Gemini 3.1 Pro',
-    highlighted: false,
+    title: t('auth.login.features.models.title'),
+    desc: t('auth.login.features.models.desc')
   },
-]
+  {
+    title: t('auth.login.features.enterprise.title'),
+    desc: t('auth.login.features.enterprise.desc')
+  }
+])
 
 // ==================== State ====================
 
