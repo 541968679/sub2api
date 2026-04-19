@@ -125,6 +125,26 @@
 
 ---
 
+## [2026-04-19] feat(pricing): 模型价格表同时展示 CNY 实付金额（按充值管理换算率）
+
+**影响范围**:
+- `frontend/src/views/user/PricingView.vue` — 价格表卡片顶部加 USD→CNY 换算 banner（仅在 `payment_cny_per_usd > 0` 时显示）；`formatTokenPrice` / `formatPerRequest` 拆为 `tokenPrimary`/`tokenSecondary` + `perRequestPrimary`/`perRequestSecondary` 四个 helper：CNY 为粗体主显示，USD 加括号小灰字副显示；未配置换算率时自动退化为单一 USD 显示
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `pricing.cnyBanner`；列头去掉硬编码 `$/MTok` 改为「输入价 / MTok」「Input / MTok」让单元格自带币种符号；`unitHint` 改写为说明 ¥ / $ 含义的双币种文案
+
+**文案**：用户授权范围内的展示性文字（banner 文案、单位说明），不动 i18n 里其他业务文案。
+
+**上游兼容性**: 低。纯前端 + i18n 行内修改。
+
+**变更详情**:
+1. 视觉策略：CNY 主、USD 辅。每个价格单元格 `¥3.50 ($5.00)` 同行；左侧粗体 CNY 是用户实际扣费量级，右括号内灰字 $ 是溯源依据
+2. 顶部一次性 banner 说明换算率（`¥0.7 / 1 USD · 来自充值管理`），单元格里就不重复"× 0.7"
+3. 退化逻辑：管理员未配置 `payment_cny_per_usd`（值为 0 或 null）→ banner 自动隐藏、所有单元格只显示 USD，与改动前完全一致，避免出现 `¥0` 之类的异常
+4. 性价比对比（×10、官方价 × 0.7 等）已在上方计价模式说明里讲过，价格表本身不再叠加"市场常见价"列，保持表格干净
+
+**关联 Issue/PR**: 本地二开需求（接 pricing-page 文案改造）
+
+---
+
 ## [2026-04-19] docs(architecture): 新增项目技术架构文档 + CLAUDE.md 规则
 
 **影响范围**:

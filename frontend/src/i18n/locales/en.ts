@@ -801,15 +801,16 @@ export default {
     educationTitle: 'Pricing Models Explained',
     tableTitle: 'Model Price Reference',
     modelsSuffix: 'models',
-    unitHint: 'Units: token-based billing shown per 1M tokens ($/MTok); per-request shown per call.',
+    cnyBanner: 'USD → CNY: ¥{rate} per 1 USD (live, synced from payment settings)',
+    unitHint: '1 MTok = one million tokens. ¥ is the actual CNY charge at the current rate; the $ value in parentheses is the underlying USD price.',
     perRequestUnit: 'request',
     emptyState: 'No models have been exposed on this page yet.',
     columns: {
       model: 'Model',
       billingMode: 'Billing',
-      inputPrice: 'Input $/MTok',
-      outputPrice: 'Output $/MTok',
-      cacheReadPrice: 'Cache Read $/MTok',
+      inputPrice: 'Input / MTok',
+      outputPrice: 'Output / MTok',
+      cacheReadPrice: 'Cache Read / MTok',
       multiplier: 'Multiplier'
     },
     billingMode: {

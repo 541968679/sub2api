@@ -805,15 +805,16 @@ export default {
     educationTitle: '计价模式科普',
     tableTitle: '模型价格一览表',
     modelsSuffix: '个模型',
-    unitHint: '展示价格单位：Token 计费以「$/百万 Token」显示；按次计费以「$/次」显示。',
+    cnyBanner: 'USD → CNY：¥{rate} / 1 USD（来自充值管理，实时同步）',
+    unitHint: '每 MTok = 一百万 Token。¥ 为按当前换算率结算的人民币实付金额，括号内 $ 为对应美元原价。',
     perRequestUnit: '次',
     emptyState: '管理员尚未配置要展示的模型。',
     columns: {
       model: '模型',
       billingMode: '计费模式',
-      inputPrice: '输入价 $/MTok',
-      outputPrice: '输出价 $/MTok',
-      cacheReadPrice: '缓存读取 $/MTok',
+      inputPrice: '输入价 / MTok',
+      outputPrice: '输出价 / MTok',
+      cacheReadPrice: '缓存读取 / MTok',
       multiplier: '倍率'
     },
     billingMode: {
