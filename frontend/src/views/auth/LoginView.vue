@@ -54,28 +54,55 @@
               </p>
             </div>
 
-            <!-- Bottom section: 2×2 feature cards + referral highlight -->
-            <div class="space-y-5">
-              <!-- 2×2 Feature Grid -->
-              <div class="grid gap-3 sm:grid-cols-2">
+            <!-- Bottom section: 2×2 feature cards (main visual weight) + referral highlight -->
+            <div class="space-y-4">
+              <!-- 2×2 Feature Grid: 比推广块更大、更饱满；每张卡带独立主题色 -->
+              <div class="grid gap-4 sm:grid-cols-2">
                 <div
                   v-for="card in featureCards"
-                  :key="card.title"
-                  class="rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3.5"
+                  :key="card.key"
+                  class="group relative overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#0F2538] to-[#0A1A28] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-colors hover:border-[#4B8AB0]"
                 >
-                  <div class="text-[14px] font-extrabold text-[#EAF5FF]">{{ card.title }}</div>
-                  <div class="mt-1.5 text-[12px] leading-relaxed text-[#9FB4C8]">{{ card.desc }}</div>
+                  <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别四张卡各自代表什么 -->
+                  <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
+
+                  <!-- 标题行：较大图标（40×40）+ 17px 粗标题，比旧版有明显体量 -->
+                  <div class="flex items-center gap-3">
+                    <span
+                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                      :class="[card.iconBg, card.iconColor]"
+                    >
+                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
+                      </svg>
+                    </span>
+                    <h3 class="text-[17px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
+                  </div>
+
+                  <!-- 描述：14px，关键词用主题色 + 加粗 突出展示 -->
+                  <p class="mt-3.5 text-[14px] leading-[1.65] text-[#C8D7E4]">
+                    <template v-for="(seg, i) in card.segments" :key="i">
+                      <span
+                        v-if="seg.highlight"
+                        class="font-extrabold"
+                        :class="card.highlightColor"
+                      >{{ seg.text }}</span>
+                      <template v-else>{{ seg.text }}</template>
+                    </template>
+                  </p>
                 </div>
               </div>
 
-              <!-- Referral Promotion: accent gradient to stand out from the 4 cards -->
-              <div class="rounded-[20px] border border-[#9BFFEA]/40 bg-gradient-to-br from-[#18D8AA]/[0.18] to-[#4BA8FF]/[0.08] p-5">
-                <span class="inline-block rounded-full bg-[#ECFFF9] px-3 py-1 text-[11px] font-extrabold tracking-wide text-[#0D2A3C]">
-                  {{ t('auth.login.referral.tag') }}
-                </span>
-                <h3 class="mt-3 text-[18px] font-extrabold leading-snug text-white">
-                  {{ t('auth.login.referral.title') }}
-                </h3>
+              <!-- 推广邀请：弱化一级，让 4 张卡片视觉优先（padding 略收，标题从 18 降到 16） -->
+              <div class="rounded-[20px] border border-[#9BFFEA]/30 bg-gradient-to-br from-[#18D8AA]/[0.14] to-[#4BA8FF]/[0.06] px-5 py-4">
+                <div class="flex items-center gap-2.5">
+                  <span class="inline-block rounded-full bg-[#ECFFF9] px-2.5 py-1 text-[11px] font-extrabold tracking-wide text-[#0D2A3C]">
+                    {{ t('auth.login.referral.tag') }}
+                  </span>
+                  <h3 class="text-[16px] font-extrabold leading-snug text-white">
+                    {{ t('auth.login.referral.title') }}
+                  </h3>
+                </div>
                 <p class="mt-2 text-[13px] leading-relaxed text-[#C8E0E8]">
                   {{ t('auth.login.referral.body') }}
                 </p>
@@ -286,7 +313,7 @@ import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
 import { sanitizeUrl } from '@/utils/url'
 import type { TotpLoginResponse } from '@/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // ==================== Router & Stores ====================
 
@@ -318,27 +345,107 @@ const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.fo
 const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
 // ==================== Feature Cards (2×2 grid) ====================
-// 4 张卡片的文案来自 i18n auth.login.features.*；如果后续要让管理员编辑，
-// 可以扩展 login_page_handler 和 PublicSettings.LoginPage 加字段，
-// 然后在这里用 pickLoginText 做 fallback（与 badge/heading 同样的套路）。
-const featureCards = computed(() => [
-  {
-    title: t('auth.login.features.metered.title'),
-    desc: t('auth.login.features.metered.desc')
-  },
-  {
-    title: t('auth.login.features.quality.title'),
-    desc: t('auth.login.features.quality.desc')
-  },
-  {
-    title: t('auth.login.features.models.title'),
-    desc: t('auth.login.features.models.desc')
-  },
-  {
-    title: t('auth.login.features.enterprise.title'),
-    desc: t('auth.login.features.enterprise.desc')
-  }
-])
+// 卡片文字来自 i18n（`auth.login.features.*.title` / `.desc`），不改动。
+// 这里声明的都是「视觉规则」：
+//   - 每张卡的主题色（图标、顶部光带、描述里高亮词的颜色）
+//   - 图标 SVG path（heroicons outline）
+//   - 要在描述里突出展示的关键词（不同语言各配一套；匹配不到就原样显示）
+// 加强版样式可以让价格、Opus/GPT/Gemini 型号名、"支持开票" 等一眼能看到。
+
+type FeatureKey = 'metered' | 'quality' | 'models' | 'enterprise'
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function splitWithTerms(text: string, terms: readonly string[]): Array<{ text: string; highlight: boolean }> {
+  const sorted = terms.filter(Boolean).slice().sort((a, b) => b.length - a.length)
+  if (sorted.length === 0) return [{ text, highlight: false }]
+  const pattern = new RegExp(`(${sorted.map(escapeRegExp).join('|')})`, 'g')
+  return text
+    .split(pattern)
+    .filter((part) => part !== '')
+    .map((part) => ({ text: part, highlight: sorted.includes(part) }))
+}
+
+// 每张卡在不同语言下需要高亮的子串。更动 i18n 文案后若找不到子串，则不加高亮，
+// 不会崩溃——高亮是锦上添花，不影响可读性。
+const featureHighlightTermsZh: Record<FeatureKey, readonly string[]> = {
+  metered: ['0.7 元', '1/10', '超高性价比'],
+  quality: ['美国高带宽', '低延迟', '高缓存命中'],
+  models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
+  enterprise: ['大规模采购', '开票']
+}
+const featureHighlightTermsEn: Record<FeatureKey, readonly string[]> = {
+  metered: ['0.7 CNY', '1/10', 'excellent value'],
+  quality: ['High-bandwidth US', 'low latency', 'strong cache hit rate'],
+  models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
+  enterprise: ['Bulk purchasing', 'invoicing']
+}
+
+interface FeatureCardDef {
+  key: FeatureKey
+  /** Tailwind class: 图标圆底色 */
+  iconBg: string
+  /** Tailwind class: 图标描边色 */
+  iconColor: string
+  /** Tailwind class: 描述里高亮词的颜色 */
+  highlightColor: string
+  /** Tailwind class: 卡片顶部渐变光带 */
+  topStripe: string
+  /** heroicon outline path data */
+  iconPath: string
+  title: string
+  segments: Array<{ text: string; highlight: boolean }>
+}
+
+const featureCards = computed<FeatureCardDef[]>(() => {
+  const terms = locale.value.startsWith('en') ? featureHighlightTermsEn : featureHighlightTermsZh
+  const defs: Array<Omit<FeatureCardDef, 'title' | 'segments'> & { key: FeatureKey }> = [
+    {
+      key: 'metered',
+      iconBg: 'bg-[#18D8AA]/15',
+      iconColor: 'text-[#7CF5CC]',
+      highlightColor: 'text-[#9BFFEA]',
+      topStripe: 'bg-gradient-to-r from-[#18D8AA]/70 via-[#18D8AA]/20 to-transparent',
+      // currency (dollar) with circle
+      iconPath:
+        'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4'
+    },
+    {
+      key: 'quality',
+      iconBg: 'bg-[#4BA8FF]/15',
+      iconColor: 'text-[#7FC6FF]',
+      highlightColor: 'text-[#9FD4FF]',
+      topStripe: 'bg-gradient-to-r from-[#4BA8FF]/70 via-[#4BA8FF]/20 to-transparent',
+      // bolt
+      iconPath: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z'
+    },
+    {
+      key: 'models',
+      iconBg: 'bg-[#A78BFA]/15',
+      iconColor: 'text-[#C4B5FD]',
+      highlightColor: 'text-[#DDD0FF]',
+      topStripe: 'bg-gradient-to-r from-[#A78BFA]/70 via-[#A78BFA]/20 to-transparent',
+      // sparkles
+      iconPath:
+        'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'
+    },
+    {
+      key: 'enterprise',
+      iconBg: 'bg-[#F0B841]/15',
+      iconColor: 'text-[#F7D87B]',
+      highlightColor: 'text-[#FCE697]',
+      topStripe: 'bg-gradient-to-r from-[#F0B841]/70 via-[#F0B841]/20 to-transparent',
+      // building-office (简化版)
+      iconPath:
+        'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
+    }
+  ]
+  return defs.map<FeatureCardDef>((d) => ({
+    ...d,
+    title: t(`auth.login.features.${d.key}.title`),
+    segments: splitWithTerms(t(`auth.login.features.${d.key}.desc`), terms[d.key])
+  }))
+})
 
 // ==================== State ====================
 
