@@ -3772,7 +3772,27 @@ export default {
           failed: 'Failed',
           canceled: 'Canceled'
         }
-      }
+      },
+      actions: 'Actions',
+      viewUserPerspective: 'View user perspective',
+      userViewCompareTitle: 'User Perspective Comparison',
+      userViewColReal: 'Admin View (real)',
+      userViewColUser: 'User View (display)',
+      userViewField: 'Field',
+      userViewDiff: 'Diff',
+      userViewSectionTokens: 'Tokens',
+      userViewSectionCosts: 'Costs',
+      userViewSectionInvariants: 'Invariants (must match)',
+      userViewTotal: 'Total Cost',
+      userViewActualCost: 'Actual Cost',
+      userViewRateMultiplier: 'Rate Multiplier',
+      userViewGroupRate: 'User Group Display Rate',
+      userViewConfigUsed: 'Effective Display Config',
+      userViewSourceGlobal: 'Global only',
+      userViewSourceOverride: 'With user override',
+      userViewConfigHint: 'The user_view column comes from three layers: global display pricing → user-level model overrides → user group display rate. actual_cost is invariant.',
+      userViewEmptySection: 'All fields zero in this section, hidden',
+      userViewActualCostMismatch: '⚠ actual_cost differs between real and user_view! Display transform should never change actual cost — investigate.'
     },
 
     // Ops Monitoring

@@ -3930,7 +3930,27 @@ export default {
           failed: '失败',
           canceled: '已取消'
         }
-      }
+      },
+      actions: '操作',
+      viewUserPerspective: '查看用户视角',
+      userViewCompareTitle: '用户视角对比',
+      userViewColReal: '管理员视角 (真实)',
+      userViewColUser: '用户视角 (展示)',
+      userViewField: '字段',
+      userViewDiff: '差异',
+      userViewSectionTokens: 'Token',
+      userViewSectionCosts: '成本',
+      userViewSectionInvariants: '不变量 (两侧应一致)',
+      userViewTotal: '合计成本',
+      userViewActualCost: '实际计费 (actual_cost)',
+      userViewRateMultiplier: '倍率 (rate_multiplier)',
+      userViewGroupRate: '用户分组展示倍率',
+      userViewConfigUsed: '生效的展示配置',
+      userViewSourceGlobal: '仅全局价',
+      userViewSourceOverride: '含用户级覆盖',
+      userViewConfigHint: 'user_view 列由三层 transform 叠加得到：全局展示价 → 用户级 model 覆盖 → 用户分组展示倍率。actual_cost 为不变量。',
+      userViewEmptySection: '本节字段全部为 0，已隐藏',
+      userViewActualCostMismatch: '⚠ actual_cost 两侧不相等！display transform 不应改变实际计费，请检查实现。'
     },
 
     // Ops Monitoring

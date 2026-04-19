@@ -183,6 +183,17 @@
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
         </template>
 
+        <template #cell-actions="{ row }">
+          <button
+            type="button"
+            class="rounded p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:text-gray-400 dark:hover:bg-dark-700 dark:hover:text-primary-300"
+            :title="t('admin.usage.viewUserPerspective')"
+            @click="$emit('userViewClick', row.id)"
+          >
+            <Icon name="eye" size="sm" />
+          </button>
+        </template>
+
         <template #empty><EmptyState :message="t('usage.noRecords')" /></template>
       </DataTable>
     </div>
@@ -361,6 +372,7 @@ withDefaults(defineProps<Props>(), {
 })
 defineEmits<{
   userClick: [userID: number, email?: string]
+  userViewClick: [logId: number]
   sort: [key: string, order: 'asc' | 'desc']
 }>()
 const { t } = useI18n()

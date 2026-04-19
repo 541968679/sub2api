@@ -19,6 +19,23 @@
 
 ## 变更记录
 
+## [2026-04-19] feat(admin/usage): "用户视角对比"抽屉前端段
+
+**影响范围**:
+- `frontend/src/api/admin/usage.ts` — 新增 `getUserViewPreview(logId)` API 与 `UserViewPreview` / `UserViewSnapshot` / `UserViewConfigUsed` 类型；挂载到 `adminUsageAPI` 默认导出
+- `frontend/src/components/admin/usage/UserViewCompareDrawer.vue` — **新建**。基于 `BaseDialog` 的 extra-wide 对话框，展示 real / user_view 双列对比 + 差异%；分组：Tokens / Costs / Invariants；顶部展示 `config_used`（含 `has_user_override` badge）；actual_cost 不一致时红色告警
+- `frontend/src/components/admin/usage/UsageTable.vue` — 新增 `userViewClick` emit 与 `<template #cell-actions>` 渲染 eye 按钮
+- `frontend/src/views/admin/UsageView.vue` — `allColumns` 末尾新增 `actions` 列；`ALWAYS_VISIBLE` 包含 `actions`；新增 `userViewLogId/userViewOpen/handleUserViewClick/closeUserViewDrawer` 状态与处理；`<UsageTable>` 监听 `@userViewClick`；模板末挂载 `<UserViewCompareDrawer>`
+- `frontend/src/i18n/locales/zh.ts`、`en.ts` — `admin.usage` 节点新增 actions/viewUserPerspective/userView* 等 16 个 key
+
+**上游兼容性**:
+- 仅追加列与组件，未改动现有列渲染；上游若改动 admin usage 表的列结构，需要把 `actions` 列追加重做即可
+
+**变更详情**:
+- 与昨日后端段 `GET /admin/usage/:id/user-view` 配套，闭环了"管理员后台直接看用户前端视角"的工作流——管理员点击行尾 eye 图标 → 抽屉拉接口 → 左右对比 real(管理员视角) vs user_view(用户实际看到)，并标注哪些 display 配置生效（含全局 vs 用户覆盖来源）
+- 抽屉自动隐藏全 0 字段段，避免噪音；diff 列以红/绿 + 百分比表达放大/缩小
+- `pnpm typecheck` 通过；`pnpm build` 在与本改动无关的 PricingView.vue 上有 cnyRate TS 错（会话开始前已存在的未提交改动），不阻塞当前段
+
 ## [2026-04-19] feat(admin/usage): 新增"用户视角"对比预览接口（后端段）
 
 **影响范围**:

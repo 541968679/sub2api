@@ -241,6 +241,52 @@ export async function refreshAntigravityStats(
   return data
 }
 
+// ==================== User-view preview (display transform debug) ====================
+
+export interface UserViewSnapshot {
+  input_tokens: number
+  output_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+  input_cost: number
+  output_cost: number
+  cache_read_cost: number
+  cache_creation_cost: number
+  total_cost: number
+  actual_cost: number
+  rate_multiplier: number
+}
+
+export interface UserViewConfigUsed {
+  display_input_price: number | null
+  display_output_price: number | null
+  display_cache_read_price: number | null
+  display_rate_multiplier: number | null
+  cache_transfer_ratio: number | null
+  user_group_rate: number | null
+  has_user_override: boolean
+  group_id: number | null
+}
+
+export interface UserViewPreview {
+  log_id: number
+  user_id: number
+  model: string
+  real: UserViewSnapshot
+  user_view: UserViewSnapshot
+  config_used: UserViewConfigUsed
+}
+
+/**
+ * Fetch a side-by-side preview of "what the owning user sees on their own /usage page" vs the
+ * admin's raw view, for a single usage_log row. Used by the admin compare drawer to verify
+ * cache_transfer_ratio + display pricing produce the expected numbers without logging in as the user.
+ */
+export async function getUserViewPreview(logId: number): Promise<UserViewPreview> {
+  const { data } = await apiClient.get<UserViewPreview>(`/admin/usage/${logId}/user-view`)
+  return data
+}
+
 export const adminUsageAPI = {
   list,
   getStats,
@@ -250,7 +296,8 @@ export const adminUsageAPI = {
   createCleanupTask,
   cancelCleanupTask,
   getAntigravityStats,
-  refreshAntigravityStats
+  refreshAntigravityStats,
+  getUserViewPreview
 }
 
 export default adminUsageAPI
