@@ -49,62 +49,41 @@
               <h1 class="text-[40px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[48px]">
                 {{ loginHeading2 }}
               </h1>
-              <p class="mt-3 max-w-[540px] text-sm leading-relaxed text-[#A9BDCF]">
-                {{ loginDescription }}
-              </p>
             </div>
 
-            <!-- Bottom section: 2×2 feature cards (main visual weight) + referral highlight -->
-            <div class="space-y-4">
-              <!-- 2×2 Feature Grid: 比推广块更大、更饱满；每张卡带独立主题色 -->
-              <div class="grid gap-4 sm:grid-cols-2">
-                <div
-                  v-for="card in featureCards"
-                  :key="card.key"
-                  class="group relative overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#0F2538] to-[#0A1A28] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-colors hover:border-[#4B8AB0]"
-                >
-                  <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别四张卡各自代表什么 -->
-                  <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
+            <!-- Bottom section: 6 feature cards in 2×3 grid (推广邀请已合并为其中一张) -->
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div
+                v-for="card in featureCards"
+                :key="card.key"
+                class="group relative overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#0F2538] to-[#0A1A28] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-colors hover:border-[#4B8AB0]"
+              >
+                <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别各自代表什么 -->
+                <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
 
-                  <!-- 标题行：较大图标（40×40）+ 17px 粗标题，比旧版有明显体量 -->
-                  <div class="flex items-center gap-3">
-                    <span
-                      class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                      :class="[card.iconBg, card.iconColor]"
-                    >
-                      <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
-                      </svg>
-                    </span>
-                    <h3 class="text-[17px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
-                  </div>
-
-                  <!-- 描述：14px，关键词用主题色 + 加粗 突出展示 -->
-                  <p class="mt-3.5 text-[14px] leading-[1.65] text-[#C8D7E4]">
-                    <template v-for="(seg, i) in card.segments" :key="i">
-                      <span
-                        v-if="seg.highlight"
-                        class="font-extrabold"
-                        :class="card.highlightColor"
-                      >{{ seg.text }}</span>
-                      <template v-else>{{ seg.text }}</template>
-                    </template>
-                  </p>
-                </div>
-              </div>
-
-              <!-- 推广邀请：弱化一级，让 4 张卡片视觉优先（padding 略收，标题从 18 降到 16） -->
-              <div class="rounded-[20px] border border-[#9BFFEA]/30 bg-gradient-to-br from-[#18D8AA]/[0.14] to-[#4BA8FF]/[0.06] px-5 py-4">
-                <div class="flex items-center gap-2.5">
-                  <span class="inline-block rounded-full bg-[#ECFFF9] px-2.5 py-1 text-[11px] font-extrabold tracking-wide text-[#0D2A3C]">
-                    {{ t('auth.login.referral.tag') }}
+                <!-- 标题行：较大图标（40×40）+ 17px 粗标题 -->
+                <div class="flex items-center gap-3">
+                  <span
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                    :class="[card.iconBg, card.iconColor]"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
+                    </svg>
                   </span>
-                  <h3 class="text-[16px] font-extrabold leading-snug text-white">
-                    {{ t('auth.login.referral.title') }}
-                  </h3>
+                  <h3 class="text-[17px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
                 </div>
-                <p class="mt-2 text-[13px] leading-relaxed text-[#C8E0E8]">
-                  {{ t('auth.login.referral.body') }}
+
+                <!-- 描述：14px，关键词用主题色 + 加粗 突出展示 -->
+                <p class="mt-3.5 text-[14px] leading-[1.65] text-[#C8D7E4]">
+                  <template v-for="(seg, i) in card.segments" :key="i">
+                    <span
+                      v-if="seg.highlight"
+                      class="font-extrabold"
+                      :class="card.highlightColor"
+                    >{{ seg.text }}</span>
+                    <template v-else>{{ seg.text }}</template>
+                  </template>
                 </p>
               </div>
             </div>
@@ -340,7 +319,6 @@ const pickLoginText = (value: string | undefined | null, fallback: string): stri
 const loginBadge = computed(() => pickLoginText(loginPageOverrides.value?.badge, t('auth.login.badge')))
 const loginHeading1 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line1, t('auth.login.headingLine1')))
 const loginHeading2 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line2, t('auth.login.headingLine2')))
-const loginDescription = computed(() => pickLoginText(loginPageOverrides.value?.description, t('auth.login.description')))
 const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.form_title, t('auth.login.title')))
 const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
@@ -352,7 +330,7 @@ const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?
 //   - 要在描述里突出展示的关键词（不同语言各配一套；匹配不到就原样显示）
 // 加强版样式可以让价格、Opus/GPT/Gemini 型号名、"支持开票" 等一眼能看到。
 
-type FeatureKey = 'metered' | 'quality' | 'models' | 'enterprise'
+type FeatureKey = 'metered' | 'quality' | 'models' | 'tutorial' | 'enterprise' | 'referral'
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -372,13 +350,17 @@ const featureHighlightTermsZh: Record<FeatureKey, readonly string[]> = {
   metered: ['0.7 元', '1/10', '超高性价比'],
   quality: ['美国高带宽', '低延迟', '高缓存命中'],
   models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
-  enterprise: ['大规模采购', '开票']
+  tutorial: ['完整', '高可读性', '快速上手'],
+  enterprise: ['大规模采购', '开票'],
+  referral: ['丰厚奖励', '持续返佣']
 }
 const featureHighlightTermsEn: Record<FeatureKey, readonly string[]> = {
   metered: ['0.7 CNY', '1/10', 'excellent value'],
   quality: ['High-bandwidth US', 'low latency', 'strong cache hit rate'],
   models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
-  enterprise: ['Bulk purchasing', 'invoicing']
+  tutorial: ['Complete', 'readable', 'productive fast'],
+  enterprise: ['Bulk purchasing', 'invoicing'],
+  referral: ['account credit', 'ongoing commission']
 }
 
 interface FeatureCardDef {
@@ -430,6 +412,16 @@ const featureCards = computed<FeatureCardDef[]>(() => {
         'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'
     },
     {
+      key: 'tutorial',
+      iconBg: 'bg-[#22D3EE]/15',
+      iconColor: 'text-[#7DE5F5]',
+      highlightColor: 'text-[#A9F0F9]',
+      topStripe: 'bg-gradient-to-r from-[#22D3EE]/70 via-[#22D3EE]/20 to-transparent',
+      // book-open
+      iconPath:
+        'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'
+    },
+    {
       key: 'enterprise',
       iconBg: 'bg-[#F0B841]/15',
       iconColor: 'text-[#F7D87B]',
@@ -438,6 +430,16 @@ const featureCards = computed<FeatureCardDef[]>(() => {
       // building-office (简化版)
       iconPath:
         'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
+    },
+    {
+      key: 'referral',
+      iconBg: 'bg-[#F472B6]/15',
+      iconColor: 'text-[#FBA8D4]',
+      highlightColor: 'text-[#FFCCE4]',
+      topStripe: 'bg-gradient-to-r from-[#F472B6]/70 via-[#F472B6]/20 to-transparent',
+      // gift
+      iconPath:
+        'M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
     }
   ]
   return defs.map<FeatureCardDef>((d) => ({

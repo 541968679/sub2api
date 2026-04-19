@@ -385,7 +385,7 @@ export default {
       featureTransparentBillingDesc: 'Pay per token, volume discounts.',
       featureAuditTrail: 'Audit Trail',
       featureAuditTrailDesc: 'Every call and charge is traceable.',
-      // New 2×2 feature cards
+      // New 2×3 feature cards (6 total)
       features: {
         metered: {
           title: 'Metered & fully transparent',
@@ -399,16 +399,18 @@ export default {
           title: 'Top-tier models',
           desc: 'Opus 4.7, GPT-5.4 and Gemini 3.1 Pro — all at full power.'
         },
+        tutorial: {
+          title: 'Beginner-friendly tutorials',
+          desc: 'Complete, readable guides that get you productive fast.'
+        },
         enterprise: {
           title: 'Enterprise channel',
           desc: 'Bulk purchasing and invoicing supported — contact support for details.'
+        },
+        referral: {
+          title: 'Invite friends, earn together',
+          desc: 'Each successful referral rewards both sides with account credit and ongoing commission.'
         }
-      },
-      // Referral promotion (body is a placeholder — replace once final copy is set)
-      referral: {
-        tag: 'Referral',
-        title: 'Invite friends, earn together',
-        body: 'Every successful referral rewards both you and your friend with account credit, and you continue to earn commission on their future usage. Check the Referral Center in your dashboard for the current rules and your personal link.'
       },
       title: 'Sign In',
       subtitle: 'Access your dashboard to view balance, usage, and full model list.',
