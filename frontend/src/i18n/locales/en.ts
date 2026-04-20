@@ -333,6 +333,8 @@ export default {
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
+    modelPricing: 'Model Pricing',
+    pageContent: 'Page Content',
     redeem: 'Redeem',
     profile: 'Profile',
     users: 'Users',
@@ -371,7 +373,8 @@ export default {
       headingLine1: 'ZeroCode',
       headingLine2: 'All-in-One API for Top AI Models',
       description: 'A unified API gateway for developers and teams. One interface, pay-as-you-go billing, full usage tracking — no more juggling multiple platforms.',
-      featurePrice: 'From $0.6 / 1$',
+      featurePrice: 'From ${price} / 1$',
+      featurePriceDefault: 'From $0.6 / 1$',
       featurePayAsYouGo: 'Pay as you go',
       featureNoCharge: 'No usage, no charge',
       supportedModels: 'Supported Models',
@@ -382,6 +385,33 @@ export default {
       featureTransparentBillingDesc: 'Pay per token, volume discounts.',
       featureAuditTrail: 'Audit Trail',
       featureAuditTrailDesc: 'Every call and charge is traceable.',
+      // New 2×3 feature cards (6 total)
+      features: {
+        metered: {
+          title: 'Metered & fully transparent',
+          desc: 'From 0.7 CNY per USD — about 1/10 of the official price, excellent value.'
+        },
+        quality: {
+          title: 'Official-grade quality',
+          desc: 'High-bandwidth US servers with low latency and strong cache hit rate.'
+        },
+        models: {
+          title: 'Top-tier models',
+          desc: 'Opus 4.7, GPT-5.4 and Gemini 3.1 Pro — all at full power.'
+        },
+        tutorial: {
+          title: 'Beginner-friendly tutorials',
+          desc: 'Complete, readable guides that get you productive fast.'
+        },
+        enterprise: {
+          title: 'Enterprise channel',
+          desc: 'Bulk purchasing and invoicing supported — contact support for details.'
+        },
+        referral: {
+          title: 'Invite friends, earn together',
+          desc: 'Each successful referral rewards both sides with account credit and ongoing commission.'
+        }
+      },
       title: 'Sign In',
       subtitle: 'Access your dashboard to view balance, usage, and full model list.',
       submitButton: 'Sign in & start using',
@@ -763,6 +793,32 @@ export default {
     },
   },
 
+  // Model Pricing Page (user-facing)
+  pricing: {
+    title: 'Model Pricing',
+    description: 'How we price models, how our model compares to common alternatives, and the display price for every exposed model.',
+    introTitle: 'Our Pricing Model',
+    educationTitle: 'Pricing Models Explained',
+    tableTitle: 'Model Price Reference',
+    modelsSuffix: 'models',
+    unitHint: 'Units: token-based billing shown per 1M tokens ($/MTok); per-request shown per call.',
+    perRequestUnit: 'request',
+    emptyState: 'No models have been exposed on this page yet.',
+    columns: {
+      model: 'Model',
+      billingMode: 'Billing',
+      inputPrice: 'Input $/MTok',
+      outputPrice: 'Output $/MTok',
+      cacheReadPrice: 'Cache Read $/MTok',
+      multiplier: 'Multiplier'
+    },
+    billingMode: {
+      perToken: 'Per token',
+      perRequest: 'Per request',
+      image: 'Per image'
+    }
+  },
+
   // Usage
   usage: {
     title: 'Usage Records',
@@ -840,7 +896,22 @@ export default {
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    antigravity: {
+      title: 'Antigravity Credit Cost Analysis',
+      subtitle: 'AI Credits consumed vs antigravity quota & calls within the selected range',
+      refreshNow: 'Sample now',
+      loading: 'Loading…',
+      insufficientSnapshot: 'Not enough snapshots yet. Wait 15 minutes or click "Sample now".',
+      creditsConsumed: 'Credits consumed',
+      quotaUsed: 'Quota used',
+      calls: 'Calls',
+      quotaPerCredit: 'Quota / credit',
+      callsPerCredit: 'Calls / credit',
+      perCredit: '/ credit',
+      samplingMeta: '{emails} accounts, {snapshots} snapshots',
+      throttled: 'Sampling cooling down, showing latest result'
+    }
   },
 
   // Redeem
@@ -1485,6 +1556,20 @@ export default {
       useDefaultRate: 'Use Default',
       customRatePlaceholder: 'Leave empty for default',
       displayRate: 'Display Rate',
+      // User Model Pricing
+      modelPricing: 'Model Pricing',
+      modelPricingConfig: 'User Model Pricing Override',
+      modelPricingHint: 'Set per-model billing and display price overrides for this user. Overrides global and channel pricing.',
+      addModelOverride: 'Add Model Override',
+      modelNamePlaceholder: 'Model name (e.g. claude-sonnet-4)',
+      billingPriceOverride: 'Billing Price Override',
+      displayPriceOverride: 'Display Price Override',
+      noOverride: 'No override',
+      noModelOverrides: 'No model pricing overrides configured for this user.',
+      notesPlaceholder: 'Notes (optional)',
+      duplicateModelError: 'Duplicate configurations detected for: {models}',
+      litellmReference: 'LiteLLM Reference Prices',
+      applySuggested: 'Apply Suggested',
       displayRatePlaceholder: 'Empty',
       groupConfigUpdated: 'Group configuration updated successfully',
       replaceGroup: 'Replace Group',
@@ -2024,6 +2109,61 @@ export default {
       }
     },
 
+    // Page Content hub (wrapper with tabs for pricing/login)
+    pageContent: {
+      title: 'Page Content',
+      description: 'Edit the marketing copy shown on the Model Pricing page and the Login page. Use the tabs below to switch between them.',
+      tabs: {
+        pricing: 'Model Pricing page',
+        login: 'Login page'
+      }
+    },
+
+    // Login Page Content (admin-edited)
+    loginPage: {
+      title: 'Login Page Content',
+      description: 'Edit the marketing headings, description, and sign-in form labels on the login page. Leaving a field blank restores the translated default.',
+      preview: 'Preview login page',
+      fallbackHint: 'Empty fields automatically fall back to the current language\'s i18n default, so zh / en switching still works.',
+      sections: {
+        marketing: 'Left panel: marketing copy',
+        models: 'Supported models section',
+        form: 'Right panel: sign-in form'
+      },
+      fields: {
+        badge: 'Top badge',
+        headingLine1: 'Heading line 1',
+        headingLine2: 'Heading line 2 (accent)',
+        description: 'Description paragraph',
+        supportedModelsTitle: 'Models section title',
+        modelsDesc: 'Models section caption',
+        formTitle: 'Sign-in form title',
+        formSubtitle: 'Sign-in form subtitle'
+      },
+      saveButton: 'Save',
+      saveSuccess: 'Saved',
+      resetButton: 'Clear all (restore defaults)',
+      resetConfirm: 'Clear every field? The UI will fall back to the built-in translations.',
+      resetSuccess: 'Restored to defaults'
+    },
+
+    // Pricing Page Content (admin-edited)
+    pricingPage: {
+      title: 'Pricing Page Content',
+      description: 'Edit the two Markdown sections shown on the user Model Pricing page. Model visibility is configured per model in Model Config.',
+      introLabel: 'Our Pricing Model',
+      introHint: 'First section: explain how this site bills (real-token pricing). Markdown is supported.',
+      introPlaceholder: 'e.g. We price at the real per-token rates from Anthropic / OpenAI / Google…',
+      educationLabel: 'Pricing Models Explained',
+      educationHint: 'Second section: compare common pricing models and highlight the fairness of this one. Markdown is supported.',
+      educationPlaceholder: 'e.g. Compare per-request, flat-token, unlimited-plan pricing schemes…',
+      saveButton: 'Save',
+      saveSuccess: 'Content saved',
+      previewButton: 'Preview user page',
+      modelSelectHint: 'To control which models appear on the pricing page, open each model in Model Config and toggle "Show on pricing page".',
+      modelConfigLink: 'Open Model Config'
+    },
+
     // Model Config
     modelConfig: {
       title: 'Model Config',
@@ -2082,11 +2222,14 @@ export default {
       defaultPrices: 'Default Prices',
       globalOverride: 'Global Override',
       enabled: 'Enabled',
+      showOnPricingPage: 'Show on pricing page',
+      showOnPricingPageHint: 'When checked, this model appears in the user-facing Model Pricing page. Independent of the billing-enabled switch.',
       notes: 'Notes',
       displayPricingTitle: 'User Display Overrides',
       displayPricingHint: 'Only affects user-facing usage log display, not actual billing. Leave blank = show real values.',
       displayInputPrice: 'Display Input ($/MTok)',
       displayOutputPrice: 'Display Output ($/MTok)',
+      displayCacheReadPrice: 'Display Cache Read ($/MTok)',
       displayRateMultiplier: 'Display Rate',
       cacheTransferRatio: 'Cache Transfer Ratio (0~1)',
       billingModeLabel: 'Billing Mode',

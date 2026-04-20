@@ -7,6 +7,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
@@ -39,6 +40,20 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	aicreditsnapshotFields := schema.AICreditSnapshot{}.Fields()
+	_ = aicreditsnapshotFields
+	// aicreditsnapshotDescEmail is the schema descriptor for email field.
+	aicreditsnapshotDescEmail := aicreditsnapshotFields[0].Descriptor()
+	// aicreditsnapshot.EmailValidator is a validator for the "email" field. It is called by the builders before save.
+	aicreditsnapshot.EmailValidator = aicreditsnapshotDescEmail.Validators[0].(func(string) error)
+	// aicreditsnapshotDescCreditType is the schema descriptor for credit_type field.
+	aicreditsnapshotDescCreditType := aicreditsnapshotFields[1].Descriptor()
+	// aicreditsnapshot.CreditTypeValidator is a validator for the "credit_type" field. It is called by the builders before save.
+	aicreditsnapshot.CreditTypeValidator = aicreditsnapshotDescCreditType.Validators[0].(func(string) error)
+	// aicreditsnapshotDescCapturedAt is the schema descriptor for captured_at field.
+	aicreditsnapshotDescCapturedAt := aicreditsnapshotFields[3].Descriptor()
+	// aicreditsnapshot.DefaultCapturedAt holds the default value on creation for the captured_at field.
+	aicreditsnapshot.DefaultCapturedAt = aicreditsnapshotDescCapturedAt.Default.(func() time.Time)
 	apikeyMixin := schema.APIKey{}.Mixin()
 	apikeyMixinHooks1 := apikeyMixin[1].Hooks()
 	apikey.Hooks[0] = apikeyMixinHooks1[0]

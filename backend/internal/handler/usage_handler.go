@@ -18,17 +18,19 @@ import (
 
 // UsageHandler handles usage-related requests
 type UsageHandler struct {
-	usageService        *service.UsageService
-	apiKeyService       *service.APIKeyService
-	modelPricingService *service.GlobalModelPricingService
+	usageService            *service.UsageService
+	apiKeyService           *service.APIKeyService
+	modelPricingService     *service.GlobalModelPricingService
+	userModelPricingService *service.UserModelPricingService
 }
 
 // NewUsageHandler creates a new UsageHandler
-func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService, modelPricingService *service.GlobalModelPricingService) *UsageHandler {
+func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService, modelPricingService *service.GlobalModelPricingService, userModelPricingService *service.UserModelPricingService) *UsageHandler {
 	return &UsageHandler{
-		usageService:        usageService,
-		apiKeyService:       apiKeyService,
-		modelPricingService: modelPricingService,
+		usageService:            usageService,
+		apiKeyService:           apiKeyService,
+		modelPricingService:     modelPricingService,
+		userModelPricingService: userModelPricingService,
 	}
 }
 
@@ -144,7 +146,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 		return
 	}
 
-	displayMap := h.loadDisplayPricingMap(c)
+	displayMap := h.loadDisplayPricingMapForUser(c, subject.UserID)
 	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
@@ -186,7 +188,7 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	u := dto.UsageLogFromService(record, h.loadDisplayPricingMap(c))
+	u := dto.UsageLogFromService(record, h.loadDisplayPricingMapForUser(c, subject.UserID))
 	if record.GroupID != nil {
 		userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 		if userDisplayRates != nil {
@@ -445,6 +447,18 @@ func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingM
 		return nil
 	}
 	return dto.BuildDisplayPricingMap(pricings)
+}
+
+func (h *UsageHandler) loadDisplayPricingMapForUser(c *gin.Context, userID int64) dto.DisplayPricingMap {
+	globalMap := h.loadDisplayPricingMap(c)
+	if h.userModelPricingService == nil {
+		return globalMap
+	}
+	userOverrides, err := h.userModelPricingService.GetEnabledByUserID(c.Request.Context(), userID)
+	if err != nil || len(userOverrides) == 0 {
+		return globalMap
+	}
+	return dto.BuildUserDisplayPricingMap(globalMap, userOverrides)
 }
 
 func (h *UsageHandler) loadUserDisplayRates(c *gin.Context, userID int64) map[int64]service.UserGroupRateData {

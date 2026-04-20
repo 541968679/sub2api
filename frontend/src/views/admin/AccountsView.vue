@@ -232,11 +232,15 @@
             />
           </template>
           <template #cell-proxy="{ row }">
-            <div v-if="row.proxy" class="flex items-center gap-2">
+            <div v-if="row.proxy" class="flex items-center gap-1.5">
               <span class="text-sm text-gray-700 dark:text-gray-300">{{ row.proxy.name }}</span>
-              <span v-if="row.proxy.country_code" class="text-xs text-gray-500 dark:text-gray-400">
-                ({{ row.proxy.country_code }})
+              <span v-if="getProxyGeo(row.proxy_id)" class="text-xs text-gray-500 dark:text-gray-400">
+                {{ getProxyGeo(row.proxy_id) }}
               </span>
+              <span
+                v-if="getProxyAccountCount(row.proxy_id) !== undefined"
+                class="inline-flex items-center rounded bg-gray-100 px-1 py-0.5 text-xs text-gray-500 dark:bg-dark-600 dark:text-gray-400"
+              >{{ getProxyAccountCount(row.proxy_id) }}</span>
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
@@ -359,6 +363,27 @@ const authStore = useAuthStore()
 
 const proxies = ref<AccountProxy[]>([])
 const groups = ref<AdminGroup[]>([])
+
+const proxyMap = computed(() => {
+  const m = new Map<number, AccountProxy>()
+  for (const p of proxies.value) m.set(p.id, p)
+  return m
+})
+
+const getProxyGeo = (proxyId: number | null): string => {
+  if (!proxyId) return ''
+  const p = proxyMap.value.get(proxyId)
+  if (!p) return ''
+  const parts: string[] = []
+  if (p.country_code) parts.push(p.country_code)
+  if (p.city) parts.push(p.city)
+  return parts.length ? `(${parts.join(' ')})` : ''
+}
+
+const getProxyAccountCount = (proxyId: number | null): number | undefined => {
+  if (!proxyId) return undefined
+  return proxyMap.value.get(proxyId)?.account_count
+}
 const accountTableRef = ref<HTMLElement | null>(null)
 const selPlatforms = computed<AccountPlatform[]>(() => {
   const platforms = new Set(
@@ -407,7 +432,7 @@ const exportingData = ref(false)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'priority', 'rate_multiplier']
+const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'priority', 'rate_multiplier']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 
 // Sorting settings
@@ -1489,7 +1514,7 @@ const handleClickOutside = (event: MouseEvent) => {
 onMounted(async () => {
   load()
   try {
-    const [p, g] = await Promise.all([adminAPI.proxies.getAll(), adminAPI.groups.getAll()])
+    const [p, g] = await Promise.all([adminAPI.proxies.getAllWithCount(), adminAPI.groups.getAll()])
     proxies.value = p
     groups.value = g
   } catch (error) {

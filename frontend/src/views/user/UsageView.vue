@@ -496,7 +496,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { usageAPI, keysAPI } from '@/api'
@@ -611,7 +611,8 @@ const sortState = reactive({
   sort_order: 'desc' as 'asc' | 'desc'
 })
 
-const formatDuration = (ms: number): string => {
+const formatDuration = (ms: number | null | undefined): string => {
+  if (ms == null) return '-'
   if (ms < 1000) return `${ms.toFixed(0)}ms`
   return `${(ms / 1000).toFixed(2)}s`
 }
@@ -689,6 +690,12 @@ const loadUsageLogs = async () => {
   if (abortController) {
     abortController.abort()
   }
+  // Dismiss any open tooltips before replacing data to prevent parentNode-null crash
+  tooltipVisible.value = false
+  tooltipData.value = null
+  tokenTooltipVisible.value = false
+  tokenTooltipData.value = null
+
   const currentAbortController = new AbortController()
   abortController = currentAbortController
   const { signal } = currentAbortController
@@ -930,5 +937,15 @@ onMounted(() => {
   loadApiKeys()
   loadUsageLogs()
   loadUsageStats()
+})
+
+onBeforeUnmount(() => {
+  tooltipVisible.value = false
+  tooltipData.value = null
+  tokenTooltipVisible.value = false
+  tokenTooltipData.value = null
+  if (abortController) {
+    abortController.abort()
+  }
 })
 </script>

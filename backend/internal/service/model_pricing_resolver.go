@@ -10,6 +10,7 @@ const (
 	PricingSourceGlobal   = "global"
 	PricingSourceLiteLLM  = "litellm"
 	PricingSourceFallback = "fallback"
+	PricingSourceUser     = "user"
 )
 
 // ResolvedPricing 统一定价解析结果
@@ -37,22 +38,24 @@ type ResolvedPricing struct {
 }
 
 // ModelPricingResolver 统一模型定价解析器。
-// 解析链：(LiteLLM/Fallback 为底) → Global 叠加 → Channel 叠加。
-// 注意：Global 与 Channel 均为"叠加覆盖"语义——仅替换非 nil 字段，其余保留底层值。
+// 解析链：(LiteLLM/Fallback 为底) → Global 叠加 → Channel 叠加 → User 叠加。
+// 注意：Global、Channel、User 均为"叠加覆盖"语义——仅替换非 nil 字段，其余保留底层值。
 // 这样可以在不丢失 Priority tier、长上下文倍率、缓存 5m/1h 分级等字段的前提下
 // 让管理员自定义单价。
 type ModelPricingResolver struct {
-	channelService     *ChannelService
-	billingService     *BillingService
-	globalPricingCache *GlobalPricingCache // 可选，nil 时跳过全局覆盖
+	channelService       *ChannelService
+	billingService       *BillingService
+	globalPricingCache   *GlobalPricingCache              // 可选，nil 时跳过全局覆盖
+	userModelPricingRepo UserModelPricingRepository // 可选，nil 时跳过用户级覆盖
 }
 
 // NewModelPricingResolver 创建定价解析器实例
-func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, globalPricingCache *GlobalPricingCache) *ModelPricingResolver {
+func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, globalPricingCache *GlobalPricingCache, userModelPricingRepo UserModelPricingRepository) *ModelPricingResolver {
 	return &ModelPricingResolver{
-		channelService:     channelService,
-		billingService:     billingService,
-		globalPricingCache: globalPricingCache,
+		channelService:       channelService,
+		billingService:       billingService,
+		globalPricingCache:   globalPricingCache,
+		userModelPricingRepo: userModelPricingRepo,
 	}
 }
 
@@ -60,11 +63,13 @@ func NewModelPricingResolver(channelService *ChannelService, billingService *Bil
 type PricingInput struct {
 	Model   string
 	GroupID *int64 // nil 表示不检查渠道
+	UserID  *int64 // nil 表示不检查用户级覆盖
 }
 
 // Resolve 解析模型定价。
 // 1. 获取基础定价（LiteLLM/Fallback 为底，若存在全局覆盖则叠加之）
 // 2. 如果指定了 GroupID，查找渠道定价并再次叠加
+// 3. 如果指定了 UserID，查找用户级定价覆盖并最终叠加
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
 	// 1. 获取基础定价（含全局覆盖）
 	basePricing, baseMode, defaultPerRequest, source := r.resolveBasePricing(input.Model)
@@ -80,6 +85,11 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	// 2. 如果有 GroupID，尝试渠道覆盖
 	if input.GroupID != nil {
 		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
+	}
+
+	// 3. 如果有 UserID，尝试用户级定价覆盖（优先级最高）
+	if input.UserID != nil && r.userModelPricingRepo != nil {
+		r.applyUserModelPricingOverride(ctx, *input.UserID, input.Model, resolved)
 	}
 
 	return resolved
@@ -299,4 +309,44 @@ func (r *ModelPricingResolver) GetRequestTierPriceByContext(resolved *ResolvedPr
 		return *iv.PerRequestPrice
 	}
 	return 0
+}
+
+// applyUserModelPricingOverride 将用户级定价覆盖的非 nil 字段叠加到 resolved 上。
+// 语义与 applyGlobalPricingOverride 一致：非 nil 替换、Priority 字段同步。
+// 用户级覆盖优先级最高：User > Channel > Global > LiteLLM/Fallback。
+func (r *ModelPricingResolver) applyUserModelPricingOverride(ctx context.Context, userID int64, model string, resolved *ResolvedPricing) {
+	override, err := r.userModelPricingRepo.GetByUserAndModel(ctx, userID, model)
+	if err != nil || override == nil || !override.Enabled {
+		return
+	}
+
+	hasBillingOverride := override.InputPrice != nil || override.OutputPrice != nil ||
+		override.CacheWritePrice != nil || override.CacheReadPrice != nil
+	if !hasBillingOverride {
+		return
+	}
+
+	if resolved.BasePricing == nil {
+		resolved.BasePricing = &ModelPricing{}
+	}
+
+	if override.InputPrice != nil {
+		resolved.BasePricing.InputPricePerToken = *override.InputPrice
+		resolved.BasePricing.InputPricePerTokenPriority = *override.InputPrice
+	}
+	if override.OutputPrice != nil {
+		resolved.BasePricing.OutputPricePerToken = *override.OutputPrice
+		resolved.BasePricing.OutputPricePerTokenPriority = *override.OutputPrice
+	}
+	if override.CacheWritePrice != nil {
+		resolved.BasePricing.CacheCreationPricePerToken = *override.CacheWritePrice
+		resolved.BasePricing.CacheCreation5mPrice = *override.CacheWritePrice
+		resolved.BasePricing.CacheCreation1hPrice = *override.CacheWritePrice
+	}
+	if override.CacheReadPrice != nil {
+		resolved.BasePricing.CacheReadPricePerToken = *override.CacheReadPrice
+		resolved.BasePricing.CacheReadPricePerTokenPriority = *override.CacheReadPrice
+	}
+
+	resolved.Source = PricingSourceUser
 }

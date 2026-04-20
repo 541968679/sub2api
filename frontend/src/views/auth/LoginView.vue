@@ -40,87 +40,51 @@
             <!-- Badge + Heading -->
             <div>
               <span class="inline-block rounded-[20px] bg-[#ECFFF9] px-4 py-2 text-[13px] font-extrabold tracking-wide text-[#0D2A3C]">
-                {{ t('auth.login.badge') }}
+                {{ loginBadge }}
               </span>
 
               <h1 class="mt-8 text-[40px] font-extrabold leading-[1.15] text-white xl:text-[48px]">
-                {{ t('auth.login.headingLine1') }}
+                {{ loginHeading1 }}
               </h1>
               <h1 class="text-[40px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[48px]">
-                {{ t('auth.login.headingLine2') }}
+                {{ loginHeading2 }}
               </h1>
-              <p class="mt-3 max-w-[540px] text-sm leading-relaxed text-[#A9BDCF]">
-                {{ t('auth.login.description') }}
-              </p>
-
-              <!-- Feature Pills -->
-              <div class="mt-4 flex flex-wrap gap-2.5">
-                <span class="rounded-[27px] bg-[#ECFFF9] px-4 py-2.5 text-base font-extrabold text-[#0F2638]">
-                  {{ t('auth.login.featurePrice') }}
-                </span>
-                <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
-                  {{ t('auth.login.featurePayAsYouGo') }}
-                </span>
-                <span class="rounded-[27px] bg-white/[0.08] px-4 py-2.5 text-sm font-bold text-[#F1F5F9]">
-                  {{ t('auth.login.featureNoCharge') }}
-                </span>
-              </div>
             </div>
 
-            <!-- Supported Models -->
-            <div>
-              <p class="mb-3 text-sm font-bold text-[#EAF6FF]">{{ t('auth.login.supportedModels') }}</p>
-              <div class="grid grid-cols-3 gap-2.5">
-                <div
-                  v-for="channel in modelChannels"
-                  :key="channel.name"
-                  class="rounded-2xl px-3.5 py-3"
-                  :class="channel.highlighted
-                    ? 'border border-[#D97757]/40 bg-[#0F1E2E] shadow-[0_0_16px_rgba(217,119,87,0.12)]'
-                    : 'border border-[#29475F] bg-[#0F1E2E]'"
-                >
-                  <!-- Channel header -->
-                  <div class="mb-2 flex items-center gap-2">
-                    <span class="inline-block h-2 w-2 rounded-full" :style="{ backgroundColor: channel.color }"></span>
-                    <span class="text-xs font-bold text-[#EAF5FF]">{{ channel.name }}</span>
-                  </div>
-                  <!-- Model list -->
-                  <div class="flex flex-col gap-1">
-                    <div
-                      v-for="model in channel.models"
-                      :key="model"
-                      class="flex items-center gap-1.5"
-                    >
-                      <template v-if="model === channel.flagship">
-                        <span class="text-[13px] font-extrabold" :style="{ color: channel.color }">{{ model }}</span>
-                        <span
-                          v-if="channel.highlighted"
-                          class="rounded px-1 py-0.5 text-[9px] font-bold leading-none bg-[#D97757]/20 text-[#D97757]"
-                        >HOT</span>
-                      </template>
-                      <template v-else>
-                        <span class="text-[12px] font-medium text-[#8EA6BD]">{{ model }}</span>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <p class="mt-2 text-xs text-[#7A95AD]">{{ t('auth.login.modelsDesc') }}</p>
+            <!-- Bottom section: 6 feature cards in 2×3 grid (推广邀请已合并为其中一张) -->
+            <div class="grid gap-4 sm:grid-cols-2">
+              <div
+                v-for="card in featureCards"
+                :key="card.key"
+                class="group relative overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#0F2538] to-[#0A1A28] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-colors hover:border-[#4B8AB0]"
+              >
+                <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别各自代表什么 -->
+                <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
 
-              <!-- Feature Cards -->
-              <div class="mt-3 flex flex-wrap gap-2.5">
-                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
-                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureUnifiedApi') }}</div>
-                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureUnifiedApiDesc') }}</div>
+                <!-- 标题行：较大图标（40×40）+ 17px 粗标题 -->
+                <div class="flex items-center gap-3">
+                  <span
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                    :class="[card.iconBg, card.iconColor]"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
+                    </svg>
+                  </span>
+                  <h3 class="text-[17px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
                 </div>
-                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
-                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureTransparentBilling') }}</div>
-                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureTransparentBillingDesc') }}</div>
-                </div>
-                <div class="flex-1 min-w-[140px] rounded-[20px] border border-[#29465D] bg-[#102233] px-4 py-3">
-                  <div class="text-sm font-extrabold text-[#EAF5FF]">{{ t('auth.login.featureAuditTrail') }}</div>
-                  <div class="mt-1 text-[11px] text-[#9FB4C8]">{{ t('auth.login.featureAuditTrailDesc') }}</div>
-                </div>
+
+                <!-- 描述：14px，关键词用主题色 + 加粗 突出展示 -->
+                <p class="mt-3.5 text-[14px] leading-[1.65] text-[#C8D7E4]">
+                  <template v-for="(seg, i) in card.segments" :key="i">
+                    <span
+                      v-if="seg.highlight"
+                      class="font-extrabold"
+                      :class="card.highlightColor"
+                    >{{ seg.text }}</span>
+                    <template v-else>{{ seg.text }}</template>
+                  </template>
+                </p>
               </div>
             </div>
           </div>
@@ -138,8 +102,8 @@
               </div>
 
               <!-- Title -->
-              <h2 class="text-[28px] font-extrabold text-[#F6FBFF]">{{ t('auth.login.title') }}</h2>
-              <p class="mt-2 text-[14px] text-[#8EA6BD]">{{ t('auth.login.subtitle') }}</p>
+              <h2 class="text-[28px] font-extrabold text-[#F6FBFF]">{{ loginFormTitle }}</h2>
+              <p class="mt-2 text-[14px] text-[#8EA6BD]">{{ loginFormSubtitle }}</p>
 
               <!-- Login Form -->
               <form class="mt-8" @submit.prevent="handleLogin">
@@ -328,7 +292,7 @@ import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
 import { sanitizeUrl } from '@/utils/url'
 import type { TotpLoginResponse } from '@/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // ==================== Router & Stores ====================
 
@@ -343,31 +307,147 @@ const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRela
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 const docUrl = computed(() => appStore.docUrl)
 
-// ==================== Model Cards ====================
+// ==================== Login Page Content Overrides ====================
+// Admin-editable copy from settings (public). Empty / missing fields fall back
+// to the i18n defaults below, so deleting a field in admin = restoring the
+// original translation. Keeps every language correct without per-field branching.
+const loginPageOverrides = computed(() => appStore.cachedPublicSettings?.login_page ?? null)
+const pickLoginText = (value: string | undefined | null, fallback: string): string => {
+  const v = typeof value === 'string' ? value.trim() : ''
+  return v !== '' ? v : fallback
+}
+const loginBadge = computed(() => pickLoginText(loginPageOverrides.value?.badge, t('auth.login.badge')))
+const loginHeading1 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line1, t('auth.login.headingLine1')))
+const loginHeading2 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line2, t('auth.login.headingLine2')))
+const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.form_title, t('auth.login.title')))
+const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
-const modelChannels = [
-  {
-    name: 'Claude',
-    color: '#D97757',
-    models: ['Opus 4.7', 'Opus 4.6', 'Sonnet 4.6'],
-    flagship: 'Opus 4.7',
-    highlighted: true,
-  },
-  {
-    name: 'GPT',
-    color: '#10A37F',
-    models: ['GPT-5.4', 'GPT-4o', 'o3'],
-    flagship: 'GPT-5.4',
-    highlighted: false,
-  },
-  {
-    name: 'Gemini',
-    color: '#4285F4',
-    models: ['Gemini 3.1 Pro', 'Gemini 2.5 Flash'],
-    flagship: 'Gemini 3.1 Pro',
-    highlighted: false,
-  },
-]
+// ==================== Feature Cards (2×2 grid) ====================
+// 卡片文字来自 i18n（`auth.login.features.*.title` / `.desc`），不改动。
+// 这里声明的都是「视觉规则」：
+//   - 每张卡的主题色（图标、顶部光带、描述里高亮词的颜色）
+//   - 图标 SVG path（heroicons outline）
+//   - 要在描述里突出展示的关键词（不同语言各配一套；匹配不到就原样显示）
+// 加强版样式可以让价格、Opus/GPT/Gemini 型号名、"支持开票" 等一眼能看到。
+
+type FeatureKey = 'metered' | 'quality' | 'models' | 'tutorial' | 'enterprise' | 'referral'
+
+const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+function splitWithTerms(text: string, terms: readonly string[]): Array<{ text: string; highlight: boolean }> {
+  const sorted = terms.filter(Boolean).slice().sort((a, b) => b.length - a.length)
+  if (sorted.length === 0) return [{ text, highlight: false }]
+  const pattern = new RegExp(`(${sorted.map(escapeRegExp).join('|')})`, 'g')
+  return text
+    .split(pattern)
+    .filter((part) => part !== '')
+    .map((part) => ({ text: part, highlight: sorted.includes(part) }))
+}
+
+// 每张卡在不同语言下需要高亮的子串。更动 i18n 文案后若找不到子串，则不加高亮，
+// 不会崩溃——高亮是锦上添花，不影响可读性。
+const featureHighlightTermsZh: Record<FeatureKey, readonly string[]> = {
+  metered: ['0.7 元', '1/10', '超高性价比'],
+  quality: ['美国高带宽', '低延迟', '高缓存命中'],
+  models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
+  tutorial: ['完整', '高可读性', '快速上手'],
+  enterprise: ['大规模采购', '开票'],
+  referral: ['丰厚奖励', '持续返佣']
+}
+const featureHighlightTermsEn: Record<FeatureKey, readonly string[]> = {
+  metered: ['0.7 CNY', '1/10', 'excellent value'],
+  quality: ['High-bandwidth US', 'low latency', 'strong cache hit rate'],
+  models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
+  tutorial: ['Complete', 'readable', 'productive fast'],
+  enterprise: ['Bulk purchasing', 'invoicing'],
+  referral: ['account credit', 'ongoing commission']
+}
+
+interface FeatureCardDef {
+  key: FeatureKey
+  /** Tailwind class: 图标圆底色 */
+  iconBg: string
+  /** Tailwind class: 图标描边色 */
+  iconColor: string
+  /** Tailwind class: 描述里高亮词的颜色 */
+  highlightColor: string
+  /** Tailwind class: 卡片顶部渐变光带 */
+  topStripe: string
+  /** heroicon outline path data */
+  iconPath: string
+  title: string
+  segments: Array<{ text: string; highlight: boolean }>
+}
+
+const featureCards = computed<FeatureCardDef[]>(() => {
+  const terms = locale.value.startsWith('en') ? featureHighlightTermsEn : featureHighlightTermsZh
+  const defs: Array<Omit<FeatureCardDef, 'title' | 'segments'> & { key: FeatureKey }> = [
+    {
+      key: 'metered',
+      iconBg: 'bg-[#18D8AA]/15',
+      iconColor: 'text-[#7CF5CC]',
+      highlightColor: 'text-[#9BFFEA]',
+      topStripe: 'bg-gradient-to-r from-[#18D8AA]/70 via-[#18D8AA]/20 to-transparent',
+      // currency (dollar) with circle
+      iconPath:
+        'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4'
+    },
+    {
+      key: 'quality',
+      iconBg: 'bg-[#4BA8FF]/15',
+      iconColor: 'text-[#7FC6FF]',
+      highlightColor: 'text-[#9FD4FF]',
+      topStripe: 'bg-gradient-to-r from-[#4BA8FF]/70 via-[#4BA8FF]/20 to-transparent',
+      // bolt
+      iconPath: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z'
+    },
+    {
+      key: 'models',
+      iconBg: 'bg-[#A78BFA]/15',
+      iconColor: 'text-[#C4B5FD]',
+      highlightColor: 'text-[#DDD0FF]',
+      topStripe: 'bg-gradient-to-r from-[#A78BFA]/70 via-[#A78BFA]/20 to-transparent',
+      // sparkles
+      iconPath:
+        'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'
+    },
+    {
+      key: 'tutorial',
+      iconBg: 'bg-[#22D3EE]/15',
+      iconColor: 'text-[#7DE5F5]',
+      highlightColor: 'text-[#A9F0F9]',
+      topStripe: 'bg-gradient-to-r from-[#22D3EE]/70 via-[#22D3EE]/20 to-transparent',
+      // book-open
+      iconPath:
+        'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'
+    },
+    {
+      key: 'enterprise',
+      iconBg: 'bg-[#F0B841]/15',
+      iconColor: 'text-[#F7D87B]',
+      highlightColor: 'text-[#FCE697]',
+      topStripe: 'bg-gradient-to-r from-[#F0B841]/70 via-[#F0B841]/20 to-transparent',
+      // building-office (简化版)
+      iconPath:
+        'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
+    },
+    {
+      key: 'referral',
+      iconBg: 'bg-[#F472B6]/15',
+      iconColor: 'text-[#FBA8D4]',
+      highlightColor: 'text-[#FFCCE4]',
+      topStripe: 'bg-gradient-to-r from-[#F472B6]/70 via-[#F472B6]/20 to-transparent',
+      // gift
+      iconPath:
+        'M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
+    }
+  ]
+  return defs.map<FeatureCardDef>((d) => ({
+    ...d,
+    title: t(`auth.login.features.${d.key}.title`),
+    segments: splitWithTerms(t(`auth.login.features.${d.key}.desc`), terms[d.key])
+  }))
+})
 
 // ==================== State ====================
 

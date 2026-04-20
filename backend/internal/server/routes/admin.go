@@ -91,6 +91,12 @@ func RegisterAdminRoutes(
 
 		// 模型定价管理
 		registerModelPricingRoutes(admin, h)
+
+		// 用户「模型计价」页文案管理
+		registerPricingPageRoutes(admin, h)
+
+		// 登录页文案管理
+		registerLoginPageRoutes(admin, h)
 	}
 }
 
@@ -227,6 +233,13 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// User attribute values
 		users.GET("/:id/attributes", h.Admin.UserAttribute.GetUserAttributes)
 		users.PUT("/:id/attributes", h.Admin.UserAttribute.UpdateUserAttributes)
+
+		// User model pricing overrides
+		users.GET("/:id/model-pricing", h.Admin.UserModelPricing.List)
+		users.POST("/:id/model-pricing", h.Admin.UserModelPricing.Create)
+		users.POST("/:id/model-pricing/batch", h.Admin.UserModelPricing.BatchUpsert)
+		users.PUT("/:id/model-pricing/:overrideId", h.Admin.UserModelPricing.Update)
+		users.DELETE("/:id/model-pricing/:overrideId", h.Admin.UserModelPricing.Delete)
 	}
 }
 
@@ -499,6 +512,8 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		usage.GET("", h.Admin.Usage.List)
 		usage.GET("/stats", h.Admin.Usage.Stats)
+		usage.GET("/stats/antigravity", h.Admin.Usage.StatsAntigravity)
+		usage.POST("/stats/antigravity/refresh", h.Admin.Usage.RefreshAntigravityStats)
 		usage.GET("/search-users", h.Admin.Usage.SearchUsers)
 		usage.GET("/search-api-keys", h.Admin.Usage.SearchAPIKeys)
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)
@@ -575,5 +590,25 @@ func registerModelPricingRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		mp.POST("", h.Admin.ModelPricing.CreateOverride)
 		mp.PUT("/:id", h.Admin.ModelPricing.UpdateOverride)
 		mp.DELETE("/:id", h.Admin.ModelPricing.DeleteOverride)
+	}
+}
+
+// registerPricingPageRoutes 用户「模型计价」页面文案管理。两段 Markdown 存在 settings KV 里，
+// 可见模型列表由 global_model_pricing.show_on_pricing_page 控制，不在此处管理。
+func registerPricingPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	pp := admin.Group("/pricing-page")
+	{
+		pp.GET("/content", h.Admin.PricingPage.Get)
+		pp.PUT("/content", h.Admin.PricingPage.Update)
+	}
+}
+
+// registerLoginPageRoutes 登录页文案管理。8 个字段分别存到 settings 表的
+// login_page.* 键；空字符串被视为「未设置」，前端回落到 i18n auth.login.*。
+func registerLoginPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	lp := admin.Group("/login-page")
+	{
+		lp.GET("/content", h.Admin.LoginPage.Get)
+		lp.PUT("/content", h.Admin.LoginPage.Update)
 	}
 }

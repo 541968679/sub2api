@@ -89,6 +89,17 @@ export interface CustomEndpoint {
   description: string
 }
 
+export interface LoginPageContent {
+  badge?: string
+  heading_line1?: string
+  heading_line2?: string
+  description?: string
+  supported_models_title?: string
+  models_desc?: string
+  form_title?: string
+  form_subtitle?: string
+}
+
 export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
@@ -107,6 +118,7 @@ export interface PublicSettings {
   home_content: string
   hide_ccs_import_button: boolean
   payment_enabled: boolean
+  payment_cny_per_usd: number
   table_default_page_size: number
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
@@ -116,6 +128,9 @@ export interface PublicSettings {
   oidc_oauth_provider_name: string
   backend_mode_enabled: boolean
   version: string
+
+  /** 登录页文案覆盖。omit 或字段空串时前端回落到 i18n `auth.login.*`。 */
+  login_page?: LoginPageContent
 }
 
 export interface AuthResponse {

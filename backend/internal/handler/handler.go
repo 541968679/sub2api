@@ -32,6 +32,9 @@ type AdminHandlers struct {
 	ScheduledTest         *admin.ScheduledTestHandler
 	Channel               *admin.ChannelHandler
 	ModelPricing          *admin.ModelPricingHandler
+	UserModelPricing      *admin.UserModelPricingHandler
+	PricingPage           *admin.PricingPageHandler
+	LoginPage             *admin.LoginPageHandler
 	Payment               *admin.PaymentHandler
 }
 
@@ -51,6 +54,7 @@ type Handlers struct {
 	Totp           *TotpHandler
 	Payment        *PaymentHandler
 	PaymentWebhook *PaymentWebhookHandler
+	PricingPage    *PricingPageHandler
 }
 
 // BuildInfo contains build-time information

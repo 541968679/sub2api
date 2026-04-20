@@ -12,11 +12,12 @@ import (
 
 // GlobalModelPricingService 全局模型定价管理服务
 type GlobalModelPricingService struct {
-	repo           GlobalModelPricingRepository
-	cache          *GlobalPricingCache
-	pricingService *PricingService
-	channelService *ChannelService
-	groupRepo      GroupRepository
+	repo                 GlobalModelPricingRepository
+	cache                *GlobalPricingCache
+	pricingService       *PricingService
+	channelService       *ChannelService
+	groupRepo            GroupRepository
+	userModelPricingRepo UserModelPricingRepository
 }
 
 // NewGlobalModelPricingService 创建全局模型定价管理服务实例
@@ -26,13 +27,15 @@ func NewGlobalModelPricingService(
 	pricingService *PricingService,
 	channelService *ChannelService,
 	groupRepo GroupRepository,
+	userModelPricingRepo UserModelPricingRepository,
 ) *GlobalModelPricingService {
 	return &GlobalModelPricingService{
-		repo:           repo,
-		cache:          cache,
-		pricingService: pricingService,
-		channelService: channelService,
-		groupRepo:      groupRepo,
+		repo:                 repo,
+		cache:                cache,
+		pricingService:       pricingService,
+		channelService:       channelService,
+		groupRepo:            groupRepo,
+		userModelPricingRepo: userModelPricingRepo,
 	}
 }
 
@@ -43,6 +46,7 @@ type ModelPricingListItem struct {
 	LiteLLMPrices        *LiteLLMPrices    `json:"litellm_prices"`
 	GlobalOverride       *GlobalOverride   `json:"global_override"`
 	ChannelOverrideCount int               `json:"channel_override_count"`
+	UserOverrideCount    int               `json:"user_override_count"`
 	EffectiveSource      string            `json:"effective_source"` // "global", "litellm", "fallback"
 	BillingBasisHint     *BillingBasisHint `json:"billing_basis_hint,omitempty"`
 }
@@ -96,8 +100,11 @@ type GlobalOverride struct {
 
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
 	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
+
+	ShowOnPricingPage bool `json:"show_on_pricing_page"`
 }
 
 // ModelPricingListResult 分页列表结果
@@ -112,6 +119,7 @@ type ModelPricingStats struct {
 	TotalModels          int `json:"total_models"`
 	GlobalOverrideCount  int `json:"global_override_count"`
 	ChannelOverrideCount int `json:"channel_override_count"`
+	UserOverrideCount    int `json:"user_override_count"`
 }
 
 // ListAllModels 合并 LiteLLM + 全局覆盖为统一分页列表
@@ -141,6 +149,9 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 	// 3. 获取渠道覆盖计数
 	channelOverrideCounts := s.getChannelOverrideCounts(ctx)
 
+	// 3b. 获取用户覆盖计数
+	userOverrideCounts := s.getUserOverrideCounts(ctx)
+
 	// 4. 合并到统一列表
 	modelSet := make(map[string]bool)
 	var items []ModelPricingListItem
@@ -153,6 +164,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			Model:                entry.Model,
 			Provider:             entry.Provider,
 			ChannelOverrideCount: channelOverrideCounts[modelLower],
+			UserOverrideCount:    userOverrideCounts[modelLower],
 			EffectiveSource:      PricingSourceLiteLLM,
 		}
 
@@ -190,6 +202,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			Provider:             gp.Provider,
 			GlobalOverride:       ToGlobalOverride(&gp),
 			ChannelOverrideCount: channelOverrideCounts[modelLower],
+			UserOverrideCount:    userOverrideCounts[modelLower],
 			EffectiveSource:      PricingSourceFallback,
 		}
 		if gp.Enabled {
@@ -212,6 +225,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			Model:                requestModel,
 			Provider:             "antigravity",
 			ChannelOverrideCount: channelOverrideCounts[modelLower],
+			UserOverrideCount:    userOverrideCounts[modelLower],
 			EffectiveSource:      PricingSourceFallback,
 		})
 	}
@@ -311,6 +325,11 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			stats.ChannelOverrideCount++
 		}
 	}
+	for _, count := range userOverrideCounts {
+		if count > 0 {
+			stats.UserOverrideCount++
+		}
+	}
 
 	// 8. 分页
 	total := len(items)
@@ -350,10 +369,29 @@ type ModelPricingDetail struct {
 	LiteLLMPrices    *LiteLLMPrices           `json:"litellm_prices"`
 	GlobalOverride   *GlobalOverride          `json:"global_override"`
 	ChannelOverrides []ChannelOverrideSummary `json:"channel_overrides"`
+	UserOverrides    []UserOverrideSummary    `json:"user_overrides"`
 	// SuggestedPrices 当模型既无 LiteLLM 数据又无全局覆盖时，按命名近似推断的建议价
 	SuggestedPrices *LiteLLMPrices `json:"suggested_prices,omitempty"`
 	// SuggestedFrom 建议价来自哪个模型（用于前端提示"来自 xxx"）
 	SuggestedFrom string `json:"suggested_from,omitempty"`
+}
+
+// UserOverrideSummary 用户级定价覆盖摘要
+type UserOverrideSummary struct {
+	OverrideID            int64    `json:"override_id"`
+	UserID                int64    `json:"user_id"`
+	UserEmail             string   `json:"user_email"`
+	UserName              string   `json:"user_name"`
+	InputPrice            *float64 `json:"input_price"`
+	OutputPrice           *float64 `json:"output_price"`
+	CacheWritePrice       *float64 `json:"cache_write_price"`
+	CacheReadPrice        *float64 `json:"cache_read_price"`
+	DisplayInputPrice     *float64 `json:"display_input_price"`
+	DisplayOutputPrice    *float64 `json:"display_output_price"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
+	Enabled               bool     `json:"enabled"`
+	Notes                 string   `json:"notes"`
 }
 
 // ChannelOverrideSummary 渠道覆盖摘要
@@ -405,6 +443,9 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 
 	// 渠道覆盖
 	detail.ChannelOverrides = s.getChannelOverridesForModel(ctx, model)
+
+	// 用户覆盖
+	detail.UserOverrides = s.getUserOverridesForModel(ctx, model)
 
 	// 建议价：仅当既无 LiteLLM 数据又无全局覆盖时（典型是 Antigravity 专有 stub）
 	// 才尝试按命名近似推断一个建议价，供管理员一键填入
@@ -634,6 +675,10 @@ func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, se
 				if item.ChannelOverrideCount == 0 {
 					continue
 				}
+			case "has_user_override":
+				if item.UserOverrideCount == 0 {
+					continue
+				}
 			}
 		}
 		filtered = append(filtered, item)
@@ -717,6 +762,47 @@ func (s *GlobalModelPricingService) getChannelOverridesForModel(ctx context.Cont
 	return result
 }
 
+func (s *GlobalModelPricingService) getUserOverrideCounts(ctx context.Context) map[string]int {
+	if s.userModelPricingRepo == nil {
+		return nil
+	}
+	counts, err := s.userModelPricingRepo.GetEnabledCountByModel(ctx)
+	if err != nil {
+		return nil
+	}
+	return counts
+}
+
+func (s *GlobalModelPricingService) getUserOverridesForModel(ctx context.Context, model string) []UserOverrideSummary {
+	if s.userModelPricingRepo == nil {
+		return nil
+	}
+	overrides, err := s.userModelPricingRepo.GetByModel(ctx, model)
+	if err != nil || len(overrides) == 0 {
+		return nil
+	}
+	result := make([]UserOverrideSummary, 0, len(overrides))
+	for _, o := range overrides {
+		summary := UserOverrideSummary{
+			OverrideID:            o.ID,
+			UserID:                o.UserID,
+			InputPrice:            o.InputPrice,
+			OutputPrice:           o.OutputPrice,
+			CacheWritePrice:       o.CacheWritePrice,
+			CacheReadPrice:        o.CacheReadPrice,
+			DisplayInputPrice:     o.DisplayInputPrice,
+			DisplayOutputPrice:    o.DisplayOutputPrice,
+			DisplayRateMultiplier: o.DisplayRateMultiplier,
+			CacheTransferRatio:    o.CacheTransferRatio,
+			Enabled:               o.Enabled,
+			Notes:                 o.Notes,
+		}
+		// user email/name lookup would require userRepo; for now return IDs only
+		result = append(result, summary)
+	}
+	return result
+}
+
 // ToGlobalOverride 把内部 GlobalModelPricing 实体转为 API 返回用的 GlobalOverride
 // （带 json tag 的 snake_case 字段名）。handler 层需要用此函数包装 Create/Update
 // 返回值，否则前端收到的是 PascalCase JSON，字段全部 undefined。
@@ -737,8 +823,11 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 
 		DisplayInputPrice:     gp.DisplayInputPrice,
 		DisplayOutputPrice:    gp.DisplayOutputPrice,
+		DisplayCacheReadPrice: gp.DisplayCacheReadPrice,
 		DisplayRateMultiplier: gp.DisplayRateMultiplier,
 		CacheTransferRatio:    gp.CacheTransferRatio,
+
+		ShowOnPricingPage: gp.ShowOnPricingPage,
 	}
 }
 
@@ -746,4 +835,11 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 // Used by usage handlers to build the display pricing map.
 func (s *GlobalModelPricingService) GetAllEnabledPricings(ctx context.Context) ([]GlobalModelPricing, error) {
 	return s.repo.GetAllEnabled(ctx)
+}
+
+// ListForPricingPage 返回所有已启用且在「模型计价」页展示的模型。
+// 供用户侧 pricing-page 聚合接口调用，结果需再经 dto.BuildUserDisplayPricingMap
+// 合并用户级覆盖后展示给前端。
+func (s *GlobalModelPricingService) ListForPricingPage(ctx context.Context) ([]GlobalModelPricing, error) {
+	return s.repo.ListForPricingPage(ctx)
 }

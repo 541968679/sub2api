@@ -10,7 +10,8 @@ Sub2API is an AI API gateway platform that aggregates multiple AI subscription a
 
 ## Quick Reference
 
-- `docs/dev/codebase/` — 结构化代码地图（按模块拆分，探索结果沉淀，修改前先读）
+- `docs/dev/ARCHITECTURE.md` — **顶层技术架构文档（入口）**。新会话探索代码前先读，含请求流、Wire/Settings/路由约定、常见任务模板、已知坑
+- `docs/dev/codebase/` — 结构化代码地图（按模块拆分，探索结果沉淀），入口 `codebase/README.md`
 - `docs/dev/CHANGELOG_CUSTOM.md` — 二开变更日志
 - `docs/dev/DEPLOYMENT.md` — 部署运维手册
 - `docs/dev/SECONDARY_DEV.md` — 二开指南
@@ -116,16 +117,23 @@ make secret-scan          # Python security scanner
 
 ## Key Development Rules
 
-1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. Push to origin after commit.
+1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. **Do NOT `git push` or deploy to production without explicit user permission** — local commits are fine, but pushing to `origin` (the fork, which drives production deploys) and running `deploy/remote_exec.py` both require the user to say "push"/"deploy" (or equivalent) for this specific change. A one-time earlier approval does not carry over to future commits.
 2. **Every change must be logged** — append an entry to `docs/dev/CHANGELOG_CUSTOM.md` describing what changed, why, and which files were affected.
-3. **Exploration results → Codebase Map** — after deep exploration of a module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code.
-4. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
-5. **pnpm-lock.yaml must be committed** — CI uses `--frozen-lockfile`.
-6. **Ent schema changes** → run `go generate ./ent` and commit generated files.
-7. **Wire DI changes** → run `go generate ./cmd/server` and commit `wire_gen.go`.
-8. **Interface changes** → update ALL test stubs/mocks that implement the interface.
-9. **Frontend embeds into backend** — `pnpm build` output goes to `backend/internal/web/dist`, compiled into the Go binary with `-tags embed`.
-10. **Windows dev notes**: use `127.0.0.1` not `localhost` for psql; no Chinese paths for psql; no native `make` (use raw commands).
+3. **Architecture doc = entry point for code exploration** — before diving into code in a new conversation or an unfamiliar module, read `docs/dev/ARCHITECTURE.md` first. It's the navigation hub: tech stack, directory map, request lifecycle, Wire/Settings/migration conventions, common task templates (§5), known gotchas (§6). Don't re-explore what the doc already documents. **Update ARCHITECTURE.md** when:
+   - adding a new top-level module / service / frontend area,
+   - introducing or changing a cross-cutting architectural convention (DI, Settings KV, routing, auth, error handling),
+   - discovering a new environment/build gotcha that affects future work,
+   - templatising a reusable pattern that other developers would benefit from (add to §5 common task templates).
+
+   Module-internal implementation details do **not** belong in ARCHITECTURE.md — those go in `docs/dev/codebase/{module}.md` (see rule 4).
+4. **Exploration results → Codebase Map** — after deep exploration of a specific module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code.
+5. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
+6. **pnpm-lock.yaml must be committed** — CI uses `--frozen-lockfile`.
+7. **Ent schema changes** → run `go generate ./ent` and commit generated files.
+8. **Wire DI changes** → run `go generate ./cmd/server` and commit `wire_gen.go`.
+9. **Interface changes** → update ALL test stubs/mocks that implement the interface.
+10. **Frontend embeds into backend** — `pnpm build` output goes to `backend/internal/web/dist`, compiled into the Go binary with `-tags embed`.
+11. **Windows dev notes**: use `127.0.0.1` not `localhost` for psql; no Chinese paths for psql; no native `make` (use raw commands).
 
 ## Configuration
 

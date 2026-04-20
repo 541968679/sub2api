@@ -30,8 +30,12 @@ type GlobalModelPricing struct {
 	// Display overrides — only affect user-facing usage log display, not actual billing.
 	DisplayInputPrice     *float64 // 展示给用户的输入单价
 	DisplayOutputPrice    *float64 // 展示给用户的输出单价
+	DisplayCacheReadPrice *float64 // 展示给用户的缓存读取单价
 	DisplayRateMultiplier *float64 // 展示给用户的倍率
 	CacheTransferRatio    *float64 // 缓存 token 转移到输入 token 的比例 (0~1)
+
+	// ShowOnPricingPage 是否在用户「模型计价」页展示。与 Enabled（计费）解耦。
+	ShowOnPricingPage bool
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -46,4 +50,6 @@ type GlobalModelPricingRepository interface {
 	Update(ctx context.Context, pricing *GlobalModelPricing) error
 	Delete(ctx context.Context, id int64) error
 	GetAllEnabled(ctx context.Context) ([]GlobalModelPricing, error)
+	// ListForPricingPage 返回同时启用计费且在计价页展示的模型，按 provider/model 排序。
+	ListForPricingPage(ctx context.Context) ([]GlobalModelPricing, error)
 }

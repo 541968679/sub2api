@@ -10,6 +10,7 @@ import (
 type DisplayPricingConfig struct {
 	DisplayInputPrice     *float64
 	DisplayOutputPrice    *float64
+	DisplayCacheReadPrice *float64
 	DisplayRateMultiplier *float64
 	CacheTransferRatio    *float64
 }
@@ -28,6 +29,7 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 		m[toLowerModel(p.Model)] = &DisplayPricingConfig{
 			DisplayInputPrice:     p.DisplayInputPrice,
 			DisplayOutputPrice:    p.DisplayOutputPrice,
+			DisplayCacheReadPrice: p.DisplayCacheReadPrice,
 			DisplayRateMultiplier: p.DisplayRateMultiplier,
 			CacheTransferRatio:    p.CacheTransferRatio,
 		}
@@ -36,7 +38,7 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 }
 
 func hasDisplayOverride(p *service.GlobalModelPricing) bool {
-	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil ||
+	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil ||
 		p.DisplayRateMultiplier != nil || (p.CacheTransferRatio != nil && *p.CacheTransferRatio > 0)
 }
 
@@ -84,6 +86,10 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	if cfg.DisplayRateMultiplier != nil && *cfg.DisplayRateMultiplier > 0 {
 		displayRate = *cfg.DisplayRateMultiplier
 	}
+	// Safety: never divide by 0 in the rescaling formulas below.
+	if displayRate <= 0 {
+		displayRate = 1
+	}
 
 	// Input tokens rescaling
 	if cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 && d.InputTokens > 0 {
@@ -102,11 +108,14 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 		d.OutputCost = float64(d.OutputTokens) * *cfg.DisplayOutputPrice
 	}
 
-	// Cache read tokens: if input price is overridden but cache isn't, scale cache similarly
+	// Cache read tokens rescaling
 	if d.CacheReadTokens > 0 && d.CacheReadCost > 0 {
 		realCacheCostTotal := d.CacheReadCost * d.RateMultiplier
-		// Use real cache price for display (no override for cache read display price)
-		if d.RateMultiplier != displayRate {
+		if cfg.DisplayCacheReadPrice != nil && *cfg.DisplayCacheReadPrice > 0 {
+			displayTokens := realCacheCostTotal / (*cfg.DisplayCacheReadPrice * displayRate)
+			d.CacheReadTokens = int(math.Round(displayTokens))
+			d.CacheReadCost = float64(d.CacheReadTokens) * *cfg.DisplayCacheReadPrice
+		} else if d.RateMultiplier != displayRate {
 			cachePrice := d.CacheReadCost / float64(d.CacheReadTokens)
 			displayTokens := realCacheCostTotal / (cachePrice * displayRate)
 			d.CacheReadTokens = int(math.Round(displayTokens))
@@ -182,4 +191,46 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 
 	d.TotalCost = d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
 	d.RateMultiplier = displayRate
+}
+
+// BuildUserDisplayPricingMap merges user-level display overrides on top of the global display map.
+// Priority: user-level > global-level. Only non-nil user fields replace global values.
+func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []service.UserModelPricingOverride) DisplayPricingMap {
+	merged := make(DisplayPricingMap, len(globalMap))
+	for k, v := range globalMap {
+		clone := *v
+		merged[k] = &clone
+	}
+	for i := range userOverrides {
+		o := &userOverrides[i]
+		if !o.Enabled || o.Model == "" {
+			continue
+		}
+		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil &&
+			o.DisplayRateMultiplier == nil && o.CacheTransferRatio == nil {
+			continue
+		}
+		key := toLowerModel(o.Model)
+		existing := merged[key]
+		if existing == nil {
+			existing = &DisplayPricingConfig{}
+			merged[key] = existing
+		}
+		if o.DisplayInputPrice != nil {
+			existing.DisplayInputPrice = o.DisplayInputPrice
+		}
+		if o.DisplayOutputPrice != nil {
+			existing.DisplayOutputPrice = o.DisplayOutputPrice
+		}
+		if o.DisplayCacheReadPrice != nil {
+			existing.DisplayCacheReadPrice = o.DisplayCacheReadPrice
+		}
+		if o.DisplayRateMultiplier != nil {
+			existing.DisplayRateMultiplier = o.DisplayRateMultiplier
+		}
+		if o.CacheTransferRatio != nil {
+			existing.CacheTransferRatio = o.CacheTransferRatio
+		}
+	}
+	return merged
 }

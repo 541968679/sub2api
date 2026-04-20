@@ -21,11 +21,12 @@ import (
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
-	usageService        *service.UsageService
-	apiKeyService       *service.APIKeyService
-	adminService        service.AdminService
-	cleanupService      *service.UsageCleanupService
-	modelPricingService *service.GlobalModelPricingService
+	usageService          *service.UsageService
+	apiKeyService         *service.APIKeyService
+	adminService          service.AdminService
+	cleanupService        *service.UsageCleanupService
+	modelPricingService   *service.GlobalModelPricingService
+	creditSnapshotService *service.CreditSnapshotService
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -35,13 +36,15 @@ func NewUsageHandler(
 	adminService service.AdminService,
 	cleanupService *service.UsageCleanupService,
 	modelPricingService *service.GlobalModelPricingService,
+	creditSnapshotService *service.CreditSnapshotService,
 ) *UsageHandler {
 	return &UsageHandler{
-		usageService:        usageService,
-		apiKeyService:       apiKeyService,
-		adminService:        adminService,
-		cleanupService:      cleanupService,
-		modelPricingService: modelPricingService,
+		usageService:          usageService,
+		apiKeyService:         apiKeyService,
+		adminService:          adminService,
+		cleanupService:        cleanupService,
+		modelPricingService:   modelPricingService,
+		creditSnapshotService: creditSnapshotService,
 	}
 }
 
@@ -336,6 +339,91 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	}
 
 	response.Success(c, stats)
+}
+
+// parseStatsDateRange 与 Stats() 保持一致的 start/end 解析逻辑，便于 antigravity 接口复用。
+// 当未传 start_date/end_date 时，按 period 参数回落（today/week/month）。
+func parseStatsDateRange(c *gin.Context) (time.Time, time.Time, bool) {
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+	var startTime, endTime time.Time
+	if startDateStr != "" && endDateStr != "" {
+		var err error
+		startTime, err = timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+		if err != nil {
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+			return time.Time{}, time.Time{}, false
+		}
+		endTime, err = timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+		if err != nil {
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+			return time.Time{}, time.Time{}, false
+		}
+		endTime = endTime.AddDate(0, 0, 1)
+	} else {
+		period := c.DefaultQuery("period", "today")
+		switch period {
+		case "today":
+			startTime = timezone.StartOfDayInUserLocation(now, userTZ)
+		case "week":
+			startTime = now.AddDate(0, 0, -7)
+		case "month":
+			startTime = now.AddDate(0, -1, 0)
+		default:
+			startTime = timezone.StartOfDayInUserLocation(now, userTZ)
+		}
+		endTime = now
+	}
+	return startTime, endTime, true
+}
+
+// StatsAntigravity 返回 antigravity 平台时间窗内的 credits 消耗 / 额度 / 调用次数 / 派生比率。
+// GET /api/v1/admin/usage/stats/antigravity
+func (h *UsageHandler) StatsAntigravity(c *gin.Context) {
+	if h.creditSnapshotService == nil {
+		response.InternalError(c, "credit snapshot service not configured")
+		return
+	}
+	startTime, endTime, ok := parseStatsDateRange(c)
+	if !ok {
+		return
+	}
+	result, err := h.creditSnapshotService.GetAntigravityUsageRatio(c.Request.Context(), startTime, endTime)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+// RefreshAntigravityStats 手动触发一次 credits 余额采样，再返回最新聚合结果。
+// 30 秒内重复请求会被节流（throttled），响应里回显 manual_refresh_throttled=true。
+// POST /api/v1/admin/usage/stats/antigravity/refresh
+func (h *UsageHandler) RefreshAntigravityStats(c *gin.Context) {
+	if h.creditSnapshotService == nil {
+		response.InternalError(c, "credit snapshot service not configured")
+		return
+	}
+	startTime, endTime, ok := parseStatsDateRange(c)
+	if !ok {
+		return
+	}
+	ctx := c.Request.Context()
+	_, throttled, err := h.creditSnapshotService.TriggerManualCapture(ctx)
+	if err != nil {
+		logger.LegacyPrintf("handler.admin.usage", "[Usage] manual credit snapshot failed: %v", err)
+	}
+	result, err := h.creditSnapshotService.GetAntigravityUsageRatio(ctx, startTime, endTime)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if throttled {
+		result.ManualRefreshThrottled = true
+	}
+	response.Success(c, result)
 }
 
 // SearchUsers handles searching users by email keyword

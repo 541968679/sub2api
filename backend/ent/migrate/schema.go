@@ -9,6 +9,32 @@ import (
 )
 
 var (
+	// AiCreditSnapshotsColumns holds the columns for the "ai_credit_snapshots" table.
+	AiCreditSnapshotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "email", Type: field.TypeString, Size: 255},
+		{Name: "credit_type", Type: field.TypeString, Size: 50},
+		{Name: "amount", Type: field.TypeFloat64, SchemaType: map[string]string{"postgres": "decimal(20,6)"}},
+		{Name: "captured_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+	}
+	// AiCreditSnapshotsTable holds the schema information for the "ai_credit_snapshots" table.
+	AiCreditSnapshotsTable = &schema.Table{
+		Name:       "ai_credit_snapshots",
+		Columns:    AiCreditSnapshotsColumns,
+		PrimaryKey: []*schema.Column{AiCreditSnapshotsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "aicreditsnapshot_email_captured_at",
+				Unique:  false,
+				Columns: []*schema.Column{AiCreditSnapshotsColumns[1], AiCreditSnapshotsColumns[4]},
+			},
+			{
+				Name:    "aicreditsnapshot_captured_at",
+				Unique:  false,
+				Columns: []*schema.Column{AiCreditSnapshotsColumns[4]},
+			},
+		},
+	}
 	// APIKeysColumns holds the columns for the "api_keys" table.
 	APIKeysColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1309,6 +1335,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		AiCreditSnapshotsTable,
 		APIKeysTable,
 		AccountsTable,
 		AccountGroupsTable,
@@ -1339,6 +1366,9 @@ var (
 )
 
 func init() {
+	AiCreditSnapshotsTable.Annotation = &entsql.Annotation{
+		Table: "ai_credit_snapshots",
+	}
 	APIKeysTable.ForeignKeys[0].RefTable = GroupsTable
 	APIKeysTable.ForeignKeys[1].RefTable = UsersTable
 	APIKeysTable.Annotation = &entsql.Annotation{

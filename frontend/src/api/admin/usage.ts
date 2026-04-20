@@ -196,6 +196,51 @@ export async function cancelCleanupTask(taskId: number): Promise<{ id: number; s
   return data
 }
 
+// ==================== Antigravity credit ratio ====================
+
+export interface AntigravityUsageRatio {
+  start: string
+  end: string
+  credits_consumed: number
+  credits_by_type: Record<string, number>
+  quota_used_usd: number
+  call_count: number
+  quota_per_credit?: number
+  calls_per_credit?: number
+  snapshot_count: number
+  emails_sampled: number
+  manual_refresh_throttled?: boolean
+}
+
+interface AntigravityStatsParams {
+  period?: string
+  start_date?: string
+  end_date?: string
+  timezone?: string
+}
+
+export async function getAntigravityStats(
+  params: AntigravityStatsParams,
+  options?: { signal?: AbortSignal }
+): Promise<AntigravityUsageRatio> {
+  const { data } = await apiClient.get<AntigravityUsageRatio>('/admin/usage/stats/antigravity', {
+    params,
+    signal: options?.signal
+  })
+  return data
+}
+
+export async function refreshAntigravityStats(
+  params: AntigravityStatsParams
+): Promise<AntigravityUsageRatio> {
+  const { data } = await apiClient.post<AntigravityUsageRatio>(
+    '/admin/usage/stats/antigravity/refresh',
+    null,
+    { params }
+  )
+  return data
+}
+
 export const adminUsageAPI = {
   list,
   getStats,
@@ -203,7 +248,9 @@ export const adminUsageAPI = {
   searchApiKeys,
   listCleanupTasks,
   createCleanupTask,
-  cancelCleanupTask
+  cancelCleanupTask,
+  getAntigravityStats,
+  refreshAntigravityStats
 }
 
 export default adminUsageAPI

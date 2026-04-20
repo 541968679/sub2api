@@ -171,6 +171,16 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyOIDCConnectEnabled,
 		SettingKeyOIDCConnectProviderName,
 		SettingPaymentEnabled,
+		SettingCNYPerUSD,
+		// 登录页文案覆盖
+		SettingKeyLoginPageBadge,
+		SettingKeyLoginPageHeadingLine1,
+		SettingKeyLoginPageHeadingLine2,
+		SettingKeyLoginPageDescription,
+		SettingKeyLoginPageSupportedModelsTitle,
+		SettingKeyLoginPageModelsDesc,
+		SettingKeyLoginPageFormTitle,
+		SettingKeyLoginPageFormSubtitle,
 	}
 
 	settings, err := s.settingRepo.GetMultiple(ctx, keys)
@@ -238,7 +248,28 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		OIDCOAuthEnabled:                 oidcEnabled,
 		OIDCOAuthProviderName:            oidcProviderName,
 		PaymentEnabled:                   settings[SettingPaymentEnabled] == "true",
+		PaymentCNYPerUSD:                 pcParseFloat(settings[SettingCNYPerUSD], 0),
+		LoginPage:                        buildLoginPageContent(settings),
 	}, nil
+}
+
+// buildLoginPageContent 从扁平 settings map 里抽取 8 个 key 组装子结构；
+// 全部为空时返回 nil，触发 JSON omitempty。
+func buildLoginPageContent(settings map[string]string) *LoginPageContent {
+	c := &LoginPageContent{
+		Badge:                strings.TrimSpace(settings[SettingKeyLoginPageBadge]),
+		HeadingLine1:         strings.TrimSpace(settings[SettingKeyLoginPageHeadingLine1]),
+		HeadingLine2:         strings.TrimSpace(settings[SettingKeyLoginPageHeadingLine2]),
+		Description:          strings.TrimSpace(settings[SettingKeyLoginPageDescription]),
+		SupportedModelsTitle: strings.TrimSpace(settings[SettingKeyLoginPageSupportedModelsTitle]),
+		ModelsDesc:           strings.TrimSpace(settings[SettingKeyLoginPageModelsDesc]),
+		FormTitle:            strings.TrimSpace(settings[SettingKeyLoginPageFormTitle]),
+		FormSubtitle:         strings.TrimSpace(settings[SettingKeyLoginPageFormSubtitle]),
+	}
+	if c.IsEmpty() {
+		return nil
+	}
+	return c
 }
 
 // SetOnUpdateCallback sets a callback function to be called when settings are updated
@@ -262,35 +293,37 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 
 	// Return a struct that matches the frontend's expected format
 	return &struct {
-		RegistrationEnabled              bool            `json:"registration_enabled"`
-		EmailVerifyEnabled               bool            `json:"email_verify_enabled"`
-		RegistrationEmailSuffixWhitelist []string        `json:"registration_email_suffix_whitelist"`
-		PromoCodeEnabled                 bool            `json:"promo_code_enabled"`
-		PasswordResetEnabled             bool            `json:"password_reset_enabled"`
-		InvitationCodeEnabled            bool            `json:"invitation_code_enabled"`
-		TotpEnabled                      bool            `json:"totp_enabled"`
-		TurnstileEnabled                 bool            `json:"turnstile_enabled"`
-		TurnstileSiteKey                 string          `json:"turnstile_site_key,omitempty"`
-		SiteName                         string          `json:"site_name"`
-		SiteLogo                         string          `json:"site_logo,omitempty"`
-		SiteSubtitle                     string          `json:"site_subtitle,omitempty"`
-		APIBaseURL                       string          `json:"api_base_url,omitempty"`
-		ContactInfo                      string          `json:"contact_info,omitempty"`
-		DocURL                           string          `json:"doc_url,omitempty"`
-		HomeContent                      string          `json:"home_content,omitempty"`
-		HideCcsImportButton              bool            `json:"hide_ccs_import_button"`
-		PurchaseSubscriptionEnabled      bool            `json:"purchase_subscription_enabled"`
-		PurchaseSubscriptionURL          string          `json:"purchase_subscription_url,omitempty"`
-		TableDefaultPageSize             int             `json:"table_default_page_size"`
-		TablePageSizeOptions             []int           `json:"table_page_size_options"`
-		CustomMenuItems                  json.RawMessage `json:"custom_menu_items"`
-		CustomEndpoints                  json.RawMessage `json:"custom_endpoints"`
-		LinuxDoOAuthEnabled              bool            `json:"linuxdo_oauth_enabled"`
-		BackendModeEnabled               bool            `json:"backend_mode_enabled"`
-		OIDCOAuthEnabled                 bool            `json:"oidc_oauth_enabled"`
-		OIDCOAuthProviderName            string          `json:"oidc_oauth_provider_name"`
-		PaymentEnabled                   bool            `json:"payment_enabled"`
-		Version                          string          `json:"version,omitempty"`
+		RegistrationEnabled              bool              `json:"registration_enabled"`
+		EmailVerifyEnabled               bool              `json:"email_verify_enabled"`
+		RegistrationEmailSuffixWhitelist []string          `json:"registration_email_suffix_whitelist"`
+		PromoCodeEnabled                 bool              `json:"promo_code_enabled"`
+		PasswordResetEnabled             bool              `json:"password_reset_enabled"`
+		InvitationCodeEnabled            bool              `json:"invitation_code_enabled"`
+		TotpEnabled                      bool              `json:"totp_enabled"`
+		TurnstileEnabled                 bool              `json:"turnstile_enabled"`
+		TurnstileSiteKey                 string            `json:"turnstile_site_key,omitempty"`
+		SiteName                         string            `json:"site_name"`
+		SiteLogo                         string            `json:"site_logo,omitempty"`
+		SiteSubtitle                     string            `json:"site_subtitle,omitempty"`
+		APIBaseURL                       string            `json:"api_base_url,omitempty"`
+		ContactInfo                      string            `json:"contact_info,omitempty"`
+		DocURL                           string            `json:"doc_url,omitempty"`
+		HomeContent                      string            `json:"home_content,omitempty"`
+		HideCcsImportButton              bool              `json:"hide_ccs_import_button"`
+		PurchaseSubscriptionEnabled      bool              `json:"purchase_subscription_enabled"`
+		PurchaseSubscriptionURL          string            `json:"purchase_subscription_url,omitempty"`
+		TableDefaultPageSize             int               `json:"table_default_page_size"`
+		TablePageSizeOptions             []int             `json:"table_page_size_options"`
+		CustomMenuItems                  json.RawMessage   `json:"custom_menu_items"`
+		CustomEndpoints                  json.RawMessage   `json:"custom_endpoints"`
+		LinuxDoOAuthEnabled              bool              `json:"linuxdo_oauth_enabled"`
+		BackendModeEnabled               bool              `json:"backend_mode_enabled"`
+		OIDCOAuthEnabled                 bool              `json:"oidc_oauth_enabled"`
+		OIDCOAuthProviderName            string            `json:"oidc_oauth_provider_name"`
+		PaymentEnabled                   bool              `json:"payment_enabled"`
+		PaymentCNYPerUSD                 float64           `json:"payment_cny_per_usd,omitempty"`
+		LoginPage                        *LoginPageContent `json:"login_page,omitempty"`
+		Version                          string            `json:"version,omitempty"`
 	}{
 		RegistrationEnabled:              settings.RegistrationEnabled,
 		EmailVerifyEnabled:               settings.EmailVerifyEnabled,
@@ -320,6 +353,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		PaymentEnabled:                   settings.PaymentEnabled,
+		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
+		LoginPage:                        settings.LoginPage,
 		Version:                          s.version,
 	}, nil
 }

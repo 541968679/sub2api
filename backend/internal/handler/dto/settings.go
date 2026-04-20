@@ -186,7 +186,24 @@ type PublicSettings struct {
 	SoraClientEnabled                bool             `json:"sora_client_enabled"`
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool             `json:"payment_enabled"`
+	PaymentCNYPerUSD                 float64          `json:"payment_cny_per_usd"`
 	Version                          string           `json:"version"`
+
+	// LoginPage 登录页文案覆盖，字段与 service.LoginPageContent 对齐；
+	// nil 时整键 omit，前端按 i18n 回落。
+	LoginPage *LoginPageContent `json:"login_page,omitempty"`
+}
+
+// LoginPageContent 登录页文案 DTO，镜像 service.LoginPageContent。
+type LoginPageContent struct {
+	Badge                string `json:"badge,omitempty"`
+	HeadingLine1         string `json:"heading_line1,omitempty"`
+	HeadingLine2         string `json:"heading_line2,omitempty"`
+	Description          string `json:"description,omitempty"`
+	SupportedModelsTitle string `json:"supported_models_title,omitempty"`
+	ModelsDesc           string `json:"models_desc,omitempty"`
+	FormTitle            string `json:"form_title,omitempty"`
+	FormSubtitle         string `json:"form_subtitle,omitempty"`
 }
 
 // OverloadCooldownSettings 529过载冷却配置 DTO

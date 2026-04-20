@@ -159,10 +159,16 @@ async function save() {
     const tiers = [...form.value.bonus_tiers]
       .filter(t => t.min_amount > 0)
       .sort((a, b) => a.min_amount - b.min_amount)
-    await adminAPI.settings.updateSettings({
-      payment_cny_per_usd: Number(form.value.cny_per_usd) || 0,
-      payment_bonus_tiers: tiers,
-    })
+    // Fetch current settings and send a complete payload. Sending only the two
+    // payment fields would cause the backend to reset all other bool/string
+    // settings (registration_enabled, site_name, etc.) to their zero values —
+    // the request struct uses non-pointer types, so missing JSON keys unmarshal
+    // to false/"" and then get persisted verbatim.
+    const current = await adminAPI.settings.getSettings()
+    const payload = adminAPI.settings.systemSettingsToUpdateRequest(current)
+    payload.payment_cny_per_usd = Number(form.value.cny_per_usd) || 0
+    payload.payment_bonus_tiers = tiers
+    await adminAPI.settings.updateSettings(payload)
     form.value.bonus_tiers = tiers
     appStore.showSuccess(t('admin.recharge.saved'))
   } catch {

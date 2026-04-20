@@ -27,7 +27,7 @@ func newTestBillingServiceForResolver() *BillingService {
 
 func TestResolve_NoGroupID(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
 		Model:   "claude-sonnet-4",
@@ -45,7 +45,7 @@ func TestResolve_NoGroupID(t *testing.T) {
 
 func TestResolve_UnknownModel(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
 		Model:   "unknown-model-xyz",
@@ -60,7 +60,7 @@ func TestResolve_UnknownModel(t *testing.T) {
 
 func TestGetIntervalPricing_NoIntervals(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	basePricing := &ModelPricing{InputPricePerToken: 5e-6}
 	resolved := &ResolvedPricing{
@@ -75,7 +75,7 @@ func TestGetIntervalPricing_NoIntervals(t *testing.T) {
 
 func TestGetIntervalPricing_MatchesInterval(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := &ResolvedPricing{
 		Mode:                   BillingModeToken,
@@ -100,7 +100,7 @@ func TestGetIntervalPricing_MatchesInterval(t *testing.T) {
 
 func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	basePricing := &ModelPricing{InputPricePerToken: 99e-6}
 	resolved := &ResolvedPricing{
@@ -117,7 +117,7 @@ func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 
 func TestGetRequestTierPrice(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := &ResolvedPricing{
 		Mode: BillingModePerRequest,
@@ -134,7 +134,7 @@ func TestGetRequestTierPrice(t *testing.T) {
 
 func TestGetRequestTierPriceByContext(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := &ResolvedPricing{
 		Mode: BillingModePerRequest,
@@ -150,7 +150,7 @@ func TestGetRequestTierPriceByContext(t *testing.T) {
 
 func TestGetRequestTierPrice_NilPerRequestPrice(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := &ResolvedPricing{
 		Mode: BillingModePerRequest,
@@ -187,7 +187,7 @@ func newResolverWithChannel(t *testing.T, pricing []ChannelModelPricing) *ModelP
 	}
 	cs := NewChannelService(repo, nil)
 	bs := newTestBillingServiceForResolver()
-	return NewModelPricingResolver(cs, bs, nil)
+	return NewModelPricingResolver(cs, bs, nil, nil)
 }
 
 // groupIDPtr returns a pointer to groupID 100 (the test constant).
@@ -520,7 +520,7 @@ func TestResolve_WithChannelOverride_CacheError(t *testing.T) {
 	}
 	cs := NewChannelService(repo, nil)
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(cs, bs, nil)
+	r := NewModelPricingResolver(cs, bs, nil, nil)
 
 	gid := int64(100)
 	resolved := r.Resolve(context.Background(), PricingInput{
@@ -542,7 +542,7 @@ func TestResolve_WithChannelOverride_CacheError(t *testing.T) {
 
 func TestGetRequestTierPriceByContext_EmptyTiers(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := &ResolvedPricing{
 		Mode:         BillingModePerRequest,
@@ -564,7 +564,7 @@ func TestGetRequestTierPriceByContext_EmptyTiers(t *testing.T) {
 
 func TestGetRequestTierPriceByContext_ExactBoundary(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
-	r := NewModelPricingResolver(&ChannelService{}, bs, nil)
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
 
 	resolved := &ResolvedPricing{
 		Mode: BillingModePerRequest,
@@ -723,7 +723,7 @@ func TestResolve_GlobalOverride_PreservesPriorityAndLongContext(t *testing.T) {
 		OutputPrice: &newOutput,
 		Enabled:     true,
 	})
-	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache, nil)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
 		Model:   "claude-sonnet-4",
@@ -772,7 +772,7 @@ func TestResolve_GlobalOverride_CacheWriteSyncsAllCacheFields(t *testing.T) {
 		CacheWritePrice: &newCacheWrite,
 		Enabled:         true,
 	})
-	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache, nil)
 
 	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4"})
 
@@ -792,7 +792,7 @@ func TestResolve_GlobalOverride_DisabledIsIgnored(t *testing.T) {
 		InputPrice: &newInput,
 		Enabled:    false, // 被禁用
 	})
-	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache, nil)
 
 	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4"})
 
@@ -815,7 +815,7 @@ func TestResolve_GlobalOverride_BillingModeRespected(t *testing.T) {
 		PerRequestPrice: &perReq,
 		Enabled:         true,
 	})
-	r := NewModelPricingResolver(&ChannelService{}, bs, cache)
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache, nil)
 
 	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4"})
 

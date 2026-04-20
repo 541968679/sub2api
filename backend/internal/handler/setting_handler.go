@@ -60,6 +60,25 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		PaymentEnabled:                   settings.PaymentEnabled,
+		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
+		LoginPage:                        toDTOLoginPageContent(settings.LoginPage),
 		Version:                          h.version,
 	})
+}
+
+// toDTOLoginPageContent 把 service.LoginPageContent 镜像到 DTO。nil 直接透传。
+func toDTOLoginPageContent(c *service.LoginPageContent) *dto.LoginPageContent {
+	if c == nil {
+		return nil
+	}
+	return &dto.LoginPageContent{
+		Badge:                c.Badge,
+		HeadingLine1:         c.HeadingLine1,
+		HeadingLine2:         c.HeadingLine2,
+		Description:          c.Description,
+		SupportedModelsTitle: c.SupportedModelsTitle,
+		ModelsDesc:           c.ModelsDesc,
+		FormTitle:            c.FormTitle,
+		FormSubtitle:         c.FormSubtitle,
+	}
 }

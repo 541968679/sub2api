@@ -163,6 +163,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/pricing',
+    name: 'Pricing',
+    component: () => import('@/views/user/PricingView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Model Pricing',
+      titleKey: 'pricing.title',
+      descriptionKey: 'pricing.description'
+    }
+  },
+  {
     path: '/redeem',
     name: 'Redeem',
     component: () => import('@/views/user/RedeemView.vue'),
@@ -382,6 +394,27 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'admin.modelConfig.title',
       descriptionKey: 'admin.modelConfig.description'
     }
+  },
+  {
+    path: '/admin/page-content',
+    name: 'AdminPageContent',
+    component: () => import('@/views/admin/PageContentView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Page Content',
+      titleKey: 'admin.pageContent.title',
+      descriptionKey: 'admin.pageContent.description'
+    }
+  },
+  // 老路径兼容：外部链接/书签平滑切到新的合并页面，保留 tab 选择。
+  {
+    path: '/admin/pricing-page',
+    redirect: { path: '/admin/page-content', query: { tab: 'pricing' } }
+  },
+  {
+    path: '/admin/login-page',
+    redirect: { path: '/admin/page-content', query: { tab: 'login' } }
   },
   {
     path: '/admin/announcements',

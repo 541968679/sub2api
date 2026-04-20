@@ -30,8 +30,10 @@ export interface GlobalOverride {
   notes: string
   display_input_price: number | null
   display_output_price: number | null
+  display_cache_read_price: number | null
   display_rate_multiplier: number | null
   cache_transfer_ratio: number | null
+  show_on_pricing_page: boolean
 }
 
 export interface BillingBasisHint {
@@ -107,8 +109,10 @@ export interface CreateOverrideRequest {
   notes?: string
   display_input_price?: number | null
   display_output_price?: number | null
+  display_cache_read_price?: number | null
   display_rate_multiplier?: number | null
   cache_transfer_ratio?: number | null
+  show_on_pricing_page?: boolean
 }
 
 export interface UpdateOverrideRequest {
@@ -125,8 +129,10 @@ export interface UpdateOverrideRequest {
   notes?: string
   display_input_price?: number | null
   display_output_price?: number | null
+  display_cache_read_price?: number | null
   display_rate_multiplier?: number | null
   cache_transfer_ratio?: number | null
+  show_on_pricing_page?: boolean
 }
 
 export interface RateMultiplierSummary {

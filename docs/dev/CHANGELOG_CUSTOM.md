@@ -19,6 +19,291 @@
 
 ## 变更记录
 
+## [2026-04-18] fix(settings): 登录页价格动态化 + 修复充值管理保存误清空注册等设置
+
+**影响范围**:
+- `backend/internal/service/settings_view.go` — `PublicSettings` 新增 `PaymentCNYPerUSD float64`
+- `backend/internal/service/setting_service.go` — `GetPublicSettings` 读取 `SettingCNYPerUSD`；`GetPublicSettingsForInjection` 注入匿名结构体同步新增字段
+- `backend/internal/handler/dto/settings.go` — 公开设置 DTO 新增 `payment_cny_per_usd`
+- `backend/internal/handler/setting_handler.go` — 在 `GetPublicSettings` 响应里填充新字段
+- `frontend/src/types/index.ts` — `PublicSettings` 接口新增 `payment_cny_per_usd: number`
+- `frontend/src/stores/app.ts` — 默认空配置补齐 `payment_cny_per_usd: 0`
+- `frontend/src/i18n/locales/zh.ts`、`en.ts` — `featurePrice` 改为带 `{price}` 占位的模板；新增 `featurePriceDefault` 作为未配置时的回退文案
+- `frontend/src/views/auth/LoginView.vue` — 新增 `paymentCnyPerUsd` ref，`onMounted` 从公开设置读取；feature pill 按配置动态渲染，未配置回退
+- `frontend/src/api/admin/settings.ts` — 新增 `systemSettingsToUpdateRequest(SystemSettings) => UpdateSettingsRequest` 映射函数；注入 `settingsAPI`
+- `frontend/src/views/admin/RechargeConfigView.vue` — `save()` 先 `getSettings()` 再整体 `updateSettings(...)`，只覆盖 `payment_cny_per_usd` / `payment_bonus_tiers`
+
+**上游兼容性**:
+- 后端新增字段为可选追加，合并上游时若上游也改动 `PublicSettings` / 公开设置 handler，留意冲突位置（均为结构体尾部或 return 字段列表）
+- 前端新增的 `systemSettingsToUpdateRequest` 是本地二开工具函数，独立于上游
+
+**变更详情**:
+- Bug 1 — 登录页价格硬编码：`LoginView` 原先渲染 `t('auth.login.featurePrice')` 的静态文案 `'0.6 / 1$ 起'`，与 admin 在"充值管理"设置的 `payment_cny_per_usd` 完全脱钩。现将该汇率通过 `/api/v1/settings/public` 暴露（与 SSR 注入路径保持一致），前端读取后以 `{price} / 1$ 起` 模板渲染；为 0 或未配置时回退到 `featurePriceDefault` 静态文案。
+- Bug 2 — "每次部署开放注册被重置"：真正根因不是部署脚本。后端 `UpdateSettingsRequest` 绝大多数 `bool` / `string` 字段是**非指针**，JSON 反序列化时缺失字段会被填 `false` / `""`；`RechargeConfigView.save()` 只发 `payment_cny_per_usd` 与 `payment_bonus_tiers`，handler 继续构造完整 `SystemSettings` 并 `SetMultiple` 回写，导致 `registration_enabled`、`site_name`、OIDC/LinuxDo 开关等被静默清空。修复采用最小改动：`RechargeConfigView` 先拉完整 settings，用新建的映射函数转成请求体，再覆盖两个 payment 字段发出，使回写是"读旧值写旧值"，避免误清空。凭据类字段（`smtp_password` 等）在映射函数中故意留空，后端"空值跳过覆盖"守护继续生效。
+
+**验证方式**:
+- `go build ./...` 通过；前端 `pnpm run typecheck` 通过；handler 相关单测通过（service 层受 `gemini_oauth_service_test.go` 预存在的 mock 接口不完整影响，未新增测试失败）
+- 手工：充值管理保存 `cny_per_usd=0.8` → 登录页显示 `0.8 / 1$ 起`；同时系统设置里"开放注册"等开关保持用户之前的值不变
+
+
+**影响范围**:
+- `backend/ent/schema/ai_credit_snapshot.go` — 新 Ent schema：`AICreditSnapshot { email, credit_type, amount, captured_at }` + 复合索引
+- `backend/ent/aicreditsnapshot/`、`backend/ent/aicreditsnapshot*.go` — Ent 生成代码（`go generate ./ent`）
+- `backend/migrations/110_add_ai_credit_snapshots.sql` — 建表 + `(email, captured_at)` 与 `(captured_at)` 索引
+- `backend/internal/service/credit_snapshot.go` — `CreditSnapshot` 结构、`CreditSnapshotRepository`、`AntigravityUsageAggregator`、`AntigravityUsageRatio` 响应类型
+- `backend/internal/service/credit_snapshot_service.go` — `CreditSnapshotService`：15 分钟 ticker 定时采样、`TriggerManualCapture`（30 秒进程内冷却锁）、`GetAntigravityUsageRatio`（相邻采样点正向 delta 求和 + `usage_logs` 聚合）
+- `backend/internal/repository/credit_snapshot_repo.go` — 基于 Ent 的仓库实现（Insert/ListInRange/GetLatestBefore）
+- `backend/internal/repository/antigravity_usage_aggregator.go` — 独立小接口实现：`SELECT COUNT + SUM(total_cost) FROM usage_logs WHERE account_id = ANY($1) AND created_at ∈ [start,end)`
+- `backend/internal/handler/admin/usage_handler.go` — `NewUsageHandler` 加 `creditSnapshotService` 依赖；新增 `StatsAntigravity` / `RefreshAntigravityStats`；提取 `parseStatsDateRange` 辅助函数
+- `backend/internal/handler/admin/{usage_cleanup_handler_test,usage_handler_request_type_test}.go` — stub 补齐新参数位 `nil`
+- `backend/internal/server/routes/admin.go` — `GET /admin/usage/stats/antigravity`、`POST /admin/usage/stats/antigravity/refresh`
+- `backend/internal/service/wire.go` — 新增 `ProvideCreditSnapshotService` 并入 `ProviderSet`
+- `backend/internal/repository/wire.go` — `NewCreditSnapshotRepository` / `NewAntigravityUsageAggregator` 加入 `ProviderSet`
+- `backend/cmd/server/wire_gen.go` — 手动编排新 Repo + Service + Handler 依赖（主干 `go generate` 因历史 Payment 重复绑定失败，按现有模式插入）
+- `frontend/src/api/admin/usage.ts` — 新增 `AntigravityUsageRatio` 类型、`getAntigravityStats`、`refreshAntigravityStats`
+- `frontend/src/components/admin/usage/AntigravityRatioCard.vue` — 新组件：4 列指标卡 + 「立即采样」按钮 + 采样不足/冷却提示
+- `frontend/src/views/admin/UsageView.vue` — 引入卡片，与现有 `UsageStatsCards` 共用 `DateRangePicker`，同一刷新链路触发
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `usage.antigravity.*` 文案
+
+**上游兼容性**: 低。所有新增文件/字段均为 additive；仅 `admin/usage_handler.go` 构造器加参数（上游若重构 handler 初始化签名需同步）；`wire_gen.go` 仍需手工合并。`AntigravityUsageAggregator` 刻意没接入 `UsageLogRepository` 接口，避免日后改动十几处 stub。
+
+**变更详情**:
+1. Antigravity AI Credits 余额不可回溯查询（远端 API 只给当前值），因此新增 `ai_credit_snapshots` 表。`CreditSnapshotService` 每 15 分钟启动一次采样：按 `credentials.email` 去重（同 Google 账号共享 credits），复用 `AccountUsageService.GetUsage` 的 3 分钟缓存层拉余额，避免额外 API 压力。
+2. 聚合口径：对每个 email 在 `[start - 30 min lookback, end]` 内的快照按时间升序走相邻对，累加正向 delta。负向 delta（充值/重置）跳过。派生比率 `quota_per_credit = SUM(total_cost) / total_credits`、`calls_per_credit = COUNT(*) / total_credits`，`total_credits == 0` 时返回 null（前端展示"采样不足"提示）。
+3. 手动触发接口 `POST .../refresh` 加 30 秒进程内冷却锁（`sync.Mutex + lastManualAt`），冷却期内返回 `manual_refresh_throttled=true` 并不重复打远端。管理员误点不会放大 API 压力。
+4. 前端卡片接入现有 `startDate`/`endDate`，`loadStats()` 结束后并行拉 antigravity 聚合；失败只 `console.error` 不阻断主流程。
+5. 验证：`docker exec sub2api-pg-dev psql` 确认 migration 110 应用、`ai_credit_snapshots` 表结构正确；本地启动后 `[CreditSnapshot] Scheduler started` 与路由 `GET/POST /api/v1/admin/usage/stats/antigravity(/refresh)` 均已注册。
+
+**关联 Issue/PR**: 无
+
+---
+
+## [2026-04-18] fix(keys): 修正「入门指南」里 CC-Switch 的下载地址
+
+**影响范围**:
+- `frontend/src/components/keys/GettingStartedGuide.vue` — 第二步下载按钮 `href` 从 `github.com/nicepkg/cc-switch/releases`（错误仓库）改为 `github.com/farion1231/cc-switch/releases`（官方仓库）
+
+**上游兼容性**: 低。上游若未使用此链接则无冲突。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
+## [2026-04-19] docs(architecture): 新增项目技术架构文档 + CLAUDE.md 规则
+
+**影响范围**:
+- `docs/dev/ARCHITECTURE.md` — 新增。顶层入口文档，覆盖技术栈、前后端目录分层、请求生命周期、Wire DI 装配方式、Settings/PublicSettings KV 模式、迁移约定、缓存策略、认证授权、模型定价解析；前端的路由/store/api client/布局/i18n/反馈约定；6 个常见开发任务的「抄写式」模板（新增 setting 字段 / 新增子结构 setting / 新增用户 API / 新增 ent 字段 / 新增前端页 / 新增 i18n 键）；本地化的「已知坑点」清单（Wire 主干失败、`docs/dev` gitignore、Git Bash POSIX 路径改写、Windows 端口冲突等）；模块深度文档导航
+- `docs/dev/codebase/README.md` — 在最上方加一段，把架构文档定位为「先读本架构、再按模块表深入」的入口
+- `CLAUDE.md` — Quick Reference 顶部加 ARCHITECTURE.md；Key Development Rules 第 3 条新增「探索代码前先读 ARCHITECTURE.md」+「何时更新 ARCHITECTURE.md」（新增模块、改跨切面约定、发现新坑、抽出可复用模板四类触发条件）；原「Codebase Map」规则编号从 3 顺移到 4，后续 4–10 全部 +1
+
+**上游兼容性**: 零。纯文档。
+
+**变更详情**:
+1. 文档定位：架构文档不是模块 deep-dive，而是「跨切面约定 + 入口导航」。模块细节继续放 `codebase/{module}.md`。
+2. 模板章节（§5）直接抄就能用：每条都给了具体的文件路径和顺序，比「等下次又得现摸索一遍」快很多。
+3. 已知坑（§6）把会反复踩的 Wire / docs/dev / Git Bash / Windows 端口等事故全部沉淀，避免下次又花时间复盘。
+
+**关联 Issue/PR**: 无（来自会话总结）
+
+---
+
+## [2026-04-19] feat(login-page): 左栏改为 6 张卡片，合并推广邀请并移除副标题段
+
+**影响范围**:
+- `frontend/src/views/auth/LoginView.vue` — 删除副标题 `<p>` 以及 `loginDescription` computed；独立的推广邀请块移除；`FeatureKey` 扩到 6（加 `tutorial` / `referral`）；`featureCards` 配置加两张卡（青色 / 玫粉）并各配图标（book-open / gift）；`featureHighlightTerms{Zh,En}` 补 tutorial 和 referral 两组高亮词；grid 从 2×2 调为 2×3（仍是 `sm:grid-cols-2`）
+- `frontend/src/i18n/locales/{zh,en}.ts` — `auth.login.features.*` 新增 `tutorial.{title,desc}`；`auth.login.referral` 结构从 `{tag,title,body}` 合并进 `features.referral.{title,desc}`，正文按「可压缩」原则精简
+
+**文案**: `features.tutorial` 文字严格使用用户给定原文。`features.referral.desc` 为上一次占位稿的压缩版（授权压缩）。其余卡片（metered / quality / models / enterprise）完全没动。`auth.login.description` i18n 键保留但不再渲染。
+
+**上游兼容性**: 低。纯前端 + i18n 结构调整。
+
+**变更详情**:
+1. 副标题段（「面向开发者和团队的多模型中转站……」）按需求删除，`auth.login.description` 键暂时保留避免其他潜在引用。
+2. 新增第 5 张卡「完善的初学者教程」：青色（`#22D3EE`）主题，book-open 图标。
+3. 推广邀请从独立块变为第 6 张卡：玫粉（`#F472B6`）主题，gift 图标。描述压缩为一句，「丰厚奖励 / 持续返佣」两处用主题色高亮强调。
+4. 排列：row1 = metered + quality，row2 = models + tutorial，row3 = enterprise + referral，按「核心价值 → 产品能力 → 进阶/推广」自然收束。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
+## [2026-04-19] style(login-page): 4 张 feature 卡视觉加重 + 关键词高亮
+
+**影响范围**:
+- `frontend/src/views/auth/LoginView.vue` — 每张卡新增顶部主题色光带、`10×10` 带色图标块、`17px` 粗标题、`14px` 正文；描述里特定关键词（价格、"超高性价比"、`Opus 4.7` / `GPT-5.4` / `Gemini 3.1 Pro`、"开票" 等）用 `splitWithTerms` 在运行时拆段并用主题色加粗；新增 `FeatureKey` 类型、`escapeRegExp`/`splitWithTerms` 辅助函数以及中英两套高亮词表；推广邀请块 padding / 标题字号略收，让 4 张卡片在视觉层级上更突出
+
+**文案**: 不变。`auth.login.features.*.{title,desc}` 和 `auth.login.referral.*` 全部与上一个提交一致，本次纯视觉层改动。
+
+**上游兼容性**: 低。只改登录页样板 + 组件级内部配置。
+
+**变更详情**:
+1. 每张卡有独立主题色：价格（青绿）/ 品质（蓝）/ 模型（紫）/ 企业（琥珀），图标背景 + 高亮词 + 顶部 2px 光带都跟着配色变。
+2. 高亮词是视觉规则，不是文案：用一份 `featureHighlightTermsZh|En` 在脚本里声明，运行时用正则拆描述串，匹配到就包 `<span>` 变粗加色；i18n 文案改动后若没命中，只是不高亮，不报错。
+3. 卡片 shell：`rounded-[22px]` + 渐变底 + 更强阴影 + hover 时变亮，整体体量明显超过推广块。
+4. 推广块：padding 从 `p-5` 调到 `px-5 py-4`，标题 18→16，让视觉焦点落在 4 张卡片上。
+
+**关联 Issue/PR**: 本地二开需求（接上条 feature 卡重设计）
+
+---
+
+## [2026-04-19] feat(login-page): 左栏营销区改版：4 张 feature 卡 + 推广邀请
+
+**影响范围**:
+- `frontend/src/views/auth/LoginView.vue` — 删除左栏下半区的 feature pills、模型展示网格、3 张旧 feature cards 和不再使用的 `modelChannels` / `paymentCnyPerUsd` / `loginSupportedModelsTitle` / `loginModelsDesc`；新增 2×2 的 4 张 feature 卡片（计算属性 `featureCards`）与推广邀请强调区块
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `auth.login.features.{metered,quality,models,enterprise}.{title,desc}` + `auth.login.referral.{tag,title,body}` 两组键；保留 `featurePrice`、`featureUnifiedApi*` 等旧键不动（避免影响其他组件 / 防止上游冲突），只是登录页模板不再引用
+
+**上游兼容性**: 低。前端样板重写 + 新增 i18n；后端、数据库不动。
+
+**变更详情**:
+1. 顶部区仍由 badge / 两行标题 / description 组成，沿用之前的管理员可编辑覆盖机制（`login_page.*` settings 字段）。
+2. 下半区一次放完 4 张卡片 + 1 张推广邀请卡，视觉层级：feature 卡（中性深色底）→ 推广卡（青绿渐变 + 荧光描边）把重点拉开。
+3. 4 张卡片当前走 i18n 硬编码（文案稳定），后续若需管理员可编辑，加字段到 `LoginPageContent` 即可。
+4. 推广邀请 `body` 为占位稿，等最终文案确定后直接改 i18n 或升级为管理员可编辑字段。
+5. 管理员编辑器里的 `supportedModelsTitle`、`modelsDesc` 两字段本次起不再影响登录页渲染（保留字段暂不删，后续统一清理）。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
+## [2026-04-18] refactor(page-content): 合并「计价页文案」和「登录页文案」为统一 Tab 页
+
+**影响范围**:
+- `frontend/src/views/admin/PageContentView.vue` — 新增合并父视图：`AppLayout` + 共享头部 + 两个 tab（模型计价页 / 登录页） + `?tab=pricing|login` URL 同步 + `<KeepAlive>` 保留表单输入不丢失
+- `frontend/src/components/admin/page-content/PricingContentForm.vue` — 由 `PricingPageView.vue` 剥出 AppLayout/页标题后得到，仅保留提示卡、两段 textarea、保存按钮
+- `frontend/src/components/admin/page-content/LoginContentForm.vue` — 由 `LoginPageView.vue` 剥出 AppLayout/页标题后得到，保留三组 8 字段 + 清空/保存/预览
+- `frontend/src/views/admin/PricingPageView.vue`、`frontend/src/views/admin/LoginPageView.vue` — 删除
+- `frontend/src/router/index.ts` — 新 `/admin/page-content` 路由；`/admin/pricing-page`、`/admin/login-page` 保留为 redirect 到新路径并带上 `?tab=` 参数，老书签不失效
+- `frontend/src/components/layout/AppSidebar.vue` — 管理员侧边栏去掉两条旧项，合成一条「页面文案」
+- `frontend/src/i18n/locales/{zh,en}.ts` — 删 `nav.pricingPage` / `nav.loginPage`；新增 `nav.pageContent` + `admin.pageContent.{title,description,tabs.{pricing,login}}`；保留 `admin.pricingPage.*` / `admin.loginPage.*`（两个子组件仍然消费）
+
+**上游兼容性**: 低。只动前端，后端 handler 和设置 key 不变。
+
+**变更详情**:
+1. 合并动机：两块都是「前台页面文案管理」，拆两个侧边栏条目偏冗余；未来如果还要加新页面（例如仪表盘、404 页）统一放进这个 tab 页即可。
+2. Tab 切换通过 URL `?tab=...` 同步，便于深链接 + 浏览器前进/后退；未指定时默认 `pricing`。
+3. `<KeepAlive>` 保留子组件状态，用户在两个 tab 之间切换时未保存的编辑不会丢。
+4. 老路径保留 redirect 到新路径，旧书签平滑过渡。
+
+**关联 Issue/PR**: 本地二开需求（紧接两次文案功能合并）
+
+---
+
+## [2026-04-18] feat(login-page): 管理员可编辑登录页文案
+
+**影响范围**:
+- `backend/internal/service/domain_constants.go` — 新增 8 个 `SettingKeyLoginPage*` 常量
+- `backend/internal/service/settings_view.go` — `LoginPageContent` 结构（json tag + `IsEmpty`）；`PublicSettings.LoginPage *LoginPageContent`
+- `backend/internal/service/setting_service.go` — `GetPublicSettings` 加 8 个 key 到批量读取列表；新增 `buildLoginPageContent`（空字段 trim 后整体 nil 化）；`GetPublicSettingsForInjection` 的匿名 struct 也加 `login_page`
+- `backend/internal/handler/dto/settings.go` — `PublicSettings` DTO 加 `LoginPage *LoginPageContent`；新增 `dto.LoginPageContent`
+- `backend/internal/handler/setting_handler.go` — 公开 `/settings/public` 输出映射 + `toDTOLoginPageContent` 辅助函数
+- `backend/internal/handler/admin/login_page_handler.go` — 新增：GET/PUT `/admin/login-page/content`；字段级 trim + 长度校验（short 255 / long 500）
+- `backend/internal/handler/handler.go` + `wire.go` + `backend/cmd/server/wire_gen.go` — `AdminHandlers.LoginPage` + provider，手动插入 wire_gen 与 pricing-page 保持同一模式
+- `backend/internal/server/routes/admin.go` — `registerLoginPageRoutes`
+- `frontend/src/api/loginPage.ts` — 新增 API client（`getAdminLoginPageContent` / `updateAdminLoginPageContent` / `resetAdminLoginPageContent`）
+- `frontend/src/api/index.ts` — 导出
+- `frontend/src/types/index.ts` — `LoginPageContent` 接口；`PublicSettings.login_page?` 可选字段
+- `frontend/src/views/auth/LoginView.vue` — 8 处 `t('auth.login.xxx')` 替换为 `loginXxx` computed；每个 computed 都用 `pickLoginText` 做 fallback（空串/未定义时用 i18n 原文）
+- `frontend/src/views/admin/LoginPageView.vue` — 新增管理员编辑页：3 个小分组（营销/模型区/登录框）8 个字段表单 + 预览链接 + 保存 + 恢复默认（带 confirm）；保存/恢复后触发 `appStore.fetchPublicSettings(true)` 立刻让其他未刷新的页面看到新值
+- `frontend/src/components/layout/AppSidebar.vue` — `adminNavItems` 增加「登录页文案」入口
+- `frontend/src/router/index.ts` — `/admin/login-page` 路由
+- `frontend/src/i18n/locales/{zh,en}.ts` — `nav.loginPage` + `admin.loginPage.*`（title/description/preview/fallbackHint/sections/fields 8 项/save/reset/reset-confirm）
+
+**上游兼容性**: 中。`PublicSettings` 结构被扩展（service + DTO + TS 类型），上游若将来改动这个结构需要同步；新增 key 命名用 `login_page.*` 命名空间，不与既有 key 冲突。路由 / handler / 前端文件都是新增，不覆盖上游。`wire_gen.go` 仍需手动合并。
+
+**变更详情**:
+1. 8 个 settings key（`login_page.badge` / `heading_line1` / `heading_line2` / `description` / `supported_models_title` / `models_desc` / `form_title` / `form_subtitle`）一一对应 i18n `auth.login.*` 里的营销文案字段。
+2. 任意字段空字符串 → 后端返回的 `LoginPage` 子结构为 nil（`omitempty` 整体 omit），前端拿不到就继续用 `t('auth.login.xxx')`，中英切换自动生效。
+3. 管理员保存后调用 `appStore.fetchPublicSettings(true)` 强制重新拉取 public settings，避免其他已打开的页面看到旧版。
+4. 「恢复默认」= 批量写入空串，不是物理删 key；语义更明确，且不用加删除接口。
+5. SSR 注入的 `window.__APP_CONFIG__` 也同步更新（`GetPublicSettingsForInjection`），首次渲染登录页就是最终文案，不闪屏。
+6. 验证：`curl /api/v1/settings/public | grep login_page` → 未保存时无 key；登录后 `curl /admin/login-page/content` 返回 8 字段全空对象；保存后 public 接口开始返回 `login_page` 子结构。
+
+**关联 Issue/PR**: 本地二开需求（续「模型计价页文案」）
+
+---
+
+## [2026-04-18] fix(pricing-page): 管理员编辑页未保存时预填默认文案
+
+**影响范围**:
+- `backend/internal/handler/admin/pricing_page_handler.go` — 导出 `DefaultPricingPageIntro` / `DefaultPricingPageEducation` 常量；`Get` 在 settings 未写 / 空串时回落到默认值；`loadValue` 多一个 fallback 入参
+- `backend/internal/handler/pricing_page_handler.go` — 删掉本地默认常量，复用 `admin.Default*`
+
+**上游兼容性**: 低。纯字段级调整，无 schema / 路由变化。
+
+**变更详情**: 原先管理员进编辑页时 settings 里还没写入，两个 textarea 都是空的，但用户计价页又显示的是 handler 内置默认文案，导致「编辑不到用户看到的东西」。现在 admin Get 接口与用户侧共用同一份常量，管理员第一次进来就能看到「用户此刻实际在看的内容」，直接改就行。
+
+**关联 Issue/PR**: 本地二开需求（上条变更的后续）
+
+---
+
+## [2026-04-18] feat(pricing-page): 新增用户「模型计价」页 + 管理员可编辑文案
+
+**影响范围**:
+- `backend/migrations/109_add_show_on_pricing_page.sql` — `global_model_pricing` 新增 `show_on_pricing_page BOOLEAN`
+- `backend/internal/service/global_model_pricing.go` — `GlobalModelPricing` 加 `ShowOnPricingPage` 字段；接口新增 `ListForPricingPage`
+- `backend/internal/repository/global_model_pricing_repo.go` — 所有 SELECT/INSERT/UPDATE 同步新字段；新增 `ListForPricingPage`
+- `backend/internal/service/global_model_pricing_service.go` — `GlobalOverride` DTO 加 `show_on_pricing_page`；`ToGlobalOverride` 同步；新增 `ListForPricingPage` 方法
+- `backend/internal/handler/admin/model_pricing_handler.go` — Create/Update 请求 DTO 加 `show_on_pricing_page *bool`
+- `backend/internal/handler/admin/pricing_page_handler.go` — 新增：GET/PUT `/admin/pricing-page/content`，读写 `settings` KV 两个 key
+- `backend/internal/handler/pricing_page_handler.go` — 新增用户侧：GET `/user/pricing-page`，聚合两段文案 + 按 provider 分组的展示价格
+- `backend/internal/handler/handler.go` — `AdminHandlers.PricingPage`、`Handlers.PricingPage` 新字段
+- `backend/internal/handler/wire.go` — 注册 `NewPricingPageHandler` / `NewPricingPageAdminHandler`
+- `backend/cmd/server/wire_gen.go` — 手动编排新 handler 依赖（`go generate` 在主干已预先失败，按现有模式插入）
+- `backend/internal/server/routes/admin.go` — `registerPricingPageRoutes`
+- `backend/internal/server/routes/user.go` — 注册 `/user/pricing-page`
+- `frontend/src/api/pricingPage.ts` — 新增 API client（用户 Get + 管理员 Get/Update）
+- `frontend/src/api/index.ts` — 导出 `pricingPageAPI`
+- `frontend/src/api/admin/modelPricing.ts` — `GlobalOverride`/`CreateOverrideRequest`/`UpdateOverrideRequest` 加 `show_on_pricing_page`
+- `frontend/src/views/user/PricingView.vue` — 新增用户页：三节内容（本站计价模式 / 计价模式科普 / 按平台分组的价格表），Markdown 用 `marked@17` + `DOMPurify` 渲染
+- `frontend/src/views/admin/PricingPageView.vue` — 新增管理员页：两段 textarea 编辑 + 保存 + 指向模型配置的引导
+- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue` — 编辑对话框加「在计价页展示」开关
+- `frontend/src/components/layout/AppSidebar.vue` — 用户/个人侧边栏新增「模型计价」菜单；管理员侧边栏新增「计价页文案」入口；新增 `PriceTagIcon`
+- `frontend/src/router/index.ts` — 新增 `/pricing` 与 `/admin/pricing-page` 路由
+- `frontend/src/i18n/locales/{zh,en}.ts` — 新增 `pricing.*`、`admin.pricingPage.*`、`admin.modelPricing.showOnPricingPage` 键以及 `nav.modelPricing`、`nav.pricingPage`
+
+**上游兼容性**: 中。新增字段 `show_on_pricing_page` 位于 `global_model_pricing` 表，迁移是 additive，上游若将来对该表结构做改动需手动合并。Handler / 路由均为新增，不覆盖上游文件的既有路径。`wire_gen.go` 手动编辑（因主干 Wire 生成预先失败，`ProvidePaymentConfigService` 等重复绑定），合并上游时需留意。
+
+**变更详情**:
+1. 管理员可在「模型配置 → 模型详情」里勾选「在计价页展示」，控制哪些模型出现在用户侧的计价页，独立于计费 `enabled` 开关。
+2. 管理员可在 `/admin/pricing-page` 编辑两段 Markdown 文案（本站计价模式、计价模式科普），保存到 `settings` 表的 `pricing_page.intro_markdown` / `pricing_page.education_markdown` 两个 key。未保存时用户侧回落到 handler 内置默认文案。
+3. 用户 `/pricing` 页一次拉取聚合接口：返回两段文案 + 按 provider 分组的展示价格表。展示价的优先级：用户级 display override > 全局 display override > 真实单价（fallback）。
+4. 价格表 per-token 价按 $/MTok 显示，per_request 按 $/次 显示。
+5. i18n 已补 zh/en 完整键值。
+
+**关联 Issue/PR**: 本地二开需求
+
+---
+
+## [2026-04-17] feat(billing): 用户级模型定价覆盖 (User Model Pricing Override)
+
+**影响范围**:
+- `backend/migrations/106_add_user_model_pricing_overrides.sql` — 新增表
+- `backend/internal/service/user_model_pricing.go` — 实体 + 仓储接口
+- `backend/internal/service/user_model_pricing_service.go` — 业务逻辑层
+- `backend/internal/repository/user_model_pricing_repo.go` — 原生 SQL 实现
+- `backend/internal/service/model_pricing_resolver.go` — PricingInput 增加 UserID, Resolve 增加用户级覆盖叠加
+- `backend/internal/service/gateway_service.go` — 传递 UserID 到定价解析链路
+- `backend/internal/handler/dto/display_pricing.go` — 新增 BuildUserDisplayPricingMap
+- `backend/internal/handler/usage_handler.go` — 使用用户级展示覆盖
+- `backend/internal/handler/admin/user_model_pricing_handler.go` — Admin CRUD API
+- `backend/internal/service/global_model_pricing_service.go` — 列表增加 user_override_count, 详情增加 user_overrides
+- `backend/internal/service/admin_service.go` — 用户删除时级联清理
+- `backend/internal/handler/handler.go` — AdminHandlers 增加 UserModelPricing 字段
+- `backend/internal/handler/wire.go` — 注册新 handler
+- `backend/internal/repository/wire.go` — 注册新 repo
+- `backend/internal/service/wire.go` — 注册新 service
+- `backend/internal/server/routes/admin.go` — 注册新路由
+- `frontend/src/api/admin/userModelPricing.ts` — 前端 API 客户端
+- `frontend/src/components/admin/user/UserModelPricingModal.vue` — 管理模态框
+- `frontend/src/views/admin/UsersView.vue` — 用户操作菜单增加"模型定价"入口
+- `frontend/src/i18n/locales/en.ts` — 国际化文案
+
+**说明**: 新增用户级模型定价覆盖功能，支持管理员为特定用户的特定模型设置：
+1. 真实计费价格覆盖（input_price, output_price, cache_write_price, cache_read_price）
+2. 展示价格覆盖（display_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio）
+
+完整定价优先级链：用户 > 渠道 > 全局 > LiteLLM/Fallback。不影响现有的全局覆盖、渠道覆盖、分组倍率和用户分组倍率机制。
+
 ## [2026-04-17] feat(billing): 用户级展示倍率 (User Display Rate Multiplier)
 
 **影响范围**:

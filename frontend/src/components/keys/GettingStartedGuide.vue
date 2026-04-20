@@ -59,7 +59,7 @@
             {{ t('keys.guide.step2Desc') }}
           </p>
           <a
-            href="https://github.com/nicepkg/cc-switch/releases"
+            href="https://github.com/farion1231/cc-switch/releases"
             target="_blank"
             rel="noopener noreferrer"
             class="btn btn-secondary mt-auto self-start text-xs px-3 py-1.5 inline-flex items-center gap-1.5"

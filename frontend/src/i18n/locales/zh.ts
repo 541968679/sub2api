@@ -333,6 +333,8 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
+    modelPricing: '模型计价',
+    pageContent: '页面文案',
     redeem: '兑换',
     profile: '个人资料',
     users: '用户管理',
@@ -371,7 +373,8 @@ export default {
       headingLine1: 'ZeroCode',
       headingLine2: '顶级大模型一站式API解决方案',
       description: '面向开发者和团队的多模型中转站。统一接口、按量计费、调用记录可查，减少切换不同平台和不同计费规则的成本。',
-      featurePrice: '0.6 / 1$ 起',
+      featurePrice: '{price} / 1$ 起',
+      featurePriceDefault: '0.6 / 1$ 起',
       featurePayAsYouGo: '按量使用',
       featureNoCharge: '不用不扣钱',
       supportedModels: '支持模型',
@@ -382,6 +385,33 @@ export default {
       featureTransparentBillingDesc: '按量扣费，充值越多价格越优。',
       featureAuditTrail: '记录可查',
       featureAuditTrailDesc: '每笔调用和消费都能追溯。',
+      // 新版 2×3 功能卡片（6 张）
+      features: {
+        metered: {
+          title: '按量计费，全程透明',
+          desc: '每刀 0.7 元起，官方价格的 1/10，超高性价比。'
+        },
+        quality: {
+          title: '官方级品质',
+          desc: '美国高带宽服务器直连，低延迟、高缓存命中。'
+        },
+        models: {
+          title: '支持顶级大模型',
+          desc: 'Opus 4.7、GPT-5.4、Gemini 3.1 Pro 全线满血。'
+        },
+        tutorial: {
+          title: '完善的初学者教程',
+          desc: '提供完整，高可读性教程，助力您快速上手。'
+        },
+        enterprise: {
+          title: '企业对接',
+          desc: '支持大规模采购与开票，详情联系客服。'
+        },
+        referral: {
+          title: '邀请好友，共享丰厚奖励',
+          desc: '每成功邀请新用户，双方共享账户余额奖励与持续返佣。'
+        }
+      },
       title: '登录',
       subtitle: '进入控制台后查看余额、明细和完整模型列表。',
       submitButton: '登录并开始按量使用',
@@ -767,6 +797,32 @@ export default {
     }
   },
 
+  // Model Pricing Page (user-facing)
+  pricing: {
+    title: '模型计价',
+    description: '本站计价模式说明、计价模式对比，以及各平台模型的展示价格',
+    introTitle: '本站计价模式',
+    educationTitle: '计价模式科普',
+    tableTitle: '模型价格一览表',
+    modelsSuffix: '个模型',
+    unitHint: '展示价格单位：Token 计费以「$/百万 Token」显示；按次计费以「$/次」显示。',
+    perRequestUnit: '次',
+    emptyState: '管理员尚未配置要展示的模型。',
+    columns: {
+      model: '模型',
+      billingMode: '计费模式',
+      inputPrice: '输入价 $/MTok',
+      outputPrice: '输出价 $/MTok',
+      cacheReadPrice: '缓存读取 $/MTok',
+      multiplier: '倍率'
+    },
+    billingMode: {
+      perToken: '按 Token',
+      perRequest: '按次',
+      image: '按图片'
+    }
+  },
+
   // Usage
   usage: {
     title: '使用记录',
@@ -844,7 +900,22 @@ export default {
     exportExcelSuccess: '使用数据导出成功（Excel格式）',
     exportExcelFailed: '使用数据导出失败',
     imageUnit: '张',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    antigravity: {
+      title: 'Antigravity Credits 成本分析',
+      subtitle: '时间窗内 AI Credits 消耗与 antigravity 平台额度/调用的比率',
+      refreshNow: '立即采样',
+      loading: '正在加载...',
+      insufficientSnapshot: '采样数据不足，请在 15 分钟后或点击「立即采样」再试',
+      creditsConsumed: '消耗 Credits',
+      quotaUsed: '消耗额度',
+      calls: '调用次数',
+      quotaPerCredit: '每 Credit 额度',
+      callsPerCredit: '每 Credit 调用',
+      perCredit: '/ credit',
+      samplingMeta: '覆盖 {emails} 个账号，{snapshots} 个采样点',
+      throttled: '采样冷却中，展示最近一次结果'
+    }
   },
 
   // Redeem
@@ -1548,6 +1619,20 @@ export default {
       customRatePlaceholder: '留空使用默认',
       displayRate: '展示倍率',
       displayRatePlaceholder: '留空',
+      // 用户模型定价覆盖
+      modelPricing: '模型定价',
+      modelPricingConfig: '用户模型定价覆盖',
+      modelPricingHint: '为此用户设置单独的模型计费和展示价格覆盖，优先级高于全局和渠道定价。',
+      addModelOverride: '添加模型覆盖',
+      modelNamePlaceholder: '模型名称（如 claude-sonnet-4）',
+      billingPriceOverride: '真实计费价格覆盖',
+      displayPriceOverride: '展示价格覆盖',
+      noOverride: '不覆盖',
+      noModelOverrides: '尚未为此用户配置模型定价覆盖。',
+      notesPlaceholder: '备注（可选）',
+      duplicateModelError: '以下模型存在重复配置，请合并后再保存：{models}',
+      litellmReference: 'LiteLLM 标准价格',
+      applySuggested: '应用建议',
       groupConfigUpdated: '分组配置更新成功',
       replaceGroup: '替换分组',
       clickToReplace: '点击替换分组',
@@ -2102,6 +2187,61 @@ export default {
       }
     },
 
+    // Page Content hub (wrapper with tabs for pricing/login)
+    pageContent: {
+      title: '页面文案',
+      description: '集中管理「模型计价」页和「登录页」对外展示的文案。在下面的 tab 之间切换即可分别编辑。',
+      tabs: {
+        pricing: '模型计价页',
+        login: '登录页'
+      }
+    },
+
+    // Login Page Content (admin-edited)
+    loginPage: {
+      title: '登录页文案',
+      description: '编辑登录页上的营销标题、描述和登录框标题。字段留空即恢复默认翻译。',
+      preview: '预览登录页',
+      fallbackHint: '任何字段留空时，前端会使用对应语言的 i18n 默认文案。中英切换不受影响。',
+      sections: {
+        marketing: '左栏：营销文案',
+        models: '模型展示区',
+        form: '右栏：登录框'
+      },
+      fields: {
+        badge: '顶部徽章',
+        headingLine1: '主标题第 1 行',
+        headingLine2: '主标题第 2 行（高亮色）',
+        description: '主标题下描述段',
+        supportedModelsTitle: '模型区标题',
+        modelsDesc: '模型区底部说明',
+        formTitle: '登录框标题',
+        formSubtitle: '登录框副标题'
+      },
+      saveButton: '保存',
+      saveSuccess: '已保存',
+      resetButton: '全部清空（恢复默认）',
+      resetConfirm: '确定清空所有字段吗？清空后前端会回落到 i18n 默认文案。',
+      resetSuccess: '已恢复默认'
+    },
+
+    // Pricing Page Content (admin-edited)
+    pricingPage: {
+      title: '模型计价页文案',
+      description: '编辑用户「模型计价」页面上展示的两段 Markdown 文案。模型可见性开关在各模型的配置详情中。',
+      introLabel: '本站计价模式',
+      introHint: '第一段文案：简述本站的计价方式和定位。支持 Markdown。',
+      introPlaceholder: '例如：我们按原厂真实 Token 计价，不加价、不打包……',
+      educationLabel: '计价模式科普',
+      educationHint: '第二段文案：对比几种计价模式的差异，突出本站的透明与良心。支持 Markdown。',
+      educationPlaceholder: '例如：对比按次计费、按统一 Token 价、包月等模式……',
+      saveButton: '保存',
+      saveSuccess: '文案已保存',
+      previewButton: '预览用户页',
+      modelSelectHint: '要控制哪些模型出现在计价页，请前往「模型配置」页打开每个模型的详情，勾选「在计价页展示」。',
+      modelConfigLink: '去模型配置'
+    },
+
     // Model Config
     modelConfig: {
       title: '模型配置',
@@ -2160,11 +2300,14 @@ export default {
       defaultPrices: '默认价格',
       globalOverride: '全局覆盖',
       enabled: '启用',
+      showOnPricingPage: '在计价页展示',
+      showOnPricingPageHint: '勾选后此模型会出现在用户「模型计价」页价格表中，与计费启用开关解耦',
       notes: '备注',
       displayPricingTitle: '用户展示设置',
       displayPricingHint: '仅影响用户使用记录中的展示，不影响实际计费。留空 = 展示真实值。',
       displayInputPrice: '展示输入价 ($/MTok)',
       displayOutputPrice: '展示输出价 ($/MTok)',
+      displayCacheReadPrice: '展示缓存读取价 ($/MTok)',
       displayRateMultiplier: '展示倍率',
       cacheTransferRatio: '缓存转移比例 (0~1)',
       billingModeLabel: '计费模式',

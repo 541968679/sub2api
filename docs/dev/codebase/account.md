@@ -123,7 +123,8 @@ AccountsView.vue: refreshAICreditsTotal()
 |------|------|---------|
 | refresh_token 回填 | Google OAuth 刷新不返回新 RT，ValidateRefreshToken 需回填原始值 | `antigravity_oauth_service.go:228` |
 | AI Credits 动态获取 | 不存储在 DB，每次通过 LoadCodeAssist API 实时查询 | `antigravity_quota_fetcher.go` |
-| Credits 去重 | 同 Google 账号（同 email）共享 AI Credits 余额，汇总时按 email 去重 | `AccountsView.vue:refreshAICreditsTotal` |
+| AI Credits 历史快照 | 为运营分析"credits 消耗 / 每 credit 额度"，`CreditSnapshotService` 每 15 分钟按 email 去重采样到 `ai_credit_snapshots`；`GetAntigravityUsageRatio` 走正向 delta 聚合 | `service/credit_snapshot_service.go`、`migrations/110_add_ai_credit_snapshots.sql` |
+| Credits 去重 | 同 Google 账号（同 email）共享 AI Credits 余额，汇总时按 email 去重 | `AccountsView.vue:refreshAICreditsTotal`，`credit_snapshot_service.go:captureOnce` |
 | Credits 耗尽检测 | 关键词匹配（"insufficient credit" 等）→ 标记 model_rate_limits["AICredits"] 5h 冷却 | `antigravity_credits_overages.go:36-49` |
 | 超量请求重试 | 免费配额耗尽后，如 allow_overages=true，注入 enabledCreditTypes: ["GOOGLE_ONE_AI"] 重试 | `antigravity_credits_overages.go:172` |
 | 隐私模式设置 | 创建/刷新账号后自动调用 setUserSettings 设置隐私 | `antigravity_oauth_service.go:256` |
@@ -135,4 +136,5 @@ AccountsView.vue: refreshAICreditsTotal()
 - **邮箱双来源**：Antigravity 存 `credentials.email`，Anthropic 存 `extra.email_address`，Gemini google_one RT 批量导入也会写 `credentials.email`。搜索和展示都需兼容两处。
 - **批量/单创建分支**：批量导入和单个 OAuth 导入是两个独立代码路径，修改 extra/credentials 构建逻辑时必须两处都改。
 - **AI Credits 不在 WindowStats 中**：`getBatchTodayStats` 返回的是 `WindowStats`（requests/tokens/cost），不含 ai_credits。Credits 需单独调 `getUsage` API。
+- **Credits 消耗冷启动窗**：`ai_credit_snapshots` 需要至少两条相邻采样才能算 delta。新部署或新窗口内无采样时 `GetAntigravityUsageRatio` 返回 `credits_consumed=0` + 比率 null；前端卡片显示"采样不足"。如果窗口内出现负 delta（充值/重置），只跳过该对不报错，但那一段消耗会丢。
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。

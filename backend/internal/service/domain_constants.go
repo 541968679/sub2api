@@ -148,6 +148,16 @@ const (
 	SettingKeyCustomMenuItems             = "custom_menu_items"             // 自定义菜单项（JSON 数组）
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
+	// 登录页文案（覆盖 i18n auth.login.* 的那几段）。空值时前端回落到 i18n 原文。
+	SettingKeyLoginPageBadge                = "login_page.badge"                  // 左栏顶部徽章
+	SettingKeyLoginPageHeadingLine1         = "login_page.heading_line1"          // 主标题第 1 行
+	SettingKeyLoginPageHeadingLine2         = "login_page.heading_line2"          // 主标题第 2 行（高亮）
+	SettingKeyLoginPageDescription          = "login_page.description"            // 主标题下描述段
+	SettingKeyLoginPageSupportedModelsTitle = "login_page.supported_models_title" // 模型区标题
+	SettingKeyLoginPageModelsDesc           = "login_page.models_desc"            // 模型区底部说明
+	SettingKeyLoginPageFormTitle            = "login_page.form_title"             // 右栏登录框标题
+	SettingKeyLoginPageFormSubtitle         = "login_page.form_subtitle"          // 右栏登录框副标题
+
 	// 默认配置
 	SettingKeyDefaultConcurrency   = "default_concurrency"   // 新用户默认并发量
 	SettingKeyDefaultBalance       = "default_balance"       // 新用户默认余额

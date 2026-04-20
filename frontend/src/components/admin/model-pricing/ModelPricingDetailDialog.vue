@@ -27,10 +27,16 @@
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
             {{ t('admin.modelPricing.globalOverride') }}
           </h3>
-          <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" v-model="form.enabled" class="rounded" />
-            {{ t('admin.modelPricing.enabled') }}
-          </label>
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-2 text-sm" :title="t('admin.modelPricing.showOnPricingPageHint')">
+              <input type="checkbox" v-model="form.show_on_pricing_page" class="rounded" />
+              {{ t('admin.modelPricing.showOnPricingPage') }}
+            </label>
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" v-model="form.enabled" class="rounded" />
+              {{ t('admin.modelPricing.enabled') }}
+            </label>
+          </div>
         </div>
 
         <!-- Suggested prices hint (only for stub models without litellm + without existing override) -->
@@ -125,7 +131,7 @@
             </button>
           </div>
           <p class="mb-3 text-[10px] text-amber-600/70 dark:text-amber-500/60">{{ t('admin.modelPricing.displayPricingHint') }}</p>
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
             <div>
               <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayInputPrice') }}</label>
               <input v-model="form.display_input_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
@@ -133,6 +139,10 @@
             <div>
               <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayOutputPrice') }}</label>
               <input v-model="form.display_output_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayCacheReadPrice') }}</label>
+              <input v-model="form.display_cache_read_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
             </div>
             <div>
               <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayRateMultiplier') }}</label>
@@ -235,8 +245,10 @@ const form = reactive({
   notes: '',
   display_input_price: '' as string | number,
   display_output_price: '' as string | number,
+  display_cache_read_price: '' as string | number,
   display_rate_multiplier: '' as string | number,
   cache_transfer_ratio: '' as string | number,
+  show_on_pricing_page: false,
 })
 
 const billingModeOptions = computed(() => [
@@ -284,8 +296,10 @@ async function loadDetail() {
       form.notes = go.notes
       form.display_input_price = go.display_input_price != null ? perTokenToMTok(go.display_input_price) ?? '' : ''
       form.display_output_price = go.display_output_price != null ? perTokenToMTok(go.display_output_price) ?? '' : ''
+      form.display_cache_read_price = go.display_cache_read_price != null ? perTokenToMTok(go.display_cache_read_price) ?? '' : ''
       form.display_rate_multiplier = go.display_rate_multiplier != null ? go.display_rate_multiplier : ''
       form.cache_transfer_ratio = go.cache_transfer_ratio != null ? go.cache_transfer_ratio : ''
+      form.show_on_pricing_page = Boolean(go.show_on_pricing_page)
     } else {
       form.enabled = true
       form.billing_mode = 'token'
@@ -299,8 +313,10 @@ async function loadDetail() {
       form.notes = ''
       form.display_input_price = ''
       form.display_output_price = ''
+      form.display_cache_read_price = ''
       form.display_rate_multiplier = ''
       form.cache_transfer_ratio = ''
+      form.show_on_pricing_page = false
     }
   } catch {
     appStore.showError(t('common.error'))
@@ -328,8 +344,10 @@ async function handleSave() {
       notes: form.notes,
       display_input_price: mTokToPerToken(form.display_input_price),
       display_output_price: mTokToPerToken(form.display_output_price),
+      display_cache_read_price: mTokToPerToken(form.display_cache_read_price),
       display_rate_multiplier: form.display_rate_multiplier !== '' ? Number(form.display_rate_multiplier) || null : null,
       cache_transfer_ratio: form.cache_transfer_ratio !== '' ? Number(form.cache_transfer_ratio) || null : null,
+      show_on_pricing_page: form.show_on_pricing_page,
     }
 
     if (detail.value.global_override) {
@@ -376,17 +394,16 @@ function applyDisplaySuggested() {
   const d = detail.value
   if (!d) return
 
-  // 取 per-token 源：优先表单已填值（MTok→perToken），再 litellm，再 suggested
-  const formInput = mTokToPerToken(form.input_price)
-  const formOutput = mTokToPerToken(form.output_price)
   const lp = d.litellm_prices
   const sp = d.suggested_prices
 
-  const inputPerToken = formInput ?? lp?.input_price ?? sp?.input_price ?? null
-  const outputPerToken = formOutput ?? lp?.output_price ?? sp?.output_price ?? null
+  const inputPerToken = lp?.input_price ?? sp?.input_price ?? null
+  const outputPerToken = lp?.output_price ?? sp?.output_price ?? null
+  const cacheReadPerToken = lp?.cache_read_price ?? sp?.cache_read_price ?? null
 
   form.display_input_price = inputPerToken != null ? (perTokenToMTok(inputPerToken) ?? '') : ''
   form.display_output_price = outputPerToken != null ? (perTokenToMTok(outputPerToken) ?? '') : ''
+  form.display_cache_read_price = cacheReadPerToken != null ? (perTokenToMTok(cacheReadPerToken) ?? '') : ''
   if (!form.display_rate_multiplier || form.display_rate_multiplier === '') {
     form.display_rate_multiplier = 1
   }
