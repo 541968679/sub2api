@@ -19,6 +19,57 @@
 
 ## 变更记录
 
+## [2026-04-20] chore(merge): 合并 origin/main 并对齐自动上号分支的测试依赖
+
+**影响范围**:
+- `backend/cmd/server/wire_gen.go`
+- `backend/cmd/server/wire_gen_test.go`
+- `backend/internal/server/api_contract_test.go`
+- `backend/internal/service/admin_service_list_users_test.go`
+- `backend/internal/service/gemini_oauth_service_test.go`
+- `docs/dev/codebase/README.md`
+
+**上游兼容性**: 中风险。此次同步引入了新的 Wire 依赖、`ProxyRepository` 接口方法和 Usage/Admin 相关构造参数，本地自动上号分支需要同步更新测试桩与文档索引，才能继续在最新主线上开发。
+
+**变更详情**:
+- 合并远端 `origin/main` 到当前 `feat/new-feature` 分支。
+- 通过重生成 `backend/cmd/server/wire_gen.go` 解决 Wire 生成文件冲突，保留上游新增的定价、信用快照和页面处理器依赖，同时保留本地自动上号服务注入。
+- 合并 `docs/dev/codebase/README.md` 的两侧更新，保留“先读 `ARCHITECTURE.md` 再进入模块文档”的新约定。
+- 更新 `wire_gen_test.go`、`api_contract_test.go`、`admin_service_list_users_test.go` 和 `gemini_oauth_service_test.go`，补齐新的构造参数与接口桩方法，避免主线同步后立即出现编译级测试错误。
+
+## [2026-04-16] feat(admin): 新增可配置的自动上号规则页与后台补号服务
+
+**影响范围**:
+- `backend/internal/service/account_auto_provision_settings.go`
+- `backend/internal/service/setting_service_account_auto_provision.go`
+- `backend/internal/service/account_auto_provision_service.go`
+- `backend/internal/service/setting_service_account_auto_provision_test.go`
+- `backend/internal/service/account_auto_provision_service_test.go`
+- `backend/internal/handler/admin/setting_handler_account_auto_provision.go`
+- `backend/internal/handler/dto/account_auto_provision.go`
+- `backend/internal/server/routes/admin.go`
+- `backend/internal/service/wire.go`
+- `backend/cmd/server/wire.go`
+- `backend/cmd/server/wire_gen.go`
+- `frontend/src/api/admin/settings.ts`
+- `frontend/src/views/admin/AccountAutoProvisionView.vue`
+- `frontend/src/router/index.ts`
+- `frontend/src/components/layout/AppSidebar.vue`
+- `frontend/src/i18n/locales/en.ts`
+- `frontend/src/i18n/locales/zh.ts`
+- `docs/dev/codebase/account-auto-provision.md`
+- `docs/dev/codebase/README.md`
+
+**上游兼容性**: 中低风险。功能主要以 `settings` 表 JSON 配置与新后台页面实现，没有新增数据库表结构；后续若上游修改 `SettingHandler`、`SettingService` 或账号调度接口，合并时要保留自动上号相关设置键、路由和 worker 注入。
+
+**变更详情**:
+- 新增“自动上号”配置模块，支持按规则监控多个分组，并在健康账号数、并发利用率、AI Credits 任一阈值命中时尝试补号。
+- 新增后台页面 `/admin/account-auto-provision` 与侧边栏菜单，可配置巡检间隔、单轮动作上限、规则列表、显式模板与“复制最后健康账号”模式。
+- 新增后台巡检服务 `AccountAutoProvisionService`，定期读取规则并从“未分组 + 同平台 + 健康”的账号池中挑选候选账号。
+- 新增“最后健康模板快照”运行时状态，会为每个分组保留最近健康账号的模板，并在 clone 模式下优先使用。
+- AI Credits 阈值按规则独立节流查询，支持 5/15/30/60 分钟刷新频率，默认建议 15 分钟。
+- 为设置读写和关键模板选择逻辑补充单元测试，并补充代码地图文档。
+
 ## [2026-04-18] fix(settings): 登录页价格动态化 + 修复充值管理保存误清空注册等设置
 
 **影响范围**:

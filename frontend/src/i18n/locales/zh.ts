@@ -244,6 +244,8 @@ export default {
 
   // Common
   common: {
+    notSet: '未设置',
+    saveSuccess: '保存成功',
     loading: '加载中...',
     justNow: '刚刚',
     save: '保存',
@@ -329,6 +331,7 @@ export default {
 
   // Navigation
   nav: {
+    accountAutoProvision: '自动上号',
     dashboard: '仪表盘',
     announcements: '公告',
     apiKeys: 'API 密钥',
@@ -3616,6 +3619,38 @@ export default {
       deleteConfirm: "确定要删除代理 '{name}' 吗？使用此代理的账号将被移除代理设置。"
     },
 
+    accountAutoProvision: {
+      title: '自动上号',
+      description: '监控指定分组，并在任一阈值触发时自动启用一个未分组备用账号。',
+      enabled: '自动上号开关',
+      checkIntervalSeconds: '巡检间隔（秒）',
+      maxActionsPerRun: '单轮最多补号次数',
+      rulesTitle: '规则列表',
+      rulesHint: '任一启用的触发条件满足时，就会尝试向对应监控分组补一个备用账号。',
+      addRule: '新增规则',
+      emptyRules: '当前还没有配置任何规则。',
+      ruleFallbackName: '规则 #{index}',
+      provisionMode: '上号方式',
+      provisionModeTemplate: '显式模板',
+      provisionModeClone: '复制最后健康账号',
+      normalAccountCountBelow: '健康账号数低于',
+      concurrencyUtilizationAbove: '并发利用率高于（%）',
+      aiCreditsBelow: 'AI Credits 低于',
+      aiCreditsInterval: 'AI Credits 查询间隔（分钟）',
+      cooldownMinutes: '冷却时间（分钟）',
+      templateTitle: '上号模板',
+      templateHint: '显式模板模式会直接使用这里的配置；复制模式找不到健康快照时会回退到这里。',
+      loadFactor: '负载因子',
+      proxyId: '代理 ID',
+      templateSchedulable: '上号后是否参与调度',
+      runtimeHint: '系统会自动用每个分组里“最近使用过的健康账号”维护一份健康模板快照。',
+      runtimeState: '运行时状态',
+      runtimeStateHint: '这里展示最近触发时间和各分组保存的健康模板快照。',
+      lastTriggered: '最近触发',
+      lastHealthySnapshot: '最近健康快照',
+      noRuntimeState: '当前还没有运行时状态。'
+    },
+
     // Redeem Codes Management
     redeem: {
       title: '兑换码管理',
@@ -4577,6 +4612,37 @@ export default {
           digestMinCountRange: '错误摘要最小数量必须为 ≥ 0 的数字',
           accountHealthThresholdRange: '账号健康错误率阈值必须在 0 到 100 之间'
         }
+      },
+      accountAutoProvision: {
+        title: '自动上号',
+        description: '监控指定分组，并在任一阈值触发时自动启用一个未分组备用账号。',
+        enabled: '自动上号开关',
+        checkIntervalSeconds: '巡检间隔（秒）',
+        maxActionsPerRun: '单轮最多补号次数',
+        rulesTitle: '规则列表',
+        rulesHint: '任一启用的触发条件满足时，就会尝试向对应监控分组补一个备用账号。',
+        addRule: '新增规则',
+        emptyRules: '当前还没有配置任何规则。',
+        ruleFallbackName: '规则 #{index}',
+        provisionMode: '上号方式',
+        provisionModeTemplate: '显式模板',
+        provisionModeClone: '复制最后健康账号',
+        normalAccountCountBelow: '健康账号数低于',
+        concurrencyUtilizationAbove: '并发利用率高于（%）',
+        aiCreditsBelow: 'AI Credits 低于',
+        aiCreditsInterval: 'AI Credits 查询间隔（分钟）',
+        cooldownMinutes: '冷却时间（分钟）',
+        templateTitle: '上号模板',
+        templateHint: '显式模板模式会直接使用这里的配置；复制模式找不到健康快照时会回退到这里。',
+        loadFactor: '负载因子',
+        proxyId: '代理 ID',
+        templateSchedulable: '上号后是否参与调度',
+        runtimeHint: '系统会自动用每个分组里“最近使用过的健康账号”维护一份健康模板快照。',
+        runtimeState: '运行时状态',
+        runtimeStateHint: '这里展示最近触发时间和各分组保存的健康模板快照。',
+        lastTriggered: '最近触发',
+        lastHealthySnapshot: '最近健康快照',
+        noRuntimeState: '当前还没有运行时状态。'
       },
       settings: {
         title: '运维监控设置',

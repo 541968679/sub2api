@@ -80,6 +80,10 @@ func ProvideTokenRefreshService(
 	return svc
 }
 
+func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiTokenCache) *OAuthRefreshAPI {
+	return NewOAuthRefreshAPI(accountRepo, tokenCache)
+}
+
 // ProvideClaudeTokenProvider creates ClaudeTokenProvider with OAuthRefreshAPI injection
 func ProvideClaudeTokenProvider(
 	accountRepo AccountRepository,
@@ -155,6 +159,27 @@ func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *Timing
 // ProvideAccountExpiryService creates and starts AccountExpiryService.
 func ProvideAccountExpiryService(accountRepo AccountRepository) *AccountExpiryService {
 	svc := NewAccountExpiryService(accountRepo, time.Minute)
+	svc.Start()
+	return svc
+}
+
+func ProvideAccountAutoProvisionService(
+	accountRepo AccountRepository,
+	groupRepo GroupRepository,
+	adminService AdminService,
+	settingService *SettingService,
+	concurrencyService *ConcurrencyService,
+	accountUsageService *AccountUsageService,
+) *AccountAutoProvisionService {
+	svc := NewAccountAutoProvisionService(
+		accountRepo,
+		groupRepo,
+		adminService,
+		settingService,
+		concurrencyService,
+		accountUsageService,
+		30*time.Second,
+	)
 	svc.Start()
 	return svc
 }
@@ -423,7 +448,7 @@ var ProviderSet = wire.NewSet(
 	NewCompositeTokenCacheInvalidator,
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
-	NewOAuthRefreshAPI,
+	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
@@ -457,6 +482,7 @@ var ProviderSet = wire.NewSet(
 	ProvideUpdateService,
 	ProvideTokenRefreshService,
 	ProvideAccountExpiryService,
+	ProvideAccountAutoProvisionService,
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,

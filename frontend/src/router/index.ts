@@ -384,6 +384,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/account-auto-provision',
+    name: 'AdminAccountAutoProvision',
+    component: () => import('@/views/admin/AccountAutoProvisionView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Account Auto Provision',
+      titleKey: 'admin.accountAutoProvision.title',
+      descriptionKey: 'admin.accountAutoProvision.description'
+    }
+  },
+  {
     path: '/admin/model-config',
     name: 'AdminModelConfig',
     component: () => import('@/views/admin/ModelConfigView.vue'),

@@ -43,11 +43,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		server.ProviderSet,
 
 		// Payment providers
-		payment.ProvideRegistry,
-		payment.ProvideEncryptionKey,
-		payment.ProvideDefaultLoadBalancer,
-		service.ProvidePaymentConfigService,
-		service.ProvidePaymentOrderExpiryService,
+		payment.ProviderSet,
 
 		// Privacy client factory for OpenAI training opt-out
 		providePrivacyClientFactory,
@@ -87,6 +83,7 @@ func provideCleanup(
 	schedulerSnapshot *service.SchedulerSnapshotService,
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
+	accountAutoProvision *service.AccountAutoProvisionService,
 	subscriptionExpiry *service.SubscriptionExpiryService,
 	usageCleanup *service.UsageCleanupService,
 	idempotencyCleanup *service.IdempotencyCleanupService,
@@ -175,6 +172,12 @@ func provideCleanup(
 			}},
 			{"AccountExpiryService", func() error {
 				accountExpiry.Stop()
+				return nil
+			}},
+			{"AccountAutoProvisionService", func() error {
+				if accountAutoProvision != nil {
+					accountAutoProvision.Stop()
+				}
 				return nil
 			}},
 			{"SubscriptionExpiryService", func() error {

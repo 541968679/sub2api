@@ -11,6 +11,16 @@
       @submit.prevent="handleSubmit"
       class="space-y-5"
     >
+      <div
+        v-if="manualRepairRequired"
+        class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+      >
+        <div class="font-medium">{{ manualRepairTitle }}</div>
+        <div class="mt-1">{{ manualRepairHintText }}</div>
+        <div v-if="manualRepairReason" class="mt-2">{{ manualRepairReasonLabel }}: {{ manualRepairReason }}</div>
+        <div v-if="manualRepairAt" class="mt-1">{{ manualRepairTimeLabel }}: {{ formatDateTime(manualRepairAt) }}</div>
+      </div>
+
       <div>
         <label class="input-label">{{ t('common.name') }}</label>
         <input v-model="form.name" type="text" required class="input" data-tour="edit-account-form-name" />
@@ -1761,7 +1771,7 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import { applyInterceptWarmup } from '@/components/account/credentialsBuilder'
-import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
+import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import {
   // OPENAI_WS_MODE_CTX_POOL,
@@ -1794,6 +1804,33 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const manualRepairRequired = computed(() => props.account?.extra?.auto_provision_manual_reset_required === true)
+const manualRepairReason = computed(() => {
+  const raw = props.account?.extra?.auto_provision_manual_reset_reason
+  return typeof raw === 'string' ? raw : ''
+})
+const manualRepairAt = computed(() => {
+  const raw = props.account?.extra?.auto_provision_manual_reset_at
+  return typeof raw === 'string' ? raw : ''
+})
+const manualRepairTitle = computed(() => {
+  const translated = t('admin.accounts.manualRepair.title')
+  return translated === 'admin.accounts.manualRepair.title' ? '需手动修复' : translated
+})
+const manualRepairHintText = computed(() => {
+  const translated = t('admin.accounts.manualRepair.hint')
+  return translated === 'admin.accounts.manualRepair.hint'
+    ? '该账号已被自动上号逻辑移出监控分组，在你手动修复或编辑之前，不会再次被自动选为候选账号。'
+    : translated
+})
+const manualRepairReasonLabel = computed(() => {
+  const translated = t('admin.accounts.manualRepair.reasonLabel')
+  return translated === 'admin.accounts.manualRepair.reasonLabel' ? '原因' : translated
+})
+const manualRepairTimeLabel = computed(() => {
+  const translated = t('admin.accounts.manualRepair.timeLabel')
+  return translated === 'admin.accounts.manualRepair.timeLabel' ? '标记时间' : translated
+})
 const authStore = useAuthStore()
 
 // Platform-specific hint for Base URL

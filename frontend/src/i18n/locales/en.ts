@@ -284,6 +284,7 @@ export default {
     close: 'Close',
     enabled: 'Enabled',
     disabled: 'Disabled',
+    notSet: 'Not set',
     total: 'Total',
     balance: 'Balance',
     available: 'Available',
@@ -302,6 +303,7 @@ export default {
     noGroupsAvailable: 'No groups available',
     unknownError: 'Unknown error occurred',
     saving: 'Saving...',
+    saveSuccess: 'Saved successfully',
     selectedCount: '({count} selected)',
     refresh: 'Refresh',
     settings: 'Settings',
@@ -342,6 +344,7 @@ export default {
     channels: 'Channels',
     subscriptions: 'Subscriptions',
     accounts: 'Accounts',
+    accountAutoProvision: 'Auto Provision',
     modelConfig: 'Model Config',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
@@ -2411,6 +2414,7 @@ export default {
         error: 'Error',
         cooldown: 'Cooldown',
         paused: 'Paused',
+        manualRepairRequired: 'Manual Repair Required',
         limited: 'Limited',
         rateLimited: 'Rate Limited',
         overloaded: 'Overloaded',
@@ -2424,6 +2428,12 @@ export default {
         creditsExhaustedUntil: 'AI Credits exhausted, expected recovery at {time}',
         overloadedUntil: 'Overloaded until {time}',
         viewTempUnschedDetails: 'View temp unschedulable details'
+      },
+      manualRepair: {
+        title: 'Manual Repair Required',
+        hint: 'This account was removed by auto provision and will not be auto-selected again until you manually repair or edit it.',
+        reasonLabel: 'Reason',
+        timeLabel: 'Marked At'
       },
       columns: {
         name: 'Name',
@@ -3567,6 +3577,42 @@ export default {
       }
     },
 
+    accountAutoProvision: {
+      title: 'Account Auto Provision',
+      description:
+        'Monitor selected groups and automatically bring an ungrouped standby account online when any trigger threshold is reached.',
+      enabled: 'Auto Provision Switch',
+      checkIntervalSeconds: 'Evaluation Interval (seconds)',
+      maxActionsPerRun: 'Max Actions Per Run',
+      rulesTitle: 'Rules',
+      rulesHint:
+        'Any enabled trigger can provision one standby account into the matching monitored group.',
+      addRule: 'Add Rule',
+      emptyRules: 'No rule configured yet.',
+      ruleFallbackName: 'Rule #{index}',
+      provisionMode: 'Provision Mode',
+      provisionModeTemplate: 'Explicit Template',
+      provisionModeClone: 'Clone Last Healthy',
+      normalAccountCountBelow: 'Healthy Account Count Below',
+      concurrencyUtilizationAbove: 'Concurrency Utilization Above (%)',
+      aiCreditsBelow: 'AI Credits Below',
+      aiCreditsInterval: 'AI Credits Refresh Interval (minutes)',
+      cooldownMinutes: 'Cooldown (minutes)',
+      templateTitle: 'Provision Template',
+      templateHint:
+        'Template is applied directly in template mode and used as fallback when clone mode has no healthy snapshot.',
+      loadFactor: 'Load Factor',
+      proxyId: 'Proxy ID',
+      templateSchedulable: 'Scheduling After Provision',
+      runtimeHint:
+        'Healthy snapshots are captured automatically from the most recently used healthy account in each monitored group.',
+      runtimeState: 'Runtime State',
+      runtimeStateHint: 'Read-only state for cooldowns and healthy template snapshots.',
+      lastTriggered: 'Last Triggered',
+      lastHealthySnapshot: 'Last Healthy Snapshot',
+      noRuntimeState: 'No runtime state yet.'
+    },
+
     // Announcements
     announcements: {
       title: 'Announcements',
@@ -4414,6 +4460,41 @@ export default {
           accountHealthThresholdRange: 'Account health threshold must be between 0 and 100'
         }
       },
+      accountAutoProvision: {
+        title: 'Account Auto Provision',
+        description:
+          'Monitor selected groups and automatically bring an ungrouped standby account online when any trigger threshold is reached.',
+        enabled: 'Auto Provision Switch',
+        checkIntervalSeconds: 'Evaluation Interval (seconds)',
+        maxActionsPerRun: 'Max Actions Per Run',
+        rulesTitle: 'Rules',
+        rulesHint:
+          'Any enabled trigger can provision one standby account into the matching monitored group.',
+        addRule: 'Add Rule',
+        emptyRules: 'No rule configured yet.',
+        ruleFallbackName: 'Rule #{index}',
+        provisionMode: 'Provision Mode',
+        provisionModeTemplate: 'Explicit Template',
+        provisionModeClone: 'Clone Last Healthy',
+        normalAccountCountBelow: 'Healthy Account Count Below',
+        concurrencyUtilizationAbove: 'Concurrency Utilization Above (%)',
+        aiCreditsBelow: 'AI Credits Below',
+        aiCreditsInterval: 'AI Credits Refresh Interval (minutes)',
+        cooldownMinutes: 'Cooldown (minutes)',
+        templateTitle: 'Provision Template',
+        templateHint:
+          'Template is applied directly in template mode and used as fallback when clone mode has no healthy snapshot.',
+        loadFactor: 'Load Factor',
+        proxyId: 'Proxy ID',
+        templateSchedulable: 'Scheduling After Provision',
+        runtimeHint:
+          'Healthy snapshots are captured automatically from the most recently used healthy account in each monitored group.',
+        runtimeState: 'Runtime State',
+        runtimeStateHint: 'Read-only state for cooldowns and healthy template snapshots.',
+        lastTriggered: 'Last Triggered',
+        lastHealthySnapshot: 'Last Healthy Snapshot',
+        noRuntimeState: 'No runtime state yet.'
+      },
       settings: {
         title: 'Ops Monitoring Settings',
         loadFailed: 'Failed to load settings',
@@ -5081,6 +5162,41 @@ export default {
           testSuccess: 'Google Drive storage test passed (upload, access, delete all OK)',
           testFailed: 'Google Drive storage test failed'
         }
+      },
+      accountAutoProvision: {
+        title: 'Account Auto Provision',
+        description:
+          'Monitor selected groups and automatically bring an ungrouped standby account online when any trigger threshold is reached.',
+        enabled: 'Auto Provision Switch',
+        checkIntervalSeconds: 'Evaluation Interval (seconds)',
+        maxActionsPerRun: 'Max Actions Per Run',
+        rulesTitle: 'Rules',
+        rulesHint:
+          'Any enabled trigger can provision one standby account into the matching monitored group.',
+        addRule: 'Add Rule',
+        emptyRules: 'No rule configured yet.',
+        ruleFallbackName: 'Rule #{index}',
+        provisionMode: 'Provision Mode',
+        provisionModeTemplate: 'Explicit Template',
+        provisionModeClone: 'Clone Last Healthy',
+        normalAccountCountBelow: 'Healthy Account Count Below',
+        concurrencyUtilizationAbove: 'Concurrency Utilization Above (%)',
+        aiCreditsBelow: 'AI Credits Below',
+        aiCreditsInterval: 'AI Credits Refresh Interval (minutes)',
+        cooldownMinutes: 'Cooldown (minutes)',
+        templateTitle: 'Provision Template',
+        templateHint:
+          'Template is applied directly in template mode and used as fallback when clone mode has no healthy snapshot.',
+        loadFactor: 'Load Factor',
+        proxyId: 'Proxy ID',
+        templateSchedulable: 'Scheduling After Provision',
+        runtimeHint:
+          'Healthy snapshots are captured automatically from the most recently used healthy account in each monitored group.',
+        runtimeState: 'Runtime State',
+        runtimeStateHint: 'Read-only state for cooldowns and healthy template snapshots.',
+        lastTriggered: 'Last Triggered',
+        lastHealthySnapshot: 'Last Healthy Snapshot',
+        noRuntimeState: 'No runtime state yet.'
       },
       overloadCooldown: {
         title: '529 Overload Cooldown',

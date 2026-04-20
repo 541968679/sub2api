@@ -1,5 +1,16 @@
 <template>
   <div class="flex items-center gap-2">
+    <div v-if="needsManualRepair" class="group relative">
+      <span class="badge text-xs badge-warning cursor-help">{{ manualRepairBadgeText }}</span>
+      <div
+        class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-64 whitespace-normal rounded bg-gray-900 px-3 py-2 text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
+      >
+        <div v-if="manualRepairReason">{{ manualRepairReasonLabel }}: {{ manualRepairReason }}</div>
+        <div v-if="manualRepairAt">{{ manualRepairTimeLabel }}: {{ formatDateTime(manualRepairAt) }}</div>
+        <div class="mt-1 text-gray-300">{{ manualRepairHint }}</div>
+      </div>
+    </div>
+
     <!-- Rate Limit Display (429) - Two-line layout -->
     <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
@@ -170,6 +181,42 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'show-temp-unsched', account: Account): void
 }>()
+
+const accountExtra = computed(() => (props.account.extra as Record<string, unknown> | undefined) || undefined)
+
+const needsManualRepair = computed(() => accountExtra.value?.auto_provision_manual_reset_required === true)
+
+const manualRepairReason = computed(() => {
+  const raw = accountExtra.value?.auto_provision_manual_reset_reason
+  return typeof raw === 'string' ? raw : ''
+})
+
+const manualRepairAt = computed(() => {
+  const raw = accountExtra.value?.auto_provision_manual_reset_at
+  return typeof raw === 'string' ? raw : ''
+})
+
+const manualRepairBadgeText = computed(() => {
+  const translated = t('admin.accounts.status.manualRepairRequired')
+  return translated === 'admin.accounts.status.manualRepairRequired' ? '需手动修复' : translated
+})
+
+const manualRepairReasonLabel = computed(() => {
+  const translated = t('admin.accounts.manualRepair.reasonLabel')
+  return translated === 'admin.accounts.manualRepair.reasonLabel' ? '原因' : translated
+})
+
+const manualRepairTimeLabel = computed(() => {
+  const translated = t('admin.accounts.manualRepair.timeLabel')
+  return translated === 'admin.accounts.manualRepair.timeLabel' ? '标记时间' : translated
+})
+
+const manualRepairHint = computed(() => {
+  const translated = t('admin.accounts.manualRepair.hint')
+  return translated === 'admin.accounts.manualRepair.hint'
+    ? '该账号已被自动上号逻辑移出监控分组，在你手动修复或编辑之前，不会再次被自动选为候选账号。'
+    : translated
+})
 
 // Computed: is rate limited (429)
 const isRateLimited = computed(() => {

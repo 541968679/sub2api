@@ -226,21 +226,22 @@ type CreateAccountInput struct {
 }
 
 type UpdateAccountInput struct {
-	Name                  string
-	Notes                 *string
-	Type                  string // Account type: oauth, setup-token, apikey
-	Credentials           map[string]any
-	Extra                 map[string]any
-	ProxyID               *int64
-	Concurrency           *int     // 使用指针区分"未提供"和"设置为0"
-	Priority              *int     // 使用指针区分"未提供"和"设置为0"
-	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor            *int
-	Status                string
-	GroupIDs              *[]int64
-	ExpiresAt             *int64
-	AutoPauseOnExpired    *bool
-	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
+	Name                                  string
+	Notes                                 *string
+	Type                                  string // Account type: oauth, setup-token, apikey
+	Credentials                           map[string]any
+	Extra                                 map[string]any
+	ProxyID                               *int64
+	Concurrency                           *int     // 使用指针区分"未提供"和"设置为0"
+	Priority                              *int     // 使用指针区分"未提供"和"设置为0"
+	RateMultiplier                        *float64 // 账号计费倍率（>=0，允许 0）
+	LoadFactor                            *int
+	Status                                string
+	GroupIDs                              *[]int64
+	ExpiresAt                             *int64
+	AutoPauseOnExpired                    *bool
+	SuppressAutoProvisionManualResetClear bool
+	SkipMixedChannelCheck                 bool // 跳过混合渠道检查（用户已确认风险）
 }
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
@@ -1740,6 +1741,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.AutoPauseOnExpired != nil {
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
 	}
+	if !input.SuppressAutoProvisionManualResetClear {
+		clearAccountAutoProvisionManualResetMarker(account)
+	}
 
 	// 先验证分组是否存在（在任何写操作之前）
 	if input.GroupIDs != nil {
@@ -1924,6 +1928,15 @@ func (s *adminServiceImpl) ClearAccountError(ctx context.Context, id int64) (*Ac
 	if err := s.accountRepo.ClearTempUnschedulable(ctx, id); err != nil {
 		return nil, err
 	}
+	account, err := s.accountRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if clearAccountAutoProvisionManualResetMarker(account) {
+		if err := s.accountRepo.Update(ctx, account); err != nil {
+			return nil, err
+		}
+	}
 	return s.accountRepo.GetByID(ctx, id)
 }
 
@@ -1938,6 +1951,12 @@ func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64, 
 	updated, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	if clearAccountAutoProvisionManualResetMarker(updated) {
+		if err := s.accountRepo.Update(ctx, updated); err != nil {
+			return nil, err
+		}
+		return s.accountRepo.GetByID(ctx, id)
 	}
 	return updated, nil
 }

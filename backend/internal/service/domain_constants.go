@@ -239,6 +239,11 @@ const (
 	// SettingKeyBetaPolicySettings stores JSON config for beta policy rules.
 	SettingKeyBetaPolicySettings = "beta_policy_settings"
 
+	// SettingKeyAccountAutoProvisionSettings stores JSON config for auto provisioning standby accounts.
+	SettingKeyAccountAutoProvisionSettings = "account_auto_provision_settings"
+	// SettingKeyAccountAutoProvisionState stores runtime JSON state for auto provisioning snapshots/cooldowns.
+	SettingKeyAccountAutoProvisionState = "account_auto_provision_state"
+
 	// =========================
 	// Claude Code Version Check
 	// =========================

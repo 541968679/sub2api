@@ -710,6 +710,7 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/channels', label: t('nav.channels', '渠道管理'), icon: ChannelIcon, hideInSimpleMode: true },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
+    { path: '/admin/account-auto-provision', label: t('nav.accountAutoProvision'), icon: ServerIcon },
     { path: '/admin/model-config', label: t('nav.modelConfig'), icon: ModelConfigIcon },
     { path: '/admin/page-content', label: t('nav.pageContent'), icon: PriceTagIcon },
     { path: '/admin/announcements', label: t('nav.announcements'), icon: BellIcon },

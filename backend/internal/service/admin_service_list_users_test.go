@@ -70,8 +70,24 @@ func (s *userGroupRateRepoStubForListUsers) GetDisplayRateByUserAndGroup(_ conte
 	panic("unexpected GetDisplayRateByUserAndGroup call")
 }
 
-func (s *userGroupRateRepoStubForListUsers) GetFullByUserID(_ context.Context, _ int64) (map[int64]UserGroupRateData, error) {
-	panic("unexpected GetFullByUserID call")
+func (s *userGroupRateRepoStubForListUsers) GetFullByUserID(_ context.Context, userID int64) (map[int64]UserGroupRateData, error) {
+	s.singleCall = append(s.singleCall, userID)
+	if err, ok := s.singleErr[userID]; ok {
+		return nil, err
+	}
+	return asFullUserGroupRates(s.singleData[userID]), nil
+}
+
+func (s *userGroupRateRepoStubForListUsers) GetFullByUserIDs(_ context.Context, _ []int64) (map[int64]map[int64]UserGroupRateData, error) {
+	s.batchCalls++
+	if s.batchErr != nil {
+		return nil, s.batchErr
+	}
+	full := make(map[int64]map[int64]UserGroupRateData, len(s.batchData))
+	for userID, rates := range s.batchData {
+		full[userID] = asFullUserGroupRates(rates)
+	}
+	return full, nil
 }
 
 func (s *userGroupRateRepoStubForListUsers) SyncUserGroupRates(_ context.Context, userID int64, rates map[int64]*float64) error {
@@ -96,6 +112,18 @@ func (s *userGroupRateRepoStubForListUsers) DeleteByGroupID(_ context.Context, _
 
 func (s *userGroupRateRepoStubForListUsers) DeleteByUserID(_ context.Context, userID int64) error {
 	panic("unexpected DeleteByUserID call")
+}
+
+func asFullUserGroupRates(rates map[int64]float64) map[int64]UserGroupRateData {
+	if len(rates) == 0 {
+		return map[int64]UserGroupRateData{}
+	}
+	full := make(map[int64]UserGroupRateData, len(rates))
+	for groupID, rate := range rates {
+		rateCopy := rate
+		full[groupID] = UserGroupRateData{RateMultiplier: &rateCopy}
+	}
+	return full
 }
 
 func TestAdminService_ListUsers_BatchRateFallbackToSingle(t *testing.T) {

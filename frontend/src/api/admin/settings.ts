@@ -565,6 +565,65 @@ export interface BetaPolicySettings {
   rules: BetaPolicyRule[]
 }
 
+export interface AccountAutoProvisionTemplate {
+  proxy_id?: number | null
+  concurrency: number
+  priority?: number | null
+  load_factor?: number | null
+  schedulable: boolean
+  allow_overages: boolean
+}
+
+export interface AccountAutoProvisionRule {
+  id: string
+  name: string
+  enabled: boolean
+  group_ids: number[]
+  normal_account_count_below: number
+  concurrency_utilization_above: number
+  ai_credits_below: number
+  ai_credits_check_interval_minutes: number
+  cooldown_minutes: number
+  provision_mode: 'template' | 'clone_last_healthy'
+  template: AccountAutoProvisionTemplate
+}
+
+export interface AccountAutoProvisionSettings {
+  enabled: boolean
+  check_interval_seconds: number
+  max_actions_per_run: number
+  rules: AccountAutoProvisionRule[]
+}
+
+export interface AccountAutoProvisionSnapshot {
+  source_account_id: number
+  source_account_name: string
+  captured_at: string
+  template: AccountAutoProvisionTemplate
+}
+
+export interface AccountAutoProvisionState {
+  last_triggered: Record<string, string>
+  last_healthy_snapshots: Record<string, AccountAutoProvisionSnapshot>
+  recent_logs: Array<{
+    occurred_at: string
+    level: string
+    action: string
+    rule_id?: string
+    rule_name?: string
+    group_id?: number
+    group_name?: string
+    account_id?: number
+    account_name?: string
+    message: string
+  }>
+}
+
+export interface AccountAutoProvisionSettingsResponse {
+  config: AccountAutoProvisionSettings
+  state: AccountAutoProvisionState
+}
+
 /**
  * Get beta policy settings
  * @returns Beta policy settings
@@ -589,6 +648,21 @@ export async function updateBetaPolicySettings(
   return data
 }
 
+export async function getAccountAutoProvisionSettings(): Promise<AccountAutoProvisionSettingsResponse> {
+  const { data } = await apiClient.get<AccountAutoProvisionSettingsResponse>('/admin/settings/account-auto-provision')
+  return data
+}
+
+export async function updateAccountAutoProvisionSettings(
+  settings: AccountAutoProvisionSettings
+): Promise<AccountAutoProvisionSettingsResponse> {
+  const { data } = await apiClient.put<AccountAutoProvisionSettingsResponse>(
+    '/admin/settings/account-auto-provision',
+    settings
+  )
+  return data
+}
+
 export const settingsAPI = {
   getSettings,
   updateSettings,
@@ -605,7 +679,9 @@ export const settingsAPI = {
   getRectifierSettings,
   updateRectifierSettings,
   getBetaPolicySettings,
-  updateBetaPolicySettings
+  updateBetaPolicySettings,
+  getAccountAutoProvisionSettings,
+  updateAccountAutoProvisionSettings
 }
 
 export default settingsAPI

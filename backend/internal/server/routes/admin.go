@@ -426,6 +426,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Beta 策略配置
 		adminSettings.GET("/beta-policy", h.Admin.Setting.GetBetaPolicySettings)
 		adminSettings.PUT("/beta-policy", h.Admin.Setting.UpdateBetaPolicySettings)
+		adminSettings.GET("/account-auto-provision", h.Admin.Setting.GetAccountAutoProvisionSettings)
+		adminSettings.PUT("/account-auto-provision", h.Admin.Setting.UpdateAccountAutoProvisionSettings)
 	}
 }
 
