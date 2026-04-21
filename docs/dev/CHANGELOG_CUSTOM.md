@@ -19,6 +19,20 @@
 
 ## 变更记录
 
+## [2026-04-21] ops(deploy): 为 docker-compose 三个服务加日志轮转
+
+**影响范围**:
+- `deploy/docker-compose.yml` — `sub2api` / `postgres` / `redis` 各加 `logging: { driver: json-file, options: { max-size: 50m, max-file: 5 } }`
+
+**上游兼容性**:
+- 仅追加字段，不改动既有配置；上游若重写 compose 结构需人工对齐此三段
+
+**变更详情**:
+- 背景：2026-04-20 晚 23:01 生产机磁盘写满导致宕机（`rsyslogd: No space left on device`），根因是 Docker 默认 `json-file` 日志驱动无轮转上限，`sub2api` 容器按 ~4.3 GB/天累积，8 天累计 ~37 GB，耗尽根盘；重启后 `docker compose up` 重建容器顺带删除旧 `*-json.log`，磁盘才从 100% 降回 45%
+- 修复：每容器上限 5 × 50 MB = 250 MB，三容器合计最多 ~750 MB，从此不会再被容器日志打爆磁盘
+- 生效路径：commit → push → `python deploy/remote_exec.py --update`（`update.sh` 触发 `docker compose up -d`，容器重建时新 `logging` 配置才落位）
+- 后续待办：① 清理 15.84 GB build cache 和 24 个 dangling 镜像；② `ops_error_logger` 在 postgres 不可达时疯狂重试刷日志，需加速率限制
+
 ## [2026-04-21] docs(sales): 初版销售代理手册
 
 **影响范围**:
