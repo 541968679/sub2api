@@ -7,7 +7,9 @@ import (
 
 var codexModelMap = map[string]string{
 	"gpt-5.5":                    "gpt-5.5",
+	"gpt-5.5-2026-04-23":         "gpt-5.5",
 	"gpt-5.5-pro":               "gpt-5.5-pro",
+	"gpt-5.5-pro-2026-04-23":    "gpt-5.5-pro",
 	"gpt-5.5-none":               "gpt-5.5",
 	"gpt-5.5-low":                "gpt-5.5",
 	"gpt-5.5-medium":             "gpt-5.5",
