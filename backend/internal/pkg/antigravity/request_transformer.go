@@ -753,3 +753,70 @@ func buildTools(tools []ClaudeTool) []GeminiToolDeclaration {
 
 	return declarations
 }
+
+// CacheDiagnostics 缓存诊断信息，用于排查上游隐式缓存失效问题
+type CacheDiagnostics struct {
+	SessionID            string
+	Project              string
+	Model                string
+	RequestType          string
+	RequestID            string
+	SysInstructionHash   string
+	SysInstructionLen    int
+	SysInstructionPrefix string
+	SysPartsCount        int
+	ContentsCount        int
+	ContentsFirstHash    string
+	ToolsCount           int
+}
+
+// ExtractCacheDiagnostics 从序列化后的 Gemini 请求体中提取缓存诊断信息
+func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
+	var v1Req V1InternalRequest
+	if err := json.Unmarshal(geminiBody, &v1Req); err != nil {
+		return nil
+	}
+
+	diag := &CacheDiagnostics{
+		SessionID:     v1Req.Request.SessionID,
+		Project:       v1Req.Project,
+		Model:         v1Req.Model,
+		RequestType:   v1Req.RequestType,
+		RequestID:     v1Req.RequestID,
+		ContentsCount: len(v1Req.Request.Contents),
+	}
+
+	// systemInstruction hash + prefix
+	if v1Req.Request.SystemInstruction != nil {
+		sysBytes, err := json.Marshal(v1Req.Request.SystemInstruction)
+		if err == nil {
+			h := sha256.Sum256(sysBytes)
+			diag.SysInstructionHash = fmt.Sprintf("%x", h[:8])
+			diag.SysInstructionLen = len(sysBytes)
+		}
+		diag.SysPartsCount = len(v1Req.Request.SystemInstruction.Parts)
+		if len(v1Req.Request.SystemInstruction.Parts) > 0 {
+			prefix := v1Req.Request.SystemInstruction.Parts[0].Text
+			if len(prefix) > 300 {
+				prefix = prefix[:300]
+			}
+			diag.SysInstructionPrefix = prefix
+		}
+	}
+
+	// contents[0] hash
+	if len(v1Req.Request.Contents) > 0 {
+		firstBytes, err := json.Marshal(v1Req.Request.Contents[0])
+		if err == nil {
+			h := sha256.Sum256(firstBytes)
+			diag.ContentsFirstHash = fmt.Sprintf("%x", h[:8])
+		}
+	}
+
+	// tools count
+	for _, td := range v1Req.Request.Tools {
+		diag.ToolsCount += len(td.FunctionDeclarations)
+	}
+
+	return diag
+}

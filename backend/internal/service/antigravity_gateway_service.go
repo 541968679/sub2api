@@ -1461,6 +1461,40 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", "Invalid request")
 	}
 
+	// 缓存诊断日志：记录转换后 Gemini 请求的关键缓存相关字段
+	if s.settingService != nil && s.settingService.cfg != nil && s.settingService.cfg.Gateway.LogCacheDiagnostics {
+		if diag := antigravity.ExtractCacheDiagnostics(geminiBody); diag != nil {
+			metadataUserID := ""
+			if claudeReq.Metadata != nil {
+				metadataUserID = claudeReq.Metadata.UserID
+			}
+			thinkingType := ""
+			if claudeReq.Thinking != nil {
+				thinkingType = claudeReq.Thinking.Type
+			}
+			slog.Info("antigravity_cache_diag",
+				"account_id", account.ID,
+				"original_model", originalModel,
+				"mapped_model", mappedModel,
+				"user_agent", c.GetHeader("User-Agent"),
+				"metadata_user_id", metadataUserID,
+				"thinking_type", thinkingType,
+				"session_id", diag.SessionID,
+				"project", diag.Project,
+				"v1_model", diag.Model,
+				"request_type", diag.RequestType,
+				"request_id", diag.RequestID,
+				"sys_hash", diag.SysInstructionHash,
+				"sys_len", diag.SysInstructionLen,
+				"sys_prefix", diag.SysInstructionPrefix,
+				"sys_parts", diag.SysPartsCount,
+				"contents_count", diag.ContentsCount,
+				"first_hash", diag.ContentsFirstHash,
+				"tools_count", diag.ToolsCount,
+			)
+		}
+	}
+
 	// Antigravity 上游只支持流式请求，统一使用 streamGenerateContent
 	// 如果客户端请求非流式，在响应处理阶段会收集完整流式响应后转换返回
 	action := "streamGenerateContent"
@@ -1813,6 +1847,19 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		}
 		usage = streamRes.usage
 		firstTokenMs = streamRes.firstTokenMs
+	}
+
+	// 缓存诊断日志：记录上游返回的缓存命中情况
+	if s.settingService != nil && s.settingService.cfg != nil && s.settingService.cfg.Gateway.LogCacheDiagnostics && usage != nil {
+		slog.Info("antigravity_cache_result",
+			"account_id", account.ID,
+			"original_model", originalModel,
+			"input_tokens", usage.InputTokens,
+			"output_tokens", usage.OutputTokens,
+			"cache_read", usage.CacheReadInputTokens,
+			"cache_create", usage.CacheCreationInputTokens,
+			"duration_ms", time.Since(startTime).Milliseconds(),
+		)
 	}
 
 	return &ForwardResult{

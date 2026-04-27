@@ -397,6 +397,9 @@ type GatewayConfig struct {
 	// 上游错误响应体记录最大字节数（超过会截断）
 	LogUpstreamErrorBodyMaxBytes int `mapstructure:"log_upstream_error_body_max_bytes"`
 
+	// 是否记录 Antigravity 请求的缓存诊断信息（用于排查上游隐式缓存失效问题）
+	LogCacheDiagnostics bool `mapstructure:"log_cache_diagnostics"`
+
 	// API-key 账号在客户端未提供 anthropic-beta 时，是否按需自动补齐（默认关闭以保持兼容）
 	InjectBetaForAPIKey bool `mapstructure:"inject_beta_for_apikey"`
 
