@@ -19,6 +19,23 @@
 
 ## 变更记录
 
+## [2026-04-27] feat(openai): 添加 GPT-5.5 / GPT-5.5 Pro 模型支持
+
+**影响范围**:
+- `backend/internal/pkg/openai/constants.go` — DefaultModels 列表
+- `backend/internal/service/openai_codex_transform.go` — codexModelMap + normalizeCodexModel
+- `backend/internal/service/billing_service.go` — fallback 定价、getFallbackPricing、isOpenAIGPT54Model
+- `backend/resources/model-pricing/model_prices_and_context_window.json` — 动态定价条目
+
+**上游兼容性**:
+- 上游 v0.1.112 尚未添加 GPT-5.5 支持；上游若后续添加需人工对齐四处文件
+
+**变更详情**:
+- 背景：OpenAI 于 2026-04-23 发布 GPT-5.5，上游未跟进；原 normalizeCodexModel 中 `gpt-5.5` 会被 `gpt-5` 兜底逻辑静默降级为 `gpt-5.1`，导致请求不通
+- 新增模型：`gpt-5.5`（$5/$30 per MTok）、`gpt-5.5-pro`（$30/$180 per MTok）
+- codexModelMap 包含 reasoning effort 后缀变体（none/low/medium/high/xhigh）及 chat-latest
+- 长上下文定价复用 GPT-5.4 的阈值（272K input tokens, 2x input / 1.5x output）
+
 ## [2026-04-21] ops(deploy): 为 docker-compose 三个服务加日志轮转
 
 **影响范围**:
