@@ -19,6 +19,22 @@
 
 ## 变更记录
 
+## [2026-04-27] feat(antigravity): 添加缓存诊断日志
+
+**影响范围**:
+- `backend/internal/config/config.go` — Gateway struct 新增 `LogCacheDiagnostics` 字段
+- `backend/internal/pkg/antigravity/request_transformer.go` — 新增 `CacheDiagnostics` 结构体和 `ExtractCacheDiagnostics()` 函数
+- `backend/internal/service/antigravity_gateway_service.go` — Forward() 中添加请求/响应阶段诊断日志
+
+**上游兼容性**:
+- 纯新增，不影响上游合并
+
+**变更详情**:
+- 背景：claude-opus-4-7 请求经 Antigravity 平台转发后 0% 缓存命中，而同路径的 claude-opus-4-6 有 99.7% 缓存命中率
+- 新增 `gateway.log_cache_diagnostics` 配置开关（默认关闭）
+- 开启后记录转换后 Gemini 请求的 sessionId、systemInstruction hash/prefix、contents 结构等关键字段
+- 同时记录上游返回的 cache_read/cache_creation tokens，便于定位缓存失效根因
+
 ## [2026-04-27] feat(openai): 添加 GPT-5.5 / GPT-5.5 Pro 模型支持
 
 **影响范围**:
