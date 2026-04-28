@@ -19,6 +19,22 @@
 
 ## 变更记录
 
+## [2026-04-28] fix(antigravity): 更新默认客户端版本到 1.23.2
+
+**影响范围**:
+- `backend/internal/pkg/antigravity/oauth.go` — 默认 `ANTIGRAVITY_USER_AGENT_VERSION` 从 `1.21.9` 更新到 `1.23.2`
+- `backend/internal/pkg/antigravity/oauth_test.go` — 更新默认 User-Agent 断言
+- `deploy/docker-compose.yml` — 透传 `ANTIGRAVITY_USER_AGENT_VERSION`
+- `deploy/.env.example` — 补充 Antigravity User-Agent 版本配置说明
+
+**上游兼容性**:
+- 低风险；仅更新默认 User-Agent 版本，仍允许运行环境通过 `ANTIGRAVITY_USER_AGENT_VERSION` 覆盖。
+
+**变更详情**:
+- Google Antigravity 下载页当前 stable 下载路径为 `stable/1.23.2-...`，本地默认仍为 `antigravity/1.21.9 windows/amd64`。
+- 上游返回 `This version of Antigravity is no longer supported. Please upgrade to receive the latest features.` 时，优先怀疑 User-Agent 版本过旧。
+- 更新默认值并补充部署环境变量，避免生产容器因未显式设置版本而继续使用旧客户端指纹。
+
 ## [2026-04-27] feat(antigravity): 添加缓存诊断日志
 
 **影响范围**:

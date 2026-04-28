@@ -18,6 +18,9 @@ const (
 	BlockTypeFunction
 )
 
+// UsageMapHook can modify usage data before it is emitted in SSE events.
+type UsageMapHook func(usageMap map[string]any)
+
 // StreamingProcessor 流式响应处理器
 type StreamingProcessor struct {
 	blockType         BlockType
@@ -30,6 +33,7 @@ type StreamingProcessor struct {
 	originalModel     string
 	webSearchQueries  []string
 	groundingChunks   []GeminiGroundingChunk
+	usageMapHook      UsageMapHook
 
 	// 累计 usage
 	inputTokens       int
@@ -44,6 +48,37 @@ func NewStreamingProcessor(originalModel string) *StreamingProcessor {
 		blockType:     BlockTypeNone,
 		originalModel: originalModel,
 	}
+}
+
+// SetUsageMapHook sets an optional hook for usage maps emitted in streaming events.
+func (p *StreamingProcessor) SetUsageMapHook(fn UsageMapHook) {
+	p.usageMapHook = fn
+}
+
+func usageToMap(u ClaudeUsage) map[string]any {
+	m := map[string]any{
+		"input_tokens":  u.InputTokens,
+		"output_tokens": u.OutputTokens,
+	}
+	if u.CacheCreationInputTokens > 0 {
+		m["cache_creation_input_tokens"] = u.CacheCreationInputTokens
+	}
+	if u.CacheReadInputTokens > 0 {
+		m["cache_read_input_tokens"] = u.CacheReadInputTokens
+	}
+	if u.ImageOutputTokens > 0 {
+		m["image_output_tokens"] = u.ImageOutputTokens
+	}
+	return m
+}
+
+func (p *StreamingProcessor) usageValue(usage ClaudeUsage) any {
+	if p.usageMapHook == nil {
+		return usage
+	}
+	usageMap := usageToMap(usage)
+	p.usageMapHook(usageMap)
+	return usageMap
 }
 
 // ProcessLine 处理 SSE 行，返回 Claude SSE 事件
@@ -180,7 +215,7 @@ func (p *StreamingProcessor) emitMessageStart(v1Resp *V1InternalResponse) []byte
 		"model":         p.originalModel,
 		"stop_reason":   nil,
 		"stop_sequence": nil,
-		"usage":         usage,
+		"usage":         p.usageValue(usage),
 	}
 
 	event := map[string]any{
@@ -498,7 +533,7 @@ func (p *StreamingProcessor) emitFinish(finishReason string) []byte {
 			"stop_reason":   stopReason,
 			"stop_sequence": nil,
 		},
-		"usage": usage,
+		"usage": p.usageValue(usage),
 	}
 
 	_, _ = result.Write(p.formatSSE("message_delta", deltaEvent))
