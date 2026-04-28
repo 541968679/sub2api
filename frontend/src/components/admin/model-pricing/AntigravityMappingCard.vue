@@ -62,11 +62,14 @@
             />
             <button
               @click="removeRow(index)"
-              class="flex-shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+              :title="t('admin.modelPricing.deleteMapping')"
+              :aria-label="t('admin.modelPricing.deleteMapping')"
+              class="inline-flex flex-shrink-0 items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
             >
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
+              <span>{{ t('admin.modelPricing.deleteMapping') }}</span>
             </button>
           </div>
         </div>

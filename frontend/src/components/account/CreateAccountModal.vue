@@ -773,7 +773,9 @@
                 <button
                   type="button"
                   @click="removeAntigravityModelMapping(index)"
-                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  :title="t('admin.accounts.deleteMapping')"
+                  :aria-label="t('admin.accounts.deleteMapping')"
+                  class="inline-flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-2 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
                 >
                   <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
@@ -783,6 +785,7 @@
                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                     />
                   </svg>
+                  <span>{{ t('admin.accounts.deleteMapping') }}</span>
                 </button>
               </div>
               <!-- 校验错误提示 -->
@@ -808,7 +811,7 @@
 
           <div class="flex flex-wrap gap-2">
             <button
-              v-for="preset in antigravityPresetMappings"
+              v-for="preset in visibleAntigravityPresetMappings"
               :key="preset.label"
               type="button"
               @click="addAntigravityPresetMapping(preset.from, preset.to)"
@@ -3012,6 +3015,9 @@ const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist'
 const antigravityWhitelistModels = ref<string[]>([])
 const antigravityModelMappings = ref<ModelMapping[]>([])
 const antigravityPresetMappings = computed(() => getPresetMappingsByPlatform('antigravity'))
+const visibleAntigravityPresetMappings = computed(() =>
+  antigravityPresetMappings.value.filter((preset) => !hasAntigravityMappingFor(preset.from))
+)
 const bedrockPresets = computed(() => getPresetMappingsByPlatform('bedrock'))
 
 // Bedrock credentials
@@ -3431,8 +3437,17 @@ const removeAntigravityModelMapping = (index: number) => {
   antigravityModelMappings.value.splice(index, 1)
 }
 
+function normalizeAntigravityMappingKey(model: string): string {
+  return model.trim().toLowerCase().replace(/^(claude-(?:opus|sonnet|haiku)-4)\.(\d)(.*)$/, '$1-$2$3')
+}
+
+function hasAntigravityMappingFor(from: string): boolean {
+  const normalizedFrom = normalizeAntigravityMappingKey(from)
+  return antigravityModelMappings.value.some((mapping) => normalizeAntigravityMappingKey(mapping.from) === normalizedFrom)
+}
+
 const addAntigravityPresetMapping = (from: string, to: string) => {
-  if (antigravityModelMappings.value.some((m) => m.from === from)) {
+  if (hasAntigravityMappingFor(from)) {
     appStore.showInfo(t('admin.accounts.mappingExists', { model: from }))
     return
   }

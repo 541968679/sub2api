@@ -19,6 +19,20 @@
 
 ## 变更记录
 
+## [2026-04-28] fix(antigravity): 显式化模型映射删除入口并隐藏已存在预设
+
+**影响范围**:
+- `frontend/src/components/account/CreateAccountModal.vue` - Antigravity 账号新建弹窗的映射删除按钮改为显式文字按钮，预设按钮隐藏已存在映射。
+- `frontend/src/components/account/EditAccountModal.vue` - Antigravity 账号编辑弹窗同步上述交互。
+- `frontend/src/components/admin/model-pricing/AntigravityMappingCard.vue` - 全局 Antigravity 默认映射编辑页的删除入口改为显式文字按钮。
+
+**上游兼容性**:
+- 纯前端交互优化，不改变后端映射解析规则；同步上游时低冲突。
+
+**变更详情**:
+- 解决 Antigravity 映射中出现 `claude-opus-4.7` / `claude-opus-4-7` 类似重复项时，用户难以发现删除入口的问题。
+- 账号弹窗中对 Claude 4.x 点号/短横线写法做同类映射判断，避免快捷预设再次显示或添加同类重复映射。
+
 ## [2026-04-28] fix(antigravity): 更新默认客户端版本到 1.23.2
 
 **影响范围**:
