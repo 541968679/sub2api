@@ -226,6 +226,22 @@
                   </svg>
                 </button>
                 <button
+                  v-if="row.canEditMapping"
+                  @click="deleteMapping(row)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  :title="t('admin.modelPricing.deleteMapping')"
+                  :disabled="deletingMappingFrom === row.item.model"
+                >
+                  <span
+                    v-if="deletingMappingFrom === row.item.model"
+                    class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  ></span>
+                  <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12m-9 0V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-.7 11.2A2 2 0 0114.3 20H9.7a2 2 0 01-2-1.8L7 7m3 4v5m4-5v5" />
+                  </svg>
+                  <span>{{ t('admin.modelPricing.deleteMapping') }}</span>
+                </button>
+                <button
                   v-if="row.canTest"
                   @click="openTestDialog(row.item.model)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-gray-700 dark:hover:text-emerald-400"
@@ -348,6 +364,7 @@ const pagination = reactive({ page: 1, page_size: 50, total: 0, pages: 0 })
 const searchQuery = ref('')
 const providerFilter = ref('')
 const sourceFilter = ref('')
+const deletingMappingFrom = ref('')
 
 const showDetailDialog = ref(false)
 const selectedModel = ref('')
@@ -479,6 +496,26 @@ function closeMappingPopover() {
 function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; from: string; to?: string }) {
   // 映射变化会影响所有徽标和 related_models，必须整表 reload
   loadData()
+}
+
+async function deleteMapping(row: RowDisplay) {
+  const from = row.item.model
+  if (!from) return
+  if (!confirm(t('admin.modelPricing.confirmDeleteMapping', { from }))) return
+
+  deletingMappingFrom.value = from
+  try {
+    const current = await adminAPI.accounts.getAntigravityDefaultModelMapping()
+    const next = { ...current }
+    delete next[from]
+    await adminAPI.accounts.updateAntigravityDefaultModelMapping(next)
+    appStore.showSuccess(t('admin.modelConfig.saved'))
+    await loadData()
+  } catch {
+    appStore.showError(t('common.error'))
+  } finally {
+    deletingMappingFrom.value = ''
+  }
 }
 
 // 模型测试 dialog 状态
