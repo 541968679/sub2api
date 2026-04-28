@@ -765,6 +765,8 @@ type CacheDiagnostics struct {
 	SysInstructionLen    int
 	SysInstructionPrefix string
 	SysPartsCount        int
+	SysPartHashes        string // 每个 part 的独立 hash，用 ";" 分隔
+	SysPartLens          string // 每个 part 的长度，用 ";" 分隔
 	ContentsCount        int
 	ContentsFirstHash    string
 	ToolsCount           int
@@ -786,7 +788,7 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 		ContentsCount: len(v1Req.Request.Contents),
 	}
 
-	// systemInstruction hash + prefix
+	// systemInstruction hash + prefix + per-part hashes
 	if v1Req.Request.SystemInstruction != nil {
 		sysBytes, err := json.Marshal(v1Req.Request.SystemInstruction)
 		if err == nil {
@@ -795,13 +797,25 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 			diag.SysInstructionLen = len(sysBytes)
 		}
 		diag.SysPartsCount = len(v1Req.Request.SystemInstruction.Parts)
-		if len(v1Req.Request.SystemInstruction.Parts) > 0 {
-			prefix := v1Req.Request.SystemInstruction.Parts[0].Text
-			if len(prefix) > 300 {
-				prefix = prefix[:300]
+
+		var partHashes, partLens []string
+		for i, part := range v1Req.Request.SystemInstruction.Parts {
+			partBytes, err := json.Marshal(part)
+			if err == nil {
+				h := sha256.Sum256(partBytes)
+				partHashes = append(partHashes, fmt.Sprintf("%x", h[:6]))
+				partLens = append(partLens, strconv.Itoa(len(partBytes)))
 			}
-			diag.SysInstructionPrefix = prefix
+			if i == 0 {
+				prefix := part.Text
+				if len(prefix) > 300 {
+					prefix = prefix[:300]
+				}
+				diag.SysInstructionPrefix = prefix
+			}
 		}
+		diag.SysPartHashes = strings.Join(partHashes, ";")
+		diag.SysPartLens = strings.Join(partLens, ";")
 	}
 
 	// contents[0] hash
