@@ -767,6 +767,7 @@ type CacheDiagnostics struct {
 	SysPartsCount        int
 	SysPartHashes        string // 每个 part 的独立 hash，用 ";" 分隔
 	SysPartLens          string // 每个 part 的长度，用 ";" 分隔
+	UnstablePartText     string // 长度 < 200 bytes 且非首个 part 的完整文本（用于定位动态内容）
 	ContentsCount        int
 	ContentsFirstHash    string
 	ToolsCount           int
@@ -812,6 +813,9 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 					prefix = prefix[:300]
 				}
 				diag.SysInstructionPrefix = prefix
+			}
+			if i > 0 && len(partBytes) < 200 {
+				diag.UnstablePartText = part.Text
 			}
 		}
 		diag.SysPartHashes = strings.Join(partHashes, ";")
