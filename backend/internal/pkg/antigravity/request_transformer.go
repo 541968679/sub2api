@@ -816,7 +816,7 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 				}
 				diag.SysInstructionPrefix = prefix
 			}
-			if i > 0 && len(partBytes) < 200 {
+			if i == 2 {
 				diag.UnstablePartText = part.Text
 			}
 		}
