@@ -243,7 +243,7 @@
                 </button>
                 <button
                   v-if="row.canTest"
-                  @click="openTestDialog(row.item.model)"
+                  @click="openTestDialog(row.item.model, row.item.provider)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-gray-700 dark:hover:text-emerald-400"
                   :title="t('admin.modelPricing.testModel')"
                 >
@@ -336,6 +336,7 @@
     <ModelTestDialog
       :show="testDialogState.show"
       :model="testDialogState.model"
+      :provider="testDialogState.provider"
       @close="testDialogState.show = false"
     />
   </div>
@@ -519,13 +520,15 @@ async function deleteMapping(row: RowDisplay) {
 }
 
 // 模型测试 dialog 状态
-const testDialogState = reactive<{ show: boolean; model: string }>({
+const testDialogState = reactive<{ show: boolean; model: string; provider: string }>({
   show: false,
   model: '',
+  provider: '',
 })
 
-function openTestDialog(model: string) {
+function openTestDialog(model: string, provider: string) {
   testDialogState.model = model
+  testDialogState.provider = provider
   testDialogState.show = true
 }
 
@@ -753,8 +756,7 @@ const displayRows = computed<RowDisplay[]>(() =>
     // （requested_only 是 key != value 的 key；requested_equals_upstream 是同名 key）
     // upstream_only 行只作为 value 不是 key，不显示编辑入口（要改要去对应 key 行）
     const canEditMapping = hintType === 'requested_only' || hintType === 'requested_equals_upstream'
-    // 测试按钮：所有 Antigravity 认可的模型（有 hint 即在映射里），以及 provider=antigravity 的 stub
-    const canTest = !!hintType || item.provider === 'antigravity'
+    const canTest = !!hintType || item.provider === 'antigravity' || item.provider === 'openai' || item.provider === 'gemini'
     return {
       item,
       stub: isStubRow(item),

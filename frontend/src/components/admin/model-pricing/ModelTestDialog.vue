@@ -61,6 +61,7 @@ import { BaseDialog } from '@/components/common'
 const props = defineProps<{
   show: boolean
   model: string
+  provider?: string
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -77,7 +78,10 @@ const terminalRef = ref<HTMLElement | null>(null)
 
 async function loadAccounts() {
   try {
-    const resp = await adminAPI.accounts.list(1, 100, { platform: 'antigravity' })
+    const platform = props.provider === 'openai' ? 'openai'
+      : props.provider === 'gemini' ? 'gemini'
+      : 'antigravity'
+    const resp = await adminAPI.accounts.list(1, 100, { platform })
     const items = resp.items || []
     accounts.value = items.filter((a: Account) =>
       a.status === 'active' &&
