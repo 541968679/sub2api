@@ -206,6 +206,203 @@
 
         <!-- Charts Section -->
         <div class="space-y-6">
+          <!-- Cache Status -->
+          <div class="card p-4">
+            <div class="mb-4 flex flex-wrap items-center gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ t('admin.dashboard.cacheStatus.title') }}
+                </h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.dashboard.cacheStatus.subtitle') }}
+                </p>
+              </div>
+              <div class="ml-auto flex flex-wrap items-center gap-2">
+                <div class="w-32">
+                  <Select
+                    v-model="cacheStatusWindow"
+                    :options="cacheStatusWindowOptions"
+                    @change="loadCacheStatus"
+                  />
+                </div>
+                <div class="w-40">
+                  <Select
+                    v-model="cacheStatusPlatform"
+                    :options="cacheStatusPlatformOptions"
+                    @change="loadCacheStatus"
+                  />
+                </div>
+                <button @click="loadCacheStatus" :disabled="cacheStatusLoading" class="btn btn-secondary">
+                  {{ t('common.refresh') }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="cacheStatusLoading && !cacheStatus" class="flex h-44 items-center justify-center">
+              <LoadingSpinner size="md" />
+            </div>
+            <div v-else-if="cacheStatus" class="space-y-4">
+              <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.readRate') }}
+                  </p>
+                  <p class="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {{ formatPercent(cacheStatus.summary.cache_read_rate) }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ formatTokens(cacheStatus.summary.cache_read_tokens) }}
+                  </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.creationRate') }}
+                  </p>
+                  <p class="mt-1 text-xl font-bold text-blue-600 dark:text-blue-400">
+                    {{ formatPercent(cacheStatus.summary.cache_creation_rate) }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ formatTokens(cacheStatus.summary.cache_creation_tokens) }}
+                  </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.hitRequests') }}
+                  </p>
+                  <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                    {{ formatPercent(cacheStatus.summary.request_hit_rate) }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ cacheStatus.summary.cache_hit_requests }} / {{ cacheStatus.summary.requests }}
+                  </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.promptTokens') }}
+                  </p>
+                  <p class="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+                    {{ formatTokens(cacheStatus.summary.prompt_total_tokens) }}
+                  </p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.input') }} {{ formatTokens(cacheStatus.summary.input_tokens) }}
+                  </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ t('common.status') }}
+                  </p>
+                  <p class="mt-2">
+                    <span
+                      class="rounded-full px-2 py-1 text-xs font-semibold"
+                      :class="cacheStatusClass(cacheStatus.summary.status)"
+                    >
+                      {{ cacheStatusLabel(cacheStatus.summary.status) }}
+                    </span>
+                  </p>
+                  <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    {{ cacheStatus.window }} · {{ cacheStatus.platform }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-4 xl:grid-cols-5">
+                <div class="xl:col-span-2">
+                  <p class="mb-3 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.trend') }}
+                  </p>
+                  <div class="flex h-40 items-end gap-1 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                    <div
+                      v-for="point in cacheStatus.trend"
+                      :key="point.bucket"
+                      class="group relative flex min-w-0 flex-1 items-end"
+                    >
+                      <div
+                        class="w-full rounded-t bg-emerald-500/80 transition-colors group-hover:bg-emerald-500"
+                        :style="{ height: cacheTrendBarHeight(point.cache_read_rate) }"
+                      ></div>
+                      <div
+                        class="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-44 -translate-x-1/2 rounded-md bg-gray-900 px-2 py-1 text-xs text-white shadow-lg group-hover:block"
+                      >
+                        <div>{{ formatCacheBucket(point.bucket) }}</div>
+                        <div>{{ t('admin.dashboard.cacheStatus.readRate') }}: {{ formatPercent(point.cache_read_rate) }}</div>
+                        <div>{{ t('admin.dashboard.cacheStatus.requests') }}: {{ point.requests }}</div>
+                      </div>
+                    </div>
+                    <div
+                      v-if="!cacheStatus.trend.length"
+                      class="flex h-full w-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+                    >
+                      {{ t('admin.dashboard.noDataAvailable') }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="overflow-hidden xl:col-span-3">
+                  <p class="mb-3 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                    {{ t('admin.dashboard.cacheStatus.byModel') }}
+                  </p>
+                  <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+                      <thead class="bg-gray-50 dark:bg-gray-800/60">
+                        <tr>
+                          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {{ t('admin.dashboard.model') }}
+                          </th>
+                          <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {{ t('admin.dashboard.cacheStatus.readRate') }}
+                          </th>
+                          <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {{ t('admin.dashboard.cacheStatus.creationRate') }}
+                          </th>
+                          <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {{ t('admin.dashboard.requests') }}
+                          </th>
+                          <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
+                            {{ t('common.status') }}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        <tr v-for="model in cacheStatus.models" :key="`${model.requested_model}:${model.upstream_model}`">
+                          <td class="max-w-72 px-3 py-2">
+                            <div class="truncate font-medium text-gray-900 dark:text-white">
+                              {{ model.requested_model || t('common.unknown') }}
+                            </div>
+                            <div class="truncate text-xs text-gray-500 dark:text-gray-400">
+                              {{ model.upstream_model || '-' }}
+                            </div>
+                          </td>
+                          <td class="px-3 py-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">
+                            {{ formatPercent(model.cache_read_rate) }}
+                          </td>
+                          <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                            {{ formatPercent(model.cache_creation_rate) }}
+                          </td>
+                          <td class="px-3 py-2 text-right text-gray-700 dark:text-gray-300">
+                            {{ model.requests }}
+                          </td>
+                          <td class="px-3 py-2 text-right">
+                            <span
+                              class="rounded-full px-2 py-1 text-xs font-semibold"
+                              :class="cacheStatusClass(model.status)"
+                            >
+                              {{ cacheStatusLabel(model.status) }}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr v-if="!cacheStatus.models.length">
+                          <td colspan="5" class="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                            {{ t('admin.dashboard.noDataAvailable') }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Date Range Filter -->
           <div class="card p-4">
             <div class="flex flex-wrap items-center gap-4">
@@ -295,6 +492,7 @@ import type {
   UserUsageTrendPoint,
   UserSpendingRankingItem
 } from '@/types'
+import type { CacheStatusResponse, CacheStatusWindow } from '@/api/admin/dashboard'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -334,6 +532,7 @@ const chartsLoading = ref(false)
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
 const rankingError = ref(false)
+const cacheStatusLoading = ref(false)
 
 // Chart data
 const trendData = ref<TrendDataPoint[]>([])
@@ -343,9 +542,13 @@ const rankingItems = ref<UserSpendingRankingItem[]>([])
 const rankingTotalActualCost = ref(0)
 const rankingTotalRequests = ref(0)
 const rankingTotalTokens = ref(0)
+const cacheStatus = ref<CacheStatusResponse | null>(null)
+const cacheStatusWindow = ref<CacheStatusWindow>('24h')
+const cacheStatusPlatform = ref('antigravity')
 let chartLoadSeq = 0
 let usersTrendLoadSeq = 0
 let rankingLoadSeq = 0
+let cacheStatusLoadSeq = 0
 const rankingLimit = 12
 
 // Helper function to format date in local timezone
@@ -372,6 +575,18 @@ const endDate = ref(defaultRange.end)
 const granularityOptions = computed(() => [
   { value: 'day', label: t('admin.dashboard.day') },
   { value: 'hour', label: t('admin.dashboard.hour') }
+])
+
+const cacheStatusWindowOptions = computed(() => [
+  { value: '1h', label: t('admin.dashboard.cacheStatus.window1h') },
+  { value: '6h', label: t('admin.dashboard.cacheStatus.window6h') },
+  { value: '24h', label: t('admin.dashboard.cacheStatus.window24h') },
+  { value: '7d', label: t('admin.dashboard.cacheStatus.window7d') }
+])
+
+const cacheStatusPlatformOptions = computed(() => [
+  { value: 'antigravity', label: 'Antigravity' },
+  { value: 'all', label: t('common.all') }
 ])
 
 // Dark mode detection
@@ -508,6 +723,11 @@ const userTrendChartData = computed(() => {
   }
 })
 
+const cacheTrendMaxReadRate = computed(() => {
+  const rates = cacheStatus.value?.trend?.map((point) => point.cache_read_rate) || []
+  return Math.max(0.01, ...rates)
+})
+
 // Format helpers
 const formatTokens = (value: number | undefined): string => {
   if (value === undefined || value === null) return '0'
@@ -541,6 +761,45 @@ const formatDuration = (ms: number): string => {
     return `${(ms / 1000).toFixed(2)}s`
   }
   return `${Math.round(ms)}ms`
+}
+
+const formatPercent = (value: number | undefined): string => {
+  if (value === undefined || value === null || Number.isNaN(value)) return '0%'
+  return `${(value * 100).toFixed(1)}%`
+}
+
+const formatCacheBucket = (value: string): string => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+const cacheTrendBarHeight = (rate: number): string => {
+  const height = Math.max(6, Math.round((rate / cacheTrendMaxReadRate.value) * 100))
+  return `${Math.min(100, height)}%`
+}
+
+const cacheStatusLabel = (status: string): string => {
+  const labels: Record<string, string> = {
+    healthy: t('admin.dashboard.cacheStatus.status.healthy'),
+    watch: t('admin.dashboard.cacheStatus.status.watch'),
+    unhealthy: t('admin.dashboard.cacheStatus.status.unhealthy'),
+    insufficient: t('admin.dashboard.cacheStatus.status.insufficient')
+  }
+  return labels[status] || status
+}
+
+const cacheStatusClass = (status: string): string => {
+  switch (status) {
+    case 'healthy':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+    case 'watch':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+    case 'unhealthy':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  }
 }
 
 const goToUserUsage = (item: UserSpendingRankingItem) => {
@@ -664,9 +923,31 @@ const loadUserSpendingRanking = async () => {
   }
 }
 
+const loadCacheStatus = async () => {
+  const currentSeq = ++cacheStatusLoadSeq
+  cacheStatusLoading.value = true
+  try {
+    const response = await adminAPI.dashboard.getCacheStatus({
+      window: cacheStatusWindow.value,
+      platform: cacheStatusPlatform.value
+    })
+    if (currentSeq !== cacheStatusLoadSeq) return
+    cacheStatus.value = response
+  } catch (error) {
+    if (currentSeq !== cacheStatusLoadSeq) return
+    console.error('Error loading cache status:', error)
+    cacheStatus.value = null
+  } finally {
+    if (currentSeq === cacheStatusLoadSeq) {
+      cacheStatusLoading.value = false
+    }
+  }
+}
+
 const loadDashboardStats = async () => {
   await Promise.all([
     loadDashboardSnapshot(true),
+    loadCacheStatus(),
     loadUsersTrend(),
     loadUserSpendingRanking()
   ])

@@ -33,6 +33,10 @@ type dashboardStatsRangeFetcher interface {
 	GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*usagestats.DashboardStats, error)
 }
 
+type cacheStatusFetcher interface {
+	GetCacheStatus(ctx context.Context, startTime, endTime time.Time, bucketSeconds int, platform string) (*usagestats.CacheStatusResponse, error)
+}
+
 type dashboardStatsCacheEntry struct {
 	Stats     *usagestats.DashboardStats `json:"stats"`
 	UpdatedAt int64                      `json:"updated_at"`
@@ -120,6 +124,18 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context) (*usagestats.D
 	stats, err := s.refreshDashboardStats(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get dashboard stats: %w", err)
+	}
+	return stats, nil
+}
+
+func (s *DashboardService) GetCacheStatus(ctx context.Context, startTime, endTime time.Time, bucketSeconds int, platform string) (*usagestats.CacheStatusResponse, error) {
+	fetcher, ok := s.usageRepo.(cacheStatusFetcher)
+	if !ok {
+		return nil, errors.New("cache status is not supported by usage repository")
+	}
+	stats, err := fetcher.GetCacheStatus(ctx, startTime, endTime, bucketSeconds, platform)
+	if err != nil {
+		return nil, fmt.Errorf("get cache status: %w", err)
 	}
 	return stats, nil
 }

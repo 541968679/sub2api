@@ -15,6 +15,7 @@ var (
 	dashboardGroupStatsCache   = newSnapshotCache(30 * time.Second)
 	dashboardUsersTrendCache   = newSnapshotCache(30 * time.Second)
 	dashboardAPIKeysTrendCache = newSnapshotCache(30 * time.Second)
+	dashboardCacheStatusCache  = newSnapshotCache(30 * time.Second)
 )
 
 type dashboardTrendCacheKey struct {
@@ -49,6 +50,13 @@ type dashboardEntityTrendCacheKey struct {
 	EndTime     string `json:"end_time"`
 	Granularity string `json:"granularity"`
 	Limit       int    `json:"limit"`
+}
+
+type dashboardCacheStatusCacheKey struct {
+	StartTime     string `json:"start_time"`
+	EndTime       string `json:"end_time"`
+	BucketSeconds int    `json:"bucket_seconds"`
+	Platform      string `json:"platform"`
 }
 
 func cacheStatusValue(hit bool) string {
@@ -200,4 +208,21 @@ func (h *DashboardHandler) getUserUsageTrendCached(ctx context.Context, startTim
 	}
 	trend, err := snapshotPayloadAs[[]usagestats.UserUsageTrendPoint](entry.Payload)
 	return trend, hit, err
+}
+
+func (h *DashboardHandler) getCacheStatusCached(ctx context.Context, startTime, endTime time.Time, bucketSeconds int, platform string) (*usagestats.CacheStatusResponse, bool, error) {
+	key := mustMarshalDashboardCacheKey(dashboardCacheStatusCacheKey{
+		StartTime:     startTime.UTC().Format(time.RFC3339),
+		EndTime:       endTime.UTC().Format(time.RFC3339),
+		BucketSeconds: bucketSeconds,
+		Platform:      platform,
+	})
+	entry, hit, err := dashboardCacheStatusCache.GetOrLoad(key, func() (any, error) {
+		return h.dashboardService.GetCacheStatus(ctx, startTime, endTime, bucketSeconds, platform)
+	})
+	if err != nil {
+		return nil, hit, err
+	}
+	stats, err := snapshotPayloadAs[*usagestats.CacheStatusResponse](entry.Payload)
+	return stats, hit, err
 }

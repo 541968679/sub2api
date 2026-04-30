@@ -376,18 +376,21 @@ func TestBuildGenerationConfig_ThinkingDynamicBudget(t *testing.T) {
 	}
 }
 
-func TestTransformClaudeToGeminiWithOptions_PreservesBillingHeaderSystemBlock(t *testing.T) {
+func TestTransformClaudeToGeminiWithOptions_FiltersBillingHeaderSystemBlock(t *testing.T) {
 	tests := []struct {
-		name   string
-		system json.RawMessage
+		name     string
+		system   json.RawMessage
+		wantText string
 	}{
 		{
-			name:   "system array",
-			system: json.RawMessage(`[{"type":"text","text":"x-anthropic-billing-header keep"}]`),
+			name:     "system array drops billing-only block",
+			system:   json.RawMessage(`[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.12; cch=abc"}]`),
+			wantText: "",
 		},
 		{
-			name:   "system string",
-			system: json.RawMessage(`"x-anthropic-billing-header keep"`),
+			name:     "system string keeps non-billing lines",
+			system:   json.RawMessage(`"x-anthropic-billing-header: cc_version=2.1.12; cch=abc\nkeep this"`),
+			wantText: "keep this",
 		},
 	}
 
@@ -411,15 +414,67 @@ func TestTransformClaudeToGeminiWithOptions_PreservesBillingHeaderSystemBlock(t 
 			require.NoError(t, json.Unmarshal(body, &req))
 			require.NotNil(t, req.Request.SystemInstruction)
 
-			found := false
+			foundBillingHeader := false
+			foundWantedText := tt.wantText == ""
 			for _, part := range req.Request.SystemInstruction.Parts {
-				if strings.Contains(part.Text, "x-anthropic-billing-header keep") {
-					found = true
-					break
+				if strings.Contains(part.Text, "x-anthropic-billing-header") {
+					foundBillingHeader = true
+				}
+				if tt.wantText != "" && strings.Contains(part.Text, tt.wantText) {
+					foundWantedText = true
 				}
 			}
 
-			require.True(t, found, "转换后的 systemInstruction 应保留 x-anthropic-billing-header 内容")
+			require.False(t, foundBillingHeader, "systemInstruction must drop dynamic x-anthropic-billing-header content")
+			require.True(t, foundWantedText, "systemInstruction should preserve non-billing system content")
+		})
+	}
+}
+
+func TestTransformClaudeToGeminiWithOptions_NormalizesMetadataUserID(t *testing.T) {
+	tests := []struct {
+		name       string
+		metadataID string
+		want       string
+	}{
+		{
+			name:       "json user_id prefers stable device_id",
+			metadataID: `{"device_id":"device-123","account_uuid":"","session_id":"session-456"}`,
+			want:       "device-123",
+		},
+		{
+			name:       "json user_id falls back to session_id",
+			metadataID: `{"device_id":"","session_id":"session-456"}`,
+			want:       "session-456",
+		},
+		{
+			name:       "plain user_id is preserved",
+			metadataID: "plain-user",
+			want:       "plain-user",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			claudeReq := &ClaudeRequest{
+				Model: "claude-opus-4-7",
+				Metadata: &ClaudeMetadata{
+					UserID: tt.metadataID,
+				},
+				Messages: []ClaudeMessage{
+					{
+						Role:    "user",
+						Content: json.RawMessage(`[{"type":"text","text":"hello"}]`),
+					},
+				},
+			}
+
+			body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "claude-opus-4-7", DefaultTransformOptions())
+			require.NoError(t, err)
+
+			var req V1InternalRequest
+			require.NoError(t, json.Unmarshal(body, &req))
+			require.Equal(t, tt.want, req.Request.SessionID)
 		})
 	}
 }

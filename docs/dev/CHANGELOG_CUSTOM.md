@@ -19,6 +19,49 @@
 
 ## 变更记录
 
+## [2026-04-30] feat(admin): add cache status dashboard module
+
+**影响范围**:
+- `backend/internal/handler/admin/dashboard_handler.go` — add `/admin/dashboard/cache-status` handler.
+- `backend/internal/repository/usage_log_repo.go` — aggregate cache read/create stats from `usage_logs`.
+- `frontend/src/views/admin/DashboardView.vue` — add admin dashboard cache status module.
+- `frontend/src/api/admin/dashboard.ts` / `frontend/src/i18n/locales/*` — add API types and copy.
+
+**上游兼容性**:
+- Low. This is an additive admin dashboard feature; likely conflicts only if upstream edits the same dashboard files.
+
+**变更详情**:
+- Add cache read rate, cache creation rate, request hit rate, prompt token total, trend buckets, and per-model cache status.
+- Support `1h`, `6h`, `24h`, and `7d` windows. Default platform is `antigravity`, with an `all` option.
+- Status levels: `insufficient` for fewer than 5 requests, `healthy` for read rate >= 50%, `watch` for 20%-50%, and `unhealthy` below 20%.
+
+## [2026-04-30] fix(repository): restore Redis concurrency slot Lua compatibility
+
+**影响范围**:
+- `backend/internal/repository/concurrency_cache.go` — remove `TIME` calls from write-capable Redis Lua scripts.
+
+**上游兼容性**:
+- Low. The behavior and key layout are unchanged; only the timestamp source moves from Redis Lua to Go.
+
+**变更详情**:
+- Pass current Unix seconds from Go into `acquireScript`, `getCountScript`, and `cleanupExpiredSlotsScript`.
+- Fix Redis error `Write commands not allowed after non deterministic commands`, which caused `gateway.user_slot_acquire_failed` and immediate IDE retry on `/antigravity/v1/messages`.
+- Verified locally with `claude-opus-4-7` Antigravity messages endpoint returning 200 through `http://127.0.0.1:8081`.
+
+## [2026-04-30] fix(antigravity): stabilize Claude Opus cache inputs
+
+**影响范围**:
+- `backend/internal/pkg/antigravity/request_transformer.go` — normalize cache-sensitive request fields before forwarding to Antigravity v1internal.
+- `backend/internal/pkg/antigravity/request_transformer_test.go` — add regression tests for billing-header filtering and metadata session normalization.
+
+**上游兼容性**:
+- Low. The change is scoped to Antigravity Claude request transformation; upstream sync conflicts should be limited to the same transformer tests if upstream edits this area.
+
+**变更详情**:
+- Drop dynamic `x-anthropic-billing-header` system lines before building `systemInstruction`, so per-request `cch=` changes do not perturb the upstream implicit cache key.
+- Normalize JSON-form `metadata.user_id` from new Claude CLI clients. Prefer stable `device_id`, fall back to `session_id`, and preserve plain string user IDs.
+- Keeps non-billing system text intact and preserves existing generated fallback session IDs when metadata is absent.
+
 ## [2026-04-28] fix(antigravity): 显式化模型映射删除入口并隐藏已存在预设
 
 **影响范围**:
@@ -53,7 +96,7 @@
 ## [2026-04-27] feat(antigravity): 添加缓存诊断日志
 
 **影响范围**:
-- `backend/internal/config/config.go` — Gateway struct 新增 `LogCacheDiagnostics` 字段
+- `backend/internal/config/config.go` — Gateway struct 新增 `LogCacheDiagnostics` 字段 + Viper 默认值注册
 - `backend/internal/pkg/antigravity/request_transformer.go` — 新增 `CacheDiagnostics` 结构体和 `ExtractCacheDiagnostics()` 函数
 - `backend/internal/service/antigravity_gateway_service.go` — Forward() 中添加请求/响应阶段诊断日志
 
@@ -62,9 +105,28 @@
 
 **变更详情**:
 - 背景：claude-opus-4-7 请求经 Antigravity 平台转发后 0% 缓存命中，而同路径的 claude-opus-4-6 有 99.7% 缓存命中率
-- 新增 `gateway.log_cache_diagnostics` 配置开关（默认关闭）
-- 开启后记录转换后 Gemini 请求的 sessionId、systemInstruction hash/prefix、contents 结构等关键字段
-- 同时记录上游返回的 cache_read/cache_creation tokens，便于定位缓存失效根因
+- 新增 `gateway.log_cache_diagnostics` 配置开关（默认关闭），生产环境通过 `GATEWAY_LOG_CACHE_DIAGNOSTICS=true` 启用
+- 开启后记录：sessionId、systemInstruction hash/prefix/per-part hash、contents 结构、unstable_part 明文
+- 同时记录上游返回的 cache_read/cache_creation tokens
+
+**调研结论（截至 2026-04-30）**:
+
+经多轮迭代诊断，定位到上游隐式缓存失效的两个独立因素：
+
+1. **systemInstruction 中 `x-anthropic-billing-header` block 的 `cch=` 字段每次请求都变**
+   - Claude Code CLI 在 system prompt 数组的第一个 text block 注入 `x-anthropic-billing-header: cc_version=2.1.12x.xxx; cc_entrypoint=cli; cch=xxxxx;`
+   - `cch`（context content hash）每轮对话都变，导致 systemInstruction 的 Part[2] hash 不稳定
+   - 但从数据看，部分带 billing header 的请求仍然能命中缓存，说明上游缓存不完全依赖 system instruction prefix 匹配
+   - 修复方向：在 `buildSystemInstruction` 中过滤 `x-anthropic-billing-header` 开头的 system block
+
+2. **`metadata.user_id` JSON 被整个用作 sessionId**
+   - 新版 Claude CLI 发送 `metadata.user_id = {"device_id":"...","account_uuid":"","session_id":"xxx"}`
+   - `request_transformer.go:161-163` 将整个 JSON 字符串直接赋值给 `innerRequest.SessionID`
+   - 能命中缓存的请求：`metadata_user_id` 为空（sessionId 是数字 hash）或只有 `device_id`（无 session_id 字段）
+   - 不能命中缓存的请求：`metadata_user_id` 包含 `session_id` UUID（每个 Claude Code 会话不同）
+   - 修复方向：从 JSON 中提取 `session_id` 字段单独使用，或仅用 `device_id` 作为 sessionId
+
+**修复状态**：2026-04-30 已在 `request_transformer.go` 落地过滤 billing header 与规范化 `metadata.user_id`，诊断日志开关可在生产验证缓存命中后关闭。
 
 ## [2026-04-27] feat(openai): 添加 GPT-5.5 / GPT-5.5 Pro 模型支持
 

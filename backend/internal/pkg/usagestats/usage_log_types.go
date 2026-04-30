@@ -103,6 +103,58 @@ type ModelStat struct {
 	ActualCost          float64 `json:"actual_cost"` // 实际扣除
 }
 
+// CacheStatusSummary describes prompt-cache effectiveness for a time window.
+type CacheStatusSummary struct {
+	Requests            int64   `json:"requests"`
+	CacheHitRequests    int64   `json:"cache_hit_requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	PromptTotalTokens   int64   `json:"prompt_total_tokens"`
+	CacheReadRate       float64 `json:"cache_read_rate"`
+	CacheCreationRate   float64 `json:"cache_creation_rate"`
+	RequestHitRate      float64 `json:"request_hit_rate"`
+	Status              string  `json:"status"`
+}
+
+// CacheStatusTrendPoint describes cache effectiveness in one trend bucket.
+type CacheStatusTrendPoint struct {
+	Bucket              string  `json:"bucket"`
+	Requests            int64   `json:"requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	PromptTotalTokens   int64   `json:"prompt_total_tokens"`
+	CacheReadRate       float64 `json:"cache_read_rate"`
+	CacheCreationRate   float64 `json:"cache_creation_rate"`
+}
+
+// CacheStatusModelStat describes cache effectiveness grouped by requested and upstream model.
+type CacheStatusModelStat struct {
+	RequestedModel      string  `json:"requested_model"`
+	UpstreamModel       string  `json:"upstream_model"`
+	Requests            int64   `json:"requests"`
+	CacheHitRequests    int64   `json:"cache_hit_requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	PromptTotalTokens   int64   `json:"prompt_total_tokens"`
+	CacheReadRate       float64 `json:"cache_read_rate"`
+	CacheCreationRate   float64 `json:"cache_creation_rate"`
+	RequestHitRate      float64 `json:"request_hit_rate"`
+	Status              string  `json:"status"`
+}
+
+// CacheStatusResponse is the admin dashboard cache status payload.
+type CacheStatusResponse struct {
+	Summary     CacheStatusSummary      `json:"summary"`
+	Trend       []CacheStatusTrendPoint `json:"trend"`
+	Models      []CacheStatusModelStat  `json:"models"`
+	Window      string                  `json:"window"`
+	Platform    string                  `json:"platform"`
+	GeneratedAt string                  `json:"generated_at"`
+}
+
 // EndpointStat represents usage statistics for a single request endpoint.
 type EndpointStat struct {
 	Endpoint    string  `json:"endpoint"`

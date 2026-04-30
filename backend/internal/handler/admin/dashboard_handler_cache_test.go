@@ -16,8 +16,9 @@ import (
 
 type dashboardUsageRepoCacheProbe struct {
 	service.UsageLogRepository
-	trendCalls      atomic.Int32
-	usersTrendCalls atomic.Int32
+	trendCalls       atomic.Int32
+	usersTrendCalls  atomic.Int32
+	cacheStatusCalls atomic.Int32
 }
 
 func (r *dashboardUsageRepoCacheProbe) GetUsageTrendWithFilters(
@@ -58,6 +59,32 @@ func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrend(
 	}}, nil
 }
 
+func (r *dashboardUsageRepoCacheProbe) GetCacheStatus(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	bucketSeconds int,
+	platform string,
+) (*usagestats.CacheStatusResponse, error) {
+	r.cacheStatusCalls.Add(1)
+	return &usagestats.CacheStatusResponse{
+		Summary: usagestats.CacheStatusSummary{
+			Requests:          8,
+			CacheHitRequests:  7,
+			InputTokens:       100,
+			CacheReadTokens:   300,
+			PromptTotalTokens: 400,
+			CacheReadRate:     0.75,
+			RequestHitRate:    0.875,
+			Status:            "healthy",
+		},
+		Trend: []usagestats.CacheStatusTrendPoint{{
+			Bucket:        "2026-03-11T00:00:00Z",
+			Requests:      8,
+			CacheReadRate: 0.75,
+		}},
+	}, nil
+}
+
 func resetDashboardReadCachesForTest() {
 	dashboardTrendCache = newSnapshotCache(30 * time.Second)
 	dashboardUsersTrendCache = newSnapshotCache(30 * time.Second)
@@ -65,6 +92,7 @@ func resetDashboardReadCachesForTest() {
 	dashboardModelStatsCache = newSnapshotCache(30 * time.Second)
 	dashboardGroupStatsCache = newSnapshotCache(30 * time.Second)
 	dashboardSnapshotV2Cache = newSnapshotCache(30 * time.Second)
+	dashboardCacheStatusCache = newSnapshotCache(30 * time.Second)
 }
 
 func TestDashboardHandler_GetUsageTrend_UsesCache(t *testing.T) {
@@ -115,4 +143,29 @@ func TestDashboardHandler_GetUserUsageTrend_UsesCache(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec2.Code)
 	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
 	require.Equal(t, int32(1), repo.usersTrendCalls.Load())
+}
+
+func TestDashboardHandler_GetCacheStatus_UsesCache(t *testing.T) {
+	t.Cleanup(resetDashboardReadCachesForTest)
+	resetDashboardReadCachesForTest()
+
+	gin.SetMode(gin.TestMode)
+	repo := &dashboardUsageRepoCacheProbe{}
+	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
+	handler := NewDashboardHandler(dashboardSvc, nil)
+	router := gin.New()
+	router.GET("/admin/dashboard/cache-status", handler.GetCacheStatus)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/admin/dashboard/cache-status?window=24h&platform=antigravity", nil)
+	rec1 := httptest.NewRecorder()
+	router.ServeHTTP(rec1, req1)
+	require.Equal(t, http.StatusOK, rec1.Code)
+	require.Equal(t, "miss", rec1.Header().Get("X-Snapshot-Cache"))
+
+	req2 := httptest.NewRequest(http.MethodGet, "/admin/dashboard/cache-status?window=24h&platform=antigravity", nil)
+	rec2 := httptest.NewRecorder()
+	router.ServeHTTP(rec2, req2)
+	require.Equal(t, http.StatusOK, rec2.Code)
+	require.Equal(t, "hit", rec2.Header().Get("X-Snapshot-Cache"))
+	require.Equal(t, int32(1), repo.cacheStatusCalls.Load())
 }

@@ -1157,6 +1157,28 @@ export default {
       spendShort: 'Spend',
       requestsShort: 'Req',
       tokensShort: 'Tok',
+      cacheStatus: {
+        title: 'Cache Status',
+        subtitle: 'Prompt cache creation and read effectiveness',
+        readRate: 'Read Rate',
+        creationRate: 'Creation Rate',
+        hitRequests: 'Hit Requests',
+        promptTokens: 'Prompt Tokens',
+        input: 'Input',
+        trend: 'Read Rate Trend',
+        byModel: 'By Model',
+        requests: 'Requests',
+        window1h: '1 hour',
+        window6h: '6 hours',
+        window24h: '24 hours',
+        window7d: '7 days',
+        status: {
+          healthy: 'Healthy',
+          watch: 'Watch',
+          unhealthy: 'Unhealthy',
+          insufficient: 'Insufficient'
+        }
+      },
       failedToLoad: 'Failed to load dashboard statistics'
     },
 

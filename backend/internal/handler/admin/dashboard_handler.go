@@ -128,6 +128,49 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 	})
 }
 
+// GetCacheStatus handles getting prompt-cache status statistics.
+// GET /api/v1/admin/dashboard/cache-status?window=24h&platform=antigravity
+func (h *DashboardHandler) GetCacheStatus(c *gin.Context) {
+	window, duration, bucketSeconds := parseCacheStatusWindow(c.DefaultQuery("window", "24h"))
+	platform := normalizeCacheStatusPlatform(c.DefaultQuery("platform", "antigravity"))
+
+	endTime := time.Now().UTC()
+	startTime := endTime.Add(-duration)
+	stats, hit, err := h.getCacheStatusCached(c.Request.Context(), startTime, endTime, bucketSeconds, platform)
+	if err != nil {
+		response.Error(c, 500, "Failed to get cache status")
+		return
+	}
+	c.Header("X-Snapshot-Cache", cacheStatusValue(hit))
+
+	payload := *stats
+	payload.Window = window
+	payload.Platform = platform
+	payload.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	response.Success(c, payload)
+}
+
+func parseCacheStatusWindow(raw string) (string, time.Duration, int) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1h":
+		return "1h", time.Hour, 5 * 60
+	case "6h":
+		return "6h", 6 * time.Hour, 15 * 60
+	case "7d":
+		return "7d", 7 * 24 * time.Hour, 24 * 60 * 60
+	default:
+		return "24h", 24 * time.Hour, 60 * 60
+	}
+}
+
+func normalizeCacheStatusPlatform(raw string) string {
+	platform := strings.ToLower(strings.TrimSpace(raw))
+	if platform == "" || platform == "all" {
+		return "all"
+	}
+	return platform
+}
+
 type DashboardAggregationBackfillRequest struct {
 	Start string `json:"start"`
 	End   string `json:"end"`

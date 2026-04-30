@@ -159,7 +159,9 @@ func TransformClaudeToGeminiWithOptions(claudeReq *ClaudeRequest, projectID, map
 
 	// 如果提供了 metadata.user_id，优先使用
 	if claudeReq.Metadata != nil && claudeReq.Metadata.UserID != "" {
-		innerRequest.SessionID = claudeReq.Metadata.UserID
+		if sessionID := sessionIDFromMetadataUserID(claudeReq.Metadata.UserID); sessionID != "" {
+			innerRequest.SessionID = sessionID
+		}
 	}
 
 	// 6. 包装为 v1internal 请求
@@ -275,6 +277,42 @@ func filterOpenCodePrompt(text string) string {
 	return ""
 }
 
+func filterAnthropicBillingHeader(text string) string {
+	var kept []string
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), "x-anthropic-billing-header") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n"))
+}
+
+func normalizeSystemText(text string) string {
+	return filterAnthropicBillingHeader(filterOpenCodePrompt(text))
+}
+
+func sessionIDFromMetadataUserID(userID string) string {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return ""
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal([]byte(userID), &meta); err != nil {
+		return userID
+	}
+
+	for _, key := range []string{"device_id", "session_id"} {
+		if value, ok := meta[key].(string); ok {
+			if value = strings.TrimSpace(value); value != "" {
+				return value
+			}
+		}
+	}
+	return userID
+}
+
 // buildSystemInstruction 构建 systemInstruction（与 Antigravity-Manager 保持一致）
 func buildSystemInstruction(system json.RawMessage, modelName string, opts TransformOptions, tools []ClaudeTool) *GeminiContent {
 	var parts []GeminiPart
@@ -292,7 +330,7 @@ func buildSystemInstruction(system json.RawMessage, modelName string, opts Trans
 					userHasAntigravityIdentity = true
 				}
 				// 过滤 OpenCode 默认提示词
-				filtered := filterOpenCodePrompt(sysStr)
+				filtered := normalizeSystemText(sysStr)
 				if filtered != "" {
 					userSystemParts = append(userSystemParts, GeminiPart{Text: filtered})
 				}
@@ -307,7 +345,7 @@ func buildSystemInstruction(system json.RawMessage, modelName string, opts Trans
 							userHasAntigravityIdentity = true
 						}
 						// 过滤 OpenCode 默认提示词
-						filtered := filterOpenCodePrompt(block.Text)
+						filtered := normalizeSystemText(block.Text)
 						if filtered != "" {
 							userSystemParts = append(userSystemParts, GeminiPart{Text: filtered})
 						}
@@ -769,6 +807,7 @@ type CacheDiagnostics struct {
 	SysPartsCount        int
 	SysPartHashes        string // 每个 part 的独立 hash，用 ";" 分隔
 	SysPartLens          string // 每个 part 的长度，用 ";" 分隔
+	SysPartPreviews      string // 每个 part 的短预览，用 " || " 分隔
 	UnstablePartText     string // 长度 < 200 bytes 且非首个 part 的完整文本（用于定位动态内容）
 	ContentsCount        int
 	ContentsFirstHash    string
@@ -801,7 +840,7 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 		}
 		diag.SysPartsCount = len(v1Req.Request.SystemInstruction.Parts)
 
-		var partHashes, partLens []string
+		var partHashes, partLens, partPreviews []string
 		for i, part := range v1Req.Request.SystemInstruction.Parts {
 			partBytes, err := json.Marshal(part)
 			if err == nil {
@@ -809,6 +848,7 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 				partHashes = append(partHashes, fmt.Sprintf("%x", h[:6]))
 				partLens = append(partLens, strconv.Itoa(len(partBytes)))
 			}
+			partPreviews = append(partPreviews, fmt.Sprintf("%d:%s", i, compactPreview(part.Text, 180)))
 			if i == 0 {
 				prefix := part.Text
 				if len(prefix) > 300 {
@@ -822,6 +862,7 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 		}
 		diag.SysPartHashes = strings.Join(partHashes, ";")
 		diag.SysPartLens = strings.Join(partLens, ";")
+		diag.SysPartPreviews = strings.Join(partPreviews, " || ")
 	}
 
 	// contents[0] hash
@@ -839,4 +880,14 @@ func ExtractCacheDiagnostics(geminiBody []byte) *CacheDiagnostics {
 	}
 
 	return diag
+}
+
+func compactPreview(text string, max int) string {
+	text = strings.Join(strings.Fields(text), " ")
+	if len(text) <= max {
+		return text
+	}
+	head := max / 2
+	tail := max - head
+	return text[:head] + " ... " + text[len(text)-tail:]
 }

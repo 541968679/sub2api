@@ -1167,6 +1167,28 @@ export default {
       spendShort: '消费',
       requestsShort: '请求',
       tokensShort: 'Token',
+      cacheStatus: {
+        title: '缓存状态',
+        subtitle: '统计提示词缓存创建与读取效果',
+        readRate: '读取率',
+        creationRate: '创建率',
+        hitRequests: '命中请求',
+        promptTokens: '提示词 Token',
+        input: '输入',
+        trend: '读取率趋势',
+        byModel: '按模型统计',
+        requests: '请求',
+        window1h: '1 小时',
+        window6h: '6 小时',
+        window24h: '24 小时',
+        window7d: '7 天',
+        status: {
+          healthy: '健康',
+          watch: '观察',
+          unhealthy: '异常',
+          insufficient: '样本不足'
+        }
+      },
       last7Days: '近 7 天',
       noUsageRecords: '暂无使用记录',
       startUsingApi: '开始使用 API 后，使用历史将显示在这里。',

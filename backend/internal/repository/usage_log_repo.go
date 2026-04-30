@@ -3053,6 +3053,230 @@ func (r *usageLogRepository) getModelStatsWithFiltersBySource(ctx context.Contex
 	return results, nil
 }
 
+// GetCacheStatus returns prompt-cache effectiveness for the admin dashboard.
+func (r *usageLogRepository) GetCacheStatus(ctx context.Context, startTime, endTime time.Time, bucketSeconds int, platform string) (*usagestats.CacheStatusResponse, error) {
+	if bucketSeconds <= 0 {
+		bucketSeconds = 3600
+	}
+	platform = strings.TrimSpace(platform)
+	if strings.EqualFold(platform, "all") {
+		platform = ""
+	}
+
+	summary, err := r.getCacheStatusSummary(ctx, startTime, endTime, platform)
+	if err != nil {
+		return nil, err
+	}
+	trend, err := r.getCacheStatusTrend(ctx, startTime, endTime, bucketSeconds, platform)
+	if err != nil {
+		return nil, err
+	}
+	models, err := r.getCacheStatusModels(ctx, startTime, endTime, platform)
+	if err != nil {
+		return nil, err
+	}
+
+	return &usagestats.CacheStatusResponse{
+		Summary: *summary,
+		Trend:   trend,
+		Models:  models,
+	}, nil
+}
+
+func (r *usageLogRepository) getCacheStatusSummary(ctx context.Context, startTime, endTime time.Time, platform string) (*usagestats.CacheStatusSummary, error) {
+	query := `
+		SELECT
+			COUNT(*) AS requests,
+			COALESCE(SUM(CASE WHEN ul.cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) AS cache_hit_requests,
+			COALESCE(SUM(ul.input_tokens), 0) AS input_tokens,
+			COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+			COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens
+		FROM usage_logs ul
+		LEFT JOIN accounts a ON a.id = ul.account_id
+		LEFT JOIN groups g ON g.id = ul.group_id
+		WHERE ul.created_at >= $1 AND ul.created_at < $2
+	`
+	args := []any{startTime, endTime}
+	query, args = appendCacheStatusPlatformFilter(query, args, platform)
+
+	summary := &usagestats.CacheStatusSummary{}
+	err := scanSingleRow(
+		ctx,
+		r.sql,
+		query,
+		args,
+		&summary.Requests,
+		&summary.CacheHitRequests,
+		&summary.InputTokens,
+		&summary.CacheReadTokens,
+		&summary.CacheCreationTokens,
+	)
+	if err != nil {
+		return nil, err
+	}
+	fillCacheStatusSummary(summary)
+	return summary, nil
+}
+
+func (r *usageLogRepository) getCacheStatusTrend(ctx context.Context, startTime, endTime time.Time, bucketSeconds int, platform string) (results []usagestats.CacheStatusTrendPoint, err error) {
+	query := `
+		SELECT
+			to_timestamp((floor(extract(epoch FROM ul.created_at) / $3) * $3)::double precision) AS bucket,
+			COUNT(*) AS requests,
+			COALESCE(SUM(ul.input_tokens), 0) AS input_tokens,
+			COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+			COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens
+		FROM usage_logs ul
+		LEFT JOIN accounts a ON a.id = ul.account_id
+		LEFT JOIN groups g ON g.id = ul.group_id
+		WHERE ul.created_at >= $1 AND ul.created_at < $2
+	`
+	args := []any{startTime, endTime, bucketSeconds}
+	query, args = appendCacheStatusPlatformFilter(query, args, platform)
+	query += " GROUP BY bucket ORDER BY bucket ASC"
+
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			results = nil
+		}
+	}()
+
+	results = make([]usagestats.CacheStatusTrendPoint, 0)
+	for rows.Next() {
+		var (
+			row    usagestats.CacheStatusTrendPoint
+			bucket time.Time
+		)
+		if err := rows.Scan(
+			&bucket,
+			&row.Requests,
+			&row.InputTokens,
+			&row.CacheReadTokens,
+			&row.CacheCreationTokens,
+		); err != nil {
+			return nil, err
+		}
+		row.Bucket = bucket.UTC().Format(time.RFC3339)
+		fillCacheStatusTrendPoint(&row)
+		results = append(results, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (r *usageLogRepository) getCacheStatusModels(ctx context.Context, startTime, endTime time.Time, platform string) (results []usagestats.CacheStatusModelStat, err error) {
+	requestedExpr := "COALESCE(NULLIF(TRIM(ul.requested_model), ''), ul.model, '')"
+	upstreamExpr := "COALESCE(NULLIF(TRIM(ul.upstream_model), ''), '')"
+	query := fmt.Sprintf(`
+		SELECT
+			%s AS requested_model,
+			%s AS upstream_model,
+			COUNT(*) AS requests,
+			COALESCE(SUM(CASE WHEN ul.cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) AS cache_hit_requests,
+			COALESCE(SUM(ul.input_tokens), 0) AS input_tokens,
+			COALESCE(SUM(ul.cache_read_tokens), 0) AS cache_read_tokens,
+			COALESCE(SUM(ul.cache_creation_tokens), 0) AS cache_creation_tokens
+		FROM usage_logs ul
+		LEFT JOIN accounts a ON a.id = ul.account_id
+		LEFT JOIN groups g ON g.id = ul.group_id
+		WHERE ul.created_at >= $1 AND ul.created_at < $2
+	`, requestedExpr, upstreamExpr)
+	args := []any{startTime, endTime}
+	query, args = appendCacheStatusPlatformFilter(query, args, platform)
+	query += fmt.Sprintf(" GROUP BY %s, %s ORDER BY cache_read_tokens DESC, requests DESC LIMIT 20", requestedExpr, upstreamExpr)
+
+	rows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			results = nil
+		}
+	}()
+
+	results = make([]usagestats.CacheStatusModelStat, 0)
+	for rows.Next() {
+		var row usagestats.CacheStatusModelStat
+		if err := rows.Scan(
+			&row.RequestedModel,
+			&row.UpstreamModel,
+			&row.Requests,
+			&row.CacheHitRequests,
+			&row.InputTokens,
+			&row.CacheReadTokens,
+			&row.CacheCreationTokens,
+		); err != nil {
+			return nil, err
+		}
+		fillCacheStatusModelStat(&row)
+		results = append(results, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func appendCacheStatusPlatformFilter(query string, args []any, platform string) (string, []any) {
+	if strings.TrimSpace(platform) == "" {
+		return query, args
+	}
+	query += fmt.Sprintf(" AND COALESCE(NULLIF(a.platform, ''), NULLIF(g.platform, ''), '') = $%d", len(args)+1)
+	args = append(args, platform)
+	return query, args
+}
+
+func fillCacheStatusSummary(summary *usagestats.CacheStatusSummary) {
+	summary.PromptTotalTokens = summary.InputTokens + summary.CacheReadTokens + summary.CacheCreationTokens
+	summary.CacheReadRate = cacheStatusRate(summary.CacheReadTokens, summary.PromptTotalTokens)
+	summary.CacheCreationRate = cacheStatusRate(summary.CacheCreationTokens, summary.PromptTotalTokens)
+	summary.RequestHitRate = cacheStatusRate(summary.CacheHitRequests, summary.Requests)
+	summary.Status = cacheStatusLevel(summary.Requests, summary.CacheReadRate)
+}
+
+func fillCacheStatusTrendPoint(row *usagestats.CacheStatusTrendPoint) {
+	row.PromptTotalTokens = row.InputTokens + row.CacheReadTokens + row.CacheCreationTokens
+	row.CacheReadRate = cacheStatusRate(row.CacheReadTokens, row.PromptTotalTokens)
+	row.CacheCreationRate = cacheStatusRate(row.CacheCreationTokens, row.PromptTotalTokens)
+}
+
+func fillCacheStatusModelStat(row *usagestats.CacheStatusModelStat) {
+	row.PromptTotalTokens = row.InputTokens + row.CacheReadTokens + row.CacheCreationTokens
+	row.CacheReadRate = cacheStatusRate(row.CacheReadTokens, row.PromptTotalTokens)
+	row.CacheCreationRate = cacheStatusRate(row.CacheCreationTokens, row.PromptTotalTokens)
+	row.RequestHitRate = cacheStatusRate(row.CacheHitRequests, row.Requests)
+	row.Status = cacheStatusLevel(row.Requests, row.CacheReadRate)
+}
+
+func cacheStatusRate(part, total int64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return float64(part) / float64(total)
+}
+
+func cacheStatusLevel(requests int64, readRate float64) string {
+	if requests < 5 {
+		return "insufficient"
+	}
+	if readRate >= 0.5 {
+		return "healthy"
+	}
+	if readRate >= 0.2 {
+		return "watch"
+	}
+	return "unhealthy"
+}
+
 // GetGroupStatsWithFilters returns group usage statistics with optional filters
 func (r *usageLogRepository) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) (results []usagestats.GroupStat, err error) {
 	query := `

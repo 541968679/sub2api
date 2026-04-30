@@ -148,6 +148,51 @@ export interface DashboardSnapshotV2Response {
   users_trend?: UserUsageTrendPoint[]
 }
 
+export type CacheStatusWindow = '1h' | '6h' | '24h' | '7d'
+
+export interface CacheStatusParams {
+  window?: CacheStatusWindow
+  platform?: string
+}
+
+export interface CacheStatusSummary {
+  requests: number
+  cache_hit_requests: number
+  input_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+  prompt_total_tokens: number
+  cache_read_rate: number
+  cache_creation_rate: number
+  request_hit_rate: number
+  status: 'healthy' | 'watch' | 'unhealthy' | 'insufficient' | string
+}
+
+export interface CacheStatusTrendPoint {
+  bucket: string
+  requests: number
+  input_tokens: number
+  cache_read_tokens: number
+  cache_creation_tokens: number
+  prompt_total_tokens: number
+  cache_read_rate: number
+  cache_creation_rate: number
+}
+
+export interface CacheStatusModelStat extends CacheStatusSummary {
+  requested_model: string
+  upstream_model: string
+}
+
+export interface CacheStatusResponse {
+  summary: CacheStatusSummary
+  trend: CacheStatusTrendPoint[]
+  models: CacheStatusModelStat[]
+  window: CacheStatusWindow | string
+  platform: string
+  generated_at: string
+}
+
 /**
  * Get group usage statistics
  * @param params - Query parameters for filtering
@@ -194,6 +239,16 @@ export async function getUserBreakdown(params: UserBreakdownParams): Promise<Use
  */
 export async function getSnapshotV2(params?: DashboardSnapshotV2Params): Promise<DashboardSnapshotV2Response> {
   const { data } = await apiClient.get<DashboardSnapshotV2Response>('/admin/dashboard/snapshot-v2', {
+    params
+  })
+  return data
+}
+
+/**
+ * Get prompt-cache status for the admin dashboard.
+ */
+export async function getCacheStatus(params?: CacheStatusParams): Promise<CacheStatusResponse> {
+  const { data } = await apiClient.get<CacheStatusResponse>('/admin/dashboard/cache-status', {
     params
   })
   return data
@@ -322,6 +377,7 @@ export const dashboardAPI = {
   getModelStats,
   getGroupStats,
   getSnapshotV2,
+  getCacheStatus,
   getApiKeyUsageTrend,
   getUserUsageTrend,
   getUserSpendingRanking,
