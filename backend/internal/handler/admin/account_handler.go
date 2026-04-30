@@ -1834,9 +1834,11 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			return
 		}
 
-		// Return mapped models
+		// Return mapped models + DefaultModels (ensure new default models are always visible)
+		seen := make(map[string]bool, len(mapping)+len(openai.DefaultModels))
 		var models []openai.Model
 		for requestedModel := range mapping {
+			seen[requestedModel] = true
 			var found bool
 			for _, dm := range openai.DefaultModels {
 				if dm.ID == requestedModel {
@@ -1852,6 +1854,11 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 					Type:        "model",
 					DisplayName: requestedModel,
 				})
+			}
+		}
+		for _, dm := range openai.DefaultModels {
+			if !seen[dm.ID] {
+				models = append(models, dm)
 			}
 		}
 		response.Success(c, models)

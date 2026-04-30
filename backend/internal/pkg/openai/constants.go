@@ -42,6 +42,25 @@ func DefaultModelIDs() []string {
 	return ids
 }
 
+var defaultModelSet map[string]struct{}
+
+func initDefaultModelSet() {
+	if defaultModelSet != nil {
+		return
+	}
+	defaultModelSet = make(map[string]struct{}, len(DefaultModels))
+	for _, m := range DefaultModels {
+		defaultModelSet[m.ID] = struct{}{}
+	}
+}
+
+// IsDefaultModel returns true if the model ID is in DefaultModels.
+func IsDefaultModel(id string) bool {
+	initDefaultModelSet()
+	_, ok := defaultModelSet[id]
+	return ok
+}
+
 // DefaultTestModel default model for testing OpenAI accounts
 const DefaultTestModel = "gpt-5.1-codex"
 
