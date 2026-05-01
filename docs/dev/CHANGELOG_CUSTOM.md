@@ -19,6 +19,19 @@
 
 ## 变更记录
 
+## [2026-05-01] fix(display): skip cache transfer for channel-override usage logs
+
+**影响范围**:
+- `backend/internal/handler/dto/display_pricing.go` — add `stripCacheTransferIfChannel` helper
+- `backend/internal/handler/dto/mappers.go` — call helper in `UsageLogFromService` and `UsageLogFromServiceAdmin`
+
+**上游兼容性**:
+- Low. Changes are in dto layer display logic only.
+
+**变更详情**:
+- 当 usage log 经过渠道计费（ChannelID 非空）时，display transform 不再应用全局的 CacheTransferRatio
+- 修复了渠道覆盖价格但缓存转移仍生效导致用户看到的 token 分布与实际计费不一致的 bug
+
 ## [2026-04-30] feat(admin): add cache status dashboard module
 
 **影响范围**:
