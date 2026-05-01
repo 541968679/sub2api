@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the errorpassthroughrule type in the database.
 	Label = "error_passthrough_rule"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

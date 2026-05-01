@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the pendingauthsession type in the database.
 	Label = "pending_auth_session"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -22,7 +22,7 @@ const (
 	FieldSessionToken = "session_token"
 	// FieldIntent holds the string denoting the intent field in the database.
 	FieldIntent = "intent"
-	// type field in the database.
+	// FieldProviderType holds the string denoting the provider_type field in the database.
 	FieldProviderType = "provider_type"
 	// FieldProviderKey holds the string denoting the provider_key field in the database.
 	FieldProviderKey = "provider_key"

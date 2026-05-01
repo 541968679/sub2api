@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the user type in the database.
 	Label = "user"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -51,7 +51,7 @@ const (
 	FieldLastActiveAt = "last_active_at"
 	// FieldBalanceNotifyEnabled holds the string denoting the balance_notify_enabled field in the database.
 	FieldBalanceNotifyEnabled = "balance_notify_enabled"
-	// type field in the database.
+	// FieldBalanceNotifyThresholdType holds the string denoting the balance_notify_threshold_type field in the database.
 	FieldBalanceNotifyThresholdType = "balance_notify_threshold_type"
 	// FieldBalanceNotifyThreshold holds the string denoting the balance_notify_threshold field in the database.
 	FieldBalanceNotifyThreshold = "balance_notify_threshold"

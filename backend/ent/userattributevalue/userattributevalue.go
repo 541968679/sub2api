@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the userattributevalue type in the database.
 	Label = "user_attribute_value"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

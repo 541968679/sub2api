@@ -245,6 +245,7 @@ export default {
   // Common
   common: {
     loading: '加载中...',
+    submitting: '提交中...',
     justNow: '刚刚',
     save: '保存',
     saved: '保存成功',
@@ -272,6 +273,7 @@ export default {
     no: '否',
     all: '全部',
     none: '无',
+    selectAll: '全选',
     noData: '暂无数据',
     expand: '展开',
     collapse: '收起',
@@ -306,6 +308,12 @@ export default {
     saving: '保存中...',
     selectedCount: '（已选 {count} 个）',
     refresh: '刷新',
+    autoRefresh: {
+      title: '自动刷新',
+      enable: '启用自动刷新',
+      countdown: '自动刷新: {seconds}s',
+      seconds: '{n} 秒',
+    },
     view: '查看',
     settings: '设置',
     chooseFile: '选择文件',
@@ -337,13 +345,14 @@ export default {
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
-    modelPricing: '模型计价',
-    pageContent: '页面文案',
+    modelPricing: '模型定价',
+    pageContent: '页面内容',
     redeem: '兑换',
     profile: '个人资料',
     users: '用户管理',
     groups: '分组管理',
     channels: '渠道管理',
+    availableChannels: '可用渠道',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     modelConfig: '模型配置',
@@ -367,67 +376,15 @@ export default {
     paymentDashboard: '支付概览',
     paymentConfig: '支付配置',
     paymentPlans: '订阅套餐',
-    rechargeConfig: '充值管理'
+    rechargeConfig: '充值配置',
+    channelManagement: '渠道管理',
+    channelPricing: '渠道定价',
+    channelMonitor: '渠道监控',
+    channelStatus: '渠道状态',
   },
 
   // Auth
   auth: {
-    login: {
-      badge: 'ZEROCODE',
-      headingLine1: 'ZeroCode',
-      headingLine2: '顶级大模型一站式API解决方案',
-      description: '面向开发者和团队的多模型中转站。统一接口、按量计费、调用记录可查，减少切换不同平台和不同计费规则的成本。',
-      featurePrice: '{price} / 1$ 起',
-      featurePriceDefault: '0.6 / 1$ 起',
-      featurePayAsYouGo: '按量使用',
-      featureNoCharge: '不用不扣钱',
-      supportedModels: '支持模型',
-      modelsDesc: '官方原版接口直连，满血模型不降智',
-      featureUnifiedApi: '统一接口',
-      featureUnifiedApiDesc: '减少不同平台之间的切换成本。',
-      featureTransparentBilling: '透明计费',
-      featureTransparentBillingDesc: '按量扣费，充值越多价格越优。',
-      featureAuditTrail: '记录可查',
-      featureAuditTrailDesc: '每笔调用和消费都能追溯。',
-      // 新版 2×3 功能卡片（6 张）
-      features: {
-        metered: {
-          title: '按量计费，全程透明',
-          desc: '每刀 0.7 元起，官方价格的 1/10，超高性价比。'
-        },
-        quality: {
-          title: '官方级品质',
-          desc: '美国高带宽服务器直连，低延迟、高缓存命中。'
-        },
-        models: {
-          title: '支持顶级大模型',
-          desc: 'Opus 4.7、GPT-5.4、Gemini 3.1 Pro 全线满血。'
-        },
-        tutorial: {
-          title: '完善的初学者教程',
-          desc: '提供完整，高可读性教程，助力您快速上手。'
-        },
-        enterprise: {
-          title: '企业对接',
-          desc: '支持大规模采购与开票，详情联系客服。'
-        },
-        referral: {
-          title: '邀请好友，共享丰厚奖励',
-          desc: '每成功邀请新用户，双方共享账户余额奖励与持续返佣。'
-        }
-      },
-      title: '登录',
-      subtitle: '进入控制台后查看余额、明细和完整模型列表。',
-      submitButton: '登录并开始按量使用',
-      postLoginInfo: '登录后可查看',
-      postLoginDetails: '余额 / 消费明细 / 完整模型列表 / 价格',
-      socialDivider: '可选快捷登录',
-      linuxdoLogin: 'LinuxDO 登录',
-      oidcLogin: 'OIDC / SSO',
-      navDocs: '文档',
-      navApiExamples: '接口示例',
-      navLogin: '登录',
-    },
     welcomeBack: '欢迎回来',
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
@@ -650,11 +607,7 @@ export default {
     viewUsage: '查看使用记录',
     checkDetailedLogs: '查看详细的使用日志',
     redeemCode: '兑换码',
-    addBalanceWithCode: '使用兑换码充值',
-    topUp: '充值/订阅',
-    topUpHint: '充值余额，赠送更多额度',
-    quickStart: '快速入门指引',
-    quickStartHint: '了解如何配置和使用 API 密钥'
+    addBalanceWithCode: '使用兑换码充值'
   },
 
   // Groups (shared)
@@ -788,21 +741,6 @@ export default {
       geminiCli: 'Gemini CLI',
       geminiCliDesc: '导入为 Gemini CLI 配置'
     },
-    // 快速入门指引
-    guide: {
-      title: '快速入门',
-      subtitle: '按照以下步骤开始使用 AI 编码工具',
-      dismiss: '知道了，隐藏指引',
-      step1Title: '创建 API 密钥',
-      step1Desc: '点击下方按钮生成您的第一个 API 密钥，选择名称和分组即可。',
-      step1Action: '创建密钥',
-      step2Title: '安装 CC Switch',
-      step2Desc: 'CC Switch 是一款桌面应用，可以一键将 API 密钥导入到 Claude Code、Gemini CLI 等编码工具。',
-      step2Download: '前往 GitHub 下载',
-      step3Title: '使用密钥',
-      step3Desc: '点击密钥操作列的「导入到 CCS」自动配置，或点击「使用密钥」查看手动配置说明。',
-      step3DescNoCcs: '点击密钥操作列的「使用密钥」查看各编码工具的配置方法。',
-    },
     // 配额和有效期
     quotaLimit: '额度限制',
     quotaAmount: '额度金额 (USD)',
@@ -843,33 +781,6 @@ export default {
       inactive: '已停用',
       quota_exhausted: '额度耗尽',
       expired: '已过期'
-    }
-  },
-
-  // Model Pricing Page (user-facing)
-  pricing: {
-    title: '模型计价',
-    description: '本站计价模式说明、计价模式对比，以及各平台模型的展示价格',
-    introTitle: '本站计价模式',
-    educationTitle: '计价模式科普',
-    tableTitle: '模型价格一览表',
-    modelsSuffix: '个模型',
-    cnyBanner: '1 USD = ¥{rate}',
-    unitHint: '每 MTok = 一百万 Token。¥ 为按当前换算率结算的人民币实付金额，括号内 $ 为对应美元原价。',
-    perRequestUnit: '次',
-    emptyState: '管理员尚未配置要展示的模型。',
-    columns: {
-      model: '模型',
-      billingMode: '计费模式',
-      inputPrice: '输入价 / MTok',
-      outputPrice: '输出价 / MTok',
-      cacheReadPrice: '缓存读取 / MTok',
-      multiplier: '倍率'
-    },
-    billingMode: {
-      perToken: '按 Token',
-      perRequest: '按次',
-      image: '按图片'
     }
   },
 
@@ -953,21 +864,119 @@ export default {
     exportExcelSuccess: '使用数据导出成功（Excel格式）',
     exportExcelFailed: '使用数据导出失败',
     imageUnit: '张',
-    userAgent: 'User-Agent',
-    antigravity: {
-      title: 'Antigravity Credits 成本分析',
-      subtitle: '时间窗内 AI Credits 消耗与 antigravity 平台额度/调用的比率',
-      refreshNow: '立即采样',
-      loading: '正在加载...',
-      insufficientSnapshot: '采样数据不足，请在 15 分钟后或点击「立即采样」再试',
-      creditsConsumed: '消耗 Credits',
-      quotaUsed: '消耗额度',
-      calls: '调用次数',
-      quotaPerCredit: '每 Credit 额度',
-      callsPerCredit: '每 Credit 调用',
-      perCredit: '/ credit',
-      samplingMeta: '覆盖 {emails} 个账号，{snapshots} 个采样点',
-      throttled: '采样冷却中，展示最近一次结果'
+    userAgent: 'User-Agent'
+  },
+
+  // Shared keys for channel monitor (admin + user views)
+  monitorCommon: {
+    status: {
+      operational: '正常',
+      degraded: '降级',
+      failed: '失败',
+      error: '错误',
+      unknown: '-'
+    },
+    providers: {
+      openai: 'OpenAI',
+      anthropic: 'Anthropic',
+      gemini: 'Gemini'
+    },
+    extraModelsHeader: '附加模型',
+    extraModelsEmpty: '无附加模型',
+    latencyEmpty: '-',
+    availabilityPrefix: '可用性',
+    dialogLatency: '对话延迟',
+    endpointPing: '端点 PING',
+    history60pts: '近 {n} 次记录',
+    nextUpdateIn: '{n}s 后刷新',
+    past: 'PAST',
+    now: 'NOW',
+    maintenancePaused: '维护中 · 已暂停时间线采集',
+    extraModelsCount: '+ {n} 模型',
+    pollEvery: '{n}s 轮询',
+    updatedAt: '更新于 {time}',
+    relativeSecondsAgo: '{n} 秒前',
+    relativeMinutesAgo: '{n} 分钟前',
+    relativeHoursAgo: '{n} 小时前',
+    relativeDaysAgo: '{n} 天前'
+  },
+
+  // Channel Status (user-facing read-only view)
+  channelStatus: {
+    title: '渠道状态',
+    description: '查看渠道可用性、延迟和近期状态',
+    searchPlaceholder: '搜索渠道...',
+    allProviders: '全部供应商',
+    loadError: '加载渠道状态失败',
+    detailLoadError: '加载渠道详情失败',
+    detailTitle: '渠道详情',
+    closeDetail: '关闭',
+    windowTab: {
+      '7d': '7 天',
+      '15d': '15 天',
+      '30d': '30 天'
+    },
+    overall: {
+      operational: 'OPERATIONAL',
+      degraded: 'DEGRADED',
+      unavailable: 'UNAVAILABLE'
+    },
+    columns: {
+      name: '名称',
+      provider: '供应商',
+      groupName: '分组',
+      primaryModel: '主模型',
+      availability7d: '7 天可用率',
+      latency: '延迟 (ms)'
+    },
+    detailColumns: {
+      model: '模型',
+      latestStatus: '最新状态',
+      latestLatency: '最新延迟 (ms)',
+      availability7d: '7 天可用率',
+      availability15d: '15 天可用率',
+      availability30d: '30 天可用率',
+      avgLatency7d: '7 天平均延迟 (ms)'
+    },
+    empty: {
+      title: '暂无可显示的渠道',
+      description: '管理员尚未配置可监控的渠道。'
+    }
+  },
+
+  // Available Channels (user-facing)
+  availableChannels: {
+    title: '可用渠道',
+    description: '查看您可访问的渠道与其支持的模型、定价',
+    searchPlaceholder: '搜索渠道或模型...',
+    empty: '暂无可用渠道',
+    noModels: '未配置模型',
+    noPricing: '未配置定价',
+    exclusive: '专属',
+    public: '公开',
+    exclusiveTooltip: '管理员授权给你的专属分组',
+    publicTooltip: '对所有用户公开的分组',
+    columns: {
+      name: '渠道名',
+      description: '描述',
+      platform: '平台',
+      groups: '我可访问的分组',
+      supportedModels: '支持模型'
+    },
+    pricing: {
+      billingMode: '计费模式',
+      billingModeToken: '按 Token',
+      billingModePerRequest: '按次',
+      billingModeImage: '按图片',
+      inputPrice: '输入',
+      outputPrice: '输出',
+      cacheWritePrice: '缓存写入',
+      cacheReadPrice: '缓存读取',
+      imageOutputPrice: '图片输出',
+      perRequestPrice: '每次请求',
+      intervals: '阶梯定价',
+      unitPerMillion: '/ 1M token',
+      unitPerRequest: '/ 次'
     }
   },
 
@@ -1242,26 +1251,6 @@ export default {
 
   // Admin
   admin: {
-    // Recharge Config
-    recharge: {
-      title: '充值管理',
-      description: '管理充值单价与赠送阶梯',
-      priceTitle: '充值单价',
-      priceDescription: '设置人民币兑美元的售价比例',
-      cnyPerUsd: '单价 (元/刀)',
-      cnyPerUsdHint: '每 $1 USD 的人民币售价。例如 0.5 表示 ¥0.5 = $1。设为 0 表示 1:1 不转换。',
-      preview: '预览',
-      bonusTitle: '充值赠送阶梯',
-      bonusDescription: '充值金额达到门槛时，额外赠送 USD 额度',
-      noTiers: '暂无赠送阶梯，点击下方按钮添加',
-      tierMinAmount: '充值门槛 (CNY)',
-      tierMinPlaceholder: '如 100',
-      tierBonusUsd: '赠送额度 (USD)',
-      tierBonusPlaceholder: '如 5',
-      addTier: '添加阶梯',
-      previewExample: '赠送预览（基础转换 + 赠送）',
-      saved: '充值配置已保存',
-    },
     // Dashboard
     dashboard: {
       title: '管理控制台',
@@ -1319,28 +1308,6 @@ export default {
       spendShort: '消费',
       requestsShort: '请求',
       tokensShort: 'Token',
-      cacheStatus: {
-        title: '缓存状态',
-        subtitle: '统计提示词缓存创建与读取效果',
-        readRate: '读取率',
-        creationRate: '创建率',
-        hitRequests: '命中请求',
-        promptTokens: '提示词 Token',
-        input: '输入',
-        trend: '读取率趋势',
-        byModel: '按模型统计',
-        requests: '请求',
-        window1h: '1 小时',
-        window6h: '6 小时',
-        window24h: '24 小时',
-        window7d: '7 天',
-        status: {
-          healthy: '健康',
-          watch: '观察',
-          unhealthy: '异常',
-          insufficient: '样本不足'
-        }
-      },
       last7Days: '近 7 天',
       noUsageRecords: '暂无使用记录',
       startUsingApi: '开始使用 API 后，使用历史将显示在这里。',
@@ -1798,22 +1765,6 @@ export default {
       customRate: '专属倍率',
       useDefaultRate: '使用默认',
       customRatePlaceholder: '留空使用默认',
-      displayRate: '展示倍率',
-      displayRatePlaceholder: '留空',
-      // 用户模型定价覆盖
-      modelPricing: '模型定价',
-      modelPricingConfig: '用户模型定价覆盖',
-      modelPricingHint: '为此用户设置单独的模型计费和展示价格覆盖，优先级高于全局和渠道定价。',
-      addModelOverride: '添加模型覆盖',
-      modelNamePlaceholder: '模型名称（如 claude-sonnet-4）',
-      billingPriceOverride: '真实计费价格覆盖',
-      displayPriceOverride: '展示价格覆盖',
-      noOverride: '不覆盖',
-      noModelOverrides: '尚未为此用户配置模型定价覆盖。',
-      notesPlaceholder: '备注（可选）',
-      duplicateModelError: '以下模型存在重复配置，请合并后再保存：{models}',
-      litellmReference: 'LiteLLM 标准价格',
-      applySuggested: '应用建议',
       groupConfigUpdated: '分组配置更新成功',
       replaceGroup: '替换分组',
       clickToReplace: '点击替换分组',
@@ -2173,6 +2124,46 @@ export default {
       }
     },
 
+    // Available Channels (aggregated read-only view)
+    availableChannels: {
+      title: '可用渠道',
+      description: '按渠道聚合查看关联分组与支持模型（已展开通配符）',
+      searchPlaceholder: '搜索渠道或模型...',
+      columns: {
+        name: '渠道名',
+        status: '状态',
+        billingSource: '计费模型来源',
+        groups: '关联分组',
+        supportedModels: '支持模型'
+      },
+      empty: '暂无数据',
+      noGroups: '未关联分组',
+      noModels: '未配置模型映射',
+      noPricing: '未配置定价',
+      statusActive: '启用',
+      statusDisabled: '停用',
+      billingSource: {
+        requested: '请求模型',
+        upstream: '上游模型',
+        channel_mapped: '映射后模型'
+      },
+      pricing: {
+        billingMode: '计费模式',
+        billingModeToken: '按 Token',
+        billingModePerRequest: '按次',
+        billingModeImage: '按图片',
+        inputPrice: '输入',
+        outputPrice: '输出',
+        cacheWritePrice: '缓存写入',
+        cacheReadPrice: '缓存读取',
+        imageOutputPrice: '图片输出',
+        perRequestPrice: '每次请求',
+        intervals: '阶梯定价',
+        unitPerMillion: '/ 1M token',
+        unitPerRequest: '/ 次'
+      }
+    },
+
     // Channel Management
     channels: {
       title: '渠道管理',
@@ -2290,6 +2281,130 @@ export default {
       }
     },
 
+    // Channel Monitor
+    channelMonitor: {
+      title: '渠道监控',
+      description: '监测各渠道的可用性、延迟和状态',
+      searchPlaceholder: '搜索监控名称...',
+      allProviders: '全部供应商',
+      allStatus: '全部状态',
+      enabledFilter: '启用状态',
+      onlyEnabled: '仅启用',
+      onlyDisabled: '仅禁用',
+      createButton: '新增监控',
+      createTitle: '新增渠道监控',
+      editTitle: '编辑渠道监控',
+      runNow: '立即检测',
+      runSuccess: '检测完成',
+      runFailed: '检测失败',
+      apiKeyDecryptFailed: 'API Key 解密失败，请重新编辑该监控并填入新的 Key',
+      createSuccess: '监控创建成功',
+      updateSuccess: '监控更新成功',
+      deleteSuccess: '监控删除成功',
+      loadError: '加载监控列表失败',
+      deleteConfirm: '确定要删除监控「{name}」吗？此操作不可撤销。',
+      nameRequired: '请输入监控名称',
+      primaryModelRequired: '请输入主模型',
+      columns: {
+        name: '名称',
+        provider: '供应商',
+        primaryModel: '主模型',
+        availability7d: '7 天可用率',
+        latency: '延迟 (ms)',
+        enabled: '启用',
+        actions: '操作'
+      },
+      form: {
+        name: '名称',
+        namePlaceholder: '输入监控名称',
+        provider: '平台',
+        endpoint: '上游地址',
+        endpointPlaceholder: 'https://api.example.com',
+        useCurrentDomain: '使用当前服务',
+        apiKey: 'API Key',
+        apiKeyPlaceholder: '请输入 API Key',
+        apiKeyEditPlaceholder: '留空表示不修改',
+        useMyKey: '使用我的 Key',
+        selectKeyTitle: '选择我的 API Key',
+        selectKeyHint: '仅显示当前账号下处于「启用」状态且未过期的 Key。',
+        noActiveKey: '没有可用的启用状态 Key',
+        primaryModel: '主模型',
+        primaryModelPlaceholder: 'gpt-4o-mini',
+        extraModels: '附加模型',
+        extraModelsPlaceholder: '回车添加附加模型',
+        groupName: '分组名称',
+        groupNamePlaceholder: '可选，用于在用户视图中聚合显示',
+        intervalSeconds: '检测间隔 (秒)',
+        intervalSecondsHint: '范围：15 - 3600 秒',
+        enabled: '启用监控',
+        kindRequired: '请选择供应商'
+      },
+      runResultTitle: '检测结果',
+      noMonitorsYet: '暂无监控',
+      createFirstMonitor: '创建第一个监控来跟踪渠道可用性',
+      advanced: {
+        section: '高级（可选）',
+        sectionHint: '自定义请求头和请求体，用于突破上游的客户端识别限制（如仅允许 Claude Code 客户端）。',
+        headers: '自定义请求头',
+        headersPlaceholder: 'User-Agent: claude-cli/1.0.83 (external, cli)\nx-app: cli\nanthropic-beta: claude-code-20250219',
+        headerNamePlaceholder: 'Header 名',
+        headerValuePlaceholder: 'Value',
+        headerAddRow: '添加 Header',
+        headerNameInvalid: 'Header 名不能包含空格或冒号：{name}',
+        headersHint: '与默认请求头合并，用户值优先。hop-by-hop 类 header（Host/Content-Length/...）会被忽略。',
+        headersParseError: '无法解析这一行：{line}',
+        bodyMode: '请求体处理',
+        bodyModeOff: '默认',
+        bodyModeMerge: '合并',
+        bodyModeReplace: '覆盖',
+        bodyModeHintOff: '使用 adapter 默认请求体（带 challenge 数学题校验）。',
+        bodyModeHintMerge: '与默认请求体浅合并，用户字段优先；但 model / messages / contents 会被保护不允许覆盖（动这些字段请用「覆盖」模式）。',
+        bodyModeHintReplace: '完全用下方 JSON 作为请求体。注意：此模式下跳过 challenge 校验，改为 HTTP 2xx + 响应文本非空即视为可用。',
+        bodyJson: 'Body JSON',
+        bodyJsonFormat: '格式化',
+        bodyJsonHint: '失焦时自动解析校验。留空等价于没有覆盖。',
+        bodyJsonError: 'JSON 解析失败',
+        bodyJsonObjectError: '请求体必须是一个 JSON 对象（不能是数组或基本类型）'
+      },
+      templateField: {
+        label: '请求模板',
+        none: '不使用模板',
+        placeholder: '选择一个模板（按当前平台过滤）',
+        applyHint: '选中模板后，会把模板的请求头和请求体拷贝到此监控（快照）。后续模板变动不自动同步。'
+      },
+      template: {
+        manageButton: '模板管理',
+        managerTitle: '请求模板管理',
+        createButton: '新建模板',
+        emptyState: '当前平台下还没有请求模板',
+        missingName: '请输入模板名称',
+        createSuccess: '模板创建成功',
+        updateSuccess: '模板更新成功',
+        deleteSuccess: '模板删除成功',
+        applyButton: '应用到关联监控',
+        applyTooltip: '把当前模板配置覆盖到所有关联的监控上',
+        applyTitle: '应用模板',
+        applyConfirm: '确认应用',
+        applyConfirmMessage: '将把模板「{name}」的当前配置覆盖到 {n} 个关联监控。监控本地已编辑的自定义修改会被丢弃，是否继续？',
+        applySuccess: '已应用到 {n} 个监控',
+        applyPickerTitle: '应用模板「{name}」',
+        applyPickerHint: '勾选要覆盖请求头/请求体的监控（默认全选）。监控本地已编辑的自定义修改会被丢弃。',
+        applyPickerEmpty: '当前模板没有关联监控',
+        applyPickerConfirm: '应用到 {n} 个监控',
+        selectNone: '全不选',
+        selectedCount: '已选 {n} / {total}',
+        deleteConfirm: '确定要删除模板「{name}」吗？{n} 个关联监控会解除关联但保留自己的快照继续工作。',
+        associatedCount: '{n} 个关联监控',
+        headersSummary: '{n} 个自定义请求头',
+        form: {
+          name: '模板名称',
+          namePlaceholder: '例：Claude Code 伪装',
+          description: '说明',
+          descriptionPlaceholder: '可选：说明这个模板的用途和来源（抓包日期等）'
+        }
+      }
+    },
+
     // Subscriptions Management
     subscriptions: {
       title: '订阅管理',
@@ -2395,194 +2510,6 @@ export default {
         },
         tip: '提示：订阅分组下拉列表中只会显示计费类型为「订阅」且状态为「正常」的分组。如果没有可选项，请先到分组管理中创建。'
       }
-    },
-
-    // Page Content hub (wrapper with tabs for pricing/login)
-    pageContent: {
-      title: '页面文案',
-      description: '集中管理「模型计价」页和「登录页」对外展示的文案。在下面的 tab 之间切换即可分别编辑。',
-      tabs: {
-        pricing: '模型计价页',
-        login: '登录页'
-      }
-    },
-
-    // Login Page Content (admin-edited)
-    loginPage: {
-      title: '登录页文案',
-      description: '编辑登录页上的营销标题、描述和登录框标题。字段留空即恢复默认翻译。',
-      preview: '预览登录页',
-      fallbackHint: '任何字段留空时，前端会使用对应语言的 i18n 默认文案。中英切换不受影响。',
-      sections: {
-        marketing: '左栏：营销文案',
-        models: '模型展示区',
-        form: '右栏：登录框'
-      },
-      fields: {
-        badge: '顶部徽章',
-        headingLine1: '主标题第 1 行',
-        headingLine2: '主标题第 2 行（高亮色）',
-        description: '主标题下描述段',
-        supportedModelsTitle: '模型区标题',
-        modelsDesc: '模型区底部说明',
-        formTitle: '登录框标题',
-        formSubtitle: '登录框副标题'
-      },
-      saveButton: '保存',
-      saveSuccess: '已保存',
-      resetButton: '全部清空（恢复默认）',
-      resetConfirm: '确定清空所有字段吗？清空后前端会回落到 i18n 默认文案。',
-      resetSuccess: '已恢复默认'
-    },
-
-    // Pricing Page Content (admin-edited)
-    pricingPage: {
-      title: '模型计价页文案',
-      description: '编辑用户「模型计价」页面上展示的两段 Markdown 文案。模型可见性开关在各模型的配置详情中。',
-      introLabel: '本站计价模式',
-      introHint: '第一段文案：简述本站的计价方式和定位。支持 Markdown。',
-      introPlaceholder: '例如：我们按原厂真实 Token 计价，不加价、不打包……',
-      educationLabel: '计价模式科普',
-      educationHint: '第二段文案：对比几种计价模式的差异，突出本站的透明与良心。支持 Markdown。',
-      educationPlaceholder: '例如：对比按次计费、按统一 Token 价、包月等模式……',
-      saveButton: '保存',
-      saveSuccess: '文案已保存',
-      previewButton: '预览用户页',
-      modelSelectHint: '要控制哪些模型出现在计价页，请前往「模型配置」页打开每个模型的详情，勾选「在计价页展示」。',
-      modelConfigLink: '去模型配置'
-    },
-
-    // Model Config
-    modelConfig: {
-      title: '模型配置',
-      description: '管理模型定价、模型映射和费率乘数',
-      tabs: {
-        pricing: '模型定价',
-        mapping: '模型映射',
-        rate: '费率乘数',
-      },
-      antigravityMapping: 'Antigravity 默认模型映射',
-      antigravityMappingHint: '对所有未配置自定义映射的 Antigravity 账号生效。单个账号的自定义映射优先级更高。',
-      addMapping: '添加映射',
-      mappingCount: '条映射',
-      requestedModel: '请求模型名',
-      upstreamModel: '上游模型名',
-      noMappings: '暂无映射配置',
-      resetToDefault: '重置为内置默认',
-      confirmReset: '确定重置为内置默认映射？当前自定义配置将被清除。',
-      resetSuccess: '已重置为内置默认映射',
-      saved: '模型映射保存成功',
-      testTitle: '模型测试',
-      testHint: '选择模型和账号，发送请求验证上游返回',
-      testAccount: '测试账号',
-      selectModel: '选择模型',
-      testPrompt: '提示词',
-      testPromptPlaceholder: '输入测试提示词...',
-      sendTest: '发送测试',
-      testing: '测试中...',
-      noAccounts: '无可用的 Antigravity 账号',
-    },
-    modelPricing: {
-      totalModels: '模型总数',
-      globalOverrides: '全局覆盖',
-      channelOverrides: '渠道覆盖',
-      searchPlaceholder: '搜索模型名称...',
-      allProviders: '全部平台',
-      allSources: '全部来源',
-      providerLabel: '平台：',
-      sourceLabel: '来源：',
-      hasGlobalOverride: '有全局覆盖',
-      hasChannelOverride: '有渠道覆盖',
-      litellmOnly: '仅 LiteLLM',
-      model: '模型',
-      inputPrice: '输入价格',
-      outputPrice: '输出价格',
-      cacheWritePrice: '缓存写入',
-      cacheReadPrice: '缓存读取',
-      imageOutputPrice: '图片输出',
-      source: '来源',
-      channels: '渠道',
-      actions: '操作',
-      noModels: '未找到模型',
-      viewDetail: '查看详情 / 编辑覆盖',
-      createPricing: '创建定价',
-      showing: '显示 {from}-{to}，共 {total} 条',
-      defaultPrices: '默认价格',
-      globalOverride: '全局覆盖',
-      enabled: '启用',
-      showOnPricingPage: '在计价页展示',
-      showOnPricingPageHint: '勾选后此模型会出现在用户「模型计价」页价格表中，与计费启用开关解耦',
-      notes: '备注',
-      displayPricingTitle: '用户展示设置',
-      displayPricingHint: '仅影响用户使用记录中的展示，不影响实际计费。留空 = 展示真实值。',
-      displayInputPrice: '展示输入价 ($/MTok)',
-      displayOutputPrice: '展示输出价 ($/MTok)',
-      displayCacheReadPrice: '展示缓存读取价 ($/MTok)',
-      displayRateMultiplier: '展示倍率',
-      cacheTransferRatio: '缓存转移比例 (0~1)',
-      billingModeLabel: '计费模式',
-      billingModeToken: '按量 (Token)',
-      billingModePerRequest: '按次',
-      billingModeImage: '图片',
-      perRequestPrice: '单次请求价格',
-      noLitellmData: '此模型无 LiteLLM 数据',
-      confirmDeleteOverride: '确定删除此全局定价覆盖？',
-      edit: '编辑',
-      rateMultipliers: '费率乘数概览',
-      rateMultipliersHint: '只读展示各分组的费率乘数，编辑请前往分组管理页面。',
-      rateMultiplier: '费率乘数',
-      groupName: '分组名称',
-      noGroups: '未找到活跃分组',
-      // 来源层级 tooltip（渠道 > 全局 > LiteLLM）
-      sourceHierarchyTooltip: '优先级：渠道覆盖 > 全局覆盖 > LiteLLM 默认。同一模型同时存在时，渠道覆盖作用于该渠道的请求，全局覆盖对其他请求生效。',
-      // 差异高亮 tooltip
-      priceDeltaTooltip: 'LiteLLM 基准 {baseline} · 差异 {delta}',
-      noBaseline: '此模型无 LiteLLM 参考价',
-      // 内联编辑提示
-      inlineEditHint: '提示：点击表格中的价格数字可快速编辑。',
-      inlineEditTitle: '快速编辑',
-      openFullDialog: '详细设置…',
-      baselinePrefix: '基准',
-      saveInline: '保存',
-      // 计费基准说明 banner
-      billingBasisTitle: '计费基准说明',
-      billingBasisIntro: '全局定价按"生效模型名"(billingModel) 查表，该名字由请求所属渠道的计费基准决定：',
-      billingBasisRequested: 'requested：用客户端原始请求的模型名计费（渠道无模型映射或显式选择此模式时使用）',
-      billingBasisUpstream: 'upstream：用账号映射后发给上游的模型名计费（按实际上游成本核算）',
-      billingBasisChannelMapped: 'channel_mapped：用渠道级映射的结果计费（渠道默认选项，推荐）',
-      billingBasisNoChannel: '没有绑定渠道的请求路径（本系统大部分请求）默认按 requested 计费。',
-      billingBasisColumnNote: '表格中的"计费模式"列是从映射关系自动推断的展示标签，不可修改——实际计费基准由请求所属渠道的配置决定。',
-      // 新增双列 + 计费模式列
-      requestedModelName: '请求模型名',
-      upstreamModelName: '上游模型名',
-      billingMode: '计费模式',
-      billingModeByRequested: '按请求',
-      billingModeByUpstream: '按上游',
-      billingModeRequestEqualsUpstream: '请求=上游',
-      // 多对一映射 tooltip：其他同样映射到此上游名的请求名
-      mappedFromMultiple: '+{count}',
-      mappedFromMultipleTooltip: '还有 {count} 个请求名也映射到此上游名：{list}',
-      // 映射 CRUD
-      addMapping: '添加映射',
-      editMapping: '编辑映射',
-      deleteMapping: '删除映射',
-      confirmDeleteMapping: '确认删除映射 "{from}" 吗？此操作会从 Antigravity 默认映射表里移除该条目。',
-      mappingFromPlaceholder: '如 claude-opus-4-6',
-      mappingToPlaceholder: '如 claude-opus-4-6-thinking',
-      mappingToHint: '客户端请求"请求模型名"时，系统会把请求发给此上游模型名。同名映射（请求=上游）直接填相同值。',
-      // 模型测试
-      testModel: '测试模型',
-      testModelTitle: '测试模型 "{model}"',
-      testAccount: '测试账号',
-      testNoAccount: '无可用的 Antigravity 账号',
-      testPrompt: '测试提示词',
-      testPromptPlaceholder: '输入测试提示词...',
-      sendTest: '发送测试',
-      testing: '测试中...',
-      testHint: '流式输出会显示在这里',
-      // 建议价
-      suggestedPricesHint: '建议价（来自 {from}）',
-      applySuggested: '应用建议',
     },
 
     // Accounts Management
@@ -2946,9 +2873,6 @@ export default {
         disableScheduling: '批量停止调度',
         resetStatus: '批量重置状态',
         refreshToken: '批量刷新令牌',
-        autoAssignProxy: '自动分配代理',
-        autoAssignProxyConfirm: '确定为选中的 {count} 个账号从代理池自动分配代理？（已有代理的将跳过）',
-        autoAssignProxyResult: '自动分配完成：{assigned} 个已分配，{skipped} 个已跳过',
         resetStatusSuccess: '已成功重置 {count} 个账号状态',
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
@@ -3176,8 +3100,6 @@ export default {
       expired: '已过期',
       proxy: '代理',
       noProxy: '无代理',
-      autoAssignProxy: '从代理池自动分配',
-      autoAssignProxyHint: '自动选择负载最低的代理',
       concurrency: '并发数',
       loadFactor: '负载因子',
       loadFactorHint: '提高负载因子可以提高对账号的调度频率',
@@ -3194,7 +3116,6 @@ export default {
         '！！注意！！ Antigravity Claude 和 Anthropic Claude 无法在同个上下文中使用，如果你同时有 Anthropic 账号和 Antigravity 账号，开启此选项会导致经常 400 报错。开启后，请用分组功能做好 Antigravity 账号和 Anthropic 账号的隔离。一定要弄明白再开启！！',
       aiCreditsBalance: 'AI Credits',
       allowOverages: '允许超量请求 (AI Credits)',
-      useEmailAsName: '使用邮箱作为账号名称',
       allowOveragesTooltip:
         '仅在免费配额被明确判定为耗尽后才会使用 AI Credits。普通并发 429 限流不会切换到超量请求。',
       creating: '创建中...',
@@ -3373,16 +3294,7 @@ export default {
           aiStudioNotConfiguredTip:
             'AI Studio OAuth 未配置：请先设置 GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET，并在 Google OAuth Client 添加 Redirect URI：http://localhost:1455/auth/callback（Consent Screen scopes 需包含 https://www.googleapis.com/auth/generative-language.retriever）',
           aiStudioNotConfigured:
-            'AI Studio OAuth 未配置：请先设置 GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET，并在 Google OAuth Client 添加 Redirect URI：http://localhost:1455/auth/callback',
-          // Refresh Token 批量导入（仅 google_one，RT 必须由内置 Gemini CLI OAuth client 签发）
-          refreshTokenAuth: '手动输入 RT',
-          refreshTokenDesc:
-            '输入您已有的 Google One Gemini Refresh Token（需由内置 Gemini CLI OAuth 客户端签发），支持批量输入（每行一个），系统将自动验证并创建账号。',
-          refreshTokenPlaceholder: '粘贴您的 Gemini Google One Refresh Token...\n支持多个，每行一个',
-          validating: '验证中...',
-          validateAndCreate: '验证并创建账号',
-          pleaseEnterRefreshToken: '请输入 Refresh Token',
-          failedToValidateRT: '验证 Refresh Token 失败'
+            'AI Studio OAuth 未配置：请先设置 GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET，并在 Google OAuth Client 添加 Redirect URI：http://localhost:1455/auth/callback'
         },
         // Antigravity specific
         antigravity: {
@@ -3751,9 +3663,6 @@ export default {
       },
       noProxiesYet: '暂无代理',
       createFirstProxy: '添加您的第一个代理以开始使用。',
-      poolEnabled: '代理池',
-      poolEnabledTooltip: '开启后，该代理将加入代理池，可在创建/导入账号时自动分配',
-      poolColumn: '代理池',
       testConnection: '测试连接',
       qualityCheck: '质量检测',
       batchQualityCheck: '批量质量检测',
@@ -3770,7 +3679,6 @@ export default {
       batchDeleteSkipped: '已跳过 {skipped} 个代理',
       batchDeleteFailed: '批量删除失败',
       deleteBlockedInUse: '该代理已有账号使用，无法删除',
-      forceDeleteConfirm: '该代理已有账号绑定，是否强制删除？（将自动解绑所有关联账号）',
       accountsTitle: '使用该IP的账号',
       accountsEmpty: '暂无账号使用此代理',
       accountsFailed: '获取账号列表失败',
@@ -3782,11 +3690,8 @@ export default {
       batchAdd: '快捷添加',
       batchInput: '代理列表',
       batchInputPlaceholder:
-        "每行输入一个代理，支持以下格式：\nsocks5://user:pass{'@'}192.168.1.1:1080\nhttp://192.168.1.1:8080\nhttps://user:pass{'@'}proxy.example.com:443\n192.168.1.1:1080\n192.168.1.1:1080:user:pass\nuser:pass{'@'}192.168.1.1:1080",
-      batchInputHint:
-        "支持 URL 风格（协议://[用户名:密码{'@'}]主机:端口）或简写 主机:端口[:用户:密码]；简写格式统一使用上方的默认协议",
-      batchDefaultProtocol: '默认协议',
-      batchDefaultProtocolHint: '用于没有协议前缀的行，例如 host:port:user:pass 或 host:port',
+        "每行输入一个代理，支持以下格式：\nsocks5://user:pass{'@'}192.168.1.1:1080\nhttp://192.168.1.1:8080\nhttps://user:pass{'@'}proxy.example.com:443",
+      batchInputHint: "支持 http、https、socks5 协议，格式：协议://[用户名:密码{'@'}]主机:端口",
       parsedCount: '有效 {count} 个',
       invalidCount: '无效 {count} 个',
       duplicateCount: '重复 {count} 个',
@@ -4160,27 +4065,7 @@ export default {
           failed: '失败',
           canceled: '已取消'
         }
-      },
-      actions: '操作',
-      viewUserPerspective: '查看用户视角',
-      userViewCompareTitle: '用户视角对比',
-      userViewColReal: '管理员视角 (真实)',
-      userViewColUser: '用户视角 (展示)',
-      userViewField: '字段',
-      userViewDiff: '差异',
-      userViewSectionTokens: 'Token',
-      userViewSectionCosts: '成本',
-      userViewSectionInvariants: '不变量 (两侧应一致)',
-      userViewTotal: '合计成本',
-      userViewActualCost: '实际计费 (actual_cost)',
-      userViewRateMultiplier: '倍率 (rate_multiplier)',
-      userViewGroupRate: '用户分组展示倍率',
-      userViewConfigUsed: '生效的展示配置',
-      userViewSourceGlobal: '仅全局价',
-      userViewSourceOverride: '含用户级覆盖',
-      userViewConfigHint: 'user_view 列由三层 transform 叠加得到：全局展示价 → 用户级 model 覆盖 → 用户分组展示倍率。actual_cost 为不变量。',
-      userViewEmptySection: '本节字段全部为 0，已隐藏',
-      userViewActualCostMismatch: '⚠ actual_cost 两侧不相等！display transform 不应改变实际计费，请检查实现。'
+      }
     },
 
     // Ops Monitoring
@@ -4978,12 +4863,31 @@ export default {
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
       tabs: {
         general: '通用设置',
+        features: '功能开关',
         security: '安全与认证',
         users: '用户默认值',
         gateway: '网关服务',
         email: '邮件设置',
         backup: '数据备份',
         payment: '支付设置',
+      },
+      features: {
+        channelMonitor: {
+          title: '渠道监控',
+          description: '定期对配置的渠道发起健康检查，向用户展示可用性与延迟。关闭后调度器停止扫描，用户端列表为空。',
+          configureLink: '前往 渠道管理 > 渠道监控 配置监控项',
+          enabled: '启用渠道监控',
+          enabledHint: '关闭后后台不再执行定时检测，已有数据保留。',
+          defaultInterval: '默认检测间隔（秒）',
+          defaultIntervalHint: '新建渠道监控时表单的默认值，可被单个渠道覆盖。范围 15 – 3600 秒。',
+        },
+        availableChannels: {
+          title: '可用渠道',
+          description: '向已登录用户展示他们能访问的渠道、模型和定价聚合视图。默认关闭。',
+          configureLink: '前往 渠道管理 > 渠道定价 配置模型价格',
+          enabled: '启用可用渠道',
+          enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
+        },
       },
       emailTabDisabledTitle: '邮箱验证未启用',
       emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',
@@ -5180,7 +5084,7 @@ export default {
           '禁用用户注册、公开页面和自助服务功能。仅管理员可以登录和管理平台。',
         siteName: '站点名称',
         siteNameHint: '显示在邮件和页面标题中',
-        siteNamePlaceholder: 'ZeroCode',
+        siteNamePlaceholder: 'Sub2API',
         siteSubtitle: '站点副标题',
         siteSubtitleHint: '显示在登录和注册页面',
         siteSubtitlePlaceholder: '订阅转 API 转换平台',
@@ -5280,8 +5184,6 @@ export default {
         enabledPaymentTypes: '启用的服务商',
         enabledPaymentTypesHint: '禁用服务商将同时禁用对应的实例。',
         findProvider: '正在寻找合适的易支付服务商？',
-        cnyPerUsd: '单价 (元/刀)',
-        cnyPerUsdHint: '0 = 1:1 不转换',
         minAmount: '最低金额',
         maxAmount: '最高金额',
         dailyLimit: '每日限额',
@@ -5452,7 +5354,7 @@ export default {
         fromEmail: '发件人邮箱',
         fromEmailPlaceholder: "noreply{'@'}example.com",
         fromName: '发件人名称',
-        fromNamePlaceholder: 'ZeroCode',
+        fromNamePlaceholder: 'Sub2API',
         useTls: '使用 TLS',
         useTlsHint: '为 SMTP 连接启用 TLS 加密'
       },
@@ -6184,19 +6086,6 @@ export default {
     paymentMethod: '支付方式',
     fee: '手续费',
     actualPay: '实付金额',
-    creditAmount: '到账金额',
-    baseCredit: '基础到账',
-    bonus: '赠送额度',
-    bonusLabel: '送',
-    bonusTiersTitle: '充值赠送',
-    bestValue: '超值',
-    tierTotal: '总计',
-    zhe: '折',
-    yuanUnit: '元',
-    usdUnit: '刀',
-    currentRate: '充值比例',
-    invoiceSupport: '支持开具发票，如需开票请联系客服',
-    perUsd: '刀',
     createOrder: '确认支付',
     methods: {
       easypay: '易支付',

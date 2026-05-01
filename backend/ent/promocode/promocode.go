@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the promocode type in the database.
 	Label = "promo_code"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

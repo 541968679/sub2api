@@ -33,16 +33,15 @@ type SystemSettings struct {
 	PasswordResetEnabled             bool     `json:"password_reset_enabled"`
 	FrontendURL                      string   `json:"frontend_url"`
 	InvitationCodeEnabled            bool     `json:"invitation_code_enabled"`
-	TotpEnabled                      bool     `json:"totp_enabled"`                   // TOTP 双因素认证
-	TotpEncryptionKeyConfigured      bool     `json:"totp_encryption_key_configured"` // TOTP 加密密钥是否已配置
-
-	SMTPHost               string `json:"smtp_host"`
-	SMTPPort               int    `json:"smtp_port"`
-	SMTPUsername           string `json:"smtp_username"`
-	SMTPPasswordConfigured bool   `json:"smtp_password_configured"`
-	SMTPFrom               string `json:"smtp_from_email"`
-	SMTPFromName           string `json:"smtp_from_name"`
-	SMTPUseTLS             bool   `json:"smtp_use_tls"`
+	TotpEnabled                      bool     `json:"totp_enabled"`
+	TotpEncryptionKeyConfigured      bool     `json:"totp_encryption_key_configured"`
+	SMTPHost                         string   `json:"smtp_host"`
+	SMTPPort                         int      `json:"smtp_port"`
+	SMTPUsername                     string   `json:"smtp_username"`
+	SMTPPasswordConfigured           bool     `json:"smtp_password_configured"`
+	SMTPFrom                         string   `json:"smtp_from_email"`
+	SMTPFromName                     string   `json:"smtp_from_name"`
+	SMTPUseTLS                       bool     `json:"smtp_use_tls"`
 
 	TurnstileEnabled             bool   `json:"turnstile_enabled"`
 	TurnstileSiteKey             string `json:"turnstile_site_key"`
@@ -133,7 +132,6 @@ type SystemSettings struct {
 	MinClaudeCodeVersion string `json:"min_claude_code_version"`
 	MaxClaudeCodeVersion string `json:"max_claude_code_version"`
 
-	// 分组隔离
 	AllowUngroupedKeyScheduling bool `json:"allow_ungrouped_key_scheduling"`
 
 	// Backend Mode
@@ -188,6 +186,13 @@ type SystemSettings struct {
 	BalanceLowNotifyRechargeURL string             `json:"balance_low_notify_recharge_url"`
 	AccountQuotaNotifyEnabled   bool               `json:"account_quota_notify_enabled"`
 	AccountQuotaNotifyEmails    []NotifyEmailEntry `json:"account_quota_notify_emails"`
+
+	// Channel Monitor feature switch
+	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+
+	// Available Channels feature switch (user-facing aggregate view)
+	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 }
 
 type DefaultSubscriptionSetting struct {
@@ -203,7 +208,7 @@ type PublicSettings struct {
 	PromoCodeEnabled                 bool             `json:"promo_code_enabled"`
 	PasswordResetEnabled             bool             `json:"password_reset_enabled"`
 	InvitationCodeEnabled            bool             `json:"invitation_code_enabled"`
-	TotpEnabled                      bool             `json:"totp_enabled"` // TOTP 双因素认证
+	TotpEnabled                      bool             `json:"totp_enabled"`
 	TurnstileEnabled                 bool             `json:"turnstile_enabled"`
 	TurnstileSiteKey                 string           `json:"turnstile_site_key"`
 	SiteName                         string           `json:"site_name"`
@@ -233,17 +238,18 @@ type PublicSettings struct {
 	PaymentCNYPerUSD                 float64          `json:"payment_cny_per_usd"`
 	Version                          string           `json:"version"`
 
-	// LoginPage 登录页文案覆盖，字段与 service.LoginPageContent 对齐；
-	// nil 时整键 omit，前端按 i18n 回落。
-	LoginPage *LoginPageContent `json:"login_page,omitempty"`
+	LoginPage                   *LoginPageContent `json:"login_page,omitempty"`
+	BalanceLowNotifyEnabled     bool              `json:"balance_low_notify_enabled"`
+	AccountQuotaNotifyEnabled   bool              `json:"account_quota_notify_enabled"`
+	BalanceLowNotifyThreshold   float64           `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL string            `json:"balance_low_notify_recharge_url"`
 
-	BalanceLowNotifyEnabled     bool    `json:"balance_low_notify_enabled"`
-	AccountQuotaNotifyEnabled   bool    `json:"account_quota_notify_enabled"`
-	BalanceLowNotifyThreshold   float64 `json:"balance_low_notify_threshold"`
-	BalanceLowNotifyRechargeURL string  `json:"balance_low_notify_recharge_url"`
+	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
+	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
+
+	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
 }
 
-// LoginPageContent 登录页文案 DTO，镜像 service.LoginPageContent。
 type LoginPageContent struct {
 	Badge                string `json:"badge,omitempty"`
 	HeadingLine1         string `json:"heading_line1,omitempty"`
@@ -255,13 +261,13 @@ type LoginPageContent struct {
 	FormSubtitle         string `json:"form_subtitle,omitempty"`
 }
 
-// OverloadCooldownSettings 529过载冷却配置 DTO
+// OverloadCooldownSettings 529闂佸搫顦弲娑樏洪埡浼卞綊宕堕鈧粈鍐偓鐟板濠㈡绮婇柆宥嗏拺闁哄娉曡倴闂?DTO
 type OverloadCooldownSettings struct {
 	Enabled         bool `json:"enabled"`
 	CooldownMinutes int  `json:"cooldown_minutes"`
 }
 
-// StreamTimeoutSettings 流超时处理配置 DTO
+// StreamTimeoutSettings 婵犵數鍋熺换婵喢归崶鈺冪煋闁圭虎鍠栫猾宥夋偣鏉炴媽顒熸俊鏌ヤ憾閺岋綁鎮欓崣澶樻＆闂佸憡菧閸婃妲?DTO
 type StreamTimeoutSettings struct {
 	Enabled                bool   `json:"enabled"`
 	Action                 string `json:"action"`
@@ -270,7 +276,7 @@ type StreamTimeoutSettings struct {
 	ThresholdWindowMinutes int    `json:"threshold_window_minutes"`
 }
 
-// RectifierSettings 请求整流器配置 DTO
+// RectifierSettings 闂佽崵濮村ú顓㈠绩闁秵鍎戝ù鍏兼綑閺嬩線鎮楀☉娆樼劷闁靛牞绠撻弻娑㈡晲閸愩劌顫囬梺鍛娗滈崐妤冩?DTO
 type RectifierSettings struct {
 	Enabled                  bool     `json:"enabled"`
 	ThinkingSignatureEnabled bool     `json:"thinking_signature_enabled"`
@@ -279,7 +285,7 @@ type RectifierSettings struct {
 	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`
 }
 
-// BetaPolicyRule Beta 策略规则 DTO
+// BetaPolicyRule Beta 缂傚倷鐒︾粙鎺楁偋濠婂牆姹查柟閭﹀枟閸犲棝鏌涢弴銊ヤ簻闁?DTO
 type BetaPolicyRule struct {
 	BetaToken            string   `json:"beta_token"`
 	Action               string   `json:"action"`
@@ -290,7 +296,7 @@ type BetaPolicyRule struct {
 	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"`
 }
 
-// BetaPolicySettings Beta 策略配置 DTO
+// BetaPolicySettings Beta 缂傚倷鐒︾粙鎺楁偋濠婂牆姹查柟鎵閻撯偓閻庡箍鍎卞ú銊╁几?DTO
 type BetaPolicySettings struct {
 	Rules []BetaPolicyRule `json:"rules"`
 }

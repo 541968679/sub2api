@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the usagelog type in the database.
 	Label = "usage_log"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -68,7 +68,7 @@ const (
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldAccountRateMultiplier holds the string denoting the account_rate_multiplier field in the database.
 	FieldAccountRateMultiplier = "account_rate_multiplier"
-	// type field in the database.
+	// FieldBillingType holds the string denoting the billing_type field in the database.
 	FieldBillingType = "billing_type"
 	// FieldStream holds the string denoting the stream field in the database.
 	FieldStream = "stream"

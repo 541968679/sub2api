@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the group type in the database.
 	Label = "group"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -34,7 +34,7 @@ const (
 	FieldStatus = "status"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
-	// type field in the database.
+	// FieldSubscriptionType holds the string denoting the subscription_type field in the database.
 	FieldSubscriptionType = "subscription_type"
 	// FieldDailyLimitUsd holds the string denoting the daily_limit_usd field in the database.
 	FieldDailyLimitUsd = "daily_limit_usd"

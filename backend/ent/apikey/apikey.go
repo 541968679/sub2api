@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the apikey type in the database.
 	Label = "api_key"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

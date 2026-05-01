@@ -204,6 +204,9 @@ export interface PublicSettings {
   account_quota_notify_enabled: boolean
   balance_low_notify_threshold: number
   balance_low_notify_recharge_url?: string
+  channel_monitor_enabled: boolean
+  channel_monitor_default_interval_seconds: number
+  available_channels_enabled: boolean
 }
 
 export interface AuthResponse {

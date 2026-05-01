@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <aside
     class="sidebar"
     :class="[
@@ -38,7 +38,7 @@
                   'sidebar-link-collapsed': sidebarCollapsed
                 }"
                 :title="sidebarCollapsed ? item.label : undefined"
-                @click="sidebarCollapsed ? undefined : toggleGroup(item)"
+                @click="handleGroupClick(item)"
               >
                 <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
                 <span
@@ -181,11 +181,12 @@
 
 <script setup lang="ts">
 import { computed, h, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
+import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 
 interface NavItem {
   path: string
@@ -194,11 +195,35 @@ interface NavItem {
   iconSvg?: string
   hideInSimpleMode?: boolean
   children?: NavItem[]
+  /**
+   * When true, the parent item only toggles the expand/collapse state and
+   * does NOT navigate to its `path`. The `path` is purely a stable key.
+   */
+  expandOnly?: boolean
+  /**
+   * Optional feature-flag getter. Items are hidden only when it returns false;
+   * undefined keeps the item visible while public settings are still loading.
+   */
+  featureFlag?: () => boolean | undefined
+}
+
+function applyFeatureFlags(items: NavItem[]): NavItem[] {
+  const out: NavItem[] = []
+  for (const item of items) {
+    if (item.featureFlag && item.featureFlag() === false) continue
+    if (item.children) {
+      out.push({ ...item, children: applyFeatureFlags(item.children) })
+    } else {
+      out.push(item)
+    }
+  }
+  return out
 }
 
 const { t } = useI18n()
 
 const route = useRoute()
+const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
@@ -569,7 +594,7 @@ const ChevronDoubleRightIcon = {
     )
 }
 
-const ChevronDownIcon = {
+const SignalIcon = {
   render: () =>
     h(
       'svg',
@@ -578,13 +603,12 @@ const ChevronDownIcon = {
         h('path', {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
-          d: 'm19.5 8.25-7.5 7.5-7.5-7.5'
+          d: 'M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z'
         })
       ]
     )
 }
 
-// 价签图标：用于「模型计价」菜单项
 const PriceTagIcon = {
   render: () =>
     h(
@@ -605,73 +629,43 @@ const PriceTagIcon = {
     )
 }
 
-// User navigation items (for regular users)
-const userNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
-    { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
-    { path: '/pricing', label: t('nav.modelPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
-    { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true
-          },
-        ]
-      : []),
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/orders',
-            label: t('nav.myOrders'),
-            icon: OrderListIcon,
-            hideInSimpleMode: true
-          },
-        ]
-      : []),
-    { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
-    { path: '/profile', label: t('nav.profile'), icon: UserIcon },
-    ...customMenuItemsForUser.value.map((item): NavItem => ({
-      path: `/custom/${item.id}`,
-      label: item.label,
-      icon: null,
-      iconSvg: item.icon_svg,
-    })),
-  ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
-})
+const ChevronDownIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'm19.5 8.25-7.5 7.5-7.5-7.5'
+        })
+      ]
+    )
+}
 
-// Personal navigation items (for admin's "My Account" section, without Dashboard)
-const personalNavItems = computed((): NavItem[] => {
-  const items: NavItem[] = [
+// Public-settings flags go through the registry in utils/featureFlags.ts,
+// which handles feature flag fallback while settings are loading.
+const flagChannelMonitor = makeSidebarFlag(FeatureFlags.channelMonitor)
+const flagPayment = makeSidebarFlag(FeatureFlags.payment)
+const flagAvailableChannels = makeSidebarFlag(FeatureFlags.availableChannels)
+const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
+const flagAdminPayment = () => adminSettingsStore.paymentEnabled
+
+function buildSelfNavItems(withDashboard: boolean): NavItem[] {
+  const items: NavItem[] = []
+  if (withDashboard) {
+    items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
+  }
+  items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/pricing', label: t('nav.modelPricing'), icon: PriceTagIcon, hideInSimpleMode: true },
+    { path: '/available-channels', label: t('nav.availableChannels'), icon: ChannelIcon, hideInSimpleMode: true, featureFlag: flagAvailableChannels },
+    { path: '/monitor', label: t('nav.channelStatus'), icon: SignalIcon, featureFlag: flagChannelMonitor },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/purchase',
-            label: t('nav.buySubscription'),
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true
-          },
-        ]
-      : []),
-    ...(appStore.cachedPublicSettings?.payment_enabled
-      ? [
-          {
-            path: '/orders',
-            label: t('nav.myOrders'),
-            icon: OrderListIcon,
-            hideInSimpleMode: true
-          },
-        ]
-      : []),
+    { path: '/purchase', label: t('nav.buySubscription'), icon: RechargeSubscriptionIcon, hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/orders', label: t('nav.myOrders'), icon: OrderListIcon, hideInSimpleMode: true, featureFlag: flagPayment },
     { path: '/redeem', label: t('nav.redeem'), icon: GiftIcon, hideInSimpleMode: true },
     { path: '/profile', label: t('nav.profile'), icon: UserIcon },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
@@ -680,9 +674,22 @@ const personalNavItems = computed((): NavItem[] => {
       icon: null,
       iconSvg: item.icon_svg,
     })),
-  ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
-})
+  )
+  return items
+}
+
+function finalizeNav(items: NavItem[]): NavItem[] {
+  const visible = applyFeatureFlags(items)
+  return authStore.isSimpleMode ? visible.filter(item => !item.hideInSimpleMode) : visible
+}
+
+// User navigation items (for regular users)
+const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
+
+// Personal navigation items (for admin's "My Account" section, without Dashboard).
+// Admins access 鍙敤娓犻亾 from this section just like regular users 鈥?there is no
+// separate admin entry, since the page is purely a user-facing view.
+const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {
@@ -702,12 +709,20 @@ const customMenuItemsForAdmin = computed(() => {
 const adminNavItems = computed((): NavItem[] => {
   const baseItems: NavItem[] = [
     { path: '/admin/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
-    ...(adminSettingsStore.opsMonitoringEnabled
-      ? [{ path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon }]
-      : []),
+    { path: '/admin/ops', label: t('nav.ops'), icon: ChartIcon, featureFlag: flagOpsMonitoring },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
-    { path: '/admin/channels', label: t('nav.channels', '渠道管理'), icon: ChannelIcon, hideInSimpleMode: true },
+    {
+      path: '/admin/channels',
+      label: t('nav.channelManagement'),
+      icon: ChannelIcon,
+      hideInSimpleMode: true,
+      expandOnly: true,
+      children: [
+        { path: '/admin/channels/pricing', label: t('nav.channelPricing'), icon: PriceTagIcon },
+        { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: SignalIcon, featureFlag: flagChannelMonitor },
+      ],
+    },
     { path: '/admin/subscriptions', label: t('nav.subscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: GlobeIcon },
     { path: '/admin/model-config', label: t('nav.modelConfig'), icon: ModelConfigIcon },
@@ -716,48 +731,47 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/proxies', label: t('nav.proxies'), icon: ServerIcon },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },
     { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: GiftIcon, hideInSimpleMode: true },
-    ...(adminSettingsStore.paymentEnabled
-      ? [
-          {
-            path: '/admin/orders',
-            label: t('nav.orderManagement'),
-            icon: OrderIcon,
-            hideInSimpleMode: true,
-            children: [
-              { path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: ChartIcon },
-              { path: '/admin/orders', label: t('nav.orderManagement'), icon: OrderIcon },
-              { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
-            ],
-          },
-          {
-            path: '/admin/recharge-config',
-            label: t('nav.rechargeConfig'),
-            icon: RechargeSubscriptionIcon,
-            hideInSimpleMode: true,
-          },
-        ]
-      : []),
+    {
+      path: '/admin/orders',
+      label: t('nav.orderManagement'),
+      icon: OrderIcon,
+      hideInSimpleMode: true,
+      expandOnly: true,
+      featureFlag: flagAdminPayment,
+      children: [
+        { path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: ChartIcon },
+        { path: '/admin/orders', label: t('nav.orderManagement'), icon: OrderIcon },
+        { path: '/admin/orders/plans', label: t('nav.paymentPlans'), icon: CreditCardIcon },
+      ],
+    },
+    {
+      path: '/admin/recharge-config',
+      label: t('nav.rechargeConfig'),
+      icon: RechargeSubscriptionIcon,
+      hideInSimpleMode: true,
+      featureFlag: flagAdminPayment,
+    },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }
   ]
 
-  // 简单模式下，在系统设置前插入 API密钥
+  const visible = applyFeatureFlags(baseItems)
+
+  // In simple mode, keep API keys available before system settings.
   if (authStore.isSimpleMode) {
-    const filtered = baseItems.filter(item => !item.hideInSimpleMode)
+    const filtered = visible.filter(item => !item.hideInSimpleMode)
     filtered.push({ path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon })
     filtered.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
-    // Add admin custom menu items after settings
     for (const cm of customMenuItemsForAdmin.value) {
       filtered.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
     }
     return filtered
   }
 
-  baseItems.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
-  // Add admin custom menu items after settings
+  visible.push({ path: '/admin/settings', label: t('nav.settings'), icon: CogIcon })
   for (const cm of customMenuItemsForAdmin.value) {
-    baseItems.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
+    visible.push({ path: `/custom/${cm.id}`, label: cm.label, icon: null, iconSvg: cm.icon_svg })
   }
-  return baseItems
+  return visible
 })
 
 function toggleSidebar() {
@@ -811,6 +825,28 @@ function toggleGroup(item: NavItem) {
   if (expandedGroups.value.has(item.path)) {
     expandedGroups.value.delete(item.path)
   } else {
+    expandedGroups.value.add(item.path)
+  }
+}
+
+/**
+ * Click handler for collapsible parent items.
+ * - When sidebar is collapsed: do nothing (children are not visible).
+ * - When `expandOnly` is true: only toggle expand state.
+ * - Otherwise (default, e.g. /admin/orders): navigate to the parent path
+ *   (router-link semantics) and ensure the group is expanded.
+ */
+function handleGroupClick(item: NavItem) {
+  if (sidebarCollapsed.value) return
+  if (item.expandOnly) {
+    toggleGroup(item)
+    return
+  }
+  // Push to path and ensure expanded
+  if (route.path !== item.path) {
+    router.push(item.path)
+  }
+  if (!expandedGroups.value.has(item.path)) {
     expandedGroups.value.add(item.path)
   }
 }

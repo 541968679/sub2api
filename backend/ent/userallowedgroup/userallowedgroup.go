@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the userallowedgroup type in the database.
 	Label = "user_allowed_group"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"

@@ -97,6 +97,8 @@ func RegisterAdminRoutes(
 
 		// 登录页文案管理
 		registerLoginPageRoutes(admin, h)
+		// 渠道监控
+		registerChannelMonitorRoutes(admin, h)
 	}
 }
 
@@ -621,5 +623,29 @@ func registerLoginPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		lp.GET("/content", h.Admin.LoginPage.Get)
 		lp.PUT("/content", h.Admin.LoginPage.Update)
+	}
+}
+
+func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	monitors := admin.Group("/channel-monitors")
+	{
+		monitors.GET("", h.Admin.ChannelMonitor.List)
+		monitors.POST("", h.Admin.ChannelMonitor.Create)
+		monitors.GET("/:id", h.Admin.ChannelMonitor.Get)
+		monitors.PUT("/:id", h.Admin.ChannelMonitor.Update)
+		monitors.DELETE("/:id", h.Admin.ChannelMonitor.Delete)
+		monitors.POST("/:id/run", h.Admin.ChannelMonitor.Run)
+		monitors.GET("/:id/history", h.Admin.ChannelMonitor.History)
+	}
+
+	templates := admin.Group("/channel-monitor-templates")
+	{
+		templates.GET("", h.Admin.ChannelMonitorTemplate.List)
+		templates.POST("", h.Admin.ChannelMonitorTemplate.Create)
+		templates.GET("/:id", h.Admin.ChannelMonitorTemplate.Get)
+		templates.PUT("/:id", h.Admin.ChannelMonitorTemplate.Update)
+		templates.DELETE("/:id", h.Admin.ChannelMonitorTemplate.Delete)
+		templates.GET("/:id/monitors", h.Admin.ChannelMonitorTemplate.AssociatedMonitors)
+		templates.POST("/:id/apply", h.Admin.ChannelMonitorTemplate.Apply)
 	}
 }

@@ -3,11 +3,9 @@ package handler
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/service"
-
 	"github.com/google/wire"
 )
 
-// ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
 	dashboardHandler *admin.DashboardHandler,
 	userHandler *admin.UserHandler,
@@ -38,53 +36,54 @@ func ProvideAdminHandlers(
 	userModelPricingHandler *admin.UserModelPricingHandler,
 	pricingPageAdminHandler *admin.PricingPageHandler,
 	loginPageAdminHandler *admin.LoginPageHandler,
+	channelMonitorHandler *admin.ChannelMonitorHandler,
+	channelMonitorTemplateHandler *admin.ChannelMonitorRequestTemplateHandler,
 	paymentHandler *admin.PaymentHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
-		Dashboard:             dashboardHandler,
-		User:                  userHandler,
-		Group:                 groupHandler,
-		Account:               accountHandler,
-		Announcement:          announcementHandler,
-		DataManagement:        dataManagementHandler,
-		Backup:                backupHandler,
-		OAuth:                 oauthHandler,
-		OpenAIOAuth:           openaiOAuthHandler,
-		GeminiOAuth:           geminiOAuthHandler,
-		AntigravityOAuth:      antigravityOAuthHandler,
-		Proxy:                 proxyHandler,
-		Redeem:                redeemHandler,
-		Promo:                 promoHandler,
-		Setting:               settingHandler,
-		Ops:                   opsHandler,
-		System:                systemHandler,
-		Subscription:          subscriptionHandler,
-		Usage:                 usageHandler,
-		UserAttribute:         userAttributeHandler,
-		ErrorPassthrough:      errorPassthroughHandler,
-		TLSFingerprintProfile: tlsFingerprintProfileHandler,
-		APIKey:                apiKeyHandler,
-		ScheduledTest:         scheduledTestHandler,
-		Channel:               channelHandler,
-		ModelPricing:          modelPricingHandler,
-		UserModelPricing:      userModelPricingHandler,
-		PricingPage:           pricingPageAdminHandler,
-		LoginPage:             loginPageAdminHandler,
-		Payment:               paymentHandler,
+		Dashboard:              dashboardHandler,
+		User:                   userHandler,
+		Group:                  groupHandler,
+		Account:                accountHandler,
+		Announcement:           announcementHandler,
+		DataManagement:         dataManagementHandler,
+		Backup:                 backupHandler,
+		OAuth:                  oauthHandler,
+		OpenAIOAuth:            openaiOAuthHandler,
+		GeminiOAuth:            geminiOAuthHandler,
+		AntigravityOAuth:       antigravityOAuthHandler,
+		Proxy:                  proxyHandler,
+		Redeem:                 redeemHandler,
+		Promo:                  promoHandler,
+		Setting:                settingHandler,
+		Ops:                    opsHandler,
+		System:                 systemHandler,
+		Subscription:           subscriptionHandler,
+		Usage:                  usageHandler,
+		UserAttribute:          userAttributeHandler,
+		ErrorPassthrough:       errorPassthroughHandler,
+		TLSFingerprintProfile:  tlsFingerprintProfileHandler,
+		APIKey:                 apiKeyHandler,
+		ScheduledTest:          scheduledTestHandler,
+		Channel:                channelHandler,
+		ModelPricing:           modelPricingHandler,
+		UserModelPricing:       userModelPricingHandler,
+		PricingPage:            pricingPageAdminHandler,
+		LoginPage:              loginPageAdminHandler,
+		ChannelMonitor:         channelMonitorHandler,
+		ChannelMonitorTemplate: channelMonitorTemplateHandler,
+		Payment:                paymentHandler,
 	}
 }
 
-// ProvideSystemHandler creates admin.SystemHandler with UpdateService
 func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
 	return admin.NewSystemHandler(updateService, lockService)
 }
 
-// ProvideSettingHandler creates SettingHandler with version from BuildInfo
 func ProvideSettingHandler(settingService *service.SettingService, buildInfo BuildInfo) *SettingHandler {
 	return NewSettingHandler(settingService, buildInfo.Version)
 }
 
-// ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
@@ -93,6 +92,7 @@ func ProvideHandlers(
 	redeemHandler *RedeemHandler,
 	subscriptionHandler *SubscriptionHandler,
 	announcementHandler *AnnouncementHandler,
+	channelMonitorUserHandler *ChannelMonitorUserHandler,
 	adminHandlers *AdminHandlers,
 	gatewayHandler *GatewayHandler,
 	openaiGatewayHandler *OpenAIGatewayHandler,
@@ -101,31 +101,32 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	pricingPageHandler *PricingPageHandler,
+	availableChannelHandler *AvailableChannelHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
 	return &Handlers{
-		Auth:           authHandler,
-		User:           userHandler,
-		APIKey:         apiKeyHandler,
-		Usage:          usageHandler,
-		Redeem:         redeemHandler,
-		Subscription:   subscriptionHandler,
-		Announcement:   announcementHandler,
-		Admin:          adminHandlers,
-		Gateway:        gatewayHandler,
-		OpenAIGateway:  openaiGatewayHandler,
-		Setting:        settingHandler,
-		Totp:           totpHandler,
-		Payment:        paymentHandler,
-		PaymentWebhook: paymentWebhookHandler,
-		PricingPage:    pricingPageHandler,
+		Auth:             authHandler,
+		User:             userHandler,
+		APIKey:           apiKeyHandler,
+		Usage:            usageHandler,
+		Redeem:           redeemHandler,
+		Subscription:     subscriptionHandler,
+		Announcement:     announcementHandler,
+		ChannelMonitor:   channelMonitorUserHandler,
+		Admin:            adminHandlers,
+		Gateway:          gatewayHandler,
+		OpenAIGateway:    openaiGatewayHandler,
+		Setting:          settingHandler,
+		Totp:             totpHandler,
+		Payment:          paymentHandler,
+		PaymentWebhook:   paymentWebhookHandler,
+		PricingPage:      pricingPageHandler,
+		AvailableChannel: availableChannelHandler,
 	}
 }
 
-// ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
-	// Top-level handlers
 	NewAuthHandler,
 	NewUserHandler,
 	NewAPIKeyHandler,
@@ -133,6 +134,7 @@ var ProviderSet = wire.NewSet(
 	NewRedeemHandler,
 	NewSubscriptionHandler,
 	NewAnnouncementHandler,
+	NewChannelMonitorUserHandler,
 	NewGatewayHandler,
 	NewOpenAIGatewayHandler,
 	NewTotpHandler,
@@ -140,8 +142,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentHandler,
 	NewPaymentWebhookHandler,
 	NewPricingPageHandler,
-
-	// Admin handlers
+	NewAvailableChannelHandler,
 	admin.NewDashboardHandler,
 	admin.NewUserHandler,
 	admin.NewGroupHandler,
@@ -171,9 +172,9 @@ var ProviderSet = wire.NewSet(
 	admin.NewUserModelPricingHandler,
 	admin.NewPricingPageAdminHandler,
 	admin.NewLoginPageAdminHandler,
+	admin.NewChannelMonitorHandler,
+	admin.NewChannelMonitorRequestTemplateHandler,
 	admin.NewPaymentHandler,
-
-	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,
 	ProvideHandlers,
 )

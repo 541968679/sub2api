@@ -16,6 +16,7 @@ export { userAPI } from './user'
 export { redeemAPI, type RedeemHistoryItem } from './redeem'
 export { paymentAPI } from './payment'
 export { userGroupsAPI } from './groups'
+export { userChannelsAPI } from './channels'
 export { totpAPI } from './totp'
 export { default as announcementsAPI } from './announcements'
 export {
@@ -26,6 +27,7 @@ export {
   type PricingPageContent
 } from './pricingPage'
 export { loginPageAPI, type LoginPageContent } from './loginPage'
+export { channelMonitorUserAPI } from './channelMonitor'
 
 // Admin APIs
 export { adminAPI } from './admin'

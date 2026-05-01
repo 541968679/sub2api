@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the paymentauditlog type in the database.
 	Label = "payment_audit_log"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

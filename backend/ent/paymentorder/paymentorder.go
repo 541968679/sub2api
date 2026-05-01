@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the paymentorder type in the database.
 	Label = "payment_order"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -34,7 +34,7 @@ const (
 	FieldRechargeCode = "recharge_code"
 	// FieldOutTradeNo holds the string denoting the out_trade_no field in the database.
 	FieldOutTradeNo = "out_trade_no"
-	// type field in the database.
+	// FieldPaymentType holds the string denoting the payment_type field in the database.
 	FieldPaymentType = "payment_type"
 	// FieldPaymentTradeNo holds the string denoting the payment_trade_no field in the database.
 	FieldPaymentTradeNo = "payment_trade_no"
@@ -44,7 +44,7 @@ const (
 	FieldQrCode = "qr_code"
 	// FieldQrCodeImg holds the string denoting the qr_code_img field in the database.
 	FieldQrCodeImg = "qr_code_img"
-	// type field in the database.
+	// FieldOrderType holds the string denoting the order_type field in the database.
 	FieldOrderType = "order_type"
 	// FieldPlanID holds the string denoting the plan_id field in the database.
 	FieldPlanID = "plan_id"

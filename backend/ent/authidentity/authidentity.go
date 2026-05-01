@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the authidentity type in the database.
 	Label = "auth_identity"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -20,7 +20,7 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
-	// type field in the database.
+	// FieldProviderType holds the string denoting the provider_type field in the database.
 	FieldProviderType = "provider_type"
 	// FieldProviderKey holds the string denoting the provider_key field in the database.
 	FieldProviderKey = "provider_key"

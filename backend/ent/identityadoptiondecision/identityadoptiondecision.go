@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// type in the database.
+	// Label holds the string label denoting the identityadoptiondecision type in the database.
 	Label = "identity_adoption_decision"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
