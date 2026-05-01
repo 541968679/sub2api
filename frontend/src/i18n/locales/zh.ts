@@ -318,6 +318,7 @@ export default {
     settings: '设置',
     chooseFile: '选择文件',
     copy: '复制',
+    login: '登录',
     notAvailable: '不可用',
     now: '现在',
     today: '今天',
@@ -385,6 +386,61 @@ export default {
 
   // Auth
   auth: {
+    login: {
+      badge: 'ZEROCODE',
+      headingLine1: 'ZeroCode',
+      headingLine2: '顶级大模型一站式 API 解决方案',
+      description: '面向开发者和团队的多模型中转站。统一接口、按量计费、调用记录可查，减少切换不同平台和计费规则的成本。',
+      featurePrice: '低至 {price} / 1$',
+      featurePriceDefault: '低至 0.6 元 / 1$',
+      featurePayAsYouGo: '按量计费',
+      featureNoCharge: '不用不扣费',
+      supportedModels: '支持模型',
+      modelsDesc: '官方 API 直连，满血模型，能力不打折',
+      featureUnifiedApi: '统一 API',
+      featureUnifiedApiDesc: '一个接口调用所有模型。',
+      featureTransparentBilling: '透明计费',
+      featureTransparentBillingDesc: '按 Token 计费，批量更优惠。',
+      featureAuditTrail: '调用可追溯',
+      featureAuditTrailDesc: '每次请求与扣费都有记录。',
+      features: {
+        metered: {
+          title: '按量计费，完全透明',
+          desc: '每 1 美元额度低至 0.7 元，约为官方价格的 1/10，性价比很高。'
+        },
+        quality: {
+          title: '官方级服务质量',
+          desc: '美国高带宽服务器，低延迟，缓存命中率高，适合稳定调用。'
+        },
+        models: {
+          title: '顶级模型齐全',
+          desc: 'Opus 4.7、GPT-5.4、Gemini 3.1 Pro 等模型均可满血使用。'
+        },
+        tutorial: {
+          title: '新手友好教程',
+          desc: '提供完整、可读性高的使用教程，帮助你快速上手。'
+        },
+        enterprise: {
+          title: '企业采购通道',
+          desc: '支持大规模采购和开票需求，具体方案可联系客服。'
+        },
+        referral: {
+          title: '邀请好友，共享收益',
+          desc: '成功邀请后双方都可获得账户奖励，并支持持续返佣。'
+        }
+      },
+      title: '登录',
+      subtitle: '进入控制台查看余额、用量和完整模型列表。',
+      submitButton: '登录并开始使用',
+      postLoginInfo: '登录后可查看',
+      postLoginDetails: '余额 / 用量明细 / 完整模型列表 / 计价',
+      socialDivider: '快捷登录方式',
+      linuxdoLogin: 'LinuxDO 登录',
+      oidcLogin: 'OIDC / SSO',
+      navDocs: '文档',
+      navApiExamples: 'API 示例',
+      navLogin: '登录',
+    },
     welcomeBack: '欢迎回来',
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
