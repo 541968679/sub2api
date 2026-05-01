@@ -54,6 +54,18 @@ func toLowerModel(model string) string {
 	return string(b)
 }
 
+// stripCacheTransferIfChannel returns a config copy without CacheTransferRatio
+// when the usage log was billed through a channel (ChannelID != nil).
+// Channel overrides set their own pricing; the global cache transfer should not apply.
+func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *DisplayPricingConfig {
+	if cfg == nil || channelID == nil || cfg.CacheTransferRatio == nil {
+		return cfg
+	}
+	copy := *cfg
+	copy.CacheTransferRatio = nil
+	return &copy
+}
+
 // ApplyDisplayTransform modifies a user-facing UsageLog DTO in-place to use display values.
 // The actual_cost field is never changed — only tokens, costs, and rate_multiplier are adjusted
 // so that the user sees display prices while being charged the real amount.

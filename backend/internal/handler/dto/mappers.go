@@ -592,6 +592,7 @@ func UsageLogFromService(l *service.UsageLog, displayMap DisplayPricingMap) *Usa
 	u := usageLogFromServiceUser(l)
 	if displayMap != nil {
 		if cfg := displayMap[toLowerModel(u.Model)]; cfg != nil {
+			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
 			ApplyDisplayTransform(&u, cfg)
 		}
 	}
@@ -618,6 +619,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap)
 	}
 	if displayMap != nil {
 		if cfg := displayMap[toLowerModel(base.Model)]; cfg != nil {
+			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
 			admin.DisplayFields = ComputeDisplayFields(&base, cfg)
 		}
 	}
