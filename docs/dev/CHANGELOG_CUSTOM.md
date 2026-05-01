@@ -19,6 +19,20 @@
 
 ## 变更记录
 
+## [2026-05-01] fix(frontend): cache_transfer_ratio 和 display_rate_multiplier 无法修改
+
+**影响范围**:
+- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue`
+- `frontend/src/components/admin/user/UserModelPricingModal.vue`
+
+**上游兼容性**:
+- Low. Frontend-only change.
+
+**变更详情**:
+- `Number(val) || null` 模式将 `0` 误转为 `null`，后端差量更新 `if != nil` 跳过该字段，导致值无法被修改为 0
+- 替换为 `toNullableNum()` 辅助函数：空值/NaN → null，有效数字（含 0）→ number
+- 同时修复了全局模型定价 dialog 和用户级定价 modal 两处
+
 ## [2026-05-01] fix(display): skip cache transfer for channel-override usage logs
 
 **影响范围**:
