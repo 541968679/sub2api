@@ -19,6 +19,20 @@
 
 ## 变更记录
 
+## [2026-05-01] docs: 新增 Codex 初始化说明
+
+**影响范围**:
+- `AGENTS.md`
+- `docs/dev/CHANGELOG_CUSTOM.md`
+
+**上游兼容性**:
+- Low. Documentation-only change.
+
+**变更详情**:
+- 基于 `CLAUDE.md` 提炼 Codex 入口说明，保留架构优先、codebase 文档沉淀、pnpm-only、Ent/Wire 生成、push/deploy 需授权等规则
+- 新增关键文件索引，关联后端入口、网关热路径、Ent/migrations、前端入口、部署和工具文件
+- 校验关键路径并移除当前 checkout 中不存在的 `deploy/remote_exec.py`、`tools/secret_scan.py` 作为关键文件引用
+
 ## [2026-05-01] fix(frontend): cache_transfer_ratio 和 display_rate_multiplier 无法修改
 
 **影响范围**:
