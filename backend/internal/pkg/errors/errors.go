@@ -19,7 +19,7 @@ type Status struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// ApplicationError is the standard error type used to control HTTP responses.
+// type used to control HTTP responses.
 //
 // Code is expected to be an HTTP status code (e.g. 400/401/403/404/409/500).
 type ApplicationError struct {

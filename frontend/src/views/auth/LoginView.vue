@@ -224,7 +224,7 @@
               </div>
 
               <!-- OAuth Section -->
-              <div v-if="!backendModeEnabled && (linuxdoOAuthEnabled || oidcOAuthEnabled)" class="mt-6">
+              <div v-if="!backendModeEnabled && (linuxdoOAuthEnabled || wechatOAuthEnabled || oidcOAuthEnabled)" class="mt-6">
                 <!-- Divider -->
                 <div class="flex items-center gap-3">
                   <div class="h-px flex-1 bg-white/[0.12]"></div>
@@ -236,6 +236,12 @@
                 <div class="login-oauth mt-4 flex gap-3">
                   <LinuxDoOAuthSection
                     v-if="linuxdoOAuthEnabled"
+                    :disabled="isLoading"
+                    :show-divider="false"
+                    class="flex-1"
+                  />
+                  <WechatOAuthSection
+                    v-if="wechatOAuthEnabled"
                     :disabled="isLoading"
                     :show-divider="false"
                     class="flex-1"
@@ -279,16 +285,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
+import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
-import { getPublicSettings, isTotp2FARequired } from '@/api/auth'
+import { getPublicSettings, isTotp2FARequired, isWeChatWebOAuthEnabled } from '@/api/auth'
 import { sanitizeUrl } from '@/utils/url'
 import type { TotpLoginResponse } from '@/types'
 
@@ -459,6 +466,7 @@ const showPassword = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
 const linuxdoOAuthEnabled = ref<boolean>(false)
+const wechatOAuthEnabled = ref<boolean>(false)
 const backendModeEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
 const oidcOAuthProviderName = ref<string>('OIDC')
@@ -485,6 +493,16 @@ const errors = reactive({
   turnstile: ''
 })
 
+const validationToastMessage = computed(
+  () => errors.email || errors.password || errors.turnstile || ''
+)
+
+watch(validationToastMessage, (value, previousValue) => {
+  if (value && value !== previousValue) {
+    appStore.showError(value)
+  }
+})
+
 // ==================== Lifecycle ====================
 
 onMounted(async () => {
@@ -503,6 +521,7 @@ onMounted(async () => {
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
+    wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
     backendModeEnabled.value = settings.backend_mode_enabled
     oidcOAuthEnabled.value = settings.oidc_oauth_enabled
     oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'

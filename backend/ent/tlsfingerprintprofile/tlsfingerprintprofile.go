@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the tlsfingerprintprofile type in the database.
+	// type in the database.
 	Label = "tls_fingerprint_profile"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

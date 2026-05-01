@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the aicreditsnapshot type in the database.
+	// type in the database.
 	Label = "ai_credit_snapshot"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldEmail holds the string denoting the email field in the database.
 	FieldEmail = "email"
-	// FieldCreditType holds the string denoting the credit_type field in the database.
+	// type field in the database.
 	FieldCreditType = "credit_type"
 	// FieldAmount holds the string denoting the amount field in the database.
 	FieldAmount = "amount"

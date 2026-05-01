@@ -394,7 +394,7 @@ func buildClientHelloSpecFromProfile(profile *Profile) *utls.ClientHelloSpec {
 
 	// Build extensions list from the ordered IDs.
 	// Parametric extensions (curves, sigalgs, etc.) are populated with resolved profile values.
-	// Unknown IDs use GenericExtension (sends type ID with empty data).
+	// type ID with empty data).
 	extensions := make([]utls.TLSExtension, 0, len(extOrder)+2)
 	for _, id := range extOrder {
 		if isGREASEValue(id) {

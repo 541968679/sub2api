@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the account type in the database.
+	// type in the database.
 	Label = "account"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -27,7 +27,7 @@ const (
 	FieldNotes = "notes"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
-	// FieldType holds the string denoting the type field in the database.
+	// type field in the database.
 	FieldType = "type"
 	// FieldCredentials holds the string denoting the credentials field in the database.
 	FieldCredentials = "credentials"

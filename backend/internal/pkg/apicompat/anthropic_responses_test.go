@@ -632,7 +632,7 @@ func TestAnthropicToResponses_ThinkingEnabled(t *testing.T) {
 	resp, err := AnthropicToResponses(req)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Reasoning)
-	// thinking.type is ignored for effort; default high applies.
+	// type is ignored for effort; default high applies.
 	assert.Equal(t, "high", resp.Reasoning.Effort)
 	assert.Equal(t, "auto", resp.Reasoning.Summary)
 	assert.Contains(t, resp.Include, "reasoning.encrypted_content")
@@ -650,7 +650,7 @@ func TestAnthropicToResponses_ThinkingAdaptive(t *testing.T) {
 	resp, err := AnthropicToResponses(req)
 	require.NoError(t, err)
 	require.NotNil(t, resp.Reasoning)
-	// thinking.type is ignored for effort; default high applies.
+	// type is ignored for effort; default high applies.
 	assert.Equal(t, "high", resp.Reasoning.Effort)
 	assert.Equal(t, "auto", resp.Reasoning.Summary)
 	assert.NotContains(t, resp.Include, "reasoning.summary")
@@ -1021,7 +1021,7 @@ func TestAnthropicToResponses_ImageEmptyMediaType(t *testing.T) {
 	require.NoError(t, json.Unmarshal(items[0].Content, &parts))
 	require.Len(t, parts, 1)
 	assert.Equal(t, "input_image", parts[0].Type)
-	// Should default to image/png when media_type is empty.
+	// type is empty.
 	assert.Equal(t, "data:image/png;base64,iVBOR", parts[0].ImageURL)
 }
 

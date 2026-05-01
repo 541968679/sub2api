@@ -9,7 +9,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent"
 )
 
-// The AICreditSnapshotFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as AICreditSnapshot mutator.
 type AICreditSnapshotFunc func(context.Context, *ent.AICreditSnapshotMutation) (ent.Value, error)
 
@@ -21,7 +21,7 @@ func (f AICreditSnapshotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AICreditSnapshotMutation", m)
 }
 
-// The APIKeyFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as APIKey mutator.
 type APIKeyFunc func(context.Context, *ent.APIKeyMutation) (ent.Value, error)
 
@@ -33,7 +33,7 @@ func (f APIKeyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, erro
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.APIKeyMutation", m)
 }
 
-// The AccountFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as Account mutator.
 type AccountFunc func(context.Context, *ent.AccountMutation) (ent.Value, error)
 
@@ -45,7 +45,7 @@ func (f AccountFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountMutation", m)
 }
 
-// The AccountGroupFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as AccountGroup mutator.
 type AccountGroupFunc func(context.Context, *ent.AccountGroupMutation) (ent.Value, error)
 
@@ -57,7 +57,7 @@ func (f AccountGroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountGroupMutation", m)
 }
 
-// The AnnouncementFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as Announcement mutator.
 type AnnouncementFunc func(context.Context, *ent.AnnouncementMutation) (ent.Value, error)
 
@@ -69,7 +69,7 @@ func (f AnnouncementFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AnnouncementMutation", m)
 }
 
-// The AnnouncementReadFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as AnnouncementRead mutator.
 type AnnouncementReadFunc func(context.Context, *ent.AnnouncementReadMutation) (ent.Value, error)
 
@@ -81,7 +81,31 @@ func (f AnnouncementReadFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AnnouncementReadMutation", m)
 }
 
-// The ErrorPassthroughRuleFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
+// function as AuthIdentity mutator.
+type AuthIdentityFunc func(context.Context, *ent.AuthIdentityMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthIdentityFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthIdentityMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthIdentityMutation", m)
+}
+
+// type is an adapter to allow the use of ordinary
+// function as AuthIdentityChannel mutator.
+type AuthIdentityChannelFunc func(context.Context, *ent.AuthIdentityChannelMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AuthIdentityChannelFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AuthIdentityChannelMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AuthIdentityChannelMutation", m)
+}
+
+// type is an adapter to allow the use of ordinary
 // function as ErrorPassthroughRule mutator.
 type ErrorPassthroughRuleFunc func(context.Context, *ent.ErrorPassthroughRuleMutation) (ent.Value, error)
 
@@ -93,7 +117,7 @@ func (f ErrorPassthroughRuleFunc) Mutate(ctx context.Context, m ent.Mutation) (e
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ErrorPassthroughRuleMutation", m)
 }
 
-// The GroupFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as Group mutator.
 type GroupFunc func(context.Context, *ent.GroupMutation) (ent.Value, error)
 
@@ -105,7 +129,7 @@ func (f GroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.GroupMutation", m)
 }
 
-// The IdempotencyRecordFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as IdempotencyRecord mutator.
 type IdempotencyRecordFunc func(context.Context, *ent.IdempotencyRecordMutation) (ent.Value, error)
 
@@ -117,7 +141,19 @@ func (f IdempotencyRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IdempotencyRecordMutation", m)
 }
 
-// The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
+// function as IdentityAdoptionDecision mutator.
+type IdentityAdoptionDecisionFunc func(context.Context, *ent.IdentityAdoptionDecisionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f IdentityAdoptionDecisionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.IdentityAdoptionDecisionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IdentityAdoptionDecisionMutation", m)
+}
+
+// type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)
 
@@ -129,7 +165,7 @@ func (f PaymentAuditLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Va
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentAuditLogMutation", m)
 }
 
-// The PaymentOrderFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as PaymentOrder mutator.
 type PaymentOrderFunc func(context.Context, *ent.PaymentOrderMutation) (ent.Value, error)
 
@@ -141,7 +177,7 @@ func (f PaymentOrderFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentOrderMutation", m)
 }
 
-// The PaymentProviderInstanceFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as PaymentProviderInstance mutator.
 type PaymentProviderInstanceFunc func(context.Context, *ent.PaymentProviderInstanceMutation) (ent.Value, error)
 
@@ -153,7 +189,19 @@ func (f PaymentProviderInstanceFunc) Mutate(ctx context.Context, m ent.Mutation)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentProviderInstanceMutation", m)
 }
 
-// The PromoCodeFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
+// function as PendingAuthSession mutator.
+type PendingAuthSessionFunc func(context.Context, *ent.PendingAuthSessionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PendingAuthSessionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PendingAuthSessionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PendingAuthSessionMutation", m)
+}
+
+// type is an adapter to allow the use of ordinary
 // function as PromoCode mutator.
 type PromoCodeFunc func(context.Context, *ent.PromoCodeMutation) (ent.Value, error)
 
@@ -165,7 +213,7 @@ func (f PromoCodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, e
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PromoCodeMutation", m)
 }
 
-// The PromoCodeUsageFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as PromoCodeUsage mutator.
 type PromoCodeUsageFunc func(context.Context, *ent.PromoCodeUsageMutation) (ent.Value, error)
 
@@ -177,7 +225,7 @@ func (f PromoCodeUsageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PromoCodeUsageMutation", m)
 }
 
-// The ProxyFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as Proxy mutator.
 type ProxyFunc func(context.Context, *ent.ProxyMutation) (ent.Value, error)
 
@@ -189,7 +237,7 @@ func (f ProxyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProxyMutation", m)
 }
 
-// The RedeemCodeFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as RedeemCode mutator.
 type RedeemCodeFunc func(context.Context, *ent.RedeemCodeMutation) (ent.Value, error)
 
@@ -201,7 +249,7 @@ func (f RedeemCodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RedeemCodeMutation", m)
 }
 
-// The SecuritySecretFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as SecuritySecret mutator.
 type SecuritySecretFunc func(context.Context, *ent.SecuritySecretMutation) (ent.Value, error)
 
@@ -213,7 +261,7 @@ func (f SecuritySecretFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SecuritySecretMutation", m)
 }
 
-// The SettingFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as Setting mutator.
 type SettingFunc func(context.Context, *ent.SettingMutation) (ent.Value, error)
 
@@ -225,7 +273,7 @@ func (f SettingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SettingMutation", m)
 }
 
-// The SubscriptionPlanFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as SubscriptionPlan mutator.
 type SubscriptionPlanFunc func(context.Context, *ent.SubscriptionPlanMutation) (ent.Value, error)
 
@@ -237,7 +285,7 @@ func (f SubscriptionPlanFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SubscriptionPlanMutation", m)
 }
 
-// The TLSFingerprintProfileFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as TLSFingerprintProfile mutator.
 type TLSFingerprintProfileFunc func(context.Context, *ent.TLSFingerprintProfileMutation) (ent.Value, error)
 
@@ -249,7 +297,7 @@ func (f TLSFingerprintProfileFunc) Mutate(ctx context.Context, m ent.Mutation) (
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TLSFingerprintProfileMutation", m)
 }
 
-// The UsageCleanupTaskFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as UsageCleanupTask mutator.
 type UsageCleanupTaskFunc func(context.Context, *ent.UsageCleanupTaskMutation) (ent.Value, error)
 
@@ -261,7 +309,7 @@ func (f UsageCleanupTaskFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UsageCleanupTaskMutation", m)
 }
 
-// The UsageLogFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as UsageLog mutator.
 type UsageLogFunc func(context.Context, *ent.UsageLogMutation) (ent.Value, error)
 
@@ -273,7 +321,7 @@ func (f UsageLogFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, er
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UsageLogMutation", m)
 }
 
-// The UserFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as User mutator.
 type UserFunc func(context.Context, *ent.UserMutation) (ent.Value, error)
 
@@ -285,7 +333,7 @@ func (f UserFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserMutation", m)
 }
 
-// The UserAllowedGroupFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as UserAllowedGroup mutator.
 type UserAllowedGroupFunc func(context.Context, *ent.UserAllowedGroupMutation) (ent.Value, error)
 
@@ -297,7 +345,7 @@ func (f UserAllowedGroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.V
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserAllowedGroupMutation", m)
 }
 
-// The UserAttributeDefinitionFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as UserAttributeDefinition mutator.
 type UserAttributeDefinitionFunc func(context.Context, *ent.UserAttributeDefinitionMutation) (ent.Value, error)
 
@@ -309,7 +357,7 @@ func (f UserAttributeDefinitionFunc) Mutate(ctx context.Context, m ent.Mutation)
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserAttributeDefinitionMutation", m)
 }
 
-// The UserAttributeValueFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as UserAttributeValue mutator.
 type UserAttributeValueFunc func(context.Context, *ent.UserAttributeValueMutation) (ent.Value, error)
 
@@ -321,7 +369,7 @@ func (f UserAttributeValueFunc) Mutate(ctx context.Context, m ent.Mutation) (ent
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.UserAttributeValueMutation", m)
 }
 
-// The UserSubscriptionFunc type is an adapter to allow the use of ordinary
+// type is an adapter to allow the use of ordinary
 // function as UserSubscription mutator.
 type UserSubscriptionFunc func(context.Context, *ent.UserSubscriptionMutation) (ent.Value, error)
 

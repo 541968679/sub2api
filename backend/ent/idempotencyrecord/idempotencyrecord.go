@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the idempotencyrecord type in the database.
+	// type in the database.
 	Label = "idempotency_record"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

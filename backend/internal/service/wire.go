@@ -495,7 +495,7 @@ var ProviderSet = wire.NewSet(
 )
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named
-// payment.EncryptionKey type instead of raw []byte, avoiding Wire ambiguity.
+// type instead of raw []byte, avoiding Wire ambiguity.
 func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey) *PaymentConfigService {
 	return NewPaymentConfigService(entClient, settingRepo, []byte(key))
 }

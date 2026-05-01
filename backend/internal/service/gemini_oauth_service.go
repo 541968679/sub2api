@@ -824,7 +824,7 @@ func (s *GeminiOAuthService) RefreshAccountToken(ctx context.Context, account *A
 		return nil, fmt.Errorf("no refresh token available")
 	}
 
-	// Preserve oauth_type from the account (defaults to code_assist for backward compatibility).
+	// type from the account (defaults to code_assist for backward compatibility).
 	oauthType := strings.TrimSpace(account.GetCredential("oauth_type"))
 	if oauthType == "" {
 		oauthType = "code_assist"

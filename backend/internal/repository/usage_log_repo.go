@@ -3500,7 +3500,7 @@ func (r *usageLogRepository) GetAllGroupUsageSummary(ctx context.Context, todayS
 	return results, nil
 }
 
-// resolveModelDimensionExpression maps model source type to a safe SQL expression.
+// type to a safe SQL expression.
 func resolveModelDimensionExpression(modelType string) string {
 	requestedExpr := "COALESCE(NULLIF(TRIM(requested_model), ''), model)"
 	switch usagestats.NormalizeModelSource(modelType) {
@@ -3513,7 +3513,7 @@ func resolveModelDimensionExpression(modelType string) string {
 	}
 }
 
-// resolveEndpointColumn maps endpoint type to the corresponding DB column name.
+// type to the corresponding DB column name.
 func resolveEndpointColumn(endpointType string) string {
 	switch endpointType {
 	case "upstream":

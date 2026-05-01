@@ -255,16 +255,16 @@ func TestNormalizeOpsErrorType(t *testing.T) {
 		{"null string", "null", "", "api_error"},
 		{"random string", "something_weird", "", "api_error"},
 
-		// Unknown type but known code still maps correctly.
+		// type but known code still maps correctly.
 		{"nil with INSUFFICIENT_BALANCE code", "<nil>", "INSUFFICIENT_BALANCE", "billing_error"},
 		{"nil with USAGE_LIMIT_EXCEEDED code", "<nil>", "USAGE_LIMIT_EXCEEDED", "subscription_error"},
 
-		// Empty type falls through to code-based mapping.
+		// type falls through to code-based mapping.
 		{"empty type with balance code", "", "INSUFFICIENT_BALANCE", "billing_error"},
 		{"empty type with subscription code", "", "SUBSCRIPTION_NOT_FOUND", "subscription_error"},
 		{"empty type no code", "", "", "api_error"},
 
-		// Known type overrides conflicting code-based mapping.
+		// type overrides conflicting code-based mapping.
 		{"known type overrides conflicting code", "rate_limit_error", "INSUFFICIENT_BALANCE", "rate_limit_error"},
 	}
 	for _, tt := range tests {

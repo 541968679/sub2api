@@ -1,4 +1,4 @@
-// Package apicompat provides type definitions and conversion utilities for
+// type definitions and conversion utilities for
 // translating between Anthropic Messages and OpenAI Responses API formats.
 // It enables multi-protocol support so that clients using different API
 // formats can be served through a unified gateway.

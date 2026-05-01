@@ -11,7 +11,7 @@ import (
 // ---------- resolveBalanceThreshold ----------
 
 func TestResolveBalanceThreshold_Fixed(t *testing.T) {
-	// Fixed type always returns the raw threshold regardless of totalRecharged.
+	// type always returns the raw threshold regardless of totalRecharged.
 	require.Equal(t, 10.0, resolveBalanceThreshold(10, thresholdTypeFixed, 1000))
 	require.Equal(t, 10.0, resolveBalanceThreshold(10, thresholdTypeFixed, 0))
 	require.Equal(t, 0.0, resolveBalanceThreshold(0, thresholdTypeFixed, 1000))
@@ -31,7 +31,7 @@ func TestResolveBalanceThreshold_PercentageZeroRecharged(t *testing.T) {
 }
 
 func TestResolveBalanceThreshold_EmptyType(t *testing.T) {
-	// Empty type is treated as fixed (not percentage).
+	// type is treated as fixed (not percentage).
 	require.Equal(t, 10.0, resolveBalanceThreshold(10, "", 1000))
 }
 

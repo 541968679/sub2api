@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the announcement type in the database.
+	// type in the database.
 	Label = "announcement"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the userattributedefinition type in the database.
+	// type in the database.
 	Label = "user_attribute_definition"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
@@ -27,7 +27,7 @@ const (
 	FieldName = "name"
 	// FieldDescription holds the string denoting the description field in the database.
 	FieldDescription = "description"
-	// FieldType holds the string denoting the type field in the database.
+	// type field in the database.
 	FieldType = "type"
 	// FieldOptions holds the string denoting the options field in the database.
 	FieldOptions = "options"

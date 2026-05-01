@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the securitysecret type in the database.
+	// type in the database.
 	Label = "security_secret"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"

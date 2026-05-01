@@ -46,7 +46,7 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 	}
 
 	// Determine reasoning effort: only output_config.effort controls the
-	// level; thinking.type is ignored. Default is high when unset (both
+	// type is ignored. Default is high when unset (both
 	// Anthropic and OpenAI default to high).
 	// Anthropic levels map 1:1 to OpenAI: low→low, medium→medium, high→high, max→xhigh.
 	effort := "high" // default → both sides' default

@@ -522,7 +522,7 @@ func FilterThinkingBlocksForRetry(body []byte) []byte {
 				continue
 			}
 
-			// Handle blocks without type discriminator but with a "thinking" field.
+			// type discriminator but with a "thinking" field.
 			if blockType == "" {
 				if rawThinking, hasThinking := blockMap["thinking"]; hasThinking {
 					modifiedThisMsg = true
@@ -926,7 +926,7 @@ func filterThinkingBlocksInternal(body []byte, _ bool) []byte {
 				continue
 			}
 
-			// Handle blocks without type discriminator but with "thinking" key
+			// type discriminator but with "thinking" key
 			if blockType == "" {
 				if _, hasThinking := blockMap["thinking"]; hasThinking {
 					filtered = true
@@ -962,7 +962,7 @@ func NormalizeClaudeOutputEffort(raw string) *string {
 		return nil
 	}
 	switch value {
-	case "low", "medium", "high", "max":
+	case "low", "medium", "high", "xhigh", "max":
 		return &value
 	default:
 		return nil

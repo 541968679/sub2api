@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	// Label holds the string label denoting the redeemcode type in the database.
+	// type in the database.
 	Label = "redeem_code"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
 	// FieldCode holds the string denoting the code field in the database.
 	FieldCode = "code"
-	// FieldType holds the string denoting the type field in the database.
+	// type field in the database.
 	FieldType = "type"
 	// FieldValue holds the string denoting the value field in the database.
 	FieldValue = "value"

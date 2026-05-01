@@ -45,7 +45,7 @@ type ResolvedPricing struct {
 type ModelPricingResolver struct {
 	channelService       *ChannelService
 	billingService       *BillingService
-	globalPricingCache   *GlobalPricingCache              // 可选，nil 时跳过全局覆盖
+	globalPricingCache   *GlobalPricingCache        // 可选，nil 时跳过全局覆盖
 	userModelPricingRepo UserModelPricingRepository // 可选，nil 时跳过用户级覆盖
 }
 
@@ -71,6 +71,25 @@ type PricingInput struct {
 // 2. 如果指定了 GroupID，查找渠道定价并再次叠加
 // 3. 如果指定了 UserID，查找用户级定价覆盖并最终叠加
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
+	var chPricing *ChannelModelPricing
+	if input.GroupID != nil && r.channelService != nil {
+		chPricing = r.channelService.GetChannelModelPricing(ctx, *input.GroupID, input.Model)
+		if chPricing != nil {
+			mode := chPricing.BillingMode
+			if mode == "" {
+				mode = BillingModeToken
+			}
+			if mode == BillingModePerRequest || mode == BillingModeImage {
+				resolved := &ResolvedPricing{
+					Mode:   mode,
+					Source: PricingSourceChannel,
+				}
+				r.applyRequestTierOverrides(chPricing, resolved)
+				return resolved
+			}
+		}
+	}
+
 	// 1. 获取基础定价（含全局覆盖）
 	basePricing, baseMode, defaultPerRequest, source := r.resolveBasePricing(input.Model)
 
@@ -83,7 +102,10 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	}
 
 	// 2. 如果有 GroupID，尝试渠道覆盖
-	if input.GroupID != nil {
+	if chPricing != nil {
+		resolved.Source = PricingSourceChannel
+		r.applyTokenOverrides(chPricing, resolved)
+	} else if input.GroupID != nil {
 		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
 	}
 

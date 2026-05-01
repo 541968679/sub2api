@@ -1309,7 +1309,7 @@ func (h *AccountHandler) BatchUpdateCredentials(c *gin.Context) {
 		return
 	}
 
-	// Validate value type based on field
+	// type based on field
 	if req.Field == "intercept_warmup_requests" {
 		// Must be boolean
 		if _, ok := req.Value.(bool); !ok {
