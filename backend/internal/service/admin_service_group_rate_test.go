@@ -5,8 +5,10 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,6 +23,10 @@ type userGroupRateRepoStubForGroupRate struct {
 	syncedGroupID int64
 	syncedEntries []GroupRateMultiplierInput
 	syncGroupErr  error
+
+	rpmSyncedGroupID int64
+	rpmSyncedEntries []GroupRPMOverrideInput
+	rpmSyncErr       error
 }
 
 func (s *userGroupRateRepoStubForGroupRate) GetByUserID(_ context.Context, _ int64) (map[int64]float64, error) {
@@ -37,6 +43,10 @@ func (s *userGroupRateRepoStubForGroupRate) GetByUserAndGroup(_ context.Context,
 
 func (s *userGroupRateRepoStubForGroupRate) GetDisplayRateByUserAndGroup(_ context.Context, _, _ int64) (*float64, error) {
 	panic("unexpected GetDisplayRateByUserAndGroup call")
+}
+
+func (s *userGroupRateRepoStubForGroupRate) GetRPMOverrideByUserAndGroup(_ context.Context, _, _ int64) (*int, error) {
+	panic("unexpected GetRPMOverrideByUserAndGroup call")
 }
 
 func (s *userGroupRateRepoStubForGroupRate) GetByGroupID(_ context.Context, groupID int64) ([]UserGroupRateEntry, error) {
@@ -58,6 +68,16 @@ func (s *userGroupRateRepoStubForGroupRate) SyncGroupRateMultipliers(_ context.C
 	s.syncedGroupID = groupID
 	s.syncedEntries = entries
 	return s.syncGroupErr
+}
+
+func (s *userGroupRateRepoStubForGroupRate) SyncGroupRPMOverrides(_ context.Context, groupID int64, entries []GroupRPMOverrideInput) error {
+	s.rpmSyncedGroupID = groupID
+	s.rpmSyncedEntries = entries
+	return s.rpmSyncErr
+}
+
+func (s *userGroupRateRepoStubForGroupRate) ClearGroupRPMOverrides(_ context.Context, _ int64) error {
+	panic("unexpected ClearGroupRPMOverrides call")
 }
 
 func (s *userGroupRateRepoStubForGroupRate) DeleteByGroupID(_ context.Context, groupID int64) error {
@@ -184,5 +204,32 @@ func TestAdminService_BatchSetGroupRateMultipliers(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "sync failed")
+	})
+}
+
+func TestAdminService_BatchSetGroupRPMOverrides(t *testing.T) {
+	t.Run("syncs entries to repo", func(t *testing.T) {
+		repo := &userGroupRateRepoStubForGroupRate{}
+		svc := &adminServiceImpl{userGroupRateRepo: repo}
+		override := 20
+		entries := []GroupRPMOverrideInput{{UserID: 2, RPMOverride: &override}}
+
+		err := svc.BatchSetGroupRPMOverrides(context.Background(), 10, entries)
+		require.NoError(t, err)
+		require.Equal(t, int64(10), repo.rpmSyncedGroupID)
+		require.Equal(t, entries, repo.rpmSyncedEntries)
+	})
+
+	t.Run("rejects negative override as bad request", func(t *testing.T) {
+		repo := &userGroupRateRepoStubForGroupRate{}
+		svc := &adminServiceImpl{userGroupRateRepo: repo}
+		negative := -1
+
+		err := svc.BatchSetGroupRPMOverrides(context.Background(), 10, []GroupRPMOverrideInput{
+			{UserID: 2, RPMOverride: &negative},
+		})
+		require.Error(t, err)
+		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Zero(t, repo.rpmSyncedGroupID)
 	})
 }

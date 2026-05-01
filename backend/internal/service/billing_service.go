@@ -255,6 +255,9 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextInputMultiplier:     openAIGPT54LongContextInputMultiplier,
 		LongContextOutputMultiplier:    openAIGPT54LongContextOutputMultiplier,
 	}
+	// GPT-5.5 暂无独立定价，回退到 GPT-5.4
+	s.fallbackPrices["gpt-5.5"] = s.fallbackPrices["gpt-5.4"]
+
 	s.fallbackPrices["gpt-5.4-mini"] = &ModelPricing{
 		InputPricePerToken:     7.5e-7,
 		OutputPricePerToken:    4.5e-6,
