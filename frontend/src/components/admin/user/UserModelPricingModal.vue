@@ -275,6 +275,12 @@ async function loadAvailableModels() {
   }
 }
 
+function toNullableNum(val: string | number | null | undefined): number | null {
+  if (val === '' || val === null || val === undefined) return null
+  const n = Number(val)
+  return isNaN(n) ? null : n
+}
+
 /**
  * 获取选中模型的 LiteLLM 标准价格，格式化为 $/MTok 用于表单填充。
  * 若该字段没有 LiteLLM 价格则返回 null。
@@ -383,8 +389,8 @@ async function save() {
         display_input_price: mTokToPerToken(o.display_input_price),
         display_output_price: mTokToPerToken(o.display_output_price),
         display_cache_read_price: mTokToPerToken(o.display_cache_read_price),
-        display_rate_multiplier: o.display_rate_multiplier || null,
-        cache_transfer_ratio: o.cache_transfer_ratio || null,
+        display_rate_multiplier: toNullableNum(o.display_rate_multiplier),
+        cache_transfer_ratio: toNullableNum(o.cache_transfer_ratio),
         enabled: o.enabled,
         notes: o.notes || '',
       }))

@@ -265,6 +265,12 @@ const litellmFields = computed(() => [
   { key: 'image_output_price', label: t('admin.modelPricing.imageOutputPrice') + ' ($/MTok)' },
 ])
 
+function toNullableNum(val: string | number): number | null {
+  if (val === '' || val === null || val === undefined) return null
+  const n = Number(val)
+  return isNaN(n) ? null : n
+}
+
 function toMTok(perToken: number | null | undefined): string {
   const v = perTokenToMTok(perToken)
   return v !== null ? `$${v}` : '-'
@@ -345,8 +351,8 @@ async function handleSave() {
       display_input_price: mTokToPerToken(form.display_input_price),
       display_output_price: mTokToPerToken(form.display_output_price),
       display_cache_read_price: mTokToPerToken(form.display_cache_read_price),
-      display_rate_multiplier: form.display_rate_multiplier !== '' ? Number(form.display_rate_multiplier) || null : null,
-      cache_transfer_ratio: form.cache_transfer_ratio !== '' ? Number(form.cache_transfer_ratio) || null : null,
+      display_rate_multiplier: toNullableNum(form.display_rate_multiplier),
+      cache_transfer_ratio: toNullableNum(form.cache_transfer_ratio),
       show_on_pricing_page: form.show_on_pricing_page,
     }
 
