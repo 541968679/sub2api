@@ -138,6 +138,12 @@ func ProvideAntigravityTokenProvider(
 	return p
 }
 
+// ProvideOAuthRefreshAPI avoids exposing the optional variadic lockTTL argument
+// to Wire as a required []time.Duration dependency.
+func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiTokenCache) *OAuthRefreshAPI {
+	return NewOAuthRefreshAPI(accountRepo, tokenCache)
+}
+
 // ProvideDashboardAggregationService 创建并启动仪表盘聚合服务
 func ProvideDashboardAggregationService(repo DashboardAggregationRepository, timingWheel *TimingWheelService, cfg *config.Config) *DashboardAggregationService {
 	svc := NewDashboardAggregationService(repo, timingWheel, cfg)
@@ -388,10 +394,11 @@ func ProvideBackupService(
 	return svc
 }
 
-// ProvideSettingService wires SettingService with group reader for default subscription validation.
-func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, cfg *config.Config) *SettingService {
+// ProvideSettingService wires SettingService with group reader and proxy repo.
+func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
+	svc.SetProxyRepository(proxyRepo)
 	return svc
 }
 
@@ -423,7 +430,7 @@ var ProviderSet = wire.NewSet(
 	NewCompositeTokenCacheInvalidator,
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
-	NewOAuthRefreshAPI,
+	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
@@ -484,12 +491,18 @@ var ProviderSet = wire.NewSet(
 	NewPaymentService,
 	ProvidePaymentOrderExpiryService,
 	ProvideCreditSnapshotService,
+	ProvideBalanceNotifyService,
 )
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named
 // payment.EncryptionKey type instead of raw []byte, avoiding Wire ambiguity.
 func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey) *PaymentConfigService {
 	return NewPaymentConfigService(entClient, settingRepo, []byte(key))
+}
+
+// ProvideBalanceNotifyService creates BalanceNotifyService
+func ProvideBalanceNotifyService(emailService *EmailService, settingRepo SettingRepository, accountRepo AccountRepository) *BalanceNotifyService {
+	return NewBalanceNotifyService(emailService, settingRepo, accountRepo)
 }
 
 // ProvidePaymentOrderExpiryService creates and starts PaymentOrderExpiryService.

@@ -221,7 +221,13 @@ func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrde
 	if err != nil {
 		return fmt.Errorf("mark completed: %w", err)
 	}
-	s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{"rechargeCode": o.RechargeCode, "cny_amount": o.Amount, "credit_amount": o.CreditAmount})
+	s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
+		"rechargeCode":   o.RechargeCode,
+		"creditedAmount": o.Amount,
+		"cny_amount":     o.Amount,
+		"credit_amount":  o.CreditAmount,
+		"payAmount":      o.PayAmount,
+	})
 	return nil
 }
 

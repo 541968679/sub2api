@@ -18,7 +18,7 @@ const (
 	BlockTypeFunction
 )
 
-// UsageMapHook can modify usage data before it is emitted in SSE events.
+// UsageMapHook is a callback that can modify usage data before it's emitted in SSE events.
 type UsageMapHook func(usageMap map[string]any)
 
 // StreamingProcessor 流式响应处理器
@@ -50,7 +50,7 @@ func NewStreamingProcessor(originalModel string) *StreamingProcessor {
 	}
 }
 
-// SetUsageMapHook sets an optional hook for usage maps emitted in streaming events.
+// SetUsageMapHook sets an optional hook that modifies usage maps before they are emitted.
 func (p *StreamingProcessor) SetUsageMapHook(fn UsageMapHook) {
 	p.usageMapHook = fn
 }

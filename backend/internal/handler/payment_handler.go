@@ -126,30 +126,34 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	}
 
 	response.Success(c, checkoutInfoResponse{
-		Methods:              limitsResp.Methods,
-		GlobalMin:            limitsResp.GlobalMin,
-		GlobalMax:            limitsResp.GlobalMax,
-		Plans:                planList,
-		BalanceDisabled:      cfg.BalanceDisabled,
-		HelpText:             cfg.HelpText,
-		HelpImageURL:         cfg.HelpImageURL,
-		StripePublishableKey: cfg.StripePublishableKey,
-		CNYPerUSD:            cfg.EffectiveCNYPerUSD(),
-		BonusTiers:           cfg.BonusTiers,
+		Methods:                   limitsResp.Methods,
+		GlobalMin:                 limitsResp.GlobalMin,
+		GlobalMax:                 limitsResp.GlobalMax,
+		Plans:                     planList,
+		BalanceDisabled:           cfg.BalanceDisabled,
+		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
+		RechargeFeeRate:           cfg.RechargeFeeRate,
+		HelpText:                  cfg.HelpText,
+		HelpImageURL:              cfg.HelpImageURL,
+		StripePublishableKey:      cfg.StripePublishableKey,
+		CNYPerUSD:                 cfg.EffectiveCNYPerUSD(),
+		BonusTiers:                cfg.BonusTiers,
 	})
 }
 
 type checkoutInfoResponse struct {
-	Methods              map[string]service.MethodLimits `json:"methods"`
-	GlobalMin            float64                         `json:"global_min"`
-	GlobalMax            float64                         `json:"global_max"`
-	Plans                []checkoutPlan                  `json:"plans"`
-	BalanceDisabled      bool                            `json:"balance_disabled"`
-	HelpText             string                          `json:"help_text"`
-	HelpImageURL         string                          `json:"help_image_url"`
-	StripePublishableKey string                          `json:"stripe_publishable_key"`
-	CNYPerUSD            float64                         `json:"cny_per_usd"`
-	BonusTiers           []service.BonusTier             `json:"bonus_tiers"`
+	Methods                   map[string]service.MethodLimits `json:"methods"`
+	GlobalMin                 float64                         `json:"global_min"`
+	GlobalMax                 float64                         `json:"global_max"`
+	Plans                     []checkoutPlan                  `json:"plans"`
+	BalanceDisabled           bool                            `json:"balance_disabled"`
+	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
+	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
+	HelpText                  string                          `json:"help_text"`
+	HelpImageURL              string                          `json:"help_image_url"`
+	StripePublishableKey      string                          `json:"stripe_publishable_key"`
+	CNYPerUSD                 float64                         `json:"cny_per_usd"`
+	BonusTiers                []service.BonusTier             `json:"bonus_tiers"`
 }
 
 type checkoutPlan struct {
@@ -339,6 +343,16 @@ func (h *PaymentHandler) RequestRefund(c *gin.Context) {
 	response.Success(c, gin.H{"message": "refund requested"})
 }
 
+// GetRefundEligibleProviders returns provider instance IDs that allow user refund.
+func (h *PaymentHandler) GetRefundEligibleProviders(c *gin.Context) {
+	ids, err := h.configService.GetUserRefundEligibleInstanceIDs(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"provider_instance_ids": ids})
+}
+
 // VerifyOrderRequest is the request body for verifying a payment order.
 type VerifyOrderRequest struct {
 	OutTradeNo string `json:"out_trade_no" binding:"required"`
@@ -375,6 +389,7 @@ type PublicOrderResult struct {
 	Amount      float64 `json:"amount"`
 	PayAmount   float64 `json:"pay_amount"`
 	PaymentType string  `json:"payment_type"`
+	OrderType   string  `json:"order_type"`
 	Status      string  `json:"status"`
 }
 
@@ -398,6 +413,7 @@ func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 		Amount:      order.Amount,
 		PayAmount:   order.PayAmount,
 		PaymentType: order.PaymentType,
+		OrderType:   order.OrderType,
 		Status:      order.Status,
 	})
 }

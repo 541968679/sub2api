@@ -63,6 +63,10 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		PaymentCNYPerUSD:                 settings.PaymentCNYPerUSD,
 		LoginPage:                        toDTOLoginPageContent(settings.LoginPage),
 		Version:                          h.version,
+		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
+		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
+		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
+		BalanceLowNotifyRechargeURL:      settings.BalanceLowNotifyRechargeURL,
 	})
 }
 

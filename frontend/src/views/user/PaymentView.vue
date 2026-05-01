@@ -425,6 +425,8 @@ function onStripeRedirect(orderId: number, payUrl: string) {
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
   plans: [], balance_disabled: false, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  balance_recharge_multiplier: 1,
+  recharge_fee_rate: 0,
   cny_per_usd: 1,
   bonus_tiers: [],
 })
@@ -467,7 +469,12 @@ const methodOptions = computed<PaymentMethodOption[]>(() =>
   })
 )
 
-const feeRate = computed(() => selectedLimit.value?.fee_rate ?? 0)
+const balanceRechargeMultiplier = computed(() => {
+  const multiplier = checkout.value.balance_recharge_multiplier
+  return multiplier > 0 ? multiplier : 1
+})
+
+const feeRate = computed(() => selectedLimit.value?.fee_rate ?? checkout.value.recharge_fee_rate ?? 0)
 const feeAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
     ? Math.ceil(((validAmount.value * feeRate.value) / 100) * 100) / 100
@@ -524,7 +531,7 @@ const bonusAmount = computed(() => {
   return best
 })
 const baseCredit = computed(() =>
-  hasConversion.value ? Math.floor(validAmount.value / cnyPerUsd.value * 100) / 100 : validAmount.value
+  hasConversion.value ? Math.floor((validAmount.value / cnyPerUsd.value) * balanceRechargeMultiplier.value * 100) / 100 : Math.round(validAmount.value * balanceRechargeMultiplier.value * 100) / 100
 )
 const creditAmount = computed(() =>
   Math.round((baseCredit.value + bonusAmount.value) * 100) / 100

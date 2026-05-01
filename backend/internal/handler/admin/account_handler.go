@@ -1438,6 +1438,12 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 			c.JSON(409, gin.H{
 				"error":   "mixed_channel_warning",
 				"message": mixedErr.Error(),
+				"details": gin.H{
+					"group_id":         mixedErr.GroupID,
+					"group_name":       mixedErr.GroupName,
+					"current_platform": mixedErr.CurrentPlatform,
+					"other_platform":   mixedErr.OtherPlatform,
+				},
 			})
 			return
 		}
@@ -1834,11 +1840,8 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			return
 		}
 
-		// Return mapped models + DefaultModels (ensure new default models are always visible)
-		seen := make(map[string]bool, len(mapping)+len(openai.DefaultModels))
 		var models []openai.Model
 		for requestedModel := range mapping {
-			seen[requestedModel] = true
 			var found bool
 			for _, dm := range openai.DefaultModels {
 				if dm.ID == requestedModel {
@@ -1854,11 +1857,6 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 					Type:        "model",
 					DisplayName: requestedModel,
 				})
-			}
-		}
-		for _, dm := range openai.DefaultModels {
-			if !seen[dm.ID] {
-				models = append(models, dm)
 			}
 		}
 		response.Success(c, models)

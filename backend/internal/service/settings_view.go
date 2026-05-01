@@ -106,6 +106,18 @@ type SystemSettings struct {
 	EnableFingerprintUnification bool // 是否统一 OAuth 账号的指纹头（默认 true）
 	EnableMetadataPassthrough    bool // 是否透传客户端原始 metadata（默认 false）
 	EnableCCHSigning             bool // 是否对 billing header cch 进行签名（默认 false）
+
+	// Web Search Emulation
+	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
+
+	// Balance low notification
+	BalanceLowNotifyEnabled     bool
+	BalanceLowNotifyThreshold   float64
+	BalanceLowNotifyRechargeURL string
+
+	// Account quota notification
+	AccountQuotaNotifyEnabled bool
+	AccountQuotaNotifyEmails  []NotifyEmailEntry
 }
 
 type DefaultSubscriptionSetting struct {
@@ -141,14 +153,19 @@ type PublicSettings struct {
 
 	LinuxDoOAuthEnabled   bool
 	BackendModeEnabled    bool
+	PaymentEnabled        bool
 	OIDCOAuthEnabled      bool
 	OIDCOAuthProviderName string
-	PaymentEnabled        bool
 	PaymentCNYPerUSD      float64
 	Version               string
 
 	// LoginPage 登录页文案覆盖。nil 或字段空串时前端回落到 i18n 默认值。
 	LoginPage *LoginPageContent
+
+	BalanceLowNotifyEnabled     bool
+	AccountQuotaNotifyEnabled   bool
+	BalanceLowNotifyThreshold   float64
+	BalanceLowNotifyRechargeURL string
 }
 
 // LoginPageContent 登录页管理员可编辑的文案。8 个字段一一对应 i18n auth.login.* 里
