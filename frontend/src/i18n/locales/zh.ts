@@ -663,7 +663,11 @@ export default {
     viewUsage: '查看使用记录',
     checkDetailedLogs: '查看详细的使用日志',
     redeemCode: '兑换码',
-    addBalanceWithCode: '使用兑换码充值'
+    addBalanceWithCode: '使用兑换码充值',
+    topUp: '充值/订阅',
+    topUpHint: '充值余额并获得赠送额度',
+    quickStart: '快速开始指南',
+    quickStartHint: '了解如何配置和使用 API 密钥'
   },
 
   // Groups (shared)
