@@ -505,6 +505,7 @@ var ProviderSet = wire.NewSet(
 	NewModelPricingResolver,
 	NewGlobalModelPricingService,
 	NewUserModelPricingService,
+	NewAffiliateService,
 	ProvidePaymentConfigService,
 	NewPaymentService,
 	ProvidePaymentOrderExpiryService,
