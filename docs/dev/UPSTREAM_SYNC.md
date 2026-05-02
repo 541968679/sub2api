@@ -8,9 +8,9 @@
 |------|-----|
 | 上游仓库 | https://github.com/Wei-Shaw/sub2api |
 | 上游 remote 名 | `upstream` |
-| 最后同步 commit | `e534e9ba` (chore: sync VERSION to 0.1.112) |
-| 最后同步日期 | 2026-04-14 |
-| 上游版本标签 | v0.1.112 |
+| 最后同步 commit | `v0.1.117` tag merge (`37519fcb`) |
+| 最后同步日期 | 2026-05-02 |
+| 上游版本标签 | v0.1.117 |
 
 ## 同步操作步骤
 
@@ -35,7 +35,40 @@ git push origin main
 
 ## 同步记录
 
-### 2026-04-14 — v0.1.112 同步（Cursor 兼容 + 支付/移动端修复）
+### 2026-05-02 - v0.1.117 同步（进行中：本地验证通过，等待后续合入主线）
+
+- **工作区/分支**: `E:\cursor project\api2sub-v117` / `sync/upstream-v0.1.117`
+- **上游版本**: `v0.1.117`
+- **合并提交**: `37519fcb` Merge tag `v0.1.117` into `sync/upstream-v0.1.117`
+- **后续本地修复提交**:
+  - `511e419b` fix(frontend): default locale and interpolation for v117
+  - `64b5dff2` fix(frontend): add zh login locale keys
+  - `243eae93` fix(frontend): add missing zh dashboard labels
+  - `9ca7e522` fix(frontend): complete v117 zh locale coverage
+
+- **关键处理**:
+  - 将前端默认语言调整为 `zh`，避免默认进入英文界面。
+  - 修复 vue-i18n 插值格式，避免充值/支付等金额变量显示异常。
+  - 补齐 v117 新增/二开页面中文 locale，覆盖页面内容、登录页配置、定价页配置、模型配置、模型定价、API Key 引导、账号/用户/代理/使用记录、支付/充值/定价页等区域。
+  - 补齐 `common.done` 到 en/zh，修复 API Key 引导中直接显示变量名的问题。
+
+- **本地服务状态**:
+  - 前端：`http://localhost:5180`
+  - 后端：`http://localhost:18082`
+  - 后端应以 `RUN_MODE=standard` 运行；`RUN_MODE=simple` 会导致管理员菜单被裁剪。
+
+- **验证结果**:
+  - `pnpm typecheck` 通过。
+  - i18n key 对比：`missing zh count 0`。
+  - 浏览器自动化抽查 `/pricing`、`/keys`、`/admin/model-config`、`/admin/page-content`、`/admin/users`、`/admin/accounts`、`/admin/proxies`、`/admin/usage`，未发现 raw i18n key 或 intlify missing-key 警告。
+  - 管理员侧栏在 standard mode 下完整显示渠道管理、账号管理、模型配置、页面内容、订单管理、充值配置等菜单。
+
+- **已知注意事项**:
+  - 上游 `v0.1.117` tag 内 `backend/cmd/server/VERSION` 仍为 `0.1.116`，所以页面左上角显示 `v0.1.116` 是上游版本文件滞后，不代表运行错分支。
+  - 如果浏览器仍显示少量菜单，优先退出重登或清理 localStorage，避免沿用 simple-mode 缓存用户态。
+  - 当前记录的是独立 worktree 的合并验证进度，尚未 push，也未部署。
+
+### 2026-04-14 - v0.1.112 同步（Cursor 兼容 + 支付/移动端修复）
 
 - **上游 commit 范围**: `97f14b7a..e534e9ba`（17 commits）
 - **合并策略**: `git merge upstream/main --no-ff`（保留 merge commit，便于回溯）
