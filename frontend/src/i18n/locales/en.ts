@@ -249,6 +249,7 @@ export default {
     justNow: 'just now',
     save: 'Save',
     saved: 'Saved successfully',
+    done: 'Done',
     deleted: 'Deleted successfully',
     cancel: 'Cancel',
     delete: 'Delete',

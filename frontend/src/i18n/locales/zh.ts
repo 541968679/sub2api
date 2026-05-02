@@ -1,4 +1,4 @@
-export default {
+const zhBase = {
   // Home Page
   home: {
     viewOnGithub: '在 GitHub 上查看',
@@ -6447,3 +6447,411 @@ export default {
   },
 
 }
+
+const v117ZhPatch = {
+  common: {
+    login: '登录',
+    done: '已完成'
+  },
+  pricing: {
+    title: '模型定价',
+    description: '查看可用模型、计费方式和展示倍率',
+    introTitle: '我们的计费方式',
+    educationTitle: '计费模式说明',
+    tableTitle: '模型价格',
+    modelsSuffix: '个模型',
+    emptyState: '暂无可展示的模型',
+    cnyBanner: '当前按人民币充值，余额以 USD 额度展示',
+    unitHint: 'Token 价格单位为美元 / 百万 Token',
+    perRequestUnit: '美元 / 次',
+    columns: {
+      model: '模型',
+      billingMode: '计费方式',
+      inputPrice: '输入价格',
+      outputPrice: '输出价格',
+      cacheReadPrice: '缓存读取',
+      multiplier: '倍率'
+    },
+    billingMode: {
+      perToken: '按 Token',
+      perRequest: '按请求',
+      image: '图片'
+    }
+  },
+  usage: {
+    antigravity: {
+      title: 'Antigravity 用量',
+      subtitle: '查看 Antigravity 账号的调用、额度和节流状态',
+      loading: '正在加载 Antigravity 用量...',
+      refreshNow: '立即刷新',
+      calls: '调用次数',
+      callsPerCredit: '每额度调用数',
+      creditsConsumed: '已消耗额度',
+      quotaUsed: '已用配额',
+      quotaPerCredit: '每额度配额',
+      perCredit: '每额度',
+      samplingMeta: '采样窗口：{window}，样本数：{samples}',
+      throttled: '已节流',
+      insufficientSnapshot: '快照数据不足'
+    }
+  },
+  keys: {
+    guide: {
+      title: '开始使用',
+      subtitle: '按以下步骤开始使用 AI 编程工具',
+      dismiss: '知道了，隐藏提示',
+      step1Title: '创建 API Key',
+      step1Desc: '点击下方按钮生成第一个 API Key，并选择名称和分组。',
+      step1Action: '创建 Key',
+      step2Title: '安装 CC Switch',
+      step2Desc: 'CC Switch 是桌面工具，可一键把 API Key 导入 Claude Code、Gemini CLI 等编程工具。',
+      step2Download: '从 GitHub 下载',
+      step3Title: '使用 Key',
+      step3Desc: '点击 Key 旁边的“导入到 CCS”自动配置，或点击“使用 Key”查看手动配置。',
+      step3DescNoCcs: '点击 Key 旁边的“使用 Key”查看编程工具配置说明。'
+    }
+  },
+  admin: {
+    recharge: {
+      title: '充值配置',
+      description: '管理充值单价和赠送档位',
+      priceTitle: '单价',
+      priceDescription: '设置人民币兑换 USD 额度的比例',
+      cnyPerUsd: '价格（CNY/USD）',
+      cnyPerUsdHint: '每 1 USD 额度对应的人民币金额。例如 0.5 表示 0.5 元 = $1；设为 0 表示 1:1。',
+      preview: '预览',
+      bonusTitle: '赠送档位',
+      bonusDescription: '充值金额达到门槛时额外赠送的 USD 额度',
+      noTiers: '还没有赠送档位，点击下方按钮添加。',
+      tierMinAmount: '门槛金额（CNY）',
+      tierMinPlaceholder: '例如 100',
+      tierBonusUsd: '赠送额度（USD）',
+      tierBonusPlaceholder: '例如 5',
+      addTier: '添加档位',
+      previewExample: '赠送预览（基础兑换 + 赠送）',
+      saved: '充值配置已保存'
+    },
+    dashboard: {
+      newUsersToday: '今日新用户',
+      active: '活跃',
+      ok: '正常',
+      err: '异常',
+      create: '创建',
+      userUsageTrend: '用户用量趋势（前 12）',
+      cacheStatus: {
+        title: '缓存状态',
+        subtitle: '查看 Prompt Cache 命中、创建和读取趋势',
+        window1h: '1 小时',
+        window6h: '6 小时',
+        window24h: '24 小时',
+        window7d: '7 天',
+        status: {
+          healthy: '健康',
+          watch: '观察',
+          insufficient: '数据不足',
+          unhealthy: '异常'
+        },
+        requests: '请求数',
+        input: '输入',
+        promptTokens: 'Prompt Token',
+        hitRequests: '命中请求',
+        creationRate: '创建率',
+        readRate: '读取率',
+        byModel: '按模型',
+        trend: '趋势'
+      }
+    },
+    pageContent: {
+      title: '页面内容',
+      description: '编辑模型定价页和登录页展示的营销文案，可通过下方标签切换页面。',
+      tabs: {
+        pricing: '模型定价页',
+        login: '登录页'
+      }
+    },
+    loginPage: {
+      title: '登录页内容',
+      description: '编辑登录页的营销标题、描述和登录表单文案。留空时会使用当前语言的内置默认翻译。',
+      preview: '预览登录页',
+      fallbackHint: '空字段会自动回退到当前语言的 i18n 默认值，因此中英文切换仍然可用。',
+      sections: {
+        marketing: '左侧：营销文案',
+        models: '支持模型区域',
+        form: '右侧：登录表单'
+      },
+      fields: {
+        badge: '顶部徽标',
+        headingLine1: '标题第一行',
+        headingLine2: '标题第二行（强调）',
+        description: '描述段落',
+        supportedModelsTitle: '模型区域标题',
+        modelsDesc: '模型区域说明',
+        formTitle: '登录表单标题',
+        formSubtitle: '登录表单副标题'
+      },
+      saveButton: '保存',
+      saveSuccess: '已保存',
+      resetButton: '清空全部（恢复默认）',
+      resetConfirm: '确定清空所有字段吗？界面将回退到内置翻译。',
+      resetSuccess: '已恢复默认'
+    },
+    pricingPage: {
+      title: '定价页内容',
+      description: '编辑用户侧模型定价页展示的两段 Markdown 内容。模型是否展示需在模型配置中逐个设置。',
+      introLabel: '我们的计费方式',
+      introHint: '第一段：说明本站如何计费（真实 Token 计费）。支持 Markdown。',
+      introPlaceholder: '例如：我们按 Anthropic / OpenAI / Google 的真实 Token 价格计费...',
+      educationLabel: '计费模式说明',
+      educationHint: '第二段：对比常见计费模式，并突出当前计费方式的公平性。支持 Markdown。',
+      educationPlaceholder: '例如：对比按请求、固定 Token、不限量套餐等计费方案...',
+      saveButton: '保存',
+      saveSuccess: '内容已保存',
+      previewButton: '预览用户页',
+      modelSelectHint: '如需控制定价页展示哪些模型，请在模型配置中打开对应模型并启用“在定价页展示”。',
+      modelConfigLink: '打开模型配置'
+    },
+    modelConfig: {
+      title: '模型配置',
+      description: '管理模型定价、模型映射和倍率',
+      tabs: {
+        pricing: '模型定价',
+        mapping: '模型映射',
+        rate: '倍率'
+      },
+      antigravityMapping: 'Antigravity 默认模型映射',
+      antigravityMappingHint: '适用于没有自定义映射的所有 Antigravity 账号。账号级自定义映射优先。',
+      addMapping: '添加映射',
+      mappingCount: '个映射',
+      requestedModel: '请求模型',
+      upstreamModel: '上游模型',
+      noMappings: '暂无映射配置',
+      resetToDefault: '重置为内置默认',
+      confirmReset: '确定重置为内置默认映射吗？自定义配置将被清空。',
+      resetSuccess: '已重置为内置默认映射',
+      saved: '模型映射已保存',
+      testTitle: '模型测试',
+      testHint: '选择模型和账号发送测试请求',
+      testAccount: '测试账号',
+      selectModel: '选择模型',
+      testPrompt: '提示词',
+      testPromptPlaceholder: '输入测试提示词...',
+      sendTest: '发送测试',
+      testing: '测试中...',
+      noAccounts: '没有可用的 Antigravity 账号'
+    },
+    modelPricing: {
+      totalModels: '模型总数',
+      globalOverrides: '全局覆盖',
+      channelOverrides: '渠道覆盖',
+      searchPlaceholder: '搜索模型名称...',
+      allProviders: '全部提供商',
+      allSources: '全部来源',
+      providerLabel: '提供商：',
+      sourceLabel: '来源：',
+      hasGlobalOverride: '有全局覆盖',
+      hasChannelOverride: '有渠道覆盖',
+      litellmOnly: '仅 LiteLLM',
+      model: '模型',
+      inputPrice: '输入价格',
+      outputPrice: '输出价格',
+      cacheWritePrice: '缓存写入',
+      cacheReadPrice: '缓存读取',
+      imageOutputPrice: '图片输出',
+      source: '来源',
+      channels: '渠道',
+      actions: '操作',
+      noModels: '未找到模型',
+      viewDetail: '查看详情 / 编辑覆盖',
+      createPricing: '创建定价',
+      showing: '显示 {from}-{to} / 共 {total}',
+      defaultPrices: '默认价格',
+      globalOverride: '全局覆盖',
+      enabled: '启用',
+      showOnPricingPage: '在定价页展示',
+      showOnPricingPageHint: '勾选后，该模型会出现在用户侧模型定价页。此开关独立于计费启用开关。',
+      notes: '备注',
+      displayPricingTitle: '用户展示覆盖',
+      displayPricingHint: '仅影响用户侧用量日志展示，不影响实际计费。留空表示展示真实值。',
+      displayInputPrice: '展示输入价（$/百万 Token）',
+      displayOutputPrice: '展示输出价（$/百万 Token）',
+      displayCacheReadPrice: '展示缓存读取价（$/百万 Token）',
+      displayRateMultiplier: '展示倍率',
+      cacheTransferRatio: '缓存转换比例（0~1）',
+      billingModeLabel: '计费方式',
+      billingModeToken: 'Token',
+      billingModePerRequest: '按请求',
+      billingModeImage: '图片',
+      perRequestPrice: '单次请求价格',
+      noLitellmData: '该模型暂无 LiteLLM 数据',
+      confirmDeleteOverride: '确定删除该全局定价覆盖吗？',
+      edit: '编辑',
+      rateMultipliers: '倍率总览',
+      rateMultipliersHint: '只读查看分组倍率。请在分组页面编辑。',
+      rateMultiplier: '倍率',
+      groupName: '分组名称',
+      noGroups: '没有找到启用中的分组',
+      sourceHierarchyTooltip: '优先级：渠道覆盖 > 全局覆盖 > LiteLLM 默认。当两者同时存在时，经该渠道路由的请求使用渠道覆盖，其他请求使用全局覆盖。',
+      priceDeltaTooltip: 'LiteLLM 基准 {baseline} / 差值 {delta}',
+      noBaseline: '该模型没有 LiteLLM 参考价格',
+      inlineEditHint: '提示：点击表格中的价格可快速编辑。',
+      inlineEditTitle: '快速编辑',
+      openFullDialog: '更多字段...',
+      baselinePrefix: '基准',
+      saveInline: '保存',
+      billingBasisTitle: '定价查找规则',
+      billingBasisIntro: '全局定价按“计费模型”查找，即根据渠道的 billing_model_source 选择的名称：',
+      billingBasisRequested: 'requested：使用客户端原始请求的模型名（无映射渠道或显式选择时使用）',
+      billingBasisUpstream: 'upstream：使用实际转发给上游提供商的模型名（用于真实成本核算）',
+      billingBasisChannelMapped: 'channel_mapped：使用渠道映射后的模型名（默认且推荐）',
+      billingBasisNoChannel: '没有渠道的请求（本系统多数请求）默认使用 requested 基准。',
+      billingBasisColumnNote: '“计费方式”列是由映射关系推导出的只读标签。实际计费基准由请求经过的渠道控制。',
+      requestedModelName: '请求模型',
+      upstreamModelName: '上游模型',
+      billingMode: '计费方式',
+      billingModeByRequested: '按请求模型',
+      billingModeByUpstream: '按上游模型',
+      billingModeRequestEqualsUpstream: '请求模型 = 上游模型',
+      mappedFromMultiple: '+{count}',
+      mappedFromMultipleTooltip: '还有 {count} 个请求名映射到该上游：{list}',
+      addMapping: '添加映射',
+      editMapping: '编辑映射',
+      deleteMapping: '删除映射',
+      confirmDeleteMapping: '确定删除映射“{from}”吗？这会从 Antigravity 默认映射表中移除该条目。',
+      mappingFromPlaceholder: '例如 claude-opus-4-6',
+      mappingToPlaceholder: '例如 claude-opus-4-6-thinking',
+      mappingToHint: '当客户端请求“请求模型”时，系统会转发到该上游模型。若请求名与上游名一致，直接填写相同值即可。',
+      testModel: '测试模型',
+      testModelTitle: '测试模型“{model}”',
+      testAccount: '测试账号',
+      testNoAccount: '没有可用的 Antigravity 账号',
+      testPrompt: '测试提示词',
+      testPromptPlaceholder: '输入测试提示词...',
+      sendTest: '发送测试',
+      testing: '测试中...',
+      testHint: '流式输出会显示在这里',
+      suggestedPricesHint: '建议价格（来自 {from}）',
+      applySuggested: '应用建议值'
+    },
+    accounts: {
+      useEmailAsName: '使用邮箱作为名称',
+      autoAssignProxy: '自动分配代理',
+      autoAssignProxyHint: '创建或导入账号时，从可用代理池中自动分配代理。',
+      bulkActions: {
+        autoAssignProxy: '自动分配代理',
+        autoAssignProxyConfirm: '确定为选中的账号自动分配代理吗？已有代理的账号将保持不变。',
+        autoAssignProxyResult: '自动分配完成：成功 {success}，跳过 {skipped}，失败 {failed}'
+      },
+      oauth: {
+        gemini: {
+          refreshTokenAuth: 'Refresh Token 认证',
+          refreshTokenDesc: '使用 Gemini Refresh Token 创建 OAuth 账号。',
+          refreshTokenPlaceholder: '粘贴 Gemini Refresh Token',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          validateAndCreate: '验证并创建',
+          validating: '验证中...',
+          failedToValidateRT: '验证 Refresh Token 失败'
+        }
+      }
+    },
+    groups: {
+      claudeMaxSimulation: {
+        title: 'Claude Max 模拟',
+        hint: '为该分组启用 Claude Max 风格的额度与限制模拟。',
+        tooltip: '启用后会按 Claude Max 规则展示和约束相关用量。',
+        enabled: '已启用',
+        disabled: '已禁用'
+      }
+    },
+    proxies: {
+      poolColumn: '代理池',
+      poolEnabled: '启用代理池',
+      poolEnabledTooltip: '启用后，该代理可参与自动分配。',
+      batchDefaultProtocol: '默认协议',
+      batchDefaultProtocolHint: '批量导入时未填写协议的代理将使用此协议。',
+      forceDeleteConfirm: '该代理仍有关联账号，确定强制删除吗？'
+    },
+    usage: {
+      actions: '操作',
+      viewUserPerspective: '查看用户视角',
+      userViewCompareTitle: '用户视角费用对比',
+      userViewConfigHint: '以下展示值可能包含用户侧展示覆盖和分组倍率。',
+      userViewConfigUsed: '已使用配置',
+      userViewSectionCosts: '费用',
+      userViewSectionTokens: 'Token',
+      userViewSectionInvariants: '不变量',
+      userViewField: '字段',
+      userViewColReal: '真实值',
+      userViewColUser: '用户显示值',
+      userViewDiff: '差异',
+      userViewTotal: '合计',
+      userViewGroupRate: '分组倍率',
+      userViewRateMultiplier: '倍率',
+      userViewSourceGlobal: '全局覆盖',
+      userViewSourceOverride: '模型覆盖',
+      userViewActualCost: '实际成本',
+      userViewActualCostMismatch: '用户显示费用与实际成本不一致',
+      userViewEmptySection: '暂无可对比数据'
+    },
+    users: {
+      modelPricing: '模型定价',
+      modelPricingConfig: '模型定价配置',
+      modelPricingHint: '为该用户配置单独的模型展示价或计费价覆盖。',
+      addModelOverride: '添加模型覆盖',
+      noModelOverrides: '暂无模型覆盖',
+      duplicateModelError: '模型名称不能重复',
+      modelNamePlaceholder: '输入模型名称',
+      billingPriceOverride: '计费价格覆盖',
+      displayPriceOverride: '展示价格覆盖',
+      displayRate: '展示倍率',
+      displayRatePlaceholder: '例如 1.0',
+      applySuggested: '应用建议值',
+      litellmReference: 'LiteLLM 参考',
+      noOverride: '不覆盖',
+      notesPlaceholder: '备注（可选）'
+    },
+    settings: {
+      payment: {
+        cnyPerUsd: '价格（CNY/USD）',
+        cnyPerUsdHint: '每 1 USD 额度对应的人民币金额。'
+      }
+    }
+  },
+  payment: {
+    yuanUnit: '元',
+    usdUnit: 'USD',
+    perUsd: '每 USD',
+    currentRate: '当前汇率',
+    baseCredit: '基础额度',
+    bonus: '赠送',
+    bonusLabel: '赠送额度',
+    bestValue: '最划算',
+    zhe: '折',
+    creditAmount: '到账额度',
+    tierTotal: '合计到账',
+    bonusTiersTitle: '充值赠送',
+    invoiceSupport: '支持开票',
+    admin: {
+      allowUserRefund: '允许用户退款'
+    }
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeLocale<T extends Record<string, unknown>>(base: T, patch: Record<string, unknown>): T {
+  const merged: Record<string, unknown> = { ...base }
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (isPlainObject(value) && isPlainObject(merged[key])) {
+      merged[key] = mergeLocale(merged[key] as Record<string, unknown>, value)
+    } else {
+      merged[key] = value
+    }
+  }
+
+  return merged as T
+}
+
+export default mergeLocale(zhBase, v117ZhPatch)
