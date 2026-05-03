@@ -8,9 +8,9 @@
 |------|-----|
 | 上游仓库 | https://github.com/Wei-Shaw/sub2api |
 | 上游 remote 名 | `upstream` |
-| 最后同步 commit | `v0.1.117` tag merge (`37519fcb`) |
-| 最后同步日期 | 2026-05-02 |
-| 上游版本标签 | v0.1.117 |
+| 最后同步 commit | `48912014` (chore: sync VERSION to 0.1.121) |
+| 最后同步日期 | 2026-05-03 |
+| 上游版本标签 | v0.1.121 |
 
 ## 同步操作步骤
 
@@ -35,7 +35,41 @@ git push origin main
 
 ## 同步记录
 
-### 2026-05-02 - v0.1.117 同步（进行中：本地验证通过，等待后续合入主线）
+### 2026-05-03 — v0.1.121 同步（v0.1.113 ~ v0.1.121，9 个版本）
+
+- **上游版本范围**: `v0.1.113` ~ `v0.1.121`（`e534e9ba..48912014`）
+- **合并策略**: 在 worktree `sync/upstream-v0.1.117` 上逐 tag merge，最后合入 main
+- **合并顺序**: v0.1.113 → v0.1.114 → v0.1.115 → v0.1.116 → v0.1.117 → v0.1.118 → v0.1.119 → v0.1.120 → v0.1.121 → upstream/main
+
+- **冲突处理**:
+  - `wire_gen.go` / `wire.go`（v0.1.118/v0.1.119）: 二开的 ModelPricingHandler/PricingPageHandler/LoginPageHandler 与上游 AffiliateService/AffiliateHandler 合并
+  - `AccountBulkActionsBar.vue` / `AccountsView.vue`（v0.1.120）: 上游 edit→edit-selected/edit-filtered 拆分 + 保留二开 auto-assign-proxy 按钮
+  - v0.1.113 ~ v0.1.117 / v0.1.121: 零冲突或自动合并
+
+- **合并后修复**:
+  - **DefaultModels auto-include 恢复**: v0.1.120 merge 时上游重写了 `account.go:IsModelSupported()` 和 `account_handler.go:GetAvailableModels()`，丢失了二开的 `openai.IsDefaultModel()` fallback 和 `seen+merge` 逻辑，已手动恢复
+  - **OpenAI 用户级模型定价修复**: 发现 OpenAI 计费路径 `calculateOpenAIRecordUsageCost` 未传 UserID 到 `CostInput`，导致用户级定价覆盖对 OpenAI 模型不生效（Anthropic/Antigravity 路径无此问题）。新增 `CostInput.UserID` 字段并在 `CalculateCostUnified` 内部 Resolve 时传递
+
+- **重要上游变更摘要**:
+  - **v0.1.113**: 支付系统 v2（手续费/移动端/退款）、Auth 身份体系（OAuth 绑定解绑）、余额/配额通知、WebSearch 仿真、License MIT→LGPL
+  - **v0.1.114**: Opus 4.7 支持、prompt_cache_key 注入（OpenAI→Anthropic 路径）、KYC 阻断
+  - **v0.1.115**: GPT 生图支持、Auth/支付加固、Profile 重设计、403 临时冷却逻辑、RPM 优化
+  - **v0.1.116**: Channel Monitor MVP、Available Channels 聚合视图
+  - **v0.1.117**: GPT-5.5 模型、Monitor 清理
+  - **v0.1.118**: Claude Code 完整 mimicry、cache_control TTL 5m、Codex compact、affiliate 返利
+  - **v0.1.119**: 真实 CC 客户端跳过 body mimicry（恢复 prompt caching）、affiliate 完善
+  - **v0.1.120**: SetSnapshot race fix、Vertex SA、zstd 解压、account bulk edit、Fast/Flex Policy、Anthropic stream EOF failover
+  - **v0.1.121**: Anthropic 缓存 TTL 注入开关、sticky session 改进、分页 localStorage
+
+- **二开功能保留验证**:
+  - 全局模型计费（GlobalModelPricingService / display_rate_multiplier / cache_transfer_ratio）✅
+  - 用户级模型定价覆盖（UserModelPricingService）✅（+ OpenAI 路径 bug 修复）
+  - GPT-5.5 DefaultModels auto-include ✅（恢复）
+  - Antigravity 缓存修复（filterAnthropicBillingHeader / sessionIDFromMetadataUserID）✅
+  - 页面内容编辑器（PricingPageHandler / LoginPageHandler）✅
+  - Cache diagnostics 日志 ✅
+
+### 2026-05-02 - v0.1.117 同步（已合入 main，见上方 v0.1.121 记录）
 
 - **工作区/分支**: `E:\cursor project\api2sub-v117` / `sync/upstream-v0.1.117`
 - **上游版本**: `v0.1.117`
