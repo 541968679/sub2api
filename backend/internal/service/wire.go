@@ -406,7 +406,18 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
 	domain.GetAntigravityDefaultMappingOverride = func() map[string]string {
-		return svc.GetAntigravityDefaultModelMapping(context.Background())
+		dbMapping := svc.GetAntigravityDefaultModelMapping(context.Background())
+		if dbMapping == nil {
+			return nil
+		}
+		merged := make(map[string]string, len(domain.DefaultAntigravityModelMapping)+len(dbMapping))
+		for k, v := range domain.DefaultAntigravityModelMapping {
+			merged[k] = v
+		}
+		for k, v := range dbMapping {
+			merged[k] = v
+		}
+		return merged
 	}
 	return svc
 }
