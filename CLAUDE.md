@@ -100,7 +100,7 @@ CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/server ./cmd/server
 ```bash
 cd frontend
 pnpm install --frozen-lockfile          # Install deps (NEVER use npm)
-pnpm dev                                # Dev server on :3000
+pnpm dev                                # Dev server on :15173
 pnpm build                              # Production build → backend/internal/web/dist
 pnpm run lint:check                     # ESLint check
 pnpm run typecheck                      # TypeScript check
@@ -169,12 +169,13 @@ SERVER_PORT=8081 SERVER_MODE=debug \
   DATABASE_USER=sub2api DATABASE_PASSWORD=sub2api \
   DATABASE_DBNAME=sub2api DATABASE_SSLMODE=disable \
   REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
+  ADMIN_PASSWORD=admin123456 \
   go run ./cmd/server/
 
 # Start frontend (another terminal, proxies to backend:8081)
 cd frontend
 pnpm dev
-# → http://localhost:3000  (admin: admin@sub2api.local / admin123456)
+# → http://localhost:15173  (admin: admin@sub2api.local / admin123456)
 ```
 
 ### 2. Develop & Test Locally
