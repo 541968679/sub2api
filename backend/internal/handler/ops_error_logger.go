@@ -348,7 +348,7 @@ func setOpsRequestContext(c *gin.Context, model string, stream bool, requestBody
 	}
 }
 
-// setOpsEndpointContext stores upstream model and request type for ops error logging.
+// type for ops error logging.
 // Called by handlers after model mapping and request type determination.
 func setOpsEndpointContext(c *gin.Context, upstreamModel string, requestType int16) {
 	if c == nil {
@@ -1068,14 +1068,14 @@ func guessPlatformFromPath(path string) string {
 		return service.PlatformAntigravity
 	case strings.HasPrefix(p, "/v1beta/"):
 		return service.PlatformGemini
-	case strings.Contains(p, "/responses"):
+	case strings.Contains(p, "/responses"), strings.Contains(p, "/images/"):
 		return service.PlatformOpenAI
 	default:
 		return ""
 	}
 }
 
-// isKnownOpsErrorType returns true if t is a recognized error type used by the
+// type used by the
 // ops classification pipeline.  Upstream proxies sometimes return garbage values
 // (e.g. the Go-serialized literal "<nil>") which would pollute phase/severity
 // classification if accepted blindly.

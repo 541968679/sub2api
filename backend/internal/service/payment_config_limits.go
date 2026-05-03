@@ -20,6 +20,7 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		return nil, fmt.Errorf("query provider instances: %w", err)
 	}
 	typeInstances := pcGroupByPaymentType(instances)
+	typeInstances = s.pcApplyEnabledVisibleMethodInstances(ctx, typeInstances, instances)
 	resp := &MethodLimitsResponse{
 		Methods: make(map[string]MethodLimits, len(typeInstances)),
 	}
@@ -31,7 +32,42 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 	return resp, nil
 }
 
-// GetMethodLimits returns per-payment-type limits from enabled provider instances.
+func (s *PaymentConfigService) pcApplyEnabledVisibleMethodInstances(ctx context.Context, typeInstances map[string][]*dbent.PaymentProviderInstance, instances []*dbent.PaymentProviderInstance) map[string][]*dbent.PaymentProviderInstance {
+	if len(typeInstances) == 0 {
+		return typeInstances
+	}
+
+	filtered := make(map[string][]*dbent.PaymentProviderInstance, len(typeInstances))
+	for paymentType, groupedInstances := range typeInstances {
+		filtered[paymentType] = groupedInstances
+	}
+
+	for _, method := range []string{payment.TypeAlipay, payment.TypeWxpay} {
+		matching := filterEnabledVisibleMethodInstances(instances, method)
+		providerKey, err := s.resolveVisibleMethodProviderKey(ctx, method, matching)
+		if err != nil {
+			delete(filtered, method)
+			continue
+		}
+		if providerKey == "" {
+			if len(matching) == 0 {
+				delete(filtered, method)
+				continue
+			}
+			filtered[method] = matching
+			continue
+		}
+		selectedInstances := filterVisibleMethodInstancesByProviderKey(instances, method, providerKey)
+		if len(selectedInstances) == 0 {
+			delete(filtered, method)
+			continue
+		}
+		filtered[method] = selectedInstances
+	}
+	return filtered
+}
+
+// type limits from enabled provider instances.
 func (s *PaymentConfigService) GetMethodLimits(ctx context.Context, types []string) ([]MethodLimits, error) {
 	instances, err := s.entClient.PaymentProviderInstance.Query().
 		Where(paymentproviderinstance.EnabledEQ(true)).All(ctx)
@@ -80,7 +116,7 @@ func pcGroupByPaymentType(instances []*dbent.PaymentProviderInstance) map[string
 	return typeInstances
 }
 
-// pcInstanceTypeLimits extracts per-type limits from a provider instance.
+// type limits from a provider instance.
 // Returns (limits, true) if configured; (zero, false) if unlimited.
 // For Stripe instances, limits are stored under "stripe" key regardless of sub-types.
 func pcInstanceTypeLimits(inst *dbent.PaymentProviderInstance, pt string) (payment.ChannelLimits, bool) {

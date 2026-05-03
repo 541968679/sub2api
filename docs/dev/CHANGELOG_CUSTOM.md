@@ -19,6 +19,50 @@
 
 ## 变更记录
 
+## [2026-05-02] progress: v0.1.117 合并验证与中文 i18n 补齐
+
+**影响范围**:
+- `frontend/src/i18n/index.ts`
+- `frontend/src/i18n/locales/en.ts`
+- `frontend/src/i18n/locales/zh.ts`
+- `docs/dev/CHANGELOG_CUSTOM.md`
+- `docs/dev/UPSTREAM_SYNC.md`
+
+**上游兼容性**:
+- Low. 当前改动集中在前端 i18n 默认语言、插值格式和中文文案补齐，不改变后端业务逻辑。
+- 后续如果上游继续新增 i18n key，需要继续保持 `en.ts` / `zh.ts` key 覆盖一致。
+
+**当前进度**:
+- 已在独立 worktree `E:\cursor project\api2sub-v117`、分支 `sync/upstream-v0.1.117` 合并上游 `v0.1.117`。
+- 已完成本地提交：
+  - `37519fcb` merge v0.1.117
+  - `511e419b` fix(frontend): default locale and interpolation for v117
+  - `64b5dff2` fix(frontend): add zh login locale keys
+  - `243eae93` fix(frontend): add missing zh dashboard labels
+  - `9ca7e522` fix(frontend): complete v117 zh locale coverage
+- 已确认上游 tag `v0.1.117` 内 `backend/cmd/server/VERSION` 仍为 `0.1.116`，因此页面左上角显示 `v0.1.116` 是上游版本文件滞后，不代表运行错分支。
+- 本地验证服务：
+  - 前端：`http://localhost:5180`
+  - 后端：`http://localhost:18082`
+  - 后端需要以 `RUN_MODE=standard` 运行，否则管理员侧栏会隐藏渠道管理等菜单。
+
+**变更详情**:
+- 默认语言改为中文，并修复 vue-i18n 插值格式，将 `${amount}` 这类写法改为 `{amount}`。
+- 补齐登录页中文 key，避免首次打开登录页显示 `auth.login.*`。
+- 补齐仪表盘快捷入口中文 key。
+- 补齐 v117 新增/二开页面中文 key，覆盖页面内容、登录页配置、定价页配置、模型配置、模型定价、API Key 使用引导、账号/用户/代理/使用记录、充值/支付/定价页等区域。
+- 为代码中直接引用但英文包也缺失的 `common.done` 同步补充 en/zh 文案。
+
+**验证结果**:
+- `pnpm typecheck` 通过。
+- i18n key 对比结果：`missing zh count 0`。
+- 浏览器自动化抽查通过：`/pricing`、`/keys`、`/admin/model-config`、`/admin/page-content`、`/admin/users`、`/admin/accounts`、`/admin/proxies`、`/admin/usage` 均未发现 raw i18n key，也无 intlify missing-key 警告。
+- 抽查管理员登录态侧栏完整显示：仪表盘、运维监控、用户管理、分组管理、渠道管理、订阅管理、账号管理、模型配置、页面内容、订单管理、充值配置等。
+
+**剩余注意事项**:
+- 如果浏览器仍显示少量菜单或变量名，优先清理旧 localStorage / 退出重登；之前 simple-mode 登录态可能缓存了 `run_mode='simple'`。
+- 临时 Playwright 只用于本地抽查，已从依赖中移除，未保留在 `package.json`。
+
 ## [2026-05-01] docs: 新增 Codex 初始化说明
 
 **影响范围**:

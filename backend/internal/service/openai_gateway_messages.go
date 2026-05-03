@@ -121,6 +121,41 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		}
 	}
 
+	// For API key accounts (including OpenAI-compatible upstream gateways),
+	// ensure promptCacheKey is also propagated via the request body so that
+	// upstreams using the Responses API can derive a stable session identifier
+	// from prompt_cache_key. This makes our Anthropic /v1/messages compatibility
+	// path behave more like a native Responses client.
+	if account.Type == AccountTypeAPIKey {
+		if trimmedKey := strings.TrimSpace(promptCacheKey); trimmedKey != "" {
+			var reqBody map[string]any
+			if err := json.Unmarshal(responsesBody, &reqBody); err != nil {
+				return nil, fmt.Errorf("unmarshal for prompt cache key injection: %w", err)
+			}
+			if existing, ok := reqBody["prompt_cache_key"].(string); !ok || strings.TrimSpace(existing) == "" {
+				reqBody["prompt_cache_key"] = trimmedKey
+				updated, err := json.Marshal(reqBody)
+				if err != nil {
+					return nil, fmt.Errorf("remarshal after prompt cache key injection: %w", err)
+				}
+				responsesBody = updated
+			}
+		}
+	}
+
+	// 4c. Apply OpenAI fast policy (may filter service_tier or block the request).
+	// Mirrors the Claude anthropic-beta "fast-mode-2026-02-01" filter, but keyed
+	// on the body-level service_tier field (priority/flex).
+	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, responsesBody)
+	if policyErr != nil {
+		var blocked *OpenAIFastBlockedError
+		if errors.As(policyErr, &blocked) {
+			writeAnthropicError(c, http.StatusForbidden, "forbidden_error", blocked.Message)
+		}
+		return nil, policyErr
+	}
+	responsesBody = updatedBody
+
 	// 5. Get access token
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {

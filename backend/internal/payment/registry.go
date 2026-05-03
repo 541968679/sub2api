@@ -23,7 +23,7 @@ func NewRegistry() *Registry {
 }
 
 // Register adds a provider for each of its supported payment types.
-// If a type was previously registered, it is overwritten.
+// type was previously registered, it is overwritten.
 func (r *Registry) Register(p Provider) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

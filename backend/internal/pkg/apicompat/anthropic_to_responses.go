@@ -46,7 +46,7 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 	}
 
 	// Determine reasoning effort: only output_config.effort controls the
-	// level; thinking.type is ignored. Default is high when unset (both
+	// type is ignored. Default is high when unset (both
 	// Anthropic and OpenAI default to high).
 	// Anthropic levels map 1:1 to OpenAI: low→low, medium→medium, high→high, max→xhigh.
 	effort := "high" // default → both sides' default
@@ -75,7 +75,7 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 //	{"type":"auto"}            → "auto"
 //	{"type":"any"}             → "required"
 //	{"type":"none"}            → "none"
-//	{"type":"tool","name":"X"} → {"type":"function","function":{"name":"X"}}
+//	{"type":"tool","name":"X"} → {"type":"function","name":"X"}
 func convertAnthropicToolChoiceToResponses(raw json.RawMessage) (json.RawMessage, error) {
 	var tc struct {
 		Type string `json:"type"`
@@ -94,8 +94,8 @@ func convertAnthropicToolChoiceToResponses(raw json.RawMessage) (json.RawMessage
 		return json.Marshal("none")
 	case "tool":
 		return json.Marshal(map[string]any{
-			"type":     "function",
-			"function": map[string]string{"name": tc.Name},
+			"type": "function",
+			"name": tc.Name,
 		})
 	default:
 		// Pass through unknown types as-is

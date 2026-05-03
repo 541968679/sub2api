@@ -620,6 +620,8 @@ func maxOutputTokensLimit(model string) int {
 	return maxOutputTokensUpperBound
 }
 
+// isAntigravityOpusHighTierModel 判断是否为高阶 Opus 模型（4.6+），
+// 用于 adaptive thinking 时覆写为高预算。
 func isAntigravityOpusHighTierModel(model string) bool {
 	lower := strings.ToLower(model)
 	return strings.HasPrefix(lower, "claude-opus-4-6") ||
@@ -645,7 +647,7 @@ func buildGenerationConfig(req *ClaudeRequest) *GeminiGenerationConfig {
 		}
 
 		// - thinking.type=enabled：budget_tokens>0 用显式预算
-		// - thinking.type=adaptive：仅在 Antigravity 的 Opus 4.6 上覆写为 （24576）
+		// - thinking.type=adaptive：在 Antigravity 的高阶 Opus（4.6+）上覆写为 （24576）
 		budget := -1
 		if req.Thinking.BudgetTokens > 0 {
 			budget = req.Thinking.BudgetTokens

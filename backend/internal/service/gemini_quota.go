@@ -392,7 +392,7 @@ func geminiQuotaTierKeyForAccount(account *Account) string {
 	case "ai_studio":
 		return GeminiTierAIStudioFree
 	default:
-		// API Key accounts (type=apikey) have empty oauth_type and are treated as AI Studio.
+		// type and are treated as AI Studio.
 		return GeminiTierAIStudioFree
 	}
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 const (
@@ -22,6 +24,8 @@ const (
 	SettingEnabledPaymentTypes = "ENABLED_PAYMENT_TYPES"
 	SettingLoadBalanceStrategy = "LOAD_BALANCE_STRATEGY"
 	SettingBalancePayDisabled  = "BALANCE_PAYMENT_DISABLED"
+	SettingBalanceRechargeMult = "BALANCE_RECHARGE_MULTIPLIER"
+	SettingRechargeFeeRate     = "RECHARGE_FEE_RATE"
 	SettingProductNamePrefix   = "PRODUCT_NAME_PREFIX"
 	SettingProductNameSuffix   = "PRODUCT_NAME_SUFFIX"
 	SettingHelpImageURL        = "PAYMENT_HELP_IMAGE_URL"
@@ -31,8 +35,8 @@ const (
 	SettingCancelWindowSize    = "CANCEL_RATE_LIMIT_WINDOW"
 	SettingCancelWindowUnit    = "CANCEL_RATE_LIMIT_UNIT"
 	SettingCancelWindowMode    = "CANCEL_RATE_LIMIT_WINDOW_MODE"
-	SettingCNYPerUSD          = "CNY_PER_USD"
-	SettingBonusTiers         = "RECHARGE_BONUS_TIERS"
+	SettingCNYPerUSD           = "CNY_PER_USD"
+	SettingBonusTiers          = "RECHARGE_BONUS_TIERS"
 )
 
 // Default values for payment configuration settings.
@@ -50,20 +54,22 @@ type BonusTier struct {
 
 // PaymentConfig holds the payment system configuration.
 type PaymentConfig struct {
-	Enabled              bool     `json:"enabled"`
-	MinAmount            float64  `json:"min_amount"`
-	MaxAmount            float64  `json:"max_amount"`
-	DailyLimit           float64  `json:"daily_limit"`
-	OrderTimeoutMin      int      `json:"order_timeout_minutes"`
-	MaxPendingOrders     int      `json:"max_pending_orders"`
-	EnabledTypes         []string `json:"enabled_payment_types"`
-	BalanceDisabled      bool     `json:"balance_disabled"`
-	LoadBalanceStrategy  string   `json:"load_balance_strategy"`
-	ProductNamePrefix    string   `json:"product_name_prefix"`
-	ProductNameSuffix    string   `json:"product_name_suffix"`
-	HelpImageURL         string   `json:"help_image_url"`
-	HelpText             string   `json:"help_text"`
-	StripePublishableKey string   `json:"stripe_publishable_key,omitempty"`
+	Enabled                   bool     `json:"enabled"`
+	MinAmount                 float64  `json:"min_amount"`
+	MaxAmount                 float64  `json:"max_amount"`
+	DailyLimit                float64  `json:"daily_limit"`
+	OrderTimeoutMin           int      `json:"order_timeout_minutes"`
+	MaxPendingOrders          int      `json:"max_pending_orders"`
+	EnabledTypes              []string `json:"enabled_payment_types"`
+	BalanceDisabled           bool     `json:"balance_disabled"`
+	BalanceRechargeMultiplier float64  `json:"balance_recharge_multiplier"`
+	RechargeFeeRate           float64  `json:"recharge_fee_rate"`
+	LoadBalanceStrategy       string   `json:"load_balance_strategy"`
+	ProductNamePrefix         string   `json:"product_name_prefix"`
+	ProductNameSuffix         string   `json:"product_name_suffix"`
+	HelpImageURL              string   `json:"help_image_url"`
+	HelpText                  string   `json:"help_text"`
+	StripePublishableKey      string   `json:"stripe_publishable_key,omitempty"`
 
 	// Exchange rate: CNY per 1 USD (e.g. 0.5 means ¥0.5 = $1)
 	CNYPerUSD  float64     `json:"cny_per_usd"`
@@ -79,21 +85,23 @@ type PaymentConfig struct {
 
 // UpdatePaymentConfigRequest contains fields to update payment configuration.
 type UpdatePaymentConfigRequest struct {
-	Enabled             *bool    `json:"enabled"`
-	MinAmount           *float64 `json:"min_amount"`
-	MaxAmount           *float64 `json:"max_amount"`
-	DailyLimit          *float64 `json:"daily_limit"`
-	OrderTimeoutMin     *int     `json:"order_timeout_minutes"`
-	MaxPendingOrders    *int     `json:"max_pending_orders"`
-	EnabledTypes        []string `json:"enabled_payment_types"`
-	BalanceDisabled     *bool    `json:"balance_disabled"`
-	LoadBalanceStrategy *string  `json:"load_balance_strategy"`
-	ProductNamePrefix   *string  `json:"product_name_prefix"`
-	ProductNameSuffix   *string  `json:"product_name_suffix"`
-	HelpImageURL        *string  `json:"help_image_url"`
-	HelpText            *string  `json:"help_text"`
-	CNYPerUSD           *float64     `json:"cny_per_usd"`
-	BonusTiers          *[]BonusTier `json:"bonus_tiers"`
+	Enabled                   *bool        `json:"enabled"`
+	MinAmount                 *float64     `json:"min_amount"`
+	MaxAmount                 *float64     `json:"max_amount"`
+	DailyLimit                *float64     `json:"daily_limit"`
+	OrderTimeoutMin           *int         `json:"order_timeout_minutes"`
+	MaxPendingOrders          *int         `json:"max_pending_orders"`
+	EnabledTypes              []string     `json:"enabled_payment_types"`
+	BalanceDisabled           *bool        `json:"balance_disabled"`
+	BalanceRechargeMultiplier *float64     `json:"balance_recharge_multiplier"`
+	RechargeFeeRate           *float64     `json:"recharge_fee_rate"`
+	LoadBalanceStrategy       *string      `json:"load_balance_strategy"`
+	ProductNamePrefix         *string      `json:"product_name_prefix"`
+	ProductNameSuffix         *string      `json:"product_name_suffix"`
+	HelpImageURL              *string      `json:"help_image_url"`
+	HelpText                  *string      `json:"help_text"`
+	CNYPerUSD                 *float64     `json:"cny_per_usd"`
+	BonusTiers                *[]BonusTier `json:"bonus_tiers"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled *bool   `json:"cancel_rate_limit_enabled"`
@@ -101,6 +109,11 @@ type UpdatePaymentConfigRequest struct {
 	CancelRateLimitWindow  *int    `json:"cancel_rate_limit_window"`
 	CancelRateLimitUnit    *string `json:"cancel_rate_limit_unit"`
 	CancelRateLimitMode    *string `json:"cancel_rate_limit_window_mode"`
+
+	VisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
+	VisibleMethodWxpaySource   *string `json:"payment_visible_method_wxpay_source"`
+	VisibleMethodAlipayEnabled *bool   `json:"payment_visible_method_alipay_enabled"`
+	VisibleMethodWxpayEnabled  *bool   `json:"payment_visible_method_wxpay_enabled"`
 }
 
 // MethodLimits holds per-payment-type limits.
@@ -121,26 +134,28 @@ type MethodLimitsResponse struct {
 }
 
 type CreateProviderInstanceRequest struct {
-	ProviderKey    string            `json:"provider_key"`
-	Name           string            `json:"name"`
-	Config         map[string]string `json:"config"`
-	SupportedTypes []string          `json:"supported_types"`
-	Enabled        bool              `json:"enabled"`
-	PaymentMode    string            `json:"payment_mode"`
-	SortOrder      int               `json:"sort_order"`
-	Limits         string            `json:"limits"`
-	RefundEnabled  bool              `json:"refund_enabled"`
+	ProviderKey     string            `json:"provider_key"`
+	Name            string            `json:"name"`
+	Config          map[string]string `json:"config"`
+	SupportedTypes  []string          `json:"supported_types"`
+	Enabled         bool              `json:"enabled"`
+	PaymentMode     string            `json:"payment_mode"`
+	SortOrder       int               `json:"sort_order"`
+	Limits          string            `json:"limits"`
+	RefundEnabled   bool              `json:"refund_enabled"`
+	AllowUserRefund bool              `json:"allow_user_refund"`
 }
 
 type UpdateProviderInstanceRequest struct {
-	Name           *string           `json:"name"`
-	Config         map[string]string `json:"config"`
-	SupportedTypes []string          `json:"supported_types"`
-	Enabled        *bool             `json:"enabled"`
-	PaymentMode    *string           `json:"payment_mode"`
-	SortOrder      *int              `json:"sort_order"`
-	Limits         *string           `json:"limits"`
-	RefundEnabled  *bool             `json:"refund_enabled"`
+	Name            *string           `json:"name"`
+	Config          map[string]string `json:"config"`
+	SupportedTypes  []string          `json:"supported_types"`
+	Enabled         *bool             `json:"enabled"`
+	PaymentMode     *string           `json:"payment_mode"`
+	SortOrder       *int              `json:"sort_order"`
+	Limits          *string           `json:"limits"`
+	RefundEnabled   *bool             `json:"refund_enabled"`
+	AllowUserRefund *bool             `json:"allow_user_refund"`
 }
 type CreatePlanRequest struct {
 	GroupID       int64    `json:"group_id"`
@@ -219,12 +234,14 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 	keys := []string{
 		SettingPaymentEnabled, SettingMinRechargeAmount, SettingMaxRechargeAmount,
 		SettingDailyRechargeLimit, SettingOrderTimeoutMinutes, SettingMaxPendingOrders,
-		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingLoadBalanceStrategy,
+		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
 		SettingProductNamePrefix, SettingProductNameSuffix,
 		SettingHelpImageURL, SettingHelpText,
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
 		SettingCancelWindowSize, SettingCancelWindowUnit, SettingCancelWindowMode,
 		SettingCNYPerUSD, SettingBonusTiers,
+		SettingPaymentVisibleMethodAlipayEnabled, SettingPaymentVisibleMethodAlipaySource,
+		SettingPaymentVisibleMethodWxpayEnabled, SettingPaymentVisibleMethodWxpaySource,
 	}
 	vals, err := s.settingRepo.GetMultiple(ctx, keys)
 	if err != nil {
@@ -238,18 +255,20 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 
 func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *PaymentConfig {
 	cfg := &PaymentConfig{
-		Enabled:             vals[SettingPaymentEnabled] == "true",
-		MinAmount:           pcParseFloat(vals[SettingMinRechargeAmount], 1),
-		MaxAmount:           pcParseFloat(vals[SettingMaxRechargeAmount], 0),
-		DailyLimit:          pcParseFloat(vals[SettingDailyRechargeLimit], 0),
-		OrderTimeoutMin:     pcParseInt(vals[SettingOrderTimeoutMinutes], defaultOrderTimeoutMin),
-		MaxPendingOrders:    pcParseInt(vals[SettingMaxPendingOrders], defaultMaxPendingOrders),
-		BalanceDisabled:     vals[SettingBalancePayDisabled] == "true",
-		LoadBalanceStrategy: vals[SettingLoadBalanceStrategy],
-		ProductNamePrefix:   vals[SettingProductNamePrefix],
-		ProductNameSuffix:   vals[SettingProductNameSuffix],
-		HelpImageURL:        vals[SettingHelpImageURL],
-		HelpText:            vals[SettingHelpText],
+		Enabled:                   vals[SettingPaymentEnabled] == "true",
+		MinAmount:                 pcParseFloat(vals[SettingMinRechargeAmount], 1),
+		MaxAmount:                 pcParseFloat(vals[SettingMaxRechargeAmount], 0),
+		DailyLimit:                pcParseFloat(vals[SettingDailyRechargeLimit], 0),
+		OrderTimeoutMin:           pcParseInt(vals[SettingOrderTimeoutMinutes], defaultOrderTimeoutMin),
+		MaxPendingOrders:          pcParseInt(vals[SettingMaxPendingOrders], defaultMaxPendingOrders),
+		BalanceDisabled:           vals[SettingBalancePayDisabled] == "true",
+		BalanceRechargeMultiplier: normalizeBalanceRechargeMultiplier(pcParseFloat(vals[SettingBalanceRechargeMult], defaultBalanceRechargeMultiplier)),
+		RechargeFeeRate:           pcParseFloat(vals[SettingRechargeFeeRate], 0),
+		LoadBalanceStrategy:       vals[SettingLoadBalanceStrategy],
+		ProductNamePrefix:         vals[SettingProductNamePrefix],
+		ProductNameSuffix:         vals[SettingProductNameSuffix],
+		HelpImageURL:              vals[SettingHelpImageURL],
+		HelpText:                  vals[SettingHelpText],
 
 		CNYPerUSD: pcParseFloat(vals[SettingCNYPerUSD], 0),
 
@@ -263,12 +282,14 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		cfg.LoadBalanceStrategy = payment.DefaultLoadBalanceStrategy
 	}
 	if raw := vals[SettingEnabledPaymentTypes]; raw != "" {
+		types := make([]string, 0, len(strings.Split(raw, ",")))
 		for _, t := range strings.Split(raw, ",") {
 			t = strings.TrimSpace(t)
 			if t != "" {
-				cfg.EnabledTypes = append(cfg.EnabledTypes, t)
+				types = append(types, t)
 			}
 		}
+		cfg.EnabledTypes = NormalizeVisibleMethods(types)
 	}
 	if raw := vals[SettingBonusTiers]; raw != "" {
 		_ = json.Unmarshal([]byte(raw), &cfg.BonusTiers)
@@ -278,6 +299,9 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 
 // getStripePublishableKey finds the publishable key from the first enabled Stripe provider instance.
 func (s *PaymentConfigService) getStripePublishableKey(ctx context.Context) string {
+	if s.entClient == nil {
+		return ""
+	}
 	instances, err := s.entClient.PaymentProviderInstance.Query().
 		Where(
 			paymentproviderinstance.EnabledEQ(true),
@@ -302,6 +326,20 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 	// Only include fields that were explicitly provided (non-nil).
 	// This prevents partial updates (e.g. from RechargeConfigView) from
 	// wiping out fields they didn't send.
+	if req.BalanceRechargeMultiplier != nil {
+		if math.IsNaN(*req.BalanceRechargeMultiplier) || math.IsInf(*req.BalanceRechargeMultiplier, 0) || *req.BalanceRechargeMultiplier <= 0 {
+			return infraerrors.BadRequest("INVALID_BALANCE_RECHARGE_MULTIPLIER", "balance recharge multiplier must be greater than 0")
+		}
+	}
+	if req.RechargeFeeRate != nil {
+		v := *req.RechargeFeeRate
+		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 100 {
+			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate must be between 0 and 100")
+		}
+		if math.Round(v*100) != v*100 {
+			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate allows at most 2 decimal places")
+		}
+	}
 	if req.Enabled != nil {
 		m[SettingPaymentEnabled] = strconv.FormatBool(*req.Enabled)
 	}
@@ -322,6 +360,12 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 	}
 	if req.BalanceDisabled != nil {
 		m[SettingBalancePayDisabled] = strconv.FormatBool(*req.BalanceDisabled)
+	}
+	if req.BalanceRechargeMultiplier != nil {
+		m[SettingBalanceRechargeMult] = formatPositiveFloat(req.BalanceRechargeMultiplier)
+	}
+	if req.RechargeFeeRate != nil {
+		m[SettingRechargeFeeRate] = formatNonNegativeFloat(req.RechargeFeeRate)
 	}
 	if req.LoadBalanceStrategy != nil {
 		m[SettingLoadBalanceStrategy] = *req.LoadBalanceStrategy
@@ -356,6 +400,18 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 	if req.CNYPerUSD != nil {
 		m[SettingCNYPerUSD] = formatPositiveFloat(req.CNYPerUSD)
 	}
+	if req.VisibleMethodAlipaySource != nil {
+		m[SettingPaymentVisibleMethodAlipaySource] = *req.VisibleMethodAlipaySource
+	}
+	if req.VisibleMethodWxpaySource != nil {
+		m[SettingPaymentVisibleMethodWxpaySource] = *req.VisibleMethodWxpaySource
+	}
+	if req.VisibleMethodAlipayEnabled != nil {
+		m[SettingPaymentVisibleMethodAlipayEnabled] = strconv.FormatBool(*req.VisibleMethodAlipayEnabled)
+	}
+	if req.VisibleMethodWxpayEnabled != nil {
+		m[SettingPaymentVisibleMethodWxpayEnabled] = strconv.FormatBool(*req.VisibleMethodWxpayEnabled)
+	}
 	if req.EnabledTypes != nil {
 		m[SettingEnabledPaymentTypes] = strings.Join(req.EnabledTypes, ",")
 	}
@@ -380,6 +436,13 @@ func formatBoolOrEmpty(v *bool) string {
 func formatPositiveFloat(v *float64) string {
 	if v == nil || *v <= 0 {
 		return "" // empty → parsePaymentConfig uses default
+	}
+	return strconv.FormatFloat(*v, 'f', 2, 64)
+}
+
+func formatNonNegativeFloat(v *float64) string {
+	if v == nil || *v < 0 {
+		return ""
 	}
 	return strconv.FormatFloat(*v, 'f', 2, 64)
 }
@@ -437,4 +500,80 @@ func pcParseInt(s string, defaultVal int) int {
 		return defaultVal
 	}
 	return v
+}
+
+func buildVisibleMethodSourceAvailability(instances []*dbent.PaymentProviderInstance) map[string]bool {
+	available := make(map[string]bool, 4)
+	for _, inst := range instances {
+		switch inst.ProviderKey {
+		case payment.TypeAlipay:
+			if inst.SupportedTypes == "" || payment.InstanceSupportsType(inst.SupportedTypes, payment.TypeAlipay) || payment.InstanceSupportsType(inst.SupportedTypes, payment.TypeAlipayDirect) {
+				available[VisibleMethodSourceOfficialAlipay] = true
+			}
+		case payment.TypeWxpay:
+			if inst.SupportedTypes == "" || payment.InstanceSupportsType(inst.SupportedTypes, payment.TypeWxpay) || payment.InstanceSupportsType(inst.SupportedTypes, payment.TypeWxpayDirect) {
+				available[VisibleMethodSourceOfficialWechat] = true
+			}
+		case payment.TypeEasyPay:
+			for _, supportedType := range splitTypes(inst.SupportedTypes) {
+				switch NormalizeVisibleMethod(supportedType) {
+				case payment.TypeAlipay:
+					available[VisibleMethodSourceEasyPayAlipay] = true
+				case payment.TypeWxpay:
+					available[VisibleMethodSourceEasyPayWechat] = true
+				}
+			}
+		}
+	}
+	return available
+}
+
+func applyVisibleMethodRoutingToEnabledTypes(base []string, vals map[string]string, available map[string]bool) []string {
+	shouldExpose := map[string]bool{
+		payment.TypeAlipay: visibleMethodShouldBeExposed(payment.TypeAlipay, vals, available),
+		payment.TypeWxpay:  visibleMethodShouldBeExposed(payment.TypeWxpay, vals, available),
+	}
+
+	seen := make(map[string]struct{}, len(base)+2)
+	out := make([]string, 0, len(base)+2)
+	appendType := func(paymentType string) {
+		paymentType = NormalizeVisibleMethod(paymentType)
+		if paymentType == "" {
+			return
+		}
+		if _, ok := seen[paymentType]; ok {
+			return
+		}
+		seen[paymentType] = struct{}{}
+		out = append(out, paymentType)
+	}
+
+	for _, paymentType := range base {
+		visibleMethod := NormalizeVisibleMethod(paymentType)
+		switch visibleMethod {
+		case payment.TypeAlipay, payment.TypeWxpay:
+			if shouldExpose[visibleMethod] {
+				appendType(visibleMethod)
+			}
+		default:
+			appendType(visibleMethod)
+		}
+	}
+
+	for _, visibleMethod := range []string{payment.TypeAlipay, payment.TypeWxpay} {
+		if shouldExpose[visibleMethod] {
+			appendType(visibleMethod)
+		}
+	}
+	return out
+}
+
+func visibleMethodShouldBeExposed(method string, vals map[string]string, available map[string]bool) bool {
+	enabledKey := visibleMethodEnabledSettingKey(method)
+	sourceKey := visibleMethodSourceSettingKey(method)
+	if enabledKey == "" || sourceKey == "" || vals[enabledKey] != "true" {
+		return false
+	}
+	source := NormalizeVisibleMethodSource(method, vals[sourceKey])
+	return source != "" && available[source]
 }

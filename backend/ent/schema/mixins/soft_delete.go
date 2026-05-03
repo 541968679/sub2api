@@ -13,7 +13,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/mixin"
-	"github.com/Wei-Shaw/sub2api/ent/intercept"
 )
 
 // SoftDeleteMixin 实现基于 deleted_at 时间戳的软删除功能。
@@ -81,14 +80,12 @@ func SkipSoftDelete(parent context.Context) context.Context {
 // 确保软删除的记录不会出现在普通查询结果中。
 func (d SoftDeleteMixin) Interceptors() []ent.Interceptor {
 	return []ent.Interceptor{
-		intercept.TraverseFunc(func(ctx context.Context, q intercept.Query) error {
+		ent.TraverseFunc(func(ctx context.Context, q ent.Query) error {
 			// 检查是否需要跳过软删除过滤
 			if skip, _ := ctx.Value(softDeleteKey{}).(bool); skip {
 				return nil
 			}
-			// 为查询添加 deleted_at IS NULL 条件
-			d.applyPredicate(q)
-			return nil
+			return d.applyQueryPredicate(q)
 		}),
 	}
 }
@@ -135,6 +132,33 @@ func (d SoftDeleteMixin) applyPredicate(w interface{ WhereP(...func(*sql.Selecto
 	w.WhereP(
 		sql.FieldIsNull(d.Fields()[0].Descriptor().Name),
 	)
+}
+
+func (d SoftDeleteMixin) applyQueryPredicate(q ent.Query) error {
+	if w, ok := q.(interface{ WhereP(...func(*sql.Selector)) }); ok {
+		d.applyPredicate(w)
+		return nil
+	}
+	where := reflect.ValueOf(q).MethodByName("Where")
+	if !where.IsValid() || where.Type().NumIn() != 1 || !where.Type().IsVariadic() {
+		return fmt.Errorf("soft delete: query missing Where/WhereP for %T", q)
+	}
+	predicateType := where.Type().In(0).Elem()
+	if predicateType.Kind() != reflect.Func ||
+		predicateType.NumIn() != 1 ||
+		predicateType.In(0) != reflect.TypeOf((*sql.Selector)(nil)) ||
+		predicateType.NumOut() != 0 {
+		return fmt.Errorf("soft delete: unsupported predicate type %s for %T", predicateType, q)
+	}
+	predicate := sql.FieldIsNull(d.Fields()[0].Descriptor().Name)
+	fn := reflect.MakeFunc(predicateType, func(args []reflect.Value) []reflect.Value {
+		predicate(args[0].Interface().(*sql.Selector))
+		return nil
+	})
+	predicates := reflect.MakeSlice(reflect.SliceOf(predicateType), 1, 1)
+	predicates.Index(0).Set(fn)
+	where.CallSlice([]reflect.Value{predicates})
+	return nil
 }
 
 func mutateWithClient(ctx context.Context, m ent.Mutation, fallback ent.Mutator) (ent.Value, error) {

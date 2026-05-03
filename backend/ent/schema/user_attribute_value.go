@@ -14,7 +14,7 @@ import (
 // UserAttributeValue holds a user's value for a specific attribute.
 //
 // This entity stores the actual values that users have for each attribute definition.
-// Values are stored as strings and converted to the appropriate type by the application.
+// type by the application.
 type UserAttributeValue struct {
 	ent.Schema
 }

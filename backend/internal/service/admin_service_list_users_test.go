@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,8 @@ type userRepoStubForListUsers struct {
 	users                 []User
 	err                   error
 	listWithFiltersParams pagination.PaginationParams
+	lastUsedByUserID      map[int64]*time.Time
+	lastUsedErr           error
 }
 
 func (s *userRepoStubForListUsers) ListWithFilters(_ context.Context, params pagination.PaginationParams, _ UserListFilters) ([]User, *pagination.PaginationResult, error) {
@@ -30,6 +33,26 @@ func (s *userRepoStubForListUsers) ListWithFilters(_ context.Context, params pag
 		Page:     params.Page,
 		PageSize: params.PageSize,
 	}, nil
+}
+
+func (s *userRepoStubForListUsers) GetLatestUsedAtByUserIDs(_ context.Context, userIDs []int64) (map[int64]*time.Time, error) {
+	if s.lastUsedErr != nil {
+		return nil, s.lastUsedErr
+	}
+	result := make(map[int64]*time.Time, len(userIDs))
+	for _, userID := range userIDs {
+		if ts, ok := s.lastUsedByUserID[userID]; ok {
+			result[userID] = ts
+		}
+	}
+	return result, nil
+}
+
+func (s *userRepoStubForListUsers) GetLatestUsedAtByUserID(_ context.Context, userID int64) (*time.Time, error) {
+	if s.lastUsedErr != nil {
+		return nil, s.lastUsedErr
+	}
+	return s.lastUsedByUserID[userID], nil
 }
 
 type userGroupRateRepoStubForListUsers struct {
@@ -62,6 +85,37 @@ func (s *userGroupRateRepoStubForListUsers) GetByUserID(_ context.Context, userI
 	return map[int64]float64{}, nil
 }
 
+func (s *userGroupRateRepoStubForListUsers) GetFullByUserIDs(_ context.Context, _ []int64) (map[int64]map[int64]UserGroupRateData, error) {
+	s.batchCalls++
+	if s.batchErr != nil {
+		return nil, s.batchErr
+	}
+	result := make(map[int64]map[int64]UserGroupRateData, len(s.batchData))
+	for userID, rates := range s.batchData {
+		result[userID] = make(map[int64]UserGroupRateData, len(rates))
+		for groupID, rate := range rates {
+			v := rate
+			result[userID][groupID] = UserGroupRateData{RateMultiplier: &v}
+		}
+	}
+	return result, nil
+}
+
+func (s *userGroupRateRepoStubForListUsers) GetFullByUserID(_ context.Context, userID int64) (map[int64]UserGroupRateData, error) {
+	s.singleCall = append(s.singleCall, userID)
+	if err, ok := s.singleErr[userID]; ok {
+		return nil, err
+	}
+	result := make(map[int64]UserGroupRateData)
+	if rates, ok := s.singleData[userID]; ok {
+		for groupID, rate := range rates {
+			v := rate
+			result[groupID] = UserGroupRateData{RateMultiplier: &v}
+		}
+	}
+	return result, nil
+}
+
 func (s *userGroupRateRepoStubForListUsers) GetByUserAndGroup(_ context.Context, userID, groupID int64) (*float64, error) {
 	panic("unexpected GetByUserAndGroup call")
 }
@@ -70,8 +124,8 @@ func (s *userGroupRateRepoStubForListUsers) GetDisplayRateByUserAndGroup(_ conte
 	panic("unexpected GetDisplayRateByUserAndGroup call")
 }
 
-func (s *userGroupRateRepoStubForListUsers) GetFullByUserID(_ context.Context, _ int64) (map[int64]UserGroupRateData, error) {
-	panic("unexpected GetFullByUserID call")
+func (s *userGroupRateRepoStubForListUsers) GetRPMOverrideByUserAndGroup(_ context.Context, _, _ int64) (*int, error) {
+	panic("unexpected GetRPMOverrideByUserAndGroup call")
 }
 
 func (s *userGroupRateRepoStubForListUsers) SyncUserGroupRates(_ context.Context, userID int64, rates map[int64]*float64) error {
@@ -88,6 +142,14 @@ func (s *userGroupRateRepoStubForListUsers) GetByGroupID(_ context.Context, _ in
 
 func (s *userGroupRateRepoStubForListUsers) SyncGroupRateMultipliers(_ context.Context, _ int64, _ []GroupRateMultiplierInput) error {
 	panic("unexpected SyncGroupRateMultipliers call")
+}
+
+func (s *userGroupRateRepoStubForListUsers) SyncGroupRPMOverrides(_ context.Context, _ int64, _ []GroupRPMOverrideInput) error {
+	panic("unexpected SyncGroupRPMOverrides call")
+}
+
+func (s *userGroupRateRepoStubForListUsers) ClearGroupRPMOverrides(_ context.Context, _ int64) error {
+	panic("unexpected ClearGroupRPMOverrides call")
 }
 
 func (s *userGroupRateRepoStubForListUsers) DeleteByGroupID(_ context.Context, _ int64) error {
@@ -141,4 +203,22 @@ func TestAdminService_ListUsers_PassesSortParams(t *testing.T) {
 		SortBy:    "email",
 		SortOrder: "ASC",
 	}, userRepo.listWithFiltersParams)
+}
+
+func TestAdminService_ListUsers_PopulatesLastUsedAt(t *testing.T) {
+	lastUsed := time.Now().UTC().Add(-30 * time.Minute).Truncate(time.Second)
+	userRepo := &userRepoStubForListUsers{
+		users: []User{{ID: 101, Email: "u@example.com"}},
+		lastUsedByUserID: map[int64]*time.Time{
+			101: &lastUsed,
+		},
+	}
+	svc := &adminServiceImpl{userRepo: userRepo}
+
+	users, total, err := svc.ListUsers(context.Background(), 1, 20, UserListFilters{}, "", "")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	require.Len(t, users, 1)
+	require.NotNil(t, users[0].LastUsedAt)
+	require.WithinDuration(t, lastUsed, *users[0].LastUsedAt, time.Second)
 }

@@ -16,7 +16,7 @@ const (
 	// AIStudioOAuthRedirectURI is the default redirect URI used for AI Studio OAuth.
 	// This matches the "copy/paste callback URL" flow used by OpenAI OAuth in this project.
 	// Note: You still need to register this redirect URI in your Google OAuth client
-	// unless you use an OAuth client type that permits localhost redirect URIs.
+	// type that permits localhost redirect URIs.
 	AIStudioOAuthRedirectURI = "http://localhost:1455/auth/callback"
 
 	// DefaultScopes for Code Assist (includes cloud-platform for API access plus userinfo scopes)
