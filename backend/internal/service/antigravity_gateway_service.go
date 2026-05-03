@@ -957,8 +957,7 @@ func (s *AntigravityGatewayService) applyErrorPolicy(p antigravityRetryLoopParam
 }
 
 // mapAntigravityModel 获取映射后的模型名
-// 完全依赖映射配置：账户映射（通配符）→ 默认映射兜底（DefaultAntigravityModelMapping）
-// 注意：返回空字符串表示模型不被支持，调度时会过滤掉该账号
+// 优先级：账户映射（通配符）→ 默认映射兜底 → claude-/gemini- 前缀透传
 func mapAntigravityModel(account *Account, requestedModel string) string {
 	if account == nil {
 		return ""
@@ -979,15 +978,18 @@ func mapAntigravityModel(account *Account, requestedModel string) string {
 	}
 
 	// 如果 mapped == requestedModel，检查是否在映射表中配置（精确或通配符）
-	// 这区分两种情况：
-	// 1. 映射表中有 "model-a": "model-a"（显式透传）→ 返回 model-a
-	// 2. 通配符匹配 "claude-*": "claude-sonnet-4-5" 恰好目标等于请求名 → 返回 model-a
-	// 3. 映射表中没有 model-a 的配置 → 返回空（不支持）
 	if account.IsModelSupported(requestedModel) {
 		return requestedModel
 	}
 
-	// 未在映射表中配置的模型，返回空字符串（不支持）
+	// 兜底：Antigravity 平台的合法前缀模型允许透传（避免映射表缺少自映射条目时 403）
+	if account.Platform == PlatformAntigravity {
+		lower := strings.ToLower(requestedModel)
+		if strings.HasPrefix(lower, "claude-") || strings.HasPrefix(lower, "gemini-") {
+			return requestedModel
+		}
+	}
+
 	return ""
 }
 
