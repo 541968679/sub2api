@@ -94,6 +94,10 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	// displayTokens × displayPrice = realTokens × realPrice (cost unchanged).
 	// Rate multiplier is untouched — it's only changed by ApplyUserDisplayRate.
 
+	// Snapshot component sum before rescaling — used to compute delta for TotalCost.
+	// This preserves any non-component cost (per-request, image output, etc.).
+	oldComponentSum := d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
+
 	// Input tokens rescaling
 	if cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 && d.InputTokens > 0 && d.InputCost > 0 {
 		displayTokens := d.InputCost / *cfg.DisplayInputPrice
@@ -115,8 +119,12 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 		d.CacheReadCost = float64(d.CacheReadTokens) * *cfg.DisplayCacheReadPrice
 	}
 
-	// Recalculate total_cost from display components
-	d.TotalCost = d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
+	// Apply component cost delta to TotalCost. This correctly handles:
+	// - per-request billing (component costs are all 0 → delta is 0 → TotalCost unchanged)
+	// - image output cost (not in components → preserved in TotalCost)
+	// - token rounding adjustments (small deltas applied)
+	newComponentSum := d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
+	d.TotalCost += newComponentSum - oldComponentSum
 	// actual_cost is NEVER changed
 }
 
@@ -178,8 +186,11 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 		d.CacheCreationTokens = int(math.Round(float64(d.CacheCreationTokens) * scale))
 		d.CacheCreationCost *= scale
 	}
+	d.ImageOutputCost *= scale
 
-	d.TotalCost = d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
+	// Scale TotalCost directly instead of summing components, so per-request
+	// billing cost and any other non-component cost is preserved.
+	d.TotalCost *= scale
 	d.RateMultiplier = displayRate
 }
 
