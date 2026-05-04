@@ -126,7 +126,13 @@ make secret-scan          # Python security scanner
    - templatising a reusable pattern that other developers would benefit from (add to §5 common task templates).
 
    Module-internal implementation details do **not** belong in ARCHITECTURE.md — those go in `docs/dev/codebase/{module}.md` (see rule 4).
-4. **Exploration results → Codebase Map** — after deep exploration of a specific module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code.
+4. **Exploration results → Codebase Map** — after deep exploration of a specific module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code. **Update module docs when**:
+   - modifying a module's core flow (e.g., adding a new pricing layer, changing display transform logic),
+   - fixing a bug that reveals a non-obvious invariant or constraint (add to 已知陷阱),
+   - adding/removing/renaming key types, interfaces, or fields that the doc references,
+   - changing the priority/order of a multi-layer system (e.g., pricing resolution chain, rate multiplier precedence).
+
+   Rule of thumb: if the change would make someone reading the existing doc make a wrong assumption, update the doc in the same commit.
 5. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
 6. **pnpm-lock.yaml must be committed** — CI uses `--frozen-lockfile`.
 7. **Ent schema changes** → run `go generate ./ent` and commit generated files.
