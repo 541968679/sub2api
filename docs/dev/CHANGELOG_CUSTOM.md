@@ -19,6 +19,28 @@
 
 ## 变更记录
 
+## [2026-05-04] fix(frontend): 充值订阅页面 UI 优化
+
+**影响范围**: `frontend/src/views/user/PaymentView.vue`, `frontend/src/components/payment/SubscriptionPlanCard.vue`
+**上游兼容性**: 低冲突，仅涉及前端模板和样式
+**变更详情**:
+- 修复右侧订阅栏标题 i18n key 错误（`payment.tabSubscription` → `payment.tabSubscribe`），之前显示原始 key 而非中文翻译
+- 多套餐时从横向网格排列改为纵向列表排列，确保关键信息不被截断
+- 移除套餐卡片和订阅确认区域的平台标识 badge（OpenAI、Antigravity 等）
+
+## [2026-05-04] docs: 新增 API 使用文档（客户向）
+
+**影响范围**:
+- `docs/API_USAGE.md`（新增）
+
+**上游兼容性**: 无冲突（纯新增文件）
+**变更详情**:
+- 新增面向客户的 API 使用文档，覆盖 Claude Code（CLI / Desktop / VS Code / JetBrains）和 OpenAI Codex CLI 的安装配置全流程
+- 包含平台注册充值流程、模型列表、API 端点参考、计费说明、FAQ
+- 预留截图占位符（含标注说明），待后续补充实际截图
+
+---
+
 ## [2026-05-02] progress: v0.1.117 合并验证与中文 i18n 补齐
 
 **影响范围**:

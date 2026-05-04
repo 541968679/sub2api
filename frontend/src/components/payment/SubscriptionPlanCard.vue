@@ -11,15 +11,10 @@
     <div :class="['h-1.5', accentClass]" />
 
     <div class="flex flex-1 flex-col p-4">
-      <!-- Header: name + badge + price -->
+      <!-- Header: name + price -->
       <div class="mb-3 flex items-start justify-between gap-2">
         <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <h3 class="truncate text-base font-bold text-gray-900 dark:text-white">{{ plan.name }}</h3>
-            <span :class="['shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium', badgeLightClass]">
-              {{ pLabel }}
-            </span>
-          </div>
+          <h3 class="truncate text-base font-bold text-gray-900 dark:text-white">{{ plan.name }}</h3>
           <p v-if="plan.description" class="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-dark-400 line-clamp-2">
             {{ plan.description }}
           </p>
@@ -97,13 +92,11 @@ import type { SubscriptionPlan } from '@/types/payment'
 import type { UserSubscription } from '@/types'
 import {
   platformAccentBarClass,
-  platformBadgeLightClass,
   platformBorderClass,
   platformTextClass,
   platformIconClass,
   platformButtonClass,
   platformDiscountClass,
-  platformLabel,
 } from '@/utils/platformColors'
 
 const props = defineProps<{ plan: SubscriptionPlan; activeSubscriptions?: UserSubscription[] }>()
@@ -118,12 +111,10 @@ const isRenewal = computed(() =>
 // Derived color classes from central config
 const accentClass = computed(() => platformAccentBarClass(platform.value))
 const borderClass = computed(() => platformBorderClass(platform.value))
-const badgeLightClass = computed(() => platformBadgeLightClass(platform.value))
 const textClass = computed(() => platformTextClass(platform.value))
 const iconClass = computed(() => platformIconClass(platform.value))
 const btnClass = computed(() => platformButtonClass(platform.value))
 const discountClass = computed(() => platformDiscountClass(platform.value))
-const pLabel = computed(() => platformLabel(platform.value))
 
 const discountText = computed(() => {
   if (!props.plan.original_price || props.plan.original_price <= 0) return ''
