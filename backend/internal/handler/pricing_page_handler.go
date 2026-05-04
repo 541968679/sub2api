@@ -51,7 +51,6 @@ type pricingPageModel struct {
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
 	PerRequestPrice       *float64 `json:"per_request_price"`
 }
 
@@ -129,7 +128,6 @@ func (h *PricingPageHandler) Get(c *gin.Context) {
 			item.DisplayInputPrice = cfg.DisplayInputPrice
 			item.DisplayOutputPrice = cfg.DisplayOutputPrice
 			item.DisplayCacheReadPrice = cfg.DisplayCacheReadPrice
-			item.DisplayRateMultiplier = cfg.DisplayRateMultiplier
 		}
 		// 若 merged map 未包含此模型（说明连 display 字段都没配），回退到 real price：
 		// 普通用户看到的还是真实单价，而不是空列。

@@ -11,7 +11,6 @@ type DisplayPricingConfig struct {
 	DisplayInputPrice     *float64
 	DisplayOutputPrice    *float64
 	DisplayCacheReadPrice *float64
-	DisplayRateMultiplier *float64
 	CacheTransferRatio    *float64
 }
 
@@ -30,7 +29,6 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 			DisplayInputPrice:     p.DisplayInputPrice,
 			DisplayOutputPrice:    p.DisplayOutputPrice,
 			DisplayCacheReadPrice: p.DisplayCacheReadPrice,
-			DisplayRateMultiplier: p.DisplayRateMultiplier,
 			CacheTransferRatio:    p.CacheTransferRatio,
 		}
 	}
@@ -39,7 +37,7 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 
 func hasDisplayOverride(p *service.GlobalModelPricing) bool {
 	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil ||
-		p.DisplayRateMultiplier != nil || (p.CacheTransferRatio != nil && *p.CacheTransferRatio > 0)
+		(p.CacheTransferRatio != nil && *p.CacheTransferRatio > 0)
 }
 
 func toLowerModel(model string) string {
@@ -66,9 +64,10 @@ func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *D
 	return &copy
 }
 
-// ApplyDisplayTransform modifies a user-facing UsageLog DTO in-place to use display values.
-// The actual_cost field is never changed — only tokens, costs, and rate_multiplier are adjusted
+// ApplyDisplayTransform modifies a user-facing UsageLog DTO in-place to use display prices.
+// The actual_cost field is never changed — only tokens and per-component costs are adjusted
 // so that the user sees display prices while being charged the real amount.
+// Rate multiplier is NOT changed here; use ApplyUserDisplayRate for that.
 func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	if cfg == nil {
 		return
@@ -90,54 +89,34 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 		}
 	}
 
-	// Step 2: Price/rate replacement + token rescaling.
-	// Goal: displayTokens × displayPrice × displayRate = actualCost (unchanged)
-	// We compute a scale factor per cost component and adjust tokens accordingly.
-
-	displayRate := d.RateMultiplier
-	if cfg.DisplayRateMultiplier != nil && *cfg.DisplayRateMultiplier > 0 {
-		displayRate = *cfg.DisplayRateMultiplier
-	}
-	// Safety: never divide by 0 in the rescaling formulas below.
-	if displayRate <= 0 {
-		displayRate = 1
-	}
+	// Step 2: Display price replacement + token rescaling.
+	// When display prices differ from real prices, rescale tokens so that
+	// displayTokens × displayPrice = realTokens × realPrice (cost unchanged).
+	// Rate multiplier is untouched — it's only changed by ApplyUserDisplayRate.
 
 	// Input tokens rescaling
-	if cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 && d.InputTokens > 0 {
-		realInputCostTotal := d.InputCost * d.RateMultiplier // cost with real rate
-		// displayTokens × displayPrice × displayRate = realInputCostTotal
-		displayTokens := realInputCostTotal / (*cfg.DisplayInputPrice * displayRate)
+	if cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 && d.InputTokens > 0 && d.InputCost > 0 {
+		displayTokens := d.InputCost / *cfg.DisplayInputPrice
 		d.InputTokens = int(math.Round(displayTokens))
 		d.InputCost = float64(d.InputTokens) * *cfg.DisplayInputPrice
 	}
 
 	// Output tokens rescaling
-	if cfg.DisplayOutputPrice != nil && *cfg.DisplayOutputPrice > 0 && d.OutputTokens > 0 {
-		realOutputCostTotal := d.OutputCost * d.RateMultiplier
-		displayTokens := realOutputCostTotal / (*cfg.DisplayOutputPrice * displayRate)
+	if cfg.DisplayOutputPrice != nil && *cfg.DisplayOutputPrice > 0 && d.OutputTokens > 0 && d.OutputCost > 0 {
+		displayTokens := d.OutputCost / *cfg.DisplayOutputPrice
 		d.OutputTokens = int(math.Round(displayTokens))
 		d.OutputCost = float64(d.OutputTokens) * *cfg.DisplayOutputPrice
 	}
 
 	// Cache read tokens rescaling
-	if d.CacheReadTokens > 0 && d.CacheReadCost > 0 {
-		realCacheCostTotal := d.CacheReadCost * d.RateMultiplier
-		if cfg.DisplayCacheReadPrice != nil && *cfg.DisplayCacheReadPrice > 0 {
-			displayTokens := realCacheCostTotal / (*cfg.DisplayCacheReadPrice * displayRate)
-			d.CacheReadTokens = int(math.Round(displayTokens))
-			d.CacheReadCost = float64(d.CacheReadTokens) * *cfg.DisplayCacheReadPrice
-		} else if d.RateMultiplier != displayRate {
-			cachePrice := d.CacheReadCost / float64(d.CacheReadTokens)
-			displayTokens := realCacheCostTotal / (cachePrice * displayRate)
-			d.CacheReadTokens = int(math.Round(displayTokens))
-			d.CacheReadCost = float64(d.CacheReadTokens) * cachePrice
-		}
+	if cfg.DisplayCacheReadPrice != nil && *cfg.DisplayCacheReadPrice > 0 && d.CacheReadTokens > 0 && d.CacheReadCost > 0 {
+		displayTokens := d.CacheReadCost / *cfg.DisplayCacheReadPrice
+		d.CacheReadTokens = int(math.Round(displayTokens))
+		d.CacheReadCost = float64(d.CacheReadTokens) * *cfg.DisplayCacheReadPrice
 	}
 
 	// Recalculate total_cost from display components
 	d.TotalCost = d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
-	d.RateMultiplier = displayRate
 	// actual_cost is NEVER changed
 }
 
@@ -151,31 +130,30 @@ func ComputeDisplayFields(d *UsageLog, cfg *DisplayPricingConfig) *DisplayUsageF
 	clone := *d
 	ApplyDisplayTransform(&clone, cfg)
 	return &DisplayUsageFields{
-		InputTokens:    clone.InputTokens,
-		OutputTokens:   clone.OutputTokens,
+		InputTokens:     clone.InputTokens,
+		OutputTokens:    clone.OutputTokens,
 		CacheReadTokens: clone.CacheReadTokens,
-		InputCost:      clone.InputCost,
-		OutputCost:     clone.OutputCost,
-		CacheReadCost:  clone.CacheReadCost,
-		TotalCost:      clone.TotalCost,
-		RateMultiplier: clone.RateMultiplier,
+		InputCost:       clone.InputCost,
+		OutputCost:      clone.OutputCost,
+		CacheReadCost:   clone.CacheReadCost,
+		TotalCost:       clone.TotalCost,
 	}
 }
 
 // DisplayUsageFields holds the user-visible values for admin dual-column display.
 type DisplayUsageFields struct {
-	InputTokens    int     `json:"display_input_tokens"`
-	OutputTokens   int     `json:"display_output_tokens"`
-	CacheReadTokens int    `json:"display_cache_read_tokens"`
-	InputCost      float64 `json:"display_input_cost"`
-	OutputCost     float64 `json:"display_output_cost"`
-	CacheReadCost  float64 `json:"display_cache_read_cost"`
-	TotalCost      float64 `json:"display_total_cost"`
-	RateMultiplier float64 `json:"display_rate_multiplier"`
+	InputTokens     int     `json:"display_input_tokens"`
+	OutputTokens    int     `json:"display_output_tokens"`
+	CacheReadTokens int     `json:"display_cache_read_tokens"`
+	InputCost       float64 `json:"display_input_cost"`
+	OutputCost      float64 `json:"display_output_cost"`
+	CacheReadCost   float64 `json:"display_cache_read_cost"`
+	TotalCost       float64 `json:"display_total_cost"`
 }
 
-// ApplyUserDisplayRate applies a user-level display rate multiplier transform.
-// Like ApplyDisplayTransform, actual_cost is NEVER changed.
+// ApplyUserDisplayRate applies a user-group level display rate multiplier transform.
+// This is the ONLY place where the displayed rate_multiplier is changed.
+// actual_cost is NEVER changed.
 // Token counts and costs are scaled so that new_total_cost × displayRate ≈ actual_cost.
 func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 	currentRate := d.RateMultiplier
@@ -219,7 +197,7 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 			continue
 		}
 		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil &&
-			o.DisplayRateMultiplier == nil && o.CacheTransferRatio == nil {
+			o.CacheTransferRatio == nil {
 			continue
 		}
 		key := toLowerModel(o.Model)
@@ -236,9 +214,6 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		}
 		if o.DisplayCacheReadPrice != nil {
 			existing.DisplayCacheReadPrice = o.DisplayCacheReadPrice
-		}
-		if o.DisplayRateMultiplier != nil {
-			existing.DisplayRateMultiplier = o.DisplayRateMultiplier
 		}
 		if o.CacheTransferRatio != nil {
 			existing.CacheTransferRatio = o.CacheTransferRatio

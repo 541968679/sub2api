@@ -132,11 +132,6 @@
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
-                  <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayRateMultiplier') }}</label>
-                  <input v-model.number="item.display_rate_multiplier" type="number" step="any" :placeholder="t('admin.users.noOverride')"
-                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
-                </div>
-                <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.cacheTransferRatio') }}</label>
                   <input v-model.number="item.cache_transfer_ratio" type="number" step="any" min="0" max="1" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
@@ -205,7 +200,7 @@ interface OverrideRow {
   display_input_price: number | null
   display_output_price: number | null
   display_cache_read_price: number | null
-  display_rate_multiplier: number | null
+
   cache_transfer_ratio: number | null
   enabled: boolean
   notes: string
@@ -310,7 +305,6 @@ function applySuggestedDisplay(item: OverrideRow) {
   if (outputMTok != null) item.display_output_price = outputMTok
   const cacheReadMTok = getSuggestedMTok(item, 'cache_read_price')
   if (cacheReadMTok != null) item.display_cache_read_price = cacheReadMTok
-  if (!item.display_rate_multiplier) item.display_rate_multiplier = 1
 }
 
 watch(
@@ -331,7 +325,6 @@ watch(
         display_input_price: perTokenToMTok(o.display_input_price) ?? null,
         display_output_price: perTokenToMTok(o.display_output_price) ?? null,
         display_cache_read_price: perTokenToMTok(o.display_cache_read_price) ?? null,
-        display_rate_multiplier: o.display_rate_multiplier,
         cache_transfer_ratio: o.cache_transfer_ratio,
         enabled: o.enabled,
         notes: o.notes || '',
@@ -355,7 +348,6 @@ function addOverride() {
     display_input_price: null,
     display_output_price: null,
     display_cache_read_price: null,
-    display_rate_multiplier: null,
     cache_transfer_ratio: null,
     enabled: true,
     notes: '',
@@ -389,7 +381,6 @@ async function save() {
         display_input_price: mTokToPerToken(o.display_input_price),
         display_output_price: mTokToPerToken(o.display_output_price),
         display_cache_read_price: mTokToPerToken(o.display_cache_read_price),
-        display_rate_multiplier: toNullableNum(o.display_rate_multiplier),
         cache_transfer_ratio: toNullableNum(o.cache_transfer_ratio),
         enabled: o.enabled,
         notes: o.notes || '',

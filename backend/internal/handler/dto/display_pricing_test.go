@@ -36,16 +36,14 @@ func TestApplyDisplayTransform(t *testing.T) {
 	fmt.Printf("  Cache:  %d tokens, cost=%.6f\n", log.CacheReadTokens, log.CacheReadCost)
 	fmt.Printf("  Rate: %.1fx, Total: %.6f, Actual: %.6f\n", log.RateMultiplier, log.TotalCost, log.ActualCost)
 
-	// Display config: show $1.5/MTok input, $7.5/MTok output, rate 1.0x, 10% cache transfer
+	// Display config: show $1.5/MTok input, $7.5/MTok output, 10% cache transfer
 	dispInput := 1.5e-6
 	dispOutput := 7.5e-6
-	dispRate := 1.0
 	cacheRatio := 0.1
 	cfg := &DisplayPricingConfig{
-		DisplayInputPrice:     &dispInput,
-		DisplayOutputPrice:    &dispOutput,
-		DisplayRateMultiplier: &dispRate,
-		CacheTransferRatio:    &cacheRatio,
+		DisplayInputPrice:  &dispInput,
+		DisplayOutputPrice: &dispOutput,
+		CacheTransferRatio: &cacheRatio,
 	}
 
 	ApplyDisplayTransform(&log, cfg)
@@ -61,9 +59,9 @@ func TestApplyDisplayTransform(t *testing.T) {
 		t.Errorf("actual_cost changed! got %.9f, want 0.024", log.ActualCost)
 	}
 
-	// Verify rate_multiplier is now 1.0 (display)
-	if log.RateMultiplier != 1.0 {
-		t.Errorf("rate_multiplier should be 1.0 (display), got %.1f", log.RateMultiplier)
+	// Verify rate_multiplier is unchanged (display rate is only set by ApplyUserDisplayRate)
+	if log.RateMultiplier != 2.0 {
+		t.Errorf("rate_multiplier should remain 2.0, got %.1f", log.RateMultiplier)
 	}
 
 	// Verify frontend-computed price/MTok matches display price
@@ -80,7 +78,7 @@ func TestApplyDisplayTransform(t *testing.T) {
 	// Verify cache tokens were transferred (10% of 5000 = 500 moved to input)
 	fmt.Printf("\n=== VERIFICATION ===\n")
 	fmt.Printf("  actual_cost unchanged: %.6f == 0.024: %v\n", log.ActualCost, math.Abs(log.ActualCost-0.024) < 1e-9)
-	fmt.Printf("  display rate: %.1f (was 2.0)\n", log.RateMultiplier)
+	fmt.Printf("  display rate: %.1f (unchanged from real)\n", log.RateMultiplier)
 	fmt.Printf("  frontend input price/MTok: %.2f (target: 1.50)\n", inputPriceMTok)
 	fmt.Printf("  frontend output price/MTok: %.2f (target: 7.50)\n", outputPriceMTok)
 }
@@ -125,12 +123,10 @@ func TestApplyDisplayTransform_ZeroTokens(t *testing.T) {
 		TotalCost: 0, ActualCost: 0, RateMultiplier: 1.0,
 	}
 	dispInput := 1.5e-6
-	dispRate := 1.0
 	cacheRatio := 0.1
 	cfg := &DisplayPricingConfig{
-		DisplayInputPrice:     &dispInput,
-		DisplayRateMultiplier: &dispRate,
-		CacheTransferRatio:    &cacheRatio,
+		DisplayInputPrice:  &dispInput,
+		CacheTransferRatio: &cacheRatio,
 	}
 	// Should not panic
 	ApplyDisplayTransform(&log, cfg)
@@ -179,10 +175,11 @@ func TestApplyDisplayTransform_OnlyCacheTransfer(t *testing.T) {
 
 func TestBuildDisplayPricingMap_OnlyIncludesModelsWithOverrides(t *testing.T) {
 	dispPrice := 1.5e-6
+	cacheRatio := 0.5
 	pricings := []service.GlobalModelPricing{
 		{Model: "model-a", DisplayInputPrice: &dispPrice},
 		{Model: "model-b"}, // no display config
-		{Model: "Model-C", DisplayRateMultiplier: f64Ptr(1.0)},
+		{Model: "Model-C", CacheTransferRatio: &cacheRatio},
 	}
 	m := BuildDisplayPricingMap(pricings)
 	if _, ok := m["model-a"]; !ok {
