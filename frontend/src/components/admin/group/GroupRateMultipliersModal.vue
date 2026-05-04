@@ -60,6 +60,17 @@
               placeholder="1.0"
             />
           </div>
+          <div class="w-24">
+            <input
+              v-model.number="newDisplayRate"
+              type="number"
+              step="0.001"
+              min="0"
+              autocomplete="off"
+              class="hide-spinner input w-full border-amber-300 bg-amber-50 focus:border-amber-500 focus:ring-amber-500/20 dark:border-amber-700 dark:bg-amber-900/20 dark:focus:border-amber-500"
+              :placeholder="t('admin.users.displayRatePlaceholder')"
+            />
+          </div>
           <button
             type="button"
             class="btn btn-primary shrink-0"
@@ -136,6 +147,7 @@
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.columns.userNotes') }}</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.columns.userStatus') }}</th>
                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.groups.columns.rateMultiplier') }}</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-amber-600 dark:text-amber-400">{{ t('admin.users.displayRate') }}</th>
                     <th v-if="showFinalRate" class="px-3 py-2 text-left text-xs font-medium text-primary-600 dark:text-primary-400">{{ t('admin.groups.finalRate') }}</th>
                     <th class="w-10 px-2 py-2"></th>
                   </tr>
@@ -172,6 +184,18 @@
                         :placeholder="String(props.group?.rate_multiplier ?? 1)"
                         class="hide-spinner w-20 rounded border border-gray-200 bg-white px-2 py-1 text-center text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
                         @change="updateLocalRate(entry.user_id, ($event.target as HTMLInputElement).value)"
+                      />
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-2">
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        autocomplete="off"
+                        :value="entry.display_rate_multiplier ?? ''"
+                        :placeholder="t('admin.users.displayRatePlaceholder')"
+                        class="hide-spinner w-20 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-center text-sm font-medium transition-colors focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500/20 dark:border-amber-700 dark:bg-amber-900/20 dark:focus:border-amber-500"
+                        @change="updateLocalDisplayRate(entry.user_id, ($event.target as HTMLInputElement).value)"
                       />
                     </td>
                     <td v-if="showFinalRate" class="whitespace-nowrap px-3 py-2 font-medium text-primary-600 dark:text-primary-400">
@@ -274,6 +298,7 @@ const searchResults = ref<AdminUser[]>([])
 const showDropdown = ref(false)
 const selectedUser = ref<AdminUser | null>(null)
 const newRate = ref<number | null>(null)
+const newDisplayRate = ref<number | null>(null)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const batchFactor = ref<number | null>(null)
@@ -304,8 +329,13 @@ const computeFinalRate = (rate: number | null | undefined) => {
 // 检测是否有未保存的修改
 const isDirty = computed(() => {
   if (localEntries.value.length !== serverEntries.value.length) return true
-  const serverMap = new Map(serverEntries.value.map(e => [e.user_id, e.rate_multiplier ?? null]))
-  return localEntries.value.some(e => serverMap.get(e.user_id) !== (e.rate_multiplier ?? null))
+  const serverMap = new Map(serverEntries.value.map(e => [e.user_id, e]))
+  return localEntries.value.some(e => {
+    const s = serverMap.get(e.user_id)
+    if (!s) return true
+    return (e.rate_multiplier ?? null) !== (s.rate_multiplier ?? null) ||
+           (e.display_rate_multiplier ?? null) !== (s.display_rate_multiplier ?? null)
+  })
 })
 
 const paginatedLocalEntries = computed(() => {
@@ -323,7 +353,7 @@ const loadEntries = async () => {
   try {
     const raw = await adminAPI.groups.getGroupRateMultipliers(props.group.id)
     // 仅显示已设置 rate_multiplier 的条目；rpm_override 在另一个弹窗管理，保留不动
-    serverEntries.value = raw.filter(e => e.rate_multiplier != null)
+    serverEntries.value = raw.filter(e => e.rate_multiplier != null || e.display_rate_multiplier != null)
     localEntries.value = cloneEntries(serverEntries.value)
     adjustPage()
   } catch (error) {
@@ -349,6 +379,7 @@ watch(() => props.show, (val) => {
     searchResults.value = []
     selectedUser.value = null
     newRate.value = null
+    newDisplayRate.value = null
     loadEntries()
   }
 })
@@ -396,6 +427,7 @@ const handleAddLocal = () => {
     user_notes: user.notes || '',
     user_status: user.status || 'active',
     rate_multiplier: newRate.value,
+    display_rate_multiplier: newDisplayRate.value,
     rpm_override: null
   }
   if (idx >= 0) {
@@ -406,6 +438,7 @@ const handleAddLocal = () => {
   searchQuery.value = ''
   selectedUser.value = null
   newRate.value = null
+  newDisplayRate.value = null
   adjustPage()
 }
 
@@ -420,6 +453,19 @@ const updateLocalRate = (userId: number, value: string) => {
   const num = parseFloat(value)
   if (isNaN(num)) return
   entry.rate_multiplier = num
+}
+
+// 本地修改展示倍率
+const updateLocalDisplayRate = (userId: number, value: string) => {
+  const entry = localEntries.value.find(e => e.user_id === userId)
+  if (!entry) return
+  if (value.trim() === '') {
+    entry.display_rate_multiplier = null
+    return
+  }
+  const num = parseFloat(value)
+  if (isNaN(num)) return
+  entry.display_rate_multiplier = num
 }
 
 // 本地删除
@@ -457,10 +503,11 @@ const handleSave = async () => {
   saving.value = true
   try {
     const entries = localEntries.value
-      .filter(e => e.rate_multiplier != null)
+      .filter(e => e.rate_multiplier != null || e.display_rate_multiplier != null)
       .map(e => ({
         user_id: e.user_id,
-        rate_multiplier: e.rate_multiplier as number
+        rate_multiplier: e.rate_multiplier ?? undefined,
+        display_rate_multiplier: e.display_rate_multiplier ?? undefined
       }))
     await adminAPI.groups.batchSetGroupRateMultipliers(props.group.id, entries)
     appStore.showSuccess(t('admin.groups.rateSaved'))
