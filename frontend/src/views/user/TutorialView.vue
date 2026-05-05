@@ -241,18 +241,19 @@ onUnmounted(() => {
 .tutorial-layout {
   display: flex;
   gap: 1.5rem;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
-/* ===== Right Sticky TOC (desktop) ===== */
+/* ===== Left Sticky TOC (desktop) ===== */
 .tutorial-toc-aside {
   width: 200px;
   flex-shrink: 0;
+  position: relative;
 }
 
 .tutorial-toc-sticky {
   position: sticky;
-  top: 5rem;
+  top: 6rem;
   max-height: calc(100vh - 7rem);
   overflow-y: auto;
   padding-right: 0.25rem;
