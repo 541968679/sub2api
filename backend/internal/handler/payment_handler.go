@@ -143,6 +143,10 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		StripePublishableKey:      cfg.StripePublishableKey,
 		CNYPerUSD:                 cfg.EffectiveCNYPerUSD(),
 		BonusTiers:                cfg.BonusTiers,
+		FirstRechargeEnabled:      cfg.FirstRechargeEnabled,
+		FirstRechargeMinCNY:       cfg.FirstRechargeMinCNY,
+		FirstRechargeBonusUSD:     cfg.FirstRechargeBonusUSD,
+		FirstRechargeEligible:     h.isFirstRechargeEligible(c, cfg),
 	})
 }
 
@@ -159,6 +163,10 @@ type checkoutInfoResponse struct {
 	StripePublishableKey      string                          `json:"stripe_publishable_key"`
 	CNYPerUSD                 float64                         `json:"cny_per_usd"`
 	BonusTiers                []service.BonusTier             `json:"bonus_tiers"`
+	FirstRechargeEnabled      bool                            `json:"first_recharge_enabled"`
+	FirstRechargeMinCNY       float64                         `json:"first_recharge_min_amount"`
+	FirstRechargeBonusUSD     float64                         `json:"first_recharge_bonus_usd"`
+	FirstRechargeEligible     bool                            `json:"first_recharge_eligible"`
 }
 
 type checkoutPlan struct {
@@ -179,6 +187,17 @@ type checkoutPlan struct {
 	ValidityUnit    string   `json:"validity_unit"`
 	Features        []string `json:"features"`
 	ProductName     string   `json:"product_name"`
+}
+
+func (h *PaymentHandler) isFirstRechargeEligible(c *gin.Context, cfg *service.PaymentConfig) bool {
+	if !cfg.FirstRechargeEnabled || cfg.FirstRechargeBonusUSD <= 0 {
+		return false
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		return false
+	}
+	return !h.paymentService.HasCompletedBalanceOrder(c.Request.Context(), subject.UserID)
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.

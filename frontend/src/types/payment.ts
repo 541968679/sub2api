@@ -70,6 +70,10 @@ export interface CheckoutInfoResponse {
   stripe_publishable_key: string
   cny_per_usd: number
   bonus_tiers: BonusTier[]
+  first_recharge_enabled: boolean
+  first_recharge_min_amount: number
+  first_recharge_bonus_usd: number
+  first_recharge_eligible: boolean
 }
 
 export interface BonusTier {

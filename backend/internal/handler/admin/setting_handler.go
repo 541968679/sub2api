@@ -238,6 +238,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PaymentHelpText:                        paymentCfg.HelpText,
 		PaymentCNYPerUSD:                       paymentCfg.CNYPerUSD,
 		PaymentBonusTiers:                      paymentCfg.BonusTiers,
+		PaymentFirstRechargeEnabled:            paymentCfg.FirstRechargeEnabled,
+		PaymentFirstRechargeMinAmount:          paymentCfg.FirstRechargeMinCNY,
+		PaymentFirstRechargeBonusUSD:           paymentCfg.FirstRechargeBonusUSD,
 		PaymentCancelRateLimitEnabled:          paymentCfg.CancelRateLimitEnabled,
 		PaymentCancelRateLimitMax:              paymentCfg.CancelRateLimitMax,
 		PaymentCancelRateLimitWindow:           paymentCfg.CancelRateLimitWindow,
@@ -483,6 +486,9 @@ type UpdateSettingsRequest struct {
 	PaymentHelpText                  *string              `json:"payment_help_text"`
 	PaymentCNYPerUSD                 *float64             `json:"payment_cny_per_usd"`
 	PaymentBonusTiers                *[]service.BonusTier `json:"payment_bonus_tiers"`
+	PaymentFirstRechargeEnabled      *bool                `json:"payment_first_recharge_enabled"`
+	PaymentFirstRechargeMinAmount    *float64             `json:"payment_first_recharge_min_amount"`
+	PaymentFirstRechargeBonusUSD     *float64             `json:"payment_first_recharge_bonus_usd"`
 
 	// Cancel rate limit
 	PaymentCancelRateLimitEnabled *bool   `json:"payment_cancel_rate_limit_enabled"`
@@ -1436,6 +1442,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			HelpText:                  req.PaymentHelpText,
 			CNYPerUSD:                 req.PaymentCNYPerUSD,
 			BonusTiers:                req.PaymentBonusTiers,
+			FirstRechargeEnabled:      req.PaymentFirstRechargeEnabled,
+			FirstRechargeMinCNY:       req.PaymentFirstRechargeMinAmount,
+			FirstRechargeBonusUSD:     req.PaymentFirstRechargeBonusUSD,
 			CancelRateLimitEnabled:    req.PaymentCancelRateLimitEnabled,
 			CancelRateLimitMax:        req.PaymentCancelRateLimitMax,
 			CancelRateLimitWindow:     req.PaymentCancelRateLimitWindow,
@@ -1612,6 +1621,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentHelpText:                        updatedPaymentCfg.HelpText,
 		PaymentCNYPerUSD:                       updatedPaymentCfg.CNYPerUSD,
 		PaymentBonusTiers:                      updatedPaymentCfg.BonusTiers,
+		PaymentFirstRechargeEnabled:            updatedPaymentCfg.FirstRechargeEnabled,
+		PaymentFirstRechargeMinAmount:          updatedPaymentCfg.FirstRechargeMinCNY,
+		PaymentFirstRechargeBonusUSD:           updatedPaymentCfg.FirstRechargeBonusUSD,
 		PaymentCancelRateLimitEnabled:          updatedPaymentCfg.CancelRateLimitEnabled,
 		PaymentCancelRateLimitMax:              updatedPaymentCfg.CancelRateLimitMax,
 		PaymentCancelRateLimitWindow:           updatedPaymentCfg.CancelRateLimitWindow,
@@ -1643,7 +1655,9 @@ func hasPaymentFields(req UpdateSettingsRequest) bool {
 		req.PaymentLoadBalanceStrat != nil || req.PaymentProductNamePrefix != nil ||
 		req.PaymentProductNameSuffix != nil || req.PaymentHelpImageURL != nil ||
 		req.PaymentHelpText != nil || req.PaymentCNYPerUSD != nil ||
-		req.PaymentBonusTiers != nil || req.PaymentCancelRateLimitEnabled != nil ||
+		req.PaymentBonusTiers != nil || req.PaymentFirstRechargeEnabled != nil ||
+		req.PaymentFirstRechargeMinAmount != nil || req.PaymentFirstRechargeBonusUSD != nil ||
+		req.PaymentCancelRateLimitEnabled != nil ||
 		req.PaymentCancelRateLimitMax != nil || req.PaymentCancelRateLimitWindow != nil ||
 		req.PaymentCancelRateLimitUnit != nil || req.PaymentCancelRateLimitMode != nil
 }

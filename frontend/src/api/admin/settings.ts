@@ -460,6 +460,9 @@ export interface SystemSettings {
   payment_help_text: string;
   payment_cny_per_usd: number;
   payment_bonus_tiers: { min_amount: number; bonus_usd: number }[];
+  payment_first_recharge_enabled: boolean;
+  payment_first_recharge_min_amount: number;
+  payment_first_recharge_bonus_usd: number;
   payment_cancel_rate_limit_enabled: boolean;
   payment_cancel_rate_limit_max: number;
   payment_cancel_rate_limit_window: number;
@@ -631,6 +634,9 @@ export interface UpdateSettingsRequest {
   payment_help_text?: string;
   payment_cny_per_usd?: number;
   payment_bonus_tiers?: { min_amount: number; bonus_usd: number }[];
+  payment_first_recharge_enabled?: boolean;
+  payment_first_recharge_min_amount?: number;
+  payment_first_recharge_bonus_usd?: number;
   payment_cancel_rate_limit_enabled?: boolean;
   payment_cancel_rate_limit_max?: number;
   payment_cancel_rate_limit_window?: number;
@@ -781,6 +787,9 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     payment_help_text: s.payment_help_text,
     payment_cny_per_usd: s.payment_cny_per_usd,
     payment_bonus_tiers: s.payment_bonus_tiers,
+    payment_first_recharge_enabled: s.payment_first_recharge_enabled,
+    payment_first_recharge_min_amount: s.payment_first_recharge_min_amount,
+    payment_first_recharge_bonus_usd: s.payment_first_recharge_bonus_usd,
     payment_cancel_rate_limit_enabled: s.payment_cancel_rate_limit_enabled,
     payment_cancel_rate_limit_max: s.payment_cancel_rate_limit_max,
     payment_cancel_rate_limit_window: s.payment_cancel_rate_limit_window,

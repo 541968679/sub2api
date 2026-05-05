@@ -94,6 +94,37 @@
           </div>
         </div>
 
+        <!-- Card 3: First Recharge Bonus -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.recharge.firstRechargeTitle') }}</h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.recharge.firstRechargeDesc') }}</p>
+          </div>
+          <div class="space-y-4 p-6">
+            <div class="flex items-center gap-3">
+              <input id="first-recharge-toggle" v-model="form.first_recharge_enabled" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+              <label for="first-recharge-toggle" class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.recharge.firstRechargeEnabled') }}</label>
+            </div>
+            <div v-if="form.first_recharge_enabled" class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="input-label">{{ t('admin.recharge.firstRechargeMin') }}</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">&yen;</span>
+                  <input v-model.number="form.first_recharge_min_amount" type="number" step="1" min="0" class="input pl-7" placeholder="100" />
+                </div>
+                <p class="mt-1 text-xs text-gray-400">{{ t('admin.recharge.firstRechargeMinHint') }}</p>
+              </div>
+              <div>
+                <label class="input-label">{{ t('admin.recharge.firstRechargeBonus') }}</label>
+                <div class="relative">
+                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                  <input v-model.number="form.first_recharge_bonus_usd" type="number" step="0.01" min="0" class="input pl-7" placeholder="5" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Save Button -->
         <button class="btn-primary w-full py-3 text-base font-medium" :disabled="saving" @click="save">
           <span v-if="saving" class="flex items-center justify-center gap-2">
@@ -123,6 +154,9 @@ const saving = ref(false)
 const form = ref({
   cny_per_usd: 0,
   bonus_tiers: [] as { min_amount: number; bonus_usd: number }[],
+  first_recharge_enabled: false,
+  first_recharge_min_amount: 0,
+  first_recharge_bonus_usd: 0,
 })
 
 const sortedTiers = computed(() =>
@@ -145,6 +179,9 @@ async function load() {
     form.value.bonus_tiers = Array.isArray(settings.payment_bonus_tiers)
       ? settings.payment_bonus_tiers.map(t => ({ min_amount: t.min_amount, bonus_usd: t.bonus_usd }))
       : []
+    form.value.first_recharge_enabled = settings.payment_first_recharge_enabled || false
+    form.value.first_recharge_min_amount = settings.payment_first_recharge_min_amount || 0
+    form.value.first_recharge_bonus_usd = settings.payment_first_recharge_bonus_usd || 0
   } catch {
     appStore.showError(t('admin.recharge.title') + ': ' + t('common.error'))
   } finally {
@@ -168,6 +205,9 @@ async function save() {
     const payload = adminAPI.settings.systemSettingsToUpdateRequest(current)
     payload.payment_cny_per_usd = Number(form.value.cny_per_usd) || 0
     payload.payment_bonus_tiers = tiers
+    payload.payment_first_recharge_enabled = form.value.first_recharge_enabled
+    payload.payment_first_recharge_min_amount = Number(form.value.first_recharge_min_amount) || 0
+    payload.payment_first_recharge_bonus_usd = Number(form.value.first_recharge_bonus_usd) || 0
     await adminAPI.settings.updateSettings(payload)
     form.value.bonus_tiers = tiers
     appStore.showSuccess(t('admin.recharge.saved'))

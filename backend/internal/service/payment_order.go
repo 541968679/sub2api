@@ -59,6 +59,13 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	payAmount, _ := strconv.ParseFloat(payAmountStr, 64)
 	cnyPerUSD := cfg.EffectiveCNYPerUSD()
 	bonus := MatchedBonus(limitAmount, cfg.BonusTiers)
+	// First recharge bonus: replaces regular bonus (does not stack)
+	if cfg.FirstRechargeEnabled && cfg.FirstRechargeBonusUSD > 0 &&
+		limitAmount >= cfg.FirstRechargeMinCNY &&
+		req.OrderType == payment.OrderTypeBalance &&
+		!s.HasCompletedBalanceOrder(ctx, int64(user.ID)) {
+		bonus = cfg.FirstRechargeBonusUSD
+	}
 	creditAmount := math.Round((limitAmount/cnyPerUSD*cfg.BalanceRechargeMultiplier+bonus)*100) / 100
 	sel, err := s.selectCreateOrderInstance(ctx, req, cfg, payAmount)
 	if err != nil {

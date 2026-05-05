@@ -1440,6 +1440,12 @@ export default {
       addTier: 'Add Tier',
       previewExample: 'Bonus Preview (base conversion + bonus)',
       saved: 'Recharge config saved',
+      firstRechargeTitle: 'First Recharge Bonus',
+      firstRechargeDesc: 'One-time bonus for new users on their first recharge. Does not stack with regular bonus tiers.',
+      firstRechargeEnabled: 'Enable first recharge bonus',
+      firstRechargeMin: 'Minimum amount (CNY)',
+      firstRechargeMinHint: 'Recharge must reach this amount to trigger the bonus',
+      firstRechargeBonus: 'Bonus amount (USD)'
     },
     // Dashboard
     dashboard: {
@@ -6612,6 +6618,9 @@ export default {
     exchangeRate: 'Recharge Ratio',
     bonusCredit: 'Bonus',
     totalCredit: 'Total Credited',
+    firstRechargeTitle: 'New User Bonus',
+    firstRechargeDesc: 'First recharge of ¥{min} or more, get extra ${bonus}',
+    firstRechargeBonus: 'First Recharge Bonus',
     refundReason: 'Refund Reason',
     refundReasonPlaceholder: 'Please describe your refund reason',
     stripeLoadFailed: 'Failed to load payment component. Please refresh and try again.',

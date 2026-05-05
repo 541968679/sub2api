@@ -177,6 +177,9 @@ type SystemSettings struct {
 	PaymentHelpText                  string              `json:"payment_help_text"`
 	PaymentCNYPerUSD                 float64             `json:"payment_cny_per_usd"`
 	PaymentBonusTiers                []service.BonusTier `json:"payment_bonus_tiers"`
+	PaymentFirstRechargeEnabled      bool                `json:"payment_first_recharge_enabled"`
+	PaymentFirstRechargeMinAmount    float64             `json:"payment_first_recharge_min_amount"`
+	PaymentFirstRechargeBonusUSD     float64             `json:"payment_first_recharge_bonus_usd"`
 
 	// Cancel rate limit
 	PaymentCancelRateLimitEnabled bool   `json:"payment_cancel_rate_limit_enabled"`

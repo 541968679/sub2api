@@ -37,6 +37,9 @@ const (
 	SettingCancelWindowMode    = "CANCEL_RATE_LIMIT_WINDOW_MODE"
 	SettingCNYPerUSD           = "CNY_PER_USD"
 	SettingBonusTiers          = "RECHARGE_BONUS_TIERS"
+	SettingFirstRechargeOn     = "FIRST_RECHARGE_ENABLED"
+	SettingFirstRechargeMin    = "FIRST_RECHARGE_MIN_AMOUNT"
+	SettingFirstRechargeBonus  = "FIRST_RECHARGE_BONUS_USD"
 )
 
 // Default values for payment configuration settings.
@@ -75,6 +78,11 @@ type PaymentConfig struct {
 	CNYPerUSD  float64     `json:"cny_per_usd"`
 	BonusTiers []BonusTier `json:"bonus_tiers"`
 
+	// First recharge bonus (one-time per account, does not stack with regular bonus)
+	FirstRechargeEnabled  bool    `json:"first_recharge_enabled"`
+	FirstRechargeMinCNY   float64 `json:"first_recharge_min_amount"`
+	FirstRechargeBonusUSD float64 `json:"first_recharge_bonus_usd"`
+
 	// Cancel rate limit settings
 	CancelRateLimitEnabled bool   `json:"cancel_rate_limit_enabled"`
 	CancelRateLimitMax     int    `json:"cancel_rate_limit_max"`
@@ -102,6 +110,9 @@ type UpdatePaymentConfigRequest struct {
 	HelpText                  *string      `json:"help_text"`
 	CNYPerUSD                 *float64     `json:"cny_per_usd"`
 	BonusTiers                *[]BonusTier `json:"bonus_tiers"`
+	FirstRechargeEnabled      *bool        `json:"first_recharge_enabled"`
+	FirstRechargeMinCNY       *float64     `json:"first_recharge_min_amount"`
+	FirstRechargeBonusUSD     *float64     `json:"first_recharge_bonus_usd"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled *bool   `json:"cancel_rate_limit_enabled"`
@@ -240,6 +251,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
 		SettingCancelWindowSize, SettingCancelWindowUnit, SettingCancelWindowMode,
 		SettingCNYPerUSD, SettingBonusTiers,
+		SettingFirstRechargeOn, SettingFirstRechargeMin, SettingFirstRechargeBonus,
 		SettingPaymentVisibleMethodAlipayEnabled, SettingPaymentVisibleMethodAlipaySource,
 		SettingPaymentVisibleMethodWxpayEnabled, SettingPaymentVisibleMethodWxpaySource,
 	}
@@ -271,6 +283,10 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		HelpText:                  vals[SettingHelpText],
 
 		CNYPerUSD: pcParseFloat(vals[SettingCNYPerUSD], 0),
+
+		FirstRechargeEnabled:  vals[SettingFirstRechargeOn] == "true",
+		FirstRechargeMinCNY:   pcParseFloat(vals[SettingFirstRechargeMin], 0),
+		FirstRechargeBonusUSD: pcParseFloat(vals[SettingFirstRechargeBonus], 0),
 
 		CancelRateLimitEnabled: vals[SettingCancelRateLimitOn] == "true",
 		CancelRateLimitMax:     pcParseInt(vals[SettingCancelRateLimitMax], 10),
@@ -419,6 +435,15 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		if b, err := json.Marshal(*req.BonusTiers); err == nil {
 			m[SettingBonusTiers] = string(b)
 		}
+	}
+	if req.FirstRechargeEnabled != nil {
+		m[SettingFirstRechargeOn] = strconv.FormatBool(*req.FirstRechargeEnabled)
+	}
+	if req.FirstRechargeMinCNY != nil {
+		m[SettingFirstRechargeMin] = formatNonNegativeFloat(req.FirstRechargeMinCNY)
+	}
+	if req.FirstRechargeBonusUSD != nil {
+		m[SettingFirstRechargeBonus] = formatNonNegativeFloat(req.FirstRechargeBonusUSD)
 	}
 	if len(m) == 0 {
 		return nil

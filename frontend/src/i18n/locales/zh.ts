@@ -6425,6 +6425,9 @@ const zhBase = {
     exchangeRate: '充值比例',
     bonusCredit: '赠送额度',
     totalCredit: '实际到账',
+    firstRechargeTitle: '新用户首充福利',
+    firstRechargeDesc: '首次充值满 ¥{min}，额外赠送 ${bonus}',
+    firstRechargeBonus: '首充赠送',
     refundReason: '退款原因',
     refundReasonPlaceholder: '请描述您的退款原因',
     stripeLoadFailed: '支付组件加载失败，请刷新页面重试',
@@ -6722,7 +6725,13 @@ const v117ZhPatch = {
       tierBonusPlaceholder: '例如 5',
       addTier: '添加档位',
       previewExample: '赠送预览（基础兑换 + 赠送）',
-      saved: '充值配置已保存'
+      saved: '充值配置已保存',
+      firstRechargeTitle: '首充赠送',
+      firstRechargeDesc: '新用户首次充值达到门槛时额外赠送，每个账号仅一次，不与常规赠送叠加',
+      firstRechargeEnabled: '启用首充赠送',
+      firstRechargeMin: '首充门槛（CNY）',
+      firstRechargeMinHint: '充值金额需达到此值才触发首充赠送',
+      firstRechargeBonus: '首充赠送额度（USD）'
     },
     dashboard: {
       newUsersToday: '今日新用户',

@@ -42,6 +42,24 @@
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
+            <!-- First Recharge Banner -->
+            <div v-if="checkout.first_recharge_eligible" class="first-recharge-banner">
+              <div class="first-recharge-glow"></div>
+              <div class="relative z-10 flex items-center gap-4 p-5">
+                <div class="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur">
+                  <svg class="h-8 w-8 text-yellow-100" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                  </svg>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-lg font-bold text-white">{{ t('payment.firstRechargeTitle') }}</p>
+                  <p class="mt-0.5 text-sm text-white/80">
+                    {{ t('payment.firstRechargeDesc', { min: checkout.first_recharge_min_amount, bonus: checkout.first_recharge_bonus_usd }) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div class="card p-6">
               <AmountInput
                 v-model="amount"
@@ -103,7 +121,7 @@
                     <span class="text-gray-900 dark:text-white">${{ baseCreditUsd.toFixed(2) }}</span>
                   </div>
                   <div v-if="matchedBonus > 0" class="flex justify-between mt-1">
-                    <span class="text-amber-600 dark:text-amber-400">{{ t('payment.bonusCredit') }}</span>
+                    <span class="text-amber-600 dark:text-amber-400">{{ isFirstRechargeBonus ? t('payment.firstRechargeBonus') : t('payment.bonusCredit') }}</span>
                     <span class="font-medium text-amber-600 dark:text-amber-400">+${{ matchedBonus.toFixed(2) }}</span>
                   </div>
                   <div class="flex justify-between mt-2 border-t border-dashed border-gray-200 pt-2 dark:border-dark-600">
@@ -497,6 +515,7 @@ function onPaymentSettled() {
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
   plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, cny_per_usd: 0, bonus_tiers: [], help_text: '', help_image_url: '', stripe_publishable_key: '',
+  first_recharge_enabled: false, first_recharge_min_amount: 0, first_recharge_bonus_usd: 0, first_recharge_eligible: false,
 })
 
 const tabs = computed(() => {
@@ -570,7 +589,14 @@ const baseCreditUsd = computed(() => {
 })
 
 const matchedBonus = computed(() => {
-  if (validAmount.value <= 0 || !sortedBonusTiers.value.length) return 0
+  if (validAmount.value <= 0) return 0
+  // First recharge bonus replaces regular bonus
+  if (checkout.value.first_recharge_eligible &&
+      checkout.value.first_recharge_bonus_usd > 0 &&
+      validAmount.value >= checkout.value.first_recharge_min_amount) {
+    return checkout.value.first_recharge_bonus_usd
+  }
+  if (!sortedBonusTiers.value.length) return 0
   let bonus = 0
   for (const tier of sortedBonusTiers.value) {
     if (validAmount.value >= tier.min_amount) {
@@ -579,6 +605,12 @@ const matchedBonus = computed(() => {
   }
   return bonus
 })
+
+const isFirstRechargeBonus = computed(() =>
+  checkout.value.first_recharge_eligible &&
+  checkout.value.first_recharge_bonus_usd > 0 &&
+  validAmount.value >= checkout.value.first_recharge_min_amount
+)
 
 const totalCreditUsd = computed(() =>
   Math.round((baseCreditUsd.value + matchedBonus.value) * 100) / 100
@@ -1098,6 +1130,32 @@ function bonusTierBadgeClass(idx: number, total: number): string {
 </script>
 
 <style scoped>
+.first-recharge-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #f59e0b, #ec4899, #8b5cf6, #3b82f6);
+  background-size: 300% 300%;
+  animation: gradient-shift 4s ease infinite;
+}
+
+.first-recharge-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 60%);
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 .bonus-tier-card {
   display: flex;
   flex-direction: column;
