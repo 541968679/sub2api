@@ -36,7 +36,7 @@
             <div class="card p-5">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: ${{ user?.balance?.toFixed(2) || '0.00' }}</p>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
@@ -77,10 +77,17 @@
             </div>
             <div v-if="validAmount > 0" class="card p-6">
               <div class="space-y-2 text-sm">
+                <!-- Recharge ratio -->
+                <div v-if="checkout.cny_per_usd > 0" class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rechargeRatio') }}</span>
+                  <span class="text-gray-900 dark:text-white">¥{{ checkout.cny_per_usd }} = $1</span>
+                </div>
+                <!-- Payment amount -->
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
                   <span class="text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
                 </div>
+                <!-- Fee -->
                 <div v-if="feeRate > 0" class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
                   <span class="text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
@@ -89,13 +96,21 @@
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
                   <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
                 </div>
-                <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                  <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }}</span>
+                <!-- Credited breakdown -->
+                <div class="border-t border-gray-200 pt-2 dark:border-dark-600">
+                  <div class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.baseCredit') }}</span>
+                    <span class="text-gray-900 dark:text-white">${{ baseCreditUsd.toFixed(2) }}</span>
+                  </div>
+                  <div v-if="matchedBonus > 0" class="flex justify-between mt-1">
+                    <span class="text-amber-600 dark:text-amber-400">{{ t('payment.bonusCredit') }}</span>
+                    <span class="font-medium text-amber-600 dark:text-amber-400">+${{ matchedBonus.toFixed(2) }}</span>
+                  </div>
+                  <div class="flex justify-between mt-2 border-t border-dashed border-gray-200 pt-2 dark:border-dark-600">
+                    <span class="font-semibold text-gray-800 dark:text-gray-200">{{ t('payment.totalCredit') }}</span>
+                    <span class="text-lg font-bold text-green-600 dark:text-green-400">${{ totalCreditUsd.toFixed(2) }}</span>
+                  </div>
                 </div>
-                <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                  {{ t('payment.rechargeRatePreview', { usd: balanceRechargeMultiplier.toFixed(2) }) }}
-                </p>
               </div>
             </div>
             <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
@@ -498,7 +513,6 @@ const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return multiplier > 0 ? multiplier : 1
 })
-const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -547,6 +561,27 @@ const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
 
 const sortedBonusTiers = computed(() =>
   [...(checkout.value?.bonus_tiers || [])].sort((a, b) => a.min_amount - b.min_amount)
+)
+
+const baseCreditUsd = computed(() => {
+  const rate = checkout.value?.cny_per_usd
+  if (!rate || rate <= 0 || validAmount.value <= 0) return 0
+  return Math.round((validAmount.value / rate) * balanceRechargeMultiplier.value * 100) / 100
+})
+
+const matchedBonus = computed(() => {
+  if (validAmount.value <= 0 || !sortedBonusTiers.value.length) return 0
+  let bonus = 0
+  for (const tier of sortedBonusTiers.value) {
+    if (validAmount.value >= tier.min_amount) {
+      bonus = tier.bonus_usd
+    }
+  }
+  return bonus
+})
+
+const totalCreditUsd = computed(() =>
+  Math.round((baseCreditUsd.value + matchedBonus.value) * 100) / 100
 )
 const feeAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
