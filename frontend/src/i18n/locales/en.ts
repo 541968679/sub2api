@@ -351,6 +351,7 @@ export default {
     redeem: 'Redeem',
     affiliate: 'Affiliate Rebates',
     profile: 'Profile',
+    tutorial: 'Tutorial',
     users: 'Users',
     groups: 'Groups',
     channels: 'Channels',
@@ -668,9 +669,16 @@ export default {
     redeemCode: 'Redeem Code',
     addBalanceWithCode: 'Add balance with a code',
     topUp: 'Top Up / Subscribe',
-    topUpHint: 'Recharge balance with bonus credits',
+    topUpHint: 'Recharge balance, pay-as-you-go',
+    viewTutorial: 'View Tutorial',
+    viewTutorialHint: 'Claude Code / Codex setup guide',
+    getApiKey: 'Get API Key',
+    getApiKeyHint: 'Create a key and connect AI tools',
+    viewPricing: 'Model Pricing',
     quickStart: 'Quick Start Guide',
-    quickStartHint: 'Learn how to set up and use your API keys'
+    quickStartHint: 'Learn how to set up and use your API keys',
+    tutorial: 'Detailed Tutorial',
+    tutorialHint: 'Full setup guide for Claude Code, Codex and more'
   },
 
   // Groups (shared)
@@ -2666,8 +2674,19 @@ export default {
       description: 'Edit the marketing copy shown on the Model Pricing page and the Login page. Use the tabs below to switch between them.',
       tabs: {
         pricing: 'Model Pricing page',
-        login: 'Login page'
+        login: 'Login page',
+        tutorial: 'Tutorial'
       }
+    },
+
+    tutorial: {
+      uploadMd: 'Upload MD File',
+      uploadImage: 'Upload Image',
+      uploading: 'Uploading...',
+      preview: 'Preview',
+      edit: 'Edit',
+      placeholder: 'Enter or paste Markdown tutorial content here...\n\nSupports image upload: click "Upload Image" or paste a screenshot directly.',
+      localImageWarning: 'The following local image paths were detected. These will not work online. Please upload them via "Upload Image" and replace the paths:'
     },
 
     // Login Page Content (admin-edited)
@@ -6273,6 +6292,12 @@ export default {
     notFoundDesc: 'This custom page does not exist or has been removed.',
     notConfiguredTitle: 'Page URL not configured',
     notConfiguredDesc: 'The URL for this custom page has not been properly configured.',
+  },
+
+  tutorial: {
+    toc: 'Table of Contents',
+    emptyTitle: 'Tutorial not published yet',
+    emptyDesc: 'The administrator has not uploaded a tutorial yet. Please check back later.',
   },
 
   // Announcements Page

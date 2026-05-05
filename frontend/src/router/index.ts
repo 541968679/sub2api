@@ -340,6 +340,17 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'customPage.title',
     }
   },
+  {
+    path: '/tutorial',
+    name: 'Tutorial',
+    component: () => import('@/views/user/TutorialView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Tutorial',
+      titleKey: 'nav.tutorial',
+    }
+  },
 
   // ==================== Admin Routes ====================
   {

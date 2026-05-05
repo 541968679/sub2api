@@ -32,6 +32,7 @@ type AdminHandlers struct {
 	UserModelPricing       *admin.UserModelPricingHandler
 	PricingPage            *admin.PricingPageHandler
 	LoginPage              *admin.LoginPageHandler
+	TutorialPage           *admin.TutorialPageHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
 	Payment                *admin.PaymentHandler
@@ -55,6 +56,7 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	PricingPage      *PricingPageHandler
+	TutorialPage     *TutorialPageHandler
 	AvailableChannel *AvailableChannelHandler
 }
 

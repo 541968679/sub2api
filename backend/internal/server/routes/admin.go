@@ -97,6 +97,7 @@ func RegisterAdminRoutes(
 
 		// 登录页文案管理
 		registerLoginPageRoutes(admin, h)
+		registerTutorialPageRoutes(admin, h)
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
 
@@ -626,6 +627,15 @@ func registerLoginPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		lp.GET("/content", h.Admin.LoginPage.Get)
 		lp.PUT("/content", h.Admin.LoginPage.Update)
+	}
+}
+
+func registerTutorialPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	tp := admin.Group("/tutorial-page")
+	{
+		tp.GET("/content", h.Admin.TutorialPage.Get)
+		tp.PUT("/content", h.Admin.TutorialPage.Update)
+		tp.POST("/upload-image", h.Admin.TutorialPage.UploadImage)
 	}
 }
 

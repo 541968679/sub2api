@@ -83,6 +83,9 @@ func SetupRouter(
 	// 注册路由
 	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient)
 
+	// Serve tutorial images from disk
+	r.Static("/assets/tutorial", "data/tutorial-images")
+
 	return r
 }
 

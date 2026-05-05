@@ -351,6 +351,7 @@ const zhBase = {
     redeem: '兑换',
     affiliate: '邀请返利',
     profile: '个人资料',
+    tutorial: '详细教程',
     users: '用户管理',
     groups: '分组管理',
     channels: '渠道管理',
@@ -666,9 +667,16 @@ const zhBase = {
     redeemCode: '兑换码',
     addBalanceWithCode: '使用兑换码充值',
     topUp: '充值/订阅',
-    topUpHint: '充值余额并获得赠送额度',
+    topUpHint: '充值余额，按量计费',
+    viewTutorial: '查看教程',
+    viewTutorialHint: 'Claude Code / Codex 接入指南',
+    getApiKey: '获取 API Key',
+    getApiKeyHint: '创建密钥，接入 AI 工具',
+    viewPricing: '模型定价',
     quickStart: '快速开始指南',
-    quickStartHint: '了解如何配置和使用 API 密钥'
+    quickStartHint: '了解如何配置和使用 API 密钥',
+    tutorial: '详细教程',
+    tutorialHint: '查看 Claude Code、Codex 等工具的完整接入指南'
   },
 
   // Groups (shared)
@@ -6086,6 +6094,12 @@ const zhBase = {
     notConfiguredDesc: '该自定义页面的 URL 未正确配置。',
   },
 
+  tutorial: {
+    toc: '目录导航',
+    emptyTitle: '教程尚未发布',
+    emptyDesc: '管理员还没有上传使用教程，请稍后再来查看。',
+  },
+
   // Announcements Page
   announcements: {
     title: '公告',
@@ -6741,8 +6755,18 @@ const v117ZhPatch = {
       description: '编辑模型定价页和登录页展示的营销文案，可通过下方标签切换页面。',
       tabs: {
         pricing: '模型定价页',
-        login: '登录页'
+        login: '登录页',
+        tutorial: '使用教程'
       }
+    },
+    tutorial: {
+      uploadMd: '上传 MD 文件',
+      uploadImage: '上传图片',
+      uploading: '上传中...',
+      preview: '预览',
+      edit: '编辑',
+      placeholder: '在此输入或粘贴 Markdown 教程内容...\n\n支持上传图片：点击「上传图片」按钮或直接粘贴截图。',
+      localImageWarning: '检测到以下本地图片路径，这些图片在线上环境无法显示，请使用「上传图片」按钮上传后替换：'
     },
     loginPage: {
       title: '登录页内容',
