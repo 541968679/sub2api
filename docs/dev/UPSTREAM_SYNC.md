@@ -154,9 +154,8 @@ git push origin main
 
 - **部署**: 已于 2026-04-14 部署到生产（`sub2api-custom:latest` 重建 + 健康检查通过）。部署指令：
   ```bash
-  python deploy/remote_exec.py --update
+  ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
   ```
-  （旧的 `python deploy/remote_exec.py "/opt/sub2api/update.sh"` 在 Git Bash 环境会被 MSYS2 把 `/opt/...` 转成 Windows 路径，已弃用；详见 `deploy/remote_exec.py` docstring）
 
 ### 2026-04-12 — 初始克隆
 

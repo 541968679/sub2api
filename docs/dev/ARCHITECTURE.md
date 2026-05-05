@@ -361,8 +361,8 @@ export default keysAPI
 | **`docs/dev` 被 gitignore** | 本文件、CHANGELOG_CUSTOM、codebase/*.md 都要用 `git add -f` |
 | **Git Bash 改 POSIX 路径** | 在 Windows 用 `taskkill /PID 12345` 会被 MSYS 改写为路径；改用 `cmd //c "taskkill /PID 12345 /F"` |
 | **Git stash pop 会带出旧 WIP** | 本地 `git stash list` 里可能有以前的 "wip: all changes"；pop 前先看 |
-| `deploy/remote_exec.py` 直接传 `/opt/...` 路径 | MSYS 会转 Windows 路径，命令失败；用预置 shortcut：`python deploy/remote_exec.py --update` |
-| **push / deploy 需要显式同意** | commit 自动做，push 到 origin 与跑 `remote_exec.py` 必须每次当面获得「推」/「部署」类指令 |
+| `deploy/remote_exec.py` 已移除 | 部署改用直接 SSH：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"` |
+| **push / deploy 需要显式同意** | commit 自动做，push 到 origin 与 SSH 部署必须每次当面获得「推」/「部署」类指令 |
 
 ### 本地开发
 

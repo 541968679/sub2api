@@ -117,7 +117,7 @@ make secret-scan          # Python security scanner
 
 ## Key Development Rules
 
-1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. **Do NOT `git push` or deploy to production without explicit user permission** — local commits are fine, but pushing to `origin` (the fork, which drives production deploys) and running `deploy/remote_exec.py` both require the user to say "push"/"deploy" (or equivalent) for this specific change. A one-time earlier approval does not carry over to future commits.
+1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. **Do NOT `git push` or deploy to production without explicit user permission** — local commits are fine, but pushing to `origin` (the fork, which drives production deploys) and SSH 部署都require the user to say "push"/"deploy" (or equivalent) for this specific change. A one-time earlier approval does not carry over to future commits.
 2. **Every change must be logged** — append an entry to `docs/dev/CHANGELOG_CUSTOM.md` describing what changed, why, and which files were affected.
 3. **Architecture doc = entry point for code exploration** — before diving into code in a new conversation or an unfamiliar module, read `docs/dev/ARCHITECTURE.md` first. It's the navigation hub: tech stack, directory map, request lifecycle, Wire/Settings/migration conventions, common task templates (§5), known gotchas (§6). Don't re-explore what the doc already documents. **Update ARCHITECTURE.md** when:
    - adding a new top-level module / service / frontend area,
@@ -199,16 +199,10 @@ git push origin main
 ### 4. Deploy to Production Server
 
 ```bash
-# Option A: Via remote_exec.py (Claude Code can run this directly)
-python deploy/remote_exec.py --update
-
-# Option B: Manual SSH
-ssh root@172.245.247.80 "bash /opt/sub2api/update.sh"
+ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
 ```
 
-The update.sh script: pulls code → builds Docker image → restarts container → health check.
-
-**Git Bash / MSYS2 gotcha**: do NOT call `python deploy/remote_exec.py "/opt/sub2api/update.sh"` directly on Windows — MSYS2 silently converts `/opt/...` to a Windows path before Python sees it and the SSH side fails with `No such file or directory`. Always use `--update` (or add a new shortcut to `SHORTCUTS` inside `remote_exec.py`). See the docstring in `deploy/remote_exec.py` for details and escape hatches.
+The update.sh script: pulls code → builds Docker image (no-cache) → restarts container → health check.
 
 ### 5. Sync Upstream (Official) Updates
 
@@ -217,7 +211,7 @@ git fetch upstream
 git merge upstream/main    # Git preserves our custom changes
 # Resolve conflicts if any, then:
 git push origin main
-python deploy/remote_exec.py --update
+ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
 ```
 
 Track all custom changes in `docs/dev/CHANGELOG_CUSTOM.md` and sync history in `docs/dev/UPSTREAM_SYNC.md`.
@@ -227,7 +221,10 @@ Track all custom changes in `docs/dev/CHANGELOG_CUSTOM.md` and sync history in `
 - **URL**: https://zerocode.kaynlab.com
 - **Admin**: admin@zerocode.kaynlab.com
 - **Server**: 172.245.247.80 (RackNerd, LA, Ubuntu 24.04, 5C/6G)
-- **SSH**: `python deploy/remote_exec.py --update` for deploys; `python deploy/remote_exec.py "<command>"` for ad-hoc commands that don't start with `/` (Git Bash will break POSIX paths in argv — see `deploy/remote_exec.py` docstring)
+- **SSH**: `ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80` （密钥认证，密码认证不可靠）
+  - 部署：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"`
+  - 查日志：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "docker logs sub2api --since 10m"`
+  - 重启：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose up -d sub2api"`
 - **Stack**: Docker Compose (sub2api-custom:latest + PG 18 + Redis 8) + Caddy (auto HTTPS)
 - **Firewall**: UFW, ports 22/80/443 only
 - **Paths**: repo at `/opt/sub2api/repo`, compose at `/opt/sub2api/docker-compose.yml`
