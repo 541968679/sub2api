@@ -51,6 +51,23 @@
               />
               <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
             </div>
+            <!-- Bonus Tiers -->
+            <div v-if="sortedBonusTiers.length" class="space-y-2">
+              <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('payment.bonusTiersTitle') }}</p>
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div
+                  v-for="(tier, idx) in sortedBonusTiers"
+                  :key="tier.min_amount"
+                  class="bonus-tier-card"
+                  :class="bonusTierClass(idx, sortedBonusTiers.length)"
+                >
+                  <div class="bonus-tier-badge" :class="bonusTierBadgeClass(idx, sortedBonusTiers.length)">
+                    +${{ tier.bonus_usd }}
+                  </div>
+                  <p class="bonus-tier-threshold">{{ t('payment.bonusTierThreshold', { amount: tier.min_amount }) }}</p>
+                </div>
+              </div>
+            </div>
             <div v-if="enabledMethods.length >= 1" class="card p-6">
               <PaymentMethodSelector
                 :methods="methodOptions"
@@ -527,6 +544,10 @@ const methodOptions = computed<PaymentMethodOption[]>(() =>
 )
 
 const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
+
+const sortedBonusTiers = computed(() =>
+  [...(checkout.value?.bonus_tiers || [])].sort((a, b) => a.min_amount - b.min_amount)
+)
 const feeAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
     ? Math.ceil(((validAmount.value * feeRate.value) / 100) * 100) / 100
@@ -1026,4 +1047,115 @@ onMounted(async () => {
   // Fetch active subscriptions (uses cache, non-blocking)
   subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
+function bonusTierClass(idx: number, total: number): string {
+  const rank = total <= 1 ? 0 : idx / (total - 1)
+  if (rank >= 0.8) return 'bonus-tier-legendary'
+  if (rank >= 0.5) return 'bonus-tier-epic'
+  return 'bonus-tier-normal'
+}
+
+function bonusTierBadgeClass(idx: number, total: number): string {
+  const rank = total <= 1 ? 0 : idx / (total - 1)
+  if (rank >= 0.8) return 'bonus-badge-legendary'
+  if (rank >= 0.5) return 'bonus-badge-epic'
+  return 'bonus-badge-normal'
+}
 </script>
+
+<style scoped>
+.bonus-tier-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.875rem 0.75rem;
+  border-radius: 0.75rem;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.bonus-tier-card:hover {
+  transform: translateY(-1px);
+}
+
+.bonus-tier-normal {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+:root.dark .bonus-tier-normal {
+  background: rgba(31, 41, 55, 0.5);
+  border-color: #374151;
+}
+
+.bonus-tier-epic {
+  background: linear-gradient(135deg, #ede9fe, #dbeafe);
+  border: 1px solid #c4b5fd;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.1);
+}
+:root.dark .bonus-tier-epic {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(59, 130, 246, 0.15));
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.bonus-tier-legendary {
+  background: linear-gradient(135deg, #fef3c7, #fce7f3, #ede9fe);
+  border: 1px solid #fbbf24;
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.2), 0 0 0 1px rgba(251, 191, 36, 0.1);
+  animation: legendary-glow 3s ease-in-out infinite;
+}
+:root.dark .bonus-tier-legendary {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15), rgba(236, 72, 153, 0.12), rgba(139, 92, 246, 0.15));
+  border-color: rgba(251, 191, 36, 0.4);
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.15);
+}
+
+@keyframes legendary-glow {
+  0%, 100% { box-shadow: 0 4px 15px rgba(251, 191, 36, 0.2), 0 0 0 1px rgba(251, 191, 36, 0.1); }
+  50% { box-shadow: 0 4px 20px rgba(251, 191, 36, 0.35), 0 0 0 2px rgba(251, 191, 36, 0.15); }
+}
+
+.bonus-tier-badge {
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+}
+
+.bonus-badge-normal {
+  color: #059669;
+  background: #d1fae5;
+}
+:root.dark .bonus-badge-normal {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.bonus-badge-epic {
+  color: #7c3aed;
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+}
+:root.dark .bonus-badge-epic {
+  color: #a78bfa;
+  background: rgba(139, 92, 246, 0.2);
+}
+
+.bonus-badge-legendary {
+  color: #b45309;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.3);
+}
+:root.dark .bonus-badge-legendary {
+  color: #fbbf24;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.25), rgba(245, 158, 11, 0.2));
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.2);
+}
+
+.bonus-tier-threshold {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+}
+:root.dark .bonus-tier-threshold {
+  color: #9ca3af;
+}
+</style>
