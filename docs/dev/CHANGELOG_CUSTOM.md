@@ -1218,6 +1218,17 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Reports local usage by account/API key/client, AI Credits snapshot deltas by email, credits-vs-local reconciliation, suspicious API keys with multiple IPs/User-Agents, duplicate request IDs, billing dedup summaries, and missing client attribution fields.
 - Supports `DATABASE_URL` or `--database-url`, explicit `--start`/`--end` windows, and `--sql-only` for review or server-side execution.
 
+## [2026-05-06] feat: add Antigravity per-request AI Credits sampling
+
+**Affected files**: backend/migrations/134_add_antigravity_credit_request_samples.sql, backend/internal/service/antigravity_credit_sampler.go, backend/internal/repository/antigravity_credit_sample_repo.go, backend/internal/service/antigravity_gateway_service.go, backend/internal/service/gateway_service.go, backend/internal/{service,repository}/wire.go, backend/cmd/server/wire_gen.go
+**Upstream compatibility**: low risk when disabled; diagnostic path is gated by `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`
+**Change details**:
+- Added `antigravity_credit_request_samples` to store request-linked before/after AI Credits balances, delta, account/API key/user/request IDs, timestamps, confidence, and fetch errors.
+- Added an Antigravity credit sampler that captures a balance before forwarding and writes request samples after the usage log is persisted.
+- Wired the sampler into Antigravity Claude/Gemini forwarding and Gateway usage recording.
+- Sampling is disabled by default; enable with comma-separated account IDs in `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`.
+- Concurrent requests on the same sampled account can still blur before/after attribution; prefer temporarily low account concurrency for the diagnostic window.
+
 <!-- 
 示例条目：
 

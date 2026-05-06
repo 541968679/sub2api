@@ -877,6 +877,7 @@ type AntigravityGatewayService struct {
 	settingService    *SettingService
 	cache             GatewayCache // 用于模型级限流时清除粘性会话绑定
 	schedulerSnapshot *SchedulerSnapshotService
+	creditSampler     *AntigravityCreditSampler
 	internal500Cache  Internal500CounterCache // INTERNAL 500 渐进惩罚计数器
 }
 
@@ -889,6 +890,7 @@ func NewAntigravityGatewayService(
 	httpUpstream HTTPUpstream,
 	settingService *SettingService,
 	internal500Cache Internal500CounterCache,
+	creditSampler *AntigravityCreditSampler,
 ) *AntigravityGatewayService {
 	return &AntigravityGatewayService{
 		accountRepo:       accountRepo,
@@ -899,6 +901,7 @@ func NewAntigravityGatewayService(
 		cache:             cache,
 		schedulerSnapshot: schedulerSnapshot,
 		internal500Cache:  internal500Cache,
+		creditSampler:     creditSampler,
 	}
 }
 
@@ -1408,6 +1411,10 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	}
 
 	startTime := time.Now()
+	var creditSample *antigravityCreditSampleSpan
+	if s.creditSampler != nil {
+		creditSample = s.creditSampler.Begin(ctx, account)
+	}
 
 	sessionID := getSessionID(c)
 	prefix := logPrefix(sessionID, account.Name)
@@ -1877,6 +1884,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		Duration:         time.Since(startTime),
 		FirstTokenMs:     firstTokenMs,
 		ClientDisconnect: clientDisconnect,
+		CreditSample:     creditSample,
 	}, nil
 }
 
@@ -2187,6 +2195,10 @@ func stripSignatureSensitiveBlocksFromClaudeRequest(req *antigravity.ClaudeReque
 //	          └─ 失败 → 设置模型限流 + 清除粘性绑定 → 切换账号
 func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool) (*ForwardResult, error) {
 	startTime := time.Now()
+	var creditSample *antigravityCreditSampleSpan
+	if s.creditSampler != nil {
+		creditSample = s.creditSampler.Begin(ctx, account)
+	}
 
 	sessionID := getSessionID(c)
 	prefix := logPrefix(sessionID, account.Name)
@@ -2573,6 +2585,7 @@ handleSuccess:
 		ClientDisconnect: clientDisconnect,
 		ImageCount:       imageCount,
 		ImageSize:        imageSize,
+		CreditSample:     creditSample,
 	}, nil
 }
 
