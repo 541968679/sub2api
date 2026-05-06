@@ -1209,6 +1209,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - 新增 `useEmailAsName` 选项，仅 Antigravity 平台可见
 - 勾选后隐藏名称输入框，批量和单个 OAuth 创建均使用邮箱作为名称
 
+## [2026-05-06] chore: add read-only Antigravity usage audit script
+
+**Affected files**: tools/audit_antigravity_usage.py
+**Upstream compatibility**: low risk, standalone tooling only
+**Change details**:
+- Added a psql-based read-only audit script for Antigravity usage mismatch investigations.
+- Reports local usage by account/API key/client, AI Credits snapshot deltas by email, credits-vs-local reconciliation, suspicious API keys with multiple IPs/User-Agents, duplicate request IDs, billing dedup summaries, and missing client attribution fields.
+- Supports `DATABASE_URL` or `--database-url`, explicit `--start`/`--end` windows, and `--sql-only` for review or server-side execution.
+
 <!-- 
 示例条目：
 
