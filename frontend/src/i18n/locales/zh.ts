@@ -6331,6 +6331,8 @@ const zhBase = {
     creditedBalance: '到账余额',
     quickAmounts: '快捷金额',
     customAmount: '自定义金额',
+    enterRechargeAmount: '输入充值金额',
+    rechargeRatioLabel: '充值比例',
     enterAmount: '输入金额',
     paymentMethod: '支付方式',
     fee: '手续费',

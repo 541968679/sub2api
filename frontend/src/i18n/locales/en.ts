@@ -6511,6 +6511,8 @@ export default {
     creditedBalance: 'Credited Balance',
     quickAmounts: 'Quick Amounts',
     customAmount: 'Custom Amount',
+    enterRechargeAmount: 'Enter Recharge Amount',
+    rechargeRatioLabel: 'Recharge Ratio',
     enterAmount: 'Enter amount',
     paymentMethod: 'Payment Method',
     fee: 'Fee',

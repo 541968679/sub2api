@@ -42,6 +42,14 @@
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
+            <!-- Recharge Ratio (always visible) -->
+            <div v-if="checkout.cny_per_usd > 0" class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 dark:border-blue-800 dark:bg-blue-900/20">
+              <svg class="h-4 w-4 flex-shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="text-sm font-medium text-blue-700 dark:text-blue-300">{{ t('payment.rechargeRatioLabel') }}：¥{{ checkout.cny_per_usd }} = $1</span>
+            </div>
+
             <!-- First Recharge Banner -->
             <div v-if="checkout.first_recharge_eligible" class="first-recharge-banner">
               <div class="first-recharge-glow"></div>
@@ -60,31 +68,35 @@
               </div>
             </div>
 
-            <div class="card p-6">
-              <AmountInput
-                v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                :min="globalMinAmount"
-                :max="globalMaxAmount"
-              />
-              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
-            </div>
-            <!-- Bonus Tiers -->
+            <!-- Bonus Tiers (clickable to fill amount) -->
             <div v-if="sortedBonusTiers.length" class="space-y-2">
               <p class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('payment.bonusTiersTitle') }}</p>
               <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div
+                <button
                   v-for="(tier, idx) in sortedBonusTiers"
                   :key="tier.min_amount"
+                  type="button"
                   class="bonus-tier-card"
-                  :class="bonusTierClass(idx, sortedBonusTiers.length)"
+                  :class="[
+                    bonusTierClass(idx, sortedBonusTiers.length),
+                    amount === tier.min_amount ? 'bonus-tier-selected' : ''
+                  ]"
+                  @click="amount = tier.min_amount"
                 >
                   <div class="bonus-tier-badge" :class="bonusTierBadgeClass(idx, sortedBonusTiers.length)">
                     +${{ tier.bonus_usd }}
                   </div>
                   <p class="bonus-tier-threshold">{{ t('payment.bonusTierThreshold', { amount: tier.min_amount }) }}</p>
-                </div>
+                </button>
               </div>
+            </div>
+            <div class="card p-6">
+              <AmountInput
+                v-model="amount"
+                :min="globalMinAmount"
+                :max="globalMaxAmount"
+              />
+              <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
             </div>
             <div v-if="enabledMethods.length >= 1" class="card p-6">
               <PaymentMethodSelector
@@ -95,11 +107,6 @@
             </div>
             <div v-if="validAmount > 0" class="card p-6">
               <div class="space-y-2 text-sm">
-                <!-- Recharge ratio -->
-                <div v-if="checkout.cny_per_usd > 0" class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rechargeRatio') }}</span>
-                  <span class="text-gray-900 dark:text-white">¥{{ checkout.cny_per_usd }} = $1</span>
-                </div>
                 <!-- Payment amount -->
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
@@ -1167,9 +1174,16 @@ function bonusTierBadgeClass(idx: number, total: number): string {
   border-radius: 0.75rem;
   text-align: center;
   transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
 }
 .bonus-tier-card:hover {
   transform: translateY(-1px);
+}
+
+.bonus-tier-selected {
+  ring: 2px;
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
 }
 
 .bonus-tier-normal {
