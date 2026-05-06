@@ -1229,6 +1229,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Sampling is disabled by default; enable with comma-separated account IDs in `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`.
 - Concurrent requests on the same sampled account can still blur before/after attribution; prefer temporarily low account concurrency for the diagnostic window.
 
+## [2026-05-06] security: rotate local admin password
+
+**Affected files**: local PostgreSQL `users` table, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: no upstream code impact; local credential rotation only
+**Change details**:
+- Rotated the local administrator password for `admin@sub2api.local` by updating `users.password_hash` in the local `sub2api` database.
+- Verified that the new password matches the stored bcrypt hash.
+- Did not record the plaintext password or password hash in repository files.
+
 <!-- 
 示例条目：
 
