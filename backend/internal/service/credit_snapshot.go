@@ -26,8 +26,8 @@ type CreditSnapshotRepository interface {
 // AntigravityUsageAggregator 聚合 usage_logs 中 antigravity 平台账号在时间窗内的
 // 调用次数和总费用。定义为独立小接口以避免改动 UsageLogRepository 的多处 stub。
 type AntigravityUsageAggregator interface {
-	AggregateUsage(ctx context.Context, accountIDs []int64, start, end time.Time) (callCount int64, totalCost float64, err error)
-	AggregateUsageWindows(ctx context.Context, accountIDs []int64, start, end time.Time, granularity string) ([]AntigravityUsageWindow, error)
+	AggregateUsage(ctx context.Context, start, end time.Time) (callCount int64, totalCost float64, err error)
+	AggregateUsageWindows(ctx context.Context, start, end time.Time, granularity string) ([]AntigravityUsageWindow, error)
 }
 
 // AntigravityUsageRatio 是"每 credit 对应多少额度/调用次数"的聚合结果。

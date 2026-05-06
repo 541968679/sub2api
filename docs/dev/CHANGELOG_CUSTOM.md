@@ -1270,6 +1270,14 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 **Change details**:
 - Changed Antigravity usage window aggregation to truncate `usage_logs.created_at` in the configured application timezone before returning buckets, matching the credit snapshot curve buckets.
 
+## [2026-05-06] fix: include historical Antigravity accounts in usage curve
+
+**Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
+**Upstream compatibility**: low risk, aggregation bug fix only
+**Change details**:
+- Changed Antigravity request/cost/token aggregation to join `usage_logs` with `accounts.platform='antigravity'` instead of filtering by the currently active account ID list.
+- Restored historical request counts for soft-deleted or rotated Antigravity accounts so credit curve windows match historical usage logs.
+
 <!-- 
 示例条目：
 

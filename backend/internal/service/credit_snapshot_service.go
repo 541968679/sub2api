@@ -214,15 +214,7 @@ func (s *CreditSnapshotService) GetAntigravityUsageRatio(ctx context.Context, st
 		totalCredits += v
 	}
 
-	accounts, err := s.accountRepo.ListByPlatform(ctx, PlatformAntigravity)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(accounts))
-	for i := range accounts {
-		ids = append(ids, accounts[i].ID)
-	}
-	callCount, totalCost, err := s.usageAgg.AggregateUsage(ctx, ids, start, end)
+	callCount, totalCost, err := s.usageAgg.AggregateUsage(ctx, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -291,15 +283,7 @@ func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, s
 		}
 	}
 
-	accounts, err := s.accountRepo.ListByPlatform(ctx, PlatformAntigravity)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(accounts))
-	for i := range accounts {
-		ids = append(ids, accounts[i].ID)
-	}
-	usageWindows, err := s.usageAgg.AggregateUsageWindows(ctx, ids, start, end, granularity)
+	usageWindows, err := s.usageAgg.AggregateUsageWindows(ctx, start, end, granularity)
 	if err != nil {
 		return nil, err
 	}
