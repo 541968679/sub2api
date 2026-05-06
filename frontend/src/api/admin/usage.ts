@@ -212,6 +212,30 @@ export interface AntigravityUsageRatio {
   manual_refresh_throttled?: boolean
 }
 
+export interface AntigravityCreditCurvePoint {
+  start: string
+  end: string
+  credits_consumed: number
+  credits_by_type: Record<string, number>
+  call_count: number
+  total_tokens: number
+  quota_used_usd: number
+  actual_cost_usd: number
+  credits_per_call?: number
+  quota_per_credit?: number
+  tokens_per_credit?: number
+  snapshot_count: number
+  anomaly_score: number
+  anomaly_description?: string
+}
+
+export interface AntigravityCreditCurve {
+  start: string
+  end: string
+  granularity: 'hour' | 'day'
+  points: AntigravityCreditCurvePoint[]
+}
+
 interface AntigravityStatsParams {
   period?: string
   start_date?: string
@@ -224,6 +248,17 @@ export async function getAntigravityStats(
   options?: { signal?: AbortSignal }
 ): Promise<AntigravityUsageRatio> {
   const { data } = await apiClient.get<AntigravityUsageRatio>('/admin/usage/stats/antigravity', {
+    params,
+    signal: options?.signal
+  })
+  return data
+}
+
+export async function getAntigravityCreditCurve(
+  params: AntigravityStatsParams & { granularity?: 'hour' | 'day' },
+  options?: { signal?: AbortSignal }
+): Promise<AntigravityCreditCurve> {
+  const { data } = await apiClient.get<AntigravityCreditCurve>('/admin/usage/stats/antigravity/curve', {
     params,
     signal: options?.signal
   })
@@ -296,6 +331,7 @@ export const adminUsageAPI = {
   createCleanupTask,
   cancelCleanupTask,
   getAntigravityStats,
+  getAntigravityCreditCurve,
   refreshAntigravityStats,
   getUserViewPreview
 }

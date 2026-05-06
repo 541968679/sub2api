@@ -529,6 +529,7 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.GET("", h.Admin.Usage.List)
 		usage.GET("/stats", h.Admin.Usage.Stats)
 		usage.GET("/stats/antigravity", h.Admin.Usage.StatsAntigravity)
+		usage.GET("/stats/antigravity/curve", h.Admin.Usage.StatsAntigravityCurve)
 		usage.POST("/stats/antigravity/refresh", h.Admin.Usage.RefreshAntigravityStats)
 		usage.GET("/search-users", h.Admin.Usage.SearchUsers)
 		usage.GET("/search-api-keys", h.Admin.Usage.SearchAPIKeys)

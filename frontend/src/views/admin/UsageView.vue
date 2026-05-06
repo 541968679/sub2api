@@ -3,6 +3,7 @@
     <div class="space-y-6">
       <UsageStatsCards :stats="usageStats" />
       <AntigravityRatioCard :stats="antigravityStats" @refresh="refreshAntigravityStats" />
+      <AntigravityUsageCurveChart :curve="antigravityCurve" :loading="antigravityCurveLoading" />
       <!-- Charts Section -->
       <div class="space-y-4">
         <div class="card p-4">
@@ -18,7 +19,7 @@
             <div class="ml-auto flex items-center gap-2">
               <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
               <div class="w-28">
-                <Select v-model="granularity" :options="granularityOptions" @change="loadChartData" />
+                <Select v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
               </div>
             </div>
           </div>
@@ -150,6 +151,7 @@ import { resolveUsageRequestType, requestTypeToLegacyStream } from '@/utils/usag
 import AppLayout from '@/components/layout/AppLayout.vue'; import Pagination from '@/components/common/Pagination.vue'; import Select from '@/components/common/Select.vue'; import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import UsageStatsCards from '@/components/admin/usage/UsageStatsCards.vue'; import UsageFilters from '@/components/admin/usage/UsageFilters.vue'
 import AntigravityRatioCard from '@/components/admin/usage/AntigravityRatioCard.vue'
+import AntigravityUsageCurveChart from '@/components/admin/usage/AntigravityUsageCurveChart.vue'
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawer.vue'
@@ -157,7 +159,7 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams, AntigravityUsageRatio } from '@/api/admin/usage'
+import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams, AntigravityUsageRatio, AntigravityCreditCurve } from '@/api/admin/usage'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -167,6 +169,8 @@ type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 const route = useRoute()
 const usageStats = ref<AdminUsageStatsResponse | null>(null); const usageLogs = ref<AdminUsageLog[]>([]); const loading = ref(false); const exporting = ref(false)
 const antigravityStats = ref<AntigravityUsageRatio | null>(null)
+const antigravityCurve = ref<AntigravityCreditCurve | null>(null)
+const antigravityCurveLoading = ref(false)
 let antigravityReqSeq = 0
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
@@ -362,13 +366,38 @@ const antigravityParams = () => ({
 
 const loadAntigravityStats = async () => {
   const seq = ++antigravityReqSeq
+  antigravityCurveLoading.value = true
   try {
-    const s = await adminUsageAPI.getAntigravityStats(antigravityParams())
+    const params = antigravityParams()
+    const [s, curve] = await Promise.all([
+      adminUsageAPI.getAntigravityStats(params),
+      adminUsageAPI.getAntigravityCreditCurve({ ...params, granularity: granularity.value })
+    ])
     if (seq !== antigravityReqSeq) return
     antigravityStats.value = s
+    antigravityCurve.value = curve
   } catch (error) {
     if (seq !== antigravityReqSeq) return
     console.error('Failed to load antigravity stats:', error)
+    antigravityCurve.value = null
+  } finally {
+    if (seq === antigravityReqSeq) antigravityCurveLoading.value = false
+  }
+}
+
+const loadAntigravityCurve = async () => {
+  const seq = ++antigravityReqSeq
+  antigravityCurveLoading.value = true
+  try {
+    const curve = await adminUsageAPI.getAntigravityCreditCurve({ ...antigravityParams(), granularity: granularity.value })
+    if (seq !== antigravityReqSeq) return
+    antigravityCurve.value = curve
+  } catch (error) {
+    if (seq !== antigravityReqSeq) return
+    console.error('Failed to load antigravity credit curve:', error)
+    antigravityCurve.value = null
+  } finally {
+    if (seq === antigravityReqSeq) antigravityCurveLoading.value = false
   }
 }
 
@@ -376,6 +405,7 @@ const refreshAntigravityStats = async () => {
   try {
     const s = await adminUsageAPI.refreshAntigravityStats(antigravityParams())
     antigravityStats.value = s
+    await loadAntigravityCurve()
   } catch (error) {
     console.error('Failed to refresh antigravity stats:', error)
   }
@@ -470,6 +500,10 @@ const loadChartData = async () => {
     trendData.value = snapshot.trend || []
     groupStats.value = snapshot.groups || []
   } catch (error) { console.error('Failed to load chart data:', error) } finally { if (seq === chartReqSeq) chartsLoading.value = false }
+}
+const onGranularityChange = () => {
+  loadChartData()
+  loadAntigravityCurve()
 }
 const applyFilters = () => {
   pagination.page = 1

@@ -27,6 +27,7 @@ type CreditSnapshotRepository interface {
 // 调用次数和总费用。定义为独立小接口以避免改动 UsageLogRepository 的多处 stub。
 type AntigravityUsageAggregator interface {
 	AggregateUsage(ctx context.Context, accountIDs []int64, start, end time.Time) (callCount int64, totalCost float64, err error)
+	AggregateUsageWindows(ctx context.Context, accountIDs []int64, start, end time.Time, granularity string) ([]AntigravityUsageWindow, error)
 }
 
 // AntigravityUsageRatio 是"每 credit 对应多少额度/调用次数"的聚合结果。
@@ -42,4 +43,37 @@ type AntigravityUsageRatio struct {
 	SnapshotCount          int                `json:"snapshot_count"`
 	EmailsSampled          int                `json:"emails_sampled"`
 	ManualRefreshThrottled bool               `json:"manual_refresh_throttled,omitempty"`
+}
+
+type AntigravityUsageWindow struct {
+	Start       time.Time `json:"start"`
+	End         time.Time `json:"end"`
+	CallCount   int64     `json:"call_count"`
+	TotalTokens int64     `json:"total_tokens"`
+	QuotaUsed   float64   `json:"quota_used_usd"`
+	ActualCost  float64   `json:"actual_cost_usd"`
+}
+
+type AntigravityCreditCurvePoint struct {
+	Start              time.Time          `json:"start"`
+	End                time.Time          `json:"end"`
+	CreditsConsumed    float64            `json:"credits_consumed"`
+	CreditsByType      map[string]float64 `json:"credits_by_type"`
+	CallCount          int64              `json:"call_count"`
+	TotalTokens        int64              `json:"total_tokens"`
+	QuotaUsedUSD       float64            `json:"quota_used_usd"`
+	ActualCostUSD      float64            `json:"actual_cost_usd"`
+	CreditsPerCall     *float64           `json:"credits_per_call,omitempty"`
+	QuotaPerCredit     *float64           `json:"quota_per_credit,omitempty"`
+	TokensPerCredit    *float64           `json:"tokens_per_credit,omitempty"`
+	SnapshotCount      int                `json:"snapshot_count"`
+	AnomalyScore       float64            `json:"anomaly_score"`
+	AnomalyDescription string             `json:"anomaly_description,omitempty"`
+}
+
+type AntigravityCreditCurve struct {
+	Start       time.Time                     `json:"start"`
+	End         time.Time                     `json:"end"`
+	Granularity string                        `json:"granularity"`
+	Points      []AntigravityCreditCurvePoint `json:"points"`
 }

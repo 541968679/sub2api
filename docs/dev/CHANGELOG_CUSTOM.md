@@ -1247,6 +1247,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Added an operational bcrypt-based admin password rotation procedure with `token_version` handling when that column exists.
 - Added a security operations checklist for suspected credential compromise without recording any real password or hash.
 
+## [2026-05-06] feat: add Antigravity credit usage curve
+
+**Affected files**: backend/internal/service/credit_snapshot*.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/handler/admin/usage_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/AntigravityUsageCurveChart.vue, frontend/src/views/admin/UsageView.vue, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk, additive admin-only API and UI
+**Change details**:
+- Added `GET /api/v1/admin/usage/stats/antigravity/curve` to aggregate `ai_credit_snapshots` deltas with Antigravity request count, token count, quota cost, and actual cost by hour/day.
+- Added per-window derived ratios including credits/request, quota/credit, and tokens/credit, plus a simple median-based spike score.
+- Added an admin Usage page line chart comparing AI Credits, requests, tokens, quota cost, and credits/request for the selected time range.
+
 <!-- 
 示例条目：
 

@@ -401,6 +401,26 @@ func (h *UsageHandler) StatsAntigravity(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// StatsAntigravityCurve 返回 AI Credits 消耗、调用、Token 和额度消耗的时间窗口对比曲线。
+// GET /api/v1/admin/usage/stats/antigravity/curve
+func (h *UsageHandler) StatsAntigravityCurve(c *gin.Context) {
+	if h.creditSnapshotService == nil {
+		response.InternalError(c, "credit snapshot service not configured")
+		return
+	}
+	startTime, endTime, ok := parseStatsDateRange(c)
+	if !ok {
+		return
+	}
+	granularity := c.DefaultQuery("granularity", "hour")
+	result, err := h.creditSnapshotService.GetAntigravityCreditCurve(c.Request.Context(), startTime, endTime, granularity)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 // RefreshAntigravityStats 手动触发一次 credits 余额采样，再返回最新聚合结果。
 // 30 秒内重复请求会被节流（throttled），响应里回显 manual_refresh_throttled=true。
 // POST /api/v1/admin/usage/stats/antigravity/refresh

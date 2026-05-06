@@ -984,6 +984,11 @@ export default {
       calls: 'Calls',
       quotaPerCredit: 'Quota / credit',
       callsPerCredit: 'Calls / credit',
+      creditsPerCall: 'Credits / call',
+      tokensPerCredit: 'Tokens / credit',
+      curveTitle: 'Antigravity Credit Usage Curve',
+      curveSubtitle: 'Compare AI Credits, requests, tokens, and quota cost by time window',
+      anomalyHint: 'Spike at {time}: {score}x normal credits/call',
       perCredit: '/ credit',
       samplingMeta: '{emails} accounts, {snapshots} snapshots',
       throttled: 'Sampling cooling down, showing latest result'

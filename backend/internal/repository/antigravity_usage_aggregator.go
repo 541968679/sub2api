@@ -43,3 +43,56 @@ func (r *antigravityUsageAggregator) AggregateUsage(ctx context.Context, account
 	}
 	return callCount, totalCost, nil
 }
+
+func (r *antigravityUsageAggregator) AggregateUsageWindows(ctx context.Context, accountIDs []int64, start, end time.Time, granularity string) ([]service.AntigravityUsageWindow, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	trunc := "hour"
+	if granularity == "day" {
+		trunc = "day"
+	}
+	query := `
+		SELECT
+			date_trunc($4, created_at) AS bucket,
+			COUNT(*) AS call_count,
+			COALESCE(SUM(
+				COALESCE(input_tokens, 0) +
+				COALESCE(output_tokens, 0) +
+				COALESCE(cache_creation_tokens, 0) +
+				COALESCE(cache_read_tokens, 0) +
+				COALESCE(image_output_tokens, 0)
+			), 0) AS total_tokens,
+			COALESCE(SUM(total_cost), 0) AS quota_cost,
+			COALESCE(SUM(actual_cost), 0) AS actual_cost
+		FROM usage_logs
+		WHERE account_id = ANY($1)
+		  AND created_at >= $2
+		  AND created_at < $3
+		GROUP BY 1
+		ORDER BY 1
+	`
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(accountIDs), start, end, trunc)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	windows := make([]service.AntigravityUsageWindow, 0)
+	for rows.Next() {
+		var w service.AntigravityUsageWindow
+		if err := rows.Scan(&w.Start, &w.CallCount, &w.TotalTokens, &w.QuotaUsed, &w.ActualCost); err != nil {
+			return nil, err
+		}
+		if granularity == "day" {
+			w.End = w.Start.AddDate(0, 0, 1)
+		} else {
+			w.End = w.Start.Add(time.Hour)
+		}
+		windows = append(windows, w)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return windows, nil
+}

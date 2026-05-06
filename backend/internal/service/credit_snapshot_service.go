@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +18,11 @@ const (
 	creditSnapshotCaptureTimeout  = 60 * time.Second
 	creditSnapshotLogComponent    = "service.credit_snapshot"
 	creditSnapshotRangeLookbackMu = 30 * time.Minute
+)
+
+const (
+	creditCurveGranularityHour = "hour"
+	creditCurveGranularityDay  = "day"
 )
 
 // creditBalanceFetcher 抽象"根据账号 ID 获取 UsageInfo（含 AICredits）"的行为，
@@ -241,6 +248,153 @@ func (s *CreditSnapshotService) GetAntigravityUsageRatio(ctx context.Context, st
 
 // antigravityAccountEmail 从 Account.Credentials 取出 email。
 // 同一 Google 账号授权多个 Antigravity 账号时会共享 credits 余额，按 email 去重。
+func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, start, end time.Time, granularity string) (*AntigravityCreditCurve, error) {
+	if !end.After(start) {
+		return nil, errors.New("end must be after start")
+	}
+	if granularity != creditCurveGranularityDay {
+		granularity = creditCurveGranularityHour
+	}
+
+	points := buildCreditCurveBuckets(start, end, granularity)
+	if len(points) == 0 {
+		return &AntigravityCreditCurve{Start: start, End: end, Granularity: granularity, Points: nil}, nil
+	}
+	pointByStart := make(map[time.Time]*AntigravityCreditCurvePoint, len(points))
+	for i := range points {
+		points[i].CreditsByType = make(map[string]float64)
+		pointByStart[points[i].Start] = &points[i]
+	}
+
+	grouped, err := s.repo.ListInRange(ctx, start.Add(-creditSnapshotRangeLookbackMu), end)
+	if err != nil {
+		return nil, err
+	}
+	for _, snaps := range grouped {
+		for i := 1; i < len(snaps); i++ {
+			prev := snaps[i-1]
+			curr := snaps[i]
+			if curr.CreditType != prev.CreditType || curr.CapturedAt.Before(start) || !curr.CapturedAt.Before(end) {
+				continue
+			}
+			point := pointByStart[creditCurveBucketStart(curr.CapturedAt, granularity)]
+			if point == nil {
+				continue
+			}
+			point.SnapshotCount++
+			delta := prev.Amount - curr.Amount
+			if delta <= 0 {
+				continue
+			}
+			point.CreditsConsumed += delta
+			point.CreditsByType[curr.CreditType] += delta
+		}
+	}
+
+	accounts, err := s.accountRepo.ListByPlatform(ctx, PlatformAntigravity)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(accounts))
+	for i := range accounts {
+		ids = append(ids, accounts[i].ID)
+	}
+	usageWindows, err := s.usageAgg.AggregateUsageWindows(ctx, ids, start, end, granularity)
+	if err != nil {
+		return nil, err
+	}
+	for _, usage := range usageWindows {
+		point := pointByStart[creditCurveBucketStart(usage.Start, granularity)]
+		if point == nil {
+			continue
+		}
+		point.CallCount = usage.CallCount
+		point.TotalTokens = usage.TotalTokens
+		point.QuotaUsedUSD = usage.QuotaUsed
+		point.ActualCostUSD = usage.ActualCost
+	}
+
+	for i := range points {
+		fillCreditCurveRatios(&points[i])
+	}
+	scoreCreditCurveAnomalies(points)
+
+	return &AntigravityCreditCurve{
+		Start:       start,
+		End:         end,
+		Granularity: granularity,
+		Points:      points,
+	}, nil
+}
+
+func buildCreditCurveBuckets(start, end time.Time, granularity string) []AntigravityCreditCurvePoint {
+	cursor := creditCurveBucketStart(start, granularity)
+	points := make([]AntigravityCreditCurvePoint, 0)
+	for cursor.Before(end) {
+		next := cursor.Add(time.Hour)
+		if granularity == creditCurveGranularityDay {
+			next = cursor.AddDate(0, 0, 1)
+		}
+		points = append(points, AntigravityCreditCurvePoint{Start: cursor, End: next})
+		cursor = next
+	}
+	return points
+}
+
+func creditCurveBucketStart(t time.Time, granularity string) time.Time {
+	if granularity == creditCurveGranularityDay {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	}
+	return t.Truncate(time.Hour)
+}
+
+func fillCreditCurveRatios(point *AntigravityCreditCurvePoint) {
+	if point == nil {
+		return
+	}
+	if point.CallCount > 0 {
+		v := point.CreditsConsumed / float64(point.CallCount)
+		point.CreditsPerCall = &v
+	}
+	if point.CreditsConsumed > 0 {
+		qpc := point.QuotaUsedUSD / point.CreditsConsumed
+		tpc := float64(point.TotalTokens) / point.CreditsConsumed
+		point.QuotaPerCredit = &qpc
+		point.TokensPerCredit = &tpc
+	}
+}
+
+func scoreCreditCurveAnomalies(points []AntigravityCreditCurvePoint) {
+	ratios := make([]float64, 0, len(points))
+	for _, point := range points {
+		if point.CreditsPerCall != nil && point.CallCount >= 5 && point.CreditsConsumed > 0 {
+			ratios = append(ratios, *point.CreditsPerCall)
+		}
+	}
+	if len(ratios) < 3 {
+		return
+	}
+	sort.Float64s(ratios)
+	median := ratios[len(ratios)/2]
+	if len(ratios)%2 == 0 {
+		median = (ratios[len(ratios)/2-1] + ratios[len(ratios)/2]) / 2
+	}
+	if median <= 0 {
+		return
+	}
+	for i := range points {
+		point := &points[i]
+		if point.CreditsPerCall == nil || point.CallCount < 5 {
+			continue
+		}
+		score := *point.CreditsPerCall / median
+		point.AnomalyScore = score
+		if score >= 3 && point.CreditsConsumed >= 100 {
+			point.AnomalyDescription = fmt.Sprintf("credits/call %.1fx median", score)
+		}
+	}
+}
+
 func antigravityAccountEmail(a *Account) string {
 	if a == nil || a.Credentials == nil {
 		return ""
