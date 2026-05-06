@@ -7,6 +7,7 @@ import (
 
 	"github.com/lib/pq"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -52,9 +53,10 @@ func (r *antigravityUsageAggregator) AggregateUsageWindows(ctx context.Context, 
 	if granularity == "day" {
 		trunc = "day"
 	}
+	tzName := timezone.Name()
 	query := `
 		SELECT
-			date_trunc($4, created_at) AS bucket,
+			date_trunc($4, created_at AT TIME ZONE $5) AT TIME ZONE $5 AS bucket,
 			COUNT(*) AS call_count,
 			COALESCE(SUM(
 				COALESCE(input_tokens, 0) +
@@ -72,7 +74,7 @@ func (r *antigravityUsageAggregator) AggregateUsageWindows(ctx context.Context, 
 		GROUP BY 1
 		ORDER BY 1
 	`
-	rows, err := r.sql.QueryContext(ctx, query, pq.Array(accountIDs), start, end, trunc)
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(accountIDs), start, end, trunc, tzName)
 	if err != nil {
 		return nil, err
 	}

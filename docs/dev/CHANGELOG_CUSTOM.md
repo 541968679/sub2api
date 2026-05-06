@@ -1263,6 +1263,13 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 **Change details**:
 - Changed Antigravity credit curve bucket lookup keys from `time.Time` values to Unix seconds so PostgreSQL timestamp locations and request time locations still match the same hour/day window.
 
+## [2026-05-06] fix: align Antigravity credit curve usage buckets to app timezone
+
+**Affected files**: backend/internal/repository/antigravity_usage_aggregator.go
+**Upstream compatibility**: low risk, aggregation bug fix only
+**Change details**:
+- Changed Antigravity usage window aggregation to truncate `usage_logs.created_at` in the configured application timezone before returning buckets, matching the credit snapshot curve buckets.
+
 <!-- 
 示例条目：
 
