@@ -1256,6 +1256,13 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Added per-window derived ratios including credits/request, quota/credit, and tokens/credit, plus a simple median-based spike score.
 - Added an admin Usage page line chart comparing AI Credits, requests, tokens, quota cost, and credits/request for the selected time range.
 
+## [2026-05-06] fix: repair Antigravity credit curve bucket matching
+
+**Affected files**: backend/internal/service/credit_snapshot_service.go
+**Upstream compatibility**: low risk, aggregation bug fix only
+**Change details**:
+- Changed Antigravity credit curve bucket lookup keys from `time.Time` values to Unix seconds so PostgreSQL timestamp locations and request time locations still match the same hour/day window.
+
 <!-- 
 示例条目：
 

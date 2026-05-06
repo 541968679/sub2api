@@ -260,10 +260,10 @@ func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, s
 	if len(points) == 0 {
 		return &AntigravityCreditCurve{Start: start, End: end, Granularity: granularity, Points: nil}, nil
 	}
-	pointByStart := make(map[time.Time]*AntigravityCreditCurvePoint, len(points))
+	pointByStart := make(map[int64]*AntigravityCreditCurvePoint, len(points))
 	for i := range points {
 		points[i].CreditsByType = make(map[string]float64)
-		pointByStart[points[i].Start] = &points[i]
+		pointByStart[creditCurveBucketKey(points[i].Start, granularity)] = &points[i]
 	}
 
 	grouped, err := s.repo.ListInRange(ctx, start.Add(-creditSnapshotRangeLookbackMu), end)
@@ -277,7 +277,7 @@ func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, s
 			if curr.CreditType != prev.CreditType || curr.CapturedAt.Before(start) || !curr.CapturedAt.Before(end) {
 				continue
 			}
-			point := pointByStart[creditCurveBucketStart(curr.CapturedAt, granularity)]
+			point := pointByStart[creditCurveBucketKey(curr.CapturedAt, granularity)]
 			if point == nil {
 				continue
 			}
@@ -304,7 +304,7 @@ func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, s
 		return nil, err
 	}
 	for _, usage := range usageWindows {
-		point := pointByStart[creditCurveBucketStart(usage.Start, granularity)]
+		point := pointByStart[creditCurveBucketKey(usage.Start, granularity)]
 		if point == nil {
 			continue
 		}
@@ -346,6 +346,10 @@ func creditCurveBucketStart(t time.Time, granularity string) time.Time {
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 	}
 	return t.Truncate(time.Hour)
+}
+
+func creditCurveBucketKey(t time.Time, granularity string) int64 {
+	return creditCurveBucketStart(t, granularity).Unix()
 }
 
 func fillCreditCurveRatios(point *AntigravityCreditCurvePoint) {
