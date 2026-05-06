@@ -739,7 +739,6 @@ type UserViewConfigUsed struct {
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 	UserGroupRate         *float64 `json:"user_group_rate"`
 	HasUserOverride       bool     `json:"has_user_override"`
 	GroupID               *int64   `json:"group_id"`
@@ -829,7 +828,6 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 			cfg.DisplayInputPrice = entry.DisplayInputPrice
 			cfg.DisplayOutputPrice = entry.DisplayOutputPrice
 			cfg.DisplayCacheReadPrice = entry.DisplayCacheReadPrice
-			cfg.CacheTransferRatio = entry.CacheTransferRatio
 		}
 	}
 

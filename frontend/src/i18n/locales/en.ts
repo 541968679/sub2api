@@ -2812,7 +2812,6 @@ export default {
       displayOutputPrice: 'Display Output ($/MTok)',
       displayCacheReadPrice: 'Display Cache Read ($/MTok)',
       displayRateMultiplier: 'Display Rate',
-      cacheTransferRatio: 'Cache Transfer Ratio (0~1)',
       billingModeLabel: 'Billing Mode',
       billingModeToken: 'Token',
       billingModePerRequest: 'Per Request',

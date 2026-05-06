@@ -172,7 +172,6 @@ const configRows = computed<CfgRow[]>(() => {
   if (!preview.value) return []
   const c = preview.value.config_used
   return [
-    { key: 'cache_transfer_ratio', label: t('admin.modelPricing.cacheTransferRatio'), value: c.cache_transfer_ratio, format: 'ratio' },
     { key: 'display_input_price', label: t('admin.modelPricing.displayInputPrice'), value: c.display_input_price, format: 'price' },
     { key: 'display_output_price', label: t('admin.modelPricing.displayOutputPrice'), value: c.display_output_price, format: 'price' },
     { key: 'display_cache_read_price', label: t('admin.modelPricing.displayCacheReadPrice'), value: c.display_cache_read_price, format: 'price' },

@@ -12,7 +12,6 @@ export interface UserModelPricingOverride {
   display_output_price: number | null
   display_cache_read_price: number | null
   display_rate_multiplier: number | null
-  cache_transfer_ratio: number | null
   enabled: boolean
   notes: string
   created_at?: string

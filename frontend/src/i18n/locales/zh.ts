@@ -6895,7 +6895,6 @@ const v117ZhPatch = {
       displayOutputPrice: '展示输出价（$/百万 Token）',
       displayCacheReadPrice: '展示缓存读取价（$/百万 Token）',
       displayRateMultiplier: '展示倍率',
-      cacheTransferRatio: '缓存转换比例（0~1）',
       billingModeLabel: '计费方式',
       billingModeToken: 'Token',
       billingModePerRequest: '按请求',

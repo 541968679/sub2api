@@ -102,16 +102,15 @@ type GlobalOverride struct {
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 
 	ShowOnPricingPage bool `json:"show_on_pricing_page"`
 }
 
 // ModelPricingListResult 分页列表结果
 type ModelPricingListResult struct {
-	Items      []ModelPricingListItem     `json:"items"`
+	Items      []ModelPricingListItem       `json:"items"`
 	Pagination *pagination.PaginationResult `json:"pagination"`
-	Stats      ModelPricingStats          `json:"stats"`
+	Stats      ModelPricingStats            `json:"stats"`
 }
 
 // ModelPricingStats 汇总统计
@@ -389,7 +388,6 @@ type UserOverrideSummary struct {
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 	Enabled               bool     `json:"enabled"`
 	Notes                 string   `json:"notes"`
 }
@@ -793,7 +791,6 @@ func (s *GlobalModelPricingService) getUserOverridesForModel(ctx context.Context
 			DisplayInputPrice:     o.DisplayInputPrice,
 			DisplayOutputPrice:    o.DisplayOutputPrice,
 			DisplayRateMultiplier: o.DisplayRateMultiplier,
-			CacheTransferRatio:    o.CacheTransferRatio,
 			Enabled:               o.Enabled,
 			Notes:                 o.Notes,
 		}
@@ -825,7 +822,6 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 		DisplayOutputPrice:    gp.DisplayOutputPrice,
 		DisplayCacheReadPrice: gp.DisplayCacheReadPrice,
 		DisplayRateMultiplier: gp.DisplayRateMultiplier,
-		CacheTransferRatio:    gp.CacheTransferRatio,
 
 		ShowOnPricingPage: gp.ShowOnPricingPage,
 	}

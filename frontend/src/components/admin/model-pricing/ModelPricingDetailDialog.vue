@@ -131,7 +131,7 @@
             </button>
           </div>
           <p class="mb-3 text-[10px] text-amber-600/70 dark:text-amber-500/60">{{ t('admin.modelPricing.displayPricingHint') }}</p>
-          <div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayInputPrice') }}</label>
               <input v-model="form.display_input_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
@@ -143,10 +143,6 @@
             <div>
               <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.displayCacheReadPrice') }}</label>
               <input v-model="form.display_cache_read_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
-            </div>
-            <div>
-              <label class="mb-1 block text-[10px] text-gray-500">{{ t('admin.modelPricing.cacheTransferRatio') }}</label>
-              <input v-model="form.cache_transfer_ratio" type="number" step="0.01" min="0" max="1" class="input text-sm w-full" placeholder="0" />
             </div>
           </div>
         </div>
@@ -242,8 +238,6 @@ const form = reactive({
   display_input_price: '' as string | number,
   display_output_price: '' as string | number,
   display_cache_read_price: '' as string | number,
-
-  cache_transfer_ratio: '' as string | number,
   show_on_pricing_page: false,
 })
 
@@ -260,12 +254,6 @@ const litellmFields = computed(() => [
   { key: 'cache_read_price', label: t('admin.modelPricing.cacheReadPrice') + ' ($/MTok)' },
   { key: 'image_output_price', label: t('admin.modelPricing.imageOutputPrice') + ' ($/MTok)' },
 ])
-
-function toNullableNum(val: string | number): number | null {
-  if (val === '' || val === null || val === undefined) return null
-  const n = Number(val)
-  return isNaN(n) ? null : n
-}
 
 function toMTok(perToken: number | null | undefined): string {
   const v = perTokenToMTok(perToken)
@@ -299,7 +287,6 @@ async function loadDetail() {
       form.display_input_price = go.display_input_price != null ? perTokenToMTok(go.display_input_price) ?? '' : ''
       form.display_output_price = go.display_output_price != null ? perTokenToMTok(go.display_output_price) ?? '' : ''
       form.display_cache_read_price = go.display_cache_read_price != null ? perTokenToMTok(go.display_cache_read_price) ?? '' : ''
-      form.cache_transfer_ratio = go.cache_transfer_ratio != null ? go.cache_transfer_ratio : ''
       form.show_on_pricing_page = Boolean(go.show_on_pricing_page)
     } else {
       form.enabled = true
@@ -315,7 +302,6 @@ async function loadDetail() {
       form.display_input_price = ''
       form.display_output_price = ''
       form.display_cache_read_price = ''
-      form.cache_transfer_ratio = ''
       form.show_on_pricing_page = false
     }
   } catch {
@@ -345,7 +331,6 @@ async function handleSave() {
       display_input_price: mTokToPerToken(form.display_input_price),
       display_output_price: mTokToPerToken(form.display_output_price),
       display_cache_read_price: mTokToPerToken(form.display_cache_read_price),
-      cache_transfer_ratio: toNullableNum(form.cache_transfer_ratio),
       show_on_pricing_page: form.show_on_pricing_page,
     }
 
@@ -403,9 +388,6 @@ function applyDisplaySuggested() {
   form.display_input_price = inputPerToken != null ? (perTokenToMTok(inputPerToken) ?? '') : ''
   form.display_output_price = outputPerToken != null ? (perTokenToMTok(outputPerToken) ?? '') : ''
   form.display_cache_read_price = cacheReadPerToken != null ? (perTokenToMTok(cacheReadPerToken) ?? '') : ''
-  if (!form.cache_transfer_ratio || form.cache_transfer_ratio === '') {
-    form.cache_transfer_ratio = 0.1
-  }
 }
 
 async function handleDelete() {

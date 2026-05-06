@@ -225,3 +225,27 @@ CalculateCostUnified(CostInput)
 - **ImageOutputCost 是独立字段**：不包含在 OutputCost 中，但包含在 TotalCost 中
 - **展示倍率只有一个来源**：user_group_rate.display_rate_multiplier（2026-05-04 统一）。模型级 display_rate_multiplier 字段仍在 DB 中但不再使用
 - **展示变换的 token 取整误差**：小额请求（极少 token）时 round() 误差占比较大，导致 TotalCost × Rate 与 ActualCost 有微小偏差
+### Display cache premium handling (2026-05-06)
+
+User-facing display pricing keeps cache-read token counts unchanged. When both
+`display_cache_read_price` and `display_input_price` are configured, the display
+layer calculates:
+
+```
+display_cache_read_tokens = real_cache_read_tokens
+display_cache_read_cost = real_cache_read_tokens * display_cache_read_price
+cache_premium = max(0, real_cache_read_cost - display_cache_read_cost)
+display_input_cost = real_input_cost + cache_premium
+display_input_tokens = round(display_input_cost / display_input_price)
+```
+
+`actual_cost` and `rate_multiplier` are unchanged by model display pricing. If
+`display_input_price` is missing, cache-read usage display remains real, so the
+display layer does not manufacture unexplained input tokens or silently drop the
+cache premium. Output display pricing continues to affect only output
+tokens/cost and never absorbs cache premium.
+
+`cache_transfer_ratio` is deprecated by soft deletion. The database columns remain
+in `global_model_pricing` and `user_model_pricing_overrides` for rollback and old
+data compatibility, but the backend no longer reads or writes them, admin/user
+pricing APIs no longer expose them, and the frontend no longer renders the field.

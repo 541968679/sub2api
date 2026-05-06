@@ -26,7 +26,6 @@ type UserModelPricingOverride struct {
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 
 	Enabled bool   `json:"enabled"`
 	Notes   string `json:"notes"`

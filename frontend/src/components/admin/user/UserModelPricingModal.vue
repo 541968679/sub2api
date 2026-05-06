@@ -131,11 +131,6 @@
                   <input v-model.number="item.display_cache_read_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
-                <div>
-                  <label class="text-xs text-gray-500">{{ t('admin.modelPricing.cacheTransferRatio') }}</label>
-                  <input v-model.number="item.cache_transfer_ratio" type="number" step="any" min="0" max="1" :placeholder="t('admin.users.noOverride')"
-                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
-                </div>
               </div>
             </div>
           </div>
@@ -200,8 +195,6 @@ interface OverrideRow {
   display_input_price: number | null
   display_output_price: number | null
   display_cache_read_price: number | null
-
-  cache_transfer_ratio: number | null
   enabled: boolean
   notes: string
   _deleted?: boolean
@@ -270,12 +263,6 @@ async function loadAvailableModels() {
   }
 }
 
-function toNullableNum(val: string | number | null | undefined): number | null {
-  if (val === '' || val === null || val === undefined) return null
-  const n = Number(val)
-  return isNaN(n) ? null : n
-}
-
 /**
  * 获取选中模型的 LiteLLM 标准价格，格式化为 $/MTok 用于表单填充。
  * 若该字段没有 LiteLLM 价格则返回 null。
@@ -325,7 +312,6 @@ watch(
         display_input_price: perTokenToMTok(o.display_input_price) ?? null,
         display_output_price: perTokenToMTok(o.display_output_price) ?? null,
         display_cache_read_price: perTokenToMTok(o.display_cache_read_price) ?? null,
-        cache_transfer_ratio: o.cache_transfer_ratio,
         enabled: o.enabled,
         notes: o.notes || '',
       }))
@@ -348,7 +334,6 @@ function addOverride() {
     display_input_price: null,
     display_output_price: null,
     display_cache_read_price: null,
-    cache_transfer_ratio: null,
     enabled: true,
     notes: '',
   })
@@ -381,7 +366,6 @@ async function save() {
         display_input_price: mTokToPerToken(o.display_input_price),
         display_output_price: mTokToPerToken(o.display_output_price),
         display_cache_read_price: mTokToPerToken(o.display_cache_read_price),
-        cache_transfer_ratio: toNullableNum(o.cache_transfer_ratio),
         enabled: o.enabled,
         notes: o.notes || '',
       }))

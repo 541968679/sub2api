@@ -40,7 +40,6 @@ type createGlobalOverrideRequest struct {
 	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio" binding:"omitempty,min=0,max=1"`
 
 	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
@@ -62,7 +61,6 @@ type updateGlobalOverrideRequest struct {
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 
 	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
@@ -139,7 +137,6 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 		DisplayOutputPrice:    req.DisplayOutputPrice,
 		DisplayCacheReadPrice: req.DisplayCacheReadPrice,
 		DisplayRateMultiplier: req.DisplayRateMultiplier,
-		CacheTransferRatio:    req.CacheTransferRatio,
 
 		ShowOnPricingPage: showOnPricingPage,
 	}
@@ -222,9 +219,6 @@ func (h *ModelPricingHandler) UpdateOverride(c *gin.Context) {
 	}
 	if req.DisplayRateMultiplier != nil {
 		existing.DisplayRateMultiplier = req.DisplayRateMultiplier
-	}
-	if req.CacheTransferRatio != nil {
-		existing.CacheTransferRatio = req.CacheTransferRatio
 	}
 	if req.ShowOnPricingPage != nil {
 		existing.ShowOnPricingPage = *req.ShowOnPricingPage

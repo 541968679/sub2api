@@ -1314,6 +1314,16 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Recorded period, daily, user-level, model-level, and same-day metrics used to distinguish cache-read pricing effects from account leakage.
 - Added follow-up recommendations for Antigravity-specific pricing calibration and leakage alerts.
 
+## [2026-05-06] fix: shift cache display premium into input display
+
+**Affected files**: backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/handler/admin/user_model_pricing_handler.go, backend/internal/handler/admin/usage_handler.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/user_model_pricing.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/repository/user_model_pricing_repo.go, frontend/src/api/admin/modelPricing.ts, frontend/src/api/admin/userModelPricing.ts, frontend/src/api/admin/usage.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/components/admin/user/UserModelPricingModal.vue, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: display/API/UI behavior change; DB columns retained for rollback compatibility
+**Change details**:
+- Changed user-facing model display pricing so cache-read tokens stay at the real token count and cache-read cost uses `display_cache_read_price`.
+- Moves positive cache-read premium into displayed input cost/tokens only when both `display_cache_read_price` and `display_input_price` are configured; otherwise cache-read usage display remains real. `actual_cost` and `rate_multiplier` remain unchanged.
+- Soft-deprecated `cache_transfer_ratio`: backend no longer reads/writes it, admin/user pricing APIs no longer expose it, and frontend forms/compare drawer no longer render it. Existing DB columns remain.
+- Added DTO unit coverage for cache premium transfer, missing display input price fallback, and display map behavior.
+
 <!-- 
 示例条目：
 

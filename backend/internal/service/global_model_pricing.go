@@ -32,7 +32,6 @@ type GlobalModelPricing struct {
 	DisplayOutputPrice    *float64 // 展示给用户的输出单价
 	DisplayCacheReadPrice *float64 // 展示给用户的缓存读取单价
 	DisplayRateMultiplier *float64 // 展示给用户的倍率
-	CacheTransferRatio    *float64 // 缓存 token 转移到输入 token 的比例 (0~1)
 
 	// ShowOnPricingPage 是否在用户「模型计价」页展示。与 Enabled（计费）解耦。
 	ShowOnPricingPage bool

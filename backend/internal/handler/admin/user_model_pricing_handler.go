@@ -29,7 +29,6 @@ type createUserModelPricingRequest struct {
 	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio" binding:"omitempty,min=0,max=1"`
 	Enabled               *bool    `json:"enabled"`
 	Notes                 string   `json:"notes"`
 }
@@ -44,7 +43,6 @@ type updateUserModelPricingRequest struct {
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
 	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
-	CacheTransferRatio    *float64 `json:"cache_transfer_ratio"`
 	Enabled               *bool    `json:"enabled"`
 	Notes                 *string  `json:"notes"`
 }
@@ -106,7 +104,6 @@ func (h *UserModelPricingHandler) Create(c *gin.Context) {
 		DisplayOutputPrice:    req.DisplayOutputPrice,
 		DisplayCacheReadPrice: req.DisplayCacheReadPrice,
 		DisplayRateMultiplier: req.DisplayRateMultiplier,
-		CacheTransferRatio:    req.CacheTransferRatio,
 		Enabled:               enabled,
 		Notes:                 req.Notes,
 	}
@@ -169,9 +166,6 @@ func (h *UserModelPricingHandler) Update(c *gin.Context) {
 	}
 	if req.DisplayRateMultiplier != nil {
 		existing.DisplayRateMultiplier = req.DisplayRateMultiplier
-	}
-	if req.CacheTransferRatio != nil {
-		existing.CacheTransferRatio = req.CacheTransferRatio
 	}
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled
@@ -239,7 +233,6 @@ func (h *UserModelPricingHandler) BatchUpsert(c *gin.Context) {
 			DisplayOutputPrice:    r.DisplayOutputPrice,
 			DisplayCacheReadPrice: r.DisplayCacheReadPrice,
 			DisplayRateMultiplier: r.DisplayRateMultiplier,
-			CacheTransferRatio:    r.CacheTransferRatio,
 			Enabled:               enabled,
 			Notes:                 r.Notes,
 		})
