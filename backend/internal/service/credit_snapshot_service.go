@@ -258,31 +258,6 @@ func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, s
 		pointByStart[creditCurveBucketKey(points[i].Start, granularity)] = &points[i]
 	}
 
-	grouped, err := s.repo.ListInRange(ctx, start.Add(-creditSnapshotRangeLookbackMu), end)
-	if err != nil {
-		return nil, err
-	}
-	for _, snaps := range grouped {
-		for i := 1; i < len(snaps); i++ {
-			prev := snaps[i-1]
-			curr := snaps[i]
-			if curr.CreditType != prev.CreditType || curr.CapturedAt.Before(start) || !curr.CapturedAt.Before(end) {
-				continue
-			}
-			point := pointByStart[creditCurveBucketKey(curr.CapturedAt, granularity)]
-			if point == nil {
-				continue
-			}
-			point.SnapshotCount++
-			delta := prev.Amount - curr.Amount
-			if delta <= 0 {
-				continue
-			}
-			point.CreditsConsumed += delta
-			point.CreditsByType[curr.CreditType] += delta
-		}
-	}
-
 	usageWindows, err := s.usageAgg.AggregateUsageWindows(ctx, start, end, granularity)
 	if err != nil {
 		return nil, err
@@ -296,6 +271,29 @@ func (s *CreditSnapshotService) GetAntigravityCreditCurve(ctx context.Context, s
 		point.TotalTokens = usage.TotalTokens
 		point.QuotaUsedUSD = usage.QuotaUsed
 		point.ActualCostUSD = usage.ActualCost
+	}
+
+	grouped, err := s.repo.ListInRange(ctx, start.Add(-creditSnapshotRangeLookbackMu), end)
+	if err != nil {
+		return nil, err
+	}
+	for _, snaps := range grouped {
+		for i := 1; i < len(snaps); i++ {
+			prev := snaps[i-1]
+			curr := snaps[i]
+			if curr.CreditType != prev.CreditType || curr.CapturedAt.Before(start) || !curr.CapturedAt.Before(end) {
+				continue
+			}
+			point := pointByStart[creditCurveBucketKey(curr.CapturedAt, granularity)]
+			if point != nil {
+				point.SnapshotCount++
+			}
+			delta := prev.Amount - curr.Amount
+			if delta <= 0 {
+				continue
+			}
+			distributeCreditDelta(points, start, end, granularity, prev, curr, delta)
+		}
 	}
 
 	for i := range points {
@@ -334,6 +332,86 @@ func creditCurveBucketStart(t time.Time, granularity string) time.Time {
 
 func creditCurveBucketKey(t time.Time, granularity string) int64 {
 	return creditCurveBucketStart(t, granularity).Unix()
+}
+
+func distributeCreditDelta(points []AntigravityCreditCurvePoint, start, end time.Time, granularity string, prev, curr CreditSnapshot, delta float64) {
+	if delta <= 0 || curr.CreditType == "" {
+		return
+	}
+	intervalStart := prev.CapturedAt
+	if intervalStart.Before(start) {
+		intervalStart = start
+	}
+	intervalEnd := curr.CapturedAt
+	if intervalEnd.After(end) {
+		intervalEnd = end
+	}
+	if !intervalEnd.After(intervalStart) {
+		return
+	}
+
+	type weightedPoint struct {
+		index  int
+		weight float64
+	}
+	weighted := make([]weightedPoint, 0, 2)
+	totalWeight := 0.0
+	for i := range points {
+		if !points[i].End.After(intervalStart) || !points[i].Start.Before(intervalEnd) {
+			continue
+		}
+		weight := creditCurveUsageWeight(&points[i])
+		if weight <= 0 {
+			continue
+		}
+		weighted = append(weighted, weightedPoint{index: i, weight: weight})
+		totalWeight += weight
+	}
+	if totalWeight > 0 {
+		for _, item := range weighted {
+			share := delta * item.weight / totalWeight
+			addCreditDeltaToPoint(&points[item.index], curr.CreditType, share)
+		}
+		return
+	}
+
+	fallbackKey := creditCurveBucketKey(curr.CapturedAt, granularity)
+	for i := range points {
+		if creditCurveBucketKey(points[i].Start, granularity) == fallbackKey {
+			addCreditDeltaToPoint(&points[i], curr.CreditType, delta)
+			return
+		}
+	}
+}
+
+func creditCurveUsageWeight(point *AntigravityCreditCurvePoint) float64 {
+	if point == nil {
+		return 0
+	}
+	if point.QuotaUsedUSD > 0 {
+		return point.QuotaUsedUSD
+	}
+	if point.ActualCostUSD > 0 {
+		return point.ActualCostUSD
+	}
+	if point.TotalTokens > 0 {
+		return float64(point.TotalTokens)
+	}
+	if point.CallCount > 0 {
+		return float64(point.CallCount)
+	}
+	return 0
+}
+
+func addCreditDeltaToPoint(point *AntigravityCreditCurvePoint, creditType string, delta float64) {
+	if point == nil || delta <= 0 {
+		return
+	}
+	if point.CreditsByType == nil {
+		point.CreditsByType = make(map[string]float64)
+	}
+	point.CreditsConsumed += delta
+	point.CreditsByType[creditType] += delta
 }
 
 func fillCreditCurveRatios(point *AntigravityCreditCurvePoint) {

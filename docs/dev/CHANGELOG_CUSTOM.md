@@ -1278,6 +1278,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Changed Antigravity request/cost/token aggregation to join `usage_logs` with `accounts.platform='antigravity'` instead of filtering by the currently active account ID list.
 - Restored historical request counts for soft-deleted or rotated Antigravity accounts so credit curve windows match historical usage logs.
 
+## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
+
+**Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
+**Upstream compatibility**: low risk, aggregation-only display fix
+**Change details**:
+- Changed Antigravity credit snapshot deltas to be attributed across the interval between the previous and current snapshot instead of assigning all credits to the current snapshot bucket.
+- Weighted credit attribution by hourly usage cost, then actual cost, tokens, and call count, with a snapshot-bucket fallback for intervals without usage.
+- Added unit coverage for weighted interval attribution and no-usage fallback behavior.
+
 <!-- 
 示例条目：
 
