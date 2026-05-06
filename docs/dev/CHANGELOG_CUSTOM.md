@@ -1305,6 +1305,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Weighted credit attribution by hourly usage cost, then actual cost, tokens, and call count, with a snapshot-bucket fallback for intervals without usage.
 - Added unit coverage for weighted interval attribution and no-usage fallback behavior.
 
+## [2026-05-06] docs: document Antigravity credit cost analysis
+
+**Affected files**: docs/dev/ANTIGRAVITY_CREDIT_COST_ANALYSIS_2026-05-06.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Documented the production analysis explaining why balance revenue per Antigravity AI Credit fell after cache-heavy traffic increased.
+- Recorded period, daily, user-level, model-level, and same-day metrics used to distinguish cache-read pricing effects from account leakage.
+- Added follow-up recommendations for Antigravity-specific pricing calibration and leakage alerts.
+
 <!-- 
 示例条目：
 
