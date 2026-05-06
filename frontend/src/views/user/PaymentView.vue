@@ -121,8 +121,12 @@
                     <span class="text-gray-900 dark:text-white">${{ baseCreditUsd.toFixed(2) }}</span>
                   </div>
                   <div v-if="matchedBonus > 0" class="flex justify-between mt-1">
-                    <span class="text-amber-600 dark:text-amber-400">{{ isFirstRechargeBonus ? t('payment.firstRechargeBonus') : t('payment.bonusCredit') }}</span>
+                    <span class="text-amber-600 dark:text-amber-400">{{ t('payment.bonusCredit') }}</span>
                     <span class="font-medium text-amber-600 dark:text-amber-400">+${{ matchedBonus.toFixed(2) }}</span>
+                  </div>
+                  <div v-if="firstRechargeBonus > 0" class="flex justify-between mt-1">
+                    <span class="text-pink-600 dark:text-pink-400">{{ t('payment.firstRechargeBonus') }}</span>
+                    <span class="font-medium text-pink-600 dark:text-pink-400">+${{ firstRechargeBonus.toFixed(2) }}</span>
                   </div>
                   <div class="flex justify-between mt-2 border-t border-dashed border-gray-200 pt-2 dark:border-dark-600">
                     <span class="font-semibold text-gray-800 dark:text-gray-200">{{ t('payment.totalCredit') }}</span>
@@ -589,14 +593,7 @@ const baseCreditUsd = computed(() => {
 })
 
 const matchedBonus = computed(() => {
-  if (validAmount.value <= 0) return 0
-  // First recharge bonus replaces regular bonus
-  if (checkout.value.first_recharge_eligible &&
-      checkout.value.first_recharge_bonus_usd > 0 &&
-      validAmount.value >= checkout.value.first_recharge_min_amount) {
-    return checkout.value.first_recharge_bonus_usd
-  }
-  if (!sortedBonusTiers.value.length) return 0
+  if (validAmount.value <= 0 || !sortedBonusTiers.value.length) return 0
   let bonus = 0
   for (const tier of sortedBonusTiers.value) {
     if (validAmount.value >= tier.min_amount) {
@@ -606,14 +603,19 @@ const matchedBonus = computed(() => {
   return bonus
 })
 
-const isFirstRechargeBonus = computed(() =>
-  checkout.value.first_recharge_eligible &&
-  checkout.value.first_recharge_bonus_usd > 0 &&
-  validAmount.value >= checkout.value.first_recharge_min_amount
-)
+const firstRechargeBonus = computed(() => {
+  if (!checkout.value.first_recharge_eligible ||
+      checkout.value.first_recharge_bonus_usd <= 0 ||
+      validAmount.value < checkout.value.first_recharge_min_amount) {
+    return 0
+  }
+  return checkout.value.first_recharge_bonus_usd
+})
+
+const totalBonus = computed(() => matchedBonus.value + firstRechargeBonus.value)
 
 const totalCreditUsd = computed(() =>
-  Math.round((baseCreditUsd.value + matchedBonus.value) * 100) / 100
+  Math.round((baseCreditUsd.value + totalBonus.value) * 100) / 100
 )
 const feeAmount = computed(() =>
   feeRate.value > 0 && validAmount.value > 0
