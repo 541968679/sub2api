@@ -1238,6 +1238,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Verified that the new password matches the stored bcrypt hash.
 - Did not record the plaintext password or password hash in repository files.
 
+## [2026-05-06] docs: document admin password rotation
+
+**Affected files**: deploy/README.md, deploy/.env.example, docs/dev/SECURITY_OPERATIONS.md, AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Documented that `ADMIN_PASSWORD` is first-run bootstrap only and does not rotate an installed admin account.
+- Added an operational bcrypt-based admin password rotation procedure with `token_version` handling when that column exists.
+- Added a security operations checklist for suspected credential compromise without recording any real password or hash.
+
 <!-- 
 示例条目：
 

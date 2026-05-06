@@ -45,6 +45,8 @@ conventions, reusable task templates, or environment/build pitfalls.
   local change here.
 - `docs/dev/SECONDARY_DEV.md` - secondary development guide.
 - `docs/dev/DEPLOYMENT.md` - deployment and operations guide.
+- `docs/dev/SECURITY_OPERATIONS.md` - credential rotation and security
+  operations guide.
 - `docs/dev/UPSTREAM_SYNC.md` - upstream merge history.
 - `docs/dev/codebase/README.md` - module map.
 - `docs/dev/codebase/account.md` - account management flow.

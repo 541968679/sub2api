@@ -124,6 +124,59 @@ When using Docker Compose with `AUTO_SETUP=true`:
    docker compose logs sub2api | grep "admin password"
    ```
 
+### Admin Password Rotation
+
+For an installed system, changing `ADMIN_PASSWORD` in `.env` does not update an existing administrator account. Rotate the administrator password by updating the bcrypt hash in PostgreSQL.
+
+1. Generate a new password and bcrypt hash on a trusted machine:
+
+   ```bash
+   python3 - <<'PY'
+   import bcrypt, secrets, string
+
+   alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+[]{}:,.?"
+   while True:
+       password = "".join(secrets.choice(alphabet) for _ in range(32))
+       if all(any(c in group for c in password) for group in [
+           string.ascii_lowercase,
+           string.ascii_uppercase,
+           string.digits,
+           "!@#$%^&*()-_=+[]{}:,.?",
+       ]):
+           break
+
+   print("PASSWORD=" + password)
+   print("BCRYPT_HASH=" + bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode())
+   PY
+   ```
+
+2. Update the administrator row. Replace the email and hash placeholders before running:
+
+   ```bash
+   docker compose exec -T postgres psql -U "${POSTGRES_USER:-sub2api}" -d "${POSTGRES_DB:-sub2api}" <<'SQL'
+   DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_name = 'users' AND column_name = 'token_version'
+     ) THEN
+       UPDATE users
+       SET password_hash = '<BCRYPT_HASH>',
+           token_version = token_version + 1,
+           updated_at = now()
+       WHERE email = '<ADMIN_EMAIL>' AND role = 'admin';
+     ELSE
+       UPDATE users
+       SET password_hash = '<BCRYPT_HASH>',
+           updated_at = now()
+       WHERE email = '<ADMIN_EMAIL>' AND role = 'admin';
+     END IF;
+   END $$;
+   SQL
+   ```
+
+3. Verify exactly one administrator row was updated, then store the plaintext password in your password manager. Do not commit the plaintext password or bcrypt hash.
+
 ### Database Migration Notes (PostgreSQL)
 
 - Migrations are applied in lexicographic order (e.g. `001_...sql`, `002_...sql`).
