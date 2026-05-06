@@ -1238,6 +1238,14 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Verified that the new password matches the stored bcrypt hash.
 - Did not record the plaintext password or password hash in repository files.
 
+## [2026-05-06] fix: avoid IPv6 localhost Caddy upstream failures
+
+**Affected files**: deploy/Caddyfile, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: deployment configuration only; low risk
+**Change details**:
+- Changed the Caddy reverse proxy upstream from `localhost:8080` to `127.0.0.1:8080`.
+- Prevents Caddy from intermittently resolving `localhost` to IPv6 `::1` while Docker publishes Sub2API only on IPv4, which caused `connect: connection refused` 502s during production traffic.
+
 ## [2026-05-06] docs: document admin password rotation
 
 **Affected files**: deploy/README.md, deploy/.env.example, docs/dev/SECURITY_OPERATIONS.md, AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
