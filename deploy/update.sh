@@ -26,6 +26,7 @@ HEALTH_URL="http://localhost:8080/health"
 HEALTH_RETRIES=5
 HEALTH_INTERVAL=5
 LOG_FILE="/opt/sub2api/deploy.log"
+DOCKER_BUILD_CACHE_MAX_AGE="${DOCKER_BUILD_CACHE_MAX_AGE:-24h}"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -43,6 +44,20 @@ health_check() {
         sleep "$interval"
     done
     return 1
+}
+
+cleanup_docker_disk() {
+    log "--- Docker disk cleanup (build cache older than ${DOCKER_BUILD_CACHE_MAX_AGE}) ---"
+    docker builder prune -af --filter "until=${DOCKER_BUILD_CACHE_MAX_AGE}" 2>&1 | tee -a "$LOG_FILE" || \
+        log "WARN: docker builder prune failed"
+
+    log "--- Docker image cleanup (dangling images only) ---"
+    docker image prune -f 2>&1 | tee -a "$LOG_FILE" || \
+        log "WARN: docker image prune failed"
+
+    log "--- Docker disk usage after cleanup ---"
+    docker system df 2>&1 | tee -a "$LOG_FILE" || \
+        log "WARN: docker system df failed"
 }
 
 do_rollback() {
@@ -108,6 +123,7 @@ do_deploy() {
         docker compose ps
         # Clean up staging tag
         docker rmi "$STAGING_TAG" 2>/dev/null || true
+        cleanup_docker_disk
     else
         log "ERROR: Health check failed after deploy!"
         do_rollback

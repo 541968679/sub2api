@@ -1264,6 +1264,16 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Added per-window derived ratios including credits/request, quota/credit, and tokens/credit, plus a simple median-based spike score.
 - Added an admin Usage page line chart comparing AI Credits, requests, tokens, quota cost, and credits/request for the selected time range.
 
+## [2026-05-06] chore: automate Docker disk cleanup after deploy
+
+**Affected files**: deploy/update.sh, deploy/docker-cleanup.sh, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: deployment script only; low risk
+**Change details**:
+- Added post-deploy Docker cleanup for BuildKit cache older than `DOCKER_BUILD_CACHE_MAX_AGE` (default `24h`).
+- Added dangling image cleanup after successful health checks while preserving tagged rollback images.
+- Logs post-cleanup Docker disk usage to `/opt/sub2api/deploy.log`.
+- Added a reusable daily cleanup script for cron/system scheduling.
+
 ## [2026-05-06] fix: repair Antigravity credit curve bucket matching
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go
