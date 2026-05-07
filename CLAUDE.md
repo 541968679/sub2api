@@ -140,6 +140,11 @@ make secret-scan          # Python security scanner
 9. **Interface changes** → update ALL test stubs/mocks that implement the interface.
 10. **Frontend embeds into backend** — `pnpm build` output goes to `backend/internal/web/dist`, compiled into the Go binary with `-tags embed`.
 11. **Windows dev notes**: use `127.0.0.1` not `localhost` for psql; no Chinese paths for psql; no native `make` (use raw commands).
+12. **Currency symbols** — this project has two currencies, never mix them up:
+    - **¥ (CNY)**: subscription plan prices (`price`, `original_price`) — what users pay via WeChat/Alipay.
+    - **$ (USD)**: API usage costs and limits (fields ending in `_usd` such as `daily_limit_usd`, `daily_usage_usd`) — upstream AI API cost tracking.
+    - Channel pricing labels (`$/MTok`, `$/M`) are also USD (upstream API rates). Account-level costs (`AccountStatsModal`) are USD.
+    - Rule of thumb: if the field name ends with `_usd`, use `$`; if it's a plan/order selling price, use `¥`.
 
 ## Configuration
 
