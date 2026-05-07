@@ -19,6 +19,15 @@
 
 ## 变更记录
 
+## [2026-05-07] fix(frontend): 订阅套餐价格符号 $ → ¥
+
+**影响范围**: `frontend/src/components/payment/SubscriptionPlanCard.vue`, `frontend/src/views/admin/orders/AdminPaymentPlansView.vue`
+**上游兼容性**: 低冲突，仅涉及前端模板文本
+**变更详情**:
+- 修复订阅套餐卡片价格和划线原价显示 `$` 而非 `¥` 的问题（套餐价格是人民币）
+- 修复管理后台套餐列表页价格列同样的 `$` → `¥` 错误
+- 注意区分：套餐价格（price/original_price）为 CNY 用 `¥`；用量限额（daily_limit_usd 等）为 USD 用 `$`
+
 ## [2026-05-04] fix(frontend): 充值订阅页面 UI 优化
 
 **影响范围**: `frontend/src/views/user/PaymentView.vue`, `frontend/src/components/payment/SubscriptionPlanCard.vue`
