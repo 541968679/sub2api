@@ -1342,6 +1342,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Clarified that Codex CLI and Codex desktop share the same `.codex/config.toml` and `.codex/auth.json` files, so CC-Switch can manage both with one configuration.
 - Removed the WSL2-based Windows installation path and simplified Windows setup to native Node.js/npm installation.
 
+## [2026-05-07] docs: 调整教程平台顺序并移除 Linux 安装配置
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Reordered tutorial installation and configuration platform instructions to Windows first, then macOS.
+- Removed Linux-specific installation/configuration paths and commands from Claude Code and Codex setup sections.
+- Updated screenshot notes and platform selectors to reference only Windows and macOS.
+
 <!-- 
 示例条目：
 
