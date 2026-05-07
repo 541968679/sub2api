@@ -1333,6 +1333,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Soft-deprecated `cache_transfer_ratio`: backend no longer reads/writes it, admin/user pricing APIs no longer expose it, and frontend forms/compare drawer no longer render it. Existing DB columns remain.
 - Added DTO unit coverage for cache premium transfer, missing display input price fallback, and display map behavior.
 
+## [2026-05-07] docs: 优化 Codex 接入教程
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Renamed chapter 4 from "OpenAI Codex CLI 接入指南" to "Codex 接入指南".
+- Clarified that Codex CLI and Codex desktop share the same `.codex/config.toml` and `.codex/auth.json` files, so CC-Switch can manage both with one configuration.
+- Removed the WSL2-based Windows installation path and simplified Windows setup to native Node.js/npm installation.
+
 <!-- 
 示例条目：
 
