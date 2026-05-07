@@ -105,6 +105,30 @@ func TestRateLimitService_HandleUpstreamError_OAuth401SetsTempUnschedulable(t *t
 		require.Len(t, invalidator.accounts, 1)
 	})
 
+	t.Run("anthropic_setup_token", func(t *testing.T) {
+		repo := &rateLimitAccountRepoStub{}
+		invalidator := &tokenCacheInvalidatorRecorder{}
+		service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		service.SetTokenCacheInvalidator(invalidator)
+		account := &Account{
+			ID:       104,
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeSetupToken,
+			Credentials: map[string]any{
+				"access_token": "token",
+			},
+		}
+
+		shouldDisable := service.HandleUpstreamError(context.Background(), account, 401, http.Header{}, []byte("Invalid bearer token"))
+
+		require.True(t, shouldDisable)
+		require.Equal(t, 0, repo.setErrorCalls)
+		require.Equal(t, 1, repo.tempCalls)
+		require.Equal(t, 1, repo.updateCredentialsCalls)
+		require.NotEmpty(t, repo.lastCredentials["expires_at"])
+		require.Len(t, invalidator.accounts, 1)
+	})
+
 	t.Run("antigravity_401_uses_SetError", func(t *testing.T) {
 		// Antigravity 401 由 applyErrorPolicy 的 temp_unschedulable_rules 控制，
 		// HandleUpstreamError 中走 SetError 路径。

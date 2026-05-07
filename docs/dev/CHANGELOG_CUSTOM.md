@@ -1297,6 +1297,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 **Change details**:
 - Changed Antigravity usage window aggregation to truncate `usage_logs.created_at` in the configured application timezone before returning buckets, matching the credit snapshot curve buckets.
 
+## [2026-05-07] fix: avoid permanent error on setup-token 401
+
+**Affected files**: backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, docs/dev/codebase/account.md
+**Upstream compatibility**: low risk, OAuth error-policy bug fix
+**Change details**:
+- Changed 401 handling to treat `setup-token` accounts as OAuth-like accounts via `account.IsOAuth()`, matching gateway credential routing.
+- A first 401 for setup-token accounts now invalidates token state and marks the account temporarily unschedulable instead of immediately setting `status=error`.
+- Added unit coverage for Anthropic setup-token `Invalid bearer token` responses.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
