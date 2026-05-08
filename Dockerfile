@@ -20,8 +20,9 @@ FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm. Pin pnpm 9 for lockfile v9 compatibility and to avoid
+# pnpm 10's interactive approve-builds gate in non-interactive Docker builds.
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./

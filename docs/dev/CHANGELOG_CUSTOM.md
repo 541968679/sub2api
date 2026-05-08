@@ -1316,6 +1316,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Updated Wire provider wiring so `AntigravityQuotaFetcher` is constructed with the shared token provider, matching model test and gateway request token lifecycle.
 - Added focused unit coverage for provider-backed token resolution and refresh-token-only OAuth probe eligibility.
 
+## [2026-05-08] fix: pin pnpm in Docker builds
+
+**Affected files**: Dockerfile, deploy/Dockerfile
+**Upstream compatibility**: build-only fix; runtime behavior unchanged
+**Change details**:
+- Pinned Docker build pnpm installation to `pnpm@9.15.9` instead of `pnpm@latest`.
+- Avoided pnpm 10/11 `approve-builds` behavior breaking non-interactive Docker builds when esbuild/vue-demi postinstall scripts are needed.
+- Verified a full local Docker image build succeeds with the pinned pnpm version.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
