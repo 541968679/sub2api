@@ -27,7 +27,8 @@ const (
 
 // AntigravityQuotaFetcher 从 Antigravity API 获取额度
 type AntigravityQuotaFetcher struct {
-	proxyRepo ProxyRepository
+	proxyRepo           ProxyRepository
+	accessTokenProvider AntigravityAccessTokenProvider
 }
 
 // NewAntigravityQuotaFetcher 创建 AntigravityQuotaFetcher
@@ -35,18 +36,37 @@ func NewAntigravityQuotaFetcher(proxyRepo ProxyRepository) *AntigravityQuotaFetc
 	return &AntigravityQuotaFetcher{proxyRepo: proxyRepo}
 }
 
+type AntigravityAccessTokenProvider interface {
+	GetAccessToken(ctx context.Context, account *Account) (string, error)
+}
+
+func (f *AntigravityQuotaFetcher) SetAccessTokenProvider(provider AntigravityAccessTokenProvider) {
+	f.accessTokenProvider = provider
+}
+
 // CanFetch 检查是否可以获取此账户的额度
 func (f *AntigravityQuotaFetcher) CanFetch(account *Account) bool {
-	if account.Platform != PlatformAntigravity {
+	if account == nil || account.Platform != PlatformAntigravity {
 		return false
 	}
-	accessToken := account.GetCredential("access_token")
-	return accessToken != ""
+	switch account.Type {
+	case AccountTypeOAuth:
+		return account.GetCredential("access_token") != "" || account.GetCredential("refresh_token") != ""
+	case AccountTypeSetupToken:
+		return account.GetCredential("access_token") != ""
+	case AccountTypeUpstream:
+		return account.GetCredential("api_key") != ""
+	default:
+		return false
+	}
 }
 
 // FetchQuota 获取 Antigravity 账户额度信息
 func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Account, proxyURL string) (*QuotaResult, error) {
-	accessToken := account.GetCredential("access_token")
+	accessToken, err := f.resolveAccessToken(ctx, account)
+	if err != nil {
+		return nil, err
+	}
 	projectID := account.GetCredential("project_id")
 
 	client, err := antigravity.NewClient(proxyURL)
@@ -88,6 +108,30 @@ func (f *AntigravityQuotaFetcher) FetchQuota(ctx context.Context, account *Accou
 		UsageInfo: usageInfo,
 		Raw:       modelsRaw,
 	}, nil
+}
+
+func (f *AntigravityQuotaFetcher) resolveAccessToken(ctx context.Context, account *Account) (string, error) {
+	if account == nil {
+		return "", errors.New("account is nil")
+	}
+	if account.Platform != PlatformAntigravity {
+		return "", errors.New("not an antigravity account")
+	}
+	if account.Type == AccountTypeOAuth && f.accessTokenProvider != nil {
+		return f.accessTokenProvider.GetAccessToken(ctx, account)
+	}
+	if account.Type == AccountTypeUpstream {
+		apiKey := account.GetCredential("api_key")
+		if strings.TrimSpace(apiKey) == "" {
+			return "", errors.New("upstream account missing api_key in credentials")
+		}
+		return apiKey, nil
+	}
+	accessToken := account.GetCredential("access_token")
+	if strings.TrimSpace(accessToken) == "" {
+		return "", errors.New("access_token not found in credentials")
+	}
+	return accessToken, nil
 }
 
 // fetchSubscriptionTier 获取账号订阅等级，失败返回空字符串。

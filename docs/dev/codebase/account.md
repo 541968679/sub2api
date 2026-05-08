@@ -122,7 +122,7 @@ AccountsView.vue: refreshAICreditsTotal()
 | 机制 | 说明 | 相关文件 |
 |------|------|---------|
 | refresh_token 回填 | Google OAuth 刷新不返回新 RT，ValidateRefreshToken 需回填原始值 | `antigravity_oauth_service.go:228` |
-| AI Credits 动态获取 | 不存储在 DB，每次通过 LoadCodeAssist API 实时查询 | `antigravity_quota_fetcher.go` |
+| AI Credits 动态获取 | 不存储在 DB，每次通过 LoadCodeAssist API 实时查询；OAuth 账号必须经 `AntigravityTokenProvider` 取 token，不能直接读 `credentials.access_token` | `antigravity_quota_fetcher.go`, `antigravity_token_provider.go` |
 | AI Credits 历史快照 | 为运营分析"credits 消耗 / 每 credit 额度"，`CreditSnapshotService` 每 15 分钟按 email 去重采样到 `ai_credit_snapshots`；`GetAntigravityUsageRatio` 走正向 delta 聚合 | `service/credit_snapshot_service.go`、`migrations/110_add_ai_credit_snapshots.sql` |
 | Credits 去重 | 同 Google 账号（同 email）共享 AI Credits 余额，汇总时按 email 去重 | `AccountsView.vue:refreshAICreditsTotal`，`credit_snapshot_service.go:captureOnce` |
 | Credits 耗尽检测 | 关键词匹配（"insufficient credit" 等）→ 标记 model_rate_limits["AICredits"] 5h 冷却 | `antigravity_credits_overages.go:36-49` |
@@ -139,3 +139,4 @@ AccountsView.vue: refreshAICreditsTotal()
 - **Credits 消耗冷启动窗**：`ai_credit_snapshots` 需要至少两条相邻采样才能算 delta。新部署或新窗口内无采样时 `GetAntigravityUsageRatio` 返回 `credits_consumed=0` + 比率 null；前端卡片显示"采样不足"。如果窗口内出现负 delta（充值/重置），只跳过该对不报错，但那一段消耗会丢。
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。
 - **setup-token 401 处理**：`setup-token` 在网关里按 OAuth/Bearer 凭证使用，401 首次命中应走临时不可调度和 token 缓存失效，不应直接标记 `status=error`。
+- **Antigravity usage 401 误判**：账号用量/AI Credits 探测必须和模型测试、真实网关请求一样走 `AntigravityTokenProvider`。如果直接读取 DB 中过期的 `credentials.access_token`，会在 refresh token 正常时偶发 401，并让前端误显示“需要重新授权”。

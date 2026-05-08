@@ -3,6 +3,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -10,6 +11,17 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 )
+
+type stubAntigravityAccessTokenProvider struct {
+	token string
+	err   error
+	calls int
+}
+
+func (p *stubAntigravityAccessTokenProvider) GetAccessToken(ctx context.Context, account *Account) (string, error) {
+	p.calls++
+	return p.token, p.err
+}
 
 // ---------------------------------------------------------------------------
 // normalizeTier
@@ -46,6 +58,41 @@ func TestNormalizeTier(t *testing.T) {
 
 func aqfBoolPtr(v bool) *bool { return &v }
 func aqfIntPtr(v int) *int    { return &v }
+
+func TestResolveAccessToken_UsesInjectedProviderForOAuth(t *testing.T) {
+	provider := &stubAntigravityAccessTokenProvider{token: "fresh-token"}
+	fetcher := &AntigravityQuotaFetcher{}
+	fetcher.SetAccessTokenProvider(provider)
+
+	account := &Account{
+		ID:       12,
+		Platform: PlatformAntigravity,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token":  "stale-token",
+			"refresh_token": "refresh-token",
+		},
+	}
+
+	token, err := fetcher.resolveAccessToken(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Equal(t, "fresh-token", token)
+	require.Equal(t, 1, provider.calls)
+}
+
+func TestCanFetch_AntigravityOAuthWithOnlyRefreshToken(t *testing.T) {
+	fetcher := &AntigravityQuotaFetcher{}
+	account := &Account{
+		Platform: PlatformAntigravity,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"refresh_token": "refresh-token",
+		},
+	}
+
+	require.True(t, fetcher.CanFetch(account))
+}
 
 func TestBuildUsageInfo_BasicModels(t *testing.T) {
 	fetcher := &AntigravityQuotaFetcher{}

@@ -1306,6 +1306,16 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - A first 401 for setup-token accounts now invalidates token state and marks the account temporarily unschedulable instead of immediately setting `status=error`.
 - Added unit coverage for Anthropic setup-token `Invalid bearer token` responses.
 
+## [2026-05-08] fix: reuse Antigravity token provider for quota probes
+
+**Affected files**: backend/internal/service/antigravity_quota_fetcher.go, backend/internal/service/antigravity_quota_fetcher_test.go, backend/internal/service/wire.go, backend/cmd/server/wire_gen.go, docs/dev/codebase/account.md
+**Upstream compatibility**: low risk, Antigravity account status/usage probe fix only
+**Change details**:
+- Changed Antigravity quota/AI Credits probes to resolve OAuth access tokens through `AntigravityTokenProvider` instead of reading `credentials.access_token` directly.
+- Kept setup-token and upstream account fallback behavior, while allowing OAuth probes to run when only `refresh_token` is present.
+- Updated Wire provider wiring so `AntigravityQuotaFetcher` is constructed with the shared token provider, matching model test and gateway request token lifecycle.
+- Added focused unit coverage for provider-backed token resolution and refresh-token-only OAuth probe eligibility.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go

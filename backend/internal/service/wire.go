@@ -139,6 +139,15 @@ func ProvideAntigravityTokenProvider(
 	return p
 }
 
+func ProvideAntigravityQuotaFetcher(
+	proxyRepo ProxyRepository,
+	tokenProvider *AntigravityTokenProvider,
+) *AntigravityQuotaFetcher {
+	fetcher := NewAntigravityQuotaFetcher(proxyRepo)
+	fetcher.SetAccessTokenProvider(tokenProvider)
+	return fetcher
+}
+
 // ProvideOAuthRefreshAPI avoids exposing the optional variadic lockTTL argument
 // to Wire as a required []time.Duration dependency.
 func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiTokenCache) *OAuthRefreshAPI {
@@ -518,7 +527,7 @@ var ProviderSet = wire.NewSet(
 	ProvideDashboardAggregationService,
 	ProvideUsageCleanupService,
 	ProvideDeferredService,
-	NewAntigravityQuotaFetcher,
+	ProvideAntigravityQuotaFetcher,
 	NewAntigravityCreditSampler,
 	NewUserAttributeService,
 	NewUsageCache,
