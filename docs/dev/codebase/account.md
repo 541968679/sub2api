@@ -140,3 +140,4 @@ AccountsView.vue: refreshAICreditsTotal()
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。
 - **setup-token 401 处理**：`setup-token` 在网关里按 OAuth/Bearer 凭证使用，401 首次命中应走临时不可调度和 token 缓存失效，不应直接标记 `status=error`。
 - **Antigravity usage 401 误判**：账号用量/AI Credits 探测必须和模型测试、真实网关请求一样走 `AntigravityTokenProvider`。如果直接读取 DB 中过期的 `credentials.access_token`，会在 refresh token 正常时偶发 401，并让前端误显示“需要重新授权”。
+- **Antigravity OAuth 401 状态处理**：OAuth 账号的 401 应优先临时不可调度并触发 token 缓存失效/刷新，不能直接永久 `SetError`。特别是 `/v1/chat/completions` 这类 Anthropic 兼容路径若误选 Antigravity 账号，会因上游路径不匹配返回 `Invalid bearer token`，但账号在 Antigravity 原生路径仍然可用。

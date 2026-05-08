@@ -1325,6 +1325,16 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Avoided pnpm 10/11 `approve-builds` behavior breaking non-interactive Docker builds when esbuild/vue-demi postinstall scripts are needed.
 - Verified a full local Docker image build succeeds with the pinned pnpm version.
 
+## [2026-05-08] fix: prevent Antigravity OAuth false auth errors on Chat Completions
+
+**Affected files**: backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/service/gateway_service.go, backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, backend/internal/service/gateway_multiplatform_test.go, docs/dev/codebase/gateway.md, docs/dev/codebase/account.md, docs/dev/codebase/README.md
+**Upstream compatibility**: medium risk; changes gateway account selection for `/v1/chat/completions` compatibility requests and OAuth 401 state handling.
+**Change details**:
+- Production logs showed one `/v1/chat/completions` request on 2026-05-08 12:41:40 selected Antigravity accounts 145, 146, and 144 in sequence, received upstream 401 `Invalid bearer token`, and marked them error while `/antigravity/v1/messages` was still succeeding.
+- Added a context flag that disables Antigravity mixed scheduling for the Anthropic Chat Completions compatibility path, so that path only selects native Anthropic accounts until an Antigravity-specific Chat Completions conversion exists.
+- Changed OAuth 401 handling so Antigravity OAuth accounts follow the same cache invalidation, forced refresh, and temporary-unschedulable path as other OAuth accounts instead of permanent `SetError`.
+- Added regression coverage for mixed-scheduling isolation and updated the OAuth 401 expectations.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go

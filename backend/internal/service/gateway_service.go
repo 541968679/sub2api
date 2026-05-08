@@ -70,6 +70,7 @@ const (
 // ForceCacheBillingContextKey 强制缓存计费上下文键
 // 用于粘性会话切换时，将 input_tokens 转为 cache_read_input_tokens 计费
 type forceCacheBillingKeyType struct{}
+type mixedSchedulingDisabledKeyType struct{}
 
 // accountWithLoad 账号与负载信息的组合，用于负载感知调度
 type accountWithLoad struct {
@@ -78,6 +79,18 @@ type accountWithLoad struct {
 }
 
 var ForceCacheBillingContextKey = forceCacheBillingKeyType{}
+var mixedSchedulingDisabledContextKey = mixedSchedulingDisabledKeyType{}
+
+// WithMixedSchedulingDisabled returns a context that prevents Anthropic/Gemini
+// compatibility paths from selecting Antigravity mixed-scheduling accounts.
+func WithMixedSchedulingDisabled(ctx context.Context) context.Context {
+	return context.WithValue(ctx, mixedSchedulingDisabledContextKey, true)
+}
+
+func isMixedSchedulingDisabled(ctx context.Context) bool {
+	v, _ := ctx.Value(mixedSchedulingDisabledContextKey).(bool)
+	return v
+}
 
 var (
 	windowCostPrefetchCacheHitTotal  atomic.Int64
@@ -1385,7 +1398,7 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 
 	// anthropic/gemini 分组支持混合调度（包含启用了 mixed_scheduling 的 antigravity 账户）
 	// 注意：强制平台模式不走混合调度
-	if (platform == PlatformAnthropic || platform == PlatformGemini) && !hasForcePlatform {
+	if (platform == PlatformAnthropic || platform == PlatformGemini) && !hasForcePlatform && !isMixedSchedulingDisabled(ctx) {
 		account, err := s.selectAccountWithMixedScheduling(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 		if err != nil {
 			return nil, err
@@ -1528,7 +1541,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] load-aware enabled: group_id=%v model=%s session=%s platform=%s", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), platform)
 	}
 
-	accounts, useMixed, err := s.listSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
+	accounts, useMixed, err := s.listSchedulableAccounts(ctx, groupID, platform, hasForcePlatform || isMixedSchedulingDisabled(ctx))
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,65 @@
+# API Gateway
+
+> Unified API entry points, account scheduling, upstream protocol conversion,
+> failover, and usage recording.
+
+## Data Model
+
+| Entity/field | Location | Notes |
+|--------------|----------|-------|
+| Group.platform | `backend/internal/service/group.go` | Native platform for the group and default scheduling scope. |
+| Account.platform/type/status | `backend/internal/service/account.go` | Core inputs for scheduling and upstream token lookup. |
+| Account.extra.mixed_scheduling | `backend/internal/service/account.go` | Whether an Antigravity account may join Anthropic/Gemini mixed scheduling. |
+| APIKey.group_id | `backend/internal/service/api_key.go` | Scheduling group bound to the user request. |
+
+## Key Files
+
+| Layer | File | Responsibility |
+|-------|------|----------------|
+| Handler | `backend/internal/handler/gateway_handler.go` | Anthropic Messages, Gemini compatibility, and Antigravity native entry points. |
+| Handler | `backend/internal/handler/gateway_handler_chat_completions.go` | `/v1/chat/completions` compatibility entry for Anthropic groups. |
+| Service | `backend/internal/service/gateway_service.go` | Account selection, mixed scheduling, sticky sessions, and Anthropic upstream request building. |
+| Service | `backend/internal/service/gateway_forward_as_chat_completions.go` | Chat Completions -> Responses -> Anthropic Messages conversion and forwarding. |
+| Service | `backend/internal/service/antigravity_gateway_service.go` | Antigravity native request/response conversion and forwarding. |
+| Service | `backend/internal/service/ratelimit_service.go` | Maps upstream errors to account state, temporary unschedulable windows, and rate limits. |
+
+## Core Flow
+
+### `/v1/chat/completions` Anthropic Compatibility
+
+```
+GatewayHandler.ChatCompletions
+  -> parse Chat Completions body / model / stream
+  -> SelectAccountWithLoadAwareness(...)
+     -> compatibility context disables Antigravity mixed scheduling
+     -> select native Anthropic account only
+  -> ForwardAsChatCompletions()
+     -> Chat Completions -> Responses -> Anthropic Messages
+     -> build Anthropic upstream request
+  -> upstream response -> Chat Completions response
+  -> RecordUsage
+```
+
+### Antigravity Native Entry
+
+```
+/antigravity/v1/messages
+  -> GatewayHandler.Messages
+  -> SelectAccountWithLoadAwareness(... forcePlatform=antigravity ...)
+  -> AntigravityGatewayService.Forward()
+  -> Antigravity request/response transformer
+```
+
+## Important Mechanisms
+
+| Mechanism | Notes |
+|-----------|-------|
+| Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
+| Chat Completions isolation | `/v1/chat/completions` currently converts only to Anthropic Messages upstream. It must disable Antigravity mixed scheduling, otherwise an Antigravity OAuth token can be sent to Anthropic and return 401 `Invalid bearer token`. |
+| OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
+| Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, and cost-window checks. |
+
+## Known Pitfalls
+
+- **Compatibility path selecting Antigravity**: `/v1/chat/completions` is not an Antigravity native entry point. If it selects an Antigravity account, the request can send an Antigravity bearer token to Anthropic upstream and produce `Authentication failed (401): Invalid bearer token`, while the same account remains usable on `/antigravity/v1/messages`.
+- **Antigravity OAuth 401 false positive**: Antigravity OAuth 401 does not always mean the refresh token is invalid. It can be caused by protocol/upstream path mismatch, stale token cache, or a transient upstream state. Use temporary unschedulable plus token refresh instead of permanent `status=error`.

@@ -195,9 +195,10 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 			shouldDisable = true
 			break
 		}
-		// OAuth 账号在 401 错误时临时不可调度（给 token 刷新窗口）；非 OAuth 账号保持原有 SetError 行为。
-		// Antigravity 除外：其 401 由 applyErrorPolicy 的 temp_unschedulable_rules 自行控制。
-		if account.IsOAuth() && account.Platform != PlatformAntigravity {
+		// OAuth accounts stay active on 401 so token refresh or route failover can recover.
+		// Antigravity OAuth is included because compatibility-path 401s do not prove the
+		// account credential itself is invalid.
+		if account.IsOAuth() {
 			// 1. 失效缓存
 			if s.tokenCacheInvalidator != nil {
 				if err := s.tokenCacheInvalidator.InvalidateToken(ctx, account); err != nil {
