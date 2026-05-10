@@ -10,6 +10,7 @@
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符 | 2026-04-12 |
 | 计费系统 | [billing.md](billing.md) | 三级定价链、费用计算、费率乘数、缓存命中计费 | 2026-04-12 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式 | 2026-05-08 |
+| Kiro Gateway 附加项目 | [kiro-gateway.md](kiro-gateway.md) | 独立 sidecar 接入 Kiro 反代 API 到 Sub2API | 2026-05-10 |
 | 认证 | [auth.md](auth.md) | 用户登录、JWT、OAuth SSO、2FA | - |
 | 支付 | [payment.md](payment.md) | Stripe、微信、支付宝集成 | - |
 

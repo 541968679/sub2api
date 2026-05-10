@@ -1335,6 +1335,15 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Changed OAuth 401 handling so Antigravity OAuth accounts follow the same cache invalidation, forced refresh, and temporary-unschedulable path as other OAuth accounts instead of permanent `SetError`.
 - Added regression coverage for mixed-scheduling isolation and updated the OAuth 401 expectations.
 
+## [2026-05-10] docs: document Kiro Gateway sidecar integration
+
+**Affected files**: docs/dev/codebase/kiro-gateway.md, docs/dev/codebase/README.md
+**Upstream compatibility**: docs-only; records a local sidecar integration without merging external code
+**Change details**:
+- Added a Kiro Gateway sidecar module note for `E:\cursor project\kiro-gateway`, including local startup commands and Sub2API Anthropic API Key account mapping.
+- Documented that Kiro Gateway account management is file-based through `credentials.json`, and that startup requires at least one valid Kiro account.
+- Recorded the current local blocker: detected Kiro IDE credential file exists, but token refresh returns 401 and must be refreshed before the service can stay running.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
