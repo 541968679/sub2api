@@ -173,6 +173,54 @@ services:
       start_period: 30s
 
   # ===========================================================================
+  # AIClient2API - Kiro reverse proxy sidecar
+  # ===========================================================================
+  # Custom-built from forked AIClient2API. Built on-host via update.sh
+  # (git clone -> docker build). Exposes /claude-kiro-oauth/v1/messages
+  # for sub2api's Anthropic passthrough accounts.
+  #
+  # NOT exposed to the public internet - only reachable on the docker
+  # network via hostname "aiclient2api:3000".
+  # ===========================================================================
+  aiclient2api:
+    image: aiclient2api-custom:latest
+    container_name: aiclient2api
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    volumes:
+      # Configs: config.json, pwd, provider_pools.json, kiro/ tokens
+      # Prepare this directory on the host before first start.
+      - /opt/aiclient2api/configs:/app/configs
+      # Optional: persist debug logs
+      - /opt/aiclient2api/logs:/app/logs
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      # NODE_ENV=production reduces verbose logging from dependencies
+      - NODE_ENV=production
+    networks:
+      - sub2api-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-T",
+          "5",
+          "-O",
+          "/dev/null",
+          "http://localhost:3000/",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ===========================================================================
   # PostgreSQL Database
   # ===========================================================================
   postgres:

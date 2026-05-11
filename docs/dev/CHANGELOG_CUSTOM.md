@@ -19,6 +19,32 @@
 
 ## 变更记录
 
+## [2026-05-11] feat: Kiro 反代对接（anthropic 分组已通，antigravity 分组遗留）
+
+**影响范围**: `backend/internal/service/gateway_service.go`, `backend/internal/service/account.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/EditAccountModal.vue`, `AIClient2API` 子项目, `docs/dev/KIRO_PROXY.md`
+**上游兼容性**: 中等冲突，gateway_service.go 动了 passthrough 分支和 selectAccount 流程
+**变更详情**:
+- 通过 AIClient2API 子项目将 Kiro 账号反代为 Anthropic Messages API，再以 anthropic 平台 API Key 方式接入 sub2api（已跑通，通过 `/v1/messages` 端点可正常使用 Kiro 的 Claude 模型）
+- `gateway_service.go`: passthrough 转发前清理模型名中的 `[1m]`/`[2m]` 等上下文窗口后缀（Claude Code 客户端会带此后缀，Kiro 不识别）
+- `gateway_service.go`: antigravity 分组选不到账号时回退到 anthropic passthrough 账号（方案 A：路由层回退，不改账号模型）
+- 前端 `CreateAccountModal` / `EditAccountModal`: 扩展 `anthropic_passthrough` 开关显示到 antigravity 平台 apikey 账号
+- AIClient2API 侧修改 `claude-kiro.js` 的身份注入，把作者的"何夕2077"改为动态 `${model}` 变量，让模型自称与请求一致的名字（如 `claude-opus-4-7`）
+- **遗留问题**（详见 `docs/dev/KIRO_PROXY.md`）：
+  1. antigravity 分组实测仍报 `claude-opus-4-7[1m]` 模型错误，疑似编译未生效或走了其他路径
+  2. antigravity 分组的 key 无法在 sub2 平台获取额度信息
+  3. API 调用速度偏慢，未做网络链路分析
+- 完整对接方案、已知坑、遗留问题排查方向均记录在 `docs/dev/KIRO_PROXY.md`
+
+## [2026-05-10] infra: 引入 AIClient2API 作为 Kiro 反代子项目
+
+**影响范围**: 项目外部依赖（`E:\cursor project\AIClient2API`）、`docs/dev/KIRO_PROXY.md`
+**上游兼容性**: 无冲突，不修改 sub2api 代码
+**变更详情**:
+- 引入 [AIClient2API](https://github.com/justlovemaki/AIClient2API)（7600+ stars）作为 Kiro 反向代理子项目
+- sub2api 本身不支持 Kiro 平台，通过 AIClient2API 将 Kiro 账号反代为 Anthropic Messages API，再以 API Key 方式接入 sub2api
+- 对接路径：sub2api Anthropic API Key 账号 → `base_url` 指向 `http://{A2地址}:3000/claude-kiro-oauth` → AIClient2API 转发至 Kiro 上游
+- 新增 `docs/dev/KIRO_PROXY.md` 文档记录完整对接方案
+
 ## [2026-05-07] fix(frontend): 订阅套餐价格符号 $ → ¥
 
 **影响范围**: `frontend/src/components/payment/SubscriptionPlanCard.vue`, `frontend/src/views/admin/orders/AdminPaymentPlansView.vue`

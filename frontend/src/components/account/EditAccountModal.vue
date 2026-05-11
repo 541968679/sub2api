@@ -1341,9 +1341,9 @@
         </div>
       </div>
 
-      <!-- Anthropic API Key 自动透传开关 -->
+      <!-- Anthropic/Antigravity API Key 自动透传开关 -->
       <div
-        v-if="account?.platform === 'anthropic' && account?.type === 'apikey'"
+        v-if="(account?.platform === 'anthropic' || account?.platform === 'antigravity') && account?.type === 'apikey'"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between">
@@ -2515,7 +2515,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       openAICompactModelMappings.value = Object.entries(compactMappings).map(([from, to]) => ({ from, to }))
     }
   }
-  if (newAccount.platform === 'anthropic' && newAccount.type === 'apikey') {
+  if ((newAccount.platform === 'anthropic' || newAccount.platform === 'antigravity') && newAccount.type === 'apikey') {
     anthropicPassthroughEnabled.value = extra?.anthropic_passthrough === true
     // 三态：string "default"/"enabled"/"disabled"，向后兼容旧 bool
     const wsVal = extra?.web_search_emulation
@@ -3581,8 +3581,8 @@ const handleSubmit = async () => {
       updatePayload.extra = newExtra
     }
 
-    // For Anthropic API Key accounts, handle passthrough mode + web search emulation in extra
-    if (props.account.platform === 'anthropic' && props.account.type === 'apikey') {
+    // For Anthropic/Antigravity API Key accounts, handle passthrough mode + web search emulation in extra
+    if ((props.account.platform === 'anthropic' || props.account.platform === 'antigravity') && props.account.type === 'apikey') {
       const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }
       if (anthropicPassthroughEnabled.value) {

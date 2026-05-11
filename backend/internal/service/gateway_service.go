@@ -1410,6 +1410,13 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 	// 注意：强制平台模式也必须遵守分组限制，不再回退到全平台查询
 	account, err := s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 	if err != nil {
+		// antigravity 平台无可用账号时，回退到 anthropic passthrough 账号
+		if platform == PlatformAntigravity {
+			fallbackAccount, fbErr := s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, PlatformAnthropic)
+			if fbErr == nil && fallbackAccount != nil && fallbackAccount.IsAnthropicAPIKeyPassthroughEnabled() {
+				return s.hydrateSelectedAccount(ctx, fallbackAccount)
+			}
+		}
 		return nil, err
 	}
 	return s.hydrateSelectedAccount(ctx, account)
@@ -4344,6 +4351,12 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {
 		passthroughBody := parsed.Body
 		passthroughModel := parsed.Model
+		// Strip context window suffix (e.g. "[1m]") from model name before forwarding
+		if idx := strings.Index(passthroughModel, "["); idx > 0 {
+			cleanModel := passthroughModel[:idx]
+			passthroughBody = s.replaceModelInBody(passthroughBody, cleanModel)
+			passthroughModel = cleanModel
+		}
 		if passthroughModel != "" {
 			if mappedModel := account.GetMappedModel(passthroughModel); mappedModel != passthroughModel {
 				passthroughBody = s.replaceModelInBody(passthroughBody, mappedModel)
@@ -8811,7 +8824,13 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {
 		passthroughBody := parsed.Body
 		if reqModel := parsed.Model; reqModel != "" {
-			if mappedModel := account.GetMappedModel(reqModel); mappedModel != reqModel {
+			// Strip context window suffix (e.g. "[1m]") from model name
+			cleanModel := reqModel
+			if idx := strings.Index(reqModel, "["); idx > 0 {
+				cleanModel = reqModel[:idx]
+				passthroughBody = s.replaceModelInBody(passthroughBody, cleanModel)
+			}
+			if mappedModel := account.GetMappedModel(cleanModel); mappedModel != cleanModel {
 				passthroughBody = s.replaceModelInBody(passthroughBody, mappedModel)
 				logger.LegacyPrintf("service.gateway", "CountTokens passthrough model mapping: %s -> %s (account: %s)", reqModel, mappedModel, account.Name)
 			}

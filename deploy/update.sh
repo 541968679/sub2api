@@ -8,10 +8,13 @@
 #   - Auto-rolls back if health check fails after deploy
 #   - Logs everything to /opt/sub2api/deploy.log
 #   - Safe against SSH disconnections (use with: nohup bash update.sh &)
+#   - Also builds AIClient2API sidecar (if /opt/sub2api/aiclient2api-repo exists)
 #
 # Usage:
-#   bash /opt/sub2api/update.sh           # normal deploy
-#   bash /opt/sub2api/update.sh --rollback # rollback to previous version
+#   bash /opt/sub2api/update.sh              # normal deploy (both sub2api and aiclient2api if present)
+#   bash /opt/sub2api/update.sh --rollback   # rollback sub2api to previous version
+#   bash /opt/sub2api/update.sh --skip-a2    # deploy sub2api only, skip aiclient2api
+#   bash /opt/sub2api/update.sh --only-a2    # deploy aiclient2api only
 # =============================================================================
 
 set -euo pipefail
@@ -27,6 +30,13 @@ HEALTH_RETRIES=5
 HEALTH_INTERVAL=5
 LOG_FILE="/opt/sub2api/deploy.log"
 DOCKER_BUILD_CACHE_MAX_AGE="${DOCKER_BUILD_CACHE_MAX_AGE:-24h}"
+
+# AIClient2API sidecar (optional, built locally from fork)
+A2_REPO_DIR="/opt/sub2api/aiclient2api-repo"
+A2_IMAGE_NAME="aiclient2api-custom"
+A2_STAGING_TAG="${A2_IMAGE_NAME}:staging"
+A2_LATEST_TAG="${A2_IMAGE_NAME}:latest"
+A2_PREV_TAG="${A2_IMAGE_NAME}:prev"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -135,12 +145,65 @@ do_deploy() {
     log "=============================================="
 }
 
+do_deploy_a2() {
+    if [ ! -d "$A2_REPO_DIR" ]; then
+        log "AIClient2API repo not found at $A2_REPO_DIR, skipping sidecar deploy"
+        return 0
+    fi
+
+    log "=============================================="
+    log "=== Starting AIClient2API deployment ==="
+    log "=============================================="
+
+    log "--- Pulling AIClient2API latest code ---"
+    cd "$A2_REPO_DIR"
+    git pull origin main 2>&1 | tee -a "$LOG_FILE"
+
+    log "--- Building AIClient2API image to staging tag (no-cache) ---"
+    if ! docker build --no-cache -t "$A2_STAGING_TAG" . 2>&1 | tee -a "$LOG_FILE"; then
+        log "ERROR: AIClient2API build failed! Sidecar unchanged, sub2api unaffected."
+        return 1
+    fi
+
+    if docker image inspect "$A2_LATEST_TAG" >/dev/null 2>&1; then
+        log "--- Saving current AIClient2API image as prev ---"
+        docker tag "$A2_LATEST_TAG" "$A2_PREV_TAG"
+    fi
+
+    log "--- Promoting AIClient2API staging to latest ---"
+    docker tag "$A2_STAGING_TAG" "$A2_LATEST_TAG"
+
+    log "--- Restarting aiclient2api container ---"
+    cd "$COMPOSE_DIR"
+    docker compose up -d aiclient2api 2>&1 | tee -a "$LOG_FILE"
+
+    sleep 5
+    if docker compose ps aiclient2api | grep -q "Up"; then
+        log "=== AIClient2API deployment successful ==="
+        docker rmi "$A2_STAGING_TAG" 2>/dev/null || true
+    else
+        log "ERROR: AIClient2API container did not reach Up state. Check: docker compose logs aiclient2api"
+        return 1
+    fi
+
+    log "=============================================="
+    log "=== AIClient2API Done ==="
+    log "=============================================="
+}
+
 # --- Main ---
 case "${1:-}" in
     --rollback)
         do_rollback
         ;;
+    --only-a2)
+        do_deploy_a2
+        ;;
+    --skip-a2)
+        do_deploy
+        ;;
     *)
         do_deploy
+        do_deploy_a2 || log "WARN: AIClient2API deploy failed but sub2api is running"
         ;;
 esac

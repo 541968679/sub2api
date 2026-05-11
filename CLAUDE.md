@@ -100,7 +100,7 @@ CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/server ./cmd/server
 ```bash
 cd frontend
 pnpm install --frozen-lockfile          # Install deps (NEVER use npm)
-pnpm dev                                # Dev server on :15173
+pnpm dev                                # Dev server on :5175
 pnpm build                              # Production build → backend/internal/web/dist
 pnpm run lint:check                     # ESLint check
 pnpm run typecheck                      # TypeScript check
@@ -186,7 +186,7 @@ SERVER_PORT=8081 SERVER_MODE=debug \
 # Start frontend (another terminal, proxies to backend:8081)
 cd frontend
 pnpm dev
-# → http://localhost:15173  (admin: admin@sub2api.local / admin123456)
+# → http://localhost:5175  (admin: admin@sub2api.local / admin123456)
 ```
 
 ### 2. Develop & Test Locally

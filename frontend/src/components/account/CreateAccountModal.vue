@@ -2543,9 +2543,9 @@
         </div>
       </div>
 
-      <!-- Anthropic API Key 自动透传开关 -->
+      <!-- Anthropic/Antigravity API Key 自动透传开关 -->
       <div
-        v-if="form.platform === 'anthropic' && accountCategory === 'apikey'"
+        v-if="(form.platform === 'anthropic' && accountCategory === 'apikey') || (form.platform === 'antigravity' && antigravityAccountType === 'upstream')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between">
@@ -3684,7 +3684,7 @@ watch(
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
     }
-    if (newPlatform !== 'anthropic') {
+    if (newPlatform !== 'anthropic' && newPlatform !== 'antigravity') {
       anthropicPassthroughEnabled.value = false
       webSearchEmulationMode.value = 'default'
     }
@@ -4179,7 +4179,9 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
 }
 
 const buildAnthropicExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
-  if (form.platform !== 'anthropic' || accountCategory.value !== 'apikey') {
+  const isAnthropicApikey = form.platform === 'anthropic' && accountCategory.value === 'apikey'
+  const isAntigravityApikey = form.platform === 'antigravity' && antigravityAccountType.value === 'upstream'
+  if (!isAnthropicApikey && !isAntigravityApikey) {
     return base
   }
 
