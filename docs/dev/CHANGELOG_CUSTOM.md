@@ -19,6 +19,16 @@
 
 ## 变更记录
 
+## [2026-05-12] feat(aiclient2api): Kiro 反代缓存估算与 conversationId 稳定化
+
+**影响范围**: `aiclient2api/src/providers/claude/claud*: 无冲突（aiclient2api 是独立 fork）
+**变更详情**:
+- 新增 `deriveStableConversationId(metadata)`: 从 Claude Code 的 `metadata.user_id` 中提取 session_id，hash 为确定性 UUID，使同一会话的所有 turn 共享 conversationId，启用 Amazon Q 服务端上下文缓存
+- 新增 `filterBillingHeaderFromSystem()`: 过滤 system prompt 中每轮都变的 `x-anthropic-billing-header`（cch= 字段），保持 prompt 稳定
+- 新增 `_estimateCacheMetrics(requestBody)` + `_countMessageTokens(msg)`: 从请求体估算缓存 token — 首轮报 cache_creation，后续轮把 system + tools + 历史前缀报为 cache_read，input_tokens 只计最后一条新消息
+- `_countMessageTokens` 正确处理所有 content block 类型（text/thinking/tool_use/tool_result），缓存率从 ~45% 提升至 ~83%
+- 流式响应的 message_start 和 message_delta 事件使用估算值替代硬编码 0
+
 ## [2026-05-12] feat: antigravity 分组接入 Kiro 反代（方案 B）
 
 **影响范围**: `backend/internal/service/account.go`, `backend/internal/service/gateway_service.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/service/account_anthropic_passthrough_test.go`, `frontend/vite.config.ts`, `docs/dev/KIRO_PROXY.md`
