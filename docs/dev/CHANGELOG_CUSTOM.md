@@ -19,6 +19,19 @@
 
 ## 变更记录
 
+## [2026-05-12] feat(deploy): AIClient2API 正式上线生产 + Web UI 公网可访问
+
+**影响范围**: 生产 `/opt/sub2api/.env`、`/opt/sub2api/docker-compose.yml`、`/etc/caddy/Caddyfile`、Cloudflare DNS (`a2.zerocode.kaynlab.com`)，`deploy/docker-compose.yml`、`docs/dev/KIRO_PROXY.md`
+**上游兼容性**: 无冲突（仅生产部署配置 + 本仓库 compose/文档）
+**变更详情**:
+- 完成 AIClient2API 生产部署：Fork `541968679/AIClient2API` → 在生产服务器 `git clone + docker build` → 通过 `update.sh --only-a2` 部署
+- 生产 `.env` 补充 `SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=true` 和 `SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=true`，允许 sub2api 通过 `http://aiclient2api:3000` 调用内网 sidecar（本地 dev 未启用 allowlist 所以没遇到）
+- 修复 aiclient2api healthcheck：`localhost` 在容器内优先解析到 IPv6 `::1`，但服务只监听 IPv4 `0.0.0.0:3000`，改为 `127.0.0.1:3000`
+- 公网 Web UI：新增 Cloudflare DNS A 记录 `a2.zerocode.kaynlab.com → 172.245.247.80`（DNS Only），新增 Caddy vhost 反代到宿主机 `127.0.0.1:3000`
+- compose 给 aiclient2api 绑定到宿主机 `127.0.0.1:3000`（不对公网暴露，仅供 Caddy 本机反代），Docker 内网 DNS 同时仍可用
+- 口令、Web UI 访问地址、Caddyfile 示例、轮换流程已全部记录在 `docs/dev/KIRO_PROXY.md`
+- **当前可用链路**：anthropic 分组 API Key → sub2api 网关 → AIClient2API (`http://aiclient2api:3000/claude-kiro-oauth`) → Kiro API → Claude 系列模型
+
 ## [2026-05-11] feat: Kiro 反代对接（anthropic 分组已通，antigravity 分组遗留）
 
 **影响范围**: `backend/internal/service/gateway_service.go`, `backend/internal/service/account.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/EditAccountModal.vue`, `AIClient2API` 子项目, `docs/dev/KIRO_PROXY.md`
