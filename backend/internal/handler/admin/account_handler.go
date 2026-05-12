@@ -1941,6 +1941,35 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 	// Handle Antigravity accounts: return Claude + Gemini models
 	if account.Platform == service.PlatformAntigravity {
+		// Passthrough 账号（Kiro 反代）走 Anthropic API Key 模型列表逻辑
+		if account.IsAnthropicAPIKeyPassthroughEnabled() {
+			mapping := account.GetModelMapping()
+			if len(mapping) == 0 {
+				response.Success(c, claude.DefaultModels)
+				return
+			}
+			var models []claude.Model
+			for requestedModel := range mapping {
+				var found bool
+				for _, dm := range claude.DefaultModels {
+					if dm.ID == requestedModel {
+						models = append(models, dm)
+						found = true
+						break
+					}
+				}
+				if !found {
+					models = append(models, claude.Model{
+						ID:          requestedModel,
+						Type:        "model",
+						DisplayName: requestedModel,
+						CreatedAt:   "",
+					})
+				}
+			}
+			response.Success(c, models)
+			return
+		}
 		// 直接复用 antigravity.DefaultModels()，与 /v1/models 端点保持同步
 		response.Success(c, antigravity.DefaultModels())
 		return
