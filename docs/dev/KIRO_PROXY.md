@@ -162,17 +162,61 @@ git pull → docker build --no-cache → docker tag → docker compose up -d
 
 ```
 Internet
+   ↓ HTTPS
+Caddy :443 (host systemd service, auto Let's Encrypt)
+   ├─ zerocode.kaynlab.com   → 127.0.0.1:8080  (sub2api API)
+   └─ a2.zerocode.kaynlab.com → 127.0.0.1:3000  (AIClient2API Web UI)
    ↓
-Caddy :443 (auto HTTPS)
-   ↓
-sub2api :8080 (docker network)
-   ↓ http://aiclient2api:3000/claude-kiro-oauth/v1/messages
-aiclient2api :3000 (docker network, NOT exposed to public)
-   ↓ https://q.us-east-1.amazonaws.comS server IP)
-Kiro API
+Docker bridge (sub2api-network)
+   ├─ sub2api:8080      (host-exposed :8080)
+   └─ aiclient2api:3000 (host-exposed 127.0.0.1:3000 only, 公网不可达)
+         ↓ 内部调用：http://aiclient2api:3000/claude-kiro-oauth/v1/messages
+sub2api gateway → aiclient2api
+         ↓
+         ↓ https://q.us-east-1.amazonaws.com (server IP)
+         Kiro API
 ```
 
-AIClient2API 不对公网暴露（compose 里没配 `ports`），只有 sub2api 能通过 docker 内网 DNS 访问。
+关键点：
+- AIClient2API 绑定到宿主机 `127.0.0.1:3000`，**不对公网暴露**
+- Caddy（宿主机 systemd）从 `127.0.0.1:3000` 反代到公网子域名 `a2.zerocode.kaynlab.com`
+- sub2api 的 gateway 转发仍走 Docker 内网 DNS `http://aiclient2api:3000/...`（绕过 Caddy 避免多余跳）
+
+### AIClient2API Web UI 访问
+
+**URL**: https://a2.zerocode.kaynlab.com
+**登录密码**: 见下方 "生产口令存放位置"
+
+密码强度为 32 字符 hex，不建议对外透露。Web UI 登录后可以：
+- 添加/管理 Kiro 账号
+- 查看 provider pool 健康状态
+- 重新 OAuth 登录 Kiro
+- 实时查看请求日志
+
+### Caddyfile 配置
+
+生产 `/etc/caddy/Caddyfile` 的 aiclient2api vhost 块（**不进 git**，手动维护）：
+
+```
+a2.zerocode.kaynlab.com {
+	encode zstd gzip
+
+	request_body {
+		max_size 16MB
+	}
+
+	reverse_proxy 127.0.0.1:3000 {
+		# Preserve SSE / streaming
+		flush_interval -1
+	}
+}
+```
+
+Caddy 通过 `systemctl reload caddy` 热加载配置，不会中断现有连接。
+
+### DNS 配置
+
+Cloudflare 下 `a2.zerocode` A 记录指向 `172.245.247.80`，**proxied=false**（DNS Only），让 Caddy 直接拿 Let's Encrypt 证书。
 
 ### 部署命令
 
