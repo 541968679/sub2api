@@ -187,11 +187,16 @@ type ClaudeModel struct {
 }
 
 // DefaultModels 返回 Claude API 格式的模型列表（Claude + Gemini）
+// 同时为 Claude 模型生成 [1m]/[2m] 上下文窗口后缀变体，供 Claude Code 客户端模型校验通过。
 func DefaultModels() []ClaudeModel {
 	all := append(claudeModels, geminiModels...)
-	result := make([]ClaudeModel, len(all))
-	for i, m := range all {
-		result[i] = ClaudeModel{ID: m.ID, Type: "model", DisplayName: m.DisplayName, CreatedAt: m.CreatedAt}
+	result := make([]ClaudeModel, 0, len(all)*3)
+	for _, m := range all {
+		result = append(result, ClaudeModel{ID: m.ID, Type: "model", DisplayName: m.DisplayName, CreatedAt: m.CreatedAt})
+	}
+	for _, m := range claudeModels {
+		result = append(result, ClaudeModel{ID: m.ID + "[1m]", Type: "model", DisplayName: m.DisplayName + " (1M)", CreatedAt: m.CreatedAt})
+		result = append(result, ClaudeModel{ID: m.ID + "[2m]", Type: "model", DisplayName: m.DisplayName + " (2M)", CreatedAt: m.CreatedAt})
 	}
 	return result
 }

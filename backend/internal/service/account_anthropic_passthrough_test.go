@@ -40,7 +40,18 @@ func TestAccount_IsAnthropicAPIKeyPassthroughEnabled(t *testing.T) {
 		require.False(t, account.IsAnthropicAPIKeyPassthroughEnabled())
 	})
 
-	t.Run("非 Anthropic API Key 账号始终关闭", func(t *testing.T) {
+	t.Run("Antigravity API Key 开启（Kiro 反代）", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformAntigravity,
+			Type:     AccountTypeAPIKey,
+			Extra: map[string]any{
+				"anthropic_passthrough": true,
+			},
+		}
+		require.True(t, account.IsAnthropicAPIKeyPassthroughEnabled())
+	})
+
+	t.Run("非 Anthropic/Antigravity API Key 账号始终关闭", func(t *testing.T) {
 		oauth := &Account{
 			Platform: PlatformAnthropic,
 			Type:     AccountTypeOAuth,

@@ -734,7 +734,7 @@ func (a *Account) GetBaseURL() string {
 	if baseURL == "" {
 		return "https://api.anthropic.com"
 	}
-	if a.Platform == PlatformAntigravity {
+	if a.Platform == PlatformAntigravity && !a.IsAnthropicAPIKeyPassthroughEnabled() {
 		return strings.TrimRight(baseURL, "/") + "/antigravity"
 	}
 	return baseURL
@@ -1316,11 +1316,15 @@ func (a *Account) IsOpenAIOAuthPassthroughEnabled() bool {
 	return a != nil && a.IsOpenAIOAuth() && a.IsOpenAIPassthroughEnabled()
 }
 
-// IsAnthropicAPIKeyPassthroughEnabled 返回 Anthropic API Key 账号是否启用"自动透传（仅替换认证）"。
+// IsAnthropicAPIKeyPassthroughEnabled 返回 API Key 账号是否启用"自动透传（仅替换认证）"。
+// 支持 anthropic 和 antigravity 平台（antigravity 平台用于 Kiro 反代账号）。
 // 字段：accounts.extra.anthropic_passthrough。
 // 字段缺失或类型不正确时，按 false（关闭）处理。
 func (a *Account) IsAnthropicAPIKeyPassthroughEnabled() bool {
-	if a == nil || a.Platform != PlatformAnthropic || a.Type != AccountTypeAPIKey || a.Extra == nil {
+	if a == nil || a.Type != AccountTypeAPIKey || a.Extra == nil {
+		return false
+	}
+	if a.Platform != PlatformAnthropic && a.Platform != PlatformAntigravity {
 		return false
 	}
 	enabled, ok := a.Extra["anthropic_passthrough"].(bool)

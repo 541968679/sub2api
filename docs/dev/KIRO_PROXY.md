@@ -76,32 +76,58 @@ npm start
 **前端**：
 - `CreateAccountModal.vue` / `EditAccountModal.vue`: 扩展 `anthropic_passthrough` 开关到 antigravity 平台 apikey 账号（本方案 A 下已无必要，但改动保留不影响正常使用）。
 
-## 未完成：antigravity 分组接入 Kiro（遗留问题）
+## 已完成：antigravity 分组接入 Kiro（方案 B）
 
 ### 需求
 
-客户已有大量 antigravity 分组的 API Key 在用，希望不改 URL（继续用 `http://localhost:5175/antigravity/v1/messages`）就能切换到 Kiro 上游。
+客户已有大量 antigravity 分组的 API Key 在用，希望不改 URL（继续用 `/antigravity/v1/messages`）就能切换到 Kiro 上游。
 
-### 当前状态
+### 最终方案：Kiro 账号直接作为 antigravity 平台 passthrough 账号
 
-已实现的方案 A：**路由层回退**
-- Kiro 账号保持在 anthropic 平台下
-- `selectAccount` 在 antigravity 平台找不到可用账号时，回退查找 anthropic passthrough 账号
-- 代码位置：`gateway_service.go` 第 1411 行附近
+放弃方案 A（路由层回退），改用方案 B：将 Kiro 账号配置为 `platform=antigravity` + `type=apikey` + `passthrough=true`，直接参与 antigravity 分组调度。
 
-### 遗留问题
+### 代码改动
 
-1. **方案 A 实测仍报 `claude-opus-4-7[1m]` 模型错误** — 怀疑是 Go 代码未正确编译或请求走了其他未清理模型名的路径。需要下次抓日志定位。
-2. **antigravity 分组的 API Key 无法在 sub2 平台获取额度信息** — 同一个 key 在 anthropic 分组下能正常显示余额，antigravity 分组下显示不出来。可能是 billing 查询端点对 platform 做了限制。
-3. **API 调用速度偏慢** — 尚未做网络链路分析。可能的瓶颈：sub2api → AIClient2API（localhost 本应很快）、AIClient2API → Kiro（走代理，国外往返）。
+1. **`account.go` — `IsAnthropicAPIKeyPassthroughEnabled()`**：放宽平台限制，从只接受 `anthropic` 改为同时接受 `antigravity`。
+2. **`account.go` — `GetBaseURL()`**：antigravity passthrough 账号不再自动拼接 `/antigravity` 后缀（该后缀仅用于真正的 Google Cloud Code API Key 账号）。
+3. **`gateway_service.go` — `isModelSupportedByAccountWithContext()` / `isModelSupportedByAccount()`**：antigravity passthrough 账号跳过模型映射检查，接受所有模型（与 OpenAI passthrough 同理）。
+4. **`antigravity/claude_types.go` — `DefaultModels()`**：为 Claude 模型生成 `[1m]`/`[2m]` 上下文窗口后缀变体，供 Claude Code 客户端模型校验通过。
+5. **`frontend/vite.config.ts`**：Vite 代理新增 `/antigravity` 路径转发。
 
-### 下次排查方向
+### 请求链路
 
-1. 打开 sub2api 后端 debug 日志，抓一个完整 antigravity 分组请求链路
-2. 检查 `selectAccountForModelWithPlatform` 是否真的返回 error 触发回退
-3. 检查 count_tokens 路径（流式请求前置）是否也走了 passthrough
-4. 确认 `strings.Index` 清理 `[1m]` 逻辑在流式路径生效
-5. 额度接口：grep `balance` / `usage` / `quota` 相关 handler，看 antigravity platform 的区别处理
+```
+Claude Code 客户端 → /ity/v1/messages (ForcePlatform="antigravity")
+Claude Code 客户端 → /antigravity/v1/messages (ForcePlatform="antigravity")
+  → SelectAccountWithLoadAwareness (load-aware 路径)
+  → listSchedulableAccounts(platform="antigravity") → 找到 Kiro passthrough 账号
+  → isModelSupportedByAccountWithContext → passthrough bypass → true
+  → handler: platform=antigravity + type=apikey → gatewayService.Forward
+  → IsAnthropicAPIKeyPassthroughEnabled → true
+  → 清理 [1m] 后缀 → 应用账号级模型映射 → 转发到 AIClient2API base_url
+```
+
+### 管理后台配置
+
+| 字段 | 值 |
+|---|---|
+| 平台 | Antigravity |
+| 账号类型 | API Key |
+| API Key | AIClient2API 的 `REQUIRED_API_KEY` |
+| Base URL | `http://aiclient2api:3000/claude-kiro-oauth`（生产）/ `http://127.0.0.1:3000/claude-kiro-oauth`（本地） |
+| 自动透传 | 开启 |
+| 模型映射 | 可选，如 `claude-opus-4-7 → claude-opus-4-6` |
+
+### 排查过程中发现的坑
+
+1. **load-aware 路径无回退**：之前的方案 A 回退逻辑写在 `SelectAccountForModelWithExclusions`（simple 路径），但生产环境走 load-aware 路径（`concurrencyService != nil && LoadBatchEnabled`），回退代码永远不会执行。
+2. **`GetBaseURL()` 自动拼 `/antigravity`**：antigravity 平台的 apikey 账号会在 base_url 后自动拼接 `/antigravity`，导致 passthrough 请求 404。修复：passthrough 账号跳过此逻辑。
+3. **`/antigravity/v1/models` 缺少 `[1m]` 变体**：Claude Code 客户端用带 `[1m]` 后缀的模型名校验 models 列表，匹配不到就拒绝使用。修复：生成后缀变体。
+4. **Vite 代理未转发 `/antigravity`**：本地开发时前端 dev server 不代理 `/antigravity/` 路径，请求直接 404。
+
+### 遗留（方案 A 代码保留）
+
+`gateway_service.go` 第 1411 行附近的 antigravity→anthropic 回退逻辑保留不删，不影响正常运行。方案 B 下该代码不会被触发（antigravity 分组已有可用账号）。
 
 ## 提示词注入（已处理）
 

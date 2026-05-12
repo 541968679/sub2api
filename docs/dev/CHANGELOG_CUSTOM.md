@@ -19,6 +19,19 @@
 
 ## 变更记录
 
+## [2026-05-12] feat: antigravity 分组接入 Kiro 反代（方案 B）
+
+**影响范围**: `backend/internal/service/account.go`, `backend/internal/service/gateway_service.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/service/account_anthropic_passthrough_test.go`, `frontend/vite.config.ts`, `docs/dev/KIRO_PROXY.md`
+**上游兼容性**: 中等。`account.go` 的 `IsAnthropicAPIKeyPassthroughEnabled` 和 `GetBaseURL` 改了条件逻辑；`gateway_service.go` 的模型支持检查加了 passthrough bypass；上游若重构这些函数需手动合并。
+**变更详情**:
+- 放弃方案 A（路由层回退），采用方案 B：Kiro 账号配置为 `platform=antigravity` + `type=apikey` + `passthrough=true`，直接参与 antigravity 分组 load-aware 调度
+- `IsAnthropicAPIKeyPassthroughEnabled()`: 放宽平台限制，从只接受 anthropic 改为同时接受 antigravity
+- `GetBaseURL()`: antigravity passthrough 账号不再自动拼接 `/antigravity` 后缀（仅 Google Cloud Code 原生 apikey 账号需要）
+- `isModelSupportedByAccountWithContext()` / `isModelSupportedByAccount()`: antigravity passthrough 账号跳过模型映射检查，接受所有模型
+- `DefaultModels()`: 为 Claude 模型生成 `[1m]`/`[2m]` 上下文窗口后缀变体，解决 Claude Code 客户端模型校验不通过的问题
+- `vite.config.ts`: 新增 `/antigravity` 代理路径，本地开发时前端 dev server 正确转发到后端
+- 更新 `docs/dev/KIRO_PROXY.md` 文档，记录完整方案、配置步骤和排查过程中发现的 4 个坑
+
 ## [2026-05-12] feat(deploy): AIClient2API 正式上线生产 + Web UI 公网可访问
 
 **影响范围**: 生产 `/opt/sub2api/.env`、`/opt/sub2api/docker-compose.yml`、`/etc/caddy/Caddyfile`、Cloudflare DNS (`a2.zerocode.kaynlab.com`)，`deploy/docker-compose.yml`、`docs/dev/KIRO_PROXY.md`
