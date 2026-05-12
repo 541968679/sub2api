@@ -197,6 +197,10 @@ services:
       - /opt/aiclient2api/configs:/app/configs
       # Optional: persist debug logs
       - /opt/aiclient2api/logs:/app/logs
+    # Bind to host loopback only. Caddy (on host) reverse-proxies
+    # https://a2.zerocode.kaynlab.com → 127.0.0.1:3000. Never expose publicly.
+    ports:
+      - "127.0.0.1:3000:3000"
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       # NODE_ENV=production reduces verbose logging from dependencies
