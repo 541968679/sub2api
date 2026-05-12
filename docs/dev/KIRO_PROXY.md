@@ -210,4 +210,42 @@ bash /opt/sub2api/update.sh --rollback
 
 生产服务器是美国 IP，理论上 OAuth 能拿到完整 Claude 模型。但如果上传的 token 是中国 IP 登录获得的，可能仍有限制。验证方法：
 - 测试 `claude-opus-4-7`，若报 `INVALID_MODEL_ID`，token 被中国 IP 限制
-- 备选：临时 `docker compose.override.yml` 暴露 aiclient2api:3000 到 22 端口，访问 Web UI 在美国 IP 环境下重新 OAuth 登录，完成后移除 override
+- 备选：临时 `docker compose.override.yml` 暴露 aiclient2api:3000 到 22 端口，访问 Web UI 在美国 IP 环境下重成后移除 override
+
+### 生产口令存放位置
+
+口令**不进 git**。三处存放：
+
+| 密钥 | 存放位置 | 用途 |
+|---|---|---|
+| `AICLIENT_API_KEY` | 本地 `E:\cursor project\AIClient2API\.env.production.secrets`（gitignored） | sub2api Anthropic 账号表单里的 API Key 字段 |
+| `AICLIENT_API_KEY` | 生产 `/opt/aiclient2api/configs/config.json` 的 `REQUIRED_API_KEY` 字段 | AIClient2API 接收请求时的校验 |
+| `AICLIENT_WEB_PASSWORD` | 本地 `E:\cursor project\AIClient2API\.env.production.secrets`（gitignored） | 记录用 |
+| `AICLIENT_WEB_PASSWORD` | 生产 `/opt/aiclient2api/configs/pwd` 文件 | AIClient2API Web UI 登录密码 |
+
+#### 查看生产口令
+
+```bash
+# 查看 API Key
+ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 \
+  "grep REQUIRED_API_KEY /opt/aiclient2api/configs/config.json"
+
+# 查看 Web UI 密码
+ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 \
+  "cat /opt/aiclient2api/configs/pwd"
+```
+
+#### 轮换口令
+
+1. 生成新口令：`openssl rand -hex 32`
+2. 更新生产 `config.json`（`REQUIRED_API_KEY` 字段）或 `pwd` 文件
+3. `docker restart aiclient2api`
+4. 在 sub2api 后台同步更新对应账号的 API Key 字段
+5. 本地 `.env.production.secrets` 同步更新
+
+#### 本地开发口令
+
+| 密钥 | 值 | 用途 |
+|---|---|---|
+| AIClient2API API Key | `123456` | 本地调试，不用于生产 |
+| AIClient2API Web UI | `admin123` | 本地调试，不用于生产 |
