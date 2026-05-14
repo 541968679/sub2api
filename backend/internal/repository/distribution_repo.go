@@ -242,6 +242,174 @@ LIMIT $2 OFFSET $3`, userID, pageSize, offset)
 	return out, total, nil
 }
 
+func (r *distributionRepository) ListWallets(ctx context.Context, page, pageSize int, search string) ([]service.DistributionWallet, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 200 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+	like := "%" + strings.TrimSpace(search) + "%"
+	client := clientFromContext(ctx, r.client)
+
+	total, err := scanInt64(ctx, client, `
+SELECT COUNT(*)
+FROM distribution_wallets dw
+JOIN users u ON u.id = dw.user_id
+WHERE ($1 = '%%' OR u.email ILIKE $1 OR u.username ILIKE $1 OR dw.user_id::text = trim(both '%' from $1))`, like)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := client.QueryContext(ctx, `
+SELECT dw.id, dw.user_id, dw.agent_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
+       dw.balance::double precision, dw.total_recharged::double precision,
+       dw.total_spent::double precision, dw.total_rebate::double precision,
+       dw.status, dw.created_at, dw.updated_at
+FROM distribution_wallets dw
+JOIN users u ON u.id = dw.user_id
+WHERE ($1 = '%%' OR u.email ILIKE $1 OR u.username ILIKE $1 OR dw.user_id::text = trim(both '%' from $1))
+ORDER BY dw.updated_at DESC, dw.id DESC
+LIMIT $2 OFFSET $3`, like, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]service.DistributionWallet, 0)
+	for rows.Next() {
+		var item service.DistributionWallet
+		if err := rows.Scan(&item.ID, &item.UserID, &item.AgentID, &item.UserEmail, &item.Username, &item.Balance, &item.TotalRecharged, &item.TotalSpent, &item.TotalRebate, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+func (r *distributionRepository) ListAllWalletLedger(ctx context.Context, page, pageSize int, userID int64) ([]service.DistributionWalletLedgerEntry, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 500 {
+		pageSize = 50
+	}
+	offset := (page - 1) * pageSize
+	client := clientFromContext(ctx, r.client)
+
+	total, err := scanInt64(ctx, client, `
+SELECT COUNT(*) FROM distribution_wallet_ledger
+WHERE ($1::bigint = 0 OR user_id = $1)`, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := client.QueryContext(ctx, `
+SELECT id, wallet_id, user_id, action, amount::double precision, balance_after::double precision, reference_type, reference_id, note, created_at
+FROM distribution_wallet_ledger
+WHERE ($1::bigint = 0 OR user_id = $1)
+ORDER BY created_at DESC, id DESC
+LIMIT $2 OFFSET $3`, userID, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]service.DistributionWalletLedgerEntry, 0)
+	for rows.Next() {
+		var item service.DistributionWalletLedgerEntry
+		if err := rows.Scan(&item.ID, &item.WalletID, &item.UserID, &item.Action, &item.Amount, &item.BalanceAfter, &item.ReferenceType, &item.ReferenceID, &item.Note, &item.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+func (r *distributionRepository) UpdateWalletStatus(ctx context.Context, userID int64, status string) (*service.DistributionWallet, error) {
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+UPDATE distribution_wallets
+SET status = $1, updated_at = NOW()
+WHERE user_id = $2
+RETURNING id, user_id, agent_id, balance::double precision, total_recharged::double precision, total_spent::double precision, total_rebate::double precision, status, created_at, updated_at`,
+		status, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, service.ErrDistributionWalletNotFound
+	}
+	var wallet service.DistributionWallet
+	if err := rows.Scan(&wallet.ID, &wallet.UserID, &wallet.AgentID, &wallet.Balance, &wallet.TotalRecharged, &wallet.TotalSpent, &wallet.TotalRebate, &wallet.Status, &wallet.CreatedAt, &wallet.UpdatedAt); err != nil {
+		return nil, err
+	}
+	return &wallet, rows.Err()
+}
+
+func (r *distributionRepository) AdjustWalletBalance(ctx context.Context, userID int64, amount float64, action, referenceType, referenceID, note string, createdBy int64) (*service.DistributionWallet, error) {
+	var out *service.DistributionWallet
+	err := r.withTx(ctx, func(txCtx context.Context, txClient *dbent.Client) error {
+		wallet, err := queryDistributionWallet(txCtx, txClient, userID)
+		if err != nil {
+			return err
+		}
+		if wallet.Status != service.DistributionWalletStatusActive && action != service.DistributionLedgerActionAdminAdjust {
+			return service.ErrDistributionWalletInactive
+		}
+		if wallet.Balance+amount < -0.00000001 {
+			return service.ErrDistributionInsufficient
+		}
+		rows, err := txClient.QueryContext(txCtx, `
+UPDATE distribution_wallets
+SET balance = balance + $1,
+    total_recharged = total_recharged + CASE WHEN $1 > 0 THEN $1 ELSE 0 END,
+    total_spent = total_spent + CASE WHEN $1 < 0 THEN -$1 ELSE 0 END,
+    updated_at = NOW()
+WHERE user_id = $2
+RETURNING id, user_id, agent_id, balance::double precision, total_recharged::double precision, total_spent::double precision, total_rebate::double precision, status, created_at, updated_at`,
+			amount, userID)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = rows.Close() }()
+		if !rows.Next() {
+			return service.ErrDistributionWalletNotFound
+		}
+		var updated service.DistributionWallet
+		if err := rows.Scan(&updated.ID, &updated.UserID, &updated.AgentID, &updated.Balance, &updated.TotalRecharged, &updated.TotalSpent, &updated.TotalRebate, &updated.Status, &updated.CreatedAt, &updated.UpdatedAt); err != nil {
+			return err
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		creator := sql.NullInt64{Int64: createdBy, Valid: createdBy > 0}
+		_, err = txClient.ExecContext(txCtx, `
+INSERT INTO distribution_wallet_ledger (wallet_id, user_id, action, amount, balance_after, reference_type, reference_id, note, created_by, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+			updated.ID, updated.UserID, action, amount, updated.Balance, referenceType, referenceID, note, creator)
+		if err != nil {
+			return err
+		}
+		out = &updated
+		return nil
+	})
+	return out, err
+}
+
+func (r *distributionRepository) WithTx(ctx context.Context, fn func(txCtx context.Context) error) error {
+	return r.withTx(ctx, func(txCtx context.Context, _ *dbent.Client) error {
+		return fn(txCtx)
+	})
+}
+
 func (r *distributionRepository) withTx(ctx context.Context, fn func(txCtx context.Context, txClient *dbent.Client) error) error {
 	if tx := dbent.TxFromContext(ctx); tx != nil {
 		return fn(ctx, tx.Client())

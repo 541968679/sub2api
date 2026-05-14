@@ -174,6 +174,8 @@ export interface DistributionWallet {
   id: number
   user_id: number
   agent_id: number
+  user_email?: string
+  username?: string
   balance: number
   total_recharged: number
   total_spent: number
@@ -199,6 +201,33 @@ export interface DistributionWalletLedgerEntry {
 export interface DistributionSummary {
   application: DistributionAgentApplication | null
   wallet: DistributionWallet | null
+  settings: DistributionSettings
+}
+
+export interface DistributionSettings {
+  rmb_per_usd: number
+  subscription_discount: number
+}
+
+export interface DistributionGeneratedRedeemCode {
+  code: string
+  type: RedeemCodeType
+  value: number
+  group_id?: number | null
+  validity_days?: number
+  cost_rmb: number
+  balance_after: number
+}
+
+export interface DistributionGeneratedApiKey {
+  id: number
+  name: string
+  key: string
+  quota: number
+  group_id?: number | null
+  expires_at?: string | null
+  cost_rmb: number
+  balance_after: number
 }
 
 export interface SendVerifyCodeRequest {

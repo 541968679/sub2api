@@ -117,6 +117,15 @@ type DistributionServicePort interface {
 	ListAgentApplications(ctx context.Context, page, pageSize int, search string) ([]DistributionAgentApplication, int64, error)
 	ReviewAgentApplication(ctx context.Context, userID int64, approved bool, adminNote string, reviewedBy int64) (*DistributionAgentApplication, error)
 	ListWalletLedger(ctx context.Context, userID int64, page, pageSize int) ([]DistributionWalletLedgerEntry, int64, error)
+	GetSettings(ctx context.Context) (DistributionSettings, error)
+	UpdateSettings(ctx context.Context, settings DistributionSettings) (DistributionSettings, error)
+	GenerateBalanceRedeemCode(ctx context.Context, userID int64, input DistributionGenerateBalanceRedeemCodeInput) (*DistributionGeneratedRedeemCode, error)
+	GenerateSubscriptionRedeemCode(ctx context.Context, userID int64, input DistributionGenerateSubscriptionRedeemCodeInput) (*DistributionGeneratedRedeemCode, error)
+	GenerateAPIKey(ctx context.Context, userID int64, input DistributionGenerateAPIKeyInput) (*DistributionGeneratedAPIKey, error)
+	ListWallets(ctx context.Context, page, pageSize int, search string) ([]DistributionWallet, int64, error)
+	ListAllWalletLedger(ctx context.Context, page, pageSize int, userID int64) ([]DistributionWalletLedgerEntry, int64, error)
+	AdminAdjustWallet(ctx context.Context, input DistributionAdminAdjustWalletInput) (*DistributionWallet, error)
+	UpdateWalletStatus(ctx context.Context, userID int64, frozen bool) (*DistributionWallet, error)
 }
 
 type UserAuthIdentityRecord struct {

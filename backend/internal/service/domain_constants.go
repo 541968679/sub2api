@@ -106,6 +106,8 @@ const (
 	SettingKeyAffiliateRebateFreezeHours       = "affiliate_rebate_freeze_hours"       // 返利冻结期（小时，0=不冻结）
 	SettingKeyAffiliateRebateDurationDays      = "affiliate_rebate_duration_days"      // 返利有效期（天，0=永久）
 	SettingKeyAffiliateRebatePerInviteeCap     = "affiliate_rebate_per_invitee_cap"    // 单人返利上限（0=无上限）
+	SettingKeyDistributionRMBPerUSD            = "distribution_rmb_per_usd"            // 分销生成余额兑换码/API Key 时每 1 USD 面值扣除的 RMB
+	SettingKeyDistributionSubscriptionDiscount = "distribution_subscription_discount"  // 分销生成订阅兑换码时按 RMB 面值扣款的折扣比例
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址

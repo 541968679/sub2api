@@ -118,6 +118,9 @@ func RegisterUserRoutes(
 			distribution.GET("", h.Distribution.GetMine)
 			distribution.POST("/apply", h.Distribution.Apply)
 			distribution.GET("/ledger", h.Distribution.GetLedger)
+			distribution.POST("/redeem-codes/balance", h.Distribution.GenerateBalanceRedeemCode)
+			distribution.POST("/redeem-codes/subscription", h.Distribution.GenerateSubscriptionRedeemCode)
+			distribution.POST("/api-keys", h.Distribution.GenerateAPIKey)
 		}
 
 		// 模型计价页（两段文案 + 展示价格表，按 provider 分组）
