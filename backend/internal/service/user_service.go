@@ -111,6 +111,14 @@ type UserRepository interface {
 	DisableTotp(ctx context.Context, userID int64) error
 }
 
+type DistributionServicePort interface {
+	GetCurrentUserSummary(ctx context.Context, userID int64) (*DistributionSummary, error)
+	ApplyForAgent(ctx context.Context, userID int64, contact, reason string) (*DistributionSummary, error)
+	ListAgentApplications(ctx context.Context, page, pageSize int, search string) ([]DistributionAgentApplication, int64, error)
+	ReviewAgentApplication(ctx context.Context, userID int64, approved bool, adminNote string, reviewedBy int64) (*DistributionAgentApplication, error)
+	ListWalletLedger(ctx context.Context, userID int64, page, pageSize int) ([]DistributionWalletLedgerEntry, int64, error)
+}
+
 type UserAuthIdentityRecord struct {
 	ProviderType    string
 	ProviderKey     string

@@ -153,6 +153,54 @@ export interface AffiliateTransferResponse {
   balance: number
 }
 
+export type DistributionAgentStatus = 'pending' | 'approved' | 'rejected' | 'frozen'
+export type DistributionWalletStatus = 'active' | 'frozen'
+
+export interface DistributionAgentApplication {
+  user_id: number
+  user_email?: string
+  username?: string
+  status: DistributionAgentStatus
+  contact: string
+  reason: string
+  admin_note: string
+  reviewed_by?: number | null
+  reviewed_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DistributionWallet {
+  id: number
+  user_id: number
+  agent_id: number
+  balance: number
+  total_recharged: number
+  total_spent: number
+  total_rebate: number
+  status: DistributionWalletStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface DistributionWalletLedgerEntry {
+  id: number
+  wallet_id: number
+  user_id: number
+  action: string
+  amount: number
+  balance_after: number
+  reference_type: string
+  reference_id: string
+  note: string
+  created_at: string
+}
+
+export interface DistributionSummary {
+  application: DistributionAgentApplication | null
+  wallet: DistributionWallet | null
+}
+
 export interface SendVerifyCodeRequest {
   email: string
   turnstile_token?: string

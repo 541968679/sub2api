@@ -103,6 +103,17 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+
+		// 分销管理
+		registerDistributionRoutes(admin, h)
+	}
+}
+
+func registerDistributionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	distribution := admin.Group("/distribution")
+	{
+		distribution.GET("/applications", h.Distribution.AdminListApplications)
+		distribution.POST("/applications/:user_id/review", h.Distribution.AdminReviewApplication)
 	}
 }
 

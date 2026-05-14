@@ -361,6 +361,8 @@ export default {
     modelConfig: 'Model Config',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
+    distribution: 'Distribution',
+    distributionManagement: 'Distribution',
     ops: 'Ops',
     promoCodes: 'Promo Codes',
     settings: 'Settings',
@@ -1429,6 +1431,25 @@ export default {
   // Admin
   admin: {
     // Recharge Config
+    distribution: {
+      title: 'Distribution Management',
+      description: 'Review distribution agent applications and manage first-stage access.',
+      searchPlaceholder: 'Search email or username...',
+      loadFailed: 'Failed to load applications',
+      reviewSuccess: 'Review saved',
+      reviewFailed: 'Failed to save review',
+      approve: 'Approve',
+      reject: 'Reject',
+      approveTitle: 'Approve distribution application',
+      rejectTitle: 'Reject distribution application',
+      reviewNote: 'Review note',
+      columns: {
+        user: 'User',
+        contact: 'Contact',
+        reason: 'Reason',
+        createdAt: 'Submitted at',
+      },
+    },
     recharge: {
       title: 'Recharge Config',
       description: 'Manage recharge pricing and bonus tiers',
@@ -6863,6 +6884,64 @@ export default {
         active: 'Active',
         expired: 'Expired',
         revoked: 'Revoked',
+      },
+    },
+  },
+
+  distribution: {
+    title: 'Distribution Center',
+    description: 'Apply for distribution access and view your distribution account.',
+    loadFailed: 'Failed to load distribution center',
+    status: {
+      notApplied: 'Not applied',
+      pending: 'Pending review',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      frozen: 'Frozen',
+    },
+    stats: {
+      status: 'Agent status',
+      balance: 'Distribution balance',
+      recharged: 'Total recharged',
+      rebate: 'Total rebate',
+    },
+    apply: {
+      title: 'Apply to become a distribution agent',
+      description: 'Submit contact information and a short reason. You can use the distribution account after admin approval.',
+      contact: 'Contact',
+      reason: 'Reason',
+      submit: 'Submit application',
+      success: 'Application submitted',
+      failed: 'Failed to submit application',
+    },
+    application: {
+      title: 'Application',
+      submittedAt: 'Submitted at',
+      adminNote: 'Admin note',
+    },
+    features: {
+      recharge: {
+        title: 'Discounted recharge',
+        description: 'Pending rule configuration.',
+      },
+      codes: {
+        title: 'Redeem code distribution',
+        description: 'Pending generation and wallet deduction rules.',
+      },
+      api: {
+        title: 'API key distribution',
+        description: 'Pending quota package and key generation rules.',
+      },
+    },
+    ledger: {
+      title: 'Wallet ledger',
+      empty: 'No ledger records yet',
+      columns: {
+        action: 'Action',
+        amount: 'Amount',
+        balanceAfter: 'Balance after',
+        note: 'Note',
+        createdAt: 'Created at',
       },
     },
   },

@@ -14,6 +14,8 @@
 | 认证 | [auth.md](auth.md) | 用户登录、JWT、OAuth SSO、2FA | - |
 | 支付 | [payment.md](payment.md) | Stripe、微信、支付宝集成 | - |
 
+| Distribution | [distribution.md](distribution.md) | Distribution agent application, review, wallet, and ledger | 2026-05-14 |
+
 ## 使用说明
 
 - **新会话开始时**：先读 `CLAUDE.md` → `../ARCHITECTURE.md` → 本索引 → 需要修改模块的文档

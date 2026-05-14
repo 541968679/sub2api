@@ -112,6 +112,14 @@ func RegisterUserRoutes(
 			subscriptions.GET("/summary", h.Subscription.GetSummary)
 		}
 
+		// 分销中心
+		distribution := authenticated.Group("/distribution")
+		{
+			distribution.GET("", h.Distribution.GetMine)
+			distribution.POST("/apply", h.Distribution.Apply)
+			distribution.GET("/ledger", h.Distribution.GetLedger)
+		}
+
 		// 模型计价页（两段文案 + 展示价格表，按 provider 分组）
 		authenticated.GET("/user/pricing-page", h.PricingPage.Get)
 		authenticated.GET("/user/tutorial-page", h.TutorialPage.Get)

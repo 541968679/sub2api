@@ -1491,6 +1491,18 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Verified with `go test -tags=unit ./internal/service -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, `go test -tags=unit ./internal/handler/admin -run "ModelPricing"`, `go test -tags=unit ./internal/service ./internal/repository -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, and `pnpm run typecheck`.
 - Full `go test -tags=unit ./internal/handler/admin ./internal/repository` still has an unrelated existing failure in `TestAccountHandlerGetAvailableModels_OpenAIOAuthUsesExplicitModelMapping` where the test expects 1 model but receives 13.
 
+## [2026-05-14] feat: add first-stage distribution system
+
+**Affected files**: backend/migrations/139_add_distribution_agents.sql, backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/{user,admin}.go, frontend/src/views/{user,admin}/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: medium risk; adds a new domain, tables, routes, DI providers, and frontend pages.
+**Change details**:
+- Added distribution agent application, admin review, independent wallet schema, and wallet ledger schema.
+- Added user APIs for distribution summary, application submission, and wallet ledger viewing.
+- Added admin APIs for listing and reviewing distribution applications.
+- Added user/admin frontend pages and sidebar/router entries for distribution.
+- Documented the distribution module and first-release scope.
+- Deferred recharge discount, redeem-code generation, API key package generation, and subscription coupon cashback until business rules are confirmed.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go

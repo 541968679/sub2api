@@ -6661,6 +6661,67 @@ const v117ZhPatch = {
     login: '登录',
     done: '已完成'
   },
+  nav: {
+    distribution: '分销中心',
+    distributionManagement: '分销管理'
+  },
+  distribution: {
+    title: '分销中心',
+    description: '申请成为分销代理并查看分销账户。',
+    loadFailed: '加载分销中心失败',
+    status: {
+      notApplied: '未申请',
+      pending: '待审核',
+      approved: '已通过',
+      rejected: '已拒绝',
+      frozen: '已冻结',
+    },
+    stats: {
+      status: '代理状态',
+      balance: '分销余额',
+      recharged: '累计充值',
+      rebate: '累计返现',
+    },
+    apply: {
+      title: '申请成为分销代理',
+      description: '提交联系方式和申请说明，管理员审核通过后即可使用分销账户。',
+      contact: '联系方式',
+      reason: '申请说明',
+      submit: '提交申请',
+      success: '申请已提交',
+      failed: '提交申请失败',
+    },
+    application: {
+      title: '申请记录',
+      submittedAt: '提交时间',
+      adminNote: '管理员备注',
+    },
+    features: {
+      recharge: {
+        title: '折扣充值',
+        description: '规则配置待接入。',
+      },
+      codes: {
+        title: '兑换码分销',
+        description: '生成和扣款规则待接入。',
+      },
+      api: {
+        title: 'API Key 分销',
+        description: '定额套餐和 Key 生成规则待接入。',
+      },
+    },
+    ledger: {
+      title: '账户流水',
+      empty: '暂无流水记录',
+      columns: {
+        action: '动作',
+        amount: '金额',
+        balanceAfter: '变动后余额',
+        note: '备注',
+        createdAt: '创建时间',
+      },
+    },
+  },
   pricing: {
     title: '模型定价',
     description: '查看可用模型、计费方式和展示倍率',
@@ -6725,6 +6786,25 @@ const v117ZhPatch = {
     }
   },
   admin: {
+    distribution: {
+      title: '分销管理',
+      description: '审核分销代理申请并管理第一阶段准入。',
+      searchPlaceholder: '搜索邮箱或用户名...',
+      loadFailed: '加载申请列表失败',
+      reviewSuccess: '审核已保存',
+      reviewFailed: '保存审核失败',
+      approve: '通过',
+      reject: '拒绝',
+      approveTitle: '通过分销申请',
+      rejectTitle: '拒绝分销申请',
+      reviewNote: '审核备注',
+      columns: {
+        user: '用户',
+        contact: '联系方式',
+        reason: '申请说明',
+        createdAt: '提交时间',
+      },
+    },
     recharge: {
       title: '充值配置',
       description: '管理充值单价和赠送档位',
