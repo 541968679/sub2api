@@ -1406,6 +1406,47 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Documented that Kiro Gateway account management is file-based through `credentials.json`, and that startup requires at least one valid Kiro account.
 - Recorded the current local blocker: detected Kiro IDE credential file exists, but token refresh returns 401 and must be refreshed before the service can stay running.
 
+## [2026-05-14] feat: 用户侧图片使用记录展示尺寸与质量
+
+**Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk, user usage UI/export display only
+**Change details**:
+- Updated user usage image rows to show image count, requested image size, and requested image quality without exposing billing tiers or pricing formulas.
+- Added image count, image size, and image quality columns to the user CSV usage export.
+- Added Chinese and English i18n labels for image size and image quality.
+- Verified with `pnpm run typecheck`.
+
+## [2026-05-14] fix: display pricing usage token rewrite
+
+**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/gateway_service.go, backend/internal/service/antigravity_gateway_service.go
+**Upstream compatibility**: scoped to user-facing usage token display transforms; actual billing cost is unchanged
+**Change details**:
+- Computes effective display token multipliers from account rate, user group rate, display rate, and model display prices.
+- Rewrites Claude/Antigravity streaming and non-streaming usage token fields so user-visible token counts align with display pricing.
+- Leaves actual billing and stored actual cost based on the existing real pricing path.
+- Verified by backend compile through targeted unit tests and frontend build.
+
+## [2026-05-14] fix: 突出图片质量单价配置入口
+
+**Affected files**: frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk, admin model pricing UI only
+**Change details**:
+- Made the `low` / `medium` / `high` / `auto` image quality price fields a labeled subsection under megapixel image billing.
+- Clarified that empty quality prices fall back to the default megapixel price.
+- Verified with `pnpm run typecheck`.
+
+## [2026-05-14] feat: 图片档位计费支持 quality 乘数
+
+**Affected files**: backend/internal/service/image_billing.go, backend/internal/service/image_billing_test.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/model_pricing_resolver.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/repository/global_model_pricing_repo.go, backend/migrations/137_add_image_quality_multipliers.sql, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: additive DB/API/UI change; existing tier pricing remains unchanged when multipliers are unset
+**Change details**:
+- Added `image_quality_multipliers` for tier image billing so the matched `1K/2K/4K` price can be multiplied by `low/medium/high/auto`.
+- Defaulted omitted/unknown image quality to `auto`, and left the effective multiplier at `1.0` unless an administrator configures a multiplier.
+- Kept `image_quality_prices` as megapixel-mode USD/MP overrides; tier mode now uses the separate multiplier map.
+- Added admin UI fields for quality multipliers under image tier billing, with `auto` defaulting to `1`.
+- Verified with `go test -tags=unit ./internal/service -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, `go test -tags=unit ./internal/handler/admin -run "ModelPricing"`, `go test -tags=unit ./internal/service ./internal/repository -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, and `pnpm run typecheck`.
+- Full `go test -tags=unit ./internal/handler/admin ./internal/repository` still has an unrelated existing failure in `TestAccountHandlerGetAvailableModels_OpenAIOAuthUsesExplicitModelMapping` where the test expects 1 model but receives 13.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go

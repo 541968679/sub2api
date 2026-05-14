@@ -848,6 +848,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		Duration:        time.Since(startTime),
 		FirstTokenMs:    firstTokenMs,
 		ImageCount:      imageCount,
-		ImageSize:       parsed.SizeTier,
+		ImageSize:       parsed.Size,
+		ImageSizeInfo:   parsed.SizeInfo,
+		ImageQuality:    parsed.Quality,
 	}, nil
 }

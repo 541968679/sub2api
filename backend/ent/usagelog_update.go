@@ -739,6 +739,26 @@ func (_u *UsageLogUpdate) ClearImageSize() *UsageLogUpdate {
 	return _u
 }
 
+// SetImageQuality sets the "image_quality" field.
+func (_u *UsageLogUpdate) SetImageQuality(v string) *UsageLogUpdate {
+	_u.mutation.SetImageQuality(v)
+	return _u
+}
+
+// SetNillableImageQuality sets the "image_quality" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableImageQuality(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetImageQuality(*v)
+	}
+	return _u
+}
+
+// ClearImageQuality clears the value of the "image_quality" field.
+func (_u *UsageLogUpdate) ClearImageQuality() *UsageLogUpdate {
+	_u.mutation.ClearImageQuality()
+	return _u
+}
+
 // SetCacheTTLOverridden sets the "cache_ttl_overridden" field.
 func (_u *UsageLogUpdate) SetCacheTTLOverridden(v bool) *UsageLogUpdate {
 	_u.mutation.SetCacheTTLOverridden(v)
@@ -890,6 +910,11 @@ func (_u *UsageLogUpdate) check() error {
 	if v, ok := _u.mutation.ImageSize(); ok {
 		if err := usagelog.ImageSizeValidator(v); err != nil {
 			return &ValidationError{Name: "image_size", err: fmt.Errorf(`ent: validator failed for field "UsageLog.image_size": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ImageQuality(); ok {
+		if err := usagelog.ImageQualityValidator(v); err != nil {
+			return &ValidationError{Name: "image_quality", err: fmt.Errorf(`ent: validator failed for field "UsageLog.image_quality": %w`, err)}
 		}
 	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
@@ -1098,6 +1123,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.ImageSizeCleared() {
 		_spec.ClearField(usagelog.FieldImageSize, field.TypeString)
+	}
+	if value, ok := _u.mutation.ImageQuality(); ok {
+		_spec.SetField(usagelog.FieldImageQuality, field.TypeString, value)
+	}
+	if _u.mutation.ImageQualityCleared() {
+		_spec.ClearField(usagelog.FieldImageQuality, field.TypeString)
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
@@ -1974,6 +2005,26 @@ func (_u *UsageLogUpdateOne) ClearImageSize() *UsageLogUpdateOne {
 	return _u
 }
 
+// SetImageQuality sets the "image_quality" field.
+func (_u *UsageLogUpdateOne) SetImageQuality(v string) *UsageLogUpdateOne {
+	_u.mutation.SetImageQuality(v)
+	return _u
+}
+
+// SetNillableImageQuality sets the "image_quality" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableImageQuality(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetImageQuality(*v)
+	}
+	return _u
+}
+
+// ClearImageQuality clears the value of the "image_quality" field.
+func (_u *UsageLogUpdateOne) ClearImageQuality() *UsageLogUpdateOne {
+	_u.mutation.ClearImageQuality()
+	return _u
+}
+
 // SetCacheTTLOverridden sets the "cache_ttl_overridden" field.
 func (_u *UsageLogUpdateOne) SetCacheTTLOverridden(v bool) *UsageLogUpdateOne {
 	_u.mutation.SetCacheTTLOverridden(v)
@@ -2138,6 +2189,11 @@ func (_u *UsageLogUpdateOne) check() error {
 	if v, ok := _u.mutation.ImageSize(); ok {
 		if err := usagelog.ImageSizeValidator(v); err != nil {
 			return &ValidationError{Name: "image_size", err: fmt.Errorf(`ent: validator failed for field "UsageLog.image_size": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ImageQuality(); ok {
+		if err := usagelog.ImageQualityValidator(v); err != nil {
+			return &ValidationError{Name: "image_quality", err: fmt.Errorf(`ent: validator failed for field "UsageLog.image_quality": %w`, err)}
 		}
 	}
 	if _u.mutation.UserCleared() && len(_u.mutation.UserIDs()) > 0 {
@@ -2363,6 +2419,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.ImageSizeCleared() {
 		_spec.ClearField(usagelog.FieldImageSize, field.TypeString)
+	}
+	if value, ok := _u.mutation.ImageQuality(); ok {
+		_spec.SetField(usagelog.FieldImageQuality, field.TypeString, value)
+	}
+	if _u.mutation.ImageQualityCleared() {
+		_spec.ClearField(usagelog.FieldImageQuality, field.TypeString)
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)

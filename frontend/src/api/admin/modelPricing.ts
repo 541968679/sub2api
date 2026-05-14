@@ -26,6 +26,14 @@ export interface GlobalOverride {
   cache_read_price: number | null
   image_output_price: number | null
   per_request_price: number | null
+  image_price_1k: number | null
+  image_price_2k: number | null
+  image_price_4k: number | null
+  image_billing_strategy: 'tier' | 'megapixel'
+  image_megapixel_price: number | null
+  image_quality_prices?: Record<string, number> | null
+  image_quality_multipliers?: Record<string, number> | null
+  image_tier_rules?: ImageTierRule[] | null
   enabled: boolean
   notes: string
   display_input_price: number | null
@@ -33,6 +41,12 @@ export interface GlobalOverride {
   display_cache_read_price: number | null
   display_rate_multiplier: number | null
   show_on_pricing_page: boolean
+}
+
+export interface ImageTierRule {
+  tier_label: string
+  max_pixels?: number | null
+  price?: number | null
 }
 
 export interface BillingBasisHint {
@@ -104,6 +118,14 @@ export interface CreateOverrideRequest {
   cache_read_price?: number | null
   image_output_price?: number | null
   per_request_price?: number | null
+  image_price_1k?: number | null
+  image_price_2k?: number | null
+  image_price_4k?: number | null
+  image_billing_strategy?: 'tier' | 'megapixel'
+  image_megapixel_price?: number | null
+  image_quality_prices?: Record<string, number> | null
+  image_quality_multipliers?: Record<string, number> | null
+  image_tier_rules?: ImageTierRule[] | null
   enabled?: boolean
   notes?: string
   display_input_price?: number | null
@@ -123,6 +145,14 @@ export interface UpdateOverrideRequest {
   cache_read_price?: number | null
   image_output_price?: number | null
   per_request_price?: number | null
+  image_price_1k?: number | null
+  image_price_2k?: number | null
+  image_price_4k?: number | null
+  image_billing_strategy?: 'tier' | 'megapixel'
+  image_megapixel_price?: number | null
+  image_quality_prices?: Record<string, number> | null
+  image_quality_multipliers?: Record<string, number> | null
+  image_tier_rules?: ImageTierRule[] | null
   enabled?: boolean
   notes?: string
   display_input_price?: number | null

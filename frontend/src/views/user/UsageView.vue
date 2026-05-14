@@ -197,10 +197,10 @@
           </template>
 
           <template #cell-tokens="{ row }">
-            <!-- 图片生成请求（仅按次计费时显示图片格式） -->
+            <!-- 图片生成请求：用户侧仅展示请求参数，不暴露内部计费规则 -->
             <div v-if="row.image_count > 0 && row.billing_mode === 'image'" class="flex items-center gap-1.5">
               <svg
-                class="h-4 w-4 text-indigo-500"
+                class="h-4 w-4 shrink-0 text-indigo-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -212,8 +212,15 @@
                   d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
               </svg>
-              <span class="font-medium text-gray-900 dark:text-white">{{ row.image_count }}{{ $t('usage.imageUnit') }}</span>
-              <span class="text-gray-400">({{ row.image_size || '2K' }})</span>
+              <div class="min-w-0 space-y-0.5">
+                <div class="font-medium text-gray-900 dark:text-white">
+                  {{ row.image_count }}{{ $t('usage.imageUnit') }}
+                </div>
+                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{{ t('usage.imageSize') }}: {{ formatImageMeta(row.image_size) }}</span>
+                  <span>{{ t('usage.imageQuality') }}: {{ formatImageMeta(row.image_quality) }}</span>
+                </div>
+              </div>
             </div>
             <!-- Token 请求 -->
             <div v-else class="flex items-center gap-1.5">
@@ -630,6 +637,10 @@ const formatUserAgent = (ua: string): string => {
   return ua
 }
 
+const formatImageMeta = (value: string | null | undefined): string => {
+  return value?.trim() || '-'
+}
+
 const getRequestTypeLabel = (log: UsageLog): string => {
   const requestType = resolveUsageRequestType(log)
   if (requestType === 'ws_v2') return t('usage.ws')
@@ -845,6 +856,9 @@ const exportToCSV = async () => {
       'Inbound Endpoint',
       'Type',
       'Billing Mode',
+      'Image Count',
+      'Image Size',
+      'Image Quality',
       'Input Tokens',
       'Output Tokens',
       'Cache Read Tokens',
@@ -864,6 +878,9 @@ const exportToCSV = async () => {
         log.inbound_endpoint || '',
         getRequestTypeExportText(log),
         getBillingModeLabel(log.billing_mode, t),
+        log.image_count || '',
+        log.image_size || '',
+        log.image_quality || '',
         log.input_tokens,
         log.output_tokens,
         log.cache_read_tokens,

@@ -4005,6 +4005,11 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 	}
 
 	processor := antigravity.NewStreamingProcessor(originalModel)
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		processor.SetUsageMapHook(func(m map[string]any) {
+			ApplyDisplayMultipliersToUsageMap(m, mult)
+		})
+	}
 	var firstTokenMs *int
 	// 使用 Scanner 并限制单行大小，避免 ReadString 无上限导致 OOM
 	scanner := bufio.NewScanner(resp.Body)

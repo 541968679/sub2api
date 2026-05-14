@@ -69,6 +69,7 @@ type OpenAIImagesRequest struct {
 	Size               string
 	ExplicitSize       bool
 	SizeTier           string
+	SizeInfo           ImageSizeInfo
 	ResponseFormat     string
 	Quality            string
 	Background         string
@@ -154,7 +155,9 @@ func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []b
 	if err := validateOpenAIImagesModel(req.Model); err != nil {
 		return nil, err
 	}
-	req.SizeTier = normalizeOpenAIImageSizeTier(req.Size)
+	req.SizeInfo = ParseImageSize(req.Size)
+	req.SizeTier = normalizeOpenAIImageSizeTier(req.SizeInfo)
+	req.Quality = NormalizeImageQuality(req.Quality)
 	req.RequiredCapability = classifyOpenAIImagesCapability(req)
 	return req, nil
 }
@@ -467,14 +470,23 @@ func isOpenAINativeImageOption(name string) bool {
 	}
 }
 
-func normalizeOpenAIImageSizeTier(size string) string {
-	switch strings.ToLower(strings.TrimSpace(size)) {
-	case "1024x1024":
+func normalizeOpenAIImageSizeTier(size ImageSizeInfo) string {
+	if !size.Valid {
+		return ""
+	}
+	switch size.Pixels {
+	case 1024 * 1024:
 		return "1K"
-	case "1536x1024", "1024x1536", "1792x1024", "1024x1792", "", "auto":
+	case 1536 * 1024, 1792 * 1024:
 		return "2K"
 	default:
-		return "2K"
+		if size.Pixels <= 1048576 {
+			return "1K"
+		}
+		if size.Pixels <= 2359296 {
+			return "2K"
+		}
+		return "4K"
 	}
 }
 
@@ -624,7 +636,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		Duration:        time.Since(startTime),
 		FirstTokenMs:    firstTokenMs,
 		ImageCount:      imageCount,
-		ImageSize:       parsed.SizeTier,
+		ImageSize:       parsed.Size,
+		ImageSizeInfo:   parsed.SizeInfo,
+		ImageQuality:    parsed.Quality,
 	}, nil
 }
 

@@ -85,18 +85,26 @@ type LiteLLMPrices struct {
 
 // GlobalOverride 全局覆盖信息（API 返回用）
 type GlobalOverride struct {
-	ID               int64    `json:"id"`
-	Model            string   `json:"model"`
-	Provider         string   `json:"provider"`
-	BillingMode      string   `json:"billing_mode"`
-	InputPrice       *float64 `json:"input_price"`
-	OutputPrice      *float64 `json:"output_price"`
-	CacheWritePrice  *float64 `json:"cache_write_price"`
-	CacheReadPrice   *float64 `json:"cache_read_price"`
-	ImageOutputPrice *float64 `json:"image_output_price"`
-	PerRequestPrice  *float64 `json:"per_request_price"`
-	Enabled          bool     `json:"enabled"`
-	Notes            string   `json:"notes"`
+	ID                      int64                   `json:"id"`
+	Model                   string                  `json:"model"`
+	Provider                string                  `json:"provider"`
+	BillingMode             string                  `json:"billing_mode"`
+	InputPrice              *float64                `json:"input_price"`
+	OutputPrice             *float64                `json:"output_price"`
+	CacheWritePrice         *float64                `json:"cache_write_price"`
+	CacheReadPrice          *float64                `json:"cache_read_price"`
+	ImageOutputPrice        *float64                `json:"image_output_price"`
+	PerRequestPrice         *float64                `json:"per_request_price"`
+	ImagePrice1K            *float64                `json:"image_price_1k"`
+	ImagePrice2K            *float64                `json:"image_price_2k"`
+	ImagePrice4K            *float64                `json:"image_price_4k"`
+	ImageBillingStrategy    string                  `json:"image_billing_strategy"`
+	ImageMegapixelPrice     *float64                `json:"image_megapixel_price"`
+	ImageQualityPrices      ImageQualityPrices      `json:"image_quality_prices,omitempty"`
+	ImageQualityMultipliers ImageQualityMultipliers `json:"image_quality_multipliers,omitempty"`
+	ImageTierRules          []ImageTierRule         `json:"image_tier_rules,omitempty"`
+	Enabled                 bool                    `json:"enabled"`
+	Notes                   string                  `json:"notes"`
 
 	DisplayInputPrice     *float64 `json:"display_input_price"`
 	DisplayOutputPrice    *float64 `json:"display_output_price"`
@@ -805,18 +813,26 @@ func (s *GlobalModelPricingService) getUserOverridesForModel(ctx context.Context
 // 返回值，否则前端收到的是 PascalCase JSON，字段全部 undefined。
 func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 	return &GlobalOverride{
-		ID:               gp.ID,
-		Model:            gp.Model,
-		Provider:         gp.Provider,
-		BillingMode:      string(gp.BillingMode),
-		InputPrice:       gp.InputPrice,
-		OutputPrice:      gp.OutputPrice,
-		CacheWritePrice:  gp.CacheWritePrice,
-		CacheReadPrice:   gp.CacheReadPrice,
-		ImageOutputPrice: gp.ImageOutputPrice,
-		PerRequestPrice:  gp.PerRequestPrice,
-		Enabled:          gp.Enabled,
-		Notes:            gp.Notes,
+		ID:                      gp.ID,
+		Model:                   gp.Model,
+		Provider:                gp.Provider,
+		BillingMode:             string(gp.BillingMode),
+		InputPrice:              gp.InputPrice,
+		OutputPrice:             gp.OutputPrice,
+		CacheWritePrice:         gp.CacheWritePrice,
+		CacheReadPrice:          gp.CacheReadPrice,
+		ImageOutputPrice:        gp.ImageOutputPrice,
+		PerRequestPrice:         gp.PerRequestPrice,
+		ImagePrice1K:            gp.ImagePrice1K,
+		ImagePrice2K:            gp.ImagePrice2K,
+		ImagePrice4K:            gp.ImagePrice4K,
+		ImageBillingStrategy:    string(NormalizeImageBillingStrategy(gp.ImageBillingStrategy)),
+		ImageMegapixelPrice:     gp.ImageMegapixelPrice,
+		ImageQualityPrices:      gp.ImageQualityPrices,
+		ImageQualityMultipliers: gp.ImageQualityMultipliers,
+		ImageTierRules:          gp.ImageTierRules,
+		Enabled:                 gp.Enabled,
+		Notes:                   gp.Notes,
 
 		DisplayInputPrice:     gp.DisplayInputPrice,
 		DisplayOutputPrice:    gp.DisplayOutputPrice,

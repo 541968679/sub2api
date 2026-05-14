@@ -14,18 +14,26 @@ import (
 // 定价上叠加此覆盖（仅替换非 nil 字段），以保留 Priority tier、长上下文倍率、
 // 缓存 5m/1h 分级等关键字段。实现见 model_pricing_resolver.go:applyGlobalPricingOverride。
 type GlobalModelPricing struct {
-	ID               int64
-	Model            string      // 模型名称（唯一，大小写不敏感）
-	Provider         string      // 平台标识（anthropic/openai/gemini/antigravity）
-	BillingMode      BillingMode // 计费模式
-	InputPrice       *float64    // 每 token 输入价格（USD）
-	OutputPrice      *float64    // 每 token 输出价格（USD）
-	CacheWritePrice  *float64    // 缓存写入价格
-	CacheReadPrice   *float64    // 缓存读取价格
-	ImageOutputPrice *float64    // 图片输出价格
-	PerRequestPrice  *float64    // 按次计费价格
-	Enabled          bool        // 是否启用
-	Notes            string      // 管理员备注
+	ID                      int64
+	Model                   string                  // 模型名称（唯一，大小写不敏感）
+	Provider                string                  // 平台标识（anthropic/openai/gemini/antigravity）
+	BillingMode             BillingMode             // 计费模式
+	InputPrice              *float64                // 每 token 输入价格（USD）
+	OutputPrice             *float64                // 每 token 输出价格（USD）
+	CacheWritePrice         *float64                // 缓存写入价格
+	CacheReadPrice          *float64                // 缓存读取价格
+	ImageOutputPrice        *float64                // 图片输出价格
+	PerRequestPrice         *float64                // 按次计费价格
+	ImagePrice1K            *float64                // 图片 1K 尺寸单价 (USD/张)
+	ImagePrice2K            *float64                // 图片 2K 尺寸单价 (USD/张)
+	ImagePrice4K            *float64                // 图片 4K 尺寸单价 (USD/张)
+	ImageBillingStrategy    ImageBillingStrategy    // 图片计费策略：tier / megapixel
+	ImageMegapixelPrice     *float64                // 每百万像素单价 (USD/MP)
+	ImageQualityPrices      ImageQualityPrices      // quality 级别的 USD/MP 覆盖
+	ImageQualityMultipliers ImageQualityMultipliers // tier 策略下 quality 对最终档位价格的乘数
+	ImageTierRules          []ImageTierRule         // 图片档位阈值和单价规则
+	Enabled                 bool                    // 是否启用
+	Notes                   string                  // 管理员备注
 
 	// Display overrides — only affect user-facing usage log display, not actual billing.
 	DisplayInputPrice     *float64 // 展示给用户的输入单价

@@ -106,19 +106,64 @@
         </div>
 
         <!-- Image mode fields -->
-        <div v-else-if="form.billing_mode === 'image'" class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.imageOutputPrice') }} ($/MTok)</label>
-            <input v-model="form.image_output_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('image_output_price')" />
+        <div v-else-if="form.billing_mode === 'image'" class="space-y-4">
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.imageBillingStrategy') }}</label>
+              <Select v-model="form.image_billing_strategy" :options="imageBillingStrategyOptions" class="w-full" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.imageFallbackPrice') }} ($)</label>
+              <input v-model="form.per_request_price" type="number" step="any" min="0" class="input text-sm w-full" :placeholder="t('admin.modelPricing.imageFallbackPlaceholder')" />
+            </div>
           </div>
-          <div>
-            <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.perRequestPrice') }} ($)</label>
-            <input v-model="form.per_request_price" type="number" step="any" min="0" class="input text-sm w-full" />
+
+          <div v-if="form.image_billing_strategy === 'megapixel'" class="space-y-3">
+            <div class="w-full sm:w-48">
+              <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.imageMegapixelDefault') }} ($/MP)</label>
+              <input v-model="form.image_megapixel_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="0.3178914388" />
+            </div>
+            <div class="rounded-md border border-gray-200 p-3 dark:border-gray-600">
+              <p class="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                {{ t('admin.modelPricing.imageQualityPricesTitle') }}
+              </p>
+              <p class="mb-3 text-[11px] text-gray-500 dark:text-gray-400">
+                {{ t('admin.modelPricing.imageQualityPricesHint') }}
+              </p>
+              <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div v-for="quality in imageQualities" :key="quality">
+                  <label class="mb-1 block text-xs text-gray-500">{{ quality }} ($/MP)</label>
+                  <input v-model="form.image_quality_prices[quality]" type="number" step="any" min="0" class="input text-sm w-full" :placeholder="t('admin.modelPricing.imageQualityDefault')" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div v-for="rule in form.image_tier_rules" :key="rule.tier_label" class="space-y-2">
+              <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.modelPricing.imageTierLabel', { tier: rule.tier_label }) }}</label>
+              <input v-model="rule.price" type="number" step="any" min="0" class="input text-sm w-full" :placeholder="t('admin.modelPricing.imageTierPricePlaceholder', { tier: rule.tier_label })" />
+              <input v-model="rule.max_pixels" type="number" step="1" min="1" class="input text-sm w-full" :placeholder="t('admin.modelPricing.imageTierMaxPixelsPlaceholder')" />
+            </div>
+            <div class="col-span-2 rounded-md border border-gray-200 p-3 dark:border-gray-600 sm:col-span-3">
+              <p class="mb-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                {{ t('admin.modelPricing.imageQualityMultipliersTitle') }}
+              </p>
+              <p class="mb-3 text-[11px] text-gray-500 dark:text-gray-400">
+                {{ t('admin.modelPricing.imageQualityMultipliersHint') }}
+              </p>
+              <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div v-for="quality in imageQualities" :key="quality">
+                  <label class="mb-1 block text-xs text-gray-500">{{ quality }}</label>
+                  <input v-model="form.image_quality_multipliers[quality]" type="number" step="any" min="0" class="input text-sm w-full" :placeholder="quality === 'auto' ? '1' : t('admin.modelPricing.imageQualityMultiplierDefault')" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Display Pricing Overrides -->
-        <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800/30 dark:bg-amber-900/10">
+        <!-- Display Pricing Overrides (hidden for image mode — billed per image, display = actual) -->
+        <div v-if="form.billing_mode !== 'image'" class="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800/30 dark:bg-amber-900/10">
           <div class="mb-2 flex items-center justify-between">
             <p class="text-xs font-semibold text-amber-700 dark:text-amber-400">{{ t('admin.modelPricing.displayPricingTitle') }}</p>
             <button
@@ -206,6 +251,7 @@ import type { ModelPricingDetail } from '@/api/admin/modelPricing'
 import { perTokenToMTok, mTokToPerToken } from '@/components/admin/channel/types'
 import { BaseDialog } from '@/components/common'
 import Select from '@/components/common/Select.vue'
+import type { ImageTierRule } from '@/api/admin/modelPricing'
 
 const props = defineProps<{
   show: boolean
@@ -223,6 +269,14 @@ const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
 const detail = ref<ModelPricingDetail | null>(null)
+const imageQualities = ['low', 'medium', 'high', 'auto'] as const
+
+type ImageQuality = typeof imageQualities[number]
+type ImageTierRuleForm = {
+  tier_label: string
+  max_pixels: string | number
+  price: string | number
+}
 
 const form = reactive({
   enabled: true,
@@ -233,6 +287,24 @@ const form = reactive({
   cache_read_price: '' as string | number,
   image_output_price: '' as string | number,
   per_request_price: '' as string | number,
+  image_price_1k: '' as string | number,
+  image_price_2k: '' as string | number,
+  image_price_4k: '' as string | number,
+  image_billing_strategy: 'tier' as 'tier' | 'megapixel',
+  image_megapixel_price: '' as string | number,
+  image_quality_prices: {
+    low: '',
+    medium: '',
+    high: '',
+    auto: '',
+  } as Record<ImageQuality, string | number>,
+  image_quality_multipliers: {
+    low: '',
+    medium: '',
+    high: '',
+    auto: 1,
+  } as Record<ImageQuality, string | number>,
+  image_tier_rules: [] as ImageTierRuleForm[],
   provider: '',
   notes: '',
   display_input_price: '' as string | number,
@@ -246,6 +318,17 @@ const billingModeOptions = computed(() => [
   { value: 'per_request', label: t('admin.modelPricing.billingModePerRequest') },
   { value: 'image', label: t('admin.modelPricing.billingModeImage') },
 ])
+
+const imageBillingStrategyOptions = computed(() => [
+  { value: 'megapixel', label: t('admin.modelPricing.imageBillingMegapixel') },
+  { value: 'tier', label: t('admin.modelPricing.imageBillingTier') },
+])
+
+const defaultTierRules = (): ImageTierRuleForm[] => [
+  { tier_label: '1K', max_pixels: 1048576, price: '' },
+  { tier_label: '2K', max_pixels: 2359296, price: '' },
+  { tier_label: '4K', max_pixels: '', price: '' },
+]
 
 const litellmFields = computed(() => [
   { key: 'input_price', label: t('admin.modelPricing.inputPrice') + ' ($/MTok)' },
@@ -266,6 +349,59 @@ function litellmMTok(field: string): string {
   return v ? String(perTokenToMTok(v) ?? '') : ''
 }
 
+function resetImageQualityPrices(prices: Record<string, number> | null) {
+  for (const quality of imageQualities) {
+    form.image_quality_prices[quality] = prices?.[quality] ?? ''
+  }
+}
+
+function resetImageQualityMultipliers(multipliers: Record<string, number> | null) {
+  for (const quality of imageQualities) {
+    form.image_quality_multipliers[quality] = multipliers?.[quality] ?? (quality === 'auto' ? 1 : '')
+  }
+}
+
+function buildTierRuleForm(rules: ImageTierRule[] | null | undefined, go: NonNullable<ModelPricingDetail['global_override']>): ImageTierRuleForm[] {
+  const source = rules && rules.length > 0
+    ? rules
+    : [
+        { tier_label: '1K', max_pixels: 1048576, price: go.image_price_1k },
+        { tier_label: '2K', max_pixels: 2359296, price: go.image_price_2k },
+        { tier_label: '4K', max_pixels: null, price: go.image_price_4k },
+      ]
+  return source.map((rule) => ({
+    tier_label: rule.tier_label,
+    max_pixels: rule.max_pixels ?? '',
+    price: rule.price ?? '',
+  }))
+}
+
+function collectImageQualityPrices(): Record<string, number> | null {
+  const out: Record<string, number> = {}
+  for (const quality of imageQualities) {
+    const raw = form.image_quality_prices[quality]
+    if (raw !== '') out[quality] = Number(raw)
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
+function collectImageQualityMultipliers(): Record<string, number> | null {
+  const out: Record<string, number> = {}
+  for (const quality of imageQualities) {
+    const raw = form.image_quality_multipliers[quality]
+    if (raw !== '') out[quality] = Number(raw)
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
+function collectImageTierRules(): ImageTierRule[] {
+  return form.image_tier_rules.map((rule) => ({
+    tier_label: rule.tier_label,
+    max_pixels: rule.max_pixels === '' ? null : Number(rule.max_pixels),
+    price: rule.price === '' ? null : Number(rule.price),
+  }))
+}
+
 async function loadDetail() {
   if (!props.model) return
   loading.value = true
@@ -282,6 +418,14 @@ async function loadDetail() {
       form.cache_read_price = go.cache_read_price != null ? perTokenToMTok(go.cache_read_price) ?? '' : ''
       form.image_output_price = go.image_output_price != null ? perTokenToMTok(go.image_output_price) ?? '' : ''
       form.per_request_price = go.per_request_price != null ? go.per_request_price : ''
+      form.image_price_1k = go.image_price_1k != null ? go.image_price_1k : ''
+      form.image_price_2k = go.image_price_2k != null ? go.image_price_2k : ''
+      form.image_price_4k = go.image_price_4k != null ? go.image_price_4k : ''
+      form.image_billing_strategy = go.image_billing_strategy || 'tier'
+      form.image_megapixel_price = go.image_megapixel_price != null ? go.image_megapixel_price : ''
+      resetImageQualityPrices(go.image_quality_prices || null)
+      resetImageQualityMultipliers(go.image_quality_multipliers || null)
+      form.image_tier_rules = buildTierRuleForm(go.image_tier_rules, go)
       form.provider = go.provider
       form.notes = go.notes
       form.display_input_price = go.display_input_price != null ? perTokenToMTok(go.display_input_price) ?? '' : ''
@@ -297,6 +441,14 @@ async function loadDetail() {
       form.cache_read_price = ''
       form.image_output_price = ''
       form.per_request_price = ''
+      form.image_price_1k = ''
+      form.image_price_2k = ''
+      form.image_price_4k = ''
+      form.image_billing_strategy = 'tier'
+      form.image_megapixel_price = ''
+      resetImageQualityPrices(null)
+      resetImageQualityMultipliers(null)
+      form.image_tier_rules = defaultTierRules()
       form.provider = detail.value.provider || ''
       form.notes = ''
       form.display_input_price = ''
@@ -326,6 +478,14 @@ async function handleSave() {
       cache_read_price: mTokToPerToken(form.cache_read_price),
       image_output_price: mTokToPerToken(form.image_output_price),
       per_request_price: perReqVal,
+      image_price_1k: form.image_tier_rules[0]?.price === '' ? null : Number(form.image_tier_rules[0]?.price ?? 0),
+      image_price_2k: form.image_tier_rules[1]?.price === '' ? null : Number(form.image_tier_rules[1]?.price ?? 0),
+      image_price_4k: form.image_tier_rules[2]?.price === '' ? null : Number(form.image_tier_rules[2]?.price ?? 0),
+      image_billing_strategy: form.image_billing_strategy,
+      image_megapixel_price: form.image_megapixel_price === '' ? null : Number(form.image_megapixel_price),
+      image_quality_prices: collectImageQualityPrices(),
+      image_quality_multipliers: collectImageQualityMultipliers(),
+      image_tier_rules: collectImageTierRules(),
       enabled: form.enabled,
       notes: form.notes,
       display_input_price: mTokToPerToken(form.display_input_price),

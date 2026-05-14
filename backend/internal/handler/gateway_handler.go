@@ -734,6 +734,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				body = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 			}
 
+			// 计算展示倍率并存入 context，用于 SSE token 重写
+			if apiKey.GroupID != nil && apiKey.Group != nil {
+				accountRM := account.BillingRateMultiplier()
+				groupRate := apiKey.Group.RateMultiplier
+				userRate := h.gatewayService.GetUserGroupRateMultiplier(c.Request.Context(), subject.UserID, *apiKey.GroupID, groupRate)
+				displayRate := h.gatewayService.GetUserGroupDisplayRateMultiplier(c.Request.Context(), subject.UserID, *apiKey.GroupID, userRate)
+				mult := h.gatewayService.ComputeDisplayTokenMultipliers(c, reqModel, accountRM, userRate, displayRate)
+				service.SetDisplayTokenMultipliers(c, mult)
+			}
+
 			// 转发请求 - 根据账号平台分流
 			c.Set("parsed_request", parsedReq)
 			var result *service.ForwardResult

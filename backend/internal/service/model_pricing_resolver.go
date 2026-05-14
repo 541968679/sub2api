@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 )
 
 // PricingSource 定价来源标识
@@ -30,6 +31,12 @@ type ResolvedPricing struct {
 	// 按次/图片模式：默认价格（未命中层级时使用）
 	DefaultPerRequestPrice float64
 
+	ImageBillingStrategy    ImageBillingStrategy
+	ImageMegapixelPrice     float64
+	ImageQualityPrices      ImageQualityPrices
+	ImageQualityMultipliers ImageQualityMultipliers
+	ImageTierRules          []ImageTierRule
+
 	// 来源标识
 	Source string // "channel", "litellm", "fallback"
 
@@ -50,7 +57,15 @@ type ModelPricingResolver struct {
 }
 
 // NewModelPricingResolver 创建定价解析器实例
-func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, globalPricingCache *GlobalPricingCache, userModelPricingRepo UserModelPricingRepository) *ModelPricingResolver {
+func NewModelPricingResolver(channelService *ChannelService, billingService *BillingService, optional ...any) *ModelPricingResolver {
+	var globalPricingCache *GlobalPricingCache
+	var userModelPricingRepo UserModelPricingRepository
+	if len(optional) > 0 {
+		globalPricingCache, _ = optional[0].(*GlobalPricingCache)
+	}
+	if len(optional) > 1 {
+		userModelPricingRepo, _ = optional[1].(UserModelPricingRepository)
+	}
 	return &ModelPricingResolver{
 		channelService:       channelService,
 		billingService:       billingService,
@@ -81,8 +96,9 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 			}
 			if mode == BillingModePerRequest || mode == BillingModeImage {
 				resolved := &ResolvedPricing{
-					Mode:   mode,
-					Source: PricingSourceChannel,
+					Mode:                 mode,
+					ImageBillingStrategy: ImageBillingStrategyTier,
+					Source:               PricingSourceChannel,
 				}
 				r.applyRequestTierOverrides(chPricing, resolved)
 				return resolved
@@ -91,14 +107,20 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	}
 
 	// 1. 获取基础定价（含全局覆盖）
-	basePricing, baseMode, defaultPerRequest, source := r.resolveBasePricing(input.Model)
+	basePricing, baseMode, defaultPerRequest, requestTiers, imageStrategy, imageMPPrice, imageQualityPrices, imageQualityMultipliers, imageTierRules, source := r.resolveBasePricing(input.Model)
 
 	resolved := &ResolvedPricing{
-		Mode:                   baseMode,
-		BasePricing:            basePricing,
-		DefaultPerRequestPrice: defaultPerRequest,
-		Source:                 source,
-		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
+		Mode:                    baseMode,
+		BasePricing:             basePricing,
+		DefaultPerRequestPrice:  defaultPerRequest,
+		RequestTiers:            requestTiers,
+		ImageBillingStrategy:    imageStrategy,
+		ImageMegapixelPrice:     imageMPPrice,
+		ImageQualityPrices:      imageQualityPrices,
+		ImageQualityMultipliers: imageQualityMultipliers,
+		ImageTierRules:          imageTierRules,
+		Source:                  source,
+		SupportsCacheBreakdown:  basePricing != nil && basePricing.SupportsCacheBreakdown,
 	}
 
 	// 2. 如果有 GroupID，尝试渠道覆盖
@@ -120,18 +142,25 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 // resolveBasePricing 构建基础定价：先从 LiteLLM/Fallback 取完整 ModelPricing，
 // 再用全局覆盖的非 nil 字段叠加。
 //
-// 返回：(定价, 计费模式, 按次默认价, 来源)。
+// 返回：(定价, 计费模式, 按次默认价, 按尺寸分档定价, 来源)。
 //   - 计费模式：若全局覆盖指定了 BillingMode 则用之，否则默认 Token
 //   - 按次默认价：仅当模式为 per_request/image 且全局覆盖设置了 PerRequestPrice 时有值
+//   - 按尺寸分档定价：仅当模式为 image/per_request 且全局覆盖设置了 ImagePrice1K/2K/4K 时有值
 //
 // 为什么不简单地把 Global 覆盖构造成独立的 ModelPricing：因为 LiteLLM 的
 // ModelPricing 包含 Priority tier 单价、长上下文阈值/倍率、缓存 5m/1h 分级等
 // 字段——这些都是管理员在前端 UI 里没法配置的，但后端计费仍然依赖它们。
 // 若直接替换，GPT-5.4 超过 272K 的双倍输入费、Claude 的 priority tier 溢价
 // 都会静默消失。叠加式实现保证这些字段被保留。
-func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, BillingMode, float64, string) {
+func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, BillingMode, float64, []PricingInterval, ImageBillingStrategy, float64, ImageQualityPrices, ImageQualityMultipliers, []ImageTierRule, string) {
 	// 1. 先从 LiteLLM/Fallback 获取完整基础定价
-	basePricing, err := r.billingService.GetModelPricing(model)
+	var basePricing *ModelPricing
+	var err error
+	if r.billingService != nil {
+		basePricing, err = r.billingService.GetModelPricing(model)
+	} else {
+		err = fmt.Errorf("billing service unavailable")
+	}
 	baseSource := PricingSourceLiteLLM
 	if err != nil {
 		// GetModelPricing 未找到模型时返回 err；这里不记录 debug 日志避免
@@ -156,11 +185,41 @@ func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, 
 			if gp.PerRequestPrice != nil {
 				defaultPerRequest = *gp.PerRequestPrice
 			}
-			return basePricing, mode, defaultPerRequest, PricingSourceGlobal
+			imageStrategy := NormalizeImageBillingStrategy(gp.ImageBillingStrategy)
+			imageMPPrice := 0.0
+			if gp.ImageMegapixelPrice != nil {
+				imageMPPrice = *gp.ImageMegapixelPrice
+			}
+
+			var requestTiers []PricingInterval
+			var imageTierRules []ImageTierRule
+			if mode == BillingModeImage || mode == BillingModePerRequest {
+				imageTierRules = gp.ImageTierRules
+				if len(imageTierRules) == 0 {
+					imageTierRules = DefaultImageTierRules(gp.ImagePrice1K, gp.ImagePrice2K, gp.ImagePrice4K)
+				}
+				for _, rule := range imageTierRules {
+					maxTokens := maxPixelsToInt(rule.MaxPixels)
+					requestTiers = append(requestTiers, PricingInterval{TierLabel: rule.TierLabel, MaxTokens: maxTokens, PerRequestPrice: rule.Price})
+				}
+			}
+
+			return basePricing, mode, defaultPerRequest, requestTiers, imageStrategy, imageMPPrice, gp.ImageQualityPrices, gp.ImageQualityMultipliers, imageTierRules, PricingSourceGlobal
 		}
 	}
 
-	return basePricing, BillingModeToken, 0, baseSource
+	return basePricing, BillingModeToken, 0, nil, ImageBillingStrategyTier, 0, nil, nil, nil, baseSource
+}
+
+func maxPixelsToInt(maxPixels *int64) *int {
+	if maxPixels == nil {
+		return nil
+	}
+	if *maxPixels > int64(^uint(0)>>1) {
+		return nil
+	}
+	value := int(*maxPixels)
+	return &value
 }
 
 // applyGlobalPricingOverride 将全局覆盖的非 nil 字段叠加到基础定价上。

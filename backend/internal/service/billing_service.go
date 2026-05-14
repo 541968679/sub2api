@@ -108,6 +108,7 @@ type CostBreakdown struct {
 	TotalCost         float64
 	ActualCost        float64 // 应用倍率后的实际费用
 	BillingMode       string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
+	BillingTier       string  // 按次/图片计费最终命中的档位
 }
 
 // BillingService 计费服务
@@ -435,6 +436,8 @@ type CostInput struct {
 	Tokens         UsageTokens
 	RequestCount   int    // 按次计费时使用
 	SizeTier       string // 按次/图片模式的层级标签（"1K","2K","4K","HD" 等）
+	ImageSize      ImageSizeInfo
+	ImageQuality   string
 	RateMultiplier float64
 	ServiceTier    string                // "priority","flex","" 等
 	Resolver       *ModelPricingResolver // 定价解析器
@@ -594,14 +597,34 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 	}
 
 	var unitPrice float64
+	billingTier := ""
 
-	if input.SizeTier != "" {
+	if resolved.Mode == BillingModeImage {
+		imageSize := input.ImageSize
+		if !imageSize.Valid && strings.TrimSpace(imageSize.Raw) == "" && strings.TrimSpace(input.SizeTier) != "" {
+			imageSize = ParseImageSize(input.SizeTier)
+		}
+		if imageBilling := ResolveImageBilling(resolved, imageSize, input.ImageQuality); imageBilling.UnitPrice > 0 {
+			unitPrice = imageBilling.UnitPrice
+			billingTier = imageBilling.BillingTier
+		}
+	}
+
+	if unitPrice == 0 && input.SizeTier != "" {
 		unitPrice = input.Resolver.GetRequestTierPrice(resolved, input.SizeTier)
+		if unitPrice > 0 {
+			billingTier = input.SizeTier
+		}
 	}
 
 	if unitPrice == 0 {
 		totalContext := input.Tokens.InputTokens + input.Tokens.CacheReadTokens
 		unitPrice = input.Resolver.GetRequestTierPriceByContext(resolved, totalContext)
+		if unitPrice > 0 {
+			if tier := FindMatchingInterval(resolved.RequestTiers, totalContext); tier != nil {
+				billingTier = tier.TierLabel
+			}
+		}
 	}
 
 	// 回退到默认按次价格
@@ -613,8 +636,9 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 	actualCost := totalCost * input.RateMultiplier
 
 	return &CostBreakdown{
-		TotalCost:  totalCost,
-		ActualCost: actualCost,
+		TotalCost:   totalCost,
+		ActualCost:  actualCost,
+		BillingTier: billingTier,
 	}, nil
 }
 
@@ -860,6 +884,7 @@ func (s *BillingService) CalculateImageCost(model string, imageSize string, imag
 		TotalCost:   totalCost,
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeImage),
+		BillingTier: imageSize,
 	}
 }
 

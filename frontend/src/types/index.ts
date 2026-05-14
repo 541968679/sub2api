@@ -1148,6 +1148,7 @@ export interface UsageLog {
   // 图片生成字段
   image_count: number
   image_size: string | null
+  image_quality: string | null
 
   // User-Agent
   user_agent: string | null

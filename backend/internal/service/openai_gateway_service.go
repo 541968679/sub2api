@@ -235,6 +235,8 @@ type OpenAIForwardResult struct {
 	FirstTokenMs    *int
 	ImageCount      int
 	ImageSize       string
+	ImageSizeInfo   ImageSizeInfo
+	ImageQuality    string
 }
 
 type OpenAIWSRetryMetricsSnapshot struct {
@@ -5140,6 +5142,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageOutputTokens:   result.Usage.ImageOutputTokens,
 		ImageCount:          result.ImageCount,
 		ImageSize:           optionalTrimmedStringPtr(result.ImageSize),
+		ImageQuality:        optionalTrimmedStringPtr(result.ImageQuality),
 	}
 	if cost != nil {
 		usageLog.InputCost = cost.InputCost
@@ -5165,6 +5168,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if cost != nil && cost.BillingMode != "" {
 		billingMode := cost.BillingMode
 		usageLog.BillingMode = &billingMode
+		if cost.BillingTier != "" {
+			billingTier := cost.BillingTier
+			usageLog.BillingTier = &billingTier
+		}
 	} else if result.ImageCount > 0 {
 		billingMode := string(BillingModeImage)
 		usageLog.BillingMode = &billingMode
@@ -5274,8 +5281,10 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 			Ctx:            ctx,
 			Model:          billingModel,
 			GroupID:        &gid,
-			RequestCount:   1,
-			SizeTier:       result.ImageSize,
+			RequestCount:   result.ImageCount,
+			SizeTier:       normalizeOpenAIImageSizeTier(result.ImageSizeInfo),
+			ImageSize:      result.ImageSizeInfo,
+			ImageQuality:   result.ImageQuality,
 			RateMultiplier: multiplier,
 			Resolver:       s.resolver,
 			Resolved:       resolved,
@@ -5303,7 +5312,7 @@ func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, 
 	}
 	gid := apiKey.Group.ID
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid})
-	if resolved.Source == PricingSourceChannel {
+	if resolved.Source == PricingSourceChannel || resolved.Source == PricingSourceGlobal || resolved.Source == PricingSourceUser {
 		return resolved
 	}
 	return nil

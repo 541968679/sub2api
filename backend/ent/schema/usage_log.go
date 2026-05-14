@@ -131,7 +131,11 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int("image_count").
 			Default(0),
 		field.String("image_size").
-			MaxLen(10).
+			MaxLen(32).
+			Optional().
+			Nillable(),
+		field.String("image_quality").
+			MaxLen(20).
 			Optional().
 			Nillable(),
 		// Cache TTL Override 标记（管理员强制替换了缓存 TTL 计费）

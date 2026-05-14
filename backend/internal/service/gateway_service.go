@@ -5421,6 +5421,9 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 
 			if !clientDisconnected {
 				restored := string(reverseToolNamesIfPresent(c, []byte(line)))
+				if mult := getDisplayTokenMultipliers(c); mult != nil {
+					restored = RewriteSSEUsageTokens(restored, mult)
+				}
 				if _, err := io.WriteString(w, restored); err != nil {
 					clientDisconnected = true
 					logger.LegacyPrintf("service.gateway", "[Anthropic passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
@@ -5592,6 +5595,9 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 		contentType = "application/json"
 	}
 	body = reverseToolNamesIfPresent(c, body)
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		body = rewriteNonStreamUsageTokens(body, mult)
+	}
 	c.Data(resp.StatusCode, contentType, body)
 	return usage, nil
 }
@@ -7369,6 +7375,24 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 		}
 
+		// Display token rewriting: 放大 usage 中的 token 字段以匹配后台展示值
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			if eventType == "message_start" {
+				if msg, ok := event["message"].(map[string]any); ok {
+					if u, ok := msg["usage"].(map[string]any); ok {
+						ApplyDisplayMultipliersToUsageMap(u, mult)
+						eventChanged = true
+					}
+				}
+			}
+			if eventType == "message_delta" {
+				if u, ok := event["usage"].(map[string]any); ok {
+					ApplyDisplayMultipliersToUsageMap(u, mult)
+					eventChanged = true
+				}
+			}
+		}
+
 		if needModelReplace {
 			if msg, ok := event["message"].(map[string]any); ok {
 				if model, ok := msg["model"].(string); ok && model == mappedModel {
@@ -7874,6 +7898,27 @@ func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID,
 		)
 	}
 	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
+}
+
+// GetUserGroupRateMultiplier is the exported version of getUserGroupRateMultiplier.
+func (s *GatewayService) GetUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
+	return s.getUserGroupRateMultiplier(ctx, userID, groupID, groupDefaultMultiplier)
+}
+
+// GetUserGroupDisplayRateMultiplier resolves the display rate multiplier for a user+group.
+// Falls back to rateMultiplier if no display oe is configured.
+func (s *GatewayService) GetUserGroupDisplayRateMultiplier(ctx context.Context, userID, groupID int64, fallback float64) float64 {
+	if s.userGroupRateRepo == nil {
+		return fallback
+	}
+	displayRate, err := s.userGroupRateRepo.GetDisplayRateByUserAndGroup(ctx, userID, groupID)
+	if err != nil || displayRate == nil {
+		return fallback
+	}
+	if *displayRate <= 0 {
+		return fallback
+	}
+	return *displayRate
 }
 
 // RecordUsageInput 记录使用量的输入参数
@@ -8546,7 +8591,10 @@ func (s *GatewayService) calculateImageCost(
 			Model:          billingModel,
 			GroupID:        &gid,
 			Tokens:         tokens,
-			RequestCount:   1,
+			RequestCount:   result.ImageCount,
+			SizeTier:       result.ImageSize,
+			ImageSize:      ParseImageSize(result.ImageSize),
+			ImageQuality:   "auto",
 			RateMultiplier: multiplier,
 			Resolver:       s.resolver,
 			Resolved:       resolved,
@@ -8667,6 +8715,7 @@ func (s *GatewayService) buildRecordUsageLog(
 		FirstTokenMs:          result.FirstTokenMs,
 		ImageCount:            result.ImageCount,
 		ImageSize:             optionalTrimmedStringPtr(result.ImageSize),
+		ImageQuality:          optionalTrimmedStringPtr("auto"),
 		CacheTTLOverridden:    cacheTTLOverridden,
 		ChannelID:             optionalInt64Ptr(input.ChannelID),
 		ModelMappingChain:     optionalTrimmedStringPtr(input.ModelMappingChain),
@@ -8684,6 +8733,9 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.CacheReadCost = cost.CacheReadCost
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
+		if cost.BillingTier != "" {
+			usageLog.BillingTier = optionalTrimmedStringPtr(cost.BillingTier)
+		}
 	}
 
 	return usageLog

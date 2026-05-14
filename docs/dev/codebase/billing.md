@@ -107,9 +107,13 @@ CalculateCostUnified(CostInput)
     │   → ActualCost = TotalCost × rateMultiplier
     │   注意：各组件费用 (InputCost 等) 全为 0，费用只在 TotalCost 中
     │
-    └─ Image 模式: CalculateImageCost()
-        → 分组配置 > LiteLLM 默认 > 硬编码默认
-        → 2K ×1.5, 4K ×2.0
+    └─ Image 模式: CalculateCostUnified / ResolveImageBilling()
+        → megapixel: pixels / 1,000,000 * image_megapixel_price
+        → megapixel + image_quality_prices: low/medium/high/auto 可覆盖 USD/MP 单价
+        → tier: 按 image_tier_rules 像素阈值命中 1K/2K/4K 基础价
+        → tier + image_quality_multipliers: 基础价 * quality 乘数
+        → OpenAI 未传 quality 时按 auto 处理；auto 默认乘数为 1，未配置乘数时保持旧档位价
+        → size=auto / 缺失 / 无法解析时不猜像素，回退 per_request_price
 ```
 
 ### 费率乘数体系
