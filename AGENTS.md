@@ -1,8 +1,8 @@
 # Sub2API Agent Instructions
 
-This file is the Codex entry point for this repository. It is derived from
-`CLAUDE.md`; when the two differ, prefer the more specific project rule here
-or in the referenced architecture/codebase documents.
+This file is the entry point for AI agents (Codex, Copilot, Claude Code, etc.)
+working on this repository. When this file and `CLAUDE.md` differ, prefer the
+more specific rule here or in the referenced architecture/codebase documents.
 
 ## Project Snapshot
 
@@ -33,6 +33,53 @@ data model -> key files -> core flow -> important mechanisms -> known pitfalls.
 
 Update `docs/dev/ARCHITECTURE.md` only for top-level modules, cross-cutting
 conventions, reusable task templates, or environment/build pitfalls.
+
+## Local Development Environment
+
+### Port Rules (STRICT — never use low ports)
+
+| Service | Local Port | Config Location |
+|---------|-----------|-----------------|
+| sub2api backend | **18081** | `backend/config.yaml` → `server.port` |
+| sub2api frontend | **15174** | `frontend/.env.development.local` → `VITE_DEV_PORT` |
+| AIClient2API API | 3000 | `E:\cursor project\AIClient2API` project config |
+| AIClient2API Master | 3100 | Same project |
+| PostgreSQL | 5432 | Docker container `sub2api-pg-dev` |
+| Redis | 6379 | Docker container `sub2api-redis-dev` |
+
+**Forbidden local ports**: 8080, 8081, 5173, 5174, 5175 — these conflict with
+Docker containers and other services. Production ports are managed by server
+Docker Compose and are completely independent of local config.
+
+### Starting Local Services
+
+All normal local start/restart/stop actions must go through the repo script:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
+```
+
+or:
+
+```bat
+scripts\dev-stack.cmd restart
+```
+
+Use `-SkipAIClient` when you only need sub2api.
+Do not launch `air.exe`, `pnpm dev`, or `npm start` directly for normal local work.
+
+### Hot Reload
+
+- **Frontend**: Vite HMR built-in, saves auto-refresh browser.
+- **Backend**: `air` watches file changes, auto-compiles and restarts. No manual
+  kill/restart needed. Config in `backend/.air.toml`.
+
+### Known Config Pitfall
+
+Viper config loading searches `/app/data` (resolves to `E:\app\data\` on
+Windows) BEFORE the current directory. If `E:\app\data\config.yaml` exists, it
+will override `backend/config.yaml`. If the backend unexpectedly binds to port
+8080, check and remove/rename that file.
 
 ## Key Linked Files
 
@@ -132,8 +179,6 @@ conventions, reusable task templates, or environment/build pitfalls.
 Backend:
 
 ```bash
-cd backend
-go run ./cmd/server/
 go generate ./ent
 go generate ./cmd/server
 go test -tags=unit ./...
@@ -142,17 +187,22 @@ golangci-lint run ./...
 CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/server ./cmd/server
 ```
 
+For normal local service startup, use `scripts/dev-stack.ps1` or
+`scripts/dev-stack.cmd`. Use raw `go run` or `air.exe` only for targeted
+debugging.
+
 Frontend:
 
 ```bash
-cd frontend
 pnpm install --frozen-lockfile
-pnpm dev
 pnpm build
 pnpm run lint:check
 pnpm run typecheck
 pnpm run test
 ```
+
+For normal local service startup, use `scripts/dev-stack.ps1` or
+`scripts/dev-stack.cmd`. Use raw `pnpm dev` only for targeted debugging.
 
 Root:
 
@@ -176,6 +226,9 @@ before relying on that target.
 - `docs/dev` may be ignored by Git; use `git add -f` for required doc updates.
 - Use `pnpm` only. Do not use `npm`, do not create `package-lock.json`, and
   always keep `frontend/pnpm-lock.yaml` committed.
+- Use `scripts/dev-stack.ps1` or `scripts/dev-stack.cmd` for any local service
+  start, restart, or stop action. Direct `air.exe`, `pnpm dev`, and `npm start`
+  are reserved for debugging the script itself.
 - Frontend builds into `backend/internal/web/dist` and is embedded in the Go
   binary with the `embed` build tag.
 - Ent schema changes require `go generate ./ent` plus a raw SQL migration in
@@ -226,5 +279,8 @@ before relying on that target.
 - Native Windows/Git Bash path conversion can break POSIX paths passed to
   Python/SSH. Be careful with deployment commands that pass Linux absolute paths
   through Windows shells.
-- Local backend development commonly uses port `8081` because `8080` may be
-  occupied by Docker.
+- Viper config loading searches `E:\app\data\` before `./` on Windows. A stale
+  `config.yaml` there will silently override local config. If backend binds to
+  wrong port, check that path first.
+- Local backend uses port **18081** (configured in `backend/config.yaml`). Never
+  use `8080` or `8081` — they conflict with Docker containers.

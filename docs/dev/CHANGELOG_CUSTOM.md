@@ -1416,6 +1416,16 @@ GatewayService.calculateTokenCost 需要重新整合本修复。
 - Added Chinese and English i18n labels for image size and image quality.
 - Verified with `pnpm run typecheck`.
 
+## [2026-05-14] chore: document local dev-stack startup
+
+**Affected files**: AGENTS.md, DEV_GUIDE.md, backend/.air.toml, scripts/dev-stack.ps1, scripts/dev-stack.cmd, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: local development tooling and docs only; production runtime unchanged
+**Change details**:
+- Documented the local port convention for backend `18081` and frontend `15174`.
+- Added an `air` hot-reload config for local backend development.
+- Added Windows `dev-stack` wrappers for consistent local start/restart/stop workflows.
+- Kept production deployment ports independent from local development ports.
+
 ## [2026-05-14] fix: display pricing usage token rewrite
 
 **Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/gateway_service.go, backend/internal/service/antigravity_gateway_service.go

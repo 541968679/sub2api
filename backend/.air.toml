@@ -1,0 +1,33 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/server.exe ./cmd/server/"
+  entrypoint = "./tmp/server.exe"
+  include_ext = ["go", "tpl", "tmpl", "html", "yaml"]
+  exclude_dir = ["tmp", "vendor", "node_modules", "ent/runtime", "migrations"]
+  exclude_regex = ["_test\\.go$", "wire_gen\\.go$"]
+  delay = 1000
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = 500
+
+[build.env]
+  SERVER_PORT = "18081"
+  SERVER_MODE = "debug"
+  DATABASE_HOST = "127.0.0.1"
+  DATABASE_PORT = "5432"
+  DATABASE_USER = "sub2api"
+  DATABASE_PASSWORD = "sub2api"
+  DATABASE_DBNAME = "sub2api"
+  DATABASE_SSLMODE = "disable"
+  REDIS_HOST = "127.0.0.1"
+  REDIS_PORT = "6379"
+  ADMIN_PASSWORD = "admin123456"
+
+[log]
+  time = false
+  main_only = true
+
+[misc]
+  clean_on_exit = true

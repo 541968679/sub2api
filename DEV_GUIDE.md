@@ -14,21 +14,21 @@
 
 ## 二、本地环境配置
 
-### PostgreSQL 16 (Windows 服务)
+### PostgreSQL 16 (Docker 容器)
 
 | 配置项 | 值 |
 |--------|-----|
 | 端口 | 5432 |
-| psql 路径 | `C:\Program Files\PostgreSQL\16\bin\psql.exe` |
-| pg_hba.conf | `C:\Program Files\PostgreSQL\16\data\pg_hba.conf` |
+| 容器名 | `sub2api-pg-dev` |
 | 数据库凭据 | user=`sub2api`, password=`sub2api`, dbname=`sub2api` |
-| 超级用户 | user=`postgres`, password=`postgres` |
+| psql 连接 | `psql -U sub2api -h 127.0.0.1 -d sub2api` |
 
-### Redis
+### Redis (Docker 容器)
 
 | 配置项 | 值 |
 |--------|-----|
 | 端口 | 6379 |
+| 容器名 | `sub2api-redis-dev` |
 | 密码 | 无 |
 
 ### 开发工具
@@ -39,6 +39,10 @@ go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.7
 
 # pnpm (前端包管理)
 npm install -g pnpm
+
+# air (Go 热重载)
+go install github.com/air-verse/air@latest
+# 安装位置: E:\sysware\GoProject\bin\air.exe
 ```
 
 ## 三、CI/CD 流水线
@@ -295,7 +299,13 @@ pnpm build
 ### 后端操作
 
 ```bash
-# 运行服务器
+# 运行服务器（推荐使用 air 热重载）
+cd backend
+E:\sysware\GoProject\bin\air.exe
+# 端口 18081，配置在 backend/config.yaml
+# air 配置在 backend/.air.toml，自动监听文件变化、编译、重启
+
+# 手动运行（不带热重载）
 cd backend
 go run ./cmd/server/
 
@@ -309,6 +319,19 @@ go test -tags=integration ./...
 # Lint 检查
 golangci-lint run ./...
 ```
+
+### 本地端口约定
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| sub2api 后端 | **18081** | `backend/config.yaml` 中 `server.port` |
+| sub2api 前端 | **15174** | `frontend/.env.development.local` 中 `VITE_DEV_PORT` |
+| AIClient2API | **3000** | 关联项目 `E:\cursor project\AIClient2API`，`npm start` |
+| PostgreSQL | 5432 | Docker 容器 `sub2api-pg-dev` |
+| Redis | 6379 | Docker 容器 `sub2api-redis-dev` |
+
+> 禁止使用 8080/8081/5173/5174 等低位端口，避免与 Docker 容器冲突。
+> 生产环境端口由服务器 Docker Compose 配置决定，与本地无关。
 
 ## 六、项目结构速览
 
