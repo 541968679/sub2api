@@ -19,6 +19,14 @@
 
 ## 变更记录
 
+## [2026-05-14] fix(gateway): return real usage tokens downstream
+
+**Affected files**: `backend/internal/handler/gateway_handler.go`
+**Upstream compatibility**: scoped behavior rollback for gateway responses; billing and stored usage remain unchanged
+**Change details**:
+- Stopped injecting display token multipliers into gateway request context, so Claude/Antigravity response `usage` token fields are returned as the real upstream values.
+- Kept existing display pricing helpers for user/admin usage-log UI; only downstream API response token rewriting is disabled.
+
 ## [2026-05-14] docs: record GitHub PAT storage procedure
 
 **Affected files**: docs/dev/SECURITY_OPERATIONS.md, docs/dev/CHANGELOG_CUSTOM.md
