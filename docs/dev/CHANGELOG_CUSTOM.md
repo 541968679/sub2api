@@ -19,6 +19,15 @@
 
 ## 变更记录
 
+## [2026-05-14] docs: record GitHub PAT storage procedure
+
+**Affected files**: docs/dev/SECURITY_OPERATIONS.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Documented that GitHub fork push PATs are stored in Git Credential Manager, not embedded in Git remote URLs or repository files.
+- Recorded the tokenless `origin` remote URL convention for `541968679/sub2api`.
+- Added rotation guidance for removing or replacing the stored GitHub credential.
+
 ## [2026-05-12] feat(aiclient2api): Kiro 反代缓存估算与 conversationId 稳定化
 
 **影响范围**: `aiclient2api/src/providers/claude/claud*: 无冲突（aiclient2api 是独立 fork）

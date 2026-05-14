@@ -57,6 +57,23 @@ This document records operational procedures for credential rotation and account
 
 5. If the deployment supports TOTP, enable TOTP for administrator accounts after password rotation.
 
+## GitHub PAT Storage
+
+Do not store GitHub personal access tokens in repository files, remotes, shell
+history snippets, deployment logs, or documentation.
+
+For this workstation, the `541968679/sub2api` fork push credential is stored in
+Git Credential Manager for `https://github.com` with username
+`x-access-token`. The `origin` remote must remain tokenless:
+
+```bash
+git remote set-url origin https://github.com/541968679/sub2api.git
+```
+
+Use `git credential reject` or Windows Credential Manager to remove or rotate
+the credential. Treat any PAT that appears in Git history, terminal logs, or
+chat transcripts as compromised and rotate it immediately.
+
 ## Incident Checklist
 
 - Rotate administrator passwords, administrator API keys, upstream account tokens, `JWT_SECRET`, `TOTP_ENCRYPTION_KEY`, database passwords, and Redis passwords when compromise is suspected.
