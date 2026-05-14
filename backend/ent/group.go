@@ -53,34 +53,38 @@ type Group struct {
 	ImagePrice2k *float64 `json:"image_price_2k,omitempty"`
 	// ImagePrice4k holds the value of the "image_price_4k" field.
 	ImagePrice4k *float64 `json:"image_price_4k,omitempty"`
-	// 是否仅允许 Claude Code 客户端
+	// Only allow Claude Code clients
 	ClaudeCodeOnly bool `json:"claude_code_only,omitempty"`
-	// 非 Claude Code 请求降级使用的分组 ID
+	// Fallback group ID for Claude Code requests
 	FallbackGroupID *int64 `json:"fallback_group_id,omitempty"`
-	// 无效请求兜底使用的分组 ID
+	// Fallback group ID for invalid requests
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request,omitempty"`
-	// 模型路由配置：模型模式 -> 优先账号ID列表
+	// Model routing config: pattern -> account IDs
 	ModelRouting map[string][]int64 `json:"model_routing,omitempty"`
-	// 是否启用模型路由配置
+	// Whether model routing is enabled
 	ModelRoutingEnabled bool `json:"model_routing_enabled,omitempty"`
-	// 是否注入 MCP XML 调用协议提示词（仅 antigravity 平台）
+	// Whether to inject MCP XML prompt
 	McpXMLInject bool `json:"mcp_xml_inject,omitempty"`
-	// 支持的模型系列：claude, gemini_text, gemini_image
+	// Supported model scopes
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
-	// 分组显示排序，数值越小越靠前
+	// Display sort order
 	SortOrder int `json:"sort_order,omitempty"`
-	// 是否允许 /v1/messages 调度到此 OpenAI 分组
+	// Allow /v1/messages dispatch for OpenAI group
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch,omitempty"`
-	// 仅允许非 apikey 类型账号关联到此分组
+	// Only allow non-apikey linked accounts
 	RequireOauthOnly bool `json:"require_oauth_only,omitempty"`
-	// 调度时仅允许 privacy 已成功设置的账号
+	// Only allow accounts with privacy set
 	RequirePrivacySet bool `json:"require_privacy_set,omitempty"`
-	// 默认映射模型 ID，当账号级映射找不到时使用此值
+	// Default mapped model ID
 	DefaultMappedModel string `json:"default_mapped_model,omitempty"`
-	// OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型
+	// OpenAI messages dispatch model config
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
-	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
+	// Group RPM limit; 0 means unlimited
 	RpmLimit int `json:"rpm_limit,omitempty"`
+	// Group model blacklist; supports exact and trailing-* matches
+	BlockedModels []string `json:"blocked_models,omitempty"`
+	// Group model whitelist; empty means no whitelist restriction
+	AllowedModels []string `json:"allowed_models,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the GroupQuery when eager-loading is set.
 	Edges        GroupEdges `json:"edges"`
@@ -187,7 +191,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig:
+		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldBlockedModels, group.FieldAllowedModels:
 			values[i] = new([]byte)
 		case group.FieldIsExclusive, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet:
 			values[i] = new(sql.NullBool)
@@ -422,6 +426,22 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.RpmLimit = int(value.Int64)
 			}
+		case group.FieldBlockedModels:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field blocked_models", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.BlockedModels); err != nil {
+					return fmt.Errorf("unmarshal field blocked_models: %w", err)
+				}
+			}
+		case group.FieldAllowedModels:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field allowed_models", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.AllowedModels); err != nil {
+					return fmt.Errorf("unmarshal field allowed_models: %w", err)
+				}
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -610,6 +630,12 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))
+	builder.WriteString(", ")
+	builder.WriteString("blocked_models=")
+	builder.WriteString(fmt.Sprintf("%v", _m.BlockedModels))
+	builder.WriteString(", ")
+	builder.WriteString("allowed_models=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowedModels))
 	builder.WriteByte(')')
 	return builder.String()
 }

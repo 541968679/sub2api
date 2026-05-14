@@ -588,6 +588,30 @@ func (_u *GroupUpdate) AddRpmLimit(v int) *GroupUpdate {
 	return _u
 }
 
+// SetBlockedModels sets the "blocked_models" field.
+func (_u *GroupUpdate) SetBlockedModels(v []string) *GroupUpdate {
+	_u.mutation.SetBlockedModels(v)
+	return _u
+}
+
+// AppendBlockedModels appends value to the "blocked_models" field.
+func (_u *GroupUpdate) AppendBlockedModels(v []string) *GroupUpdate {
+	_u.mutation.AppendBlockedModels(v)
+	return _u
+}
+
+// SetAllowedModels sets the "allowed_models" field.
+func (_u *GroupUpdate) SetAllowedModels(v []string) *GroupUpdate {
+	_u.mutation.SetAllowedModels(v)
+	return _u
+}
+
+// AppendAllowedModels appends value to the "allowed_models" field.
+func (_u *GroupUpdate) AppendAllowedModels(v []string) *GroupUpdate {
+	_u.mutation.AppendAllowedModels(v)
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdate) AddAPIKeyIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1056,6 +1080,22 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedRpmLimit(); ok {
 		_spec.AddField(group.FieldRpmLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BlockedModels(); ok {
+		_spec.SetField(group.FieldBlockedModels, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedBlockedModels(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldBlockedModels, value)
+		})
+	}
+	if value, ok := _u.mutation.AllowedModels(); ok {
+		_spec.SetField(group.FieldAllowedModels, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedModels(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldAllowedModels, value)
+		})
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1923,6 +1963,30 @@ func (_u *GroupUpdateOne) AddRpmLimit(v int) *GroupUpdateOne {
 	return _u
 }
 
+// SetBlockedModels sets the "blocked_models" field.
+func (_u *GroupUpdateOne) SetBlockedModels(v []string) *GroupUpdateOne {
+	_u.mutation.SetBlockedModels(v)
+	return _u
+}
+
+// AppendBlockedModels appends value to the "blocked_models" field.
+func (_u *GroupUpdateOne) AppendBlockedModels(v []string) *GroupUpdateOne {
+	_u.mutation.AppendBlockedModels(v)
+	return _u
+}
+
+// SetAllowedModels sets the "allowed_models" field.
+func (_u *GroupUpdateOne) SetAllowedModels(v []string) *GroupUpdateOne {
+	_u.mutation.SetAllowedModels(v)
+	return _u
+}
+
+// AppendAllowedModels appends value to the "allowed_models" field.
+func (_u *GroupUpdateOne) AppendAllowedModels(v []string) *GroupUpdateOne {
+	_u.mutation.AppendAllowedModels(v)
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdateOne) AddAPIKeyIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2421,6 +2485,22 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.AddedRpmLimit(); ok {
 		_spec.AddField(group.FieldRpmLimit, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.BlockedModels(); ok {
+		_spec.SetField(group.FieldBlockedModels, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedBlockedModels(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldBlockedModels, value)
+		})
+	}
+	if value, ok := _u.mutation.AllowedModels(); ok {
+		_spec.SetField(group.FieldAllowedModels, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedAllowedModels(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, group.FieldAllowedModels, value)
+		})
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

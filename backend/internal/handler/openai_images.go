@@ -87,6 +87,10 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		setOpsRequestContext(c, parsed.Model, parsed.Stream, body)
 	}
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(parsed.Stream, false)))
+	if !isGroupModelAllowed(apiKey.Group, parsed.Model) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
 
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, parsed.Model)
 

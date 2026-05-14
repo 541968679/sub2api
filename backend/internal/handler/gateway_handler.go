@@ -188,6 +188,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	if !isGroupModelAllowed(apiKey.Group, reqModel) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
 
 	// Track if we've started streaming (for error handling)
 	streamStarted := false
@@ -1502,6 +1506,10 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	// 验证 model 必填
 	if parsedReq.Model == "" {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
+		return
+	}
+	if !isGroupModelAllowed(apiKey.Group, parsedReq.Model) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
 		return
 	}
 

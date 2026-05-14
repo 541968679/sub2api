@@ -2060,6 +2060,14 @@ const zhBase = {
         priorityHint: '数值越小优先级越高，用于账号调度',
         statusLabel: '状态'
       },
+      modelAccess: {
+        title: '模型访问控制',
+        description: '黑名单优先。白名单留空表示允许所有未被禁止的模型。支持末尾 * 通配符，例如 gpt-image-*。',
+        blocked: '禁止模型',
+        allowed: '允许模型',
+        blockedHint: '每行一个模型或末尾通配符模式，也可用逗号分隔。',
+        allowedHint: '留空则不启用白名单过滤。'
+      },
       exclusiveObj: {
         yes: '是',
         no: '否'

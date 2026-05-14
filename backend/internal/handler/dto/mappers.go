@@ -149,6 +149,8 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 		DefaultMappedModel:          g.DefaultMappedModel,
 		MessagesDispatchModelConfig: g.MessagesDispatchModelConfig,
 		SupportedModelScopes:        g.SupportedModelScopes,
+		BlockedModels:               g.BlockedModels,
+		AllowedModels:               g.AllowedModels,
 		AccountCount:                g.AccountCount,
 		ActiveAccountCount:          g.ActiveAccountCount,
 		RateLimitedAccountCount:     g.RateLimitedAccountCount,

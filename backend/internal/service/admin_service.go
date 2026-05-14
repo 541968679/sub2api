@@ -207,6 +207,8 @@ type CreateGroupInput struct {
 	MCPXMLInject        *bool
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string
+	BlockedModels        []string
+	AllowedModels        []string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch       bool
 	DefaultMappedModel          string
@@ -244,6 +246,8 @@ type UpdateGroupInput struct {
 	MCPXMLInject        *bool
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string
+	BlockedModels        *[]string
+	AllowedModels        *[]string
 	// OpenAI Messages 调度配置（仅 openai 平台使用）
 	AllowMessagesDispatch       *bool
 	DefaultMappedModel          *string
@@ -1475,6 +1479,8 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ModelRouting:                    input.ModelRouting,
 		MCPXMLInject:                    mcpXMLInject,
 		SupportedModelScopes:            input.SupportedModelScopes,
+		BlockedModels:                   normalizeModelAccessPatterns(input.BlockedModels),
+		AllowedModels:                   normalizeModelAccessPatterns(input.AllowedModels),
 		AllowMessagesDispatch:           input.AllowMessagesDispatch,
 		RequireOAuthOnly:                input.RequireOAuthOnly,
 		RequirePrivacySet:               input.RequirePrivacySet,
@@ -1697,6 +1703,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	// 支持的模型系列（仅 antigravity 平台使用）
 	if input.SupportedModelScopes != nil {
 		group.SupportedModelScopes = *input.SupportedModelScopes
+	}
+	if input.BlockedModels != nil {
+		group.BlockedModels = normalizeModelAccessPatterns(*input.BlockedModels)
+	}
+	if input.AllowedModels != nil {
+		group.AllowedModels = normalizeModelAccessPatterns(*input.AllowedModels)
 	}
 
 	// OpenAI Messages 调度配置

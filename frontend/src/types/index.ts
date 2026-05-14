@@ -538,6 +538,8 @@ export interface AdminGroup extends Group {
 
   // 支持的模型系列（仅 antigravity 平台使用）
   supported_model_scopes?: string[]
+  blocked_models?: string[]
+  allowed_models?: string[]
 
   // 分组下账号数量（仅管理员可见）
   account_count?: number
@@ -628,6 +630,8 @@ export interface CreateGroupRequest {
   fallback_group_id_on_invalid_request?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
+  blocked_models?: string[]
+  allowed_models?: string[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   // 从指定分组复制账号
@@ -653,6 +657,8 @@ export interface UpdateGroupRequest {
   fallback_group_id_on_invalid_request?: number | null
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
+  blocked_models?: string[]
+  allowed_models?: string[]
   require_oauth_only?: boolean
   require_privacy_set?: boolean
   copy_accounts_from_group_ids?: number[]

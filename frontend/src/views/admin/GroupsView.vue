@@ -512,6 +512,44 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
+        <div class="border-t pt-4">
+          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.modelAccess.title") }}
+          </label>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.modelAccess.description") }}
+          </p>
+          <div class="grid gap-3 md:grid-cols-2">
+            <div>
+              <label class="input-label">{{
+                t("admin.groups.modelAccess.blocked")
+              }}</label>
+              <textarea
+                v-model="createForm.blocked_models_text"
+                rows="3"
+                class="input"
+                placeholder="gpt-image-2&#10;gpt-image-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.blockedHint") }}
+              </p>
+            </div>
+            <div>
+              <label class="input-label">{{
+                t("admin.groups.modelAccess.allowed")
+              }}</label>
+              <textarea
+                v-model="createForm.allowed_models_text"
+                rows="3"
+                class="input"
+                placeholder="gpt-5*&#10;claude-sonnet-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.allowedHint") }}
+              </p>
+            </div>
+          </div>
+        </div>
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -1644,6 +1682,44 @@
             :placeholder="t('admin.groups.form.rpmLimitPlaceholder')"
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
+        </div>
+        <div class="border-t pt-4">
+          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.modelAccess.title") }}
+          </label>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.modelAccess.description") }}
+          </p>
+          <div class="grid gap-3 md:grid-cols-2">
+            <div>
+              <label class="input-label">{{
+                t("admin.groups.modelAccess.blocked")
+              }}</label>
+              <textarea
+                v-model="editForm.blocked_models_text"
+                rows="3"
+                class="input"
+                placeholder="gpt-image-2&#10;gpt-image-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.blockedHint") }}
+              </p>
+            </div>
+            <div>
+              <label class="input-label">{{
+                t("admin.groups.modelAccess.allowed")
+              }}</label>
+              <textarea
+                v-model="editForm.allowed_models_text"
+                rows="3"
+                class="input"
+                placeholder="gpt-5*&#10;claude-sonnet-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.allowedHint") }}
+              </p>
+            </div>
+          </div>
         </div>
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
@@ -3036,6 +3112,8 @@ const createForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  blocked_models_text: "",
+  allowed_models_text: "",
 });
 
 // 简单账号类型（用于模型路由选择）
@@ -3256,6 +3334,25 @@ const convertRoutingRulesToApiFormat = (
   return hasValidRules ? result : null;
 };
 
+const parseModelAccessText = (value: string): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  value
+    .split(/[\n,]/)
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .forEach((item) => {
+      if (!seen.has(item)) {
+        seen.add(item);
+        result.push(item);
+      }
+    });
+  return result;
+};
+
+const modelAccessTextFromArray = (values?: string[] | null): string =>
+  (values || []).join("\n");
+
 // 将 API 格式的路由规则转换为 UI 格式（需要加载账号名称）
 const convertApiFormatToRoutingRules = async (
   apiFormat: Record<string, number[]> | null,
@@ -3319,6 +3416,8 @@ const editForm = reactive({
   copy_accounts_from_group_ids: [] as number[],
   // 分组级 RPM 限制（每用户每分钟最大请求数；0 = 不限制）
   rpm_limit: 0 as number,
+  blocked_models_text: "",
+  allowed_models_text: "",
 });
 
 // 根据分组类型返回不同的删除确认消息
@@ -3491,6 +3590,8 @@ const closeCreateModal = () => {
   createForm.supported_model_scopes = ["claude", "gemini_text", "gemini_image"];
   createForm.mcp_xml_inject = true;
   createForm.copy_accounts_from_group_ids = [];
+  createForm.blocked_models_text = "";
+  createForm.allowed_models_text = "";
   createModelRoutingRules.value = [];
 };
 
@@ -3535,6 +3636,8 @@ const handleCreateGroup = async () => {
       model_routing: convertRoutingRulesToApiFormat(
         createModelRoutingRules.value,
       ),
+      blocked_models: parseModelAccessText(createForm.blocked_models_text),
+      allowed_models: parseModelAccessText(createForm.allowed_models_text),
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -3611,6 +3714,12 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.mcp_xml_inject = group.mcp_xml_inject ?? true;
   editForm.copy_accounts_from_group_ids = []; // 复制账号字段每次编辑时重置为空
   editForm.rpm_limit = group.rpm_limit ?? 0;
+  editForm.blocked_models_text = modelAccessTextFromArray(
+    group.blocked_models,
+  );
+  editForm.allowed_models_text = modelAccessTextFromArray(
+    group.allowed_models,
+  );
   // 加载模型路由规则（异步加载账号名称）
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
     group.model_routing,
@@ -3627,6 +3736,8 @@ const closeEditModal = () => {
   editingGroup.value = null;
   editModelRoutingRules.value = [];
   editForm.copy_accounts_from_group_ids = [];
+  editForm.blocked_models_text = "";
+  editForm.allowed_models_text = "";
   resetMessagesDispatchFormState(editForm);
 };
 
@@ -3660,6 +3771,8 @@ const handleUpdateGroup = async () => {
       model_routing: convertRoutingRulesToApiFormat(
         editModelRoutingRules.value,
       ),
+      blocked_models: parseModelAccessText(editForm.blocked_models_text),
+      allowed_models: parseModelAccessText(editForm.allowed_models_text),
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({

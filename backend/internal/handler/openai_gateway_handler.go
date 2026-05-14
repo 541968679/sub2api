@@ -172,6 +172,15 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	}
 	reqStream := streamResult.Bool()
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	if !isGroupModelAllowed(apiKey.Group, reqModel) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
+	if toolModel := disallowedResponsesImageToolModel(apiKey.Group, body); toolModel != "" {
+		reqLog.Info("openai.responses.group_model_access_denied", zap.String("tool_model", toolModel))
+		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
 	previousResponseID := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
 	if previousResponseID != "" {
 		previousResponseIDKind := service.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
@@ -1107,6 +1116,15 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	reqModel := strings.TrimSpace(gjson.GetBytes(firstMessage, "model").String())
 	if reqModel == "" {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "model is required in first response.create payload")
+		return
+	}
+	if !isGroupModelAllowed(apiKey.Group, reqModel) {
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, groupModelAccessDeniedMessage)
+		return
+	}
+	if toolModel := disallowedResponsesImageToolModel(apiKey.Group, firstMessage); toolModel != "" {
+		reqLog.Info("openai.websocket.group_model_access_denied", zap.String("tool_model", toolModel))
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, groupModelAccessDeniedMessage)
 		return
 	}
 	previousResponseID := strings.TrimSpace(gjson.GetBytes(firstMessage, "previous_response_id").String())

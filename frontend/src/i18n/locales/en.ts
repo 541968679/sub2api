@@ -2121,6 +2121,14 @@ export default {
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).'
       },
+      modelAccess: {
+        title: 'Model Access Control',
+        description: 'Blacklist has priority. An empty whitelist means all non-blocked models are allowed. Supports trailing * wildcard, for example gpt-image-*.',
+        blocked: 'Blocked Models',
+        allowed: 'Allowed Models',
+        blockedHint: 'One model or trailing-wildcard pattern per line, or comma-separated.',
+        allowedHint: 'Leave empty to disable whitelist filtering.'
+      },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
       platformHint: 'Select the platform this group is associated with',

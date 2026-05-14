@@ -139,6 +139,8 @@ type AdminGroup struct {
 
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes    []string       `json:"supported_model_scopes"`
+	BlockedModels           []string       `json:"blocked_models"`
+	AllowedModels           []string       `json:"allowed_models"`
 	AccountGroups           []AccountGroup `json:"account_groups,omitempty"`
 	AccountCount            int64          `json:"account_count,omitempty"`
 	ActiveAccountCount      int64          `json:"active_account_count,omitempty"`

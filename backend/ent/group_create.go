@@ -439,6 +439,18 @@ func (_c *GroupCreate) SetNillableRpmLimit(v *int) *GroupCreate {
 	return _c
 }
 
+// SetBlockedModels sets the "blocked_models" field.
+func (_c *GroupCreate) SetBlockedModels(v []string) *GroupCreate {
+	_c.mutation.SetBlockedModels(v)
+	return _c
+}
+
+// SetAllowedModels sets the "allowed_models" field.
+func (_c *GroupCreate) SetAllowedModels(v []string) *GroupCreate {
+	_c.mutation.SetAllowedModels(v)
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *GroupCreate) AddAPIKeyIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -648,6 +660,14 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
 	}
+	if _, ok := _c.mutation.BlockedModels(); !ok {
+		v := group.DefaultBlockedModels
+		_c.mutation.SetBlockedModels(v)
+	}
+	if _, ok := _c.mutation.AllowedModels(); !ok {
+		v := group.DefaultAllowedModels
+		_c.mutation.SetAllowedModels(v)
+	}
 	return nil
 }
 
@@ -737,6 +757,12 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "Group.rpm_limit"`)}
+	}
+	if _, ok := _c.mutation.BlockedModels(); !ok {
+		return &ValidationError{Name: "blocked_models", err: errors.New(`ent: missing required field "Group.blocked_models"`)}
+	}
+	if _, ok := _c.mutation.AllowedModels(); !ok {
+		return &ValidationError{Name: "allowed_models", err: errors.New(`ent: missing required field "Group.allowed_models"`)}
 	}
 	return nil
 }
@@ -888,6 +914,14 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
 		_node.RpmLimit = value
+	}
+	if value, ok := _c.mutation.BlockedModels(); ok {
+		_spec.SetField(group.FieldBlockedModels, field.TypeJSON, value)
+		_node.BlockedModels = value
+	}
+	if value, ok := _c.mutation.AllowedModels(); ok {
+		_spec.SetField(group.FieldAllowedModels, field.TypeJSON, value)
+		_node.AllowedModels = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1543,6 +1577,30 @@ func (u *GroupUpsert) AddRpmLimit(v int) *GroupUpsert {
 	return u
 }
 
+// SetBlockedModels sets the "blocked_models" field.
+func (u *GroupUpsert) SetBlockedModels(v []string) *GroupUpsert {
+	u.Set(group.FieldBlockedModels, v)
+	return u
+}
+
+// UpdateBlockedModels sets the "blocked_models" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateBlockedModels() *GroupUpsert {
+	u.SetExcluded(group.FieldBlockedModels)
+	return u
+}
+
+// SetAllowedModels sets the "allowed_models" field.
+func (u *GroupUpsert) SetAllowedModels(v []string) *GroupUpsert {
+	u.Set(group.FieldAllowedModels, v)
+	return u
+}
+
+// UpdateAllowedModels sets the "allowed_models" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowedModels() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowedModels)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -2166,6 +2224,34 @@ func (u *GroupUpsertOne) AddRpmLimit(v int) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateRpmLimit() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetBlockedModels sets the "blocked_models" field.
+func (u *GroupUpsertOne) SetBlockedModels(v []string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetBlockedModels(v)
+	})
+}
+
+// UpdateBlockedModels sets the "blocked_models" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateBlockedModels() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateBlockedModels()
+	})
+}
+
+// SetAllowedModels sets the "allowed_models" field.
+func (u *GroupUpsertOne) SetAllowedModels(v []string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowedModels(v)
+	})
+}
+
+// UpdateAllowedModels sets the "allowed_models" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowedModels() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowedModels()
 	})
 }
 
@@ -2958,6 +3044,34 @@ func (u *GroupUpsertBulk) AddRpmLimit(v int) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateRpmLimit() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetBlockedModels sets the "blocked_models" field.
+func (u *GroupUpsertBulk) SetBlockedModels(v []string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetBlockedModels(v)
+	})
+}
+
+// UpdateBlockedModels sets the "blocked_models" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateBlockedModels() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateBlockedModels()
+	})
+}
+
+// SetAllowedModels sets the "allowed_models" field.
+func (u *GroupUpsertBulk) SetAllowedModels(v []string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowedModels(v)
+	})
+}
+
+// UpdateAllowedModels sets the "allowed_models" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowedModels() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowedModels()
 	})
 }
 

@@ -29,6 +29,23 @@
 
 ## [2026-05-14] docs: record GitHub PAT storage procedure
 
+## [2026-05-14] feat(admin,gateway): add group-level model blacklist/whitelist control
+
+**Affected files**: `backend/internal/service/group.go`, `backend/internal/service/admin_service.go`, `backend/internal/repository/group_repo.go`, `backend/internal/repository/api_key_repo.go`, `backend/internal/handler/group_model_access.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_handler_chat_completions.go`, `backend/internal/handler/gateway_handler_responses.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_images.go`, `backend/internal/handler/gemini_v1beta_handler.go`, `backend/internal/handler/admin/group_handler.go`, `backend/internal/handler/dto/types.go`, `backend/internal/handler/dto/mappers.go`, `backend/ent/schema/group.go`, `backend/migrations/138_add_group_model_access_control.sql`, `frontend/src/views/admin/GroupsView.vue`, `frontend/src/types/index.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/i18n/locales/zh.ts`
+**Upstream compatibility**: additive admin/API and gateway enforcement change; no pricing or public model display behavior changes
+**Change details**:
+- Added `blocked_models` and `allowed_models` to groups as JSONB-backed admin-only configuration with normalize/trim/dedupe handling.
+- Enforced blacklist-first, whitelist-second model access checks before gateway account selection across OpenAI chat/responses/images, Gemini, and generic gateway paths.
+- Added Responses image tool validation so `tools[].type == "image_generation"` entries cannot bypass group model restrictions.
+- Extended the admin group create/edit modal to save and restore both lists, and updated English/Chinese locale copy.
+- Kept the normal user-facing group DTO shallow so the new access-control fields remain admin-only.
+
+**Verification**:
+- `go test -tags=unit ./internal/service -run TestGroupIsModelAllowed`
+- `go test -tags=unit ./internal/handler -run TestDisallowedResponsesImageToolModel`
+- `pnpm run typecheck` in `frontend/`
+- Broad backend unit test sweep still has a pre-existing unrelated failure in `TestAntigravityGatewayService_GetMappedModel`.
+
 **Affected files**: docs/dev/SECURITY_OPERATIONS.md, docs/dev/CHANGELOG_CUSTOM.md
 **Upstream compatibility**: docs-only; no runtime behavior changes
 **Change details**:

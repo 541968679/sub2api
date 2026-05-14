@@ -76,6 +76,10 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	if !isGroupModelAllowed(apiKey.Group, reqModel) {
+		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))

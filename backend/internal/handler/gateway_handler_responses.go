@@ -77,6 +77,15 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	reqModel := modelResult.String()
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	if !isGroupModelAllowed(apiKey.Group, reqModel) {
+		h.responsesErrorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
+	if toolModel := disallowedResponsesImageToolModel(apiKey.Group, body); toolModel != "" {
+		reqLog.Info("gateway.responses.group_model_access_denied", zap.String("tool_model", toolModel))
+		h.responsesErrorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
