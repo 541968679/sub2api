@@ -27,6 +27,14 @@
 - Stopped injecting display token multipliers into gateway request context, so Claude/Antigravity response `usage` token fields are returned as the real upstream values.
 - Kept existing display pricing helpers for user/admin usage-log UI; only downstream API response token rewriting is disabled.
 
+## [2026-05-15] fix: close distribution wallet rows before ledger insert
+
+**Affected files**: backend/internal/repository/distribution_repo.go
+**Upstream compatibility**: low risk; repository transaction handling fix only
+**Change details**:
+- Closed the `UPDATE ... RETURNING` result set before inserting the distribution wallet ledger row in admin balance adjustment.
+- Prevents PostgreSQL transaction/driver errors caused by executing the ledger insert while the previous result set is still open.
+
 ## [2026-05-15] fix: refine distribution admin management
 
 **Affected files**: backend/internal/repository/distribution_repo.go, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
