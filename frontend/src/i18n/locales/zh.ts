@@ -6862,6 +6862,7 @@ const v117ZhPatch = {
       reviewSuccess: '审核已保存',
       reviewFailed: '保存审核失败',
       quickStats: '概览',
+      agentAccounts: '代理账户',
       wallets: '钱包账户',
       applications: '申请记录',
       assetSearchPlaceholder: '搜索生成资产...',
@@ -6880,7 +6881,8 @@ const v117ZhPatch = {
       settings: {
         title: '生成设置',
         rmbPerUsd: '每 1 USD 扣除 RMB',
-        subscriptionDiscount: '订阅兑换码折扣',
+        subscriptionDiscount: '订阅兑换码代理成本比例',
+        subscriptionDiscountHint: '填写代理成本比例。打 8 折填 0.8；100 元订阅兑换码会扣代理 80 元。',
       },
       columns: {
         user: '用户',

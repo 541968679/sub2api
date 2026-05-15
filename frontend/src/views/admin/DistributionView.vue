@@ -12,6 +12,7 @@
             <div>
               <label class="input-label">{{ t('admin.distribution.settings.subscriptionDiscount') }}</label>
               <input v-model.number="settingsForm.subscription_discount" type="number" min="0" max="1" step="0.01" class="input" />
+              <p class="input-hint">{{ t('admin.distribution.settings.subscriptionDiscountHint') }}</p>
             </div>
           </div>
           <div class="mt-4 flex justify-end">
@@ -34,71 +35,53 @@
         </div>
       </div>
 
-      <TablePageLayout>
-        <template #filters>
-          <div class="flex flex-wrap items-center gap-3">
-            <input v-model.trim="search" class="input flex-1 sm:max-w-72" :placeholder="t('admin.distribution.searchPlaceholder')" @input="handleSearch" />
-            <button class="btn btn-secondary" :disabled="applicationsLoading" @click="loadApplications">{{ t('common.refresh') }}</button>
-          </div>
-        </template>
-
-        <template #table>
-          <DataTable :columns="applicationColumns" :data="applications" :loading="applicationsLoading">
-            <template #cell-user="{ row }">
-              <div>
-                <p class="font-medium text-gray-900 dark:text-white">{{ row.user_email || '-' }}</p>
-                <p class="text-xs text-gray-500 dark:text-dark-400">ID {{ row.user_id }} / {{ row.username || '-' }}</p>
-              </div>
-            </template>
-            <template #cell-status="{ value }">
-              <span class="badge" :class="statusBadgeClass(String(value))">{{ t(`distribution.status.${value}`) }}</span>
-            </template>
-            <template #cell-reason="{ value }"><span class="block max-w-md truncate">{{ value || '-' }}</span></template>
-            <template #cell-created_at="{ value }">{{ formatDateTime(value) }}</template>
-            <template #cell-actions="{ row }">
-              <div class="flex items-center gap-2">
-                <button class="btn btn-primary btn-sm" :disabled="row.status === 'approved' || reviewing" @click="openReview(row, true)">{{ t('admin.distribution.approve') }}</button>
-                <button class="btn btn-danger btn-sm" :disabled="row.status === 'rejected' || reviewing" @click="openReview(row, false)">{{ t('admin.distribution.reject') }}</button>
-              </div>
-            </template>
-          </DataTable>
-        </template>
-      </TablePageLayout>
-
       <div class="card p-6">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.distribution.wallets') }}</h3>
-          <button class="btn btn-secondary btn-sm" :disabled="walletsLoading" @click="loadWallets">{{ t('common.refresh') }}</button>
+          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.distribution.agentAccounts') }}</h3>
+          <div class="flex flex-wrap items-center gap-2">
+            <input v-model.trim="search" class="input w-64" :placeholder="t('admin.distribution.searchPlaceholder')" @input="handleSearch" />
+            <button class="btn btn-secondary btn-sm" :disabled="applicationsLoading || walletsLoading" @click="loadAgentTables">{{ t('common.refresh') }}</button>
+          </div>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[920px] text-left text-sm">
+          <table class="w-full min-w-[1180px] text-left text-sm">
             <thead>
               <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
                 <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.user') }}</th>
+                <th class="px-3 py-2 font-medium">{{ t('common.status') }}</th>
+                <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.contact') }}</th>
+                <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.reason') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.balance') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.recharged') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.spent') }}</th>
-                <th class="px-3 py-2 font-medium">{{ t('common.status') }}</th>
+                <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.createdAt') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('common.actions') }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="wallet in wallets" :key="wallet.id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
+              <tr v-for="agent in agentRows" :key="agent.user_id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
                 <td class="px-3 py-3">
-                  <p class="font-medium text-gray-900 dark:text-white">{{ wallet.user_email || '-' }}</p>
-                  <p class="text-xs text-gray-500 dark:text-dark-400">ID {{ wallet.user_id }} / {{ wallet.username || '-' }}</p>
+                  <p class="font-medium text-gray-900 dark:text-white">{{ agent.user_email || '-' }}</p>
+                  <p class="text-xs text-gray-500 dark:text-dark-400">ID {{ agent.user_id }} / {{ agent.username || '-' }}</p>
                 </td>
-                <td class="px-3 py-3 text-right font-medium">{{ formatCurrency(wallet.balance, 'CNY') }}</td>
-                <td class="px-3 py-3 text-right">{{ formatCurrency(wallet.total_recharged, 'CNY') }}</td>
-                <td class="px-3 py-3 text-right">{{ formatCurrency(wallet.total_spent, 'CNY') }}</td>
-                <td class="px-3 py-3"><span class="badge" :class="wallet.status === 'active' ? 'badge-success' : 'badge-warning'">{{ wallet.status }}</span></td>
+                <td class="px-3 py-3">
+                  <span class="badge" :class="statusBadgeClass(agent.status)">{{ t(`distribution.status.${agent.status}`) }}</span>
+                </td>
+                <td class="px-3 py-3"><span class="block max-w-36 truncate">{{ agent.contact || '-' }}</span></td>
+                <td class="px-3 py-3"><span class="block max-w-56 truncate">{{ agent.reason || '-' }}</span></td>
+                <td class="px-3 py-3 text-right font-medium">{{ agent.wallet ? formatCurrency(agent.wallet.balance, 'CNY') : '-' }}</td>
+                <td class="px-3 py-3 text-right">{{ agent.wallet ? formatCurrency(agent.wallet.total_recharged, 'CNY') : '-' }}</td>
+                <td class="px-3 py-3 text-right">{{ agent.wallet ? formatCurrency(agent.wallet.total_spent, 'CNY') : '-' }}</td>
+                <td class="px-3 py-3">{{ formatDateTime(agent.created_at) }}</td>
                 <td class="px-3 py-3">
                   <div class="flex items-center gap-2">
-                    <button class="btn btn-secondary btn-sm" @click="openAdjust(wallet)">{{ t('admin.distribution.adjust') }}</button>
-                    <button class="btn btn-secondary btn-sm" @click="openRates(wallet)">{{ t('admin.distribution.rates') }}</button>
-                    <button class="btn btn-secondary btn-sm" @click="toggleWallet(wallet)">{{ wallet.status === 'active' ? t('admin.distribution.freeze') : t('admin.distribution.unfreeze') }}</button>
-                    <button class="btn btn-secondary btn-sm" @click="filterLedger(wallet.user_id)">{{ t('distribution.ledger.title') }}</button>
-                    <button class="btn btn-secondary btn-sm" @click="filterAssets(wallet.user_id)">{{ t('distribution.assets.title') }}</button>
+                    <button class="btn btn-primary btn-sm" :disabled="agent.status === 'approved' || reviewing" @click="openReview(agent, true)">{{ t('admin.distribution.approve') }}</button>
+                    <button class="btn btn-danger btn-sm" :disabled="agent.status === 'rejected' || reviewing" @click="openReview(agent, false)">{{ t('admin.distribution.reject') }}</button>
+                    <button v-if="agent.wallet" class="btn btn-secondary btn-sm" @click="openAdjust(agent.wallet)">{{ t('admin.distribution.adjust') }}</button>
+                    <button v-if="agent.wallet" class="btn btn-secondary btn-sm" @click="openRates(agent.wallet)">{{ t('admin.distribution.rates') }}</button>
+                    <button v-if="agent.wallet" class="btn btn-secondary btn-sm" @click="toggleWallet(agent.wallet)">{{ agent.wallet.status === 'active' ? t('admin.distribution.freeze') : t('admin.distribution.unfreeze') }}</button>
+                    <button v-if="agent.wallet" class="btn btn-secondary btn-sm" @click="filterLedger(agent.user_id)">{{ t('distribution.ledger.title') }}</button>
+                    <button v-if="agent.wallet" class="btn btn-secondary btn-sm" @click="filterAssets(agent.user_id)">{{ t('distribution.assets.title') }}</button>
                   </div>
                 </td>
               </tr>
@@ -246,7 +229,7 @@
             <div>
               <label class="input-label">{{ t('admin.distribution.settings.subscriptionDiscount') }}</label>
               <input v-model.number="ratesDialog.subscription_discount_override" type="number" min="0" max="1" step="0.01" class="input" />
-              <p class="input-hint">{{ t('admin.distribution.ratesHint') }}</p>
+              <p class="input-hint">{{ t('admin.distribution.settings.subscriptionDiscountHint') }} {{ t('admin.distribution.ratesHint') }}</p>
             </div>
           </div>
           <div class="mt-6 flex justify-end gap-3">
@@ -260,14 +243,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
-import DataTable from '@/components/common/DataTable.vue'
 import distributionAdminAPI from '@/api/admin/distribution'
 import type { DistributionAgentApplication, DistributionAsset, DistributionWallet, DistributionWalletLedgerEntry } from '@/types'
-import type { Column } from '@/components/common/types'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
@@ -301,14 +281,10 @@ const reviewDialog = reactive({ open: false, approved: true, note: '', applicati
 const adjustDialog = reactive({ open: false, amount: 0, note: '', wallet: null as DistributionWallet | null })
 const ratesDialog = reactive({ open: false, rmb_per_usd_override: 0, subscription_discount_override: 0, wallet: null as DistributionWallet | null })
 
-const applicationColumns: Column[] = [
-  { key: 'user', label: t('admin.distribution.columns.user') },
-  { key: 'status', label: t('common.status') },
-  { key: 'contact', label: t('admin.distribution.columns.contact') },
-  { key: 'reason', label: t('admin.distribution.columns.reason') },
-  { key: 'created_at', label: t('admin.distribution.columns.createdAt') },
-  { key: 'actions', label: t('common.actions') },
-]
+const agentRows = computed(() => applications.value.map((application) => ({
+  ...application,
+  wallet: wallets.value.find((wallet) => wallet.user_id === application.user_id) ?? null,
+})))
 
 function statusBadgeClass(status: string): string {
   if (status === 'approved') return 'badge-success'
@@ -363,6 +339,10 @@ async function loadWallets(): Promise<void> {
   }
 }
 
+async function loadAgentTables(): Promise<void> {
+  await Promise.all([loadApplications(), loadWallets()])
+}
+
 async function loadLedger(): Promise<void> {
   ledgerLoading.value = true
   try {
@@ -390,7 +370,7 @@ async function loadAssets(): Promise<void> {
 function handleSearch(): void {
   if (searchTimer.value) window.clearTimeout(searchTimer.value)
   searchTimer.value = window.setTimeout(() => {
-    void Promise.all([loadApplications(), loadWallets()])
+    void loadAgentTables()
   }, 300)
 }
 
@@ -421,7 +401,7 @@ async function submitReview(): Promise<void> {
     await distributionAdminAPI.reviewApplication(reviewDialog.application.user_id, { approved: reviewDialog.approved, note: reviewDialog.note })
     appStore.showSuccess(t('admin.distribution.reviewSuccess'))
     closeReview()
-    await Promise.all([loadApplications(), loadWallets()])
+    await loadAgentTables()
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('admin.distribution.reviewFailed')))
   } finally {
@@ -479,7 +459,7 @@ async function submitAdjust(): Promise<void> {
     await distributionAdminAPI.adjustWallet(adjustDialog.wallet.user_id, { amount: adjustDialog.amount, note: adjustDialog.note })
     appStore.showSuccess(t('common.saved'))
     closeAdjust()
-    await Promise.all([loadWallets(), loadLedger()])
+    await Promise.all([loadAgentTables(), loadLedger()])
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('admin.distribution.adjustFailed')))
   } finally {
@@ -490,7 +470,7 @@ async function submitAdjust(): Promise<void> {
 async function toggleWallet(wallet: DistributionWallet): Promise<void> {
   try {
     await distributionAdminAPI.updateWalletStatus(wallet.user_id, { frozen: wallet.status === 'active' })
-    await loadWallets()
+    await loadAgentTables()
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('admin.distribution.statusFailed')))
   }
@@ -545,7 +525,7 @@ async function voidAsset(asset: DistributionAsset): Promise<void> {
   try {
     const result = await distributionAdminAPI.voidAsset(asset.id)
     appStore.showSuccess(t('distribution.assets.voidSuccess', { amount: formatCurrency(result.refund_rmb, 'CNY') }))
-    await Promise.all([loadAssets(), loadWallets(), loadLedger()])
+    await Promise.all([loadAssets(), loadAgentTables(), loadLedger()])
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('distribution.assets.voidFailed')))
   } finally {
@@ -554,6 +534,6 @@ async function voidAsset(asset: DistributionAsset): Promise<void> {
 }
 
 onMounted(() => {
-  void Promise.all([loadSettings(), loadApplications(), loadWallets(), loadLedger(), loadAssets()])
+  void Promise.all([loadSettings(), loadAgentTables(), loadLedger(), loadAssets()])
 })
 </script>

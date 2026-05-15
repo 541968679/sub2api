@@ -27,6 +27,15 @@
 - Stopped injecting display token multipliers into gateway request context, so Claude/Antigravity response `usage` token fields are returned as the real upstream values.
 - Kept existing display pricing helpers for user/admin usage-log UI; only downstream API response token rewriting is disabled.
 
+## [2026-05-15] fix: refine distribution admin management
+
+**Affected files**: backend/internal/repository/distribution_repo.go, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
+**Upstream compatibility**: low risk; admin distribution UI and wallet ledger write fix only
+**Change details**:
+- Merged distribution applications and wallet accounts into one admin agent account table to reduce duplicated page space.
+- Clarified subscription-code ratio wording as an agent cost ratio: 20% off / 80% cost should be entered as `0.8`.
+- Changed distribution wallet ledger `created_by` binding to pass either a concrete admin ID or SQL NULL, avoiding driver issues during admin balance adjustment.
+
 ## [2026-05-15] feat: add distribution asset controls and agent ratios
 
 **Affected files**: backend/migrations/140_add_distribution_assets.sql, backend/migrations/141_distribution_agent_rates_and_asset_refunds.sql, backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/, backend/internal/service/api_key_service.go, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/, docs/dev/codebase/distribution.md

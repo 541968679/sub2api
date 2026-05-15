@@ -673,11 +673,10 @@ RETURNING id, user_id, agent_id, balance::double precision, total_recharged::dou
 		if err := rows.Err(); err != nil {
 			return err
 		}
-		creator := sql.NullInt64{Int64: createdBy, Valid: createdBy > 0}
 		_, err = txClient.ExecContext(txCtx, `
 INSERT INTO distribution_wallet_ledger (wallet_id, user_id, action, amount, balance_after, reference_type, reference_id, note, created_by, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
-			updated.ID, updated.UserID, action, amount, updated.Balance, referenceType, referenceID, note, creator)
+			updated.ID, updated.UserID, action, amount, updated.Balance, referenceType, referenceID, note, nullablePositiveInt64(createdBy))
 		if err != nil {
 			return err
 		}
@@ -974,6 +973,13 @@ func nullableInt64(v *int64) sql.NullInt64 {
 
 func nullableInt64Value(v int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: v, Valid: v > 0}
+}
+
+func nullablePositiveInt64(v int64) any {
+	if v <= 0 {
+		return nil
+	}
+	return v
 }
 
 func nullableFloat64(v *float64) sql.NullFloat64 {

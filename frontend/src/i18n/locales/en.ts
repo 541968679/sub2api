@@ -1446,6 +1446,7 @@ export default {
       reviewSuccess: 'Review saved',
       reviewFailed: 'Failed to save review',
       quickStats: 'Overview',
+      agentAccounts: 'Agent accounts',
       wallets: 'Wallets',
       applications: 'Applications',
       assetSearchPlaceholder: 'Search assets...',
@@ -1464,7 +1465,8 @@ export default {
       settings: {
         title: 'Generation Settings',
         rmbPerUsd: 'RMB per 1 USD',
-        subscriptionDiscount: 'Subscription discount',
+        subscriptionDiscount: 'Subscription code agent cost ratio',
+        subscriptionDiscountHint: 'Enter the agent cost ratio. For 20% off / 80% cost, enter 0.8; a RMB 100 code costs the agent RMB 80.',
       },
       columns: {
         user: 'User',
