@@ -88,19 +88,17 @@
             <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ subscriptionCostHint }}</p>
             <div class="mt-4 space-y-3">
               <div>
-                <label class="input-label">{{ t('distribution.generate.faceValueRmb') }}</label>
-                <input v-model.number="subscriptionForm.face_value_rmb" type="number" min="0" step="0.01" class="input" />
-              </div>
-              <div>
-                <label class="input-label">{{ t('distribution.generate.group') }}</label>
-                <select v-model.number="subscriptionForm.group_id" class="input">
-                  <option :value="0">{{ t('distribution.generate.selectGroup') }}</option>
-                  <option v-for="group in subscriptionGroups" :key="group.id" :value="group.id">{{ group.name }}</option>
+                <label class="input-label">{{ t('distribution.generate.subscriptionPlan') }}</label>
+                <select v-model.number="subscriptionForm.plan_id" class="input">
+                  <option :value="0">{{ t('distribution.generate.selectPlan') }}</option>
+                  <option v-for="plan in subscriptionPlans" :key="plan.id" :value="plan.id">
+                    {{ plan.name }} - {{ formatCurrency(plan.price, 'CNY') }} / {{ plan.validity_days }}{{ plan.validity_unit }}
+                  </option>
                 </select>
               </div>
               <div>
-                <label class="input-label">{{ t('distribution.generate.validityDays') }}</label>
-                <input v-model.number="subscriptionForm.validity_days" type="number" min="1" step="1" class="input" />
+                <label class="input-label">{{ t('distribution.generate.note') }}</label>
+                <input v-model.trim="subscriptionForm.note" class="input" maxlength="200" />
               </div>
               <button class="btn btn-primary w-full" :disabled="generating.subscription">
                 {{ generating.subscription ? t('common.processing') : t('distribution.generate.createCode') }}
@@ -123,7 +121,7 @@
               <div>
                 <label class="input-label">{{ t('distribution.generate.group') }}</label>
                 <select v-model.number="apiForm.group_id" class="input">
-                  <option :value="0">{{ t('keys.noGroup') }}</option>
+                  <option :value="0">{{ t('distribution.generate.selectGroup') }}</option>
                   <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
                 </select>
               </div>
@@ -145,10 +143,11 @@
               <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div class="min-w-0">
                   <p class="text-xs uppercase text-gray-500 dark:text-dark-400">{{ item.label }}</p>
-                  <p class="mt-1 break-all font-mono text-sm font-medium text-gray-900 dark:text-white">{{ item.value }}</p>
+                  <pre v-if="item.multiline" class="mt-1 whitespace-pre-wrap break-all rounded-md bg-gray-50 p-3 font-mono text-xs font-medium text-gray-900 dark:bg-dark-800 dark:text-white">{{ item.value }}</pre>
+                  <p v-else class="mt-1 break-all font-mono text-sm font-medium text-gray-900 dark:text-white">{{ item.value }}</p>
                   <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ item.meta }}</p>
                 </div>
-                <button class="btn btn-secondary btn-sm shrink-0" @click="copy(item.value)">{{ t('common.copy') }}</button>
+                <button class="btn btn-secondary btn-sm shrink-0" @click="copy(item.copyText || item.value)">{{ t('common.copy') }}</button>
               </div>
             </div>
           </div>
@@ -244,7 +243,9 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import distributionAPI from '@/api/distribution'
 import userGroupsAPI from '@/api/groups'
+import { paymentAPI } from '@/api/payment'
 import type { DistributionAsset, DistributionSummary, DistributionWalletLedgerEntry, Group } from '@/types'
+import type { SubscriptionPlan } from '@/types/payment'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
@@ -259,18 +260,19 @@ const assetsLoading = ref(false)
 const voidingAssetId = ref<number | null>(null)
 const summary = ref<DistributionSummary | null>(null)
 const groups = ref<Group[]>([])
-const generatedItems = ref<Array<{ label: string; value: string; meta: string }>>([])
+const subscriptionPlans = ref<SubscriptionPlan[]>([])
+const generatedItems = ref<Array<{ label: string; value: string; meta: string; copyText?: string; multiline?: boolean }>>([])
 const ledger = reactive({ items: [] as DistributionWalletLedgerEntry[] })
 const assets = reactive({ items: [] as DistributionAsset[] })
 const applyForm = reactive({ contact: '', reason: '' })
 const balanceForm = reactive({ value_usd: 10, note: '' })
-const subscriptionForm = reactive({ face_value_rmb: 30, group_id: 0, validity_days: 30 })
+const subscriptionForm = reactive({ plan_id: 0, note: '' })
 const apiForm = reactive({ name: 'Distribution API Key', quota_usd: 10, group_id: 0, expires_in_days: 0 })
 const generating = reactive({ balance: false, subscription: false, api: false })
 
 const isApproved = computed(() => summary.value?.application?.status === 'approved' && summary.value?.wallet?.status === 'active')
 const settings = computed(() => summary.value?.settings ?? { rmb_per_usd: 0.5, subscription_discount: 0.75 })
-const subscriptionGroups = computed(() => groups.value.filter((group) => group.subscription_type === 'subscription'))
+const selectedSubscriptionPlan = computed(() => subscriptionPlans.value.find((plan) => plan.id === subscriptionForm.plan_id) ?? null)
 
 const statusLabel = computed(() => {
   const status = summary.value?.application?.status
@@ -296,7 +298,9 @@ const balanceCostHint = computed(() => t('distribution.generate.balanceHint', {
   cost: formatCurrency((balanceForm.value_usd || 0) * settings.value.rmb_per_usd, 'CNY'),
 }))
 const subscriptionCostHint = computed(() => t('distribution.generate.subscriptionHint', {
-  cost: formatCurrency((subscriptionForm.face_value_rmb || 0) * settings.value.subscription_discount, 'CNY'),
+  price: formatCurrency(selectedSubscriptionPlan.value?.price ?? 0, 'CNY'),
+  discount: formatDiscount(settings.value.subscription_discount),
+  cost: formatCurrency((selectedSubscriptionPlan.value?.price ?? 0) * settings.value.subscription_discount, 'CNY'),
 }))
 const apiCostHint = computed(() => t('distribution.generate.apiHint', {
   cost: formatCurrency((apiForm.quota_usd || 0) * settings.value.rmb_per_usd, 'CNY'),
@@ -308,6 +312,11 @@ async function loadSummary(): Promise<void> {
 
 async function loadGroups(): Promise<void> {
   groups.value = await userGroupsAPI.getAvailable()
+}
+
+async function loadSubscriptionPlans(): Promise<void> {
+  const { data } = await paymentAPI.getPlans()
+  subscriptionPlans.value = data ?? []
 }
 
 async function loadLedger(): Promise<void> {
@@ -362,10 +371,18 @@ async function generateBalanceCode(): Promise<void> {
 }
 
 async function generateSubscriptionCode(): Promise<void> {
+  if (subscriptionForm.plan_id <= 0) {
+    appStore.showError(t('distribution.generate.selectPlanRequired'))
+    return
+  }
   generating.subscription = true
   try {
     const result = await distributionAPI.generateSubscriptionRedeemCode({ ...subscriptionForm })
-    addGenerated(t('distribution.generated.subscriptionCode'), result.code, `${formatCurrency(result.cost_rmb, 'CNY')} / ${result.validity_days}d`)
+    addGenerated(
+      t('distribution.generated.subscriptionCode'),
+      result.code,
+      `${formatCurrency(result.cost_rmb, 'CNY')} / ${result.plan_name || selectedSubscriptionPlan.value?.name || ''} / ${result.validity_days}d`,
+    )
     await refreshAfterGeneration(result.balance_after)
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('distribution.generate.failed')))
@@ -375,16 +392,27 @@ async function generateSubscriptionCode(): Promise<void> {
 }
 
 async function generateApiKey(): Promise<void> {
+  if (apiForm.group_id <= 0) {
+    appStore.showError(t('distribution.generate.selectGroupRequired'))
+    return
+  }
   generating.api = true
   try {
     const payload = {
       name: apiForm.name,
       quota_usd: apiForm.quota_usd,
-      group_id: apiForm.group_id > 0 ? apiForm.group_id : null,
+      group_id: apiForm.group_id,
       expires_in_days: apiForm.expires_in_days > 0 ? apiForm.expires_in_days : null,
     }
     const result = await distributionAPI.generateApiKey(payload)
-    addGenerated(t('distribution.generated.apiKey'), result.key, `${formatCurrency(result.cost_rmb, 'CNY')} / $${result.quota.toFixed(2)}`)
+    const copyText = apiKeyCopyText(result.base_url, result.key)
+    addGenerated(
+      t('distribution.generated.apiKey'),
+      copyText,
+      `${formatCurrency(result.cost_rmb, 'CNY')} / $${result.quota.toFixed(2)}`,
+      copyText,
+      true,
+    )
     await refreshAfterGeneration(result.balance_after)
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('distribution.generate.failed')))
@@ -399,8 +427,8 @@ async function refreshAfterGeneration(balanceAfter: number): Promise<void> {
   await Promise.all([loadLedger(), loadAssets()])
 }
 
-function addGenerated(label: string, value: string, meta: string): void {
-  generatedItems.value.unshift({ label, value, meta })
+function addGenerated(label: string, value: string, meta: string, copyText?: string, multiline = false): void {
+  generatedItems.value.unshift({ label, value, meta, copyText, multiline })
 }
 
 async function copy(value: string): Promise<void> {
@@ -435,9 +463,21 @@ function assetFaceValue(asset: DistributionAsset): string {
 function assetCopyText(asset: DistributionAsset): string {
   if (asset.asset_type === 'api_key') {
     const baseUrl = asset.package_url || window.location.origin
-    return `Base URL: ${baseUrl}\nAPI Key: ${asset.display_value}`
+    return apiKeyCopyText(baseUrl, asset.display_value)
   }
   return asset.display_value
+}
+
+function apiKeyCopyText(baseURL: string, key: string): string {
+  const normalizedBaseURL = baseURL || window.location.origin
+  return t('distribution.generated.apiKeyCopyText', {
+    baseUrl: normalizedBaseURL,
+    key,
+  })
+}
+
+function formatDiscount(value: number): string {
+  return `${(value * 10).toFixed(2).replace(/\.?0+$/, '')}${t('distribution.generate.discountSuffix')}`
 }
 
 function canVoidAsset(asset: DistributionAsset): boolean {
@@ -461,7 +501,7 @@ async function voidAsset(asset: DistributionAsset): Promise<void> {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadSummary(), loadGroups()])
+    await Promise.all([loadSummary(), loadGroups(), loadSubscriptionPlans()])
     await Promise.all([loadLedger(), loadAssets()])
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('distribution.loadFailed')))

@@ -27,6 +27,16 @@
 - Stopped injecting display token multipliers into gateway request context, so Claude/Antigravity response `usage` token fields are returned as the real upstream values.
 - Kept existing display pricing helpers for user/admin usage-log UI; only downstream API response token rewriting is disabled.
 
+## [2026-05-15] fix: align distribution asset generation
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/handler/distribution_handler.go, backend/internal/repository/distribution_repo.go, backend/ent/schema/redeem_code.go, backend/ent/migrate/schema.go, backend/migrations/142_expand_redeem_code_length.sql, backend/cmd/server/wire_gen.go, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
+**Upstream compatibility**: moderate risk; extends distribution generation behavior and redeem code schema length
+**Change details**:
+- Expanded redeem code storage to 64 characters so generated formatted codes fit the database and balance code generation no longer fails on insert.
+- Changed distribution subscription code generation to select an existing subscription plan, charge `plan price * agent discount`, and generate a redeem code for the plan group and validity.
+- Required distribution API keys to bind a concrete group and added full copyable API base URL, key, and usage instructions in the distributor UI.
+- Kept wallet ledger row handling closed before ledger insert during balance adjustments in the distribution transaction path.
+
 ## [2026-05-15] fix: close distribution wallet rows before ledger insert
 
 **Affected files**: backend/internal/repository/distribution_repo.go

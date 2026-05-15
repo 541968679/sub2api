@@ -676,6 +676,7 @@ RETURNING id, user_id, agent_id, balance::double precision, total_recharged::dou
 		if err := rows.Close(); err != nil {
 			return err
 		}
+		rows = nil
 		_, err = txClient.ExecContext(txCtx, `
 INSERT INTO distribution_wallet_ledger (wallet_id, user_id, action, amount, balance_after, reference_type, reference_id, note, created_by, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,

@@ -247,6 +247,8 @@ export interface DistributionGeneratedRedeemCode {
   code: string
   type: RedeemCodeType
   value: number
+  plan_id?: number | null
+  plan_name?: string
   group_id?: number | null
   validity_days?: number
   cost_rmb: number

@@ -28,10 +28,8 @@ type DistributionGenerateBalanceRedeemCodeRequest struct {
 }
 
 type DistributionGenerateSubscriptionRedeemCodeRequest struct {
-	FaceValueRMB float64 `json:"face_value_rmb"`
-	GroupID      int64   `json:"group_id"`
-	ValidityDays int     `json:"validity_days"`
-	Note         string  `json:"note"`
+	PlanID int64  `json:"plan_id"`
+	Note   string `json:"note"`
 }
 
 type DistributionGenerateAPIKeyRequest struct {
@@ -165,10 +163,8 @@ func (h *DistributionHandler) GenerateSubscriptionRedeemCode(c *gin.Context) {
 		return
 	}
 	out, err := h.distributionService.GenerateSubscriptionRedeemCode(c.Request.Context(), subject.UserID, service.DistributionGenerateSubscriptionRedeemCodeInput{
-		FaceValueRMB: req.FaceValueRMB,
-		GroupID:      req.GroupID,
-		ValidityDays: req.ValidityDays,
-		Note:         req.Note,
+		PlanID: req.PlanID,
+		Note:   req.Note,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

@@ -21,9 +21,7 @@ export interface GenerateBalanceRedeemCodeRequest {
 }
 
 export interface GenerateSubscriptionRedeemCodeRequest {
-  face_value_rmb: number
-  group_id: number
-  validity_days: number
+  plan_id: number
   note?: string
 }
 

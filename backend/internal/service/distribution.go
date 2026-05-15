@@ -147,6 +147,8 @@ type DistributionGeneratedRedeemCode struct {
 	Code         string  `json:"code"`
 	Type         string  `json:"type"`
 	Value        float64 `json:"value"`
+	PlanID       *int64  `json:"plan_id,omitempty"`
+	PlanName     string  `json:"plan_name,omitempty"`
 	GroupID      *int64  `json:"group_id,omitempty"`
 	ValidityDays int     `json:"validity_days,omitempty"`
 	CostRMB      float64 `json:"cost_rmb"`
@@ -191,10 +193,8 @@ type DistributionGenerateBalanceRedeemCodeInput struct {
 }
 
 type DistributionGenerateSubscriptionRedeemCodeInput struct {
-	FaceValueRMB float64
-	GroupID      int64
-	ValidityDays int
-	Note         string
+	PlanID int64
+	Note   string
 }
 
 type DistributionGenerateAPIKeyInput struct {
@@ -239,15 +239,16 @@ type DistributionRepository interface {
 }
 
 type DistributionService struct {
-	repo        DistributionRepository
-	settingRepo SettingRepository
-	redeem      *RedeemService
-	apiKey      *APIKeyService
-	groupRepo   GroupRepository
+	repo          DistributionRepository
+	settingRepo   SettingRepository
+	redeem        *RedeemService
+	apiKey        *APIKeyService
+	groupRepo     GroupRepository
+	paymentConfig *PaymentConfigService
 }
 
-func NewDistributionService(repo DistributionRepository, settingRepo SettingRepository, redeem *RedeemService, apiKey *APIKeyService, groupRepo GroupRepository) *DistributionService {
-	return &DistributionService{repo: repo, settingRepo: settingRepo, redeem: redeem, apiKey: apiKey, groupRepo: groupRepo}
+func NewDistributionService(repo DistributionRepository, settingRepo SettingRepository, redeem *RedeemService, apiKey *APIKeyService, groupRepo GroupRepository, paymentConfig *PaymentConfigService) *DistributionService {
+	return &DistributionService{repo: repo, settingRepo: settingRepo, redeem: redeem, apiKey: apiKey, groupRepo: groupRepo, paymentConfig: paymentConfig}
 }
 
 func (s *DistributionService) GetCurrentUserSummary(ctx context.Context, userID int64) (*DistributionSummary, error) {
@@ -490,20 +491,31 @@ func (s *DistributionService) GenerateBalanceRedeemCode(ctx context.Context, use
 }
 
 func (s *DistributionService) GenerateSubscriptionRedeemCode(ctx context.Context, userID int64, input DistributionGenerateSubscriptionRedeemCodeInput) (*DistributionGeneratedRedeemCode, error) {
-	if err := validateDistributionAmount(input.FaceValueRMB); err != nil {
+	if input.PlanID <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_SUBSCRIPTION", "subscription plan is required")
+	}
+	if s == nil || s.paymentConfig == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "payment config service unavailable")
+	}
+	plan, err := s.paymentConfig.GetPlan(ctx, input.PlanID)
+	if err != nil || plan == nil || !plan.ForSale {
+		return nil, infraerrors.NotFound("PLAN_NOT_AVAILABLE", "plan not found or not for sale")
+	}
+	if err := validateDistributionAmount(plan.Price); err != nil {
 		return nil, err
 	}
-	if input.GroupID <= 0 || input.ValidityDays <= 0 {
-		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_SUBSCRIPTION", "group_id and validity_days are required")
+	validityDays := psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit)
+	if plan.GroupID <= 0 || validityDays <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_SUBSCRIPTION", "invalid subscription plan")
 	}
 	settings, err := s.GetEffectiveSettingsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	cost := roundMoney(input.FaceValueRMB * settings.SubscriptionDiscount)
+	cost := roundMoney(plan.Price * settings.SubscriptionDiscount)
 	var out *DistributionGeneratedRedeemCode
 	wallet, err := s.runGenerationTx(ctx, userID, cost, DistributionLedgerActionGenerateSubscription, "redeem_code", normalizeDistributionText(input.Note), func(txCtx context.Context, wallet *DistributionWallet) (string, error) {
-		group, err := s.groupRepo.GetByID(txCtx, input.GroupID)
+		group, err := s.groupRepo.GetByID(txCtx, plan.GroupID)
 		if err != nil {
 			return "", err
 		}
@@ -517,11 +529,11 @@ func (s *DistributionService) GenerateSubscriptionRedeemCode(ctx context.Context
 		redeemCode := &RedeemCode{
 			Code:         code,
 			Type:         RedeemTypeSubscription,
-			Value:        input.FaceValueRMB,
+			Value:        plan.Price,
 			Status:       StatusUnused,
 			Notes:        distributionNote("distribution subscription redeem code", input.Note),
-			GroupID:      &input.GroupID,
-			ValidityDays: input.ValidityDays,
+			GroupID:      &plan.GroupID,
+			ValidityDays: validityDays,
 		}
 		if err := s.redeem.CreateCode(txCtx, redeemCode); err != nil {
 			return "", err
@@ -538,11 +550,12 @@ func (s *DistributionService) GenerateSubscriptionRedeemCode(ctx context.Context
 			GroupID:       redeemCode.GroupID,
 			ValidityDays:  redeemCode.ValidityDays,
 			Status:        DistributionAssetStatusActive,
-			Note:          distributionNote("distribution subscription redeem code", input.Note),
+			Note:          distributionNote(fmt.Sprintf("distribution subscription redeem code: plan %d %s", plan.ID, plan.Name), input.Note),
 		}); err != nil {
 			return "", err
 		}
-		out = &DistributionGeneratedRedeemCode{Code: redeemCode.Code, Type: redeemCode.Type, Value: redeemCode.Value, GroupID: redeemCode.GroupID, ValidityDays: redeemCode.ValidityDays, CostRMB: cost}
+		planID := int64(plan.ID)
+		out = &DistributionGeneratedRedeemCode{Code: redeemCode.Code, Type: redeemCode.Type, Value: redeemCode.Value, PlanID: &planID, PlanName: plan.Name, GroupID: redeemCode.GroupID, ValidityDays: redeemCode.ValidityDays, CostRMB: cost}
 		return redeemCode.Code, nil
 	})
 	if err == nil && out != nil && wallet != nil {
@@ -554,6 +567,9 @@ func (s *DistributionService) GenerateSubscriptionRedeemCode(ctx context.Context
 func (s *DistributionService) GenerateAPIKey(ctx context.Context, userID int64, input DistributionGenerateAPIKeyInput) (*DistributionGeneratedAPIKey, error) {
 	if err := validateDistributionAmount(input.QuotaUSD); err != nil {
 		return nil, err
+	}
+	if input.GroupID == nil || *input.GroupID <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_GROUP_REQUIRED", "api key group is required")
 	}
 	settings, err := s.GetEffectiveSettingsForUser(ctx, userID)
 	if err != nil {
