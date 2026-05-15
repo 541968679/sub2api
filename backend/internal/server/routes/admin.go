@@ -114,12 +114,15 @@ func registerDistributionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		distribution.GET("/settings", h.Distribution.AdminGetSettings)
 		distribution.PUT("/settings", h.Distribution.AdminUpdateSettings)
+		distribution.PUT("/agents/:user_id/rates", h.Distribution.AdminUpdateAgentRates)
 		distribution.GET("/applications", h.Distribution.AdminListApplications)
 		distribution.POST("/applications/:user_id/review", h.Distribution.AdminReviewApplication)
 		distribution.GET("/wallets", h.Distribution.AdminListWallets)
 		distribution.POST("/wallets/:user_id/adjust", h.Distribution.AdminAdjustWallet)
 		distribution.PUT("/wallets/:user_id/status", h.Distribution.AdminUpdateWalletStatus)
 		distribution.GET("/ledger", h.Distribution.AdminListLedger)
+		distribution.GET("/assets", h.Distribution.AdminListAssets)
+		distribution.POST("/assets/:id/void", h.Distribution.AdminVoidAsset)
 	}
 }
 

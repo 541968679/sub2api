@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -50,7 +52,7 @@ ON CONFLICT (user_id) DO UPDATE SET
 	contact = EXCLUDED.contact,
 	reason = EXCLUDED.reason,
 	updated_at = NOW()
-RETURNING user_id, status, contact, reason, admin_note, reviewed_by, reviewed_at, created_at, updated_at`,
+RETURNING user_id, status, contact, reason, admin_note, rmb_per_usd_override::double precision, subscription_discount_override::double precision, reviewed_by, reviewed_at, created_at, updated_at`,
 			userID, service.DistributionAgentStatusPending, contact, reason)
 		if err != nil {
 			if isUniqueConstraintViolation(err) {
@@ -65,12 +67,16 @@ RETURNING user_id, status, contact, reason, admin_note, reviewed_by, reviewed_at
 		var app service.DistributionAgentApplication
 		var reviewedBy sql.NullInt64
 		var reviewedAt sql.NullTime
+		var rmbOverride sql.NullFloat64
+		var subscriptionOverride sql.NullFloat64
 		if err := rows.Scan(
 			&app.UserID,
 			&app.Status,
 			&app.Contact,
 			&app.Reason,
 			&app.AdminNote,
+			&rmbOverride,
+			&subscriptionOverride,
 			&reviewedBy,
 			&reviewedAt,
 			&app.CreatedAt,
@@ -80,6 +86,12 @@ RETURNING user_id, status, contact, reason, admin_note, reviewed_by, reviewed_at
 		}
 		if reviewedBy.Valid {
 			app.ReviewedBy = &reviewedBy.Int64
+		}
+		if rmbOverride.Valid {
+			app.RMBPerUSDOverride = &rmbOverride.Float64
+		}
+		if subscriptionOverride.Valid {
+			app.SubscriptionDiscountOverride = &subscriptionOverride.Float64
 		}
 		if reviewedAt.Valid {
 			app.ReviewedAt = &reviewedAt.Time
@@ -116,7 +128,9 @@ WHERE ($1 = '%%' OR u.email ILIKE $1 OR u.username ILIKE $1)`, like)
 	}
 
 	rows, err := client.QueryContext(ctx, `
-SELECT da.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''), da.status, da.contact, da.reason, da.admin_note, da.reviewed_by, da.reviewed_at, da.created_at, da.updated_at
+SELECT da.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''), da.status, da.contact, da.reason, da.admin_note,
+       da.rmb_per_usd_override::double precision, da.subscription_discount_override::double precision,
+       da.reviewed_by, da.reviewed_at, da.created_at, da.updated_at
 FROM distribution_agents da
 JOIN users u ON u.id = da.user_id
 WHERE ($1 = '%%' OR u.email ILIKE $1 OR u.username ILIKE $1)
@@ -132,8 +146,16 @@ LIMIT $2 OFFSET $3`, like, pageSize, offset)
 		var item service.DistributionAgentApplication
 		var reviewedBy sql.NullInt64
 		var reviewedAt sql.NullTime
-		if err := rows.Scan(&item.UserID, &item.UserEmail, &item.Username, &item.Status, &item.Contact, &item.Reason, &item.AdminNote, &reviewedBy, &reviewedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		var rmbOverride sql.NullFloat64
+		var subscriptionOverride sql.NullFloat64
+		if err := rows.Scan(&item.UserID, &item.UserEmail, &item.Username, &item.Status, &item.Contact, &item.Reason, &item.AdminNote, &rmbOverride, &subscriptionOverride, &reviewedBy, &reviewedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, 0, err
+		}
+		if rmbOverride.Valid {
+			item.RMBPerUSDOverride = &rmbOverride.Float64
+		}
+		if subscriptionOverride.Valid {
+			item.SubscriptionDiscountOverride = &subscriptionOverride.Float64
 		}
 		if reviewedBy.Valid {
 			item.ReviewedBy = &reviewedBy.Int64
@@ -166,7 +188,7 @@ SET status = $1,
     reviewed_at = NOW(),
     updated_at = NOW()
 WHERE user_id = $4
-RETURNING user_id, status, contact, reason, admin_note, reviewed_by, reviewed_at, created_at, updated_at`,
+RETURNING user_id, status, contact, reason, admin_note, rmb_per_usd_override::double precision, subscription_discount_override::double precision, reviewed_by, reviewed_at, created_at, updated_at`,
 			status, adminNote, reviewedBy, userID)
 		if err != nil {
 			return err
@@ -178,8 +200,16 @@ RETURNING user_id, status, contact, reason, admin_note, reviewed_by, reviewed_at
 		var item service.DistributionAgentApplication
 		var reviewedByID sql.NullInt64
 		var reviewedAt sql.NullTime
-		if err := rows.Scan(&item.UserID, &item.Status, &item.Contact, &item.Reason, &item.AdminNote, &reviewedByID, &reviewedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		var rmbOverride sql.NullFloat64
+		var subscriptionOverride sql.NullFloat64
+		if err := rows.Scan(&item.UserID, &item.Status, &item.Contact, &item.Reason, &item.AdminNote, &rmbOverride, &subscriptionOverride, &reviewedByID, &reviewedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return err
+		}
+		if rmbOverride.Valid {
+			item.RMBPerUSDOverride = &rmbOverride.Float64
+		}
+		if subscriptionOverride.Valid {
+			item.SubscriptionDiscountOverride = &subscriptionOverride.Float64
 		}
 		if reviewedByID.Valid {
 			item.ReviewedBy = &reviewedByID.Int64
@@ -291,6 +321,33 @@ LIMIT $2 OFFSET $3`, like, pageSize, offset)
 	return out, total, nil
 }
 
+func (r *distributionRepository) UpdateAgentRates(ctx context.Context, userID int64, rates service.DistributionAgentRateSettings) (*service.DistributionAgentApplication, error) {
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+UPDATE distribution_agents
+SET rmb_per_usd_override = $1,
+    subscription_discount_override = $2,
+    updated_at = NOW()
+WHERE user_id = $3
+RETURNING user_id, status, contact, reason, admin_note, rmb_per_usd_override::double precision, subscription_discount_override::double precision, reviewed_by, reviewed_at, created_at, updated_at`,
+		nullableFloat64(rates.RMBPerUSDOverride),
+		nullableFloat64(rates.SubscriptionDiscountOverride),
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, service.ErrDistributionAgentNotFound
+	}
+	item, err := scanDistributionAgent(rows)
+	if err != nil {
+		return nil, err
+	}
+	return item, rows.Err()
+}
+
 func (r *distributionRepository) ListAllWalletLedger(ctx context.Context, page, pageSize int, userID int64) ([]service.DistributionWalletLedgerEntry, int64, error) {
 	if page < 1 {
 		page = 1
@@ -330,6 +387,232 @@ LIMIT $2 OFFSET $3`, userID, pageSize, offset)
 		return nil, 0, err
 	}
 	return out, total, nil
+}
+
+func (r *distributionRepository) CreateAsset(ctx context.Context, input service.DistributionCreateAssetInput) (*service.DistributionAsset, error) {
+	client := clientFromContext(ctx, r.client)
+	status := strings.TrimSpace(input.Status)
+	if status == "" {
+		status = service.DistributionAssetStatusActive
+	}
+	rows, err := client.QueryContext(ctx, `
+INSERT INTO distribution_assets (
+    user_id, wallet_id, asset_type, reference_type, reference_id, display_value, package_url,
+    face_value, cost_rmb, group_id, validity_days, quota_usd, status, customer_user_id,
+    used_at, expires_at, note, created_at, updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW())
+ON CONFLICT (reference_type, reference_id) DO UPDATE SET
+    display_value = EXCLUDED.display_value,
+    package_url = EXCLUDED.package_url,
+    face_value = EXCLUDED.face_value,
+    cost_rmb = EXCLUDED.cost_rmb,
+    group_id = EXCLUDED.group_id,
+    validity_days = EXCLUDED.validity_days,
+    quota_usd = EXCLUDED.quota_usd,
+    status = EXCLUDED.status,
+    customer_user_id = EXCLUDED.customer_user_id,
+    used_at = EXCLUDED.used_at,
+    expires_at = EXCLUDED.expires_at,
+    note = EXCLUDED.note,
+    updated_at = NOW()
+RETURNING id, user_id, wallet_id, asset_type, reference_type, reference_id, display_value, package_url,
+          face_value::double precision, cost_rmb::double precision, group_id, validity_days,
+          quota_usd::double precision, status, customer_user_id, used_at, expires_at,
+          refunded_at, refunded_rmb::double precision, refunded_by, note, created_at, updated_at`,
+		input.UserID,
+		input.WalletID,
+		input.AssetType,
+		input.ReferenceType,
+		input.ReferenceID,
+		input.DisplayValue,
+		input.PackageURL,
+		input.FaceValue,
+		input.CostRMB,
+		nullableInt64(input.GroupID),
+		input.ValidityDays,
+		input.QuotaUSD,
+		status,
+		nullableInt64(input.CustomerUserID),
+		nullableTime(input.UsedAt),
+		nullableTime(input.ExpiresAt),
+		strings.TrimSpace(input.Note),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, fmt.Errorf("create distribution asset: no row returned")
+	}
+	out, err := scanDistributionAsset(rows)
+	if err != nil {
+		return nil, err
+	}
+	return out, rows.Err()
+}
+
+func (r *distributionRepository) ListAssets(ctx context.Context, page, pageSize int, userID int64, assetType, status, search string) ([]service.DistributionAsset, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize <= 0 || pageSize > 500 {
+		pageSize = 50
+	}
+	offset := (page - 1) * pageSize
+	assetType = strings.TrimSpace(assetType)
+	status = strings.TrimSpace(status)
+	like := "%" + strings.TrimSpace(search) + "%"
+	client := clientFromContext(ctx, r.client)
+
+	where := `
+WHERE ($1::bigint = 0 OR da.user_id = $1)
+  AND ($2 = '' OR da.asset_type = $2)
+  AND ($3 = '' OR CASE
+         WHEN rc.status = 'used' THEN 'used'
+         WHEN rc.status = 'expired' THEN 'expired'
+         WHEN ak.deleted_at IS NOT NULL THEN 'disabled'
+         WHEN ak.expires_at IS NOT NULL AND ak.expires_at <= NOW() THEN 'expired'
+         WHEN ak.status IS NOT NULL AND ak.status <> 'active' THEN ak.status
+         ELSE da.status
+       END = $3)
+  AND ($4 = '%%' OR da.display_value ILIKE $4 OR da.reference_id ILIKE $4 OR u.email ILIKE $4 OR u.username ILIKE $4)`
+	total, err := scanInt64(ctx, client, `
+SELECT COUNT(*)
+FROM distribution_assets da
+JOIN users u ON u.id = da.user_id
+LEFT JOIN users cu ON cu.id = da.customer_user_id
+LEFT JOIN groups g ON g.id = da.group_id
+LEFT JOIN redeem_codes rc ON da.reference_type = 'redeem_code' AND rc.code = da.reference_id
+LEFT JOIN api_keys ak ON da.reference_type = 'api_key' AND ak.id::text = da.reference_id
+`+where, userID, assetType, status, like)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := client.QueryContext(ctx, `
+SELECT da.id, da.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
+       da.wallet_id, da.asset_type, da.reference_type, da.reference_id,
+       da.display_value, da.package_url, da.face_value::double precision,
+       da.cost_rmb::double precision, da.group_id, COALESCE(g.name, ''),
+       da.validity_days, da.quota_usd::double precision,
+       CASE
+         WHEN rc.status = 'used' THEN 'used'
+         WHEN rc.status = 'expired' THEN 'expired'
+         WHEN ak.deleted_at IS NOT NULL THEN 'disabled'
+         WHEN ak.expires_at IS NOT NULL AND ak.expires_at <= NOW() THEN 'expired'
+         WHEN ak.status IS NOT NULL AND ak.status <> 'active' THEN ak.status
+         ELSE da.status
+       END AS effective_status,
+       COALESCE(da.customer_user_id, rc.used_by) AS effective_customer_user_id,
+       COALESCE(cu.email, rcu.email, '') AS effective_customer_email,
+       COALESCE(da.used_at, rc.used_at) AS effective_used_at,
+       COALESCE(da.expires_at, ak.expires_at) AS effective_expires_at,
+       da.refunded_at, da.refunded_rmb::double precision, da.refunded_by,
+       da.note, da.created_at, da.updated_at
+FROM distribution_assets da
+JOIN users u ON u.id = da.user_id
+LEFT JOIN redeem_codes rc ON da.reference_type = 'redeem_code' AND rc.code = da.reference_id
+LEFT JOIN api_keys ak ON da.reference_type = 'api_key' AND ak.id::text = da.reference_id
+LEFT JOIN users cu ON cu.id = da.customer_user_id
+LEFT JOIN users rcu ON rcu.id = rc.used_by
+LEFT JOIN groups g ON g.id = da.group_id
+`+where+`
+ORDER BY da.created_at DESC, da.id DESC
+LIMIT $5 OFFSET $6`, userID, assetType, status, like, pageSize, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]service.DistributionAsset, 0)
+	for rows.Next() {
+		item, err := scanDistributionAssetWithJoins(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, *item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return out, total, nil
+}
+
+func (r *distributionRepository) GetAssetByID(ctx context.Context, id int64) (*service.DistributionAsset, error) {
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+SELECT da.id, da.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
+       da.wallet_id, da.asset_type, da.reference_type, da.reference_id,
+       da.display_value, da.package_url, da.face_value::double precision,
+       da.cost_rmb::double precision, da.group_id, COALESCE(g.name, ''),
+       da.validity_days, da.quota_usd::double precision,
+       CASE
+         WHEN rc.status = 'used' THEN 'used'
+         WHEN rc.status = 'expired' THEN 'expired'
+         WHEN ak.deleted_at IS NOT NULL THEN 'disabled'
+         WHEN ak.expires_at IS NOT NULL AND ak.expires_at <= NOW() THEN 'expired'
+         WHEN ak.status IS NOT NULL AND ak.status <> 'active' THEN ak.status
+         ELSE da.status
+       END AS effective_status,
+       COALESCE(da.customer_user_id, rc.used_by) AS effective_customer_user_id,
+       COALESCE(cu.email, rcu.email, '') AS effective_customer_email,
+       COALESCE(da.used_at, rc.used_at) AS effective_used_at,
+       COALESCE(da.expires_at, ak.expires_at) AS effective_expires_at,
+       da.refunded_at, da.refunded_rmb::double precision, da.refunded_by,
+       da.note, da.created_at, da.updated_at
+FROM distribution_assets da
+JOIN users u ON u.id = da.user_id
+LEFT JOIN redeem_codes rc ON da.reference_type = 'redeem_code' AND rc.code = da.reference_id
+LEFT JOIN api_keys ak ON da.reference_type = 'api_key' AND ak.id::text = da.reference_id
+LEFT JOIN users cu ON cu.id = da.customer_user_id
+LEFT JOIN users rcu ON rcu.id = rc.used_by
+LEFT JOIN groups g ON g.id = da.group_id
+WHERE da.id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, infraerrors.NotFound("DISTRIBUTION_ASSET_NOT_FOUND", "distribution asset not found")
+	}
+	item, err := scanDistributionAssetWithJoins(rows)
+	if err != nil {
+		return nil, err
+	}
+	return item, rows.Err()
+}
+
+func (r *distributionRepository) MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedBy int64) (*service.DistributionAsset, error) {
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+UPDATE distribution_assets
+SET status = $1,
+    refunded_at = NOW(),
+    refunded_rmb = cost_rmb,
+    refunded_by = $2,
+    updated_at = NOW()
+WHERE id = $3 AND refunded_at IS NULL AND refunded_rmb = 0
+RETURNING id, user_id, wallet_id, asset_type, reference_type, reference_id, display_value, package_url,
+          face_value::double precision, cost_rmb::double precision, group_id, validity_days,
+          quota_usd::double precision, status, customer_user_id, used_at, expires_at,
+          refunded_at, refunded_rmb::double precision, refunded_by, note, created_at, updated_at`,
+		status,
+		nullableInt64Value(refundedBy),
+		assetID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
+	}
+	item, err := scanDistributionAsset(rows)
+	if err != nil {
+		return nil, err
+	}
+	return item, rows.Err()
 }
 
 func (r *distributionRepository) UpdateWalletStatus(ctx context.Context, userID int64, status string) (*service.DistributionWallet, error) {
@@ -434,7 +717,7 @@ func queryDistributionAgent(ctx context.Context, client *dbent.Client, userID in
 		return nil, service.ErrDistributionAgentNotFound
 	}
 	rows, err := client.QueryContext(ctx, `
-SELECT user_id, status, contact, reason, admin_note, reviewed_by, reviewed_at, created_at, updated_at
+SELECT user_id, status, contact, reason, admin_note, rmb_per_usd_override::double precision, subscription_discount_override::double precision, reviewed_by, reviewed_at, created_at, updated_at
 FROM distribution_agents
 WHERE user_id = $1`, userID)
 	if err != nil {
@@ -447,22 +730,14 @@ WHERE user_id = $1`, userID)
 		}
 		return nil, service.ErrDistributionAgentNotFound
 	}
-	var item service.DistributionAgentApplication
-	var reviewedBy sql.NullInt64
-	var reviewedAt sql.NullTime
-	if err := rows.Scan(&item.UserID, &item.Status, &item.Contact, &item.Reason, &item.AdminNote, &reviewedBy, &reviewedAt, &item.CreatedAt, &item.UpdatedAt); err != nil {
+	item, err := scanDistributionAgent(rows)
+	if err != nil {
 		return nil, err
-	}
-	if reviewedBy.Valid {
-		item.ReviewedBy = &reviewedBy.Int64
-	}
-	if reviewedAt.Valid {
-		item.ReviewedAt = &reviewedAt.Time
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return &item, nil
+	return item, nil
 }
 
 func ensureDistributionWalletWithClient(ctx context.Context, client *dbent.Client, userID int64) (*service.DistributionWallet, error) {
@@ -532,4 +807,185 @@ WHERE user_id = $1`, userID)
 		return nil, err
 	}
 	return &wallet, nil
+}
+
+type distributionAssetScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanDistributionAgent(rows distributionAssetScanner) (*service.DistributionAgentApplication, error) {
+	var item service.DistributionAgentApplication
+	var reviewedBy sql.NullInt64
+	var reviewedAt sql.NullTime
+	var rmbOverride sql.NullFloat64
+	var subscriptionOverride sql.NullFloat64
+	if err := rows.Scan(
+		&item.UserID,
+		&item.Status,
+		&item.Contact,
+		&item.Reason,
+		&item.AdminNote,
+		&rmbOverride,
+		&subscriptionOverride,
+		&reviewedBy,
+		&reviewedAt,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if rmbOverride.Valid {
+		item.RMBPerUSDOverride = &rmbOverride.Float64
+	}
+	if subscriptionOverride.Valid {
+		item.SubscriptionDiscountOverride = &subscriptionOverride.Float64
+	}
+	if reviewedBy.Valid {
+		item.ReviewedBy = &reviewedBy.Int64
+	}
+	if reviewedAt.Valid {
+		item.ReviewedAt = &reviewedAt.Time
+	}
+	return &item, nil
+}
+
+func scanDistributionAsset(rows distributionAssetScanner) (*service.DistributionAsset, error) {
+	var item service.DistributionAsset
+	var groupID sql.NullInt64
+	var customerUserID sql.NullInt64
+	var usedAt sql.NullTime
+	var expiresAt sql.NullTime
+	var refundedAt sql.NullTime
+	var refundedBy sql.NullInt64
+	if err := rows.Scan(
+		&item.ID,
+		&item.UserID,
+		&item.WalletID,
+		&item.AssetType,
+		&item.ReferenceType,
+		&item.ReferenceID,
+		&item.DisplayValue,
+		&item.PackageURL,
+		&item.FaceValue,
+		&item.CostRMB,
+		&groupID,
+		&item.ValidityDays,
+		&item.QuotaUSD,
+		&item.Status,
+		&customerUserID,
+		&usedAt,
+		&expiresAt,
+		&refundedAt,
+		&item.RefundedRMB,
+		&refundedBy,
+		&item.Note,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if groupID.Valid {
+		item.GroupID = &groupID.Int64
+	}
+	if customerUserID.Valid {
+		item.CustomerUserID = &customerUserID.Int64
+	}
+	if usedAt.Valid {
+		item.UsedAt = &usedAt.Time
+	}
+	if expiresAt.Valid {
+		item.ExpiresAt = &expiresAt.Time
+	}
+	if refundedAt.Valid {
+		item.RefundedAt = &refundedAt.Time
+	}
+	if refundedBy.Valid {
+		item.RefundedBy = &refundedBy.Int64
+	}
+	return &item, nil
+}
+
+func scanDistributionAssetWithJoins(rows distributionAssetScanner) (*service.DistributionAsset, error) {
+	var item service.DistributionAsset
+	var groupID sql.NullInt64
+	var customerUserID sql.NullInt64
+	var usedAt sql.NullTime
+	var expiresAt sql.NullTime
+	var refundedAt sql.NullTime
+	var refundedBy sql.NullInt64
+	if err := rows.Scan(
+		&item.ID,
+		&item.UserID,
+		&item.UserEmail,
+		&item.Username,
+		&item.WalletID,
+		&item.AssetType,
+		&item.ReferenceType,
+		&item.ReferenceID,
+		&item.DisplayValue,
+		&item.PackageURL,
+		&item.FaceValue,
+		&item.CostRMB,
+		&groupID,
+		&item.GroupName,
+		&item.ValidityDays,
+		&item.QuotaUSD,
+		&item.Status,
+		&customerUserID,
+		&item.CustomerEmail,
+		&usedAt,
+		&expiresAt,
+		&refundedAt,
+		&item.RefundedRMB,
+		&refundedBy,
+		&item.Note,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return nil, err
+	}
+	if groupID.Valid {
+		item.GroupID = &groupID.Int64
+	}
+	if customerUserID.Valid {
+		item.CustomerUserID = &customerUserID.Int64
+	}
+	if usedAt.Valid {
+		item.UsedAt = &usedAt.Time
+	}
+	if expiresAt.Valid {
+		item.ExpiresAt = &expiresAt.Time
+	}
+	if refundedAt.Valid {
+		item.RefundedAt = &refundedAt.Time
+	}
+	if refundedBy.Valid {
+		item.RefundedBy = &refundedBy.Int64
+	}
+	return &item, nil
+}
+
+func nullableInt64(v *int64) sql.NullInt64 {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *v, Valid: true}
+}
+
+func nullableInt64Value(v int64) sql.NullInt64 {
+	return sql.NullInt64{Int64: v, Valid: v > 0}
+}
+
+func nullableFloat64(v *float64) sql.NullFloat64 {
+	if v == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *v, Valid: true}
+}
+
+func nullableTime(v *time.Time) sql.NullTime {
+	if v == nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: *v, Valid: true}
 }

@@ -436,6 +436,16 @@ func (s *RedeemService) GetByCode(ctx context.Context, code string) (*RedeemCode
 	return redeemCode, nil
 }
 
+func (s *RedeemService) UpdateCode(ctx context.Context, code *RedeemCode) error {
+	if code == nil {
+		return errors.New("redeem code is required")
+	}
+	if err := s.redeemRepo.Update(ctx, code); err != nil {
+		return fmt.Errorf("update redeem code: %w", err)
+	}
+	return nil
+}
+
 // List 获取兑换码列表（管理员功能）
 func (s *RedeemService) List(ctx context.Context, params pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error) {
 	codes, pagination, err := s.redeemRepo.List(ctx, params)

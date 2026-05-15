@@ -636,6 +636,25 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	return apiKey, nil
 }
 
+func (s *APIKeyService) UpdateStatus(ctx context.Context, id int64, userID int64, status string) (*APIKey, error) {
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get api key: %w", err)
+	}
+	if apiKey.UserID != userID {
+		return nil, ErrInsufficientPerms
+	}
+	apiKey.Status = status
+	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+		return nil, fmt.Errorf("update api key status: %w", err)
+	}
+	if s.cache != nil {
+		_ = s.cache.DeleteCreateAttemptCount(ctx, apiKey.UserID)
+	}
+	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
+	return apiKey, nil
+}
+
 // Delete 删除API Key
 func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) error {
 	key, ownerID, err := s.apiKeyRepo.GetKeyAndOwnerID(ctx, id)

@@ -155,6 +155,8 @@ export interface AffiliateTransferResponse {
 
 export type DistributionAgentStatus = 'pending' | 'approved' | 'rejected' | 'frozen'
 export type DistributionWalletStatus = 'active' | 'frozen'
+export type DistributionAssetType = 'balance_redeem_code' | 'subscription_redeem_code' | 'api_key'
+export type DistributionAssetStatus = 'active' | 'used' | 'disabled' | 'expired' | 'inactive' | 'quota_exhausted'
 
 export interface DistributionAgentApplication {
   user_id: number
@@ -164,6 +166,8 @@ export interface DistributionAgentApplication {
   contact: string
   reason: string
   admin_note: string
+  rmb_per_usd_override?: number | null
+  subscription_discount_override?: number | null
   reviewed_by?: number | null
   reviewed_at?: string | null
   created_at: string
@@ -198,6 +202,36 @@ export interface DistributionWalletLedgerEntry {
   created_at: string
 }
 
+export interface DistributionAsset {
+  id: number
+  user_id: number
+  user_email?: string
+  username?: string
+  wallet_id: number
+  asset_type: DistributionAssetType
+  reference_type: string
+  reference_id: string
+  display_value: string
+  package_url?: string
+  face_value: number
+  cost_rmb: number
+  group_id?: number | null
+  group_name?: string
+  validity_days?: number
+  quota_usd?: number
+  status: DistributionAssetStatus
+  customer_user_id?: number | null
+  customer_email?: string
+  used_at?: string | null
+  expires_at?: string | null
+  refunded_at?: string | null
+  refunded_rmb: number
+  refunded_by?: number | null
+  note: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DistributionSummary {
   application: DistributionAgentApplication | null
   wallet: DistributionWallet | null
@@ -226,6 +260,7 @@ export interface DistributionGeneratedApiKey {
   quota: number
   group_id?: number | null
   expires_at?: string | null
+  base_url: string
   cost_rmb: number
   balance_after: number
 }

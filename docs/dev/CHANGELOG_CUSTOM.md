@@ -27,6 +27,17 @@
 - Stopped injecting display token multipliers into gateway request context, so Claude/Antigravity response `usage` token fields are returned as the real upstream values.
 - Kept existing display pricing helpers for user/admin usage-log UI; only downstream API response token rewriting is disabled.
 
+## [2026-05-15] feat: add distribution asset controls and agent ratios
+
+**Affected files**: backend/migrations/140_add_distribution_assets.sql, backend/migrations/141_distribution_agent_rates_and_asset_refunds.sql, backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/, backend/internal/service/api_key_service.go, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/, docs/dev/codebase/distribution.md
+**Upstream compatibility**: medium risk; adds distribution tables, APIs, and admin UI without changing normal recharge, normal balance, or existing redeem-code behavior
+**Change details**:
+- Added a `distribution_assets` ledger for distribution-generated balance codes, subscription codes, and API key packages, including original face value, original RMB cost, expiry data, linked generated record, and refund markers.
+- Persisted generated assets in the same transaction as distribution redeem-code/API-key creation and added user/admin asset lists with copy and void actions.
+- Voiding an unused asset now expires/disables the underlying redeem code or API key and refunds the original recorded RMB cost to the distribution wallet with ledger action `asset_refund`.
+- Added per-agent ratio overrides for `rmb_per_usd_override` and `subscription_discount_override`; effective precedence is agent override first, then global setting.
+- Updated frontend API types, bilingual UI strings, and distribution module documentation.
+
 ## [2026-05-14] fix(frontend): 补齐分销管理中文文案
 
 **Affected files**: `frontend/src/i18n/locales/zh.ts`

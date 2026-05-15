@@ -89,6 +89,48 @@ func (h *DistributionHandler) GetLedger(c *gin.Context) {
 	response.Paginated(c, items, total, page, pageSize)
 }
 
+func (h *DistributionHandler) ListAssets(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	items, total, err := h.distributionService.ListAssets(
+		c.Request.Context(),
+		subject.UserID,
+		page,
+		pageSize,
+		c.Query("asset_type"),
+		c.Query("status"),
+		c.Query("search"),
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+func (h *DistributionHandler) VoidAsset(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	out, err := h.distributionService.VoidAsset(c.Request.Context(), subject.UserID, assetID, subject.UserID, false)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
 func (h *DistributionHandler) GenerateBalanceRedeemCode(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -178,6 +220,11 @@ type AdminDistributionWalletStatusRequest struct {
 	Frozen bool `json:"frozen"`
 }
 
+type AdminDistributionAgentRatesRequest struct {
+	RMBPerUSDOverride            *float64 `json:"rmb_per_usd_override"`
+	SubscriptionDiscountOverride *float64 `json:"subscription_discount_override"`
+}
+
 func (h *DistributionHandler) AdminListApplications(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	search := c.Query("search")
@@ -235,6 +282,28 @@ func (h *DistributionHandler) AdminUpdateSettings(c *gin.Context) {
 	response.Success(c, out)
 }
 
+func (h *DistributionHandler) AdminUpdateAgentRates(c *gin.Context) {
+	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	if err != nil || userID <= 0 {
+		response.BadRequest(c, "Invalid user_id")
+		return
+	}
+	var req AdminDistributionAgentRatesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	out, err := h.distributionService.UpdateAgentRates(c.Request.Context(), userID, service.DistributionAgentRateSettings{
+		RMBPerUSDOverride:            req.RMBPerUSDOverride,
+		SubscriptionDiscountOverride: req.SubscriptionDiscountOverride,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
 func (h *DistributionHandler) AdminListWallets(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	search := c.Query("search")
@@ -263,6 +332,48 @@ func (h *DistributionHandler) AdminListLedger(c *gin.Context) {
 		return
 	}
 	response.Paginated(c, items, total, page, pageSize)
+}
+
+func (h *DistributionHandler) AdminListAssets(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	var userID int64
+	if raw := c.Query("user_id"); raw != "" {
+		v, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || v < 0 {
+			response.BadRequest(c, "Invalid user_id")
+			return
+		}
+		userID = v
+	}
+	items, total, err := h.distributionService.ListAllAssets(
+		c.Request.Context(),
+		page,
+		pageSize,
+		userID,
+		c.Query("asset_type"),
+		c.Query("status"),
+		c.Query("search"),
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
+}
+
+func (h *DistributionHandler) AdminVoidAsset(c *gin.Context) {
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	operatorID := currentUserIDFromContext(c)
+	out, err := h.distributionService.VoidAsset(c.Request.Context(), 0, assetID, operatorID, true)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
 }
 
 func (h *DistributionHandler) AdminAdjustWallet(c *gin.Context) {

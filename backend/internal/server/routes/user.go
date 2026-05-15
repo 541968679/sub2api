@@ -118,6 +118,8 @@ func RegisterUserRoutes(
 			distribution.GET("", h.Distribution.GetMine)
 			distribution.POST("/apply", h.Distribution.Apply)
 			distribution.GET("/ledger", h.Distribution.GetLedger)
+			distribution.GET("/assets", h.Distribution.ListAssets)
+			distribution.POST("/assets/:id/void", h.Distribution.VoidAsset)
 			distribution.POST("/redeem-codes/balance", h.Distribution.GenerateBalanceRedeemCode)
 			distribution.POST("/redeem-codes/subscription", h.Distribution.GenerateSubscriptionRedeemCode)
 			distribution.POST("/api-keys", h.Distribution.GenerateAPIKey)

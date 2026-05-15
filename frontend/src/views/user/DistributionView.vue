@@ -154,6 +154,54 @@
           </div>
         </div>
 
+        <div v-if="isApproved" class="card p-6">
+          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.assets.title') }}</h3>
+            <button class="btn btn-secondary btn-sm" :disabled="assetsLoading" @click="loadAssets">{{ t('common.refresh') }}</button>
+          </div>
+          <div v-if="assets.items.length === 0" class="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+            {{ t('distribution.assets.empty') }}
+          </div>
+          <div v-else class="overflow-x-auto">
+            <table class="w-full min-w-[980px] text-left text-sm">
+              <thead>
+                <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.type') }}</th>
+                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.value') }}</th>
+                  <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.faceValue') }}</th>
+                  <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.cost') }}</th>
+                  <th class="px-3 py-2 font-medium">{{ t('common.status') }}</th>
+                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.customer') }}</th>
+                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.createdAt') }}</th>
+                  <th class="px-3 py-2 font-medium">{{ t('common.actions') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="asset in assets.items" :key="asset.id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
+                  <td class="px-3 py-3">{{ assetTypeLabel(asset.asset_type) }}</td>
+                  <td class="px-3 py-3">
+                    <p class="break-all font-mono text-xs text-gray-900 dark:text-white">{{ asset.display_value }}</p>
+                    <p v-if="asset.package_url" class="mt-1 break-all text-xs text-gray-500 dark:text-dark-400">{{ asset.package_url }}</p>
+                  </td>
+                  <td class="px-3 py-3 text-right">{{ assetFaceValue(asset) }}</td>
+                  <td class="px-3 py-3 text-right">{{ formatCurrency(asset.cost_rmb, 'CNY') }}</td>
+                  <td class="px-3 py-3"><span class="badge" :class="assetStatusBadge(asset.status)">{{ assetStatusLabel(asset.status) }}</span></td>
+                  <td class="px-3 py-3">{{ asset.customer_email || '-' }}</td>
+                  <td class="px-3 py-3">{{ formatDateTime(asset.created_at) }}</td>
+                  <td class="px-3 py-3">
+                    <div class="flex items-center gap-2">
+                      <button class="btn btn-secondary btn-sm" @click="copy(assetCopyText(asset))">{{ t('common.copy') }}</button>
+                      <button v-if="canVoidAsset(asset)" class="btn btn-danger btn-sm" :disabled="voidingAssetId === asset.id" @click="voidAsset(asset)">
+                        {{ t('distribution.assets.void') }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="card p-6">
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.ledger.title') }}</h3>
@@ -196,7 +244,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import distributionAPI from '@/api/distribution'
 import userGroupsAPI from '@/api/groups'
-import type { DistributionSummary, DistributionWalletLedgerEntry, Group } from '@/types'
+import type { DistributionAsset, DistributionSummary, DistributionWalletLedgerEntry, Group } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
@@ -207,10 +255,13 @@ const appStore = useAppStore()
 const loading = ref(true)
 const submitting = ref(false)
 const ledgerLoading = ref(false)
+const assetsLoading = ref(false)
+const voidingAssetId = ref<number | null>(null)
 const summary = ref<DistributionSummary | null>(null)
 const groups = ref<Group[]>([])
 const generatedItems = ref<Array<{ label: string; value: string; meta: string }>>([])
 const ledger = reactive({ items: [] as DistributionWalletLedgerEntry[] })
+const assets = reactive({ items: [] as DistributionAsset[] })
 const applyForm = reactive({ contact: '', reason: '' })
 const balanceForm = reactive({ value_usd: 10, note: '' })
 const subscriptionForm = reactive({ face_value_rmb: 30, group_id: 0, validity_days: 30 })
@@ -268,6 +319,18 @@ async function loadLedger(): Promise<void> {
     ledger.items = []
   } finally {
     ledgerLoading.value = false
+  }
+}
+
+async function loadAssets(): Promise<void> {
+  assetsLoading.value = true
+  try {
+    const resp = await distributionAPI.listAssets({ page: 1, page_size: 50 })
+    assets.items = resp.items ?? []
+  } catch {
+    assets.items = []
+  } finally {
+    assetsLoading.value = false
   }
 }
 
@@ -333,7 +396,7 @@ async function generateApiKey(): Promise<void> {
 async function refreshAfterGeneration(balanceAfter: number): Promise<void> {
   if (summary.value?.wallet) summary.value.wallet.balance = balanceAfter
   appStore.showSuccess(t('distribution.generate.success'))
-  await loadLedger()
+  await Promise.all([loadLedger(), loadAssets()])
 }
 
 function addGenerated(label: string, value: string, meta: string): void {
@@ -349,10 +412,57 @@ function actionLabel(action: string): string {
   return t(`distribution.ledger.actions.${action}`, action)
 }
 
+function assetTypeLabel(type: string): string {
+  return t(`distribution.assets.types.${type}`, type)
+}
+
+function assetStatusLabel(status: string): string {
+  return t(`distribution.assets.status.${status}`, status)
+}
+
+function assetStatusBadge(status: string): string {
+  if (status === 'active') return 'badge-success'
+  if (status === 'used') return 'badge-primary'
+  if (status === 'expired') return 'badge-warning'
+  return 'badge-gray'
+}
+
+function assetFaceValue(asset: DistributionAsset): string {
+  if (asset.asset_type === 'subscription_redeem_code') return formatCurrency(asset.face_value, 'CNY')
+  return `$${(asset.quota_usd || asset.face_value || 0).toFixed(2)}`
+}
+
+function assetCopyText(asset: DistributionAsset): string {
+  if (asset.asset_type === 'api_key') {
+    const baseUrl = asset.package_url || window.location.origin
+    return `Base URL: ${baseUrl}\nAPI Key: ${asset.display_value}`
+  }
+  return asset.display_value
+}
+
+function canVoidAsset(asset: DistributionAsset): boolean {
+  return asset.status === 'active' && !asset.refunded_at
+}
+
+async function voidAsset(asset: DistributionAsset): Promise<void> {
+  if (!canVoidAsset(asset) || voidingAssetId.value) return
+  voidingAssetId.value = asset.id
+  try {
+    const result = await distributionAPI.voidAsset(asset.id)
+    appStore.showSuccess(t('distribution.assets.voidSuccess', { amount: formatCurrency(result.refund_rmb, 'CNY') }))
+    if (summary.value?.wallet) summary.value.wallet.balance += result.refund_rmb
+    await Promise.all([loadAssets(), loadLedger()])
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('distribution.assets.voidFailed')))
+  } finally {
+    voidingAssetId.value = null
+  }
+}
+
 onMounted(async () => {
   try {
     await Promise.all([loadSummary(), loadGroups()])
-    await loadLedger()
+    await Promise.all([loadLedger(), loadAssets()])
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('distribution.loadFailed')))
   } finally {

@@ -1,5 +1,8 @@
 import { apiClient } from './client'
 import type {
+  DistributionAsset,
+  DistributionAssetStatus,
+  DistributionAssetType,
   DistributionGeneratedApiKey,
   DistributionGeneratedRedeemCode,
   DistributionSummary,
@@ -31,6 +34,19 @@ export interface GenerateDistributionApiKeyRequest {
   expires_in_days?: number | null
 }
 
+export interface ListDistributionAssetsParams {
+  page?: number
+  page_size?: number
+  asset_type?: DistributionAssetType | ''
+  status?: DistributionAssetStatus | ''
+  search?: string
+}
+
+export interface VoidDistributionAssetResponse {
+  asset: DistributionAsset
+  refund_rmb: number
+}
+
 export async function getSummary(): Promise<DistributionSummary> {
   const { data } = await apiClient.get<DistributionSummary>('/distribution')
   return data
@@ -48,6 +64,18 @@ export async function listLedger(
   const { data } = await apiClient.get<PaginatedResponse<DistributionWalletLedgerEntry>>('/distribution/ledger', {
     params: { page, page_size: pageSize },
   })
+  return data
+}
+
+export async function listAssets(
+  params: ListDistributionAssetsParams = {},
+): Promise<PaginatedResponse<DistributionAsset>> {
+  const { data } = await apiClient.get<PaginatedResponse<DistributionAsset>>('/distribution/assets', { params })
+  return data
+}
+
+export async function voidAsset(id: number): Promise<VoidDistributionAssetResponse> {
+  const { data } = await apiClient.post<VoidDistributionAssetResponse>(`/distribution/assets/${id}/void`)
   return data
 }
 
@@ -76,6 +104,8 @@ export const distributionAPI = {
   getSummary,
   apply,
   listLedger,
+  listAssets,
+  voidAsset,
   generateBalanceRedeemCode,
   generateSubscriptionRedeemCode,
   generateApiKey,

@@ -22,6 +22,17 @@ const (
 	DistributionWalletStatusFrozen = "frozen"
 )
 
+const (
+	DistributionAssetTypeBalanceRedeemCode      = "balance_redeem_code"
+	DistributionAssetTypeSubscriptionRedeemCode = "subscription_redeem_code"
+	DistributionAssetTypeAPIKey                 = "api_key"
+
+	DistributionAssetStatusActive   = "active"
+	DistributionAssetStatusUsed     = "used"
+	DistributionAssetStatusDisabled = "disabled"
+	DistributionAssetStatusExpired  = "expired"
+)
+
 var (
 	ErrDistributionAgentNotFound  = infraerrors.NotFound("DISTRIBUTION_AGENT_NOT_FOUND", "distribution agent not found")
 	ErrDistributionAgentPending   = infraerrors.BadRequest("DISTRIBUTION_AGENT_PENDING", "distribution agent application is pending")
@@ -39,20 +50,23 @@ const (
 	DistributionLedgerActionGenerateRedeemCode   = "generate_redeem_code"
 	DistributionLedgerActionGenerateSubscription = "generate_subscription"
 	DistributionLedgerActionGenerateAPIKey       = "generate_api_key"
+	DistributionLedgerActionAssetRefund          = "asset_refund"
 )
 
 type DistributionAgentApplication struct {
-	UserID     int64      `json:"user_id"`
-	UserEmail  string     `json:"user_email,omitempty"`
-	Username   string     `json:"username,omitempty"`
-	Status     string     `json:"status"`
-	Contact    string     `json:"contact"`
-	Reason     string     `json:"reason"`
-	AdminNote  string     `json:"admin_note"`
-	ReviewedBy *int64     `json:"reviewed_by,omitempty"`
-	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	UserID                       int64      `json:"user_id"`
+	UserEmail                    string     `json:"user_email,omitempty"`
+	Username                     string     `json:"username,omitempty"`
+	Status                       string     `json:"status"`
+	Contact                      string     `json:"contact"`
+	Reason                       string     `json:"reason"`
+	AdminNote                    string     `json:"admin_note"`
+	RMBPerUSDOverride            *float64   `json:"rmb_per_usd_override,omitempty"`
+	SubscriptionDiscountOverride *float64   `json:"subscription_discount_override,omitempty"`
+	ReviewedBy                   *int64     `json:"reviewed_by,omitempty"`
+	ReviewedAt                   *time.Time `json:"reviewed_at,omitempty"`
+	CreatedAt                    time.Time  `json:"created_at"`
+	UpdatedAt                    time.Time  `json:"updated_at"`
 }
 
 type DistributionWallet struct {
@@ -83,6 +97,36 @@ type DistributionWalletLedgerEntry struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+type DistributionAsset struct {
+	ID             int64      `json:"id"`
+	UserID         int64      `json:"user_id"`
+	UserEmail      string     `json:"user_email,omitempty"`
+	Username       string     `json:"username,omitempty"`
+	WalletID       int64      `json:"wallet_id"`
+	AssetType      string     `json:"asset_type"`
+	ReferenceType  string     `json:"reference_type"`
+	ReferenceID    string     `json:"reference_id"`
+	DisplayValue   string     `json:"display_value"`
+	PackageURL     string     `json:"package_url,omitempty"`
+	FaceValue      float64    `json:"face_value"`
+	CostRMB        float64    `json:"cost_rmb"`
+	GroupID        *int64     `json:"group_id,omitempty"`
+	GroupName      string     `json:"group_name,omitempty"`
+	ValidityDays   int        `json:"validity_days,omitempty"`
+	QuotaUSD       float64    `json:"quota_usd,omitempty"`
+	Status         string     `json:"status"`
+	CustomerUserID *int64     `json:"customer_user_id,omitempty"`
+	CustomerEmail  string     `json:"customer_email,omitempty"`
+	UsedAt         *time.Time `json:"used_at,omitempty"`
+	ExpiresAt      *time.Time `json:"expires_at,omitempty"`
+	RefundedAt     *time.Time `json:"refunded_at,omitempty"`
+	RefundedRMB    float64    `json:"refunded_rmb"`
+	RefundedBy     *int64     `json:"refunded_by,omitempty"`
+	Note           string     `json:"note"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
 type DistributionSummary struct {
 	Application *DistributionAgentApplication `json:"application"`
 	Wallet      *DistributionWallet           `json:"wallet"`
@@ -92,6 +136,11 @@ type DistributionSummary struct {
 type DistributionSettings struct {
 	RMBPerUSD            float64 `json:"rmb_per_usd"`
 	SubscriptionDiscount float64 `json:"subscription_discount"`
+}
+
+type DistributionAgentRateSettings struct {
+	RMBPerUSDOverride            *float64 `json:"rmb_per_usd_override"`
+	SubscriptionDiscountOverride *float64 `json:"subscription_discount_override"`
 }
 
 type DistributionGeneratedRedeemCode struct {
@@ -111,8 +160,29 @@ type DistributionGeneratedAPIKey struct {
 	Quota        float64    `json:"quota"`
 	GroupID      *int64     `json:"group_id,omitempty"`
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	BaseURL      string     `json:"base_url"`
 	CostRMB      float64    `json:"cost_rmb"`
 	BalanceAfter float64    `json:"balance_after"`
+}
+
+type DistributionCreateAssetInput struct {
+	UserID         int64
+	WalletID       int64
+	AssetType      string
+	ReferenceType  string
+	ReferenceID    string
+	DisplayValue   string
+	PackageURL     string
+	FaceValue      float64
+	CostRMB        float64
+	GroupID        *int64
+	ValidityDays   int
+	QuotaUSD       float64
+	Status         string
+	CustomerUserID *int64
+	UsedAt         *time.Time
+	ExpiresAt      *time.Time
+	Note           string
 }
 
 type DistributionGenerateBalanceRedeemCodeInput struct {
@@ -141,6 +211,12 @@ type DistributionAdminAdjustWalletInput struct {
 	AdminID int64
 }
 
+type DistributionVoidAssetResult struct {
+	Asset     *DistributionAsset  `json:"asset"`
+	Wallet    *DistributionWallet `json:"wallet"`
+	RefundRMB float64             `json:"refund_rmb"`
+}
+
 type DistributionRepository interface {
 	EnsureAgent(ctx context.Context, userID int64) (*DistributionAgentApplication, error)
 	CreateAgentApplication(ctx context.Context, userID int64, contact, reason string) (*DistributionAgentApplication, error)
@@ -152,6 +228,11 @@ type DistributionRepository interface {
 	ListWallets(ctx context.Context, page, pageSize int, search string) ([]DistributionWallet, int64, error)
 	ListWalletLedger(ctx context.Context, userID int64, page, pageSize int) ([]DistributionWalletLedgerEntry, int64, error)
 	ListAllWalletLedger(ctx context.Context, page, pageSize int, userID int64) ([]DistributionWalletLedgerEntry, int64, error)
+	CreateAsset(ctx context.Context, input DistributionCreateAssetInput) (*DistributionAsset, error)
+	GetAssetByID(ctx context.Context, id int64) (*DistributionAsset, error)
+	ListAssets(ctx context.Context, page, pageSize int, userID int64, assetType, status, search string) ([]DistributionAsset, int64, error)
+	UpdateAgentRates(ctx context.Context, userID int64, rates DistributionAgentRateSettings) (*DistributionAgentApplication, error)
+	MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedBy int64) (*DistributionAsset, error)
 	UpdateWalletStatus(ctx context.Context, userID int64, status string) (*DistributionWallet, error)
 	AdjustWalletBalance(ctx context.Context, userID int64, amount float64, action, referenceType, referenceID, note string, createdBy int64) (*DistributionWallet, error)
 	WithTx(ctx context.Context, fn func(txCtx context.Context) error) error
@@ -187,7 +268,7 @@ func (s *DistributionService) GetCurrentUserSummary(ctx context.Context, userID 
 			return nil, err
 		}
 	}
-	settings, _ := s.GetSettings(ctx)
+	settings, _ := s.GetEffectiveSettingsForUser(ctx, userID)
 	return &DistributionSummary{Application: agent, Wallet: wallet, Settings: settings}, nil
 }
 
@@ -239,6 +320,23 @@ func (s *DistributionService) ListWalletLedger(ctx context.Context, userID int64
 	return s.repo.ListWalletLedger(ctx, userID, page, pageSize)
 }
 
+func (s *DistributionService) ListAssets(ctx context.Context, userID int64, page, pageSize int, assetType, status, search string) ([]DistributionAsset, int64, error) {
+	if s == nil || s.repo == nil {
+		return nil, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if userID <= 0 {
+		return nil, 0, infraerrors.BadRequest("INVALID_USER", "invalid user")
+	}
+	return s.repo.ListAssets(ctx, page, pageSize, userID, assetType, status, search)
+}
+
+func (s *DistributionService) ListAllAssets(ctx context.Context, page, pageSize int, userID int64, assetType, status, search string) ([]DistributionAsset, int64, error) {
+	if s == nil || s.repo == nil {
+		return nil, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	return s.repo.ListAssets(ctx, page, pageSize, userID, assetType, status, search)
+}
+
 func (s *DistributionService) GetSettings(ctx context.Context) (DistributionSettings, error) {
 	defaults := DistributionSettings{RMBPerUSD: 0.5, SubscriptionDiscount: 0.75}
 	if s == nil || s.settingRepo == nil {
@@ -256,6 +354,30 @@ func (s *DistributionService) GetSettings(ctx context.Context) (DistributionSett
 		out.SubscriptionDiscount = v
 	}
 	return out, nil
+}
+
+func (s *DistributionService) GetEffectiveSettingsForUser(ctx context.Context, userID int64) (DistributionSettings, error) {
+	settings, err := s.GetSettings(ctx)
+	if err != nil {
+		return settings, err
+	}
+	if s == nil || s.repo == nil || userID <= 0 {
+		return settings, nil
+	}
+	agent, err := s.repo.GetAgentApplication(ctx, userID)
+	if err != nil {
+		if errors.Is(err, ErrDistributionAgentNotFound) {
+			return settings, nil
+		}
+		return settings, err
+	}
+	if agent.RMBPerUSDOverride != nil && *agent.RMBPerUSDOverride > 0 {
+		settings.RMBPerUSD = *agent.RMBPerUSDOverride
+	}
+	if agent.SubscriptionDiscountOverride != nil && *agent.SubscriptionDiscountOverride > 0 {
+		settings.SubscriptionDiscount = *agent.SubscriptionDiscountOverride
+	}
+	return settings, nil
 }
 
 func (s *DistributionService) UpdateSettings(ctx context.Context, settings DistributionSettings) (DistributionSettings, error) {
@@ -281,11 +403,48 @@ func (s *DistributionService) UpdateSettings(ctx context.Context, settings Distr
 	return s.GetSettings(ctx)
 }
 
+func (s *DistributionService) UpdateAgentRates(ctx context.Context, userID int64, rates DistributionAgentRateSettings) (*DistributionAgentApplication, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if userID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_USER", "invalid user")
+	}
+	if rates.RMBPerUSDOverride != nil {
+		if *rates.RMBPerUSDOverride < 0 || math.IsNaN(*rates.RMBPerUSDOverride) || math.IsInf(*rates.RMBPerUSDOverride, 0) {
+			return nil, ErrDistributionInvalidAmount
+		}
+		if *rates.RMBPerUSDOverride == 0 {
+			rates.RMBPerUSDOverride = nil
+		}
+	}
+	if rates.SubscriptionDiscountOverride != nil {
+		if *rates.SubscriptionDiscountOverride < 0 || *rates.SubscriptionDiscountOverride > 1 || math.IsNaN(*rates.SubscriptionDiscountOverride) || math.IsInf(*rates.SubscriptionDiscountOverride, 0) {
+			return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_DISCOUNT", "subscription discount must be between 0 and 1")
+		}
+		if *rates.SubscriptionDiscountOverride == 0 {
+			rates.SubscriptionDiscountOverride = nil
+		}
+	}
+	return s.repo.UpdateAgentRates(ctx, userID, rates)
+}
+
+func (s *DistributionService) getAPIBaseURL(ctx context.Context) string {
+	if s == nil || s.settingRepo == nil {
+		return ""
+	}
+	setting, err := s.settingRepo.Get(ctx, SettingKeyAPIBaseURL)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(setting.Value)
+}
+
 func (s *DistributionService) GenerateBalanceRedeemCode(ctx context.Context, userID int64, input DistributionGenerateBalanceRedeemCodeInput) (*DistributionGeneratedRedeemCode, error) {
 	if err := validateDistributionAmount(input.ValueUSD); err != nil {
 		return nil, err
 	}
-	settings, err := s.GetSettings(ctx)
+	settings, err := s.GetEffectiveSettingsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -307,6 +466,20 @@ func (s *DistributionService) GenerateBalanceRedeemCode(ctx context.Context, use
 		if err := s.redeem.CreateCode(txCtx, redeemCode); err != nil {
 			return "", err
 		}
+		if _, err := s.repo.CreateAsset(txCtx, DistributionCreateAssetInput{
+			UserID:        userID,
+			WalletID:      wallet.ID,
+			AssetType:     DistributionAssetTypeBalanceRedeemCode,
+			ReferenceType: "redeem_code",
+			ReferenceID:   redeemCode.Code,
+			DisplayValue:  redeemCode.Code,
+			FaceValue:     redeemCode.Value,
+			CostRMB:       cost,
+			Status:        DistributionAssetStatusActive,
+			Note:          distributionNote("distribution balance redeem code", input.Note),
+		}); err != nil {
+			return "", err
+		}
 		out = &DistributionGeneratedRedeemCode{Code: redeemCode.Code, Type: redeemCode.Type, Value: redeemCode.Value, CostRMB: cost}
 		return redeemCode.Code, nil
 	})
@@ -323,7 +496,7 @@ func (s *DistributionService) GenerateSubscriptionRedeemCode(ctx context.Context
 	if input.GroupID <= 0 || input.ValidityDays <= 0 {
 		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_SUBSCRIPTION", "group_id and validity_days are required")
 	}
-	settings, err := s.GetSettings(ctx)
+	settings, err := s.GetEffectiveSettingsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -353,6 +526,22 @@ func (s *DistributionService) GenerateSubscriptionRedeemCode(ctx context.Context
 		if err := s.redeem.CreateCode(txCtx, redeemCode); err != nil {
 			return "", err
 		}
+		if _, err := s.repo.CreateAsset(txCtx, DistributionCreateAssetInput{
+			UserID:        userID,
+			WalletID:      wallet.ID,
+			AssetType:     DistributionAssetTypeSubscriptionRedeemCode,
+			ReferenceType: "redeem_code",
+			ReferenceID:   redeemCode.Code,
+			DisplayValue:  redeemCode.Code,
+			FaceValue:     redeemCode.Value,
+			CostRMB:       cost,
+			GroupID:       redeemCode.GroupID,
+			ValidityDays:  redeemCode.ValidityDays,
+			Status:        DistributionAssetStatusActive,
+			Note:          distributionNote("distribution subscription redeem code", input.Note),
+		}); err != nil {
+			return "", err
+		}
 		out = &DistributionGeneratedRedeemCode{Code: redeemCode.Code, Type: redeemCode.Type, Value: redeemCode.Value, GroupID: redeemCode.GroupID, ValidityDays: redeemCode.ValidityDays, CostRMB: cost}
 		return redeemCode.Code, nil
 	})
@@ -366,7 +555,7 @@ func (s *DistributionService) GenerateAPIKey(ctx context.Context, userID int64, 
 	if err := validateDistributionAmount(input.QuotaUSD); err != nil {
 		return nil, err
 	}
-	settings, err := s.GetSettings(ctx)
+	settings, err := s.GetEffectiveSettingsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -375,6 +564,7 @@ func (s *DistributionService) GenerateAPIKey(ctx context.Context, userID int64, 
 		name = "Distribution package"
 	}
 	cost := roundMoney(input.QuotaUSD * settings.RMBPerUSD)
+	baseURL := s.getAPIBaseURL(ctx)
 	var out *DistributionGeneratedAPIKey
 	wallet, err := s.runGenerationTx(ctx, userID, cost, DistributionLedgerActionGenerateAPIKey, "api_key", name, func(txCtx context.Context, wallet *DistributionWallet) (string, error) {
 		apiKey, err := s.apiKey.Create(txCtx, userID, CreateAPIKeyRequest{
@@ -386,7 +576,25 @@ func (s *DistributionService) GenerateAPIKey(ctx context.Context, userID int64, 
 		if err != nil {
 			return "", err
 		}
-		out = &DistributionGeneratedAPIKey{ID: apiKey.ID, Name: apiKey.Name, Key: apiKey.Key, Quota: apiKey.Quota, GroupID: apiKey.GroupID, ExpiresAt: apiKey.ExpiresAt, CostRMB: cost}
+		if _, err := s.repo.CreateAsset(txCtx, DistributionCreateAssetInput{
+			UserID:        userID,
+			WalletID:      wallet.ID,
+			AssetType:     DistributionAssetTypeAPIKey,
+			ReferenceType: "api_key",
+			ReferenceID:   strconv.FormatInt(apiKey.ID, 10),
+			DisplayValue:  apiKey.Key,
+			PackageURL:    baseURL,
+			FaceValue:     input.QuotaUSD,
+			CostRMB:       cost,
+			GroupID:       apiKey.GroupID,
+			QuotaUSD:      apiKey.Quota,
+			Status:        DistributionAssetStatusActive,
+			ExpiresAt:     apiKey.ExpiresAt,
+			Note:          name,
+		}); err != nil {
+			return "", err
+		}
+		out = &DistributionGeneratedAPIKey{ID: apiKey.ID, Name: apiKey.Name, Key: apiKey.Key, Quota: apiKey.Quota, GroupID: apiKey.GroupID, ExpiresAt: apiKey.ExpiresAt, BaseURL: baseURL, CostRMB: cost}
 		return strconv.FormatInt(apiKey.ID, 10), nil
 	})
 	if err == nil && out != nil && wallet != nil {
@@ -428,6 +636,78 @@ func (s *DistributionService) UpdateWalletStatus(ctx context.Context, userID int
 		status = DistributionWalletStatusFrozen
 	}
 	return s.repo.UpdateWalletStatus(ctx, userID, status)
+}
+
+func (s *DistributionService) VoidAsset(ctx context.Context, userID, assetID, operatorID int64, admin bool) (*DistributionVoidAssetResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if assetID <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid distribution asset")
+	}
+	var result *DistributionVoidAssetResult
+	err := s.repo.WithTx(ctx, func(txCtx context.Context) error {
+		asset, err := s.repo.GetAssetByID(txCtx, assetID)
+		if err != nil {
+			return err
+		}
+		if !admin && asset.UserID != userID {
+			return ErrDistributionAgentNotFound
+		}
+		if asset.Status == DistributionAssetStatusUsed {
+			return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be voided")
+		}
+		if asset.RefundedAt != nil || asset.RefundedRMB > 0 {
+			return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
+		}
+
+		nextStatus := DistributionAssetStatusDisabled
+		switch asset.AssetType {
+		case DistributionAssetTypeBalanceRedeemCode, DistributionAssetTypeSubscriptionRedeemCode:
+			if s.redeem == nil {
+				return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "redeem service unavailable")
+			}
+			code, err := s.redeem.GetByCode(txCtx, asset.ReferenceID)
+			if err != nil {
+				return err
+			}
+			if code.Status == StatusUsed {
+				return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be voided")
+			}
+			code.Status = StatusExpired
+			if err := s.redeem.UpdateCode(txCtx, code); err != nil {
+				return err
+			}
+			nextStatus = DistributionAssetStatusExpired
+		case DistributionAssetTypeAPIKey:
+			if s.apiKey == nil {
+				return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "api key service unavailable")
+			}
+			refID, err := strconv.ParseInt(asset.ReferenceID, 10, 64)
+			if err != nil || refID <= 0 {
+				return infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid api key asset")
+			}
+			disabled := StatusAPIKeyDisabled
+			if _, err := s.apiKey.UpdateStatus(txCtx, refID, asset.UserID, disabled); err != nil {
+				return err
+			}
+			nextStatus = DistributionAssetStatusDisabled
+		default:
+			return infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "unsupported distribution asset type")
+		}
+
+		refunded, err := s.repo.MarkAssetRefunded(txCtx, asset.ID, nextStatus, operatorID)
+		if err != nil {
+			return err
+		}
+		wallet, err := s.repo.AdjustWalletBalance(txCtx, asset.UserID, asset.CostRMB, DistributionLedgerActionAssetRefund, "distribution_asset", strconv.FormatInt(asset.ID, 10), "void distribution asset refund", operatorID)
+		if err != nil {
+			return err
+		}
+		result = &DistributionVoidAssetResult{Asset: refunded, Wallet: wallet, RefundRMB: asset.CostRMB}
+		return nil
+	})
+	return result, err
 }
 
 func (s *DistributionService) runGenerationTx(ctx context.Context, userID int64, cost float64, action, referenceType, note string, create func(txCtx context.Context, wallet *DistributionWallet) (string, error)) (*DistributionWallet, error) {

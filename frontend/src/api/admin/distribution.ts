@@ -1,6 +1,9 @@
 import { apiClient } from '../client'
 import type {
   DistributionAgentApplication,
+  DistributionAsset,
+  DistributionAssetStatus,
+  DistributionAssetType,
   DistributionSettings,
   DistributionWallet,
   DistributionWalletLedgerEntry,
@@ -30,6 +33,15 @@ export interface ListDistributionLedgerParams {
   user_id?: number
 }
 
+export interface ListDistributionAssetsParams {
+  page?: number
+  page_size?: number
+  user_id?: number
+  asset_type?: DistributionAssetType | ''
+  status?: DistributionAssetStatus | ''
+  search?: string
+}
+
 export interface AdjustDistributionWalletRequest {
   amount: number
   note?: string
@@ -37,6 +49,16 @@ export interface AdjustDistributionWalletRequest {
 
 export interface UpdateDistributionWalletStatusRequest {
   frozen: boolean
+}
+
+export interface UpdateDistributionAgentRatesRequest {
+  rmb_per_usd_override?: number | null
+  subscription_discount_override?: number | null
+}
+
+export interface VoidDistributionAssetResponse {
+  asset: DistributionAsset
+  refund_rmb: number
 }
 
 export async function listApplications(
@@ -70,6 +92,17 @@ export async function updateSettings(payload: DistributionSettings): Promise<Dis
   return data
 }
 
+export async function updateAgentRates(
+  userId: number,
+  payload: UpdateDistributionAgentRatesRequest,
+): Promise<DistributionAgentApplication> {
+  const { data } = await apiClient.put<DistributionAgentApplication>(
+    `/admin/distribution/agents/${userId}/rates`,
+    payload,
+  )
+  return data
+}
+
 export async function listWallets(
   params: ListDistributionWalletsParams = {},
 ): Promise<PaginatedResponse<DistributionWallet>> {
@@ -85,6 +118,16 @@ export async function listLedger(
 ): Promise<PaginatedResponse<DistributionWalletLedgerEntry>> {
   const { data } = await apiClient.get<PaginatedResponse<DistributionWalletLedgerEntry>>(
     '/admin/distribution/ledger',
+    { params },
+  )
+  return data
+}
+
+export async function listAssets(
+  params: ListDistributionAssetsParams = {},
+): Promise<PaginatedResponse<DistributionAsset>> {
+  const { data } = await apiClient.get<PaginatedResponse<DistributionAsset>>(
+    '/admin/distribution/assets',
     { params },
   )
   return data
@@ -112,15 +155,23 @@ export async function updateWalletStatus(
   return data
 }
 
+export async function voidAsset(id: number): Promise<VoidDistributionAssetResponse> {
+  const { data } = await apiClient.post<VoidDistributionAssetResponse>(`/admin/distribution/assets/${id}/void`)
+  return data
+}
+
 export const distributionAdminAPI = {
   listApplications,
   reviewApplication,
   getSettings,
   updateSettings,
+  updateAgentRates,
   listWallets,
   listLedger,
+  listAssets,
   adjustWallet,
   updateWalletStatus,
+  voidAsset,
 }
 
 export default distributionAdminAPI
