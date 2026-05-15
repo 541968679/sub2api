@@ -27,6 +27,14 @@
 - Stopped injecting display token multipliers into gateway request context, so Claude/Antigravity response `usage` token fields are returned as the real upstream values.
 - Kept existing display pricing helpers for user/admin usage-log UI; only downstream API response token rewriting is disabled.
 
+## [2026-05-15] fix: default production Antigravity forwarding to prod endpoint
+
+**Affected files**: deploy/.env.example, deploy/docker-compose.yml, deploy/docker-compose.standalone.yml, deploy/docker-compose.local.yml
+**Upstream compatibility**: deployment configuration only; no application code changes
+**Change details**:
+- Added `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL=prod` to the example environment so production gateway requests use `cloudcode-pa.googleapis.com`.
+- Passed `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL` through Docker Compose with a `prod` default to avoid accidentally forwarding production Code Assist project IDs to the daily sandbox endpoint.
+- Added Antigravity User-Agent version passthrough to standalone/local compose variants for consistency with the production compose file.
 ## [2026-05-15] fix: align distribution asset generation
 
 **Affected files**: backend/internal/service/distribution.go, backend/internal/handler/distribution_handler.go, backend/internal/repository/distribution_repo.go, backend/ent/schema/redeem_code.go, backend/ent/migrate/schema.go, backend/migrations/142_expand_redeem_code_length.sql, backend/cmd/server/wire_gen.go, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
