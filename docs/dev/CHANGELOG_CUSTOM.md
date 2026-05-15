@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-15] fix(gateway): preserve Anthropic web search beta
+
+**Affected files**: backend/internal/service/gateway_service.go
+**Upstream compatibility**: low risk; scoped to Claude Code OAuth passthrough request header construction
+**Change details**:
+- Preserved incoming `Anthropic-Beta` feature flags such as `web-search-2025-03-05` when building Claude Code mimic headers.
+- Continued to avoid forwarding unrelated client fingerprint headers upstream.
+- Restores native Claude web search server-tool requests that depend on the beta header.
+
 <## [2026-05-14] fix(gateway): return real usage tokens downstream
 
 **Affected files**: `backend/internal/handler/gateway_handler.go`

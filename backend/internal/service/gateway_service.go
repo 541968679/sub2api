@@ -6102,7 +6102,9 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 			// - 保留 incoming beta 的同时，确保 OAuth 所需 beta 存在
 			applyClaudeCodeMimicHeaders(req, reqStream)
 
-			incomingBeta := getHeaderRaw(req.Header, "anthropic-beta")
+			// Preserve client feature betas such as web-search-2025-03-05 without
+			// forwarding the rest of the client fingerprint headers upstream.
+			incomingBeta := clientHeaders.Get("Anthropic-Beta")
 			// Claude Code OAuth credentials are scoped to Claude Code.
 			// Non-haiku models MUST include claude-code beta for Anthropic to recognize
 			// this as a legitimate Claude Code request; without it, the request is
