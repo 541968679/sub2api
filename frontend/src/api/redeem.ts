@@ -4,7 +4,18 @@
  */
 
 import { apiClient } from './client'
-import type { RedeemCodeRequest } from '@/types'
+import type { Group, RedeemCodeRequest } from '@/types'
+
+export interface RedeemResult {
+  message: string
+  type: string
+  value: number
+  new_balance?: number
+  new_concurrency?: number
+  group_id?: number | null
+  validity_days?: number
+  group?: Group
+}
 
 export interface RedeemHistoryItem {
   id: number
@@ -19,10 +30,7 @@ export interface RedeemHistoryItem {
   // Subscription-specific fields
   group_id?: number
   validity_days?: number
-  group?: {
-    id: number
-    name: string
-  }
+  group?: Group
 }
 
 /**
@@ -30,22 +38,10 @@ export interface RedeemHistoryItem {
  * @param code - Redeem code string
  * @returns Redemption result with updated balance or concurrency
  */
-export async function redeem(code: string): Promise<{
-  message: string
-  type: string
-  value: number
-  new_balance?: number
-  new_concurrency?: number
-}> {
+export async function redeem(code: string): Promise<RedeemResult> {
   const payload: RedeemCodeRequest = { code }
 
-  const { data } = await apiClient.post<{
-    message: string
-    type: string
-    value: number
-    new_balance?: number
-    new_concurrency?: number
-  }>('/redeem', payload)
+  const { data } = await apiClient.post<RedeemResult>('/redeem', payload)
 
   return data
 }

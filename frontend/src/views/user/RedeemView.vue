@@ -96,7 +96,7 @@
                   {{ t('redeem.redeemSuccess') }}
                 </h3>
                 <div class="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
-                  <p>{{ redeemResult.message }}</p>
+                  <p>{{ redeemSuccessMessage }}</p>
                   <div class="mt-3 space-y-1">
                     <p v-if="redeemResult.type === 'balance'" class="font-medium">
                       {{ t('redeem.added') }}: ${{ redeemResult.value.toFixed(2) }}
@@ -107,7 +107,7 @@
                     </p>
                     <p v-else-if="redeemResult.type === 'subscription'" class="font-medium">
                       {{ t('redeem.subscriptionAssigned') }}
-                      <span v-if="redeemResult.group_name"> - {{ redeemResult.group_name }}</span>
+                      <span v-if="redeemSubscriptionName"> - {{ redeemSubscriptionName }}</span>
                       <span v-if="redeemResult.validity_days">
                         ({{
                           t('redeem.subscriptionDays', { days: redeemResult.validity_days })
@@ -347,7 +347,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
-import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
+import { redeemAPI, authAPI, type RedeemHistoryItem, type RedeemResult } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
@@ -361,16 +361,19 @@ const user = computed(() => authStore.user)
 
 const redeemCode = ref('')
 const submitting = ref(false)
-const redeemResult = ref<{
-  message: string
-  type: string
-  value: number
-  new_balance?: number
-  new_concurrency?: number
-  group_name?: string
-  validity_days?: number
-} | null>(null)
+const redeemResult = ref<RedeemResult | null>(null)
 const errorMessage = ref('')
+
+const redeemSubscriptionName = computed(() => redeemResult.value?.group?.name || '')
+const redeemSuccessMessage = computed(() => {
+  if (redeemResult.value?.type !== 'subscription') {
+    return redeemResult.value?.message || ''
+  }
+  if (!redeemSubscriptionName.value) {
+    return t('redeem.subscriptionRedeemed')
+  }
+  return t('redeem.subscriptionAssignedDesc', { groupName: redeemSubscriptionName.value })
+})
 
 // History data
 const history = ref<RedeemHistoryItem[]>([])

@@ -35,6 +35,16 @@
 - Added `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL=prod` to the example environment so production gateway requests use `cloudcode-pa.googleapis.com`.
 - Passed `GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL` through Docker Compose with a `prod` default to avoid accidentally forwarding production Code Assist project IDs to the daily sandbox endpoint.
 - Added Antigravity User-Agent version passthrough to standalone/local compose variants for consistency with the production compose file.
+
+## [2026-05-15] fix: clarify user subscription redeem support
+
+**Affected files**: frontend/src/views/user/RedeemView.vue, frontend/src/api/redeem.ts, frontend/src/api/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
+**Upstream compatibility**: frontend-only wording and type alignment
+**Change details**:
+- Updated the user redeem page to explicitly state that balance and subscription redeem codes are supported.
+- Displayed subscription redeem success with the returned subscription group name and validity days when available.
+- Removed button-like type labels from the redeem form so the hint stays informational.
+- Aligned frontend redeem API types with the backend response fields for subscription codes.
 ## [2026-05-15] fix: align distribution asset generation
 
 **Affected files**: backend/internal/service/distribution.go, backend/internal/handler/distribution_handler.go, backend/internal/repository/distribution_repo.go, backend/ent/schema/redeem_code.go, backend/ent/migrate/schema.go, backend/migrations/142_expand_redeem_code_length.sql, backend/cmd/server/wire_gen.go, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
