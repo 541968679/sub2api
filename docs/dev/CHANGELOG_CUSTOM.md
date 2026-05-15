@@ -45,6 +45,16 @@
 - Closed the `UPDATE ... RETURNING` result set before inserting the distribution wallet ledger row in admin balance adjustment.
 - Prevents PostgreSQL transaction/driver errors caused by executing the ledger insert while the previous result set is still open.
 
+
+## [2026-05-15] fix: prevent distribution wallet balance adjustment panic
+
+**Affected files**: backend/internal/repository/distribution_repo.go
+**Upstream compatibility**: low risk, scoped to distribution wallet ledger writes
+**Change details**:
+- Removed a deferred close on a wallet update row set that was later explicitly closed before inserting the ledger row.
+- Prevented a nil row-set panic during balance redeem code generation after the wallet deduction succeeds.
+- Verified /api/v1/distribution/redeem-codes/balance now creates the redeem code, distribution asset, and wallet ledger entry.
+
 ## [2026-05-15] fix: refine distribution admin management
 
 **Affected files**: backend/internal/repository/distribution_repo.go, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
