@@ -1616,6 +1616,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added InvokeAI SQLite migration/service for per-user external provider credentials, with OpenAI generation resolving API key/base URL from the current queue item's user.
 - Kept single-user `api_keys.yaml` compatibility and documented that multiuser config deletion does not remove shared external model records.
 
+## [2026-05-17] chore: add InvokeAI local dev-stack script
+
+**Affected files**: E:\cursor project\InvokeAI\scripts\dev-stack.ps1, E:\cursor project\InvokeAI\scripts\dev-stack.cmd, E:\cursor project\InvokeAI\.gitignore, docs/dev/codebase/invokeai-poc.md
+**Upstream compatibility**: external InvokeAI checkout tooling change; Sub2API runtime unchanged
+**Change details**:
+- Added an InvokeAI local process script with start/restart/stop/status actions, fixed runtime root, fixed `127.0.0.1:9090`, hidden background process launch, process state tracking, and logs under `tmp/dev-stack/logs`.
+- The script enforces multiuser config values and writes `invokeai.yaml` as UTF-8 without BOM to avoid Windows GBK decode failures.
+- Verified `restart` starts InvokeAI and `status` reports the managed process listening on port 9090.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go

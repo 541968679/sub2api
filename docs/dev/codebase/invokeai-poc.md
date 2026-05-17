@@ -48,15 +48,24 @@ Local paths:
   SQLite files, model caches, and node packs do not pollute this checkout.
 - The local config enables InvokeAI native multiuser mode with
   `multiuser: true` and `strict_password_checking: true`.
-- In multiuser mode, the External Providers UI writes the current user's
-  provider config instead of `api_keys.yaml`. Single-user mode keeps the old
-  YAML-backed path.
-- For a quick local run from the source checkout:
+- Normal local start/restart/stop for InvokeAI should use the local script in
+  the InvokeAI checkout. It fixes `host: 127.0.0.1`, `port: 9090`, multiuser
+  settings, UTF-8 config encoding, process tracking, and log paths:
 
 ```powershell
 cd "E:\cursor project\InvokeAI"
-.\.venv\Scripts\invokeai-web.exe --root "E:\cursor project\invokeai-sub2api-poc"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
 ```
+
+or:
+
+```bat
+scripts\dev-stack.cmd restart
+```
+
+- In multiuser mode, the External Providers UI writes the current user's
+  provider config instead of `api_keys.yaml`. Single-user mode keeps the old
+  YAML-backed path.
 
 ## Known pitfalls
 
