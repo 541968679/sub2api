@@ -48,9 +48,14 @@ Local paths:
   SQLite files, model caches, and node packs do not pollute this checkout.
 - The local config enables InvokeAI native multiuser mode with
   `multiuser: true` and `strict_password_checking: true`.
+- The local PoC uses a built-in administrator instead of exposing a first-run
+  setup flow. Local credentials are `admin` / `admin123`. For cloud deployment,
+  change `builtin_admin_password` to a strong password or disable the local
+  built-in-admin config and provision an admin out-of-band.
 - Normal local start/restart/stop for InvokeAI should use the local script in
   the InvokeAI checkout. It fixes `host: 127.0.0.1`, `port: 9090`, multiuser
-  settings, UTF-8 config encoding, process tracking, and log paths:
+  settings, built-in admin settings, UTF-8 config encoding, process tracking,
+  and log paths:
 
 ```powershell
 cd "E:\cursor project\InvokeAI"

@@ -1625,6 +1625,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - The script enforces multiuser config values and writes `invokeai.yaml` as UTF-8 without BOM to avoid Windows GBK decode failures.
 - Verified `restart` starts InvokeAI and `status` reports the managed process listening on port 9090.
 
+## [2026-05-17] feat: disable InvokeAI setup with built-in admin for local PoC
+
+**Affected files**: E:\cursor project\InvokeAI\invokeai\app\api\dependencies.py, E:\cursor project\InvokeAI\invokeai\app\api\routers\auth.py, E:\cursor project\InvokeAI\invokeai\app\services\config\config_default.py, E:\cursor project\InvokeAI\invokeai\app\services\users\users_common.py, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\auth\components\LoginPage.tsx, E:\cursor project\InvokeAI\scripts\dev-stack.ps1, docs/dev/codebase/invokeai-poc.md
+**Upstream compatibility**: external InvokeAI checkout behavior change for the local PoC
+**Change details**:
+- Added built-in administrator config and startup enforcement so local InvokeAI creates/repairs `admin` / `admin123`.
+- Disabled the public `/api/v1/auth/setup` path when built-in admin mode is enabled, while keeping normal login available.
+- Updated the login field to accept the `admin` username and verified `/status`, `/setup`, and `/login` behavior against the running local service.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
