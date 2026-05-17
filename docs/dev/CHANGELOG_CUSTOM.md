@@ -1607,6 +1607,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Wired generation paths through transactions so wallet deduction and generated assets commit together.
 - Updated user and admin distribution views to expose the new controls and generation results.
 
+## [2026-05-17] feat: InvokeAI per-user external OpenAI provider config
+
+**Affected files**: E:\cursor project\InvokeAI\invokeai\app\api\routers\app_info.py, E:\cursor project\InvokeAI\invokeai\app\services\user_external_provider_configs\, E:\cursor project\InvokeAI\invokeai\app\services\external_generation\providers\openai.py, E:\cursor project\InvokeAI\invokeai\app\invocations\external_image_generation.py, E:\cursor project\invokeai-sub2api-poc\invokeai.yaml, docs/dev/codebase/invokeai-poc.md
+**Upstream compatibility**: external InvokeAI checkout change; Sub2API runtime unchanged
+**Change details**:
+- Enabled InvokeAI PoC multiuser mode and strict password checking in the runtime config.
+- Added InvokeAI SQLite migration/service for per-user external provider credentials, with OpenAI generation resolving API key/base URL from the current queue item's user.
+- Kept single-user `api_keys.yaml` compatibility and documented that multiuser config deletion does not remove shared external model records.
+
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
 **Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go

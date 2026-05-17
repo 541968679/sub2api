@@ -6,6 +6,11 @@ This PoC does not add Sub2API database tables, migrations, services, or frontend
 routes. InvokeAI keeps its own SQLite database, generated images, model cache,
 and runtime configuration under an external root directory.
 
+The external InvokeAI checkout now stores OpenAI-compatible external provider
+credentials per InvokeAI user in its own SQLite table,
+`user_external_provider_configs`. API keys are stored in plaintext for the PoC;
+only configured status and base URL are returned to the frontend.
+
 Local paths:
 
 - InvokeAI source checkout: `E:\cursor project\InvokeAI`
@@ -30,8 +35,10 @@ Local paths:
 3. InvokeAI external OpenAI settings point at Sub2API:
    `external_openai_base_url: http://127.0.0.1:18081`.
 4. InvokeAI sends image generation/edit requests to Sub2API with a Sub2API user
-   API key as `external_openai_api_key`.
-5. Sub2API routes/bills the request through its existing gateway/account stack.
+   API key saved on the current InvokeAI user.
+5. External OpenAI image generation reads `queue_item.user_id`, fetches that
+   user's provider config, and sends the request using that key/base URL.
+6. Sub2API routes/bills the request through its existing gateway/account stack.
 
 ## Important mechanisms
 
@@ -39,9 +46,11 @@ Local paths:
   or vendored into Sub2API.
 - Runtime data is also outside the Sub2API repository so generated images,
   SQLite files, model caches, and node packs do not pollute this checkout.
-- The local config currently contains a placeholder API key:
-  `CHANGE_ME_SUB2API_KEY`. Replace it with a real Sub2API API key before testing
-  image generation.
+- The local config enables InvokeAI native multiuser mode with
+  `multiuser: true` and `strict_password_checking: true`.
+- In multiuser mode, the External Providers UI writes the current user's
+  provider config instead of `api_keys.yaml`. Single-user mode keeps the old
+  YAML-backed path.
 - For a quick local run from the source checkout:
 
 ```powershell
@@ -59,3 +68,6 @@ cd "E:\cursor project\InvokeAI"
   the Sub2API side for the PoC.
 - Do not use Sub2API's forbidden local ports. InvokeAI uses `9090` for this PoC,
   leaving Sub2API backend/frontend on `18081` and `15174`.
+- External starter model records remain instance-level. Deleting one user's
+  provider config does not remove external model records, because other users
+  may still rely on them.
