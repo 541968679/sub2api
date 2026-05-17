@@ -1633,6 +1633,7 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added built-in administrator config and startup enforcement so local InvokeAI creates/repairs `admin` / `admin123`.
 - Disabled the public `/api/v1/auth/setup` path when built-in admin mode is enabled, while keeping normal login available.
 - Updated the login field to accept the `admin` username and verified `/status`, `/setup`, and `/login` behavior against the running local service.
+- Removed the frontend `/setup` page entry from the built UI so direct browser access to `http://127.0.0.1:9090/setup` no longer shows the administrator creation form.
 
 ## [2026-05-06] fix: include historical Antigravity accounts in usage curve
 
