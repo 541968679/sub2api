@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-17] docs(poc): link InvokeAI canvas validation setup
+
+**Affected files**: `docs/dev/codebase/README.md`, `docs/dev/codebase/invokeai-poc.md`
+**Upstream compatibility**: documentation-only; no Sub2API runtime behavior changes
+**Change details**:
+- Documented the external InvokeAI source checkout and runtime root used for the canvas PoC.
+- Recorded the intended integration flow: InvokeAI runs independently on port 9090 and calls Sub2API's OpenAI-compatible image API on port 18081.
+- Captured local startup command, API key placeholder, and known PoC pitfalls for `gpt-image-2` validation.
+
 ## [2026-05-15] fix(gateway): preserve Anthropic web search beta
 
 **Affected files**: backend/internal/service/gateway_service.go
