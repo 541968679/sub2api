@@ -1540,12 +1540,18 @@ func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status 
 		// Stream already started, send error as SSE event then close
 		flusher, ok := c.Writer.(http.Flusher)
 		if ok {
+			if imageTrace := service.OpenAIImageTraceFromGin(c); imageTrace != nil {
+				imageTrace.Log(c, "downstream_response_built", status, "")
+			}
 			// SSE 错误事件固定 schema，使用 Quote 直拼可避免额外 Marshal 分配。
 			errorEvent := "event: error\ndata: " + `{"error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
 			if _, err := fmt.Fprint(c.Writer, errorEvent); err != nil {
 				_ = c.Error(err)
 			}
 			flusher.Flush()
+			if imageTrace := service.OpenAIImageTraceFromGin(c); imageTrace != nil {
+				imageTrace.Log(c, "downstream_write_done", status, "")
+			}
 		}
 		return
 	}
@@ -1575,12 +1581,18 @@ func shouldLogOpenAIForwardFailureAsWarn(c *gin.Context, wroteFallback bool) boo
 
 // errorResponse returns OpenAI API format error response
 func (h *OpenAIGatewayHandler) errorResponse(c *gin.Context, status int, errType, message string) {
+	if imageTrace := service.OpenAIImageTraceFromGin(c); imageTrace != nil {
+		imageTrace.Log(c, "downstream_response_built", status, "")
+	}
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"type":    errType,
 			"message": message,
 		},
 	})
+	if imageTrace := service.OpenAIImageTraceFromGin(c); imageTrace != nil {
+		imageTrace.Log(c, "downstream_write_done", status, "")
+	}
 }
 
 func setOpenAIClientTransportHTTP(c *gin.Context) {

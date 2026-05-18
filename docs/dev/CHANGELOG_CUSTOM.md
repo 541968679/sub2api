@@ -1643,6 +1643,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Changed Antigravity request/cost/token aggregation to join `usage_logs` with `accounts.platform='antigravity'` instead of filtering by the currently active account ID list.
 - Restored historical request counts for soft-deleted or rotated Antigravity accounts so credit curve windows match historical usage logs.
 
+## [2026-05-18] feat: add opt-in OpenAI image timing trace logs
+
+**Affected files**: backend/internal/handler/openai_images.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_image_trace.go, backend/internal/service/openai_images.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_images_test.go, docs/dev/codebase/gateway.md
+**Upstream compatibility**: low risk; disabled by default and scoped to `/v1/images/generations` with `model=gpt-image-2`
+**Change details**:
+- Added `OPENAI_IMAGE_TRACE_LOG=true` gated structured events for image request timing: request received, auth done, account slot acquired, upstream start/headers/body done, downstream response built/write done, and usage task submitted.
+- Kept trace fields limited to safe correlation and timing values; prompts, image/base64 payloads, auth headers, cookies, API keys, and full request bodies are not logged.
+- Covered trace gating and safe fields with focused unit coverage, and documented the temporary diagnostic workflow in the gateway module notes.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go

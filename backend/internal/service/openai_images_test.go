@@ -10,11 +10,14 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"go.uber.org/zap/zapcore"
 )
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON(t *testing.T) {
@@ -39,6 +42,57 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON(t *testing.T) {
 	require.Equal(t, "1K", parsed.SizeTier)
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 	require.False(t, parsed.Multipart)
+}
+
+func TestOpenAIImageTraceGatingAndSafeFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	startedAt := time.Unix(1710000000, 123)
+	parsed := &OpenAIImagesRequest{
+		Endpoint: openAIImagesGenerationsEndpoint,
+		Model:    "gpt-image-2",
+		Prompt:   "do not log this prompt",
+		Size:     "1024x1024",
+		Quality:  "high",
+		N:        1,
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader([]byte(`{"prompt":"secret","b64_json":"aGVsbG8="}`)))
+	req.Header.Set("Authorization", "Bearer secret-token")
+	ctx := context.WithValue(req.Context(), ctxkey.RequestID, "rid-1")
+	ctx = context.WithValue(ctx, ctxkey.ClientRequestID, "cid-1")
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	t.Setenv(OpenAIImageTraceEnv, "")
+	require.Nil(t, NewOpenAIImageTrace(c, parsed, startedAt))
+
+	t.Setenv(OpenAIImageTraceEnv, "true")
+	trace := NewOpenAIImageTrace(c, parsed, startedAt)
+	require.NotNil(t, trace)
+	fields := trace.fields(c, "request_received", startedAt, 0, "")
+
+	encoded := zapcore.NewMapObjectEncoder()
+	for _, field := range fields {
+		field.AddTo(encoded)
+	}
+	require.Equal(t, "rid-1", encoded.Fields["request_id"])
+	require.Equal(t, "cid-1", encoded.Fields["client_request_id"])
+	require.Equal(t, "gpt-image-2", encoded.Fields["model"])
+	require.Equal(t, "1024x1024", encoded.Fields["size"])
+	require.Equal(t, "high", encoded.Fields["quality"])
+	require.NotContains(t, encoded.Fields, "prompt")
+	require.NotContains(t, encoded.Fields, "b64_json")
+	require.NotContains(t, encoded.Fields, "authorization")
+	require.NotContains(t, encoded.Fields, "api_key")
+	require.NotContains(t, encoded.Fields, "cookie")
+
+	parsed.Model = "gpt-5.4"
+	require.Nil(t, NewOpenAIImageTrace(c, parsed, startedAt))
+	parsed.Model = "gpt-image-2"
+	parsed.Endpoint = openAIImagesEditsEndpoint
+	require.Nil(t, NewOpenAIImageTrace(c, parsed, startedAt))
 }
 
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T) {

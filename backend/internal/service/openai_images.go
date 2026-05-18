@@ -560,7 +560,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	imageTrace := OpenAIImageTraceFromGin(c)
 	upstreamStart := time.Now()
+	if imageTrace != nil {
+		imageTrace.LogAt(c, "upstream_request_start", upstreamStart, 0, "")
+	}
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
@@ -577,8 +581,14 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		})
 		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
 	}
+	if imageTrace != nil {
+		imageTrace.Log(c, "upstream_headers_received", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		if imageTrace != nil {
+			imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
+		}
 		_ = resp.Body.Close()
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
@@ -609,7 +619,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	imageCount := parsed.N
 	var firstTokenMs *int
 	if parsed.Stream {
-		streamUsage, streamCount, ttft, err := s.handleOpenAIImagesStreamingResponse(resp, c, startTime)
+		streamUsage, streamCount, ttft, err := s.handleOpenAIImagesStreamingResponse(resp, c, startTime, imageTrace)
 		if err != nil {
 			return nil, err
 		}
@@ -617,7 +627,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		imageCount = streamCount
 		firstTokenMs = ttft
 	} else {
-		nonStreamUsage, nonStreamCount, err := s.handleOpenAIImagesNonStreamingResponse(resp, c)
+		nonStreamUsage, nonStreamCount, err := s.handleOpenAIImagesNonStreamingResponse(resp, c, imageTrace)
 		if err != nil {
 			return nil, err
 		}
@@ -785,10 +795,13 @@ func cloneMultipartHeader(src textproto.MIMEHeader) textproto.MIMEHeader {
 	return dst
 }
 
-func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context) (OpenAIUsage, int, error) {
+func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context, imageTrace *OpenAIImageTrace) (OpenAIUsage, int, error) {
 	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		return OpenAIUsage{}, 0, err
+	}
+	if imageTrace != nil {
+		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := "application/json"
@@ -797,7 +810,13 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http
 			contentType = upstreamType
 		}
 	}
+	if imageTrace != nil {
+		imageTrace.Log(c, "downstream_response_built", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
 	c.Data(resp.StatusCode, contentType, body)
+	if imageTrace != nil {
+		imageTrace.Log(c, "downstream_write_done", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
 
 	usage, _ := extractOpenAIUsageFromJSONBytes(body)
 	return usage, extractOpenAIImageCountFromJSONBytes(body), nil
@@ -807,6 +826,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
 	startTime time.Time,
+	imageTrace *OpenAIImageTrace,
 ) (OpenAIUsage, int, *int, error) {
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
@@ -815,6 +835,9 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 	}
 	c.Status(resp.StatusCode)
 	c.Header("Content-Type", contentType)
+	if imageTrace != nil {
+		imageTrace.Log(c, "downstream_response_built", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
 
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
@@ -852,6 +875,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
 		if err != nil {
 			return OpenAIUsage{}, 0, firstTokenMs, err
 		}
+	}
+	if imageTrace != nil {
+		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
+		imageTrace.Log(c, "downstream_write_done", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
 	return usage, imageCount, firstTokenMs, nil
 }

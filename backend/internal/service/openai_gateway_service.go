@@ -3803,12 +3803,18 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		"upstream_error",
 		"Upstream request failed",
 	); matched {
+		if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
+			imageTrace.Log(c, "downstream_response_built", status, resp.Header.Get("x-request-id"))
+		}
 		c.JSON(status, gin.H{
 			"error": gin.H{
 				"type":    errType,
 				"message": errMsg,
 			},
 		})
+		if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
+			imageTrace.Log(c, "downstream_write_done", status, resp.Header.Get("x-request-id"))
+		}
 		if upstreamMsg == "" {
 			upstreamMsg = errMsg
 		}
@@ -3830,12 +3836,18 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 			Message:            upstreamMsg,
 			Detail:             upstreamDetail,
 		})
+		if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
+			imageTrace.Log(c, "downstream_response_built", http.StatusInternalServerError, resp.Header.Get("x-request-id"))
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
 				"type":    "upstream_error",
 				"message": "Upstream gateway error",
 			},
 		})
+		if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
+			imageTrace.Log(c, "downstream_write_done", http.StatusInternalServerError, resp.Header.Get("x-request-id"))
+		}
 		if upstreamMsg == "" {
 			return nil, fmt.Errorf("upstream error: %d (not in custom error codes)", resp.StatusCode)
 		}
@@ -3896,12 +3908,18 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		errMsg = "Upstream request failed"
 	}
 
+	if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
+		imageTrace.Log(c, "downstream_response_built", statusCode, resp.Header.Get("x-request-id"))
+	}
 	c.JSON(statusCode, gin.H{
 		"error": gin.H{
 			"type":    errType,
 			"message": errMsg,
 		},
 	})
+	if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {
+		imageTrace.Log(c, "downstream_write_done", statusCode, resp.Header.Get("x-request-id"))
+	}
 
 	if upstreamMsg == "" {
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)

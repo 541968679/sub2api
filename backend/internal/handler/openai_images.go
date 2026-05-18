@@ -37,6 +37,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
 		return
 	}
+	authDoneAt := time.Now()
 	reqLog := requestLogger(
 		c,
 		"handler.openai_gateway.images",
@@ -72,6 +73,11 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	if err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
+	}
+	imageTrace := service.NewOpenAIImageTrace(c, parsed, requestStart)
+	if imageTrace != nil {
+		imageTrace.LogAt(c, "request_received", requestStart, 0, "")
+		imageTrace.LogAt(c, "auth_done", authDoneAt, 0, "")
 	}
 
 	reqLog = reqLog.With(
@@ -177,6 +183,10 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		accountReleaseFunc, acquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, parsed.Stream, &streamStarted, reqLog)
 		if !acquired {
 			return
+		}
+		if imageTrace != nil {
+			imageTrace.SetAccountID(account.ID)
+			imageTrace.Log(c, "account_slot_acquired", 0, "")
 		}
 
 		service.SetOpsLatencyMs(c, service.OpsRoutingLatencyMsKey, time.Since(routingStart).Milliseconds())
@@ -289,6 +299,9 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				).Error("openai.images.record_usage_failed", zap.Error(err))
 			}
 		})
+		if imageTrace != nil {
+			imageTrace.Log(c, "usage_record_submitted", c.Writer.Status(), result.RequestID)
+		}
 
 		reqLog.Debug("openai.images.request_completed",
 			zap.Int64("account_id", account.ID),
