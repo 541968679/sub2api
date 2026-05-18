@@ -1652,6 +1652,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Weighted credit attribution by hourly usage cost, then actual cost, tokens, and call count, with a snapshot-bucket fallback for intervals without usage.
 - Added unit coverage for weighted interval attribution and no-usage fallback behavior.
 
+## [2026-05-18] fix: align OpenAI OAuth image forwarding headers with account test path
+
+**Affected files**: backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go
+**Upstream compatibility**: low risk; scoped to OAuth-backed OpenAI image generation/edit forwarding
+**Change details**:
+- Changed OAuth image forwarding to build a dedicated Codex `/responses` upstream request matching the successful account-test image path.
+- Stopped propagating third-party client `User-Agent`, `originator`, `session_id`, and `conversation_id` headers into image OAuth upstream requests; default User-Agent now falls back to Codex CLI when the account has no custom UA.
+- Added coverage proving OAuth image forwarding sends `originator=opencode`, Codex CLI UA, and no session/conversation headers.
+
 ## [2026-05-06] docs: document Antigravity credit cost analysis
 
 **Affected files**: docs/dev/ANTIGRAVITY_CREDIT_COST_ANALYSIS_2026-05-06.md

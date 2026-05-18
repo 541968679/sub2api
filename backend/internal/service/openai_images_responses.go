@@ -763,12 +763,10 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	}
 	setOpsUpstreamRequestBody(c, responsesBody)
 
-	upstreamReq, err := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, true, parsed.StickySessionSeed(), false)
+	upstreamReq, err := buildOpenAIImagesOAuthUpstreamRequest(ctx, account, responsesBody, token)
 	if err != nil {
 		return nil, err
 	}
-	upstreamReq.Header.Set("Content-Type", "application/json")
-	upstreamReq.Header.Set("Accept", "text/event-stream")
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -852,4 +850,30 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		ImageSizeInfo:   parsed.SizeInfo,
 		ImageQuality:    parsed.Quality,
 	}, nil
+}
+
+func buildOpenAIImagesOAuthUpstreamRequest(ctx context.Context, account *Account, body []byte, token string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, chatgptCodexURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Host = "chatgpt.com"
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("OpenAI-Beta", "responses=experimental")
+	req.Header.Set("originator", "opencode")
+	if account != nil {
+		if customUA := strings.TrimSpace(account.GetOpenAIUserAgent()); customUA != "" {
+			req.Header.Set("User-Agent", customUA)
+		} else {
+			req.Header.Set("User-Agent", codexCLIUserAgent)
+		}
+		if chatgptAccountID := strings.TrimSpace(account.GetChatGPTAccountID()); chatgptAccountID != "" {
+			req.Header.Set("chatgpt-account-id", chatgptAccountID)
+		}
+	} else {
+		req.Header.Set("User-Agent", codexCLIUserAgent)
+	}
+	return req, nil
 }
