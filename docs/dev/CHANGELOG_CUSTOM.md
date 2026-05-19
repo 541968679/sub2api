@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-19] docs: record OpenAI image timing diagnostics progress
+
+**Affected files**: `docs/dev/OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md`, `docs/dev/ARCHITECTURE.md`, `docs/dev/codebase/README.md`
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Added a standalone progress document for the `gpt-image-2` latency investigation, including local trace setup, observed request IDs, timing breakdown, and conclusions.
+- Documented the current finding that the successful local baseline spent nearly all server-side time waiting for upstream image result/body data.
+- Linked the progress document from the architecture navigation and gateway module index so it is reachable from the documentation root.
+
 ## [2026-05-17] docs(poc): link InvokeAI canvas validation setup
 
 **Affected files**: `docs/dev/codebase/README.md`, `docs/dev/codebase/invokeai-poc.md`
