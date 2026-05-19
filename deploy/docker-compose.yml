@@ -176,15 +176,16 @@ services:
   # ===========================================================================
   # AIClient2API - Kiro reverse proxy sidecar
   # ===========================================================================
-  # Custom-built from forked AIClient2API. Built on-host via update.sh
-  # (git clone -> docker build). Exposes /claude-kiro-oauth/v1/messages
+  # Built by GitHub Actions and published to GHCR. update.sh pulls the
+  # published image and restarts this sidecar; it does not build on-host.
+  # Exposes /claude-kiro-oauth/v1/messages
   # for sub2api's Anthropic passthrough accounts.
   #
   # NOT exposed to the public internet - only reachable on the docker
   # network via hostname "aiclient2api:3000".
   # ===========================================================================
   aiclient2api:
-    image: aiclient2api-custom:latest
+    image: ${AICLIENT2API_IMAGE:-ghcr.io/541968679/aiclient2api:latest}
     container_name: aiclient2api
     restart: unless-stopped
     logging:

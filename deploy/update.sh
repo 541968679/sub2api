@@ -8,7 +8,7 @@
 #   - Auto-rolls back if health check fails after deploy
 #   - Logs everything to /opt/sub2api/deploy.log
 #   - Safe against SSH disconnections (use with: nohup bash update.sh &)
-#   - Also builds AIClient2API sidecar (if /opt/sub2api/aiclient2api-repo exists)
+#   - Also updates AIClient2API sidecar by pulling its CI-built image
 #
 # Usage:
 #   bash /opt/sub2api/update.sh              # normal deploy (both sub2api and aiclient2api if present)
@@ -31,12 +31,8 @@ HEALTH_INTERVAL=5
 LOG_FILE="/opt/sub2api/deploy.log"
 DOCKER_BUILD_CACHE_MAX_AGE="${DOCKER_BUILD_CACHE_MAX_AGE:-24h}"
 
-# AIClient2API sidecar (optional, built locally from fork)
-A2_REPO_DIR="/opt/sub2api/aiclient2api-repo"
-A2_IMAGE_NAME="aiclient2api-custom"
-A2_STAGING_TAG="${A2_IMAGE_NAME}:staging"
-A2_LATEST_TAG="${A2_IMAGE_NAME}:latest"
-A2_PREV_TAG="${A2_IMAGE_NAME}:prev"
+# AIClient2API sidecar image. Built by AIClient2API GitHub Actions and pulled here.
+A2_IMAGE_NAME="${AICLIENT2API_IMAGE:-ghcr.io/541968679/aiclient2api:latest}"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -146,41 +142,24 @@ do_deploy() {
 }
 
 do_deploy_a2() {
-    if [ ! -d "$A2_REPO_DIR" ]; then
-        log "AIClient2API repo not found at $A2_REPO_DIR, skipping sidecar deploy"
-        return 0
-    fi
-
     log "=============================================="
     log "=== Starting AIClient2API deployment ==="
     log "=============================================="
 
-    log "--- Pulling AIClient2API latest code ---"
-    cd "$A2_REPO_DIR"
-    git pull origin main 2>&1 | tee -a "$LOG_FILE"
+    cd "$COMPOSE_DIR"
 
-    log "--- Building AIClient2API image to staging tag (no-cache) ---"
-    if ! docker build --no-cache -t "$A2_STAGING_TAG" . 2>&1 | tee -a "$LOG_FILE"; then
-        log "ERROR: AIClient2API build failed! Sidecar unchanged, sub2api unaffected."
+    log "--- Pulling AIClient2API image: $A2_IMAGE_NAME ---"
+    if ! docker compose pull aiclient2api 2>&1 | tee -a "$LOG_FILE"; then
+        log "ERROR: AIClient2API image pull failed! Sidecar unchanged, sub2api unaffected."
         return 1
     fi
 
-    if docker image inspect "$A2_LATEST_TAG" >/dev/null 2>&1; then
-        log "--- Saving current AIClient2API image as prev ---"
-        docker tag "$A2_LATEST_TAG" "$A2_PREV_TAG"
-    fi
-
-    log "--- Promoting AIClient2API staging to latest ---"
-    docker tag "$A2_STAGING_TAG" "$A2_LATEST_TAG"
-
     log "--- Restarting aiclient2api container ---"
-    cd "$COMPOSE_DIR"
     docker compose up -d aiclient2api 2>&1 | tee -a "$LOG_FILE"
 
     sleep 5
     if docker compose ps aiclient2api | grep -q "Up"; then
         log "=== AIClient2API deployment successful ==="
-        docker rmi "$A2_STAGING_TAG" 2>/dev/null || true
     else
         log "ERROR: AIClient2API container did not reach Up state. Check: docker compose logs aiclient2api"
         return 1

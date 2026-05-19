@@ -18,9 +18,9 @@
 | 本地 SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
 | Compose 目录 | `/opt/sub2api` |
 | Sub2API 源码目录 | `/opt/sub2api/repo` |
-| AIClient2API 源码目录 | `/opt/sub2api/aiclient2api-repo` |
+| AIClient2API 镜像 | `ghcr.io/541968679/aiclient2api:latest` |
+| AIClient2API 镜像覆盖变量 | `AICLIENT2API_IMAGE` |
 | AIClient2API 配置目录 | `/opt/aiclient2api/configs` |
-| AIClient2API 镜像 | `aiclient2api-custom:latest` |
 | 部署日志 | `/opt/sub2api/deploy.log` |
 
 常用命令：
@@ -48,7 +48,8 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 
 - 生产 AIClient2API 是 sub2api Compose 中的侧车服务，服务名为 `aiclient2api`，宿主机仅绑定 `127.0.0.1:3000`。
 - Sub2API 内部访问 AIClient2API 使用 `http://aiclient2api:3000/claude-kiro-oauth`，不要改成本机公网地址。
-- `deploy/update.sh --only-a2` 会在服务器上从 `/opt/sub2api/aiclient2api-repo` 拉取源码并本机构建 `aiclient2api-custom:latest`。
+- AIClient2API 镜像由 GitHub Actions 构建并发布到 GHCR；`deploy/update.sh --only-a2` 只执行 `docker compose pull aiclient2api` 和重启。
+- 如果 GHCR package 没有设为 Public，生产服务器需要先 `docker login ghcr.io`。
 - 不要把生产 API key、Web UI 密码、代理订阅等敏感信息写入本文档或提交到 Git。
 
 ## 二、Docker Compose 部署（推荐）

@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-19] ops(aiclient2api): align production deploy with CI-built image flow
+
+**Affected files**: `deploy/.env.example`, `deploy/docker-compose.yml`, `deploy/update.sh`, `docs/dev/DEPLOYMENT.md`, `docs/dev/KIRO_PROXY.md`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Upstream compatibility**: deployment-only change for the AIClient2API sidecar; Sub2API application behavior is unchanged
+**Change details**:
+- Changed the production `aiclient2api` service to use `ghcr.io/541968679/aiclient2api:latest` by default, with `AICLIENT2API_IMAGE` available for overrides.
+- Added `AICLIENT2API_IMAGE` to the deployment environment example.
+- Reworked `update.sh --only-a2` to pull the CI-built image through Docker Compose and restart the sidecar instead of building AIClient2API on the production host.
+- Updated deployment/Kiro docs to record the CI image flow, GHCR pull access requirement, and remove the stale A2 on-host build instructions.
+
 ## [2026-05-19] docs(deploy): record AIClient2API production sidecar quick reference
 
 **Affected files**: `docs/dev/DEPLOYMENT.md`, `docs/dev/CHANGELOG_CUSTOM.md`
