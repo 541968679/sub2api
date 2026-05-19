@@ -1,0 +1,41 @@
+# =============================================================================
+# Optional AIClient2API upstream proxy sidecar
+# =============================================================================
+# Usage on production:
+#   cd /opt/sub2api
+#   docker compose -f docker-compose.yml -f docker-compose.a2-proxy.yml up -d a2-proxy aiclient2api
+#
+# Then set AIClient2API configs/config.json:
+#   "PROXY_URL": "http://a2-proxy:10809"
+#   "PROXY_ENABLED_PROVIDERS": ["gemini-cli-oauth", "gemini-antigravity", "claude-kiro-oauth"]
+#
+# The checked-in sing-box config is intentionally direct-only. Replace the
+# outbound in /opt/aiclient2api/sing-box/config.json after receiving proxy
+# node details, then restart a2-proxy.
+# =============================================================================
+
+services:
+  a2-proxy:
+    image: ghcr.io/sagernet/sing-box:v1.12.12
+    container_name: a2-proxy
+    restart: unless-stopped
+    command: ["run", "-c", "/etc/sing-box/config.json"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    volumes:
+      - /opt/aiclient2api/sing-box/config.json:/etc/sing-box/config.json:ro
+    expose:
+      - "10809"
+      - "10808"
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "sing-box", "check", "-c", "/etc/sing-box/config.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+

@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-19] ops(aiclient2api): add optional sing-box proxy sidecar
+
+**Affected files**: `deploy/docker-compose.a2-proxy.yml`, `deploy/a2-proxy/sing-box.config.json.example`, `docs/dev/KIRO_PROXY.md`
+**Upstream compatibility**: deployment-only optional overlay; default compose and runtime behavior are unchanged
+**Change details**:
+- Added an optional `a2-proxy` sing-box sidecar compose overlay for AIClient2API upstream proxy testing.
+- Added a direct-only sing-box config template with internal HTTP (`10809`) and SOCKS (`10808`) inbounds, ready for later outbound node replacement.
+- Documented production activation steps and the correct Docker-internal A2 proxy URL (`http://a2-proxy:10809`).
+
 ## [2026-05-19] docs: record OpenAI image timing diagnostics progress
 
 **Affected files**: `docs/dev/OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md`, `docs/dev/ARCHITECTURE.md`, `docs/dev/codebase/README.md`

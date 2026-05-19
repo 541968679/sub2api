@@ -203,6 +203,74 @@ sub2api gateway → aiclient2api
          Kiro API
 ```
 
+#### 可选：AIClient2API 出站代理 sidecar
+
+当同一台生产服务器 IP 触发上游 429 时，可以在 Docker 网络内增加 `a2-proxy`
+sidecar，让 AIClient2API 通过独立代理出口访问上游：
+
+```
+aiclient2api
+   ↓ PROXY_URL=http://a2-proxy:10809
+a2-proxy (sing-box, Docker internal only)
+   ↓ configured outbound node
+Upstream AI API
+```
+
+仓库提供两个文件：
+
+| 文件 | 作用 |
+|---|---|
+| `deploy/docker-compose.a2-proxy.yml` | 可选 compose override，新增 `a2-proxy` 服务 |
+| `deploy/a2-proxy/sing-box.config.json.example` | sing-box 占位配置，默认 direct-only |
+
+生产启用步骤：
+
+```bash
+mkdir -p /opt/aiclient2api/sing-box
+cp /opt/sub2api/repo/deploy/a2-proxy/sing-box.config.json.example \
+  /opt/aiclient2api/sing-box/config.json
+
+# 编辑 /opt/aiclient2api/sing-box/config.json，把 outbounds 替换为真实代理节点
+vim /opt/aiclient2api/sing-box/config.json
+
+cd /opt/sub2api
+cp /opt/sub2api/repo/deploy/docker-compose.a2-proxy.yml ./docker-compose.a2-proxy.yml
+docker compose -f docker-compose.yml -f docker-compose.a2-proxy.yml up -d a2-proxy
+```
+
+然后在 AIClient2API Web UI 或 `/opt/aiclient2api/configs/config.json` 设置：
+
+```json
+{
+  "PROXY_URL": "http://a2-proxy:10809",
+  "PROXY_ENABLED_PROVIDERS": [
+    "gemini-cli-oauth",
+    "gemini-antigravity",
+    "claude-kiro-oauth"
+  ]
+}
+```
+
+保存后重启 A2：
+
+```bash
+cd /opt/sub2api
+docker compose up -d aiclient2api
+```
+
+验证代理出口：
+
+```bash
+docker run --rm --network sub2api_sub2api-network curlimages/curl:8.10.1 \
+  -x http://a2-proxy:10809 https://api.ipify.org
+```
+
+注意：
+- A2 在容器内运行，因此 `PROXY_URL` 不应填 `http://127.0.0.1:10809`；
+  应填 Docker 内网服务名 `http://a2-proxy:10809`。
+- `a2-proxy` 没有 `ports` 映射，只在 Docker 网络内可达，不对公网暴露。
+- 占位配置是 direct-only，只用于先把服务框架部署好；真实节点信息到位后再替换 outbound。
+
 关键点：
 - AIClient2API 绑定到宿主机 `127.0.0.1:3000`，**不对公网暴露**
 - Caddy（宿主机 systemd）从 `127.0.0.1:3000` 反代到公网子域名 `a2.zerocode.kaynlab.com`
