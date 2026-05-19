@@ -8,6 +8,49 @@
                                    PostgreSQL + Redis
 ```
 
+### 1.1 本项目生产环境速查
+
+生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`。
+
+| 项目 | 值 |
+|------|----|
+| 生产服务器 | `root@172.245.247.80` |
+| 本地 SSH key | `%USERPROFILE%\.ssh\id_ed25519_sub2api` / `~/.ssh/id_ed25519_sub2api` |
+| Compose 目录 | `/opt/sub2api` |
+| Sub2API 源码目录 | `/opt/sub2api/repo` |
+| AIClient2API 源码目录 | `/opt/sub2api/aiclient2api-repo` |
+| AIClient2API 配置目录 | `/opt/aiclient2api/configs` |
+| AIClient2API 镜像 | `aiclient2api-custom:latest` |
+| 部署日志 | `/opt/sub2api/deploy.log` |
+
+常用命令：
+
+```powershell
+# 只部署 AIClient2API 侧车
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --only-a2"
+
+# 完整部署 Sub2API + AIClient2API
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
+
+# 只部署 Sub2API，跳过 AIClient2API
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --skip-a2"
+```
+
+部署后核对：
+
+```powershell
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose ps"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose logs --tail=120 aiclient2api"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2api/deploy.log"
+```
+
+注意事项：
+
+- 生产 AIClient2API 是 sub2api Compose 中的侧车服务，服务名为 `aiclient2api`，宿主机仅绑定 `127.0.0.1:3000`。
+- Sub2API 内部访问 AIClient2API 使用 `http://aiclient2api:3000/claude-kiro-oauth`，不要改成本机公网地址。
+- `deploy/update.sh --only-a2` 会在服务器上从 `/opt/sub2api/aiclient2api-repo` 拉取源码并本机构建 `aiclient2api-custom:latest`。
+- 不要把生产 API key、Web UI 密码、代理订阅等敏感信息写入本文档或提交到 Git。
+
 ## 二、Docker Compose 部署（推荐）
 
 ### 2.1 环境要求

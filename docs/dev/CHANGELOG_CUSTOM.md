@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-19] docs(deploy): record AIClient2API production sidecar quick reference
+
+**Affected files**: `docs/dev/DEPLOYMENT.md`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Added the production server, SSH key path, server-side source/config paths, image name, deploy log, and common A2 deploy commands to the deployment handbook.
+- Documented post-deploy verification commands for `docker compose ps`, `aiclient2api` logs, and `/opt/sub2api/deploy.log`.
+- Clarified that production AIClient2API is a Sub2API Compose sidecar bound to `127.0.0.1:3000`, while Sub2API reaches it through Docker DNS at `http://aiclient2api:3000/claude-kiro-oauth`.
+
 ## [2026-05-19] ops(aiclient2api): add optional sing-box proxy sidecar
 
 **Affected files**: `deploy/docker-compose.a2-proxy.yml`, `deploy/a2-proxy/sing-box.config.json.example`, `docs/dev/KIRO_PROXY.md`
