@@ -1615,6 +1615,12 @@ export interface ExtendSubscriptionRequest {
   days: number
 }
 
+export interface AdjustSubscriptionQuotaRequest {
+  daily_usage_usd?: number
+  weekly_usage_usd?: number
+  monthly_usage_usd?: number
+}
+
 // ==================== Query Parameters ====================
 
 export interface UsageQueryParams {

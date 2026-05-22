@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"math/rand/v2"
 	"strconv"
 	"strings"
@@ -32,6 +33,8 @@ var (
 	ErrSubscriptionAssignConflict = infraerrors.Conflict("SUBSCRIPTION_ASSIGN_CONFLICT", "subscription exists but request conflicts with existing assignment semantics")
 	ErrGroupNotSubscriptionType   = infraerrors.BadRequest("GROUP_NOT_SUBSCRIPTION_TYPE", "group is not a subscription type")
 	ErrInvalidInput               = infraerrors.BadRequest("INVALID_INPUT", "at least one of resetDaily, resetWeekly, or resetMonthly must be true")
+	ErrSubscriptionUsageRequired  = infraerrors.BadRequest("SUBSCRIPTION_USAGE_REQUIRED", "at least one usage field must be provided")
+	ErrInvalidSubscriptionUsage   = infraerrors.BadRequest("INVALID_SUBSCRIPTION_USAGE", "usage values must be finite numbers greater than or equal to 0")
 	ErrDailyLimitExceeded         = infraerrors.TooManyRequests("DAILY_LIMIT_EXCEEDED", "daily usage limit exceeded")
 	ErrWeeklyLimitExceeded        = infraerrors.TooManyRequests("WEEKLY_LIMIT_EXCEEDED", "weekly usage limit exceeded")
 	ErrMonthlyLimitExceeded       = infraerrors.TooManyRequests("MONTHLY_LIMIT_EXCEEDED", "monthly usage limit exceeded")
@@ -733,6 +736,37 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 		_ = s.billingCacheService.InvalidateSubscription(ctx, sub.UserID, sub.GroupID)
 	}
 	// Return the refreshed subscription from DB
+	return s.userSubRepo.GetByID(ctx, subscriptionID)
+}
+
+func (s *SubscriptionService) AdminSetQuotaUsage(ctx context.Context, subscriptionID int64, dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD *float64) (*UserSubscription, error) {
+	if dailyUsageUSD == nil && weeklyUsageUSD == nil && monthlyUsageUSD == nil {
+		return nil, ErrSubscriptionUsageRequired
+	}
+	for _, usage := range []*float64{dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD} {
+		if usage == nil {
+			continue
+		}
+		if *usage < 0 || math.IsNaN(*usage) || math.IsInf(*usage, 0) {
+			return nil, ErrInvalidSubscriptionUsage
+		}
+	}
+
+	sub, err := s.userSubRepo.GetByID(ctx, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.userSubRepo.SetUsage(ctx, sub.ID, dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD); err != nil {
+		return nil, err
+	}
+
+	s.InvalidateSubCache(sub.UserID, sub.GroupID)
+	if s.subCacheL1 != nil {
+		s.subCacheL1.Wait()
+	}
+	if s.billingCacheService != nil {
+		_ = s.billingCacheService.InvalidateSubscription(ctx, sub.UserID, sub.GroupID)
+	}
 	return s.userSubRepo.GetByID(ctx, subscriptionID)
 }
 

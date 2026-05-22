@@ -1832,6 +1832,9 @@ func (stubUserSubscriptionRepo) ResetWeeklyUsage(ctx context.Context, id int64, 
 func (stubUserSubscriptionRepo) ResetMonthlyUsage(ctx context.Context, id int64, newWindowStart time.Time) error {
 	return errors.New("not implemented")
 }
+func (stubUserSubscriptionRepo) SetUsage(ctx context.Context, id int64, dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD *float64) error {
+	return errors.New("not implemented")
+}
 func (stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {
 	return errors.New("not implemented")
 }

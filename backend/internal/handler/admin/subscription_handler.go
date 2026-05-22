@@ -224,6 +224,12 @@ type ResetSubscriptionQuotaRequest struct {
 	Monthly bool `json:"monthly"`
 }
 
+type AdjustSubscriptionQuotaRequest struct {
+	DailyUsageUSD   *float64 `json:"daily_usage_usd"`
+	WeeklyUsageUSD  *float64 `json:"weekly_usage_usd"`
+	MonthlyUsageUSD *float64 `json:"monthly_usage_usd"`
+}
+
 // ResetQuota resets daily, weekly, and/or monthly usage for a subscription.
 // POST /api/v1/admin/subscriptions/:id/reset-quota
 func (h *SubscriptionHandler) ResetQuota(c *gin.Context) {
@@ -242,6 +248,27 @@ func (h *SubscriptionHandler) ResetQuota(c *gin.Context) {
 		return
 	}
 	sub, err := h.subscriptionService.AdminResetQuota(c.Request.Context(), subscriptionID, req.Daily, req.Weekly, req.Monthly)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.UserSubscriptionFromServiceAdmin(sub))
+}
+
+// AdjustQuota manually sets daily, weekly, and/or monthly usage for a subscription.
+// POST /api/v1/admin/subscriptions/:id/adjust-quota
+func (h *SubscriptionHandler) AdjustQuota(c *gin.Context) {
+	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid subscription ID")
+		return
+	}
+	var req AdjustSubscriptionQuotaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	sub, err := h.subscriptionService.AdminSetQuotaUsage(c.Request.Context(), subscriptionID, req.DailyUsageUSD, req.WeeklyUsageUSD, req.MonthlyUsageUSD)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

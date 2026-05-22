@@ -10,6 +10,7 @@ import type {
   AssignSubscriptionRequest,
   BulkAssignSubscriptionRequest,
   ExtendSubscriptionRequest,
+  AdjustSubscriptionQuotaRequest,
   PaginatedResponse
 } from '@/types'
 
@@ -139,6 +140,23 @@ export async function resetQuota(
 }
 
 /**
+ * Set daily, weekly, and/or monthly used quota for a subscription
+ * @param id - Subscription ID
+ * @param request - Target used quota values
+ * @returns Updated subscription
+ */
+export async function adjustQuota(
+  id: number,
+  request: AdjustSubscriptionQuotaRequest
+): Promise<UserSubscription> {
+  const { data } = await apiClient.post<UserSubscription>(
+    `/admin/subscriptions/${id}/adjust-quota`,
+    request
+  )
+  return data
+}
+
+/**
  * List subscriptions by group
  * @param groupId - Group ID
  * @param page - Page number
@@ -189,6 +207,7 @@ export const subscriptionsAPI = {
   extend,
   revoke,
   resetQuota,
+  adjustQuota,
   listByGroup,
   listByUser
 }

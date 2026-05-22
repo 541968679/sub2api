@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -21,9 +22,11 @@ type resetQuotaUserSubRepoStub struct {
 	resetDailyCalled   bool
 	resetWeeklyCalled  bool
 	resetMonthlyCalled bool
+	setUsageCalled     bool
 	resetDailyErr      error
 	resetWeeklyErr     error
 	resetMonthlyErr    error
+	setUsageErr        error
 }
 
 func (r *resetQuotaUserSubRepoStub) GetByID(_ context.Context, id int64) (*UserSubscription, error) {
@@ -53,8 +56,31 @@ func (r *resetQuotaUserSubRepoStub) ResetMonthlyUsage(_ context.Context, _ int64
 	return r.resetMonthlyErr
 }
 
+func (r *resetQuotaUserSubRepoStub) SetUsage(_ context.Context, _ int64, dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD *float64) error {
+	r.setUsageCalled = true
+	if r.setUsageErr != nil {
+		return r.setUsageErr
+	}
+	if r.sub != nil {
+		if dailyUsageUSD != nil {
+			r.sub.DailyUsageUSD = *dailyUsageUSD
+		}
+		if weeklyUsageUSD != nil {
+			r.sub.WeeklyUsageUSD = *weeklyUsageUSD
+		}
+		if monthlyUsageUSD != nil {
+			r.sub.MonthlyUsageUSD = *monthlyUsageUSD
+		}
+	}
+	return nil
+}
+
 func newResetQuotaSvc(stub *resetQuotaUserSubRepoStub) *SubscriptionService {
 	return NewSubscriptionService(groupRepoNoop{}, stub, nil, nil, nil)
+}
+
+func ptrQuotaUsageFloat64(v float64) *float64 {
+	return &v
 }
 
 func TestAdminResetQuota_ResetBoth(t *testing.T) {
@@ -204,4 +230,73 @@ func TestAdminResetQuota_ReturnsRefreshedSub(t *testing.T) {
 	// 服务应返回第二次 GetByID 的刷新值而非初始的 99.9
 	require.Equal(t, float64(0), result.DailyUsageUSD, "返回的订阅应反映已归零的用量")
 	require.True(t, stub.resetDailyCalled)
+}
+
+func TestAdminSetQuotaUsage_SetsSelectedUsageFields(t *testing.T) {
+	stub := &resetQuotaUserSubRepoStub{
+		sub: &UserSubscription{
+			ID:              10,
+			UserID:          11,
+			GroupID:         12,
+			DailyUsageUSD:   1,
+			WeeklyUsageUSD:  2,
+			MonthlyUsageUSD: 3,
+		},
+	}
+	svc := newResetQuotaSvc(stub)
+
+	result, err := svc.AdminSetQuotaUsage(context.Background(), 10, ptrQuotaUsageFloat64(4.5), nil, ptrQuotaUsageFloat64(6.75))
+
+	require.NoError(t, err)
+	require.True(t, stub.setUsageCalled)
+	require.Equal(t, 4.5, result.DailyUsageUSD)
+	require.Equal(t, 2.0, result.WeeklyUsageUSD)
+	require.Equal(t, 6.75, result.MonthlyUsageUSD)
+}
+
+func TestAdminSetQuotaUsage_RequiresAtLeastOneField(t *testing.T) {
+	stub := &resetQuotaUserSubRepoStub{sub: &UserSubscription{ID: 11, UserID: 1, GroupID: 2}}
+	svc := newResetQuotaSvc(stub)
+
+	_, err := svc.AdminSetQuotaUsage(context.Background(), 11, nil, nil, nil)
+
+	require.ErrorIs(t, err, ErrSubscriptionUsageRequired)
+	require.False(t, stub.setUsageCalled)
+}
+
+func TestAdminSetQuotaUsage_RejectsInvalidUsage(t *testing.T) {
+	stub := &resetQuotaUserSubRepoStub{sub: &UserSubscription{ID: 12, UserID: 1, GroupID: 2}}
+	svc := newResetQuotaSvc(stub)
+
+	_, err := svc.AdminSetQuotaUsage(context.Background(), 12, ptrQuotaUsageFloat64(-0.01), nil, nil)
+	require.ErrorIs(t, err, ErrInvalidSubscriptionUsage)
+
+	_, err = svc.AdminSetQuotaUsage(context.Background(), 12, ptrQuotaUsageFloat64(math.NaN()), nil, nil)
+	require.ErrorIs(t, err, ErrInvalidSubscriptionUsage)
+
+	require.False(t, stub.setUsageCalled)
+}
+
+func TestAdminSetQuotaUsage_SubscriptionNotFound(t *testing.T) {
+	stub := &resetQuotaUserSubRepoStub{sub: nil}
+	svc := newResetQuotaSvc(stub)
+
+	_, err := svc.AdminSetQuotaUsage(context.Background(), 999, ptrQuotaUsageFloat64(1), nil, nil)
+
+	require.ErrorIs(t, err, ErrSubscriptionNotFound)
+	require.False(t, stub.setUsageCalled)
+}
+
+func TestAdminSetQuotaUsage_SetUsageError(t *testing.T) {
+	dbErr := errors.New("db error")
+	stub := &resetQuotaUserSubRepoStub{
+		sub:         &UserSubscription{ID: 13, UserID: 1, GroupID: 2},
+		setUsageErr: dbErr,
+	}
+	svc := newResetQuotaSvc(stub)
+
+	_, err := svc.AdminSetQuotaUsage(context.Background(), 13, ptrQuotaUsageFloat64(1), nil, nil)
+
+	require.ErrorIs(t, err, dbErr)
+	require.True(t, stub.setUsageCalled)
 }

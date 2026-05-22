@@ -389,6 +389,15 @@
               </button>
               <button
                 v-if="row.status === 'active'"
+                @click="handleAdjustQuota(row)"
+                :disabled="adjustingQuota && quotaAdjustingSubscription?.id === row.id"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/20 dark:hover:text-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Icon name="calculator" size="sm" />
+                <span class="text-xs">{{ t('admin.subscriptions.adjustQuota') }}</span>
+              </button>
+              <button
+                v-if="row.status === 'active'"
                 @click="handleResetQuota(row)"
                 :disabled="resettingQuota && resettingSubscription?.id === row.id"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400 disabled:cursor-not-allowed disabled:opacity-50"
@@ -655,6 +664,117 @@
       @confirm="confirmResetQuota"
       @cancel="showResetQuotaConfirm = false"
     />
+
+    <!-- Adjust Quota Modal -->
+    <BaseDialog
+      :show="showAdjustQuotaModal"
+      :title="t('admin.subscriptions.adjustQuotaTitle')"
+      width="normal"
+      @close="closeAdjustQuotaModal"
+    >
+      <form
+        v-if="quotaAdjustingSubscription"
+        id="adjust-quota-form"
+        class="space-y-5"
+        @submit.prevent="handleAdjustQuotaSubmit"
+      >
+        <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            {{ t('admin.subscriptions.adjustingFor') }}
+            <span class="font-medium text-gray-900 dark:text-white">
+              {{ quotaAdjustingSubscription.user?.email }}
+            </span>
+          </p>
+          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            {{ t('admin.subscriptions.columns.group') }}:
+            <span class="font-medium text-gray-900 dark:text-white">
+              {{ quotaAdjustingSubscription.group?.name || '-' }}
+            </span>
+          </p>
+        </div>
+
+        <div class="inline-flex rounded-lg border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-dark-800">
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+            :class="quotaAdjustMode === 'remaining'
+              ? 'bg-primary-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'"
+            @click="setQuotaAdjustMode('remaining')"
+          >
+            {{ t('admin.subscriptions.targetRemaining') }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-3 py-1.5 text-sm font-medium transition"
+            :class="quotaAdjustMode === 'used'
+              ? 'bg-primary-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'"
+            @click="setQuotaAdjustMode('used')"
+          >
+            {{ t('admin.subscriptions.targetUsed') }}
+          </button>
+        </div>
+
+        <div class="space-y-3">
+          <div
+            v-for="period in quotaPeriods"
+            :key="period.key"
+            class="rounded-lg border border-gray-200 p-4 dark:border-gray-700"
+          >
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ period.label }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.subscriptions.currentUsage') }}:
+                  {{ formatUsd(getQuotaUsed(quotaAdjustingSubscription, period.key)) }}
+                  <span v-if="getQuotaLimit(quotaAdjustingSubscription, period.key) !== null">
+                    /
+                    {{ formatUsd(getQuotaLimit(quotaAdjustingSubscription, period.key) || 0) }}
+                  </span>
+                </p>
+              </div>
+              <span
+                v-if="getQuotaLimit(quotaAdjustingSubscription, period.key) !== null"
+                class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
+              >
+                {{ t('admin.subscriptions.currentRemaining') }}:
+                {{ formatUsd(getQuotaRemaining(quotaAdjustingSubscription, period.key) || 0) }}
+              </span>
+            </div>
+            <label class="input-label">
+              {{ quotaAdjustMode === 'remaining'
+                ? t('admin.subscriptions.targetRemaining')
+                : t('admin.subscriptions.targetUsed') }}
+            </label>
+            <input
+              v-model.number="quotaForm[period.key]"
+              type="number"
+              min="0"
+              step="0.000001"
+              class="input"
+            />
+          </div>
+        </div>
+
+        <p class="input-hint">{{ t('admin.subscriptions.adjustQuotaHint') }}</p>
+      </form>
+      <template #footer>
+        <div v-if="quotaAdjustingSubscription" class="flex justify-end gap-3">
+          <button @click="closeAdjustQuotaModal" type="button" class="btn btn-secondary">
+            {{ t('common.cancel') }}
+          </button>
+          <button
+            type="submit"
+            form="adjust-quota-form"
+            :disabled="adjustingQuota"
+            class="btn btn-primary"
+          >
+            {{ adjustingQuota ? t('admin.subscriptions.adjustingQuota') : t('admin.subscriptions.saveQuotaAdjustment') }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
     <!-- Subscription Guide Modal -->
     <teleport to="body">
       <transition name="modal">
@@ -742,7 +862,13 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
+import type {
+  UserSubscription,
+  Group,
+  GroupPlatform,
+  SubscriptionType,
+  AdjustSubscriptionQuotaRequest
+} from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
 import type { Column } from '@/components/common/types'
 import { formatDateOnly } from '@/utils/format'
@@ -776,6 +902,7 @@ const showGuideModal = ref(false)
 
 const guideActionRows = computed(() => [
   { action: t('admin.subscriptions.guide.actions.adjust'), desc: t('admin.subscriptions.guide.actions.adjustDesc') },
+  { action: t('admin.subscriptions.guide.actions.adjustQuota'), desc: t('admin.subscriptions.guide.actions.adjustQuotaDesc') },
   { action: t('admin.subscriptions.guide.actions.resetQuota'), desc: t('admin.subscriptions.guide.actions.resetQuotaDesc') },
   { action: t('admin.subscriptions.guide.actions.revoke'), desc: t('admin.subscriptions.guide.actions.revokeDesc') }
 ])
@@ -940,9 +1067,12 @@ const showAssignModal = ref(false)
 const showExtendModal = ref(false)
 const showRevokeDialog = ref(false)
 const showResetQuotaConfirm = ref(false)
+const showAdjustQuotaModal = ref(false)
 const submitting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
+const quotaAdjustingSubscription = ref<UserSubscription | null>(null)
+const adjustingQuota = ref(false)
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
 
@@ -955,6 +1085,22 @@ const assignForm = reactive({
 const extendForm = reactive({
   days: 30
 })
+
+type QuotaPeriodKey = 'daily' | 'weekly' | 'monthly'
+type QuotaAdjustMode = 'remaining' | 'used'
+
+const quotaAdjustMode = ref<QuotaAdjustMode>('remaining')
+const quotaForm = reactive<Record<QuotaPeriodKey, number | null>>({
+  daily: null,
+  weekly: null,
+  monthly: null
+})
+
+const quotaPeriods = computed(() => [
+  { key: 'daily' as QuotaPeriodKey, label: t('admin.subscriptions.daily') },
+  { key: 'weekly' as QuotaPeriodKey, label: t('admin.subscriptions.weekly') },
+  { key: 'monthly' as QuotaPeriodKey, label: t('admin.subscriptions.monthly') }
+])
 
 // Group options for filter (all groups)
 const groupOptions = computed(() => [
@@ -1280,6 +1426,114 @@ const confirmResetQuota = async () => {
     console.error('Error resetting quota:', error)
   } finally {
     resettingQuota.value = false
+  }
+}
+
+const getQuotaUsed = (subscription: UserSubscription, period: QuotaPeriodKey): number => {
+  if (period === 'daily') return subscription.daily_usage_usd || 0
+  if (period === 'weekly') return subscription.weekly_usage_usd || 0
+  return subscription.monthly_usage_usd || 0
+}
+
+const getQuotaLimit = (subscription: UserSubscription, period: QuotaPeriodKey): number | null => {
+  if (period === 'daily') return subscription.group?.daily_limit_usd ?? null
+  if (period === 'weekly') return subscription.group?.weekly_limit_usd ?? null
+  return subscription.group?.monthly_limit_usd ?? null
+}
+
+const getQuotaRemaining = (subscription: UserSubscription, period: QuotaPeriodKey): number | null => {
+  const limit = getQuotaLimit(subscription, period)
+  if (limit === null) return null
+  return Math.max(limit - getQuotaUsed(subscription, period), 0)
+}
+
+const formatUsd = (value: number): string => `$${value.toFixed(2)}`
+
+const initializeQuotaForm = (subscription: UserSubscription) => {
+  const source = quotaAdjustMode.value
+  quotaPeriods.value.forEach(({ key }) => {
+    const value = source === 'remaining'
+      ? getQuotaRemaining(subscription, key)
+      : getQuotaUsed(subscription, key)
+    quotaForm[key] = value === null ? null : Number(value.toFixed(6))
+  })
+}
+
+const setQuotaAdjustMode = (mode: QuotaAdjustMode) => {
+  quotaAdjustMode.value = mode
+  if (quotaAdjustingSubscription.value) {
+    initializeQuotaForm(quotaAdjustingSubscription.value)
+  }
+}
+
+const handleAdjustQuota = (subscription: UserSubscription) => {
+  quotaAdjustingSubscription.value = subscription
+  quotaAdjustMode.value = 'remaining'
+  initializeQuotaForm(subscription)
+  showAdjustQuotaModal.value = true
+}
+
+const closeAdjustQuotaModal = () => {
+  showAdjustQuotaModal.value = false
+  quotaAdjustingSubscription.value = null
+  quotaForm.daily = null
+  quotaForm.weekly = null
+  quotaForm.monthly = null
+}
+
+const getSubmittedUsage = (subscription: UserSubscription, period: QuotaPeriodKey): number | undefined => {
+  const value = quotaForm[period]
+  if (value === null || value === undefined || Number.isNaN(value)) return undefined
+  if (quotaAdjustMode.value === 'used') return value
+  const limit = getQuotaLimit(subscription, period)
+  if (limit === null) return undefined
+  return Math.max(limit - value, 0)
+}
+
+const handleAdjustQuotaSubmit = async () => {
+  const subscription = quotaAdjustingSubscription.value
+  if (!subscription || adjustingQuota.value) return
+
+  const payload: AdjustSubscriptionQuotaRequest = {}
+  for (const { key } of quotaPeriods.value) {
+    const raw = quotaForm[key]
+    if (raw !== null && raw !== undefined && (Number.isNaN(raw) || raw < 0)) {
+      appStore.showError(t('admin.subscriptions.invalidQuotaAmount'))
+      return
+    }
+    const usage = getSubmittedUsage(subscription, key)
+    if (usage !== undefined) {
+      const limit = getQuotaLimit(subscription, key)
+      if (limit !== null && usage > limit) {
+        appStore.showError(t('admin.subscriptions.quotaUsageExceedsLimit'))
+        return
+      }
+      if (key === 'daily') {
+        payload.daily_usage_usd = Number(usage.toFixed(6))
+      } else if (key === 'weekly') {
+        payload.weekly_usage_usd = Number(usage.toFixed(6))
+      } else {
+        payload.monthly_usage_usd = Number(usage.toFixed(6))
+      }
+    }
+  }
+
+  if (Object.keys(payload).length === 0) {
+    appStore.showError(t('admin.subscriptions.noQuotaAdjustment'))
+    return
+  }
+
+  adjustingQuota.value = true
+  try {
+    await adminAPI.subscriptions.adjustQuota(subscription.id, payload)
+    appStore.showSuccess(t('admin.subscriptions.quotaAdjustedSuccess'))
+    closeAdjustQuotaModal()
+    await loadSubscriptions()
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToAdjustQuota'))
+    console.error('Error adjusting subscription quota:', error)
+  } finally {
+    adjustingQuota.value = false
   }
 }
 

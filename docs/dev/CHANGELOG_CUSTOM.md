@@ -1689,6 +1689,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Kept trace fields limited to safe correlation and timing values; prompts, image/base64 payloads, auth headers, cookies, API keys, and full request bodies are not logged.
 - Covered trace gating and safe fields with focused unit coverage, and documented the temporary diagnostic workflow in the gateway module notes.
 
+## [2026-05-22] feat: add admin subscription quota adjustment
+
+**Affected files**: backend/internal/service/subscription_service.go, backend/internal/service/user_subscription_port.go, backend/internal/repository/user_subscription_repo.go, backend/internal/handler/admin/subscription_handler.go, backend/internal/server/routes/admin.go, frontend/src/views/admin/SubscriptionsView.vue, frontend/src/api/admin/subscriptions.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: admin-only feature; preserves existing subscription quota data model
+**Change details**:
+- Added `POST /api/v1/admin/subscriptions/:id/adjust-quota` to set daily, weekly, and/or monthly used quota values for a user subscription.
+- Invalidates subscription billing caches after manual quota adjustments so gateway eligibility uses the updated usage immediately.
+- Added an admin subscription-management dialog for target remaining quota or target used quota, with zh/en UI strings.
+- Added unit coverage for selected usage updates and invalid input handling.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go

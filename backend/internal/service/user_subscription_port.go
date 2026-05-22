@@ -29,6 +29,7 @@ type UserSubscriptionRepository interface {
 	ResetDailyUsage(ctx context.Context, id int64, newWindowStart time.Time) error
 	ResetWeeklyUsage(ctx context.Context, id int64, newWindowStart time.Time) error
 	ResetMonthlyUsage(ctx context.Context, id int64, newWindowStart time.Time) error
+	SetUsage(ctx context.Context, id int64, dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD *float64) error
 	IncrementUsage(ctx context.Context, id int64, costUSD float64) error
 
 	BatchUpdateExpiredStatus(ctx context.Context) (int64, error)
