@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-22] fix: prevent production deploy from restarting with upstream image
+
+**Affected files**: deploy/docker-compose.yml, deploy/.env.example, deploy/update.sh, docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md
+**Upstream compatibility**: production deploy safety fix; default public compose image remains configurable
+**Change details**:
+- Made the Sub2API compose image configurable through `SUB2API_IMAGE` instead of hard-coding `weishaw/sub2api:latest`.
+- Updated `deploy/update.sh` to generate a controlled `docker-compose.override.yml` that pins production restarts to the locally built `sub2api-custom:latest` image.
+- Forced Sub2API container recreation on main-app deploys so Docker Compose cannot reuse a container created from an older image ID.
+- Added post-deploy image-name and image-ID verification so deployments fail and rollback if Compose starts a different image than the one just built.
+- Documented that production deployments must verify both health and the running `sub2api` image.
+
 ## [2026-05-19] ops(aiclient2api): align production deploy with CI-built image flow
 
 **Affected files**: `deploy/.env.example`, `deploy/docker-compose.yml`, `deploy/update.sh`, `docs/dev/DEPLOYMENT.md`, `docs/dev/KIRO_PROXY.md`, `docs/dev/CHANGELOG_CUSTOM.md`
