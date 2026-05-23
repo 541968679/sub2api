@@ -1710,6 +1710,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added an admin subscription-management dialog for target remaining quota or target used quota, with zh/en UI strings.
 - Added unit coverage for selected usage updates and invalid input handling.
 
+## [2026-05-23] fix: compact subscription purchase layout
+
+**Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue
+**Upstream compatibility**: frontend-only layout density change; subscription order flow unchanged
+**Change details**:
+- Compressed the active-subscription area into a compact horizontal summary so it no longer dominates the subscription tab.
+- Changed subscription plan browsing to a denser 3-column desktop grid.
+- Reduced plan card height, price scale, quota spacing, and feature rows so the desktop view can show at least six plans at once.
+
 ## [2026-05-23] refactor: restore purchase page tab layout
 
 **Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

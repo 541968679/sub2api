@@ -198,7 +198,12 @@
             </div>
           </div>
           <div v-if="activeTab === 'subscription'" class="space-y-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabSubscribe') }}</h2>
+            <div class="flex items-center justify-between gap-4">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabSubscribe') }}</h2>
+              <span v-if="checkout.plans.length > 0" class="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-500 dark:bg-dark-800 dark:text-gray-300">
+                {{ checkout.plans.length }}
+              </span>
+            </div>
             <!-- Subscription confirm (inline, replaces plan list) -->
             <template v-if="selectedPlan">
               <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
@@ -295,41 +300,35 @@
             </template>
             <!-- Plan list -->
             <template v-else>
-              <div v-if="activeSubscriptions.length > 0" class="card p-6">
-                <div class="mb-5 flex items-center gap-3">
-                  <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300">
-                    <Icon name="badge" size="md" />
+              <div v-if="activeSubscriptions.length > 0" class="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-dark-700 dark:bg-dark-900">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <div class="flex shrink-0 items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                    <Icon name="badge" size="sm" class="text-green-600 dark:text-green-400" />
+                    <span>{{ t('payment.activeSubscription') }}</span>
                   </div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('payment.activeSubscription') }}</h3>
-                </div>
-                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div class="grid min-w-0 flex-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                   <div
                     v-for="sub in activeSubscriptions"
                     :key="sub.id"
-                    class="flex items-start gap-4 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60"
+                      class="flex min-w-0 items-center gap-2 rounded-md border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/60"
                   >
-                    <div :class="['h-10 w-1.5 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
+                      <div :class="['h-7 w-1 shrink-0 rounded-full', platformAccentBarClass(sub.group?.platform || '')]" />
                     <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-2">
-                        <span class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
-                        <span class="badge badge-success shrink-0 text-[10px]">{{ t('userSubscriptions.status.active') }}</span>
-                      </div>
-                      <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span v-if="isUnlimitedSubscription(sub)">{{ t('payment.planCard.quota') }}: {{ t('payment.planCard.unlimited') }}</span>
+                        <div class="flex min-w-0 items-center gap-1.5">
+                          <span class="truncate text-xs font-semibold text-gray-900 dark:text-white">{{ sub.group?.name || t('payment.groupFallback', { id: sub.group_id }) }}</span>
+                          <span class="badge badge-success shrink-0 text-[10px]">{{ t('userSubscriptions.status.active') }}</span>
+                        </div>
+                        <div class="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">
+                          <span v-if="isUnlimitedSubscription(sub)">{{ t('payment.planCard.unlimited') }} · </span>
                         <span v-if="sub.expires_at">{{ t('userSubscriptions.daysRemaining', { days: getDaysRemaining(sub.expires_at) }) }}</span>
                         <span v-else>{{ t('userSubscriptions.noExpiration') }}</span>
                       </div>
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
 
-              <div class="flex items-center justify-between gap-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.selectPlan') }}</h3>
-                <span v-if="checkout.plans.length > 0" class="rounded-full bg-gray-100 px-3 py-1 text-sm font-medium text-gray-500 dark:bg-dark-800 dark:text-gray-300">
-                  {{ checkout.plans.length }}
-                </span>
-              </div>
               <div v-if="checkout.plans.length === 0" class="card py-16 text-center">
                 <Icon name="gift" size="xl" class="mx-auto mb-3 text-gray-300 dark:text-dark-600" />
                 <p class="text-gray-500 dark:text-gray-400">{{ t('payment.noPlans') }}</p>
@@ -633,7 +632,7 @@ const balanceRechargeMultiplier = computed(() => {
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
-  return 'grid grid-cols-1 gap-5 xl:grid-cols-2'
+  return 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'
 })
 
 // Check if an amount fits a method's [min, max]. 0 = no limit.
