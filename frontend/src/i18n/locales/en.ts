@@ -408,19 +408,19 @@ export default {
       featureTransparentBillingDesc: 'Pay per token, volume discounts.',
       featureAuditTrail: 'Audit Trail',
       featureAuditTrailDesc: 'Every call and charge is traceable.',
-      // New 2×3 feature cards (6 total)
+      // Login feature cards
       features: {
         metered: {
           title: 'Metered & fully transparent',
           desc: 'From 0.7 CNY per USD — about 1/10 of the official price, excellent value.'
         },
-        quality: {
-          title: 'Official-grade quality',
-          desc: 'High-bandwidth US servers with low latency and strong cache hit rate.'
-        },
         models: {
           title: 'Top-tier models',
           desc: 'Opus 4.7, GPT-5.4 and Gemini 3.1 Pro — all at full power.'
+        },
+        image: {
+          title: 'gpt-image-2 generation',
+          desc: 'Use gpt-image-2 through the same unified API to generate high-quality images.'
         },
         tutorial: {
           title: 'Beginner-friendly tutorials',

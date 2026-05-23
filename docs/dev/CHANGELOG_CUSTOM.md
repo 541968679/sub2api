@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-23] feat: simplify login marketing cards and add gpt-image-2 promotion
+
+**Affected files**: frontend/src/views/auth/LoginView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only login page presentation change; auth flow unchanged
+**Change details**:
+- Reduced the desktop login marketing panel from six compact feature cards to four equal 2x2 cards.
+- Removed the visible "official-grade service quality" card from the login page messaging.
+- Added a dedicated gpt-image-2 image generation card with Chinese and English copy and highlight terms.
+- Increased card spacing, minimum height, icon size, and copy rhythm so the left panel reads less crowded.
+
 ## [2026-05-22] fix: prevent production deploy from restarting with upstream image
 
 **Affected files**: deploy/docker-compose.yml, deploy/.env.example, deploy/update.sh, docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md

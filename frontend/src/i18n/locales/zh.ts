@@ -411,13 +411,13 @@ const zhBase = {
           title: '按量计费，完全透明',
           desc: '每 1 美元额度低至 0.7 元，约为官方价格的 1/10，性价比很高。'
         },
-        quality: {
-          title: '官方级服务质量',
-          desc: '美国高带宽服务器，低延迟，缓存命中率高，适合稳定调用。'
-        },
         models: {
           title: '顶级模型齐全',
           desc: 'Opus 4.7、GPT-5.4、Gemini 3.1 Pro 等模型均可满血使用。'
+        },
+        image: {
+          title: 'gpt-image-2 生图',
+          desc: '支持 gpt-image-2 生图模型，用统一 API 生成高质量图片。'
         },
         tutorial: {
           title: '新手友好教程',

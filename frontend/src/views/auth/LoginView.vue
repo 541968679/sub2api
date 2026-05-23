@@ -51,31 +51,31 @@
               </h1>
             </div>
 
-            <!-- Bottom section: 6 feature cards in 2×3 grid (推广邀请已合并为其中一张) -->
-            <div class="grid gap-4 sm:grid-cols-2">
+            <!-- Bottom section: 4 equal feature cards in a 2×2 grid -->
+            <div class="grid auto-rows-fr gap-5 sm:grid-cols-2 xl:gap-6">
               <div
                 v-for="card in featureCards"
                 :key="card.key"
-                class="group relative overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#0F2538] to-[#0A1A28] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] transition-colors hover:border-[#4B8AB0]"
+                class="group relative flex min-h-[162px] flex-col overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#102A40] via-[#0D2031] to-[#081827] p-6 shadow-[0_12px_34px_rgba(0,0,0,0.26)] transition-colors hover:border-[#60A5C9]"
               >
                 <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别各自代表什么 -->
                 <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
 
-                <!-- 标题行：较大图标（40×40）+ 17px 粗标题 -->
+                <!-- 标题行：较大图标（44×44）+ 18px 粗标题 -->
                 <div class="flex items-center gap-3">
                   <span
-                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
                     :class="[card.iconBg, card.iconColor]"
                   >
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
                     </svg>
                   </span>
-                  <h3 class="text-[17px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
+                  <h3 class="text-[18px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
                 </div>
 
                 <!-- 描述：14px，关键词用主题色 + 加粗 突出展示 -->
-                <p class="mt-3.5 text-[14px] leading-[1.65] text-[#C8D7E4]">
+                <p class="mt-4 text-[14px] leading-[1.7] text-[#C8D7E4]">
                   <template v-for="(seg, i) in card.segments" :key="i">
                     <span
                       v-if="seg.highlight"
@@ -331,14 +331,14 @@ const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.fo
 const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
 // ==================== Feature Cards (2×2 grid) ====================
-// 卡片文字来自 i18n（`auth.login.features.*.title` / `.desc`），不改动。
+// 卡片文字来自 i18n（`auth.login.features.*.title` / `.desc`）。
 // 这里声明的都是「视觉规则」：
 //   - 每张卡的主题色（图标、顶部光带、描述里高亮词的颜色）
 //   - 图标 SVG path（heroicons outline）
 //   - 要在描述里突出展示的关键词（不同语言各配一套；匹配不到就原样显示）
-// 加强版样式可以让价格、Opus/GPT/Gemini 型号名、"支持开票" 等一眼能看到。
+// 加强版样式可以让价格、Opus/GPT/Gemini 型号名、gpt-image-2 等一眼能看到。
 
-type FeatureKey = 'metered' | 'quality' | 'models' | 'tutorial' | 'enterprise' | 'referral'
+type FeatureKey = 'metered' | 'models' | 'image' | 'tutorial'
 
 const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -356,19 +356,15 @@ function splitWithTerms(text: string, terms: readonly string[]): Array<{ text: s
 // 不会崩溃——高亮是锦上添花，不影响可读性。
 const featureHighlightTermsZh: Record<FeatureKey, readonly string[]> = {
   metered: ['0.7 元', '1/10', '超高性价比'],
-  quality: ['美国高带宽', '低延迟', '高缓存命中'],
   models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
-  tutorial: ['完整', '高可读性', '快速上手'],
-  enterprise: ['大规模采购', '开票'],
-  referral: ['丰厚奖励', '持续返佣']
+  image: ['gpt-image-2', '生图', '高质量图片'],
+  tutorial: ['完整', '高可读性', '快速上手']
 }
 const featureHighlightTermsEn: Record<FeatureKey, readonly string[]> = {
   metered: ['0.7 CNY', '1/10', 'excellent value'],
-  quality: ['High-bandwidth US', 'low latency', 'strong cache hit rate'],
   models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
-  tutorial: ['Complete', 'readable', 'productive fast'],
-  enterprise: ['Bulk purchasing', 'invoicing'],
-  referral: ['account credit', 'ongoing commission']
+  image: ['gpt-image-2', 'image generation', 'high-quality images'],
+  tutorial: ['Complete', 'readable', 'productive fast']
 }
 
 interface FeatureCardDef {
@@ -401,15 +397,6 @@ const featureCards = computed<FeatureCardDef[]>(() => {
         'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4'
     },
     {
-      key: 'quality',
-      iconBg: 'bg-[#4BA8FF]/15',
-      iconColor: 'text-[#7FC6FF]',
-      highlightColor: 'text-[#9FD4FF]',
-      topStripe: 'bg-gradient-to-r from-[#4BA8FF]/70 via-[#4BA8FF]/20 to-transparent',
-      // bolt
-      iconPath: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z'
-    },
-    {
       key: 'models',
       iconBg: 'bg-[#A78BFA]/15',
       iconColor: 'text-[#C4B5FD]',
@@ -420,6 +407,16 @@ const featureCards = computed<FeatureCardDef[]>(() => {
         'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'
     },
     {
+      key: 'image',
+      iconBg: 'bg-[#4BA8FF]/15',
+      iconColor: 'text-[#91D5FF]',
+      highlightColor: 'text-[#B7E7FF]',
+      topStripe: 'bg-gradient-to-r from-[#4BA8FF]/70 via-[#22D3EE]/25 to-transparent',
+      // photo
+      iconPath:
+        'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5A1.5 1.5 0 0021.75 18V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25z'
+    },
+    {
       key: 'tutorial',
       iconBg: 'bg-[#22D3EE]/15',
       iconColor: 'text-[#7DE5F5]',
@@ -428,26 +425,6 @@ const featureCards = computed<FeatureCardDef[]>(() => {
       // book-open
       iconPath:
         'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'
-    },
-    {
-      key: 'enterprise',
-      iconBg: 'bg-[#F0B841]/15',
-      iconColor: 'text-[#F7D87B]',
-      highlightColor: 'text-[#FCE697]',
-      topStripe: 'bg-gradient-to-r from-[#F0B841]/70 via-[#F0B841]/20 to-transparent',
-      // building-office (简化版)
-      iconPath:
-        'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21'
-    },
-    {
-      key: 'referral',
-      iconBg: 'bg-[#F472B6]/15',
-      iconColor: 'text-[#FBA8D4]',
-      highlightColor: 'text-[#FFCCE4]',
-      topStripe: 'bg-gradient-to-r from-[#F472B6]/70 via-[#F472B6]/20 to-transparent',
-      // gift
-      iconPath:
-        'M21 11.25v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 109.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1114.625 7.5H12m0 0V21m-8.625-9.75h18c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125h-18c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'
     }
   ]
   return defs.map<FeatureCardDef>((d) => ({
