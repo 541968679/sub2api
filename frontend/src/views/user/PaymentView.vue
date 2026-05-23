@@ -46,21 +46,22 @@
           </div>
 
           <div v-if="activeTab === 'recharge' && !checkout.balance_disabled" class="space-y-6">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabTopUp') }}</h2>
-            <!-- Recharge Account Card -->
-            <div class="grid gap-6 lg:grid-cols-12">
-              <div class="card p-6 lg:col-span-5">
-                <div class="flex items-start gap-4">
-                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300">
-                    <Icon name="userCircle" size="lg" />
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
-                    <p class="mt-1 truncate text-xl font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-                    <div class="mt-5 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60">
-                      <p class="text-xs font-medium uppercase text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</p>
-                      <p class="mt-1 text-3xl font-bold text-green-600 dark:text-green-400">${{ user?.balance?.toFixed(2) || '0.00' }}</p>
+            <div class="mx-auto max-w-3xl space-y-5">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabTopUp') }}</h2>
+              <div class="card p-6">
+                <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="flex items-center gap-4">
+                    <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300">
+                      <Icon name="userCircle" size="lg" />
                     </div>
+                    <div class="min-w-0">
+                      <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('payment.rechargeAccount') }}</p>
+                      <p class="mt-1 truncate text-xl font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
+                    </div>
+                  </div>
+                  <div class="rounded-lg border border-gray-100 bg-gray-50 px-5 py-4 text-left dark:border-dark-700 dark:bg-dark-800/60 sm:text-right">
+                    <p class="text-xs font-medium uppercase text-gray-400 dark:text-gray-500">{{ t('payment.currentBalance') }}</p>
+                    <p class="mt-1 text-3xl font-bold text-green-600 dark:text-green-400">${{ user?.balance?.toFixed(2) || '0.00' }}</p>
                   </div>
                 </div>
 
@@ -73,9 +74,9 @@
                 </div>
               </div>
 
-              <div v-if="checkout.first_recharge_eligible" class="first-recharge-banner lg:col-span-7">
+              <div v-if="checkout.first_recharge_eligible" class="first-recharge-banner">
                 <div class="first-recharge-glow"></div>
-                <div class="relative z-10 flex h-full min-h-[188px] items-center gap-5 p-7">
+                <div class="relative z-10 flex items-center gap-5 p-6">
                   <div class="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-white/20 text-yellow-100 backdrop-blur">
                     <Icon name="sparkles" size="xl" />
                   </div>
@@ -87,51 +88,38 @@
                   </div>
                 </div>
               </div>
-              <div v-else class="card hidden p-6 lg:col-span-7 lg:flex lg:items-center">
-                <div class="flex items-center gap-4">
-                  <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300">
-                    <Icon name="shield" size="lg" />
+
+              <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
+                <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
+              </div>
+              <template v-else>
+                <div v-if="sortedBonusTiers.length" class="card p-6">
+                  <div class="mb-5 flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300">
+                      <Icon name="gift" size="md" />
+                    </div>
+                    <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('payment.bonusTiersTitle') }}</h2>
                   </div>
-                  <div>
-                    <p class="text-base font-semibold text-gray-900 dark:text-white">{{ t('payment.rechargePanelTitle') }}</p>
-                    <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">{{ t('payment.rechargePanelDesc') }}</p>
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <button
+                      v-for="(tier, idx) in sortedBonusTiers"
+                      :key="tier.min_amount"
+                      type="button"
+                      class="bonus-tier-card"
+                      :class="[
+                        bonusTierClass(idx, sortedBonusTiers.length),
+                        amount === tier.min_amount ? 'bonus-tier-selected' : ''
+                      ]"
+                      @click="amount = tier.min_amount"
+                    >
+                      <div class="bonus-tier-badge" :class="bonusTierBadgeClass(idx, sortedBonusTiers.length)">
+                        +${{ tier.bonus_usd }}
+                      </div>
+                      <p class="bonus-tier-threshold">{{ t('payment.bonusTierThreshold', { amount: tier.min_amount }) }}</p>
+                    </button>
                   </div>
                 </div>
-              </div>
-            </div>
-            <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
-              <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
-            </div>
-            <template v-else>
-            <!-- Bonus Tiers (clickable to fill amount) -->
-            <div v-if="sortedBonusTiers.length" class="card p-6">
-              <div class="mb-5 flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-300">
-                  <Icon name="gift" size="md" />
-                </div>
-                <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('payment.bonusTiersTitle') }}</h2>
-              </div>
-              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <button
-                  v-for="(tier, idx) in sortedBonusTiers"
-                  :key="tier.min_amount"
-                  type="button"
-                  class="bonus-tier-card"
-                  :class="[
-                    bonusTierClass(idx, sortedBonusTiers.length),
-                    amount === tier.min_amount ? 'bonus-tier-selected' : ''
-                  ]"
-                  @click="amount = tier.min_amount"
-                >
-                  <div class="bonus-tier-badge" :class="bonusTierBadgeClass(idx, sortedBonusTiers.length)">
-                    +${{ tier.bonus_usd }}
-                  </div>
-                  <p class="bonus-tier-threshold">{{ t('payment.bonusTierThreshold', { amount: tier.min_amount }) }}</p>
-                </button>
-              </div>
-            </div>
-            <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-              <div class="space-y-6">
+
                 <div class="card p-6">
                   <div class="mb-5 flex items-center gap-3">
                     <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300">
@@ -154,61 +142,60 @@
                     @select="selectedMethod = $event"
                   />
                 </div>
-              </div>
 
-              <aside class="card p-6 lg:sticky lg:top-6">
-                <div class="mb-5 flex items-center justify-between gap-4">
-                  <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300">
-                      <Icon name="calculator" size="md" />
+                <div class="card p-6">
+                  <div class="mb-5 flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                      <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-300">
+                        <Icon name="calculator" size="md" />
+                      </div>
+                      <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('payment.totalCredit') }}</h2>
                     </div>
-                    <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('payment.totalCredit') }}</h2>
+                    <span class="text-2xl font-bold text-green-600 dark:text-green-400">${{ totalCreditUsd.toFixed(2) }}</span>
                   </div>
-                  <span class="text-2xl font-bold text-green-600 dark:text-green-400">${{ totalCreditUsd.toFixed(2) }}</span>
-                </div>
 
-                <div v-if="validAmount > 0" class="space-y-3 text-sm">
-                  <div class="flex justify-between gap-4">
-                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                    <span class="font-medium text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
-                  </div>
-                  <div v-if="feeRate > 0" class="flex justify-between gap-4">
-                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                    <span class="font-medium text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
-                  </div>
-                  <div v-if="feeRate > 0" class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
-                    <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                    <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
-                  </div>
-                  <div class="space-y-2 border-t border-gray-200 pt-3 dark:border-dark-600">
+                  <div v-if="validAmount > 0" class="space-y-3 text-sm">
                     <div class="flex justify-between gap-4">
-                      <span class="text-gray-500 dark:text-gray-400">{{ t('payment.baseCredit') }}</span>
-                      <span class="font-medium text-gray-900 dark:text-white">${{ baseCreditUsd.toFixed(2) }}</span>
+                      <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
+                      <span class="font-medium text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
                     </div>
-                    <div v-if="matchedBonus > 0" class="flex justify-between gap-4">
-                      <span class="text-amber-600 dark:text-amber-400">{{ t('payment.bonusCredit') }}</span>
-                      <span class="font-medium text-amber-600 dark:text-amber-400">+${{ matchedBonus.toFixed(2) }}</span>
+                    <div v-if="feeRate > 0" class="flex justify-between gap-4">
+                      <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
+                      <span class="font-medium text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
                     </div>
-                    <div v-if="firstRechargeBonus > 0" class="flex justify-between gap-4">
-                      <span class="text-pink-600 dark:text-pink-400">{{ t('payment.firstRechargeBonus') }}</span>
-                      <span class="font-medium text-pink-600 dark:text-pink-400">+${{ firstRechargeBonus.toFixed(2) }}</span>
+                    <div v-if="feeRate > 0" class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
+                      <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
+                      <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
+                    </div>
+                    <div class="space-y-2 border-t border-gray-200 pt-3 dark:border-dark-600">
+                      <div class="flex justify-between gap-4">
+                        <span class="text-gray-500 dark:text-gray-400">{{ t('payment.baseCredit') }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">${{ baseCreditUsd.toFixed(2) }}</span>
+                      </div>
+                      <div v-if="matchedBonus > 0" class="flex justify-between gap-4">
+                        <span class="text-amber-600 dark:text-amber-400">{{ t('payment.bonusCredit') }}</span>
+                        <span class="font-medium text-amber-600 dark:text-amber-400">+${{ matchedBonus.toFixed(2) }}</span>
+                      </div>
+                      <div v-if="firstRechargeBonus > 0" class="flex justify-between gap-4">
+                        <span class="text-pink-600 dark:text-pink-400">{{ t('payment.firstRechargeBonus') }}</span>
+                        <span class="font-medium text-pink-600 dark:text-pink-400">+${{ firstRechargeBonus.toFixed(2) }}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div v-else class="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400 dark:border-dark-600 dark:text-gray-500">
-                  {{ t('payment.enterAmount') }}
-                </div>
+                  <div v-else class="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400 dark:border-dark-600 dark:text-gray-500">
+                    {{ t('payment.enterAmount') }}
+                  </div>
 
-                <button :class="['btn mt-6 w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
-                  <span v-if="submitting" class="flex items-center justify-center gap-2">
-                    <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                    {{ t('common.processing') }}
-                  </span>
-                  <span v-else>{{ t('payment.createOrder') }} ¥{{ totalAmount.toFixed(2) }}</span>
-                </button>
-              </aside>
+                  <button :class="['btn mt-6 w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
+                    <span v-if="submitting" class="flex items-center justify-center gap-2">
+                      <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                      {{ t('common.processing') }}
+                    </span>
+                    <span v-else>{{ t('payment.createOrder') }} ¥{{ totalAmount.toFixed(2) }}</span>
+                  </button>
+                </div>
+              </template>
             </div>
-            </template>
           </div>
           <div v-if="activeTab === 'subscription'" class="space-y-6">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabSubscribe') }}</h2>
