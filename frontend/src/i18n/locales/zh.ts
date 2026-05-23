@@ -6439,6 +6439,8 @@ const zhBase = {
     currentBalance: '当前余额',
     groupFallback: '分组 #{id}',
     rechargeAccount: '充值账户',
+    rechargePanelTitle: '余额充值',
+    rechargePanelDesc: '输入充值金额并选择支付方式，支付完成后额度会自动入账。',
     activeSubscription: '当前订阅',
     noActiveSubscription: '暂无有效订阅',
     tabTopUp: '充值',

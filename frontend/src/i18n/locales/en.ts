@@ -6696,6 +6696,8 @@ export default {
     currentBalance: 'Current Balance',
     groupFallback: 'Group #{id}',
     rechargeAccount: 'Recharge Account',
+    rechargePanelTitle: 'Balance top-up',
+    rechargePanelDesc: 'Enter an amount and choose a payment method. Credits are added automatically after payment.',
     activeSubscription: 'Active Subscription',
     noActiveSubscription: 'No active subscription',
     tabTopUp: 'Top Up',

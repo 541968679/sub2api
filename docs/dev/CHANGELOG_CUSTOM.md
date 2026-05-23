@@ -1710,6 +1710,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added an admin subscription-management dialog for target remaining quota or target used quota, with zh/en UI strings.
 - Added unit coverage for selected usage updates and invalid input handling.
 
+## [2026-05-23] refactor: restore purchase page tab layout
+
+**Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only layout change; payment APIs and order flow unchanged
+**Change details**:
+- Restored the purchase page to a unified tab layout with separate recharge and subscription tabs across desktop and mobile.
+- Relaxed the recharge flow into account, bonus, amount/method, and credit-summary sections instead of a tight two-column checkout.
+- Relaxed subscription plan cards and the subscription confirmation flow with wider cards, larger price treatment, expanded quota/features, and active-subscription summary cards.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
