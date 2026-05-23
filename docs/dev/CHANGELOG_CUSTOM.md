@@ -19,6 +19,14 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-23] fix: enlarge login marketing cards and reduce heading gap
+
+**Affected files**: frontend/src/views/auth/LoginView.vue
+**Upstream compatibility**: frontend-only login page presentation change
+**Change details**:
+- Replaced the login marketing panel's space-between layout with a fixed-gap vertical flow so the heading no longer floats far above the cards.
+- Increased feature card minimum height, padding, icon size, title size, and description size so each card carries more visual weight.
+
 ## [2026-05-23] feat: simplify login marketing cards and add gpt-image-2 promotion
 
 **Affected files**: frontend/src/views/auth/LoginView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

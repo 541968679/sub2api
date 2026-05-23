@@ -36,14 +36,14 @@
         <div class="flex flex-1 flex-col rounded-[38px] border border-white/[0.08] bg-white/[0.03] lg:flex-row">
 
           <!-- LEFT PANEL - Marketing (hidden on mobile) -->
-          <div class="hidden flex-1 flex-col justify-between rounded-l-[32px] bg-gradient-to-br from-[#18D8AA]/[0.16] to-[#4BA8FF]/[0.04] border border-white/[0.08] p-8 lg:flex xl:p-10">
+          <div class="hidden flex-1 flex-col gap-8 rounded-l-[32px] bg-gradient-to-br from-[#18D8AA]/[0.16] to-[#4BA8FF]/[0.04] border border-white/[0.08] p-8 lg:flex xl:gap-10 xl:p-10">
             <!-- Badge + Heading -->
             <div>
               <span class="inline-block rounded-[20px] bg-[#ECFFF9] px-4 py-2 text-[13px] font-extrabold tracking-wide text-[#0D2A3C]">
                 {{ loginBadge }}
               </span>
 
-              <h1 class="mt-8 text-[40px] font-extrabold leading-[1.15] text-white xl:text-[48px]">
+              <h1 class="mt-6 text-[40px] font-extrabold leading-[1.15] text-white xl:text-[48px]">
                 {{ loginHeading1 }}
               </h1>
               <h1 class="text-[40px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[48px]">
@@ -56,26 +56,26 @@
               <div
                 v-for="card in featureCards"
                 :key="card.key"
-                class="group relative flex min-h-[162px] flex-col overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#102A40] via-[#0D2031] to-[#081827] p-6 shadow-[0_12px_34px_rgba(0,0,0,0.26)] transition-colors hover:border-[#60A5C9]"
+                class="group relative flex min-h-[188px] flex-col overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#102A40] via-[#0D2031] to-[#081827] p-7 shadow-[0_12px_34px_rgba(0,0,0,0.26)] transition-colors hover:border-[#60A5C9]"
               >
                 <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别各自代表什么 -->
                 <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
 
-                <!-- 标题行：较大图标（44×44）+ 18px 粗标题 -->
+                <!-- 标题行：较大图标（48×48）+ 19px 粗标题 -->
                 <div class="flex items-center gap-3">
                   <span
-                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
                     :class="[card.iconBg, card.iconColor]"
                   >
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
                       <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
                     </svg>
                   </span>
-                  <h3 class="text-[18px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
+                  <h3 class="text-[19px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
                 </div>
 
-                <!-- 描述：14px，关键词用主题色 + 加粗 突出展示 -->
-                <p class="mt-4 text-[14px] leading-[1.7] text-[#C8D7E4]">
+                <!-- 描述：15px，关键词用主题色 + 加粗 突出展示 -->
+                <p class="mt-5 text-[15px] leading-[1.75] text-[#C8D7E4]">
                   <template v-for="(seg, i) in card.segments" :key="i">
                     <span
                       v-if="seg.highlight"
