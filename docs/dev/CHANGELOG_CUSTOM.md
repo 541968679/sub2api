@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-24] fix: hide user-facing cache-write usage display
+
+**Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/components/user/usage/UsageMetricTrendChart.vue, frontend/src/components/user/dashboard/UserDashboardStats.vue, frontend/src/components/user/dashboard/UserDashboardCharts.vue, frontend/src/components/charts/TokenUsageTrend.vue, frontend/src/views/KeyUsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only user-facing display change; cache-write billing fields and admin configuration remain unchanged
+**Change details**:
+- Removed cache-write/cache-creation as a selectable metric from the user usage trend chart.
+- Hid cache-write/cache-creation token and cost breakdown rows in the user usage records table and tooltips.
+- Hid cache-creation totals from the user dashboard and public API-key usage query while keeping cache-read display.
+- Added focused frontend regression coverage for user usage chart and tooltip output.
+
 ## [2026-05-24] fix: keep usage records table visible under trend chart
 
 **Affected files**: frontend/src/components/layout/TablePageLayout.vue, frontend/src/views/user/UsageView.vue

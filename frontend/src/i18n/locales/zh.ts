@@ -133,7 +133,6 @@ const zhBase = {
     requests: '请求数',
     inputTokens: '输入 Tokens',
     outputTokens: '输出 Tokens',
-    cacheCreationTokens: '缓存创建',
     cacheReadTokens: '缓存读取',
     totalTokens: '总 Tokens',
     cost: '费用',
@@ -161,7 +160,6 @@ const zhBase = {
     todayInputTokens: '今日输入',
     todayOutputTokens: '今日输出',
     todayTokens: '今日 Tokens',
-    todayCacheCreation: '今日缓存创建',
     todayCacheRead: '今日缓存读取',
     todayCost: '今日费用',
     rpmTpm: 'RPM / TPM',
@@ -169,7 +167,6 @@ const zhBase = {
     totalInputTokens: '累计输入',
     totalOutputTokens: '累计输出',
     totalTokensLabel: '累计 Tokens',
-    totalCacheCreation: '累计缓存创建',
     totalCacheRead: '累计缓存读取',
     totalCost: '累计费用',
     avgDuration: '平均耗时',
@@ -878,7 +875,6 @@ const zhBase = {
         requests: '请求数',
         inputTokens: '输入 Token',
         outputTokens: '输出 Token',
-        cacheWriteTokens: '缓存写入',
         cacheReadTokens: '缓存读取',
         standardCost: '标准费用'
       }

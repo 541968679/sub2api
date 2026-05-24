@@ -13,7 +13,6 @@ const messages: Record<string, string> = {
   'usage.trend.metrics.requests': 'Requests',
   'usage.trend.metrics.inputTokens': 'Input Tokens',
   'usage.trend.metrics.outputTokens': 'Output Tokens',
-  'usage.trend.metrics.cacheWriteTokens': 'Cache Write',
   'usage.trend.metrics.cacheReadTokens': 'Cache Read',
   'usage.trend.metrics.standardCost': 'Standard Cost',
   'common.loading': 'Loading',
@@ -81,6 +80,7 @@ describe('UsageMetricTrendChart', () => {
     expect(chartText).toContain('Total Cost')
     expect(chartText).toContain('Total Tokens')
     expect(chartText).toContain('Requests')
+    expect(wrapper.text()).not.toContain('Cache Write')
   })
 
   it('limits optional metric selection to two extra series', async () => {

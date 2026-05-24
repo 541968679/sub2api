@@ -52,6 +52,7 @@ const { t } = useI18n()
 const props = defineProps<{
   trendData: TrendDataPoint[]
   loading?: boolean
+  showCacheWrite?: boolean
 }>()
 
 const isDarkMode = computed(() => {
@@ -68,58 +69,78 @@ const chartColors = computed(() => ({
   cacheHitRate: '#8b5cf6'
 }))
 
+interface TrendDataset {
+  label: string
+  data: number[]
+  borderColor: string
+  backgroundColor: string
+  fill: boolean
+  tension: number
+  borderDash?: number[]
+  yAxisID?: string
+}
+
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
 
+  const datasets: TrendDataset[] = [
+    {
+      label: 'Input',
+      data: props.trendData.map((d) => d.input_tokens),
+      borderColor: chartColors.value.input,
+      backgroundColor: `${chartColors.value.input}20`,
+      fill: true,
+      tension: 0.3
+    },
+    {
+      label: 'Output',
+      data: props.trendData.map((d) => d.output_tokens),
+      borderColor: chartColors.value.output,
+      backgroundColor: `${chartColors.value.output}20`,
+      fill: true,
+      tension: 0.3
+    }
+  ]
+
+  if (props.showCacheWrite !== false) {
+    datasets.push({
+      label: 'Cache Creation',
+      data: props.trendData.map((d) => d.cache_creation_tokens),
+      borderColor: chartColors.value.cacheCreation,
+      backgroundColor: `${chartColors.value.cacheCreation}20`,
+      fill: true,
+      tension: 0.3
+    })
+  }
+
+  datasets.push({
+    label: 'Cache Read',
+    data: props.trendData.map((d) => d.cache_read_tokens),
+    borderColor: chartColors.value.cacheRead,
+    backgroundColor: `${chartColors.value.cacheRead}20`,
+    fill: true,
+    tension: 0.3
+  })
+
+  if (props.showCacheWrite !== false) {
+    datasets.push({
+      label: 'Cache Hit Rate',
+      data: props.trendData.map((d) => {
+        const total = d.cache_read_tokens + d.cache_creation_tokens
+        return total > 0 ? (d.cache_read_tokens / total) * 100 : 0
+      }),
+      borderColor: chartColors.value.cacheHitRate,
+      backgroundColor: `${chartColors.value.cacheHitRate}20`,
+      borderDash: [5, 5],
+      fill: false,
+      tension: 0.3,
+      yAxisID: 'yPercent'
+    })
+  }
+
   return {
     labels: props.trendData.map((d) => d.date),
-    datasets: [
-      {
-        label: 'Input',
-        data: props.trendData.map((d) => d.input_tokens),
-        borderColor: chartColors.value.input,
-        backgroundColor: `${chartColors.value.input}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Output',
-        data: props.trendData.map((d) => d.output_tokens),
-        borderColor: chartColors.value.output,
-        backgroundColor: `${chartColors.value.output}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Cache Creation',
-        data: props.trendData.map((d) => d.cache_creation_tokens),
-        borderColor: chartColors.value.cacheCreation,
-        backgroundColor: `${chartColors.value.cacheCreation}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Cache Read',
-        data: props.trendData.map((d) => d.cache_read_tokens),
-        borderColor: chartColors.value.cacheRead,
-        backgroundColor: `${chartColors.value.cacheRead}20`,
-        fill: true,
-        tension: 0.3
-      },
-      {
-        label: 'Cache Hit Rate',
-        data: props.trendData.map((d) => {
-          const total = d.cache_read_tokens + d.cache_creation_tokens
-          return total > 0 ? (d.cache_read_tokens / total) * 100 : 0
-        }),
-        borderColor: chartColors.value.cacheHitRate,
-        backgroundColor: `${chartColors.value.cacheHitRate}20`,
-        borderDash: [5, 5],
-        fill: false,
-        tension: 0.3,
-        yAxisID: 'yPercent'
-      }
-    ]
+    datasets
   }
 })
 

@@ -82,7 +82,6 @@ type MetricKey =
   | 'requests'
   | 'input_tokens'
   | 'output_tokens'
-  | 'cache_creation_tokens'
   | 'cache_read_tokens'
   | 'cost'
 
@@ -160,13 +159,6 @@ const metricDefinitions = computed<MetricDefinition[]>(() => [
     key: 'output_tokens',
     label: t('usage.trend.metrics.outputTokens'),
     color: '#7c3aed',
-    axis: 'volume',
-    formatter: formatTokens
-  },
-  {
-    key: 'cache_creation_tokens',
-    label: t('usage.trend.metrics.cacheWriteTokens'),
-    color: '#ea580c',
     axis: 'volume',
     formatter: formatTokens
   },

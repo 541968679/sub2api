@@ -16,8 +16,12 @@ const messages: Record<string, string> = {
   'usage.costDetails': 'Cost Breakdown',
   'admin.usage.inputCost': 'Input Cost',
   'admin.usage.outputCost': 'Output Cost',
-  'admin.usage.cacheCreationCost': 'Cache Creation Cost',
   'admin.usage.cacheReadCost': 'Cache Read Cost',
+  'usage.tokenDetails': 'Token Details',
+  'usage.totalTokens': 'Total Tokens',
+  'admin.usage.inputTokens': 'Input Tokens',
+  'admin.usage.outputTokens': 'Output Tokens',
+  'admin.usage.cacheReadTokens': 'Cache Read Tokens',
   'usage.inputTokenPrice': 'Input price',
   'usage.outputTokenPrice': 'Output price',
   'usage.perMillionTokens': '/ 1M tokens',
@@ -108,14 +112,15 @@ describe('user UsageView tooltip', () => {
           service_tier: 'priority',
           input_cost: 0.020285,
           output_cost: 0.00303,
-          cache_creation_cost: 0,
+          cache_creation_cost: 0.12,
           cache_read_cost: 0.069568,
           input_tokens: 4057,
           output_tokens: 101,
-          cache_creation_tokens: 0,
+          cache_creation_tokens: 12345,
           cache_read_tokens: 278272,
-          cache_creation_5m_tokens: 0,
-          cache_creation_1h_tokens: 0,
+          cache_creation_5m_tokens: 11111,
+          cache_creation_1h_tokens: 1234,
+          cache_ttl_overridden: true,
           image_count: 0,
           image_size: null,
           first_token_ms: null,
@@ -163,10 +168,12 @@ describe('user UsageView tooltip', () => {
       service_tier: 'priority',
       input_cost: 0.020285,
       output_cost: 0.00303,
-      cache_creation_cost: 0,
+      cache_creation_cost: 0.12,
       cache_read_cost: 0.069568,
       input_tokens: 4057,
       output_tokens: 101,
+      cache_creation_tokens: 12345,
+      cache_read_tokens: 278272,
     }
     setupState.tooltipVisible = true
     await nextTick()
@@ -180,6 +187,67 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('$0.092883')
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
+    expect(text).toContain('Cache Read Cost')
+    expect(text).not.toContain('Cache Creation Cost')
+  })
+
+  it('hides cache write token details in the user token tooltip', async () => {
+    query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0,
+    })
+    getStatsByDateRange.mockResolvedValue({
+      total_requests: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      avg_duration_ms: 0,
+    })
+    getDashboardTrend.mockResolvedValue({ trend: [], start_date: '2026-03-08', end_date: '2026-03-08', granularity: 'day' })
+    list.mockResolvedValue({ items: [] })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          TablePageLayout: TablePageLayoutStub,
+          Pagination: true,
+          EmptyState: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          UsageMetricTrendChart: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    await nextTick()
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    setupState.tokenTooltipData = {
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_read_tokens: 30,
+      cache_creation_tokens: 40,
+      cache_creation_5m_tokens: 25,
+      cache_creation_1h_tokens: 15,
+      cache_ttl_overridden: true,
+    }
+    setupState.tokenTooltipVisible = true
+    await nextTick()
+
+    const text = wrapper.text()
+    expect(text).toContain('Token Details')
+    expect(text).toContain('Input Tokens')
+    expect(text).toContain('Output Tokens')
+    expect(text).toContain('Cache Read Tokens')
+    expect(text).toContain('Total Tokens')
+    expect(text).toContain('60')
+    expect(text).not.toContain('Cache Creation')
+    expect(text).not.toContain('R-')
+    expect(text).not.toContain('100')
   })
 
 })

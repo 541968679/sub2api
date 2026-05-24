@@ -58,7 +58,7 @@
       </div>
 
       <!-- Token Usage Trend Chart -->
-      <TokenUsageTrend :trend-data="trend" :loading="loading" />
+      <TokenUsageTrend :trend-data="trend" :loading="loading" :show-cache-write="false" />
     </div>
   </div>
 </template>

@@ -133,7 +133,6 @@ export default {
     requests: 'Requests',
     inputTokens: 'Input Tokens',
     outputTokens: 'Output Tokens',
-    cacheCreationTokens: 'Cache Creation',
     cacheReadTokens: 'Cache Read',
     totalTokens: 'Total Tokens',
     cost: 'Cost',
@@ -161,7 +160,6 @@ export default {
     todayInputTokens: 'Today Input',
     todayOutputTokens: 'Today Output',
     todayTokens: 'Today Tokens',
-    todayCacheCreation: 'Today Cache Creation',
     todayCacheRead: 'Today Cache Read',
     todayCost: 'Today Cost',
     rpmTpm: 'RPM / TPM',
@@ -169,7 +167,6 @@ export default {
     totalInputTokens: 'Total Input',
     totalOutputTokens: 'Total Output',
     totalTokensLabel: 'Total Tokens',
-    totalCacheCreation: 'Total Cache Creation',
     totalCacheRead: 'Total Cache Read',
     totalCost: 'Total Cost',
     avgDuration: 'Avg Duration',
@@ -919,7 +916,6 @@ export default {
         requests: 'Requests',
         inputTokens: 'Input Tokens',
         outputTokens: 'Output Tokens',
-        cacheWriteTokens: 'Cache Write',
         cacheReadTokens: 'Cache Read',
         standardCost: 'Standard Cost'
       }
