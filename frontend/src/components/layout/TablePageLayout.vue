@@ -1,5 +1,5 @@
 <template>
-  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile }">
+  <div class="table-page-layout" :class="{ 'mobile-mode': isMobile, 'page-scroll-mode': scrollMode === 'page' }">
     <!-- 固定区域：操作按钮 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
@@ -12,6 +12,9 @@
 
     <!-- 滚动区域：表格 -->
     <div class="layout-section-scrollable">
+      <div v-if="$slots.scrollHeader" class="layout-scroll-header">
+        <slot name="scrollHeader" />
+      </div>
       <div class="card table-scroll-container">
         <slot name="table" />
       </div>
@@ -26,6 +29,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+
+withDefaults(defineProps<{
+  scrollMode?: 'fixed' | 'page'
+}>(), {
+  scrollMode: 'fixed'
+})
 
 const isMobile = ref(false)
 
@@ -54,13 +63,37 @@ onUnmounted(() => {
   @apply flex-shrink-0;
 }
 
+.page-scroll-mode {
+  height: auto;
+}
+
+.page-scroll-mode .layout-section-fixed {
+  @apply flex-none;
+}
+
+.page-scroll-mode .layout-section-scrollable {
+  @apply flex-none min-h-fit gap-4;
+}
+
+.page-scroll-mode .table-scroll-container {
+  @apply flex-none min-h-fit overflow-visible;
+}
+
+.page-scroll-mode .table-scroll-container :deep(.table-wrapper) {
+  @apply flex-none overflow-x-auto overflow-y-visible;
+}
+
 .layout-section-scrollable {
-  @apply flex-1 min-h-0 flex flex-col;
+  @apply flex-1 min-h-0 flex flex-col gap-4;
+}
+
+.layout-scroll-header {
+  @apply flex-shrink-0;
 }
 
 /* 表格滚动容器 - 增强版表体滚动方案 */
 .table-scroll-container {
-  @apply flex flex-col overflow-hidden h-full bg-white dark:bg-dark-800 rounded-2xl border border-gray-200 dark:border-dark-700 shadow-sm;
+  @apply flex flex-1 min-h-0 flex-col overflow-hidden bg-white dark:bg-dark-800 rounded-2xl border border-gray-200 dark:border-dark-700 shadow-sm;
 }
 
 .table-scroll-container :deep(.table-wrapper) {

@@ -306,6 +306,15 @@ func (s *UsageService) GetUserUsageTrendByUserID(ctx context.Context, userID int
 	return trend, nil
 }
 
+// GetUserUsageTrendWithFilters returns per-user usage trend with optional user-owned filters.
+func (s *UsageService) GetUserUsageTrendWithFilters(ctx context.Context, userID, apiKeyID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error) {
+	trend, err := s.usageRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, granularity, userID, apiKeyID, 0, 0, "", nil, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("get user usage trend with filters: %w", err)
+	}
+	return trend, nil
+}
+
 // GetUserModelStats returns per-user model usage stats.
 func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetUserModelStats(ctx, userID, startTime, endTime)

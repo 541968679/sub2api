@@ -867,6 +867,22 @@ const zhBase = {
     totalRequests: '总请求数',
     totalTokens: '总 Token',
     totalCost: '总消费',
+    trend: {
+      title: '用量曲线',
+      subtitle: '随当前 API 密钥和时间范围更新，最多显示 4 个指标',
+      noData: '当前范围暂无用量曲线数据',
+      maxMetricsHint: '最多同时显示 4 个指标',
+      metrics: {
+        actualCost: '总消费',
+        totalTokens: '总 Token',
+        requests: '请求数',
+        inputTokens: '输入 Token',
+        outputTokens: '输出 Token',
+        cacheWriteTokens: '缓存写入',
+        cacheReadTokens: '缓存读取',
+        standardCost: '标准费用'
+      }
+    },
     standardCost: '标准',
     actualCost: '实际',
     accountCost: '成本',

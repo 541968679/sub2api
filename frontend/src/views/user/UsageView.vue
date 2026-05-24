@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout scroll-mode="page">
       <template #actions>
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Total Requests -->
@@ -89,71 +89,51 @@
       <template #filters>
         <div class="card">
           <div class="px-6 py-4">
-          <div class="flex flex-wrap items-end gap-4">
-            <!-- API Key Filter -->
-            <div class="min-w-[180px]">
-              <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
-              <Select
-                v-model="filters.api_key_id"
-                :options="apiKeyOptions"
-                :placeholder="t('usage.allApiKeys')"
-                @change="applyFilters"
-              />
-            </div>
+            <div class="flex flex-wrap items-end gap-4">
+              <!-- API Key Filter -->
+              <div class="min-w-[180px]">
+                <label class="input-label">{{ t('usage.apiKeyFilter') }}</label>
+                <Select
+                  v-model="filters.api_key_id"
+                  :options="apiKeyOptions"
+                  :placeholder="t('usage.allApiKeys')"
+                  @change="applyFilters"
+                />
+              </div>
 
-            <!-- Date Range Filter -->
-            <div>
-              <label class="input-label">{{ t('usage.timeRange') }}</label>
-              <DateRangePicker
-                v-model:start-date="startDate"
-                v-model:end-date="endDate"
-                @change="onDateRangeChange"
-              />
-            </div>
+              <!-- Date Range Filter -->
+              <div>
+                <label class="input-label">{{ t('usage.timeRange') }}</label>
+                <DateRangePicker
+                  v-model:start-date="startDate"
+                  v-model:end-date="endDate"
+                  @change="onDateRangeChange"
+                />
+              </div>
 
-            <!-- Actions -->
-            <div class="ml-auto flex items-center gap-3">
-              <button @click="applyFilters" :disabled="loading" class="btn btn-secondary">
-                {{ t('common.refresh') }}
-              </button>
-              <button @click="resetFilters" class="btn btn-secondary">
-                {{ t('common.reset') }}
-              </button>
-              <button @click="exportToCSV" :disabled="exporting" class="btn btn-primary">
-                <svg
-                  v-if="exporting"
-                  class="-ml-1 mr-2 h-4 w-4 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                  ></circle>
-                  <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                {{ exporting ? t('usage.exporting') : t('usage.exportCsv') }}
-              </button>
+              <!-- Actions -->
+              <div class="ml-auto flex items-center gap-3">
+                <button @click="applyFilters" :disabled="loading" class="btn btn-secondary">
+                  {{ t('common.refresh') }}
+                </button>
+                <button @click="resetFilters" class="btn btn-secondary">
+                  {{ t('common.reset') }}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
         </div>
       </template>
 
       <template #table>
+        <UsageMetricTrendChart :trend-data="usageTrend" :loading="trendLoading" />
+
         <DataTable
           :columns="columns"
           :data="usageLogs"
           :loading="loading"
           :server-side-sort="true"
+          :virtual-scroll="false"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"
@@ -523,7 +503,8 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Select from '@/components/common/Select.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse } from '@/types'
+import UsageMetricTrendChart from '@/components/user/usage/UsageMetricTrendChart.vue'
+import type { UsageLog, ApiKey, UsageQueryParams, UsageStatsResponse, TrendDataPoint } from '@/types'
 import type { Column } from '@/components/common/types'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -537,6 +518,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 let abortController: AbortController | null = null
+let trendAbortController: AbortController | null = null
 
 // Tooltip state
 const tooltipVisible = ref(false)
@@ -550,6 +532,7 @@ const tokenTooltipData = ref<UsageLog | null>(null)
 
 // Usage stats from API
 const usageStats = ref<UsageStatsResponse | null>(null)
+const usageTrend = ref<TrendDataPoint[]>([])
 
 const columns = computed<Column[]>(() => [
   { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
@@ -569,7 +552,7 @@ const columns = computed<Column[]>(() => [
 const usageLogs = ref<UsageLog[]>([])
 const apiKeys = ref<ApiKey[]>([])
 const loading = ref(false)
-const exporting = ref(false)
+const trendLoading = ref(false)
 
 const apiKeyOptions = computed(() => {
   return [
@@ -658,14 +641,6 @@ const getRequestTypeBadgeClass = (log: UsageLog): string => {
 }
 
 
-const getRequestTypeExportText = (log: UsageLog): string => {
-  const requestType = resolveUsageRequestType(log)
-  if (requestType === 'ws_v2') return 'WS'
-  if (requestType === 'stream') return 'Stream'
-  if (requestType === 'sync') return 'Sync'
-  return 'Unknown'
-}
-
 const formatUsageEndpoints = (log: UsageLog): string => {
   const inbound = log.inbound_endpoint?.trim()
   return inbound || '-'
@@ -694,6 +669,21 @@ const buildUsageQueryParams = (page: number, pageSize: number): UsageTableQueryP
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
+
+const parseLocalDate = (value: string): Date | null => {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+const getTrendGranularity = (): 'day' | 'hour' => {
+  const start = parseLocalDate(filters.value.start_date || startDate.value)
+  const end = parseLocalDate(filters.value.end_date || endDate.value)
+  if (!start || !end) return 'day'
+
+  const days = Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1
+  return days <= 2 ? 'hour' : 'day'
+}
 
 const loadUsageLogs = async () => {
   if (abortController) {
@@ -759,10 +749,49 @@ const loadUsageStats = async () => {
   }
 }
 
+const loadUsageTrend = async () => {
+  if (trendAbortController) {
+    trendAbortController.abort()
+  }
+
+  const currentAbortController = new AbortController()
+  trendAbortController = currentAbortController
+  const { signal } = currentAbortController
+  trendLoading.value = true
+  try {
+    const apiKeyId = filters.value.api_key_id ? Number(filters.value.api_key_id) : undefined
+    const response = await usageAPI.getDashboardTrend({
+      start_date: filters.value.start_date || startDate.value,
+      end_date: filters.value.end_date || endDate.value,
+      api_key_id: apiKeyId,
+      granularity: getTrendGranularity()
+    }, { signal })
+    if (signal.aborted) {
+      return
+    }
+    usageTrend.value = response.trend || []
+  } catch (error) {
+    if (signal.aborted) {
+      return
+    }
+    const abortError = error as { name?: string; code?: string }
+    if (abortError?.name === 'AbortError' || abortError?.code === 'ERR_CANCELED') {
+      return
+    }
+    console.error('Failed to load usage trend:', error)
+    usageTrend.value = []
+  } finally {
+    if (trendAbortController === currentAbortController) {
+      trendLoading.value = false
+    }
+  }
+}
+
 const applyFilters = () => {
   pagination.page = 1
   loadUsageLogs()
   loadUsageStats()
+  loadUsageTrend()
 }
 
 const resetFilters = () => {
@@ -782,6 +811,7 @@ const resetFilters = () => {
   pagination.page = 1
   loadUsageLogs()
   loadUsageStats()
+  loadUsageTrend()
 }
 
 const handlePageChange = (page: number) => {
@@ -800,119 +830,6 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   sortState.sort_order = order
   pagination.page = 1
   loadUsageLogs()
-}
-
-/**
- * Escape CSV value to prevent injection and handle special characters
- */
-const escapeCSVValue = (value: unknown): string => {
-  if (value == null) return ''
-
-  const str = String(value)
-  const escaped = str.replace(/"/g, '""')
-
-  // Prevent formula injection by prefixing dangerous characters with single quote
-  if (/^[=+\-@\t\r]/.test(str)) {
-    return `"\'${escaped}"`
-  }
-
-  // Escape values containing comma, quote, or newline
-  if (/[,"\n\r]/.test(str)) {
-    return `"${escaped}"`
-  }
-
-  return str
-}
-
-const exportToCSV = async () => {
-  if (pagination.total === 0) {
-    appStore.showWarning(t('usage.noDataToExport'))
-    return
-  }
-
-  exporting.value = true
-  appStore.showInfo(t('usage.preparingExport'))
-
-  try {
-    const allLogs: UsageLog[] = []
-    const pageSize = 100 // Use a larger page size for export to reduce requests
-    const totalRequests = Math.ceil(pagination.total / pageSize)
-
-    for (let page = 1; page <= totalRequests; page++) {
-      const response = await usageAPI.query(buildUsageQueryParams(page, pageSize))
-      allLogs.push(...response.items)
-    }
-
-    if (allLogs.length === 0) {
-      appStore.showWarning(t('usage.noDataToExport'))
-      return
-    }
-
-    const headers = [
-      'Time',
-      'API Key Name',
-      'Model',
-      'Reasoning Effort',
-      'Inbound Endpoint',
-      'Type',
-      'Billing Mode',
-      'Image Count',
-      'Image Size',
-      'Image Quality',
-      'Input Tokens',
-      'Output Tokens',
-      'Cache Read Tokens',
-      'Cache Creation Tokens',
-      'Rate Multiplier',
-      'Billed Cost',
-      'Original Cost',
-      'First Token (ms)',
-      'Duration (ms)'
-    ]
-    const rows = allLogs.map((log) =>
-      [
-        log.created_at,
-        log.api_key?.name || '',
-        log.model,
-        formatReasoningEffort(log.reasoning_effort),
-        log.inbound_endpoint || '',
-        getRequestTypeExportText(log),
-        getBillingModeLabel(log.billing_mode, t),
-        log.image_count || '',
-        log.image_size || '',
-        log.image_quality || '',
-        log.input_tokens,
-        log.output_tokens,
-        log.cache_read_tokens,
-        log.cache_creation_tokens,
-        log.rate_multiplier,
-        log.actual_cost.toFixed(8),
-        log.total_cost.toFixed(8),
-        log.first_token_ms ?? '',
-        log.duration_ms
-      ].map(escapeCSVValue)
-    )
-
-    const csvContent = [
-      headers.map(escapeCSVValue).join(','),
-      ...rows.map((row) => row.join(','))
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `usage_${filters.value.start_date}_to_${filters.value.end_date}.csv`
-    link.click()
-    window.URL.revokeObjectURL(url)
-
-    appStore.showSuccess(t('usage.exportSuccess'))
-  } catch (error) {
-    appStore.showError(t('usage.exportFailed'))
-    console.error('CSV Export failed:', error)
-  } finally {
-    exporting.value = false
-  }
 }
 
 // Tooltip functions
@@ -952,6 +869,7 @@ onMounted(() => {
   loadApiKeys()
   loadUsageLogs()
   loadUsageStats()
+  loadUsageTrend()
 })
 
 onBeforeUnmount(() => {
@@ -961,6 +879,9 @@ onBeforeUnmount(() => {
   tokenTooltipData.value = null
   if (abortController) {
     abortController.abort()
+  }
+  if (trendAbortController) {
+    trendAbortController.abort()
   }
 })
 </script>

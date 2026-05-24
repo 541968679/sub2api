@@ -349,7 +349,34 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 	startTime, endTime := parseUserTimeRange(c)
 	granularity := c.DefaultQuery("granularity", "day")
 
-	trend, err := h.usageService.GetUserUsageTrendByUserID(c.Request.Context(), subject.UserID, startTime, endTime, granularity)
+	var apiKeyID int64
+	if apiKeyIDStr := c.Query("api_key_id"); apiKeyIDStr != "" {
+		id, err := strconv.ParseInt(apiKeyIDStr, 10, 64)
+		if err != nil {
+			response.BadRequest(c, "Invalid api_key_id")
+			return
+		}
+
+		apiKey, err := h.apiKeyService.GetByID(c.Request.Context(), id)
+		if err != nil {
+			response.NotFound(c, "API key not found")
+			return
+		}
+		if apiKey.UserID != subject.UserID {
+			response.Forbidden(c, "Not authorized to access this API key's usage trend")
+			return
+		}
+
+		apiKeyID = id
+	}
+
+	var trend []usagestats.TrendDataPoint
+	var err error
+	if apiKeyID > 0 {
+		trend, err = h.usageService.GetUserUsageTrendWithFilters(c.Request.Context(), subject.UserID, apiKeyID, startTime, endTime, granularity)
+	} else {
+		trend, err = h.usageService.GetUserUsageTrendByUserID(c.Request.Context(), subject.UserID, startTime, endTime, granularity)
+	}
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -908,6 +908,22 @@ export default {
     totalRequests: 'Total Requests',
     totalTokens: 'Total Tokens',
     totalCost: 'Total Cost',
+    trend: {
+      title: 'Usage Trend',
+      subtitle: 'Updates with the selected API key and date range, up to 4 metrics',
+      noData: 'No trend data in the selected range',
+      maxMetricsHint: 'Up to 4 metrics can be shown at once',
+      metrics: {
+        actualCost: 'Total Cost',
+        totalTokens: 'Total Tokens',
+        requests: 'Requests',
+        inputTokens: 'Input Tokens',
+        outputTokens: 'Output Tokens',
+        cacheWriteTokens: 'Cache Write',
+        cacheReadTokens: 'Cache Read',
+        standardCost: 'Standard Cost'
+      }
+    },
     standardCost: 'Standard',
     actualCost: 'Actual',
     accountCost: 'Cost',

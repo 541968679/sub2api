@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
@@ -16,8 +17,11 @@ import (
 
 type userUsageRepoCapture struct {
 	service.UsageLogRepository
-	listParams  pagination.PaginationParams
-	listFilters usagestats.UsageLogFilters
+	listParams       pagination.PaginationParams
+	listFilters      usagestats.UsageLogFilters
+	trendUserID      int64
+	trendAPIKeyID    int64
+	trendGranularity string
 }
 
 func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
@@ -31,6 +35,41 @@ func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagin
 	}, nil
 }
 
+func (s *userUsageRepoCapture) GetUserUsageTrendByUserID(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error) {
+	s.trendUserID = userID
+	s.trendGranularity = granularity
+	return []usagestats.TrendDataPoint{}, nil
+}
+
+func (s *userUsageRepoCapture) GetUsageTrendWithFilters(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	granularity string,
+	userID, apiKeyID, accountID, groupID int64,
+	model string,
+	requestType *int16,
+	stream *bool,
+	billingType *int8,
+) ([]usagestats.TrendDataPoint, error) {
+	s.trendUserID = userID
+	s.trendAPIKeyID = apiKeyID
+	s.trendGranularity = granularity
+	return []usagestats.TrendDataPoint{}, nil
+}
+
+type userUsageAPIKeyRepoStub struct {
+	service.APIKeyRepository
+	apiKey *service.APIKey
+	err    error
+}
+
+func (s *userUsageAPIKeyRepoStub) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.apiKey, nil
+}
+
 func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo, nil, nil, nil)
@@ -41,6 +80,20 @@ func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
 		c.Next()
 	})
 	router.GET("/usage", handler.List)
+	return router
+}
+
+func newUserUsageTrendTestRouter(repo *userUsageRepoCapture, apiKeyRepo service.APIKeyRepository) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	usageSvc := service.NewUsageService(repo, nil, nil, nil)
+	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, apiKeySvc, nil, nil)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
+		c.Next()
+	})
+	router.GET("/usage/dashboard/trend", handler.DashboardTrend)
 	return router
 }
 
@@ -68,6 +121,48 @@ func TestUserUsageListInvalidRequestType(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUserUsageDashboardTrendFiltersByAPIKey(t *testing.T) {
+	repo := &userUsageRepoCapture{}
+	router := newUserUsageTrendTestRouter(repo, &userUsageAPIKeyRepoStub{
+		apiKey: &service.APIKey{ID: 7, UserID: 42},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/dashboard/trend?api_key_id=7&granularity=hour&start_date=2026-05-20&end_date=2026-05-21", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(42), repo.trendUserID)
+	require.Equal(t, int64(7), repo.trendAPIKeyID)
+	require.Equal(t, "hour", repo.trendGranularity)
+}
+
+func TestUserUsageDashboardTrendInvalidAPIKeyID(t *testing.T) {
+	repo := &userUsageRepoCapture{}
+	router := newUserUsageTrendTestRouter(repo, &userUsageAPIKeyRepoStub{
+		apiKey: &service.APIKey{ID: 7, UserID: 42},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/dashboard/trend?api_key_id=bad", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUserUsageDashboardTrendRejectsOtherUsersAPIKey(t *testing.T) {
+	repo := &userUsageRepoCapture{}
+	router := newUserUsageTrendTestRouter(repo, &userUsageAPIKeyRepoStub{
+		apiKey: &service.APIKey{ID: 7, UserID: 99},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/usage/dashboard/trend?api_key_id=7", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
 }
 
 func TestUserUsageListInvalidStream(t *testing.T) {

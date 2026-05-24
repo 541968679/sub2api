@@ -19,6 +19,25 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-24] fix: keep usage records table visible under trend chart
+
+**Affected files**: frontend/src/components/layout/TablePageLayout.vue, frontend/src/views/user/UsageView.vue
+**Upstream compatibility**: frontend-only layout fix; usage APIs unchanged
+**Change details**:
+- Added a scroll-area header slot to the shared table layout and moved the user usage trend chart out of the fixed filters section so the records table keeps visible scroll height.
+- Added page-scroll mode to the shared table layout and enabled it for the user usage page so the full usage page scrolls naturally instead of compressing the records table into a fixed viewport.
+- Removed the CSV export button and user usage CSV export logic from the usage records page.
+
+## [2026-05-24] feat: add user usage trend chart
+
+**Affected files**: backend/internal/handler/usage_handler.go, backend/internal/service/usage_service.go, frontend/src/views/user/UsageView.vue, frontend/src/components/user/usage/UsageMetricTrendChart.vue, frontend/src/api/usage.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: additive user usage UI and trend API filter change; existing usage list/stats behavior unchanged
+**Change details**:
+- Added a compact usage trend chart above the user usage records table that follows the current API key and date-range filters.
+- Fixed the user dashboard trend endpoint to accept optional `api_key_id` with ownership validation, so chart data can match filtered usage records.
+- Added selectable chart metrics with total actual cost and total tokens always shown, plus at most two optional extra metrics.
+- Added focused backend and frontend tests for API-key-filtered trend data and metric-selection limits.
+
 ## [2026-05-24] fix: compact API keys getting started guide
 
 **Affected files**: frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/views/user/KeysView.vue
