@@ -10,64 +10,65 @@
         @dismiss="dismissGuide"
       />
 
-    <TablePageLayout :class="{ 'keys-table-section': !guideDismissed }">
-      <template #filters>
-        <div class="flex flex-col gap-3">
-          <div class="flex flex-wrap items-center gap-3">
-            <SearchInput
-              v-model="filterSearch"
-              :placeholder="t('keys.searchPlaceholder')"
-              class="w-full sm:w-64"
-              @search="onFilterChange"
-            />
-            <Select
-              :model-value="filterGroupId"
-              class="w-40"
-              :options="groupFilterOptions"
-              @update:model-value="onGroupFilterChange"
-            />
-            <Select
-              :model-value="filterStatus"
-              class="w-40"
-              :options="statusFilterOptions"
-              @update:model-value="onStatusFilterChange"
+      <TablePageLayout class="keys-table-section">
+        <template #filters>
+          <div class="flex flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-3">
+              <SearchInput
+                v-model="filterSearch"
+                :placeholder="t('keys.searchPlaceholder')"
+                class="w-full sm:w-64"
+                @search="onFilterChange"
+              />
+              <Select
+                :model-value="filterGroupId"
+                class="w-40"
+                :options="groupFilterOptions"
+                @update:model-value="onGroupFilterChange"
+              />
+              <Select
+                :model-value="filterStatus"
+                class="w-40"
+                :options="statusFilterOptions"
+                @update:model-value="onStatusFilterChange"
+              />
+              <div class="flex w-full items-center justify-end gap-2 sm:ml-auto sm:w-auto">
+                <button
+                  @click="loadApiKeys"
+                  :disabled="loading"
+                  class="btn btn-secondary btn-icon h-10 w-10 p-0"
+                  :title="t('common.refresh')"
+                >
+                  <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+                </button>
+                <button
+                  @click="showCreateModal = true"
+                  class="btn btn-primary h-10 whitespace-nowrap px-4"
+                  data-tour="keys-create-btn"
+                >
+                  <Icon name="plus" size="md" class="mr-1" />
+                  {{ t('keys.createKey') }}
+                </button>
+              </div>
+            </div>
+            <EndpointPopover
+              v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
+              :api-base-url="publicSettings?.api_base_url || ''"
+              :custom-endpoints="publicSettings?.custom_endpoints || []"
             />
           </div>
-          <EndpointPopover
-            v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
-            :api-base-url="publicSettings?.api_base_url || ''"
-            :custom-endpoints="publicSettings?.custom_endpoints || []"
-          />
-        </div>
-      </template>
+        </template>
 
-      <template #actions>
-        <div class="flex justify-end gap-3">
-        <button
-          @click="loadApiKeys"
-          :disabled="loading"
-          class="btn btn-secondary"
-          :title="t('common.refresh')"
-        >
-          <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-        </button>
-        <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
-          <Icon name="plus" size="md" class="mr-2" />
-          {{ t('keys.createKey') }}
-        </button>
-      </div>
-      </template>
-
-      <template #table>
-        <DataTable
-          :columns="columns"
-          :data="apiKeys"
-          :loading="loading"
-          :server-side-sort="true"
-          default-sort-key="created_at"
-          default-sort-order="desc"
-          @sort="handleSort"
-        >
+        <template #table>
+          <DataTable
+            :columns="columns"
+            :data="apiKeys"
+            :loading="loading"
+            :server-side-sort="true"
+            default-sort-key="created_at"
+            default-sort-order="desc"
+            @sort="handleSort"
+          >
           <template #cell-key="{ value, row }">
             <div class="flex items-center gap-2">
               <code class="code text-xs">
@@ -1857,11 +1858,12 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 64px - 4rem);
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .keys-table-section {
   flex: 1;
+  gap: 0.75rem !important;
   min-height: 0;
   height: auto !important;
 }

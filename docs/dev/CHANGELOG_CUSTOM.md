@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-24] fix: compact API keys getting started guide
+
+**Affected files**: frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/views/user/KeysView.vue
+**Upstream compatibility**: frontend-only API keys page presentation change; key management behavior unchanged
+**Change details**:
+- Replaced the API keys page getting-started guide's large header-plus-card layout with a compact responsive action bar.
+- Kept the create key, CC Switch download, tool hints, and dismiss actions while removing the tall descriptive step cards.
+- Merged search, group/status filters, refresh, and create-key actions into one responsive toolbar line.
+- Reduced the page gap above the API keys table so more vertical space is available for the table.
+
 ## [2026-05-23] fix: enlarge login marketing cards and reduce heading gap
 
 **Affected files**: frontend/src/views/auth/LoginView.vue
