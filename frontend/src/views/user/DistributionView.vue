@@ -565,10 +565,23 @@ function assetCopyText(asset: DistributionAsset): string {
 
 function apiKeyCopyText(baseURL: string, key: string): string {
   const normalizedBaseURL = baseURL || window.location.origin
-  return t('distribution.generated.apiKeyCopyText', {
-    baseUrl: normalizedBaseURL,
-    key,
+  const examplePayload = JSON.stringify({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: 'Hello' }],
   })
+  return [
+    `API Base URL: ${normalizedBaseURL}`,
+    `API Key: ${key}`,
+    '',
+    t('distribution.generated.apiKeyUsageTitle'),
+    `1. ${t('distribution.generated.apiKeyUsageBaseUrl', { baseUrl: normalizedBaseURL })}`,
+    `2. ${t('distribution.generated.apiKeyUsageBearer')}`,
+    `3. ${t('distribution.generated.apiKeyUsageOpenAI')}:`,
+    `curl ${normalizedBaseURL}/v1/chat/completions \\`,
+    `  -H "Authorization: Bearer ${key}" \\`,
+    `  -H "Content-Type: application/json" \\`,
+    `  -d '${examplePayload}'`,
+  ].join('\n')
 }
 
 function formatDiscount(value: number): string {

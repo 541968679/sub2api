@@ -6840,7 +6840,10 @@ const v117ZhPatch = {
       balanceCode: '余额兑换码',
       subscriptionCode: '订阅兑换码',
       apiKey: 'API Key',
-      apiKeyCopyText: 'API Base URL: {baseUrl}\nAPI Key: {key}\n\n使用说明：\n1. 将 API Base URL 设置为 {baseUrl}\n2. 将 API Key 作为 Bearer Token 使用\n3. OpenAI 兼容调用示例：\ncurl {baseUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer {key}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}\'',
+      apiKeyUsageTitle: '使用说明：',
+      apiKeyUsageBaseUrl: '将 API Base URL 设置为 {baseUrl}',
+      apiKeyUsageBearer: '将 API Key 作为 Bearer Token 使用',
+      apiKeyUsageOpenAI: 'OpenAI 兼容调用示例',
     },
     assets: {
       title: '生成资产',

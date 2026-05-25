@@ -19,6 +19,14 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] fix: avoid i18n placeholder parsing in distribution API key copy text
+
+**Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only bug fix
+**Change details**:
+- Moved the generated API key curl JSON example out of the vue-i18n message string so `{"model":...}` is no longer parsed as an i18n placeholder in production builds.
+- Kept translatable sentence fragments for the API key usage instructions and assembled the full copy text in code.
+
 ## [2026-05-25] feat: align public key usage page with user usage view
 
 **Affected files**: backend/internal/server/middleware/api_key_auth.go, backend/internal/server/routes/gateway.go, backend/internal/handler/usage_handler.go, frontend/src/views/KeyUsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/gateway.md

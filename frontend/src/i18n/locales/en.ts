@@ -7090,7 +7090,10 @@ export default {
       balanceCode: 'Balance code',
       subscriptionCode: 'Subscription code',
       apiKey: 'API key',
-      apiKeyCopyText: 'API Base URL: {baseUrl}\nAPI Key: {key}\n\nUsage:\n1. Set the API base URL to {baseUrl}\n2. Use the API key as a Bearer token\n3. OpenAI-compatible example:\ncurl {baseUrl}/v1/chat/completions \\\n  -H "Authorization: Bearer {key}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello"}]}\'',
+      apiKeyUsageTitle: 'Usage:',
+      apiKeyUsageBaseUrl: 'Set the API base URL to {baseUrl}',
+      apiKeyUsageBearer: 'Use the API key as a Bearer token',
+      apiKeyUsageOpenAI: 'OpenAI-compatible example',
     },
     assets: {
       title: 'Generated assets',
