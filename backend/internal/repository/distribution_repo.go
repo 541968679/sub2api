@@ -615,6 +615,52 @@ RETURNING id, user_id, wallet_id, asset_type, reference_type, reference_id, disp
 	return item, rows.Err()
 }
 
+func (r *distributionRepository) VoidAPIKeyAssetReference(ctx context.Context, id int64, userID int64) error {
+	client := clientFromContext(ctx, r.client)
+	var existingUserID int64
+	var existingStatus string
+	var quotaUsed float64
+	var deletedAt sql.NullTime
+	rows, err := client.QueryContext(ctx, `
+SELECT user_id, status, quota_used::double precision, deleted_at
+FROM api_keys
+WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		return service.ErrAPIKeyNotFound
+	}
+	if err := rows.Scan(&existingUserID, &existingStatus, &quotaUsed, &deletedAt); err != nil {
+		return err
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if existingUserID != userID {
+		return service.ErrInsufficientPerms
+	}
+	if quotaUsed > 0.00000001 {
+		return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be voided")
+	}
+	if deletedAt.Valid || existingStatus == service.StatusAPIKeyDisabled {
+		return nil
+	}
+	_, err = client.ExecContext(ctx, `
+UPDATE api_keys
+SET status = $1, updated_at = NOW()
+WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL`,
+		service.StatusAPIKeyDisabled,
+		id,
+		userID,
+	)
+	return err
+}
+
 func (r *distributionRepository) UpdateWalletStatus(ctx context.Context, userID int64, status string) (*service.DistributionWallet, error) {
 	client := clientFromContext(ctx, r.client)
 	rows, err := client.QueryContext(ctx, `
@@ -653,12 +699,12 @@ func (r *distributionRepository) AdjustWalletBalance(ctx context.Context, userID
 		rows, err := txClient.QueryContext(txCtx, `
 UPDATE distribution_wallets
 SET balance = balance + $1,
-    total_recharged = total_recharged + CASE WHEN $1 > 0 THEN $1 ELSE 0 END,
-    total_spent = total_spent + CASE WHEN $1 < 0 THEN -$1 ELSE 0 END,
+    total_recharged = total_recharged + CASE WHEN $3 = 'admin_adjust' AND $1 > 0 THEN $1 ELSE 0 END,
+    total_spent = total_spent + CASE WHEN $3 IN ('generate_redeem_code', 'generate_subscription', 'generate_api_key') AND $1 < 0 THEN -$1 ELSE 0 END,
     updated_at = NOW()
 WHERE user_id = $2
 RETURNING id, user_id, agent_id, balance::double precision, total_recharged::double precision, total_spent::double precision, total_rebate::double precision, status, created_at, updated_at`,
-			amount, userID)
+			amount, userID, action)
 		if err != nil {
 			return err
 		}

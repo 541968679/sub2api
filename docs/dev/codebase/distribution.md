@@ -63,6 +63,7 @@ The distribution wallet is intentionally separate from the normal user balance.
   - `POST /api/v1/admin/distribution/assets/:id/void`
 - Wallet generation runs in one transaction with the generated redeem code or API key.
 - Asset void/refund also runs in one transaction. `distribution_assets.refunded_at/refunded_rmb` prevents duplicate refunds.
+- Wallet lifetime counters are action-based: `total_recharged` only counts positive `admin_adjust` top-ups, and `total_spent` only counts generation actions. `asset_refund` restores balance but is not cumulative recharge.
 - Asset list status is derived from the linked `redeem_codes` or `api_keys` record where possible, so used/expired/disabled states reflect runtime state rather than only the creation snapshot.
 - The user-facing agent page presents generated assets and wallet ledger as tabs in one history panel. Newly generated codes/API keys appear in the generated-assets action area for immediate copy, and asset search is sent through the existing `GET /api/v1/distribution/assets?search=...` parameter.
 - Settings are stored in the existing Settings KV:
@@ -82,6 +83,7 @@ The distribution wallet is intentionally separate from the normal user balance.
 - Subscription code generation uses RMB face value and the admin-configured discount ratio.
 - User-facing distribution summary returns the effective ratios for that agent, not only the global settings.
 - Voiding a used balance/subscription code must not refund. Voiding an unused redeem code marks it expired; voiding an API key disables the key.
+- Distribution API-key voiding allows refund finalization if the underlying unused key was already disabled or soft-deleted outside the distribution asset flow, but rejects keys with `quota_used > 0`.
 - Refund amount is the original RMB cost recorded on the generated asset, not current global or agent ratio recalculation.
 - The generated API key still belongs to the distributor account; the customer receives the string, not a separate customer-owned key record.
 - Empty `distribution_api_key_group_ids` means no groups are exposed to agents for API key generation.

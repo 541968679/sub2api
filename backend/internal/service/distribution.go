@@ -236,6 +236,7 @@ type DistributionRepository interface {
 	ListAssets(ctx context.Context, page, pageSize int, userID int64, assetType, status, search string) ([]DistributionAsset, int64, error)
 	UpdateAgentRates(ctx context.Context, userID int64, rates DistributionAgentRateSettings) (*DistributionAgentApplication, error)
 	MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedBy int64) (*DistributionAsset, error)
+	VoidAPIKeyAssetReference(ctx context.Context, id int64, userID int64) error
 	UpdateWalletStatus(ctx context.Context, userID int64, status string) (*DistributionWallet, error)
 	AdjustWalletBalance(ctx context.Context, userID int64, amount float64, action, referenceType, referenceID, note string, createdBy int64) (*DistributionWallet, error)
 	WithTx(ctx context.Context, fn func(txCtx context.Context) error) error
@@ -747,16 +748,15 @@ func (s *DistributionService) VoidAsset(ctx context.Context, userID, assetID, op
 			}
 			nextStatus = DistributionAssetStatusExpired
 		case DistributionAssetTypeAPIKey:
-			if s.apiKey == nil {
-				return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "api key service unavailable")
-			}
 			refID, err := strconv.ParseInt(asset.ReferenceID, 10, 64)
 			if err != nil || refID <= 0 {
 				return infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid api key asset")
 			}
-			disabled := StatusAPIKeyDisabled
-			if _, err := s.apiKey.UpdateStatus(txCtx, refID, asset.UserID, disabled); err != nil {
+			if err := s.repo.VoidAPIKeyAssetReference(txCtx, refID, asset.UserID); err != nil {
 				return err
+			}
+			if s.apiKey != nil {
+				s.apiKey.InvalidateAuthCacheByUserID(txCtx, asset.UserID)
 			}
 			nextStatus = DistributionAssetStatusDisabled
 		default:

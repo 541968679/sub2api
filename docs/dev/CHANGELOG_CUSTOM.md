@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] fix: correct distribution asset refund accounting
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/migrations/143_recompute_distribution_wallet_totals.sql, docs/dev/codebase/distribution.md
+**Upstream compatibility**: distribution wallet accounting and data repair migration
+**Change details**:
+- Changed distribution wallet lifetime counters so asset refunds restore balance without increasing `total_recharged`; only positive admin adjustments count as recharge, and only generation actions count as spend.
+- Allowed distribution API-key void/refund finalization when the underlying unused API key was already disabled or soft-deleted outside the distribution asset flow, while rejecting keys with nonzero `quota_used`.
+- Added an idempotent migration to recompute historical wallet totals from ledger actions and backfill refunds for unused distribution API-key assets whose underlying keys were already disabled/deleted without asset refund records.
+
 ## [2026-05-25] feat: optimize become-agent asset history layout
 
 **Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md
