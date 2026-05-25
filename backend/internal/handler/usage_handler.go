@@ -161,6 +161,156 @@ func (h *UsageHandler) List(c *gin.Context) {
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
 
+// PublicRecords lists usage records for the API key used to authenticate the request.
+// GET /v1/usage/records
+func (h *UsageHandler) PublicRecords(c *gin.Context) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Invalid API key")
+		return
+	}
+
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Invalid API key")
+		return
+	}
+
+	page, pageSize := response.ParsePagination(c)
+
+	model := c.Query("model")
+
+	var requestType *int16
+	var stream *bool
+	if requestTypeStr := strings.TrimSpace(c.Query("request_type")); requestTypeStr != "" {
+		parsed, err := service.ParseUsageRequestType(requestTypeStr)
+		if err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		value := int16(parsed)
+		requestType = &value
+	} else if streamStr := c.Query("stream"); streamStr != "" {
+		val, err := strconv.ParseBool(streamStr)
+		if err != nil {
+			response.BadRequest(c, "Invalid stream value, use true or false")
+			return
+		}
+		stream = &val
+	}
+
+	var billingType *int8
+	if billingTypeStr := c.Query("billing_type"); billingTypeStr != "" {
+		val, err := strconv.ParseInt(billingTypeStr, 10, 8)
+		if err != nil {
+			response.BadRequest(c, "Invalid billing_type")
+			return
+		}
+		bt := int8(val)
+		billingType = &bt
+	}
+
+	startTime, endTime, ok := parseUsageDateRangeQuery(c)
+	if !ok {
+		return
+	}
+
+	params := pagination.PaginationParams{
+		Page:      page,
+		PageSize:  pageSize,
+		SortBy:    c.DefaultQuery("sort_by", "created_at"),
+		SortOrder: c.DefaultQuery("sort_order", "desc"),
+	}
+	filters := usagestats.UsageLogFilters{
+		UserID:      subject.UserID,
+		APIKeyID:    apiKey.ID,
+		Model:       model,
+		RequestType: requestType,
+		Stream:      stream,
+		BillingType: billingType,
+		StartTime:   &startTime,
+		EndTime:     &endTime,
+		ExactTotal:  true,
+	}
+
+	records, result, err := h.usageService.ListWithFilters(c.Request.Context(), params, filters)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	displayMap := h.loadDisplayPricingMapForUser(c, subject.UserID)
+	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
+	out := make([]dto.UsageLog, 0, len(records))
+	for i := range records {
+		u := dto.UsageLogFromService(&records[i], displayMap)
+		if userDisplayRates != nil && records[i].GroupID != nil {
+			if dr, ok := userDisplayRates[*records[i].GroupID]; ok && dr.DisplayRateMultiplier != nil {
+				dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
+			}
+		}
+		out = append(out, *u)
+	}
+	response.Paginated(c, out, result.Total, page, pageSize)
+}
+
+// PublicStats returns selected-range usage statistics for the API key used to authenticate the request.
+// GET /v1/usage/stats
+func (h *UsageHandler) PublicStats(c *gin.Context) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Invalid API key")
+		return
+	}
+
+	startTime, endTime, ok := parseUsageDateRangeQuery(c)
+	if !ok {
+		return
+	}
+
+	stats, err := h.usageService.GetStatsByAPIKey(c.Request.Context(), apiKey.ID, startTime, endTime)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, stats)
+}
+
+// PublicTrend returns selected-range usage trend data for the API key used to authenticate the request.
+// GET /v1/usage/trend
+func (h *UsageHandler) PublicTrend(c *gin.Context) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Invalid API key")
+		return
+	}
+
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Invalid API key")
+		return
+	}
+
+	startTime, endTime, ok := parseUsageDateRangeQuery(c)
+	if !ok {
+		return
+	}
+	granularity := c.DefaultQuery("granularity", "day")
+
+	trend, err := h.usageService.GetUserUsageTrendWithFilters(c.Request.Context(), subject.UserID, apiKey.ID, startTime, endTime, granularity)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"trend":       trend,
+		"start_date":  startTime.Format("2006-01-02"),
+		"end_date":    endTime.AddDate(0, 0, -1).Format("2006-01-02"),
+		"granularity": granularity,
+	})
+}
+
 // GetByID handles getting a single usage record
 // GET /api/v1/usage/:id
 func (h *UsageHandler) GetByID(c *gin.Context) {
@@ -317,6 +467,33 @@ func parseUserTimeRange(c *gin.Context) (time.Time, time.Time) {
 	}
 
 	return startTime, endTime
+}
+
+func parseUsageDateRangeQuery(c *gin.Context) (time.Time, time.Time, bool) {
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
+	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -6), userTZ)
+	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+		if err != nil {
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+			return time.Time{}, time.Time{}, false
+		}
+		startTime = t
+	}
+
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+		if err != nil {
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+			return time.Time{}, time.Time{}, false
+		}
+		endTime = t.AddDate(0, 0, 1)
+	}
+
+	return startTime, endTime, true
 }
 
 // DashboardStats handles getting user dashboard statistics

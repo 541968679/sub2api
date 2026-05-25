@@ -39,6 +39,9 @@ func RegisterGatewayRoutes(
 	gateway.Use(endpointNorm)
 	gateway.Use(gin.HandlerFunc(apiKeyAuth))
 	gateway.GET("/usage", h.Gateway.Usage)
+	gateway.GET("/usage/records", h.Usage.PublicRecords)
+	gateway.GET("/usage/stats", h.Usage.PublicStats)
+	gateway.GET("/usage/trend", h.Usage.PublicTrend)
 	gateway.Use(requireGroupAnthropic)
 	{
 		// /v1/messages: auto-route based on group platform

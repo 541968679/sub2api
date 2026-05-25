@@ -24,6 +24,7 @@ func newGatewayRoutesTestRouter() *gin.Engine {
 		&handler.Handlers{
 			Gateway:       &handler.GatewayHandler{},
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			Usage:         &handler.UsageHandler{},
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := int64(1)
@@ -51,6 +52,7 @@ func newGatewayUsageRoutesTestRouter() *gin.Engine {
 		router,
 		&handler.Handlers{
 			Gateway: &handler.GatewayHandler{},
+			Usage:   &handler.UsageHandler{},
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{

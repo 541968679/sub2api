@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] feat: align public key usage page with user usage view
+
+**Affected files**: backend/internal/server/middleware/api_key_auth.go, backend/internal/server/routes/gateway.go, backend/internal/handler/usage_handler.go, frontend/src/views/KeyUsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/gateway.md
+**Upstream compatibility**: additive public usage endpoints and frontend-only public page redesign
+**Change details**:
+- Added API-key-authenticated `/v1/usage/records`, `/v1/usage/stats`, and `/v1/usage/trend` endpoints for the public usage page.
+- Kept public usage endpoints outside billing and group-assignment enforcement so exhausted, expired, or ungrouped keys can inspect their own usage.
+- Forced public records/stats/trend queries to the authenticated API key ID and user ID instead of accepting a user-controlled key selector.
+- Reworked `/key-usage` into an unbranded usage-records view matching the signed-in `/usage` layout style, with the API key selector removed and replaced by a direct API key input.
+- Removed public-page brand/logo/docs/GitHub/footer/home navigation surfaces and added localized labels for the new query controls.
+
 ## [2026-05-25] fix: disable key-usage brand home navigation
 
 **Affected files**: frontend/src/views/KeyUsageView.vue
