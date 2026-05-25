@@ -155,12 +155,72 @@ type SettingService struct {
 	webSearchManagerBuilder WebSearchManagerBuilder
 }
 
+// DefaultPlatformQuotaSetting describes the daily, weekly, and monthly USD
+// limits for one platform. Nil means unlimited, zero explicitly disables it.
+type DefaultPlatformQuotaSetting struct {
+	DailyLimitUSD   *float64 `json:"daily"`
+	WeeklyLimitUSD  *float64 `json:"weekly"`
+	MonthlyLimitUSD *float64 `json:"monthly"`
+}
+
 type ProviderDefaultGrantSettings struct {
 	Balance          float64
 	Concurrency      int
 	Subscriptions    []DefaultSubscriptionSetting
 	GrantOnSignup    bool
 	GrantOnFirstBind bool
+}
+
+// GetDefaultPlatformQuotas returns a complete platform map. Invalid or missing
+// settings fail open so registration is never blocked by malformed defaults.
+func (s *SettingService) GetDefaultPlatformQuotas(ctx context.Context) (map[string]*DefaultPlatformQuotaSetting, error) {
+	out := make(map[string]*DefaultPlatformQuotaSetting, len(AllowedQuotaPlatforms))
+	for _, platform := range AllowedQuotaPlatforms {
+		out[platform] = &DefaultPlatformQuotaSetting{}
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultPlatformQuotas)
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return out, nil
+	}
+	var parsed map[string]*DefaultPlatformQuotaSetting
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		slog.Warn("[Setting] invalid default platform quotas; failing open", "error", err)
+		return out, nil
+	}
+	for _, platform := range AllowedQuotaPlatforms {
+		if quota := parsed[platform]; quota != nil {
+			out[platform] = quota
+		}
+	}
+	return out, nil
+}
+
+func (s *SettingService) GetAuthSourcePlatformQuotas(ctx context.Context, source string) map[string]*DefaultPlatformQuotaSetting {
+	var out map[string]*DefaultPlatformQuotaSetting
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAuthSourcePlatformQuotas(source))
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return map[string]*DefaultPlatformQuotaSetting{}
+	}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		slog.Warn("[Setting] invalid auth-source platform quotas; failing open", "source", source, "error", err)
+		return map[string]*DefaultPlatformQuotaSetting{}
+	}
+	return out
+}
+
+func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
+	if dst == nil || src == nil {
+		return
+	}
+	if src.DailyLimitUSD != nil {
+		dst.DailyLimitUSD = src.DailyLimitUSD
+	}
+	if src.WeeklyLimitUSD != nil {
+		dst.WeeklyLimitUSD = src.WeeklyLimitUSD
+	}
+	if src.MonthlyLimitUSD != nil {
+		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
+	}
 }
 
 type AuthSourceDefaultSettings struct {
