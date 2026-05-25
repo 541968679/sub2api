@@ -123,6 +123,10 @@ func registerDistributionRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		distribution.GET("/ledger", h.Distribution.AdminListLedger)
 		distribution.GET("/assets", h.Distribution.AdminListAssets)
 		distribution.POST("/assets/:id/void", h.Distribution.AdminVoidAsset)
+		distribution.POST("/assets/:id/recharge", h.Distribution.AdminRechargeAPIKeyAsset)
+		distribution.POST("/assets/:id/disable", h.Distribution.AdminDisableAsset)
+		distribution.POST("/assets/:id/enable", h.Distribution.AdminEnableAsset)
+		distribution.POST("/assets/:id/refund", h.Distribution.AdminRefundAPIKeyAsset)
 	}
 }
 

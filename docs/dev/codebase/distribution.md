@@ -34,8 +34,9 @@ The distribution wallet is intentionally separate from the normal user balance.
    - subscription redeem codes
    - fixed-quota API keys
 5. Generation deducts RMB from the distribution wallet at creation time. The generated redeem code or API key and the `distribution_assets` record are created in the same transaction.
-6. Users and admins can list generated assets and void active, unused assets. Voiding disables/expires the underlying generated record and refunds the original RMB cost to the distribution wallet.
-7. Admins can update global generation ratios, set per-agent ratio overrides, freeze wallets, and manually adjust balances.
+6. Users and admins can list generated assets. Active API-key assets can be recharged, disabled, re-enabled, or refunded. Redeem-code assets can be disabled through the legacy void endpoint, which expires the underlying code without refunding wallet balance.
+7. API-key refunds soft-delete the underlying key and refund only the remaining quota value back to the distribution wallet.
+8. Admins can update global generation ratios, set per-agent ratio overrides, freeze wallets, and manually adjust balances.
 
 ## Important Mechanisms
 
@@ -45,6 +46,10 @@ The distribution wallet is intentionally separate from the normal user balance.
   - `GET /api/v1/distribution/ledger`
   - `GET /api/v1/distribution/assets`
   - `POST /api/v1/distribution/assets/:id/void`
+  - `POST /api/v1/distribution/assets/:id/recharge`
+  - `POST /api/v1/distribution/assets/:id/disable`
+  - `POST /api/v1/distribution/assets/:id/enable`
+  - `POST /api/v1/distribution/assets/:id/refund`
   - `POST /api/v1/distribution/redeem-codes/balance`
   - `POST /api/v1/distribution/redeem-codes/subscription`
   - `GET /api/v1/distribution/api-key-groups`
@@ -61,10 +66,17 @@ The distribution wallet is intentionally separate from the normal user balance.
   - `GET /api/v1/admin/distribution/ledger`
   - `GET /api/v1/admin/distribution/assets`
   - `POST /api/v1/admin/distribution/assets/:id/void`
+  - `POST /api/v1/admin/distribution/assets/:id/recharge`
+  - `POST /api/v1/admin/distribution/assets/:id/disable`
+  - `POST /api/v1/admin/distribution/assets/:id/enable`
+  - `POST /api/v1/admin/distribution/assets/:id/refund`
 - Wallet generation runs in one transaction with the generated redeem code or API key.
-- Asset void/refund also runs in one transaction. `distribution_assets.refunded_at/refunded_rmb` prevents duplicate refunds.
-- Wallet lifetime counters are action-based: `total_recharged` only counts positive `admin_adjust` top-ups, and `total_spent` only counts generation actions. `asset_refund` restores balance but is not cumulative recharge.
+- Asset operations run in transactions. `distribution_assets.refunded_at/refunded_rmb` prevents duplicate refunds.
+- Wallet lifetime counters are action-based: `total_recharged` only counts positive `admin_adjust` top-ups, and `total_spent` counts generation and `recharge_api_key` spend actions. `asset_refund` restores balance but is not cumulative recharge.
+- API-key recharge increases both the underlying `api_keys.quota` and the tracked asset `face_value/quota_usd/cost_rmb`, then deducts the agent wallet using the current effective RMB-per-USD ratio.
+- API-key refund computes `remaining quota * tracked cost_rmb / tracked quota_usd`, soft-deletes the underlying key when needed, records the refund on `distribution_assets`, and writes an `asset_refund` ledger entry only when the refund amount is positive.
 - Asset list status is derived from the linked `redeem_codes` or `api_keys` record where possible, so used/expired/disabled states reflect runtime state rather than only the creation snapshot.
+- Asset lists expose API-key name, used quota, remaining quota, tracked exchange rate, and estimated refundable RMB for user/admin UI actions.
 - The user-facing agent page presents generated assets and wallet ledger as tabs in one history panel. Newly generated codes/API keys appear in the generated-assets action area for immediate copy, and asset search is sent through the existing `GET /api/v1/distribution/assets?search=...` parameter.
 - Settings are stored in the existing Settings KV:
   - `distribution_rmb_per_usd`
@@ -82,8 +94,9 @@ The distribution wallet is intentionally separate from the normal user balance.
 - Balance codes and API keys must be created only after wallet balance is verified.
 - Subscription code generation uses RMB face value and the admin-configured discount ratio.
 - User-facing distribution summary returns the effective ratios for that agent, not only the global settings.
-- Voiding a used balance/subscription code must not refund. Voiding an unused redeem code marks it expired; voiding an API key disables the key.
-- Distribution API-key voiding allows refund finalization if the underlying unused key was already disabled or soft-deleted outside the distribution asset flow, but rejects keys with `quota_used > 0`.
-- Refund amount is the original RMB cost recorded on the generated asset, not current global or agent ratio recalculation.
+- The legacy `/void` routes now map to disable-only behavior. Use `/refund` for distribution API-key refunds.
+- Disabling a used balance/subscription code must fail. Disabling an unused redeem code marks it expired; disabling an API key changes the key status to `disabled`.
+- API-key refund finalization allows keys that were already disabled or soft-deleted outside the distribution asset flow, but rejects quota-exhausted keys.
+- Refund amount is based on remaining quota and the tracked asset cost/quota, not current global or agent ratio recalculation.
 - The generated API key still belongs to the distributor account; the customer receives the string, not a separate customer-owned key record.
 - Empty `distribution_api_key_group_ids` means no groups are exposed to agents for API key generation.

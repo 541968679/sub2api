@@ -161,4 +161,13 @@ func TestIsMigrationChecksumCompatible(t *testing.T) {
 		)
 		require.False(t, ok)
 	})
+
+	t.Run("143历史checksum可兼容当前分销退款修复版本", func(t *testing.T) {
+		ok := isMigrationChecksumCompatible(
+			"143_recompute_distribution_wallet_totals.sql",
+			"9bda3149c88eaff7fe360604f3cf18683b19d812ca7bb5437bd290e1eec55c0e",
+			"14cdf88782ab5dcf38479c6d6a5d3fa0553ad7d13686ff2fdeed29a350678889",
+		)
+		require.True(t, ok)
+	})
 }

@@ -40,6 +40,10 @@ type DistributionGenerateAPIKeyRequest struct {
 	ExpiresInDays *int    `json:"expires_in_days"`
 }
 
+type DistributionRechargeAPIKeyRequest struct {
+	QuotaUSD float64 `json:"quota_usd"`
+}
+
 func (h *DistributionHandler) GetMine(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -112,6 +116,10 @@ func (h *DistributionHandler) ListAssets(c *gin.Context) {
 }
 
 func (h *DistributionHandler) VoidAsset(c *gin.Context) {
+	h.DisableAsset(c)
+}
+
+func (h *DistributionHandler) RechargeAPIKeyAsset(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
@@ -122,7 +130,71 @@ func (h *DistributionHandler) VoidAsset(c *gin.Context) {
 		response.BadRequest(c, "Invalid asset id")
 		return
 	}
-	out, err := h.distributionService.VoidAsset(c.Request.Context(), subject.UserID, assetID, subject.UserID, false)
+	var req DistributionRechargeAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	out, err := h.distributionService.RechargeAPIKeyAsset(c.Request.Context(), subject.UserID, assetID, subject.UserID, service.DistributionRechargeAPIKeyInput{
+		QuotaUSD: req.QuotaUSD,
+	}, false)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *DistributionHandler) DisableAsset(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	out, err := h.distributionService.DisableAsset(c.Request.Context(), subject.UserID, assetID, false)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *DistributionHandler) EnableAsset(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	out, err := h.distributionService.EnableAsset(c.Request.Context(), subject.UserID, assetID, false)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *DistributionHandler) RefundAPIKeyAsset(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	out, err := h.distributionService.RefundAPIKeyAsset(c.Request.Context(), subject.UserID, assetID, subject.UserID, false)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -379,13 +451,67 @@ func (h *DistributionHandler) AdminListAssets(c *gin.Context) {
 }
 
 func (h *DistributionHandler) AdminVoidAsset(c *gin.Context) {
+	h.AdminDisableAsset(c)
+}
+
+func (h *DistributionHandler) AdminRechargeAPIKeyAsset(c *gin.Context) {
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	var req DistributionRechargeAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	operatorID := currentUserIDFromContext(c)
+	out, err := h.distributionService.RechargeAPIKeyAsset(c.Request.Context(), 0, assetID, operatorID, service.DistributionRechargeAPIKeyInput{
+		QuotaUSD: req.QuotaUSD,
+	}, true)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *DistributionHandler) AdminDisableAsset(c *gin.Context) {
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	out, err := h.distributionService.DisableAsset(c.Request.Context(), 0, assetID, true)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *DistributionHandler) AdminEnableAsset(c *gin.Context) {
+	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || assetID <= 0 {
+		response.BadRequest(c, "Invalid asset id")
+		return
+	}
+	out, err := h.distributionService.EnableAsset(c.Request.Context(), 0, assetID, true)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, out)
+}
+
+func (h *DistributionHandler) AdminRefundAPIKeyAsset(c *gin.Context) {
 	assetID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || assetID <= 0 {
 		response.BadRequest(c, "Invalid asset id")
 		return
 	}
 	operatorID := currentUserIDFromContext(c)
-	out, err := h.distributionService.VoidAsset(c.Request.Context(), 0, assetID, operatorID, true)
+	out, err := h.distributionService.RefundAPIKeyAsset(c.Request.Context(), 0, assetID, operatorID, true)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

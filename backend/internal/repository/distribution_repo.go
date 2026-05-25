@@ -469,14 +469,16 @@ func (r *distributionRepository) ListAssets(ctx context.Context, page, pageSize 
 WHERE ($1::bigint = 0 OR da.user_id = $1)
   AND ($2 = '' OR da.asset_type = $2)
   AND ($3 = '' OR CASE
+         WHEN da.refunded_at IS NOT NULL OR da.refunded_rmb > 0 OR da.status = 'refunded' THEN 'refunded'
          WHEN rc.status = 'used' THEN 'used'
          WHEN rc.status = 'expired' THEN 'expired'
          WHEN ak.deleted_at IS NOT NULL THEN 'disabled'
          WHEN ak.expires_at IS NOT NULL AND ak.expires_at <= NOW() THEN 'expired'
          WHEN ak.status IS NOT NULL AND ak.status <> 'active' THEN ak.status
+         WHEN ak.quota > 0 AND ak.quota_used >= ak.quota THEN 'quota_exhausted'
          ELSE da.status
        END = $3)
-  AND ($4 = '%%' OR da.display_value ILIKE $4 OR da.reference_id ILIKE $4 OR u.email ILIKE $4 OR u.username ILIKE $4)`
+  AND ($4 = '%%' OR da.display_value ILIKE $4 OR da.reference_id ILIKE $4 OR ak.name ILIKE $4 OR u.email ILIKE $4 OR u.username ILIKE $4)`
 	total, err := scanInt64(ctx, client, `
 SELECT COUNT(*)
 FROM distribution_assets da
@@ -497,17 +499,29 @@ SELECT da.id, da.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
        da.cost_rmb::double precision, da.group_id, COALESCE(g.name, ''),
        da.validity_days, da.quota_usd::double precision,
        CASE
+         WHEN da.refunded_at IS NOT NULL OR da.refunded_rmb > 0 OR da.status = 'refunded' THEN 'refunded'
          WHEN rc.status = 'used' THEN 'used'
          WHEN rc.status = 'expired' THEN 'expired'
          WHEN ak.deleted_at IS NOT NULL THEN 'disabled'
          WHEN ak.expires_at IS NOT NULL AND ak.expires_at <= NOW() THEN 'expired'
          WHEN ak.status IS NOT NULL AND ak.status <> 'active' THEN ak.status
+         WHEN ak.quota > 0 AND ak.quota_used >= ak.quota THEN 'quota_exhausted'
          ELSE da.status
        END AS effective_status,
        COALESCE(da.customer_user_id, rc.used_by) AS effective_customer_user_id,
        COALESCE(cu.email, rcu.email, '') AS effective_customer_email,
        COALESCE(da.used_at, rc.used_at) AS effective_used_at,
        COALESCE(da.expires_at, ak.expires_at) AS effective_expires_at,
+       COALESCE(ak.name, '') AS api_key_name,
+       COALESCE(ak.status, '') AS api_key_status,
+       COALESCE(ak.quota_used, 0)::double precision AS quota_used,
+       GREATEST(COALESCE(ak.quota, da.quota_usd, 0) - COALESCE(ak.quota_used, 0), 0)::double precision AS quota_remaining,
+       CASE WHEN da.quota_usd > 0 THEN (da.cost_rmb / da.quota_usd)::double precision ELSE 0 END AS exchange_rate,
+       CASE
+         WHEN da.asset_type = 'api_key' AND da.refunded_at IS NULL AND da.quota_usd > 0 THEN
+           (GREATEST(COALESCE(ak.quota, da.quota_usd, 0) - COALESCE(ak.quota_used, 0), 0) * da.cost_rmb / da.quota_usd)::double precision
+         ELSE 0
+       END AS refundable_rmb,
        da.refunded_at, da.refunded_rmb::double precision, da.refunded_by,
        da.note, da.created_at, da.updated_at
 FROM distribution_assets da
@@ -548,17 +562,29 @@ SELECT da.id, da.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
        da.cost_rmb::double precision, da.group_id, COALESCE(g.name, ''),
        da.validity_days, da.quota_usd::double precision,
        CASE
+         WHEN da.refunded_at IS NOT NULL OR da.refunded_rmb > 0 OR da.status = 'refunded' THEN 'refunded'
          WHEN rc.status = 'used' THEN 'used'
          WHEN rc.status = 'expired' THEN 'expired'
          WHEN ak.deleted_at IS NOT NULL THEN 'disabled'
          WHEN ak.expires_at IS NOT NULL AND ak.expires_at <= NOW() THEN 'expired'
          WHEN ak.status IS NOT NULL AND ak.status <> 'active' THEN ak.status
+         WHEN ak.quota > 0 AND ak.quota_used >= ak.quota THEN 'quota_exhausted'
          ELSE da.status
        END AS effective_status,
        COALESCE(da.customer_user_id, rc.used_by) AS effective_customer_user_id,
        COALESCE(cu.email, rcu.email, '') AS effective_customer_email,
        COALESCE(da.used_at, rc.used_at) AS effective_used_at,
        COALESCE(da.expires_at, ak.expires_at) AS effective_expires_at,
+       COALESCE(ak.name, '') AS api_key_name,
+       COALESCE(ak.status, '') AS api_key_status,
+       COALESCE(ak.quota_used, 0)::double precision AS quota_used,
+       GREATEST(COALESCE(ak.quota, da.quota_usd, 0) - COALESCE(ak.quota_used, 0), 0)::double precision AS quota_remaining,
+       CASE WHEN da.quota_usd > 0 THEN (da.cost_rmb / da.quota_usd)::double precision ELSE 0 END AS exchange_rate,
+       CASE
+         WHEN da.asset_type = 'api_key' AND da.refunded_at IS NULL AND da.quota_usd > 0 THEN
+           (GREATEST(COALESCE(ak.quota, da.quota_usd, 0) - COALESCE(ak.quota_used, 0), 0) * da.cost_rmb / da.quota_usd)::double precision
+         ELSE 0
+       END AS refundable_rmb,
        da.refunded_at, da.refunded_rmb::double precision, da.refunded_by,
        da.note, da.created_at, da.updated_at
 FROM distribution_assets da
@@ -583,82 +609,163 @@ WHERE da.id = $1`, id)
 	return item, rows.Err()
 }
 
-func (r *distributionRepository) MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedBy int64) (*service.DistributionAsset, error) {
+func (r *distributionRepository) UpdateAssetStatus(ctx context.Context, assetID int64, status string) error {
 	client := clientFromContext(ctx, r.client)
-	rows, err := client.QueryContext(ctx, `
+	res, err := client.ExecContext(ctx, `
+UPDATE distribution_assets
+SET status = $1, updated_at = NOW()
+WHERE id = $2`, status, assetID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return infraerrors.NotFound("DISTRIBUTION_ASSET_NOT_FOUND", "distribution asset not found")
+	}
+	return nil
+}
+
+func (r *distributionRepository) AddAssetQuotaAndCost(ctx context.Context, assetID int64, quotaDelta, costDelta float64) error {
+	client := clientFromContext(ctx, r.client)
+	res, err := client.ExecContext(ctx, `
+UPDATE distribution_assets
+SET face_value = face_value + $1,
+    quota_usd = quota_usd + $1,
+    cost_rmb = cost_rmb + $2,
+    updated_at = NOW()
+WHERE id = $3
+  AND asset_type = 'api_key'
+  AND refunded_at IS NULL
+  AND refunded_rmb = 0`, quotaDelta, costDelta, assetID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
+	}
+	return nil
+}
+
+func (r *distributionRepository) MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedRMB float64, refundedBy int64) error {
+	client := clientFromContext(ctx, r.client)
+	res, err := client.ExecContext(ctx, `
 UPDATE distribution_assets
 SET status = $1,
     refunded_at = NOW(),
-    refunded_rmb = cost_rmb,
-    refunded_by = $2,
+    refunded_rmb = $2,
+    refunded_by = $3,
     updated_at = NOW()
-WHERE id = $3 AND refunded_at IS NULL AND refunded_rmb = 0
-RETURNING id, user_id, wallet_id, asset_type, reference_type, reference_id, display_value, package_url,
-          face_value::double precision, cost_rmb::double precision, group_id, validity_days,
-          quota_usd::double precision, status, customer_user_id, used_at, expires_at,
-          refunded_at, refunded_rmb::double precision, refunded_by, note, created_at, updated_at`,
+WHERE id = $4 AND refunded_at IS NULL AND refunded_rmb = 0`,
 		status,
+		refundedRMB,
 		nullableInt64Value(refundedBy),
 		assetID,
 	)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	defer func() { _ = rows.Close() }()
-	if !rows.Next() {
-		return nil, infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
-	}
-	item, err := scanDistributionAsset(rows)
+	affected, err := res.RowsAffected()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return item, rows.Err()
+	if affected == 0 {
+		return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
+	}
+	return nil
 }
 
-func (r *distributionRepository) VoidAPIKeyAssetReference(ctx context.Context, id int64, userID int64) error {
+func (r *distributionRepository) GetAPIKeyAssetReferenceForUpdate(ctx context.Context, id int64, userID int64) (*service.DistributionAPIKeyReference, error) {
 	client := clientFromContext(ctx, r.client)
-	var existingUserID int64
-	var existingStatus string
-	var quotaUsed float64
-	var deletedAt sql.NullTime
+	return queryDistributionAPIKeyReference(ctx, client, id, userID, true)
+}
+
+func (r *distributionRepository) RechargeAPIKeyAssetReference(ctx context.Context, id int64, userID int64, quotaDelta float64) (*service.DistributionAPIKeyReference, error) {
+	client := clientFromContext(ctx, r.client)
 	rows, err := client.QueryContext(ctx, `
-SELECT user_id, status, quota_used::double precision, deleted_at
-FROM api_keys
-WHERE id = $1`, id)
+UPDATE api_keys
+SET quota = quota + $1,
+    status = CASE WHEN status = $2 AND quota + $1 > quota_used THEN $3 ELSE status END,
+    updated_at = NOW()
+WHERE id = $4 AND user_id = $5 AND deleted_at IS NULL
+RETURNING id, user_id, key, name, status, quota::double precision, quota_used::double precision, expires_at, deleted_at`,
+		quotaDelta,
+		service.StatusAPIKeyQuotaExhausted,
+		service.StatusActive,
+		id,
+		userID,
+	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return err
-		}
-		return service.ErrAPIKeyNotFound
+		return nil, service.ErrAPIKeyNotFound
 	}
-	if err := rows.Scan(&existingUserID, &existingStatus, &quotaUsed, &deletedAt); err != nil {
-		return err
+	ref, err := scanDistributionAPIKeyReference(rows)
+	if err != nil {
+		return nil, err
 	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	if existingUserID != userID {
-		return service.ErrInsufficientPerms
-	}
-	if quotaUsed > 0.00000001 {
-		return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be voided")
-	}
-	if deletedAt.Valid || existingStatus == service.StatusAPIKeyDisabled {
-		return nil
-	}
-	_, err = client.ExecContext(ctx, `
+	return ref, rows.Err()
+}
+
+func (r *distributionRepository) SetAPIKeyAssetReferenceStatus(ctx context.Context, id int64, userID int64, status string) (*service.DistributionAPIKeyReference, error) {
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
 UPDATE api_keys
 SET status = $1, updated_at = NOW()
-WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL`,
+WHERE id = $2 AND user_id = $3 AND deleted_at IS NULL
+RETURNING id, user_id, key, name, status, quota::double precision, quota_used::double precision, expires_at, deleted_at`,
+		status,
+		id,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return nil, service.ErrAPIKeyNotFound
+	}
+	ref, err := scanDistributionAPIKeyReference(rows)
+	if err != nil {
+		return nil, err
+	}
+	return ref, rows.Err()
+}
+
+func (r *distributionRepository) SoftDeleteAPIKeyAssetReference(ctx context.Context, id int64, userID int64) error {
+	client := clientFromContext(ctx, r.client)
+	tombstoneKey := fmt.Sprintf("__deleted_distribution__%d__%d", id, time.Now().UnixNano())
+	res, err := client.ExecContext(ctx, `
+UPDATE api_keys
+SET key = $1,
+    status = $2,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $3 AND user_id = $4 AND deleted_at IS NULL`,
+		tombstoneKey,
 		service.StatusAPIKeyDisabled,
 		id,
 		userID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrAPIKeyNotFound
+	}
+	return nil
 }
 
 func (r *distributionRepository) UpdateWalletStatus(ctx context.Context, userID int64, status string) (*service.DistributionWallet, error) {
@@ -700,7 +807,7 @@ func (r *distributionRepository) AdjustWalletBalance(ctx context.Context, userID
 UPDATE distribution_wallets
 SET balance = balance + $1,
     total_recharged = total_recharged + CASE WHEN $3 = 'admin_adjust' AND $1 > 0 THEN $1 ELSE 0 END,
-    total_spent = total_spent + CASE WHEN $3 IN ('generate_redeem_code', 'generate_subscription', 'generate_api_key') AND $1 < 0 THEN -$1 ELSE 0 END,
+    total_spent = total_spent + CASE WHEN $3 IN ('generate_redeem_code', 'generate_subscription', 'generate_api_key', 'recharge_api_key') AND $1 < 0 THEN -$1 ELSE 0 END,
     updated_at = NOW()
 WHERE user_id = $2
 RETURNING id, user_id, agent_id, balance::double precision, total_recharged::double precision, total_spent::double precision, total_rebate::double precision, status, created_at, updated_at`,
@@ -859,8 +966,66 @@ WHERE user_id = $1`, userID)
 	return &wallet, nil
 }
 
+func queryDistributionAPIKeyReference(ctx context.Context, client *dbent.Client, id int64, userID int64, forUpdate bool) (*service.DistributionAPIKeyReference, error) {
+	if client == nil {
+		return nil, service.ErrAPIKeyNotFound
+	}
+	suffix := ""
+	if forUpdate {
+		suffix = " FOR UPDATE"
+	}
+	rows, err := client.QueryContext(ctx, `
+SELECT id, user_id, key, name, status, quota::double precision, quota_used::double precision, expires_at, deleted_at
+FROM api_keys
+WHERE id = $1 AND user_id = $2`+suffix, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, service.ErrAPIKeyNotFound
+	}
+	ref, err := scanDistributionAPIKeyReference(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ref, nil
+}
+
 type distributionAssetScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanDistributionAPIKeyReference(rows distributionAssetScanner) (*service.DistributionAPIKeyReference, error) {
+	var ref service.DistributionAPIKeyReference
+	var expiresAt sql.NullTime
+	var deletedAt sql.NullTime
+	if err := rows.Scan(
+		&ref.ID,
+		&ref.UserID,
+		&ref.Key,
+		&ref.Name,
+		&ref.Status,
+		&ref.Quota,
+		&ref.QuotaUsed,
+		&expiresAt,
+		&deletedAt,
+	); err != nil {
+		return nil, err
+	}
+	if expiresAt.Valid {
+		ref.ExpiresAt = &expiresAt.Time
+	}
+	if deletedAt.Valid {
+		ref.DeletedAt = &deletedAt.Time
+	}
+	return &ref, nil
 }
 
 func scanDistributionAgent(rows distributionAssetScanner) (*service.DistributionAgentApplication, error) {
@@ -985,6 +1150,12 @@ func scanDistributionAssetWithJoins(rows distributionAssetScanner) (*service.Dis
 		&item.CustomerEmail,
 		&usedAt,
 		&expiresAt,
+		&item.APIKeyName,
+		&item.APIKeyStatus,
+		&item.QuotaUsed,
+		&item.QuotaRemaining,
+		&item.ExchangeRate,
+		&item.RefundableRMB,
 		&refundedAt,
 		&item.RefundedRMB,
 		&refundedBy,

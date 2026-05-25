@@ -125,14 +125,17 @@
           </div>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[1120px] text-left text-sm">
+          <table class="w-full min-w-[1380px] text-left text-sm">
             <thead>
               <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
                 <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.user') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.type') }}</th>
+                <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.name') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.value') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.faceValue') }}</th>
+                <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.remaining') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.cost') }}</th>
+                <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.exchangeRate') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('common.status') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.customer') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.createdAt') }}</th>
@@ -146,12 +149,15 @@
                   <p class="text-xs text-gray-500 dark:text-dark-400">ID {{ asset.user_id }} / {{ asset.username || '-' }}</p>
                 </td>
                 <td class="px-3 py-3">{{ assetTypeLabel(asset.asset_type) }}</td>
+                <td class="px-3 py-3">{{ assetName(asset) }}</td>
                 <td class="px-3 py-3">
                   <p class="break-all font-mono text-xs text-gray-900 dark:text-white">{{ asset.display_value }}</p>
                   <p v-if="asset.package_url" class="mt-1 break-all text-xs text-gray-500 dark:text-dark-400">{{ asset.package_url }}</p>
                 </td>
                 <td class="px-3 py-3 text-right">{{ assetFaceValue(asset) }}</td>
+                <td class="px-3 py-3 text-right">{{ assetRemaining(asset) }}</td>
                 <td class="px-3 py-3 text-right">{{ formatCurrency(asset.cost_rmb, 'CNY') }}</td>
+                <td class="px-3 py-3 text-right">{{ assetExchangeRate(asset) }}</td>
                 <td class="px-3 py-3"><span class="badge" :class="assetStatusBadge(asset.status)">{{ assetStatusLabel(asset.status) }}</span></td>
                 <td class="px-3 py-3">
                   <span v-if="asset.customer_user_id">ID {{ asset.customer_user_id }} / {{ asset.customer_email || '-' }}</span>
@@ -159,9 +165,20 @@
                 </td>
                 <td class="px-3 py-3">{{ formatDateTime(asset.created_at) }}</td>
                 <td class="px-3 py-3">
-                  <button v-if="canVoidAsset(asset)" class="btn btn-danger btn-sm" :disabled="voidingAssetId === asset.id" @click="voidAsset(asset)">
-                    {{ t('distribution.assets.void') }}
-                  </button>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button v-if="canRechargeAsset(asset)" class="btn btn-secondary btn-sm" :disabled="operatingAssetId === asset.id" @click="openRechargeDialog(asset)">
+                      {{ t('distribution.assets.recharge') }}
+                    </button>
+                    <button v-if="canDisableAsset(asset)" class="btn btn-secondary btn-sm" :disabled="operatingAssetId === asset.id" @click="disableAsset(asset)">
+                      {{ t('distribution.assets.disable') }}
+                    </button>
+                    <button v-if="canEnableAsset(asset)" class="btn btn-secondary btn-sm" :disabled="operatingAssetId === asset.id" @click="enableAsset(asset)">
+                      {{ t('distribution.assets.enable') }}
+                    </button>
+                    <button v-if="canRefundAsset(asset)" class="btn btn-danger btn-sm" :disabled="operatingAssetId === asset.id" @click="refundAsset(asset)">
+                      {{ t('distribution.assets.refund') }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -263,6 +280,22 @@
           </div>
         </div>
       </div>
+
+      <div v-if="rechargeDialog.open" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="fixed inset-0 bg-black/50" @click="closeRechargeDialog"></div>
+        <div class="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('distribution.assets.rechargeTitle') }}</h2>
+          <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">{{ assetName(rechargeDialog.asset) }}</p>
+          <div class="mt-4">
+            <label class="input-label">{{ t('distribution.generate.quotaUsd') }}</label>
+            <input v-model.number="rechargeDialog.quota_usd" type="number" min="0" step="0.01" class="input" />
+          </div>
+          <div class="mt-6 flex justify-end gap-3">
+            <button class="btn btn-secondary" @click="closeRechargeDialog">{{ t('common.cancel') }}</button>
+            <button class="btn btn-primary" :disabled="operatingAssetId !== null" @click="submitRecharge">{{ t('common.confirm') }}</button>
+          </div>
+        </div>
+      </div>
     </Teleport>
   </AppLayout>
 </template>
@@ -291,7 +324,7 @@ const adjusting = ref(false)
 const ratesSaving = ref(false)
 const search = ref('')
 const assetSearch = ref('')
-const voidingAssetId = ref<number | null>(null)
+const operatingAssetId = ref<number | null>(null)
 const searchTimer = ref<number | null>(null)
 const assetSearchTimer = ref<number | null>(null)
 const applications = ref<DistributionAgentApplication[]>([])
@@ -307,6 +340,7 @@ const assetFilter = reactive({ user_id: 0 })
 const reviewDialog = reactive({ open: false, approved: true, note: '', application: null as DistributionAgentApplication | null })
 const adjustDialog = reactive({ open: false, amount: 0, note: '', wallet: null as DistributionWallet | null })
 const ratesDialog = reactive({ open: false, rmb_per_usd_override: 0, subscription_discount_override: 0, wallet: null as DistributionWallet | null })
+const rechargeDialog = reactive({ open: false, quota_usd: 10, asset: null as DistributionAsset | null })
 
 const agentRows = computed(() => applications.value.map((application) => ({
   ...application,
@@ -545,7 +579,14 @@ function assetStatusBadge(status: string): string {
   if (status === 'active') return 'badge-success'
   if (status === 'used') return 'badge-primary'
   if (status === 'expired') return 'badge-warning'
+  if (status === 'refunded') return 'badge-danger'
   return 'badge-gray'
+}
+
+function assetName(asset: DistributionAsset | null): string {
+  if (!asset) return '-'
+  if (asset.asset_type === 'api_key') return asset.api_key_name || asset.note || '-'
+  return asset.note || '-'
 }
 
 function assetFaceValue(asset: DistributionAsset): string {
@@ -553,21 +594,100 @@ function assetFaceValue(asset: DistributionAsset): string {
   return `$${(asset.quota_usd || asset.face_value || 0).toFixed(2)}`
 }
 
-function canVoidAsset(asset: DistributionAsset): boolean {
-  return asset.status === 'active' && !asset.refunded_at
+function assetRemaining(asset: DistributionAsset): string {
+  if (asset.asset_type !== 'api_key') return '-'
+  return `$${(asset.quota_remaining ?? 0).toFixed(2)}`
 }
 
-async function voidAsset(asset: DistributionAsset): Promise<void> {
-  if (!canVoidAsset(asset) || voidingAssetId.value) return
-  voidingAssetId.value = asset.id
+function assetExchangeRate(asset: DistributionAsset): string {
+  if (asset.asset_type !== 'api_key' && asset.face_value <= 0) return '-'
+  const rate = asset.exchange_rate || (asset.quota_usd || asset.face_value ? asset.cost_rmb / (asset.quota_usd || asset.face_value) : 0)
+  return rate > 0 ? `${formatCurrency(rate, 'CNY')} / $1` : '-'
+}
+
+function canRechargeAsset(asset: DistributionAsset): boolean {
+  return asset.asset_type === 'api_key' && !asset.refunded_at && (asset.status === 'active' || asset.status === 'quota_exhausted')
+}
+
+function canDisableAsset(asset: DistributionAsset): boolean {
+  return !asset.refunded_at && (asset.status === 'active' || asset.status === 'quota_exhausted')
+}
+
+function canEnableAsset(asset: DistributionAsset): boolean {
+  return !asset.refunded_at && asset.status === 'disabled'
+}
+
+function canRefundAsset(asset: DistributionAsset): boolean {
+  return asset.asset_type === 'api_key' && !asset.refunded_at && asset.status !== 'refunded'
+}
+
+function openRechargeDialog(asset: DistributionAsset): void {
+  rechargeDialog.open = true
+  rechargeDialog.asset = asset
+  rechargeDialog.quota_usd = 10
+}
+
+function closeRechargeDialog(): void {
+  rechargeDialog.open = false
+  rechargeDialog.asset = null
+}
+
+async function submitRecharge(): Promise<void> {
+  const asset = rechargeDialog.asset
+  if (!asset || operatingAssetId.value !== null) return
+  operatingAssetId.value = asset.id
   try {
-    const result = await distributionAdminAPI.voidAsset(asset.id)
-    appStore.showSuccess(t('distribution.assets.voidSuccess', { amount: formatCurrency(result.refund_rmb, 'CNY') }))
+    const result = await distributionAdminAPI.rechargeAsset(asset.id, { quota_usd: rechargeDialog.quota_usd })
+    appStore.showSuccess(t('distribution.assets.rechargeSuccess', { amount: formatCurrency(result.cost_rmb || 0, 'CNY') }))
+    closeRechargeDialog()
     await Promise.all([loadAssets(), loadAgentTables(), loadLedger()])
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('distribution.assets.voidFailed')))
+    appStore.showError(extractApiErrorMessage(error, t('distribution.assets.rechargeFailed')))
   } finally {
-    voidingAssetId.value = null
+    operatingAssetId.value = null
+  }
+}
+
+async function disableAsset(asset: DistributionAsset): Promise<void> {
+  if (!canDisableAsset(asset) || operatingAssetId.value !== null) return
+  operatingAssetId.value = asset.id
+  try {
+    await distributionAdminAPI.disableAsset(asset.id)
+    appStore.showSuccess(t('distribution.assets.disableSuccess'))
+    await loadAssets()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('distribution.assets.disableFailed')))
+  } finally {
+    operatingAssetId.value = null
+  }
+}
+
+async function enableAsset(asset: DistributionAsset): Promise<void> {
+  if (!canEnableAsset(asset) || operatingAssetId.value !== null) return
+  operatingAssetId.value = asset.id
+  try {
+    await distributionAdminAPI.enableAsset(asset.id)
+    appStore.showSuccess(t('distribution.assets.enableSuccess'))
+    await loadAssets()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('distribution.assets.enableFailed')))
+  } finally {
+    operatingAssetId.value = null
+  }
+}
+
+async function refundAsset(asset: DistributionAsset): Promise<void> {
+  if (!canRefundAsset(asset) || operatingAssetId.value !== null) return
+  if (!window.confirm(t('distribution.assets.refundConfirm', { amount: formatCurrency(asset.refundable_rmb || 0, 'CNY') }))) return
+  operatingAssetId.value = asset.id
+  try {
+    const result = await distributionAdminAPI.refundAsset(asset.id)
+    appStore.showSuccess(t('distribution.assets.refundSuccess', { amount: formatCurrency(result.refund_rmb || 0, 'CNY') }))
+    await Promise.all([loadAssets(), loadAgentTables(), loadLedger()])
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, t('distribution.assets.refundFailed')))
+  } finally {
+    operatingAssetId.value = null
   }
 }
 

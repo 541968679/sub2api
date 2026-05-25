@@ -129,6 +129,10 @@ type DistributionServicePort interface {
 	ListAllWalletLedger(ctx context.Context, page, pageSize int, userID int64) ([]DistributionWalletLedgerEntry, int64, error)
 	ListAllAssets(ctx context.Context, page, pageSize int, userID int64, assetType, status, search string) ([]DistributionAsset, int64, error)
 	VoidAsset(ctx context.Context, userID, assetID, operatorID int64, admin bool) (*DistributionVoidAssetResult, error)
+	RechargeAPIKeyAsset(ctx context.Context, userID, assetID, operatorID int64, input DistributionRechargeAPIKeyInput, admin bool) (*DistributionAssetOperationResult, error)
+	DisableAsset(ctx context.Context, userID, assetID int64, admin bool) (*DistributionAssetOperationResult, error)
+	EnableAsset(ctx context.Context, userID, assetID int64, admin bool) (*DistributionAssetOperationResult, error)
+	RefundAPIKeyAsset(ctx context.Context, userID, assetID, operatorID int64, admin bool) (*DistributionAssetOperationResult, error)
 	AdminAdjustWallet(ctx context.Context, input DistributionAdminAdjustWalletInput) (*DistributionWallet, error)
 	UpdateWalletStatus(ctx context.Context, userID int64, frozen bool) (*DistributionWallet, error)
 }

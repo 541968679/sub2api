@@ -64,7 +64,15 @@ export interface UpdateDistributionSettingsRequest {
 
 export interface VoidDistributionAssetResponse {
   asset: DistributionAsset
+  wallet?: DistributionWallet
+  cost_rmb?: number
   refund_rmb: number
+}
+
+export type DistributionAssetOperationResponse = VoidDistributionAssetResponse
+
+export interface RechargeDistributionApiKeyRequest {
+  quota_usd: number
 }
 
 export async function listApplications(
@@ -166,6 +174,29 @@ export async function voidAsset(id: number): Promise<VoidDistributionAssetRespon
   return data
 }
 
+export async function rechargeAsset(
+  id: number,
+  payload: RechargeDistributionApiKeyRequest,
+): Promise<DistributionAssetOperationResponse> {
+  const { data } = await apiClient.post<DistributionAssetOperationResponse>(`/admin/distribution/assets/${id}/recharge`, payload)
+  return data
+}
+
+export async function disableAsset(id: number): Promise<DistributionAssetOperationResponse> {
+  const { data } = await apiClient.post<DistributionAssetOperationResponse>(`/admin/distribution/assets/${id}/disable`)
+  return data
+}
+
+export async function enableAsset(id: number): Promise<DistributionAssetOperationResponse> {
+  const { data } = await apiClient.post<DistributionAssetOperationResponse>(`/admin/distribution/assets/${id}/enable`)
+  return data
+}
+
+export async function refundAsset(id: number): Promise<DistributionAssetOperationResponse> {
+  const { data } = await apiClient.post<DistributionAssetOperationResponse>(`/admin/distribution/assets/${id}/refund`)
+  return data
+}
+
 export const distributionAdminAPI = {
   listApplications,
   reviewApplication,
@@ -178,6 +209,10 @@ export const distributionAdminAPI = {
   adjustWallet,
   updateWalletStatus,
   voidAsset,
+  rechargeAsset,
+  disableAsset,
+  enableAsset,
+  refundAsset,
 }
 
 export default distributionAdminAPI

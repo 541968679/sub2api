@@ -28,10 +28,12 @@ const (
 	DistributionAssetTypeSubscriptionRedeemCode = "subscription_redeem_code"
 	DistributionAssetTypeAPIKey                 = "api_key"
 
-	DistributionAssetStatusActive   = "active"
-	DistributionAssetStatusUsed     = "used"
-	DistributionAssetStatusDisabled = "disabled"
-	DistributionAssetStatusExpired  = "expired"
+	DistributionAssetStatusActive         = "active"
+	DistributionAssetStatusUsed           = "used"
+	DistributionAssetStatusDisabled       = "disabled"
+	DistributionAssetStatusExpired        = "expired"
+	DistributionAssetStatusQuotaExhausted = "quota_exhausted"
+	DistributionAssetStatusRefunded       = "refunded"
 )
 
 var (
@@ -52,6 +54,7 @@ const (
 	DistributionLedgerActionGenerateRedeemCode   = "generate_redeem_code"
 	DistributionLedgerActionGenerateSubscription = "generate_subscription"
 	DistributionLedgerActionGenerateAPIKey       = "generate_api_key"
+	DistributionLedgerActionRechargeAPIKey       = "recharge_api_key"
 	DistributionLedgerActionAssetRefund          = "asset_refund"
 )
 
@@ -116,6 +119,12 @@ type DistributionAsset struct {
 	GroupName      string     `json:"group_name,omitempty"`
 	ValidityDays   int        `json:"validity_days,omitempty"`
 	QuotaUSD       float64    `json:"quota_usd,omitempty"`
+	APIKeyName     string     `json:"api_key_name,omitempty"`
+	APIKeyStatus   string     `json:"api_key_status,omitempty"`
+	QuotaUsed      float64    `json:"quota_used,omitempty"`
+	QuotaRemaining float64    `json:"quota_remaining,omitempty"`
+	ExchangeRate   float64    `json:"exchange_rate,omitempty"`
+	RefundableRMB  float64    `json:"refundable_rmb,omitempty"`
 	Status         string     `json:"status"`
 	CustomerUserID *int64     `json:"customer_user_id,omitempty"`
 	CustomerEmail  string     `json:"customer_email,omitempty"`
@@ -207,6 +216,10 @@ type DistributionGenerateAPIKeyInput struct {
 	ExpiresInDays *int
 }
 
+type DistributionRechargeAPIKeyInput struct {
+	QuotaUSD float64
+}
+
 type DistributionAdminAdjustWalletInput struct {
 	UserID  int64
 	Amount  float64
@@ -214,10 +227,25 @@ type DistributionAdminAdjustWalletInput struct {
 	AdminID int64
 }
 
-type DistributionVoidAssetResult struct {
+type DistributionAssetOperationResult struct {
 	Asset     *DistributionAsset  `json:"asset"`
-	Wallet    *DistributionWallet `json:"wallet"`
-	RefundRMB float64             `json:"refund_rmb"`
+	Wallet    *DistributionWallet `json:"wallet,omitempty"`
+	CostRMB   float64             `json:"cost_rmb,omitempty"`
+	RefundRMB float64             `json:"refund_rmb,omitempty"`
+}
+
+type DistributionVoidAssetResult = DistributionAssetOperationResult
+
+type DistributionAPIKeyReference struct {
+	ID        int64
+	UserID    int64
+	Key       string
+	Name      string
+	Status    string
+	Quota     float64
+	QuotaUsed float64
+	ExpiresAt *time.Time
+	DeletedAt *time.Time
 }
 
 type DistributionRepository interface {
@@ -235,8 +263,13 @@ type DistributionRepository interface {
 	GetAssetByID(ctx context.Context, id int64) (*DistributionAsset, error)
 	ListAssets(ctx context.Context, page, pageSize int, userID int64, assetType, status, search string) ([]DistributionAsset, int64, error)
 	UpdateAgentRates(ctx context.Context, userID int64, rates DistributionAgentRateSettings) (*DistributionAgentApplication, error)
-	MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedBy int64) (*DistributionAsset, error)
-	VoidAPIKeyAssetReference(ctx context.Context, id int64, userID int64) error
+	UpdateAssetStatus(ctx context.Context, assetID int64, status string) error
+	AddAssetQuotaAndCost(ctx context.Context, assetID int64, quotaDelta, costDelta float64) error
+	MarkAssetRefunded(ctx context.Context, assetID int64, status string, refundedRMB float64, refundedBy int64) error
+	GetAPIKeyAssetReferenceForUpdate(ctx context.Context, id int64, userID int64) (*DistributionAPIKeyReference, error)
+	RechargeAPIKeyAssetReference(ctx context.Context, id int64, userID int64, quotaDelta float64) (*DistributionAPIKeyReference, error)
+	SetAPIKeyAssetReferenceStatus(ctx context.Context, id int64, userID int64, status string) (*DistributionAPIKeyReference, error)
+	SoftDeleteAPIKeyAssetReference(ctx context.Context, id int64, userID int64) error
 	UpdateWalletStatus(ctx context.Context, userID int64, status string) (*DistributionWallet, error)
 	AdjustWalletBalance(ctx context.Context, userID int64, amount float64, action, referenceType, referenceID, note string, createdBy int64) (*DistributionWallet, error)
 	WithTx(ctx context.Context, fn func(txCtx context.Context) error) error
@@ -707,13 +740,77 @@ func (s *DistributionService) UpdateWalletStatus(ctx context.Context, userID int
 }
 
 func (s *DistributionService) VoidAsset(ctx context.Context, userID, assetID, operatorID int64, admin bool) (*DistributionVoidAssetResult, error) {
+	return s.DisableAsset(ctx, userID, assetID, admin)
+}
+
+func (s *DistributionService) RechargeAPIKeyAsset(ctx context.Context, userID, assetID, operatorID int64, input DistributionRechargeAPIKeyInput, admin bool) (*DistributionAssetOperationResult, error) {
 	if s == nil || s.repo == nil {
 		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
 	}
 	if assetID <= 0 {
 		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid distribution asset")
 	}
-	var result *DistributionVoidAssetResult
+	if err := validateDistributionAmount(input.QuotaUSD); err != nil {
+		return nil, err
+	}
+	var result *DistributionAssetOperationResult
+	err := s.repo.WithTx(ctx, func(txCtx context.Context) error {
+		asset, err := s.requireOperableAPIKeyAsset(txCtx, userID, assetID, admin)
+		if err != nil {
+			return err
+		}
+		if asset.Status != DistributionAssetStatusActive && asset.Status != DistributionAssetStatusQuotaExhausted {
+			return infraerrors.Conflict("DISTRIBUTION_ASSET_NOT_RECHARGEABLE", "distribution api key cannot be recharged in its current status")
+		}
+		settings, err := s.GetEffectiveSettingsForUser(txCtx, asset.UserID)
+		if err != nil {
+			return err
+		}
+		cost := roundMoney(input.QuotaUSD * settings.RMBPerUSD)
+		if err := validateDistributionAmount(cost); err != nil {
+			return err
+		}
+		if !admin {
+			if err := s.ensureActiveAgent(txCtx, asset.UserID); err != nil {
+				return err
+			}
+		}
+		refID, err := parseDistributionAPIKeyReferenceID(asset.ReferenceID)
+		if err != nil {
+			return err
+		}
+		ref, err := s.repo.RechargeAPIKeyAssetReference(txCtx, refID, asset.UserID, input.QuotaUSD)
+		if err != nil {
+			return err
+		}
+		if err := s.repo.AddAssetQuotaAndCost(txCtx, asset.ID, input.QuotaUSD, cost); err != nil {
+			return err
+		}
+		wallet, err := s.repo.AdjustWalletBalance(txCtx, asset.UserID, -cost, DistributionLedgerActionRechargeAPIKey, "distribution_asset", strconv.FormatInt(asset.ID, 10), "recharge distribution api key", operatorID)
+		if err != nil {
+			return err
+		}
+		if s.apiKey != nil {
+			s.apiKey.InvalidateAuthCacheByKey(txCtx, ref.Key)
+		}
+		refreshed, err := s.repo.GetAssetByID(txCtx, asset.ID)
+		if err != nil {
+			return err
+		}
+		result = &DistributionAssetOperationResult{Asset: refreshed, Wallet: wallet, CostRMB: cost}
+		return nil
+	})
+	return result, err
+}
+
+func (s *DistributionService) DisableAsset(ctx context.Context, userID, assetID int64, admin bool) (*DistributionAssetOperationResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if assetID <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid distribution asset")
+	}
+	var result *DistributionAssetOperationResult
 	err := s.repo.WithTx(ctx, func(txCtx context.Context) error {
 		asset, err := s.repo.GetAssetByID(txCtx, assetID)
 		if err != nil {
@@ -723,7 +820,7 @@ func (s *DistributionService) VoidAsset(ctx context.Context, userID, assetID, op
 			return ErrDistributionAgentNotFound
 		}
 		if asset.Status == DistributionAssetStatusUsed {
-			return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be voided")
+			return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be disabled")
 		}
 		if asset.RefundedAt != nil || asset.RefundedRMB > 0 {
 			return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
@@ -740,7 +837,7 @@ func (s *DistributionService) VoidAsset(ctx context.Context, userID, assetID, op
 				return err
 			}
 			if code.Status == StatusUsed {
-				return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be voided")
+				return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be disabled")
 			}
 			code.Status = StatusExpired
 			if err := s.redeem.UpdateCode(txCtx, code); err != nil {
@@ -748,30 +845,167 @@ func (s *DistributionService) VoidAsset(ctx context.Context, userID, assetID, op
 			}
 			nextStatus = DistributionAssetStatusExpired
 		case DistributionAssetTypeAPIKey:
-			refID, err := strconv.ParseInt(asset.ReferenceID, 10, 64)
-			if err != nil || refID <= 0 {
-				return infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid api key asset")
+			refID, err := parseDistributionAPIKeyReferenceID(asset.ReferenceID)
+			if err != nil {
+				return err
 			}
-			if err := s.repo.VoidAPIKeyAssetReference(txCtx, refID, asset.UserID); err != nil {
+			ref, err := s.repo.SetAPIKeyAssetReferenceStatus(txCtx, refID, asset.UserID, StatusAPIKeyDisabled)
+			if err != nil {
 				return err
 			}
 			if s.apiKey != nil {
-				s.apiKey.InvalidateAuthCacheByUserID(txCtx, asset.UserID)
+				s.apiKey.InvalidateAuthCacheByKey(txCtx, ref.Key)
 			}
 			nextStatus = DistributionAssetStatusDisabled
 		default:
 			return infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "unsupported distribution asset type")
 		}
 
-		refunded, err := s.repo.MarkAssetRefunded(txCtx, asset.ID, nextStatus, operatorID)
+		if err := s.repo.UpdateAssetStatus(txCtx, asset.ID, nextStatus); err != nil {
+			return err
+		}
+		refreshed, err := s.repo.GetAssetByID(txCtx, asset.ID)
 		if err != nil {
 			return err
 		}
-		wallet, err := s.repo.AdjustWalletBalance(txCtx, asset.UserID, asset.CostRMB, DistributionLedgerActionAssetRefund, "distribution_asset", strconv.FormatInt(asset.ID, 10), "void distribution asset refund", operatorID)
+		result = &DistributionAssetOperationResult{Asset: refreshed}
+		return nil
+	})
+	return result, err
+}
+
+func (s *DistributionService) EnableAsset(ctx context.Context, userID, assetID int64, admin bool) (*DistributionAssetOperationResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if assetID <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid distribution asset")
+	}
+	var result *DistributionAssetOperationResult
+	err := s.repo.WithTx(ctx, func(txCtx context.Context) error {
+		asset, err := s.repo.GetAssetByID(txCtx, assetID)
 		if err != nil {
 			return err
 		}
-		result = &DistributionVoidAssetResult{Asset: refunded, Wallet: wallet, RefundRMB: asset.CostRMB}
+		if !admin && asset.UserID != userID {
+			return ErrDistributionAgentNotFound
+		}
+		if asset.RefundedAt != nil || asset.RefundedRMB > 0 || asset.Status == DistributionAssetStatusRefunded {
+			return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "refunded distribution asset cannot be enabled")
+		}
+		nextStatus := DistributionAssetStatusActive
+		switch asset.AssetType {
+		case DistributionAssetTypeBalanceRedeemCode, DistributionAssetTypeSubscriptionRedeemCode:
+			if s.redeem == nil {
+				return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "redeem service unavailable")
+			}
+			code, err := s.redeem.GetByCode(txCtx, asset.ReferenceID)
+			if err != nil {
+				return err
+			}
+			if code.Status == StatusUsed {
+				return infraerrors.Conflict("DISTRIBUTION_ASSET_USED", "used distribution asset cannot be enabled")
+			}
+			code.Status = StatusUnused
+			if err := s.redeem.UpdateCode(txCtx, code); err != nil {
+				return err
+			}
+		case DistributionAssetTypeAPIKey:
+			refID, err := parseDistributionAPIKeyReferenceID(asset.ReferenceID)
+			if err != nil {
+				return err
+			}
+			ref, err := s.repo.GetAPIKeyAssetReferenceForUpdate(txCtx, refID, asset.UserID)
+			if err != nil {
+				return err
+			}
+			if ref.DeletedAt != nil {
+				return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "deleted distribution api key cannot be enabled")
+			}
+			if ref.ExpiresAt != nil && !time.Now().Before(*ref.ExpiresAt) {
+				return infraerrors.Conflict("DISTRIBUTION_ASSET_EXPIRED", "expired distribution api key cannot be enabled")
+			}
+			if ref.Quota > 0 && ref.QuotaUsed+1e-9 >= ref.Quota {
+				return infraerrors.Conflict("DISTRIBUTION_ASSET_QUOTA_EXHAUSTED", "quota exhausted distribution api key cannot be enabled")
+			}
+			ref, err = s.repo.SetAPIKeyAssetReferenceStatus(txCtx, ref.ID, asset.UserID, StatusActive)
+			if err != nil {
+				return err
+			}
+			if s.apiKey != nil {
+				s.apiKey.InvalidateAuthCacheByKey(txCtx, ref.Key)
+			}
+		default:
+			return infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "unsupported distribution asset type")
+		}
+		if err := s.repo.UpdateAssetStatus(txCtx, asset.ID, nextStatus); err != nil {
+			return err
+		}
+		refreshed, err := s.repo.GetAssetByID(txCtx, asset.ID)
+		if err != nil {
+			return err
+		}
+		result = &DistributionAssetOperationResult{Asset: refreshed}
+		return nil
+	})
+	return result, err
+}
+
+func (s *DistributionService) RefundAPIKeyAsset(ctx context.Context, userID, assetID, operatorID int64, admin bool) (*DistributionAssetOperationResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if assetID <= 0 {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid distribution asset")
+	}
+	var result *DistributionAssetOperationResult
+	err := s.repo.WithTx(ctx, func(txCtx context.Context) error {
+		asset, err := s.requireOperableAPIKeyAsset(txCtx, userID, assetID, admin)
+		if err != nil {
+			return err
+		}
+		refID, err := parseDistributionAPIKeyReferenceID(asset.ReferenceID)
+		if err != nil {
+			return err
+		}
+		ref, err := s.repo.GetAPIKeyAssetReferenceForUpdate(txCtx, refID, asset.UserID)
+		if err != nil {
+			return err
+		}
+		if ref.Status == StatusAPIKeyQuotaExhausted {
+			return infraerrors.Conflict("DISTRIBUTION_ASSET_QUOTA_EXHAUSTED", "quota exhausted distribution api key cannot be refunded")
+		}
+		remaining := ref.Quota - ref.QuotaUsed
+		if remaining < 0 {
+			remaining = 0
+		}
+		refundRMB := 0.0
+		if asset.QuotaUSD > 0 && asset.CostRMB > 0 && remaining > 0 {
+			refundRMB = roundMoney(remaining * asset.CostRMB / asset.QuotaUSD)
+		}
+		if ref.DeletedAt == nil {
+			if err := s.repo.SoftDeleteAPIKeyAssetReference(txCtx, ref.ID, asset.UserID); err != nil {
+				return err
+			}
+		}
+		if err := s.repo.MarkAssetRefunded(txCtx, asset.ID, DistributionAssetStatusRefunded, refundRMB, operatorID); err != nil {
+			return err
+		}
+		var wallet *DistributionWallet
+		if refundRMB > 0 {
+			wallet, err = s.repo.AdjustWalletBalance(txCtx, asset.UserID, refundRMB, DistributionLedgerActionAssetRefund, "distribution_asset", strconv.FormatInt(asset.ID, 10), "refund remaining distribution api key quota", operatorID)
+			if err != nil {
+				return err
+			}
+		}
+		if s.apiKey != nil {
+			s.apiKey.InvalidateAuthCacheByKey(txCtx, ref.Key)
+		}
+		refreshed, err := s.repo.GetAssetByID(txCtx, asset.ID)
+		if err != nil {
+			return err
+		}
+		result = &DistributionAssetOperationResult{Asset: refreshed, Wallet: wallet, RefundRMB: refundRMB}
 		return nil
 	})
 	return result, err
@@ -816,6 +1050,23 @@ func (s *DistributionService) runGenerationTx(ctx context.Context, userID int64,
 	return updatedWallet, err
 }
 
+func (s *DistributionService) requireOperableAPIKeyAsset(ctx context.Context, userID, assetID int64, admin bool) (*DistributionAsset, error) {
+	asset, err := s.repo.GetAssetByID(ctx, assetID)
+	if err != nil {
+		return nil, err
+	}
+	if !admin && asset.UserID != userID {
+		return nil, ErrDistributionAgentNotFound
+	}
+	if asset.AssetType != DistributionAssetTypeAPIKey {
+		return nil, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "operation only supports distribution api key assets")
+	}
+	if asset.RefundedAt != nil || asset.RefundedRMB > 0 || asset.Status == DistributionAssetStatusRefunded {
+		return nil, infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
+	}
+	return asset, nil
+}
+
 func (s *DistributionService) ensureActiveAgent(ctx context.Context, userID int64) error {
 	agent, err := s.repo.GetAgentApplication(ctx, userID)
 	if err != nil {
@@ -835,6 +1086,14 @@ func (s *DistributionService) ensureActiveAgent(ctx context.Context, userID int6
 
 func normalizeDistributionText(v string) string {
 	return strings.TrimSpace(v)
+}
+
+func parseDistributionAPIKeyReferenceID(raw string) (int64, error) {
+	refID, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || refID <= 0 {
+		return 0, infraerrors.BadRequest("DISTRIBUTION_INVALID_ASSET", "invalid api key asset")
+	}
+	return refID, nil
 }
 
 func validateDistributionAmount(v float64) error {

@@ -156,7 +156,7 @@ export interface AffiliateTransferResponse {
 export type DistributionAgentStatus = 'pending' | 'approved' | 'rejected' | 'frozen'
 export type DistributionWalletStatus = 'active' | 'frozen'
 export type DistributionAssetType = 'balance_redeem_code' | 'subscription_redeem_code' | 'api_key'
-export type DistributionAssetStatus = 'active' | 'used' | 'disabled' | 'expired' | 'inactive' | 'quota_exhausted'
+export type DistributionAssetStatus = 'active' | 'used' | 'disabled' | 'expired' | 'inactive' | 'quota_exhausted' | 'refunded'
 
 export interface DistributionAgentApplication {
   user_id: number
@@ -219,6 +219,12 @@ export interface DistributionAsset {
   group_name?: string
   validity_days?: number
   quota_usd?: number
+  api_key_name?: string
+  api_key_status?: string
+  quota_used?: number
+  quota_remaining?: number
+  exchange_rate?: number
+  refundable_rmb?: number
   status: DistributionAssetStatus
   customer_user_id?: number | null
   customer_email?: string

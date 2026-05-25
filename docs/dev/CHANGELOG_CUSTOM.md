@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] feat: manage distribution API key lifecycle
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/server/routes/admin.go, backend/internal/service/user_service.go, backend/internal/repository/migrations_runner.go, backend/internal/repository/migrations_runner_checksum_test.go, backend/migrations/144_distribution_api_key_recharge_wallet_totals.sql, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: distribution API/UI behavior change; additive routes with legacy `/void` retained as disable-only compatibility
+**Change details**:
+- Added user/admin distribution API-key asset operations for recharge, disable, enable, and remaining-quota refund.
+- Changed legacy distribution asset void behavior to disable/expire assets without wallet refund, and moved API-key refund semantics to explicit `/refund` routes.
+- Added API-key asset list fields for key name, quota used, quota remaining, tracked exchange rate, and estimated refundable RMB.
+- Added wallet total-spend repair migration for historical API-key recharge ledger actions.
+- Updated user/admin distribution pages with lifecycle actions, localized strings, and refund/recharge wallet refresh behavior.
+
 ## [2026-05-25] fix: correct distribution asset refund accounting
 
 **Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/migrations/143_recompute_distribution_wallet_totals.sql, docs/dev/codebase/distribution.md
