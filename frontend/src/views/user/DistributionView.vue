@@ -32,16 +32,40 @@
         </div>
 
         <div v-if="!summary?.application" class="card p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.apply.title') }}</h3>
-          <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('distribution.apply.description') }}</p>
+          <div class="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+            <div>
+              <p class="text-xs font-semibold uppercase text-primary-600 dark:text-primary-400">
+                {{ t('distribution.intro.eyebrow') }}
+              </p>
+              <h3 class="mt-2 text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.intro.title') }}</h3>
+              <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-dark-300">{{ t('distribution.intro.description') }}</p>
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900">
+              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('distribution.intro.benefitsTitle') }}</p>
+              <div class="mt-3 space-y-3">
+                <div v-for="item in benefitItems" :key="item.title" class="flex gap-3">
+                  <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary-500"></span>
+                  <div>
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">{{ item.title }}</p>
+                    <p class="mt-0.5 text-sm leading-5 text-gray-500 dark:text-dark-400">{{ item.description }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 border-t border-gray-100 pt-6 dark:border-dark-800">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.apply.title') }}</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('distribution.apply.description') }}</p>
+          </div>
           <form class="mt-5 space-y-4" @submit.prevent="submitApplication">
             <div>
               <label class="input-label">{{ t('distribution.apply.contact') }}</label>
-              <input v-model.trim="applyForm.contact" class="input" maxlength="200" />
+              <input v-model.trim="applyForm.contact" class="input" maxlength="200" :placeholder="t('distribution.apply.contactPlaceholder')" />
             </div>
             <div>
               <label class="input-label">{{ t('distribution.apply.reason') }}</label>
-              <textarea v-model.trim="applyForm.reason" class="input min-h-28" maxlength="1000"></textarea>
+              <textarea v-model.trim="applyForm.reason" class="input min-h-28" maxlength="1000" :placeholder="t('distribution.apply.reasonPlaceholder')"></textarea>
             </div>
             <button class="btn btn-primary" :disabled="submitting">
               {{ submitting ? t('common.submitting') : t('distribution.apply.submit') }}
@@ -49,7 +73,7 @@
           </form>
         </div>
 
-        <div v-else class="card p-6">
+        <div v-else-if="!isApproved" class="card p-6">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.application.title') }}</h3>
@@ -61,6 +85,33 @@
               </p>
             </div>
             <span class="badge" :class="statusBadgeClass">{{ statusLabel }}</span>
+          </div>
+        </div>
+
+        <div v-if="isApproved" class="card p-6">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.tutorial.title') }}</h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('distribution.tutorial.description') }}</p>
+            </div>
+            <span class="badge badge-success">{{ statusLabel }}</span>
+          </div>
+          <div class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              v-for="(step, index) in tutorialSteps"
+              :key="step.title"
+              class="rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+            >
+              <div class="flex items-start gap-3">
+                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 dark:bg-primary-900/40 dark:text-primary-200">
+                  {{ index + 1 }}
+                </span>
+                <div>
+                  <p class="text-sm font-medium text-gray-900 dark:text-white">{{ step.title }}</p>
+                  <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-dark-400">{{ step.description }}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -269,6 +320,46 @@ const balanceForm = reactive({ value_usd: 10, note: '' })
 const subscriptionForm = reactive({ plan_id: 0, note: '' })
 const apiForm = reactive({ name: 'Distribution API Key', quota_usd: 10, group_id: 0, expires_in_days: 0 })
 const generating = reactive({ balance: false, subscription: false, api: false })
+const benefitItems = computed(() => [
+  {
+    title: t('distribution.intro.benefits.lowCost.title'),
+    description: t('distribution.intro.benefits.lowCost.description'),
+  },
+  {
+    title: t('distribution.intro.benefits.fastDelivery.title'),
+    description: t('distribution.intro.benefits.fastDelivery.description'),
+  },
+  {
+    title: t('distribution.intro.benefits.management.title'),
+    description: t('distribution.intro.benefits.management.description'),
+  },
+])
+const tutorialSteps = computed(() => [
+  {
+    title: t('distribution.tutorial.steps.recharge.title'),
+    description: t('distribution.tutorial.steps.recharge.description'),
+  },
+  {
+    title: t('distribution.tutorial.steps.choose.title'),
+    description: t('distribution.tutorial.steps.choose.description'),
+  },
+  {
+    title: t('distribution.tutorial.steps.generate.title'),
+    description: t('distribution.tutorial.steps.generate.description'),
+  },
+  {
+    title: t('distribution.tutorial.steps.deliver.title'),
+    description: t('distribution.tutorial.steps.deliver.description'),
+  },
+  {
+    title: t('distribution.tutorial.steps.track.title'),
+    description: t('distribution.tutorial.steps.track.description'),
+  },
+  {
+    title: t('distribution.tutorial.steps.void.title'),
+    description: t('distribution.tutorial.steps.void.description'),
+  },
+])
 
 const isApproved = computed(() => summary.value?.application?.status === 'approved' && summary.value?.wallet?.status === 'active')
 const settings = computed(() => summary.value?.settings ?? { rmb_per_usd: 0.5, subscription_discount: 0.75 })

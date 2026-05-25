@@ -6694,13 +6694,13 @@ const v117ZhPatch = {
     done: '已完成'
   },
   nav: {
-    distribution: '分销中心',
+    distribution: '成为代理',
     distributionManagement: '分销管理'
   },
   distribution: {
-    title: '分销中心',
-    description: '申请成为分销代理，并从分销余额生成兑换码或 API Key。',
-    loadFailed: '加载分销中心失败',
+    title: '成为代理',
+    description: '申请成为代理，使用专属资金账户低价生成 API Key、订阅兑换码等产品，并分销给客户赚取差价。',
+    loadFailed: '加载代理中心失败',
     status: {
       notApplied: '未申请',
       pending: '待审核',
@@ -6714,11 +6714,33 @@ const v117ZhPatch = {
       recharged: '累计充值',
       spent: '累计消耗',
     },
+    intro: {
+      eyebrow: '代理合作',
+      title: '什么是代理？',
+      description: '代理是平台的分销合作方。成为代理后，你会拥有专门的代理资金账户，可以按平台设置的代理价格生成 API Key、订阅兑换码等产品，再分销给自己的客户，通过销售价与代理成本之间的差额获得收益。',
+      benefitsTitle: '代理有哪些好处',
+      benefits: {
+        lowCost: {
+          title: '低价拿货',
+          description: '按代理价生成额度、套餐或 API Key，便于自行定价销售。',
+        },
+        fastDelivery: {
+          title: '快速交付',
+          description: '审核通过后可在页面中直接生成可交付给客户的兑换码或 API Key。',
+        },
+        management: {
+          title: '方便管理',
+          description: '可查看生成资产、客户使用状态、账户余额和资金流水，便于售后与对账。',
+        },
+      },
+    },
     apply: {
-      title: '申请成为分销代理',
-      description: '提交联系方式和申请说明，管理员审核通过后即可使用分销账户。',
+      title: '申请成为代理',
+      description: '填写联系方式和申请说明，管理员审核通过后即可开通代理资金账户。',
       contact: '联系方式',
+      contactPlaceholder: '填写微信、邮箱或其他便于联系的方式',
       reason: '申请说明',
+      reasonPlaceholder: '简单说明你的客户来源、销售方式或预计需求',
       submit: '提交申请',
       success: '申请已提交',
       failed: '提交申请失败',
@@ -6727,6 +6749,36 @@ const v117ZhPatch = {
       title: '申请记录',
       submittedAt: '提交时间',
       adminNote: '管理员备注',
+    },
+    tutorial: {
+      title: '代理使用教程',
+      description: '按下面流程完成充值、生成、交付和对账。',
+      steps: {
+        recharge: {
+          title: '充值代理余额',
+          description: '联系管理员或按平台规则为代理资金账户充值。',
+        },
+        choose: {
+          title: '选择交付产品',
+          description: '根据客户需求选择生成余额兑换码、订阅兑换码或 API Key。',
+        },
+        generate: {
+          title: '确认成本并生成',
+          description: '系统会按代理价或折扣计算成本，生成成功后会自动扣减代理余额。',
+        },
+        deliver: {
+          title: '复制并交付客户',
+          description: '将生成的兑换码、API Key 或 API Base URL 复制给客户使用。',
+        },
+        track: {
+          title: '查看资产和流水',
+          description: '在“生成资产”中查看状态，在“账户流水”中核对余额变化。',
+        },
+        void: {
+          title: '必要时作废退款',
+          description: '未使用且符合条件的资产可作废，系统会按规则退回代理余额。',
+        },
+      },
     },
     features: {
       recharge: {

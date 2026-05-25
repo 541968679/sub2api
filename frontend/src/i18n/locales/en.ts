@@ -359,7 +359,7 @@ export default {
     modelConfig: 'Model Config',
     proxies: 'Proxies',
     redeemCodes: 'Redeem Codes',
-    distribution: 'Distribution',
+    distribution: 'Become an Agent',
     distributionManagement: 'Distribution',
     ops: 'Ops',
     promoCodes: 'Promo Codes',
@@ -6945,9 +6945,9 @@ export default {
   },
 
   distribution: {
-    title: 'Distribution Center',
-    description: 'Apply for distribution access and generate redeem codes or API keys from your wallet.',
-    loadFailed: 'Failed to load distribution center',
+    title: 'Become an Agent',
+    description: 'Apply to become an agent, use a dedicated wallet to generate API keys and subscription codes at agent pricing, and resell them to customers for margin.',
+    loadFailed: 'Failed to load agent center',
     status: {
       notApplied: 'Not applied',
       pending: 'Pending review',
@@ -6961,11 +6961,33 @@ export default {
       recharged: 'Total recharged',
       spent: 'Total spent',
     },
+    intro: {
+      eyebrow: 'Agent program',
+      title: 'What is an agent?',
+      description: 'An agent is a distribution partner of the platform. After approval, you receive a dedicated agent wallet and can generate API keys, subscription codes, and other products at platform-defined agent pricing, then resell them to your own customers and keep the margin between your selling price and agent cost.',
+      benefitsTitle: 'Agent benefits',
+      benefits: {
+        lowCost: {
+          title: 'Lower-cost supply',
+          description: 'Generate quota, plans, or API keys at agent pricing so you can set your own resale price.',
+        },
+        fastDelivery: {
+          title: 'Fast delivery',
+          description: 'After approval, generate customer-ready redeem codes or API keys directly from this page.',
+        },
+        management: {
+          title: 'Easy management',
+          description: 'Track generated assets, customer usage status, wallet balance, and ledger records for support and reconciliation.',
+        },
+      },
+    },
     apply: {
-      title: 'Apply to become a distribution agent',
-      description: 'Submit contact information and a short reason. You can use the distribution account after admin approval.',
+      title: 'Apply to become an agent',
+      description: 'Fill in your contact details and application note. After admin approval, your agent wallet will be opened.',
       contact: 'Contact',
+      contactPlaceholder: 'Enter WeChat, email, or another contact method',
       reason: 'Reason',
+      reasonPlaceholder: 'Briefly describe your customer source, sales method, or expected demand',
       submit: 'Submit application',
       success: 'Application submitted',
       failed: 'Failed to submit application',
@@ -6974,6 +6996,36 @@ export default {
       title: 'Application',
       submittedAt: 'Submitted at',
       adminNote: 'Admin note',
+    },
+    tutorial: {
+      title: 'Agent usage guide',
+      description: 'Follow this flow to recharge, generate, deliver, and reconcile.',
+      steps: {
+        recharge: {
+          title: 'Recharge agent balance',
+          description: 'Contact an admin or follow platform rules to recharge your dedicated agent wallet.',
+        },
+        choose: {
+          title: 'Choose a product',
+          description: 'Generate a balance code, subscription code, or API key based on your customer need.',
+        },
+        generate: {
+          title: 'Confirm cost and generate',
+          description: 'The system calculates the cost by agent price or discount and deducts your agent balance after generation.',
+        },
+        deliver: {
+          title: 'Copy and deliver',
+          description: 'Copy the generated redeem code, API key, or API base URL and send it to your customer.',
+        },
+        track: {
+          title: 'Track assets and ledger',
+          description: 'Use Generated assets for status tracking and Wallet ledger to reconcile balance changes.',
+        },
+        void: {
+          title: 'Void and refund when needed',
+          description: 'Unused eligible assets can be voided, and the system refunds the agent balance by rule.',
+        },
+      },
     },
     features: {
       recharge: {

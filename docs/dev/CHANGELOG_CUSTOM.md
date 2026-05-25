@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] feat: rename and explain user agent application page
+
+**Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only user distribution page copy and layout change; user/admin distribution APIs unchanged
+**Change details**:
+- Renamed the user-side distribution entry and page title to "Become an Agent" / "成为代理" while leaving admin distribution management unchanged.
+- Added an application-page explanation of the agent model, covering low-cost supply, fast delivery, and asset/customer management benefits.
+- Replaced the approved-state application record card with an agent usage guide and kept the application record visible only for non-approved states.
+
 ## [2026-05-24] fix: hide user-facing cache-write usage display
 
 **Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/components/user/usage/UsageMetricTrendChart.vue, frontend/src/components/user/dashboard/UserDashboardStats.vue, frontend/src/components/user/dashboard/UserDashboardCharts.vue, frontend/src/components/charts/TokenUsageTrend.vue, frontend/src/views/KeyUsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
