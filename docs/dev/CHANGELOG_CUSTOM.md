@@ -1812,6 +1812,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Clarified that ZeroCode setup should use CC-Switch first, then restart Codex Desktop so it reads the shared `.codex/config.toml` and `.codex/auth.json` files.
 - Added an explicit jump from the Codex Desktop install section to the existing `4.3.1` CC-Switch configuration flow.
 
+## [2026-05-25] docs: align Codex tutorial structure with Claude Code chapter
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Reworked chapter 4 into separate `CLI 版本：安装与配置` and `Desktop 桌面版：安装与配置` sections, matching chapter 3's version-based tutorial structure.
+- Moved Codex CLI installation, CC-Switch setup, manual configuration, WebSocket option, and verification into one CLI flow.
+- Added a full Codex Desktop flow for install, CC-Switch configuration, local project startup, and Desktop-specific troubleshooting.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
