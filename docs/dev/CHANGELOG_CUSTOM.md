@@ -19,6 +19,13 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] fix: disable key-usage brand home navigation
+
+**Affected files**: frontend/src/views/KeyUsageView.vue
+**Upstream compatibility**: frontend-only public page navigation tweak
+**Change details**:
+- Changed the `/key-usage` page header brand from a `/home` router link into static branding so clicking ZeroCode no longer opens the old home page.
+
 ## [2026-05-25] feat: expose public API key usage query entry
 
 **Affected files**: backend/internal/server/routes/gateway.go, backend/internal/server/routes/gateway_test.go, frontend/src/views/HomeView.vue, frontend/src/views/auth/LoginView.vue, frontend/src/router/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/gateway.md
