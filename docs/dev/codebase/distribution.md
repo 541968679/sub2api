@@ -64,6 +64,7 @@ The distribution wallet is intentionally separate from the normal user balance.
 - Wallet generation runs in one transaction with the generated redeem code or API key.
 - Asset void/refund also runs in one transaction. `distribution_assets.refunded_at/refunded_rmb` prevents duplicate refunds.
 - Asset list status is derived from the linked `redeem_codes` or `api_keys` record where possible, so used/expired/disabled states reflect runtime state rather than only the creation snapshot.
+- The user-facing agent page presents generated assets and wallet ledger as tabs in one history panel. Newly generated codes/API keys appear in the generated-assets action area for immediate copy, and asset search is sent through the existing `GET /api/v1/distribution/assets?search=...` parameter.
 - Settings are stored in the existing Settings KV:
   - `distribution_rmb_per_usd`
   - `distribution_subscription_discount`

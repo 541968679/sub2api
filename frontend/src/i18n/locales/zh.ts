@@ -6837,6 +6837,7 @@ const v117ZhPatch = {
     },
     generated: {
       title: '生成结果',
+      latestTitle: '最近生成',
       balanceCode: '余额兑换码',
       subscriptionCode: '订阅兑换码',
       apiKey: 'API Key',
@@ -6848,6 +6849,8 @@ const v117ZhPatch = {
     assets: {
       title: '生成资产',
       empty: '暂无生成资产',
+      searchPlaceholder: '搜索兑换码、API Key 或客户...',
+      searchEmpty: '没有匹配的生成资产',
       void: '作废',
       voidSuccess: '资产已作废，已退还 {amount}。',
       voidFailed: '作废资产失败',

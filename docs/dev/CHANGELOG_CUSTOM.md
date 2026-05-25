@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] feat: optimize become-agent asset history layout
+
+**Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: frontend-only user distribution page layout change; distribution APIs unchanged
+**Change details**:
+- Removed the separate generated-results section and moved recently generated codes/API keys into the generated-assets action area for immediate copy.
+- Combined generated assets and wallet ledger into one tabbed history panel.
+- Added debounced generated-asset search using the existing user asset-list search parameter, with localized placeholders and empty states.
+
 ## [2026-05-25] fix: avoid i18n placeholder parsing in distribution API key copy text
 
 **Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

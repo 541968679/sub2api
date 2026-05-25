@@ -7087,6 +7087,7 @@ export default {
     },
     generated: {
       title: 'Generated results',
+      latestTitle: 'Recently generated',
       balanceCode: 'Balance code',
       subscriptionCode: 'Subscription code',
       apiKey: 'API key',
@@ -7098,6 +7099,8 @@ export default {
     assets: {
       title: 'Generated assets',
       empty: 'No generated assets yet',
+      searchPlaceholder: 'Search codes, API keys, or customers...',
+      searchEmpty: 'No generated assets match your search',
       void: 'Void',
       voidSuccess: 'Asset voided. Refunded {amount}.',
       voidFailed: 'Failed to void asset',

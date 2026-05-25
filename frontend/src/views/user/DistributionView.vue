@@ -188,100 +188,130 @@
           </form>
         </div>
 
-        <div v-if="generatedItems.length > 0" class="card p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.generated.title') }}</h3>
-          <div class="mt-4 space-y-3">
-            <div v-for="item in generatedItems" :key="item.value" class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
-              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div class="min-w-0">
-                  <p class="text-xs uppercase text-gray-500 dark:text-dark-400">{{ item.label }}</p>
-                  <pre v-if="item.multiline" class="mt-1 whitespace-pre-wrap break-all rounded-md bg-gray-50 p-3 font-mono text-xs font-medium text-gray-900 dark:bg-dark-800 dark:text-white">{{ item.value }}</pre>
-                  <p v-else class="mt-1 break-all font-mono text-sm font-medium text-gray-900 dark:text-white">{{ item.value }}</p>
-                  <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ item.meta }}</p>
+        <div v-if="isApproved" class="card p-6">
+          <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div class="inline-flex w-full rounded-lg border border-gray-200 bg-gray-50 p-1 dark:border-dark-700 dark:bg-dark-900 sm:w-auto">
+              <button
+                type="button"
+                class="flex-1 rounded-md px-3 py-2 text-sm font-medium transition sm:flex-none"
+                :class="activeHistoryTab === 'assets' ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-500 hover:text-gray-900 dark:text-dark-400 dark:hover:text-white'"
+                @click="activeHistoryTab = 'assets'"
+              >
+                {{ t('distribution.assets.title') }}
+              </button>
+              <button
+                type="button"
+                class="flex-1 rounded-md px-3 py-2 text-sm font-medium transition sm:flex-none"
+                :class="activeHistoryTab === 'ledger' ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-500 hover:text-gray-900 dark:text-dark-400 dark:hover:text-white'"
+                @click="activeHistoryTab = 'ledger'"
+              >
+                {{ t('distribution.ledger.title') }}
+              </button>
+            </div>
+
+            <div v-if="activeHistoryTab === 'assets'" class="flex w-full flex-col gap-2 sm:flex-row sm:items-center xl:w-auto">
+              <input
+                v-model.trim="assetSearch"
+                class="input h-9 w-full sm:w-72"
+                :placeholder="t('distribution.assets.searchPlaceholder')"
+                @input="handleAssetSearch"
+              />
+              <button v-if="assetSearch" class="btn btn-secondary btn-sm" @click="clearAssetSearch">{{ t('common.clear') }}</button>
+              <button class="btn btn-secondary btn-sm" :disabled="assetsLoading" @click="loadAssets">{{ t('common.refresh') }}</button>
+            </div>
+            <button v-else class="btn btn-secondary btn-sm self-start xl:self-auto" :disabled="ledgerLoading" @click="loadLedger">{{ t('common.refresh') }}</button>
+          </div>
+
+          <div v-if="activeHistoryTab === 'assets' && generatedItems.length > 0" class="mt-4 border-t border-gray-100 pt-4 dark:border-dark-800">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('distribution.generated.latestTitle') }}</p>
+              <button class="btn btn-secondary btn-sm" @click="generatedItems = []">{{ t('common.clear') }}</button>
+            </div>
+            <div class="grid gap-3 xl:grid-cols-2">
+              <div v-for="item in generatedItems" :key="item.value" class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-900/70">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium uppercase text-gray-500 dark:text-dark-400">{{ item.label }}</p>
+                    <pre v-if="item.multiline" class="mt-1 max-h-36 overflow-auto whitespace-pre-wrap break-all rounded-md bg-white p-3 font-mono text-xs font-medium text-gray-900 dark:bg-dark-800 dark:text-white">{{ item.value }}</pre>
+                    <p v-else class="mt-1 break-all font-mono text-sm font-medium text-gray-900 dark:text-white">{{ item.value }}</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ item.meta }}</p>
+                  </div>
+                  <button class="btn btn-secondary btn-sm shrink-0" @click="copy(item.copyText || item.value)">{{ t('common.copy') }}</button>
                 </div>
-                <button class="btn btn-secondary btn-sm shrink-0" @click="copy(item.copyText || item.value)">{{ t('common.copy') }}</button>
               </div>
             </div>
           </div>
-        </div>
 
-        <div v-if="isApproved" class="card p-6">
-          <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.assets.title') }}</h3>
-            <button class="btn btn-secondary btn-sm" :disabled="assetsLoading" @click="loadAssets">{{ t('common.refresh') }}</button>
+          <div v-if="activeHistoryTab === 'assets'" class="mt-5">
+            <div v-if="assets.items.length === 0" class="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+              {{ assetSearch ? t('distribution.assets.searchEmpty') : t('distribution.assets.empty') }}
+            </div>
+            <div v-else class="overflow-x-auto">
+              <table class="w-full min-w-[980px] text-left text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.type') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.value') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.faceValue') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.cost') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('common.status') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.customer') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.createdAt') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('common.actions') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="asset in assets.items" :key="asset.id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
+                    <td class="px-3 py-3">{{ assetTypeLabel(asset.asset_type) }}</td>
+                    <td class="px-3 py-3">
+                      <p class="break-all font-mono text-xs text-gray-900 dark:text-white">{{ asset.display_value }}</p>
+                      <p v-if="asset.package_url" class="mt-1 break-all text-xs text-gray-500 dark:text-dark-400">{{ asset.package_url }}</p>
+                    </td>
+                    <td class="px-3 py-3 text-right">{{ assetFaceValue(asset) }}</td>
+                    <td class="px-3 py-3 text-right">{{ formatCurrency(asset.cost_rmb, 'CNY') }}</td>
+                    <td class="px-3 py-3"><span class="badge" :class="assetStatusBadge(asset.status)">{{ assetStatusLabel(asset.status) }}</span></td>
+                    <td class="px-3 py-3">{{ asset.customer_email || '-' }}</td>
+                    <td class="px-3 py-3">{{ formatDateTime(asset.created_at) }}</td>
+                    <td class="px-3 py-3">
+                      <div class="flex items-center gap-2">
+                        <button class="btn btn-secondary btn-sm" @click="copy(assetCopyText(asset))">{{ t('common.copy') }}</button>
+                        <button v-if="canVoidAsset(asset)" class="btn btn-danger btn-sm" :disabled="voidingAssetId === asset.id" @click="voidAsset(asset)">
+                          {{ t('distribution.assets.void') }}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div v-if="assets.items.length === 0" class="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
-            {{ t('distribution.assets.empty') }}
-          </div>
-          <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-[980px] text-left text-sm">
-              <thead>
-                <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.type') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.value') }}</th>
-                  <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.faceValue') }}</th>
-                  <th class="px-3 py-2 font-medium text-right">{{ t('distribution.assets.columns.cost') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('common.status') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.customer') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.assets.columns.createdAt') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('common.actions') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="asset in assets.items" :key="asset.id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
-                  <td class="px-3 py-3">{{ assetTypeLabel(asset.asset_type) }}</td>
-                  <td class="px-3 py-3">
-                    <p class="break-all font-mono text-xs text-gray-900 dark:text-white">{{ asset.display_value }}</p>
-                    <p v-if="asset.package_url" class="mt-1 break-all text-xs text-gray-500 dark:text-dark-400">{{ asset.package_url }}</p>
-                  </td>
-                  <td class="px-3 py-3 text-right">{{ assetFaceValue(asset) }}</td>
-                  <td class="px-3 py-3 text-right">{{ formatCurrency(asset.cost_rmb, 'CNY') }}</td>
-                  <td class="px-3 py-3"><span class="badge" :class="assetStatusBadge(asset.status)">{{ assetStatusLabel(asset.status) }}</span></td>
-                  <td class="px-3 py-3">{{ asset.customer_email || '-' }}</td>
-                  <td class="px-3 py-3">{{ formatDateTime(asset.created_at) }}</td>
-                  <td class="px-3 py-3">
-                    <div class="flex items-center gap-2">
-                      <button class="btn btn-secondary btn-sm" @click="copy(assetCopyText(asset))">{{ t('common.copy') }}</button>
-                      <button v-if="canVoidAsset(asset)" class="btn btn-danger btn-sm" :disabled="voidingAssetId === asset.id" @click="voidAsset(asset)">
-                        {{ t('distribution.assets.void') }}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
 
-        <div class="card p-6">
-          <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('distribution.ledger.title') }}</h3>
-            <button class="btn btn-secondary btn-sm" :disabled="ledgerLoading" @click="loadLedger">{{ t('common.refresh') }}</button>
-          </div>
-          <div v-if="ledger.items.length === 0" class="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
-            {{ t('distribution.ledger.empty') }}
-          </div>
-          <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-[760px] text-left text-sm">
-              <thead>
-                <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.ledger.columns.action') }}</th>
-                  <th class="px-3 py-2 font-medium text-right">{{ t('distribution.ledger.columns.amount') }}</th>
-                  <th class="px-3 py-2 font-medium text-right">{{ t('distribution.ledger.columns.balanceAfter') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.ledger.columns.note') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('distribution.ledger.columns.createdAt') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in ledger.items" :key="item.id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
-                  <td class="px-3 py-3 text-gray-900 dark:text-white">{{ actionLabel(item.action) }}</td>
-                  <td class="px-3 py-3 text-right font-medium">{{ formatCurrency(item.amount, 'CNY') }}</td>
-                  <td class="px-3 py-3 text-right">{{ formatCurrency(item.balance_after, 'CNY') }}</td>
-                  <td class="px-3 py-3 text-gray-600 dark:text-gray-300">{{ item.note || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-600 dark:text-gray-300">{{ formatDateTime(item.created_at) }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-else class="mt-5">
+            <div v-if="ledger.items.length === 0" class="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+              {{ t('distribution.ledger.empty') }}
+            </div>
+            <div v-else class="overflow-x-auto">
+              <table class="w-full min-w-[760px] text-left text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.ledger.columns.action') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('distribution.ledger.columns.amount') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('distribution.ledger.columns.balanceAfter') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.ledger.columns.note') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('distribution.ledger.columns.createdAt') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in ledger.items" :key="item.id" class="border-b border-gray-100 last:border-b-0 dark:border-dark-800">
+                    <td class="px-3 py-3 text-gray-900 dark:text-white">{{ actionLabel(item.action) }}</td>
+                    <td class="px-3 py-3 text-right font-medium">{{ formatCurrency(item.amount, 'CNY') }}</td>
+                    <td class="px-3 py-3 text-right">{{ formatCurrency(item.balance_after, 'CNY') }}</td>
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-300">{{ item.note || '-' }}</td>
+                    <td class="px-3 py-3 text-gray-600 dark:text-gray-300">{{ formatDateTime(item.created_at) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </template>
@@ -290,7 +320,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import distributionAPI from '@/api/distribution'
@@ -313,6 +343,9 @@ const summary = ref<DistributionSummary | null>(null)
 const groups = ref<Group[]>([])
 const subscriptionPlans = ref<SubscriptionPlan[]>([])
 const generatedItems = ref<Array<{ label: string; value: string; meta: string; copyText?: string; multiline?: boolean }>>([])
+const activeHistoryTab = ref<'assets' | 'ledger'>('assets')
+const assetSearch = ref('')
+const assetSearchTimer = ref<number | null>(null)
 const ledger = reactive({ items: [] as DistributionWalletLedgerEntry[] })
 const assets = reactive({ items: [] as DistributionAsset[] })
 const applyForm = reactive({ contact: '', reason: '' })
@@ -425,13 +458,26 @@ async function loadLedger(): Promise<void> {
 async function loadAssets(): Promise<void> {
   assetsLoading.value = true
   try {
-    const resp = await distributionAPI.listAssets({ page: 1, page_size: 50 })
+    const resp = await distributionAPI.listAssets({ page: 1, page_size: 50, search: assetSearch.value || undefined })
     assets.items = resp.items ?? []
   } catch {
     assets.items = []
   } finally {
     assetsLoading.value = false
   }
+}
+
+function handleAssetSearch(): void {
+  if (assetSearchTimer.value) window.clearTimeout(assetSearchTimer.value)
+  assetSearchTimer.value = window.setTimeout(() => {
+    void loadAssets()
+  }, 300)
+}
+
+function clearAssetSearch(): void {
+  if (assetSearchTimer.value) window.clearTimeout(assetSearchTimer.value)
+  assetSearch.value = ''
+  void loadAssets()
 }
 
 async function submitApplication(): Promise<void> {
@@ -616,5 +662,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onUnmounted(() => {
+  if (assetSearchTimer.value) window.clearTimeout(assetSearchTimer.value)
 })
 </script>
