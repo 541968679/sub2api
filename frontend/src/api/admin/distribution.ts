@@ -56,6 +56,12 @@ export interface UpdateDistributionAgentRatesRequest {
   subscription_discount_override?: number | null
 }
 
+export interface UpdateDistributionSettingsRequest {
+  rmb_per_usd: number
+  subscription_discount: number
+  api_key_group_ids: number[]
+}
+
 export interface VoidDistributionAssetResponse {
   asset: DistributionAsset
   refund_rmb: number
@@ -87,7 +93,7 @@ export async function getSettings(): Promise<DistributionSettings> {
   return data
 }
 
-export async function updateSettings(payload: DistributionSettings): Promise<DistributionSettings> {
+export async function updateSettings(payload: UpdateDistributionSettingsRequest): Promise<DistributionSettings> {
   const { data } = await apiClient.put<DistributionSettings>('/admin/distribution/settings', payload)
   return data
 }

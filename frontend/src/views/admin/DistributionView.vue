@@ -15,6 +15,31 @@
               <p class="input-hint">{{ t('admin.distribution.settings.subscriptionDiscountHint') }}</p>
             </div>
           </div>
+          <div class="mt-4">
+            <label class="input-label">{{ t('admin.distribution.settings.apiKeyGroups') }}</label>
+            <div class="max-h-44 overflow-y-auto rounded-lg border border-gray-200 p-3 dark:border-dark-700">
+              <label
+                v-for="group in standardGroups"
+                :key="group.id"
+                class="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-gray-50 dark:hover:bg-dark-900"
+              >
+                <input
+                  v-model="settingsForm.api_key_group_ids"
+                  type="checkbox"
+                  class="mt-1"
+                  :value="group.id"
+                />
+                <span class="min-w-0">
+                  <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ group.name }}</span>
+                  <span class="block text-xs text-gray-500 dark:text-dark-400">{{ group.platform }} · ID {{ group.id }}</span>
+                </span>
+              </label>
+              <p v-if="standardGroups.length === 0" class="py-4 text-center text-sm text-gray-500 dark:text-dark-400">
+                {{ t('admin.distribution.settings.noApiKeyGroups') }}
+              </p>
+            </div>
+            <p class="input-hint">{{ t('admin.distribution.settings.apiKeyGroupsHint') }}</p>
+          </div>
           <div class="mt-4 flex justify-end">
             <button class="btn btn-primary" :disabled="settingsSaving">{{ settingsSaving ? t('common.saving') : t('common.save') }}</button>
           </div>
@@ -247,7 +272,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import distributionAdminAPI from '@/api/admin/distribution'
-import type { DistributionAgentApplication, DistributionAsset, DistributionWallet, DistributionWalletLedgerEntry } from '@/types'
+import groupsAdminAPI from '@/api/admin/groups'
+import type { AdminGroup, DistributionAgentApplication, DistributionAsset, DistributionWallet, DistributionWalletLedgerEntry } from '@/types'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatCurrency, formatDateTime } from '@/utils/format'
@@ -270,9 +296,10 @@ const searchTimer = ref<number | null>(null)
 const assetSearchTimer = ref<number | null>(null)
 const applications = ref<DistributionAgentApplication[]>([])
 const wallets = ref<DistributionWallet[]>([])
+const standardGroups = ref<AdminGroup[]>([])
 const ledgerItems = ref<DistributionWalletLedgerEntry[]>([])
 const assetItems = ref<DistributionAsset[]>([])
-const settingsForm = reactive({ rmb_per_usd: 0.5, subscription_discount: 0.75 })
+const settingsForm = reactive({ rmb_per_usd: 0.5, subscription_discount: 0.75, api_key_group_ids: [] as number[] })
 const applicationPagination = reactive({ page: 1, page_size: 20, total: 0 })
 const walletPagination = reactive({ page: 1, page_size: 50, total: 0 })
 const ledgerFilter = reactive({ user_id: 0 })
@@ -297,14 +324,25 @@ async function loadSettings(): Promise<void> {
   const settings = await distributionAdminAPI.getSettings()
   settingsForm.rmb_per_usd = settings.rmb_per_usd
   settingsForm.subscription_discount = settings.subscription_discount
+  settingsForm.api_key_group_ids = settings.api_key_group_ids ?? []
+}
+
+async function loadGroups(): Promise<void> {
+  const groups = await groupsAdminAPI.getAll()
+  standardGroups.value = groups.filter(group => group.status === 'active' && group.subscription_type === 'standard')
 }
 
 async function saveSettings(): Promise<void> {
   settingsSaving.value = true
   try {
-    const settings = await distributionAdminAPI.updateSettings({ ...settingsForm })
+    const settings = await distributionAdminAPI.updateSettings({
+      rmb_per_usd: settingsForm.rmb_per_usd,
+      subscription_discount: settingsForm.subscription_discount,
+      api_key_group_ids: [...settingsForm.api_key_group_ids],
+    })
     settingsForm.rmb_per_usd = settings.rmb_per_usd
     settingsForm.subscription_discount = settings.subscription_discount
+    settingsForm.api_key_group_ids = settings.api_key_group_ids ?? []
     appStore.showSuccess(t('common.saved'))
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, t('admin.distribution.saveSettingsFailed')))
@@ -534,6 +572,6 @@ async function voidAsset(asset: DistributionAsset): Promise<void> {
 }
 
 onMounted(() => {
-  void Promise.all([loadSettings(), loadAgentTables(), loadLedger(), loadAssets()])
+  void Promise.all([loadSettings(), loadGroups(), loadAgentTables(), loadLedger(), loadAssets()])
 })
 </script>

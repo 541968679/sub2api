@@ -241,6 +241,7 @@ export interface DistributionSummary {
 export interface DistributionSettings {
   rmb_per_usd: number
   subscription_discount: number
+  api_key_group_ids: number[]
 }
 
 export interface DistributionGeneratedRedeemCode {

@@ -6,6 +6,7 @@ import type {
   DistributionGeneratedApiKey,
   DistributionGeneratedRedeemCode,
   DistributionSummary,
+  Group,
   DistributionWalletLedgerEntry,
   PaginatedResponse
 } from '@/types'
@@ -91,6 +92,11 @@ export async function generateSubscriptionRedeemCode(
   return data
 }
 
+export async function listApiKeyGroups(): Promise<Group[]> {
+  const { data } = await apiClient.get<Group[]>('/distribution/api-key-groups')
+  return data
+}
+
 export async function generateApiKey(
   payload: GenerateDistributionApiKeyRequest,
 ): Promise<DistributionGeneratedApiKey> {
@@ -106,6 +112,7 @@ export const distributionAPI = {
   voidAsset,
   generateBalanceRedeemCode,
   generateSubscriptionRedeemCode,
+  listApiKeyGroups,
   generateApiKey,
 }
 

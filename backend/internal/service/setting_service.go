@@ -1895,6 +1895,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyAffiliateRebatePerInviteeCap:             strconv.FormatFloat(AffiliateRebatePerInviteeCapDefault, 'f', 2, 64),
 		SettingKeyDistributionRMBPerUSD:                    "0.5",
 		SettingKeyDistributionSubscriptionDiscount:         "0.75",
+		SettingKeyDistributionAPIKeyGroupIDs:               "[]",
 		SettingKeyDefaultUserRPMLimit:                      "0",
 		SettingKeyDefaultSubscriptions:                     "[]",
 		SettingKeyAuthSourceDefaultEmailBalance:            "0",

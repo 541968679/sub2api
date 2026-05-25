@@ -3,6 +3,7 @@ package handler
 import (
 	"strconv"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -173,6 +174,24 @@ func (h *DistributionHandler) GenerateSubscriptionRedeemCode(c *gin.Context) {
 	response.Success(c, out)
 }
 
+func (h *DistributionHandler) ListAPIKeyGroups(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	groups, err := h.distributionService.ListAPIKeyGroups(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]dto.Group, 0, len(groups))
+	for i := range groups {
+		out = append(out, *dto.GroupFromService(&groups[i]))
+	}
+	response.Success(c, out)
+}
+
 func (h *DistributionHandler) GenerateAPIKey(c *gin.Context) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
@@ -205,6 +224,7 @@ type AdminDistributionReviewRequest struct {
 type AdminDistributionSettingsRequest struct {
 	RMBPerUSD            float64 `json:"rmb_per_usd"`
 	SubscriptionDiscount float64 `json:"subscription_discount"`
+	APIKeyGroupIDs       []int64 `json:"api_key_group_ids"`
 }
 
 type AdminDistributionAdjustWalletRequest struct {
@@ -270,6 +290,7 @@ func (h *DistributionHandler) AdminUpdateSettings(c *gin.Context) {
 	out, err := h.distributionService.UpdateSettings(c.Request.Context(), service.DistributionSettings{
 		RMBPerUSD:            req.RMBPerUSD,
 		SubscriptionDiscount: req.SubscriptionDiscount,
+		APIKeyGroupIDs:       req.APIKeyGroupIDs,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

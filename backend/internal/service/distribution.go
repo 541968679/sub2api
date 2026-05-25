@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -34,15 +35,16 @@ const (
 )
 
 var (
-	ErrDistributionAgentNotFound  = infraerrors.NotFound("DISTRIBUTION_AGENT_NOT_FOUND", "distribution agent not found")
-	ErrDistributionAgentPending   = infraerrors.BadRequest("DISTRIBUTION_AGENT_PENDING", "distribution agent application is pending")
-	ErrDistributionAgentRejected  = infraerrors.BadRequest("DISTRIBUTION_AGENT_REJECTED", "distribution agent application was rejected")
-	ErrDistributionAgentFrozen    = infraerrors.Forbidden("DISTRIBUTION_AGENT_FROZEN", "distribution agent account is frozen")
-	ErrDistributionAlreadyApplied = infraerrors.Conflict("DISTRIBUTION_ALREADY_APPLIED", "distribution application already exists")
-	ErrDistributionWalletNotFound = infraerrors.NotFound("DISTRIBUTION_WALLET_NOT_FOUND", "distribution wallet not found")
-	ErrDistributionWalletInactive = infraerrors.Forbidden("DISTRIBUTION_WALLET_INACTIVE", "distribution wallet is not active")
-	ErrDistributionInvalidAmount  = infraerrors.BadRequest("DISTRIBUTION_INVALID_AMOUNT", "invalid amount")
-	ErrDistributionInsufficient   = infraerrors.BadRequest("DISTRIBUTION_INSUFFICIENT_BALANCE", "insufficient distribution balance")
+	ErrDistributionAgentNotFound   = infraerrors.NotFound("DISTRIBUTION_AGENT_NOT_FOUND", "distribution agent not found")
+	ErrDistributionAgentPending    = infraerrors.BadRequest("DISTRIBUTION_AGENT_PENDING", "distribution agent application is pending")
+	ErrDistributionAgentRejected   = infraerrors.BadRequest("DISTRIBUTION_AGENT_REJECTED", "distribution agent application was rejected")
+	ErrDistributionAgentFrozen     = infraerrors.Forbidden("DISTRIBUTION_AGENT_FROZEN", "distribution agent account is frozen")
+	ErrDistributionAlreadyApplied  = infraerrors.Conflict("DISTRIBUTION_ALREADY_APPLIED", "distribution application already exists")
+	ErrDistributionWalletNotFound  = infraerrors.NotFound("DISTRIBUTION_WALLET_NOT_FOUND", "distribution wallet not found")
+	ErrDistributionWalletInactive  = infraerrors.Forbidden("DISTRIBUTION_WALLET_INACTIVE", "distribution wallet is not active")
+	ErrDistributionInvalidAmount   = infraerrors.BadRequest("DISTRIBUTION_INVALID_AMOUNT", "invalid amount")
+	ErrDistributionInsufficient    = infraerrors.BadRequest("DISTRIBUTION_INSUFFICIENT_BALANCE", "insufficient distribution balance")
+	ErrDistributionGroupNotExposed = infraerrors.Forbidden("DISTRIBUTION_GROUP_NOT_EXPOSED", "api key group is not available for distribution")
 )
 
 const (
@@ -136,6 +138,7 @@ type DistributionSummary struct {
 type DistributionSettings struct {
 	RMBPerUSD            float64 `json:"rmb_per_usd"`
 	SubscriptionDiscount float64 `json:"subscription_discount"`
+	APIKeyGroupIDs       []int64 `json:"api_key_group_ids"`
 }
 
 type DistributionAgentRateSettings struct {
@@ -339,11 +342,15 @@ func (s *DistributionService) ListAllAssets(ctx context.Context, page, pageSize 
 }
 
 func (s *DistributionService) GetSettings(ctx context.Context) (DistributionSettings, error) {
-	defaults := DistributionSettings{RMBPerUSD: 0.5, SubscriptionDiscount: 0.75}
+	defaults := DistributionSettings{RMBPerUSD: 0.5, SubscriptionDiscount: 0.75, APIKeyGroupIDs: []int64{}}
 	if s == nil || s.settingRepo == nil {
 		return defaults, nil
 	}
-	values, err := s.settingRepo.GetMultiple(ctx, []string{SettingKeyDistributionRMBPerUSD, SettingKeyDistributionSubscriptionDiscount})
+	values, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyDistributionRMBPerUSD,
+		SettingKeyDistributionSubscriptionDiscount,
+		SettingKeyDistributionAPIKeyGroupIDs,
+	})
 	if err != nil {
 		return defaults, err
 	}
@@ -354,6 +361,7 @@ func (s *DistributionService) GetSettings(ctx context.Context) (DistributionSett
 	if v, err := strconv.ParseFloat(strings.TrimSpace(values[SettingKeyDistributionSubscriptionDiscount]), 64); err == nil && v > 0 {
 		out.SubscriptionDiscount = v
 	}
+	out.APIKeyGroupIDs = normalizeDistributionGroupIDs(parseDistributionGroupIDs(values[SettingKeyDistributionAPIKeyGroupIDs]))
 	return out, nil
 }
 
@@ -394,14 +402,54 @@ func (s *DistributionService) UpdateSettings(ctx context.Context, settings Distr
 	if settings.SubscriptionDiscount > 1 {
 		return DistributionSettings{}, infraerrors.BadRequest("DISTRIBUTION_INVALID_DISCOUNT", "subscription discount must be between 0 and 1")
 	}
-	err := s.settingRepo.SetMultiple(ctx, map[string]string{
+	settings.APIKeyGroupIDs = normalizeDistributionGroupIDs(settings.APIKeyGroupIDs)
+	if err := s.validateDistributionAPIKeyGroups(ctx, settings.APIKeyGroupIDs); err != nil {
+		return DistributionSettings{}, err
+	}
+	groupIDsJSON, err := json.Marshal(settings.APIKeyGroupIDs)
+	if err != nil {
+		return DistributionSettings{}, err
+	}
+	err = s.settingRepo.SetMultiple(ctx, map[string]string{
 		SettingKeyDistributionRMBPerUSD:            strconv.FormatFloat(settings.RMBPerUSD, 'f', 8, 64),
 		SettingKeyDistributionSubscriptionDiscount: strconv.FormatFloat(settings.SubscriptionDiscount, 'f', 8, 64),
+		SettingKeyDistributionAPIKeyGroupIDs:       string(groupIDsJSON),
 	})
 	if err != nil {
 		return DistributionSettings{}, err
 	}
 	return s.GetSettings(ctx)
+}
+
+func (s *DistributionService) ListAPIKeyGroups(ctx context.Context, userID int64) ([]Group, error) {
+	if userID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_USER", "invalid user")
+	}
+	if s == nil || s.groupRepo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	if err := s.ensureActiveAgent(ctx, userID); err != nil {
+		return nil, err
+	}
+	settings, err := s.GetSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	allowed := int64Set(settings.APIKeyGroupIDs)
+	if len(allowed) == 0 {
+		return []Group{}, nil
+	}
+	groups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups: %w", err)
+	}
+	out := make([]Group, 0, len(groups))
+	for _, group := range groups {
+		if allowed[group.ID] && !group.IsSubscriptionType() {
+			out = append(out, group)
+		}
+	}
+	return out, nil
 }
 
 func (s *DistributionService) UpdateAgentRates(ctx context.Context, userID int64, rates DistributionAgentRateSettings) (*DistributionAgentApplication, error) {
@@ -571,6 +619,9 @@ func (s *DistributionService) GenerateAPIKey(ctx context.Context, userID int64, 
 	if input.GroupID == nil || *input.GroupID <= 0 {
 		return nil, infraerrors.BadRequest("DISTRIBUTION_GROUP_REQUIRED", "api key group is required")
 	}
+	if err := s.ensureAPIKeyGroupExposed(ctx, *input.GroupID); err != nil {
+		return nil, err
+	}
 	settings, err := s.GetEffectiveSettingsForUser(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -583,7 +634,7 @@ func (s *DistributionService) GenerateAPIKey(ctx context.Context, userID int64, 
 	baseURL := s.getAPIBaseURL(ctx)
 	var out *DistributionGeneratedAPIKey
 	wallet, err := s.runGenerationTx(ctx, userID, cost, DistributionLedgerActionGenerateAPIKey, "api_key", name, func(txCtx context.Context, wallet *DistributionWallet) (string, error) {
-		apiKey, err := s.apiKey.Create(txCtx, userID, CreateAPIKeyRequest{
+		apiKey, err := s.apiKey.CreateForDistribution(txCtx, userID, CreateAPIKeyRequest{
 			Name:          name,
 			GroupID:       input.GroupID,
 			Quota:         input.QuotaUSD,
@@ -795,6 +846,87 @@ func validateDistributionAmount(v float64) error {
 
 func roundMoney(v float64) float64 {
 	return math.Round(v*1e8) / 1e8
+}
+
+func parseDistributionGroupIDs(raw string) []int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []int64{}
+	}
+	var ids []int64
+	if err := json.Unmarshal([]byte(raw), &ids); err == nil {
+		return ids
+	}
+	return []int64{}
+}
+
+func normalizeDistributionGroupIDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return []int64{}
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func int64Set(ids []int64) map[int64]bool {
+	out := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		if id > 0 {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+func (s *DistributionService) validateDistributionAPIKeyGroups(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if s == nil || s.groupRepo == nil {
+		return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	for _, id := range ids {
+		group, err := s.groupRepo.GetByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !group.IsActive() || group.IsSubscriptionType() {
+			return infraerrors.BadRequest("DISTRIBUTION_INVALID_GROUP", "distribution api key group must be an active standard group")
+		}
+	}
+	return nil
+}
+
+func (s *DistributionService) ensureAPIKeyGroupExposed(ctx context.Context, groupID int64) error {
+	settings, err := s.GetSettings(ctx)
+	if err != nil {
+		return err
+	}
+	if !int64Set(settings.APIKeyGroupIDs)[groupID] {
+		return ErrDistributionGroupNotExposed
+	}
+	if s == nil || s.groupRepo == nil {
+		return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "distribution service unavailable")
+	}
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if !group.IsActive() || group.IsSubscriptionType() {
+		return ErrDistributionGroupNotExposed
+	}
+	return nil
 }
 
 func distributionNote(prefix, note string) string {

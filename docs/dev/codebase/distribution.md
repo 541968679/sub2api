@@ -47,6 +47,7 @@ The distribution wallet is intentionally separate from the normal user balance.
   - `POST /api/v1/distribution/assets/:id/void`
   - `POST /api/v1/distribution/redeem-codes/balance`
   - `POST /api/v1/distribution/redeem-codes/subscription`
+  - `GET /api/v1/distribution/api-key-groups`
   - `POST /api/v1/distribution/api-keys`
 - Admin API:
   - `GET /api/v1/admin/distribution/settings`
@@ -66,10 +67,12 @@ The distribution wallet is intentionally separate from the normal user balance.
 - Settings are stored in the existing Settings KV:
   - `distribution_rmb_per_usd`
   - `distribution_subscription_discount`
+  - `distribution_api_key_group_ids` (JSON array of active standard group IDs exposed for agent API key generation)
 - Agent-specific overrides are stored directly on `distribution_agents`:
   - `rmb_per_usd_override`
   - `subscription_discount_override`
 - Effective ratio precedence is `agent override > global setting`. There is no product-template ratio layer.
+- Agent API key generation uses the distribution group whitelist as the permission source. The user-facing agent page reads `GET /api/v1/distribution/api-key-groups`, and `POST /api/v1/distribution/api-keys` rejects groups outside `distribution_api_key_group_ids`; it does not expose every group returned by `/groups/available`.
 
 ## Known Pitfalls
 
@@ -80,3 +83,4 @@ The distribution wallet is intentionally separate from the normal user balance.
 - Voiding a used balance/subscription code must not refund. Voiding an unused redeem code marks it expired; voiding an API key disables the key.
 - Refund amount is the original RMB cost recorded on the generated asset, not current global or agent ratio recalculation.
 - The generated API key still belongs to the distributor account; the customer receives the string, not a separate customer-owned key record.
+- Empty `distribution_api_key_group_ids` means no groups are exposed to agents for API key generation.

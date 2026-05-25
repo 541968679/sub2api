@@ -6831,6 +6831,8 @@ const v117ZhPatch = {
       apiHint: '预计扣款：{cost}',
       selectPlanRequired: '请先选择订阅套餐',
       selectGroupRequired: '请先选择分组',
+      noApiKeyGroups: '管理员尚未开放可供代理生成 API Key 的分组。',
+      groupUnavailable: '该分组当前不可用于代理生成 API Key。',
       discountSuffix: '折',
     },
     generated: {
@@ -6986,6 +6988,9 @@ const v117ZhPatch = {
         rmbPerUsd: '每 1 USD 扣除 RMB',
         subscriptionDiscount: '订阅兑换码代理成本比例',
         subscriptionDiscountHint: '填写代理成本比例。打 8 折填 0.8；100 元订阅兑换码会扣代理 80 元。',
+        apiKeyGroups: '暴露给代理的 API Key 分组',
+        apiKeyGroupsHint: '代理只能为选中的活跃标准分组生成 API Key。留空则关闭代理 API Key 生成。',
+        noApiKeyGroups: '暂无可用的活跃标准分组。',
       },
       columns: {
         user: '用户',

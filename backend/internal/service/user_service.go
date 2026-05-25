@@ -121,6 +121,7 @@ type DistributionServicePort interface {
 	GetSettings(ctx context.Context) (DistributionSettings, error)
 	UpdateSettings(ctx context.Context, settings DistributionSettings) (DistributionSettings, error)
 	UpdateAgentRates(ctx context.Context, userID int64, rates DistributionAgentRateSettings) (*DistributionAgentApplication, error)
+	ListAPIKeyGroups(ctx context.Context, userID int64) ([]Group, error)
 	GenerateBalanceRedeemCode(ctx context.Context, userID int64, input DistributionGenerateBalanceRedeemCodeInput) (*DistributionGeneratedRedeemCode, error)
 	GenerateSubscriptionRedeemCode(ctx context.Context, userID int64, input DistributionGenerateSubscriptionRedeemCodeInput) (*DistributionGeneratedRedeemCode, error)
 	GenerateAPIKey(ctx context.Context, userID int64, input DistributionGenerateAPIKeyInput) (*DistributionGeneratedAPIKey, error)

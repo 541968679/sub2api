@@ -122,6 +122,7 @@ func RegisterUserRoutes(
 			distribution.POST("/assets/:id/void", h.Distribution.VoidAsset)
 			distribution.POST("/redeem-codes/balance", h.Distribution.GenerateBalanceRedeemCode)
 			distribution.POST("/redeem-codes/subscription", h.Distribution.GenerateSubscriptionRedeemCode)
+			distribution.GET("/api-key-groups", h.Distribution.ListAPIKeyGroups)
 			distribution.POST("/api-keys", h.Distribution.GenerateAPIKey)
 		}
 

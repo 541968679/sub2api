@@ -427,6 +427,44 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	return apiKey, nil
 }
 
+// CreateForDistribution creates a distribution-generated API key after the
+// distribution service has validated the exposed group whitelist.
+func (s *APIKeyService) CreateForDistribution(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
+	}
+	if !user.IsActive() {
+		return nil, ErrUserNotActive
+	}
+	key, err := s.GenerateKey()
+	if err != nil {
+		return nil, fmt.Errorf("generate key: %w", err)
+	}
+	apiKey := &APIKey{
+		UserID:      userID,
+		Key:         key,
+		Name:        req.Name,
+		GroupID:     req.GroupID,
+		Status:      StatusActive,
+		Quota:       req.Quota,
+		QuotaUsed:   0,
+		RateLimit5h: req.RateLimit5h,
+		RateLimit1d: req.RateLimit1d,
+		RateLimit7d: req.RateLimit7d,
+	}
+	if req.ExpiresInDays != nil && *req.ExpiresInDays > 0 {
+		expiresAt := time.Now().AddDate(0, 0, *req.ExpiresInDays)
+		apiKey.ExpiresAt = &expiresAt
+	}
+	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
+		return nil, fmt.Errorf("create api key: %w", err)
+	}
+	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
+	s.compileAPIKeyIPRules(apiKey)
+	return apiKey, nil
+}
+
 // List 获取用户的API Key列表
 func (s *APIKeyService) List(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
 	keys, pagination, err := s.apiKeyRepo.ListByUserID(ctx, userID, params, filters)

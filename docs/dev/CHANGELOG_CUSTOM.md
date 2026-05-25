@@ -1858,6 +1858,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Clarified that the API Keys import action maps Anthropic groups to Claude Code, OpenAI groups to Codex, and Gemini groups to Gemini CLI.
 - Reframed manual file copying and the `使用` modal as fallback paths; Claude Code Desktop remains the manual application-level setup path.
 
+## [2026-05-25] feat: restrict distribution API key groups
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/service/api_key_service.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/service/domain_constants.go, backend/internal/service/setting_service.go, frontend/src/views/admin/DistributionView.vue, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: distribution settings/API behavior change; existing unset configs now expose no API key groups to agents
+**Change details**:
+- Added `distribution_api_key_group_ids` Settings KV to let admins select active standard groups exposed to distribution agents.
+- Added `GET /api/v1/distribution/api-key-groups` and changed the agent page to use it instead of `/groups/available`.
+- Enforced the whitelist in distribution API key generation and added a distribution-specific key creation path so the whitelist, not the agent user's own group permissions, is the permission source.
+- Added admin UI multi-select, i18n strings, and distribution module documentation.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go

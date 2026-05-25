@@ -175,6 +175,7 @@
                   <option :value="0">{{ t('distribution.generate.selectGroup') }}</option>
                   <option v-for="group in groups" :key="group.id" :value="group.id">{{ group.name }}</option>
                 </select>
+                <p v-if="groups.length === 0" class="input-hint">{{ t('distribution.generate.noApiKeyGroups') }}</p>
               </div>
               <div>
                 <label class="input-label">{{ t('distribution.generate.expiresInDays') }}</label>
@@ -293,7 +294,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import distributionAPI from '@/api/distribution'
-import userGroupsAPI from '@/api/groups'
 import { paymentAPI } from '@/api/payment'
 import type { DistributionAsset, DistributionSummary, DistributionWalletLedgerEntry, Group } from '@/types'
 import type { SubscriptionPlan } from '@/types/payment'
@@ -402,7 +402,7 @@ async function loadSummary(): Promise<void> {
 }
 
 async function loadGroups(): Promise<void> {
-  groups.value = await userGroupsAPI.getAvailable()
+  groups.value = await distributionAPI.listApiKeyGroups()
 }
 
 async function loadSubscriptionPlans(): Promise<void> {
@@ -485,6 +485,10 @@ async function generateSubscriptionCode(): Promise<void> {
 async function generateApiKey(): Promise<void> {
   if (apiForm.group_id <= 0) {
     appStore.showError(t('distribution.generate.selectGroupRequired'))
+    return
+  }
+  if (!groups.value.some(group => group.id === apiForm.group_id)) {
+    appStore.showError(t('distribution.generate.groupUnavailable'))
     return
   }
   generating.api = true

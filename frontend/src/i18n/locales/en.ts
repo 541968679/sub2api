@@ -1494,6 +1494,9 @@ export default {
         rmbPerUsd: 'RMB per 1 USD',
         subscriptionDiscount: 'Subscription code agent cost ratio',
         subscriptionDiscountHint: 'Enter the agent cost ratio. For 20% off / 80% cost, enter 0.8; a RMB 100 code costs the agent RMB 80.',
+        apiKeyGroups: 'API key groups exposed to agents',
+        apiKeyGroupsHint: 'Agents can only generate API keys for the selected active standard groups. Leave empty to disable agent API key generation.',
+        noApiKeyGroups: 'No active standard groups available.',
       },
       columns: {
         user: 'User',
@@ -7078,6 +7081,8 @@ export default {
       apiHint: 'Cost: {cost}',
       selectPlanRequired: 'Select a subscription plan first',
       selectGroupRequired: 'Select a group first',
+      noApiKeyGroups: 'No API key groups are currently exposed by the admin.',
+      groupUnavailable: 'This group is no longer available for agent API key generation.',
       discountSuffix: ' discount',
     },
     generated: {
