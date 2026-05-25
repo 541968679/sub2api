@@ -10,6 +10,7 @@ export default {
     login: 'Login',
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
+    keyUsage: 'API Key Usage',
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
@@ -441,8 +442,10 @@ export default {
       linuxdoLogin: 'LinuxDO Login',
       oidcLogin: 'OIDC / SSO',
       navDocs: 'Docs',
+      navKeyUsage: 'Usage',
       navApiExamples: 'API Examples',
       navLogin: 'Sign In',
+      keyUsageLink: 'Query API Key usage without signing in',
     },
     welcomeBack: 'Welcome Back',
     signInToAccount: 'Sign in to your account to continue',

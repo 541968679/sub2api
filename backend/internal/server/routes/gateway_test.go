@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,6 +30,38 @@ func newGatewayRoutesTestRouter() *gin.Engine {
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
 				GroupID: &groupID,
 				Group:   &service.Group{Platform: service.PlatformOpenAI},
+			})
+			c.Next()
+		}),
+		nil,
+		nil,
+		nil,
+		nil,
+		&config.Config{},
+	)
+
+	return router
+}
+
+func newGatewayUsageRoutesTestRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	RegisterGatewayRoutes(
+		router,
+		&handler.Handlers{
+			Gateway: &handler.GatewayHandler{},
+		},
+		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
+				ID:        42,
+				UserID:    7,
+				Status:    service.StatusActive,
+				Quota:     20,
+				QuotaUsed: 7.5,
+			})
+			c.Set(string(servermiddleware.ContextKeyUser), servermiddleware.AuthSubject{
+				UserID: 7,
 			})
 			c.Next()
 		}),
@@ -76,4 +109,23 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI images handler", path)
 	}
+}
+
+func TestGatewayUsageRouteAllowsUngroupedKey(t *testing.T) {
+	router := newGatewayUsageRoutesTestRouter()
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotContains(t, w.Body.String(), "not assigned to any group")
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, "quota_limited", body["mode"])
+	quota, ok := body["quota"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(12.5), quota["remaining"])
 }

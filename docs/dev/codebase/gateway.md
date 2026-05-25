@@ -71,6 +71,21 @@ GatewayHandler.ChatCompletions
   -> RecordUsage task submission
 ```
 
+### API Key Usage Query
+
+```
+/v1/usage
+  -> API key authentication only
+  -> skip billing enforcement and group-assignment enforcement
+  -> GatewayHandler.Usage
+     -> quota_limited: key quota, rate-limit windows, expiry, and key usage summary
+     -> unrestricted: subscription progress or wallet balance plus key usage summary
+```
+
+This endpoint backs the public `/key-usage` frontend page. It must remain usable
+without a logged-in browser session and must not require the API key to be
+assigned to a scheduling group.
+
 ## Important Mechanisms
 
 | Mechanism | Notes |
@@ -78,6 +93,7 @@ GatewayHandler.ChatCompletions
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
 | Chat Completions isolation | `/v1/chat/completions` currently converts only to Anthropic Messages upstream. It must disable Antigravity mixed scheduling, otherwise an Antigravity OAuth token can be sent to Anthropic and return 401 `Invalid bearer token`. |
 | Group model access control | Handlers reject models blocked by the group blacklist or not present in a non-empty whitelist before account selection. Responses payloads also validate `tools[].type == "image_generation"` entries with an explicit `model`, so image tools cannot bypass group restrictions. |
+| Public usage query | `/v1/usage` uses API key authentication but intentionally skips billing enforcement and group-assignment enforcement so users can inspect exhausted, expired, or ungrouped keys. |
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
 | Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, and cost-window checks. |
 | OpenAI image trace logs | `OPENAI_IMAGE_TRACE_LOG=true` emits structured `openai.images.trace` events for `/v1/images/generations` with `model=gpt-image-2` only. Fields are limited to safe timing/correlation data (`request_id`, `client_request_id`, `trace_id`, `account_id`, model, size, quality, stream, status, timestamps, upstream request id); prompts, image bytes/base64, auth headers, cookies, API keys, and full bodies must not be logged. |

@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] feat: expose public API key usage query entry
+
+**Affected files**: backend/internal/server/routes/gateway.go, backend/internal/server/routes/gateway_test.go, frontend/src/views/HomeView.vue, frontend/src/views/auth/LoginView.vue, frontend/src/router/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/gateway.md
+**Upstream compatibility**: additive public entry and route-order change for `/v1/usage`; model gateway calls remain group-checked
+**Change details**:
+- Kept `/v1/usage` behind API key authentication but moved it before the gateway group-assignment middleware so exhausted, expired, or ungrouped keys can still query their own usage.
+- Added public homepage and login-page links to the existing `/key-usage` page so users can find the API key usage query without signing in.
+- Added localized labels and a route title key for the public usage page.
+- Documented the public usage query flow and added route coverage for ungrouped keys.
+
 ## [2026-05-25] feat: promote become-agent entry points
 
 **Affected files**: frontend/src/components/layout/AppSidebar.vue, frontend/src/components/user/dashboard/UserDashboardQuickActions.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

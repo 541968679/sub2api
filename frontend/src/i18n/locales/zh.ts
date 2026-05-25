@@ -10,6 +10,7 @@ const zhBase = {
     login: '登录',
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
+    keyUsage: 'API Key 用量查询',
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
     heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
@@ -438,8 +439,10 @@ const zhBase = {
       linuxdoLogin: 'LinuxDO 登录',
       oidcLogin: 'OIDC / SSO',
       navDocs: '文档',
+      navKeyUsage: '用量查询',
       navApiExamples: 'API 示例',
       navLogin: '登录',
+      keyUsageLink: '无需登录，直接查询 API Key 用量',
     },
     welcomeBack: '欢迎回来',
     signInToAccount: '登录您的账户以继续',

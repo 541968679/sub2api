@@ -75,6 +75,12 @@
 
           <!-- Login / Dashboard Button -->
           <router-link
+            to="/key-usage"
+            class="hidden rounded-full px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-white/70 hover:text-gray-900 dark:text-dark-300 dark:hover:bg-dark-800 dark:hover:text-white sm:inline-flex"
+          >
+            {{ t('home.keyUsage') }}
+          </router-link>
+          <router-link
             v-if="isAuthenticated"
             :to="dashboardPath"
             class="inline-flex items-center gap-1.5 rounded-full bg-gray-900 py-1 pl-1 pr-2.5 transition-colors hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700"
@@ -127,13 +133,19 @@
             </p>
 
             <!-- CTA Button -->
-            <div>
+            <div class="flex flex-col items-center gap-3 sm:flex-row lg:justify-start">
               <router-link
                 :to="isAuthenticated ? dashboardPath : '/login'"
                 class="btn btn-primary px-8 py-3 text-base shadow-lg shadow-primary-500/30"
               >
                 {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
                 <Icon name="arrowRight" size="md" class="ml-2" :stroke-width="2" />
+              </router-link>
+              <router-link
+                to="/key-usage"
+                class="inline-flex min-h-[48px] items-center justify-center rounded-lg border border-gray-200 bg-white px-6 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200 dark:hover:border-primary-500 dark:hover:text-primary-300"
+              >
+                {{ t('home.keyUsage') }}
               </router-link>
             </div>
           </div>

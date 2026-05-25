@@ -20,6 +20,12 @@
 
           <!-- Right: Nav Pills -->
           <div class="hidden items-center gap-3 sm:flex">
+            <router-link
+              to="/key-usage"
+              class="rounded-[17px] bg-white/[0.06] px-5 py-2 text-[13px] font-semibold text-[#DCE7F2] transition-colors hover:bg-white/[0.10]"
+            >
+              {{ t('auth.login.navKeyUsage') }}
+            </router-link>
             <a
               v-if="docUrl"
               :href="docUrl"
@@ -221,6 +227,12 @@
               <div class="mt-6">
                 <p class="text-[13px] font-bold text-[#7FE9D4]">{{ t('auth.login.postLoginInfo') }}</p>
                 <p class="mt-1 text-sm font-bold text-[#F4FAFF]">{{ t('auth.login.postLoginDetails') }}</p>
+                <router-link
+                  to="/key-usage"
+                  class="mt-3 inline-flex text-sm font-bold text-[#7FE9D4] transition-colors hover:text-[#9BFFEA]"
+                >
+                  {{ t('auth.login.keyUsageLink') }}
+                </router-link>
               </div>
 
               <!-- OAuth Section -->
