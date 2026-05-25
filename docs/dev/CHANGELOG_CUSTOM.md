@@ -1831,6 +1831,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Moved Codex CLI installation, CC-Switch setup, manual configuration, WebSocket option, and verification into one CLI flow.
 - Added a full Codex Desktop flow for install, CC-Switch configuration, local project startup, and Desktop-specific troubleshooting.
 
+## [2026-05-25] docs: make API Keys CCS import the primary setup path
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Updated Claude Code CLI, Codex CLI, and Codex Desktop setup flows to use the API Keys page `导入到 CCS` action as the primary configuration method.
+- Clarified that the API Keys import action maps Anthropic groups to Claude Code, OpenAI groups to Codex, and Gemini groups to Gemini CLI.
+- Reframed manual file copying and the `使用` modal as fallback paths; Claude Code Desktop remains the manual application-level setup path.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
