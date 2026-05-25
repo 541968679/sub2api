@@ -53,6 +53,23 @@
         </button>
       </div>
 
+      <button @click="router.push('/distribution')" class="agent-card group">
+        <div class="agent-card-glow"></div>
+        <div class="agent-card-content">
+          <div class="agent-card-icon">
+            <svg class="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3.5-7.5h7M5.25 5.25h13.5a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5z" />
+            </svg>
+          </div>
+          <div class="min-w-0 flex-1 text-left">
+            <p class="agent-card-eyebrow">{{ t('dashboard.agentEntryEyebrow') }}</p>
+            <p class="agent-card-title">{{ t('dashboard.becomeAgent') }}</p>
+            <p class="agent-card-desc">{{ t('dashboard.becomeAgentHint') }}</p>
+          </div>
+          <span class="agent-card-cta">{{ t('dashboard.becomeAgentAction') }}</span>
+        </div>
+      </button>
+
       <!-- Row 2: Secondary actions (compact) -->
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <button @click="router.push('/usage')" class="secondary-card group">
@@ -97,6 +114,157 @@ const showTopUp = computed(() => appStore.cachedPublicSettings?.payment_enabled 
 </script>
 
 <style scoped>
+.agent-card {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(20, 184, 166, 0.28);
+  background:
+    radial-gradient(circle at 14% 20%, rgba(251, 191, 36, 0.26), transparent 30%),
+    linear-gradient(135deg, #ecfdf5 0%, #fef3c7 52%, #e0f2fe 100%);
+  padding: 1px;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+  box-shadow: 0 14px 34px rgba(20, 184, 166, 0.13);
+}
+
+.agent-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 18px 42px rgba(245, 158, 11, 0.18);
+}
+
+.agent-card-glow {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.82) 45%, transparent 70%);
+  transform: translateX(-120%);
+  animation: agent-card-sheen 4s ease-in-out infinite;
+}
+
+.agent-card-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 6rem;
+  border-radius: calc(1rem - 1px);
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.agent-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  flex-shrink: 0;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #f59e0b, #14b8a6);
+  box-shadow: 0 12px 24px rgba(20, 184, 166, 0.22);
+  transition: transform 0.2s ease;
+}
+
+.agent-card:hover .agent-card-icon {
+  transform: scale(1.06) rotate(-2deg);
+}
+
+.agent-card-eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.agent-card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.agent-card-desc {
+  margin: 0.25rem 0 0;
+  max-width: 42rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
+.agent-card-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  border-radius: 9999px;
+  padding: 0.5rem 0.875rem;
+  background: #111827;
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  box-shadow: 0 10px 20px rgba(17, 24, 39, 0.14);
+}
+
+:root.dark .agent-card {
+  border-color: rgba(20, 184, 166, 0.26);
+  background:
+    radial-gradient(circle at 14% 20%, rgba(245, 158, 11, 0.2), transparent 30%),
+    linear-gradient(135deg, rgba(6, 78, 59, 0.64), rgba(120, 53, 15, 0.44), rgba(30, 64, 175, 0.36));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+}
+
+:root.dark .agent-card-content {
+  background: rgba(17, 24, 39, 0.66);
+}
+
+:root.dark .agent-card-eyebrow {
+  color: #5eead4;
+}
+
+:root.dark .agent-card-title {
+  color: #f9fafb;
+}
+
+:root.dark .agent-card-desc {
+  color: #d1d5db;
+}
+
+:root.dark .agent-card-cta {
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+}
+
+@media (max-width: 640px) {
+  .agent-card-content {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agent-card-cta {
+    width: 100%;
+  }
+}
+
+@keyframes agent-card-sheen {
+  0%,
+  56% {
+    transform: translateX(-120%);
+  }
+  82%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
 /* Row 1: Primary large cards */
 .primary-card {
   display: flex;

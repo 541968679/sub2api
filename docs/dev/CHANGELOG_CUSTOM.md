@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-25] feat: promote become-agent entry points
+
+**Affected files**: frontend/src/components/layout/AppSidebar.vue, frontend/src/components/user/dashboard/UserDashboardQuickActions.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only navigation and dashboard promotion change; distribution APIs unchanged
+**Change details**:
+- Moved the user-side "Become an Agent" menu entry directly below Usage in the sidebar.
+- Added a highlighted sidebar treatment with subtle shine and a HOT badge for the agent entry.
+- Added a prominent quick-action banner on the user dashboard linking to the agent application page.
+
 ## [2026-05-25] feat: rename and explain user agent application page
 
 **Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
