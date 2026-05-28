@@ -44,6 +44,7 @@ conventions, reusable task templates, or environment/build pitfalls.
 | sub2api frontend | **15174** | `frontend/.env.development.local` → `VITE_DEV_PORT` |
 | AIClient2API API | 3000 | `E:\cursor project\AIClient2API` project config |
 | AIClient2API Master | 3100 | Same project |
+| new-api API | **13200** | Optional sibling project `E:\cursor project\new-api`, via `scripts/dev-stack.ps1 -IncludeNewAPI` |
 | PostgreSQL | 5432 | Docker container `sub2api-pg-dev` |
 | Redis | 6379 | Docker container `sub2api-redis-dev` |
 
@@ -66,6 +67,10 @@ scripts\dev-stack.cmd restart
 ```
 
 Use `-SkipAIClient` when you only need sub2api.
+Use `-IncludeNewAPI` when you also need the sibling `new-api` backend; the
+script starts it through a generated Docker Compose file and maps it to
+`http://127.0.0.1:13200` by default. Override with `-NewAPIPath` or
+`-NewAPIPort` only for targeted local debugging.
 Do not launch `air.exe`, `pnpm dev`, or `npm start` directly for normal local work.
 
 ### Hot Reload

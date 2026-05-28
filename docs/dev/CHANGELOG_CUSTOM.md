@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-28] chore: add optional new-api local subproject integration
+
+**Affected files**: scripts/dev-stack.ps1, AGENTS.md, DEV_GUIDE.md, docs/dev/ARCHITECTURE.md
+**Upstream compatibility**: local development tooling and documentation only; no Sub2API runtime behavior changes
+**Change details**:
+- Added optional `-IncludeNewAPI`, `-NewAPIPath`, and `-NewAPIPort` support to the local dev-stack script.
+- Starts the sibling `E:\cursor project\new-api` backend through a generated Docker Compose file instead of modifying the new-api checkout.
+- Maps new-api to `127.0.0.1:13200` by default to avoid the existing AIClient2API `3000/3100` ports.
+- Documented the new optional subproject port and startup command in the agent entry point, development guide, and architecture pitfalls.
+
 ## [2026-05-25] feat: manage distribution API key lifecycle
 
 **Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/server/routes/admin.go, backend/internal/service/user_service.go, backend/internal/repository/migrations_runner.go, backend/internal/repository/migrations_runner_checksum_test.go, backend/migrations/144_distribution_api_key_recharge_wallet_totals.sql, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md

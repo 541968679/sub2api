@@ -368,7 +368,8 @@ export default keysAPI
 
 | 坑 | 处理方式 |
 |----|--------|
-| 端口 8080 被 Docker 占用 | 本地 backend 必须 `SERVER_PORT=8081` |
+| 端口 8080/8081 被 Docker 或其他服务占用 | 本地 backend 必须使用 `backend/config.yaml` 里的 `server.port=18081` |
+| `new-api` 默认 3000 端口与 AIClient2API 冲突 | 用 `scripts/dev-stack.ps1 -IncludeNewAPI` 启动；脚本生成临时 compose 并映射到 `127.0.0.1:13200`，不要为了本地联调直接改 `new-api` 自身 compose |
 | `localhost` psql 连接失败 | Windows 上改 `127.0.0.1` |
 | psql 路径包含中文 | 不行。整个仓库放英文路径下。 |
 | 原生 `make` 不一定有 | 直接跑 Makefile 里对应的 `go ...` / `pnpm ...` |

@@ -6,6 +6,12 @@ param(
 
     [switch]$SkipAIClient,
 
+    [string]$NewAPIPath = "",
+
+    [switch]$IncludeNewAPI,
+
+    [int]$NewAPIPort = 13200,
+
     [int]$StartupTimeoutSeconds = 45
 )
 
@@ -21,6 +27,11 @@ $FrontendDir = Join-Path $RepoRoot "frontend"
 if ([string]::IsNullOrWhiteSpace($AIClientPath)) {
     $AIClientPath = Join-Path (Split-Path -Parent $RepoRoot) "AIClient2API"
 }
+if ([string]::IsNullOrWhiteSpace($NewAPIPath)) {
+    $NewAPIPath = Join-Path (Split-Path -Parent $RepoRoot) "new-api"
+}
+$NewAPIComposeFile = Join-Path $StateDir "new-api.compose.yml"
+$NewAPIComposeProject = "sub2api-new-api-dev"
 
 New-Item -ItemType Directory -Force -Path $StateDir, $LogDir | Out-Null
 
@@ -98,7 +109,10 @@ function Get-PortProcessIds {
 function Stop-ManagedProcesses {
     $state = Read-State
     foreach ($entry in $state) {
-        if ($entry.PID) {
+        if ($entry.Kind -eq "compose") {
+            Stop-ComposeService -Service $entry
+        }
+        elseif ($entry.PID) {
             Write-Step "Stopping $($entry.Name) pid=$($entry.PID)"
             Stop-ProcessTree -ProcessId ([int]$entry.PID)
         }
@@ -110,12 +124,25 @@ function Stop-PortProcesses {
     param([array]$Services)
 
     foreach ($service in $Services) {
+        if ($service.Kind -eq "compose") {
+            continue
+        }
         foreach ($port in $service.Ports) {
             $ids = Get-PortProcessIds -Port $port
             foreach ($id in $ids) {
                 Write-Step "Stopping process on port $port for $($service.Name), pid=$id"
                 Stop-ProcessTree -ProcessId ([int]$id)
             }
+        }
+    }
+}
+
+function Stop-ComposeServices {
+    param([array]$Services)
+
+    foreach ($service in $Services) {
+        if ($service.Kind -eq "compose") {
+            Stop-ComposeService -Service $service
         }
     }
 }
@@ -169,8 +196,10 @@ function Start-ServiceProcess {
         -PassThru
 
     return [pscustomobject]@{
+        Kind = "process"
         Name = $Name
         PID = $process.Id
+        Port = $Port
         Ports = $Ports
         WorkingDirectory = $WorkingDirectory
         Command = $Command
@@ -180,6 +209,151 @@ function Start-ServiceProcess {
     }
 }
 
+function Invoke-Compose {
+    param(
+        [object]$Service,
+        [string[]]$Arguments,
+        [string]$LogFile
+    )
+
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        throw "Docker CLI is required to manage $($Service.Name)."
+    }
+
+    $output = & docker compose -p $Service.ComposeProject -f $Service.ComposeFile @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($output) {
+        $output | Tee-Object -FilePath $LogFile -Append | Out-Host
+    }
+    if ($exitCode -ne 0) {
+        throw "docker compose $($Arguments -join ' ') failed for $($Service.Name) with exit code $exitCode. See $LogFile."
+    }
+}
+
+function New-NewAPIComposeFile {
+    param(
+        [string]$WorkingDirectory,
+        [string]$ComposeFile,
+        [int]$Port
+    )
+
+    if (-not (Test-Path $WorkingDirectory)) {
+        throw "new-api working directory does not exist: $WorkingDirectory"
+    }
+
+    $contextPath = (Resolve-Path -LiteralPath $WorkingDirectory).Path.Replace("\", "/")
+    $composeContent = @"
+services:
+  new-api:
+    build:
+      context: "$contextPath"
+      dockerfile: Dockerfile.dev
+    image: new-api-dev:local
+    container_name: sub2api-new-api-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${Port}:3000"
+    volumes:
+      - new_api_dev_data:/data
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - REDIS_CONN_STRING=redis://redis
+      - TZ=Asia/Shanghai
+      - BATCH_UPDATE_ENABLED=true
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - new_api_dev_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sub2api-new-api-dev-redis
+    restart: unless-stopped
+    networks:
+      - new_api_dev_network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: sub2api-new-api-dev-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+    volumes:
+      - new_api_dev_pg_data:/var/lib/postgresql/data
+    networks:
+      - new_api_dev_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  new_api_dev_data:
+  new_api_dev_pg_data:
+
+networks:
+  new_api_dev_network:
+    driver: bridge
+"@
+
+    Set-Content -Path $ComposeFile -Value $composeContent -Encoding UTF8
+}
+
+function Start-ComposeService {
+    param([object]$Service)
+
+    $stdout = Join-Path $LogDir "$($Service.Name).compose.log"
+    Write-Step "Starting $($Service.Name) on port $($Service.Port)"
+
+    if ($Service.Name -eq "new-api") {
+        New-NewAPIComposeFile `
+            -WorkingDirectory $Service.WorkingDirectory `
+            -ComposeFile $Service.ComposeFile `
+            -Port $Service.Port
+    }
+
+    Invoke-Compose `
+        -Service $Service `
+        -Arguments @("up", "-d", "--build") `
+        -LogFile $stdout
+
+    return [pscustomobject]@{
+        Kind = "compose"
+        Name = $Service.Name
+        PID = $null
+        Port = $Service.Port
+        Ports = $Service.Ports
+        WorkingDirectory = $Service.WorkingDirectory
+        ComposeFile = $Service.ComposeFile
+        ComposeProject = $Service.ComposeProject
+        Stdout = $stdout
+        Stderr = $null
+        StartedAt = (Get-Date).ToString("s")
+    }
+}
+
+function Stop-ComposeService {
+    param([object]$Service)
+
+    if (-not $Service.ComposeFile -or -not (Test-Path $Service.ComposeFile)) {
+        Write-Warning "Cannot stop $($Service.Name): compose file is missing at $($Service.ComposeFile)."
+        return
+    }
+
+    $logFile = if ($Service.Stdout) { $Service.Stdout } else { Join-Path $LogDir "$($Service.Name).compose.log" }
+    Write-Step "Stopping $($Service.Name) compose project $($Service.ComposeProject)"
+    Invoke-Compose `
+        -Service $Service `
+        -Arguments @("down") `
+        -LogFile $logFile
+}
+
 function Show-Status {
     $state = Read-State
     if ($state.Count -eq 0) {
@@ -187,8 +361,15 @@ function Show-Status {
     }
 
     foreach ($entry in $state) {
-        $process = Get-Process -Id ([int]$entry.PID) -ErrorAction SilentlyContinue
-        $stateText = if ($null -eq $process) { "stopped" } else { "running" }
+        if ($entry.Kind -eq "compose") {
+            $stateText = if (Test-PortOpen -HostName "127.0.0.1" -Port ([int]$entry.Port)) { "running" } else { "stopped" }
+            $pidText = "-"
+        }
+        else {
+            $process = Get-Process -Id ([int]$entry.PID) -ErrorAction SilentlyContinue
+            $stateText = if ($null -eq $process) { "stopped" } else { "running" }
+            $pidText = $entry.PID
+        }
         $ports = @($entry.Ports)
         if ($ports.Count -eq 0 -and $entry.Port) {
             $ports = @($entry.Port)
@@ -197,7 +378,7 @@ function Show-Status {
             $portText = if (Test-PortOpen -HostName "127.0.0.1" -Port ([int]$port)) { "listening" } else { "not listening" }
             "${port}:${portText}"
         }
-        Write-Host ("{0,-12} pid={1,-8} ports={2,-28} {3}" -f $entry.Name, $entry.PID, ($portStates -join ", "), $stateText)
+        Write-Host ("{0,-12} pid={1,-8} ports={2,-28} {3}" -f $entry.Name, $pidText, ($portStates -join ", "), $stateText)
     }
 
     foreach ($port in @(5432, 6379)) {
@@ -247,11 +428,24 @@ $services = @(
 
 if (-not $SkipAIClient) {
     $services += [pscustomobject]@{
+        Kind = "process"
         Name = "aiclient2api"
         WorkingDirectory = $AIClientPath
         Command = "pnpm start"
         Port = 3000
         Ports = @(3000, 3100)
+    }
+}
+
+if ($IncludeNewAPI) {
+    $services += [pscustomobject]@{
+        Kind = "compose"
+        Name = "new-api"
+        WorkingDirectory = $NewAPIPath
+        ComposeFile = $NewAPIComposeFile
+        ComposeProject = $NewAPIComposeProject
+        Port = $NewAPIPort
+        Ports = @($NewAPIPort)
     }
 }
 
@@ -262,12 +456,14 @@ switch ($Action) {
     }
     "stop" {
         Stop-ManagedProcesses
+        Stop-ComposeServices -Services $services
         Stop-PortProcesses -Services $services
         Show-Status
         break
     }
     "restart" {
         Stop-ManagedProcesses
+        Stop-ComposeServices -Services $services
         Stop-PortProcesses -Services $services
     }
 }
@@ -284,12 +480,17 @@ if ($Action -in @("start", "restart")) {
 
     $started = @()
     foreach ($service in $services) {
-        $started += Start-ServiceProcess `
-            -Name $service.Name `
-            -WorkingDirectory $service.WorkingDirectory `
-            -Command $service.Command `
-            -Port $service.Port `
-            -Ports $service.Ports
+        if ($service.Kind -eq "compose") {
+            $started += Start-ComposeService -Service $service
+        }
+        else {
+            $started += Start-ServiceProcess `
+                -Name $service.Name `
+                -WorkingDirectory $service.WorkingDirectory `
+                -Command $service.Command `
+                -Port $service.Port `
+                -Ports $service.Ports
+        }
     }
     Save-State -Processes $started
 
@@ -300,5 +501,8 @@ if ($Action -in @("start", "restart")) {
     Write-Step "Backend:  http://127.0.0.1:18081"
     if (-not $SkipAIClient) {
         Write-Step "AIClient2API: http://127.0.0.1:3000"
+    }
+    if ($IncludeNewAPI) {
+        Write-Step "new-api: http://127.0.0.1:$NewAPIPort"
     }
 }

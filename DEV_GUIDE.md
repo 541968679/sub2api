@@ -327,11 +327,19 @@ golangci-lint run ./...
 | sub2api 后端 | **18081** | `backend/config.yaml` 中 `server.port` |
 | sub2api 前端 | **15174** | `frontend/.env.development.local` 中 `VITE_DEV_PORT` |
 | AIClient2API | **3000** | 关联项目 `E:\cursor project\AIClient2API`，`npm start` |
+| new-api | **13200** | 可选关联项目 `E:\cursor project\new-api`，通过 `scripts/dev-stack.ps1 -IncludeNewAPI` 启动 |
 | PostgreSQL | 5432 | Docker 容器 `sub2api-pg-dev` |
 | Redis | 6379 | Docker 容器 `sub2api-redis-dev` |
 
 > 禁止使用 8080/8081/5173/5174 等低位端口，避免与 Docker 容器冲突。
 > 生产环境端口由服务器 Docker Compose 配置决定，与本地无关。
+
+启动 `new-api` 子项目时不要直接改它自己的 `docker-compose.dev.yml` 来避开
+3000 端口冲突；使用本仓库脚本：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -IncludeNewAPI
+```
 
 ## 六、项目结构速览
 
