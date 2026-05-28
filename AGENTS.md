@@ -73,6 +73,25 @@ script starts it through a generated Docker Compose file and maps it to
 `-NewAPIPort` only for targeted local debugging.
 Do not launch `air.exe`, `pnpm dev`, or `npm start` directly for normal local work.
 
+### Related Local Subprojects
+
+`E:\cursor project\new-api` is treated as an optional sibling subproject managed
+from this repository's local tooling, similar to `AIClient2API`. It is not a Git
+submodule and its source tree remains owned by the `new-api` repository. This
+repository may start/stop it for local integration through `scripts/dev-stack.ps1`,
+but should not edit `new-api` source files unless the current task explicitly
+requires changes in that project.
+
+Current integration scope:
+
+- Local process orchestration only: `scripts/dev-stack.ps1 -IncludeNewAPI`.
+- Default host URL for Sub2API-side testing: `http://127.0.0.1:13200`.
+- The script generates `tmp/dev-stack/new-api.compose.yml`; do not commit that
+  generated file or modify `new-api/docker-compose.dev.yml` just to avoid port
+  conflicts.
+- Production deployment and Sub2API gateway/account wiring for `new-api` are not
+  implemented yet; add those as explicit follow-up work when needed.
+
 ### Hot Reload
 
 - **Frontend**: Vite HMR built-in, saves auto-refresh browser.

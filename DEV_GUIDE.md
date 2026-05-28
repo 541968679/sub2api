@@ -341,6 +341,19 @@ golangci-lint run ./...
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -IncludeNewAPI
 ```
 
+### 关联子项目约定
+
+`E:\cursor project\new-api` 是本仓库本地工具管理的可选兄弟子项目，关系与
+`AIClient2API` 类似：源代码仍归 `new-api` 仓库管理，不作为本仓库的 Git
+submodule 提交。本仓库当前只负责本地联调编排，通过
+`scripts/dev-stack.ps1 -IncludeNewAPI` 启停它。
+
+- 默认访问地址：`http://127.0.0.1:13200`。
+- 临时 compose 文件由脚本生成到 `tmp/dev-stack/new-api.compose.yml`，不要提交。
+- 不要为了端口冲突修改 `new-api/docker-compose.dev.yml`；需要改端口时用
+  `-NewAPIPort`。
+- 当前尚未实现生产部署联动，也尚未把 `new-api` 作为 Sub2API 账号/网关上游正式接入。
+
 ## 六、项目结构速览
 
 ```

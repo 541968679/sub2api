@@ -376,6 +376,17 @@ export default keysAPI
 | **后端改代码不热重载** | `go run ./cmd/server` 改完必须 Ctrl-C 重启；前端 Vite 自动热更 |
 | 启动脚本需要一堆环境变量 | 拷 `DEV_GUIDE.md` 或 `CLAUDE.md` 的启动块；简短版见 `deploy/.env.example` |
 
+### 关联子项目
+
+| 子项目 | 本地路径 | 本仓库关系 | 当前接入范围 |
+|------|------|------|------|
+| AIClient2API | `E:\cursor project\AIClient2API` | 可选兄弟项目，由 dev-stack 管理本地进程 | 本地端口 3000/3100；生产 compose 已有 `aiclient2api` sidecar |
+| new-api | `E:\cursor project\new-api` | 可选兄弟项目，不是 Git submodule；源代码归 new-api 仓库管理 | 仅本地 dev-stack 可选启动，默认 `127.0.0.1:13200`；Sub2API 账号/网关接入待后续实现 |
+
+`new-api` 的本地 compose 由 `scripts/dev-stack.ps1 -IncludeNewAPI` 生成到
+`tmp/dev-stack/new-api.compose.yml`。这个文件是本仓库的临时运行产物，不要提交；
+也不要为了端口冲突直接修改 `new-api/docker-compose.dev.yml`。
+
 ---
 
 ## 7. 深度文档导航

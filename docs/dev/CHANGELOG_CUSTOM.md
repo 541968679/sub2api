@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-28] docs: clarify new-api sibling subproject relationship
+
+**Affected files**: AGENTS.md, DEV_GUIDE.md, docs/dev/ARCHITECTURE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Clarified that `E:\cursor project\new-api` is an optional sibling subproject managed by local tooling, not a Git submodule.
+- Documented that the current scope is local dev-stack orchestration only, with production deployment and Sub2API gateway/account wiring deferred to follow-up work.
+- Recorded the generated compose file location and the rule to avoid changing `new-api/docker-compose.dev.yml` just for local port conflicts.
+
 ## [2026-05-28] chore: add optional new-api local subproject integration
 
 **Affected files**: scripts/dev-stack.ps1, AGENTS.md, DEV_GUIDE.md, docs/dev/ARCHITECTURE.md
