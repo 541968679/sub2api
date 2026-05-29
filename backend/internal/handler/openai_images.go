@@ -244,6 +244,18 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				continue
 			}
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+			var imageGenerationErr *service.OpenAIImageGenerationError
+			if errors.As(err, &imageGenerationErr) && c.Writer != nil && (streamStarted || !c.Writer.Written()) {
+				h.handleStreamingAwareError(c, imageGenerationErr.HTTPStatus(), imageGenerationErr.ErrorType(), imageGenerationErr.ClientMessage(), streamStarted)
+				reqLog.Warn("openai.images.forward_failed",
+					zap.Int64("account_id", account.ID),
+					zap.Bool("typed_image_generation_error", true),
+					zap.Int("status", imageGenerationErr.HTTPStatus()),
+					zap.String("error_type", imageGenerationErr.ErrorType()),
+					zap.Error(err),
+				)
+				return
+			}
 			wroteFallback := h.ensureForwardErrorResponse(c, streamStarted)
 			fields := []zap.Field{
 				zap.Int64("account_id", account.ID),

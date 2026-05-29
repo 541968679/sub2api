@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -370,6 +372,61 @@ func findOpenAIImageTestSSEEvent(events []openAIImageTestSSEEvent, name string) 
 	return openAIImageTestSSEEvent{}, false
 }
 
+type openAIImageHTTPUpstreamResult struct {
+	resp *http.Response
+	err  error
+}
+
+type openAIImageHTTPUpstreamSequence struct {
+	calls     int
+	lastReq   *http.Request
+	lastBody  []byte
+	bodies    [][]byte
+	requests  []*http.Request
+	responses []openAIImageHTTPUpstreamResult
+}
+
+func (u *openAIImageHTTPUpstreamSequence) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	u.calls++
+	u.lastReq = req
+	u.requests = append(u.requests, req)
+	if req != nil && req.Body != nil {
+		b, _ := io.ReadAll(req.Body)
+		u.lastBody = b
+		u.bodies = append(u.bodies, b)
+		_ = req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewReader(b))
+	}
+	index := u.calls - 1
+	if index >= len(u.responses) {
+		return nil, errors.New("unexpected upstream call")
+	}
+	if u.responses[index].err != nil {
+		return nil, u.responses[index].err
+	}
+	return u.responses[index].resp, nil
+}
+
+func (u *openAIImageHTTPUpstreamSequence) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	return u.Do(req, proxyURL, accountID, accountConcurrency)
+}
+
+type blockingImageBody struct {
+	ctx context.Context
+}
+
+func (b *blockingImageBody) Read(_ []byte) (int, error) {
+	if b == nil || b.ctx == nil {
+		select {}
+	}
+	<-b.ctx.Done()
+	return 0, b.ctx.Err()
+}
+
+func (b *blockingImageBody) Close() error {
+	return nil
+}
+
 func TestOpenAIGatewayServiceForwardImages_OAuthUsesResponsesAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1024x1024","quality":"high","n":2}`)
@@ -451,6 +508,148 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUsesResponsesAPI(t *testing.T) {
 	require.Equal(t, "gpt-image-2", gjson.Get(rec.Body.String(), "model").String())
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
 	require.Equal(t, "draw a cat", gjson.Get(rec.Body.String(), "data.0.revised_prompt").String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_OAuthRetriesFastTransportFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1536x1024"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	upstream := &openAIImageHTTPUpstreamSequence{
+		responses: []openAIImageHTTPUpstreamResult{
+			{err: errors.New("read tcp 10.0.0.1:12345->130.180.235.44:443: wsarecv: An existing connection was forcibly closed by the remote host")},
+			{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"text/event-stream"},
+					"X-Request-Id": []string{"req_img_retry_success"},
+				},
+				Body: io.NopCloser(strings.NewReader(
+					"data: {\"type\":\"response.completed\",\"response\":{\"created_at\":1710000010,\"tool_usage\":{\"image_gen\":{\"images\":1}},\"output\":[{\"type\":\"image_generation_call\",\"result\":\"cmV0cnk=\",\"output_format\":\"png\",\"size\":\"1536x1024\"}]}}\n\n" +
+						"data: [DONE]\n\n",
+				)),
+			}},
+		},
+	}
+	svc.httpUpstream = upstream
+
+	account := &Account{
+		ID:       8,
+		Name:     "openai-oauth",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token": "token-123",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 2, upstream.calls)
+	require.Len(t, upstream.bodies, 2)
+	require.Equal(t, upstream.bodies[0], upstream.bodies[1])
+	require.Equal(t, "cmV0cnk=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_OAuthTransportRetryExhaustedTypedError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1536x1024"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	upstream := &openAIImageHTTPUpstreamSequence{
+		responses: []openAIImageHTTPUpstreamResult{
+			{err: io.EOF},
+			{err: io.EOF},
+			{err: io.EOF},
+		},
+	}
+	svc.httpUpstream = upstream
+
+	account := &Account{
+		ID:       9,
+		Name:     "openai-oauth",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token": "token-123",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Equal(t, openAIImagesOAuthTransportMaxAttempts, upstream.calls)
+	var imageErr *OpenAIImageGenerationError
+	require.ErrorAs(t, err, &imageErr)
+	require.Equal(t, http.StatusBadGateway, imageErr.HTTPStatus())
+	require.Equal(t, OpenAIImageGenerationErrorTypeUpstreamUnreachable, imageErr.ErrorType())
+}
+
+func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamingTimeoutTypedError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1536x1024"}`)
+
+	parentCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body)).WithContext(parentCtx)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	upstream := &openAIImageHTTPUpstreamSequence{
+		responses: []openAIImageHTTPUpstreamResult{
+			{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"req_img_timeout"}},
+				Body:       &blockingImageBody{ctx: parentCtx},
+			}},
+		},
+	}
+	svc.httpUpstream = upstream
+
+	account := &Account{
+		ID:       10,
+		Name:     "openai-oauth",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token": "token-123",
+		},
+	}
+
+	result, err := svc.ForwardImages(parentCtx, c, account, body, parsed, "")
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Equal(t, 1, upstream.calls)
+	var imageErr *OpenAIImageGenerationError
+	require.ErrorAs(t, err, &imageErr)
+	require.Equal(t, http.StatusGatewayTimeout, imageErr.HTTPStatus())
+	require.Equal(t, OpenAIImageGenerationErrorTypeTimeout, imageErr.ErrorType())
+	require.False(t, c.Writer.Written(), "non-streaming timeout should be returned to the handler before writing a response")
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseURL(t *testing.T) {

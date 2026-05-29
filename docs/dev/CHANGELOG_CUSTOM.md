@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-30] fix: bound gpt-image-2 OAuth generation waits and retry fast transport failures
+
+**Affected files**: backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go, backend/internal/handler/openai_images.go, docs/dev/codebase/gateway.md
+**Upstream compatibility**: OpenAI Images OAuth gateway behavior change only; no database schema or API contract expansion beyond clearer error types
+**Change details**:
+- Added bounded generation windows for the Codex `/responses` image tool path: 1K 180s, 2K 240s, and 4K/unknown 360s.
+- Added short retry handling for fast no-header transport failures such as EOF / connection reset / forcibly closed upstream connections, up to 3 total attempts on the same account.
+- Added typed client-facing image errors: `image_generation_timeout` as 504 for long no-output waits and `image_generation_upstream_unreachable` as 502 for transport retry exhaustion.
+- Preserved non-streaming behavior so timeout errors are returned before any response body is written; streaming requests emit a typed SSE error if the timeout happens after streaming starts.
+- Added focused service tests covering retry success, retry exhaustion, and non-streaming timeout behavior.
+
 ## [2026-05-29] fix: repair official WeChat Pay checkout fallback
 
 **Affected files**: backend/internal/payment/provider/wxpay.go, backend/internal/payment/provider/wxpay_test.go, backend/internal/service/payment_order.go, backend/internal/service/payment_order_result_test.go, frontend/src/components/payment/providerConfig.ts, frontend/src/components/payment/__tests__/providerConfig.spec.ts, docs/dev/codebase/payment.md, docs/dev/codebase/README.md

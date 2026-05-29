@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,73 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 )
+
+const (
+	openAIImagesOAuthTransportMaxAttempts = 3
+	openAIImagesOAuthTransportRetryDelay1 = 250 * time.Millisecond
+	openAIImagesOAuthTransportRetryDelay2 = 750 * time.Millisecond
+
+	openAIImagesOAuthGenerationTimeout1K      = 180 * time.Second
+	openAIImagesOAuthGenerationTimeout2K      = 240 * time.Second
+	openAIImagesOAuthGenerationTimeoutDefault = 360 * time.Second
+
+	OpenAIImageGenerationErrorTypeTimeout             = "image_generation_timeout"
+	OpenAIImageGenerationErrorTypeUpstreamUnreachable = "image_generation_upstream_unreachable"
+)
+
+// OpenAIImageGenerationError is returned by the Images OAuth path when the
+// gateway can distinguish generation timeout / transport failure from a generic
+// upstream error.
+type OpenAIImageGenerationError struct {
+	StatusCode int
+	Type       string
+	Message    string
+	Err        error
+}
+
+func (e *OpenAIImageGenerationError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err != nil {
+		return strings.TrimSpace(e.Message) + ": " + e.Err.Error()
+	}
+	return strings.TrimSpace(e.Message)
+}
+
+func (e *OpenAIImageGenerationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func (e *OpenAIImageGenerationError) HTTPStatus() int {
+	if e != nil && e.StatusCode > 0 {
+		return e.StatusCode
+	}
+	return http.StatusBadGateway
+}
+
+func (e *OpenAIImageGenerationError) ErrorType() string {
+	if e != nil {
+		if errType := strings.TrimSpace(e.Type); errType != "" {
+			return errType
+		}
+	}
+	return "upstream_error"
+}
+
+func (e *OpenAIImageGenerationError) ClientMessage() string {
+	if e != nil {
+		if msg := strings.TrimSpace(e.Message); msg != "" {
+			return msg
+		}
+	}
+	return "Image generation failed"
+}
 
 type openAIResponsesImageResult struct {
 	Result        string
@@ -187,6 +254,121 @@ func openAIImageOutputMIMEType(outputFormat string) string {
 	default:
 		return "image/png"
 	}
+}
+
+func resolveOpenAIImagesGenerationTimeout(parsed *OpenAIImagesRequest) time.Duration {
+	if parsed == nil {
+		return openAIImagesOAuthGenerationTimeoutDefault
+	}
+	switch strings.ToUpper(strings.TrimSpace(parsed.SizeTier)) {
+	case ImageBillingTier1K:
+		return openAIImagesOAuthGenerationTimeout1K
+	case ImageBillingTier2K:
+		return openAIImagesOAuthGenerationTimeout2K
+	case ImageBillingTier4K:
+		return openAIImagesOAuthGenerationTimeoutDefault
+	}
+	if parsed.SizeInfo.Valid {
+		if parsed.SizeInfo.Pixels <= 1024*1024 {
+			return openAIImagesOAuthGenerationTimeout1K
+		}
+		if parsed.SizeInfo.Pixels <= 1536*1536 {
+			return openAIImagesOAuthGenerationTimeout2K
+		}
+	}
+	return openAIImagesOAuthGenerationTimeoutDefault
+}
+
+func newOpenAIImageGenerationTimeoutError(timeout time.Duration, err error) *OpenAIImageGenerationError {
+	message := "Image generation timed out before upstream returned a final image"
+	if timeout > 0 {
+		timeoutSeconds := int(timeout / time.Second)
+		if timeoutSeconds <= 0 {
+			timeoutSeconds = 1
+		}
+		message = fmt.Sprintf("Image generation timed out after %ds before upstream returned a final image", timeoutSeconds)
+	}
+	return &OpenAIImageGenerationError{
+		StatusCode: http.StatusGatewayTimeout,
+		Type:       OpenAIImageGenerationErrorTypeTimeout,
+		Message:    message,
+		Err:        err,
+	}
+}
+
+func newOpenAIImageUpstreamUnreachableError(err error) *OpenAIImageGenerationError {
+	return &OpenAIImageGenerationError{
+		StatusCode: http.StatusBadGateway,
+		Type:       OpenAIImageGenerationErrorTypeUpstreamUnreachable,
+		Message:    "Image generation upstream connection failed before a response was received",
+		Err:        err,
+	}
+}
+
+func openAIImagesTimeoutErrorIfDeadline(ctx context.Context, timeout time.Duration, err error) *OpenAIImageGenerationError {
+	if ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return newOpenAIImageGenerationTimeoutError(timeout, err)
+	}
+	if errors.Is(err, context.DeadlineExceeded) || isOpenAIImagesResponseHeaderTimeout(err) {
+		return newOpenAIImageGenerationTimeoutError(timeout, err)
+	}
+	return nil
+}
+
+func isOpenAIImagesResponseHeaderTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "timeout awaiting response headers") ||
+		strings.Contains(msg, "client.timeout exceeded while awaiting headers")
+}
+
+func isRetryableOpenAIImagesOAuthTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || isOpenAIImagesResponseHeaderTimeout(err) {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, fragment := range []string{
+		"connection reset",
+		"connection reset by peer",
+		"connection was reset",
+		"connection aborted",
+		"forcibly closed",
+		"unexpected eof",
+		"server closed idle connection",
+		"connection refused",
+		"broken pipe",
+		"use of closed network connection",
+		"tls handshake timeout",
+		"i/o timeout",
+		"eof",
+	} {
+		if strings.Contains(msg, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func openAIImagesOAuthTransportRetryDelay(attempt int) time.Duration {
+	if attempt <= 1 {
+		return openAIImagesOAuthTransportRetryDelay1
+	}
+	return openAIImagesOAuthTransportRetryDelay2
+}
+
+func openAIImagesSafeRequestURL(req *http.Request) string {
+	if req == nil || req.URL == nil {
+		return ""
+	}
+	return safeUpstreamURL(req.URL.String())
 }
 
 func openAIImageUploadToDataURL(upload OpenAIImagesUpload) (string, error) {
@@ -484,10 +666,19 @@ func openAIImagesStreamPrefix(parsed *OpenAIImagesRequest) string {
 }
 
 func buildOpenAIImagesStreamErrorBody(message string) []byte {
-	body := []byte(`{"type":"error","error":{"type":"upstream_error","message":""}}`)
+	return buildOpenAIImagesStreamTypedErrorBody("upstream_error", message)
+}
+
+func buildOpenAIImagesStreamTypedErrorBody(errType string, message string) []byte {
+	body := []byte(`{"type":"error","error":{"type":"","message":""}}`)
+	errType = strings.TrimSpace(errType)
+	if errType == "" {
+		errType = "upstream_error"
+	}
 	if strings.TrimSpace(message) == "" {
 		message = "upstream request failed"
 	}
+	body, _ = sjson.SetBytes(body, "error.type", errType)
 	body, _ = sjson.SetBytes(body, "error.message", message)
 	return body
 }
@@ -559,6 +750,8 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthNonStreamingResponse(
 func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
+	generationCtx context.Context,
+	generationTimeout time.Duration,
 	startTime time.Time,
 	responseFormat string,
 	streamPrefix string,
@@ -703,6 +896,10 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 			break
 		}
 		if err != nil {
+			if timeoutErr := openAIImagesTimeoutErrorIfDeadline(generationCtx, generationTimeout, err); timeoutErr != nil {
+				_ = s.writeOpenAIImagesStreamEvent(c, flusher, "error", buildOpenAIImagesStreamTypedErrorBody(timeoutErr.ErrorType(), timeoutErr.ClientMessage()))
+				return OpenAIUsage{}, imageCount, firstTokenMs, timeoutErr
+			}
 			_ = s.writeOpenAIImagesStreamEvent(c, flusher, "error", buildOpenAIImagesStreamErrorBody(err.Error()))
 			return OpenAIUsage{}, imageCount, firstTokenMs, err
 		}
@@ -736,6 +933,134 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthStreamingResponse(
 	streamErr := fmt.Errorf("stream disconnected before image generation completed")
 	_ = s.writeOpenAIImagesStreamEvent(c, flusher, "error", buildOpenAIImagesStreamErrorBody(streamErr.Error()))
 	return OpenAIUsage{}, imageCount, firstTokenMs, streamErr
+}
+
+func (s *OpenAIGatewayService) doOpenAIImagesOAuthRequestWithRetry(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	responsesBody []byte,
+	token string,
+	proxyURL string,
+	generationTimeout time.Duration,
+	imageTrace *OpenAIImageTrace,
+) (*http.Response, *http.Request, error) {
+	var lastReq *http.Request
+	upstreamPhaseStart := time.Now()
+	for attempt := 1; attempt <= openAIImagesOAuthTransportMaxAttempts; attempt++ {
+		if timeoutErr := openAIImagesTimeoutErrorIfDeadline(ctx, generationTimeout, nil); timeoutErr != nil {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			return nil, lastReq, timeoutErr
+		}
+		if ctx != nil && errors.Is(ctx.Err(), context.Canceled) {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			return nil, lastReq, ctx.Err()
+		}
+
+		upstreamReq, err := buildOpenAIImagesOAuthUpstreamRequest(ctx, account, responsesBody, token)
+		if err != nil {
+			return nil, nil, err
+		}
+		lastReq = upstreamReq
+
+		attemptStart := time.Now()
+		if imageTrace != nil {
+			imageTrace.LogAt(c, "upstream_request_start", attemptStart, 0, "",
+				zap.Int("attempt", attempt),
+				zap.Int("max_attempts", openAIImagesOAuthTransportMaxAttempts),
+			)
+		}
+		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		if err == nil && resp != nil {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			if imageTrace != nil {
+				imageTrace.Log(c, "upstream_headers_received", resp.StatusCode, resp.Header.Get("x-request-id"),
+					zap.Int("attempt", attempt),
+				)
+			}
+			return resp, upstreamReq, nil
+		}
+		if err == nil {
+			err = errors.New("upstream returned nil response")
+		}
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+
+		safeErr := sanitizeUpstreamErrorMessage(err.Error())
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			Platform:           account.Platform,
+			AccountID:          account.ID,
+			AccountName:        account.Name,
+			UpstreamStatusCode: 0,
+			UpstreamURL:        openAIImagesSafeRequestURL(upstreamReq),
+			Kind:               "request_error",
+			Message:            safeErr,
+			Detail:             fmt.Sprintf("attempt=%d/%d", attempt, openAIImagesOAuthTransportMaxAttempts),
+		})
+
+		if timeoutErr := openAIImagesTimeoutErrorIfDeadline(ctx, generationTimeout, err); timeoutErr != nil {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			setOpsUpstreamError(c, 0, safeErr, "")
+			return nil, upstreamReq, timeoutErr
+		}
+		if ctx != nil && errors.Is(ctx.Err(), context.Canceled) {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			return nil, upstreamReq, ctx.Err()
+		}
+		if attempt >= openAIImagesOAuthTransportMaxAttempts || !isRetryableOpenAIImagesOAuthTransportError(err) {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			setOpsUpstreamError(c, 0, safeErr, "")
+			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				Platform:           account.Platform,
+				AccountID:          account.ID,
+				AccountName:        account.Name,
+				UpstreamStatusCode: 0,
+				UpstreamURL:        openAIImagesSafeRequestURL(upstreamReq),
+				Kind:               "retry_exhausted",
+				Message:            safeErr,
+				Detail:             fmt.Sprintf("attempts=%d", attempt),
+			})
+			return nil, upstreamReq, newOpenAIImageUpstreamUnreachableError(err)
+		}
+
+		delay := openAIImagesOAuthTransportRetryDelay(attempt)
+		logger.LegacyPrintf(
+			"service.openai_gateway",
+			"[OpenAI] Images OAuth upstream transport retry account_id=%d attempt=%d/%d delay_ms=%d error=%s",
+			account.ID,
+			attempt+1,
+			openAIImagesOAuthTransportMaxAttempts,
+			delay.Milliseconds(),
+			safeErr,
+		)
+		if imageTrace != nil {
+			imageTrace.Log(c, "upstream_transport_retry", 0, "",
+				zap.Int("attempt", attempt),
+				zap.Int("next_attempt", attempt+1),
+				zap.Int64("retry_delay_ms", delay.Milliseconds()),
+			)
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+			if timeoutErr := openAIImagesTimeoutErrorIfDeadline(ctx, generationTimeout, ctx.Err()); timeoutErr != nil {
+				setOpsUpstreamError(c, 0, timeoutErr.ClientMessage(), "")
+				return nil, upstreamReq, timeoutErr
+			}
+			return nil, upstreamReq, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamPhaseStart).Milliseconds())
+	return nil, lastReq, newOpenAIImageUpstreamUnreachableError(errors.New("upstream request failed before response headers"))
 }
 
 func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
@@ -785,38 +1110,27 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 	}
 	setOpsUpstreamRequestBody(c, responsesBody)
 
-	upstreamReq, err := buildOpenAIImagesOAuthUpstreamRequest(ctx, account, responsesBody, token)
-	if err != nil {
-		return nil, err
-	}
+	generationTimeout := resolveOpenAIImagesGenerationTimeout(parsed)
+	generationCtx, cancelGeneration := context.WithTimeout(ctx, generationTimeout)
+	defer cancelGeneration()
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 	imageTrace := OpenAIImageTraceFromGin(c)
-	upstreamStart := time.Now()
-	if imageTrace != nil {
-		imageTrace.LogAt(c, "upstream_request_start", upstreamStart, 0, "")
-	}
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+	resp, upstreamReq, err := s.doOpenAIImagesOAuthRequestWithRetry(
+		generationCtx,
+		c,
+		account,
+		responsesBody,
+		token,
+		proxyURL,
+		generationTimeout,
+		imageTrace,
+	)
 	if err != nil {
-		safeErr := sanitizeUpstreamErrorMessage(err.Error())
-		setOpsUpstreamError(c, 0, safeErr, "")
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
-			UpstreamStatusCode: 0,
-			UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
-			Kind:               "request_error",
-			Message:            safeErr,
-		})
-		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
-	}
-	if imageTrace != nil {
-		imageTrace.Log(c, "upstream_headers_received", resp.StatusCode, resp.Header.Get("x-request-id"))
+		return nil, err
 	}
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
@@ -834,7 +1148,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 				AccountName:        account.Name,
 				UpstreamStatusCode: resp.StatusCode,
 				UpstreamRequestID:  resp.Header.Get("x-request-id"),
-				UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
+				UpstreamURL:        openAIImagesSafeRequestURL(upstreamReq),
 				Kind:               "failover",
 				Message:            upstreamMsg,
 			})
@@ -855,13 +1169,41 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		firstTokenMs *int
 	)
 	if parsed.Stream {
-		usage, imageCount, firstTokenMs, err = s.handleOpenAIImagesOAuthStreamingResponse(resp, c, startTime, parsed.ResponseFormat, openAIImagesStreamPrefix(parsed), requestModel, imageTrace)
+		usage, imageCount, firstTokenMs, err = s.handleOpenAIImagesOAuthStreamingResponse(resp, c, generationCtx, generationTimeout, startTime, parsed.ResponseFormat, openAIImagesStreamPrefix(parsed), requestModel, imageTrace)
 		if err != nil {
+			if timeoutErr := openAIImagesTimeoutErrorIfDeadline(generationCtx, generationTimeout, err); timeoutErr != nil {
+				setOpsUpstreamError(c, resp.StatusCode, timeoutErr.ClientMessage(), "")
+				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: resp.StatusCode,
+					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					UpstreamURL:        openAIImagesSafeRequestURL(upstreamReq),
+					Kind:               "request_error",
+					Message:            timeoutErr.ClientMessage(),
+				})
+				return nil, timeoutErr
+			}
 			return nil, err
 		}
 	} else {
 		usage, imageCount, err = s.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, parsed.ResponseFormat, requestModel, imageTrace)
 		if err != nil {
+			if timeoutErr := openAIImagesTimeoutErrorIfDeadline(generationCtx, generationTimeout, err); timeoutErr != nil {
+				setOpsUpstreamError(c, resp.StatusCode, timeoutErr.ClientMessage(), "")
+				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+					Platform:           account.Platform,
+					AccountID:          account.ID,
+					AccountName:        account.Name,
+					UpstreamStatusCode: resp.StatusCode,
+					UpstreamRequestID:  resp.Header.Get("x-request-id"),
+					UpstreamURL:        openAIImagesSafeRequestURL(upstreamReq),
+					Kind:               "request_error",
+					Message:            timeoutErr.ClientMessage(),
+				})
+				return nil, timeoutErr
+			}
 			return nil, err
 		}
 	}
