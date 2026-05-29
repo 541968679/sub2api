@@ -125,6 +125,33 @@ Claude Code 客户端 → /antigravity/v1/messages (ForcePlatform="antigravity")
 3. **`/antigravity/v1/models` 缺少 `[1m]` 变体**：Claude Code 客户端用带 `[1m]` 后缀的模型名校验 models 列表，匹配不到就拒绝使用。修复：生成后缀变体。
 4. **Vite 代理未转发 `/antigravity`**：本地开发时前端 dev server 不代理 `/antigravity/` 路径，请求直接 404。
 
+### `claude-opus-4-8` stream usage 兜底（2026-05-29）
+
+现象：
+
+- Claude Code CLI 走 `claude-opus-4-8` 时偶发流式请求中断，Sub2API `usage_logs` 曾出现 `input_tokens=0/output_tokens=0` 或 `output_tokens=0`。
+- 同一链路临时把 `claude-opus-4-8` 映射到 `claude-opus-4-6` 后，usage 正常；例如历史行 `15241` 记录 `input_tokens=13146`、`output_tokens=38`、`cache_read_tokens=19880`。
+- Sub2API 管理后台“模型测试”能测通，因为它只发简单 `hi` 请求验证账号连通性，不包含 Claude Code CLI 的真实会话历史、工具调用、`cache_control`、metadata/session 等复杂流式场景，也不等价于完整 usage 结算验证。
+
+结论：
+
+- `contextUsagePercentage` 不是 Anthropic 或 Sub2API 原生字段，而是 AIClient2API 的 Kiro 适配器从 AWS/Kiro event stream 中解析出来，再转换成 Anthropic `message_delta.usage` 的内部统计来源。
+- 反代没有发现会破坏 Sub2API 请求或响应关键字段的证据。对比 `4-6` 和原生 `4-8` 后，问题更像是新模型 `claude-opus-4-8` 上游 Kiro usage 事件返回不稳定；同一个 `4-8` 有时会返回正常统计，有时缺失。
+- Sub2API 侧会如实记录最终 SSE `message_delta.usage`。如果 AIClient2API 没有给出 usage，Sub2API 没有足够信息恢复真实 token。
+
+AIClient2API 侧修复：
+
+- `bf5c750 fix: estimate Kiro stream input tokens`：当拿不到 `contextUsagePercentage` 时，不再把 fallback input 写死为 `0`，改为从请求体估算输入 token。
+- `d2d337c fix: fallback Kiro stream output usage`：当正常输出 token 计算仍为 `0`，且流式过程中确实向客户端发出了 text/thinking/tool 参数内容时，用已发字符数做最终输出 token 兜底。
+- 兜底保持轻量：流式过程中只累加字符串长度，不对每个 chunk 跑 tokenizer；结束时仅在 `outputTokens <= 0` 时做一次 `ceil(chars / 4)`。
+- 保留既有缓存估算逻辑，不改变 `cache_read` / `cache_creation` 的二开处理。
+
+验证：
+
+- 单测：`npm test -- --runTestsByPath tests/kiro-stream-usage-estimation.test.js`。
+- 本地链路：Sub2API `18081` → AIClient2API `3000` → Kiro，`claude-opus-4-8` 流式请求返回 200，最终 SSE usage 为 `input_tokens=2584`、`output_tokens=1`、`cache_read_input_tokens=4417`。
+- 数据库落库：`usage_logs.id=15242` 记录 `account_id=33`、`api_key_id=5`、`model=claude-opus-4-8`、`input_tokens=2584`、`output_tokens=1`、`cache_read_tokens=4417`。
+
 ### 遗留（方案 A 代码保留）
 
 `gateway_service.go` 第 1411 行附近的 antigravity→anthropic 回退逻辑保留不删，不影响正常运行。方案 B 下该代码不会被触发（antigravity 分组已有可用账号）。

@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-29] fix: fallback Kiro Opus 4.8 stream usage accounting
+
+**Affected files**: `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\tests\kiro-stream-usage-estimation.test.js`, `docs/dev/KIRO_PROXY.md`
+**Upstream compatibility**: AIClient2API sidecar-only runtime fix plus Sub2API documentation; no Sub2API gateway code changes
+**Change details**:
+- Diagnosed `claude-opus-4-8` Claude Code CLI failures where Kiro stream usage sometimes omitted `contextUsagePercentage`, causing Sub2API usage rows to record zero output tokens.
+- Preserved the existing cache-read estimation path and added lightweight AIClient2API fallbacks: estimate input tokens from the request body when Kiro usage stats are missing, then estimate output tokens from already-emitted stream characters only if normal output token counting still returns zero.
+- Kept the fallback cheap: no tokenizer per stream chunk, only string length accumulation during emitted text/thinking/tool deltas and one final `ceil(chars / 4)` calculation.
+- Verified with focused Jest coverage and a local Sub2API passthrough request; new usage row `15242` recorded `input_tokens=2584`, `output_tokens=1`, and `cache_read_tokens=4417`.
+- Recorded the Kiro/AIClient2API troubleshooting conclusion in `docs/dev/KIRO_PROXY.md`; AIClient2API commits: `bf5c750` and `d2d337c`.
+
 ## [2026-05-29] fix: add AIClient2API Claude Opus 4.8 Kiro model support
 
 **Affected files**: `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\src\providers\provider-models.js`
