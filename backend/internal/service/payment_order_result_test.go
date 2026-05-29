@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -88,6 +89,40 @@ func TestBuildCreateOrderResponseCopiesJSAPIPayload(t *testing.T) {
 	}
 	if resp.JSAPI != jsapiPayload || resp.JSAPIPayload != jsapiPayload {
 		t.Fatal("expected jsapi aliases to preserve the original pointer")
+	}
+}
+
+func TestClassifyCreatePaymentErrorMapsWxpayH5Unavailable(t *testing.T) {
+	t.Parallel()
+
+	err := classifyCreatePaymentError(CreateOrderRequest{
+		PaymentType: payment.TypeWxpay,
+		IsMobile:    true,
+	}, payment.TypeWxpay, errors.New("wxpay h5 prepay: NO_AUTH"))
+
+	appErr := infraerrors.FromError(err)
+	if appErr.Reason != "WECHAT_H5_NOT_AUTHORIZED" {
+		t.Fatalf("reason = %q, want WECHAT_H5_NOT_AUTHORIZED", appErr.Reason)
+	}
+	if appErr.Metadata["action"] != "open_in_wechat_or_scan_qr" {
+		t.Fatalf("action metadata = %q", appErr.Metadata["action"])
+	}
+}
+
+func TestClassifyCreatePaymentErrorMapsWxpayJSAPIAppMismatch(t *testing.T) {
+	t.Parallel()
+
+	err := classifyCreatePaymentError(CreateOrderRequest{
+		PaymentType: payment.TypeWxpay,
+		OpenID:      "openid-123",
+	}, payment.TypeWxpay, errors.New("wxpay jsapi prepay: appid and openid not match"))
+
+	appErr := infraerrors.FromError(err)
+	if appErr.Reason != "WECHAT_PAYMENT_MP_NOT_CONFIGURED" {
+		t.Fatalf("reason = %q, want WECHAT_PAYMENT_MP_NOT_CONFIGURED", appErr.Reason)
+	}
+	if appErr.Metadata["action"] != "check_wxpay_mp_app_id" {
+		t.Fatalf("action metadata = %q", appErr.Metadata["action"])
 	}
 }
 

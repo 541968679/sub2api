@@ -643,7 +643,7 @@ func TestCreatePaymentMobileH5IncludesConfiguredSceneInfo(t *testing.T) {
 	}
 }
 
-func TestCreatePaymentMobileH5ReturnsNoAuthErrorWithoutNativeFallback(t *testing.T) {
+func TestCreatePaymentMobileH5FallsBackToNativeWhenH5Unavailable(t *testing.T) {
 	origJSAPIPrepay := wxpayJSAPIPrepayWithRequestPayment
 	origNativePrepay := wxpayNativePrepay
 	origH5Prepay := wxpayH5Prepay
@@ -688,8 +688,8 @@ func TestCreatePaymentMobileH5ReturnsNoAuthErrorWithoutNativeFallback(t *testing
 		ClientIP:    "203.0.113.10",
 		IsMobile:    true,
 	})
-	if err == nil {
-		t.Fatal("expected no-auth error, got nil")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 	if jsapiCalls != 0 {
 		t.Fatalf("jsapi prepay calls = %d, want 0", jsapiCalls)
@@ -697,13 +697,13 @@ func TestCreatePaymentMobileH5ReturnsNoAuthErrorWithoutNativeFallback(t *testing
 	if h5Calls != 1 {
 		t.Fatalf("h5 prepay calls = %d, want 1", h5Calls)
 	}
-	if nativeCalls != 0 {
-		t.Fatalf("native prepay calls = %d, want 0", nativeCalls)
+	if nativeCalls != 1 {
+		t.Fatalf("native prepay calls = %d, want 1", nativeCalls)
 	}
-	if resp != nil {
-		t.Fatalf("expected nil response, got %+v", resp)
+	if resp == nil || resp.QRCode != "weixin://wxpay/bizpayurl?pr=fallback-native" {
+		t.Fatalf("response = %+v, want native fallback qr", resp)
 	}
-	if !strings.Contains(err.Error(), "NO_AUTH") {
-		t.Fatalf("error = %v, want NO_AUTH", err)
+	if resp.PayURL != "" {
+		t.Fatalf("pay_url = %q, want empty", resp.PayURL)
 	}
 }

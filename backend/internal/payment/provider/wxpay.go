@@ -195,7 +195,7 @@ func (w *Wxpay) CreatePayment(ctx context.Context, req payment.CreatePaymentRequ
 	case wxpayModeJSAPI:
 		return w.prepayJSAPI(ctx, client, req, notifyURL, totalFen)
 	case wxpayModeH5:
-		return w.prepayH5(ctx, client, req, notifyURL, totalFen)
+		return w.prepayH5WithNativeFallback(ctx, client, req, notifyURL, totalFen)
 	case wxpayModeNative:
 		return w.prepayNative(ctx, client, req, notifyURL, totalFen)
 	default:
@@ -280,6 +280,21 @@ func (w *Wxpay) prepayH5(ctx context.Context, c *core.Client, req payment.Create
 	return &payment.CreatePaymentResponse{TradeNo: req.OrderID, PayURL: h5URL}, nil
 }
 
+func (w *Wxpay) prepayH5WithNativeFallback(ctx context.Context, c *core.Client, req payment.CreatePaymentRequest, notifyURL string, totalFen int64) (*payment.CreatePaymentResponse, error) {
+	resp, err := w.prepayH5(ctx, c, req, notifyURL, totalFen)
+	if err == nil {
+		return resp, nil
+	}
+	if !isWxpayH5UnavailableError(err) {
+		return nil, err
+	}
+	nativeResp, nativeErr := w.prepayNative(ctx, c, req, notifyURL, totalFen)
+	if nativeErr != nil {
+		return nil, fmt.Errorf("wxpay h5 prepay unavailable: %v; native fallback failed: %w", err, nativeErr)
+	}
+	return nativeResp, nil
+}
+
 func buildWxpayH5Info(config map[string]string) *h5.H5Info {
 	tp := wxpayH5Type
 	info := &h5.H5Info{Type: &tp}
@@ -303,6 +318,22 @@ func resolveWxpayCreateMode(req payment.CreatePaymentRequest) (string, error) {
 		return wxpayModeH5, nil
 	}
 	return wxpayModeNative, nil
+}
+
+func isWxpayH5UnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "no_auth") ||
+		strings.Contains(msg, "not authorized") ||
+		strings.Contains(msg, "not been enabled") ||
+		strings.Contains(msg, "not open") ||
+		strings.Contains(msg, "h5") && strings.Contains(msg, "permission") ||
+		strings.Contains(msg, "未开通") ||
+		strings.Contains(msg, "未授权") ||
+		strings.Contains(msg, "无权限") ||
+		strings.Contains(msg, "商户号该产品权限未开通")
 }
 
 func appendWxpayRedirectURL(h5URL string, req payment.CreatePaymentRequest) (string, error) {

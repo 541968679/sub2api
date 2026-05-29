@@ -13,7 +13,7 @@
 | Kiro Gateway 附加项目 | [kiro-gateway.md](kiro-gateway.md) | 独立 sidecar 接入 Kiro 反代 API 到 Sub2API | 2026-05-10 |
 | InvokeAI Canvas PoC | [invokeai-poc.md](invokeai-poc.md) | 独立部署 InvokeAI 画布并接入 Sub2API OpenAI-compatible 图片 API | 2026-05-17 |
 | 认证 | [auth.md](auth.md) | 用户登录、JWT、OAuth SSO、2FA | - |
-| 支付 | [payment.md](payment.md) | Stripe、微信、支付宝集成 | - |
+| 支付 | [payment.md](payment.md) | Stripe、微信、支付宝集成 | 2026-05-29 |
 
 | Distribution | [distribution.md](distribution.md) | Distribution agent application, review, wallet, and ledger | 2026-05-14 |
 

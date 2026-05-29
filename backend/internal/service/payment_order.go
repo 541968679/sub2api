@@ -582,17 +582,53 @@ func classifyCreatePaymentError(req CreateOrderRequest, providerKey string, err 
 	if err == nil {
 		return nil
 	}
-	if providerKey == payment.TypeWxpay &&
-		payment.GetBasePaymentType(req.PaymentType) == payment.TypeWxpay &&
-		strings.Contains(err.Error(), "wxpay h5 payments are not authorized for this merchant") {
-		return infraerrors.ServiceUnavailable(
-			"WECHAT_H5_NOT_AUTHORIZED",
-			"wechat h5 payment is not available for this merchant",
-		).WithMetadata(map[string]string{
-			"action": "open_in_wechat_or_scan_qr",
-		})
+	if providerKey == payment.TypeWxpay && payment.GetBasePaymentType(req.PaymentType) == payment.TypeWxpay {
+		errMsg := strings.ToLower(err.Error())
+		if req.IsMobile && strings.TrimSpace(req.OpenID) == "" && isWxpayH5UnavailableMessage(errMsg) {
+			return infraerrors.ServiceUnavailable(
+				"WECHAT_H5_NOT_AUTHORIZED",
+				"wechat h5 payment is not available for this merchant",
+			).WithMetadata(map[string]string{
+				"action": "open_in_wechat_or_scan_qr",
+			})
+		}
+		if strings.TrimSpace(req.OpenID) != "" && isWxpayJSAPIUnavailableMessage(errMsg) {
+			return infraerrors.ServiceUnavailable(
+				"WECHAT_PAYMENT_MP_NOT_CONFIGURED",
+				"wechat jsapi payment is not available for this merchant app",
+			).WithMetadata(map[string]string{
+				"action": "check_wxpay_mp_app_id",
+			})
+		}
 	}
 	return infraerrors.ServiceUnavailable("PAYMENT_GATEWAY_ERROR", fmt.Sprintf("payment gateway error: %s", err.Error()))
+}
+
+func isWxpayH5UnavailableMessage(msg string) bool {
+	return strings.Contains(msg, "wxpay h5 payments are not authorized for this merchant") ||
+		strings.Contains(msg, "no_auth") ||
+		strings.Contains(msg, "not authorized") ||
+		strings.Contains(msg, "not been enabled") ||
+		strings.Contains(msg, "not open") ||
+		strings.Contains(msg, "h5") && strings.Contains(msg, "permission") ||
+		strings.Contains(msg, "未开通") ||
+		strings.Contains(msg, "未授权") ||
+		strings.Contains(msg, "无权限") ||
+		strings.Contains(msg, "商户号该产品权限未开通")
+}
+
+func isWxpayJSAPIUnavailableMessage(msg string) bool {
+	return strings.Contains(msg, "appid") ||
+		strings.Contains(msg, "openid") ||
+		strings.Contains(msg, "sub_mchid") ||
+		strings.Contains(msg, "jsapi") ||
+		strings.Contains(msg, "no_auth") ||
+		strings.Contains(msg, "not authorized") ||
+		strings.Contains(msg, "not been enabled") ||
+		strings.Contains(msg, "未开通") ||
+		strings.Contains(msg, "未授权") ||
+		strings.Contains(msg, "无权限") ||
+		strings.Contains(msg, "商户号该产品权限未开通")
 }
 
 func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest, payAmount float64, sel *payment.InstanceSelection, pr *payment.CreatePaymentResponse, resultType payment.CreatePaymentResultType) *CreateOrderResponse {

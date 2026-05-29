@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-29] fix: repair official WeChat Pay checkout fallback
+
+**Affected files**: backend/internal/payment/provider/wxpay.go, backend/internal/payment/provider/wxpay_test.go, backend/internal/service/payment_order.go, backend/internal/service/payment_order_result_test.go, frontend/src/components/payment/providerConfig.ts, frontend/src/components/payment/__tests__/providerConfig.spec.ts, docs/dev/codebase/payment.md, docs/dev/codebase/README.md
+**Upstream compatibility**: payment subsystem bug fix; no database schema changes; provider config adds optional WeChat scene fields
+**Change details**:
+- Restored optional official WeChat Pay admin fields for `mpAppId`, `h5AppName`, and `h5AppUrl`, matching backend support and existing i18n guidance.
+- Added official WeChat H5-to-Native fallback so merchants without H5 permission can still return a desktop-scan QR code instead of failing checkout.
+- Classified common WeChat H5 and JSAPI upstream errors into explicit frontend-facing reasons instead of generic `PAYMENT_GATEWAY_ERROR`.
+- Added focused Go and Vitest coverage for the WeChat fallback, error classification, and provider config field exposure.
+- Added `docs/dev/codebase/payment.md` documenting payment data flow, provider files, WeChat JSAPI/H5/Native behavior, and production pitfalls.
+
 ## [2026-05-29] fix: fallback Kiro Opus 4.8 stream usage accounting
 
 **Affected files**: `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\tests\kiro-stream-usage-estimation.test.js`, `docs/dev/KIRO_PROXY.md`
