@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-29] fix: add AIClient2API Claude Opus 4.8 Kiro model support
+
+**Affected files**: `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\src\providers\provider-models.js`
+**Upstream compatibility**: mirrors official AIClient2API upstream commit `66950dc` for the Opus 4.8 model entries only; avoids merging unrelated AtlasCloud and UI changes
+**Change details**:
+- Added `claude-opus-4-8` to the Kiro provider model list.
+- Added the Kiro upstream mapping `claude-opus-4-8 -> claude-opus-4.8`.
+- Added a 1,000,000 token context window entry for Opus 4.8 and restarted the local dev stack.
+
 ## [2026-05-28] docs: clarify new-api sibling subproject relationship
 
 **Affected files**: AGENTS.md, DEV_GUIDE.md, docs/dev/ARCHITECTURE.md
