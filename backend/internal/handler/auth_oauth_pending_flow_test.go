@@ -2263,6 +2263,7 @@ CREATE TABLE IF NOT EXISTS user_avatars (
 		nil,
 		options.defaultSubAssigner,
 		nil,
+		nil,
 	)
 	userSvc := service.NewUserService(userRepo, nil, nil, nil)
 	var totpSvc *service.TotpService

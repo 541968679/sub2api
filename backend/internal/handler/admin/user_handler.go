@@ -25,15 +25,19 @@ const userCurrentConcurrencySortFetchPageSize = 1000
 
 // UserHandler handles admin user management
 type UserHandler struct {
-	adminService       service.AdminService
-	concurrencyService *service.ConcurrencyService
+	adminService          service.AdminService
+	concurrencyService    *service.ConcurrencyService
+	userPlatformQuotaRepo service.UserPlatformQuotaRepository
+	billingCache          service.BillingCache
 }
 
 // NewUserHandler creates a new admin user handler
-func NewUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService) *UserHandler {
+func NewUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService, userPlatformQuotaRepo service.UserPlatformQuotaRepository, billingCache service.BillingCache) *UserHandler {
 	return &UserHandler{
-		adminService:       adminService,
-		concurrencyService: concurrencyService,
+		adminService:          adminService,
+		concurrencyService:    concurrencyService,
+		userPlatformQuotaRepo: userPlatformQuotaRepo,
+		billingCache:          billingCache,
 	}
 }
 

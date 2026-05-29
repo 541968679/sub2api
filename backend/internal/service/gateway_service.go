@@ -8161,6 +8161,23 @@ type RecordUsageInput struct {
 	ChannelUsageFields // 渠道映射信息（由 handler 在 Forward 前解析）
 }
 
+// PlatformFromAPIKey derives the quota dimension from the request group.
+func PlatformFromAPIKey(apiKey *APIKey) string {
+	if apiKey == nil || apiKey.Group == nil {
+		return ""
+	}
+	return apiKey.Group.Platform
+}
+
+// QuotaPlatform honors a forced request platform (used by compatibility
+// bridges) before falling back to the API key's group platform.
+func QuotaPlatform(ctx context.Context, apiKey *APIKey) string {
+	if platform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok && platform != "" {
+		return platform
+	}
+	return PlatformFromAPIKey(apiKey)
+}
+
 // APIKeyQuotaUpdater defines the interface for updating API Key quota and rate limit usage
 type APIKeyQuotaUpdater interface {
 	UpdateQuotaUsed(ctx context.Context, apiKeyID int64, cost float64) error
