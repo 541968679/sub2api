@@ -92,6 +92,34 @@ func TestBuildCreateOrderResponseCopiesJSAPIPayload(t *testing.T) {
 	}
 }
 
+func TestNormalizeCreateOrderRequestForceNativeQRClearsWeChatJSAPIContext(t *testing.T) {
+	t.Parallel()
+
+	req := normalizeCreateOrderRequest(CreateOrderRequest{
+		PaymentType:     payment.TypeWxpayDirect,
+		OpenID:          "openid-123",
+		IsMobile:        true,
+		IsWeChatBrowser: true,
+		ForceNativeQR:   true,
+	})
+
+	if req.PaymentType != payment.TypeWxpay {
+		t.Fatalf("payment type = %q, want %q", req.PaymentType, payment.TypeWxpay)
+	}
+	if req.OpenID != "" {
+		t.Fatalf("openid = %q, want empty", req.OpenID)
+	}
+	if req.IsMobile {
+		t.Fatal("expected ForceNativeQR to clear mobile context")
+	}
+	if req.IsWeChatBrowser {
+		t.Fatal("expected ForceNativeQR to clear WeChat browser context")
+	}
+	if req.OrderType != payment.OrderTypeBalance {
+		t.Fatalf("order type = %q, want %q", req.OrderType, payment.OrderTypeBalance)
+	}
+}
+
 func TestClassifyCreatePaymentErrorMapsWxpayH5Unavailable(t *testing.T) {
 	t.Parallel()
 

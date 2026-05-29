@@ -212,6 +212,7 @@ describe('buildCreateOrderPayload', () => {
       order_type: 'balance',
       return_url: 'https://app.example.com/payment/result',
       is_mobile: true,
+      is_wechat_browser: false,
       payment_source: 'hosted_redirect',
     })
   })
@@ -232,6 +233,7 @@ describe('buildCreateOrderPayload', () => {
       plan_id: 7,
       return_url: 'https://app.example.com/payment/result',
       is_mobile: false,
+      is_wechat_browser: true,
       payment_source: 'wechat_in_app_resume',
     })
   })

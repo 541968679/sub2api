@@ -75,6 +75,29 @@ func TestApplyWeChatPaymentResumeClaimsRejectsPaymentTypeMismatch(t *testing.T) 
 	}
 }
 
+func TestResolvePaymentClientContextAllowsExplicitFallbackOverride(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/payment/orders", nil)
+	ctx.Request.Header.Set("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) MicroMessenger/8.0")
+
+	mobile, wechatBrowser := resolvePaymentClientContext(ctx, CreateOrderRequest{})
+	require.True(t, mobile)
+	require.True(t, wechatBrowser)
+
+	falseValue := false
+	mobile, wechatBrowser = resolvePaymentClientContext(ctx, CreateOrderRequest{
+		IsMobile:        &falseValue,
+		IsWeChatBrowser: &falseValue,
+	})
+	require.False(t, mobile)
+	require.False(t, wechatBrowser)
+}
+
 func TestVerifyOrderPublicReturnsLegacyOrderState(t *testing.T) {
 	t.Parallel()
 

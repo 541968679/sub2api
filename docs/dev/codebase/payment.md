@@ -46,6 +46,7 @@ PaymentView
 
 - 微信官方支付按场景分流：有 OpenID 时走 JSAPI；移动端无 OpenID 时先走 H5；桌面端走 Native 二维码。
 - 微信内浏览器下单如果缺少 OpenID，后端先返回 `oauth_required`，前端跳 `/api/v1/auth/oauth/wechat/payment/start`，回调携带签名 `wechat_resume_token` 后再次下单。
+- 前端移动端兜底到扫码时会显式发送 `is_mobile=false`、`is_wechat_browser=false`、`force_native_qr=true`，并在 OAuth 回跳场景继续带 `wechat_resume_token`，让后端先恢复金额/套餐上下文再强制走 Native QR。
 - 官方微信 provider 配置支持可选 `mpAppId`、`h5AppName`、`h5AppUrl`。`mpAppId` 必须和微信支付 OAuth 获取到的 OpenID 所属公众号一致，否则 JSAPI 会失败。
 - 移动端微信 H5 未开通或无权限时，provider 会自动尝试 Native 二维码兜底；如果兜底也失败，服务层把常见 H5/JSAPI 上游错误映射成明确前端错误码。
 - 支付回调必须使用外网 HTTPS 可访问地址。微信官方回调路径为 `/api/v1/payment/webhook/wxpay`。
@@ -54,6 +55,7 @@ PaymentView
 ## 已知陷阱
 
 - 管理端新增/编辑微信官方实例时，支付商户 `appId` 不一定等于公众号 AppID；JSAPI 场景需要填写 `mpAppId`。
+- 移动端/微信内失败后不能只依赖 User-Agent 改走二维码；必须让创建订单请求显式覆盖 `is_wechat_browser`，否则后端会再次返回 OAuth/JSAPI。
 - 如果生产反代没有传 `X-Forwarded-Proto` / `X-Forwarded-Host`，OAuth 回调 URL 可能生成成内网或 http 地址。优先在系统设置里配置正确的 `api_base_url`。
 - `payment_mode` 目前主要影响 EasyPay 的二维码/弹窗模式；官方微信的展示模式由 provider 返回的 `qr_code` / `pay_url` / `jsapi` 决定。
 - 服务商配置中的敏感字段在编辑时不回显，空提交表示保留原值。

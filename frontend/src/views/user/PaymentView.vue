@@ -942,6 +942,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
               planId,
               paymentType: visibleMethod,
               attempted: options.mobileQrFallbackAttempted === true,
+              wechatResumeToken: options.wechatResumeToken,
             },
           )
           if (!fallbackApplied) {
@@ -960,6 +961,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           planId,
           paymentType: visibleMethod,
           attempted: options.mobileQrFallbackAttempted === true,
+          wechatResumeToken: options.wechatResumeToken,
         })
         if (!fallbackApplied) {
           throw err
@@ -989,6 +991,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       planId,
       paymentType: requestType,
       attempted: options.mobileQrFallbackAttempted === true,
+      wechatResumeToken: options.wechatResumeToken,
     })) {
       return
     } else {
@@ -1016,6 +1019,7 @@ interface MobileQrFallbackContext {
   planId?: number
   paymentType: string
   attempted: boolean
+  wechatResumeToken?: string
 }
 
 function shouldFallbackToDesktopQr(err: unknown, paymentMethod: string, attempted: boolean): boolean {
@@ -1067,6 +1071,12 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       isMobile: false,
       isWechatBrowser: false,
     })
+    if (visibleMethod === 'wxpay') {
+      payload.force_native_qr = true
+      if (context.wechatResumeToken) {
+        payload.wechat_resume_token = context.wechatResumeToken
+      }
+    }
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
     const stripeRouteUrl = result.client_secret

@@ -109,6 +109,7 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
     payment_type: visibleMethod,
     order_type: input.orderType,
     is_mobile: input.isMobile,
+    is_wechat_browser: input.isWechatBrowser,
     payment_source: visibleMethod === 'wxpay' && input.isWechatBrowser
       ? 'wechat_in_app_resume'
       : 'hosted_redirect',

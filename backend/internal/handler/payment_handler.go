@@ -241,7 +241,9 @@ type CreateOrderRequest struct {
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
-	IsMobile *bool `json:"is_mobile,omitempty"`
+	IsMobile        *bool `json:"is_mobile,omitempty"`
+	IsWeChatBrowser *bool `json:"is_wechat_browser,omitempty"`
+	ForceNativeQR   *bool `json:"force_native_qr,omitempty"`
 }
 
 // CreateOrder creates a new payment order.
@@ -269,10 +271,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		}
 	}
 
-	mobile := isMobile(c)
-	if req.IsMobile != nil {
-		mobile = *req.IsMobile
-	}
+	mobile, wechatBrowser := resolvePaymentClientContext(c, req)
 	result, err := h.paymentService.CreateOrder(c.Request.Context(), service.CreateOrderRequest{
 		UserID:          subject.UserID,
 		Amount:          req.Amount,
@@ -280,7 +279,8 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		OpenID:          req.OpenID,
 		ClientIP:        c.ClientIP(),
 		IsMobile:        mobile,
-		IsWeChatBrowser: isWeChatBrowser(c),
+		IsWeChatBrowser: wechatBrowser,
+		ForceNativeQR:   req.ForceNativeQR != nil && *req.ForceNativeQR,
 		SrcHost:         c.Request.Host,
 		SrcURL:          c.Request.Referer(),
 		ReturnURL:       req.ReturnURL,
@@ -293,6 +293,18 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 	response.Success(c, result)
+}
+
+func resolvePaymentClientContext(c *gin.Context, req CreateOrderRequest) (bool, bool) {
+	mobile := isMobile(c)
+	if req.IsMobile != nil {
+		mobile = *req.IsMobile
+	}
+	wechatBrowser := isWeChatBrowser(c)
+	if req.IsWeChatBrowser != nil {
+		wechatBrowser = *req.IsWeChatBrowser
+	}
+	return mobile, wechatBrowser
 }
 
 func applyWeChatPaymentResumeClaims(req *CreateOrderRequest, claims *service.WeChatPaymentResumeClaims) error {

@@ -21,12 +21,7 @@ import (
 // --- Order Creation ---
 
 func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest) (*CreateOrderResponse, error) {
-	if req.OrderType == "" {
-		req.OrderType = payment.OrderTypeBalance
-	}
-	if normalized := NormalizeVisibleMethod(req.PaymentType); normalized != "" {
-		req.PaymentType = normalized
-	}
+	req = normalizeCreateOrderRequest(req)
 	cfg, err := s.configService.GetPaymentConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get payment config: %w", err)
@@ -93,6 +88,21 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 		return nil, err
 	}
 	return resp, nil
+}
+
+func normalizeCreateOrderRequest(req CreateOrderRequest) CreateOrderRequest {
+	if req.OrderType == "" {
+		req.OrderType = payment.OrderTypeBalance
+	}
+	if normalized := NormalizeVisibleMethod(req.PaymentType); normalized != "" {
+		req.PaymentType = normalized
+	}
+	if req.ForceNativeQR && payment.GetBasePaymentType(req.PaymentType) == payment.TypeWxpay {
+		req.OpenID = ""
+		req.IsMobile = false
+		req.IsWeChatBrowser = false
+	}
+	return req
 }
 
 func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrderRequest, cfg *PaymentConfig) (*dbent.SubscriptionPlan, error) {

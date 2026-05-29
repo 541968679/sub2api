@@ -180,8 +180,16 @@ function oauthOrderFixture() {
   }
 }
 
+function setNavigatorUserAgent(userAgent: string) {
+  Object.defineProperty(window.navigator, 'userAgent', {
+    configurable: true,
+    value: userAgent,
+  })
+}
+
 describe('PaymentView WeChat JSAPI flow', () => {
   beforeEach(() => {
+    setNavigatorUserAgent('Mozilla/5.0')
     routeState.path = '/purchase'
     routeState.query = {
       wechat_resume: '1',
@@ -368,6 +376,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
   })
 
   it('falls back to QR flow when mobile WeChat payment is unavailable', async () => {
+    setNavigatorUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) MicroMessenger/8.0')
     routeState.query = {
       wechat_resume: '1',
       wechat_resume_token: 'resume-token-h5',
@@ -400,11 +409,15 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(createOrder).toHaveBeenNthCalledWith(1, expect.objectContaining({
       payment_type: 'wxpay',
       is_mobile: true,
+      is_wechat_browser: true,
       wechat_resume_token: 'resume-token-h5',
     }))
     expect(createOrder).toHaveBeenNthCalledWith(2, expect.objectContaining({
       payment_type: 'wxpay',
       is_mobile: false,
+      is_wechat_browser: false,
+      force_native_qr: true,
+      wechat_resume_token: 'resume-token-h5',
       payment_source: 'hosted_redirect',
     }))
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')

@@ -1955,6 +1955,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Enforced the whitelist in distribution API key generation and added a distribution-specific key creation path so the whitelist, not the agent user's own group permissions, is the permission source.
 - Added admin UI multi-select, i18n strings, and distribution module documentation.
 
+## [2026-05-29] fix: repair WeChat Pay mobile QR fallback
+
+**Affected files**: backend/internal/handler/payment_handler.go, backend/internal/service/payment_order.go, backend/internal/service/payment_service.go, backend/internal/service/payment_order_result_test.go, frontend/src/components/payment/paymentFlow.ts, frontend/src/components/payment/__tests__/paymentFlow.spec.ts, frontend/src/types/payment.ts, frontend/src/views/user/PaymentView.vue, frontend/src/views/user/__tests__/PaymentView.spec.ts, docs/dev/codebase/payment.md
+**Upstream compatibility**: low risk; scoped to official WeChat checkout request routing and mobile QR fallback
+**Change details**:
+- Added explicit `is_wechat_browser` request context so the backend can honor frontend overrides instead of always trusting the WeChat User-Agent.
+- Added `force_native_qr` for WeChat mobile fallback; when set, backend clears OpenID/mobile/WeChat context after resume-token restoration so the order uses Native QR instead of returning OAuth/JSAPI again.
+- Preserved `wechat_resume_token` on the fallback request so OAuth callback orders keep their original amount, order type, and plan context.
+- Added frontend and backend regression coverage for the WeChat mobile fallback request shape and force-native normalization.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go

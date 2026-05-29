@@ -77,6 +77,7 @@ type CreateOrderRequest struct {
 	ClientIP        string
 	IsMobile        bool
 	IsWeChatBrowser bool
+	ForceNativeQR   bool
 	SrcHost         string
 	SrcURL          string
 	ReturnURL       string
