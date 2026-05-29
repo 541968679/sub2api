@@ -36,6 +36,24 @@ func TestNormalizeEasyPayAPIBase(t *testing.T) {
 	}
 }
 
+func TestNewEasyPayRejectsInvalidAPIBase(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewEasyPay("test-instance", map[string]string{
+		"pid":       "pid-1",
+		"pkey":      "pkey-1",
+		"apiBase":   "11",
+		"notifyUrl": "https://example.com/notify",
+		"returnUrl": "https://example.com/return",
+	})
+	if err == nil {
+		t.Fatal("NewEasyPay returned nil error")
+	}
+	if !strings.Contains(err.Error(), "EASYPAY_CONFIG_INVALID_URL") {
+		t.Fatalf("NewEasyPay error = %q, want EASYPAY_CONFIG_INVALID_URL", err.Error())
+	}
+}
+
 func TestEasyPayRefundNormalizesAPIBaseAndSendsOutTradeNoOnly(t *testing.T) {
 	t.Parallel()
 

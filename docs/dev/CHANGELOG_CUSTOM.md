@@ -1955,6 +1955,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Enforced the whitelist in distribution API key generation and added a distribution-specific key creation path so the whitelist, not the agent user's own group permissions, is the permission source.
 - Added admin UI multi-select, i18n strings, and distribution module documentation.
 
+## [2026-05-29] fix: validate EasyPay API base URL
+
+**Affected files**: backend/internal/payment/provider/easypay.go, backend/internal/payment/provider/easypay_refund_test.go, frontend/src/views/user/paymentUx.ts, frontend/src/views/user/__tests__/paymentUx.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk; rejects invalid EasyPay runtime configuration earlier
+**Change details**:
+- Added EasyPay `apiBase` validation so enabled instances must use an absolute `http(s)` URL and cannot save values like `11` that later become `11/mapi.php`.
+- Kept endpoint-path normalization for valid EasyPay URLs such as `/mapi.php`, `/submit.php`, and `/api.php`.
+- Stopped mapping provider misconfiguration errors to the generic WeChat unavailable prompt, allowing the real configuration error to surface.
+
 ## [2026-05-29] fix: repair WeChat Pay mobile QR fallback
 
 **Affected files**: backend/internal/handler/payment_handler.go, backend/internal/service/payment_order.go, backend/internal/service/payment_service.go, backend/internal/service/payment_order_result_test.go, frontend/src/components/payment/paymentFlow.ts, frontend/src/components/payment/__tests__/paymentFlow.spec.ts, frontend/src/types/payment.ts, frontend/src/views/user/PaymentView.vue, frontend/src/views/user/__tests__/PaymentView.spec.ts, docs/dev/codebase/payment.md

@@ -77,6 +77,9 @@ export function describePaymentScenarioError(
         hintKey: defaultWechatHint(context),
       }
     }
+    if (code === 'PAYMENT_PROVIDER_MISCONFIGURED' || code === 'EASYPAY_CONFIG_INVALID_URL') {
+      return null
+    }
     if (code === 'WECHAT_JSAPI_FAILED' || normalizedMessage.includes('get_brand_wcpay_request:fail')) {
       return {
         messageKey: 'payment.errors.wechatJsapiFailed',

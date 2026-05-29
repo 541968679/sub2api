@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 // EasyPay constants.
@@ -51,12 +52,30 @@ func NewEasyPay(instanceID string, config map[string]string) (*EasyPay, error) {
 	for k, v := range config {
 		cfg[k] = v
 	}
-	cfg["apiBase"] = normalizeEasyPayAPIBase(cfg["apiBase"])
+	apiBase, err := validateEasyPayAPIBase(cfg["apiBase"])
+	if err != nil {
+		return nil, err
+	}
+	cfg["apiBase"] = apiBase
 	return &EasyPay{
 		instanceID: instanceID,
 		config:     cfg,
 		httpClient: &http.Client{Timeout: easypayHTTPTimeout},
 	}, nil
+}
+
+func validateEasyPayAPIBase(apiBase string) (string, error) {
+	normalized := normalizeEasyPayAPIBase(apiBase)
+	parsed, err := url.Parse(normalized)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", infraerrors.BadRequest("EASYPAY_CONFIG_INVALID_URL", "easypay api base must be an absolute http(s) URL").
+			WithMetadata(map[string]string{"key": "apiBase"})
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", infraerrors.BadRequest("EASYPAY_CONFIG_INVALID_URL", "easypay api base must use http or https").
+			WithMetadata(map[string]string{"key": "apiBase"})
+	}
+	return normalized, nil
 }
 
 func normalizeEasyPayAPIBase(apiBase string) string {

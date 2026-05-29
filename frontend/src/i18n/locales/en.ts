@@ -6781,6 +6781,7 @@ export default {
       PAYMENT_GATEWAY_ERROR: 'Payment method is unavailable.',
       NO_AVAILABLE_INSTANCE: 'No payment channel available right now.',
       PAYMENT_PROVIDER_MISCONFIGURED: 'Payment provider misconfigured. Please contact an administrator.',
+      EASYPAY_CONFIG_INVALID_URL: 'EasyPay API base must be a full http(s) URL.',
       WXPAY_CONFIG_MISSING_KEY: 'WeChat Pay config missing required key: {key}.',
       WXPAY_CONFIG_INVALID_KEY_LENGTH: 'WeChat Pay {key} length is invalid (expected {expected} bytes, got {actual}).',
       WXPAY_CONFIG_INVALID_KEY: 'WeChat Pay {key} is malformed. Make sure you copied the full PEM content.',

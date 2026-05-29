@@ -67,6 +67,18 @@ describe('describePaymentScenarioError', () => {
       hintKey: 'payment.errors.alipayDesktopQrHint',
     })
   })
+
+  it('does not hide provider misconfiguration behind the generic WeChat prompt', () => {
+    expect(describePaymentScenarioError(
+      { reason: 'PAYMENT_PROVIDER_MISCONFIGURED' },
+      { paymentMethod: 'wxpay', isMobile: false, isWechatBrowser: false },
+    )).toBeNull()
+
+    expect(describePaymentScenarioError(
+      { reason: 'EASYPAY_CONFIG_INVALID_URL' },
+      { paymentMethod: 'wxpay', isMobile: false, isWechatBrowser: false },
+    )).toBeNull()
+  })
 })
 
 describe('buildPaymentErrorToastMessage', () => {
