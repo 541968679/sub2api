@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-30] feat: add account group select-all control
+
+**Affected files**: frontend/src/components/common/GroupSelector.vue, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/BulkEditAccountModal.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, frontend/src/components/common/__tests__/GroupSelector.spec.ts, docs/dev/codebase/account.md
+**Upstream compatibility**: frontend-only account management UI enhancement; no API or database changes
+**Change details**:
+- Added an optional select-all / deselect-all control to the shared group selector.
+- Enabled the control in account creation, account editing, and account bulk editing group sections.
+- Kept the control scoped with `show-toggle-all` so other `GroupSelector` reuse sites keep their previous UI.
+- Preserved platform-filtered behavior: select-all only adds currently selectable groups, and deselect-all only removes currently selectable groups.
+- Added focused Vitest coverage and updated account module documentation.
+
 ## [2026-05-30] docs: record gpt-image-2 timeout fix retest
 
 **Affected files**: docs/dev/OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/README.md

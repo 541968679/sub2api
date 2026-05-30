@@ -39,6 +39,8 @@
 | **Frontend View** | `frontend/src/views/admin/AccountsView.vue` | 账号列表页：表格、搜索、AI Credits 汇总 |
 | **Frontend Component** | `frontend/src/components/account/CreateAccountModal.vue` | 创建弹窗：单个 + 批量导入 |
 | **Frontend Component** | `frontend/src/components/account/EditAccountModal.vue` | 编辑弹窗 |
+| **Frontend Component** | `frontend/src/components/account/BulkEditAccountModal.vue` | 批量编辑弹窗 |
+| **Frontend Component** | `frontend/src/components/common/GroupSelector.vue` | 账号/公告等场景复用的分组多选器；账号表单通过 `show-toggle-all` 开启全选/取消全选 |
 | **Frontend Component** | `frontend/src/components/account/AccountUsageCell.vue` | 用量单元格：展示 5h/7d 窗口 + AI Credits |
 | **Frontend Composable** | `frontend/src/composables/useAntigravityOAuth.ts` | Antigravity OAuth 前端逻辑：validateRefreshToken, buildCredentials |
 | **Frontend API** | `frontend/src/api/admin/accounts.ts` | 账号相关 API 调用封装 |
@@ -129,6 +131,7 @@ AccountsView.vue: refreshAICreditsTotal()
 | 超量请求重试 | 免费配额耗尽后，如 allow_overages=true，注入 enabledCreditTypes: ["GOOGLE_ONE_AI"] 重试 | `antigravity_credits_overages.go:172` |
 | 隐私模式设置 | 创建/刷新账号后自动调用 setUserSettings 设置隐私 | `antigravity_oauth_service.go:256` |
 | 批量 vs 单创建 | 批量走 handleAntigravityValidateRT()，单创建走 handleAntigravityExchange()，extra 构建需两处一致 | `CreateAccountModal.vue` |
+| 账号分组全选 | 创建、编辑、批量编辑共用 `GroupSelector` 的 `show-toggle-all` 入口；全选/取消全选只作用于当前可选分组，保留平台过滤外的既有 `group_ids` | `GroupSelector.vue`, `CreateAccountModal.vue`, `EditAccountModal.vue`, `BulkEditAccountModal.vue` |
 | Gemini RT client 绑定 | Google OAuth 的 refresh_token 绑定签发它的 client_id；google_one 批量导入强制用内置 Gemini CLI client，自建 client 的 RT 报 unauthorized_client | `gemini_oauth_service.go:ValidateGoogleOneRefreshToken` |
 
 ## 已知陷阱

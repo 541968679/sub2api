@@ -2062,6 +2062,7 @@
         :groups="groups"
         :platform="account?.platform"
         :mixed-scheduling="mixedScheduling"
+        show-toggle-all
         data-tour="account-form-groups"
       />
 

@@ -1,9 +1,21 @@
 <template>
   <div>
-    <label class="input-label">
-      {{ t('admin.users.groups') }}
-      <span class="font-normal text-gray-400">{{ t('common.selectedCount', { count: modelValue.length }) }}</span>
-    </label>
+    <div class="mb-1.5 flex items-center justify-between gap-3">
+      <label class="input-label mb-0">
+        {{ t('admin.users.groups') }}
+        <span class="font-normal text-gray-400">{{ t('common.selectedCount', { count: modelValue.length }) }}</span>
+      </label>
+      <button
+        v-if="showToggleAll"
+        type="button"
+        class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-primary-300 hover:text-primary-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-300 dark:hover:border-primary-700 dark:hover:text-primary-400"
+        :disabled="filteredGroups.length === 0"
+        @click="toggleAllGroups"
+      >
+        <Icon :name="allFilteredGroupsSelected ? 'x' : 'check'" size="xs" :stroke-width="2" />
+        {{ allFilteredGroupsSelected ? t('common.deselectAll') : t('common.selectAll') }}
+      </button>
+    </div>
     <div
       class="grid max-h-32 grid-cols-2 gap-1 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-800"
     >
@@ -43,6 +55,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
+import Icon from '@/components/icons/Icon.vue'
 import type { AdminGroup, GroupPlatform } from '@/types'
 
 const { t } = useI18n()
@@ -52,6 +65,7 @@ interface Props {
   groups: AdminGroup[]
   platform?: GroupPlatform // Optional platform filter
   mixedScheduling?: boolean // For antigravity accounts: allow anthropic/gemini groups
+  showToggleAll?: boolean
 }
 
 const props = defineProps<Props>()
@@ -74,10 +88,35 @@ const filteredGroups = computed(() => {
   return props.groups.filter((g) => g.platform === props.platform)
 })
 
+const filteredGroupIds = computed(() => filteredGroups.value.map((group) => group.id))
+
+const allFilteredGroupsSelected = computed(
+  () =>
+    filteredGroupIds.value.length > 0 &&
+    filteredGroupIds.value.every((groupId) => props.modelValue.includes(groupId))
+)
+
 const handleChange = (groupId: number, checked: boolean) => {
   const newValue = checked
     ? [...props.modelValue, groupId]
     : props.modelValue.filter((id) => id !== groupId)
   emit('update:modelValue', newValue)
+}
+
+const toggleAllGroups = () => {
+  if (filteredGroupIds.value.length === 0) {
+    return
+  }
+
+  if (allFilteredGroupsSelected.value) {
+    const filteredIdSet = new Set(filteredGroupIds.value)
+    emit(
+      'update:modelValue',
+      props.modelValue.filter((groupId) => !filteredIdSet.has(groupId))
+    )
+    return
+  }
+
+  emit('update:modelValue', Array.from(new Set([...props.modelValue, ...filteredGroupIds.value])))
 }
 </script>

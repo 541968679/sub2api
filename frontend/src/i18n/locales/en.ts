@@ -281,6 +281,7 @@ export default {
     all: 'All',
     none: 'None',
     selectAll: 'Select all',
+    deselectAll: 'Deselect all',
     noData: 'No data',
     expand: 'Expand',
     collapse: 'Collapse',

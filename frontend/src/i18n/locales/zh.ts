@@ -280,6 +280,7 @@ const zhBase = {
     all: '全部',
     none: '无',
     selectAll: '全选',
+    deselectAll: '取消全选',
     noData: '暂无数据',
     expand: '展开',
     collapse: '收起',
