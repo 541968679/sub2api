@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-30] docs: record gpt-image-2 timeout fix retest
+
+**Affected files**: docs/dev/OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/README.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Added a standalone record for the `gpt-image-2` non-return / latency fix, including problem boundary, code behavior, verification commands, retest matrix, and post-fix conclusions.
+- Captured the 36-request retest summary: concurrency 4, 2K/4K x auto/medium/high, 36/36 success, no fast failures, no client timeouts, no service timeouts, max duration 65.578s.
+- Documented current timeout guidance, client timeout recommendations, and the next larger-sample analysis plan for future optimization.
+- Linked the new retest record from the architecture navigation and codebase module index.
+
 ## [2026-05-30] fix: bound gpt-image-2 OAuth generation waits and retry fast transport failures
 
 **Affected files**: backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go, backend/internal/handler/openai_images.go, docs/dev/codebase/gateway.md
