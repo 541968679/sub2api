@@ -26,6 +26,16 @@ Local paths:
   upstream runtime config documentation.
 - `E:\cursor project\InvokeAI\docs\src\content\docs\features\External Models\openai.mdx` -
   upstream OpenAI-compatible external image model setup.
+- `E:\cursor project\InvokeAI\invokeai\app\services\session_processor\session_processor_default.py` -
+  InvokeAI queue worker pool that executes queued sessions.
+- `E:\cursor project\InvokeAI\invokeai\app\services\session_queue\session_queue_sqlite.py` -
+  SQLite-backed queue state and status transitions.
+- `E:\cursor project\InvokeAI\invokeai\app\api\routers\session_queue.py` -
+  queue API, including the current-item compatibility endpoints.
+- `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\api\endpoints\queue.ts` -
+  React RTK query bindings for queue/current items.
+- `E:\cursor project\InvokeAI\tests\app\services\test_session_processor_parallel.py` -
+  focused regression tests for queue concurrency.
 
 ## Core flow
 
@@ -39,6 +49,9 @@ Local paths:
 5. External OpenAI image generation reads `queue_item.user_id`, fetches that
    user's provider config, and sends the request using that key/base URL.
 6. Sub2API routes/bills the request through its existing gateway/account stack.
+7. Multiple queued InvokeAI sessions may now run at the same time. In the API-only
+   deployment this means multiple external OpenAI/Sub2API image requests can be
+   in flight concurrently instead of waiting behind a single local queue worker.
 
 ## Important mechanisms
 
@@ -71,6 +84,43 @@ scripts\dev-stack.cmd restart
 - In multiuser mode, the External Providers UI writes the current user's
   provider config instead of `api_keys.yaml`. Single-user mode keeps the old
   YAML-backed path.
+- The InvokeAI checkout used by this PoC now has a configurable session queue
+  worker pool. `session_queue_concurrency` defaults to `4`; startup wires this
+  value into `DefaultSessionProcessor`. This is intentionally global queue
+  concurrency, not a local-GPU-only path.
+- The SQLite queue `dequeue()` operation atomically promotes one pending row to
+  `in_progress`, then returns the full queue item. This prevents multiple worker
+  threads from claiming the same item.
+- Queue status remains backward compatible through the old single-current-item
+  fields, but new code should prefer `GET /api/v1/queue/{queue_id}/current_items`
+  when it needs all active items.
+- Frontend progress/cancel code now reads all active current items and checks
+  destination/user ownership instead of assuming only one active item exists.
+- Queue clear/cancel paths were adjusted for multi-current behavior. Non-admin
+  queue clear/cancel actions stay scoped to that user's items and must not
+  interrupt another user's in-progress request.
+
+## Verification
+
+Last verified: 2026-05-30.
+
+Backend focused tests:
+
+```powershell
+cd "E:\cursor project\InvokeAI"
+.\.venv\Scripts\python.exe -m pytest tests/app/services/test_session_processor_parallel.py tests/app/services/session_queue/test_session_queue_status_sequence.py tests/app/services/session_queue/test_session_queue_status_event_isolation.py tests/app/services/session_queue/test_session_queue_clear.py tests/app/services/external_generation/test_external_provider_adapters.py -q
+```
+
+Result: `31 passed, 2 warnings in 5.56s`.
+
+Frontend type check:
+
+```powershell
+cd "E:\cursor project\InvokeAI\invokeai\frontend\web"
+pnpm run lint:tsc
+```
+
+Result: exit code `0`.
 
 ## Known pitfalls
 
@@ -85,3 +135,9 @@ scripts\dev-stack.cmd restart
 - External starter model records remain instance-level. Deleting one user's
   provider config does not remove external model records, because other users
   may still rely on them.
+- The old `GET /current` and scalar queue status fields still expose one current
+  item for compatibility. UI or automation that needs accurate multi-image
+  progress must use `current_items` plus destination/user filtering.
+- `session_queue_concurrency=4` is a starting point for API-only deployments.
+  Increase only after measuring Sub2API account capacity, upstream rate limits,
+  and browser/client timeout behavior.

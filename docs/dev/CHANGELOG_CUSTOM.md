@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-30] feat: enable InvokeAI API-only multi-image queue concurrency
+
+**Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\session_processor\session_processor_default.py`, `E:\cursor project\InvokeAI\invokeai\app\services\session_queue\session_queue_sqlite.py`, `E:\cursor project\InvokeAI\invokeai\app\services\session_queue\session_queue_base.py`, `E:\cursor project\InvokeAI\invokeai\app\services\session_processor\session_processor_common.py`, `E:\cursor project\InvokeAI\invokeai\app\services\config\config_default.py`, `E:\cursor project\InvokeAI\invokeai\app\api\dependencies.py`, `E:\cursor project\InvokeAI\invokeai\app\api\routers\session_queue.py`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\api\endpoints\queue.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\api\index.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\events\setEventListeners.tsx`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\queue\hooks\useCancelCurrentQueueItem.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\queue\hooks\useCurrentQueueItemDestination.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\queue\hooks\useCurrentQueueItemId.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\layouts\DockviewTabCanvasViewer.tsx`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\layouts\DockviewTabCanvasWorkspace.tsx`, `E:\cursor project\InvokeAI\tests\app\services\test_session_processor_parallel.py`, `E:\cursor project\InvokeAI\tests\app\services\session_queue\test_session_queue_status_sequence.py`, `E:\cursor project\InvokeAI\tests\app\services\session_queue\test_session_queue_status_event_isolation.py`, `E:\cursor project\InvokeAI\tests\app\services\session_queue\test_session_queue_clear.py`, docs/dev/codebase/invokeai-poc.md, docs/dev/codebase/README.md
+**Upstream compatibility**: InvokeAI PoC sidecar behavior change; no Sub2API runtime or database changes. Potential upstream conflict area is InvokeAI queue/session processor internals and queue UI state.
+**Change details**:
+- Replaced InvokeAI's single session processor worker with a configurable worker pool; `session_queue_concurrency` defaults to `4` for API-only multi-image generation.
+- Made SQLite queue dequeue atomically promote pending rows to `in_progress`, added `get_current_items`, and preserved old single-current compatibility fields.
+- Updated queue cancellation/clear behavior for multiple active items so non-admin actions remain scoped to that user's queue items.
+- Added `GET /api/v1/queue/{queue_id}/current_items` and updated React queue hooks/progress indicators to use all active items where needed.
+- Added focused backend regression coverage for parallel execution, concurrency limits, worker wake-up, multi-current cancellation, redaction, and clear scoping.
+- Verified backend with `31 passed, 2 warnings in 5.56s`; verified frontend with `pnpm run lint:tsc` exit code 0.
+
 ## [2026-05-30] feat: add account group select-all control
 
 **Affected files**: frontend/src/components/common/GroupSelector.vue, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/BulkEditAccountModal.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, frontend/src/components/common/__tests__/GroupSelector.spec.ts, docs/dev/codebase/account.md
