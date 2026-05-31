@@ -66,11 +66,12 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		return nil
 	}
 	return &AdminUser{
-		User:              *base,
-		Notes:             u.Notes,
-		LastUsedAt:        u.LastUsedAt,
-		GroupRates:        u.GroupRates,
-		GroupDisplayRates: u.GroupDisplayRates,
+		User:                     *base,
+		Notes:                    u.Notes,
+		LastUsedAt:               u.LastUsedAt,
+		DownstreamUsageTokenMode: service.NormalizeDownstreamUsageTokenMode(u.DownstreamUsageTokenMode),
+		GroupRates:               u.GroupRates,
+		GroupDisplayRates:        u.GroupDisplayRates,
 	}
 }
 

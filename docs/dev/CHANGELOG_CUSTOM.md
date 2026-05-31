@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-31] feat: user-level downstream usage token mode
+
+**Affected files**: backend/ent/schema/user.go, backend/migrations/145_add_user_downstream_usage_token_mode.sql, backend/internal/service/display_token_rewrite.go, backend/internal/handler/gateway_handler.go, backend/internal/service/api_key_auth_cache*.go, backend/internal/handler/admin/user_handler.go, frontend/src/components/admin/user/UserEditModal.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: scoped custom behavior for Claude Messages / Antigravity downstream `usage` token fields; billing and stored usage remain unchanged.
+**Change details**:
+- Added `users.downstream_usage_token_mode` with `real` / `display` values and default `real`, plus Ent schema/generated code and migration 145.
+- Added admin user API/DTO/frontend edit support so admins can opt specific users into display-token downstream responses.
+- Added the mode to API key auth snapshots and bumped the snapshot version to rebuild old auth cache entries.
+- Restored display token multiplier injection only when the authenticated user's mode is `display`; no-group API keys keep model display pricing and use group display scaling `1`.
+- Extended display token multiplier calculation to merge user model display pricing overrides on top of global display pricing.
+- Added focused unit coverage for admin updates, auth cache snapshots, and display token multipliers.
+
 ## [2026-05-31] fix: preserve InvokeAI external provider user context
 
 **Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\external_generation\external_generation_default.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_external_generation_service.py`, docs/dev/codebase/invokeai-poc.md, docs/dev/INVOKEAI_SIDECAR.md

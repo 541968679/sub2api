@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from '../client'
-import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey } from '@/types'
+import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey, DownstreamUsageTokenMode } from '@/types'
 
 export interface AdminBindAuthIdentityChannelRequest {
   channel: string
@@ -117,6 +117,7 @@ export async function create(userData: {
   password: string
   balance?: number
   concurrency?: number
+  downstream_usage_token_mode?: DownstreamUsageTokenMode
   allowed_groups?: number[] | null
 }): Promise<AdminUser> {
   const { data } = await apiClient.post<AdminUser>('/admin/users', userData)

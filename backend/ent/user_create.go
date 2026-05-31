@@ -339,6 +339,20 @@ func (_c *UserCreate) SetNillableRpmLimit(v *int) *UserCreate {
 	return _c
 }
 
+// SetDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field.
+func (_c *UserCreate) SetDownstreamUsageTokenMode(v string) *UserCreate {
+	_c.mutation.SetDownstreamUsageTokenMode(v)
+	return _c
+}
+
+// SetNillableDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDownstreamUsageTokenMode(v *string) *UserCreate {
+	if v != nil {
+		_c.SetDownstreamUsageTokenMode(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -622,6 +636,10 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultRpmLimit
 		_c.mutation.SetRpmLimit(v)
 	}
+	if _, ok := _c.mutation.DownstreamUsageTokenMode(); !ok {
+		v := user.DefaultDownstreamUsageTokenMode
+		_c.mutation.SetDownstreamUsageTokenMode(v)
+	}
 	return nil
 }
 
@@ -707,6 +725,14 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.RpmLimit(); !ok {
 		return &ValidationError{Name: "rpm_limit", err: errors.New(`ent: missing required field "User.rpm_limit"`)}
+	}
+	if _, ok := _c.mutation.DownstreamUsageTokenMode(); !ok {
+		return &ValidationError{Name: "downstream_usage_token_mode", err: errors.New(`ent: missing required field "User.downstream_usage_token_mode"`)}
+	}
+	if v, ok := _c.mutation.DownstreamUsageTokenMode(); ok {
+		if err := user.DownstreamUsageTokenModeValidator(v); err != nil {
+			return &ValidationError{Name: "downstream_usage_token_mode", err: fmt.Errorf(`ent: validator failed for field "User.downstream_usage_token_mode": %w`, err)}
+		}
 	}
 	return nil
 }
@@ -826,6 +852,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RpmLimit(); ok {
 		_spec.SetField(user.FieldRpmLimit, field.TypeInt, value)
 		_node.RpmLimit = value
+	}
+	if value, ok := _c.mutation.DownstreamUsageTokenMode(); ok {
+		_spec.SetField(user.FieldDownstreamUsageTokenMode, field.TypeString, value)
+		_node.DownstreamUsageTokenMode = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1405,6 +1435,18 @@ func (u *UserUpsert) AddRpmLimit(v int) *UserUpsert {
 	return u
 }
 
+// SetDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field.
+func (u *UserUpsert) SetDownstreamUsageTokenMode(v string) *UserUpsert {
+	u.Set(user.FieldDownstreamUsageTokenMode, v)
+	return u
+}
+
+// UpdateDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDownstreamUsageTokenMode() *UserUpsert {
+	u.SetExcluded(user.FieldDownstreamUsageTokenMode)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1832,6 +1874,20 @@ func (u *UserUpsertOne) AddRpmLimit(v int) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateRpmLimit() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field.
+func (u *UserUpsertOne) SetDownstreamUsageTokenMode(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDownstreamUsageTokenMode(v)
+	})
+}
+
+// UpdateDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDownstreamUsageTokenMode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDownstreamUsageTokenMode()
 	})
 }
 
@@ -2428,6 +2484,20 @@ func (u *UserUpsertBulk) AddRpmLimit(v int) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateRpmLimit() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateRpmLimit()
+	})
+}
+
+// SetDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field.
+func (u *UserUpsertBulk) SetDownstreamUsageTokenMode(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDownstreamUsageTokenMode(v)
+	})
+}
+
+// UpdateDownstreamUsageTokenMode sets the "downstream_usage_token_mode" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDownstreamUsageTokenMode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDownstreamUsageTokenMode()
 	})
 }
 

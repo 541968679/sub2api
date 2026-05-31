@@ -1871,7 +1871,13 @@ const zhBase = {
         selectStatus: '选择状态',
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
-        rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效'
+        rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效',
+        downstreamUsageTokenMode: '下游 Usage Token',
+        downstreamUsageTokenModeHint: '默认返回真实 token；选择展示 token 时，仅 Claude/Antigravity 响应会按展示价重写 usage',
+        downstreamUsageTokenModeOptions: {
+          real: '真实 token',
+          display: '展示 token'
+        }
       },
       adjustBalance: '调整余额',
       adjustConcurrency: '调整并发数',

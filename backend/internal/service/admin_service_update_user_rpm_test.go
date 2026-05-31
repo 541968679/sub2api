@@ -67,3 +67,61 @@ func TestAdminService_UpdateUser_NoInvalidateWhenRPMLimitUnchanged(t *testing.T)
 	require.NoError(t, err)
 	require.Empty(t, invalidator.userIDs, "只改 username 不应触发认证缓存失效")
 }
+
+func TestAdminService_UpdateUser_InvalidatesAuthCacheOnDownstreamUsageTokenModeChange(t *testing.T) {
+	base := &userRepoStub{user: &User{ID: 42, Email: "u@example.com", DownstreamUsageTokenMode: DownstreamUsageTokenModeReal}}
+	repo := &rpmUserRepoStub{userRepoStub: base}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{
+		userRepo:             repo,
+		redeemCodeRepo:       &redeemRepoStub{},
+		authCacheInvalidator: invalidator,
+	}
+
+	mode := DownstreamUsageTokenModeDisplay
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{
+		DownstreamUsageTokenMode: &mode,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Equal(t, DownstreamUsageTokenModeDisplay, updated.DownstreamUsageTokenMode)
+	require.Equal(t, []int64{42}, invalidator.userIDs)
+}
+
+func TestAdminService_UpdateUser_RejectsInvalidDownstreamUsageTokenMode(t *testing.T) {
+	base := &userRepoStub{user: &User{ID: 42, Email: "u@example.com", DownstreamUsageTokenMode: DownstreamUsageTokenModeReal}}
+	repo := &rpmUserRepoStub{userRepoStub: base}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{
+		userRepo:             repo,
+		redeemCodeRepo:       &redeemRepoStub{},
+		authCacheInvalidator: invalidator,
+	}
+
+	mode := "invalid"
+	_, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{
+		DownstreamUsageTokenMode: &mode,
+	})
+	require.Error(t, err)
+	require.Nil(t, repo.lastUpdated)
+	require.Empty(t, invalidator.userIDs)
+}
+
+func TestAdminService_CreateUser_DefaultsDownstreamUsageTokenModeReal(t *testing.T) {
+	repo := &userRepoStub{nextID: 101}
+	svc := &adminServiceImpl{
+		userRepo: repo,
+	}
+
+	created, err := svc.CreateUser(context.Background(), &CreateUserInput{
+		Email:       "new@example.com",
+		Password:    "secret123",
+		Username:    "new",
+		Concurrency: 1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	require.Equal(t, DownstreamUsageTokenModeReal, created.DownstreamUsageTokenMode)
+	require.Len(t, repo.created, 1)
+	require.Equal(t, DownstreamUsageTokenModeReal, repo.created[0].DownstreamUsageTokenMode)
+}

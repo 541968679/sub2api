@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"math"
 	"strings"
 
@@ -18,13 +19,29 @@ type DisplayTokenMultipliers struct {
 	CacheCreateMult float64
 }
 
+type displayTokenPricingConfig struct {
+	InputPrice            float64
+	OutputPrice           float64
+	CacheReadPrice        float64
+	DisplayInputPrice     *float64
+	DisplayOutputPrice    *float64
+	DisplayCacheReadPrice *float64
+}
+
 func (m *DisplayTokenMultipliers) IsNonTrivial() bool {
 	return m.InputMult != 1.0 || m.OutputMult != 1.0 || m.CacheReadMult != 1.0 || m.CacheCreateMult != 1.0
 }
 
 func SetDisplayTokenMultipliers(c *gin.Context, m *DisplayTokenMultipliers) {
+	if c == nil {
+		return
+	}
 	if m != nil && m.IsNonTrivial() {
 		c.Set(displayTokenMultipliersKey, m)
+		return
+	}
+	if c.Keys != nil {
+		delete(c.Keys, displayTokenMultipliersKey)
 	}
 }
 
@@ -40,11 +57,41 @@ func getDisplayTokenMultipliers(c *gin.Context) *DisplayTokenMultipliers {
 	return m
 }
 
+func (s *GatewayService) MaybeSetDisplayTokenMultipliers(ctx context.Context, c *gin.Context, apiKey *APIKey, account *Account, model string) {
+	if s == nil || apiKey == nil || apiKey.User == nil || account == nil {
+		return
+	}
+	if NormalizeDownstreamUsageTokenMode(apiKey.User.DownstreamUsageTokenMode) != DownstreamUsageTokenModeDisplay {
+		return
+	}
+
+	userID := apiKey.User.ID
+	if userID == 0 {
+		userID = apiKey.UserID
+	}
+	accountRateMultiplier := account.BillingRateMultiplier()
+	rateMultiplier := 1.0
+	displayRateMultiplier := 1.0
+	var groupID *int64
+	if apiKey.GroupID != nil && *apiKey.GroupID > 0 {
+		groupID = apiKey.GroupID
+		if apiKey.Group != nil {
+			rateMultiplier = s.GetUserGroupRateMultiplier(ctx, userID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+			displayRateMultiplier = s.GetUserGroupDisplayRateMultiplier(ctx, userID, *apiKey.GroupID, rateMultiplier)
+		}
+	}
+
+	mult := s.ComputeDisplayTokenMultipliers(ctx, model, userID, groupID, accountRateMultiplier, rateMultiplier, displayRateMultiplier)
+	SetDisplayTokenMultipliers(c, mult)
+}
+
 // ComputeDisplayTokenMultipliers computes effective per-token-type multipliers
 // that replicate the admin panel's display transform chain.
 func (s *GatewayService) ComputeDisplayTokenMultipliers(
-	c *gin.Context,
+	ctx context.Context,
 	model string,
+	userID int64,
+	groupID *int64,
 	accountRateMultiplier float64,
 	rateMultiplier float64,
 	displayRateMultiplier float64,
@@ -57,43 +104,11 @@ func (s *GatewayService) ComputeDisplayTokenMultipliers(
 	}
 
 	// Layer 1: display pricing (real_price * account_rate / display_price)
-	if s.resolver != nil && s.resolver.globalPricingCache != nil {
-		pricing := s.resolver.globalPricingCache.Get(model)
-		if pricing != nil {
-			if pricing.InputPrice != nil && *pricing.InputPrice > 0 &&
-				pricing.DisplayInputPrice != nil && *pricing.DisplayInputPrice > 0 {
-				mult.InputMult = (*pricing.InputPrice * accountRateMultiplier) / *pricing.DisplayInputPrice
-			} else {
-				mult.InputMult = accountRateMultiplier
-			}
-
-			if pricing.OutputPrice != nil && *pricing.OutputPrice > 0 &&
-				pricing.DisplayOutputPrice != nil && *pricing.DisplayOutputPrice > 0 {
-				mult.OutputMult = (*pricing.OutputPrice * accountRateMultiplier) / *pricing.DisplayOutputPrice
-			} else {
-				mult.OutputMult = accountRateMultiplier
-			}
-
-			if pricing.CacheReadPrice != nil && *pricing.CacheReadPrice > 0 &&
-				pricing.DisplayCacheReadPrice != nil && *pricing.DisplayCacheReadPrice > 0 {
-				mult.CacheReadMult = (*pricing.CacheReadPrice * accountRateMultiplier) / *pricing.DisplayCacheReadPrice
-			} else {
-				mult.CacheReadMult = accountRateMultiplier
-			}
-
-			mult.CacheCreateMult = accountRateMultiplier
-		} else {
-			mult.InputMult = accountRateMultiplier
-			mult.OutputMult = accountRateMultiplier
-			mult.CacheReadMult = accountRateMultiplier
-			mult.CacheCreateMult = accountRateMultiplier
-		}
-	} else {
-		mult.InputMult = accountRateMultiplier
-		mult.OutputMult = accountRateMultiplier
-		mult.CacheReadMult = accountRateMultiplier
-		mult.CacheCreateMult = accountRateMultiplier
-	}
+	pricing := s.resolveDisplayTokenPricing(ctx, model, userID, groupID)
+	mult.InputMult = displayTokenMultiplier(pricing.InputPrice, pricing.DisplayInputPrice, accountRateMultiplier)
+	mult.OutputMult = displayTokenMultiplier(pricing.OutputPrice, pricing.DisplayOutputPrice, accountRateMultiplier)
+	mult.CacheReadMult = displayTokenMultiplier(pricing.CacheReadPrice, pricing.DisplayCacheReadPrice, accountRateMultiplier)
+	mult.CacheCreateMult = accountRateMultiplier
 
 	// Layer 2: user group display rate (rate_multiplier / display_rate_multiplier)
 	if displayRateMultiplier > 0 && displayRateMultiplier != rateMultiplier {
@@ -105,6 +120,95 @@ func (s *GatewayService) ComputeDisplayTokenMultipliers(
 	}
 
 	return mult
+}
+
+func (s *GatewayService) resolveDisplayTokenPricing(ctx context.Context, model string, userID int64, groupID *int64) displayTokenPricingConfig {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var cfg displayTokenPricingConfig
+	if s == nil {
+		return cfg
+	}
+
+	var userIDPtr *int64
+	if userID > 0 {
+		userIDPtr = &userID
+	}
+	if s.resolver != nil {
+		resolved := s.resolver.Resolve(ctx, PricingInput{Model: model, GroupID: groupID, UserID: userIDPtr})
+		if resolved != nil && resolved.BasePricing != nil {
+			cfg.InputPrice = resolved.BasePricing.InputPricePerToken
+			cfg.OutputPrice = resolved.BasePricing.OutputPricePerToken
+			cfg.CacheReadPrice = resolved.BasePricing.CacheReadPricePerToken
+		}
+		if s.resolver.globalPricingCache != nil {
+			if gp := s.resolver.globalPricingCache.Get(model); gp != nil {
+				mergeGlobalDisplayTokenPricing(&cfg, gp)
+			}
+		}
+		if userID > 0 && s.resolver.userModelPricingRepo != nil {
+			if override, err := s.resolver.userModelPricingRepo.GetByUserAndModel(ctx, userID, model); err == nil && override != nil && override.Enabled {
+				mergeUserDisplayTokenPricing(&cfg, override)
+			}
+		}
+	}
+	return cfg
+}
+
+func mergeGlobalDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *GlobalModelPricing) {
+	if cfg == nil || pricing == nil {
+		return
+	}
+	if cfg.InputPrice <= 0 && pricing.InputPrice != nil {
+		cfg.InputPrice = *pricing.InputPrice
+	}
+	if cfg.OutputPrice <= 0 && pricing.OutputPrice != nil {
+		cfg.OutputPrice = *pricing.OutputPrice
+	}
+	if cfg.CacheReadPrice <= 0 && pricing.CacheReadPrice != nil {
+		cfg.CacheReadPrice = *pricing.CacheReadPrice
+	}
+	if pricing.DisplayInputPrice != nil {
+		cfg.DisplayInputPrice = pricing.DisplayInputPrice
+	}
+	if pricing.DisplayOutputPrice != nil {
+		cfg.DisplayOutputPrice = pricing.DisplayOutputPrice
+	}
+	if pricing.DisplayCacheReadPrice != nil {
+		cfg.DisplayCacheReadPrice = pricing.DisplayCacheReadPrice
+	}
+}
+
+func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserModelPricingOverride) {
+	if cfg == nil || pricing == nil {
+		return
+	}
+	if cfg.InputPrice <= 0 && pricing.InputPrice != nil {
+		cfg.InputPrice = *pricing.InputPrice
+	}
+	if cfg.OutputPrice <= 0 && pricing.OutputPrice != nil {
+		cfg.OutputPrice = *pricing.OutputPrice
+	}
+	if cfg.CacheReadPrice <= 0 && pricing.CacheReadPrice != nil {
+		cfg.CacheReadPrice = *pricing.CacheReadPrice
+	}
+	if pricing.DisplayInputPrice != nil {
+		cfg.DisplayInputPrice = pricing.DisplayInputPrice
+	}
+	if pricing.DisplayOutputPrice != nil {
+		cfg.DisplayOutputPrice = pricing.DisplayOutputPrice
+	}
+	if pricing.DisplayCacheReadPrice != nil {
+		cfg.DisplayCacheReadPrice = pricing.DisplayCacheReadPrice
+	}
+}
+
+func displayTokenMultiplier(realPrice float64, displayPrice *float64, accountRateMultiplier float64) float64 {
+	if realPrice > 0 && displayPrice != nil && *displayPrice > 0 {
+		return (realPrice * accountRateMultiplier) / *displayPrice
+	}
+	return accountRateMultiplier
 }
 
 // RewriteSSEUsageTokens rewrites token fields in a Claude SSE data line.

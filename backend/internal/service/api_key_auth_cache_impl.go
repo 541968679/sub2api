@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 7 // v7: added UserGroupRPMOverride on user snapshot
+const apiKeyAuthSnapshotVersion = 8 // v8: added DownstreamUsageTokenMode on user snapshot
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -225,6 +225,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			Role:                       apiKey.User.Role,
 			Balance:                    apiKey.User.Balance,
 			Concurrency:                apiKey.User.Concurrency,
+			DownstreamUsageTokenMode:   NormalizeDownstreamUsageTokenMode(apiKey.User.DownstreamUsageTokenMode),
 			Email:                      apiKey.User.Email,
 			Username:                   apiKey.User.Username,
 			BalanceNotifyEnabled:       apiKey.User.BalanceNotifyEnabled,
@@ -298,6 +299,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Role:                       snapshot.User.Role,
 			Balance:                    snapshot.User.Balance,
 			Concurrency:                snapshot.User.Concurrency,
+			DownstreamUsageTokenMode:   NormalizeDownstreamUsageTokenMode(snapshot.User.DownstreamUsageTokenMode),
 			Email:                      snapshot.User.Email,
 			Username:                   snapshot.User.Username,
 			BalanceNotifyEnabled:       snapshot.User.BalanceNotifyEnabled,

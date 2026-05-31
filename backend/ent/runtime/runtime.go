@@ -1868,6 +1868,26 @@ func init() {
 	userDescRpmLimit := userFields[19].Descriptor()
 	// user.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	user.DefaultRpmLimit = userDescRpmLimit.Default.(int)
+	// userDescDownstreamUsageTokenMode is the schema descriptor for downstream_usage_token_mode field.
+	userDescDownstreamUsageTokenMode := userFields[20].Descriptor()
+	// user.DefaultDownstreamUsageTokenMode holds the default value on creation for the downstream_usage_token_mode field.
+	user.DefaultDownstreamUsageTokenMode = userDescDownstreamUsageTokenMode.Default.(string)
+	// user.DownstreamUsageTokenModeValidator is a validator for the "downstream_usage_token_mode" field. It is called by the builders before save.
+	user.DownstreamUsageTokenModeValidator = func() func(string) error {
+		validators := userDescDownstreamUsageTokenMode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(downstream_usage_token_mode string) error {
+			for _, fn := range fns {
+				if err := fn(downstream_usage_token_mode); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()
 	_ = userallowedgroupFields
 	// userallowedgroupDescCreatedAt is the schema descriptor for created_at field.

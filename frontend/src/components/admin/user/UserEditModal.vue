@@ -49,6 +49,14 @@
         />
         <p class="input-hint">{{ t('admin.users.form.rpmLimitHint') }}</p>
       </div>
+      <div>
+        <label class="input-label">{{ t('admin.users.form.downstreamUsageTokenMode') }}</label>
+        <select v-model="form.downstream_usage_token_mode" class="input">
+          <option value="real">{{ t('admin.users.form.downstreamUsageTokenModeOptions.real') }}</option>
+          <option value="display">{{ t('admin.users.form.downstreamUsageTokenModeOptions.display') }}</option>
+        </select>
+        <p class="input-hint">{{ t('admin.users.form.downstreamUsageTokenModeHint') }}</p>
+      </div>
       <UserAttributeForm v-model="form.customAttributes" :user-id="user?.id" />
     </form>
     <template #footer>
@@ -68,7 +76,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, UserAttributeValuesMap } from '@/types'
+import type { AdminUser, DownstreamUsageTokenMode, UserAttributeValuesMap } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import UserAttributeForm from '@/components/user/UserAttributeForm.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -78,11 +86,29 @@ const emit = defineEmits(['close', 'success'])
 const { t } = useI18n(); const appStore = useAppStore(); const { copyToClipboard } = useClipboard()
 
 const submitting = ref(false); const passwordCopied = ref(false)
-const form = reactive({ email: '', password: '', username: '', notes: '', concurrency: 1, rpm_limit: 0, customAttributes: {} as UserAttributeValuesMap })
+const form = reactive({
+  email: '',
+  password: '',
+  username: '',
+  notes: '',
+  concurrency: 1,
+  rpm_limit: 0,
+  downstream_usage_token_mode: 'real' as DownstreamUsageTokenMode,
+  customAttributes: {} as UserAttributeValuesMap
+})
 
 watch(() => props.user, (u) => {
   if (u) {
-    Object.assign(form, { email: u.email, password: '', username: u.username || '', notes: u.notes || '', concurrency: u.concurrency, rpm_limit: u.rpm_limit ?? 0, customAttributes: {} })
+    Object.assign(form, {
+      email: u.email,
+      password: '',
+      username: u.username || '',
+      notes: u.notes || '',
+      concurrency: u.concurrency,
+      rpm_limit: u.rpm_limit ?? 0,
+      downstream_usage_token_mode: u.downstream_usage_token_mode ?? 'real',
+      customAttributes: {}
+    })
     passwordCopied.value = false
   }
 }, { immediate: true })
@@ -109,7 +135,14 @@ const handleUpdateUser = async () => {
   }
   submitting.value = true
   try {
-    const data: any = { email: form.email, username: form.username, notes: form.notes, concurrency: form.concurrency, rpm_limit: form.rpm_limit }
+    const data: any = {
+      email: form.email,
+      username: form.username,
+      notes: form.notes,
+      concurrency: form.concurrency,
+      rpm_limit: form.rpm_limit,
+      downstream_usage_token_mode: form.downstream_usage_token_mode
+    }
     if (form.password.trim()) data.password = form.password.trim()
     await adminAPI.users.update(props.user.id, data)
     if (Object.keys(form.customAttributes).length > 0) await adminAPI.userAttributes.updateUserAttributeValues(props.user.id, form.customAttributes)

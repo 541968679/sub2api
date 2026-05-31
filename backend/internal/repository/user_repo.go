@@ -93,6 +93,7 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetSignupSource(userSignupSourceOrDefault(userIn.SignupSource)).
 		SetNillableLastLoginAt(userIn.LastLoginAt).
 		SetNillableLastActiveAt(userIn.LastActiveAt).
+		SetDownstreamUsageTokenMode(service.NormalizeDownstreamUsageTokenMode(userIn.DownstreamUsageTokenMode)).
 		SetRpmLimit(userIn.RPMLimit).
 		Save(txCtx)
 	if err != nil {
@@ -222,6 +223,7 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold).
 		SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails)).
 		SetTotalRecharged(userIn.TotalRecharged).
+		SetDownstreamUsageTokenMode(service.NormalizeDownstreamUsageTokenMode(userIn.DownstreamUsageTokenMode)).
 		SetRpmLimit(userIn.RPMLimit)
 	if userIn.SignupSource != "" {
 		updateOp = updateOp.SetSignupSource(userIn.SignupSource)
@@ -919,6 +921,7 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
+	dst.DownstreamUsageTokenMode = service.NormalizeDownstreamUsageTokenMode(src.DownstreamUsageTokenMode)
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
 }

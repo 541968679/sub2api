@@ -1,10 +1,34 @@
 package service
 
 import (
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+const (
+	DownstreamUsageTokenModeReal    = "real"
+	DownstreamUsageTokenModeDisplay = "display"
+)
+
+func NormalizeDownstreamUsageTokenMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case DownstreamUsageTokenModeDisplay:
+		return DownstreamUsageTokenModeDisplay
+	default:
+		return DownstreamUsageTokenModeReal
+	}
+}
+
+func IsValidDownstreamUsageTokenMode(mode string) bool {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case DownstreamUsageTokenModeReal, DownstreamUsageTokenModeDisplay:
+		return true
+	default:
+		return false
+	}
+}
 
 type User struct {
 	ID             int64
@@ -61,6 +85,8 @@ type User struct {
 	// nil = 该 API Key 对应的 (user, group) 无 override；非 nil 时 checkRPM 直接使用，
 	// 避免每请求查 DB。字段不持久化到数据库。
 	UserGroupRPMOverride *int
+
+	DownstreamUsageTokenMode string
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription

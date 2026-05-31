@@ -271,6 +271,83 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 	require.Equal(t, apiKey.Group.MessagesDispatchModelConfig, roundTrip.Group.MessagesDispatchModelConfig)
 }
 
+func TestAPIKeyService_AuthCacheSnapshotRoundTripPreservesDownstreamUsageTokenMode(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	apiKey := &APIKey{
+		ID:     1,
+		UserID: 2,
+		Key:    "k-downstream-mode",
+		Status: StatusActive,
+		User: &User{
+			ID:                       2,
+			Status:                   StatusActive,
+			Role:                     RoleUser,
+			Balance:                  10,
+			Concurrency:              3,
+			DownstreamUsageTokenMode: DownstreamUsageTokenModeDisplay,
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+
+	require.NotNil(t, roundTrip)
+	require.NotNil(t, roundTrip.User)
+	require.Equal(t, DownstreamUsageTokenModeDisplay, roundTrip.User.DownstreamUsageTokenMode)
+}
+
+func TestAPIKeyService_AuthCacheIgnoresLegacySnapshotVersion(t *testing.T) {
+	cache := &authCacheStub{}
+	var repoCalls int32
+	repo := &authRepoStub{
+		getByKeyForAuth: func(ctx context.Context, key string) (*APIKey, error) {
+			atomic.AddInt32(&repoCalls, 1)
+			return &APIKey{
+				ID:     1,
+				UserID: 2,
+				Status: StatusActive,
+				User: &User{
+					ID:                       2,
+					Status:                   StatusActive,
+					Role:                     RoleUser,
+					Balance:                  10,
+					Concurrency:              3,
+					DownstreamUsageTokenMode: DownstreamUsageTokenModeDisplay,
+				},
+			}, nil
+		},
+	}
+	cfg := &config.Config{
+		APIKeyAuth: config.APIKeyAuthCacheConfig{
+			L2TTLSeconds: 60,
+		},
+	}
+	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
+		return &APIKeyAuthCacheEntry{
+			Snapshot: &APIKeyAuthSnapshot{
+				Version:  apiKeyAuthSnapshotVersion - 1,
+				APIKeyID: 1,
+				UserID:   2,
+				Status:   StatusActive,
+				User: APIKeyAuthUserSnapshot{
+					ID:          2,
+					Status:      StatusActive,
+					Role:        RoleUser,
+					Balance:     10,
+					Concurrency: 3,
+				},
+			},
+		}, nil
+	}
+
+	apiKey, err := svc.GetByKey(context.Background(), "k-legacy-downstream-mode")
+	require.NoError(t, err)
+	require.Equal(t, int32(1), atomic.LoadInt32(&repoCalls))
+	require.NotNil(t, apiKey.User)
+	require.Equal(t, DownstreamUsageTokenModeDisplay, apiKey.User.DownstreamUsageTokenMode)
+}
+
 func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDispatchConfig(t *testing.T) {
 	cache := &authCacheStub{}
 	var repoCalls int32

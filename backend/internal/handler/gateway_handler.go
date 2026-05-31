@@ -738,6 +738,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				body = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 			}
 
+			h.gatewayService.MaybeSetDisplayTokenMultipliers(c.Request.Context(), c, currentAPIKey, account, reqModel)
+
 			// 转发请求 - 根据账号平台分流
 			c.Set("parsed_request", parsedReq)
 			var result *service.ForwardResult

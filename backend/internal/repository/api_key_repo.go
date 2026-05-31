@@ -154,6 +154,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				user.FieldLastLoginAt,
 				user.FieldLastActiveAt,
 				user.FieldRpmLimit,
+				user.FieldDownstreamUsageTokenMode,
 			)
 		}).
 		WithGroup(func(q *dbent.GroupQuery) {
@@ -673,6 +674,7 @@ func userEntityToService(u *dbent.User) *service.User {
 		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
 		TotalRecharged:             u.TotalRecharged,
 		RPMLimit:                   u.RpmLimit,
+		DownstreamUsageTokenMode:   service.NormalizeDownstreamUsageTokenMode(u.DownstreamUsageTokenMode),
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
 	}

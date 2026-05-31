@@ -112,6 +112,17 @@ func (User) Fields() []ent.Field {
 		// 用户级每分钟请求数上限（0 = 不限制）。仅当所在分组未设置 rpm_limit 时作为兜底生效。
 		field.Int("rpm_limit").
 			Default(0),
+		field.String("downstream_usage_token_mode").
+			MaxLen(20).
+			Default("real").
+			Validate(func(value string) error {
+				switch value {
+				case "real", "display":
+					return nil
+				default:
+					return fmt.Errorf("must be one of real, display")
+				}
+			}),
 	}
 }
 

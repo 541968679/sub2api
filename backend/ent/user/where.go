@@ -170,6 +170,11 @@ func RpmLimit(v int) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRpmLimit, v))
 }
 
+// DownstreamUsageTokenMode applies equality check predicate on the "downstream_usage_token_mode" field. It's identical to DownstreamUsageTokenModeEQ.
+func DownstreamUsageTokenMode(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDownstreamUsageTokenMode, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1338,6 +1343,71 @@ func RpmLimitLT(v int) predicate.User {
 // RpmLimitLTE applies the LTE predicate on the "rpm_limit" field.
 func RpmLimitLTE(v int) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldRpmLimit, v))
+}
+
+// DownstreamUsageTokenModeEQ applies the EQ predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeNEQ applies the NEQ predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeIn applies the In predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldDownstreamUsageTokenMode, vs...))
+}
+
+// DownstreamUsageTokenModeNotIn applies the NotIn predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldDownstreamUsageTokenMode, vs...))
+}
+
+// DownstreamUsageTokenModeGT applies the GT predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeGTE applies the GTE predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeLT applies the LT predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeLTE applies the LTE predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeContains applies the Contains predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeHasPrefix applies the HasPrefix predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeHasSuffix applies the HasSuffix predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeEqualFold applies the EqualFold predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldDownstreamUsageTokenMode, v))
+}
+
+// DownstreamUsageTokenModeContainsFold applies the ContainsFold predicate on the "downstream_usage_token_mode" field.
+func DownstreamUsageTokenModeContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldDownstreamUsageTokenMode, v))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.
