@@ -465,13 +465,12 @@ func normalizeCodexModel(model string) string {
 		return model
 	}
 
-	modelID := model
-	if strings.Contains(modelID, "/") {
-		parts := strings.Split(modelID, "/")
-		modelID = parts[len(parts)-1]
-	}
+	modelID := lastOpenAIModelSegment(model)
 
-	if mapped := getNormalizedCodexModel(modelID); mapped != "" {
+	if normalized := canonicalizeOpenAIModelAliasSpelling(modelID); normalized != "" {
+		modelID = normalized
+	}
+	if mapped := normalizeKnownOpenAICodexModel(modelID); mapped != "" {
 		return mapped
 	}
 
@@ -806,15 +805,16 @@ func SupportsVerbosity(model string) bool {
 }
 
 func getNormalizedCodexModel(modelID string) string {
+	modelID = strings.TrimSpace(modelID)
 	if modelID == "" {
 		return ""
 	}
-	if mapped, ok := codexModelMap[modelID]; ok {
+	key := strings.ToLower(strings.Join(strings.Fields(modelID), "-"))
+	if mapped, ok := codexModelMap[key]; ok {
 		return mapped
 	}
-	lower := strings.ToLower(modelID)
 	for key, value := range codexModelMap {
-		if strings.ToLower(key) == lower {
+		if strings.ToLower(key) == strings.ToLower(modelID) {
 			return value
 		}
 	}

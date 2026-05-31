@@ -2018,6 +2018,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Preserved `wechat_resume_token` on the fallback request so OAuth callback orders keep their original amount, order type, and plan context.
 - Added frontend and backend regression coverage for the WeChat mobile fallback request shape and force-native normalization.
 
+## [2026-05-31] fix: canonicalize OpenAI compact model aliases before billing
+
+**Affected files**: backend/internal/service/openai_model_alias.go, backend/internal/service/openai_codex_transform.go, backend/internal/service/pricing_service.go, backend/internal/service/billing_service.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/pricing_service_test.go, backend/internal/service/billing_service_test.go
+**Upstream compatibility**: minimal upstream alias-normalization backport; low risk, pricing/billing lookup only
+**Change details**:
+- Added shared OpenAI/Codex model alias canonicalization so compact or namespaced spellings such as `gpt5.5` and `openai/gpt5.5` resolve to `gpt-5.5` before transform, static pricing, and billing fallback lookup.
+- Preserved local GPT-5.5 Pro pricing by resolving `gpt5.5-pro` to `gpt-5.5-pro` before the generic GPT-5.5 fallback.
+- Added unit coverage for compact GPT-5.5, GPT-5.4, and GPT-5.3 Codex aliases plus pricing fallback behavior.
+- Verification: targeted service tests pass; full `go test -tags=unit ./...` still fails in pre-existing server constructor, admin handler, and Antigravity mapping tests unrelated to this patch.
+
 ## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
 
 **Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
