@@ -8,13 +8,15 @@
 #   - Auto-rolls back if health check fails after deploy
 #   - Logs everything to /opt/sub2api/deploy.log
 #   - Safe against SSH disconnections (use with: nohup bash update.sh &)
-#   - Also updates AIClient2API sidecar by pulling its CI-built image
+#   - Also updates sidecars by pulling their CI-built images
 #
 # Usage:
-#   bash /opt/sub2api/update.sh              # normal deploy (both sub2api and aiclient2api if present)
+#   bash /opt/sub2api/update.sh              # normal deploy (sub2api plus sidecars if present)
 #   bash /opt/sub2api/update.sh --rollback   # rollback sub2api to previous version
-#   bash /opt/sub2api/update.sh --skip-a2    # deploy sub2api only, skip aiclient2api
+#   bash /opt/sub2api/update.sh --skip-a2    # deploy sub2api + invokeai, skip aiclient2api
+#   bash /opt/sub2api/update.sh --skip-invokeai # deploy sub2api + aiclient2api, skip invokeai
 #   bash /opt/sub2api/update.sh --only-a2    # deploy aiclient2api only
+#   bash /opt/sub2api/update.sh --only-invokeai # deploy invokeai only
 # =============================================================================
 
 set -euo pipefail
@@ -34,6 +36,9 @@ DOCKER_BUILD_CACHE_MAX_AGE="${DOCKER_BUILD_CACHE_MAX_AGE:-24h}"
 
 # AIClient2API sidecar image. Built by AIClient2API GitHub Actions and pulled here.
 A2_IMAGE_NAME="${AICLIENT2API_IMAGE:-ghcr.io/541968679/aiclient2api:latest}"
+
+# InvokeAI sidecar image. Built by InvokeAI GitHub Actions with GPU_DRIVER=cpu and pulled here.
+INVOKEAI_IMAGE_NAME="${INVOKEAI_IMAGE:-ghcr.io/541968679/invokeai-sub2api:latest}"
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -226,19 +231,87 @@ do_deploy_a2() {
     log "=============================================="
 }
 
+do_deploy_invokeai() {
+    log "=============================================="
+    log "=== Starting InvokeAI deployment ==="
+    log "=============================================="
+
+    cd "$COMPOSE_DIR"
+
+    mkdir -p /opt/invokeai/root
+
+    log "--- Pulling InvokeAI image: $INVOKEAI_IMAGE_NAME ---"
+    if ! docker compose pull invokeai 2>&1 | tee -a "$LOG_FILE"; then
+        log "ERROR: InvokeAI image pull failed! Sidecar unchanged, sub2api unaffected."
+        return 1
+    fi
+
+    log "--- Restarting invokeai container ---"
+    docker compose up -d invokeai 2>&1 | tee -a "$LOG_FILE"
+
+    sleep 10
+    if docker compose ps invokeai | grep -q "Up"; then
+        log "=== InvokeAI deployment successful ==="
+    else
+        log "ERROR: InvokeAI container did not reach Up state. Check: docker compose logs invokeai"
+        return 1
+    fi
+
+    log "=============================================="
+    log "=== InvokeAI Done ==="
+    log "=============================================="
+}
+
 # --- Main ---
-case "${1:-}" in
-    --rollback)
-        do_rollback
-        ;;
-    --only-a2)
-        do_deploy_a2
-        ;;
-    --skip-a2)
-        do_deploy
-        ;;
-    *)
-        do_deploy
+DEPLOY_SUB2API=true
+DEPLOY_A2=true
+DEPLOY_INVOKEAI=true
+
+for arg in "$@"; do
+    case "$arg" in
+        --rollback)
+            do_rollback
+            exit $?
+            ;;
+        --only-a2)
+            DEPLOY_SUB2API=false
+            DEPLOY_A2=true
+            DEPLOY_INVOKEAI=false
+            ;;
+        --only-invokeai)
+            DEPLOY_SUB2API=false
+            DEPLOY_A2=false
+            DEPLOY_INVOKEAI=true
+            ;;
+        --skip-a2)
+            DEPLOY_A2=false
+            ;;
+        --skip-invokeai)
+            DEPLOY_INVOKEAI=false
+            ;;
+        *)
+            log "ERROR: Unknown argument: $arg"
+            exit 2
+            ;;
+    esac
+done
+
+if [ "$DEPLOY_SUB2API" = true ]; then
+    do_deploy
+fi
+
+if [ "$DEPLOY_A2" = true ]; then
+    if [ "$DEPLOY_SUB2API" = true ]; then
         do_deploy_a2 || log "WARN: AIClient2API deploy failed but sub2api is running"
-        ;;
-esac
+    else
+        do_deploy_a2
+    fi
+fi
+
+if [ "$DEPLOY_INVOKEAI" = true ]; then
+    if [ "$DEPLOY_SUB2API" = true ]; then
+        do_deploy_invokeai || log "WARN: InvokeAI deploy failed but sub2api is running"
+    else
+        do_deploy_invokeai
+    fi
+fi

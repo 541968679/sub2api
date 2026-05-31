@@ -10,7 +10,7 @@
 
 ### 1.1 本项目生产环境速查
 
-生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`。
+生产服务器与常用部署入口记录在这里，避免只留在聊天记录中。更完整的 Kiro/AIClient2API 侧车说明见 `docs/dev/KIRO_PROXY.md`；InvokeAI 侧车说明见 `docs/dev/INVOKEAI_SIDECAR.md`。
 
 | 项目 | 值 |
 |------|----|
@@ -21,6 +21,9 @@
 | AIClient2API 镜像 | `ghcr.io/541968679/aiclient2api:latest` |
 | AIClient2API 镜像覆盖变量 | `AICLIENT2API_IMAGE` |
 | AIClient2API 配置目录 | `/opt/aiclient2api/configs` |
+| InvokeAI 镜像 | `ghcr.io/541968679/invokeai-sub2api:latest` |
+| InvokeAI 镜像覆盖变量 | `INVOKEAI_IMAGE` |
+| InvokeAI 数据目录 | `/opt/invokeai/root` |
 | 部署日志 | `/opt/sub2api/deploy.log` |
 
 常用命令：
@@ -29,11 +32,14 @@
 # 只部署 AIClient2API 侧车
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --only-a2"
 
-# 完整部署 Sub2API + AIClient2API
+# 只部署 InvokeAI 侧车
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --only-invokeai"
+
+# 完整部署 Sub2API + AIClient2API + InvokeAI
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
 
-# 只部署 Sub2API，跳过 AIClient2API
-ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --skip-a2"
+# 只部署 Sub2API，跳过两个侧车
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai"
 ```
 
 部署后核对：
@@ -41,6 +47,7 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/upda
 ```powershell
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose ps"
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose logs --tail=120 aiclient2api"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose logs --tail=120 invokeai"
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2api/deploy.log"
 ```
 
@@ -49,6 +56,9 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 - 生产 AIClient2API 是 sub2api Compose 中的侧车服务，服务名为 `aiclient2api`，宿主机仅绑定 `127.0.0.1:3000`。
 - Sub2API 内部访问 AIClient2API 使用 `http://aiclient2api:3000/claude-kiro-oauth`，不要改成本机公网地址。
 - AIClient2API 镜像由 GitHub Actions 构建并发布到 GHCR；`deploy/update.sh --only-a2` 只执行 `docker compose pull aiclient2api` 和重启。
+- 生产 InvokeAI 是 sub2api Compose 中的侧车服务，服务名为 `invokeai`，宿主机仅绑定 `127.0.0.1:9090`；公网访问必须通过 Caddy/Nginx 反代。
+- InvokeAI 镜像由 GitHub Actions 以 `GPU_DRIVER=cpu` 构建并发布到 GHCR；`deploy/update.sh --only-invokeai` 只执行 `docker compose pull invokeai` 和重启。
+- InvokeAI 只作为外部 API 生图客户端使用，生产配置必须保持 `INVOKEAI_DEVICE=cpu` 和 `INVOKEAI_PRECISION=float32`，不要引入本地模型/GPU 推理。
 - 如果 GHCR package 没有设为 Public，生产服务器需要先 `docker login ghcr.io`。
 - 不要把生产 API key、Web UI 密码、代理订阅等敏感信息写入本文档或提交到 Git。
 

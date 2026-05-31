@@ -227,6 +227,59 @@ services:
       start_period: 20s
 
   # ===========================================================================
+  # InvokeAI - external image generation UI/API sidecar
+  # ===========================================================================
+  # Built by GitHub Actions and published to GHCR. This deployment is strictly
+  # API-client-only: no local model/GPU inference is expected or supported.
+  #
+  # Host exposure is loopback-only. Put Caddy/Nginx in front of it when a public
+  # UI endpoint is needed, and keep Sub2API/internal callers on the docker
+  # network via hostname "invokeai:9090".
+  # ===========================================================================
+  invokeai:
+    image: ${INVOKEAI_IMAGE:-ghcr.io/541968679/invokeai-sub2api:latest}
+    container_name: invokeai
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    volumes:
+      # Runtime root: invokeai.yaml, database, outputs, user data.
+      # Prepare this directory on the host before first start.
+      - /opt/invokeai/root:/invokeai
+    ports:
+      - "127.0.0.1:${INVOKEAI_PORT:-9090}:9090"
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - INVOKEAI_ROOT=/invokeai
+      - INVOKEAI_HOST=0.0.0.0
+      - INVOKEAI_PORT=9090
+      - INVOKEAI_DEVICE=cpu
+      - INVOKEAI_PRECISION=float32
+      - INVOKEAI_MULTIUSER=${INVOKEAI_MULTIUSER:-true}
+      - INVOKEAI_STRICT_PASSWORD_CHECKING=${INVOKEAI_STRICT_PASSWORD_CHECKING:-true}
+      - INVOKEAI_BUILTIN_ADMIN_ENABLED=${INVOKEAI_BUILTIN_ADMIN_ENABLED:-true}
+      - INVOKEAI_BUILTIN_ADMIN_USERNAME=${INVOKEAI_BUILTIN_ADMIN_USERNAME:-admin}
+      - INVOKEAI_BUILTIN_ADMIN_PASSWORD=${INVOKEAI_BUILTIN_ADMIN_PASSWORD:-}
+      - INVOKEAI_SESSION_QUEUE_CONCURRENCY=${INVOKEAI_SESSION_QUEUE_CONCURRENCY:-4}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9090/api/v1/auth/status', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ===========================================================================
   # PostgreSQL Database
   # ===========================================================================
   postgres:
