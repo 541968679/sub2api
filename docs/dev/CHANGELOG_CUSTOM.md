@@ -29,6 +29,15 @@
 - Added InvokeAI sidecar environment examples and deployment documentation, including the API-client-only rule: no GPU/CUDA/local model inference in this deployment.
 - Added the InvokeAI GHCR workflow in the sibling InvokeAI repository; it builds `docker/Dockerfile` with `GPU_DRIVER=cpu` for `linux/amd64`.
 
+## [2026-05-31] ops: expose InvokeAI public debug endpoint
+
+**Affected files**: docs/dev/DEPLOYMENT.md, docs/dev/INVOKEAI_SIDECAR.md, production `/etc/caddy/Caddyfile`
+**Upstream compatibility**: ops-only; no Sub2API runtime code changes.
+**Change details**:
+- Added production Caddy vhost `invokeai.172.245.247.80.sslip.io` reverse-proxying to loopback-only InvokeAI at `127.0.0.1:9090`.
+- Verified public HTTPS access and `/api/v1/auth/status`; Caddy obtained a Let's Encrypt certificate automatically.
+- Documented the public debug URL without recording any InvokeAI admin password or API key.
+
 ## [2026-05-30] feat: enable InvokeAI API-only multi-image queue concurrency
 
 **Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\session_processor\session_processor_default.py`, `E:\cursor project\InvokeAI\invokeai\app\services\session_queue\session_queue_sqlite.py`, `E:\cursor project\InvokeAI\invokeai\app\services\session_queue\session_queue_base.py`, `E:\cursor project\InvokeAI\invokeai\app\services\session_processor\session_processor_common.py`, `E:\cursor project\InvokeAI\invokeai\app\services\config\config_default.py`, `E:\cursor project\InvokeAI\invokeai\app\api\dependencies.py`, `E:\cursor project\InvokeAI\invokeai\app\api\routers\session_queue.py`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\api\endpoints\queue.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\api\index.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\services\events\setEventListeners.tsx`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\queue\hooks\useCancelCurrentQueueItem.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\queue\hooks\useCurrentQueueItemDestination.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\queue\hooks\useCurrentQueueItemId.ts`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\layouts\DockviewTabCanvasViewer.tsx`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\layouts\DockviewTabCanvasWorkspace.tsx`, `E:\cursor project\InvokeAI\tests\app\services\test_session_processor_parallel.py`, `E:\cursor project\InvokeAI\tests\app\services\session_queue\test_session_queue_status_sequence.py`, `E:\cursor project\InvokeAI\tests\app\services\session_queue\test_session_queue_status_event_isolation.py`, `E:\cursor project\InvokeAI\tests\app\services\session_queue\test_session_queue_clear.py`, docs/dev/codebase/invokeai-poc.md, docs/dev/codebase/README.md

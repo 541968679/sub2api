@@ -24,6 +24,7 @@
 | InvokeAI 镜像 | `ghcr.io/541968679/invokeai-sub2api:latest` |
 | InvokeAI 镜像覆盖变量 | `INVOKEAI_IMAGE` |
 | InvokeAI 数据目录 | `/opt/invokeai/root` |
+| InvokeAI 公网调试入口 | `https://invokeai.172.245.247.80.sslip.io` |
 | 部署日志 | `/opt/sub2api/deploy.log` |
 
 常用命令：

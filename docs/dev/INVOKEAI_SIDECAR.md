@@ -42,6 +42,7 @@ This is intentional. This deployment is API-client-only and must not depend on C
 | Container root | `/invokeai` |
 | Host bind | `127.0.0.1:9090` |
 | Docker DNS | `http://invokeai:9090` |
+| Public debug URL | `https://invokeai.172.245.247.80.sslip.io` |
 | Health endpoint | `http://127.0.0.1:9090/api/v1/auth/status` |
 
 Required production `.env` entries:
@@ -96,6 +97,28 @@ docker login ghcr.io
 5. Run `bash /opt/sub2api/update.sh --only-invokeai`.
 6. Verify `docker compose ps invokeai` and the `/api/v1/auth/status` health endpoint.
 7. Add a Caddy/Nginx vhost only if a public Web UI endpoint is needed; keep the Docker service loopback-bound.
+
+## Public Debug Endpoint
+
+Current production Caddy vhost:
+
+```caddyfile
+invokeai.172.245.247.80.sslip.io {
+	encode zstd gzip
+
+	request_body {
+		max_size 256MB
+	}
+
+	reverse_proxy 127.0.0.1:9090 {
+		flush_interval -1
+	}
+}
+```
+
+This is a DNS-free debug domain backed by `sslip.io`. Replace it with a managed
+project domain, for example `invokeai.zerocode.kaynlab.com`, after the DNS A
+record points to `172.245.247.80`.
 
 ## Security Notes
 
