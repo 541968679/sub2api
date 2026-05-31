@@ -81,6 +81,11 @@ image generation:
 Do not include `/v1` in the Base URL. The InvokeAI OpenAI provider appends
 `/v1/images/generations` and `/v1/images/edits` internally.
 
+OpenAI GPT Image models in this sidecar support custom width and height values
+from InvokeAI's Dimensions controls. They do not use the external model
+resolution preset selector; that selector is reserved for providers whose model
+metadata declares fixed `aspect_ratio_sizes` or `resolution_presets`.
+
 ## Deployment Commands
 
 ```powershell

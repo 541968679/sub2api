@@ -130,6 +130,11 @@ Result: exit code `0`.
   fork. They are provided by `STARTER_MODELS` plus the OpenAI provider model
   set. `gpt-image-2` is supported by the fork as
   `external://openai/gpt-image-2`.
+- OpenAI GPT Image starter models intentionally do not declare
+  `aspect_ratio_sizes` or `resolution_presets`. That keeps InvokeAI's width and
+  height controls editable and prevents the external generation service from
+  bucketing custom Sub2API sizes back to preset resolutions. A `4096x4096`
+  `max_image_size` guard remains in place.
 - For Sub2API-backed OpenAI configuration in InvokeAI, set Base URL to the
   gateway origin, for example `https://zerocode.kaynlab.com`, without `/v1`.
   The InvokeAI provider appends `/v1/images/generations` and `/v1/images/edits`

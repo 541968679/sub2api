@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-31] fix: allow custom OpenAI image dimensions in InvokeAI sidecar
+
+**Affected files**: `E:\cursor project\InvokeAI\invokeai\backend\model_manager\starter_models.py`, `E:\cursor project\InvokeAI\tests\app\routers\test_model_manager.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_external_generation_service.py`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\controlLayers\store\paramsSlice.test.ts`, docs/dev/codebase/invokeai-poc.md, docs/dev/INVOKEAI_SIDECAR.md
+**Upstream compatibility**: InvokeAI fork-only external model metadata change; no Sub2API runtime or database behavior changes.
+**Change details**:
+- Removed fixed `aspect_ratio_sizes` / `allowed_aspect_ratios` presets from OpenAI GPT Image starter models so InvokeAI no longer locks width/height to preset resolutions in the advanced dimensions controls.
+- Added a `4096x4096` maximum image size guard for OpenAI GPT Image starter models while preserving custom width/height passthrough to Sub2API.
+- Kept fixed preset behavior for other external providers such as Gemini, Seedream, Qwen, and DALL-E where model metadata still declares presets.
+- Verified backend and frontend regression coverage: `32 passed, 2 warnings in 12.32s`; `9 passed` for `paramsSlice.test.ts`.
+
 ## [2026-05-31] feat: add gpt-image-2 starter model to InvokeAI sidecar
 
 **Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\external_generation\providers\openai.py`, `E:\cursor project\InvokeAI\invokeai\backend\model_manager\starter_models.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_external_provider_adapters.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_startup.py`, docs/dev/codebase/invokeai-poc.md, docs/dev/INVOKEAI_SIDECAR.md
