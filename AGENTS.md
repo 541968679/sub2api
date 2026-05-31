@@ -196,6 +196,10 @@ will override `backend/config.yaml`. If the backend unexpectedly binds to port
   permission before use.
 - `deploy/docker-deploy.sh` and `deploy/install.sh` - deployment/install helpers;
   require explicit user permission before use.
+- Production Sub2API main-service deployments must use the GitHub Actions-built
+  GHCR image `ghcr.io/541968679/sub2api:latest` or an explicitly approved tag.
+  The historical production-host `docker build` / `sub2api-custom:latest` path
+  is legacy and must not be used for future main-service deploys.
 - `tools/check_pnpm_audit_exceptions.py` - pnpm audit exception checker.
 
 ## Development Commands
@@ -266,6 +270,11 @@ before relying on that target.
 - Use `127.0.0.1`, not `localhost`, for local PostgreSQL on Windows.
 - Do not run deployment scripts, push to `origin`, or perform production
   deployment unless the user explicitly asks for it in the current task.
+- For production Sub2API main-service deploys, verify that GitHub Actions has
+  published the intended GHCR image first, then deploy by pulling that image with
+  Docker Compose. Do not run server-side `docker build` or rely on
+  `sub2api-custom:*`; if `deploy/update.sh` still does this for the main
+  service, update the deployment tooling before deploying.
 
 ## Backend Conventions
 

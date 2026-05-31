@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-01] docs: require GHCR for future Sub2API main deploys
+
+**Affected files**: AGENTS.md, docs/dev/ARCHITECTURE.md, docs/dev/DEPLOYMENT.md, docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation-only deployment rule change; no runtime behavior changes.
+**Change details**:
+- Recorded that future Sub2API main-service production deploys must use the GitHub Actions-built GHCR image ghcr.io/541968679/sub2api:latest or an explicitly approved tag.
+- Marked the production-host docker build / sub2api-custom:latest path as legacy and no longer acceptable for future main-service deploys.
+- Clarified that deploy/update.sh must not be used for Sub2API main-service deployment while it still builds sub2api-custom:*; sidecar-only GHCR pull flows remain documented separately.
+
 ## [2026-05-31] feat: user-level downstream usage token mode
 
 **Affected files**: backend/ent/schema/user.go, backend/migrations/145_add_user_downstream_usage_token_mode.sql, backend/internal/service/display_token_rewrite.go, backend/internal/handler/gateway_handler.go, backend/internal/service/api_key_auth_cache*.go, backend/internal/handler/admin/user_handler.go, frontend/src/components/admin/user/UserEditModal.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts

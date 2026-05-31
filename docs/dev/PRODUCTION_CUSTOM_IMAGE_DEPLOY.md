@@ -1,31 +1,49 @@
-# Production Custom Image Deploy Guard
+# Deprecated: Production Custom Image Deploy Guard
 
-The known production main-app deployment builds Sub2API on the host from
-`/opt/sub2api/repo` and tags the result as:
+This document records a retired production path. Do not use it for future
+Sub2API main-service deploys.
+
+As of 2026-06-01, the Sub2API main service must be deployed from a GitHub
+Actions-built GHCR image:
+
+```text
+ghcr.io/541968679/sub2api:latest
+```
+
+An explicitly approved immutable tag is also acceptable. Production deploys
+must pull the published image with Docker Compose and restart the service from
+that image. Do not run `docker build` on the production host for the Sub2API
+main service.
+
+## Retired Path
+
+The previous production main-app deployment built Sub2API on the host from
+`/opt/sub2api/repo` and pinned Compose to:
 
 ```text
 sub2api-custom:latest
 ```
 
-`deploy/update.sh` must keep Docker Compose pinned to that locally built image.
-It does this by writing a managed file at:
+That path is now legacy. Treat any future main-service deploy that starts
+`sub2api-custom:*` as an incorrect deploy, even if `/health` returns OK.
 
-```text
-/opt/sub2api/docker-compose.override.yml
+## Required Next Main-Service Deploy Shape
+
+Before the next Sub2API main-service deployment:
+
+1. Confirm GitHub Actions has published `ghcr.io/541968679/sub2api:latest` or
+   the explicitly approved tag for the commit being deployed.
+2. Ensure production Compose resolves the `sub2api` service image to that GHCR
+   image. Remove or replace the historical generated override at
+   `/opt/sub2api/docker-compose.override.yml` if it still pins
+   `sub2api-custom:latest`.
+3. Deploy by pulling and restarting the GHCR image:
+
+```powershell
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose pull sub2api && docker compose up -d --no-deps sub2api"
 ```
 
-The managed override must resolve the `sub2api` service image to:
-
-```text
-sub2api-custom:latest
-```
-
-Do not rely on the base `docker-compose.yml` default image for this production
-path. The base compose file intentionally keeps a public default image for
-standalone installs, but this production host deploys custom code and therefore
-must run the locally built image.
-
-After every main-app deploy, verify both health and the exact running image:
+4. Verify both health and the exact running image:
 
 ```powershell
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose ps sub2api"
@@ -35,9 +53,7 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "docker inspect sub2api
 Expected image name:
 
 ```text
-sub2api-custom:latest
+ghcr.io/541968679/sub2api:latest
 ```
 
-If the running image name is `weishaw/sub2api:latest`, Compose has restarted the
-upstream image and the custom production code is not deployed. Treat that as a
-failed deploy even if `/health` returns OK.
+or the explicitly approved GHCR tag for that deploy.

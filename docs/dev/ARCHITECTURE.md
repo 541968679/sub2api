@@ -361,7 +361,8 @@ export default keysAPI
 | **`docs/dev` 被 gitignore** | 本文件、CHANGELOG_CUSTOM、codebase/*.md 都要用 `git add -f` |
 | **Git Bash 改 POSIX 路径** | 在 Windows 用 `taskkill /PID 12345` 会被 MSYS 改写为路径；改用 `cmd //c "taskkill /PID 12345 /F"` |
 | **Git stash pop 会带出旧 WIP** | 本地 `git stash list` 里可能有以前的 "wip: all changes"；pop 前先看 |
-| `deploy/remote_exec.py` 已移除 | 部署改用直接 SSH：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"` |
+| `deploy/remote_exec.py` 已移除 | 部署改用直接 SSH；Sub2API 主服务后续必须拉取 GHCR 镜像，不能再在生产机本机构建 |
+| Sub2API 主服务部署必须走 GHCR | 先确认 GitHub Actions 已发布 `ghcr.io/541968679/sub2api:latest` 或批准的 tag，再用 Docker Compose `pull/up`；如果 `update.sh` 仍会构建 `sub2api-custom:*`，先改部署脚本再部署主服务 |
 | **push / deploy 需要显式同意** | commit 自动做，push 到 origin 与 SSH 部署必须每次当面获得「推」/「部署」类指令 |
 
 ### 本地开发
