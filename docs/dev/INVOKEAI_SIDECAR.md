@@ -67,6 +67,20 @@ INVOKEAI_PRECISION=float32
 
 Do not override these to GPU values in this deployment.
 
+## Sub2API OpenAI Provider Configuration
+
+When configuring the OpenAI external provider in InvokeAI for Sub2API-backed
+image generation:
+
+| Field | Value |
+|-------|-------|
+| Base URL | `https://zerocode.kaynlab.com` |
+| API Key | A Sub2API user API key with access to OpenAI image models |
+| Model | `gpt-image-2` via `external://openai/gpt-image-2` |
+
+Do not include `/v1` in the Base URL. The InvokeAI OpenAI provider appends
+`/v1/images/generations` and `/v1/images/edits` internally.
+
 ## Deployment Commands
 
 ```powershell

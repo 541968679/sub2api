@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-31] feat: add gpt-image-2 starter model to InvokeAI sidecar
+
+**Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\external_generation\providers\openai.py`, `E:\cursor project\InvokeAI\invokeai\backend\model_manager\starter_models.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_external_provider_adapters.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_startup.py`, docs/dev/codebase/invokeai-poc.md, docs/dev/INVOKEAI_SIDECAR.md
+**Upstream compatibility**: InvokeAI fork-only external provider change; no Sub2API runtime or database behavior changes.
+**Change details**:
+- Added `gpt-image-2` to the InvokeAI OpenAI external provider GPT Image model set so it uses the GPT Image payload shape with `output_format`.
+- Added `external://openai/gpt-image-2` as an InvokeAI starter model so configured OpenAI/Sub2API providers can sync and install it from the UI/backend starter model flow.
+- Documented that InvokeAI's OpenAI Base URL must be the Sub2API gateway origin without `/v1`, because the provider appends `/v1/images/generations` and `/v1/images/edits`.
+- Verified with focused backend tests: `3 passed, 2 warnings in 0.29s`.
+
 ## [2026-05-31] feat: add InvokeAI sidecar deployment path
 
 **Affected files**: deploy/docker-compose.yml, deploy/.env.example, deploy/update.sh, docs/dev/ARCHITECTURE.md, docs/dev/DEPLOYMENT.md, docs/dev/INVOKEAI_SIDECAR.md, `E:\cursor project\InvokeAI\.github\workflows\docker-publish.yml`

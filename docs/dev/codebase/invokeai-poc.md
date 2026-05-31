@@ -126,10 +126,14 @@ Result: exit code `0`.
 
 - The InvokeAI source/dev install needs the React UI built into
   `invokeai/frontend/web/dist`; otherwise the backend starts without a UI.
-- InvokeAI may not list a new upstream model name until the model entry is
-  installed/configured in its External Providers UI. If `gpt-image-2` is not
-  selectable, first validate with a listed GPT Image model or add an alias on
-  the Sub2API side for the PoC.
+- InvokeAI external OpenAI models are not arbitrary free-form UI entries in this
+  fork. They are provided by `STARTER_MODELS` plus the OpenAI provider model
+  set. `gpt-image-2` is supported by the fork as
+  `external://openai/gpt-image-2`.
+- For Sub2API-backed OpenAI configuration in InvokeAI, set Base URL to the
+  gateway origin, for example `https://zerocode.kaynlab.com`, without `/v1`.
+  The InvokeAI provider appends `/v1/images/generations` and `/v1/images/edits`
+  itself, so `https://zerocode.kaynlab.com/v1` would become `/v1/v1/...`.
 - Do not use Sub2API's forbidden local ports. InvokeAI uses `9090` for this PoC,
   leaving Sub2API backend/frontend on `18081` and `15174`.
 - External starter model records remain instance-level. Deleting one user's
