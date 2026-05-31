@@ -57,8 +57,8 @@ func getDisplayTokenMultipliers(c *gin.Context) *DisplayTokenMultipliers {
 	return m
 }
 
-func (s *GatewayService) MaybeSetDisplayTokenMultipliers(ctx context.Context, c *gin.Context, apiKey *APIKey, account *Account, model string) {
-	if s == nil || apiKey == nil || apiKey.User == nil || account == nil {
+func (s *GatewayService) MaybeSetDisplayTokenMultipliers(ctx context.Context, c *gin.Context, apiKey *APIKey, model string) {
+	if s == nil || apiKey == nil || apiKey.User == nil {
 		return
 	}
 	if NormalizeDownstreamUsageTokenMode(apiKey.User.DownstreamUsageTokenMode) != DownstreamUsageTokenModeDisplay {
@@ -69,7 +69,6 @@ func (s *GatewayService) MaybeSetDisplayTokenMultipliers(ctx context.Context, c 
 	if userID == 0 {
 		userID = apiKey.UserID
 	}
-	accountRateMultiplier := account.BillingRateMultiplier()
 	rateMultiplier := 1.0
 	displayRateMultiplier := 1.0
 	var groupID *int64
@@ -81,7 +80,7 @@ func (s *GatewayService) MaybeSetDisplayTokenMultipliers(ctx context.Context, c 
 		}
 	}
 
-	mult := s.ComputeDisplayTokenMultipliers(ctx, model, userID, groupID, accountRateMultiplier, rateMultiplier, displayRateMultiplier)
+	mult := s.ComputeDisplayTokenMultipliers(ctx, model, userID, groupID, rateMultiplier, displayRateMultiplier)
 	SetDisplayTokenMultipliers(c, mult)
 }
 
@@ -92,7 +91,6 @@ func (s *GatewayService) ComputeDisplayTokenMultipliers(
 	model string,
 	userID int64,
 	groupID *int64,
-	accountRateMultiplier float64,
 	rateMultiplier float64,
 	displayRateMultiplier float64,
 ) *DisplayTokenMultipliers {
@@ -103,12 +101,11 @@ func (s *GatewayService) ComputeDisplayTokenMultipliers(
 		CacheCreateMult: 1.0,
 	}
 
-	// Layer 1: display pricing (real_price * account_rate / display_price)
+	// Layer 1: display pricing (real_price / display_price)
 	pricing := s.resolveDisplayTokenPricing(ctx, model, userID, groupID)
-	mult.InputMult = displayTokenMultiplier(pricing.InputPrice, pricing.DisplayInputPrice, accountRateMultiplier)
-	mult.OutputMult = displayTokenMultiplier(pricing.OutputPrice, pricing.DisplayOutputPrice, accountRateMultiplier)
-	mult.CacheReadMult = displayTokenMultiplier(pricing.CacheReadPrice, pricing.DisplayCacheReadPrice, accountRateMultiplier)
-	mult.CacheCreateMult = accountRateMultiplier
+	mult.InputMult = displayTokenMultiplier(pricing.InputPrice, pricing.DisplayInputPrice)
+	mult.OutputMult = displayTokenMultiplier(pricing.OutputPrice, pricing.DisplayOutputPrice)
+	mult.CacheReadMult = displayTokenMultiplier(pricing.CacheReadPrice, pricing.DisplayCacheReadPrice)
 
 	// Layer 2: user group display rate (rate_multiplier / display_rate_multiplier)
 	if displayRateMultiplier > 0 && displayRateMultiplier != rateMultiplier {
@@ -204,11 +201,11 @@ func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserM
 	}
 }
 
-func displayTokenMultiplier(realPrice float64, displayPrice *float64, accountRateMultiplier float64) float64 {
+func displayTokenMultiplier(realPrice float64, displayPrice *float64) float64 {
 	if realPrice > 0 && displayPrice != nil && *displayPrice > 0 {
-		return (realPrice * accountRateMultiplier) / *displayPrice
+		return realPrice / *displayPrice
 	}
-	return accountRateMultiplier
+	return 1.0
 }
 
 // RewriteSSEUsageTokens rewrites token fields in a Claude SSE data line.

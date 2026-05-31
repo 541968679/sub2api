@@ -64,9 +64,7 @@ func (s *displayTokenUserModelPricingRepoStub) GetByModel(context.Context, strin
 
 func TestDisplayToken_MaybeSetDisplayTokenMultipliersGatedByUserMode(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	accountRate := 2.0
 	svc := &GatewayService{}
-	account := &Account{RateMultiplier: &accountRate}
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -74,20 +72,15 @@ func TestDisplayToken_MaybeSetDisplayTokenMultipliersGatedByUserMode(t *testing.
 		UserID: 1,
 		User:   &User{ID: 1, DownstreamUsageTokenMode: DownstreamUsageTokenModeReal},
 	}
-	svc.MaybeSetDisplayTokenMultipliers(context.Background(), c, realModeKey, account, "claude-sonnet-4")
+	svc.MaybeSetDisplayTokenMultipliers(context.Background(), c, realModeKey, "claude-sonnet-4")
 	require.Nil(t, getDisplayTokenMultipliers(c))
 
 	displayModeKey := &APIKey{
 		UserID: 1,
 		User:   &User{ID: 1, DownstreamUsageTokenMode: DownstreamUsageTokenModeDisplay},
 	}
-	svc.MaybeSetDisplayTokenMultipliers(context.Background(), c, displayModeKey, account, "claude-sonnet-4")
-	mult := getDisplayTokenMultipliers(c)
-	require.NotNil(t, mult)
-	require.Equal(t, accountRate, mult.InputMult)
-	require.Equal(t, accountRate, mult.OutputMult)
-	require.Equal(t, accountRate, mult.CacheReadMult)
-	require.Equal(t, accountRate, mult.CacheCreateMult)
+	svc.MaybeSetDisplayTokenMultipliers(context.Background(), c, displayModeKey, "claude-sonnet-4")
+	require.Nil(t, getDisplayTokenMultipliers(c))
 }
 
 func TestDisplayToken_ComputeMultipliersUsesUserDisplayPricingOverride(t *testing.T) {
@@ -125,10 +118,49 @@ func TestDisplayToken_ComputeMultipliersUsesUserDisplayPricingOverride(t *testin
 	resolver := NewModelPricingResolver(&ChannelService{}, newTestBillingServiceWithRichPricing(), cache, userRepo)
 	svc := &GatewayService{resolver: resolver}
 
-	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1, 1)
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1)
 	require.NotNil(t, mult)
 	require.InDelta(t, 4.0, mult.InputMult, 1e-12)
 	require.InDelta(t, 4.0, mult.OutputMult, 1e-12)
 	require.InDelta(t, 4.0, mult.CacheReadMult, 1e-12)
 	require.InDelta(t, 1.0, mult.CacheCreateMult, 1e-12)
+}
+
+func TestDisplayToken_EqualDisplayPriceDoesNotScaleTokens(t *testing.T) {
+	input := 4e-6
+	output := 8e-6
+	cacheRead := 2e-6
+
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:                 "claude-sonnet-4",
+		BillingMode:           BillingModeToken,
+		InputPrice:            &input,
+		OutputPrice:           &output,
+		CacheReadPrice:        &cacheRead,
+		DisplayInputPrice:     &input,
+		DisplayOutputPrice:    &output,
+		DisplayCacheReadPrice: &cacheRead,
+		Enabled:               true,
+	})
+	resolver := NewModelPricingResolver(&ChannelService{}, newTestBillingServiceWithRichPricing(), cache, nil)
+	svc := &GatewayService{resolver: resolver}
+
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1)
+	require.NotNil(t, mult)
+	require.Equal(t, 1.0, mult.InputMult)
+	require.Equal(t, 1.0, mult.OutputMult)
+	require.Equal(t, 1.0, mult.CacheReadMult)
+	require.Equal(t, 1.0, mult.CacheCreateMult)
+	require.False(t, mult.IsNonTrivial())
+}
+
+func TestDisplayToken_GroupDisplayRateIsTheOnlyMultiplierLayer(t *testing.T) {
+	svc := &GatewayService{}
+
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1.0, 0.01)
+	require.NotNil(t, mult)
+	require.InDelta(t, 100.0, mult.InputMult, 1e-12)
+	require.InDelta(t, 100.0, mult.OutputMult, 1e-12)
+	require.InDelta(t, 100.0, mult.CacheReadMult, 1e-12)
+	require.InDelta(t, 100.0, mult.CacheCreateMult, 1e-12)
 }

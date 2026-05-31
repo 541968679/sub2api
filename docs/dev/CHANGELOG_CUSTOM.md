@@ -2170,3 +2170,12 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 
 **鍏宠仈 Issue/PR**: 鏃狅紙绾夸笂鎺掓煡鍙戠幇锛?
 -->
+
+## [2026-06-01] fix: remove account rate from downstream display token rewrite
+
+**Affected files**: backend/internal/service/display_token_rewrite.go, backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite_test.go
+**Upstream compatibility**: scoped bug fix for user-configured Claude/Antigravity downstream `usage` token display mode; billing and stored usage remain unchanged.
+**Change details**:
+- Removed the obsolete account rate multiplier from downstream display-token multiplier calculation.
+- Kept downstream display token rewriting aligned to model display prices and user group display-rate scaling only.
+- Added regression coverage so equal real/display prices produce a no-op multiplier even when legacy account rate data is high.
