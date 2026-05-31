@@ -99,10 +99,16 @@ scripts\dev-stack.cmd restart
 - Queue clear/cancel paths were adjusted for multi-current behavior. Non-admin
   queue clear/cancel actions stay scoped to that user's items and must not
   interrupt another user's in-progress request.
+- External generation request transforms must preserve `user_id`. The OpenAI
+  provider configuration lookup is per InvokeAI user in multiuser mode; dropping
+  `ExternalGenerationRequest.user_id` during capability refresh or size
+  bucketing makes generation fail locally with
+  `OpenAI provider is not configured for this user` even when the correct
+  user's OpenAI/Sub2API provider config exists.
 
 ## Verification
 
-Last verified: 2026-05-30.
+Last verified: 2026-05-31.
 
 Backend focused tests:
 
@@ -112,6 +118,15 @@ cd "E:\cursor project\InvokeAI"
 ```
 
 Result: `31 passed, 2 warnings in 5.56s`.
+
+External provider context regression tests:
+
+```powershell
+cd "E:\cursor project\InvokeAI"
+.\.venv\Scripts\python.exe -m pytest tests/app/services/external_generation/test_external_generation_service.py tests/app/services/external_generation/test_external_provider_adapters.py tests/app/invocations/test_external_image_generation.py -q
+```
+
+Result: `30 passed, 6 warnings`.
 
 Frontend type check:
 

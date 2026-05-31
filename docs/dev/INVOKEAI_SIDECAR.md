@@ -86,6 +86,14 @@ from InvokeAI's Dimensions controls. They do not use the external model
 resolution preset selector; that selector is reserved for providers whose model
 metadata declares fixed `aspect_ratio_sizes` or `resolution_presets`.
 
+In multiuser mode, OpenAI external provider credentials are scoped to the
+authenticated InvokeAI user. If generation fails with
+`OpenAI provider is not configured for this user`, first verify the failed queue
+item's `user_id` and the `user_external_provider_configs` row. The 2026-05-31
+fix also preserves `ExternalGenerationRequest.user_id` through model capability
+refresh and size bucketing, so a correctly configured user should reach the
+Sub2API/OpenAI request path instead of failing before the upstream call.
+
 ## Deployment Commands
 
 ```powershell

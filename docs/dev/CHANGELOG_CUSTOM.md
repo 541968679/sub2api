@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-05-31] fix: preserve InvokeAI external provider user context
+
+**Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\external_generation\external_generation_default.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_external_generation_service.py`, docs/dev/codebase/invokeai-poc.md, docs/dev/INVOKEAI_SIDECAR.md
+**Upstream compatibility**: InvokeAI fork-only request-context fix; no Sub2API runtime or database behavior changes.
+**Change details**:
+- Fixed `ExternalGenerationService` request rebuilding so refreshed model capabilities and size bucketing preserve the original `ExternalGenerationRequest.user_id`.
+- Root cause: the InvokeAI queue item and provider config were correctly scoped to the same user, but `_refresh_model_capabilities()` rebuilt the request without `user_id`, causing OpenAI multiuser config lookup to fail with `OpenAI provider is not configured for this user`.
+- Replaced manual request reconstruction with `dataclasses.replace(...)` in both request-rebuild paths so future request fields are preserved automatically.
+- Added regression coverage for preserving `user_id` during model capability refresh and request bucketization.
+- Verification: `14 passed, 2 warnings` for `test_external_generation_service.py`; `13 passed, 2 warnings` for `test_external_provider_adapters.py`; `3 passed, 2 warnings` for `test_external_image_generation.py`.
+
 ## [2026-05-31] fix: allow custom OpenAI image dimensions in InvokeAI sidecar
 
 **Affected files**: `E:\cursor project\InvokeAI\invokeai\backend\model_manager\starter_models.py`, `E:\cursor project\InvokeAI\tests\app\routers\test_model_manager.py`, `E:\cursor project\InvokeAI\tests\app\services\external_generation\test_external_generation_service.py`, `E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\controlLayers\store\paramsSlice.test.ts`, docs/dev/codebase/invokeai-poc.md, docs/dev/INVOKEAI_SIDECAR.md
