@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-01] docs: record A2 Kiro Opus empty stream staged fix
+
+**Affected files**: `docs/dev/KIRO_PROXY.md`, `docs/dev/CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\docs\KIRO_OPUS_47_48_EMPTY_STREAM_DEBUG_2026-06-01.md`, `E:\cursor project\AIClient2API\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\AIClient2API\docs\CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\tests\kiro-stream-usage-estimation.test.js`
+**Upstream compatibility**: Sub2API documentation-only; production behavior change is in the AIClient2API sidecar and keeps the same Sub2API route/API contract.
+**Change details**:
+- Recorded the investigation of intermittent empty Claude Code replies for Kiro `claude-opus-4-7` / `claude-opus-4-8`, including the key diagnostic where AIClient2API received stream bytes but parsed `jsonObjects=0`.
+- Documented the staged AIClient2API parser fix: byte buffering, AWS event stream frame parsing, split-frame buffering, and `text` fallback compatibility.
+- Recorded local verification: focused A2 tests passed, 18 local real `claude-opus-4-8` rows after restart had no `output_tokens=0`, and `claude-opus-4-6` still returned normal SSE content with usage row `15667`.
+
 ## [2026-06-01] fix: align downstream display usage cache balancing with usage logs
 
 **Affected files**: `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/display_token_rewrite_test.go`, `backend/internal/service/openai_gateway_service_test.go`, `docs/dev/codebase/billing.md`

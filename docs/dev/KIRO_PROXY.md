@@ -152,6 +152,54 @@ AIClient2API 侧修复：
 - 本地链路：Sub2API `18081` → AIClient2API `3000` → Kiro，`claude-opus-4-8` 流式请求返回 200，最终 SSE usage 为 `input_tokens=2584`、`output_tokens=1`、`cache_read_input_tokens=4417`。
 - 数据库落库：`usage_logs.id=15242` 记录 `account_id=33`、`api_key_id=5`、`model=claude-opus-4-8`、`input_tokens=2584`、`output_tokens=1`、`cache_read_tokens=4417`。
 
+### Kiro Opus 4.7/4.8 empty stream parser fix (2026-06-01)
+
+This round of debugging focused on intermittent empty Claude Code replies for
+`claude-opus-4-7` and `claude-opus-4-8` through the production-style chain:
+
+```
+Claude Code -> Sub2API /antigravity/v1/messages
+            -> AIClient2API /claude-kiro-oauth/v1/messages
+            -> Kiro
+```
+
+The important diagnostic was not "upstream returned no bytes". A failing local
+case showed AIClient2API receiving stream bytes but failing to parse any payload
+JSON:
+
+- Sub2API usage row: `15641`, `claude-opus-4-8`, `output_tokens=0`.
+- User agent: `claude-cli/2.1.159 (external, cli)`.
+- AIClient2API request id: `fc346b7f`.
+- Kiro stream diagnostic: `chunks=47`, `chunkChars=11469`,
+  `remainingBufferChars=11458`, `jsonObjects=0`.
+
+The staged AIClient2API fix keeps the Kiro stream buffer as bytes, parses
+plausible AWS event stream frame boundaries before decoding payload JSON,
+preserves incomplete split frames across chunks, and keeps the older string JSON
+scanner as a fallback. It also supports visible Kiro assistant output in a
+`text` field when normal `content` output is absent.
+
+Stage verification:
+
+- AIClient2API tests passed:
+  `node --check src\providers\claude\claude-kiro.js` and
+  `npx jest --runInBand --runTestsByPath tests\claude-kiro-request.test.js tests\kiro-provider-leak-sanitization.test.js tests\kiro-stream-usage-estimation.test.js`.
+- After a local Sub2API stack restart, 18 real `claude-opus-4-8` usage rows
+  were produced with no `output_tokens=0` rows; 6 were Claude Code
+  `external, cli` requests.
+- A `claude-opus-4-6` non-regression stream test still produced visible SSE
+  content and usage row `15667` with `output_tokens=27`.
+- No new AIClient2API empty-output diagnostics were observed in the local test
+  window.
+
+The matching AIClient2API-side investigation document is:
+`E:\cursor project\AIClient2API\docs\KIRO_OPUS_47_48_EMPTY_STREAM_DEBUG_2026-06-01.md`.
+
+Residual risk: this fix covers the observed parser failure mode. The diagnostic
+logging intentionally remains so future production reports can distinguish
+upstream empty/error responses from parser failures and downstream accounting
+failures.
+
 ### 遗留（方案 A 代码保留）
 
 `gateway_service.go` 第 1411 行附近的 antigravity→anthropic 回退逻辑保留不删，不影响正常运行。方案 B 下该代码不会被触发（antigravity 分组已有可用账号）。
