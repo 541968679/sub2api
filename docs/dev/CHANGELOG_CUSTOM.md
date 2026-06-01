@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-01] fix: add Anthropic API-key passthrough stream keepalive
+
+**Affected files**: `backend/internal/service/gateway_service.go`, `backend/internal/service/gateway_anthropic_apikey_passthrough_test.go`
+**Upstream compatibility**: mirrors upstream `Wei-Shaw/sub2api` commit `164e2f61` for Anthropic API-key passthrough streaming keepalive; adapted to local display-usage rewrite logic.
+**Change details**:
+- Added downstream Anthropic-native `event: ping` keepalive events to API-key passthrough streams when `gateway.stream_keepalive_interval` is configured, preventing idle proxy/CDN disconnects during quiet upstream periods.
+- Suppressed keepalive writes while an SSE event is partially forwarded so ping frames cannot interleave into an unfinished upstream event.
+- Added focused tests for idle keepalive emission and partial-event non-interleaving.
+
 ## [2026-06-01] docs: clarify cross-repository agent rules
 
 **Affected files**: `AGENTS.md`, `docs/dev/RELATED_PROJECTS.md`, `docs/dev/ARCHITECTURE.md`, `docs/dev/CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\AGENTS.md`, `E:\cursor project\AIClient2API\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\new-api\AGENTS.md`, `E:\cursor project\new-api\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\new-api\web\default\AGENTS.md`, `E:\cursor project\InvokeAI\AGENTS.md`, `E:\cursor project\InvokeAI\docs\SUB2API_INTEGRATION.md`
