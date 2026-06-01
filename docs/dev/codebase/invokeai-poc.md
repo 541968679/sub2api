@@ -48,8 +48,13 @@ Local paths:
    API key saved on the current InvokeAI user.
 5. External OpenAI image generation reads `queue_item.user_id`, fetches that
    user's provider config, and sends the request using that key/base URL.
-6. Sub2API routes/bills the request through its existing gateway/account stack.
-7. Multiple queued InvokeAI sessions may now run at the same time. In the API-only
+6. For GPT image models, InvokeAI first uses Sub2API's OpenAI-compatible
+   `/v1/images/generations` or `/v1/images/edits` route. If a non-OpenAI base
+   URL returns Sub2API's `502` `upstream_error` from that Images route, InvokeAI
+   retries once through `/v1/responses` with an `image_generation` tool payload;
+   this uses Sub2API's existing Responses image bridge.
+7. Sub2API routes/bills the request through its existing gateway/account stack.
+8. Multiple queued InvokeAI sessions may now run at the same time. In the API-only
    deployment this means multiple external OpenAI/Sub2API image requests can be
    in flight concurrently instead of waiting behind a single local queue worker.
 
@@ -153,7 +158,9 @@ Result: exit code `0`.
 - For Sub2API-backed OpenAI configuration in InvokeAI, set Base URL to the
   gateway origin, for example `https://zerocode.kaynlab.com`, without `/v1`.
   The InvokeAI provider appends `/v1/images/generations` and `/v1/images/edits`
-  itself, so `https://zerocode.kaynlab.com/v1` would become `/v1/v1/...`.
+  itself, so `https://zerocode.kaynlab.com/v1` would become `/v1/v1/...`. The
+  same origin is also used for the guarded `/v1/responses` fallback when remote
+  Sub2API reports an Images-route upstream failure.
 - Do not use Sub2API's forbidden local ports. InvokeAI uses `9090` for this PoC,
   leaving Sub2API backend/frontend on `18081` and `15174`.
 - External starter model records remain instance-level. Deleting one user's

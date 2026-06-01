@@ -1,4 +1,4 @@
-# Sub2API 浜屽紑鍙樻洿鏃ュ織
+﻿# Sub2API 浜屽紑鍙樻洿鏃ュ織
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
@@ -28,6 +28,7 @@
 - Clarified that `api2sub`, AIClient2API, new-api, and InvokeAI each use their own repository-root `AGENTS.md` as the rule entry point.
 - Documented port ownership, startup boundaries, changelog ownership, and cross-repository contract update rules.
 - Added or updated sibling-project Sub2API integration docs so future work started from a child repository still sees the correct Sub2API relationship.
+
 ## [2026-06-01] docs: require GHCR for future Sub2API main deploys
 
 **Affected files**: AGENTS.md, docs/dev/ARCHITECTURE.md, docs/dev/DEPLOYMENT.md, docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md, docs/dev/CHANGELOG_CUSTOM.md
@@ -36,6 +37,27 @@
 - Recorded that future Sub2API main-service production deploys must use the GitHub Actions-built GHCR image ghcr.io/541968679/sub2api:latest or an explicitly approved tag.
 - Marked the production-host docker build / sub2api-custom:latest path as legacy and no longer acceptable for future main-service deploys.
 - Clarified that deploy/update.sh must not be used for Sub2API main-service deployment while it still builds sub2api-custom:*; sidecar-only GHCR pull flows remain documented separately.
+
+## [2026-06-01] fix: migrate installed OpenAI GPT Image model dimensions
+
+**Affected files**: `E:\cursor project\InvokeAI\invokeai\app\services\shared\sqlite_migrator\migrations\migration_33.py`, `E:\cursor project\InvokeAI\invokeai\app\services\shared\sqlite\sqlite_util.py`, `E:\cursor project\InvokeAI\tests\app\services\shared\sqlite_migrator\migrations\test_migration_33.py`
+**Upstream compatibility**: InvokeAI fork-only SQLite migration; updates installed external OpenAI GPT Image model metadata so existing environments match the newer starter model capabilities.
+**Change details**:
+- Added migration 33 to update existing OpenAI GPT Image model records (`gpt-image-2`, `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini`) from fixed `aspect_ratio_sizes` / `allowed_aspect_ratios` to custom dimensions guarded by `max_image_size=4096x4096`.
+- Root cause: starter model metadata changes only affect newly installed/synced models; already-installed local records kept old fixed-size metadata, so the frontend still hid quick size controls.
+- Verified the local runtime database advanced to migration version 33 and `openai-gpt-image-2` now has `max_image_size=4096x4096` with fixed-size fields cleared.
+- Verification: migration unit test `3 passed`; quick-size frontend tests `15 passed`; Ruff checks passed.
+
+## [2026-06-01] chore: standardize InvokeAI local development startup
+
+**Affected files**: `E:\cursor project\InvokeAI\scripts\dev-stack.ps1`, `E:\cursor project\InvokeAI\AGENTS.md`, `E:\cursor project\InvokeAI\invokeai\frontend\web\CLAUDE.md`, `E:\cursor project\InvokeAI\invokeai\frontend\web\vite.config.mts`, AGENTS.md
+**Upstream compatibility**: local development tooling and documentation only; no Sub2API runtime behavior changes.
+**Change details**:
+- Changed InvokeAI local development to a single script-managed entry point that runs backend and frontend as separate managed processes.
+- Added `-Service all|backend|frontend`, `-BackendPort`, and `-FrontendPort` support, with defaults `127.0.0.1:9090` and `127.0.0.1:15175`.
+- Kept backend local config CPU/API-only and enabled `dev_reload: true`; frontend uses Vite HMR and proxies to the configured backend URL.
+- Updated InvokeAI and Sub2API agent rules to forbid ad hoc `invokeai-web`, `pnpm dev`, or `make frontend-dev` startup for normal local development.
+- Verified PowerShell script parsing, non-mutating `status`, frontend `pnpm run lint:tsc`, and a real script-managed restart with backend on `9090`, frontend on `15175`, and no Vite listener left on `5173`.
 
 ## [2026-05-31] feat: user-level downstream usage token mode
 
@@ -2197,3 +2219,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Removed the obsolete account rate multiplier from downstream display-token multiplier calculation.
 - Kept downstream display token rewriting aligned to model display prices and user group display-rate scaling only.
 - Added regression coverage so equal real/display prices produce a no-op multiplier even when legacy account rate data is high.
+
+## [2026-06-01] fix: stabilize InvokeAI local frontend entrypoint
+
+**Affected files**: E:\cursor project\InvokeAI\scripts\dev-stack.ps1, E:\cursor project\InvokeAI\invokeai\app\api_app.py, E:\cursor project\InvokeAI\invokeai\frontend\web\src\i18n.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\app\store\enhancers\reduxRemember\driver.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\app\components\AppErrorBoundaryFallback.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\common\components\Loading\Loading.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\common\components\InformationalPopover\constants.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\components\Notifications.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\system\components\InvokeAILogoComponent.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\system\components\AboutModal\AboutModal.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\nodes\components\sidePanel\workflow\WorkflowLibrary\WorkflowListItem.tsx, E:\cursor project\InvokeAI\AGENTS.md
+**Upstream compatibility**: local development behavior only, except frontend static asset imports are made compatible with current Vite.
+**Change details**:
+- Made the managed local backend set `INVOKEAI_DEV_FRONTEND_URL`; when present, backend `/` redirects to `http://127.0.0.1:15175` instead of serving the bundled UI, while API routes on port 9090 continue to work.
+- Replaced Vite 7-incompatible imports from `public/...` with public URL references and switched i18n to the existing HTTP backend path.
+- Sorted touched frontend imports so the Vite ESLint overlay no longer blocks the local UI during development.
+- Allowed unauthenticated client-state persistence reads/writes to no-op instead of blocking Redux rehydration, fixing the local 15175 page getting stuck on `Loading` before the login screen.
+- Verified `pnpm run lint:tsc`, `ruff check invokeai/app/api_app.py`, `http://127.0.0.1:9090/` redirecting with 307, and `http://127.0.0.1:15175/` rendering the login page in the browser.
