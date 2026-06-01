@@ -123,7 +123,8 @@ func TestDisplayToken_ComputeMultipliersUsesUserDisplayPricingOverride(t *testin
 	require.NotNil(t, mult)
 	require.InDelta(t, 4.0, mult.InputMult, 1e-12)
 	require.InDelta(t, 4.0, mult.OutputMult, 1e-12)
-	require.InDelta(t, 4.0, mult.CacheReadMult, 1e-12)
+	require.InDelta(t, 1.0, mult.CacheReadMult, 1e-12)
+	require.InDelta(t, 1.5, mult.CacheReadInputMult, 1e-12)
 	require.InDelta(t, 1.0, mult.CacheCreateMult, 1e-12)
 }
 
@@ -151,6 +152,7 @@ func TestDisplayToken_EqualDisplayPriceDoesNotScaleTokens(t *testing.T) {
 	require.Equal(t, 1.0, mult.InputMult)
 	require.Equal(t, 1.0, mult.OutputMult)
 	require.Equal(t, 1.0, mult.CacheReadMult)
+	require.Equal(t, 0.0, mult.CacheReadInputMult)
 	require.Equal(t, 1.0, mult.CacheCreateMult)
 	require.False(t, mult.IsNonTrivial())
 }
@@ -160,24 +162,26 @@ func TestDisplayToken_GroupDisplayRateIsTheOnlyMultiplierLayer(t *testing.T) {
 
 	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1.0, 0.01)
 	require.NotNil(t, mult)
-	require.InDelta(t, 100.0, mult.InputMult, 1e-12)
-	require.InDelta(t, 100.0, mult.OutputMult, 1e-12)
-	require.InDelta(t, 100.0, mult.CacheReadMult, 1e-12)
-	require.InDelta(t, 100.0, mult.CacheCreateMult, 1e-12)
+	require.InDelta(t, 1.0, mult.InputMult, 1e-12)
+	require.InDelta(t, 1.0, mult.OutputMult, 1e-12)
+	require.InDelta(t, 1.0, mult.CacheReadMult, 1e-12)
+	require.InDelta(t, 1.0, mult.CacheCreateMult, 1e-12)
+	require.InDelta(t, 100.0, displayTokenRateScale(mult), 1e-12)
 }
 
-func TestDisplayToken_OpenAIResponsesUsageRewriteSplitsCachedTokens(t *testing.T) {
+func TestDisplayToken_OpenAIResponsesUsageRewriteBalancesCachePremium(t *testing.T) {
 	body := []byte(`{"id":"resp_1","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200},"output_tokens_details":{"reasoning_tokens":7}},"custom":"kept"}`)
 	mult := &DisplayTokenMultipliers{
-		InputMult:       2,
-		OutputMult:      4,
-		CacheReadMult:   3,
-		CacheCreateMult: 1,
+		InputMult:          2,
+		OutputMult:         4,
+		CacheReadMult:      1,
+		CacheCreateMult:    1,
+		CacheReadInputMult: 2,
 	}
 
 	rewritten := rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
 	require.Equal(t, int64(2200), gjson.GetBytes(rewritten, "usage.input_tokens").Int())
-	require.Equal(t, int64(600), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(200), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
 	require.Equal(t, int64(400), gjson.GetBytes(rewritten, "usage.output_tokens").Int())
 	require.Equal(t, int64(2600), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
 	require.Equal(t, int64(7), gjson.GetBytes(rewritten, "usage.output_tokens_details.reasoning_tokens").Int())
@@ -187,10 +191,11 @@ func TestDisplayToken_OpenAIResponsesUsageRewriteSplitsCachedTokens(t *testing.T
 func TestDisplayToken_OpenAIChatUsageRewriteHandlesMissingCachedTokens(t *testing.T) {
 	body := []byte(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)
 	mult := &DisplayTokenMultipliers{
-		InputMult:       1.5,
-		OutputMult:      2,
-		CacheReadMult:   3,
-		CacheCreateMult: 1,
+		InputMult:          1.5,
+		OutputMult:         2,
+		CacheReadMult:      1,
+		CacheCreateMult:    1,
+		CacheReadInputMult: 2,
 	}
 
 	rewritten := rewriteOpenAIChatUsageTokens(body, "usage", mult)
@@ -203,17 +208,59 @@ func TestDisplayToken_OpenAIChatUsageRewriteHandlesMissingCachedTokens(t *testin
 func TestDisplayToken_OpenAIUsageRewriteClampsCachedTokensAboveInput(t *testing.T) {
 	body := []byte(`{"usage":{"input_tokens":100,"output_tokens":10,"total_tokens":110,"input_tokens_details":{"cached_tokens":200}}}`)
 	mult := &DisplayTokenMultipliers{
-		InputMult:       2,
-		OutputMult:      4,
-		CacheReadMult:   3,
-		CacheCreateMult: 1,
+		InputMult:          2,
+		OutputMult:         4,
+		CacheReadMult:      1,
+		CacheCreateMult:    1,
+		CacheReadInputMult: 2,
 	}
 
 	rewritten := rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
-	require.Equal(t, int64(600), gjson.GetBytes(rewritten, "usage.input_tokens").Int())
-	require.Equal(t, int64(600), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(200), gjson.GetBytes(rewritten, "usage.input_tokens").Int())
+	require.Equal(t, int64(200), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
 	require.Equal(t, int64(40), gjson.GetBytes(rewritten, "usage.output_tokens").Int())
-	require.Equal(t, int64(640), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
+	require.Equal(t, int64(240), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
+}
+
+func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRate(t *testing.T) {
+	line := `data: {"type":"message_start","message":{"usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":5}}}`
+	mult := &DisplayTokenMultipliers{
+		InputMult:          2,
+		OutputMult:         3,
+		CacheReadMult:      1,
+		CacheCreateMult:    1,
+		CacheReadInputMult: 4,
+		RateScale:          2,
+		RateScaleSet:       true,
+	}
+
+	rewritten := RewriteSSEUsageTokens(line, mult)
+	require.Equal(t, int64(560), gjson.Get(rewritten[len("data: "):], "message.usage.input_tokens").Int())
+	require.Equal(t, int64(60), gjson.Get(rewritten[len("data: "):], "message.usage.output_tokens").Int())
+	require.Equal(t, int64(40), gjson.Get(rewritten[len("data: "):], "message.usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(10), gjson.Get(rewritten[len("data: "):], "message.usage.cache_creation_input_tokens").Int())
+}
+
+func TestDisplayToken_UsageMapRewriteBalancesCachePremium(t *testing.T) {
+	usage := map[string]any{
+		"input_tokens":                float64(100),
+		"output_tokens":               float64(10),
+		"cache_read_input_tokens":     float64(20),
+		"cache_creation_input_tokens": float64(5),
+	}
+	mult := &DisplayTokenMultipliers{
+		InputMult:          2,
+		OutputMult:         3,
+		CacheReadMult:      1,
+		CacheCreateMult:    1,
+		CacheReadInputMult: 4,
+	}
+
+	ApplyDisplayMultipliersToUsageMap(usage, mult)
+	require.Equal(t, 280, usage["input_tokens"])
+	require.Equal(t, 30, usage["output_tokens"])
+	require.Equal(t, 20, usage["cache_read_input_tokens"])
+	require.Equal(t, 5, usage["cache_creation_input_tokens"])
 }
 
 func TestDisplayToken_OpenAIUsageRewriteNoopForNilOrTrivialMultiplier(t *testing.T) {

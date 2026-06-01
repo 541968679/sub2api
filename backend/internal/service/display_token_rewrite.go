@@ -13,10 +13,13 @@ import (
 const displayTokenMultipliersKey = "display_token_multipliers"
 
 type DisplayTokenMultipliers struct {
-	InputMult       float64
-	OutputMult      float64
-	CacheReadMult   float64
-	CacheCreateMult float64
+	InputMult          float64
+	OutputMult         float64
+	CacheReadMult      float64
+	CacheCreateMult    float64
+	CacheReadInputMult float64
+	RateScale          float64
+	RateScaleSet       bool
 }
 
 type displayTokenPricingConfig struct {
@@ -35,7 +38,12 @@ type displayTokenMultiplierProvider interface {
 }
 
 func (m *DisplayTokenMultipliers) IsNonTrivial() bool {
-	return m.InputMult != 1.0 || m.OutputMult != 1.0 || m.CacheReadMult != 1.0 || m.CacheCreateMult != 1.0
+	return m.InputMult != 1.0 ||
+		m.OutputMult != 1.0 ||
+		m.CacheReadMult != 1.0 ||
+		m.CacheCreateMult != 1.0 ||
+		m.CacheReadInputMult != 0 ||
+		displayTokenRateScale(m) != 1.0
 }
 
 func SetDisplayTokenMultipliers(c *gin.Context, m *DisplayTokenMultipliers) {
@@ -104,8 +112,8 @@ func maybeSetDisplayTokenMultipliers(ctx context.Context, c *gin.Context, apiKey
 	SetDisplayTokenMultipliers(c, mult)
 }
 
-// ComputeDisplayTokenMultipliers computes effective per-token-type multipliers
-// that replicate the admin panel's display transform chain.
+// ComputeDisplayTokenMultipliers computes the same two-layer token transform used
+// by usage-log display: model display pricing first, then group display rate.
 func (s *GatewayService) ComputeDisplayTokenMultipliers(
 	ctx context.Context,
 	model string,
@@ -150,21 +158,25 @@ func computeDisplayTokenMultipliers(
 		OutputMult:      1.0,
 		CacheReadMult:   1.0,
 		CacheCreateMult: 1.0,
+		RateScale:       1.0,
+		RateScaleSet:    true,
 	}
 
-	// Layer 1: display pricing (real_price / display_price)
+	// Layer 1: display pricing. Cache-read tokens stay on the cache line, and
+	// any lower display cache price is balanced by moving the cache premium into
+	// display input tokens, matching handler/dto.ApplyDisplayTransform.
 	pricing := resolveDisplayTokenPricing(ctx, model, userID, groupID, resolver)
 	mult.InputMult = displayTokenMultiplier(pricing.InputPrice, pricing.DisplayInputPrice)
 	mult.OutputMult = displayTokenMultiplier(pricing.OutputPrice, pricing.DisplayOutputPrice)
-	mult.CacheReadMult = displayTokenMultiplier(pricing.CacheReadPrice, pricing.DisplayCacheReadPrice)
+	mult.CacheReadInputMult = displayCacheReadInputPremiumMultiplier(
+		pricing.CacheReadPrice,
+		pricing.DisplayCacheReadPrice,
+		pricing.DisplayInputPrice,
+	)
 
 	// Layer 2: user group display rate (rate_multiplier / display_rate_multiplier)
 	if displayRateMultiplier > 0 && displayRateMultiplier != rateMultiplier {
-		scale := rateMultiplier / displayRateMultiplier
-		mult.InputMult *= scale
-		mult.OutputMult *= scale
-		mult.CacheReadMult *= scale
-		mult.CacheCreateMult *= scale
+		mult.RateScale = rateMultiplier / displayRateMultiplier
 	}
 
 	return mult
@@ -265,6 +277,26 @@ func displayTokenMultiplier(realPrice float64, displayPrice *float64) float64 {
 	return 1.0
 }
 
+func displayCacheReadInputPremiumMultiplier(realCacheReadPrice float64, displayCacheReadPrice *float64, displayInputPrice *float64) float64 {
+	if realCacheReadPrice <= 0 ||
+		displayCacheReadPrice == nil || *displayCacheReadPrice <= 0 ||
+		displayInputPrice == nil || *displayInputPrice <= 0 {
+		return 0
+	}
+	premium := realCacheReadPrice - *displayCacheReadPrice
+	if premium <= 0 {
+		return 0
+	}
+	return premium / *displayInputPrice
+}
+
+func displayTokenRateScale(mult *DisplayTokenMultipliers) float64 {
+	if mult == nil || !mult.RateScaleSet {
+		return 1.0
+	}
+	return mult.RateScale
+}
+
 // RewriteSSEUsageTokens rewrites token fields in a Claude SSE data line.
 // Only processes message_start and message_delta events (2 per stream).
 func RewriteSSEUsageTokens(line string, mult *DisplayTokenMultipliers) string {
@@ -295,26 +327,9 @@ func RewriteSSEUsageTokens(line string, mult *DisplayTokenMultipliers) string {
 		return line
 	}
 
-	modified := []byte(data)
-	modified = rewriteTokenField(modified, usagePath+".input_tokens", mult.InputMult)
-	modified = rewriteTokenField(modified, usagePath+".output_tokens", mult.OutputMult)
-	modified = rewriteTokenField(modified, usagePath+".cache_read_input_tokens", mult.CacheReadMult)
-	modified = rewriteTokenField(modified, usagePath+".cache_creation_input_tokens", mult.CacheCreateMult)
+	modified := rewriteSeparatedUsageTokens([]byte(data), usagePath, mult)
 
 	return dataPrefix + string(modified)
-}
-
-func rewriteTokenField(json []byte, path string, multiplier float64) []byte {
-	v := gjson.GetBytes(json, path)
-	if !v.Exists() || v.Int() == 0 {
-		return json
-	}
-	newVal := int(math.Round(float64(v.Int()) * multiplier))
-	result, err := sjson.SetBytes(json, path, newVal)
-	if err != nil {
-		return json
-	}
-	return result
 }
 
 // ApplyDisplayMultipliersToUsageMap modifies a usage map in-place (for antigravity hook).
@@ -322,30 +337,39 @@ func ApplyDisplayMultipliersToUsageMap(m map[string]any, mult *DisplayTokenMulti
 	if mult == nil || !mult.IsNonTrivial() {
 		return
 	}
-	applyMapMult(m, "input_tokens", mult.InputMult)
-	applyMapMult(m, "output_tokens", mult.OutputMult)
-	applyMapMult(m, "cache_read_input_tokens", mult.CacheReadMult)
-	applyMapMult(m, "cache_creation_input_tokens", mult.CacheCreateMult)
+	input, inputOK := usageMapInt(m, "input_tokens")
+	output, outputOK := usageMapInt(m, "output_tokens")
+	cacheRead, cacheReadOK := usageMapInt(m, "cache_read_input_tokens")
+	cacheCreate, cacheCreateOK := usageMapInt(m, "cache_creation_input_tokens")
+	displayInput, displayOutput, displayCacheRead, displayCacheCreate := computeSeparatedDisplayUsage(input, output, cacheRead, cacheCreate, mult)
+	if inputOK {
+		m["input_tokens"] = displayInput
+	}
+	if outputOK {
+		m["output_tokens"] = displayOutput
+	}
+	if cacheReadOK {
+		m["cache_read_input_tokens"] = displayCacheRead
+	}
+	if cacheCreateOK {
+		m["cache_creation_input_tokens"] = displayCacheCreate
+	}
 }
-func applyMapMult(m map[string]any, key string, multiplier float64) {
+
+func usageMapInt(m map[string]any, key string) (int, bool) {
 	v, ok := m[key]
 	if !ok {
-		return
+		return 0, false
 	}
 	switch val := v.(type) {
 	case int:
-		if val > 0 {
-			m[key] = int(math.Round(float64(val) * multiplier))
-		}
+		return val, true
 	case int64:
-		if val > 0 {
-			m[key] = int(math.Round(float64(val) * multiplier))
-		}
+		return int(val), true
 	case float64:
-		if val > 0 {
-			m[key] = int(math.Round(val * multiplier))
-		}
+		return int(val), true
 	}
+	return 0, false
 }
 
 // rewriteNonStreamUsageTokens rewrites token fields in a non-streaming JSON response body.
@@ -357,10 +381,60 @@ func rewriteNonStreamUsageTokens(body []byte, mult *DisplayTokenMultipliers) []b
 	if !usageNode.Exists() {
 		return body
 	}
-	body = rewriteTokenField(body, "usage.input_tokens", mult.InputMult)
-	body = rewriteTokenField(body, "usage.output_tokens", mult.OutputMult)
-	body = rewriteTokenField(body, "usage.cache_read_input_tokens", mult.CacheReadMult)
-	body = rewriteTokenField(body, "usage.cache_creation_input_tokens", mult.CacheCreateMult)
+	return rewriteSeparatedUsageTokens(body, "usage", mult)
+}
+
+func rewriteSeparatedUsageTokens(body []byte, usagePath string, mult *DisplayTokenMultipliers) []byte {
+	if mult == nil || !mult.IsNonTrivial() || usagePath == "" {
+		return body
+	}
+	if !gjson.GetBytes(body, usagePath).Exists() {
+		return body
+	}
+
+	inputPath := usagePath + ".input_tokens"
+	outputPath := usagePath + ".output_tokens"
+	cacheReadPath := usagePath + ".cache_read_input_tokens"
+	cacheCreatePath := usagePath + ".cache_creation_input_tokens"
+
+	inputNode := gjson.GetBytes(body, inputPath)
+	outputNode := gjson.GetBytes(body, outputPath)
+	cacheReadNode := gjson.GetBytes(body, cacheReadPath)
+	cacheCreateNode := gjson.GetBytes(body, cacheCreatePath)
+
+	displayInput, displayOutput, displayCacheRead, displayCacheCreate := computeSeparatedDisplayUsage(
+		int(inputNode.Int()),
+		int(outputNode.Int()),
+		int(cacheReadNode.Int()),
+		int(cacheCreateNode.Int()),
+		mult,
+	)
+
+	var err error
+	if inputNode.Exists() {
+		body, err = sjson.SetBytes(body, inputPath, displayInput)
+		if err != nil {
+			return body
+		}
+	}
+	if outputNode.Exists() {
+		body, err = sjson.SetBytes(body, outputPath, displayOutput)
+		if err != nil {
+			return body
+		}
+	}
+	if cacheReadNode.Exists() {
+		body, err = sjson.SetBytes(body, cacheReadPath, displayCacheRead)
+		if err != nil {
+			return body
+		}
+	}
+	if cacheCreateNode.Exists() {
+		body, err = sjson.SetBytes(body, cacheCreatePath, displayCacheCreate)
+		if err != nil {
+			return body
+		}
+	}
 	return body
 }
 
@@ -510,10 +584,46 @@ func computeOpenAIDisplayUsage(inputTokens int, outputTokens int, cachedTokens i
 	if nonCachedInput < 0 {
 		nonCachedInput = 0
 	}
-	displayCached := roundDisplayTokenCount(cachedTokens, mult.CacheReadMult)
-	displayInput := roundDisplayTokenCount(nonCachedInput, mult.InputMult) + displayCached
-	displayOutput := roundDisplayTokenCount(outputTokens, mult.OutputMult)
+	displayNonCachedInput, displayOutput, displayCached, _ := computeSeparatedDisplayUsage(nonCachedInput, outputTokens, cachedTokens, 0, mult)
+	displayInput := displayNonCachedInput + displayCached
 	return displayInput, displayOutput, displayCached
+}
+
+func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTokens int, cacheCreateTokens int, mult *DisplayTokenMultipliers) (int, int, int, int) {
+	if mult == nil || !mult.IsNonTrivial() {
+		return inputTokens, outputTokens, cacheReadTokens, cacheCreateTokens
+	}
+	if inputTokens < 0 {
+		inputTokens = 0
+	}
+	if outputTokens < 0 {
+		outputTokens = 0
+	}
+	if cacheReadTokens < 0 {
+		cacheReadTokens = 0
+	}
+	if cacheCreateTokens < 0 {
+		cacheCreateTokens = 0
+	}
+
+	displayInputRaw := float64(inputTokens) * mult.InputMult
+	if inputTokens > 0 {
+		displayInputRaw += float64(cacheReadTokens) * mult.CacheReadInputMult
+	}
+	displayInput := int(math.Round(displayInputRaw))
+	displayOutput := roundDisplayTokenCount(outputTokens, mult.OutputMult)
+	displayCacheRead := roundDisplayTokenCount(cacheReadTokens, mult.CacheReadMult)
+	displayCacheCreate := roundDisplayTokenCount(cacheCreateTokens, mult.CacheCreateMult)
+
+	rateScale := displayTokenRateScale(mult)
+	if rateScale != 1.0 {
+		displayInput = roundDisplayTokenCount(displayInput, rateScale)
+		displayOutput = roundDisplayTokenCount(displayOutput, rateScale)
+		displayCacheRead = roundDisplayTokenCount(displayCacheRead, rateScale)
+		displayCacheCreate = roundDisplayTokenCount(displayCacheCreate, rateScale)
+	}
+
+	return displayInput, displayOutput, displayCacheRead, displayCacheCreate
 }
 
 func roundDisplayTokenCount(tokens int, multiplier float64) int {

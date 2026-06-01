@@ -27,10 +27,11 @@ var _ GatewayCache = (*stubGatewayCache)(nil)
 
 func openAITestDisplayMultipliers() *DisplayTokenMultipliers {
 	return &DisplayTokenMultipliers{
-		InputMult:       2,
-		OutputMult:      4,
-		CacheReadMult:   3,
-		CacheCreateMult: 1,
+		InputMult:          2,
+		OutputMult:         4,
+		CacheReadMult:      1,
+		CacheCreateMult:    1,
+		CacheReadInputMult: 2,
 	}
 }
 
@@ -1578,7 +1579,7 @@ func TestOpenAINonStreamingDisplayUsageRewritesDownstreamOnly(t *testing.T) {
 	require.Equal(t, 100, usage.OutputTokens)
 	require.Equal(t, 200, usage.CacheReadInputTokens)
 	require.Equal(t, int64(2200), gjson.Get(rec.Body.String(), "usage.input_tokens").Int())
-	require.Equal(t, int64(600), gjson.Get(rec.Body.String(), "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(200), gjson.Get(rec.Body.String(), "usage.input_tokens_details.cached_tokens").Int())
 	require.Equal(t, int64(400), gjson.Get(rec.Body.String(), "usage.output_tokens").Int())
 	require.Equal(t, int64(2600), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
 }
@@ -1640,7 +1641,7 @@ func TestOpenAIStreamingDisplayUsageRewritesTerminalEventOnly(t *testing.T) {
 	body := rec.Body.String()
 	require.Contains(t, body, `"type":"response.output_text.delta","delta":"hi"`)
 	require.Contains(t, body, `"input_tokens":2200`)
-	require.Contains(t, body, `"cached_tokens":600`)
+	require.Contains(t, body, `"cached_tokens":200`)
 	require.Contains(t, body, `"output_tokens":400`)
 	require.Contains(t, body, `"total_tokens":2600`)
 }
@@ -2347,7 +2348,7 @@ func TestHandleSSEToJSON_DisplayUsageRewritesDownstreamOnly(t *testing.T) {
 	require.Equal(t, 100, usage.OutputTokens)
 	require.Equal(t, 200, usage.CacheReadInputTokens)
 	require.Equal(t, int64(2200), gjson.Get(rec.Body.String(), "usage.input_tokens").Int())
-	require.Equal(t, int64(600), gjson.Get(rec.Body.String(), "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(200), gjson.Get(rec.Body.String(), "usage.input_tokens_details.cached_tokens").Int())
 	require.Equal(t, int64(400), gjson.Get(rec.Body.String(), "usage.output_tokens").Int())
 	require.Equal(t, int64(2600), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
 }
@@ -2452,7 +2453,7 @@ func TestOpenAIChatBufferedDisplayUsageRewritesDownstreamOnly(t *testing.T) {
 	require.Equal(t, 100, result.Usage.OutputTokens)
 	require.Equal(t, 200, result.Usage.CacheReadInputTokens)
 	require.Equal(t, int64(2200), gjson.Get(rec.Body.String(), "usage.prompt_tokens").Int())
-	require.Equal(t, int64(600), gjson.Get(rec.Body.String(), "usage.prompt_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(200), gjson.Get(rec.Body.String(), "usage.prompt_tokens_details.cached_tokens").Int())
 	require.Equal(t, int64(400), gjson.Get(rec.Body.String(), "usage.completion_tokens").Int())
 	require.Equal(t, int64(2600), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
 }
@@ -2507,7 +2508,7 @@ func TestOpenAIChatStreamingDisplayUsageRewritesUsageChunkOnly(t *testing.T) {
 	require.Equal(t, 200, result.Usage.CacheReadInputTokens)
 	body := rec.Body.String()
 	require.Contains(t, body, `"usage":{"prompt_tokens":2200,"completion_tokens":400,"total_tokens":2600`)
-	require.Contains(t, body, `"cached_tokens":600`)
+	require.Contains(t, body, `"cached_tokens":200`)
 	require.Contains(t, body, "data: [DONE]")
 }
 

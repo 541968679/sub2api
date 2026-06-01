@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-01] fix: align downstream display usage cache balancing with usage logs
+
+**Affected files**: `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/display_token_rewrite_test.go`, `backend/internal/service/openai_gateway_service_test.go`, `docs/dev/codebase/billing.md`
+**Upstream compatibility**: custom downstream display-token response behavior only; billing, stored usage logs, quota deduction, and real-mode downstream responses remain unchanged.
+**Change details**:
+- Changed downstream display usage rewriting to match usage-log display pricing for cache reads: cache-read token counts stay on the cache line, and lower display cache-read pricing is balanced by adding the cache premium to displayed input tokens.
+- Kept user-group display rate scaling as a second step after model display-price balancing, so all token buckets scale consistently with usage records.
+- Updated OpenAI Responses/Chat Completions tests so `cached_tokens` stays aligned with usage records while `input_tokens` and `total_tokens` still reflect display balancing.
+
 ## [2026-06-01] feat: extend downstream display usage tokens to OpenAI HTTP
 
 **Affected files**: `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_chat_completions.go`, `docs/dev/codebase/billing.md`

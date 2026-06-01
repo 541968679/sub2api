@@ -266,9 +266,11 @@ Completions response `usage` fields:
   by usage logs: global display prices plus user model display overrides, then
   user-group display rate scaling when a group is present.
 - OpenAI `input_tokens` includes cached tokens, so the rewrite splits
-  `input_tokens_details.cached_tokens` out first, applies `CacheReadMult` to
-  cached input tokens, applies `InputMult` only to the non-cached input
-  remainder, and recomputes `total_tokens`.
+  `input_tokens_details.cached_tokens` out first, keeps cached token counts on
+  the cache line during model display pricing, moves any cache-read display
+  price premium into non-cached input tokens, then recombines input plus cached
+  tokens and recomputes `total_tokens`. User-group display rate scaling is
+  applied after this balancing step.
 - API keys without a group can still use `display`; model display prices apply
   and group display rate scaling is treated as `1`.
 - Billing, stored usage logs, `actual_cost`, quota deduction, and usage query
