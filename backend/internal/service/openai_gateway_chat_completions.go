@@ -335,6 +335,31 @@ func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
 	return s.handleCompatErrorResponse(resp, c, account, writeChatCompletionsError)
 }
 
+func cloneResponsesResponse(resp *apicompat.ResponsesResponse) *apicompat.ResponsesResponse {
+	if resp == nil {
+		return nil
+	}
+	cloned := *resp
+	cloned.Usage = cloneResponsesUsage(resp.Usage)
+	return &cloned
+}
+
+func cloneResponsesUsage(usage *apicompat.ResponsesUsage) *apicompat.ResponsesUsage {
+	if usage == nil {
+		return nil
+	}
+	cloned := *usage
+	if usage.InputTokensDetails != nil {
+		details := *usage.InputTokensDetails
+		cloned.InputTokensDetails = &details
+	}
+	if usage.OutputTokensDetails != nil {
+		details := *usage.OutputTokensDetails
+		cloned.OutputTokensDetails = &details
+	}
+	return &cloned
+}
+
 // handleChatBufferedStreamingResponse reads all Responses SSE events from the
 // upstream, finds the terminal event, converts to a Chat Completions JSON
 // response, and writes it to the client.
@@ -417,7 +442,14 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
-	c.JSON(http.StatusOK, chatResp)
+	body, marshalErr := json.Marshal(chatResp)
+	if marshalErr != nil {
+		return nil, fmt.Errorf("marshal chat completions response: %w", marshalErr)
+	}
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		body = rewriteOpenAIChatUsageTokens(body, "usage", mult)
+	}
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
 
 	return &OpenAIForwardResult{
 		RequestID:     requestID,
@@ -505,6 +537,20 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			}
 			if event.Response.Usage.InputTokensDetails != nil {
 				usage.CacheReadInputTokens = event.Response.Usage.InputTokensDetails.CachedTokens
+			}
+			if mult := getDisplayTokenMultipliers(c); mult != nil {
+				displayUsage := applyOpenAIResponsesUsageDisplayMultipliers(&usage, mult)
+				event.Response = cloneResponsesResponse(event.Response)
+				event.Response.Usage = cloneResponsesUsage(event.Response.Usage)
+				event.Response.Usage.InputTokens = displayUsage.InputTokens
+				event.Response.Usage.OutputTokens = displayUsage.OutputTokens
+				event.Response.Usage.TotalTokens = displayUsage.InputTokens + displayUsage.OutputTokens
+				if displayUsage.CacheReadInputTokens > 0 || event.Response.Usage.InputTokensDetails != nil {
+					if event.Response.Usage.InputTokensDetails == nil {
+						event.Response.Usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{}
+					}
+					event.Response.Usage.InputTokensDetails.CachedTokens = displayUsage.CacheReadInputTokens
+				}
 			}
 		}
 

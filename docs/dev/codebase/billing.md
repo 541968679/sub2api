@@ -254,16 +254,21 @@ in `global_model_pricing` and `user_model_pricing_overrides` for rollback and ol
 data compatibility, but the backend no longer reads or writes them, admin/user
 pricing APIs no longer expose them, and the frontend no longer renders the field.
 
-### 下游响应 token 模式 (2026-05-31)
+### 下游响应 token 模式 (2026-06-01)
 
 `users.downstream_usage_token_mode` controls only the token counts returned in
-downstream Claude Messages / Antigravity response `usage` fields:
+downstream Claude Messages, Antigravity, and OpenAI HTTP Responses / Chat
+Completions response `usage` fields:
 
 - `real` is the default and returns the real upstream token counts.
 - `display` reuses `display_token_rewrite.go` to rewrite Claude/Antigravity
-  response usage tokens with the same display pricing chain used by usage logs:
-  global display prices plus user model display overrides, then user-group
-  display rate scaling when a group is present.
+  and OpenAI HTTP response usage tokens with the same display pricing chain used
+  by usage logs: global display prices plus user model display overrides, then
+  user-group display rate scaling when a group is present.
+- OpenAI `input_tokens` includes cached tokens, so the rewrite splits
+  `input_tokens_details.cached_tokens` out first, applies `CacheReadMult` to
+  cached input tokens, applies `InputMult` only to the non-cached input
+  remainder, and recomputes `total_tokens`.
 - API keys without a group can still use `display`; model display prices apply
   and group display rate scaling is treated as `1`.
 - Billing, stored usage logs, `actual_cost`, quota deduction, and usage query

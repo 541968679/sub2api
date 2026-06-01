@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-01] feat: extend downstream display usage tokens to OpenAI HTTP
+
+**Affected files**: `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_chat_completions.go`, `docs/dev/codebase/billing.md`
+**Upstream compatibility**: scoped custom downstream response behavior for user opt-in display token mode; billing, stored usage, actual cost, and OpenAI WebSocket/Image/Gemini paths remain unchanged.
+**Change details**:
+- Extended `users.downstream_usage_token_mode=display` from Claude/Antigravity to OpenAI HTTP `/v1/responses` and `/v1/chat/completions` downstream `usage` fields.
+- Added OpenAI-specific usage rewriting that splits `cached_tokens` out of `input_tokens` and applies cache-read display multipliers only to cached input tokens.
+- Kept real token accounting for `OpenAIForwardResult.Usage`, usage logs, quota deduction, and billing while rewriting only the bytes returned to the client.
+- Reused the existing display pricing chain, including user model display pricing overrides and user-group display rate scaling, without using account cost multipliers.
+- Added focused unit coverage for Responses/Chat Completions non-streaming, streaming, SSE-to-JSON fallback, cache-token math, real-mode no-op behavior, and include-usage behavior.
+
 ## [2026-06-01] fix: add Anthropic API-key passthrough stream keepalive
 
 **Affected files**: `backend/internal/service/gateway_service.go`, `backend/internal/service/gateway_anthropic_apikey_passthrough_test.go`

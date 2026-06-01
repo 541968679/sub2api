@@ -439,6 +439,28 @@ func (s *OpenAIGatewayService) ResolveChannelMappingAndRestrict(ctx context.Cont
 	return s.channelService.ResolveChannelMappingAndRestrict(ctx, groupID, model)
 }
 
+func (s *OpenAIGatewayService) GetUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
+	if s == nil {
+		return groupDefaultMultiplier
+	}
+	resolver := s.userGroupRateResolver
+	if resolver == nil {
+		return groupDefaultMultiplier
+	}
+	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
+}
+
+func (s *OpenAIGatewayService) GetUserGroupDisplayRateMultiplier(ctx context.Context, userID, groupID int64, fallback float64) float64 {
+	if s == nil || s.userGroupRateResolver == nil || s.userGroupRateResolver.repo == nil {
+		return fallback
+	}
+	displayRate, err := s.userGroupRateResolver.repo.GetDisplayRateByUserAndGroup(ctx, userID, groupID)
+	if err != nil || displayRate == nil || *displayRate <= 0 {
+		return fallback
+	}
+	return *displayRate
+}
+
 func (s *OpenAIGatewayService) checkChannelPricingRestriction(ctx context.Context, groupID *int64, requestedModel string) bool {
 	if groupID == nil || s.channelService == nil || requestedModel == "" {
 		return false
@@ -3439,6 +3461,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				firstTokenMs = &ms
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)
+			if mult := getDisplayTokenMultipliers(c); mult != nil {
+				line = rewriteOpenAIResponsesSSEUsageTokens(line, mult)
+			}
 		}
 
 		if !clientDisconnected {
@@ -3554,6 +3579,9 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
 		body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
 	}
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+	}
 	c.Data(resp.StatusCode, contentType, body)
 	return usage, nil
 }
@@ -3586,6 +3614,9 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 		}
 		// Correct tool calls in final response
 		body = s.correctToolCallsInResponseBody(body)
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+		}
 	} else {
 		terminalType, terminalPayload, terminalOK := extractOpenAISSETerminalEvent(bodyText)
 		if terminalOK && terminalType == "response.failed" {
@@ -3600,6 +3631,13 @@ func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}
 		body = []byte(bodyText)
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			lines := strings.Split(string(body), "\n")
+			for i, line := range lines {
+				lines[i] = rewriteOpenAIResponsesSSEUsageTokens(line, mult)
+			}
+			body = []byte(strings.Join(lines, "\n"))
+		}
 	}
 
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
@@ -4260,6 +4298,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
 			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			lineForDownstream := line
+			if mult := getDisplayTokenMultipliers(c); mult != nil {
+				lineForDownstream = rewriteOpenAIResponsesSSEUsageTokens(lineForDownstream, mult)
+			}
 
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected {
@@ -4268,7 +4310,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					// 保证首个 token 事件尽快出站，避免影响 TTFT。
 					shouldFlush = true
 				}
-				if _, err := bufferedWriter.WriteString(line); err != nil {
+				if _, err := bufferedWriter.WriteString(lineForDownstream); err != nil {
 					clientDisconnected = true
 					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
 				} else if _, err := bufferedWriter.WriteString("\n"); err != nil {
@@ -4550,6 +4592,9 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	if originalModel != mappedModel {
 		body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
 	}
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+	}
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 
@@ -4595,6 +4640,9 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 		}
 		// Correct tool calls in final response
 		body = s.correctToolCallsInResponseBody(body)
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			body = rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+		}
 	} else {
 		terminalType, terminalPayload, terminalOK := extractOpenAISSETerminalEvent(bodyText)
 		if terminalOK && terminalType == "response.failed" {
@@ -4609,6 +4657,13 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
 		}
 		body = []byte(bodyText)
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			lines := strings.Split(string(body), "\n")
+			for i, line := range lines {
+				lines[i] = rewriteOpenAIResponsesSSEUsageTokens(line, mult)
+			}
+			body = []byte(strings.Join(lines, "\n"))
+		}
 	}
 
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 type displayTokenUserModelPricingRepoStub struct {
@@ -163,4 +164,66 @@ func TestDisplayToken_GroupDisplayRateIsTheOnlyMultiplierLayer(t *testing.T) {
 	require.InDelta(t, 100.0, mult.OutputMult, 1e-12)
 	require.InDelta(t, 100.0, mult.CacheReadMult, 1e-12)
 	require.InDelta(t, 100.0, mult.CacheCreateMult, 1e-12)
+}
+
+func TestDisplayToken_OpenAIResponsesUsageRewriteSplitsCachedTokens(t *testing.T) {
+	body := []byte(`{"id":"resp_1","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200},"output_tokens_details":{"reasoning_tokens":7}},"custom":"kept"}`)
+	mult := &DisplayTokenMultipliers{
+		InputMult:       2,
+		OutputMult:      4,
+		CacheReadMult:   3,
+		CacheCreateMult: 1,
+	}
+
+	rewritten := rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+	require.Equal(t, int64(2200), gjson.GetBytes(rewritten, "usage.input_tokens").Int())
+	require.Equal(t, int64(600), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(400), gjson.GetBytes(rewritten, "usage.output_tokens").Int())
+	require.Equal(t, int64(2600), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
+	require.Equal(t, int64(7), gjson.GetBytes(rewritten, "usage.output_tokens_details.reasoning_tokens").Int())
+	require.Equal(t, "kept", gjson.GetBytes(rewritten, "custom").String())
+}
+
+func TestDisplayToken_OpenAIChatUsageRewriteHandlesMissingCachedTokens(t *testing.T) {
+	body := []byte(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)
+	mult := &DisplayTokenMultipliers{
+		InputMult:       1.5,
+		OutputMult:      2,
+		CacheReadMult:   3,
+		CacheCreateMult: 1,
+	}
+
+	rewritten := rewriteOpenAIChatUsageTokens(body, "usage", mult)
+	require.Equal(t, int64(15), gjson.GetBytes(rewritten, "usage.prompt_tokens").Int())
+	require.Equal(t, int64(10), gjson.GetBytes(rewritten, "usage.completion_tokens").Int())
+	require.Equal(t, int64(25), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
+	require.False(t, gjson.GetBytes(rewritten, "usage.prompt_tokens_details").Exists())
+}
+
+func TestDisplayToken_OpenAIUsageRewriteClampsCachedTokensAboveInput(t *testing.T) {
+	body := []byte(`{"usage":{"input_tokens":100,"output_tokens":10,"total_tokens":110,"input_tokens_details":{"cached_tokens":200}}}`)
+	mult := &DisplayTokenMultipliers{
+		InputMult:       2,
+		OutputMult:      4,
+		CacheReadMult:   3,
+		CacheCreateMult: 1,
+	}
+
+	rewritten := rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+	require.Equal(t, int64(600), gjson.GetBytes(rewritten, "usage.input_tokens").Int())
+	require.Equal(t, int64(600), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(40), gjson.GetBytes(rewritten, "usage.output_tokens").Int())
+	require.Equal(t, int64(640), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
+}
+
+func TestDisplayToken_OpenAIUsageRewriteNoopForNilOrTrivialMultiplier(t *testing.T) {
+	body := []byte(`{"usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}`)
+
+	require.Equal(t, string(body), string(rewriteOpenAIResponsesUsageTokens(body, "usage", nil)))
+	require.Equal(t, string(body), string(rewriteOpenAIResponsesUsageTokens(body, "usage", &DisplayTokenMultipliers{
+		InputMult:       1,
+		OutputMult:      1,
+		CacheReadMult:   1,
+		CacheCreateMult: 1,
+	})))
 }

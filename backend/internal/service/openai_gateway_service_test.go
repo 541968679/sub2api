@@ -25,6 +25,15 @@ import (
 var _ AccountRepository = (*stubOpenAIAccountRepo)(nil)
 var _ GatewayCache = (*stubGatewayCache)(nil)
 
+func openAITestDisplayMultipliers() *DisplayTokenMultipliers {
+	return &DisplayTokenMultipliers{
+		InputMult:       2,
+		OutputMult:      4,
+		CacheReadMult:   3,
+		CacheCreateMult: 1,
+	}
+}
+
 type stubOpenAIAccountRepo struct {
 	AccountRepository
 	accounts []Account
@@ -1546,6 +1555,124 @@ func TestOpenAINonStreamingContentTypeDefault(t *testing.T) {
 	}
 }
 
+func TestOpenAINonStreamingDisplayUsageRewritesDownstreamOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	body := []byte(`{"id":"resp_1","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}`)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     http.Header{},
+	}
+
+	usage, err := svc.handleNonStreamingResponse(c.Request.Context(), resp, c, &Account{}, "gpt-4o", "gpt-4o")
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 1000, usage.InputTokens)
+	require.Equal(t, 100, usage.OutputTokens)
+	require.Equal(t, 200, usage.CacheReadInputTokens)
+	require.Equal(t, int64(2200), gjson.Get(rec.Body.String(), "usage.input_tokens").Int())
+	require.Equal(t, int64(600), gjson.Get(rec.Body.String(), "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(400), gjson.Get(rec.Body.String(), "usage.output_tokens").Int())
+	require.Equal(t, int64(2600), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
+}
+
+func TestOpenAINonStreamingRealUsageDoesNotRewrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	body := []byte(`{"id":"resp_1","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}`)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     http.Header{},
+	}
+
+	usage, err := svc.handleNonStreamingResponse(c.Request.Context(), resp, c, &Account{}, "gpt-4o", "gpt-4o")
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.JSONEq(t, string(body), rec.Body.String())
+}
+
+func TestOpenAIStreamingDisplayUsageRewritesTerminalEventOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamDataIntervalTimeout: 0,
+			StreamKeepaliveInterval:   0,
+			MaxLineSize:               defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"response.output_text.delta","delta":"hi"}`,
+			`data: {"type":"response.completed","response":{"usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+		Header: http.Header{},
+	}
+
+	result, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "gpt-4o", "gpt-4o")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.usage)
+	require.Equal(t, 1000, result.usage.InputTokens)
+	require.Equal(t, 100, result.usage.OutputTokens)
+	require.Equal(t, 200, result.usage.CacheReadInputTokens)
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"response.output_text.delta","delta":"hi"`)
+	require.Contains(t, body, `"input_tokens":2200`)
+	require.Contains(t, body, `"cached_tokens":600`)
+	require.Contains(t, body, `"output_tokens":400`)
+	require.Contains(t, body, `"total_tokens":2600`)
+}
+
+func TestOpenAIStreamingRealUsageDoesNotRewrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamDataIntervalTimeout: 0,
+			StreamKeepaliveInterval:   0,
+			MaxLineSize:               defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`data: {"type":"response.completed","response":{"usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`)),
+		Header:     http.Header{},
+	}
+
+	result, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "gpt-4o", "gpt-4o")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), `"input_tokens":1000`)
+	require.NotContains(t, rec.Body.String(), `"input_tokens":2200`)
+}
+
 func TestOpenAIStreamingHeadersOverride(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -2196,6 +2323,35 @@ func TestHandleSSEToJSON_CompletedEventReturnsJSON(t *testing.T) {
 	require.NotContains(t, rec.Body.String(), "data:")
 }
 
+func TestHandleSSEToJSON_DisplayUsageRewritesDownstreamOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+	body := []byte(strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_2","model":"gpt-4o","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`,
+		`data: [DONE]`,
+	}, "\n"))
+
+	usage, err := svc.handleSSEToJSON(resp, c, body, "gpt-4o", "gpt-4o")
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 1000, usage.InputTokens)
+	require.Equal(t, 100, usage.OutputTokens)
+	require.Equal(t, 200, usage.CacheReadInputTokens)
+	require.Equal(t, int64(2200), gjson.Get(rec.Body.String(), "usage.input_tokens").Int())
+	require.Equal(t, int64(600), gjson.Get(rec.Body.String(), "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(400), gjson.Get(rec.Body.String(), "usage.output_tokens").Int())
+	require.Equal(t, int64(2600), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
+}
+
 func TestHandleSSEToJSON_ReconstructsImageGenerationOutputItemDone(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -2269,4 +2425,111 @@ func TestHandleSSEToJSON_ResponseFailedReturnsProtocolError(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Contains(t, rec.Body.String(), "upstream rejected request")
 	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
+}
+
+func TestOpenAIChatBufferedDisplayUsageRewritesDownstreamOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"response.completed","response":{"id":"resp_chat","status":"completed","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"req-chat"}},
+	}
+
+	result, err := svc.handleChatBufferedStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1000, result.Usage.InputTokens)
+	require.Equal(t, 100, result.Usage.OutputTokens)
+	require.Equal(t, 200, result.Usage.CacheReadInputTokens)
+	require.Equal(t, int64(2200), gjson.Get(rec.Body.String(), "usage.prompt_tokens").Int())
+	require.Equal(t, int64(600), gjson.Get(rec.Body.String(), "usage.prompt_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(400), gjson.Get(rec.Body.String(), "usage.completion_tokens").Int())
+	require.Equal(t, int64(2600), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
+}
+
+func TestOpenAIChatBufferedRealUsageDoesNotRewrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`data: {"type":"response.completed","response":{"id":"resp_chat","status":"completed","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`)),
+		Header:     http.Header{"X-Request-Id": []string{"req-chat"}},
+	}
+
+	result, err := svc.handleChatBufferedStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, int64(1000), gjson.Get(rec.Body.String(), "usage.prompt_tokens").Int())
+	require.Equal(t, int64(200), gjson.Get(rec.Body.String(), "usage.prompt_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(100), gjson.Get(rec.Body.String(), "usage.completion_tokens").Int())
+	require.Equal(t, int64(1100), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
+}
+
+func TestOpenAIChatStreamingDisplayUsageRewritesUsageChunkOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"response.created","response":{"id":"resp_chat","model":"gpt-4o"}}`,
+			`data: {"type":"response.completed","response":{"id":"resp_chat","status":"completed","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"req-chat"}},
+	}
+
+	result, err := svc.handleChatStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", true, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1000, result.Usage.InputTokens)
+	require.Equal(t, 100, result.Usage.OutputTokens)
+	require.Equal(t, 200, result.Usage.CacheReadInputTokens)
+	body := rec.Body.String()
+	require.Contains(t, body, `"usage":{"prompt_tokens":2200,"completion_tokens":400,"total_tokens":2600`)
+	require.Contains(t, body, `"cached_tokens":600`)
+	require.Contains(t, body, "data: [DONE]")
+}
+
+func TestOpenAIChatStreamingIncludeUsageFalseDoesNotAddUsageChunk(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(`data: {"type":"response.completed","response":{"id":"resp_chat","status":"completed","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`)),
+		Header:     http.Header{"X-Request-Id": []string{"req-chat"}},
+	}
+
+	result, err := svc.handleChatStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", false, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1000, result.Usage.InputTokens)
+	require.NotContains(t, rec.Body.String(), `"usage":`)
+	require.Contains(t, rec.Body.String(), "data: [DONE]")
 }
