@@ -1,4 +1,4 @@
-﻿# Sub2API 浜屽紑鍙樻洿鏃ュ織
+# Sub2API 浜屽紑鍙樻洿鏃ュ織
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-01] docs: clarify cross-repository agent rules
+
+**Affected files**: `AGENTS.md`, `docs/dev/RELATED_PROJECTS.md`, `docs/dev/ARCHITECTURE.md`, `docs/dev/CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\AGENTS.md`, `E:\cursor project\AIClient2API\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\new-api\AGENTS.md`, `E:\cursor project\new-api\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\new-api\web\default\AGENTS.md`, `E:\cursor project\InvokeAI\AGENTS.md`, `E:\cursor project\InvokeAI\docs\SUB2API_INTEGRATION.md`
+**Upstream compatibility**: documentation and agent-rule boundaries only; no Sub2API runtime, database, API, or deployment behavior changes.
+**Change details**:
+- Added a Sub2API-side cross-repository index in `docs/dev/RELATED_PROJECTS.md` and pointed the main `AGENTS.md` and architecture docs at it.
+- Clarified that `api2sub`, AIClient2API, new-api, and InvokeAI each use their own repository-root `AGENTS.md` as the rule entry point.
+- Documented port ownership, startup boundaries, changelog ownership, and cross-repository contract update rules.
+- Added or updated sibling-project Sub2API integration docs so future work started from a child repository still sees the correct Sub2API relationship.
 ## [2026-06-01] docs: require GHCR for future Sub2API main deploys
 
 **Affected files**: AGENTS.md, docs/dev/ARCHITECTURE.md, docs/dev/DEPLOYMENT.md, docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md, docs/dev/CHANGELOG_CUSTOM.md

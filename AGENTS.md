@@ -4,6 +4,19 @@ This file is the entry point for AI agents (Codex, Copilot, Claude Code, etc.)
 working on this repository. When this file and `CLAUDE.md` differ, prefer the
 more specific rule here or in the referenced architecture/codebase documents.
 
+## Repository Rule Boundaries
+
+- When working in this checkout (`E:\cursor project\api2sub`), follow this file
+  as the Sub2API repository rule entry point.
+- When work belongs to a sibling checkout, switch to that repository root and
+  follow that repository's own `AGENTS.md`. This file records integration
+  boundaries but does not replace sibling-project engineering rules.
+- Do not edit sibling project source files from a Sub2API task unless the
+  current task explicitly requires cross-repository changes.
+- Cross-repository contract changes must update both sides: Sub2API integration
+  documentation and the affected sibling project's own documentation.
+- The cross-project relationship index is `docs/dev/RELATED_PROJECTS.md`.
+
 ## Project Snapshot
 
 Sub2API is an AI API gateway that aggregates multiple upstream AI subscription
@@ -25,7 +38,9 @@ Before changing unfamiliar code, read these in order:
    Settings KV, migrations, common task templates, known pitfalls.
 2. `docs/dev/codebase/README.md` - module documentation index.
 3. The relevant `docs/dev/codebase/{module}.md` file if it exists.
-4. `CLAUDE.md` only when you need the fuller historical context.
+4. `docs/dev/RELATED_PROJECTS.md` when the task touches AIClient2API,
+   InvokeAI, new-api, sidecars, ports, or cross-repository contracts.
+5. `CLAUDE.md` only when you need the fuller historical context.
 
 If deep exploration traces a flow across three or more files, update or create
 the matching `docs/dev/codebase/*.md` entry using this shape:
@@ -45,6 +60,8 @@ conventions, reusable task templates, or environment/build pitfalls.
 | AIClient2API API | 3000 | `E:\cursor project\AIClient2API` project config |
 | AIClient2API Master | 3100 | Same project |
 | new-api API | **13200** | Optional sibling project `E:\cursor project\new-api`, via `scripts/dev-stack.ps1 -IncludeNewAPI` |
+| InvokeAI backend | **9090** | Sibling project `E:\cursor project\InvokeAI`, via its own `scripts\dev-stack.ps1` |
+| InvokeAI frontend | **15175** | Sibling project `E:\cursor project\InvokeAI`, via its own `scripts\dev-stack.ps1` |
 | PostgreSQL | 5432 | Docker container `sub2api-pg-dev` |
 | Redis | 6379 | Docker container `sub2api-redis-dev` |
 
@@ -75,22 +92,18 @@ Do not launch `air.exe`, `pnpm dev`, or `npm start` directly for normal local wo
 
 ### Related Local Subprojects
 
-`E:\cursor project\new-api` is treated as an optional sibling subproject managed
-from this repository's local tooling, similar to `AIClient2API`. It is not a Git
-submodule and its source tree remains owned by the `new-api` repository. This
-repository may start/stop it for local integration through `scripts/dev-stack.ps1`,
-but should not edit `new-api` source files unless the current task explicitly
-requires changes in that project.
+Details live in `docs/dev/RELATED_PROJECTS.md`. The table below is only a quick
+index; each sibling repository's own `AGENTS.md` is authoritative for work done
+inside that checkout.
 
-Current integration scope:
+| Project | Local Path | Local Endpoint/Ports | Sub2API Relationship |
+|---------|------------|----------------------|----------------------|
+| AIClient2API | `E:\cursor project\AIClient2API` | API/Web UI `3000`, Master `3100` | Optional client-proxy sidecar; production compose has `aiclient2api` |
+| new-api | `E:\cursor project\new-api` | Sub2API-side local mapping `127.0.0.1:13200` | Optional local integration only; production gateway/account wiring not implemented |
+| InvokeAI | `E:\cursor project\InvokeAI` | Backend `9090`, frontend `15175` | External API image UI sidecar; CPU/external-provider only |
 
-- Local process orchestration only: `scripts/dev-stack.ps1 -IncludeNewAPI`.
-- Default host URL for Sub2API-side testing: `http://127.0.0.1:13200`.
-- The script generates `tmp/dev-stack/new-api.compose.yml`; do not commit that
-  generated file or modify `new-api/docker-compose.dev.yml` just to avoid port
-  conflicts.
-- Production deployment and Sub2API gateway/account wiring for `new-api` are not
-  implemented yet; add those as explicit follow-up work when needed.
+Do not commit generated cross-project runtime files such as
+`tmp/dev-stack/new-api.compose.yml`.
 
 ### Hot Reload
 
@@ -249,6 +262,10 @@ before relying on that target.
 - Read `docs/dev/ARCHITECTURE.md` before exploring unfamiliar code.
 - Append every verified change to `docs/dev/CHANGELOG_CUSTOM.md` with what
   changed, why, and affected files.
+- Sub2API repository changes are logged in `docs/dev/CHANGELOG_CUSTOM.md`.
+  Sibling-project internal changes are logged in that sibling project's own
+  changelog when it has one. Cross-repository contract changes must be recorded
+  on both sides.
 - Commit verified local changes promptly. Do not push or deploy without explicit
   user permission for that specific push/deploy.
 - `docs/dev` may be ignored by Git; use `git add -f` for required doc updates.

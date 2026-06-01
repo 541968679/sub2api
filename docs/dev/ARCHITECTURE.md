@@ -379,6 +379,9 @@ export default keysAPI
 
 ### 关联子项目
 
+详情真源见 [RELATED_PROJECTS.md](RELATED_PROJECTS.md)。本节只保留快速索引；
+进入子项目根目录工作时，以该子项目自己的 `AGENTS.md` 为准。
+
 | 子项目 | 本地路径 | 本仓库关系 | 当前接入范围 |
 |------|------|------|------|
 | AIClient2API | `E:\cursor project\AIClient2API` | 可选兄弟项目，由 dev-stack 管理本地进程 | 本地端口 3000/3100；生产 compose 已有 `aiclient2api` sidecar |
