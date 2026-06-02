@@ -86,9 +86,11 @@ account.GetModelMapping():
 | Antigravity 严格模式 | 不在映射中的模型返回空字符串，账号被排除调度 | `antigravity_gateway_service.go:959-992` |
 | Bedrock 区域前缀 | `us.anthropic.claude-*` 中的 `us.` 会根据 aws_region 动态替换 | `domain/constants.go:121-139` |
 | 模型迁移 | 默认映射中旧模型自动指向新模型（如 opus-4-5 → opus-4-6-thinking） | `domain/constants.go:72-115` |
+| 持久化映射回填 | 新增官方模型时，已有 `credentials.model_mapping` 账号需要 migration 补同名映射，避免严格模式漏调度 | `backend/migrations/146_add_opus48_to_model_mapping.sql` |
 
 ## 已知陷阱
 
 - **Antigravity 默认映射更新滞后**：上游新增模型时，`DefaultAntigravityModelMapping` 可能未及时更新，需手动添加映射
+- **迁移编号分叉**：合并上游模型回填迁移时，先检查本 fork 最新 migration 编号；如上游编号已被二开占用，保留 SQL 逻辑并改用本地下一编号。
 - **白名单 vs 映射混淆**：白名单模式本质是映射到自身，前端 `buildModelMappingObject` 统一输出为映射格式
 - **通配符贪婪匹配**：`claude-*` 会匹配所有 claude 开头的模型，可能匹配到不期望的模型

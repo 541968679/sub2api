@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-02] feat: merge upstream Antigravity Opus 4.8 support
+
+**Affected files**: `backend/internal/domain/constants.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/pkg/antigravity/request_transformer.go`, `backend/internal/pkg/claude/constants.go`, `backend/internal/service/antigravity_model_mapping_test.go`, `backend/internal/service/bedrock_request_test.go`, `backend/migrations/146_add_opus48_to_model_mapping.sql`, `frontend/src/composables/useModelWhitelist.ts`, `frontend/src/components/account/AccountStatusIndicator.vue`, `frontend/src/components/account/AccountUsageCell.vue`, `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/codebase/model-mapping.md`
+**Upstream compatibility**: mirrors upstream `Wei-Shaw/sub2api` commit `514ac5c6` for `claude-opus-4-8`; migration filename is adapted from upstream `144_add_opus48_to_model_mapping.sql` to local `146_add_opus48_to_model_mapping.sql` because this fork already uses migration numbers 144 and 145.
+**Change details**:
+- Added `claude-opus-4-8` to Antigravity default mapping, exposed model list, request-transformer model metadata, and adaptive high-tier Opus detection.
+- Added Bedrock default mapping for `claude-opus-4-8 -> us.anthropic.claude-opus-4-8-v1` with region-prefix adjustment coverage.
+- Added frontend Claude/Antigravity model whitelist entries, preset mappings, account status alias, and Antigravity usage grouping.
+- Added migration coverage for existing Antigravity accounts that already persist `credentials.model_mapping`, preserving unrelated local migration numbering.
 ## [2026-06-01] docs: record A2 Kiro Opus empty stream staged fix
 
 **Affected files**: `docs/dev/KIRO_PROXY.md`, `docs/dev/CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\docs\KIRO_OPUS_47_48_EMPTY_STREAM_DEBUG_2026-06-01.md`, `E:\cursor project\AIClient2API\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\AIClient2API\docs\CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\tests\kiro-stream-usage-estimation.test.js`

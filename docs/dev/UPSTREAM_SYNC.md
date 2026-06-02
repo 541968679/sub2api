@@ -35,6 +35,21 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-02 — cherry-pick Opus 4.8 Antigravity 支持
+
+- **上游 commit**: `514ac5c6` (`feat: 适配 claude-opus-4-8`)
+- **合并策略**: 手工移植单个上游提交的模型支持面，未合并整个 `upstream/main`，避免引入无关上游变更。
+- **本地适配**:
+  - 保留本 fork 已有 `backend/migrations/144_distribution_api_key_recharge_wallet_totals.sql` 和 `145_add_user_downstream_usage_token_mode.sql`。
+  - 上游新增迁移 `144_add_opus48_to_model_mapping.sql` 在本 fork 中改为 `146_add_opus48_to_model_mapping.sql`。
+  - 保留本 fork 已有 Gemini 3.1、distribution、OpenAI Images 等二开改动，只增量加入 `claude-opus-4-8`。
+- **重要上游变更**:
+  - Antigravity 默认映射、模型列表、request transformer 高阶 Opus 判断支持 `claude-opus-4-8`。
+  - Bedrock 默认映射支持 `claude-opus-4-8 -> us.anthropic.claude-opus-4-8-v1`。
+  - 前端 Claude/Antigravity 模型白名单、预设映射、账号状态/用量展示加入 Opus 4.8。
+  - 给已持久化 Antigravity `credentials.model_mapping` 回填 `claude-opus-4-8`。
+- **验证**: 见 `docs/dev/CHANGELOG_CUSTOM.md` 同日记录。
+
 ### 2026-05-03 — v0.1.121 同步（v0.1.113 ~ v0.1.121，9 个版本）
 
 - **上游版本范围**: `v0.1.113` ~ `v0.1.121`（`e534e9ba..48912014`）

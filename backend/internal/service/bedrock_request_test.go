@@ -184,6 +184,7 @@ func TestIsBedrockClaude45OrNewer(t *testing.T) {
 		// 未来版本应自动支持
 		{"us.anthropic.claude-sonnet-5-0-v1", true},
 		{"us.anthropic.claude-opus-4-7-v1", true},
+		{"us.anthropic.claude-opus-4-8-v1", true},
 		// 旧版本
 		{"anthropic.claude-opus-4-1-v1", false},
 		{"anthropic.claude-sonnet-4-0-v1", false},
@@ -449,6 +450,20 @@ func TestResolveBedrockModelID(t *testing.T) {
 		modelID, ok := ResolveBedrockModelID(account, "claude-opus-4-6-thinking")
 		require.True(t, ok)
 		assert.Equal(t, "au.anthropic.claude-opus-4-6-v1", modelID)
+	})
+
+	t.Run("default opus 4.8 mapping adjusts region", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeBedrock,
+			Credentials: map[string]any{
+				"aws_region": "eu-west-1",
+			},
+		}
+
+		modelID, ok := ResolveBedrockModelID(account, "claude-opus-4-8")
+		require.True(t, ok)
+		assert.Equal(t, "eu.anthropic.claude-opus-4-8-v1", modelID)
 	})
 
 	t.Run("force global rewrites anthropic regional model id", func(t *testing.T) {
