@@ -74,6 +74,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	service.BindOpenAIImagesRequestContext(c, parsed)
 	imageTrace := service.NewOpenAIImageTrace(c, parsed, requestStart)
 	if imageTrace != nil {
 		imageTrace.LogAt(c, "request_received", requestStart, 0, "")

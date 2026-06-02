@@ -106,14 +106,19 @@ func TransformClaudeToGeminiWithOptions(claudeReq *ClaudeRequest, projectID, map
 	// Claude 模型通过 Vertex/Google API 需要有效的 thought signatures
 	allowDummyThought := strings.HasPrefix(targetModel, "gemini-")
 
+	normalMessages, messageSystemParts, err := splitSystemMessages(claudeReq.Messages)
+	if err != nil {
+		return nil, fmt.Errorf("split system messages: %w", err)
+	}
+
 	// 1. 构建 contents
-	contents, strippedThinking, err := buildContents(claudeReq.Messages, toolIDToName, isThinkingEnabled, allowDummyThought)
+	contents, strippedThinking, err := buildContents(normalMessages, toolIDToName, isThinkingEnabled, allowDummyThought)
 	if err != nil {
 		return nil, fmt.Errorf("build contents: %w", err)
 	}
 
 	// 2. 构建 systemInstruction（使用 targetModel 而非原始请求模型，确保身份注入基于最终模型）
-	systemInstruction := buildSystemInstruction(claudeReq.System, targetModel, opts, claudeReq.Tools)
+	systemInstruction := buildSystemInstruction(claudeReq.System, targetModel, opts, claudeReq.Tools, messageSystemParts)
 
 	// 3. 构建 generationConfig
 	reqForConfig := claudeReq
@@ -316,7 +321,7 @@ func sessionIDFromMetadataUserID(userID string) string {
 }
 
 // buildSystemInstruction 构建 systemInstruction（与 Antigravity-Manager 保持一致）
-func buildSystemInstruction(system json.RawMessage, modelName string, opts TransformOptions, tools []ClaudeTool) *GeminiContent {
+func buildSystemInstruction(system json.RawMessage, modelName string, opts TransformOptions, tools []ClaudeTool, messageSystemParts []GeminiPart) *GeminiContent {
 	var parts []GeminiPart
 
 	// 先解析用户的 system prompt，检测是否已包含 Antigravity identity
@@ -357,6 +362,17 @@ func buildSystemInstruction(system json.RawMessage, modelName string, opts Trans
 		}
 	}
 
+	// Merge system-role messages into systemInstruction before identity injection.
+	for _, part := range messageSystemParts {
+		if strings.TrimSpace(part.Text) == "" {
+			continue
+		}
+		if strings.Contains(part.Text, "You are Antigravity") {
+			userHasAntigravityIdentity = true
+		}
+		userSystemParts = append(userSystemParts, part)
+	}
+
 	// 仅在用户未提供 Antigravity identity 时注入
 	if opts.EnableIdentityPatch && !userHasAntigravityIdentity {
 		identityPatch := strings.TrimSpace(opts.IdentityPatch)
@@ -391,6 +407,61 @@ func buildSystemInstruction(system json.RawMessage, modelName string, opts Trans
 		Role:  "user",
 		Parts: parts,
 	}
+}
+
+// splitSystemMessages extracts Anthropic-style message-level system prompts into systemInstruction parts.
+func splitSystemMessages(messages []ClaudeMessage) ([]ClaudeMessage, []GeminiPart, error) {
+	normalMessages := make([]ClaudeMessage, 0, len(messages))
+	var systemParts []GeminiPart
+
+	for i, msg := range messages {
+		if !strings.EqualFold(strings.TrimSpace(msg.Role), "system") {
+			normalMessages = append(normalMessages, msg)
+			continue
+		}
+
+		parts, err := buildSystemMessageParts(msg.Content)
+		if err != nil {
+			return nil, nil, fmt.Errorf("message %d: %w", i, err)
+		}
+		systemParts = append(systemParts, parts...)
+	}
+
+	return normalMessages, systemParts, nil
+}
+
+func buildSystemMessageParts(content json.RawMessage) ([]GeminiPart, error) {
+	var parts []GeminiPart
+
+	var textContent string
+	if err := json.Unmarshal(content, &textContent); err == nil {
+		return appendSystemTextPart(parts, textContent), nil
+	}
+
+	var blocks []ContentBlock
+	if err := json.Unmarshal(content, &blocks); err != nil {
+		return nil, fmt.Errorf("parse system content blocks: %w", err)
+	}
+
+	for _, block := range blocks {
+		if block.Type != "text" {
+			continue
+		}
+		parts = appendSystemTextPart(parts, block.Text)
+	}
+
+	return parts, nil
+}
+
+func appendSystemTextPart(parts []GeminiPart, text string) []GeminiPart {
+	if strings.TrimSpace(text) == "" {
+		return parts
+	}
+	filtered := normalizeSystemText(text)
+	if filtered == "" {
+		return parts
+	}
+	return append(parts, GeminiPart{Text: filtered})
 }
 
 // buildContents 构建 contents

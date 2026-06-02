@@ -28,6 +28,16 @@
 - Added Bedrock default mapping for `claude-opus-4-8 -> us.anthropic.claude-opus-4-8-v1` with region-prefix adjustment coverage.
 - Added frontend Claude/Antigravity model whitelist entries, preset mappings, account status alias, and Antigravity usage grouping.
 - Added migration coverage for existing Antigravity accounts that already persist `credentials.model_mapping`, preserving unrelated local migration numbering.
+
+## [2026-06-02] fix: normalize Antigravity system-role messages
+
+**Affected files**: `backend/internal/pkg/antigravity/request_transformer.go`, `backend/internal/pkg/antigravity/request_transformer_test.go`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Upstream compatibility**: scoped Antigravity request-transformer compatibility fix; preserves existing top-level `system` handling while avoiding invalid Gemini `contents[].role=system` payloads.
+**Change details**:
+- Extracted `messages[].role=system` entries from Antigravity Claude requests before building Gemini `contents`, including case-insensitive `system` roles.
+- Merged extracted text content into `systemInstruction` alongside top-level `system`, reusing existing OpenCode prompt and `x-anthropic-billing-header` filtering.
+- Added focused transformer coverage proving downstream Gemini `contents` only contain `user`/`model` roles and message-level system text is preserved in `systemInstruction`.
+
 ## [2026-06-01] docs: record A2 Kiro Opus empty stream staged fix
 
 **Affected files**: `docs/dev/KIRO_PROXY.md`, `docs/dev/CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\docs\KIRO_OPUS_47_48_EMPTY_STREAM_DEBUG_2026-06-01.md`, `E:\cursor project\AIClient2API\docs\SUB2API_INTEGRATION.md`, `E:\cursor project\AIClient2API\docs\CHANGELOG_CUSTOM.md`, `E:\cursor project\AIClient2API\src\providers\claude\claude-kiro.js`, `E:\cursor project\AIClient2API\tests\kiro-stream-usage-estimation.test.js`
@@ -2277,3 +2287,13 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Sorted touched frontend imports so the Vite ESLint overlay no longer blocks the local UI during development.
 - Allowed unauthenticated client-state persistence reads/writes to no-op instead of blocking Redux rehydration, fixing the local 15175 page getting stuck on `Loading` before the login screen.
 - Verified `pnpm run lint:tsc`, `ruff check invokeai/app/api_app.py`, `http://127.0.0.1:9090/` redirecting with 307, and `http://127.0.0.1:15175/` rendering the login page in the browser.
+
+## [2026-06-01] fix: expose OpenAI Images upstream 400 errors
+
+**Affected files**: backend/internal/handler/openai_images.go, backend/internal/service/openai_images_context.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/error_passthrough_runtime_test.go, docs/dev/codebase/gateway.md
+**Upstream compatibility**: scoped OpenAI Images error mapping change; generic OpenAI Responses, Chat Completions, Anthropic, and Gemini gateway error masking remains unchanged.
+**Change details**:
+- Added an explicit Gin context marker for parsed `/v1/images/generations` and `/v1/images/edits` requests.
+- Changed OpenAI gateway error handling so Images upstream 400 user errors return downstream 400 with the upstream `error.message` and `error.type` instead of generic 502.
+- Kept the behavior independent of `OPENAI_IMAGE_TRACE_LOG`, which remains only an opt-in timing diagnostic.
+- Added regression coverage for an upstream invalid image size error such as `4096x1752` not being divisible by 16.

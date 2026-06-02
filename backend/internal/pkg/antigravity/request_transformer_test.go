@@ -431,6 +431,51 @@ func TestTransformClaudeToGeminiWithOptions_FiltersBillingHeaderSystemBlock(t *t
 	}
 }
 
+func TestTransformClaudeToGeminiWithOptions_MovesSystemMessagesToSystemInstruction(t *testing.T) {
+	claudeReq := &ClaudeRequest{
+		Model:  "claude-opus-4-8",
+		System: json.RawMessage(`"top system"`),
+		Messages: []ClaudeMessage{
+			{
+				Role:    "user",
+				Content: json.RawMessage(`[{"type":"text","text":"hello"}]`),
+			},
+			{
+				Role:    "system",
+				Content: json.RawMessage(`[{"type":"text","text":"message system"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"abc"}}]`),
+			},
+			{
+				Role:    "SYSTEM",
+				Content: json.RawMessage(`"x-anthropic-billing-header: cc_version=2.1.12; cch=abc\nstring system"`),
+			},
+			{
+				Role:    "assistant",
+				Content: json.RawMessage(`[{"type":"text","text":"ok"}]`),
+			},
+		},
+	}
+
+	body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "claude-opus-4-8", DefaultTransformOptions())
+	require.NoError(t, err)
+
+	var req V1InternalRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+	require.Len(t, req.Request.Contents, 2)
+	require.Equal(t, "user", req.Request.Contents[0].Role)
+	require.Equal(t, "model", req.Request.Contents[1].Role)
+
+	for _, content := range req.Request.Contents {
+		require.NotEqual(t, "system", strings.ToLower(content.Role))
+	}
+
+	require.NotNil(t, req.Request.SystemInstruction)
+	systemText := systemInstructionText(req.Request.SystemInstruction)
+	require.Contains(t, systemText, "top system")
+	require.Contains(t, systemText, "message system")
+	require.Contains(t, systemText, "string system")
+	require.NotContains(t, systemText, "x-anthropic-billing-header")
+}
+
 func TestTransformClaudeToGeminiWithOptions_NormalizesMetadataUserID(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -510,4 +555,12 @@ func TestTransformClaudeToGeminiWithOptions_PreservesWebSearchAlongsideFunctions
 	require.Len(t, req.Request.Tools[0].FunctionDeclarations, 1)
 	require.Equal(t, "get_weather", req.Request.Tools[0].FunctionDeclarations[0].Name)
 	require.NotNil(t, req.Request.Tools[1].GoogleSearch)
+}
+
+func systemInstructionText(content *GeminiContent) string {
+	var parts []string
+	for _, part := range content.Parts {
+		parts = append(parts, part.Text)
+	}
+	return strings.Join(parts, "\n")
 }

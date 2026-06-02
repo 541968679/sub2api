@@ -3923,20 +3923,28 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	var errType, errMsg string
 	var statusCode int
 
-	switch resp.StatusCode {
-	case 401:
+	switch {
+	case resp.StatusCode == 400 && IsOpenAIImagesRequest(c):
+		statusCode = http.StatusBadRequest
+		errType = openAIUpstreamErrorType(body, "invalid_request_error")
+		if upstreamMsg != "" {
+			errMsg = upstreamMsg
+		} else {
+			errMsg = "Upstream request failed"
+		}
+	case resp.StatusCode == 401:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream authentication failed, please contact administrator"
-	case 402:
+	case resp.StatusCode == 402:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream payment required: insufficient balance or billing issue"
-	case 403:
+	case resp.StatusCode == 403:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream access forbidden, please contact administrator"
-	case 429:
+	case resp.StatusCode == 429:
 		statusCode = http.StatusTooManyRequests
 		errType = "rate_limit_error"
 		errMsg = "Upstream rate limit exceeded, please retry later"
@@ -3963,6 +3971,14 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
 	}
 	return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
+}
+
+func openAIUpstreamErrorType(body []byte, fallback string) string {
+	errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String())
+	if errType == "" {
+		return fallback
+	}
+	return errType
 }
 
 // compatErrorWriter is the signature for format-specific error writers used by
