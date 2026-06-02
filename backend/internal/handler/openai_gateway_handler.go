@@ -80,10 +80,10 @@ func resetRequestBody(req *http.Request, body []byte) {
 
 func bridgeUsageFields(reqModel, upstreamModel string) service.ChannelUsageFields {
 	fields := service.ChannelUsageFields{
-		OriginalModel:               reqModel,
-		ChannelMappedModel:          reqModel,
-		BillingModelSource:          service.BillingModelSourceRequested,
-		IgnoreOpenAICacheReadTokens: true,
+		OriginalModel:         reqModel,
+		ChannelMappedModel:    reqModel,
+		BillingModelSource:    service.BillingModelSourceRequested,
+		OpenAIClaudeGPTBridge: true,
 	}
 	if upstreamModel != "" && upstreamModel != reqModel {
 		fields.ModelMappingChain = reqModel + "→" + upstreamModel

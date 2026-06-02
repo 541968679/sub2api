@@ -2358,4 +2358,26 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Prevented fixed OpenAI prompt/session cache values such as `18.9k` from appearing as Claude `cache_read_tokens` in usage records.
 - Kept user-facing model and billing model on the original Claude request model while preserving `upstream_model=gpt-5.5` for admin visibility.
 - Corrected local static fallback pricing so `gpt-5.5` no longer inherits `gpt-5.4` fallback prices, and added the missing `gpt-5.4-nano` fallback.
-- Verified with focused unit tests and a real local `/antigravity/v1/messages` bridge request storing `cache_read_tokens=0`.
+- Verified with focused unit tests and a real local `/antigravity/v1/messages` bridge request. This cache-zero behavior was later reverted by the follow-up cache-read preservation fix below.
+
+## [2026-06-02] fix: preserve Claude-GPT bridge cache-read usage
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/channel.go, backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_record_usage_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; ordinary OpenAI usage recording is unchanged.
+**Change details**:
+- Replaced the previous bridge cache-zero flag with a diagnostic-only bridge marker, so OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style `cache_read_tokens`.
+- Restored the existing OpenAI token split for bridge usage: stored ordinary input tokens are `raw_input_tokens - cached_tokens`, and cache-read pricing uses the requested Claude model.
+- Added bridge-only token diagnostics for raw upstream Responses usage, converted Anthropic usage, and final usage-log storage. These logs include request/account/model IDs and token counts only, not request or response content.
+- Updated bridge billing docs to treat repeated values such as `18.9k` as a debugging target that must be traced to raw upstream, conversion, or storage before being accepted as normal.
+- Verified with focused unit tests for bridge model billing and cache-read preservation.
+
+## [2026-06-03] fix: suppress derived upstream cache/session keys in Claude-GPT bridge
+
+**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_compat_model_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; normal OpenAI `/v1/messages` still forwards explicit prompt/session keys.
+**Change details**:
+- Traced the fixed `raw_cached_tokens=18944` value to raw OpenAI Responses SSE usage at `response.usage.input_tokens_details.cached_tokens`, then found bridge requests were also forwarding stable upstream cache/session signals derived from Claude `metadata.user_id`.
+- Kept real upstream `cached_tokens` preservation, but stopped bridge mode from injecting or forwarding `prompt_cache_key`, `session_id`, and `conversation_id` to OpenAI/Codex upstreams.
+- Preserved local `metadata.user_id`-derived sticky account scheduling, so bridge account selection still remains stable without creating upstream cache identity.
+- Added regression coverage proving bridge OAuth/API-key forwards omit cache/session identifiers while non-bridge OpenAI Messages behavior still forwards them.
+- Verified with focused unit tests and a real local `/v1/messages` bridge request: diagnostics logged all upstream cache/session flags as false, downstream response model stayed `claude-opus-4-8`, and usage row `15770` stored `upstream_model=gpt-5.5`, `input_tokens=25`, `output_tokens=8`, `cache_read_tokens=0`.

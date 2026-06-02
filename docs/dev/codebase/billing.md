@@ -21,10 +21,18 @@ Usage and billing rules:
 - Token counts come from the OpenAI upstream response after the existing
   Anthropic response conversion path. The bridge does not fabricate token counts
   from the GPT model name.
-- For Antigravity bridge usage logs, OpenAI `cached_tokens` are normalized back
-  into ordinary `input_tokens` and `cache_read_tokens` is stored as `0`. This
-  prevents OpenAI prompt/session cache metadata from being exposed as Claude
-  prompt-cache reads in user billing and usage records.
+- OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style
+  `cache_read_tokens`. The stored ordinary input token count is
+  `raw_input_tokens - cached_tokens`, matching the existing OpenAI usage
+  accounting path.
+- Bridge mode does not forward derived OpenAI cache/session identifiers
+  upstream. `metadata.user_id` may still provide local sticky scheduling, but
+  `prompt_cache_key`, `session_id`, and `conversation_id` are suppressed before
+  sending the OpenAI request so the bridge does not create artificial repeated
+  upstream cache hits such as a fixed `18.9k` read.
+- Bridge diagnostics log the token-only values at three points: raw upstream
+  Responses usage, converted Anthropic usage, and final usage-log values. These
+  logs do not include request or response content.
 - User DTOs continue to hide `upstream_model`; admin DTOs expose it.
 
 Compatibility notes for custom billing/ops features:

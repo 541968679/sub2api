@@ -955,7 +955,7 @@ func TestOpenAIGatewayServiceRecordUsage_BridgeDisplaysAndBillsRequestedClaudeMo
 	require.Equal(t, expectedCost.ActualCost, userRepo.lastAmount)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_BridgeIgnoresOpenAICachedTokensForUsageRecords(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_BridgePreservesOpenAICachedTokensForUsageRecords(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
@@ -965,13 +965,9 @@ func TestOpenAIGatewayServiceRecordUsage_BridgeIgnoresOpenAICachedTokensForUsage
 		OutputTokens:         123,
 		CacheReadInputTokens: 18944,
 	}
-	expectedCost, err := svc.billingService.CalculateCost("claude-opus-4-8", UsageTokens{
-		InputTokens:  54006,
-		OutputTokens: 123,
-	}, 1.1)
-	require.NoError(t, err)
+	expectedCost := expectedOpenAICost(t, svc, "claude-opus-4-8", usage, 1.1)
 
-	err = svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
 			RequestID:     "resp_claude_gpt_bridge_cached_tokens",
 			Model:         "claude-opus-4-8",
@@ -984,11 +980,11 @@ func TestOpenAIGatewayServiceRecordUsage_BridgeIgnoresOpenAICachedTokensForUsage
 		User:    &User{ID: 20},
 		Account: &Account{ID: 30, Platform: PlatformOpenAI},
 		ChannelUsageFields: ChannelUsageFields{
-			OriginalModel:               "claude-opus-4-8",
-			ChannelMappedModel:          "claude-opus-4-8",
-			BillingModelSource:          BillingModelSourceRequested,
-			ModelMappingChain:           "claude-opus-4-8->gpt-5.5",
-			IgnoreOpenAICacheReadTokens: true,
+			OriginalModel:         "claude-opus-4-8",
+			ChannelMappedModel:    "claude-opus-4-8",
+			BillingModelSource:    BillingModelSourceRequested,
+			ModelMappingChain:     "claude-opus-4-8->gpt-5.5",
+			OpenAIClaudeGPTBridge: true,
 		},
 	})
 
@@ -998,9 +994,9 @@ func TestOpenAIGatewayServiceRecordUsage_BridgeIgnoresOpenAICachedTokensForUsage
 	require.Equal(t, "claude-opus-4-8", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
 	require.Equal(t, "gpt-5.5", *usageRepo.lastLog.UpstreamModel)
-	require.Equal(t, 54006, usageRepo.lastLog.InputTokens)
-	require.Equal(t, 0, usageRepo.lastLog.CacheReadTokens)
-	require.InDelta(t, 0, usageRepo.lastLog.CacheReadCost, 1e-12)
+	require.Equal(t, 35062, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 18944, usageRepo.lastLog.CacheReadTokens)
+	require.InDelta(t, expectedCost.CacheReadCost, usageRepo.lastLog.CacheReadCost, 1e-12)
 	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
 	require.InDelta(t, expectedCost.ActualCost, userRepo.lastAmount, 1e-12)

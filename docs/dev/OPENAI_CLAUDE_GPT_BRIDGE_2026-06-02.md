@@ -72,10 +72,19 @@ Billing and usage:
 - Billing uses the requested Claude model source.
 - Token counts use the real upstream usage after the existing Anthropic response
   conversion path.
-- For Antigravity bridge usage records, OpenAI `cached_tokens` are not stored as
-  Claude `cache_read_tokens`; they remain part of ordinary `input_tokens`. This
-  avoids showing fixed OpenAI prompt/session cache reads, such as `18.9k`, as
-  Claude cache usage.
+- OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style
+  `cache_read_tokens`. Stored ordinary input tokens are
+  `raw_input_tokens - cached_tokens`, while pricing still resolves against the
+  requested Claude model.
+- Bridge forwarding does not propagate OpenAI cache/session identifiers
+  upstream. `metadata.user_id` can still derive a local `sessionHash` for
+  sticky account scheduling, but bridge mode suppresses `prompt_cache_key` body
+  injection and removes upstream `session_id` / `conversation_id` headers before
+  the OpenAI request is sent.
+- Bridge diagnostics log token-only values for raw upstream usage, converted
+  Anthropic usage, and final usage-log storage. These logs are used to verify
+  whether repeated cache values such as `18.9k` originate upstream or in local
+  conversion/storage.
 - User usage APIs hide `upstream_model`; admin usage APIs expose it.
 - Prompt-cache status dashboards use the request group platform, so bridge rows
   remain visible under Antigravity cache statistics.
@@ -105,15 +114,24 @@ Local real request verification:
 
 Cache-read regression verification:
 
-- Simulated OpenAI upstream usage with `input_tokens=54006`,
-  `output_tokens=123`, and `cached_tokens=18944`.
-- Bridge usage recording stored `input_tokens=54006`,
-  `cache_read_tokens=0`, and `cache_read_cost=0`.
-- Billing still used `claude-opus-4-8`, not `gpt-5.5`.
-- A follow-up real local request on
-  `http://127.0.0.1:18081/antigravity/v1/messages` returned `200` and stored
+- Diagnosis found the fixed `18944` value in the raw OpenAI Responses SSE usage
+  at `response.usage.input_tokens_details.cached_tokens`; local JSON parsing was
+  not inventing that value.
+- The same requests also logged stable upstream cache/session signals:
+  `body_has_prompt_cache_key=true`, `header_has_session_id=true`, and
+  `header_has_conversation_id=true`. These were derived from the Claude
+  `metadata.user_id` path and forwarded into the OpenAI/Codex upstream request.
+- The fix keeps the local sticky `sessionHash` for account scheduling but stops
+  forwarding derived cache/session identifiers upstream in bridge mode.
+- Focused tests now assert bridge requests do not send `prompt_cache_key`,
+  `session_id`, or `conversation_id`, while non-bridge OpenAI Messages behavior
+  still forwards the prompt/session key.
+- A real local bridge request after the fix returned `200` and logged
+  `body_has_prompt_cache_key=false`, `arg_has_prompt_cache_key=false`,
+  `header_has_session_id=false`, and `header_has_conversation_id=false`.
+- The same verification stored usage row `15770` with
   `model=claude-opus-4-8`, `requested_model=claude-opus-4-8`,
-  `upstream_model=gpt-5.5`, `input_tokens=23`, `output_tokens=18`, and
+  `upstream_model=gpt-5.5`, `input_tokens=25`, `output_tokens=8`, and
   `cache_read_tokens=0`.
 
 Additional checks covered during implementation:
@@ -157,9 +175,12 @@ explicitly bridged later.
 
 The downstream Anthropic response conversion still follows the generic
 OpenAI-to-Anthropic compatibility path. If OpenAI upstream reports
-`cached_tokens`, the response body may include converted Anthropic cache usage,
-but Antigravity bridge usage records and billing normalize those OpenAI cache
-tokens back into ordinary input tokens.
+`cached_tokens`, the response body includes converted Anthropic cache usage and
+the bridge usage record preserves it. Bridge mode should not create OpenAI
+cache hits by sending derived `prompt_cache_key`, `session_id`, or
+`conversation_id`. Repeated cache values such as `18.9k` must be debugged by
+checking both the upstream request diagnostics and the raw upstream usage before
+treating them as normal upstream cache behavior.
 
 Context-window behavior is client-side plus upstream-side:
 

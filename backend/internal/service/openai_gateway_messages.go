@@ -17,8 +17,74 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
+
+const openAIClaudeGPTBridgeServiceContextKey = "openai_claude_gpt_bridge"
+
+func isOpenAIClaudeGPTBridgeForward(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	enabled, _ := c.Get(openAIClaudeGPTBridgeServiceContextKey)
+	return enabled == true
+}
+
+func logClaudeGPTBridgeRawUsage(stage, requestID string, accountID int64, originalModel, billingModel, upstreamModel string, inputTokens, outputTokens, cachedTokens int, stream bool) {
+	logger.L().Info("openai claude-gpt bridge raw upstream usage",
+		zap.String("stage", stage),
+		zap.String("request_id", requestID),
+		zap.Int64("account_id", accountID),
+		zap.String("original_model", originalModel),
+		zap.String("billing_model", billingModel),
+		zap.String("upstream_model", upstreamModel),
+		zap.Int("raw_input_tokens", inputTokens),
+		zap.Int("raw_output_tokens", outputTokens),
+		zap.Int("raw_cached_tokens", cachedTokens),
+		zap.Bool("stream", stream),
+	)
+}
+
+func logClaudeGPTBridgeUpstreamRequest(req *http.Request, promptCacheKey string, accountID int64, originalModel, billingModel, upstreamModel string, body []byte) {
+	if req == nil {
+		return
+	}
+	logger.L().Info("openai claude-gpt bridge upstream request diagnostics",
+		zap.Int64("account_id", accountID),
+		zap.String("original_model", originalModel),
+		zap.String("billing_model", billingModel),
+		zap.String("upstream_model", upstreamModel),
+		zap.Bool("body_has_prompt_cache_key", strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()) != ""),
+		zap.String("body_prompt_cache_key_sha256", hashSensitiveValueForLog(gjson.GetBytes(body, "prompt_cache_key").String())),
+		zap.Bool("arg_has_prompt_cache_key", strings.TrimSpace(promptCacheKey) != ""),
+		zap.String("arg_prompt_cache_key_sha256", hashSensitiveValueForLog(promptCacheKey)),
+		zap.Bool("header_has_session_id", strings.TrimSpace(req.Header.Get("session_id")) != ""),
+		zap.String("header_session_id_sha256", hashSensitiveValueForLog(req.Header.Get("session_id"))),
+		zap.Bool("header_has_conversation_id", strings.TrimSpace(req.Header.Get("conversation_id")) != ""),
+		zap.String("header_conversation_id_sha256", hashSensitiveValueForLog(req.Header.Get("conversation_id"))),
+		zap.Int("instructions_chars", len(gjson.GetBytes(body, "instructions").String())),
+		zap.Int("input_item_count", len(gjson.GetBytes(body, "input").Array())),
+		zap.Int("tool_count", len(gjson.GetBytes(body, "tools").Array())),
+		zap.Int("request_body_bytes", len(body)),
+	)
+}
+
+func logClaudeGPTBridgeConvertedUsage(stage, requestID string, accountID int64, originalModel, billingModel, upstreamModel string, usage apicompat.AnthropicUsage, stream bool) {
+	logger.L().Info("openai claude-gpt bridge converted anthropic usage",
+		zap.String("stage", stage),
+		zap.String("request_id", requestID),
+		zap.Int64("account_id", accountID),
+		zap.String("original_model", originalModel),
+		zap.String("billing_model", billingModel),
+		zap.String("upstream_model", upstreamModel),
+		zap.Int("input_tokens", usage.InputTokens),
+		zap.Int("output_tokens", usage.OutputTokens),
+		zap.Int("cache_creation_tokens", usage.CacheCreationInputTokens),
+		zap.Int("cache_read_tokens", usage.CacheReadInputTokens),
+		zap.Bool("stream", stream),
+	)
+}
 
 // ForwardAsAnthropic accepts an Anthropic Messages request body, converts it
 // to OpenAI Responses API format, forwards to the OpenAI upstream, and converts
@@ -33,6 +99,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	defaultMappedModel string,
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
+	bridgeMode := isOpenAIClaudeGPTBridgeForward(c)
 
 	// 1. Parse Anthropic request
 	var anthropicReq apicompat.AnthropicRequest
@@ -107,9 +174,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
 		}
-		if codexResult.PromptCacheKey != "" {
+		if codexResult.PromptCacheKey != "" && !bridgeMode {
 			promptCacheKey = codexResult.PromptCacheKey
-		} else if promptCacheKey != "" {
+		} else if promptCacheKey != "" && !bridgeMode {
 			reqBody["prompt_cache_key"] = promptCacheKey
 		}
 		// OAuth codex transform forces stream=true upstream, so always use
@@ -126,7 +193,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// upstreams using the Responses API can derive a stable session identifier
 	// from prompt_cache_key. This makes our Anthropic /v1/messages compatibility
 	// path behave more like a native Responses client.
-	if account.Type == AccountTypeAPIKey {
+	if account.Type == AccountTypeAPIKey && !bridgeMode {
 		if trimmedKey := strings.TrimSpace(promptCacheKey); trimmedKey != "" {
 			var reqBody map[string]any
 			if err := json.Unmarshal(responsesBody, &reqBody); err != nil {
@@ -141,6 +208,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				responsesBody = updated
 			}
 		}
+	}
+	upstreamPromptCacheKey := promptCacheKey
+	if bridgeMode {
+		upstreamPromptCacheKey = ""
 	}
 
 	// 4c. Apply OpenAI fast policy (may filter service_tier or block the request).
@@ -163,16 +234,21 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 
 	// 6. Build upstream request
-	upstreamReq, err := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, isStream, promptCacheKey, false)
+	upstreamReq, err := s.buildUpstreamRequest(ctx, c, account, responsesBody, token, isStream, upstreamPromptCacheKey, false)
 	if err != nil {
 		return nil, fmt.Errorf("build upstream request: %w", err)
 	}
 
 	// Override session_id with a deterministic UUID derived from the isolated
 	// session key, ensuring different API keys produce different upstream sessions.
-	if promptCacheKey != "" {
+	if upstreamPromptCacheKey != "" {
 		apiKeyID := getAPIKeyIDFromContext(c)
-		upstreamReq.Header.Set("session_id", generateSessionUUID(isolateOpenAISessionID(apiKeyID, promptCacheKey)))
+		upstreamReq.Header.Set("session_id", generateSessionUUID(isolateOpenAISessionID(apiKeyID, upstreamPromptCacheKey)))
+	}
+	if bridgeMode {
+		upstreamReq.Header.Del("session_id")
+		upstreamReq.Header.Del("conversation_id")
+		logClaudeGPTBridgeUpstreamRequest(upstreamReq, upstreamPromptCacheKey, account.ID, originalModel, billingModel, upstreamModel, responsesBody)
 	}
 
 	// 7. Send request
@@ -242,10 +318,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	var result *OpenAIForwardResult
 	var handleErr error
 	if clientStream {
-		result, handleErr = s.handleAnthropicStreamingResponse(resp, c, originalModel, billingModel, upstreamModel, startTime)
+		result, handleErr = s.handleAnthropicStreamingResponse(resp, c, account.ID, bridgeMode, originalModel, billingModel, upstreamModel, startTime)
 	} else {
 		// Client wants JSON: buffer the streaming response and assemble a JSON reply.
-		result, handleErr = s.handleAnthropicBufferedStreamingResponse(resp, c, originalModel, billingModel, upstreamModel, startTime)
+		result, handleErr = s.handleAnthropicBufferedStreamingResponse(resp, c, account.ID, bridgeMode, originalModel, billingModel, upstreamModel, startTime)
 	}
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
@@ -289,6 +365,8 @@ func (s *OpenAIGatewayService) handleAnthropicErrorResponse(
 func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
+	accountID int64,
+	bridgeMode bool,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -333,12 +411,17 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			event.Response != nil {
 			finalResponse = event.Response
 			if event.Response.Usage != nil {
+				rawCachedTokens := 0
 				usage = OpenAIUsage{
 					InputTokens:  event.Response.Usage.InputTokens,
 					OutputTokens: event.Response.Usage.OutputTokens,
 				}
 				if event.Response.Usage.InputTokensDetails != nil {
-					usage.CacheReadInputTokens = event.Response.Usage.InputTokensDetails.CachedTokens
+					rawCachedTokens = event.Response.Usage.InputTokensDetails.CachedTokens
+					usage.CacheReadInputTokens = rawCachedTokens
+				}
+				if bridgeMode {
+					logClaudeGPTBridgeRawUsage("buffered_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, usage.InputTokens, usage.OutputTokens, rawCachedTokens, false)
 				}
 			}
 		}
@@ -363,6 +446,9 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	acc.SupplementResponseOutput(finalResponse)
 
 	anthropicResp := apicompat.ResponsesToAnthropic(finalResponse, originalModel)
+	if bridgeMode {
+		logClaudeGPTBridgeConvertedUsage("buffered_response", requestID, accountID, originalModel, billingModel, upstreamModel, anthropicResp.Usage, false)
+	}
 
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
@@ -388,6 +474,8 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
+	accountID int64,
+	bridgeMode bool,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -452,18 +540,26 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		// Extract usage from completion events
 		if (event.Type == "response.completed" || event.Type == "response.incomplete" || event.Type == "response.failed") &&
 			event.Response != nil && event.Response.Usage != nil {
+			rawCachedTokens := 0
 			usage = OpenAIUsage{
 				InputTokens:  event.Response.Usage.InputTokens,
 				OutputTokens: event.Response.Usage.OutputTokens,
 			}
 			if event.Response.Usage.InputTokensDetails != nil {
-				usage.CacheReadInputTokens = event.Response.Usage.InputTokensDetails.CachedTokens
+				rawCachedTokens = event.Response.Usage.InputTokensDetails.CachedTokens
+				usage.CacheReadInputTokens = rawCachedTokens
+			}
+			if bridgeMode {
+				logClaudeGPTBridgeRawUsage("stream_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, usage.InputTokens, usage.OutputTokens, rawCachedTokens, true)
 			}
 		}
 
 		// Convert to Anthropic events
 		events := apicompat.ResponsesEventToAnthropicEvents(&event, state)
 		for _, evt := range events {
+			if bridgeMode && evt.Usage != nil {
+				logClaudeGPTBridgeConvertedUsage("stream_event", requestID, accountID, originalModel, billingModel, upstreamModel, *evt.Usage, true)
+			}
 			sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
 			if err != nil {
 				logger.L().Warn("openai messages stream: failed to marshal event",

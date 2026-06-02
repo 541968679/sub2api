@@ -5239,13 +5239,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	account := input.Account
 	subscription := input.Subscription
 
-	cacheReadInputTokens := result.Usage.CacheReadInputTokens
-	if input.IgnoreOpenAICacheReadTokens {
-		cacheReadInputTokens = 0
-	}
-
 	// 计算实际的新输入token（减去缓存读取的token）
 	// 因为 input_tokens 包含了 cache_read_tokens，而缓存读取的token不应按输入价格计费
+	cacheReadInputTokens := result.Usage.CacheReadInputTokens
 	actualInputTokens := result.Usage.InputTokens - cacheReadInputTokens
 	if actualInputTokens < 0 {
 		actualInputTokens = 0
@@ -5314,6 +5310,23 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	displayModel := result.Model
 	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
 		displayModel = input.OriginalModel
+	}
+
+	if input.OpenAIClaudeGPTBridge {
+		logger.L().Info("openai claude-gpt bridge usage stored",
+			zap.String("request_id", requestID),
+			zap.Int64("account_id", account.ID),
+			zap.String("display_model", displayModel),
+			zap.String("requested_model", requestedModel),
+			zap.String("billing_model", billingModel),
+			zap.String("upstream_model", result.UpstreamModel),
+			zap.Int("raw_input_tokens", result.Usage.InputTokens),
+			zap.Int("stored_input_tokens", actualInputTokens),
+			zap.Int("output_tokens", result.Usage.OutputTokens),
+			zap.Int("cache_creation_tokens", result.Usage.CacheCreationInputTokens),
+			zap.Int("cache_read_tokens", cacheReadInputTokens),
+			zap.Bool("stream", result.Stream),
+		)
 	}
 
 	usageLog := &UsageLog{
