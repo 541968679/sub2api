@@ -10,6 +10,7 @@
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符 | 2026-04-12 |
 | 计费系统 | [billing.md](billing.md) | 三级定价链、费用计算、费率乘数、缓存命中计费 | 2026-04-12 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式；图片耗时诊断见 [../OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md](../OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md)，超时修复复测见 [../OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md](../OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md) | 2026-05-30 |
+| OpenAI Claude-GPT Bridge | [../OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md](../OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md) | OpenAI account-side Claude-GPT bridge for Antigravity groups, including routing, billing, usage, and context-window notes | 2026-06-02 |
 | Kiro Gateway 附加项目 | [kiro-gateway.md](kiro-gateway.md) | 独立 sidecar 接入 Kiro 反代 API 到 Sub2API | 2026-05-10 |
 | InvokeAI Canvas PoC | [invokeai-poc.md](invokeai-poc.md) | 独立部署 InvokeAI 画布并接入 Sub2API OpenAI-compatible 图片 API，包含 API-only 多图并行队列 | 2026-05-30 |
 | 认证 | [auth.md](auth.md) | 用户登录、JWT、OAuth SSO、2FA | - |

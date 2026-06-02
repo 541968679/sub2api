@@ -955,6 +955,57 @@ func TestOpenAIGatewayServiceRecordUsage_BridgeDisplaysAndBillsRequestedClaudeMo
 	require.Equal(t, expectedCost.ActualCost, userRepo.lastAmount)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_BridgeIgnoresOpenAICachedTokensForUsageRecords(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	usage := OpenAIUsage{
+		InputTokens:          54006,
+		OutputTokens:         123,
+		CacheReadInputTokens: 18944,
+	}
+	expectedCost, err := svc.billingService.CalculateCost("claude-opus-4-8", UsageTokens{
+		InputTokens:  54006,
+		OutputTokens: 123,
+	}, 1.1)
+	require.NoError(t, err)
+
+	err = svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:     "resp_claude_gpt_bridge_cached_tokens",
+			Model:         "claude-opus-4-8",
+			BillingModel:  "gpt-5.5",
+			UpstreamModel: "gpt-5.5",
+			Usage:         usage,
+			Duration:      time.Second,
+		},
+		APIKey:  &APIKey{ID: 10},
+		User:    &User{ID: 20},
+		Account: &Account{ID: 30, Platform: PlatformOpenAI},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:               "claude-opus-4-8",
+			ChannelMappedModel:          "claude-opus-4-8",
+			BillingModelSource:          BillingModelSourceRequested,
+			ModelMappingChain:           "claude-opus-4-8->gpt-5.5",
+			IgnoreOpenAICacheReadTokens: true,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "claude-opus-4-8", usageRepo.lastLog.Model)
+	require.Equal(t, "claude-opus-4-8", usageRepo.lastLog.RequestedModel)
+	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, "gpt-5.5", *usageRepo.lastLog.UpstreamModel)
+	require.Equal(t, 54006, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 0, usageRepo.lastLog.CacheReadTokens)
+	require.InDelta(t, 0, usageRepo.lastLog.CacheReadCost, 1e-12)
+	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, userRepo.lastAmount, 1e-12)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_BillsMappedRequestsUsingRequestedModel(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}

@@ -2339,3 +2339,23 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Treated `platform=all` as no platform filter in cache-status SQL, matching the existing handler/frontend semantics.
 - Added unit coverage for the `all` filter and group-platform precedence.
 - Documented that Antigravity AI Credits usage aggregation intentionally remains native Antigravity upstream-account scope, while bridge account-cost rules should target `platform=antigravity` plus the GPT upstream model or leave platform empty.
+
+## [2026-06-02] docs: record OpenAI Claude-GPT bridge implementation notes
+
+**Affected files**: docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation-only; records the custom OpenAI account-side bridge design, verification, and residual compatibility risks.
+**Change details**:
+- Added a dedicated bridge handoff document covering account configuration, eligibility, scheduler behavior, gateway routing, billing/usage rules, frontend behavior, and local real-request verification.
+- Recorded residual issues for `/models`, `/messages/count_tokens`, Claude Code context compaction, Codex config isolation, and GPT upstream context-window limits.
+- Linked the bridge document from the codebase documentation index for future maintenance.
+
+## [2026-06-02] fix: normalize OpenAI cached tokens in Antigravity bridge usage
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/channel.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_record_usage_test.go, backend/internal/service/billing_service.go, backend/internal/service/pricing_service.go, backend/internal/service/billing_service_test.go, backend/internal/service/pricing_service_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; ordinary OpenAI cache-read accounting remains unchanged.
+**Change details**:
+- Added a bridge usage flag so Antigravity Claude-GPT requests treat OpenAI `cached_tokens` as ordinary input tokens when writing usage records and calculating user billing.
+- Prevented fixed OpenAI prompt/session cache values such as `18.9k` from appearing as Claude `cache_read_tokens` in usage records.
+- Kept user-facing model and billing model on the original Claude request model while preserving `upstream_model=gpt-5.5` for admin visibility.
+- Corrected local static fallback pricing so `gpt-5.5` no longer inherits `gpt-5.4` fallback prices, and added the missing `gpt-5.4-nano` fallback.
+- Verified with focused unit tests and a real local `/antigravity/v1/messages` bridge request storing `cache_read_tokens=0`.
