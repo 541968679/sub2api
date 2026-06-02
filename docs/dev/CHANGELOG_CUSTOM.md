@@ -2307,3 +2307,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Rejected non-positive or non-finite `display_rate_multiplier` for user model pricing overrides.
 - Added PostgreSQL `NOT VALID` CHECK constraints to block new invalid writes without scanning historical rows during startup.
 - Added focused unit coverage for the negative update path that can otherwise record negative usage costs.
+
+## [2026-06-02] feat: add OpenAI Claude-GPT bridge for Antigravity groups
+
+**Affected files**: backend/internal/service/account.go, backend/internal/service/admin_service.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_gateway_service.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/server/routes/gateway.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/BulkEditAccountModal.vue, frontend/src/components/common/GroupSelector.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/account.md, docs/dev/codebase/model-mapping.md, docs/dev/codebase/gateway.md, docs/dev/codebase/billing.md
+**Upstream compatibility**: additive account-side routing feature; existing Antigravity subscriptions, API keys, and group platforms remain unchanged.
+**Change details**:
+- Added `extra.openai_claude_gpt_bridge_enabled` for OpenAI accounts and allowed enabled bridge accounts to bind Antigravity groups while still rejecting Anthropic/Gemini bindings.
+- Reused existing `credentials.model_mapping` as the account-global Claude-to-GPT mapping source, requiring an explicit non-self mapping hit before bridge scheduling.
+- Added Antigravity `/v1/messages` bridge preflight: eligible requests route through OpenAI `ForwardAsAnthropic`, while pre-upstream misses reset the request body and fall back to native Antigravity.
+- Kept user-facing usage records and billing on the original Claude requested model while storing the GPT upstream model in `upstream_model` for admin visibility.
+- Added admin account form controls for enabling the bridge and selecting OpenAI plus Antigravity groups when enabled.

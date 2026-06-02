@@ -46,8 +46,16 @@ func RegisterGatewayRoutes(
 	{
 		// /v1/messages: auto-route based on group platform
 		gateway.POST("/messages", func(c *gin.Context) {
-			if getGroupPlatform(c) == service.PlatformOpenAI {
+			groupPlatform := getGroupPlatform(c)
+			if groupPlatform == service.PlatformOpenAI {
 				h.OpenAIGateway.Messages(c)
+				return
+			}
+			if groupPlatform == service.PlatformAntigravity && h.OpenAIGateway.ShouldUseClaudeGPTBridge(c) {
+				h.OpenAIGateway.MessagesClaudeGPTBridge(c)
+				if h.OpenAIGateway.ClaudeGPTBridgeFallbackRequested(c) {
+					h.Gateway.Messages(c)
+				}
 				return
 			}
 			h.Gateway.Messages(c)

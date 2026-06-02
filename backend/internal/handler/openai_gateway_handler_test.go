@@ -451,6 +451,55 @@ func TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable(t *testin
 	assert.Equal(t, "Service temporarily unavailable", errorObj["message"])
 }
 
+func TestOpenAIMessagesClaudeGPTBridge_RespectsGroupModelAccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[]}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeContextKey, true)
+
+	groupID := int64(2)
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID:      10,
+		GroupID: &groupID,
+		User:    &service.User{ID: 20},
+		Group: &service.Group{
+			ID:                    groupID,
+			Platform:              service.PlatformAntigravity,
+			AllowMessagesDispatch: false,
+			AllowedModels:         []string{"claude-sonnet-4-5"},
+		},
+	})
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
+		UserID:      20,
+		Concurrency: 1,
+	})
+
+	h := &OpenAIGatewayHandler{
+		gatewayService:      &service.OpenAIGatewayService{},
+		billingCacheService: &service.BillingCacheService{},
+		apiKeyService:       &service.APIKeyService{},
+		concurrencyHelper: &ConcurrencyHelper{
+			concurrencyService: &service.ConcurrencyService{},
+		},
+	}
+
+	require.NotPanics(t, func() {
+		h.Messages(c)
+	})
+
+	require.Equal(t, http.StatusForbidden, w.Code)
+	var parsed map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &parsed)
+	require.NoError(t, err)
+	errorObj, ok := parsed["error"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "permission_error", errorObj["type"])
+	assert.Equal(t, groupModelAccessDeniedMessage, errorObj["message"])
+}
+
 func TestOpenAIResponses_SetsClientTransportHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

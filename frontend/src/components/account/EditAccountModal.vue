@@ -1320,6 +1320,35 @@
         </div>
       </div>
 
+      <div
+        v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.claudeGPTBridge') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.claudeGPTBridgeDesc') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            @click="openaiClaudeGPTBridgeEnabled = !openaiClaudeGPTBridgeEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openaiClaudeGPTBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openaiClaudeGPTBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
       <!-- OpenAI WS Mode 三态（off/ctx_pool/passthrough） -->
       <div
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
@@ -2062,6 +2091,7 @@
         :groups="groups"
         :platform="account?.platform"
         :mixed-scheduling="mixedScheduling"
+        :extra-platforms="openAIClaudeGPTBridgeGroupPlatforms"
         show-toggle-all
         data-tour="account-form-groups"
       />
@@ -2126,7 +2156,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
-import type { Account, Proxy, AdminGroup, CheckMixedChannelResponse, OpenAICompactMode } from '@/types'
+import type { Account, Proxy, AdminGroup, CheckMixedChannelResponse, GroupPlatform, OpenAICompactMode } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -2278,6 +2308,7 @@ const customBaseUrl = ref('')
 
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
+const openaiClaudeGPTBridgeEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
@@ -2340,6 +2371,18 @@ const openAICompactModeOptions = computed(() => [
 const isOpenAIModelRestrictionDisabled = computed(() =>
   props.account?.platform === 'openai' && openaiPassthroughEnabled.value
 )
+const openAIClaudeGPTBridgeGroupPlatforms = computed<GroupPlatform[]>(() =>
+  props.account?.platform === 'openai' && openaiClaudeGPTBridgeEnabled.value ? ['antigravity' as const] : []
+)
+const removeAntigravityGroupSelections = () => {
+  const antigravityGroupIds = new Set(
+    props.groups.filter((group) => group.platform === 'antigravity').map((group) => group.id)
+  )
+  if (antigravityGroupIds.size === 0) {
+    return
+  }
+  form.group_ids = form.group_ids.filter((groupId) => !antigravityGroupIds.has(groupId))
+}
 const openAICompactStatusKey = computed(() => {
   const extra = props.account?.extra as Record<string, unknown> | undefined
   if (!props.account || props.account.platform !== 'openai') return ''
@@ -2485,6 +2528,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/API Key)
   openaiPassthroughEnabled.value = false
+  openaiClaudeGPTBridgeEnabled.value = false
   openAICompactMode.value = 'auto'
   openAICompactModelMappings.value = []
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -2494,6 +2538,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   webSearchEmulationMode.value = 'default'
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
+    openaiClaudeGPTBridgeEnabled.value = extra?.openai_claude_gpt_bridge_enabled === true
     openAICompactMode.value = (extra?.openai_compact_mode as OpenAICompactMode) || 'auto'
     openaiOAuthResponsesWebSocketV2Mode.value = resolveOpenAIWSModeFromExtra(extra, {
       modeKey: 'openai_oauth_responses_websockets_v2_mode',
@@ -2785,6 +2830,15 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  [() => props.account?.platform, openaiClaudeGPTBridgeEnabled],
+  ([platform, bridgeEnabled]) => {
+    if (platform !== 'openai' || !bridgeEnabled) {
+      removeAntigravityGroupSelections()
+    }
+  }
 )
 
 // Model mapping helpers
@@ -3618,6 +3672,11 @@ const handleSubmit = async () => {
       } else {
         delete newExtra.openai_passthrough
         delete newExtra.openai_oauth_passthrough
+      }
+      if (openaiClaudeGPTBridgeEnabled.value) {
+        newExtra.openai_claude_gpt_bridge_enabled = true
+      } else {
+        delete newExtra.openai_claude_gpt_bridge_enabled
       }
       if (openAICompactMode.value === 'auto') {
         delete newExtra.openai_compact_mode

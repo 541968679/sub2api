@@ -665,6 +665,31 @@ func (a *Account) GetOpenAICompactMode() string {
 	return normalizeOpenAICompactMode(mode)
 }
 
+// IsOpenAIClaudeGPTBridgeEnabled reports whether an OpenAI account can be used
+// as a Claude-facing bridge account for non-OpenAI groups.
+func (a *Account) IsOpenAIClaudeGPTBridgeEnabled() bool {
+	return a != nil && a.IsOpenAI() && a.getExtraBool("openai_claude_gpt_bridge_enabled")
+}
+
+// ResolveClaudeGPTBridgeModel resolves the OpenAI upstream model for a Claude
+// request. It requires an explicit account-level mapping so normal OpenAI model
+// passthrough or default model fallbacks cannot accidentally opt in.
+func (a *Account) ResolveClaudeGPTBridgeModel(requestedModel string) (string, bool) {
+	if !a.IsOpenAIClaudeGPTBridgeEnabled() {
+		return "", false
+	}
+	requestedModel = strings.TrimSpace(requestedModel)
+	if requestedModel == "" {
+		return "", false
+	}
+	mappedModel, matched := a.ResolveMappedModel(requestedModel)
+	mappedModel = strings.TrimSpace(mappedModel)
+	if !matched || mappedModel == "" || mappedModel == requestedModel {
+		return "", false
+	}
+	return mappedModel, true
+}
+
 // OpenAICompactSupportKnown reports whether compact capability is known for this
 // account and, when known, whether it is supported.
 func (a *Account) OpenAICompactSupportKnown() (supported bool, known bool) {

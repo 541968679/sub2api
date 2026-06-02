@@ -410,6 +410,108 @@ func TestAccountResolveMappedModel(t *testing.T) {
 	}
 }
 
+func TestOpenAIAccountResolveClaudeGPTBridgeModel(t *testing.T) {
+	tests := []struct {
+		name           string
+		platform       string
+		extra          map[string]any
+		credentials    map[string]any
+		requestedModel string
+		expectedModel  string
+		expectedOK     bool
+	}{
+		{
+			name:     "enabled exact claude mapping resolves upstream gpt model",
+			platform: PlatformOpenAI,
+			extra:    map[string]any{"openai_claude_gpt_bridge_enabled": true},
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-8": "gpt-5.5",
+				},
+			},
+			requestedModel: "claude-opus-4-8",
+			expectedModel:  "gpt-5.5",
+			expectedOK:     true,
+		},
+		{
+			name:     "enabled wildcard claude mapping resolves upstream gpt model",
+			platform: PlatformOpenAI,
+			extra:    map[string]any{"openai_claude_gpt_bridge_enabled": true},
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-*": "gpt-5.5",
+				},
+			},
+			requestedModel: "claude-opus-4-8",
+			expectedModel:  "gpt-5.5",
+			expectedOK:     true,
+		},
+		{
+			name:     "disabled bridge is not eligible",
+			platform: PlatformOpenAI,
+			extra:    map[string]any{"openai_claude_gpt_bridge_enabled": false},
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-8": "gpt-5.5",
+				},
+			},
+			requestedModel: "claude-opus-4-8",
+			expectedOK:     false,
+		},
+		{
+			name:     "non openai account is not eligible",
+			platform: PlatformAntigravity,
+			extra:    map[string]any{"openai_claude_gpt_bridge_enabled": true},
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-8": "gpt-5.5",
+				},
+			},
+			requestedModel: "claude-opus-4-8",
+			expectedOK:     false,
+		},
+		{
+			name:     "missing mapping is not eligible",
+			platform: PlatformOpenAI,
+			extra:    map[string]any{"openai_claude_gpt_bridge_enabled": true},
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-sonnet-4-8": "gpt-5.5",
+				},
+			},
+			requestedModel: "claude-opus-4-8",
+			expectedOK:     false,
+		},
+		{
+			name:     "passthrough mapping is not eligible",
+			platform: PlatformOpenAI,
+			extra:    map[string]any{"openai_claude_gpt_bridge_enabled": true},
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-8": "claude-opus-4-8",
+				},
+			},
+			requestedModel: "claude-opus-4-8",
+			expectedOK:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &Account{
+				Platform:    tt.platform,
+				Extra:       tt.extra,
+				Credentials: tt.credentials,
+			}
+
+			mapped, ok := account.ResolveClaudeGPTBridgeModel(tt.requestedModel)
+			if ok != tt.expectedOK || mapped != tt.expectedModel {
+				t.Fatalf("ResolveClaudeGPTBridgeModel(%q) = (%q, %v), want (%q, %v)", tt.requestedModel, mapped, ok, tt.expectedModel, tt.expectedOK)
+			}
+		})
+	}
+}
+
 func TestAccountGetModelMapping_AntigravityEnsuresGeminiDefaultPassthroughs(t *testing.T) {
 	account := &Account{
 		Platform: PlatformAntigravity,

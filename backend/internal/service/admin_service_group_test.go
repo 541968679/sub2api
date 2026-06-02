@@ -125,6 +125,78 @@ func (s *groupRepoStubForAdmin) UpdateSortOrders(_ context.Context, _ []GroupSor
 	return nil
 }
 
+type groupRepoStubForAccountBindingValidation struct {
+	groupRepoStubForAdmin
+	groups map[int64]*Group
+}
+
+func (s *groupRepoStubForAccountBindingValidation) GetByID(_ context.Context, id int64) (*Group, error) {
+	if group, ok := s.groups[id]; ok {
+		return group, nil
+	}
+	return nil, ErrGroupNotFound
+}
+
+func TestAdminServiceValidateAccountGroupBindings_OpenAIClaudeGPTBridge(t *testing.T) {
+	ctx := context.Background()
+	repo := &groupRepoStubForAccountBindingValidation{
+		groups: map[int64]*Group{
+			1: &Group{ID: 1, Name: "OpenAI", Platform: PlatformOpenAI},
+			2: &Group{ID: 2, Name: "Antigravity", Platform: PlatformAntigravity},
+			3: &Group{ID: 3, Name: "Anthropic", Platform: PlatformAnthropic},
+			4: &Group{ID: 4, Name: "Gemini", Platform: PlatformGemini},
+		},
+	}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	require.NoError(t, svc.validateAccountGroupBindings(ctx, PlatformOpenAI, nil, []int64{1}))
+	require.Error(t, svc.validateAccountGroupBindings(ctx, PlatformOpenAI, nil, []int64{2}))
+	require.NoError(t, svc.validateAccountGroupBindings(ctx, PlatformOpenAI, map[string]any{
+		"openai_claude_gpt_bridge_enabled": true,
+	}, []int64{1, 2}))
+	require.Error(t, svc.validateAccountGroupBindings(ctx, PlatformOpenAI, map[string]any{
+		"openai_claude_gpt_bridge_enabled": true,
+	}, []int64{3}))
+	require.Error(t, svc.validateAccountGroupBindings(ctx, PlatformOpenAI, map[string]any{
+		"openai_claude_gpt_bridge_enabled": true,
+	}, []int64{4}))
+	require.NoError(t, svc.validateAccountGroupBindings(ctx, PlatformAntigravity, nil, []int64{2, 3}))
+}
+
+func TestAdminServiceUpdateAccount_OpenAIClaudeGPTBridgeAllowsAntigravityGroupFromSamePayload(t *testing.T) {
+	ctx := context.Background()
+	accountID := int64(201)
+	repo := &updateAccountOveragesRepoStub{
+		account: &Account{
+			ID:       accountID,
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Status:   StatusActive,
+			Extra:    map[string]any{},
+		},
+	}
+	groups := &groupRepoStubForAccountBindingValidation{
+		groups: map[int64]*Group{
+			2: &Group{ID: 2, Name: "Antigravity", Platform: PlatformAntigravity},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo, groupRepo: groups}
+
+	groupIDs := []int64{2}
+	updated, err := svc.UpdateAccount(ctx, accountID, &UpdateAccountInput{
+		Extra: map[string]any{
+			"openai_claude_gpt_bridge_enabled": true,
+		},
+		GroupIDs:              &groupIDs,
+		SkipMixedChannelCheck: true,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Equal(t, 1, repo.updateCalls)
+	require.True(t, updated.IsOpenAIClaudeGPTBridgeEnabled())
+}
+
 func TestAdminService_ListGroups_PassesSortParams(t *testing.T) {
 	repo := &groupRepoStubForAdmin{
 		listWithFiltersGroups: []Group{{ID: 1, Name: "g1"}},

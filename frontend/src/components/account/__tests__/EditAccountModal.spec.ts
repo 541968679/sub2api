@@ -216,4 +216,35 @@ describe('EditAccountModal', () => {
       'gpt-5.4': 'gpt-5.4-openai-compact'
     })
   })
+
+  it('submits OpenAI Claude-GPT bridge flag and preserves model mapping', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      model_mapping: {
+        'claude-opus-4-8': 'gpt-5.5'
+      }
+    }
+    account.extra = {
+      openai_claude_gpt_bridge_enabled: true
+    }
+    account.group_ids = [12]
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_claude_gpt_bridge_enabled).toBe(
+      true
+    )
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      'claude-opus-4-8': 'gpt-5.5'
+    })
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([12])
+  })
 })

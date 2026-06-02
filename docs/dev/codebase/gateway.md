@@ -11,6 +11,7 @@
 | Group.blocked_models / allowed_models | `backend/internal/service/group.go` | Group-level model access control evaluated before account scheduling. |
 | Account.platform/type/status | `backend/internal/service/account.go` | Core inputs for scheduling and upstream token lookup. |
 | Account.extra.mixed_scheduling | `backend/internal/service/account.go` | Whether an Antigravity account may join Anthropic/Gemini mixed scheduling. |
+| Account.extra.openai_claude_gpt_bridge_enabled | `backend/internal/service/account.go` | Whether an OpenAI account may serve Claude-GPT bridge requests for bound Antigravity groups. |
 | APIKey.group_id | `backend/internal/service/api_key.go` | Scheduling group bound to the user request. |
 
 ## Key Files
@@ -20,6 +21,7 @@
 | Handler | `backend/internal/handler/gateway_handler.go` | Anthropic Messages, Gemini compatibility, and Antigravity native entry points. |
 | Handler | `backend/internal/handler/gateway_handler_chat_completions.go` | `/v1/chat/completions` compatibility entry for Anthropic groups. |
 | Handler | `backend/internal/handler/group_model_access.go` | Shared group model access checks, including Responses image tool validation. |
+| Handler | `backend/internal/handler/openai_gateway_handler.go` | OpenAI-compatible gateway plus Anthropic Messages bridge for OpenAI and Antigravity bridge preflight. |
 | Handler | `backend/internal/handler/openai_images.go` | OpenAI-compatible `/v1/images/*` entry, image request parsing orchestration, scheduling, and usage submission. |
 | Service | `backend/internal/service/gateway_service.go` | Account selection, mixed scheduling, sticky sessions, and Anthropic upstream request building. |
 | Service | `backend/internal/service/gateway_forward_as_chat_completions.go` | Chat Completions -> Responses -> Anthropic Messages conversion and forwarding. |
@@ -55,6 +57,34 @@ GatewayHandler.ChatCompletions
   -> AntigravityGatewayService.Forward()
   -> Antigravity request/response transformer
 ```
+
+### Antigravity `/v1/messages` OpenAI Claude-GPT Bridge
+
+```
+/v1/messages with API key bound to an Antigravity group
+  -> routes/gateway.go
+  -> OpenAIGatewayHandler.ShouldUseClaudeGPTBridge()
+     -> read and reset request body
+     -> parse original Claude request model
+     -> preflight OpenAI scheduler with RequireClaudeGPTBridge=true
+     -> release any acquired preflight slot
+  -> if bridge account exists:
+     -> OpenAIGatewayHandler.MessagesClaudeGPTBridge()
+     -> group model access check uses the original Claude model
+     -> SelectAccountWithSchedulerForClaudeGPTBridge()
+     -> account.ResolveClaudeGPTBridgeModel(Claude model)
+     -> ForwardAsAnthropic() reuses existing Claude -> OpenAI Responses -> Claude conversion
+     -> RecordUsage with original Claude model as user-facing/billing model
+  -> if preflight or first selection fails before OpenAI upstream:
+     -> reset request body
+     -> fall back to native Gateway.Messages Antigravity path
+```
+
+Once the bridge path has selected an OpenAI account and entered upstream
+forwarding or failover, it does not fall back to Antigravity. It continues with
+the existing OpenAI account failover rules so a failed GPT upstream attempt does
+not double-charge or duplicate-send the same request through native
+Antigravity.
 
 ### OpenAI Images Diagnostics
 
@@ -102,6 +132,7 @@ assigned to a scheduling group.
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
 | Chat Completions isolation | `/v1/chat/completions` currently converts only to Anthropic Messages upstream. It must disable Antigravity mixed scheduling, otherwise an Antigravity OAuth token can be sent to Anthropic and return 401 `Invalid bearer token`. |
 | Group model access control | Handlers reject models blocked by the group blacklist or not present in a non-empty whitelist before account selection. Responses payloads also validate `tools[].type == "image_generation"` entries with an explicit `model`, so image tools cannot bypass group restrictions. |
+| OpenAI Claude-GPT bridge | Antigravity `/v1/messages` can preflight OpenAI bridge accounts bound to the same Antigravity group. Eligibility requires `RequireClaudeGPTBridge`, enabled account extra, and a Claude model mapping hit on the OpenAI account. |
 | Public usage query | `/v1/usage*` uses API key authentication but intentionally skips billing enforcement and group-assignment enforcement so users can inspect exhausted, expired, or ungrouped keys. Public records/stats/trend endpoints must force the authenticated API key ID server-side and must not accept a user-supplied API key ID. |
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
 | Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, and cost-window checks. |

@@ -82,6 +82,56 @@
         </div>
       </div>
 
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-claude-gpt-bridge-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-claude-gpt-bridge-enabled"
+            >
+              {{ t('admin.accounts.openai.claudeGPTBridge') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.claudeGPTBridgeDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIClaudeGPTBridge"
+            id="bulk-edit-openai-claude-gpt-bridge-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-claude-gpt-bridge-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-claude-gpt-bridge-body"
+          :class="!enableOpenAIClaudeGPTBridge && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-claude-gpt-bridge-label"
+        >
+          <button
+            id="bulk-edit-openai-claude-gpt-bridge-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openaiClaudeGPTBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="openaiClaudeGPTBridgeEnabled = !openaiClaudeGPTBridgeEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openaiClaudeGPTBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
       <!-- Base URL (API Key only) -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
@@ -927,6 +977,8 @@
           <GroupSelector
             v-model="groupIds"
             :groups="groups"
+            :platform="bulkGroupSelectorPlatform"
+            :extra-platforms="openAIClaudeGPTBridgeGroupPlatforms"
             show-toggle-all
             aria-labelledby="bulk-edit-groups-label"
           />
@@ -990,7 +1042,7 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType } from '@/types'
+import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, GroupPlatform } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -1113,6 +1165,7 @@ const enableRateMultiplier = ref(false)
 const enableStatus = ref(false)
 const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
+const enableOpenAIClaudeGPTBridge = ref(false)
 const enableOpenAIWSMode = ref(false)
 const enableOpenAIAPIKeyWSMode = ref(false)
 const enableCodexCLIOnly = ref(false)
@@ -1138,6 +1191,7 @@ const rateMultiplier = ref(1)
 const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
+const openaiClaudeGPTBridgeEnabled = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -1173,6 +1227,25 @@ const isOpenAIModelRestrictionDisabled = computed(
     enableOpenAIPassthrough.value &&
     openaiPassthroughEnabled.value
 )
+const bulkGroupSelectorPlatform = computed<AccountPlatform | undefined>(() =>
+  allOpenAIPassthroughCapable.value ? 'openai' : undefined
+)
+const openAIClaudeGPTBridgeGroupPlatforms = computed<GroupPlatform[]>(() =>
+  allOpenAIPassthroughCapable.value &&
+  enableOpenAIClaudeGPTBridge.value &&
+  openaiClaudeGPTBridgeEnabled.value
+    ? ['antigravity']
+    : []
+)
+const removeAntigravityGroupSelections = () => {
+  const antigravityGroupIds = new Set(
+    props.groups.filter((group) => group.platform === 'antigravity').map((group) => group.id)
+  )
+  if (antigravityGroupIds.size === 0) {
+    return
+  }
+  groupIds.value = groupIds.value.filter((groupId) => !antigravityGroupIds.has(groupId))
+}
 
 const openAIWSModeOptions = computed(() => [
   { value: OPENAI_WS_MODE_OFF, label: t('admin.accounts.openai.wsModeOff') },
@@ -1321,6 +1394,11 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     }
   }
 
+  if (enableOpenAIClaudeGPTBridge.value) {
+    const extra = ensureExtra()
+    extra.openai_claude_gpt_bridge_enabled = openaiClaudeGPTBridgeEnabled.value
+  }
+
   if (enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
     // 统一使用 model_mapping 字段
     if (modelRestrictionMode.value === 'whitelist') {
@@ -1455,6 +1533,7 @@ const handleSubmit = async () => {
   const hasAnyFieldEnabled =
     enableBaseUrl.value ||
     enableOpenAIPassthrough.value ||
+    enableOpenAIClaudeGPTBridge.value ||
     enableModelRestriction.value ||
     enableCustomErrorCodes.value ||
     enableInterceptWarmup.value ||
@@ -1549,6 +1628,15 @@ const handleMixedChannelCancel = () => {
 
 // Reset form when modal closes
 watch(
+  [enableOpenAIClaudeGPTBridge, openaiClaudeGPTBridgeEnabled, allOpenAIPassthroughCapable],
+  ([applyBridge, bridgeEnabled, canEditBridge]) => {
+    if (!canEditBridge || !applyBridge || !bridgeEnabled) {
+      removeAntigravityGroupSelections()
+    }
+  }
+)
+
+watch(
   () => props.show,
   (newShow) => {
     if (!newShow) {
@@ -1565,6 +1653,7 @@ watch(
       enableStatus.value = false
       enableGroups.value = false
       enableOpenAIPassthrough.value = false
+      enableOpenAIClaudeGPTBridge.value = false
       enableOpenAIWSMode.value = false
       enableOpenAIAPIKeyWSMode.value = false
       enableCodexCLIOnly.value = false
@@ -1573,6 +1662,7 @@ watch(
       // Reset all values
       baseUrl.value = ''
       openaiPassthroughEnabled.value = false
+      openaiClaudeGPTBridgeEnabled.value = false
       modelRestrictionMode.value = 'whitelist'
       allowedModels.value = []
       modelMappings.value = []

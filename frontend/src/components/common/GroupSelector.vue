@@ -65,6 +65,7 @@ interface Props {
   groups: AdminGroup[]
   platform?: GroupPlatform // Optional platform filter
   mixedScheduling?: boolean // For antigravity accounts: allow anthropic/gemini groups
+  extraPlatforms?: GroupPlatform[] // Extra platforms allowed by account-side bridge capabilities
   showToggleAll?: boolean
 }
 
@@ -78,14 +79,14 @@ const filteredGroups = computed(() => {
   if (!props.platform) {
     return props.groups
   }
+  const allowedPlatforms = new Set<GroupPlatform>([props.platform, ...(props.extraPlatforms || [])])
   // antigravity 账户启用混合调度后，可选择 anthropic/gemini 分组
   if (props.platform === 'antigravity' && props.mixedScheduling) {
-    return props.groups.filter(
-      (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini'
-    )
+    allowedPlatforms.add('anthropic')
+    allowedPlatforms.add('gemini')
   }
-  // 默认：只能选择同 platform 的分组
-  return props.groups.filter((g) => g.platform === props.platform)
+  // 默认只能选择同 platform 分组；账号侧 bridge 能力可额外放开指定平台。
+  return props.groups.filter((g) => allowedPlatforms.has(g.platform))
 })
 
 const filteredGroupIds = computed(() => filteredGroups.value.map((group) => group.id))

@@ -3,6 +3,26 @@
 > 模型定价解析、费用计算、费率乘数、展示变换。
 > 五级定价链（User → Channel → Global → LiteLLM → 内置兜底）+ 两条独立费率乘数（用户扣费 vs 账号 quota）+ 展示变换体系。
 
+## OpenAI Claude-GPT Bridge Billing
+
+Antigravity `/v1/messages` requests served by the OpenAI Claude-GPT bridge use
+the original Claude request model as the user-facing and billing model. The GPT
+upstream model is stored only as `upstream_model` for admin visibility.
+
+Usage and billing rules:
+
+- `usage_logs.model` and `usage_logs.requested_model` are the original Claude
+  request model, for example `claude-opus-4-8`.
+- `usage_logs.upstream_model` stores the OpenAI upstream model, for example
+  `gpt-5.5`, only when it differs from the display model.
+- Pricing lookup uses `BillingModelSourceRequested`, so Claude pricing and the
+  Antigravity group/user rate chain apply even though the upstream account is
+  OpenAI.
+- Token counts come from the OpenAI upstream response after the existing
+  Anthropic response conversion path. The bridge does not fabricate token counts
+  from the GPT model name.
+- User DTOs continue to hide `upstream_model`; admin DTOs expose it.
+
 ## 数据模型
 
 | 实体/类型 | 位置 | 说明 |

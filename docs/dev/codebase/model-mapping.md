@@ -2,6 +2,32 @@
 
 > 控制账号支持哪些模型，以及请求模型如何映射到上游实际模型。
 
+## OpenAI Claude-GPT Bridge Mapping
+
+For the OpenAI account-side Claude-GPT bridge, the existing
+`account.credentials.model_mapping` is the only mapping source. A bridge account
+becomes eligible for an Antigravity `/v1/messages` Claude request only when:
+
+- the account platform is OpenAI;
+- `extra.openai_claude_gpt_bridge_enabled=true`;
+- `model_mapping` explicitly matches the requested Claude model, including the
+  existing exact and suffix-wildcard matching rules;
+- the mapped upstream model is non-empty and different from the requested Claude
+  model.
+
+Example:
+
+```json
+{
+  "claude-opus-4-8": "gpt-5.5"
+}
+```
+
+This mapping is account-global and is edited in the OpenAI account form. It is
+not edited on Antigravity groups. Whitelist-style self mappings such as
+`"claude-opus-4-8": "claude-opus-4-8"` do not enable the bridge, because they
+would not hide a distinct GPT upstream model.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

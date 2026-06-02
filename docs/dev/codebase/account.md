@@ -2,6 +2,37 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini），包括 OAuth 导入、批量创建、状态监控、AI Credits 追踪。
 
+## OpenAI Claude-GPT Bridge For Antigravity Groups
+
+OpenAI accounts can opt into an account-side Claude-GPT bridge with
+`extra.openai_claude_gpt_bridge_enabled=true`. This is a routing capability of
+the OpenAI account; it does not migrate subscriptions, API keys, or the target
+group platform.
+
+Data model:
+
+- The bridge switch is stored in `account.extra.openai_claude_gpt_bridge_enabled`.
+- Claude-to-GPT mapping stays in the existing OpenAI
+  `account.credentials.model_mapping`, for example
+  `{ "claude-opus-4-8": "gpt-5.5" }`.
+- OpenAI accounts may bind OpenAI groups by default. When the bridge switch is
+  enabled, they may additionally bind Antigravity groups.
+- OpenAI accounts still cannot bind Anthropic or Gemini groups through this
+  bridge.
+
+Important mechanisms:
+
+- Bridge eligibility requires OpenAI platform, enabled extra flag, an explicit
+  account-level model mapping hit, and a mapped model that is non-empty and
+  different from the requested Claude model.
+- Create/edit/bulk account validation uses the effective extra payload before
+  validating group bindings, so the same request can enable the bridge and bind
+  an Antigravity group.
+- Turning the bridge off in the frontend removes Antigravity group selections so
+  stale cross-platform bindings are not submitted.
+- The mapping is account-global. There is no group-level or account-group-level
+  Claude-GPT mapping.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

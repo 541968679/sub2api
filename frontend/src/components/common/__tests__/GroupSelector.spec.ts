@@ -37,6 +37,14 @@ const groups = [
     subscription_type: 'subscription',
     rate_multiplier: 1,
     account_count: 3
+  },
+  {
+    id: 4,
+    name: 'Antigravity',
+    platform: 'antigravity',
+    subscription_type: 'subscription',
+    rate_multiplier: 1,
+    account_count: 4
   }
 ] as any
 
@@ -80,5 +88,17 @@ describe('GroupSelector', () => {
     await wrapper.get('button').trigger('click')
 
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual([1])
+  })
+
+  it('includes account-side bridge extra platforms in the filterable groups', async () => {
+    const wrapper = mountSelector([], {
+      platform: 'openai',
+      extraPlatforms: ['antigravity'],
+      showToggleAll: true
+    })
+
+    await wrapper.get('button').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual([2, 3, 4])
   })
 })

@@ -1102,6 +1102,7 @@ export interface OpenAICompactState {
   openai_compact_checked_at?: string
   openai_compact_last_status?: number
   openai_compact_last_error?: string
+  openai_claude_gpt_bridge_enabled?: boolean
 }
 
 export interface CreateAccountRequest {

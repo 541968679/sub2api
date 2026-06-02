@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"runtime/debug"
 	"strconv"
@@ -23,6 +25,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
+)
+
+const (
+	openAIClaudeGPTBridgeContextKey  = "openai_claude_gpt_bridge"
+	openAIClaudeGPTBridgeFallbackKey = "openai_claude_gpt_bridge_fallback"
 )
 
 // OpenAIGatewayHandler handles OpenAI API gateway requests
@@ -52,6 +59,115 @@ func resolveOpenAIMessagesDispatchMappedModel(apiKey *service.APIKey, requestedM
 		return ""
 	}
 	return strings.TrimSpace(apiKey.Group.ResolveMessagesDispatchModel(requestedModel))
+}
+
+func isOpenAIClaudeGPTBridgeRequest(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	enabled, _ := c.Get(openAIClaudeGPTBridgeContextKey)
+	asBool, _ := enabled.(bool)
+	return asBool
+}
+
+func resetRequestBody(req *http.Request, body []byte) {
+	if req == nil {
+		return
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body))
+	req.ContentLength = int64(len(body))
+}
+
+func bridgeUsageFields(reqModel, upstreamModel string) service.ChannelUsageFields {
+	fields := service.ChannelUsageFields{
+		OriginalModel:      reqModel,
+		ChannelMappedModel: reqModel,
+		BillingModelSource: service.BillingModelSourceRequested,
+	}
+	if upstreamModel != "" && upstreamModel != reqModel {
+		fields.ModelMappingChain = reqModel + "→" + upstreamModel
+	}
+	return fields
+}
+
+func markOpenAIClaudeGPTBridgeFallback(c *gin.Context, body []byte) {
+	if c == nil {
+		return
+	}
+	resetRequestBody(c.Request, body)
+	c.Set(openAIClaudeGPTBridgeFallbackKey, true)
+}
+
+func (h *OpenAIGatewayHandler) MessagesClaudeGPTBridge(c *gin.Context) {
+	if c != nil {
+		c.Set(openAIClaudeGPTBridgeContextKey, true)
+		c.Set(openAIClaudeGPTBridgeFallbackKey, false)
+	}
+	h.Messages(c)
+}
+
+func (h *OpenAIGatewayHandler) ClaudeGPTBridgeFallbackRequested(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	raw, ok := c.Get(openAIClaudeGPTBridgeFallbackKey)
+	if !ok {
+		return false
+	}
+	requested, _ := raw.(bool)
+	return requested
+}
+
+// ShouldUseClaudeGPTBridge checks whether an Antigravity /v1/messages request
+// can be served by an OpenAI account-side Claude-GPT bridge. It never sends an
+// upstream request; failures are intentionally treated as "no bridge" so the
+// caller can fall back to the native Antigravity handler.
+func (h *OpenAIGatewayHandler) ShouldUseClaudeGPTBridge(c *gin.Context) bool {
+	if h == nil || h.gatewayService == nil || c == nil {
+		return false
+	}
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok || apiKey.GroupID == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformAntigravity {
+		return false
+	}
+	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	if err != nil || len(body) == 0 {
+		resetRequestBody(c.Request, body)
+		return false
+	}
+	resetRequestBody(c.Request, body)
+	if !gjson.ValidBytes(body) {
+		return false
+	}
+	modelResult := gjson.GetBytes(body, "model")
+	if !modelResult.Exists() || modelResult.Type != gjson.String || strings.TrimSpace(modelResult.String()) == "" {
+		return false
+	}
+	reqModel := strings.TrimSpace(modelResult.String())
+	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
+	if sessionHash == "" {
+		if userID := strings.TrimSpace(gjson.GetBytes(body, "metadata.user_id").String()); userID != "" {
+			sessionHash = service.DeriveSessionHashFromSeed(reqModel + "-" + userID)
+		}
+	}
+	selection, _, err := h.gatewayService.SelectAccountWithSchedulerForClaudeGPTBridge(
+		c.Request.Context(),
+		apiKey.GroupID,
+		sessionHash,
+		reqModel,
+		nil,
+		service.OpenAIUpstreamTransportAny,
+	)
+	if err != nil || selection == nil || selection.Account == nil {
+		if selection != nil && selection.ReleaseFunc != nil {
+			selection.ReleaseFunc()
+		}
+		return false
+	}
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+	return true
 }
 
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler
@@ -546,7 +662,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	)
 
 	// 检查分组是否允许 /v1/messages 调度
-	if apiKey.Group != nil && !apiKey.Group.AllowMessagesDispatch {
+	bridgeMode := isOpenAIClaudeGPTBridgeRequest(c)
+	if !bridgeMode && apiKey.Group != nil && !apiKey.Group.AllowMessagesDispatch {
 		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error",
 			"This group does not allow /v1/messages dispatch")
 		return
@@ -582,16 +699,25 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	}
 	reqModel := modelResult.String()
 	routingModel := service.NormalizeOpenAICompatRequestedModel(reqModel)
-	preferredMappedModel := resolveOpenAIMessagesDispatchMappedModel(apiKey, reqModel)
+	preferredMappedModel := ""
+	if !bridgeMode {
+		preferredMappedModel = resolveOpenAIMessagesDispatchMappedModel(apiKey, reqModel)
+	}
 	reqStream := gjson.GetBytes(body, "stream").Bool()
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
+	if bridgeMode && !isGroupModelAllowed(apiKey.Group, reqModel) {
+		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return
+	}
 
 	setOpsRequestContext(c, reqModel, reqStream, body)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
 
-	// 解析渠道级模型映射
-	channelMappingMsg, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	channelMappingMsg := service.ChannelMappingResult{MappedModel: reqModel, BillingModelSource: service.BillingModelSourceRequested}
+	if !bridgeMode {
+		channelMappingMsg, _ = h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	}
 
 	// 绑定错误透传服务，允许 service 层在非 failover 错误场景复用规则。
 	if h.errorPassthroughService != nil {
@@ -652,21 +778,39 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			currentRoutingModel = effectiveMappedModel
 		}
 		reqLog.Debug("openai_messages.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithScheduler(
-			c.Request.Context(),
-			apiKey.GroupID,
-			"", // no previous_response_id
-			sessionHash,
-			currentRoutingModel,
-			failedAccountIDs,
-			service.OpenAIUpstreamTransportAny,
-			false,
-		)
+		var selection *service.AccountSelectionResult
+		var scheduleDecision service.OpenAIAccountScheduleDecision
+		var err error
+		if bridgeMode {
+			selection, scheduleDecision, err = h.gatewayService.SelectAccountWithSchedulerForClaudeGPTBridge(
+				c.Request.Context(),
+				apiKey.GroupID,
+				sessionHash,
+				reqModel,
+				failedAccountIDs,
+				service.OpenAIUpstreamTransportAny,
+			)
+		} else {
+			selection, scheduleDecision, err = h.gatewayService.SelectAccountWithScheduler(
+				c.Request.Context(),
+				apiKey.GroupID,
+				"", // no previous_response_id
+				sessionHash,
+				currentRoutingModel,
+				failedAccountIDs,
+				service.OpenAIUpstreamTransportAny,
+				false,
+			)
+		}
 		if err != nil {
 			reqLog.Warn("openai_messages.account_select_failed",
 				zap.Error(err),
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
 			)
+			if bridgeMode && len(failedAccountIDs) == 0 {
+				markOpenAIClaudeGPTBridgeFallback(c, body)
+				return
+			}
 			if len(failedAccountIDs) == 0 {
 				if err != nil {
 					h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
@@ -682,10 +826,41 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			}
 		}
 		if selection == nil || selection.Account == nil {
+			if bridgeMode && len(failedAccountIDs) == 0 {
+				markOpenAIClaudeGPTBridgeFallback(c, body)
+				return
+			}
+			if bridgeMode {
+				if lastFailoverErr != nil {
+					h.handleAnthropicFailoverExhausted(c, lastFailoverErr, streamStarted)
+				} else {
+					h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
+				}
+				return
+			}
 			h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "No available accounts", streamStarted)
 			return
 		}
 		account := selection.Account
+		bridgeMappedModel := ""
+		if bridgeMode {
+			mapped, ok := account.ResolveClaudeGPTBridgeModel(reqModel)
+			if !ok {
+				if selection.ReleaseFunc != nil {
+					selection.ReleaseFunc()
+				}
+				if len(failedAccountIDs) == 0 {
+					markOpenAIClaudeGPTBridgeFallback(c, body)
+				} else if lastFailoverErr != nil {
+					h.handleAnthropicFailoverExhausted(c, lastFailoverErr, streamStarted)
+				} else {
+					h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
+				}
+				return
+			}
+			bridgeMappedModel = mapped
+			effectiveMappedModel = mapped
+		}
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		reqLog.Debug("openai_messages.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		_ = scheduleDecision
@@ -700,9 +875,12 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		forwardStart := time.Now()
 
 		defaultMappedModel := strings.TrimSpace(effectiveMappedModel)
+		if bridgeMode {
+			defaultMappedModel = bridgeMappedModel
+		}
 		// 应用渠道模型映射到请求体
 		forwardBody := body
-		if channelMappingMsg.Mapped {
+		if !bridgeMode && channelMappingMsg.Mapped {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMappingMsg.MappedModel)
 		}
 		result, err := h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
@@ -791,7 +969,12 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				IPAddress:          clientIP,
 				RequestPayloadHash: requestPayloadHash,
 				APIKeyService:      h.apiKeyService,
-				ChannelUsageFields: channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel),
+				ChannelUsageFields: func() service.ChannelUsageFields {
+					if bridgeMode {
+						return bridgeUsageFields(reqModel, result.UpstreamModel)
+					}
+					return channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel)
+				}(),
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.messages"),

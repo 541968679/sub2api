@@ -2180,6 +2180,10 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
+	if err := s.validateAccountGroupBindings(ctx, input.Platform, input.Extra, groupIDs); err != nil {
+		return nil, err
+	}
+
 	// 检查混合渠道风险（除非用户已确认）
 	if len(groupIDs) > 0 && !input.SkipMixedChannelCheck {
 		if err := s.checkMixedChannelRisk(ctx, 0, input.Platform, groupIDs); err != nil {
@@ -2372,7 +2376,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 
 	// 先验证分组是否存在（在任何写操作之前）
 	if input.GroupIDs != nil {
-		if err := s.validateGroupIDsExist(ctx, *input.GroupIDs); err != nil {
+		if err := s.validateAccountGroupBindings(ctx, account.Platform, account.Extra, *input.GroupIDs); err != nil {
 			return nil, err
 		}
 
@@ -2431,9 +2435,10 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	needMixedChannelCheck := input.GroupIDs != nil && !input.SkipMixedChannelCheck
 
-	// 预加载账号平台信息（混合渠道检查需要）。
+	// 预加载账号信息（混合渠道检查和跨平台分组绑定校验需要）。
 	platformByID := map[int64]string{}
-	if needMixedChannelCheck {
+	extraByID := map[int64]map[string]any{}
+	if needMixedChannelCheck || input.GroupIDs != nil {
 		accounts, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
 		if err != nil {
 			return nil, err
@@ -2441,6 +2446,19 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		for _, account := range accounts {
 			if account != nil {
 				platformByID[account.ID] = account.Platform
+				extraByID[account.ID] = mergeAccountExtraForValidation(account.Extra, input.Extra)
+			}
+		}
+	}
+
+	if input.GroupIDs != nil {
+		for _, accountID := range input.AccountIDs {
+			platform := platformByID[accountID]
+			if platform == "" {
+				continue
+			}
+			if err := s.validateAccountGroupBindings(ctx, platform, extraByID[accountID], *input.GroupIDs); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -3385,6 +3403,62 @@ func (s *adminServiceImpl) validateGroupIDsExist(ctx context.Context, groupIDs [
 		}
 	}
 	return nil
+}
+
+func (s *adminServiceImpl) validateAccountGroupBindings(ctx context.Context, accountPlatform string, accountExtra map[string]any, groupIDs []int64) error {
+	if len(groupIDs) == 0 {
+		return nil
+	}
+	if err := s.validateGroupIDsExist(ctx, groupIDs); err != nil {
+		return err
+	}
+
+	// Only OpenAI accounts get stricter cross-platform binding rules here.
+	// Other platforms keep their existing mixed-scheduling behavior.
+	if accountPlatform != PlatformOpenAI {
+		return nil
+	}
+
+	bridgeEnabled := accountExtraBool(accountExtra, "openai_claude_gpt_bridge_enabled")
+	for _, groupID := range groupIDs {
+		group, err := s.groupRepo.GetByID(ctx, groupID)
+		if err != nil {
+			return fmt.Errorf("get group: %w", err)
+		}
+		if group.Platform == PlatformOpenAI {
+			continue
+		}
+		if bridgeEnabled && group.Platform == PlatformAntigravity {
+			continue
+		}
+		if bridgeEnabled {
+			return infraerrors.BadRequest("INVALID_ACCOUNT_GROUP_PLATFORM", "OpenAI Claude-GPT bridge accounts may only bind OpenAI or Antigravity groups")
+		}
+		return infraerrors.BadRequest("INVALID_ACCOUNT_GROUP_PLATFORM", "OpenAI accounts can only bind OpenAI groups unless Claude-GPT bridge is enabled")
+	}
+	return nil
+}
+
+func accountExtraBool(extra map[string]any, key string) bool {
+	if extra == nil {
+		return false
+	}
+	enabled, ok := extra[key].(bool)
+	return ok && enabled
+}
+
+func mergeAccountExtraForValidation(current, updates map[string]any) map[string]any {
+	if len(current) == 0 && len(updates) == 0 {
+		return nil
+	}
+	merged := make(map[string]any, len(current)+len(updates))
+	for key, value := range current {
+		merged[key] = value
+	}
+	for key, value := range updates {
+		merged[key] = value
+	}
+	return merged
 }
 
 // CheckMixedChannelRisk checks whether target groups contain mixed channels for the current account platform.
