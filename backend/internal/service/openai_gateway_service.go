@@ -1327,6 +1327,20 @@ func isOpenAIAccountEligibleForRequest(account *Account, requestedModel string, 
 	})
 }
 
+func (s *OpenAIGatewayService) refreshStaleOpenAIScheduleCandidate(ctx context.Context, account *Account, eligibility openAIAccountRequestEligibility) *Account {
+	if account == nil || !eligibility.RequireClaudeGPTBridge || s == nil || s.schedulerSnapshot == nil || s.accountRepo == nil {
+		return nil
+	}
+	latest, err := s.accountRepo.GetByID(ctx, account.ID)
+	if err != nil || latest == nil {
+		return nil
+	}
+	if !isOpenAIAccountEligibleForScheduleRequest(latest, eligibility) {
+		return nil
+	}
+	return latest
+}
+
 // prioritizeOpenAICompactAccounts re-orders a slice so that accounts with known
 // compact support are tried first, followed by unknown, then explicitly unsupported.
 // The relative order within each tier is preserved.
@@ -1725,14 +1739,18 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		if !acc.IsSchedulable() {
 			continue
 		}
-		if !isOpenAIAccountEligibleForScheduleRequest(acc, eligibility) {
-			continue
+		candidate := acc
+		if !isOpenAIAccountEligibleForScheduleRequest(candidate, eligibility) {
+			candidate = s.refreshStaleOpenAIScheduleCandidate(ctx, acc, eligibility)
+			if candidate == nil {
+				continue
+			}
 		}
-		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, acc, requestedModel, eligibility.RequireCompact) {
+		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, candidate, requestedModel, eligibility.RequireCompact) {
 			continue
 		}
 		baseCandidateCount++
-		candidates = append(candidates, acc)
+		candidates = append(candidates, candidate)
 	}
 
 	if len(candidates) == 0 {
@@ -1933,7 +1951,7 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccountForSchedule(c
 	}
 
 	if !isOpenAIAccountEligibleForScheduleRequest(fresh, eligibility) {
-		return nil
+		return s.refreshStaleOpenAIScheduleCandidate(ctx, account, eligibility)
 	}
 	return fresh
 }

@@ -2318,3 +2318,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added Antigravity `/v1/messages` bridge preflight: eligible requests route through OpenAI `ForwardAsAnthropic`, while pre-upstream misses reset the request body and fall back to native Antigravity.
 - Kept user-facing usage records and billing on the original Claude requested model while storing the GPT upstream model in `upstream_model` for admin visibility.
 - Added admin account form controls for enabling the bridge and selecting OpenAI plus Antigravity groups when enabled.
+
+## [2026-06-02] fix: make local Antigravity Claude-GPT bridge requests schedulable
+
+**Affected files**: backend/internal/server/routes/gateway.go, backend/internal/repository/scheduler_cache.go, backend/internal/repository/scheduler_cache_unit_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_account_scheduler.go, backend/internal/handler/admin/account_handler_available_models_test.go, backend/internal/service/antigravity_model_mapping_test.go, backend/internal/server/api_contract_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped routing and scheduler metadata fix for the additive OpenAI Claude-GPT bridge; native Antigravity fallback remains unchanged when no eligible bridge account exists.
+**Change details**:
+- Reused the `/v1/messages` Anthropic Messages dispatch handler for `/antigravity/v1/messages`, so Claude Code configurations with `ANTHROPIC_BASE_URL=/antigravity` also preflight OpenAI bridge accounts.
+- Preserved `extra.openai_claude_gpt_bridge_enabled` in slim scheduler metadata and added a bridge-only DB refresh path before stale scheduler snapshot candidates are rejected.
+- Updated stale unit-test expectations for current OpenAI model-list merge behavior, Antigravity unknown Claude/Gemini passthrough, and handler/service constructor signatures.
+- Preserved native Antigravity routing for bridge misses and kept `/antigravity/v1/messages/count_tokens`, `/models`, and `/usage` unchanged.
+- Verified with a real local Claude Code-style request to `http://localhost:18081/antigravity/v1/messages`: `claude-opus-4-8` returned `200` through OpenAI account `41`, downstream response model stayed `claude-opus-4-8`, usage tokens were `23/19`, and the usage row stored `upstream_model=gpt-5.5`.

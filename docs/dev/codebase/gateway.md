@@ -52,6 +52,8 @@ GatewayHandler.ChatCompletions
 
 ```
 /antigravity/v1/messages
+  -> routes/gateway.go bridge preflight for eligible Claude-GPT requests
+  -> if no OpenAI bridge account is eligible:
   -> GatewayHandler.Messages
   -> SelectAccountWithLoadAwareness(... forcePlatform=antigravity ...)
   -> AntigravityGatewayService.Forward()
@@ -61,7 +63,7 @@ GatewayHandler.ChatCompletions
 ### Antigravity `/v1/messages` OpenAI Claude-GPT Bridge
 
 ```
-/v1/messages with API key bound to an Antigravity group
+/v1/messages or /antigravity/v1/messages with API key bound to an Antigravity group
   -> routes/gateway.go
   -> OpenAIGatewayHandler.ShouldUseClaudeGPTBridge()
      -> read and reset request body
@@ -79,6 +81,13 @@ GatewayHandler.ChatCompletions
      -> reset request body
      -> fall back to native Gateway.Messages Antigravity path
 ```
+
+The scheduler metadata cache must retain both
+`credentials.model_mapping` and `extra.openai_claude_gpt_bridge_enabled`.
+Bridge scheduling also performs a DB refresh for stale snapshot candidates
+before rejecting them, so a recently-enabled bridge account is not incorrectly
+treated as ineligible only because an older slim scheduler snapshot omitted the
+bridge flag.
 
 Once the bridge path has selected an OpenAI account and entered upstream
 forwarding or failover, it does not fall back to Antigravity. It continues with

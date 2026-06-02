@@ -550,6 +550,8 @@ func TestAPIContracts(t *testing.T) {
 							"duration_ms": 100,
 							"first_token_ms": 50,
 							"image_count": 0,
+							"image_output_cost": 0,
+							"image_quality": null,
 							"image_size": null,
 							"media_type": null,
 							"cache_ttl_overridden": false,
@@ -769,6 +771,11 @@ func TestAPIContracts(t *testing.T) {
 					"payment_max_pending_orders": 0,
 					"payment_balance_disabled": false,
 					"payment_balance_recharge_multiplier": 0,
+					"payment_bonus_tiers": null,
+					"payment_cny_per_usd": 0,
+					"payment_first_recharge_enabled": false,
+					"payment_first_recharge_min_amount": 0,
+					"payment_first_recharge_bonus_usd": 0,
 					"payment_recharge_fee_rate": 0,
 					"payment_load_balance_strategy": "",
 					"payment_product_name_prefix": "",
@@ -895,7 +902,7 @@ func TestAPIContracts(t *testing.T) {
 					"oidc_connect_userinfo_email_path": "",
 					"oidc_connect_userinfo_id_path": "",
 					"oidc_connect_userinfo_username_path": "",
-					"site_name": "Sub2API",
+					"site_name": "ZeroCode",
 					"site_logo": "",
 					"site_subtitle": "Subscription to API Conversion Platform",
 					"api_base_url": "",
@@ -961,6 +968,11 @@ func TestAPIContracts(t *testing.T) {
 					"payment_enabled_types": null,
 					"payment_balance_disabled": false,
 					"payment_balance_recharge_multiplier": 0,
+					"payment_bonus_tiers": null,
+					"payment_cny_per_usd": 0,
+					"payment_first_recharge_enabled": false,
+					"payment_first_recharge_min_amount": 0,
+					"payment_first_recharge_bonus_usd": 0,
 					"payment_recharge_fee_rate": 0,
 					"payment_load_balance_strategy": "",
 					"payment_product_name_prefix": "",
@@ -1126,10 +1138,10 @@ func newContractDeps(t *testing.T) *contractDeps {
 	settingRepo := newStubSettingRepo()
 	settingService := service.NewSettingService(settingRepo, cfg)
 
-	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
-	usageHandler := handler.NewUsageHandler(usageService, apiKeyService)
+	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 
@@ -1675,6 +1687,10 @@ func (stubProxyRepo) ListActiveWithAccountCount(ctx context.Context) ([]service.
 	return nil, errors.New("not implemented")
 }
 
+func (stubProxyRepo) ListPoolEnabledWithAccountCount(ctx context.Context) ([]service.ProxyWithAccountCount, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (stubProxyRepo) ExistsByHostPortAuth(ctx context.Context, host string, port int, username, password string) (bool, error) {
 	return false, errors.New("not implemented")
 }
@@ -1685,6 +1701,10 @@ func (stubProxyRepo) CountAccountsByProxyID(ctx context.Context, proxyID int64) 
 
 func (stubProxyRepo) ListAccountSummariesByProxyID(ctx context.Context, proxyID int64) ([]service.ProxyAccountSummary, error) {
 	return nil, errors.New("not implemented")
+}
+
+func (stubProxyRepo) ClearProxyIDForAccounts(ctx context.Context, proxyID int64) (int64, error) {
+	return 0, errors.New("not implemented")
 }
 
 type stubRedeemCodeRepo struct {

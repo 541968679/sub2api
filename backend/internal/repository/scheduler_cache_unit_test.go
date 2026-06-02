@@ -32,6 +32,31 @@ func TestBuildSchedulerMetadataAccount_KeepsOpenAIWSFlags(t *testing.T) {
 	require.Nil(t, got.Extra["unused_large_field"])
 }
 
+func TestBuildSchedulerMetadataAccount_KeepsOpenAIClaudeGPTBridgeFields(t *testing.T) {
+	account := service.Account{
+		ID:       42,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"claude-opus-4-8": "gpt-5.5",
+			},
+			"access_token": "drop-me",
+		},
+		Extra: map[string]any{
+			"openai_claude_gpt_bridge_enabled": true,
+			"unused_large_field":               "drop-me",
+		},
+	}
+
+	got := buildSchedulerMetadataAccount(account)
+
+	require.Equal(t, true, got.Extra["openai_claude_gpt_bridge_enabled"])
+	require.Equal(t, map[string]any{"claude-opus-4-8": "gpt-5.5"}, got.Credentials["model_mapping"])
+	require.Nil(t, got.Credentials["access_token"])
+	require.Nil(t, got.Extra["unused_large_field"])
+}
+
 func TestBuildSchedulerMetadataAccount_KeepsSlimGroupMembership(t *testing.T) {
 	account := service.Account{
 		ID:       42,

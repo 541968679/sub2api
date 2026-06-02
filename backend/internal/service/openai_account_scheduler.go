@@ -626,16 +626,24 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
 			continue
 		}
-		if !s.isAccountRequestCompatible(account, req) {
+		candidate := account
+		if !s.isAccountRequestCompatible(candidate, req) {
+			candidate = s.service.refreshStaleOpenAIScheduleCandidate(ctx, account, openAIAccountRequestEligibility{
+				RequestedModel:         req.RequestedModel,
+				RequireCompact:         req.RequireCompact,
+				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+			})
+			if candidate == nil {
+				continue
+			}
+		}
+		if !s.isAccountTransportCompatible(candidate, req.RequiredTransport) {
 			continue
 		}
-		if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
-			continue
-		}
-		filtered = append(filtered, account)
+		filtered = append(filtered, candidate)
 		loadReq = append(loadReq, AccountWithConcurrency{
-			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
+			ID:             candidate.ID,
+			MaxConcurrency: candidate.EffectiveLoadFactor(),
 		})
 	}
 	if len(filtered) == 0 {

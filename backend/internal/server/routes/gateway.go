@@ -30,6 +30,21 @@ func RegisterGatewayRoutes(
 	// 未分组 Key 拦截中间件（按协议格式区分错误响应）
 	requireGroupAnthropic := middleware.RequireGroupAssignment(settingService, middleware.AnthropicErrorWriter)
 	requireGroupGoogle := middleware.RequireGroupAssignment(settingService, middleware.GoogleErrorWriter)
+	anthropicMessagesHandler := func(c *gin.Context) {
+		groupPlatform := getGroupPlatform(c)
+		if groupPlatform == service.PlatformOpenAI {
+			h.OpenAIGateway.Messages(c)
+			return
+		}
+		if groupPlatform == service.PlatformAntigravity && h.OpenAIGateway.ShouldUseClaudeGPTBridge(c) {
+			h.OpenAIGateway.MessagesClaudeGPTBridge(c)
+			if h.OpenAIGateway.ClaudeGPTBridgeFallbackRequested(c) {
+				h.Gateway.Messages(c)
+			}
+			return
+		}
+		h.Gateway.Messages(c)
+	}
 
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
@@ -45,21 +60,7 @@ func RegisterGatewayRoutes(
 	gateway.Use(requireGroupAnthropic)
 	{
 		// /v1/messages: auto-route based on group platform
-		gateway.POST("/messages", func(c *gin.Context) {
-			groupPlatform := getGroupPlatform(c)
-			if groupPlatform == service.PlatformOpenAI {
-				h.OpenAIGateway.Messages(c)
-				return
-			}
-			if groupPlatform == service.PlatformAntigravity && h.OpenAIGateway.ShouldUseClaudeGPTBridge(c) {
-				h.OpenAIGateway.MessagesClaudeGPTBridge(c)
-				if h.OpenAIGateway.ClaudeGPTBridgeFallbackRequested(c) {
-					h.Gateway.Messages(c)
-				}
-				return
-			}
-			h.Gateway.Messages(c)
-		})
+		gateway.POST("/messages", anthropicMessagesHandler)
 		// /v1/messages/count_tokens: OpenAI groups get 404
 		gateway.POST("/messages/count_tokens", func(c *gin.Context) {
 			if getGroupPlatform(c) == service.PlatformOpenAI {
@@ -204,7 +205,7 @@ func RegisterGatewayRoutes(
 	antigravityV1.Use(gin.HandlerFunc(apiKeyAuth))
 	antigravityV1.Use(requireGroupAnthropic)
 	{
-		antigravityV1.POST("/messages", h.Gateway.Messages)
+		antigravityV1.POST("/messages", anthropicMessagesHandler)
 		antigravityV1.POST("/messages/count_tokens", h.Gateway.CountTokens)
 		antigravityV1.GET("/models", h.Gateway.AntigravityModels)
 		antigravityV1.GET("/usage", h.Gateway.Usage)

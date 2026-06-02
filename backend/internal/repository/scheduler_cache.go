@@ -546,6 +546,7 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"responses_websockets_v2_enabled",
 		"openai_ws_enabled",
 		"openai_ws_force_http",
+		"openai_claude_gpt_bridge_enabled",
 	}
 	filtered := make(map[string]any)
 	for _, key := range keys {

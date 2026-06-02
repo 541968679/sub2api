@@ -125,36 +125,36 @@ func TestAntigravityGatewayService_GetMappedModel(t *testing.T) {
 			expected:       "gemini-3-flash",
 		},
 
-		// 4. 未在默认映射中的模型返回空字符串（不支持）
+		// 4. 未在默认映射中的 Claude/Gemini 前缀模型按原模型透传
 		{
-			name:           "未知模型 - claude-unknown 返回空",
+			name:           "未知模型 - claude-unknown 透传",
 			requestedModel: "claude-unknown",
 			accountMapping: nil,
-			expected:       "",
+			expected:       "claude-unknown",
 		},
 		{
-			name:           "未知模型 - claude-3-5-sonnet-20241022 返回空（未在默认映射）",
+			name:           "未知模型 - claude-3-5-sonnet-20241022 透传（未在默认映射）",
 			requestedModel: "claude-3-5-sonnet-20241022",
 			accountMapping: nil,
-			expected:       "",
+			expected:       "claude-3-5-sonnet-20241022",
 		},
 		{
-			name:           "未知模型 - claude-3-opus-20240229 返回空",
+			name:           "未知模型 - claude-3-opus-20240229 透传",
 			requestedModel: "claude-3-opus-20240229",
 			accountMapping: nil,
-			expected:       "",
+			expected:       "claude-3-opus-20240229",
 		},
 		{
-			name:           "未知模型 - claude-opus-4 返回空",
+			name:           "未知模型 - claude-opus-4 透传",
 			requestedModel: "claude-opus-4",
 			accountMapping: nil,
-			expected:       "",
+			expected:       "claude-opus-4",
 		},
 		{
-			name:           "未知模型 - gemini-future-model 返回空",
+			name:           "未知模型 - gemini-future-model 透传",
 			requestedModel: "gemini-future-model",
 			accountMapping: nil,
-			expected:       "",
+			expected:       "gemini-future-model",
 		},
 	}
 
