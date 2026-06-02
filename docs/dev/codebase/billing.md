@@ -275,3 +275,18 @@ Completions response `usage` fields:
   and group display rate scaling is treated as `1`.
 - Billing, stored usage logs, `actual_cost`, quota deduction, and usage query
   behavior remain unchanged.
+
+### User Model Pricing Validation (2026-06-02)
+
+User-level model pricing overrides can directly replace real per-token prices in
+`ModelPricingResolver.applyUserModelPricingOverride`. The authoritative guard is
+`UserModelPricingService`: create, update, and batch upsert reject negative,
+`NaN`, and infinite real/display price values before any repository write.
+`display_rate_multiplier` is also rejected unless it is positive and finite.
+
+The admin HTTP request structs keep matching early validation tags, but the
+service layer is the required enforcement point for internal callers. Migration
+`147_user_model_pricing_non_negative_constraints.sql` adds `NOT VALID`
+PostgreSQL CHECK constraints so new inserts/updates are blocked even if an
+unvalidated write path is introduced later, without scanning historical rows
+during startup.

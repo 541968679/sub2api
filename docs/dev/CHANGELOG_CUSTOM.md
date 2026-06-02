@@ -2297,3 +2297,13 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Changed OpenAI gateway error handling so Images upstream 400 user errors return downstream 400 with the upstream `error.message` and `error.type` instead of generic 502.
 - Kept the behavior independent of `OPENAI_IMAGE_TRACE_LOG`, which remains only an opt-in timing diagnostic.
 - Added regression coverage for an upstream invalid image size error such as `4096x1752` not being divisible by 16.
+
+## [2026-06-02] fix: reject negative user model pricing overrides
+
+**Affected files**: backend/internal/service/user_model_pricing_service.go, backend/internal/service/user_model_pricing_service_test.go, backend/internal/handler/admin/user_model_pricing_handler.go, backend/migrations/147_user_model_pricing_non_negative_constraints.sql, frontend/src/components/admin/user/UserModelPricingModal.vue, docs/dev/codebase/billing.md
+**Upstream compatibility**: scoped validation hardening for admin user-level model pricing; valid zero and positive prices remain supported.
+**Change details**:
+- Added service-layer validation for create, update, and batch upsert so user-level real/display price overrides cannot be negative, NaN, or infinite.
+- Rejected non-positive or non-finite `display_rate_multiplier` for user model pricing overrides.
+- Added PostgreSQL `NOT VALID` CHECK constraints to block new invalid writes without scanning historical rows during startup.
+- Added focused unit coverage for the negative update path that can otherwise record negative usage costs.

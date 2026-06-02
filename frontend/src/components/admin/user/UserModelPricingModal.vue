@@ -81,22 +81,22 @@
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.inputPrice') }}</label>
-                  <input v-model.number="item.input_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.input_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.outputPrice') }}</label>
-                  <input v-model.number="item.output_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.output_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.cacheWritePrice') }}</label>
-                  <input v-model.number="item.cache_write_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.cache_write_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.cacheReadPrice') }}</label>
-                  <input v-model.number="item.cache_read_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.cache_read_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
               </div>
@@ -118,17 +118,17 @@
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayInputPrice') }}</label>
-                  <input v-model.number="item.display_input_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.display_input_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayOutputPrice') }}</label>
-                  <input v-model.number="item.display_output_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.display_output_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayCacheReadPrice') }}</label>
-                  <input v-model.number="item.display_cache_read_price" type="number" step="any" :placeholder="t('admin.users.noOverride')"
+                  <input v-model.number="item.display_cache_read_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
               </div>

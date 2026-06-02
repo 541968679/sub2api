@@ -28,21 +28,21 @@ type createUserModelPricingRequest struct {
 	DisplayInputPrice     *float64 `json:"display_input_price" binding:"omitempty,min=0"`
 	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
 	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,gt=0"`
 	Enabled               *bool    `json:"enabled"`
 	Notes                 string   `json:"notes"`
 }
 
 type updateUserModelPricingRequest struct {
 	Model                 string   `json:"model" binding:"omitempty,max=255"`
-	InputPrice            *float64 `json:"input_price"`
-	OutputPrice           *float64 `json:"output_price"`
-	CacheWritePrice       *float64 `json:"cache_write_price"`
-	CacheReadPrice        *float64 `json:"cache_read_price"`
-	DisplayInputPrice     *float64 `json:"display_input_price"`
-	DisplayOutputPrice    *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	InputPrice            *float64 `json:"input_price" binding:"omitempty,min=0"`
+	OutputPrice           *float64 `json:"output_price" binding:"omitempty,min=0"`
+	CacheWritePrice       *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
+	CacheReadPrice        *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
+	DisplayInputPrice     *float64 `json:"display_input_price" binding:"omitempty,min=0"`
+	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
+	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,gt=0"`
 	Enabled               *bool    `json:"enabled"`
 	Notes                 *string  `json:"notes"`
 }
