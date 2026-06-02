@@ -469,6 +469,20 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestAppendCacheStatusPlatformFilter_AllSkipsFilter(t *testing.T) {
+	query, args := appendCacheStatusPlatformFilter("SELECT 1 WHERE TRUE", []any{1, 2}, "all")
+
+	require.Equal(t, "SELECT 1 WHERE TRUE", query)
+	require.Equal(t, []any{1, 2}, args)
+}
+
+func TestAppendCacheStatusPlatformFilter_UsesGroupPlatformBeforeAccountPlatform(t *testing.T) {
+	query, args := appendCacheStatusPlatformFilter("SELECT 1 WHERE TRUE", []any{1, 2}, "antigravity")
+
+	require.Contains(t, query, "COALESCE(NULLIF(g.platform, ''), NULLIF(a.platform, ''), '') = $3")
+	require.Equal(t, []any{1, 2, "antigravity"}, args)
+}
+
 func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	tests := []struct {
 		name      string

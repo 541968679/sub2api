@@ -3260,10 +3260,11 @@ func (r *usageLogRepository) getCacheStatusModels(ctx context.Context, startTime
 }
 
 func appendCacheStatusPlatformFilter(query string, args []any, platform string) (string, []any) {
-	if strings.TrimSpace(platform) == "" {
+	platform = strings.TrimSpace(platform)
+	if platform == "" || strings.EqualFold(platform, "all") {
 		return query, args
 	}
-	query += fmt.Sprintf(" AND COALESCE(NULLIF(a.platform, ''), NULLIF(g.platform, ''), '') = $%d", len(args)+1)
+	query += fmt.Sprintf(" AND COALESCE(NULLIF(g.platform, ''), NULLIF(a.platform, ''), '') = $%d", len(args)+1)
 	args = append(args, platform)
 	return query, args
 }

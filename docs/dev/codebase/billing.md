@@ -23,6 +23,20 @@ Usage and billing rules:
   from the GPT model name.
 - User DTOs continue to hide `upstream_model`; admin DTOs expose it.
 
+Compatibility notes for custom billing/ops features:
+
+- Prompt-cache status is user/request-platform oriented. For bridge rows, the
+  dashboard platform filter should prefer `groups.platform` over
+  `accounts.platform`, so Antigravity users' cache behavior remains visible in
+  the Antigravity cache dashboard even when the upstream account is OpenAI.
+- Account-cost statistics are upstream-account oriented. Bridge rows keep using
+  the GPT upstream model for `account_stats_cost`, because the admin account
+  cost should represent the OpenAI account's real upstream consumption.
+- Custom account-stats pricing rules match the request group platform plus the
+  upstream model. In an Antigravity bridge group, write these rules as
+  `platform=antigravity, model=gpt-5.5` or leave `platform` empty; a rule written
+  as `platform=openai, model=gpt-5.5` will not match that Antigravity group.
+
 ## 数据模型
 
 | 实体/类型 | 位置 | 说明 |

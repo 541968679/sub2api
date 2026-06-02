@@ -2329,3 +2329,13 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Updated stale unit-test expectations for current OpenAI model-list merge behavior, Antigravity unknown Claude/Gemini passthrough, and handler/service constructor signatures.
 - Preserved native Antigravity routing for bridge misses and kept `/antigravity/v1/messages/count_tokens`, `/models`, and `/usage` unchanged.
 - Verified with a real local Claude Code-style request to `http://localhost:18081/antigravity/v1/messages`: `claude-opus-4-8` returned `200` through OpenAI account `41`, downstream response model stayed `claude-opus-4-8`, usage tokens were `23/19`, and the usage row stored `upstream_model=gpt-5.5`.
+
+## [2026-06-02] fix: classify bridge cache status by request group platform
+
+**Affected files**: backend/internal/repository/usage_log_repo.go, backend/internal/repository/usage_log_repo_request_type_test.go, docs/dev/codebase/billing.md, docs/dev/codebase/account.md
+**Upstream compatibility**: scoped dashboard/statistics compatibility fix for the additive OpenAI Claude-GPT bridge; user billing, usage rows, scheduler selection, and native Antigravity AI Credits aggregation are unchanged.
+**Change details**:
+- Changed prompt-cache status platform filtering to prefer `groups.platform` over `accounts.platform`, so OpenAI bridge rows from Antigravity groups appear in the Antigravity cache-status dashboard.
+- Treated `platform=all` as no platform filter in cache-status SQL, matching the existing handler/frontend semantics.
+- Added unit coverage for the `all` filter and group-platform precedence.
+- Documented that Antigravity AI Credits usage aggregation intentionally remains native Antigravity upstream-account scope, while bridge account-cost rules should target `platform=antigravity` plus the GPT upstream model or leave platform empty.
