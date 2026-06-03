@@ -627,10 +627,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			continue
 		}
 		candidate := account
-		if !s.isAccountRequestCompatible(candidate, req) {
+		if !s.isAccountCandidatePoolCompatible(candidate, req) {
 			candidate = s.service.refreshStaleOpenAIScheduleCandidate(ctx, account, openAIAccountRequestEligibility{
 				RequestedModel:         req.RequestedModel,
-				RequireCompact:         req.RequireCompact,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 			})
 			if candidate == nil {
@@ -920,6 +919,22 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(account *Acco
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 	}) {
+		return false
+	}
+	return account.SupportsOpenAIImageCapability(req.RequiredImageCapability)
+}
+
+func (s *defaultOpenAIAccountScheduler) isAccountCandidatePoolCompatible(account *Account, req OpenAIAccountScheduleRequest) bool {
+	if account == nil {
+		return false
+	}
+	eligibility := openAIAccountRequestEligibility{
+		RequestedModel:         req.RequestedModel,
+		RequireCompact:         req.RequireCompact,
+		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+	}
+	eligibility = openAIAccountCandidatePoolEligibility(eligibility)
+	if !isOpenAIAccountEligibleForScheduleRequest(account, eligibility) {
 		return false
 	}
 	return account.SupportsOpenAIImageCapability(req.RequiredImageCapability)

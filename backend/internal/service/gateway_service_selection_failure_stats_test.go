@@ -9,7 +9,7 @@ import (
 
 func TestCollectSelectionFailureStats(t *testing.T) {
 	svc := &GatewayService{}
-	model := "gpt-5.4"
+	model := "unsupported-custom-model"
 	resetAt := time.Now().Add(2 * time.Minute).Format(time.RFC3339)
 
 	accounts := []Account{

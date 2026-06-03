@@ -194,6 +194,44 @@ func TestSettingService_UpdateSettings_RegistrationEmailSuffixWhitelist_Invalid(
 	require.Equal(t, "INVALID_REGISTRATION_EMAIL_SUFFIX_WHITELIST", infraerrors.Reason(err))
 }
 
+func TestSettingService_UpdateSettings_OpenAIClaudeGPTBridgeCacheDisplaySettings(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		OpenAIClaudeGPTBridgeCacheDisplaySettings: &OpenAIClaudeGPTBridgeCacheDisplaySettings{
+			Enabled:    true,
+			MinPercent: 60,
+			MaxPercent: 70,
+		},
+	})
+	require.NoError(t, err)
+
+	raw, ok := repo.updates[SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings]
+	require.True(t, ok)
+	var got OpenAIClaudeGPTBridgeCacheDisplaySettings
+	require.NoError(t, json.Unmarshal([]byte(raw), &got))
+	require.True(t, got.Enabled)
+	require.Equal(t, float64(60), got.MinPercent)
+	require.Equal(t, float64(70), got.MaxPercent)
+}
+
+func TestSettingService_UpdateSettings_OpenAIClaudeGPTBridgeCacheDisplaySettingsRejectsInvalidRange(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		OpenAIClaudeGPTBridgeCacheDisplaySettings: &OpenAIClaudeGPTBridgeCacheDisplaySettings{
+			Enabled:    true,
+			MinPercent: 80,
+			MaxPercent: 70,
+		},
+	})
+	require.Error(t, err)
+	require.Equal(t, "INVALID_OPENAI_CLAUDE_GPT_BRIDGE_CACHE_DISPLAY_SETTINGS", infraerrors.Reason(err))
+	require.Nil(t, repo.updates)
+}
+
 func TestParseDefaultSubscriptions_NormalizesValues(t *testing.T) {
 	got := parseDefaultSubscriptions(`[{"group_id":11,"validity_days":30},{"group_id":11,"validity_days":60},{"group_id":0,"validity_days":10},{"group_id":12,"validity_days":99999}]`)
 	require.Equal(t, []DefaultSubscriptionSetting{

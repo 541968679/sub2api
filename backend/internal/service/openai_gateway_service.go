@@ -1299,6 +1299,11 @@ type openAIAccountRequestEligibility struct {
 	RequireClaudeGPTBridge bool
 }
 
+func openAIAccountCandidatePoolEligibility(req openAIAccountRequestEligibility) openAIAccountRequestEligibility {
+	req.RequireCompact = false
+	return req
+}
+
 // isOpenAIAccountEligibleForScheduleRequest centralises the schedulable / OpenAI /
 // model / compact / bridge checks used during account selection.
 func isOpenAIAccountEligibleForScheduleRequest(account *Account, req openAIAccountRequestEligibility) bool {
@@ -1523,6 +1528,7 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 	selectedCompactTier := -1
 	compactBlocked := false
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
+	poolEligibility := openAIAccountCandidatePoolEligibility(eligibility)
 
 	for i := range accounts {
 		acc := &accounts[i]
@@ -1533,11 +1539,11 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 			continue
 		}
 
-		fresh := s.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, acc, eligibility)
+		fresh := s.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, acc, poolEligibility)
 		if fresh == nil {
 			continue
 		}
-		fresh = s.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, eligibility)
+		fresh = s.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, poolEligibility)
 		if fresh == nil {
 			continue
 		}
@@ -1728,6 +1734,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 	// ============ Layer 2: Load-aware selection ============
 	baseCandidateCount := 0
 	candidates := make([]*Account, 0, len(accounts))
+	poolEligibility := openAIAccountCandidatePoolEligibility(eligibility)
 	for i := range accounts {
 		acc := &accounts[i]
 		if isExcluded(acc.ID) {
@@ -1740,8 +1747,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			continue
 		}
 		candidate := acc
-		if !isOpenAIAccountEligibleForScheduleRequest(candidate, eligibility) {
-			candidate = s.refreshStaleOpenAIScheduleCandidate(ctx, acc, eligibility)
+		if !isOpenAIAccountEligibleForScheduleRequest(candidate, poolEligibility) {
+			candidate = s.refreshStaleOpenAIScheduleCandidate(ctx, acc, poolEligibility)
 			if candidate == nil {
 				continue
 			}

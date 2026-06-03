@@ -3066,7 +3066,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			hasForcePlatform = false
 		}
 		var err error
-		accounts, _, err = s.listSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
+		accounts, _, err = s.listSchedulableAccounts(ctx, groupID, platform, hasForcePlatform || isMixedSchedulingDisabled(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("query accounts failed: %w", err)
 		}
@@ -3183,7 +3183,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			hasForcePlatform = false
 		}
 		var err error
-		accounts, _, err = s.listSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
+		accounts, _, err = s.listSchedulableAccounts(ctx, groupID, platform, hasForcePlatform || isMixedSchedulingDisabled(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("query accounts failed: %w", err)
 		}

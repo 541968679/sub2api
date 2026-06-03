@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -84,6 +86,117 @@ func logClaudeGPTBridgeConvertedUsage(stage, requestID string, accountID int64, 
 		zap.Int("cache_read_tokens", usage.CacheReadInputTokens),
 		zap.Bool("stream", stream),
 	)
+}
+
+func openAIUsageFromResponsesUsage(usage *apicompat.ResponsesUsage) OpenAIUsage {
+	if usage == nil {
+		return OpenAIUsage{}
+	}
+	result := OpenAIUsage{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+	}
+	if usage.InputTokensDetails != nil {
+		result.CacheReadInputTokens = usage.InputTokensDetails.CachedTokens
+	}
+	return result
+}
+
+func writeAnthropicJSONResponse(c *gin.Context, status int, resp *apicompat.AnthropicResponse) {
+	if c == nil {
+		return
+	}
+	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		body, err := json.Marshal(resp)
+		if err == nil {
+			body = rewriteNonStreamUsageTokens(body, mult)
+			c.Data(status, "application/json; charset=utf-8", body)
+			return
+		}
+	}
+	c.JSON(status, resp)
+}
+
+func rewriteAnthropicSSEUsageTokens(sse string, mult *DisplayTokenMultipliers) string {
+	if mult == nil || !mult.IsNonTrivial() {
+		return sse
+	}
+	lines := strings.Split(sse, "\n")
+	for i, line := range lines {
+		lines[i] = RewriteSSEUsageTokens(line, mult)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (s *OpenAIGatewayService) applyClaudeGPTBridgeDisplayCacheOverride(
+	ctx context.Context,
+	usage *apicompat.ResponsesUsage,
+	requestID string,
+	accountID int64,
+	originalModel string,
+	billingModel string,
+	upstreamModel string,
+	stream bool,
+) int {
+	if usage == nil {
+		return 0
+	}
+	if s == nil || s.settingService == nil {
+		return 0
+	}
+	settings, err := s.settingService.GetOpenAIClaudeGPTBridgeCacheDisplaySettings(ctx)
+	if err != nil {
+		logger.L().Warn("openai claude-gpt bridge cache display settings unavailable",
+			zap.Error(err),
+			zap.String("request_id", requestID),
+			zap.Int64("account_id", accountID),
+		)
+		return 0
+	}
+	if settings == nil || !settings.Enabled {
+		return 0
+	}
+
+	upstreamCachedTokens := 0
+	if usage.InputTokensDetails != nil {
+		upstreamCachedTokens = usage.InputTokensDetails.CachedTokens
+	}
+	percent := settings.MinPercent
+	if settings.MaxPercent > settings.MinPercent {
+		percent += rand.Float64() * (settings.MaxPercent - settings.MinPercent)
+	}
+	inputTokens := usage.InputTokens
+	if inputTokens < 0 {
+		inputTokens = 0
+	}
+	cachedTokens := int(math.Round(float64(inputTokens) * percent / 100))
+	if cachedTokens < 0 {
+		cachedTokens = 0
+	}
+	if cachedTokens > inputTokens {
+		cachedTokens = inputTokens
+	}
+	if usage.InputTokensDetails == nil {
+		usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{}
+	}
+	usage.InputTokensDetails.CachedTokens = cachedTokens
+
+	logger.L().Info("openai claude-gpt bridge generated cache display applied",
+		zap.String("request_id", requestID),
+		zap.Int64("account_id", accountID),
+		zap.String("original_model", originalModel),
+		zap.String("billing_model", billingModel),
+		zap.String("upstream_model", upstreamModel),
+		zap.Int("raw_input_tokens", usage.InputTokens),
+		zap.Int("upstream_cached_tokens", upstreamCachedTokens),
+		zap.Int("display_cached_tokens", cachedTokens),
+		zap.Float64("min_percent", settings.MinPercent),
+		zap.Float64("max_percent", settings.MaxPercent),
+		zap.Float64("chosen_percent", percent),
+		zap.Bool("stream", stream),
+	)
+	return cachedTokens
 }
 
 // ForwardAsAnthropic accepts an Anthropic Messages request body, converts it
@@ -174,9 +287,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
 		}
-		if codexResult.PromptCacheKey != "" && !bridgeMode {
+		if codexResult.PromptCacheKey != "" {
 			promptCacheKey = codexResult.PromptCacheKey
-		} else if promptCacheKey != "" && !bridgeMode {
+		}
+		if promptCacheKey != "" {
 			reqBody["prompt_cache_key"] = promptCacheKey
 		}
 		// OAuth codex transform forces stream=true upstream, so always use
@@ -193,7 +307,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// upstreams using the Responses API can derive a stable session identifier
 	// from prompt_cache_key. This makes our Anthropic /v1/messages compatibility
 	// path behave more like a native Responses client.
-	if account.Type == AccountTypeAPIKey && !bridgeMode {
+	if account.Type == AccountTypeAPIKey {
 		if trimmedKey := strings.TrimSpace(promptCacheKey); trimmedKey != "" {
 			var reqBody map[string]any
 			if err := json.Unmarshal(responsesBody, &reqBody); err != nil {
@@ -412,17 +526,14 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			finalResponse = event.Response
 			if event.Response.Usage != nil {
 				rawCachedTokens := 0
-				usage = OpenAIUsage{
-					InputTokens:  event.Response.Usage.InputTokens,
-					OutputTokens: event.Response.Usage.OutputTokens,
-				}
 				if event.Response.Usage.InputTokensDetails != nil {
 					rawCachedTokens = event.Response.Usage.InputTokensDetails.CachedTokens
-					usage.CacheReadInputTokens = rawCachedTokens
 				}
 				if bridgeMode {
-					logClaudeGPTBridgeRawUsage("buffered_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, usage.InputTokens, usage.OutputTokens, rawCachedTokens, false)
+					logClaudeGPTBridgeRawUsage("buffered_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, event.Response.Usage.InputTokens, event.Response.Usage.OutputTokens, rawCachedTokens, false)
+					s.applyClaudeGPTBridgeDisplayCacheOverride(c.Request.Context(), event.Response.Usage, requestID, accountID, originalModel, billingModel, upstreamModel, false)
 				}
+				usage = openAIUsageFromResponsesUsage(event.Response.Usage)
 			}
 		}
 	}
@@ -453,7 +564,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	if s.responseHeaderFilter != nil {
 		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	}
-	c.JSON(http.StatusOK, anthropicResp)
+	writeAnthropicJSONResponse(c, http.StatusOK, anthropicResp)
 
 	return &OpenAIForwardResult{
 		RequestID:     requestID,
@@ -541,17 +652,14 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		if (event.Type == "response.completed" || event.Type == "response.incomplete" || event.Type == "response.failed") &&
 			event.Response != nil && event.Response.Usage != nil {
 			rawCachedTokens := 0
-			usage = OpenAIUsage{
-				InputTokens:  event.Response.Usage.InputTokens,
-				OutputTokens: event.Response.Usage.OutputTokens,
-			}
 			if event.Response.Usage.InputTokensDetails != nil {
 				rawCachedTokens = event.Response.Usage.InputTokensDetails.CachedTokens
-				usage.CacheReadInputTokens = rawCachedTokens
 			}
 			if bridgeMode {
-				logClaudeGPTBridgeRawUsage("stream_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, usage.InputTokens, usage.OutputTokens, rawCachedTokens, true)
+				logClaudeGPTBridgeRawUsage("stream_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, event.Response.Usage.InputTokens, event.Response.Usage.OutputTokens, rawCachedTokens, true)
+				s.applyClaudeGPTBridgeDisplayCacheOverride(c.Request.Context(), event.Response.Usage, requestID, accountID, originalModel, billingModel, upstreamModel, true)
 			}
+			usage = openAIUsageFromResponsesUsage(event.Response.Usage)
 		}
 
 		// Convert to Anthropic events
@@ -567,6 +675,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					zap.String("request_id", requestID),
 				)
 				continue
+			}
+			if mult := getDisplayTokenMultipliers(c); mult != nil {
+				sse = rewriteAnthropicSSEUsageTokens(sse, mult)
 			}
 			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
 				logger.L().Info("openai messages stream: client disconnected",
@@ -588,6 +699,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				sse, err := apicompat.ResponsesAnthropicEventToSSE(evt)
 				if err != nil {
 					continue
+				}
+				if mult := getDisplayTokenMultipliers(c); mult != nil {
+					sse = rewriteAnthropicSSEUsageTokens(sse, mult)
 				}
 				fmt.Fprint(c.Writer, sse) //nolint:errcheck
 			}

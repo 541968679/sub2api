@@ -131,7 +131,7 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 	t.Logf("response body: %s", rec.Body.String())
 }
 
-func TestForwardAsAnthropic_ClaudeGPTBridgeDoesNotForwardDerivedCacheSession(t *testing.T) {
+func TestForwardAsAnthropic_ClaudeGPTBridgeForwardsPromptCacheKeyButNotSessionHeaders(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
@@ -192,11 +192,365 @@ func TestForwardAsAnthropic_ClaudeGPTBridgeDoesNotForwardDerivedCacheSession(t *
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.NotNil(t, upstream.lastReq)
-			require.False(t, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").Exists(), string(upstream.lastBody))
+			require.Equal(t, "derived-cache-key", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String(), string(upstream.lastBody))
 			require.Empty(t, upstream.lastReq.Header.Get("session_id"))
 			require.Empty(t, upstream.lastReq.Header.Get("conversation_id"))
 		})
 	}
+}
+
+func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCachePercentOverridesUpstreamCachedTokens(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":7}}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_cache"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	settingRepo := &openAIAdvancedSchedulerSettingRepoStub{
+		values: map[string]string{
+			SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":true,"min_percent":60,"max_percent":60}`,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream:   upstream,
+		settingService: NewSettingService(settingRepo, &config.Config{}),
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com/v1",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "derived-cache-key", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 100, result.Usage.InputTokens)
+	require.Equal(t, 11, result.Usage.OutputTokens)
+	require.Equal(t, 60, result.Usage.CacheReadInputTokens)
+	require.Equal(t, "derived-cache-key", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(40), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens").Int())
+	require.Equal(t, int64(60), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(11), gjson.GetBytes(rec.Body.Bytes(), "usage.output_tokens").Int())
+}
+
+func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCachePercentIgnoresFixedUpstreamCache(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":18944}}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_cache_fixed"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	settingRepo := &openAIAdvancedSchedulerSettingRepoStub{
+		values: map[string]string{
+			SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":true,"min_percent":60,"max_percent":60}`,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream:   upstream,
+		settingService: NewSettingService(settingRepo, &config.Config{}),
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com/v1",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "derived-cache-key", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 100, result.Usage.InputTokens)
+	require.Equal(t, 60, result.Usage.CacheReadInputTokens)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(40), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens").Int())
+	require.Equal(t, int64(60), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int())
+}
+
+func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCacheZeroPercentClearsUpstreamCache(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":18944}}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_cache_zero"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	settingRepo := &openAIAdvancedSchedulerSettingRepoStub{
+		values: map[string]string{
+			SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":true,"min_percent":0,"max_percent":0}`,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream:   upstream,
+		settingService: NewSettingService(settingRepo, &config.Config{}),
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com/v1",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "derived-cache-key", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 100, result.Usage.InputTokens)
+	require.Equal(t, 0, result.Usage.CacheReadInputTokens)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(100), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens").Int())
+	require.Equal(t, int64(0), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int())
+}
+
+func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCacheUsesConfiguredPercentRange(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":1000,"output_tokens":11,"total_tokens":1011,"input_tokens_details":{"cached_tokens":18944}}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_cache_range"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	settingRepo := &openAIAdvancedSchedulerSettingRepoStub{
+		values: map[string]string{
+			SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":true,"min_percent":60,"max_percent":70}`,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream:   upstream,
+		settingService: NewSettingService(settingRepo, &config.Config{}),
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com/v1",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "derived-cache-key", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.GreaterOrEqual(t, result.Usage.CacheReadInputTokens, 600)
+	require.LessOrEqual(t, result.Usage.CacheReadInputTokens, 700)
+	require.Equal(t, result.Usage.CacheReadInputTokens, int(gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int()))
+	require.NotEqual(t, 18944, result.Usage.CacheReadInputTokens)
+}
+
+func TestForwardAsAnthropic_ClaudeGPTBridgeDownstreamDisplayUsageRewrite(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":18944}}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_display"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	settingRepo := &openAIAdvancedSchedulerSettingRepoStub{
+		values: map[string]string{
+			SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":true,"min_percent":60,"max_percent":60}`,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream:   upstream,
+		settingService: NewSettingService(settingRepo, &config.Config{}),
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com/v1",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "derived-cache-key", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 100, result.Usage.InputTokens)
+	require.Equal(t, 60, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 11, result.Usage.OutputTokens)
+	require.Equal(t, int64(200), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens").Int())
+	require.Equal(t, int64(60), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(44), gjson.GetBytes(rec.Body.Bytes(), "usage.output_tokens").Int())
+}
+
+func TestForwardAsAnthropic_ClaudeGPTBridgeStreamingDisplayUsageRewrite(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+	SetDisplayTokenMultipliers(c, openAITestDisplayMultipliers())
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.created","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"in_progress"}}`,
+		`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_1","role":"assistant","status":"in_progress"}}`,
+		`data: {"type":"response.output_text.delta","output_index":0,"content_index":0,"delta":"ok"}`,
+		`data: {"type":"response.output_text.done","output_index":0,"content_index":0}`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":18944}}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_stream_display"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	settingRepo := &openAIAdvancedSchedulerSettingRepoStub{
+		values: map[string]string{
+			SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":true,"min_percent":60,"max_percent":60}`,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream:   upstream,
+		settingService: NewSettingService(settingRepo, &config.Config{}),
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com/v1",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "derived-cache-key", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 100, result.Usage.InputTokens)
+	require.Equal(t, 60, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 11, result.Usage.OutputTokens)
+	responseBody := rec.Body.String()
+	require.Contains(t, responseBody, `"type":"message_delta"`)
+	require.Contains(t, responseBody, `"input_tokens":200`)
+	require.Contains(t, responseBody, `"cache_read_input_tokens":60`)
+	require.Contains(t, responseBody, `"output_tokens":44`)
 }
 
 func TestForwardAsAnthropic_NonBridgeForwardsPromptCacheSession(t *testing.T) {

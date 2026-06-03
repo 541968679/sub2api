@@ -3082,6 +3082,104 @@
                   v-model="form.enable_anthropic_cache_ttl_1h_injection"
                 />
               </div>
+
+              <div class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label
+                      class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t(
+                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplay",
+                        )
+                      }}
+                    </label>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplayHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+                  <Toggle
+                    v-model="
+                      form.openai_claude_gpt_bridge_cache_display_settings
+                        .enabled
+                    "
+                  />
+                </div>
+
+                <div
+                  class="grid gap-4 sm:grid-cols-2"
+                  :class="{
+                    'opacity-60':
+                      !form.openai_claude_gpt_bridge_cache_display_settings
+                        .enabled,
+                  }"
+                >
+                  <div>
+                    <label
+                      class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{
+                        t(
+                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheMinPercent",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        form.openai_claude_gpt_bridge_cache_display_settings
+                          .min_percent
+                      "
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      class="input text-sm"
+                      :disabled="
+                        !form.openai_claude_gpt_bridge_cache_display_settings
+                          .enabled
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{
+                        t(
+                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheMaxPercent",
+                        )
+                      }}
+                    </label>
+                    <input
+                      v-model.number="
+                        form.openai_claude_gpt_bridge_cache_display_settings
+                          .max_percent
+                      "
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      class="input text-sm"
+                      :disabled="
+                        !form.openai_claude_gpt_bridge_cache_display_settings
+                          .enabled
+                      "
+                    />
+                  </div>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{
+                    t(
+                      "admin.settings.gatewayForwarding.claudeGPTBridgeCachePercentHint",
+                    )
+                  }}
+                </p>
+              </div>
             </div>
           </div>
           <!-- Web Search Emulation -->
@@ -5503,6 +5601,7 @@ import type {
   SystemSettings,
   UpdateSettingsRequest,
   DefaultSubscriptionSetting,
+  OpenAIClaudeGPTBridgeCacheDisplaySettings,
   OpenAIFastPolicyRule,
   WeChatConnectMode,
   WebSearchEmulationConfig,
@@ -5683,6 +5782,7 @@ type SettingsForm = Omit<
   oidc_connect_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
+  openai_claude_gpt_bridge_cache_display_settings: OpenAIClaudeGPTBridgeCacheDisplaySettings;
 };
 
 const form = reactive<SettingsForm>({
@@ -5841,6 +5941,11 @@ const form = reactive<SettingsForm>({
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
+  openai_claude_gpt_bridge_cache_display_settings: {
+    enabled: false,
+    min_percent: 0,
+    max_percent: 0,
+  },
   // Balance & quota notification
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -6359,6 +6464,13 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    if (!form.openai_claude_gpt_bridge_cache_display_settings) {
+      form.openai_claude_gpt_bridge_cache_display_settings = {
+        enabled: false,
+        min_percent: 0,
+        max_percent: 0,
+      };
+    }
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
@@ -6633,6 +6745,28 @@ async function saveSettings() {
       form.wechat_connect_mobile_enabled,
       form.wechat_connect_mode,
     );
+    const bridgeCacheDisplay =
+      form.openai_claude_gpt_bridge_cache_display_settings || {
+        enabled: false,
+        min_percent: 0,
+        max_percent: 0,
+      };
+    const bridgeCacheMinPercent = Number(bridgeCacheDisplay.min_percent);
+    const bridgeCacheMaxPercent = Number(bridgeCacheDisplay.max_percent);
+    if (
+      !Number.isFinite(bridgeCacheMinPercent) ||
+      !Number.isFinite(bridgeCacheMaxPercent) ||
+      bridgeCacheMinPercent < 0 ||
+      bridgeCacheMaxPercent < 0 ||
+      bridgeCacheMinPercent > 100 ||
+      bridgeCacheMaxPercent > 100 ||
+      bridgeCacheMinPercent > bridgeCacheMaxPercent
+    ) {
+      appStore.showError(
+        t("admin.settings.gatewayForwarding.claudeGPTBridgeCachePercentError"),
+      );
+      return;
+    }
 
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
@@ -6751,6 +6885,11 @@ async function saveSettings() {
       enable_cch_signing: form.enable_cch_signing,
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
+      openai_claude_gpt_bridge_cache_display_settings: {
+        enabled: bridgeCacheDisplay.enabled,
+        min_percent: bridgeCacheMinPercent,
+        max_percent: bridgeCacheMaxPercent,
+      },
       // Payment configuration
       payment_enabled: form.payment_enabled,
       payment_min_amount: Number(form.payment_min_amount) || 0,

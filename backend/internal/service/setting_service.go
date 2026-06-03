@@ -1279,6 +1279,16 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableMetadataPassthrough] = strconv.FormatBool(settings.EnableMetadataPassthrough)
 	updates[SettingKeyEnableCCHSigning] = strconv.FormatBool(settings.EnableCCHSigning)
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
+	bridgeCacheDisplay, err := normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(settings.OpenAIClaudeGPTBridgeCacheDisplaySettings)
+	if err != nil {
+		return nil, err
+	}
+	settings.OpenAIClaudeGPTBridgeCacheDisplaySettings = bridgeCacheDisplay
+	bridgeCacheDisplayJSON, err := json.Marshal(bridgeCacheDisplay)
+	if err != nil {
+		return nil, fmt.Errorf("marshal openai claude-gpt bridge cache display settings: %w", err)
+	}
+	updates[SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings] = string(bridgeCacheDisplayJSON)
 	updates[SettingPaymentVisibleMethodAlipaySource] = settings.PaymentVisibleMethodAlipaySource
 	updates[SettingPaymentVisibleMethodWxpaySource] = settings.PaymentVisibleMethodWxpaySource
 	updates[SettingPaymentVisibleMethodAlipayEnabled] = strconv.FormatBool(settings.PaymentVisibleMethodAlipayEnabled)
@@ -1953,13 +1963,14 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyMaxClaudeCodeVersion: "",
 
 		// 分组隔离（默认不允许未分组 Key 调度）
-		SettingKeyAllowUngroupedKeyScheduling:        "false",
-		SettingKeyEnableAnthropicCacheTTL1hInjection: "false",
-		SettingPaymentVisibleMethodAlipaySource:      "",
-		SettingPaymentVisibleMethodWxpaySource:       "",
-		SettingPaymentVisibleMethodAlipayEnabled:     "false",
-		SettingPaymentVisibleMethodWxpayEnabled:      "false",
-		openAIAdvancedSchedulerSettingKey:            "false",
+		SettingKeyAllowUngroupedKeyScheduling:               "false",
+		SettingKeyEnableAnthropicCacheTTL1hInjection:        "false",
+		SettingPaymentVisibleMethodAlipaySource:             "",
+		SettingPaymentVisibleMethodWxpaySource:              "",
+		SettingPaymentVisibleMethodAlipayEnabled:            "false",
+		SettingPaymentVisibleMethodWxpayEnabled:             "false",
+		openAIAdvancedSchedulerSettingKey:                   "false",
+		SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":false,"min_percent":0,"max_percent":0}`,
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -2303,6 +2314,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableMetadataPassthrough = settings[SettingKeyEnableMetadataPassthrough] == "true"
 	result.EnableCCHSigning = settings[SettingKeyEnableCCHSigning] == "true"
 	result.EnableAnthropicCacheTTL1hInjection = settings[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
+	result.OpenAIClaudeGPTBridgeCacheDisplaySettings = parseOpenAIClaudeGPTBridgeCacheDisplaySettings(settings[SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings])
 
 	// Web search emulation: quick enabled check from the JSON config
 	if raw := settings[SettingKeyWebSearchEmulationConfig]; raw != "" {
@@ -3359,6 +3371,71 @@ func (s *SettingService) GetOpenAIFastPolicySettings(ctx context.Context) (*Open
 	}
 
 	return &settings, nil
+}
+
+func parseOpenAIClaudeGPTBridgeCacheDisplaySettings(value string) *OpenAIClaudeGPTBridgeCacheDisplaySettings {
+	if strings.TrimSpace(value) == "" {
+		return DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings()
+	}
+	var settings OpenAIClaudeGPTBridgeCacheDisplaySettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		slog.Warn("failed to unmarshal openai claude-gpt bridge cache display settings, falling back to defaults",
+			"error", err,
+			"key", SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings)
+		return DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings()
+	}
+	normalized, err := normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(&settings)
+	if err != nil {
+		slog.Warn("invalid openai claude-gpt bridge cache display settings, falling back to defaults",
+			"error", err,
+			"key", SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings)
+		return DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings()
+	}
+	return normalized
+}
+
+func normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(settings *OpenAIClaudeGPTBridgeCacheDisplaySettings) (*OpenAIClaudeGPTBridgeCacheDisplaySettings, error) {
+	if settings == nil {
+		return DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings(), nil
+	}
+	minPercent := settings.MinPercent
+	maxPercent := settings.MaxPercent
+	if math.IsNaN(minPercent) || math.IsInf(minPercent, 0) || math.IsNaN(maxPercent) || math.IsInf(maxPercent, 0) {
+		return nil, infraerrors.BadRequest("INVALID_OPENAI_CLAUDE_GPT_BRIDGE_CACHE_DISPLAY_SETTINGS", "cache percent must be finite")
+	}
+	if minPercent < 0 || maxPercent < 0 || minPercent > 100 || maxPercent > 100 || minPercent > maxPercent {
+		return nil, infraerrors.BadRequest("INVALID_OPENAI_CLAUDE_GPT_BRIDGE_CACHE_DISPLAY_SETTINGS", "cache percent must satisfy 0 <= min_percent <= max_percent <= 100")
+	}
+	return &OpenAIClaudeGPTBridgeCacheDisplaySettings{
+		Enabled:    settings.Enabled,
+		MinPercent: minPercent,
+		MaxPercent: maxPercent,
+	}, nil
+}
+
+// GetOpenAIClaudeGPTBridgeCacheDisplaySettings returns display-only cache
+// generation settings for OpenAI-backed Claude-GPT bridge requests.
+func (s *SettingService) GetOpenAIClaudeGPTBridgeCacheDisplaySettings(ctx context.Context) (*OpenAIClaudeGPTBridgeCacheDisplaySettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings(), nil
+		}
+		return nil, fmt.Errorf("get openai claude-gpt bridge cache display settings: %w", err)
+	}
+	return parseOpenAIClaudeGPTBridgeCacheDisplaySettings(value), nil
+}
+
+func (s *SettingService) SetOpenAIClaudeGPTBridgeCacheDisplaySettings(ctx context.Context, settings *OpenAIClaudeGPTBridgeCacheDisplaySettings) error {
+	normalized, err := normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(settings)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return fmt.Errorf("marshal openai claude-gpt bridge cache display settings: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings, string(data))
 }
 
 // SetOpenAIFastPolicySettings 设置 OpenAI fast 策略配置

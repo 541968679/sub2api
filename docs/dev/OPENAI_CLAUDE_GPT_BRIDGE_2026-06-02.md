@@ -72,15 +72,34 @@ Billing and usage:
 - Billing uses the requested Claude model source.
 - Token counts use the real upstream usage after the existing Anthropic response
   conversion path.
-- OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style
+- Bridge forwarding preserves body-level `prompt_cache_key`, including the
+  derived key used by the normal OpenAI Messages path. This keeps the bridge
+  upstream body close to normal OpenAI traffic and allows upstream OpenAI cache
+  behavior to work. Bridge mode still removes upstream `session_id` and
+  `conversation_id` headers before the OpenAI request is sent.
+- Without a cache display override, OpenAI
+  `input_tokens_details.cached_tokens` is converted to Anthropic-style
   `cache_read_tokens`. Stored ordinary input tokens are
-  `raw_input_tokens - cached_tokens`, while pricing still resolves against the
-  requested Claude model.
-- Bridge forwarding does not propagate OpenAI cache/session identifiers
-  upstream. `metadata.user_id` can still derive a local `sessionHash` for
-  sticky account scheduling, but bridge mode suppresses `prompt_cache_key` body
-  injection and removes upstream `session_id` / `conversation_id` headers before
-  the OpenAI request is sent.
+  `raw_input_tokens - cache_read_tokens`, while pricing still resolves against
+  the requested Claude model.
+- Admin setting `openai_claude_gpt_bridge_cache_display_settings` can enable a
+  bridge-only display/billing cache override. It stores `enabled`,
+  `min_percent`, and `max_percent`; the backend validates
+  `0 <= min_percent <= max_percent <= 100`.
+- When that override is enabled, each bridge response randomly chooses a
+  percentage in the configured range and directly sets
+  `cache_read_tokens = round(raw_input_tokens * percent / 100)`, clamped to the
+  upstream input-token count. This value is locally generated from upstream
+  `input_tokens`; it is not calculated from, added to, or scaled from upstream
+  `cached_tokens`. The generated value replaces upstream `cached_tokens` for
+  downstream Anthropic usage, usage-record display, and billing. The raw
+  upstream `cached_tokens` value is still logged only as a diagnostic.
+- OpenAI `/v1/messages` and Antigravity bridge `/v1/messages` now apply the
+  same downstream display-token rewrite hook used by the ordinary gateway
+  paths. When a user is configured for downstream display tokens, the HTTP/SSE
+  response usage is rewritten with the same display pricing chain as usage-log
+  display, while `OpenAIForwardResult.Usage` remains the bridge-generated base
+  usage that is recorded and billed.
 - Bridge diagnostics log token-only values for raw upstream usage, converted
   Anthropic usage, and final usage-log storage. These logs are used to verify
   whether repeated cache values such as `18.9k` originate upstream or in local
@@ -121,18 +140,30 @@ Cache-read regression verification:
   `body_has_prompt_cache_key=true`, `header_has_session_id=true`, and
   `header_has_conversation_id=true`. These were derived from the Claude
   `metadata.user_id` path and forwarded into the OpenAI/Codex upstream request.
-- The fix keeps the local sticky `sessionHash` for account scheduling but stops
-  forwarding derived cache/session identifiers upstream in bridge mode.
-- Focused tests now assert bridge requests do not send `prompt_cache_key`,
-  `session_id`, or `conversation_id`, while non-bridge OpenAI Messages behavior
-  still forwards the prompt/session key.
-- A real local bridge request after the fix returned `200` and logged
-  `body_has_prompt_cache_key=false`, `arg_has_prompt_cache_key=false`,
-  `header_has_session_id=false`, and `header_has_conversation_id=false`.
-- The same verification stored usage row `15770` with
-  `model=claude-opus-4-8`, `requested_model=claude-opus-4-8`,
-  `upstream_model=gpt-5.5`, `input_tokens=25`, `output_tokens=8`, and
-  `cache_read_tokens=0`.
+- A first mitigation removed those cache/session identifiers, which avoided the
+  fixed cache display but also prevented normal upstream cache reuse.
+- The current mitigation restores body-level `prompt_cache_key` forwarding while
+  continuing to suppress `session_id` and `conversation_id` headers.
+- Focused tests now assert bridge requests forward body `prompt_cache_key` but
+  omit upstream session headers, while non-bridge OpenAI Messages behavior still
+  forwards both prompt and session identity.
+- Focused tests also assert the bridge cache display override ignores upstream
+  `cached_tokens`, including a fixed upstream `18944`, and returns/writes the
+  configured percentage-derived cache value instead.
+- Focused tests cover both buffered JSON and streaming Anthropic SSE display
+  usage rewrite, so downstream returned usage stays aligned with the configured
+  display-token mode.
+- Real local Claude Code verification on 2026-06-03 used
+  `openai_claude_gpt_bridge_cache_display_settings={"enabled":true,"min_percent":60,"max_percent":70}`
+  through Antigravity API key `5`. The upstream Responses terminal event
+  reported `raw_input_tokens=22273`, `raw_cached_tokens=7680`, and
+  `raw_output_tokens=94`; the bridge generated `display_cached_tokens=14946`
+  with `chosen_percent=67.1041`. The stored usage row `15774` kept
+  `model=requested_model=claude-opus-4-8`, `upstream_model=gpt-5.5`,
+  `input_tokens=7327`, `cache_read_tokens=14946`, and `output_tokens=94`.
+  Claude Code's downstream display-mode usage showed `input_tokens=16149`,
+  `cache_read_input_tokens=14946`, and `output_tokens=188`, matching the same
+  display-token transform used by user-facing usage-log DTOs.
 
 Additional checks covered during implementation:
 
@@ -175,12 +206,16 @@ explicitly bridged later.
 
 The downstream Anthropic response conversion still follows the generic
 OpenAI-to-Anthropic compatibility path. If OpenAI upstream reports
-`cached_tokens`, the response body includes converted Anthropic cache usage and
-the bridge usage record preserves it. Bridge mode should not create OpenAI
-cache hits by sending derived `prompt_cache_key`, `session_id`, or
-`conversation_id`. Repeated cache values such as `18.9k` must be debugged by
-checking both the upstream request diagnostics and the raw upstream usage before
-treating them as normal upstream cache behavior.
+`cached_tokens` and the bridge cache display override is disabled, the response
+body includes converted Anthropic cache usage and the bridge usage record
+preserves it. If the override is enabled, downstream response usage and usage
+records use the generated percentage-derived cache value instead.
+
+The bridge currently forwards body `prompt_cache_key` to preserve upstream
+OpenAI cache behavior. Repeated raw upstream cache values such as `18.9k` must
+still be debugged by checking upstream request diagnostics and raw upstream
+usage. They should not leak to user-visible cache display when
+`openai_claude_gpt_bridge_cache_display_settings.enabled` is true.
 
 Context-window behavior is client-side plus upstream-side:
 

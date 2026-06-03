@@ -166,6 +166,9 @@ type SystemSettings struct {
 	// OpenAI account scheduling
 	OpenAIAdvancedSchedulerEnabled bool
 
+	// OpenAI Claude-GPT bridge cache display override
+	OpenAIClaudeGPTBridgeCacheDisplaySettings *OpenAIClaudeGPTBridgeCacheDisplaySettings
+
 	// Balance low notification
 	BalanceLowNotifyEnabled     bool
 	BalanceLowNotifyThreshold   float64
@@ -480,5 +483,21 @@ func DefaultOpenAIFastPolicySettings() *OpenAIFastPolicySettings {
 				FallbackAction: BetaPolicyActionPass,
 			},
 		},
+	}
+}
+
+// OpenAIClaudeGPTBridgeCacheDisplaySettings controls optional display cache
+// generation for OpenAI-backed Claude-GPT bridge requests.
+type OpenAIClaudeGPTBridgeCacheDisplaySettings struct {
+	Enabled    bool    `json:"enabled"`
+	MinPercent float64 `json:"min_percent"`
+	MaxPercent float64 `json:"max_percent"`
+}
+
+func DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings() *OpenAIClaudeGPTBridgeCacheDisplaySettings {
+	return &OpenAIClaudeGPTBridgeCacheDisplaySettings{
+		Enabled:    false,
+		MinPercent: 0,
+		MaxPercent: 0,
 	}
 }

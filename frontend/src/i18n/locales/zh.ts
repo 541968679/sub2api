@@ -5316,6 +5316,12 @@ const zhBase = {
         cchSigningHint: '对转发请求的 billing header 进行 CCH 哈希签名。关闭时保留原始占位符。',
         anthropicCacheTTL1hInjection: 'Anthropic 缓存 TTL 注入',
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
+        claudeGPTBridgeCacheDisplay: 'Claude-GPT 桥接缓存展示',
+        claudeGPTBridgeCacheDisplayHint: '仅对 OpenAI 承载的 Antigravity 桥接请求生效；开启后按该百分比区间随机生成 cache_read 展示值，不依赖上游 cached_tokens。',
+        claudeGPTBridgeCacheMinPercent: '最小缓存百分比',
+        claudeGPTBridgeCacheMaxPercent: '最大缓存百分比',
+        claudeGPTBridgeCachePercentHint: '取值范围 0 到 100。例如 60 和 70 表示随机按输入 token 的 60%-70% 作为 cache_read token 返回。',
+        claudeGPTBridgeCachePercentError: 'Claude-GPT 桥接缓存百分比必须满足 0 <= 最小值 <= 最大值 <= 100。',
       },
       webSearchEmulation: {
         title: 'Web Search 模拟',

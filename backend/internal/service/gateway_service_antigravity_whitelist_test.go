@@ -34,8 +34,8 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityModelMapping(t *tes
 	require.True(t, svc.isModelSupportedByAccount(account, "gemini-3-pro-high"))
 
 	// gemini-2.5-* 不匹配（不在 model_mapping 中）
-	require.False(t, svc.isModelSupportedByAccount(account, "gemini-2.5-flash"))
-	require.False(t, svc.isModelSupportedByAccount(account, "gemini-2.5-pro"))
+	require.True(t, svc.isModelSupportedByAccount(account, "gemini-2.5-flash"))
+	require.True(t, svc.isModelSupportedByAccount(account, "gemini-2.5-pro"))
 
 	// 其他平台模型不支持
 	require.False(t, svc.isModelSupportedByAccount(account, "gpt-4"))
@@ -48,7 +48,7 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityNoMapping(t *testin
 	svc := &GatewayService{}
 
 	// 未配置 model_mapping 时，使用默认映射（domain.DefaultAntigravityModelMapping）
-	// 只有默认映射中的模型才被支持
+	// 默认映射命中会改写模型，未命中的 claude-/gemini- 前缀模型按原模型透传
 	account := &Account{
 		Platform:    PlatformAntigravity,
 		Credentials: map[string]any{},
@@ -60,9 +60,9 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityNoMapping(t *testin
 	require.True(t, svc.isModelSupportedByAccount(account, "gemini-2.5-pro"))
 	require.True(t, svc.isModelSupportedByAccount(account, "claude-haiku-4-5"))
 
-	// 不在默认映射中的模型不被支持
-	require.False(t, svc.isModelSupportedByAccount(account, "claude-3-5-sonnet-20241022"))
-	require.False(t, svc.isModelSupportedByAccount(account, "claude-unknown-model"))
+	// 未在默认映射中的 claude-/gemini- 前缀模型按原模型透传
+	require.True(t, svc.isModelSupportedByAccount(account, "claude-3-5-sonnet-20241022"))
+	require.True(t, svc.isModelSupportedByAccount(account, "claude-unknown-model"))
 
 	// 非 claude-/gemini- 前缀仍然不支持
 	require.False(t, svc.isModelSupportedByAccount(account, "gpt-4"))
@@ -81,26 +81,26 @@ func TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode(t *tes
 		expected        bool
 	}{
 		// 场景 1: 只配置 claude-sonnet-4-5-thinking，请求 claude-sonnet-4-5 + thinking=true
-		// mapAntigravityModel 找不到 claude-sonnet-4-5 的映射 → 返回 false
+		// base 模型可按 claude- 前缀透传，thinking 后缀再命中显式映射
 		{
-			name: "thinking_enabled_no_base_mapping_returns_false",
+			name: "thinking_enabled_passthrough_base_checks_thinking_variant",
 			modelMapping: map[string]any{
 				"claude-sonnet-4-5-thinking": "claude-sonnet-4-5-thinking",
 			},
 			requestedModel:  "claude-sonnet-4-5",
 			thinkingEnabled: true,
-			expected:        false,
+			expected:        true,
 		},
 		// 场景 2: 只配置 claude-sonnet-4-5-thinking，请求 claude-sonnet-4-5 + thinking=false
-		// mapAntigravityModel 找不到 claude-sonnet-4-5 的映射 → 返回 false
+		// base 模型可按 claude- 前缀透传
 		{
-			name: "thinking_disabled_no_base_mapping_returns_false",
+			name: "thinking_disabled_passthrough_base_returns_true",
 			modelMapping: map[string]any{
 				"claude-sonnet-4-5-thinking": "claude-sonnet-4-5-thinking",
 			},
 			requestedModel:  "claude-sonnet-4-5",
 			thinkingEnabled: false,
-			expected:        false,
+			expected:        true,
 		},
 		// 场景 3: 配置 claude-sonnet-4-5（非 thinking），请求 claude-sonnet-4-5 + thinking=true
 		// 最终模型名 = claude-sonnet-4-5-thinking，不在 mapping 中，应该不匹配
@@ -145,16 +145,16 @@ func TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode(t *tes
 			thinkingEnabled: true,
 			expected:        true, // claude-sonnet-4-5-thinking 匹配 claude-*
 		},
-		// 场景 7: 只配置 thinking 变体但没有基础模型映射 → 返回 false
-		// mapAntigravityModel 找不到 claude-opus-4-6 的映射
+		// 场景 7: 只配置 thinking 变体但没有基础模型映射
+		// 非 sonnet thinking 后缀不会改写，base 模型按 claude- 前缀透传
 		{
-			name: "opus_thinking_no_base_mapping_returns_false",
+			name: "opus_thinking_passthrough_returns_true",
 			modelMapping: map[string]any{
 				"claude-opus-4-6-thinking": "claude-opus-4-6-thinking",
 			},
 			requestedModel:  "claude-opus-4-6",
 			thinkingEnabled: true,
-			expected:        false,
+			expected:        true,
 		},
 	}
 

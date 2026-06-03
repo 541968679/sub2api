@@ -11,6 +11,12 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
+export interface OpenAIClaudeGPTBridgeCacheDisplaySettings {
+  enabled: boolean;
+  min_percent: number;
+  max_percent: number;
+}
+
 export type AuthSourceType = "email" | "linuxdo" | "oidc" | "wechat";
 
 export interface AuthSourceDefaultsValue {
@@ -473,6 +479,7 @@ export interface SystemSettings {
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
   openai_advanced_scheduler_enabled?: boolean;
+  openai_claude_gpt_bridge_cache_display_settings: OpenAIClaudeGPTBridgeCacheDisplaySettings;
 
   // Balance & quota notification
   balance_low_notify_enabled: boolean;
@@ -647,6 +654,7 @@ export interface UpdateSettingsRequest {
   payment_visible_method_alipay_enabled?: boolean;
   payment_visible_method_wxpay_enabled?: boolean;
   openai_advanced_scheduler_enabled?: boolean;
+  openai_claude_gpt_bridge_cache_display_settings?: OpenAIClaudeGPTBridgeCacheDisplaySettings;
   // Balance & quota notification
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
@@ -772,6 +780,10 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     enable_fingerprint_unification: s.enable_fingerprint_unification,
     enable_metadata_passthrough: s.enable_metadata_passthrough,
     enable_cch_signing: s.enable_cch_signing,
+    enable_anthropic_cache_ttl_1h_injection:
+      s.enable_anthropic_cache_ttl_1h_injection,
+    openai_claude_gpt_bridge_cache_display_settings:
+      s.openai_claude_gpt_bridge_cache_display_settings,
     payment_enabled: s.payment_enabled,
     payment_min_amount: s.payment_min_amount,
     payment_max_amount: s.payment_max_amount,

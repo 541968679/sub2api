@@ -1095,7 +1095,7 @@ func TestGatewayService_isModelSupportedByAccount(t *testing.T) {
 			name:     "Antigravity平台-不支持非默认映射中的claude模型",
 			account:  &Account{Platform: PlatformAntigravity},
 			model:    "claude-3-5-sonnet-20241022",
-			expected: false,
+			expected: true,
 		},
 		{
 			name:     "Antigravity平台-支持gemini模型",

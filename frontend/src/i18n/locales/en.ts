@@ -5587,6 +5587,12 @@ export default {
         cchSigningHint: 'Sign the billing header in forwarded requests with CCH hash. When disabled, the placeholder is preserved.',
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
+        claudeGPTBridgeCacheDisplay: 'Claude-GPT Bridge Cache Display',
+        claudeGPTBridgeCacheDisplayHint: 'For OpenAI-backed Antigravity bridge requests, randomly generate the displayed cache_read tokens from this percentage range. This does not depend on upstream cached_tokens.',
+        claudeGPTBridgeCacheMinPercent: 'Minimum cache percentage',
+        claudeGPTBridgeCacheMaxPercent: 'Maximum cache percentage',
+        claudeGPTBridgeCachePercentHint: 'Use values from 0 to 100. Example: 60 and 70 means randomly returning 60%-70% of input tokens as cache_read tokens.',
+        claudeGPTBridgeCachePercentError: 'Claude-GPT bridge cache percentages must satisfy 0 <= minimum <= maximum <= 100.',
       },
       webSearchEmulation: {
         title: 'Web Search Emulation',

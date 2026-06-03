@@ -943,6 +943,19 @@ func TestGeminiMessagesCompatService_isModelSupportedByAccount(t *testing.T) {
 				},
 			},
 			model:    "claude-sonnet-4-5",
+			expected: true,
+		},
+		{
+			name: "Antigravity平台-自定义映射-非claude或gemini模型不透传",
+			account: &Account{
+				Platform: PlatformAntigravity,
+				Credentials: map[string]any{
+					"model_mapping": map[string]any{
+						"my-custom-model": "upstream-model",
+					},
+				},
+			},
+			model:    "unknown-model",
 			expected: false,
 		},
 		{

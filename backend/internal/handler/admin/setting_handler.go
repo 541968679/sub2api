@@ -216,36 +216,39 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PaymentVisibleMethodAlipayEnabled:      settings.PaymentVisibleMethodAlipayEnabled,
 		PaymentVisibleMethodWxpayEnabled:       settings.PaymentVisibleMethodWxpayEnabled,
 		OpenAIAdvancedSchedulerEnabled:         settings.OpenAIAdvancedSchedulerEnabled,
-		BalanceLowNotifyEnabled:                settings.BalanceLowNotifyEnabled,
-		BalanceLowNotifyThreshold:              settings.BalanceLowNotifyThreshold,
-		BalanceLowNotifyRechargeURL:            settings.BalanceLowNotifyRechargeURL,
-		AccountQuotaNotifyEnabled:              settings.AccountQuotaNotifyEnabled,
-		AccountQuotaNotifyEmails:               dto.NotifyEmailEntriesFromService(settings.AccountQuotaNotifyEmails),
-		PaymentEnabled:                         paymentCfg.Enabled,
-		PaymentMinAmount:                       paymentCfg.MinAmount,
-		PaymentMaxAmount:                       paymentCfg.MaxAmount,
-		PaymentDailyLimit:                      paymentCfg.DailyLimit,
-		PaymentOrderTimeoutMin:                 paymentCfg.OrderTimeoutMin,
-		PaymentMaxPendingOrders:                paymentCfg.MaxPendingOrders,
-		PaymentEnabledTypes:                    paymentCfg.EnabledTypes,
-		PaymentBalanceDisabled:                 paymentCfg.BalanceDisabled,
-		PaymentBalanceRechargeMultiplier:       paymentCfg.BalanceRechargeMultiplier,
-		PaymentRechargeFeeRate:                 paymentCfg.RechargeFeeRate,
-		PaymentLoadBalanceStrat:                paymentCfg.LoadBalanceStrategy,
-		PaymentProductNamePrefix:               paymentCfg.ProductNamePrefix,
-		PaymentProductNameSuffix:               paymentCfg.ProductNameSuffix,
-		PaymentHelpImageURL:                    paymentCfg.HelpImageURL,
-		PaymentHelpText:                        paymentCfg.HelpText,
-		PaymentCNYPerUSD:                       paymentCfg.CNYPerUSD,
-		PaymentBonusTiers:                      paymentCfg.BonusTiers,
-		PaymentFirstRechargeEnabled:            paymentCfg.FirstRechargeEnabled,
-		PaymentFirstRechargeMinAmount:          paymentCfg.FirstRechargeMinCNY,
-		PaymentFirstRechargeBonusUSD:           paymentCfg.FirstRechargeBonusUSD,
-		PaymentCancelRateLimitEnabled:          paymentCfg.CancelRateLimitEnabled,
-		PaymentCancelRateLimitMax:              paymentCfg.CancelRateLimitMax,
-		PaymentCancelRateLimitWindow:           paymentCfg.CancelRateLimitWindow,
-		PaymentCancelRateLimitUnit:             paymentCfg.CancelRateLimitUnit,
-		PaymentCancelRateLimitMode:             paymentCfg.CancelRateLimitMode,
+		OpenAIClaudeGPTBridgeCacheDisplaySettings: openAIClaudeGPTBridgeCacheDisplaySettingsToDTO(
+			settings.OpenAIClaudeGPTBridgeCacheDisplaySettings,
+		),
+		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
+		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
+		BalanceLowNotifyRechargeURL:      settings.BalanceLowNotifyRechargeURL,
+		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
+		AccountQuotaNotifyEmails:         dto.NotifyEmailEntriesFromService(settings.AccountQuotaNotifyEmails),
+		PaymentEnabled:                   paymentCfg.Enabled,
+		PaymentMinAmount:                 paymentCfg.MinAmount,
+		PaymentMaxAmount:                 paymentCfg.MaxAmount,
+		PaymentDailyLimit:                paymentCfg.DailyLimit,
+		PaymentOrderTimeoutMin:           paymentCfg.OrderTimeoutMin,
+		PaymentMaxPendingOrders:          paymentCfg.MaxPendingOrders,
+		PaymentEnabledTypes:              paymentCfg.EnabledTypes,
+		PaymentBalanceDisabled:           paymentCfg.BalanceDisabled,
+		PaymentBalanceRechargeMultiplier: paymentCfg.BalanceRechargeMultiplier,
+		PaymentRechargeFeeRate:           paymentCfg.RechargeFeeRate,
+		PaymentLoadBalanceStrat:          paymentCfg.LoadBalanceStrategy,
+		PaymentProductNamePrefix:         paymentCfg.ProductNamePrefix,
+		PaymentProductNameSuffix:         paymentCfg.ProductNameSuffix,
+		PaymentHelpImageURL:              paymentCfg.HelpImageURL,
+		PaymentHelpText:                  paymentCfg.HelpText,
+		PaymentCNYPerUSD:                 paymentCfg.CNYPerUSD,
+		PaymentBonusTiers:                paymentCfg.BonusTiers,
+		PaymentFirstRechargeEnabled:      paymentCfg.FirstRechargeEnabled,
+		PaymentFirstRechargeMinAmount:    paymentCfg.FirstRechargeMinCNY,
+		PaymentFirstRechargeBonusUSD:     paymentCfg.FirstRechargeBonusUSD,
+		PaymentCancelRateLimitEnabled:    paymentCfg.CancelRateLimitEnabled,
+		PaymentCancelRateLimitMax:        paymentCfg.CancelRateLimitMax,
+		PaymentCancelRateLimitWindow:     paymentCfg.CancelRateLimitWindow,
+		PaymentCancelRateLimitUnit:       paymentCfg.CancelRateLimitUnit,
+		PaymentCancelRateLimitMode:       paymentCfg.CancelRateLimitMode,
 
 		ChannelMonitorEnabled:                settings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: settings.ChannelMonitorDefaultIntervalSeconds,
@@ -297,6 +300,28 @@ func openaiFastPolicySettingsFromDTO(s *dto.OpenAIFastPolicySettings) *service.O
 		rules[i].ServiceTier = tier
 	}
 	return &service.OpenAIFastPolicySettings{Rules: rules}
+}
+
+func openAIClaudeGPTBridgeCacheDisplaySettingsToDTO(s *service.OpenAIClaudeGPTBridgeCacheDisplaySettings) *dto.OpenAIClaudeGPTBridgeCacheDisplaySettings {
+	if s == nil {
+		return nil
+	}
+	return &dto.OpenAIClaudeGPTBridgeCacheDisplaySettings{
+		Enabled:    s.Enabled,
+		MinPercent: s.MinPercent,
+		MaxPercent: s.MaxPercent,
+	}
+}
+
+func openAIClaudeGPTBridgeCacheDisplaySettingsFromDTO(s *dto.OpenAIClaudeGPTBridgeCacheDisplaySettings) *service.OpenAIClaudeGPTBridgeCacheDisplaySettings {
+	if s == nil {
+		return nil
+	}
+	return &service.OpenAIClaudeGPTBridgeCacheDisplaySettings{
+		Enabled:    s.Enabled,
+		MinPercent: s.MinPercent,
+		MaxPercent: s.MaxPercent,
+	}
 }
 
 // UpdateSettingsRequest 更新设置请求
@@ -460,6 +485,9 @@ type UpdateSettingsRequest struct {
 
 	// OpenAI account scheduling
 	OpenAIAdvancedSchedulerEnabled *bool `json:"openai_advanced_scheduler_enabled"`
+
+	// OpenAI Claude-GPT bridge cache display override
+	OpenAIClaudeGPTBridgeCacheDisplaySettings *dto.OpenAIClaudeGPTBridgeCacheDisplaySettings `json:"openai_claude_gpt_bridge_cache_display_settings"`
 
 	// Balance low notification
 	BalanceLowNotifyEnabled     *bool                   `json:"balance_low_notify_enabled"`
@@ -1321,6 +1349,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAIAdvancedSchedulerEnabled
 		}(),
+		OpenAIClaudeGPTBridgeCacheDisplaySettings: func() *service.OpenAIClaudeGPTBridgeCacheDisplaySettings {
+			if req.OpenAIClaudeGPTBridgeCacheDisplaySettings != nil {
+				return openAIClaudeGPTBridgeCacheDisplaySettingsFromDTO(req.OpenAIClaudeGPTBridgeCacheDisplaySettings)
+			}
+			return previousSettings.OpenAIClaudeGPTBridgeCacheDisplaySettings
+		}(),
 		BalanceLowNotifyEnabled: func() bool {
 			if req.BalanceLowNotifyEnabled != nil {
 				return *req.BalanceLowNotifyEnabled
@@ -1599,36 +1633,39 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentVisibleMethodAlipayEnabled:      updatedSettings.PaymentVisibleMethodAlipayEnabled,
 		PaymentVisibleMethodWxpayEnabled:       updatedSettings.PaymentVisibleMethodWxpayEnabled,
 		OpenAIAdvancedSchedulerEnabled:         updatedSettings.OpenAIAdvancedSchedulerEnabled,
-		BalanceLowNotifyEnabled:                updatedSettings.BalanceLowNotifyEnabled,
-		BalanceLowNotifyThreshold:              updatedSettings.BalanceLowNotifyThreshold,
-		BalanceLowNotifyRechargeURL:            updatedSettings.BalanceLowNotifyRechargeURL,
-		AccountQuotaNotifyEnabled:              updatedSettings.AccountQuotaNotifyEnabled,
-		AccountQuotaNotifyEmails:               dto.NotifyEmailEntriesFromService(updatedSettings.AccountQuotaNotifyEmails),
-		PaymentEnabled:                         updatedPaymentCfg.Enabled,
-		PaymentMinAmount:                       updatedPaymentCfg.MinAmount,
-		PaymentMaxAmount:                       updatedPaymentCfg.MaxAmount,
-		PaymentDailyLimit:                      updatedPaymentCfg.DailyLimit,
-		PaymentOrderTimeoutMin:                 updatedPaymentCfg.OrderTimeoutMin,
-		PaymentMaxPendingOrders:                updatedPaymentCfg.MaxPendingOrders,
-		PaymentEnabledTypes:                    updatedPaymentCfg.EnabledTypes,
-		PaymentBalanceDisabled:                 updatedPaymentCfg.BalanceDisabled,
-		PaymentBalanceRechargeMultiplier:       updatedPaymentCfg.BalanceRechargeMultiplier,
-		PaymentRechargeFeeRate:                 updatedPaymentCfg.RechargeFeeRate,
-		PaymentLoadBalanceStrat:                updatedPaymentCfg.LoadBalanceStrategy,
-		PaymentProductNamePrefix:               updatedPaymentCfg.ProductNamePrefix,
-		PaymentProductNameSuffix:               updatedPaymentCfg.ProductNameSuffix,
-		PaymentHelpImageURL:                    updatedPaymentCfg.HelpImageURL,
-		PaymentHelpText:                        updatedPaymentCfg.HelpText,
-		PaymentCNYPerUSD:                       updatedPaymentCfg.CNYPerUSD,
-		PaymentBonusTiers:                      updatedPaymentCfg.BonusTiers,
-		PaymentFirstRechargeEnabled:            updatedPaymentCfg.FirstRechargeEnabled,
-		PaymentFirstRechargeMinAmount:          updatedPaymentCfg.FirstRechargeMinCNY,
-		PaymentFirstRechargeBonusUSD:           updatedPaymentCfg.FirstRechargeBonusUSD,
-		PaymentCancelRateLimitEnabled:          updatedPaymentCfg.CancelRateLimitEnabled,
-		PaymentCancelRateLimitMax:              updatedPaymentCfg.CancelRateLimitMax,
-		PaymentCancelRateLimitWindow:           updatedPaymentCfg.CancelRateLimitWindow,
-		PaymentCancelRateLimitUnit:             updatedPaymentCfg.CancelRateLimitUnit,
-		PaymentCancelRateLimitMode:             updatedPaymentCfg.CancelRateLimitMode,
+		OpenAIClaudeGPTBridgeCacheDisplaySettings: openAIClaudeGPTBridgeCacheDisplaySettingsToDTO(
+			updatedSettings.OpenAIClaudeGPTBridgeCacheDisplaySettings,
+		),
+		BalanceLowNotifyEnabled:          updatedSettings.BalanceLowNotifyEnabled,
+		BalanceLowNotifyThreshold:        updatedSettings.BalanceLowNotifyThreshold,
+		BalanceLowNotifyRechargeURL:      updatedSettings.BalanceLowNotifyRechargeURL,
+		AccountQuotaNotifyEnabled:        updatedSettings.AccountQuotaNotifyEnabled,
+		AccountQuotaNotifyEmails:         dto.NotifyEmailEntriesFromService(updatedSettings.AccountQuotaNotifyEmails),
+		PaymentEnabled:                   updatedPaymentCfg.Enabled,
+		PaymentMinAmount:                 updatedPaymentCfg.MinAmount,
+		PaymentMaxAmount:                 updatedPaymentCfg.MaxAmount,
+		PaymentDailyLimit:                updatedPaymentCfg.DailyLimit,
+		PaymentOrderTimeoutMin:           updatedPaymentCfg.OrderTimeoutMin,
+		PaymentMaxPendingOrders:          updatedPaymentCfg.MaxPendingOrders,
+		PaymentEnabledTypes:              updatedPaymentCfg.EnabledTypes,
+		PaymentBalanceDisabled:           updatedPaymentCfg.BalanceDisabled,
+		PaymentBalanceRechargeMultiplier: updatedPaymentCfg.BalanceRechargeMultiplier,
+		PaymentRechargeFeeRate:           updatedPaymentCfg.RechargeFeeRate,
+		PaymentLoadBalanceStrat:          updatedPaymentCfg.LoadBalanceStrategy,
+		PaymentProductNamePrefix:         updatedPaymentCfg.ProductNamePrefix,
+		PaymentProductNameSuffix:         updatedPaymentCfg.ProductNameSuffix,
+		PaymentHelpImageURL:              updatedPaymentCfg.HelpImageURL,
+		PaymentHelpText:                  updatedPaymentCfg.HelpText,
+		PaymentCNYPerUSD:                 updatedPaymentCfg.CNYPerUSD,
+		PaymentBonusTiers:                updatedPaymentCfg.BonusTiers,
+		PaymentFirstRechargeEnabled:      updatedPaymentCfg.FirstRechargeEnabled,
+		PaymentFirstRechargeMinAmount:    updatedPaymentCfg.FirstRechargeMinCNY,
+		PaymentFirstRechargeBonusUSD:     updatedPaymentCfg.FirstRechargeBonusUSD,
+		PaymentCancelRateLimitEnabled:    updatedPaymentCfg.CancelRateLimitEnabled,
+		PaymentCancelRateLimitMax:        updatedPaymentCfg.CancelRateLimitMax,
+		PaymentCancelRateLimitWindow:     updatedPaymentCfg.CancelRateLimitWindow,
+		PaymentCancelRateLimitUnit:       updatedPaymentCfg.CancelRateLimitUnit,
+		PaymentCancelRateLimitMode:       updatedPaymentCfg.CancelRateLimitMode,
 
 		ChannelMonitorEnabled:                updatedSettings.ChannelMonitorEnabled,
 		ChannelMonitorDefaultIntervalSeconds: updatedSettings.ChannelMonitorDefaultIntervalSeconds,
@@ -1999,6 +2036,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.OpenAIAdvancedSchedulerEnabled != after.OpenAIAdvancedSchedulerEnabled {
 		changed = append(changed, "openai_advanced_scheduler_enabled")
 	}
+	if !equalOpenAIClaudeGPTBridgeCacheDisplaySettings(before.OpenAIClaudeGPTBridgeCacheDisplaySettings, after.OpenAIClaudeGPTBridgeCacheDisplaySettings) {
+		changed = append(changed, "openai_claude_gpt_bridge_cache_display_settings")
+	}
 	// Balance & quota notification
 	if before.BalanceLowNotifyEnabled != after.BalanceLowNotifyEnabled {
 		changed = append(changed, "balance_low_notify_enabled")
@@ -2215,6 +2255,16 @@ func equalNotifyEmailEntries(a, b []service.NotifyEmailEntry) bool {
 		}
 	}
 	return true
+}
+
+func equalOpenAIClaudeGPTBridgeCacheDisplaySettings(a, b *service.OpenAIClaudeGPTBridgeCacheDisplaySettings) bool {
+	if a == nil {
+		a = service.DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings()
+	}
+	if b == nil {
+		b = service.DefaultOpenAIClaudeGPTBridgeCacheDisplaySettings()
+	}
+	return a.Enabled == b.Enabled && a.MinPercent == b.MinPercent && a.MaxPercent == b.MaxPercent
 }
 
 // TestSMTPRequest 测试SMTP连接请求

@@ -19,17 +19,29 @@ Usage and billing rules:
   Antigravity group/user rate chain apply even though the upstream account is
   OpenAI.
 - Token counts come from the OpenAI upstream response after the existing
-  Anthropic response conversion path. The bridge does not fabricate token counts
+  Anthropic response conversion path. The bridge does not derive token counts
   from the GPT model name.
-- OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style
-  `cache_read_tokens`. The stored ordinary input token count is
-  `raw_input_tokens - cached_tokens`, matching the existing OpenAI usage
+- Bridge mode preserves the body-level `prompt_cache_key` for OpenAI upstream
+  requests, keeping the request body close to the normal OpenAI path so upstream
+  caching can still work. It still removes upstream `session_id` and
+  `conversation_id` headers before sending the request.
+- By default, OpenAI `input_tokens_details.cached_tokens` is converted to
+  Anthropic-style `cache_read_tokens`, and stored ordinary input tokens are
+  `raw_input_tokens - cache_read_tokens`, matching the existing OpenAI usage
   accounting path.
-- Bridge mode does not forward derived OpenAI cache/session identifiers
-  upstream. `metadata.user_id` may still provide local sticky scheduling, but
-  `prompt_cache_key`, `session_id`, and `conversation_id` are suppressed before
-  sending the OpenAI request so the bridge does not create artificial repeated
-  upstream cache hits such as a fixed `18.9k` read.
+- Admin setting `openai_claude_gpt_bridge_cache_display_settings` can enable a
+  bridge-only cache display override with `min_percent` and `max_percent`
+  between `0` and `100`. When enabled, the bridge randomly selects a percentage
+  in that range and directly sets the bridge base `cache_read_tokens` to that
+  share of upstream `input_tokens`; it does not use upstream `cached_tokens` as
+  the base and does not add to or scale upstream cache values. The generated
+  base value is written to the usage record and participates in Claude-model
+  billing.
+- When `users.downstream_usage_token_mode=display`, the OpenAI Messages bridge
+  rewrites the returned Anthropic JSON/SSE `usage` with the same display pricing
+  chain used by usage-log display. This rewrite is response-only; both the
+  downstream response and user-facing usage-log DTO are transformed from the
+  same generated base usage.
 - Bridge diagnostics log the token-only values at three points: raw upstream
   Responses usage, converted Anthropic usage, and final usage-log values. These
   logs do not include request or response content.

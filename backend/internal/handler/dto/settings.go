@@ -159,6 +159,9 @@ type SystemSettings struct {
 	// OpenAI account scheduling
 	OpenAIAdvancedSchedulerEnabled bool `json:"openai_advanced_scheduler_enabled"`
 
+	// OpenAI Claude-GPT bridge cache display override
+	OpenAIClaudeGPTBridgeCacheDisplaySettings *OpenAIClaudeGPTBridgeCacheDisplaySettings `json:"openai_claude_gpt_bridge_cache_display_settings,omitempty"`
+
 	// Payment configuration
 	PaymentEnabled                   bool                `json:"payment_enabled"`
 	PaymentMinAmount                 float64             `json:"payment_min_amount"`
@@ -207,6 +210,12 @@ type SystemSettings struct {
 
 	// OpenAI fast/flex policy
 	OpenAIFastPolicySettings *OpenAIFastPolicySettings `json:"openai_fast_policy_settings,omitempty"`
+}
+
+type OpenAIClaudeGPTBridgeCacheDisplaySettings struct {
+	Enabled    bool    `json:"enabled"`
+	MinPercent float64 `json:"min_percent"`
+	MaxPercent float64 `json:"max_percent"`
 }
 
 type DefaultSubscriptionSetting struct {
