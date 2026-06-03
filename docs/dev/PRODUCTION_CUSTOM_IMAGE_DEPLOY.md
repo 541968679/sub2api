@@ -15,6 +15,20 @@ must pull the published image with Docker Compose and restart the service from
 that image. Do not run `docker build` on the production host for the Sub2API
 main service.
 
+## Last Verified GHCR Deploy
+
+The latest verified production main-service deployment was completed on
+2026-06-03.
+
+| Tag | Revision | Image | Version label | Status |
+|-----|----------|-------|---------------|--------|
+| `v0.1.137` | `e385b9ac7d7e840658cbcb4f7f9f8f11b1954b81` | `ghcr.io/541968679/sub2api:latest` | `0.1.137` | running, healthy, `/health` OK |
+
+Pushing `main` alone does not publish a fresh GHCR `latest` image in the
+current workflow. The release workflow publishes images only from a `v*` tag
+push or `workflow_dispatch`, so verify the intended tag or `latest` manifest
+before any production `docker compose pull/up`.
+
 ## Retired Path
 
 The previous production main-app deployment built Sub2API on the host from

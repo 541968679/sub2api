@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-03] docs: refresh Claude-GPT bridge production handoff
+
+**Affected files**: `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`, `docs/dev/DEPLOYMENT.md`, `docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md`, `docs/dev/codebase/README.md`, `docs/dev/ARCHITECTURE.md`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Upstream compatibility**: documentation-only; no runtime, schema, API, or deployment behavior changes.
+**Change details**:
+- Recorded the current verified production bridge deployment: `v0.1.137`, revision `e385b9ac7d7e840658cbcb4f7f9f8f11b1954b81`, image `ghcr.io/541968679/sub2api:latest`, version label `0.1.137`, healthy `/health`.
+- Clarified that the current Release workflow publishes GHCR images only from `v*` tags or `workflow_dispatch`; pushing `main` alone does not refresh `latest`.
+- Added the admin UI handoff for OpenAI account bridge configuration and Gateway Forwarding Behavior cache-display settings.
+- Updated the codebase documentation index dates and descriptions for account, model mapping, billing, gateway, and the bridge handoff document.
+
 ## [2026-06-02] feat: merge upstream Antigravity Opus 4.8 support
 
 **Affected files**: `backend/internal/domain/constants.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/pkg/antigravity/request_transformer.go`, `backend/internal/pkg/claude/constants.go`, `backend/internal/service/antigravity_model_mapping_test.go`, `backend/internal/service/bedrock_request_test.go`, `backend/migrations/146_add_opus48_to_model_mapping.sql`, `frontend/src/composables/useModelWhitelist.ts`, `frontend/src/components/account/AccountStatusIndicator.vue`, `frontend/src/components/account/AccountUsageCell.vue`, `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/codebase/model-mapping.md`

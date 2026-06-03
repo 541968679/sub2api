@@ -60,6 +60,7 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 注意事项：
 
 - Sub2API 主服务镜像由 GitHub Actions 构建并发布到 GHCR；生产部署只允许 `docker compose pull/up` 已发布镜像，不允许在生产服务器 `docker build`。
+- 当前 Release workflow 只会在 `v*` tag 推送或手动 `workflow_dispatch` 时发布 GHCR 镜像；单独 push `main` 不会刷新 `ghcr.io/541968679/sub2api:latest`。生产 `pull/up` 前必须确认目标 tag 或 `latest` 已经存在，并且镜像 label 指向本次要部署的 commit。
 - 下次主服务部署前，必须清理或替换历史 `/opt/sub2api/docker-compose.override.yml` 中对 `sub2api-custom:latest` 的 pin，确保 `docker compose config` 解析出的 `sub2api.image` 是 `ghcr.io/541968679/sub2api:latest` 或本次明确批准的 GHCR tag。
 - 生产 AIClient2API 是 sub2api Compose 中的侧车服务，服务名为 `aiclient2api`，宿主机仅绑定 `127.0.0.1:3000`。
 - Sub2API 内部访问 AIClient2API 使用 `http://aiclient2api:3000/claude-kiro-oauth`，不要改成本机公网地址。
@@ -69,6 +70,55 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 - InvokeAI 只作为外部 API 生图客户端使用，生产配置必须保持 `INVOKEAI_DEVICE=cpu` 和 `INVOKEAI_PRECISION=float32`，不要引入本地模型/GPU 推理。
 - 如果 GHCR package 没有设为 Public，生产服务器需要先 `docker login ghcr.io`。
 - 不要把生产 API key、Web UI 密码、代理订阅等敏感信息写入本文档或提交到 Git。
+
+### 1.2 Sub2API 主服务 release / deploy 流程
+
+本仓库当前的 `.github/workflows/release.yml` 只监听 `v*` tag 和手动
+`workflow_dispatch`。`.goreleaser.simple.yaml` 会发布
+`ghcr.io/541968679/sub2api:<version>`、`:<version>-amd64` 和 `:latest`。
+
+主服务生产部署按这个顺序执行：
+
+1. 将已经验证的代码合入并推送到 `main`。
+2. 创建并推送下一个 `v*` tag，或手动触发 Release workflow。
+3. 等 GitHub Actions Release 成功后，确认 GHCR 镜像已经发布。
+4. 确认生产 Compose 的 `sub2api.image` 指向 GHCR，而不是
+   `sub2api-custom:*`。
+5. 在生产机执行 `docker compose pull sub2api` 和
+   `docker compose up -d --no-deps sub2api`。
+6. 核对运行镜像、revision/version label、容器健康状态和 `/health`。
+
+常用检查命令：
+
+```powershell
+# 确认目标 tag 可拉取
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "docker manifest inspect ghcr.io/541968679/sub2api:0.1.137 >/dev/null && echo manifest-ok"
+
+# 确认生产 compose 最终解析到 GHCR 镜像
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose config | grep -A 5 'sub2api:'"
+```
+
+PowerShell 下跨 SSH 检查 `docker inspect --format` 时，优先用 heredoc，避免
+本地引号转义破坏 Go template：
+
+```powershell
+$script = @'
+set -e
+docker inspect sub2api --format 'image={{.Config.Image}}'
+docker inspect sub2api --format 'image_id={{.Image}}'
+docker inspect sub2api --format 'status={{.State.Status}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}no-health{{end}}'
+docker inspect sub2api --format 'revision={{index .Config.Labels "org.opencontainers.image.revision"}}'
+docker inspect sub2api --format 'version={{index .Config.Labels "org.opencontainers.image.version"}}'
+wget -q -T 5 -O - http://127.0.0.1:8080/health
+'@
+$script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
+```
+
+最近一次已验证主服务生产部署：
+
+| 日期 | Tag | Revision | Image | Version label | 状态 |
+|------|-----|----------|-------|---------------|------|
+| 2026-06-03 | `v0.1.137` | `e385b9ac7d7e840658cbcb4f7f9f8f11b1954b81` | `ghcr.io/541968679/sub2api:latest` | `0.1.137` | running, healthy, `/health` OK |
 
 ## 二、Docker Compose 部署（推荐）
 

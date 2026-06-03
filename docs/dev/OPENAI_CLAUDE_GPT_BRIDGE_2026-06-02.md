@@ -2,6 +2,21 @@
 
 Date: 2026-06-02
 
+## Current Production Status
+
+The bridge is live in production as of 2026-06-03.
+
+- Release tag: `v0.1.137`.
+- Running revision:
+  `e385b9ac7d7e840658cbcb4f7f9f8f11b1954b81`.
+- Running version label: `0.1.137`.
+- Production image: `ghcr.io/541968679/sub2api:latest`.
+- Container status: running and healthy; `/health` returned `{"status":"ok"}`.
+
+This deployed release includes the account-side bridge, scheduler eligibility
+fixes, group-platform cache statistics, bridge cache display override, and
+downstream display-usage alignment for Claude-GPT bridge responses.
+
 ## Summary
 
 This change lets an OpenAI account serve Claude Messages requests for existing
@@ -180,9 +195,9 @@ Additional checks covered during implementation:
 
 How to configure a bridge account:
 
-1. Edit an OpenAI account.
-2. Enable Claude-GPT bridge.
-3. Bind the target Antigravity group.
+1. Edit an OpenAI account in the account create/edit/bulk-edit UI.
+2. Enable Claude-GPT bridge in the OpenAI account settings area.
+3. Bind the target Antigravity group from the same account form.
 4. Add model mapping in the existing OpenAI model mapping editor, for example:
 
 ```json
@@ -194,6 +209,17 @@ How to configure a bridge account:
 Users do not need to regenerate API keys. Subscription users can keep using
 their current Antigravity group because the bridge account is attached to that
 group from the OpenAI account side.
+
+How to configure bridge cache display:
+
+1. Open the admin settings page.
+2. Go to Gateway Forwarding Behavior.
+3. Configure Claude-GPT Bridge Cache Display.
+
+The setting key is
+`openai_claude_gpt_bridge_cache_display_settings`. When enabled, set
+`min_percent` and `max_percent`; every bridge response generates a cache-read
+display value from that range over upstream input tokens.
 
 ## Known Residual Issues
 
