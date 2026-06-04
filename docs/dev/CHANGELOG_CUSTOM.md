@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-04] ops: sync production tutorial page content
+
+**Affected files/data**: production `settings.tutorial_page.content`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Upstream compatibility**: data-only production content sync; no runtime, schema, API, or image changes.
+**Change details**:
+- Synced the production tutorial page Markdown from the verified local development database value.
+- Production backup files were created before the update: `/opt/sub2api/backups/tutorial_page.content.20260604T014422Z.sql` and `/opt/sub2api/backups/tutorial_page.content.20260604T014422Z.md`.
+- Verified the production value changed from md5 `80db5e44a43fac0679b841a9c9939299`, length `19206`, updated `2026-05-05 21:31:10 +08`, to md5 `111eb6bfb4d253a288485d62481ee7a9`, length `21687`, updated `2026-06-04 09:44:23 +08`.
+- The synced content header is `# ZeroCode API 使用文档` with `最后更新：2026-05-25`.
+
 ## [2026-06-03] docs: refresh Claude-GPT bridge production handoff
 
 **Affected files**: `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`, `docs/dev/DEPLOYMENT.md`, `docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md`, `docs/dev/codebase/README.md`, `docs/dev/ARCHITECTURE.md`, `docs/dev/CHANGELOG_CUSTOM.md`
