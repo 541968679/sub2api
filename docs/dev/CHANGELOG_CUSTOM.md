@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-04] feat: surface configurable support contact in user flows
+
+**Affected files**: frontend/src/components/common/SupportContactBar.vue, frontend/src/components/common/__tests__/SupportContactBar.spec.ts, frontend/src/components/user/dashboard/UserDashboardQuickActions.vue, frontend/src/views/user/PaymentView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only enhancement that reuses the existing public `contact_info` setting; no backend API or settings schema changes.
+**Change details**:
+- Added a compact reusable support contact bar that reads `appStore.contactInfo`, fetches public settings when needed, and offers a copy action.
+- Displayed the contact bar in the user dashboard quick-actions card and at the bottom of the purchase/payment selection page so support contact is easier to find without occupying a full card.
+- Updated admin settings helper text in Chinese and English to document the new dashboard and payment/redeem/profile/menu display locations.
+- Added component coverage for empty configuration, settings fetch, and copy behavior.
+
 ## [2026-06-04] ops: sync production tutorial page content
 
 **Affected files/data**: production `settings.tutorial_page.content`, `docs/dev/CHANGELOG_CUSTOM.md`

@@ -696,6 +696,14 @@ export default {
     tutorialHint: 'Full setup guide for Claude Code, Codex and more'
   },
 
+  supportContact: {
+    dashboardLabel: 'Support',
+    paymentLabel: 'Payment or credit issue? Contact support',
+    copy: 'Copy contact',
+    copied: 'Copied',
+    copySuccess: 'Support contact copied'
+  },
+
   // Groups (shared)
   groups: {
     subscription: 'Sub'
@@ -5667,7 +5675,7 @@ export default {
         },
         contactInfo: 'Contact Info',
         contactInfoPlaceholder: 'e.g., QQ: 123456789',
-        contactInfoHint: 'Customer support contact info, displayed on redeem page, profile, etc.',
+        contactInfoHint: 'Shown on the user dashboard, payment/redeem pages, profile, and user menu. Leave empty to hide it.',
         docUrl: 'Documentation URL',
         docUrlPlaceholder: 'https://docs.example.com',
         docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',

@@ -692,6 +692,14 @@ const zhBase = {
     tutorialHint: '查看 Claude Code、Codex 等工具的完整接入指南'
   },
 
+  supportContact: {
+    dashboardLabel: '客服支持',
+    paymentLabel: '支付或到账遇到问题？联系客服',
+    copy: '复制联系方式',
+    copied: '已复制',
+    copySuccess: '客服联系方式已复制'
+  },
+
   // Groups (shared)
   groups: {
     subscription: '订阅'
@@ -5395,7 +5403,7 @@ const zhBase = {
         },
         contactInfo: '客服联系方式',
         contactInfoPlaceholder: '例如：QQ: 123456789',
-        contactInfoHint: '填写客服联系方式，将展示在兑换页面、个人资料等位置',
+        contactInfoHint: '填写后会展示在用户仪表盘、支付/兑换页面、个人资料和用户菜单；留空则不展示。',
         docUrl: '文档链接',
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
         docUrlPlaceholder: 'https://docs.example.com',

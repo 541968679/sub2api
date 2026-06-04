@@ -347,6 +347,11 @@
             <p v-if="checkout.help_text" class="text-center text-sm leading-6 text-gray-500 dark:text-gray-400">{{ checkout.help_text }}</p>
           </div>
         </div>
+        <SupportContactBar
+          v-if="paymentPhase === 'select'"
+          context="payment"
+          class="mx-auto max-w-3xl"
+        />
       </template>
     </div>
     <!-- Renewal Plan Selection Modal -->
@@ -408,6 +413,7 @@ import {
 import { platformAccentBarClass, platformTextClass } from '@/utils/platformColors'
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
+import SupportContactBar from '@/components/common/SupportContactBar.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'

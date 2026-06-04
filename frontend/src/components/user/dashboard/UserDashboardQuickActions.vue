@@ -95,6 +95,8 @@
           <span class="secondary-card-title">{{ t('dashboard.viewPricing') }}</span>
         </button>
       </div>
+
+      <SupportContactBar />
     </div>
   </div>
 </template>
@@ -105,6 +107,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import SupportContactBar from '@/components/common/SupportContactBar.vue'
 import Icon from '@/components/icons/Icon.vue'
 const router = useRouter()
 const { t } = useI18n()
