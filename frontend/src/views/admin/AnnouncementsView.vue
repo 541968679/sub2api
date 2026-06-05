@@ -19,6 +19,12 @@
             class="w-40"
             @change="handleStatusChange"
           />
+          <Select
+            v-model="filters.surface"
+            :options="surfaceFilterOptions"
+            class="w-48"
+            @change="handleSurfaceChange"
+          />
 
           <!-- Right: Action buttons -->
           <div class="flex flex-1 flex-wrap items-center justify-end gap-2">
@@ -77,15 +83,29 @@
           </template>
 
           <template #cell-notify_mode="{ row }">
-            <span
-              :class="[
-                'badge',
-                row.notify_mode === 'popup'
-                  ? 'badge-warning'
-                  : 'badge-gray'
-              ]"
-            >
-              {{ row.notify_mode === 'popup' ? t('admin.announcements.notifyModeLabels.popup') : t('admin.announcements.notifyModeLabels.silent') }}
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span
+                :class="[
+                  'badge',
+                  row.notify_mode === 'popup'
+                    ? 'badge-warning'
+                    : 'badge-gray'
+                ]"
+              >
+                {{ row.notify_mode === 'popup' ? t('admin.announcements.notifyModeLabels.popup') : t('admin.announcements.notifyModeLabels.silent') }}
+              </span>
+              <span
+                v-if="row.notify_mode === 'popup'"
+                class="badge badge-gray"
+              >
+                {{ popupFrequencyLabel(row.popup_frequency) }}
+              </span>
+            </div>
+          </template>
+
+          <template #cell-surface="{ value }">
+            <span class="badge badge-gray">
+              {{ surfaceLabel(value) }}
             </span>
           </template>
 
@@ -181,13 +201,25 @@
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
+            <label class="input-label">{{ t('admin.announcements.form.surface') }}</label>
+            <Select v-model="form.surface" :options="surfaceOptions" />
+          </div>
+          <div>
             <label class="input-label">{{ t('admin.announcements.form.status') }}</label>
             <Select v-model="form.status" :options="statusOptions" />
           </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label class="input-label">{{ t('admin.announcements.form.notifyMode') }}</label>
             <Select v-model="form.notify_mode" :options="notifyModeOptions" />
             <p class="input-hint">{{ t('admin.announcements.form.notifyModeHint') }}</p>
+          </div>
+          <div v-if="form.notify_mode === 'popup'">
+            <label class="input-label">{{ t('admin.announcements.form.popupFrequency') }}</label>
+            <Select v-model="form.popup_frequency" :options="popupFrequencyOptions" />
+            <p class="input-hint">{{ t('admin.announcements.form.popupFrequencyHint') }}</p>
           </div>
         </div>
 
@@ -250,7 +282,7 @@ import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
-import type { AdminGroup, Announcement, AnnouncementTargeting } from '@/types'
+import type { AdminGroup, Announcement, AnnouncementSurface, AnnouncementTargeting } from '@/types'
 import type { Column } from '@/components/common/types'
 
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -272,8 +304,12 @@ const appStore = useAppStore()
 const announcements = ref<Announcement[]>([])
 const loading = ref(false)
 
-const filters = reactive({
+const filters = reactive<{
+  status: string
+  surface: AnnouncementSurface | ''
+}>({
   status: '',
+  surface: '',
 })
 const searchQuery = ref('')
 
@@ -296,6 +332,13 @@ const statusFilterOptions = computed(() => [
   { value: 'archived', label: t('admin.announcements.statusLabels.archived') }
 ])
 
+const surfaceFilterOptions = computed(() => [
+  { value: '', label: t('admin.announcements.allSurfaces') },
+  { value: 'general', label: t('admin.announcements.surfaceLabels.general') },
+  { value: 'dashboard_banner', label: t('admin.announcements.surfaceLabels.dashboard_banner') },
+  { value: 'api_key_rules', label: t('admin.announcements.surfaceLabels.api_key_rules') }
+])
+
 const statusOptions = computed(() => [
   { value: 'draft', label: t('admin.announcements.statusLabels.draft') },
   { value: 'active', label: t('admin.announcements.statusLabels.active') },
@@ -307,8 +350,20 @@ const notifyModeOptions = computed(() => [
   { value: 'popup', label: t('admin.announcements.notifyModeLabels.popup') }
 ])
 
+const surfaceOptions = computed(() => [
+  { value: 'general', label: t('admin.announcements.surfaceLabels.general') },
+  { value: 'dashboard_banner', label: t('admin.announcements.surfaceLabels.dashboard_banner') },
+  { value: 'api_key_rules', label: t('admin.announcements.surfaceLabels.api_key_rules') }
+])
+
+const popupFrequencyOptions = computed(() => [
+  { value: 'once', label: t('admin.announcements.popupFrequencyLabels.once') },
+  { value: 'daily', label: t('admin.announcements.popupFrequencyLabels.daily') }
+])
+
 const columns = computed<Column[]>(() => [
   { key: 'title', label: t('admin.announcements.columns.title'), sortable: true },
+  { key: 'surface', label: t('admin.announcements.columns.surface'), sortable: true },
   { key: 'status', label: t('admin.announcements.columns.status'), sortable: true },
   { key: 'notify_mode', label: t('admin.announcements.columns.notifyMode'), sortable: true },
   { key: 'targeting', label: t('admin.announcements.columns.targeting') },
@@ -322,6 +377,18 @@ const statusLabel = (status: string) => {
   if (status === 'active') return t('admin.announcements.statusLabels.active')
   if (status === 'archived') return t('admin.announcements.statusLabels.archived')
   return status
+}
+
+const surfaceLabel = (surface: string) => {
+  if (surface === 'general') return t('admin.announcements.surfaceLabels.general')
+  if (surface === 'dashboard_banner') return t('admin.announcements.surfaceLabels.dashboard_banner')
+  if (surface === 'api_key_rules') return t('admin.announcements.surfaceLabels.api_key_rules')
+  return surface
+}
+
+const popupFrequencyLabel = (frequency: string) => {
+  if (frequency === 'daily') return t('admin.announcements.popupFrequencyLabels.daily')
+  return t('admin.announcements.popupFrequencyLabels.once')
 }
 
 const targetingSummary = (targeting: AnnouncementTargeting) => {
@@ -343,6 +410,7 @@ async function loadAnnouncements() {
     loading.value = true
     const res = await adminAPI.announcements.list(pagination.page, pagination.page_size, {
       status: filters.status || undefined,
+      surface: filters.surface || undefined,
       search: searchQuery.value || undefined,
       sort_by: sortState.sort_by,
       sort_order: sortState.sort_order
@@ -390,6 +458,11 @@ function handleStatusChange() {
   loadAnnouncements()
 }
 
+function handleSurfaceChange() {
+  pagination.page = 1
+  loadAnnouncements()
+}
+
 function handleSort(key: string, order: 'asc' | 'desc') {
   sortState.sort_by = key
   sortState.sort_order = order
@@ -418,6 +491,8 @@ const form = reactive({
   content: '',
   status: 'draft',
   notify_mode: 'silent',
+  surface: 'general',
+  popup_frequency: 'once',
   starts_at_str: '',
   ends_at_str: '',
   targeting: { any_of: [] } as AnnouncementTargeting
@@ -440,6 +515,8 @@ function resetForm() {
   form.content = ''
   form.status = 'draft'
   form.notify_mode = 'silent'
+  form.surface = 'general'
+  form.popup_frequency = 'once'
   form.starts_at_str = ''
   form.ends_at_str = ''
   form.targeting = { any_of: [] }
@@ -450,6 +527,8 @@ function fillFormFromAnnouncement(a: Announcement) {
   form.content = a.content
   form.status = a.status
   form.notify_mode = a.notify_mode || 'silent'
+  form.surface = a.surface || 'general'
+  form.popup_frequency = a.popup_frequency || 'once'
 
   // Backend returns RFC3339 strings
   form.starts_at_str = a.starts_at ? formatDateTimeLocalInput(Math.floor(new Date(a.starts_at).getTime() / 1000)) : ''
@@ -484,6 +563,8 @@ function buildCreatePayload() {
     content: form.content,
     status: form.status as any,
     notify_mode: form.notify_mode as any,
+    surface: form.surface as any,
+    popup_frequency: form.popup_frequency as any,
     targeting: form.targeting,
     starts_at: startsAt ?? undefined,
     ends_at: endsAt ?? undefined
@@ -497,6 +578,8 @@ function buildUpdatePayload(original: Announcement) {
   if (form.content !== original.content) payload.content = form.content
   if (form.status !== original.status) payload.status = form.status
   if (form.notify_mode !== (original.notify_mode || 'silent')) payload.notify_mode = form.notify_mode
+  if (form.surface !== (original.surface || 'general')) payload.surface = form.surface
+  if (form.popup_frequency !== (original.popup_frequency || 'once')) payload.popup_frequency = form.popup_frequency
 
   // starts_at / ends_at: distinguish unchanged vs clear(0) vs set
   const originalStarts = original.starts_at ? Math.floor(new Date(original.starts_at).getTime() / 1000) : null

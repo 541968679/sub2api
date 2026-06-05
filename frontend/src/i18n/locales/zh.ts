@@ -689,7 +689,10 @@ const zhBase = {
     quickStart: '快速开始指南',
     quickStartHint: '了解如何配置和使用 API 密钥',
     tutorial: '详细教程',
-    tutorialHint: '查看 Claude Code、Codex 等工具的完整接入指南'
+    tutorialHint: '查看 Claude Code、Codex 等工具的完整接入指南',
+    announcementBannerLabel: '公告',
+    announcementDetails: '查看详情',
+    announcementDismiss: '关闭公告'
   },
 
   supportContact: {
@@ -4094,8 +4097,10 @@ const zhBase = {
       searchAnnouncements: '搜索公告...',
       status: '状态',
       allStatus: '全部状态',
+      allSurfaces: '全部位置',
       columns: {
         title: '标题',
+        surface: '展示位置',
         status: '状态',
         notifyMode: '通知方式',
         targeting: '展示条件',
@@ -4112,12 +4117,24 @@ const zhBase = {
         silent: '静默',
         popup: '弹窗'
       },
+      surfaceLabels: {
+        general: '普通公告',
+        dashboard_banner: '仪表盘横幅',
+        api_key_rules: 'API 密钥使用规则'
+      },
+      popupFrequencyLabels: {
+        once: '仅一次',
+        daily: '每天一次'
+      },
       form: {
         title: '标题',
         content: '内容（支持 Markdown）',
+        surface: '展示位置',
         status: '状态',
         notifyMode: '通知方式',
         notifyModeHint: '弹窗模式会自动弹出通知给用户',
+        popupFrequency: '弹窗频率',
+        popupFrequencyHint: '每天一次会按后端服务器日期在次日重新弹出',
         startsAt: '开始时间',
         endsAt: '结束时间',
         startsAtHint: '留空表示立即生效',
@@ -7000,7 +7017,10 @@ const v117ZhPatch = {
       step2Download: '从 GitHub 下载',
       step3Title: '使用 Key',
       step3Desc: '点击 Key 旁边的“导入到 CCS”自动配置，或点击“使用 Key”查看手动配置。',
-      step3DescNoCcs: '点击 Key 旁边的“使用 Key”查看编程工具配置说明。'
+      step3DescNoCcs: '点击 Key 旁边的“使用 Key”查看编程工具配置说明。',
+      rulesTitle: '使用规则',
+      rulesAction: '查看',
+      rulesModalTitle: 'API 密钥使用规则',
     }
   },
   admin: {

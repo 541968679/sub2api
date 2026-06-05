@@ -70,6 +70,16 @@ func ReadAt(v time.Time) predicate.AnnouncementRead {
 	return predicate.AnnouncementRead(sql.FieldEQ(FieldReadAt, v))
 }
 
+// LastPopupDismissedAt applies equality check predicate on the "last_popup_dismissed_at" field. It's identical to LastPopupDismissedAtEQ.
+func LastPopupDismissedAt(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldEQ(FieldLastPopupDismissedAt, v))
+}
+
+// BannerDismissedAt applies equality check predicate on the "banner_dismissed_at" field. It's identical to BannerDismissedAtEQ.
+func BannerDismissedAt(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldEQ(FieldBannerDismissedAt, v))
+}
+
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.AnnouncementRead {
 	return predicate.AnnouncementRead(sql.FieldEQ(FieldCreatedAt, v))
@@ -153,6 +163,116 @@ func ReadAtLT(v time.Time) predicate.AnnouncementRead {
 // ReadAtLTE applies the LTE predicate on the "read_at" field.
 func ReadAtLTE(v time.Time) predicate.AnnouncementRead {
 	return predicate.AnnouncementRead(sql.FieldLTE(FieldReadAt, v))
+}
+
+// ReadAtIsNil applies the IsNil predicate on the "read_at" field.
+func ReadAtIsNil() predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldIsNull(FieldReadAt))
+}
+
+// ReadAtNotNil applies the NotNil predicate on the "read_at" field.
+func ReadAtNotNil() predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNotNull(FieldReadAt))
+}
+
+// LastPopupDismissedAtEQ applies the EQ predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtEQ(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldEQ(FieldLastPopupDismissedAt, v))
+}
+
+// LastPopupDismissedAtNEQ applies the NEQ predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtNEQ(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNEQ(FieldLastPopupDismissedAt, v))
+}
+
+// LastPopupDismissedAtIn applies the In predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtIn(vs ...time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldIn(FieldLastPopupDismissedAt, vs...))
+}
+
+// LastPopupDismissedAtNotIn applies the NotIn predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtNotIn(vs ...time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNotIn(FieldLastPopupDismissedAt, vs...))
+}
+
+// LastPopupDismissedAtGT applies the GT predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtGT(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldGT(FieldLastPopupDismissedAt, v))
+}
+
+// LastPopupDismissedAtGTE applies the GTE predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtGTE(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldGTE(FieldLastPopupDismissedAt, v))
+}
+
+// LastPopupDismissedAtLT applies the LT predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtLT(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldLT(FieldLastPopupDismissedAt, v))
+}
+
+// LastPopupDismissedAtLTE applies the LTE predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtLTE(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldLTE(FieldLastPopupDismissedAt, v))
+}
+
+// LastPopupDismissedAtIsNil applies the IsNil predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtIsNil() predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldIsNull(FieldLastPopupDismissedAt))
+}
+
+// LastPopupDismissedAtNotNil applies the NotNil predicate on the "last_popup_dismissed_at" field.
+func LastPopupDismissedAtNotNil() predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNotNull(FieldLastPopupDismissedAt))
+}
+
+// BannerDismissedAtEQ applies the EQ predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtEQ(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldEQ(FieldBannerDismissedAt, v))
+}
+
+// BannerDismissedAtNEQ applies the NEQ predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtNEQ(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNEQ(FieldBannerDismissedAt, v))
+}
+
+// BannerDismissedAtIn applies the In predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtIn(vs ...time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldIn(FieldBannerDismissedAt, vs...))
+}
+
+// BannerDismissedAtNotIn applies the NotIn predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtNotIn(vs ...time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNotIn(FieldBannerDismissedAt, vs...))
+}
+
+// BannerDismissedAtGT applies the GT predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtGT(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldGT(FieldBannerDismissedAt, v))
+}
+
+// BannerDismissedAtGTE applies the GTE predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtGTE(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldGTE(FieldBannerDismissedAt, v))
+}
+
+// BannerDismissedAtLT applies the LT predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtLT(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldLT(FieldBannerDismissedAt, v))
+}
+
+// BannerDismissedAtLTE applies the LTE predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtLTE(v time.Time) predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldLTE(FieldBannerDismissedAt, v))
+}
+
+// BannerDismissedAtIsNil applies the IsNil predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtIsNil() predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldIsNull(FieldBannerDismissedAt))
+}
+
+// BannerDismissedAtNotNil applies the NotNil predicate on the "banner_dismissed_at" field.
+func BannerDismissedAtNotNil() predicate.AnnouncementRead {
+	return predicate.AnnouncementRead(sql.FieldNotNull(FieldBannerDismissedAt))
 }
 
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.

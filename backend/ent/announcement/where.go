@@ -75,6 +75,16 @@ func NotifyMode(v string) predicate.Announcement {
 	return predicate.Announcement(sql.FieldEQ(FieldNotifyMode, v))
 }
 
+// Surface applies equality check predicate on the "surface" field. It's identical to SurfaceEQ.
+func Surface(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEQ(FieldSurface, v))
+}
+
+// PopupFrequency applies equality check predicate on the "popup_frequency" field. It's identical to PopupFrequencyEQ.
+func PopupFrequency(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEQ(FieldPopupFrequency, v))
+}
+
 // StartsAt applies equality check predicate on the "starts_at" field. It's identical to StartsAtEQ.
 func StartsAt(v time.Time) predicate.Announcement {
 	return predicate.Announcement(sql.FieldEQ(FieldStartsAt, v))
@@ -363,6 +373,136 @@ func NotifyModeEqualFold(v string) predicate.Announcement {
 // NotifyModeContainsFold applies the ContainsFold predicate on the "notify_mode" field.
 func NotifyModeContainsFold(v string) predicate.Announcement {
 	return predicate.Announcement(sql.FieldContainsFold(FieldNotifyMode, v))
+}
+
+// SurfaceEQ applies the EQ predicate on the "surface" field.
+func SurfaceEQ(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEQ(FieldSurface, v))
+}
+
+// SurfaceNEQ applies the NEQ predicate on the "surface" field.
+func SurfaceNEQ(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldNEQ(FieldSurface, v))
+}
+
+// SurfaceIn applies the In predicate on the "surface" field.
+func SurfaceIn(vs ...string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldIn(FieldSurface, vs...))
+}
+
+// SurfaceNotIn applies the NotIn predicate on the "surface" field.
+func SurfaceNotIn(vs ...string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldNotIn(FieldSurface, vs...))
+}
+
+// SurfaceGT applies the GT predicate on the "surface" field.
+func SurfaceGT(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldGT(FieldSurface, v))
+}
+
+// SurfaceGTE applies the GTE predicate on the "surface" field.
+func SurfaceGTE(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldGTE(FieldSurface, v))
+}
+
+// SurfaceLT applies the LT predicate on the "surface" field.
+func SurfaceLT(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldLT(FieldSurface, v))
+}
+
+// SurfaceLTE applies the LTE predicate on the "surface" field.
+func SurfaceLTE(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldLTE(FieldSurface, v))
+}
+
+// SurfaceContains applies the Contains predicate on the "surface" field.
+func SurfaceContains(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldContains(FieldSurface, v))
+}
+
+// SurfaceHasPrefix applies the HasPrefix predicate on the "surface" field.
+func SurfaceHasPrefix(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldHasPrefix(FieldSurface, v))
+}
+
+// SurfaceHasSuffix applies the HasSuffix predicate on the "surface" field.
+func SurfaceHasSuffix(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldHasSuffix(FieldSurface, v))
+}
+
+// SurfaceEqualFold applies the EqualFold predicate on the "surface" field.
+func SurfaceEqualFold(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEqualFold(FieldSurface, v))
+}
+
+// SurfaceContainsFold applies the ContainsFold predicate on the "surface" field.
+func SurfaceContainsFold(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldContainsFold(FieldSurface, v))
+}
+
+// PopupFrequencyEQ applies the EQ predicate on the "popup_frequency" field.
+func PopupFrequencyEQ(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEQ(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyNEQ applies the NEQ predicate on the "popup_frequency" field.
+func PopupFrequencyNEQ(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldNEQ(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyIn applies the In predicate on the "popup_frequency" field.
+func PopupFrequencyIn(vs ...string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldIn(FieldPopupFrequency, vs...))
+}
+
+// PopupFrequencyNotIn applies the NotIn predicate on the "popup_frequency" field.
+func PopupFrequencyNotIn(vs ...string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldNotIn(FieldPopupFrequency, vs...))
+}
+
+// PopupFrequencyGT applies the GT predicate on the "popup_frequency" field.
+func PopupFrequencyGT(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldGT(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyGTE applies the GTE predicate on the "popup_frequency" field.
+func PopupFrequencyGTE(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldGTE(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyLT applies the LT predicate on the "popup_frequency" field.
+func PopupFrequencyLT(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldLT(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyLTE applies the LTE predicate on the "popup_frequency" field.
+func PopupFrequencyLTE(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldLTE(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyContains applies the Contains predicate on the "popup_frequency" field.
+func PopupFrequencyContains(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldContains(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyHasPrefix applies the HasPrefix predicate on the "popup_frequency" field.
+func PopupFrequencyHasPrefix(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldHasPrefix(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyHasSuffix applies the HasSuffix predicate on the "popup_frequency" field.
+func PopupFrequencyHasSuffix(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldHasSuffix(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyEqualFold applies the EqualFold predicate on the "popup_frequency" field.
+func PopupFrequencyEqualFold(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldEqualFold(FieldPopupFrequency, v))
+}
+
+// PopupFrequencyContainsFold applies the ContainsFold predicate on the "popup_frequency" field.
+func PopupFrequencyContainsFold(v string) predicate.Announcement {
+	return predicate.Announcement(sql.FieldContainsFold(FieldPopupFrequency, v))
 }
 
 // TargetingIsNil applies the IsNil predicate on the "targeting" field.

@@ -22,6 +22,10 @@ const (
 	FieldStatus = "status"
 	// FieldNotifyMode holds the string denoting the notify_mode field in the database.
 	FieldNotifyMode = "notify_mode"
+	// FieldSurface holds the string denoting the surface field in the database.
+	FieldSurface = "surface"
+	// FieldPopupFrequency holds the string denoting the popup_frequency field in the database.
+	FieldPopupFrequency = "popup_frequency"
 	// FieldTargeting holds the string denoting the targeting field in the database.
 	FieldTargeting = "targeting"
 	// FieldStartsAt holds the string denoting the starts_at field in the database.
@@ -56,6 +60,8 @@ var Columns = []string{
 	FieldContent,
 	FieldStatus,
 	FieldNotifyMode,
+	FieldSurface,
+	FieldPopupFrequency,
 	FieldTargeting,
 	FieldStartsAt,
 	FieldEndsAt,
@@ -88,6 +94,14 @@ var (
 	DefaultNotifyMode string
 	// NotifyModeValidator is a validator for the "notify_mode" field. It is called by the builders before save.
 	NotifyModeValidator func(string) error
+	// DefaultSurface holds the default value on creation for the "surface" field.
+	DefaultSurface string
+	// SurfaceValidator is a validator for the "surface" field. It is called by the builders before save.
+	SurfaceValidator func(string) error
+	// DefaultPopupFrequency holds the default value on creation for the "popup_frequency" field.
+	DefaultPopupFrequency string
+	// PopupFrequencyValidator is a validator for the "popup_frequency" field. It is called by the builders before save.
+	PopupFrequencyValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -122,6 +136,16 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByNotifyMode orders the results by the notify_mode field.
 func ByNotifyMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldNotifyMode, opts...).ToFunc()
+}
+
+// BySurface orders the results by the surface field.
+func BySurface(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSurface, opts...).ToFunc()
+}
+
+// ByPopupFrequency orders the results by the popup_frequency field.
+func ByPopupFrequency(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPopupFrequency, opts...).ToFunc()
 }
 
 // ByStartsAt orders the results by the starts_at field.

@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-05] feat: extend announcements across popup, dashboard banner, and API key rules surfaces
+
+**Affected files**: backend/ent/schema/announcement.go, backend/ent/schema/announcement_read.go, backend/migrations/148_extend_announcements_surfaces.sql, backend/migrations/149_announcement_reads_drop_read_at_default.sql, backend/internal/domain/announcement.go, backend/internal/service/announcement.go, backend/internal/service/announcement_service.go, backend/internal/repository/announcement_repo.go, backend/internal/repository/announcement_read_repo.go, backend/internal/handler/announcement_handler.go, backend/internal/handler/admin/announcement_handler.go, backend/internal/handler/dto/announcement.go, backend/internal/server/routes/user.go, frontend/src/types/index.ts, frontend/src/api/announcements.ts, frontend/src/api/admin/announcements.ts, frontend/src/stores/announcements.ts, frontend/src/views/admin/AnnouncementsView.vue, frontend/src/views/user/DashboardView.vue, frontend/src/components/user/dashboard/DashboardAnnouncementBanner.vue, frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/announcements.md, docs/dev/codebase/README.md
+**Why**: reuse the existing announcement system for daily popup scheduling, a dashboard top banner, and editable API key usage rules without adding a separate settings module.
+**Change details**:
+- Added announcement `surface` and `popup_frequency` fields plus nullable popup/banner dismissal timestamps on `announcement_reads`.
+- Added user `surface` filtering, backend-computed `should_popup`, popup-dismiss and banner-dismiss endpoints, and admin create/update/list support for the new fields.
+- Updated the global popup queue to rely on `should_popup`, and separated popup dismissal, banner dismissal, and read-state behavior.
+- Added an admin surface/frequency editor, a dashboard banner component, and an API key usage-rules modal before the getting-started steps.
+- Documented the announcement module flow, state semantics, nullable read-state repository pitfall, and immutable follow-up migration for dropping the legacy `read_at` default.
+- Verified with `go test -tags=unit ./internal/service ./internal/repository ./internal/handler/... ./internal/server/...`, `pnpm run typecheck`, `pnpm run lint:check`, and `pnpm build`.
+
 ## [2026-06-04] feat: surface configurable support contact in user flows
 
 **Affected files**: frontend/src/components/common/SupportContactBar.vue, frontend/src/components/common/__tests__/SupportContactBar.spec.ts, frontend/src/components/user/dashboard/UserDashboardQuickActions.vue, frontend/src/views/user/PaymentView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md

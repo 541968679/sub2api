@@ -20,6 +20,10 @@ const (
 	FieldUserID = "user_id"
 	// FieldReadAt holds the string denoting the read_at field in the database.
 	FieldReadAt = "read_at"
+	// FieldLastPopupDismissedAt holds the string denoting the last_popup_dismissed_at field in the database.
+	FieldLastPopupDismissedAt = "last_popup_dismissed_at"
+	// FieldBannerDismissedAt holds the string denoting the banner_dismissed_at field in the database.
+	FieldBannerDismissedAt = "banner_dismissed_at"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
 	// EdgeAnnouncement holds the string denoting the announcement edge name in mutations.
@@ -50,6 +54,8 @@ var Columns = []string{
 	FieldAnnouncementID,
 	FieldUserID,
 	FieldReadAt,
+	FieldLastPopupDismissedAt,
+	FieldBannerDismissedAt,
 	FieldCreatedAt,
 }
 
@@ -64,8 +70,6 @@ func ValidColumn(column string) bool {
 }
 
 var (
-	// DefaultReadAt holds the default value on creation for the "read_at" field.
-	DefaultReadAt func() time.Time
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
@@ -91,6 +95,16 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByReadAt orders the results by the read_at field.
 func ByReadAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldReadAt, opts...).ToFunc()
+}
+
+// ByLastPopupDismissedAt orders the results by the last_popup_dismissed_at field.
+func ByLastPopupDismissedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastPopupDismissedAt, opts...).ToFunc()
+}
+
+// ByBannerDismissedAt orders the results by the banner_dismissed_at field.
+func ByBannerDismissedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBannerDismissedAt, opts...).ToFunc()
 }
 
 // ByCreatedAt orders the results by the created_at field.

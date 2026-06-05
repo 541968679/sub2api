@@ -64,6 +64,34 @@ func (_c *AnnouncementCreate) SetNillableNotifyMode(v *string) *AnnouncementCrea
 	return _c
 }
 
+// SetSurface sets the "surface" field.
+func (_c *AnnouncementCreate) SetSurface(v string) *AnnouncementCreate {
+	_c.mutation.SetSurface(v)
+	return _c
+}
+
+// SetNillableSurface sets the "surface" field if the given value is not nil.
+func (_c *AnnouncementCreate) SetNillableSurface(v *string) *AnnouncementCreate {
+	if v != nil {
+		_c.SetSurface(*v)
+	}
+	return _c
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (_c *AnnouncementCreate) SetPopupFrequency(v string) *AnnouncementCreate {
+	_c.mutation.SetPopupFrequency(v)
+	return _c
+}
+
+// SetNillablePopupFrequency sets the "popup_frequency" field if the given value is not nil.
+func (_c *AnnouncementCreate) SetNillablePopupFrequency(v *string) *AnnouncementCreate {
+	if v != nil {
+		_c.SetPopupFrequency(*v)
+	}
+	return _c
+}
+
 // SetTargeting sets the "targeting" field.
 func (_c *AnnouncementCreate) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementCreate {
 	_c.mutation.SetTargeting(v)
@@ -220,6 +248,14 @@ func (_c *AnnouncementCreate) defaults() {
 		v := announcement.DefaultNotifyMode
 		_c.mutation.SetNotifyMode(v)
 	}
+	if _, ok := _c.mutation.Surface(); !ok {
+		v := announcement.DefaultSurface
+		_c.mutation.SetSurface(v)
+	}
+	if _, ok := _c.mutation.PopupFrequency(); !ok {
+		v := announcement.DefaultPopupFrequency
+		_c.mutation.SetPopupFrequency(v)
+	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := announcement.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -262,6 +298,22 @@ func (_c *AnnouncementCreate) check() error {
 	if v, ok := _c.mutation.NotifyMode(); ok {
 		if err := announcement.NotifyModeValidator(v); err != nil {
 			return &ValidationError{Name: "notify_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.notify_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.Surface(); !ok {
+		return &ValidationError{Name: "surface", err: errors.New(`ent: missing required field "Announcement.surface"`)}
+	}
+	if v, ok := _c.mutation.Surface(); ok {
+		if err := announcement.SurfaceValidator(v); err != nil {
+			return &ValidationError{Name: "surface", err: fmt.Errorf(`ent: validator failed for field "Announcement.surface": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.PopupFrequency(); !ok {
+		return &ValidationError{Name: "popup_frequency", err: errors.New(`ent: missing required field "Announcement.popup_frequency"`)}
+	}
+	if v, ok := _c.mutation.PopupFrequency(); ok {
+		if err := announcement.PopupFrequencyValidator(v); err != nil {
+			return &ValidationError{Name: "popup_frequency", err: fmt.Errorf(`ent: validator failed for field "Announcement.popup_frequency": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
@@ -312,6 +364,14 @@ func (_c *AnnouncementCreate) createSpec() (*Announcement, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.NotifyMode(); ok {
 		_spec.SetField(announcement.FieldNotifyMode, field.TypeString, value)
 		_node.NotifyMode = value
+	}
+	if value, ok := _c.mutation.Surface(); ok {
+		_spec.SetField(announcement.FieldSurface, field.TypeString, value)
+		_node.Surface = value
+	}
+	if value, ok := _c.mutation.PopupFrequency(); ok {
+		_spec.SetField(announcement.FieldPopupFrequency, field.TypeString, value)
+		_node.PopupFrequency = value
 	}
 	if value, ok := _c.mutation.Targeting(); ok {
 		_spec.SetField(announcement.FieldTargeting, field.TypeJSON, value)
@@ -454,6 +514,30 @@ func (u *AnnouncementUpsert) SetNotifyMode(v string) *AnnouncementUpsert {
 // UpdateNotifyMode sets the "notify_mode" field to the value that was provided on create.
 func (u *AnnouncementUpsert) UpdateNotifyMode() *AnnouncementUpsert {
 	u.SetExcluded(announcement.FieldNotifyMode)
+	return u
+}
+
+// SetSurface sets the "surface" field.
+func (u *AnnouncementUpsert) SetSurface(v string) *AnnouncementUpsert {
+	u.Set(announcement.FieldSurface, v)
+	return u
+}
+
+// UpdateSurface sets the "surface" field to the value that was provided on create.
+func (u *AnnouncementUpsert) UpdateSurface() *AnnouncementUpsert {
+	u.SetExcluded(announcement.FieldSurface)
+	return u
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (u *AnnouncementUpsert) SetPopupFrequency(v string) *AnnouncementUpsert {
+	u.Set(announcement.FieldPopupFrequency, v)
+	return u
+}
+
+// UpdatePopupFrequency sets the "popup_frequency" field to the value that was provided on create.
+func (u *AnnouncementUpsert) UpdatePopupFrequency() *AnnouncementUpsert {
+	u.SetExcluded(announcement.FieldPopupFrequency)
 	return u
 }
 
@@ -669,6 +753,34 @@ func (u *AnnouncementUpsertOne) SetNotifyMode(v string) *AnnouncementUpsertOne {
 func (u *AnnouncementUpsertOne) UpdateNotifyMode() *AnnouncementUpsertOne {
 	return u.Update(func(s *AnnouncementUpsert) {
 		s.UpdateNotifyMode()
+	})
+}
+
+// SetSurface sets the "surface" field.
+func (u *AnnouncementUpsertOne) SetSurface(v string) *AnnouncementUpsertOne {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.SetSurface(v)
+	})
+}
+
+// UpdateSurface sets the "surface" field to the value that was provided on create.
+func (u *AnnouncementUpsertOne) UpdateSurface() *AnnouncementUpsertOne {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.UpdateSurface()
+	})
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (u *AnnouncementUpsertOne) SetPopupFrequency(v string) *AnnouncementUpsertOne {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.SetPopupFrequency(v)
+	})
+}
+
+// UpdatePopupFrequency sets the "popup_frequency" field to the value that was provided on create.
+func (u *AnnouncementUpsertOne) UpdatePopupFrequency() *AnnouncementUpsertOne {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.UpdatePopupFrequency()
 	})
 }
 
@@ -1069,6 +1181,34 @@ func (u *AnnouncementUpsertBulk) SetNotifyMode(v string) *AnnouncementUpsertBulk
 func (u *AnnouncementUpsertBulk) UpdateNotifyMode() *AnnouncementUpsertBulk {
 	return u.Update(func(s *AnnouncementUpsert) {
 		s.UpdateNotifyMode()
+	})
+}
+
+// SetSurface sets the "surface" field.
+func (u *AnnouncementUpsertBulk) SetSurface(v string) *AnnouncementUpsertBulk {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.SetSurface(v)
+	})
+}
+
+// UpdateSurface sets the "surface" field to the value that was provided on create.
+func (u *AnnouncementUpsertBulk) UpdateSurface() *AnnouncementUpsertBulk {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.UpdateSurface()
+	})
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (u *AnnouncementUpsertBulk) SetPopupFrequency(v string) *AnnouncementUpsertBulk {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.SetPopupFrequency(v)
+	})
+}
+
+// UpdatePopupFrequency sets the "popup_frequency" field to the value that was provided on create.
+func (u *AnnouncementUpsertBulk) UpdatePopupFrequency() *AnnouncementUpsertBulk {
+	return u.Update(func(s *AnnouncementUpsert) {
+		s.UpdatePopupFrequency()
 	})
 }
 

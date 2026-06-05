@@ -27,23 +27,27 @@ func NewAnnouncementHandler(announcementService *service.AnnouncementService) *A
 }
 
 type CreateAnnouncementRequest struct {
-	Title      string                        `json:"title" binding:"required"`
-	Content    string                        `json:"content" binding:"required"`
-	Status     string                        `json:"status" binding:"omitempty,oneof=draft active archived"`
-	NotifyMode string                        `json:"notify_mode" binding:"omitempty,oneof=silent popup"`
-	Targeting  service.AnnouncementTargeting `json:"targeting"`
-	StartsAt   *int64                        `json:"starts_at"` // Unix seconds, 0/empty = immediate
-	EndsAt     *int64                        `json:"ends_at"`   // Unix seconds, 0/empty = never
+	Title          string                        `json:"title" binding:"required"`
+	Content        string                        `json:"content" binding:"required"`
+	Status         string                        `json:"status" binding:"omitempty,oneof=draft active archived"`
+	NotifyMode     string                        `json:"notify_mode" binding:"omitempty,oneof=silent popup"`
+	Surface        string                        `json:"surface" binding:"omitempty,oneof=general dashboard_banner api_key_rules"`
+	PopupFrequency string                        `json:"popup_frequency" binding:"omitempty,oneof=once daily"`
+	Targeting      service.AnnouncementTargeting `json:"targeting"`
+	StartsAt       *int64                        `json:"starts_at"` // Unix seconds, 0/empty = immediate
+	EndsAt         *int64                        `json:"ends_at"`   // Unix seconds, 0/empty = never
 }
 
 type UpdateAnnouncementRequest struct {
-	Title      *string                        `json:"title"`
-	Content    *string                        `json:"content"`
-	Status     *string                        `json:"status" binding:"omitempty,oneof=draft active archived"`
-	NotifyMode *string                        `json:"notify_mode" binding:"omitempty,oneof=silent popup"`
-	Targeting  *service.AnnouncementTargeting `json:"targeting"`
-	StartsAt   *int64                         `json:"starts_at"` // Unix seconds, 0 = clear
-	EndsAt     *int64                         `json:"ends_at"`   // Unix seconds, 0 = clear
+	Title          *string                        `json:"title"`
+	Content        *string                        `json:"content"`
+	Status         *string                        `json:"status" binding:"omitempty,oneof=draft active archived"`
+	NotifyMode     *string                        `json:"notify_mode" binding:"omitempty,oneof=silent popup"`
+	Surface        *string                        `json:"surface" binding:"omitempty,oneof=general dashboard_banner api_key_rules"`
+	PopupFrequency *string                        `json:"popup_frequency" binding:"omitempty,oneof=once daily"`
+	Targeting      *service.AnnouncementTargeting `json:"targeting"`
+	StartsAt       *int64                         `json:"starts_at"` // Unix seconds, 0 = clear
+	EndsAt         *int64                         `json:"ends_at"`   // Unix seconds, 0 = clear
 }
 
 // List handles listing announcements with filters
@@ -52,6 +56,7 @@ func (h *AnnouncementHandler) List(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
 	status := strings.TrimSpace(c.Query("status"))
 	search := strings.TrimSpace(c.Query("search"))
+	surface := strings.TrimSpace(c.Query("surface"))
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	sortOrder := c.DefaultQuery("sort_order", "desc")
 	if len(search) > 200 {
@@ -68,7 +73,7 @@ func (h *AnnouncementHandler) List(c *gin.Context) {
 	items, paginationResult, err := h.announcementService.List(
 		c.Request.Context(),
 		params,
-		service.AnnouncementListFilters{Status: status, Search: search},
+		service.AnnouncementListFilters{Status: status, Search: search, Surface: surface},
 	)
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -116,12 +121,14 @@ func (h *AnnouncementHandler) Create(c *gin.Context) {
 	}
 
 	input := &service.CreateAnnouncementInput{
-		Title:      req.Title,
-		Content:    req.Content,
-		Status:     req.Status,
-		NotifyMode: req.NotifyMode,
-		Targeting:  req.Targeting,
-		ActorID:    &subject.UserID,
+		Title:          req.Title,
+		Content:        req.Content,
+		Status:         req.Status,
+		NotifyMode:     req.NotifyMode,
+		Surface:        req.Surface,
+		PopupFrequency: req.PopupFrequency,
+		Targeting:      req.Targeting,
+		ActorID:        &subject.UserID,
 	}
 
 	if req.StartsAt != nil && *req.StartsAt > 0 {
@@ -164,12 +171,14 @@ func (h *AnnouncementHandler) Update(c *gin.Context) {
 	}
 
 	input := &service.UpdateAnnouncementInput{
-		Title:      req.Title,
-		Content:    req.Content,
-		Status:     req.Status,
-		NotifyMode: req.NotifyMode,
-		Targeting:  req.Targeting,
-		ActorID:    &subject.UserID,
+		Title:          req.Title,
+		Content:        req.Content,
+		Status:         req.Status,
+		NotifyMode:     req.NotifyMode,
+		Surface:        req.Surface,
+		PopupFrequency: req.PopupFrequency,
+		Targeting:      req.Targeting,
+		ActorID:        &subject.UserID,
 	}
 
 	if req.StartsAt != nil {

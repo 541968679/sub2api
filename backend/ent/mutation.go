@@ -5713,29 +5713,31 @@ func (m *AccountGroupMutation) ResetEdge(name string) error {
 // AnnouncementMutation represents an operation that mutates the Announcement nodes in the graph.
 type AnnouncementMutation struct {
 	config
-	op            Op
-	typ           string
-	id            *int64
-	title         *string
-	content       *string
-	status        *string
-	notify_mode   *string
-	targeting     *domain.AnnouncementTargeting
-	starts_at     *time.Time
-	ends_at       *time.Time
-	created_by    *int64
-	addcreated_by *int64
-	updated_by    *int64
-	addupdated_by *int64
-	created_at    *time.Time
-	updated_at    *time.Time
-	clearedFields map[string]struct{}
-	reads         map[int64]struct{}
-	removedreads  map[int64]struct{}
-	clearedreads  bool
-	done          bool
-	oldValue      func(context.Context) (*Announcement, error)
-	predicates    []predicate.Announcement
+	op              Op
+	typ             string
+	id              *int64
+	title           *string
+	content         *string
+	status          *string
+	notify_mode     *string
+	surface         *string
+	popup_frequency *string
+	targeting       *domain.AnnouncementTargeting
+	starts_at       *time.Time
+	ends_at         *time.Time
+	created_by      *int64
+	addcreated_by   *int64
+	updated_by      *int64
+	addupdated_by   *int64
+	created_at      *time.Time
+	updated_at      *time.Time
+	clearedFields   map[string]struct{}
+	reads           map[int64]struct{}
+	removedreads    map[int64]struct{}
+	clearedreads    bool
+	done            bool
+	oldValue        func(context.Context) (*Announcement, error)
+	predicates      []predicate.Announcement
 }
 
 var _ ent.Mutation = (*AnnouncementMutation)(nil)
@@ -5978,6 +5980,78 @@ func (m *AnnouncementMutation) OldNotifyMode(ctx context.Context) (v string, err
 // ResetNotifyMode resets all changes to the "notify_mode" field.
 func (m *AnnouncementMutation) ResetNotifyMode() {
 	m.notify_mode = nil
+}
+
+// SetSurface sets the "surface" field.
+func (m *AnnouncementMutation) SetSurface(s string) {
+	m.surface = &s
+}
+
+// Surface returns the value of the "surface" field in the mutation.
+func (m *AnnouncementMutation) Surface() (r string, exists bool) {
+	v := m.surface
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSurface returns the old "surface" field's value of the Announcement entity.
+// If the Announcement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AnnouncementMutation) OldSurface(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSurface is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSurface requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSurface: %w", err)
+	}
+	return oldValue.Surface, nil
+}
+
+// ResetSurface resets all changes to the "surface" field.
+func (m *AnnouncementMutation) ResetSurface() {
+	m.surface = nil
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (m *AnnouncementMutation) SetPopupFrequency(s string) {
+	m.popup_frequency = &s
+}
+
+// PopupFrequency returns the value of the "popup_frequency" field in the mutation.
+func (m *AnnouncementMutation) PopupFrequency() (r string, exists bool) {
+	v := m.popup_frequency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPopupFrequency returns the old "popup_frequency" field's value of the Announcement entity.
+// If the Announcement object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AnnouncementMutation) OldPopupFrequency(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPopupFrequency is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPopupFrequency requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPopupFrequency: %w", err)
+	}
+	return oldValue.PopupFrequency, nil
+}
+
+// ResetPopupFrequency resets all changes to the "popup_frequency" field.
+func (m *AnnouncementMutation) ResetPopupFrequency() {
+	m.popup_frequency = nil
 }
 
 // SetTargeting sets the "targeting" field.
@@ -6427,7 +6501,7 @@ func (m *AnnouncementMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AnnouncementMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 13)
 	if m.title != nil {
 		fields = append(fields, announcement.FieldTitle)
 	}
@@ -6439,6 +6513,12 @@ func (m *AnnouncementMutation) Fields() []string {
 	}
 	if m.notify_mode != nil {
 		fields = append(fields, announcement.FieldNotifyMode)
+	}
+	if m.surface != nil {
+		fields = append(fields, announcement.FieldSurface)
+	}
+	if m.popup_frequency != nil {
+		fields = append(fields, announcement.FieldPopupFrequency)
 	}
 	if m.targeting != nil {
 		fields = append(fields, announcement.FieldTargeting)
@@ -6477,6 +6557,10 @@ func (m *AnnouncementMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case announcement.FieldNotifyMode:
 		return m.NotifyMode()
+	case announcement.FieldSurface:
+		return m.Surface()
+	case announcement.FieldPopupFrequency:
+		return m.PopupFrequency()
 	case announcement.FieldTargeting:
 		return m.Targeting()
 	case announcement.FieldStartsAt:
@@ -6508,6 +6592,10 @@ func (m *AnnouncementMutation) OldField(ctx context.Context, name string) (ent.V
 		return m.OldStatus(ctx)
 	case announcement.FieldNotifyMode:
 		return m.OldNotifyMode(ctx)
+	case announcement.FieldSurface:
+		return m.OldSurface(ctx)
+	case announcement.FieldPopupFrequency:
+		return m.OldPopupFrequency(ctx)
 	case announcement.FieldTargeting:
 		return m.OldTargeting(ctx)
 	case announcement.FieldStartsAt:
@@ -6558,6 +6646,20 @@ func (m *AnnouncementMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetNotifyMode(v)
+		return nil
+	case announcement.FieldSurface:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSurface(v)
+		return nil
+	case announcement.FieldPopupFrequency:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPopupFrequency(v)
 		return nil
 	case announcement.FieldTargeting:
 		v, ok := value.(domain.AnnouncementTargeting)
@@ -6729,6 +6831,12 @@ func (m *AnnouncementMutation) ResetField(name string) error {
 	case announcement.FieldNotifyMode:
 		m.ResetNotifyMode()
 		return nil
+	case announcement.FieldSurface:
+		m.ResetSurface()
+		return nil
+	case announcement.FieldPopupFrequency:
+		m.ResetPopupFrequency()
+		return nil
 	case announcement.FieldTargeting:
 		m.ResetTargeting()
 		return nil
@@ -6841,19 +6949,21 @@ func (m *AnnouncementMutation) ResetEdge(name string) error {
 // AnnouncementReadMutation represents an operation that mutates the AnnouncementRead nodes in the graph.
 type AnnouncementReadMutation struct {
 	config
-	op                  Op
-	typ                 string
-	id                  *int64
-	read_at             *time.Time
-	created_at          *time.Time
-	clearedFields       map[string]struct{}
-	announcement        *int64
-	clearedannouncement bool
-	user                *int64
-	cleareduser         bool
-	done                bool
-	oldValue            func(context.Context) (*AnnouncementRead, error)
-	predicates          []predicate.AnnouncementRead
+	op                      Op
+	typ                     string
+	id                      *int64
+	read_at                 *time.Time
+	last_popup_dismissed_at *time.Time
+	banner_dismissed_at     *time.Time
+	created_at              *time.Time
+	clearedFields           map[string]struct{}
+	announcement            *int64
+	clearedannouncement     bool
+	user                    *int64
+	cleareduser             bool
+	done                    bool
+	oldValue                func(context.Context) (*AnnouncementRead, error)
+	predicates              []predicate.AnnouncementRead
 }
 
 var _ ent.Mutation = (*AnnouncementReadMutation)(nil)
@@ -7043,7 +7153,7 @@ func (m *AnnouncementReadMutation) ReadAt() (r time.Time, exists bool) {
 // OldReadAt returns the old "read_at" field's value of the AnnouncementRead entity.
 // If the AnnouncementRead object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *AnnouncementReadMutation) OldReadAt(ctx context.Context) (v time.Time, err error) {
+func (m *AnnouncementReadMutation) OldReadAt(ctx context.Context) (v *time.Time, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldReadAt is only allowed on UpdateOne operations")
 	}
@@ -7057,9 +7167,120 @@ func (m *AnnouncementReadMutation) OldReadAt(ctx context.Context) (v time.Time, 
 	return oldValue.ReadAt, nil
 }
 
+// ClearReadAt clears the value of the "read_at" field.
+func (m *AnnouncementReadMutation) ClearReadAt() {
+	m.read_at = nil
+	m.clearedFields[announcementread.FieldReadAt] = struct{}{}
+}
+
+// ReadAtCleared returns if the "read_at" field was cleared in this mutation.
+func (m *AnnouncementReadMutation) ReadAtCleared() bool {
+	_, ok := m.clearedFields[announcementread.FieldReadAt]
+	return ok
+}
+
 // ResetReadAt resets all changes to the "read_at" field.
 func (m *AnnouncementReadMutation) ResetReadAt() {
 	m.read_at = nil
+	delete(m.clearedFields, announcementread.FieldReadAt)
+}
+
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (m *AnnouncementReadMutation) SetLastPopupDismissedAt(t time.Time) {
+	m.last_popup_dismissed_at = &t
+}
+
+// LastPopupDismissedAt returns the value of the "last_popup_dismissed_at" field in the mutation.
+func (m *AnnouncementReadMutation) LastPopupDismissedAt() (r time.Time, exists bool) {
+	v := m.last_popup_dismissed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastPopupDismissedAt returns the old "last_popup_dismissed_at" field's value of the AnnouncementRead entity.
+// If the AnnouncementRead object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AnnouncementReadMutation) OldLastPopupDismissedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastPopupDismissedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastPopupDismissedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastPopupDismissedAt: %w", err)
+	}
+	return oldValue.LastPopupDismissedAt, nil
+}
+
+// ClearLastPopupDismissedAt clears the value of the "last_popup_dismissed_at" field.
+func (m *AnnouncementReadMutation) ClearLastPopupDismissedAt() {
+	m.last_popup_dismissed_at = nil
+	m.clearedFields[announcementread.FieldLastPopupDismissedAt] = struct{}{}
+}
+
+// LastPopupDismissedAtCleared returns if the "last_popup_dismissed_at" field was cleared in this mutation.
+func (m *AnnouncementReadMutation) LastPopupDismissedAtCleared() bool {
+	_, ok := m.clearedFields[announcementread.FieldLastPopupDismissedAt]
+	return ok
+}
+
+// ResetLastPopupDismissedAt resets all changes to the "last_popup_dismissed_at" field.
+func (m *AnnouncementReadMutation) ResetLastPopupDismissedAt() {
+	m.last_popup_dismissed_at = nil
+	delete(m.clearedFields, announcementread.FieldLastPopupDismissedAt)
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (m *AnnouncementReadMutation) SetBannerDismissedAt(t time.Time) {
+	m.banner_dismissed_at = &t
+}
+
+// BannerDismissedAt returns the value of the "banner_dismissed_at" field in the mutation.
+func (m *AnnouncementReadMutation) BannerDismissedAt() (r time.Time, exists bool) {
+	v := m.banner_dismissed_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBannerDismissedAt returns the old "banner_dismissed_at" field's value of the AnnouncementRead entity.
+// If the AnnouncementRead object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AnnouncementReadMutation) OldBannerDismissedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBannerDismissedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBannerDismissedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBannerDismissedAt: %w", err)
+	}
+	return oldValue.BannerDismissedAt, nil
+}
+
+// ClearBannerDismissedAt clears the value of the "banner_dismissed_at" field.
+func (m *AnnouncementReadMutation) ClearBannerDismissedAt() {
+	m.banner_dismissed_at = nil
+	m.clearedFields[announcementread.FieldBannerDismissedAt] = struct{}{}
+}
+
+// BannerDismissedAtCleared returns if the "banner_dismissed_at" field was cleared in this mutation.
+func (m *AnnouncementReadMutation) BannerDismissedAtCleared() bool {
+	_, ok := m.clearedFields[announcementread.FieldBannerDismissedAt]
+	return ok
+}
+
+// ResetBannerDismissedAt resets all changes to the "banner_dismissed_at" field.
+func (m *AnnouncementReadMutation) ResetBannerDismissedAt() {
+	m.banner_dismissed_at = nil
+	delete(m.clearedFields, announcementread.FieldBannerDismissedAt)
 }
 
 // SetCreatedAt sets the "created_at" field.
@@ -7186,7 +7407,7 @@ func (m *AnnouncementReadMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AnnouncementReadMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 6)
 	if m.announcement != nil {
 		fields = append(fields, announcementread.FieldAnnouncementID)
 	}
@@ -7195,6 +7416,12 @@ func (m *AnnouncementReadMutation) Fields() []string {
 	}
 	if m.read_at != nil {
 		fields = append(fields, announcementread.FieldReadAt)
+	}
+	if m.last_popup_dismissed_at != nil {
+		fields = append(fields, announcementread.FieldLastPopupDismissedAt)
+	}
+	if m.banner_dismissed_at != nil {
+		fields = append(fields, announcementread.FieldBannerDismissedAt)
 	}
 	if m.created_at != nil {
 		fields = append(fields, announcementread.FieldCreatedAt)
@@ -7213,6 +7440,10 @@ func (m *AnnouncementReadMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case announcementread.FieldReadAt:
 		return m.ReadAt()
+	case announcementread.FieldLastPopupDismissedAt:
+		return m.LastPopupDismissedAt()
+	case announcementread.FieldBannerDismissedAt:
+		return m.BannerDismissedAt()
 	case announcementread.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -7230,6 +7461,10 @@ func (m *AnnouncementReadMutation) OldField(ctx context.Context, name string) (e
 		return m.OldUserID(ctx)
 	case announcementread.FieldReadAt:
 		return m.OldReadAt(ctx)
+	case announcementread.FieldLastPopupDismissedAt:
+		return m.OldLastPopupDismissedAt(ctx)
+	case announcementread.FieldBannerDismissedAt:
+		return m.OldBannerDismissedAt(ctx)
 	case announcementread.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -7261,6 +7496,20 @@ func (m *AnnouncementReadMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetReadAt(v)
+		return nil
+	case announcementread.FieldLastPopupDismissedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastPopupDismissedAt(v)
+		return nil
+	case announcementread.FieldBannerDismissedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBannerDismissedAt(v)
 		return nil
 	case announcementread.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -7301,7 +7550,17 @@ func (m *AnnouncementReadMutation) AddField(name string, value ent.Value) error 
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AnnouncementReadMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(announcementread.FieldReadAt) {
+		fields = append(fields, announcementread.FieldReadAt)
+	}
+	if m.FieldCleared(announcementread.FieldLastPopupDismissedAt) {
+		fields = append(fields, announcementread.FieldLastPopupDismissedAt)
+	}
+	if m.FieldCleared(announcementread.FieldBannerDismissedAt) {
+		fields = append(fields, announcementread.FieldBannerDismissedAt)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -7314,6 +7573,17 @@ func (m *AnnouncementReadMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AnnouncementReadMutation) ClearField(name string) error {
+	switch name {
+	case announcementread.FieldReadAt:
+		m.ClearReadAt()
+		return nil
+	case announcementread.FieldLastPopupDismissedAt:
+		m.ClearLastPopupDismissedAt()
+		return nil
+	case announcementread.FieldBannerDismissedAt:
+		m.ClearBannerDismissedAt()
+		return nil
+	}
 	return fmt.Errorf("unknown AnnouncementRead nullable field %s", name)
 }
 
@@ -7329,6 +7599,12 @@ func (m *AnnouncementReadMutation) ResetField(name string) error {
 		return nil
 	case announcementread.FieldReadAt:
 		m.ResetReadAt()
+		return nil
+	case announcementread.FieldLastPopupDismissedAt:
+		m.ResetLastPopupDismissedAt()
+		return nil
+	case announcementread.FieldBannerDismissedAt:
+		m.ResetBannerDismissedAt()
 		return nil
 	case announcementread.FieldCreatedAt:
 		m.ResetCreatedAt()

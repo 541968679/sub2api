@@ -693,7 +693,10 @@ export default {
     quickStart: 'Quick Start Guide',
     quickStartHint: 'Learn how to set up and use your API keys',
     tutorial: 'Detailed Tutorial',
-    tutorialHint: 'Full setup guide for Claude Code, Codex and more'
+    tutorialHint: 'Full setup guide for Claude Code, Codex and more',
+    announcementBannerLabel: 'Announcement',
+    announcementDetails: 'View details',
+    announcementDismiss: 'Dismiss announcement'
   },
 
   supportContact: {
@@ -844,6 +847,9 @@ export default {
       step3Title: 'Use Your Key',
       step3Desc: 'Click "Import to CCS" next to your key for auto setup, or click "Use Key" for manual configuration.',
       step3DescNoCcs: 'Click "Use Key" next to your key to see setup instructions for coding tools.',
+      rulesTitle: 'Usage Rules',
+      rulesAction: 'Read',
+      rulesModalTitle: 'API Key Usage Rules',
     },
     // Quota and expiration
     quotaLimit: 'Quota Limit',
@@ -4348,8 +4354,10 @@ export default {
       searchAnnouncements: 'Search announcements...',
       status: 'Status',
       allStatus: 'All Status',
+      allSurfaces: 'All Surfaces',
       columns: {
         title: 'Title',
+        surface: 'Surface',
         status: 'Status',
         notifyMode: 'Notify Mode',
         targeting: 'Targeting',
@@ -4366,12 +4374,24 @@ export default {
         silent: 'Silent',
         popup: 'Popup'
       },
+      surfaceLabels: {
+        general: 'General',
+        dashboard_banner: 'Dashboard Banner',
+        api_key_rules: 'API Key Rules'
+      },
+      popupFrequencyLabels: {
+        once: 'Once',
+        daily: 'Daily'
+      },
       form: {
         title: 'Title',
         content: 'Content (Markdown supported)',
+        surface: 'Surface',
         status: 'Status',
         notifyMode: 'Notify Mode',
         notifyModeHint: 'Popup mode will show a popup notification to users',
+        popupFrequency: 'Popup Frequency',
+        popupFrequencyHint: 'Daily popup announcements reappear once per server day after dismissal',
         startsAt: 'Starts At',
         endsAt: 'Ends At',
         startsAtHint: 'Leave empty to start immediately',

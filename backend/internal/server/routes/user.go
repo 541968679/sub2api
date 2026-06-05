@@ -94,6 +94,8 @@ func RegisterUserRoutes(
 		{
 			announcements.GET("", h.Announcement.List)
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
+			announcements.POST("/:id/popup-dismiss", h.Announcement.DismissPopup)
+			announcements.POST("/:id/banner-dismiss", h.Announcement.DismissBanner)
 		}
 
 		// 卡密兑换

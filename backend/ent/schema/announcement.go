@@ -45,6 +45,14 @@ func (Announcement) Fields() []ent.Field {
 			MaxLen(20).
 			Default(domain.AnnouncementNotifyModeSilent).
 			Comment("通知模式: silent(仅铃铛), popup(弹窗提醒)"),
+		field.String("surface").
+			MaxLen(50).
+			Default(domain.AnnouncementSurfaceGeneral).
+			Comment("display surface: general, dashboard_banner, api_key_rules"),
+		field.String("popup_frequency").
+			MaxLen(20).
+			Default(domain.AnnouncementPopupFrequencyOnce).
+			Comment("popup frequency: once, daily"),
 		field.JSON("targeting", domain.AnnouncementTargeting{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
@@ -87,6 +95,7 @@ func (Announcement) Edges() []ent.Edge {
 func (Announcement) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("status"),
+		index.Fields("surface"),
 		index.Fields("created_at"),
 		index.Fields("starts_at"),
 		index.Fields("ends_at"),

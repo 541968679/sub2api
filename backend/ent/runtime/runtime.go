@@ -312,24 +312,32 @@ func init() {
 	announcement.DefaultNotifyMode = announcementDescNotifyMode.Default.(string)
 	// announcement.NotifyModeValidator is a validator for the "notify_mode" field. It is called by the builders before save.
 	announcement.NotifyModeValidator = announcementDescNotifyMode.Validators[0].(func(string) error)
+	// announcementDescSurface is the schema descriptor for surface field.
+	announcementDescSurface := announcementFields[4].Descriptor()
+	// announcement.DefaultSurface holds the default value on creation for the surface field.
+	announcement.DefaultSurface = announcementDescSurface.Default.(string)
+	// announcement.SurfaceValidator is a validator for the "surface" field. It is called by the builders before save.
+	announcement.SurfaceValidator = announcementDescSurface.Validators[0].(func(string) error)
+	// announcementDescPopupFrequency is the schema descriptor for popup_frequency field.
+	announcementDescPopupFrequency := announcementFields[5].Descriptor()
+	// announcement.DefaultPopupFrequency holds the default value on creation for the popup_frequency field.
+	announcement.DefaultPopupFrequency = announcementDescPopupFrequency.Default.(string)
+	// announcement.PopupFrequencyValidator is a validator for the "popup_frequency" field. It is called by the builders before save.
+	announcement.PopupFrequencyValidator = announcementDescPopupFrequency.Validators[0].(func(string) error)
 	// announcementDescCreatedAt is the schema descriptor for created_at field.
-	announcementDescCreatedAt := announcementFields[9].Descriptor()
+	announcementDescCreatedAt := announcementFields[11].Descriptor()
 	// announcement.DefaultCreatedAt holds the default value on creation for the created_at field.
 	announcement.DefaultCreatedAt = announcementDescCreatedAt.Default.(func() time.Time)
 	// announcementDescUpdatedAt is the schema descriptor for updated_at field.
-	announcementDescUpdatedAt := announcementFields[10].Descriptor()
+	announcementDescUpdatedAt := announcementFields[12].Descriptor()
 	// announcement.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	announcement.DefaultUpdatedAt = announcementDescUpdatedAt.Default.(func() time.Time)
 	// announcement.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	announcement.UpdateDefaultUpdatedAt = announcementDescUpdatedAt.UpdateDefault.(func() time.Time)
 	announcementreadFields := schema.AnnouncementRead{}.Fields()
 	_ = announcementreadFields
-	// announcementreadDescReadAt is the schema descriptor for read_at field.
-	announcementreadDescReadAt := announcementreadFields[2].Descriptor()
-	// announcementread.DefaultReadAt holds the default value on creation for the read_at field.
-	announcementread.DefaultReadAt = announcementreadDescReadAt.Default.(func() time.Time)
 	// announcementreadDescCreatedAt is the schema descriptor for created_at field.
-	announcementreadDescCreatedAt := announcementreadFields[3].Descriptor()
+	announcementreadDescCreatedAt := announcementreadFields[5].Descriptor()
 	// announcementread.DefaultCreatedAt holds the default value on creation for the created_at field.
 	announcementread.DefaultCreatedAt = announcementreadDescCreatedAt.Default.(func() time.Time)
 	authidentityMixin := schema.AuthIdentity{}.Mixin()

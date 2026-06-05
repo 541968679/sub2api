@@ -7,11 +7,13 @@ import (
 )
 
 type Announcement struct {
-	ID         int64  `json:"id"`
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	Status     string `json:"status"`
-	NotifyMode string `json:"notify_mode"`
+	ID             int64  `json:"id"`
+	Title          string `json:"title"`
+	Content        string `json:"content"`
+	Status         string `json:"status"`
+	NotifyMode     string `json:"notify_mode"`
+	Surface        string `json:"surface"`
+	PopupFrequency string `json:"popup_frequency"`
 
 	Targeting service.AnnouncementTargeting `json:"targeting"`
 
@@ -26,15 +28,20 @@ type Announcement struct {
 }
 
 type UserAnnouncement struct {
-	ID         int64  `json:"id"`
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	NotifyMode string `json:"notify_mode"`
+	ID             int64  `json:"id"`
+	Title          string `json:"title"`
+	Content        string `json:"content"`
+	NotifyMode     string `json:"notify_mode"`
+	Surface        string `json:"surface"`
+	PopupFrequency string `json:"popup_frequency"`
 
 	StartsAt *time.Time `json:"starts_at,omitempty"`
 	EndsAt   *time.Time `json:"ends_at,omitempty"`
 
-	ReadAt *time.Time `json:"read_at,omitempty"`
+	ReadAt               *time.Time `json:"read_at,omitempty"`
+	LastPopupDismissedAt *time.Time `json:"last_popup_dismissed_at,omitempty"`
+	BannerDismissedAt    *time.Time `json:"banner_dismissed_at,omitempty"`
+	ShouldPopup          bool       `json:"should_popup"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -45,18 +52,20 @@ func AnnouncementFromService(a *service.Announcement) *Announcement {
 		return nil
 	}
 	return &Announcement{
-		ID:         a.ID,
-		Title:      a.Title,
-		Content:    a.Content,
-		Status:     a.Status,
-		NotifyMode: a.NotifyMode,
-		Targeting:  a.Targeting,
-		StartsAt:   a.StartsAt,
-		EndsAt:     a.EndsAt,
-		CreatedBy:  a.CreatedBy,
-		UpdatedBy:  a.UpdatedBy,
-		CreatedAt:  a.CreatedAt,
-		UpdatedAt:  a.UpdatedAt,
+		ID:             a.ID,
+		Title:          a.Title,
+		Content:        a.Content,
+		Status:         a.Status,
+		NotifyMode:     a.NotifyMode,
+		Surface:        a.Surface,
+		PopupFrequency: a.PopupFrequency,
+		Targeting:      a.Targeting,
+		StartsAt:       a.StartsAt,
+		EndsAt:         a.EndsAt,
+		CreatedBy:      a.CreatedBy,
+		UpdatedBy:      a.UpdatedBy,
+		CreatedAt:      a.CreatedAt,
+		UpdatedAt:      a.UpdatedAt,
 	}
 }
 
@@ -65,14 +74,19 @@ func UserAnnouncementFromService(a *service.UserAnnouncement) *UserAnnouncement 
 		return nil
 	}
 	return &UserAnnouncement{
-		ID:         a.Announcement.ID,
-		Title:      a.Announcement.Title,
-		Content:    a.Announcement.Content,
-		NotifyMode: a.Announcement.NotifyMode,
-		StartsAt:   a.Announcement.StartsAt,
-		EndsAt:     a.Announcement.EndsAt,
-		ReadAt:     a.ReadAt,
-		CreatedAt:  a.Announcement.CreatedAt,
-		UpdatedAt:  a.Announcement.UpdatedAt,
+		ID:                   a.Announcement.ID,
+		Title:                a.Announcement.Title,
+		Content:              a.Announcement.Content,
+		NotifyMode:           a.Announcement.NotifyMode,
+		Surface:              a.Announcement.Surface,
+		PopupFrequency:       a.Announcement.PopupFrequency,
+		StartsAt:             a.Announcement.StartsAt,
+		EndsAt:               a.Announcement.EndsAt,
+		ReadAt:               a.ReadAt,
+		LastPopupDismissedAt: a.LastPopupDismissedAt,
+		BannerDismissedAt:    a.BannerDismissedAt,
+		ShouldPopup:          a.ShouldPopup,
+		CreatedAt:            a.Announcement.CreatedAt,
+		UpdatedAt:            a.Announcement.UpdatedAt,
 	}
 }

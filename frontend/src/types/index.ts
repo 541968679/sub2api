@@ -408,6 +408,8 @@ export interface UpdateSubscriptionRequest {
 
 export type AnnouncementStatus = 'draft' | 'active' | 'archived'
 export type AnnouncementNotifyMode = 'silent' | 'popup'
+export type AnnouncementSurface = 'general' | 'dashboard_banner' | 'api_key_rules'
+export type AnnouncementPopupFrequency = 'once' | 'daily'
 
 export type AnnouncementConditionType = 'subscription' | 'balance'
 
@@ -434,6 +436,8 @@ export interface Announcement {
   content: string
   status: AnnouncementStatus
   notify_mode: AnnouncementNotifyMode
+  surface: AnnouncementSurface
+  popup_frequency: AnnouncementPopupFrequency
   targeting: AnnouncementTargeting
   starts_at?: string
   ends_at?: string
@@ -448,9 +452,14 @@ export interface UserAnnouncement {
   title: string
   content: string
   notify_mode: AnnouncementNotifyMode
+  surface: AnnouncementSurface
+  popup_frequency: AnnouncementPopupFrequency
   starts_at?: string
   ends_at?: string
   read_at?: string
+  last_popup_dismissed_at?: string
+  banner_dismissed_at?: string
+  should_popup: boolean
   created_at: string
   updated_at: string
 }
@@ -460,6 +469,8 @@ export interface CreateAnnouncementRequest {
   content: string
   status?: AnnouncementStatus
   notify_mode?: AnnouncementNotifyMode
+  surface?: AnnouncementSurface
+  popup_frequency?: AnnouncementPopupFrequency
   targeting: AnnouncementTargeting
   starts_at?: number
   ends_at?: number
@@ -470,6 +481,8 @@ export interface UpdateAnnouncementRequest {
   content?: string
   status?: AnnouncementStatus
   notify_mode?: AnnouncementNotifyMode
+  surface?: AnnouncementSurface
+  popup_frequency?: AnnouncementPopupFrequency
   targeting?: AnnouncementTargeting
   starts_at?: number
   ends_at?: number

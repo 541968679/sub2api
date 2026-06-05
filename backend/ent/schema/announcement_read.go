@@ -30,9 +30,20 @@ func (AnnouncementRead) Fields() []ent.Field {
 		field.Int64("announcement_id"),
 		field.Int64("user_id"),
 		field.Time("read_at").
-			Default(time.Now).
+			Optional().
+			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}).
 			Comment("用户首次已读时间"),
+		field.Time("last_popup_dismissed_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}).
+			Comment("last popup dismissal time"),
+		field.Time("banner_dismissed_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}).
+			Comment("dashboard banner dismissal time"),
 		field.Time("created_at").
 			Immutable().
 			Default(time.Now).
@@ -60,6 +71,8 @@ func (AnnouncementRead) Indexes() []ent.Index {
 		index.Fields("announcement_id"),
 		index.Fields("user_id"),
 		index.Fields("read_at"),
+		index.Fields("last_popup_dismissed_at"),
+		index.Fields("banner_dismissed_at"),
 		index.Fields("announcement_id", "user_id").Unique(),
 	}
 }

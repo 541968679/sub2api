@@ -24,7 +24,11 @@ type AnnouncementRead struct {
 	// UserID holds the value of the "user_id" field.
 	UserID int64 `json:"user_id,omitempty"`
 	// 用户首次已读时间
-	ReadAt time.Time `json:"read_at,omitempty"`
+	ReadAt *time.Time `json:"read_at,omitempty"`
+	// last popup dismissal time
+	LastPopupDismissedAt *time.Time `json:"last_popup_dismissed_at,omitempty"`
+	// dashboard banner dismissal time
+	BannerDismissedAt *time.Time `json:"banner_dismissed_at,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -73,7 +77,7 @@ func (*AnnouncementRead) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case announcementread.FieldID, announcementread.FieldAnnouncementID, announcementread.FieldUserID:
 			values[i] = new(sql.NullInt64)
-		case announcementread.FieldReadAt, announcementread.FieldCreatedAt:
+		case announcementread.FieldReadAt, announcementread.FieldLastPopupDismissedAt, announcementread.FieldBannerDismissedAt, announcementread.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -112,7 +116,22 @@ func (_m *AnnouncementRead) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field read_at", values[i])
 			} else if value.Valid {
-				_m.ReadAt = value.Time
+				_m.ReadAt = new(time.Time)
+				*_m.ReadAt = value.Time
+			}
+		case announcementread.FieldLastPopupDismissedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field last_popup_dismissed_at", values[i])
+			} else if value.Valid {
+				_m.LastPopupDismissedAt = new(time.Time)
+				*_m.LastPopupDismissedAt = value.Time
+			}
+		case announcementread.FieldBannerDismissedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field banner_dismissed_at", values[i])
+			} else if value.Valid {
+				_m.BannerDismissedAt = new(time.Time)
+				*_m.BannerDismissedAt = value.Time
 			}
 		case announcementread.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -172,8 +191,20 @@ func (_m *AnnouncementRead) String() string {
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))
 	builder.WriteString(", ")
-	builder.WriteString("read_at=")
-	builder.WriteString(_m.ReadAt.Format(time.ANSIC))
+	if v := _m.ReadAt; v != nil {
+		builder.WriteString("read_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.LastPopupDismissedAt; v != nil {
+		builder.WriteString("last_popup_dismissed_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
+	builder.WriteString(", ")
+	if v := _m.BannerDismissedAt; v != nil {
+		builder.WriteString("banner_dismissed_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

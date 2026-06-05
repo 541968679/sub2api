@@ -21,6 +21,17 @@ const (
 )
 
 const (
+	AnnouncementSurfaceGeneral         = domain.AnnouncementSurfaceGeneral
+	AnnouncementSurfaceDashboardBanner = domain.AnnouncementSurfaceDashboardBanner
+	AnnouncementSurfaceAPIKeyRules     = domain.AnnouncementSurfaceAPIKeyRules
+)
+
+const (
+	AnnouncementPopupFrequencyOnce  = domain.AnnouncementPopupFrequencyOnce
+	AnnouncementPopupFrequencyDaily = domain.AnnouncementPopupFrequencyDaily
+)
+
+const (
 	AnnouncementConditionTypeSubscription = domain.AnnouncementConditionTypeSubscription
 	AnnouncementConditionTypeBalance      = domain.AnnouncementConditionTypeBalance
 )
@@ -48,6 +59,14 @@ var (
 		"ANNOUNCEMENT_NOTIFY_MODE_INVALID",
 		"announcement notify_mode is invalid",
 	)
+	ErrAnnouncementInvalidSurface = infraerrors.BadRequest(
+		"ANNOUNCEMENT_SURFACE_INVALID",
+		"announcement surface is invalid",
+	)
+	ErrAnnouncementInvalidPopupFrequency = infraerrors.BadRequest(
+		"ANNOUNCEMENT_POPUP_FREQUENCY_INVALID",
+		"announcement popup_frequency is invalid",
+	)
 	ErrAnnouncementInvalidSchedule = infraerrors.BadRequest(
 		"ANNOUNCEMENT_TIME_RANGE_INVALID",
 		"starts_at must be before ends_at",
@@ -63,8 +82,15 @@ type AnnouncementCondition = domain.AnnouncementCondition
 type Announcement = domain.Announcement
 
 type AnnouncementListFilters struct {
-	Status string
-	Search string
+	Status  string
+	Search  string
+	Surface string
+}
+
+type AnnouncementReadState struct {
+	ReadAt               *time.Time
+	LastPopupDismissedAt *time.Time
+	BannerDismissedAt    *time.Time
 }
 
 type AnnouncementRepository interface {
@@ -74,12 +100,14 @@ type AnnouncementRepository interface {
 	Delete(ctx context.Context, id int64) error
 
 	List(ctx context.Context, params pagination.PaginationParams, filters AnnouncementListFilters) ([]Announcement, *pagination.PaginationResult, error)
-	ListActive(ctx context.Context, now time.Time) ([]Announcement, error)
+	ListActive(ctx context.Context, now time.Time, surface string) ([]Announcement, error)
 }
 
 type AnnouncementReadRepository interface {
 	MarkRead(ctx context.Context, announcementID, userID int64, readAt time.Time) error
-	GetReadMapByUser(ctx context.Context, userID int64, announcementIDs []int64) (map[int64]time.Time, error)
+	MarkPopupDismissed(ctx context.Context, announcementID, userID int64, dismissedAt time.Time) error
+	MarkBannerDismissed(ctx context.Context, announcementID, userID int64, dismissedAt time.Time) error
+	GetReadStateMapByUser(ctx context.Context, userID int64, announcementIDs []int64) (map[int64]AnnouncementReadState, error)
 	GetReadMapByUsers(ctx context.Context, announcementID int64, userIDs []int64) (map[int64]time.Time, error)
 	CountByAnnouncementID(ctx context.Context, announcementID int64) (int64, error)
 }

@@ -86,6 +86,34 @@ func (_u *AnnouncementUpdate) SetNillableNotifyMode(v *string) *AnnouncementUpda
 	return _u
 }
 
+// SetSurface sets the "surface" field.
+func (_u *AnnouncementUpdate) SetSurface(v string) *AnnouncementUpdate {
+	_u.mutation.SetSurface(v)
+	return _u
+}
+
+// SetNillableSurface sets the "surface" field if the given value is not nil.
+func (_u *AnnouncementUpdate) SetNillableSurface(v *string) *AnnouncementUpdate {
+	if v != nil {
+		_u.SetSurface(*v)
+	}
+	return _u
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (_u *AnnouncementUpdate) SetPopupFrequency(v string) *AnnouncementUpdate {
+	_u.mutation.SetPopupFrequency(v)
+	return _u
+}
+
+// SetNillablePopupFrequency sets the "popup_frequency" field if the given value is not nil.
+func (_u *AnnouncementUpdate) SetNillablePopupFrequency(v *string) *AnnouncementUpdate {
+	if v != nil {
+		_u.SetPopupFrequency(*v)
+	}
+	return _u
+}
+
 // SetTargeting sets the "targeting" field.
 func (_u *AnnouncementUpdate) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpdate {
 	_u.mutation.SetTargeting(v)
@@ -305,6 +333,16 @@ func (_u *AnnouncementUpdate) check() error {
 			return &ValidationError{Name: "notify_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.notify_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Surface(); ok {
+		if err := announcement.SurfaceValidator(v); err != nil {
+			return &ValidationError{Name: "surface", err: fmt.Errorf(`ent: validator failed for field "Announcement.surface": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PopupFrequency(); ok {
+		if err := announcement.PopupFrequencyValidator(v); err != nil {
+			return &ValidationError{Name: "popup_frequency", err: fmt.Errorf(`ent: validator failed for field "Announcement.popup_frequency": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -331,6 +369,12 @@ func (_u *AnnouncementUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if value, ok := _u.mutation.NotifyMode(); ok {
 		_spec.SetField(announcement.FieldNotifyMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Surface(); ok {
+		_spec.SetField(announcement.FieldSurface, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PopupFrequency(); ok {
+		_spec.SetField(announcement.FieldPopupFrequency, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Targeting(); ok {
 		_spec.SetField(announcement.FieldTargeting, field.TypeJSON, value)
@@ -488,6 +532,34 @@ func (_u *AnnouncementUpdateOne) SetNotifyMode(v string) *AnnouncementUpdateOne 
 func (_u *AnnouncementUpdateOne) SetNillableNotifyMode(v *string) *AnnouncementUpdateOne {
 	if v != nil {
 		_u.SetNotifyMode(*v)
+	}
+	return _u
+}
+
+// SetSurface sets the "surface" field.
+func (_u *AnnouncementUpdateOne) SetSurface(v string) *AnnouncementUpdateOne {
+	_u.mutation.SetSurface(v)
+	return _u
+}
+
+// SetNillableSurface sets the "surface" field if the given value is not nil.
+func (_u *AnnouncementUpdateOne) SetNillableSurface(v *string) *AnnouncementUpdateOne {
+	if v != nil {
+		_u.SetSurface(*v)
+	}
+	return _u
+}
+
+// SetPopupFrequency sets the "popup_frequency" field.
+func (_u *AnnouncementUpdateOne) SetPopupFrequency(v string) *AnnouncementUpdateOne {
+	_u.mutation.SetPopupFrequency(v)
+	return _u
+}
+
+// SetNillablePopupFrequency sets the "popup_frequency" field if the given value is not nil.
+func (_u *AnnouncementUpdateOne) SetNillablePopupFrequency(v *string) *AnnouncementUpdateOne {
+	if v != nil {
+		_u.SetPopupFrequency(*v)
 	}
 	return _u
 }
@@ -724,6 +796,16 @@ func (_u *AnnouncementUpdateOne) check() error {
 			return &ValidationError{Name: "notify_mode", err: fmt.Errorf(`ent: validator failed for field "Announcement.notify_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Surface(); ok {
+		if err := announcement.SurfaceValidator(v); err != nil {
+			return &ValidationError{Name: "surface", err: fmt.Errorf(`ent: validator failed for field "Announcement.surface": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PopupFrequency(); ok {
+		if err := announcement.PopupFrequencyValidator(v); err != nil {
+			return &ValidationError{Name: "popup_frequency", err: fmt.Errorf(`ent: validator failed for field "Announcement.popup_frequency": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -767,6 +849,12 @@ func (_u *AnnouncementUpdateOne) sqlSave(ctx context.Context) (_node *Announceme
 	}
 	if value, ok := _u.mutation.NotifyMode(); ok {
 		_spec.SetField(announcement.FieldNotifyMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.Surface(); ok {
+		_spec.SetField(announcement.FieldSurface, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.PopupFrequency(); ok {
+		_spec.SetField(announcement.FieldPopupFrequency, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.Targeting(); ok {
 		_spec.SetField(announcement.FieldTargeting, field.TypeJSON, value)

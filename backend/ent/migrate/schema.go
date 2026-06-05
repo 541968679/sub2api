@@ -278,6 +278,8 @@ var (
 		{Name: "content", Type: field.TypeString, SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "draft"},
 		{Name: "notify_mode", Type: field.TypeString, Size: 20, Default: "silent"},
+		{Name: "surface", Type: field.TypeString, Size: 50, Default: "general"},
+		{Name: "popup_frequency", Type: field.TypeString, Size: 20, Default: "once"},
 		{Name: "targeting", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "starts_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "ends_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
@@ -298,26 +300,33 @@ var (
 				Columns: []*schema.Column{AnnouncementsColumns[3]},
 			},
 			{
+				Name:    "announcement_surface",
+				Unique:  false,
+				Columns: []*schema.Column{AnnouncementsColumns[5]},
+			},
+			{
 				Name:    "announcement_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{AnnouncementsColumns[10]},
+				Columns: []*schema.Column{AnnouncementsColumns[12]},
 			},
 			{
 				Name:    "announcement_starts_at",
 				Unique:  false,
-				Columns: []*schema.Column{AnnouncementsColumns[6]},
+				Columns: []*schema.Column{AnnouncementsColumns[8]},
 			},
 			{
 				Name:    "announcement_ends_at",
 				Unique:  false,
-				Columns: []*schema.Column{AnnouncementsColumns[7]},
+				Columns: []*schema.Column{AnnouncementsColumns[9]},
 			},
 		},
 	}
 	// AnnouncementReadsColumns holds the columns for the "announcement_reads" table.
 	AnnouncementReadsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
-		{Name: "read_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "read_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "last_popup_dismissed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "banner_dismissed_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "announcement_id", Type: field.TypeInt64},
 		{Name: "user_id", Type: field.TypeInt64},
@@ -330,13 +339,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "announcement_reads_announcements_reads",
-				Columns:    []*schema.Column{AnnouncementReadsColumns[3]},
+				Columns:    []*schema.Column{AnnouncementReadsColumns[5]},
 				RefColumns: []*schema.Column{AnnouncementsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "announcement_reads_users_announcement_reads",
-				Columns:    []*schema.Column{AnnouncementReadsColumns[4]},
+				Columns:    []*schema.Column{AnnouncementReadsColumns[6]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -345,12 +354,12 @@ var (
 			{
 				Name:    "announcementread_announcement_id",
 				Unique:  false,
-				Columns: []*schema.Column{AnnouncementReadsColumns[3]},
+				Columns: []*schema.Column{AnnouncementReadsColumns[5]},
 			},
 			{
 				Name:    "announcementread_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{AnnouncementReadsColumns[4]},
+				Columns: []*schema.Column{AnnouncementReadsColumns[6]},
 			},
 			{
 				Name:    "announcementread_read_at",
@@ -358,9 +367,19 @@ var (
 				Columns: []*schema.Column{AnnouncementReadsColumns[1]},
 			},
 			{
+				Name:    "announcementread_last_popup_dismissed_at",
+				Unique:  false,
+				Columns: []*schema.Column{AnnouncementReadsColumns[2]},
+			},
+			{
+				Name:    "announcementread_banner_dismissed_at",
+				Unique:  false,
+				Columns: []*schema.Column{AnnouncementReadsColumns[3]},
+			},
+			{
 				Name:    "announcementread_announcement_id_user_id",
 				Unique:  true,
-				Columns: []*schema.Column{AnnouncementReadsColumns[3], AnnouncementReadsColumns[4]},
+				Columns: []*schema.Column{AnnouncementReadsColumns[5], AnnouncementReadsColumns[6]},
 			},
 		},
 	}

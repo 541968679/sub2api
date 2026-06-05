@@ -19,6 +19,17 @@ const (
 )
 
 const (
+	AnnouncementSurfaceGeneral         = "general"
+	AnnouncementSurfaceDashboardBanner = "dashboard_banner"
+	AnnouncementSurfaceAPIKeyRules     = "api_key_rules"
+)
+
+const (
+	AnnouncementPopupFrequencyOnce  = "once"
+	AnnouncementPopupFrequencyDaily = "daily"
+)
+
+const (
 	AnnouncementConditionTypeSubscription = "subscription"
 	AnnouncementConditionTypeBalance      = "balance"
 )
@@ -200,18 +211,20 @@ func (c AnnouncementCondition) validate() error {
 }
 
 type Announcement struct {
-	ID         int64
-	Title      string
-	Content    string
-	Status     string
-	NotifyMode string
-	Targeting  AnnouncementTargeting
-	StartsAt   *time.Time
-	EndsAt     *time.Time
-	CreatedBy  *int64
-	UpdatedBy  *int64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID             int64
+	Title          string
+	Content        string
+	Status         string
+	NotifyMode     string
+	Surface        string
+	PopupFrequency string
+	Targeting      AnnouncementTargeting
+	StartsAt       *time.Time
+	EndsAt         *time.Time
+	CreatedBy      *int64
+	UpdatedBy      *int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func (a *Announcement) IsActiveAt(now time.Time) bool {

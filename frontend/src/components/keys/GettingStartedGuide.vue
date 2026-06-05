@@ -12,6 +12,19 @@
       </div>
 
       <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
+        <button
+          v-if="rulesAnnouncement"
+          type="button"
+          class="guide-rule"
+          @click="showRules = true"
+        >
+          <span class="guide-rule-icon">
+            <Icon name="shield" size="sm" />
+          </span>
+          <span class="guide-step-title">{{ t('keys.guide.rulesTitle') }}</span>
+          <span class="guide-rule-action">{{ t('keys.guide.rulesAction') }}</span>
+        </button>
+
         <!-- Step 1: Create API Key -->
         <div class="guide-step">
           <span class="guide-step-number">1</span>
@@ -70,11 +83,29 @@
         </button>
       </div>
     </div>
+
+    <BaseDialog
+      :show="showRules"
+      :title="rulesAnnouncement?.title || t('keys.guide.rulesModalTitle')"
+      width="wide"
+      @close="showRules = false"
+    >
+      <div
+        class="markdown-body prose prose-sm max-w-none dark:prose-invert"
+        v-html="renderedRules"
+      ></div>
+    </BaseDialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
+import { announcementsAPI } from '@/api'
+import type { UserAnnouncement } from '@/types'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 interface Props {
@@ -90,6 +121,32 @@ interface Emits {
 defineProps<Props>()
 const emit = defineEmits<Emits>()
 const { t } = useI18n()
+
+const rulesAnnouncement = ref<UserAnnouncement | null>(null)
+const showRules = ref(false)
+
+marked.setOptions({
+  breaks: true,
+  gfm: true
+})
+
+const renderedRules = computed(() => {
+  if (!rulesAnnouncement.value?.content) return ''
+  return DOMPurify.sanitize(marked.parse(rulesAnnouncement.value.content) as string)
+})
+
+async function loadRules() {
+  try {
+    const items = await announcementsAPI.list({ surface: 'api_key_rules' })
+    rulesAnnouncement.value = items[0] || null
+  } catch (error) {
+    console.error('Failed to load API key usage rules:', error)
+  }
+}
+
+onMounted(() => {
+  loadRules()
+})
 </script>
 
 <style scoped>
@@ -103,5 +160,17 @@ const { t } = useI18n()
 
 .guide-step-title {
   @apply shrink-0 text-sm font-medium text-gray-900 dark:text-white;
+}
+
+.guide-rule {
+  @apply flex min-h-10 min-w-0 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-left transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:hover:bg-amber-900/40;
+}
+
+.guide-rule-icon {
+  @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white;
+}
+
+.guide-rule-action {
+  @apply shrink-0 text-xs font-medium text-amber-700 dark:text-amber-300;
 }
 </style>

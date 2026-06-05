@@ -34,8 +34,9 @@ func (h *AnnouncementHandler) List(c *gin.Context) {
 	}
 
 	unreadOnly := parseBoolQuery(c.Query("unread_only"))
+	surface := strings.TrimSpace(c.Query("surface"))
 
-	items, err := h.announcementService.ListForUser(c.Request.Context(), subject.UserID, unreadOnly)
+	items, err := h.announcementService.ListForUser(c.Request.Context(), subject.UserID, unreadOnly, surface)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -69,6 +70,60 @@ func (h *AnnouncementHandler) MarkRead(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "ok"})
+}
+
+// DismissPopup records that the current user closed a popup announcement.
+// POST /api/v1/announcements/:id/popup-dismiss
+func (h *AnnouncementHandler) DismissPopup(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+
+	announcementID, err := parseAnnouncementID(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid announcement ID")
+		return
+	}
+
+	if err := h.announcementService.MarkPopupDismissed(c.Request.Context(), subject.UserID, announcementID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"message": "ok"})
+}
+
+// DismissBanner records that the current user closed a dashboard banner.
+// POST /api/v1/announcements/:id/banner-dismiss
+func (h *AnnouncementHandler) DismissBanner(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+
+	announcementID, err := parseAnnouncementID(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid announcement ID")
+		return
+	}
+
+	if err := h.announcementService.MarkBannerDismissed(c.Request.Context(), subject.UserID, announcementID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"message": "ok"})
+}
+
+func parseAnnouncementID(c *gin.Context) (int64, error) {
+	announcementID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || announcementID <= 0 {
+		return 0, err
+	}
+	return announcementID, nil
 }
 
 func parseBoolQuery(v string) bool {

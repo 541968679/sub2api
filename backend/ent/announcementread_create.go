@@ -50,6 +50,34 @@ func (_c *AnnouncementReadCreate) SetNillableReadAt(v *time.Time) *AnnouncementR
 	return _c
 }
 
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (_c *AnnouncementReadCreate) SetLastPopupDismissedAt(v time.Time) *AnnouncementReadCreate {
+	_c.mutation.SetLastPopupDismissedAt(v)
+	return _c
+}
+
+// SetNillableLastPopupDismissedAt sets the "last_popup_dismissed_at" field if the given value is not nil.
+func (_c *AnnouncementReadCreate) SetNillableLastPopupDismissedAt(v *time.Time) *AnnouncementReadCreate {
+	if v != nil {
+		_c.SetLastPopupDismissedAt(*v)
+	}
+	return _c
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (_c *AnnouncementReadCreate) SetBannerDismissedAt(v time.Time) *AnnouncementReadCreate {
+	_c.mutation.SetBannerDismissedAt(v)
+	return _c
+}
+
+// SetNillableBannerDismissedAt sets the "banner_dismissed_at" field if the given value is not nil.
+func (_c *AnnouncementReadCreate) SetNillableBannerDismissedAt(v *time.Time) *AnnouncementReadCreate {
+	if v != nil {
+		_c.SetBannerDismissedAt(*v)
+	}
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *AnnouncementReadCreate) SetCreatedAt(v time.Time) *AnnouncementReadCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -109,10 +137,6 @@ func (_c *AnnouncementReadCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *AnnouncementReadCreate) defaults() {
-	if _, ok := _c.mutation.ReadAt(); !ok {
-		v := announcementread.DefaultReadAt()
-		_c.mutation.SetReadAt(v)
-	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		v := announcementread.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
@@ -126,9 +150,6 @@ func (_c *AnnouncementReadCreate) check() error {
 	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "AnnouncementRead.user_id"`)}
-	}
-	if _, ok := _c.mutation.ReadAt(); !ok {
-		return &ValidationError{Name: "read_at", err: errors.New(`ent: missing required field "AnnouncementRead.read_at"`)}
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "AnnouncementRead.created_at"`)}
@@ -168,7 +189,15 @@ func (_c *AnnouncementReadCreate) createSpec() (*AnnouncementRead, *sqlgraph.Cre
 	_spec.OnConflict = _c.conflict
 	if value, ok := _c.mutation.ReadAt(); ok {
 		_spec.SetField(announcementread.FieldReadAt, field.TypeTime, value)
-		_node.ReadAt = value
+		_node.ReadAt = &value
+	}
+	if value, ok := _c.mutation.LastPopupDismissedAt(); ok {
+		_spec.SetField(announcementread.FieldLastPopupDismissedAt, field.TypeTime, value)
+		_node.LastPopupDismissedAt = &value
+	}
+	if value, ok := _c.mutation.BannerDismissedAt(); ok {
+		_spec.SetField(announcementread.FieldBannerDismissedAt, field.TypeTime, value)
+		_node.BannerDismissedAt = &value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(announcementread.FieldCreatedAt, field.TypeTime, value)
@@ -296,6 +325,48 @@ func (u *AnnouncementReadUpsert) UpdateReadAt() *AnnouncementReadUpsert {
 	return u
 }
 
+// ClearReadAt clears the value of the "read_at" field.
+func (u *AnnouncementReadUpsert) ClearReadAt() *AnnouncementReadUpsert {
+	u.SetNull(announcementread.FieldReadAt)
+	return u
+}
+
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (u *AnnouncementReadUpsert) SetLastPopupDismissedAt(v time.Time) *AnnouncementReadUpsert {
+	u.Set(announcementread.FieldLastPopupDismissedAt, v)
+	return u
+}
+
+// UpdateLastPopupDismissedAt sets the "last_popup_dismissed_at" field to the value that was provided on create.
+func (u *AnnouncementReadUpsert) UpdateLastPopupDismissedAt() *AnnouncementReadUpsert {
+	u.SetExcluded(announcementread.FieldLastPopupDismissedAt)
+	return u
+}
+
+// ClearLastPopupDismissedAt clears the value of the "last_popup_dismissed_at" field.
+func (u *AnnouncementReadUpsert) ClearLastPopupDismissedAt() *AnnouncementReadUpsert {
+	u.SetNull(announcementread.FieldLastPopupDismissedAt)
+	return u
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (u *AnnouncementReadUpsert) SetBannerDismissedAt(v time.Time) *AnnouncementReadUpsert {
+	u.Set(announcementread.FieldBannerDismissedAt, v)
+	return u
+}
+
+// UpdateBannerDismissedAt sets the "banner_dismissed_at" field to the value that was provided on create.
+func (u *AnnouncementReadUpsert) UpdateBannerDismissedAt() *AnnouncementReadUpsert {
+	u.SetExcluded(announcementread.FieldBannerDismissedAt)
+	return u
+}
+
+// ClearBannerDismissedAt clears the value of the "banner_dismissed_at" field.
+func (u *AnnouncementReadUpsert) ClearBannerDismissedAt() *AnnouncementReadUpsert {
+	u.SetNull(announcementread.FieldBannerDismissedAt)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -380,6 +451,55 @@ func (u *AnnouncementReadUpsertOne) SetReadAt(v time.Time) *AnnouncementReadUpse
 func (u *AnnouncementReadUpsertOne) UpdateReadAt() *AnnouncementReadUpsertOne {
 	return u.Update(func(s *AnnouncementReadUpsert) {
 		s.UpdateReadAt()
+	})
+}
+
+// ClearReadAt clears the value of the "read_at" field.
+func (u *AnnouncementReadUpsertOne) ClearReadAt() *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.ClearReadAt()
+	})
+}
+
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (u *AnnouncementReadUpsertOne) SetLastPopupDismissedAt(v time.Time) *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.SetLastPopupDismissedAt(v)
+	})
+}
+
+// UpdateLastPopupDismissedAt sets the "last_popup_dismissed_at" field to the value that was provided on create.
+func (u *AnnouncementReadUpsertOne) UpdateLastPopupDismissedAt() *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.UpdateLastPopupDismissedAt()
+	})
+}
+
+// ClearLastPopupDismissedAt clears the value of the "last_popup_dismissed_at" field.
+func (u *AnnouncementReadUpsertOne) ClearLastPopupDismissedAt() *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.ClearLastPopupDismissedAt()
+	})
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (u *AnnouncementReadUpsertOne) SetBannerDismissedAt(v time.Time) *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.SetBannerDismissedAt(v)
+	})
+}
+
+// UpdateBannerDismissedAt sets the "banner_dismissed_at" field to the value that was provided on create.
+func (u *AnnouncementReadUpsertOne) UpdateBannerDismissedAt() *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.UpdateBannerDismissedAt()
+	})
+}
+
+// ClearBannerDismissedAt clears the value of the "banner_dismissed_at" field.
+func (u *AnnouncementReadUpsertOne) ClearBannerDismissedAt() *AnnouncementReadUpsertOne {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.ClearBannerDismissedAt()
 	})
 }
 
@@ -633,6 +753,55 @@ func (u *AnnouncementReadUpsertBulk) SetReadAt(v time.Time) *AnnouncementReadUps
 func (u *AnnouncementReadUpsertBulk) UpdateReadAt() *AnnouncementReadUpsertBulk {
 	return u.Update(func(s *AnnouncementReadUpsert) {
 		s.UpdateReadAt()
+	})
+}
+
+// ClearReadAt clears the value of the "read_at" field.
+func (u *AnnouncementReadUpsertBulk) ClearReadAt() *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.ClearReadAt()
+	})
+}
+
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (u *AnnouncementReadUpsertBulk) SetLastPopupDismissedAt(v time.Time) *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.SetLastPopupDismissedAt(v)
+	})
+}
+
+// UpdateLastPopupDismissedAt sets the "last_popup_dismissed_at" field to the value that was provided on create.
+func (u *AnnouncementReadUpsertBulk) UpdateLastPopupDismissedAt() *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.UpdateLastPopupDismissedAt()
+	})
+}
+
+// ClearLastPopupDismissedAt clears the value of the "last_popup_dismissed_at" field.
+func (u *AnnouncementReadUpsertBulk) ClearLastPopupDismissedAt() *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.ClearLastPopupDismissedAt()
+	})
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (u *AnnouncementReadUpsertBulk) SetBannerDismissedAt(v time.Time) *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.SetBannerDismissedAt(v)
+	})
+}
+
+// UpdateBannerDismissedAt sets the "banner_dismissed_at" field to the value that was provided on create.
+func (u *AnnouncementReadUpsertBulk) UpdateBannerDismissedAt() *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.UpdateBannerDismissedAt()
+	})
+}
+
+// ClearBannerDismissedAt clears the value of the "banner_dismissed_at" field.
+func (u *AnnouncementReadUpsertBulk) ClearBannerDismissedAt() *AnnouncementReadUpsertBulk {
+	return u.Update(func(s *AnnouncementReadUpsert) {
+		s.ClearBannerDismissedAt()
 	})
 }
 

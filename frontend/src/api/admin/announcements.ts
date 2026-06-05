@@ -5,6 +5,7 @@
 import { apiClient } from '../client'
 import type {
   Announcement,
+  AnnouncementSurface,
   AnnouncementUserReadStatus,
   BasePaginationResponse,
   CreateAnnouncementRequest,
@@ -16,6 +17,7 @@ export async function list(
   pageSize: number = 20,
   filters?: {
     status?: string
+    surface?: AnnouncementSurface
     search?: string
     sort_by?: string
     sort_order?: 'asc' | 'desc'

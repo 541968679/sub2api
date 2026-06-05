@@ -28,6 +28,8 @@ func (r *announcementRepository) Create(ctx context.Context, a *service.Announce
 		SetContent(a.Content).
 		SetStatus(a.Status).
 		SetNotifyMode(a.NotifyMode).
+		SetSurface(a.Surface).
+		SetPopupFrequency(a.PopupFrequency).
 		SetTargeting(a.Targeting)
 
 	if a.StartsAt != nil {
@@ -69,6 +71,8 @@ func (r *announcementRepository) Update(ctx context.Context, a *service.Announce
 		SetContent(a.Content).
 		SetStatus(a.Status).
 		SetNotifyMode(a.NotifyMode).
+		SetSurface(a.Surface).
+		SetPopupFrequency(a.PopupFrequency).
 		SetTargeting(a.Targeting)
 
 	if a.StartsAt != nil {
@@ -117,6 +121,9 @@ func (r *announcementRepository) List(
 	if filters.Status != "" {
 		q = q.Where(announcement.StatusEQ(filters.Status))
 	}
+	if filters.Surface != "" {
+		q = q.Where(announcement.SurfaceEQ(filters.Surface))
+	}
 	if filters.Search != "" {
 		q = q.Where(
 			announcement.Or(
@@ -158,6 +165,8 @@ func announcementListOrder(params pagination.PaginationParams) (string, string) 
 		return announcement.FieldStatus, sortOrder
 	case "notify_mode":
 		return announcement.FieldNotifyMode, sortOrder
+	case "surface":
+		return announcement.FieldSurface, sortOrder
 	case "starts_at":
 		return announcement.FieldStartsAt, sortOrder
 	case "ends_at":
@@ -197,7 +206,7 @@ func announcementListOrders(params pagination.PaginationParams) []func(*entsql.S
 	}
 }
 
-func (r *announcementRepository) ListActive(ctx context.Context, now time.Time) ([]service.Announcement, error) {
+func (r *announcementRepository) ListActive(ctx context.Context, now time.Time, surface string) ([]service.Announcement, error) {
 	q := r.client.Announcement.Query().
 		Where(
 			announcement.StatusEQ(service.AnnouncementStatusActive),
@@ -205,6 +214,10 @@ func (r *announcementRepository) ListActive(ctx context.Context, now time.Time) 
 			announcement.Or(announcement.EndsAtIsNil(), announcement.EndsAtGT(now)),
 		).
 		Order(dbent.Desc(announcement.FieldID))
+
+	if surface != "" {
+		q = q.Where(announcement.SurfaceEQ(surface))
+	}
 
 	items, err := q.All(ctx)
 	if err != nil {
@@ -227,18 +240,20 @@ func announcementEntityToService(m *dbent.Announcement) *service.Announcement {
 		return nil
 	}
 	return &service.Announcement{
-		ID:         m.ID,
-		Title:      m.Title,
-		Content:    m.Content,
-		Status:     m.Status,
-		NotifyMode: m.NotifyMode,
-		Targeting:  m.Targeting,
-		StartsAt:   m.StartsAt,
-		EndsAt:     m.EndsAt,
-		CreatedBy:  m.CreatedBy,
-		UpdatedBy:  m.UpdatedBy,
-		CreatedAt:  m.CreatedAt,
-		UpdatedAt:  m.UpdatedAt,
+		ID:             m.ID,
+		Title:          m.Title,
+		Content:        m.Content,
+		Status:         m.Status,
+		NotifyMode:     m.NotifyMode,
+		Surface:        m.Surface,
+		PopupFrequency: m.PopupFrequency,
+		Targeting:      m.Targeting,
+		StartsAt:       m.StartsAt,
+		EndsAt:         m.EndsAt,
+		CreatedBy:      m.CreatedBy,
+		UpdatedBy:      m.UpdatedBy,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
 	}
 }
 

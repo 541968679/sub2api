@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { announcementsAPI } from '@/api'
-import type { UserAnnouncement } from '@/types'
+import type { AnnouncementSurface, UserAnnouncement } from '@/types'
 
 const THROTTLE_MS = 20 * 60 * 1000 // 20 minutes
 
@@ -33,7 +33,7 @@ export const useAnnouncementStore = defineStore('announcements', () => {
 
     try {
       loading.value = true
-      const all = await announcementsAPI.list(false)
+      const all = await announcementsAPI.list({ surface: 'general' })
       announcements.value = all.slice(0, 20)
       enqueueNewPopups()
     } catch (err: any) {
@@ -47,7 +47,7 @@ export const useAnnouncementStore = defineStore('announcements', () => {
 
   function enqueueNewPopups() {
     const newPopups = announcements.value.filter(
-      (a) => a.notify_mode === 'popup' && !a.read_at && !shownPopupIds.has(a.id)
+      (a) => a.should_popup && !shownPopupIds.has(a.id)
     )
     if (newPopups.length === 0) return
 
@@ -76,8 +76,18 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     const id = currentPopup.value.id
     currentPopup.value = null
 
-    // Mark as read (fire-and-forget, UI already updated)
-    markAsRead(id)
+    try {
+      await announcementsAPI.dismissPopup(id)
+      const ann = announcements.value.find((a) => a.id === id)
+      if (ann) {
+        const now = new Date().toISOString()
+        ann.last_popup_dismissed_at = now
+        ann.read_at = ann.read_at || now
+        ann.should_popup = false
+      }
+    } catch (err: any) {
+      console.error('Failed to dismiss announcement popup:', err)
+    }
 
     // Show next popup after a short delay
     if (popupQueue.value.length > 0) {
@@ -117,6 +127,30 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     }
   }
 
+  async function fetchLatestBySurface(surface: AnnouncementSurface): Promise<UserAnnouncement | null> {
+    try {
+      const items = await announcementsAPI.list({ surface })
+      return items[0] || null
+    } catch (err: any) {
+      console.error(`Failed to fetch ${surface} announcement:`, err)
+      return null
+    }
+  }
+
+  async function dismissBanner(id: number) {
+    try {
+      await announcementsAPI.dismissBanner(id)
+      const now = new Date().toISOString()
+      const ann = announcements.value.find((a) => a.id === id)
+      if (ann) {
+        ann.banner_dismissed_at = now
+      }
+    } catch (err: any) {
+      console.error('Failed to dismiss announcement banner:', err)
+      throw err
+    }
+  }
+
   function reset() {
     announcements.value = []
     lastFetchTime.value = 0
@@ -135,7 +169,9 @@ export const useAnnouncementStore = defineStore('announcements', () => {
     unreadCount,
     // Actions
     fetchAnnouncements,
+    fetchLatestBySurface,
     dismissPopup,
+    dismissBanner,
     markAsRead,
     markAllAsRead,
     reset,

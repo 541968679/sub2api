@@ -72,6 +72,52 @@ func (_u *AnnouncementReadUpdate) SetNillableReadAt(v *time.Time) *AnnouncementR
 	return _u
 }
 
+// ClearReadAt clears the value of the "read_at" field.
+func (_u *AnnouncementReadUpdate) ClearReadAt() *AnnouncementReadUpdate {
+	_u.mutation.ClearReadAt()
+	return _u
+}
+
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (_u *AnnouncementReadUpdate) SetLastPopupDismissedAt(v time.Time) *AnnouncementReadUpdate {
+	_u.mutation.SetLastPopupDismissedAt(v)
+	return _u
+}
+
+// SetNillableLastPopupDismissedAt sets the "last_popup_dismissed_at" field if the given value is not nil.
+func (_u *AnnouncementReadUpdate) SetNillableLastPopupDismissedAt(v *time.Time) *AnnouncementReadUpdate {
+	if v != nil {
+		_u.SetLastPopupDismissedAt(*v)
+	}
+	return _u
+}
+
+// ClearLastPopupDismissedAt clears the value of the "last_popup_dismissed_at" field.
+func (_u *AnnouncementReadUpdate) ClearLastPopupDismissedAt() *AnnouncementReadUpdate {
+	_u.mutation.ClearLastPopupDismissedAt()
+	return _u
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (_u *AnnouncementReadUpdate) SetBannerDismissedAt(v time.Time) *AnnouncementReadUpdate {
+	_u.mutation.SetBannerDismissedAt(v)
+	return _u
+}
+
+// SetNillableBannerDismissedAt sets the "banner_dismissed_at" field if the given value is not nil.
+func (_u *AnnouncementReadUpdate) SetNillableBannerDismissedAt(v *time.Time) *AnnouncementReadUpdate {
+	if v != nil {
+		_u.SetBannerDismissedAt(*v)
+	}
+	return _u
+}
+
+// ClearBannerDismissedAt clears the value of the "banner_dismissed_at" field.
+func (_u *AnnouncementReadUpdate) ClearBannerDismissedAt() *AnnouncementReadUpdate {
+	_u.mutation.ClearBannerDismissedAt()
+	return _u
+}
+
 // SetAnnouncement sets the "announcement" edge to the Announcement entity.
 func (_u *AnnouncementReadUpdate) SetAnnouncement(v *Announcement) *AnnouncementReadUpdate {
 	return _u.SetAnnouncementID(v.ID)
@@ -151,6 +197,21 @@ func (_u *AnnouncementReadUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if value, ok := _u.mutation.ReadAt(); ok {
 		_spec.SetField(announcementread.FieldReadAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReadAtCleared() {
+		_spec.ClearField(announcementread.FieldReadAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.LastPopupDismissedAt(); ok {
+		_spec.SetField(announcementread.FieldLastPopupDismissedAt, field.TypeTime, value)
+	}
+	if _u.mutation.LastPopupDismissedAtCleared() {
+		_spec.ClearField(announcementread.FieldLastPopupDismissedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BannerDismissedAt(); ok {
+		_spec.SetField(announcementread.FieldBannerDismissedAt, field.TypeTime, value)
+	}
+	if _u.mutation.BannerDismissedAtCleared() {
+		_spec.ClearField(announcementread.FieldBannerDismissedAt, field.TypeTime)
 	}
 	if _u.mutation.AnnouncementCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -272,6 +333,52 @@ func (_u *AnnouncementReadUpdateOne) SetNillableReadAt(v *time.Time) *Announceme
 	return _u
 }
 
+// ClearReadAt clears the value of the "read_at" field.
+func (_u *AnnouncementReadUpdateOne) ClearReadAt() *AnnouncementReadUpdateOne {
+	_u.mutation.ClearReadAt()
+	return _u
+}
+
+// SetLastPopupDismissedAt sets the "last_popup_dismissed_at" field.
+func (_u *AnnouncementReadUpdateOne) SetLastPopupDismissedAt(v time.Time) *AnnouncementReadUpdateOne {
+	_u.mutation.SetLastPopupDismissedAt(v)
+	return _u
+}
+
+// SetNillableLastPopupDismissedAt sets the "last_popup_dismissed_at" field if the given value is not nil.
+func (_u *AnnouncementReadUpdateOne) SetNillableLastPopupDismissedAt(v *time.Time) *AnnouncementReadUpdateOne {
+	if v != nil {
+		_u.SetLastPopupDismissedAt(*v)
+	}
+	return _u
+}
+
+// ClearLastPopupDismissedAt clears the value of the "last_popup_dismissed_at" field.
+func (_u *AnnouncementReadUpdateOne) ClearLastPopupDismissedAt() *AnnouncementReadUpdateOne {
+	_u.mutation.ClearLastPopupDismissedAt()
+	return _u
+}
+
+// SetBannerDismissedAt sets the "banner_dismissed_at" field.
+func (_u *AnnouncementReadUpdateOne) SetBannerDismissedAt(v time.Time) *AnnouncementReadUpdateOne {
+	_u.mutation.SetBannerDismissedAt(v)
+	return _u
+}
+
+// SetNillableBannerDismissedAt sets the "banner_dismissed_at" field if the given value is not nil.
+func (_u *AnnouncementReadUpdateOne) SetNillableBannerDismissedAt(v *time.Time) *AnnouncementReadUpdateOne {
+	if v != nil {
+		_u.SetBannerDismissedAt(*v)
+	}
+	return _u
+}
+
+// ClearBannerDismissedAt clears the value of the "banner_dismissed_at" field.
+func (_u *AnnouncementReadUpdateOne) ClearBannerDismissedAt() *AnnouncementReadUpdateOne {
+	_u.mutation.ClearBannerDismissedAt()
+	return _u
+}
+
 // SetAnnouncement sets the "announcement" edge to the Announcement entity.
 func (_u *AnnouncementReadUpdateOne) SetAnnouncement(v *Announcement) *AnnouncementReadUpdateOne {
 	return _u.SetAnnouncementID(v.ID)
@@ -381,6 +488,21 @@ func (_u *AnnouncementReadUpdateOne) sqlSave(ctx context.Context) (_node *Announ
 	}
 	if value, ok := _u.mutation.ReadAt(); ok {
 		_spec.SetField(announcementread.FieldReadAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReadAtCleared() {
+		_spec.ClearField(announcementread.FieldReadAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.LastPopupDismissedAt(); ok {
+		_spec.SetField(announcementread.FieldLastPopupDismissedAt, field.TypeTime, value)
+	}
+	if _u.mutation.LastPopupDismissedAtCleared() {
+		_spec.ClearField(announcementread.FieldLastPopupDismissedAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BannerDismissedAt(); ok {
+		_spec.SetField(announcementread.FieldBannerDismissedAt, field.TypeTime, value)
+	}
+	if _u.mutation.BannerDismissedAtCleared() {
+		_spec.ClearField(announcementread.FieldBannerDismissedAt, field.TypeTime)
 	}
 	if _u.mutation.AnnouncementCleared() {
 		edge := &sqlgraph.EdgeSpec{
