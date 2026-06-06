@@ -2557,3 +2557,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Updated `/v1/responses`, `/v1/chat/completions`, native OpenAI `/v1/messages`, and OpenAI WS initial account selection to require the chat-completions capability, while the Claude-GPT bridge still uses `SelectAccountWithSchedulerForClaudeGPTBridge`.
 - Added the minimal upstream context/profile helpers needed by embeddings forwarding, and kept pool-mode retry behavior on the existing local default status-code list.
 - Verified with `go test -tags=unit ./internal/handler -run "Endpoint|Embeddings"`, `go test -tags=unit ./internal/service -run "Embeddings|OpenAIAccountScheduler|OpenAIImage|PoolMode"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] fix: bridge oversized OpenAI websocket requests through HTTP
+
+**Affected files**: backend/internal/config/config.go, backend/internal/config/config_test.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_ws_http_bridge.go, backend/internal/service/openai_ws_http_bridge_test.go, backend/internal/service/image_output_accounting.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI WS sync from `upstream/main@1f423ae0`; scoped to oversized Responses WebSocket ingress frames and replay continuity, without changing Antigravity Claude-GPT bridge dispatch or fallback semantics.
+**Change details**:
+- Added configurable OpenAI WS client read limit and HTTP bridge threshold defaults so frames above the old 16 MiB WS limit can keep the downstream WS connection while using `/v1/responses` SSE upstream.
+- Added `proxyOpenAIWSHTTPBridgeTurn` to strip WS-only fields, force HTTP streaming, relay SSE events as WS messages, preserve terminal usage parsing, and surface upstream HTTP/SSE errors as WS error events.
+- Preserved tool-call replay context across bridge turns so follow-up `function_call_output` frames can become self-contained HTTP `/responses` requests without forwarding stale `previous_response_id`.
+- Added shared image-output counting helpers required by the WS bridge; independent Images endpoint routing/accounting remains a later Phase 4 sub-batch.
+- Kept local Claude-GPT bridge, display-token, display-pricing, distribution, public `/key-usage`, and docs/dev-stack paths untouched by this sub-batch.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAIWSHTTPBridge|HTTPBridge|OpenAIWS.*Bridge|WebSocket"`, `go test -tags=unit ./internal/service -run "OpenAIWS|HTTPBridge|WebSocket|ClaudeGPTBridge|DisplayToken|Pricing"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
