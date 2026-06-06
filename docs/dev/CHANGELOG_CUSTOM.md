@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] feat: sync phase 3 Codex transform compatibility
+
+**Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/openai_model_mapping_test.go
+**Upstream compatibility**: staged upstream sync phase 3 sub-batch only. Imports upstream Codex transform behavior without deleting local Claude-GPT bridge prompt-cache semantics or local GPT-5.5/GPT-5.5-pro mappings.
+**Change details**:
+- Added upstream Codex model aliases, version suffix handling, and unknown-model preservation while keeping local GPT-5.5/GPT-5.5-pro aliases and date suffixes.
+- Added Codex base-instructions fallback from `internal/pkg/openai`, reasoning encrypted-content include injection, client metadata installation-id helper, and a `PreserveToolCallIDs` transform option.
+- Fixed legacy `call_` to `fc_` call-id normalization and added tests for preserving native tool call IDs when the bridge path needs it.
+- Preserved local body `prompt_cache_key` behavior for Claude-GPT bridge; upstream's body deletion was intentionally not imported.
+- Verified with `go test -tags=unit ./internal/service -run "ResolveOpenAIForwardModel|NormalizeCodexModel|NormalizeOpenAIModelForUpstream|ApplyCodexOAuthTransform|FilterCodexInput|CodexClientMetadata|ForwardAsAnthropic|ClaudeGPTBridge"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
+
 ## [2026-06-06] chore: sync phase 2 schema and migration union
 
 **Affected files**: backend/migrations/150_affiliate_ledger_audit_snapshots.sql, backend/migrations/151_image_generation_group_controls.sql, backend/migrations/152_allow_email_oauth_provider_types.sql, backend/migrations/153_content_moderation.sql, backend/migrations/154_add_dingtalk_provider_type.sql, backend/migrations/155_remove_ops_retry_replay.sql, backend/migrations/156_usage_log_image_size_metadata.sql, backend/migrations/157_redeem_code_expires_at.sql, backend/migrations/158_channel_monitor_openai_api_mode.sql, backend/migrations/159_seed_openai_monitor_templates.sql, backend/migrations/160_extend_user_provider_default_grants_check.sql, backend/migrations/161_subscription_expiry_notify_enabled.sql, backend/migrations/162_user_platform_quotas.sql, backend/migrations/163_group_models_list_config.sql, backend/migrations/164_deleted_api_key_audit.sql, backend/migrations/165_ops_error_log_api_key_prefix.sql, backend/migrations/166_add_ops_error_logs_user_time_index_notx.sql, backend/ent/schema, backend/ent, backend/internal/domain/models_list_config.go, backend/internal/service/group_models_list.go, backend/internal/service/group.go, backend/internal/repository/api_key_repo.go, backend/internal/handler/dto

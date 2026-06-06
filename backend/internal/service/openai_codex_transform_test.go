@@ -41,7 +41,39 @@ func TestApplyCodexOAuthTransform_ToolContinuationPreservesInput(t *testing.T) {
 	second, ok := input[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "o1", second["id"])
-	require.Equal(t, "fc1", second["call_id"])
+	require.Equal(t, "fc_1", second["call_id"])
+}
+
+func TestApplyCodexOAuthTransform_PreservesPromptCacheKeyInBody(t *testing.T) {
+	reqBody := map[string]any{
+		"model":            "gpt-5.5",
+		"prompt_cache_key": "anthropic-metadata-session-1",
+		"input": []any{
+			map[string]any{
+				"type": "message",
+				"role": "developer",
+				"content": []any{
+					map[string]any{
+						"type": "input_text",
+						"text": "developer context",
+					},
+				},
+			},
+			map[string]any{
+				"type":    "message",
+				"role":    "user",
+				"content": "hello",
+			},
+		},
+	}
+
+	result := applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
+		SkipDefaultInstructions: true,
+		PreserveToolCallIDs:     true,
+	})
+
+	require.Equal(t, "anthropic-metadata-session-1", result.PromptCacheKey)
+	require.Equal(t, "anthropic-metadata-session-1", reqBody["prompt_cache_key"])
 }
 
 func TestApplyCodexOAuthTransform_ToolContinuationPreservesNativeMessageAndReasoningIDs(t *testing.T) {
@@ -87,11 +119,11 @@ func TestApplyCodexOAuthTransform_ToolContinuationNormalizesToolReferenceIDsOnly
 
 	first, ok := input[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "fc1", first["id"])
+	require.Equal(t, "fc_1", first["id"])
 
 	second, ok := input[1].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "fc1", second["call_id"])
+	require.Equal(t, "fc_1", second["call_id"])
 }
 
 func TestApplyCodexOAuthTransform_ToolSearchOutputPreservesCallID(t *testing.T) {
@@ -111,7 +143,7 @@ func TestApplyCodexOAuthTransform_ToolSearchOutputPreservesCallID(t *testing.T) 
 	first, ok := input[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "tool_search_output", first["type"])
-	require.Equal(t, "fc1", first["call_id"])
+	require.Equal(t, "fc_1", first["call_id"])
 }
 
 func TestApplyCodexOAuthTransform_CustomAndMCPToolOutputsPreserveCallID(t *testing.T) {
@@ -131,11 +163,11 @@ func TestApplyCodexOAuthTransform_CustomAndMCPToolOutputsPreserveCallID(t *testi
 
 	first, ok := input[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "fccustom", first["call_id"])
+	require.Equal(t, "fc_custom", first["call_id"])
 
 	second, ok := input[1].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "fcmcp", second["call_id"])
+	require.Equal(t, "fc_mcp", second["call_id"])
 }
 
 func TestApplyCodexOAuthTransform_ImageAndWebSearchCallsDoNotGainCallID(t *testing.T) {
@@ -188,7 +220,7 @@ func TestApplyCodexOAuthTransform_ConvertsToolRoleMessageToFunctionCallOutput(t 
 	item, ok := input[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "function_call_output", item["type"])
-	require.Equal(t, "fc1", item["call_id"])
+	require.Equal(t, "fc_1", item["call_id"])
 	require.Equal(t, "ok", item["output"])
 	_, hasRole := item["role"]
 	require.False(t, hasRole)
@@ -307,7 +339,7 @@ func TestApplyCodexOAuthTransform_AddsFallbackNameForFunctionCallInput(t *testin
 	require.True(t, ok)
 	require.Equal(t, "function_call", item["type"])
 	require.Equal(t, "tool", item["name"])
-	require.Equal(t, "fc1", item["call_id"])
+	require.Equal(t, "fc_1", item["call_id"])
 }
 
 func TestApplyCodexOAuthTransform_PreservesFunctionCallInputName(t *testing.T) {
@@ -326,7 +358,7 @@ func TestApplyCodexOAuthTransform_PreservesFunctionCallInputName(t *testing.T) {
 	item, ok := input[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "shell", item["name"])
-	require.Equal(t, "fc1", item["call_id"])
+	require.Equal(t, "fc_1", item["call_id"])
 }
 
 func TestApplyCodexOAuthTransform_PreservesMCPToolCallIDAndName(t *testing.T) {
@@ -351,7 +383,7 @@ func TestApplyCodexOAuthTransform_PreservesMCPToolCallIDAndName(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "mcp_tool_call", item["type"])
 	require.Equal(t, "remote_tool", item["name"])
-	require.Equal(t, "fcabc", item["call_id"])
+	require.Equal(t, "fc_abc", item["call_id"])
 }
 
 func TestCodexInputItemRequiresNameTypesAllowCallID(t *testing.T) {
@@ -807,6 +839,8 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 		"gpt5.5":                    "gpt-5.5",
 		"openai/gpt5.5":             "gpt-5.5",
 		"gpt5.5-pro":                "gpt-5.5-pro",
+		"gpt-5.5-pro-2026-04-23":    "gpt-5.5-pro",
+		"codex-auto-review":         "codex-auto-review",
 		"gpt-5.4-high":              "gpt-5.4",
 		"gpt-5.4-chat-latest":       "gpt-5.4",
 		"gpt 5.4":                   "gpt-5.4",
@@ -833,6 +867,11 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 	for input, expected := range cases {
 		require.Equal(t, expected, normalizeCodexModel(input))
 	}
+}
+
+func TestNormalizeCodexModel_PreservesUnknownModels(t *testing.T) {
+	require.Equal(t, "gemini-3-flash-preview", normalizeCodexModel("gemini-3-flash-preview"))
+	require.Equal(t, "gpt-4.1", normalizeCodexModel("gpt-4.1"))
 }
 
 func TestNormalizeCodexModel_RemovedModelsFallbackToSupportedTargets(t *testing.T) {
@@ -913,6 +952,7 @@ func TestApplyCodexOAuthTransform_CodexCLI_SuppliesDefaultWhenEmpty(t *testing.T
 	instructions, ok := reqBody["instructions"].(string)
 	require.True(t, ok)
 	require.NotEmpty(t, instructions)
+	require.Contains(t, instructions, "You are GPT-5.1 running in the Codex CLI")
 	require.True(t, result.Modified)
 }
 
@@ -1120,6 +1160,62 @@ func TestApplyCodexOAuthTransform_StripsChatGPTInternalUnsupportedFields(t *test
 	}
 }
 
+func TestApplyCodexOAuthTransform_AddsReasoningEncryptedContentInclude(t *testing.T) {
+	reqBody := map[string]any{
+		"model":     "gpt-5.4",
+		"reasoning": map[string]any{"effort": "high"},
+		"include":   []any{"file_search_call.results"},
+		"input":     []any{map[string]any{"role": "user", "content": "hi"}},
+	}
+
+	result := applyCodexOAuthTransform(reqBody, true, false)
+
+	require.True(t, result.Modified)
+	require.Equal(t, []any{"file_search_call.results", "reasoning.encrypted_content"}, reqBody["include"])
+}
+
+func TestApplyCodexOAuthTransform_ReasoningIncludeIsIdempotent(t *testing.T) {
+	reqBody := map[string]any{
+		"model":     "gpt-5.4",
+		"reasoning": map[string]any{"effort": "high"},
+		"include":   []any{"reasoning.encrypted_content"},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+
+	require.Equal(t, []any{"reasoning.encrypted_content"}, reqBody["include"])
+}
+
+func TestApplyCodexOAuthTransform_CompactDoesNotAddReasoningInclude(t *testing.T) {
+	reqBody := map[string]any{
+		"model":     "gpt-5.4",
+		"reasoning": map[string]any{"effort": "high"},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, true)
+
+	require.NotContains(t, reqBody, "include")
+}
+
+func TestApplyCodexClientMetadata(t *testing.T) {
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Extra:    map[string]any{"openai_device_id": "device-123"},
+	}
+	reqBody := map[string]any{
+		"client_metadata": map[string]any{"x-codex-turn-metadata": "turn-1"},
+	}
+
+	require.True(t, applyCodexClientMetadata(reqBody, account))
+	metadata, ok := reqBody["client_metadata"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "turn-1", metadata["x-codex-turn-metadata"])
+	require.Equal(t, "device-123", metadata["x-codex-installation-id"])
+
+	require.False(t, applyCodexClientMetadata(reqBody, account))
+}
+
 func TestApplyCodexOAuthTransform_ExtractsSystemMessages(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "gpt-5.1",
@@ -1143,6 +1239,25 @@ func TestApplyCodexOAuthTransform_ExtractsSystemMessages(t *testing.T) {
 	instructions, ok := reqBody["instructions"].(string)
 	require.True(t, ok)
 	require.Equal(t, "You are a coding assistant.", instructions)
+}
+
+func TestFilterCodexInput_PreserveToolCallIDsOption(t *testing.T) {
+	input := []any{
+		map[string]any{"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "tool"},
+		map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "{}"},
+	}
+
+	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{
+		PreserveReferences: true,
+		PreserveCallIDs:    true,
+	})
+
+	first, ok := filtered[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "call_1", first["call_id"])
+	second, ok := filtered[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "call_1", second["call_id"])
 }
 
 func TestIsInstructionsEmpty(t *testing.T) {
