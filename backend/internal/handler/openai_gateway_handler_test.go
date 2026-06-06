@@ -154,7 +154,7 @@ func TestOpenAIEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testin
 	assert.Equal(t, "Upstream request failed", errorObj["message"])
 }
 
-func TestOpenAIEnsureForwardErrorResponse_DoesNotOverrideWrittenResponse(t *testing.T) {
+func TestOpenAIEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -164,9 +164,28 @@ func TestOpenAIEnsureForwardErrorResponse_DoesNotOverrideWrittenResponse(t *test
 	h := &OpenAIGatewayHandler{}
 	wrote := h.ensureForwardErrorResponse(c, false)
 
-	require.False(t, wrote)
+	require.True(t, wrote)
 	require.Equal(t, http.StatusTeapot, w.Code)
-	assert.Equal(t, "already written", w.Body.String())
+	assert.Contains(t, w.Body.String(), "already written")
+	assert.Contains(t, w.Body.String(), "event: error\n")
+}
+
+func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsResponseFailed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+	_, _ = c.Writer.WriteString(":\n\n")
+
+	h := &OpenAIGatewayHandler{}
+	wrote := h.ensureForwardErrorResponse(c, false)
+
+	require.True(t, wrote)
+	body := w.Body.String()
+	assert.Contains(t, body, ":\n\n")
+	assert.Contains(t, body, "event: response.failed\n")
+	assert.Contains(t, body, `"type":"response.failed"`)
+	assert.Contains(t, body, `"code":"upstream_error"`)
 }
 
 func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
@@ -246,7 +265,7 @@ func TestOpenAIRecoverResponsesPanic_NoPanicNoWrite(t *testing.T) {
 	assert.Equal(t, "", w.Body.String())
 }
 
-func TestOpenAIRecoverResponsesPanic_DoesNotOverrideWrittenResponse(t *testing.T) {
+func TestOpenAIRecoverResponsesPanic_AppendsResponseFailedAfterWritten(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
@@ -264,7 +283,8 @@ func TestOpenAIRecoverResponsesPanic_DoesNotOverrideWrittenResponse(t *testing.T
 	})
 
 	require.Equal(t, http.StatusTeapot, w.Code)
-	assert.Equal(t, "already written", w.Body.String())
+	assert.Contains(t, w.Body.String(), "already written")
+	assert.Contains(t, w.Body.String(), "event: response.failed\n")
 }
 
 func TestOpenAIMissingResponsesDependencies(t *testing.T) {

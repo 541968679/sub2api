@@ -60,6 +60,12 @@ type codexTransformResult struct {
 	PromptCacheKey  string
 }
 
+type codexOAuthTransformOptions struct {
+	IsCodexCLI              bool
+	IsCompact               bool
+	SkipDefaultInstructions bool
+}
+
 const (
 	codexImageGenerationBridgeMarker = "<sub2api-codex-image-generation>"
 	codexImageGenerationBridgeText   = codexImageGenerationBridgeMarker + "\nWhen the user asks for raster image generation or editing, use the OpenAI Responses native `image_generation` tool attached to this request. The local Codex client may not expose an `image_gen` namespace, but that does not mean image generation is unavailable. Do not ask the user to switch to CLI fallback solely because `image_gen` is absent.\n</sub2api-codex-image-generation>"
@@ -85,6 +91,13 @@ var openAICodexOAuthUnsupportedFields = append([]string{
 }, openAIChatGPTInternalUnsupportedFields...)
 
 func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact bool) codexTransformResult {
+	return applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
+		IsCodexCLI: isCodexCLI,
+		IsCompact:  isCompact,
+	})
+}
+
+func applyCodexOAuthTransformWithOptions(reqBody map[string]any, opts codexOAuthTransformOptions) codexTransformResult {
 	result := codexTransformResult{}
 	// 工具续链需求会影响存储策略与 input 过滤逻辑。
 	needsToolContinuation := NeedsToolContinuation(reqBody)
@@ -102,7 +115,7 @@ func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact
 		result.NormalizedModel = normalizedModel
 	}
 
-	if isCompact {
+	if opts.IsCompact {
 		if _, ok := reqBody["store"]; ok {
 			delete(reqBody, "store")
 			result.Modified = true
@@ -182,7 +195,7 @@ func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact
 	}
 
 	// instructions 处理逻辑：根据是否是 Codex CLI 分别调用不同方法
-	if applyInstructions(reqBody, isCodexCLI) {
+	if !opts.SkipDefaultInstructions && applyInstructions(reqBody, opts.IsCodexCLI) {
 		result.Modified = true
 	}
 	if isCodexSparkModel(normalizedModel) && applyCodexSparkImageUnsupportedInstructions(reqBody) {
@@ -834,7 +847,8 @@ func extractTextFromContent(content any) string {
 			if !ok {
 				continue
 			}
-			if t, _ := m["type"].(string); t == "text" {
+			switch t, _ := m["type"].(string); t {
+			case "text", "input_text", "output_text":
 				if text, ok := m["text"].(string); ok {
 					parts = append(parts, text)
 				}
@@ -1023,6 +1037,41 @@ func filterCodexInput(input []any, preserveReferences bool) []any {
 		filtered = append(filtered, newItem)
 	}
 	return filtered
+}
+
+func extractPromptLikeInstructionsFromInput(reqBody map[string]any) string {
+	input, ok := reqBody["input"].([]any)
+	if !ok || len(input) == 0 {
+		return ""
+	}
+	var texts []string
+	for _, item := range input {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		role, _ := m["role"].(string)
+		switch role {
+		case "developer", "system":
+			if text := strings.TrimSpace(extractTextFromContent(m["content"])); text != "" {
+				texts = append(texts, text)
+			}
+		}
+	}
+	return strings.Join(texts, "\n\n")
+}
+
+func ensureCodexOAuthInstructionsField(reqBody map[string]any) {
+	if reqBody == nil {
+		return
+	}
+	if value, ok := reqBody["instructions"]; !ok || value == nil {
+		reqBody["instructions"] = ""
+		return
+	}
+	if _, ok := reqBody["instructions"].(string); !ok {
+		reqBody["instructions"] = ""
+	}
 }
 
 func isCodexToolCallItemType(typ string) bool {

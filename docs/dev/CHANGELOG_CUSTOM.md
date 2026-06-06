@@ -2470,3 +2470,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Kept raw upstream `cached_tokens` logging as diagnostics only, so fixed upstream values such as `18944` can still be traced without leaking into user-visible bridge cache display when the override is enabled.
 - Added focused coverage for prompt-cache body forwarding, cache display override, 60%-70% range validation, fixed upstream `18944` rejection, downstream display usage rewrite, and settings persistence/range validation.
 - Verified with a real local Claude Code request through Antigravity API key `5`: upstream reported `raw_cached_tokens=7680`, the bridge generated `display_cached_tokens=14946` from `raw_input_tokens=22273` at `67.1041%`, usage row `15774` stored `model=requested_model=claude-opus-4-8`, `upstream_model=gpt-5.5`, `input_tokens=7327`, `cache_read_tokens=14946`, and downstream Claude Code display-mode usage showed `input_tokens=16149`, `cache_read_input_tokens=14946`, `output_tokens=188`.
+
+## [2026-06-06] fix: sync upstream OpenAI response.failed handling
+
+**Affected files**: backend/internal/handler/stream_error_event.go, backend/internal/handler/stream_error_event_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_images.go, backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_gateway_messages.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; local Claude-GPT bridge and `OPENAI_IMAGE_TRACE_LOG` behavior remain preserved.
+**Change details**:
+- Added Responses-protocol `response.failed` SSE emission when `/responses` streams have already flushed headers, including bare `/responses` and Codex direct route variants.
+- Avoided appending generic fallback errors when OpenAI forwarding already wrote an upstream terminal error event.
+- Kept Anthropic and Chat Completions legacy stream error formats for non-Responses endpoints.
+- Fixed the OpenAI Claude-GPT bridge Codex instruction transform so forced instruction templates can see original Anthropic system/developer text without injecting the generic default instructions first.
+- Verified with `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
