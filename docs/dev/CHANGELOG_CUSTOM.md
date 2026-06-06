@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] fix: sync phase 1 low-coupling upstream security fixes
+
+**Affected files**: backend/go.mod, backend/go.sum, backend/internal/handler/api_key_handler.go, backend/internal/handler/api_key_handler_security_test.go, backend/internal/service/api_key_service.go, backend/internal/service/api_key_service_security_test.go, backend/internal/service/openai_images.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged upstream sync phase 1 only. Mirrors upstream fixes `11b60171`, `0ae33296`, and `381d1d6d` without merging OpenAI/Codex hotpath refactors or Ent schema changes.
+**Change details**:
+- Returned 404 instead of 403 when an authenticated user requests another user's API key ID, preventing an API key ID oracle.
+- HTML-escaped API key names on create/update and also applied the same protection to local distribution-created API keys.
+- Preserved real upstream Images HTTP errors for non-failover cases so OpenAI-compatible Images clients receive the upstream status, type, code, param, and message instead of a generic 502.
+- Updated the backend module to Go 1.26.4 and upgraded the selected x/* dependencies following the phase plan.
+- Verified with `go run ./tools/upstream-sync-guard`, `go test -tags=unit ./internal/handler ./internal/service`, `pnpm run test:run -- menuLocaleCoverage`, `pnpm run typecheck`, and `go run ./tools/smoke --suite quick,custom`.
+
 ## [2026-06-06] test: add upstream sync phase 0 guards and smoke checks
 
 **Affected files**: backend/tools/upstream-sync-guard/main.go, backend/tools/smoke/main.go, frontend/src/i18n/__tests__/menuLocaleCoverage.spec.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, frontend/src/components/account/AccountUsageCell.vue, frontend/src/components/account/__tests__/AccountUsageCell.spec.ts, frontend/src/components/charts/ModelDistributionChart.vue, frontend/src/components/charts/GroupDistributionChart.vue, frontend/src/components/charts/__tests__/ModelDistributionChart.spec.ts, frontend/src/components/charts/__tests__/GroupDistributionChart.spec.ts, frontend/src/views/admin/DashboardView.vue, frontend/src/views/auth/__tests__/EmailVerifyView.spec.ts, frontend/src/composables/usePersistedPageSize.ts, docs/dev/CHANGELOG_CUSTOM.md
