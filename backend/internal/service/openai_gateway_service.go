@@ -24,6 +24,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/cespare/xxhash/v2"
@@ -2118,6 +2119,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalBody := body
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
 	originalModel := reqModel
+	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
+		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
+	}
 
 	isCodexCLI := openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
@@ -4667,12 +4671,32 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 		"usage.output_tokens",
 		"usage.input_tokens_details.cached_tokens",
 		"usage.output_tokens_details.image_tokens",
+		"usage.prompt_tokens",
+		"usage.completion_tokens",
+		"usage.prompt_tokens_details.cached_tokens",
+		"usage.completion_tokens_details.image_tokens",
 	)
+	inputTokens := values[0].Int()
+	if inputTokens == 0 {
+		inputTokens = values[4].Int()
+	}
+	outputTokens := values[1].Int()
+	if outputTokens == 0 {
+		outputTokens = values[5].Int()
+	}
+	cacheReadTokens := values[2].Int()
+	if cacheReadTokens == 0 {
+		cacheReadTokens = values[6].Int()
+	}
+	imageOutputTokens := values[3].Int()
+	if imageOutputTokens == 0 {
+		imageOutputTokens = values[7].Int()
+	}
 	return OpenAIUsage{
-		InputTokens:          int(values[0].Int()),
-		OutputTokens:         int(values[1].Int()),
-		CacheReadInputTokens: int(values[2].Int()),
-		ImageOutputTokens:    int(values[3].Int()),
+		InputTokens:          int(inputTokens),
+		OutputTokens:         int(outputTokens),
+		CacheReadInputTokens: int(cacheReadTokens),
+		ImageOutputTokens:    int(imageOutputTokens),
 	}, true
 }
 

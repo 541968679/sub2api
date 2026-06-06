@@ -334,6 +334,17 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 // extractCCStreamUsage 从单个 CC 流式 chunk 的 payload 中提取 usage 字段。
 // CC 协议中 usage 仅出现在末尾 chunk（且仅当客户端请求 stream_options.include_usage
 // 时），但上游可能在多个 chunk 中重复——总是用最新值。
+func isOpenAIChatUsageOnlyStreamChunk(payload string) bool {
+	if strings.TrimSpace(payload) == "" {
+		return false
+	}
+	if !gjson.Get(payload, "usage").Exists() {
+		return false
+	}
+	choices := gjson.Get(payload, "choices")
+	return choices.Exists() && choices.IsArray() && len(choices.Array()) == 0
+}
+
 func extractCCStreamUsage(payload string) *OpenAIUsage {
 	usageResult := gjson.Get(payload, "usage")
 	if !usageResult.Exists() || !usageResult.IsObject() {

@@ -2481,3 +2481,13 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Kept Anthropic and Chat Completions legacy stream error formats for non-Responses endpoints.
 - Fixed the OpenAI Claude-GPT bridge Codex instruction transform so forced instruction templates can see original Anthropic system/developer text without injecting the generic default instructions first.
 - Verified with `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
+
+## [2026-06-06] fix: sync upstream OpenAI responses chat fallback
+
+**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback.go, backend/internal/service/openai_gateway_responses_chat_fallback_test.go, backend/internal/service/openai_gateway_chat_completions_raw.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; API key accounts marked as not supporting `/v1/responses` now serve Responses clients through `/v1/chat/completions` without changing local Claude-GPT bridge or display-token behavior.
+**Change details**:
+- Added `/v1/responses` -> `/v1/chat/completions` fallback for OpenAI API key accounts whose responses support mode is forced off or probe state says unsupported.
+- Converted upstream Chat Completions JSON/SSE responses back into Responses JSON/SSE for downstream clients, including DeepSeek reasoning-only streams and usage-only stream chunks.
+- Extended JSON usage extraction to accept Chat Completions `prompt_tokens` / `completion_tokens` fields when this fallback path reads upstream usage.
+- Verified with focused fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
