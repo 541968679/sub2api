@@ -149,8 +149,11 @@ func TestCalculateOpenAI429ResetTime_ReversedWindowOrder(t *testing.T) {
 
 type openAI429SnapshotRepo struct {
 	mockAccountRepoForGemini
-	rateLimitedID int64
-	updatedExtra  map[string]any
+	rateLimitedID     int64
+	updatedExtra      map[string]any
+	modelRateLimitID  int64
+	modelRateLimitKey string
+	modelRateResetAt  time.Time
 }
 
 func (r *openAI429SnapshotRepo) SetRateLimited(_ context.Context, id int64, _ time.Time) error {
@@ -160,6 +163,13 @@ func (r *openAI429SnapshotRepo) SetRateLimited(_ context.Context, id int64, _ ti
 
 func (r *openAI429SnapshotRepo) UpdateExtra(_ context.Context, _ int64, updates map[string]any) error {
 	r.updatedExtra = updates
+	return nil
+}
+
+func (r *openAI429SnapshotRepo) SetModelRateLimit(_ context.Context, id int64, scope string, resetAt time.Time) error {
+	r.modelRateLimitID = id
+	r.modelRateLimitKey = scope
+	r.modelRateResetAt = resetAt
 	return nil
 }
 
@@ -190,6 +200,22 @@ func TestHandle429_OpenAIPersistsCodexSnapshotImmediately(t *testing.T) {
 	if got := repo.updatedExtra["codex_7d_used_percent"]; got != 100.0 {
 		t.Fatalf("codex_7d_used_percent = %v, want 100", got)
 	}
+}
+
+func TestHandle429_OpenAIImageRateLimitUsesImageScope(t *testing.T) {
+	repo := &openAI429SnapshotRepo{}
+	svc := NewRateLimitService(repo, nil, nil, nil, nil)
+	account := &Account{ID: 456, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+
+	headers := http.Header{}
+	headers.Set("Retry-After", "90")
+	disabled := svc.HandleUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, []byte(`{"error":{"message":"Rate limit reached for limit gpt-image-2-codex. Please try again in 90s."}}`))
+
+	require.False(t, disabled)
+	require.Equal(t, int64(456), repo.modelRateLimitID)
+	require.Equal(t, openAIImageGenerationRateLimitKey, repo.modelRateLimitKey)
+	require.True(t, time.Until(repo.modelRateResetAt) > 80*time.Second)
+	require.Zero(t, repo.rateLimitedID, "image rate limits should not mark the whole OpenAI account as rate-limited")
 }
 
 func TestNormalizedCodexLimits(t *testing.T) {

@@ -2569,3 +2569,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added shared image-output counting helpers required by the WS bridge; independent Images endpoint routing/accounting remains a later Phase 4 sub-batch.
 - Kept local Claude-GPT bridge, display-token, display-pricing, distribution, public `/key-usage`, and docs/dev-stack paths untouched by this sub-batch.
 - Verified with `go test -tags=unit ./internal/service -run "OpenAIWSHTTPBridge|HTTPBridge|OpenAIWS.*Bridge|WebSocket"`, `go test -tags=unit ./internal/service -run "OpenAIWS|HTTPBridge|WebSocket|ClaudeGPTBridge|DisplayToken|Pricing"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] fix: sync upstream OpenAI Images API-key streaming and image cooldown
+
+**Affected files**: backend/internal/handler/openai_images.go, backend/internal/pkg/ctxkey/ctxkey.go, backend/internal/service/image_generation_intent.go, backend/internal/service/model_rate_limit.go, backend/internal/service/openai_images.go, backend/internal/service/ratelimit_service.go, backend/internal/service/model_rate_limit_test.go, backend/internal/service/ratelimit_service_openai_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI Images sync from `upstream/main@1f423ae0`; scoped to API-key `/v1/images/*` streaming/error handling and image-generation cooldown, preserving local `OPENAI_IMAGE_TRACE_LOG` and existing image billing semantics.
+**Change details**:
+- Added image-generation intent helpers and context marking so `/v1/images/*` requests honor group `allow_image_generation` and OpenAI image-specific model-rate-limit scope.
+- API-key Images forwarding now uses the detached upstream context, OpenAI HTTP upstream profile, upstream error-body helper, configured pool-mode retry status policy, and upstream 400/error passthrough path.
+- API-key image streaming now supports keepalive comments, idle timeout error events, downstream disconnect drain-for-billing, fallback JSON accounting, image output size accounting, and response usage extraction from streamed image events.
+- Added OpenAI image 429 cooldown handling that writes `openai:image_generation` model-rate-limit scope instead of disabling/rate-limiting the whole OpenAI account when the upstream error is image-specific.
+- Kept `ImageSize` / `ImageSizeInfo` / `ImageQuality` as the local real-billing inputs and retained safe `OPENAI_IMAGE_TRACE_LOG` timing/correlation log points without logging prompts, image bytes, auth, cookies, API keys, or full bodies.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*Images|ImageOutput|ImageTrace|ModelRateLimit|Handle429_OpenAIImage|CalculateOpenAI429|OpenAIImageRateLimit"`, `go test -tags=unit ./internal/handler -run "OpenAI.*Images|Images|GroupModel"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,10 +57,13 @@ type geminiUsageTotalsBatchProvider interface {
 const geminiPrecheckCacheTTL = time.Minute
 
 const (
-	openAI403CooldownMinutesDefault = 10
-	openAI403DisableThreshold       = 3
-	openAI403CounterWindowMinutes   = 180
+	openAIImageRateLimitDefaultCooldown = time.Minute
+	openAI403CooldownMinutesDefault     = 10
+	openAI403DisableThreshold           = 3
+	openAI403CounterWindowMinutes       = 180
 )
+
+var openAIImageTryAgainPattern = regexp.MustCompile(`(?i)try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|sec|secs|second|seconds|m|min|mins|minute|minutes)`)
 
 // NewRateLimitService 创建RateLimitService实例
 func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogRepository, cfg *config.Config, geminiQuotaService *GeminiQuotaService, tempUnschedCache TempUnschedCache) *RateLimitService {
@@ -91,6 +95,110 @@ func (s *RateLimitService) SetSettingService(settingService *SettingService) {
 // SetTokenCacheInvalidator 设置 token 缓存清理器（可选依赖）
 func (s *RateLimitService) SetTokenCacheInvalidator(invalidator TokenCacheInvalidator) {
 	s.tokenCacheInvalidator = invalidator
+}
+
+// HandleOpenAIImageRateLimit stores image-specific OpenAI 429s in the image generation model scope.
+func (s *RateLimitService) HandleOpenAIImageRateLimit(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte) bool {
+	if s == nil || account == nil || s.accountRepo == nil {
+		return false
+	}
+	if account.Platform != PlatformOpenAI {
+		return false
+	}
+	if !account.ShouldHandleErrorCode(statusCode) {
+		slog.Info("openai_image_rate_limit_skipped_by_error_code_policy", "account_id", account.ID, "status_code", statusCode)
+		return false
+	}
+	if !isOpenAIImageRateLimitError(statusCode, responseBody) {
+		return false
+	}
+
+	resetAt := openAIImageRateLimitResetAt(headers, responseBody)
+	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, openAIImageGenerationRateLimitKey, resetAt); err != nil {
+		slog.Warn("openai_image_rate_limit_set_model_rate_limit_failed", "account_id", account.ID, "scope", openAIImageGenerationRateLimitKey, "error", err)
+		return true
+	}
+	slog.Info("openai_image_rate_limited", "account_id", account.ID, "scope", openAIImageGenerationRateLimitKey, "reset_at", resetAt, "reset_in", time.Until(resetAt).Truncate(time.Second))
+	return true
+}
+
+func isOpenAIImageRateLimitError(statusCode int, body []byte) bool {
+	if statusCode != http.StatusTooManyRequests || len(body) == 0 {
+		return false
+	}
+	lower := strings.ToLower(string(body))
+	for _, marker := range []string{
+		"for limit gpt-image",
+		"input-images per min",
+		"gpt-image-2-codex",
+		"gpt-image",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func openAIImageRateLimitResetAt(headers http.Header, body []byte) time.Time {
+	now := time.Now()
+	if resetAt := parseRetryAfterResetTime(headers, now); resetAt != nil && resetAt.After(now) {
+		return *resetAt
+	}
+	if resetAt := calculateOpenAI429ResetTime(headers); resetAt != nil && resetAt.After(now) {
+		return *resetAt
+	}
+	if resetUnix := parseOpenAIRateLimitResetTime(body); resetUnix != nil {
+		if resetAt := time.Unix(*resetUnix, 0); resetAt.After(now) {
+			return resetAt
+		}
+	}
+	if cooldown := parseOpenAIImageTryAgainCooldown(body); cooldown > 0 {
+		return now.Add(cooldown)
+	}
+	return now.Add(openAIImageRateLimitDefaultCooldown)
+}
+
+func parseRetryAfterResetTime(headers http.Header, now time.Time) *time.Time {
+	if headers == nil {
+		return nil
+	}
+	raw := strings.TrimSpace(headers.Get("Retry-After"))
+	if raw == "" {
+		return nil
+	}
+	if seconds, err := strconv.ParseFloat(raw, 64); err == nil {
+		resetAt := now.Add(time.Duration(seconds * float64(time.Second)))
+		return &resetAt
+	}
+	if parsed, err := http.ParseTime(raw); err == nil {
+		return &parsed
+	}
+	return nil
+}
+
+func parseOpenAIImageTryAgainCooldown(body []byte) time.Duration {
+	if len(body) == 0 {
+		return 0
+	}
+	match := openAIImageTryAgainPattern.FindSubmatch(body)
+	if len(match) != 3 {
+		return 0
+	}
+	value, err := strconv.ParseFloat(string(match[1]), 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	switch strings.ToLower(string(match[2])) {
+	case "ms":
+		return time.Duration(value * float64(time.Millisecond))
+	case "s", "sec", "secs", "second", "seconds":
+		return time.Duration(value * float64(time.Second))
+	case "m", "min", "mins", "minute", "minutes":
+		return time.Duration(value * float64(time.Minute))
+	default:
+		return 0
+	}
 }
 
 // ErrorPolicyResult 表示错误策略检查的结果
@@ -125,6 +233,10 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 // HandleUpstreamError 处理上游错误响应，标记账号状态
 // 返回是否应该停止该账号的调度
 func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte) (shouldDisable bool) {
+	if s.HandleOpenAIImageRateLimit(ctx, account, statusCode, headers, responseBody) {
+		return false
+	}
+
 	customErrorCodesEnabled := account.IsCustomErrorCodesEnabled()
 
 	// 池模式默认不标记本地账号状态；仅当用户显式配置自定义错误码时按本地策略处理。

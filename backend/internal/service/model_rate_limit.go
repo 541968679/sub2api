@@ -40,7 +40,12 @@ func (a *Account) isModelRateLimitedWithContext(ctx context.Context, requestedMo
 	if modelKey == "" {
 		return false
 	}
-	return a.isRateLimitActiveForKey(modelKey)
+	for _, key := range modelRateLimitKeysForContext(ctx, a, requestedModel, modelKey) {
+		if a.isRateLimitActiveForKey(key) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetModelRateLimitRemainingTime 获取模型限流剩余时间
@@ -62,7 +67,31 @@ func (a *Account) GetModelRateLimitRemainingTimeWithContext(ctx context.Context,
 	if modelKey == "" {
 		return 0
 	}
-	return a.getRateLimitRemainingForKey(modelKey)
+	for _, key := range modelRateLimitKeysForContext(ctx, a, requestedModel, modelKey) {
+		if remaining := a.getRateLimitRemainingForKey(key); remaining > 0 {
+			return remaining
+		}
+	}
+	return 0
+}
+
+func modelRateLimitKeysForContext(ctx context.Context, account *Account, requestedModel, modelKey string) []string {
+	modelKey = strings.TrimSpace(modelKey)
+	if modelKey == "" {
+		return nil
+	}
+	keys := []string{modelKey}
+	if account != nil && account.Platform == PlatformOpenAI && openAIImageGenerationRateLimitApplies(ctx, requestedModel, modelKey) && modelKey != openAIImageGenerationRateLimitKey {
+		keys = append(keys, openAIImageGenerationRateLimitKey)
+	}
+	return keys
+}
+
+func openAIImageGenerationRateLimitApplies(ctx context.Context, requestedModel, modelKey string) bool {
+	if isOpenAIImageGenerationModel(requestedModel) || isOpenAIImageGenerationModel(modelKey) {
+		return true
+	}
+	return OpenAIImageGenerationIntentFromContext(ctx)
 }
 
 func resolveFinalAntigravityModelKey(ctx context.Context, account *Account, requestedModel string) string {

@@ -198,6 +198,31 @@ func TestIsModelRateLimited_Antigravity_ThinkingAffectsModelKey(t *testing.T) {
 	}
 }
 
+func TestIsModelRateLimited_OpenAIImageGenerationScope(t *testing.T) {
+	future := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Extra: map[string]any{
+			modelRateLimitsKey: map[string]any{
+				openAIImageGenerationRateLimitKey: map[string]any{
+					"rate_limit_reset_at": future,
+				},
+			},
+		},
+	}
+
+	if account.isModelRateLimitedWithContext(context.Background(), "gpt-5.4") {
+		t.Fatalf("regular OpenAI text request should not hit image-generation scope")
+	}
+	if !account.isModelRateLimitedWithContext(context.Background(), "gpt-image-2") {
+		t.Fatalf("image model should hit image-generation scope")
+	}
+	ctx := WithOpenAIImageGenerationIntent(context.Background())
+	if !account.isModelRateLimitedWithContext(ctx, "gpt-5.4") {
+		t.Fatalf("image-generation intent should hit image-generation scope")
+	}
+}
+
 func TestGetModelRateLimitRemainingTime(t *testing.T) {
 	now := time.Now()
 	future10m := now.Add(10 * time.Minute).Format(time.RFC3339)
