@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] docs: record local GitHub CLI credential recovery
+
+**Affected files**: AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: local agent-operations documentation only; no runtime or deployment behavior changes.
+**Change details**:
+- Documented the expected `gh` account, `gh auth status` verification, browser/device login fallback, and safe local PAT recovery path for this workstation.
+- Kept PAT values out of repository documentation and explicitly documented that tokens must not be printed, pasted into chat, committed, or logged.
+- Verified current `gh` login is stored in the Windows keyring for account `541968679`.
+
 ## [2026-06-06] feat: add account-level OpenAI images endpoint scheduling toggle
 
 **Affected files**: backend/internal/service/account.go, backend/internal/service/codex_image_generation_bridge.go, backend/internal/service/openai_account_scheduler_test.go, backend/internal/repository/account_repo_compact_extra_test.go, backend/tools/smoke/main.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/CreateAccountModal.spec.ts, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/codebase/gateway.md

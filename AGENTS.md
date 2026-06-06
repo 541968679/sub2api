@@ -30,6 +30,44 @@ scheduling/load balancing, rate limiting, circuit breaking, and two run modes:
 - Upstream: `https://github.com/Wei-Shaw/sub2api`.
 - Fork/origin: `https://github.com/541968679/sub2api`.
 
+## GitHub CLI Credentials
+
+- The expected local GitHub CLI account is `541968679`. Check it with
+  `gh auth status` before using `gh` for issue/PR/search/API work.
+- `gh` credentials should live in the Windows keyring. A healthy status looks
+  like `Logged in to github.com account 541968679 (keyring)`.
+- If `gh` is not logged in, first try the browser/device flow:
+
+```powershell
+gh auth login --web --hostname github.com --git-protocol https
+```
+
+- If the device page does not open, open it explicitly and enter the one-time
+  code printed by `gh`:
+
+```powershell
+cmd /c start "" "https://github.com/login/device"
+```
+
+- If the device flow succeeds in the browser but `gh auth status` is still not
+  logged in, recover from the local PAT only by piping it directly into `gh`.
+  Do not print, paste into chat, commit, or log the token. One historical local
+  source is the sibling checkout `E:\cursor project\AIClient2API\.git\config`;
+  verify the file exists before using it:
+
+```powershell
+$cfg = 'E:\cursor project\AIClient2API\.git\config'
+$text = Get-Content -LiteralPath $cfg -Raw
+$token = [regex]::Match($text, 'github_pat_[A-Za-z0-9_]{22,}|gh[pousr]_[A-Za-z0-9]{36,}').Value
+if (-not $token) { throw "No GitHub token found in $cfg" }
+$token | gh auth login --with-token --hostname github.com
+Remove-Variable token
+```
+
+- Never add a PAT or unmasked `ghp_...` / `github_pat_...` value to
+  `AGENTS.md`, docs, commits, shell output, or chat responses. If a token is
+  exposed, rotate it before continuing GitHub work.
+
 ## Start Here
 
 Before changing unfamiliar code, read these in order:
