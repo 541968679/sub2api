@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] fix: preserve Anthropic tool IDs in OpenAI bridge
+
+**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_compat_model_test.go
+**Upstream compatibility**: staged upstream sync phase 3 sub-batch only. Wires the upstream `PreserveToolCallIDs` option into the local OpenAI Messages compatibility path while keeping local Claude-GPT bridge prompt-cache/header behavior unchanged.
+**Change details**:
+- Preserved Anthropic `tool_use.id` / `tool_result.tool_use_id` values when OAuth `/v1/messages` requests are transformed into OpenAI Responses input.
+- Added an end-to-end `ForwardAsAnthropic` regression test that verifies `toolu_*` call IDs are not rewritten to `fc_*`.
+- Verified with `go test -tags=unit ./internal/service -run "ForwardAsAnthropic_OAuthPreservesAnthropicToolCallIDs|ForwardAsAnthropic_ClaudeGPTBridge|ApplyCodexOAuthTransform|FilterCodexInput"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
 ## [2026-06-06] feat: sync phase 3 Codex transform compatibility
 
 **Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/openai_model_mapping_test.go

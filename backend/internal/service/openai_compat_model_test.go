@@ -199,6 +199,57 @@ func TestForwardAsAnthropic_ClaudeGPTBridgeForwardsPromptCacheKeyButNotSessionHe
 	}
 }
 
+func TestForwardAsAnthropic_OAuthPreservesAnthropicToolCallIDs(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-opus-4-8","max_tokens":16,"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_call_123","name":"exec","input":{"cmd":"pwd"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_call_123","content":"ok"}]}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"done"}]}],"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_tool_ids"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{Security: config.SecurityConfig{
+			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+		}},
+		httpUpstream: upstream,
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-oauth",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token":       "oauth-token",
+			"chatgpt_account_id": "chatgpt-acc",
+			"model_mapping": map[string]any{
+				"claude-opus-4-8": "gpt-5.5",
+			},
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "toolu_call_123", gjson.GetBytes(upstream.lastBody, "input.0.call_id").String(), string(upstream.lastBody))
+	require.Equal(t, "toolu_call_123", gjson.GetBytes(upstream.lastBody, "input.1.call_id").String(), string(upstream.lastBody))
+	require.NotContains(t, string(upstream.lastBody), "fc_toolu_call_123")
+}
+
 func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCachePercentOverridesUpstreamCachedTokens(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)

@@ -267,6 +267,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		}
 		codexResult := applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
 			SkipDefaultInstructions: true,
+			PreserveToolCallIDs:     true,
 		})
 		forcedTemplateText := ""
 		if s.cfg != nil {
