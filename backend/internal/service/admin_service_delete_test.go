@@ -445,6 +445,32 @@ func waitForInvalidations(t *testing.T, ch <-chan subscriptionInvalidateCall, ex
 	return calls
 }
 
+type deleteUserAPIKeyRepoStub struct {
+	*apiKeyRepoStubForGroupUpdate
+
+	keys            []APIKey
+	listErr         error
+	auditDeleteErr  error
+	deletedAuditIDs []int64
+}
+
+func (s *deleteUserAPIKeyRepoStub) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
+	if s.listErr != nil {
+		return nil, nil, s.listErr
+	}
+	return s.keys, &pagination.PaginationResult{
+		Total:    int64(len(s.keys)),
+		Page:     params.Page,
+		PageSize: params.PageSize,
+		Pages:    1,
+	}, nil
+}
+
+func (s *deleteUserAPIKeyRepoStub) DeleteWithAudit(ctx context.Context, id int64) error {
+	s.deletedAuditIDs = append(s.deletedAuditIDs, id)
+	return s.auditDeleteErr
+}
+
 func TestAdminService_DeleteUser_Success(t *testing.T) {
 	repo := &userRepoStub{user: &User{ID: 7, Role: RoleUser}}
 	svc := &adminServiceImpl{userRepo: repo}
@@ -452,6 +478,49 @@ func TestAdminService_DeleteUser_Success(t *testing.T) {
 	err := svc.DeleteUser(context.Background(), 7)
 	require.NoError(t, err)
 	require.Equal(t, []int64{7}, repo.deletedIDs)
+}
+
+func TestAdminService_DeleteUser_DeletesAPIKeysAndInvalidatesAuthCache(t *testing.T) {
+	userRepo := &userRepoStub{user: &User{ID: 7, Role: RoleUser}}
+	keyRepo := &deleteUserAPIKeyRepoStub{
+		apiKeyRepoStubForGroupUpdate: &apiKeyRepoStubForGroupUpdate{},
+		keys: []APIKey{
+			{ID: 101, UserID: 7, Key: "sk-user-101"},
+			{ID: 102, UserID: 7, Key: "sk-user-102"},
+		},
+	}
+	invalidator := &authCacheInvalidatorStub{}
+	svc := &adminServiceImpl{
+		userRepo:             userRepo,
+		apiKeyRepo:           keyRepo,
+		authCacheInvalidator: invalidator,
+	}
+
+	err := svc.DeleteUser(context.Background(), 7)
+	require.NoError(t, err)
+	require.Equal(t, []int64{101, 102}, keyRepo.deletedAuditIDs)
+	require.Equal(t, []int64{7}, userRepo.deletedIDs)
+	require.ElementsMatch(t, []string{"sk-user-101", "sk-user-102"}, invalidator.keys)
+	require.Equal(t, []int64{7}, invalidator.userIDs)
+}
+
+func TestAdminService_DeleteUser_StopsWhenAPIKeyDeleteFails(t *testing.T) {
+	deleteErr := errors.New("delete api key failed")
+	userRepo := &userRepoStub{user: &User{ID: 7, Role: RoleUser}}
+	keyRepo := &deleteUserAPIKeyRepoStub{
+		apiKeyRepoStubForGroupUpdate: &apiKeyRepoStubForGroupUpdate{},
+		keys:                         []APIKey{{ID: 101, UserID: 7, Key: "sk-user-101"}},
+		auditDeleteErr:               deleteErr,
+	}
+	svc := &adminServiceImpl{
+		userRepo:   userRepo,
+		apiKeyRepo: keyRepo,
+	}
+
+	err := svc.DeleteUser(context.Background(), 7)
+	require.ErrorIs(t, err, deleteErr)
+	require.Equal(t, []int64{101}, keyRepo.deletedAuditIDs)
+	require.Empty(t, userRepo.deletedIDs)
 }
 
 func TestAdminService_DeleteUser_NotFound(t *testing.T) {

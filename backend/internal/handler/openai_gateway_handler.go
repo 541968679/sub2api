@@ -282,12 +282,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	}
 	reqModel := modelResult.String()
 
-	streamResult := gjson.GetBytes(body, "stream")
-	if streamResult.Exists() && streamResult.Type != gjson.True && streamResult.Type != gjson.False {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "invalid stream field type")
+	reqStream, ok := parseOpenAICompatibleStream(body)
+	if !ok {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
 		return
 	}
-	reqStream := streamResult.Bool()
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 	if !isGroupModelAllowed(apiKey.Group, reqModel) {
 		h.errorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
@@ -711,7 +710,11 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	if !bridgeMode {
 		preferredMappedModel = resolveOpenAIMessagesDispatchMappedModel(apiKey, reqModel)
 	}
-	reqStream := gjson.GetBytes(body, "stream").Bool()
+	reqStream, ok := parseOpenAICompatibleStream(body)
+	if !ok {
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage)
+		return
+	}
 
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 	if bridgeMode && !isGroupModelAllowed(apiKey.Group, reqModel) {

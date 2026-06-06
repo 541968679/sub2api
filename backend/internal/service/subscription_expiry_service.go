@@ -2,9 +2,17 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
+)
+
+const (
+	subscriptionExpiryLeaderLockKey = "subscription:expiry:leader"
+	subscriptionExpiryLeaderLockTTL = 30 * time.Second
 )
 
 // SubscriptionExpiryService periodically updates expired subscription status.
@@ -14,6 +22,9 @@ type SubscriptionExpiryService struct {
 	stopCh      chan struct{}
 	stopOnce    sync.Once
 	wg          sync.WaitGroup
+	lockCache   LeaderLockCache
+	db          *sql.DB
+	instanceID  string
 }
 
 func NewSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, interval time.Duration) *SubscriptionExpiryService {
@@ -21,7 +32,16 @@ func NewSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, interv
 		userSubRepo: userSubRepo,
 		interval:    interval,
 		stopCh:      make(chan struct{}),
+		instanceID:  uuid.NewString(),
 	}
+}
+
+func (s *SubscriptionExpiryService) SetLeaderLock(lockCache LeaderLockCache, db *sql.DB) {
+	if s == nil {
+		return
+	}
+	s.lockCache = lockCache
+	s.db = db
 }
 
 func (s *SubscriptionExpiryService) Start() {
@@ -59,6 +79,12 @@ func (s *SubscriptionExpiryService) Stop() {
 func (s *SubscriptionExpiryService) runOnce() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	release, ok := tryAcquireSingletonLeaderLock(ctx, s.lockCache, s.db, subscriptionExpiryLeaderLockKey, s.instanceID, subscriptionExpiryLeaderLockTTL)
+	if !ok {
+		return
+	}
+	defer release()
 
 	updated, err := s.userSubRepo.BatchUpdateExpiredStatus(ctx)
 	if err != nil {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"sync/atomic"
@@ -9,12 +10,15 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/google/uuid"
 )
 
 const (
 	defaultDashboardAggregationTimeout         = 2 * time.Minute
 	defaultDashboardAggregationBackfillTimeout = 30 * time.Minute
 	dashboardAggregationRetentionInterval      = 6 * time.Hour
+	dashboardAggregationLeaderLockKey          = "dashboard:aggregation:leader"
+	dashboardAggregationLeaderLockTTL          = 5 * time.Minute
 )
 
 var (
@@ -46,6 +50,9 @@ type DashboardAggregationService struct {
 	cfg                  config.DashboardAggregationConfig
 	running              int32
 	lastRetentionCleanup atomic.Value // time.Time
+	lockCache            LeaderLockCache
+	db                   *sql.DB
+	instanceID           string
 }
 
 // NewDashboardAggregationService 创建聚合服务。
@@ -58,7 +65,16 @@ func NewDashboardAggregationService(repo DashboardAggregationRepository, timingW
 		repo:        repo,
 		timingWheel: timingWheel,
 		cfg:         aggCfg,
+		instanceID:  uuid.NewString(),
 	}
+}
+
+func (s *DashboardAggregationService) SetLeaderLock(lockCache LeaderLockCache, db *sql.DB) {
+	if s == nil {
+		return
+	}
+	s.lockCache = lockCache
+	s.db = db
 }
 
 // Start 启动定时聚合作业（重启生效配置）。
@@ -196,6 +212,12 @@ func (s *DashboardAggregationService) runScheduledAggregation() {
 	jobStart := time.Now().UTC()
 	ctx, cancel := context.WithTimeout(context.Background(), defaultDashboardAggregationTimeout)
 	defer cancel()
+
+	release, ok := tryAcquireSingletonLeaderLock(ctx, s.lockCache, s.db, dashboardAggregationLeaderLockKey, s.instanceID, dashboardAggregationLeaderLockTTL)
+	if !ok {
+		return
+	}
+	defer release()
 
 	now := time.Now().UTC()
 	last, err := s.repo.GetAggregationWatermark(ctx)

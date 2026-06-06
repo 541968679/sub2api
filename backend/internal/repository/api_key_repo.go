@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -297,6 +298,57 @@ func (r *apiKeyRepository) Delete(ctx context.Context, id int64) error {
 		if exists {
 			return nil
 		}
+		return service.ErrAPIKeyNotFound
+	}
+	return nil
+}
+
+func (r *apiKeyRepository) DeleteWithAudit(ctx context.Context, id int64) error {
+	tombstoneKey := fmt.Sprintf("__deleted__%d__%d", id, time.Now().UnixNano())
+	if existingTx := dbent.TxFromContext(ctx); existingTx != nil {
+		return r.deleteWithAudit(ctx, existingTx.Client(), id, tombstoneKey)
+	}
+
+	tx, err := r.client.Tx(ctx)
+	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
+		return err
+	}
+	exec := r.client
+	if err == nil {
+		defer func() { _ = tx.Rollback() }()
+		exec = tx.Client()
+	}
+
+	if err := r.deleteWithAudit(ctx, exec, id, tombstoneKey); err != nil {
+		return err
+	}
+	if tx != nil {
+		return tx.Commit()
+	}
+	return nil
+}
+
+func (r *apiKeyRepository) deleteWithAudit(ctx context.Context, exec *dbent.Client, id int64, tombstoneKey string) error {
+	if _, err := exec.ExecContext(ctx, `
+		INSERT INTO deleted_api_key_audits (key, api_key_id, user_id, key_name, deleted_at)
+		SELECT key, id, user_id, name, NOW()
+		FROM api_keys
+		WHERE id = $1 AND deleted_at IS NULL`, id); err != nil {
+		return err
+	}
+
+	res, err := exec.ExecContext(ctx, `
+		UPDATE api_keys
+		SET key = $1, deleted_at = NOW(), updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL`, tombstoneKey, id)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return service.ErrAPIKeyNotFound
 	}
 	return nil
