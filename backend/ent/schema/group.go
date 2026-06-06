@@ -70,6 +70,17 @@ func (Group) Fields() []ent.Field {
 		field.Int("default_validity_days").
 			Default(30),
 
+		field.Bool("allow_image_generation").
+			Default(false).
+			Comment("Whether this group can use image generation"),
+		field.Bool("image_rate_independent").
+			Default(false).
+			Comment("Whether image generation uses an independent rate multiplier"),
+		field.Float("image_rate_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Default(1.0).
+			Comment("Independent image generation rate multiplier"),
+
 		field.Float("image_price_1k").
 			Optional().
 			Nillable().
@@ -133,6 +144,10 @@ func (Group) Fields() []ent.Field {
 			Default(domain.OpenAIMessagesDispatchModelConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI messages dispatch model config"),
+		field.JSON("models_list_config", domain.GroupModelsListConfig{}).
+			Default(domain.GroupModelsListConfig{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("Custom /v1/models list config; display only, not used for routing"),
 
 		field.Int("rpm_limit").
 			Default(0).

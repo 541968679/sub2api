@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] chore: sync phase 2 schema and migration union
+
+**Affected files**: backend/migrations/150_affiliate_ledger_audit_snapshots.sql, backend/migrations/151_image_generation_group_controls.sql, backend/migrations/152_allow_email_oauth_provider_types.sql, backend/migrations/153_content_moderation.sql, backend/migrations/154_add_dingtalk_provider_type.sql, backend/migrations/155_remove_ops_retry_replay.sql, backend/migrations/156_usage_log_image_size_metadata.sql, backend/migrations/157_redeem_code_expires_at.sql, backend/migrations/158_channel_monitor_openai_api_mode.sql, backend/migrations/159_seed_openai_monitor_templates.sql, backend/migrations/160_extend_user_provider_default_grants_check.sql, backend/migrations/161_subscription_expiry_notify_enabled.sql, backend/migrations/162_user_platform_quotas.sql, backend/migrations/163_group_models_list_config.sql, backend/migrations/164_deleted_api_key_audit.sql, backend/migrations/165_ops_error_log_api_key_prefix.sql, backend/migrations/166_add_ops_error_logs_user_time_index_notx.sql, backend/ent/schema, backend/ent, backend/internal/domain/models_list_config.go, backend/internal/service/group_models_list.go, backend/internal/service/group.go, backend/internal/repository/api_key_repo.go, backend/internal/handler/dto
+**Upstream compatibility**: staged upstream sync phase 2 only. Adds upstream DB/Ent shape as an additive union while preserving local custom migrations and schema such as AI credit snapshots, display token/pricing, distribution, custom announcements, model pricing, and local gateway metadata.
+**Change details**:
+- Added upstream migrations as local 150-166 without rewriting historical local migration numbers. Upstream `144_add_opus48_to_model_mapping.sql` was intentionally skipped because local migration 146 already mirrors that change.
+- Added the upstream `user_platform_quota` schema plus group image controls, group `/v1/models` list config, usage image metadata, channel monitor API mode, redeem-code expiry, and OAuth/DingTalk enum expansion.
+- Regenerated Ent after schema union and kept local generated custom entities, including `aicreditsnapshot`.
+- Exposed new group fields in read-side service/DTO mapping only; admin write paths are deferred to the later frontend/API feature phase to avoid accidental zero-value overwrites.
+- Verified with `go run ./tools/upstream-sync-guard` and `go test -tags=unit ./internal/repository ./internal/service ./internal/handler`.
+
 ## [2026-06-06] fix: sync phase 1 low-coupling upstream security fixes
 
 **Affected files**: backend/go.mod, backend/go.sum, backend/internal/handler/api_key_handler.go, backend/internal/handler/api_key_handler_security_test.go, backend/internal/service/api_key_service.go, backend/internal/service/api_key_service_security_test.go, backend/internal/service/openai_images.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go, docs/dev/CHANGELOG_CUSTOM.md

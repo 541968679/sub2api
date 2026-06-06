@@ -47,6 +47,12 @@ type Group struct {
 	MonthlyLimitUsd *float64 `json:"monthly_limit_usd,omitempty"`
 	// DefaultValidityDays holds the value of the "default_validity_days" field.
 	DefaultValidityDays int `json:"default_validity_days,omitempty"`
+	// Whether this group can use image generation
+	AllowImageGeneration bool `json:"allow_image_generation,omitempty"`
+	// Whether image generation uses an independent rate multiplier
+	ImageRateIndependent bool `json:"image_rate_independent,omitempty"`
+	// Independent image generation rate multiplier
+	ImageRateMultiplier float64 `json:"image_rate_multiplier,omitempty"`
 	// ImagePrice1k holds the value of the "image_price_1k" field.
 	ImagePrice1k *float64 `json:"image_price_1k,omitempty"`
 	// ImagePrice2k holds the value of the "image_price_2k" field.
@@ -79,6 +85,8 @@ type Group struct {
 	DefaultMappedModel string `json:"default_mapped_model,omitempty"`
 	// OpenAI messages dispatch model config
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
+	// Custom /v1/models list config; display only, not used for routing
+	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
 	// Group RPM limit; 0 means unlimited
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// Group model blacklist; supports exact and trailing-* matches
@@ -191,11 +199,11 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldBlockedModels, group.FieldAllowedModels:
+		case group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldBlockedModels, group.FieldAllowedModels:
 			values[i] = new([]byte)
-		case group.FieldIsExclusive, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet:
+		case group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldImageRateIndependent, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet:
 			values[i] = new(sql.NullBool)
-		case group.FieldRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k:
+		case group.FieldRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k:
 			values[i] = new(sql.NullFloat64)
 		case group.FieldID, group.FieldDefaultValidityDays, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
@@ -313,6 +321,24 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.DefaultValidityDays = int(value.Int64)
 			}
+		case group.FieldAllowImageGeneration:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field allow_image_generation", values[i])
+			} else if value.Valid {
+				_m.AllowImageGeneration = value.Bool
+			}
+		case group.FieldImageRateIndependent:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field image_rate_independent", values[i])
+			} else if value.Valid {
+				_m.ImageRateIndependent = value.Bool
+			}
+		case group.FieldImageRateMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field image_rate_multiplier", values[i])
+			} else if value.Valid {
+				_m.ImageRateMultiplier = value.Float64
+			}
 		case group.FieldImagePrice1k:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field image_price_1k", values[i])
@@ -418,6 +444,14 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value != nil && len(*value) > 0 {
 				if err := json.Unmarshal(*value, &_m.MessagesDispatchModelConfig); err != nil {
 					return fmt.Errorf("unmarshal field messages_dispatch_model_config: %w", err)
+				}
+			}
+		case group.FieldModelsListConfig:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field models_list_config", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ModelsListConfig); err != nil {
+					return fmt.Errorf("unmarshal field models_list_config: %w", err)
 				}
 			}
 		case group.FieldRpmLimit:
@@ -570,6 +604,15 @@ func (_m *Group) String() string {
 	builder.WriteString("default_validity_days=")
 	builder.WriteString(fmt.Sprintf("%v", _m.DefaultValidityDays))
 	builder.WriteString(", ")
+	builder.WriteString("allow_image_generation=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowImageGeneration))
+	builder.WriteString(", ")
+	builder.WriteString("image_rate_independent=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ImageRateIndependent))
+	builder.WriteString(", ")
+	builder.WriteString("image_rate_multiplier=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ImageRateMultiplier))
+	builder.WriteString(", ")
 	if v := _m.ImagePrice1k; v != nil {
 		builder.WriteString("image_price_1k=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
@@ -627,6 +670,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("messages_dispatch_model_config=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MessagesDispatchModelConfig))
+	builder.WriteString(", ")
+	builder.WriteString("models_list_config=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ModelsListConfig))
 	builder.WriteString(", ")
 	builder.WriteString("rpm_limit=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RpmLimit))

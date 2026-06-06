@@ -8,6 +8,7 @@ import (
 )
 
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
+type GroupModelsListConfig = domain.GroupModelsListConfig
 
 type Group struct {
 	ID             int64
@@ -29,6 +30,10 @@ type Group struct {
 	ImagePrice2K *float64
 	ImagePrice4K *float64
 
+	AllowImageGeneration bool
+	ImageRateIndependent bool
+	ImageRateMultiplier  float64
+
 	ClaudeCodeOnly                  bool
 	FallbackGroupID                 *int64
 	FallbackGroupIDOnInvalidRequest *int64
@@ -48,6 +53,7 @@ type Group struct {
 	RequirePrivacySet           bool
 	DefaultMappedModel          string
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
+	ModelsListConfig            GroupModelsListConfig
 
 	RPMLimit int
 
