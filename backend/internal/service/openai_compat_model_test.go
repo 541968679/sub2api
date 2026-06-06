@@ -245,8 +245,8 @@ func TestForwardAsAnthropic_OAuthPreservesAnthropicToolCallIDs(t *testing.T) {
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, "toolu_call_123", gjson.GetBytes(upstream.lastBody, "input.0.call_id").String(), string(upstream.lastBody))
-	require.Equal(t, "toolu_call_123", gjson.GetBytes(upstream.lastBody, "input.1.call_id").String(), string(upstream.lastBody))
+	require.Equal(t, "toolu_call_123", gjson.GetBytes(upstream.lastBody, `input.#(type=="function_call").call_id`).String(), string(upstream.lastBody))
+	require.Equal(t, "toolu_call_123", gjson.GetBytes(upstream.lastBody, `input.#(type=="function_call_output").call_id`).String(), string(upstream.lastBody))
 	require.NotContains(t, string(upstream.lastBody), "fc_toolu_call_123")
 }
 
@@ -642,9 +642,9 @@ func TestForwardAsAnthropic_NonBridgeForwardsPromptCacheSession(t *testing.T) {
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "explicit-cache-key", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, "explicit-cache-key", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
+	require.Empty(t, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
 	require.NotEmpty(t, upstream.lastReq.Header.Get("session_id"))
-	require.NotEmpty(t, upstream.lastReq.Header.Get("conversation_id"))
+	require.Empty(t, upstream.lastReq.Header.Get("conversation_id"))
 }
 
 func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstructions(t *testing.T) {

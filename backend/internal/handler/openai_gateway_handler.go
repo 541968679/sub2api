@@ -1050,7 +1050,10 @@ func (h *OpenAIGatewayHandler) ensureAnthropicErrorResponse(c *gin.Context, stre
 }
 
 func (h *OpenAIGatewayHandler) validateFunctionCallOutputRequest(c *gin.Context, body []byte, reqLog *zap.Logger) bool {
-	if !gjson.GetBytes(body, `input.#(type=="function_call_output")`).Exists() {
+	if !gjson.GetBytes(body, `input.#(type=="function_call_output")`).Exists() &&
+		!gjson.GetBytes(body, `input.#(type=="tool_search_output")`).Exists() &&
+		!gjson.GetBytes(body, `input.#(type=="custom_tool_call_output")`).Exists() &&
+		!gjson.GetBytes(body, `input.#(type=="mcp_tool_call_output")`).Exists() {
 		return true
 	}
 
@@ -1061,12 +1064,12 @@ func (h *OpenAIGatewayHandler) validateFunctionCallOutputRequest(c *gin.Context,
 	}
 
 	c.Set(service.OpenAIParsedRequestBodyKey, reqBody)
-	validation := service.ValidateFunctionCallOutputContext(reqBody)
+	validation := service.ValidateFunctionCallOutputContextBytes(body)
 	if !validation.HasFunctionCallOutput {
 		return true
 	}
 
-	previousResponseID, _ := reqBody["previous_response_id"].(string)
+	previousResponseID := gjson.GetBytes(body, "previous_response_id").String()
 	if strings.TrimSpace(previousResponseID) != "" || validation.HasToolCallContext {
 		return true
 	}

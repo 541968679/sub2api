@@ -595,30 +595,46 @@ func TestOpenAIResponses_RejectsHTTPContinuationPreviousResponseID(t *testing.T)
 func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(
-		`{"model":"gpt-5.1","stream":false,"input":[{"type":"function_call_output","output":"{}"}]}`,
-	))
-	c.Request.Header.Set("Content-Type", "application/json")
+	for _, itemType := range []string{
+		"function_call_output",
+		"tool_search_output",
+		"custom_tool_call_output",
+		"mcp_tool_call_output",
+	} {
+		t.Run(itemType, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			body, err := json.Marshal(map[string]any{
+				"model":  "gpt-5.1",
+				"stream": false,
+				"input": []any{map[string]any{
+					"type":   itemType,
+					"output": "{}",
+				}},
+			})
+			require.NoError(t, err)
+			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(string(body)))
+			c.Request.Header.Set("Content-Type", "application/json")
 
-	groupID := int64(2)
-	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
-		ID:      101,
-		GroupID: &groupID,
-		User:    &service.User{ID: 1},
-	})
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
-		UserID:      1,
-		Concurrency: 1,
-	})
+			groupID := int64(2)
+			c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+				ID:      101,
+				GroupID: &groupID,
+				User:    &service.User{ID: 1},
+			})
+			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
+				UserID:      1,
+				Concurrency: 1,
+			})
 
-	h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
-	h.Responses(c)
+			h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
+			h.Responses(c)
 
-	require.Equal(t, http.StatusBadRequest, w.Code)
-	require.Contains(t, w.Body.String(), "Responses WebSocket v2")
-	require.NotContains(t, w.Body.String(), "reuse previous_response_id")
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			require.Contains(t, w.Body.String(), "Responses WebSocket v2")
+			require.NotContains(t, w.Body.String(), "reuse previous_response_id")
+		})
+	}
 }
 
 func TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid(t *testing.T) {
