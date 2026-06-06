@@ -65,6 +65,11 @@ type OpsRepository interface {
 	GetLatestDailyBucketDate(ctx context.Context) (time.Time, bool, error)
 }
 
+type DeletedKeyAuditResult struct {
+	UserID  int64
+	KeyName string
+}
+
 type OpsInsertErrorLogInput struct {
 	RequestID       string
 	ClientRequestID string
@@ -130,6 +135,11 @@ type OpsInsertErrorLogInput struct {
 	RetryCount  int
 
 	CreatedAt time.Time
+
+	AttemptedKeyPrefix    string
+	DeletedKeyOwnerUserID *int64
+	DeletedKeyName        string
+	APIKeyPrefix          string
 }
 
 type OpsInsertRetryAttemptInput struct {

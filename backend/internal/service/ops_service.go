@@ -363,6 +363,23 @@ func (s *OpsService) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLo
 	return detail, nil
 }
 
+func (s *OpsService) LookupDeletedKeyAudit(ctx context.Context, key string) (*DeletedKeyAuditResult, error) {
+	if s == nil || s.opsRepo == nil {
+		return nil, nil
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, nil
+	}
+	lookup, ok := s.opsRepo.(interface {
+		LookupDeletedKeyAudit(context.Context, string) (*DeletedKeyAuditResult, error)
+	})
+	if !ok {
+		return nil, nil
+	}
+	return lookup.LookupDeletedKeyAudit(ctx, key)
+}
+
 func (s *OpsService) ListRetryAttemptsByErrorID(ctx context.Context, errorID int64, limit int) ([]*OpsRetryAttempt, error) {
 	if err := s.RequireMonitoringEnabled(ctx); err != nil {
 		return nil, err

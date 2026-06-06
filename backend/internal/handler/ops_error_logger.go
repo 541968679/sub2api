@@ -45,6 +45,8 @@ const (
 	opsCodeSubscriptionNotFound = "SUBSCRIPTION_NOT_FOUND"
 	opsCodeSubscriptionInvalid  = "SUBSCRIPTION_INVALID"
 	opsCodeUserInactive         = "USER_INACTIVE"
+	opsCodeInvalidAPIKey        = "INVALID_API_KEY"
+	opsCodeAPIKeyRequired       = "API_KEY_REQUIRED"
 )
 
 const (
@@ -519,7 +521,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				return
 			}
 
-			apiKey, _ := middleware2.GetAPIKeyFromContext(c)
+			apiKey := getOpsAPIKey(c)
 			clientRequestID, _ := c.Request.Context().Value(ctxkey.ClientRequestID).(string)
 
 			model, _ := c.Get(opsModelKey)
@@ -696,6 +698,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 
 			if apiKey != nil {
 				entry.APIKeyID = &apiKey.ID
+				entry.APIKeyPrefix = keyPrefix(apiKey.Key, 8)
 				if apiKey.User != nil {
 					entry.UserID = &apiKey.User.ID
 				}
@@ -744,7 +747,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			return
 		}
 
-		apiKey, _ := middleware2.GetAPIKeyFromContext(c)
+		apiKey := getOpsAPIKey(c)
 
 		clientRequestID, _ := c.Request.Context().Value(ctxkey.ClientRequestID).(string)
 
@@ -896,6 +899,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 
 		if apiKey != nil {
 			entry.APIKeyID = &apiKey.ID
+			entry.APIKeyPrefix = keyPrefix(apiKey.Key, 8)
 			if apiKey.User != nil {
 				entry.UserID = &apiKey.User.ID
 			}
@@ -905,6 +909,21 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			// Prefer group platform if present (more stable than inferring from path).
 			if apiKey.Group != nil && apiKey.Group.Platform != "" {
 				entry.Platform = apiKey.Group.Platform
+			}
+		}
+
+		if parsed.Code == opsCodeInvalidAPIKey {
+			if attemptedKey := extractAttemptedKey(c); attemptedKey != "" {
+				entry.AttemptedKeyPrefix = keyPrefix(attemptedKey, 8)
+				if looksLikeSystemKey(attemptedKey) {
+					if res, lookupErr := ops.LookupDeletedKeyAudit(c.Request.Context(), attemptedKey); lookupErr != nil {
+						log.Printf("[OpsErrorLogger] LookupDeletedKeyAudit failed: %v", lookupErr)
+					} else if res != nil {
+						owner := res.UserID
+						entry.DeletedKeyOwnerUserID = &owner
+						entry.DeletedKeyName = res.KeyName
+					}
+				}
 			}
 		}
 
@@ -1052,6 +1071,54 @@ func parseOpsErrorResponse(body []byte) parsedOpsError {
 	}
 
 	return parsedOpsError{Message: truncateString(string(body), 1024)}
+}
+
+func getOpsAPIKey(c *gin.Context) *service.APIKey {
+	if apiKey, ok := middleware2.GetAPIKeyFromContext(c); ok && apiKey != nil {
+		return apiKey
+	}
+	if apiKey, ok := middleware2.GetOpsFallbackAPIKey(c); ok && apiKey != nil {
+		return apiKey
+	}
+	return nil
+}
+
+func extractAttemptedKey(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	if auth := strings.TrimSpace(c.GetHeader("Authorization")); auth != "" {
+		parts := strings.SplitN(auth, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			if key := strings.TrimSpace(parts[1]); key != "" {
+				return key
+			}
+		}
+	}
+	if key := strings.TrimSpace(c.GetHeader("x-api-key")); key != "" {
+		return key
+	}
+	if key := strings.TrimSpace(c.GetHeader("x-goog-api-key")); key != "" {
+		return key
+	}
+	return ""
+}
+
+func keyPrefix(key string, n int) string {
+	key = strings.TrimSpace(key)
+	if n <= 0 || key == "" {
+		return ""
+	}
+	runes := []rune(key)
+	if len(runes) <= n {
+		return key
+	}
+	return string(runes[:n])
+}
+
+func looksLikeSystemKey(key string) bool {
+	key = strings.TrimSpace(strings.ToLower(key))
+	return strings.HasPrefix(key, "sk-")
 }
 
 func resolveOpsPlatform(apiKey *service.APIKey, fallback string) string {

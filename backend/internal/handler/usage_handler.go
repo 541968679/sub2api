@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -22,15 +23,26 @@ type UsageHandler struct {
 	apiKeyService           *service.APIKeyService
 	modelPricingService     *service.GlobalModelPricingService
 	userModelPricingService *service.UserModelPricingService
+	opsService              *service.OpsService
+	settingService          *service.SettingService
 }
 
 // NewUsageHandler creates a new UsageHandler
-func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService, modelPricingService *service.GlobalModelPricingService, userModelPricingService *service.UserModelPricingService) *UsageHandler {
+func NewUsageHandler(
+	usageService *service.UsageService,
+	apiKeyService *service.APIKeyService,
+	modelPricingService *service.GlobalModelPricingService,
+	userModelPricingService *service.UserModelPricingService,
+	opsService *service.OpsService,
+	settingService *service.SettingService,
+) *UsageHandler {
 	return &UsageHandler{
 		usageService:            usageService,
 		apiKeyService:           apiKeyService,
 		modelPricingService:     modelPricingService,
 		userModelPricingService: userModelPricingService,
+		opsService:              opsService,
+		settingService:          settingService,
 	}
 }
 
@@ -159,6 +171,110 @@ func (h *UsageHandler) List(c *gin.Context) {
 		out = append(out, *u)
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
+}
+
+// ListErrors handles listing the current user's failed requests.
+// GET /api/v1/usage/errors
+func (h *UsageHandler) ListErrors(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	if h.settingService == nil || !h.settingService.IsUserErrorViewAllowed(c.Request.Context()) {
+		response.Forbidden(c, "Error requests view is disabled")
+		return
+	}
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+
+	page, pageSize := response.ParsePagination(c)
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	filter := &service.OpsErrorLogFilter{Page: page, PageSize: pageSize}
+
+	userTZ := c.Query("timezone")
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+		if err != nil {
+			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
+			return
+		}
+		filter.StartTime = &t
+	}
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+		if err != nil {
+			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
+			return
+		}
+		t = t.AddDate(0, 0, 1)
+		filter.EndTime = &t
+	}
+	filter.Model = strings.TrimSpace(c.Query("model"))
+
+	if raw := strings.TrimSpace(c.Query("api_key_id")); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || id < 0 {
+			response.BadRequest(c, "Invalid api_key_id")
+			return
+		}
+		if id > 0 {
+			filter.APIKeyID = &id
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("status_code")); raw != "" {
+		code, err := strconv.Atoi(raw)
+		if err != nil || code < 0 {
+			response.BadRequest(c, "Invalid status_code")
+			return
+		}
+		filter.StatusCodes = []int{code}
+	}
+	if category := strings.TrimSpace(c.Query("category")); category != "" {
+		phases, types := service.CategoryToFilter(category)
+		filter.ErrorPhasesAny = phases
+		filter.ErrorTypesAny = types
+	}
+
+	result, err := h.opsService.ListUserErrorRequests(c.Request.Context(), subject.UserID, filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, result.Items, int64(result.Total), result.Page, result.PageSize)
+}
+
+// GetErrorDetail handles fetching one of the current user's failed request details.
+// GET /api/v1/usage/errors/:id
+func (h *UsageHandler) GetErrorDetail(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	if h.settingService == nil || !h.settingService.IsUserErrorViewAllowed(c.Request.Context()) {
+		response.Forbidden(c, "Error requests view is disabled")
+		return
+	}
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid id")
+		return
+	}
+	detail, err := h.opsService.GetUserErrorRequestDetail(c.Request.Context(), subject.UserID, id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, detail)
 }
 
 // PublicRecords lists usage records for the API key used to authenticate the request.

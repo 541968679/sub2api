@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -60,9 +61,13 @@ INSERT INTO ops_error_logs (
   request_headers,
   is_retryable,
   retry_count,
-  created_at
+  created_at,
+  attempted_key_prefix,
+  deleted_key_owner_user_id,
+  deleted_key_name,
+  api_key_prefix
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,$43,$44,$45,$46,$47
 )`
 
 func NewOpsRepository(db *sql.DB) service.OpsRepository {
@@ -177,6 +182,10 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 		input.IsRetryable,
 		input.RetryCount,
 		input.CreatedAt,
+		opsNullString(input.AttemptedKeyPrefix),
+		opsNullInt64(input.DeletedKeyOwnerUserID),
+		opsNullString(input.DeletedKeyName),
+		opsNullString(input.APIKeyPrefix),
 	}
 }
 
@@ -246,12 +255,16 @@ SELECT
   COALESCE(e.upstream_endpoint, ''),
   COALESCE(e.requested_model, ''),
   COALESCE(e.upstream_model, ''),
-  e.request_type
+  e.request_type,
+  COALESCE(ak.name, ''),
+  ak.deleted_at,
+  COALESCE(e.deleted_key_name, '')
 FROM ops_error_logs e
 LEFT JOIN accounts a ON e.account_id = a.id
 LEFT JOIN groups g ON e.group_id = g.id
 LEFT JOIN users u ON e.user_id = u.id
 LEFT JOIN users u2 ON e.resolved_by_user_id = u2.id
+LEFT JOIN api_keys ak ON ak.id = e.api_key_id
 ` + where + `
 ORDER BY e.created_at DESC
 LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
@@ -279,6 +292,9 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		var resolvedByName string
 		var resolvedRetryID sql.NullInt64
 		var requestType sql.NullInt64
+		var apiKeyName string
+		var apiKeyDeletedAt sql.NullTime
+		var deletedKeyName string
 		if err := rows.Scan(
 			&item.ID,
 			&item.CreatedAt,
@@ -315,6 +331,9 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&item.RequestedModel,
 			&item.UpstreamModel,
 			&requestType,
+			&apiKeyName,
+			&apiKeyDeletedAt,
+			&deletedKeyName,
 		); err != nil {
 			return nil, err
 		}
@@ -359,6 +378,12 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			v := int16(requestType.Int64)
 			item.RequestType = &v
 		}
+		if apiKeyName != "" {
+			item.APIKeyName = apiKeyName
+		} else {
+			item.APIKeyName = deletedKeyName
+		}
+		item.APIKeyDeleted = apiKeyDeletedAt.Valid || (apiKeyName == "" && deletedKeyName != "")
 		out = append(out, &item)
 	}
 	if err := rows.Err(); err != nil {
@@ -432,11 +457,20 @@ SELECT
   COALESCE(e.request_body::text, ''),
   e.request_body_truncated,
   e.request_body_bytes,
-  COALESCE(e.request_headers::text, '')
+  COALESCE(e.request_headers::text, ''),
+  COALESCE(e.attempted_key_prefix, ''),
+  e.deleted_key_owner_user_id,
+  COALESCE(du.email, ''),
+  COALESCE(e.deleted_key_name, ''),
+  COALESCE(e.api_key_prefix, ''),
+  COALESCE(ak.name, ''),
+  ak.deleted_at
 FROM ops_error_logs e
 LEFT JOIN users u ON e.user_id = u.id
 LEFT JOIN accounts a ON e.account_id = a.id
 LEFT JOIN groups g ON e.group_id = g.id
+LEFT JOIN users du ON e.deleted_key_owner_user_id = du.id
+LEFT JOIN api_keys ak ON ak.id = e.api_key_id
 WHERE e.id = $1
 LIMIT 1`
 
@@ -458,6 +492,9 @@ LIMIT 1`
 	var ttft sql.NullInt64
 	var requestBodyBytes sql.NullInt64
 	var requestType sql.NullInt64
+	var deletedKeyOwnerUserID sql.NullInt64
+	var detailAPIKeyName string
+	var detailAPIKeyDeletedAt sql.NullTime
 
 	err := r.db.QueryRowContext(ctx, q, id).Scan(
 		&out.ID,
@@ -510,6 +547,13 @@ LIMIT 1`
 		&out.RequestBodyTruncated,
 		&requestBodyBytes,
 		&out.RequestHeaders,
+		&out.AttemptedKeyPrefix,
+		&deletedKeyOwnerUserID,
+		&out.DeletedKeyOwnerEmail,
+		&out.DeletedKeyName,
+		&out.APIKeyPrefix,
+		&detailAPIKeyName,
+		&detailAPIKeyDeletedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -580,6 +624,16 @@ LIMIT 1`
 		v := int16(requestType.Int64)
 		out.RequestType = &v
 	}
+	if deletedKeyOwnerUserID.Valid {
+		v := deletedKeyOwnerUserID.Int64
+		out.DeletedKeyOwnerUserID = &v
+	}
+	if detailAPIKeyName != "" {
+		out.APIKeyName = detailAPIKeyName
+	} else {
+		out.APIKeyName = out.DeletedKeyName
+	}
+	out.APIKeyDeleted = detailAPIKeyDeletedAt.Valid || (detailAPIKeyName == "" && out.DeletedKeyName != "")
 
 	// Normalize request_body to empty string when stored as JSON null.
 	out.RequestBody = strings.TrimSpace(out.RequestBody)
@@ -598,6 +652,30 @@ LIMIT 1`
 	}
 
 	return &out, nil
+}
+
+func (r *opsRepository) LookupDeletedKeyAudit(ctx context.Context, key string) (*service.DeletedKeyAuditResult, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("nil ops repository")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, nil
+	}
+	var res service.DeletedKeyAuditResult
+	err := r.db.QueryRowContext(ctx, `
+SELECT user_id, key_name
+FROM deleted_api_key_audits
+WHERE key = $1
+ORDER BY deleted_at DESC, id DESC
+LIMIT 1`, key).Scan(&res.UserID, &res.KeyName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &res, nil
 }
 
 func (r *opsRepository) InsertRetryAttempt(ctx context.Context, input *service.OpsInsertRetryAttemptInput) (int64, error) {
@@ -1307,11 +1385,32 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 		args = append(args, *filter.AccountID)
 		clauses = append(clauses, "e.account_id = $"+itoa(len(args)))
 	}
+	if filter.UserID != nil && *filter.UserID > 0 {
+		args = append(args, *filter.UserID)
+		clauses = append(clauses, "e.user_id = $"+itoa(len(args)))
+	}
+	if filter.APIKeyID != nil && *filter.APIKeyID > 0 {
+		args = append(args, *filter.APIKeyID)
+		clauses = append(clauses, "e.api_key_id = $"+itoa(len(args)))
+	}
+	if model := strings.TrimSpace(filter.Model); model != "" {
+		args = append(args, model)
+		n := itoa(len(args))
+		clauses = append(clauses, "(COALESCE(e.requested_model,'') = $"+n+" OR COALESCE(e.model,'') = $"+n+")")
+	}
 	if phase := phaseFilter; phase != "" {
 		args = append(args, phase)
 		clauses = append(clauses, "e.error_phase = $"+itoa(len(args)))
 	}
 	if filter != nil {
+		if len(filter.ErrorPhasesAny) > 0 {
+			args = append(args, pq.Array(filter.ErrorPhasesAny))
+			clauses = append(clauses, "e.error_phase = ANY($"+itoa(len(args))+")")
+		}
+		if len(filter.ErrorTypesAny) > 0 {
+			args = append(args, pq.Array(filter.ErrorTypesAny))
+			clauses = append(clauses, "e.error_type = ANY($"+itoa(len(args))+")")
+		}
 		if owner := strings.TrimSpace(strings.ToLower(filter.Owner)); owner != "" {
 			args = append(args, owner)
 			clauses = append(clauses, "LOWER(COALESCE(e.error_owner,'')) = $"+itoa(len(args)))

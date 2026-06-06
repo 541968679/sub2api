@@ -975,7 +975,43 @@ const zhBase = {
     imageUnit: '张',
     imageSize: '尺寸',
     imageQuality: '质量',
-    userAgent: 'User-Agent'
+    userAgent: 'User-Agent',
+    tabs: {
+      usage: '使用记录',
+      errors: '错误请求'
+    },
+    errors: {
+      time: '时间',
+      model: '模型',
+      endpoint: '端点',
+      status: '状态',
+      category: '分类',
+      platform: '平台',
+      message: '错误信息',
+      keyName: 'Key 名称',
+      keyDeleted: '已删除',
+      allKeys: '全部 Key',
+      modelPlaceholder: '搜索模型',
+      allCategories: '全部分类',
+      empty: '暂无错误请求',
+      failedToLoad: '加载错误请求失败',
+      categories: {
+        auth: '认证失败',
+        rate_limit: '限流',
+        quota: '余额/订阅',
+        invalid_request: '请求无效',
+        service_unavailable: '服务不可用',
+        upstream: '上游错误',
+        internal: '平台错误',
+        other: '其他'
+      },
+      detail: {
+        title: '错误请求详情',
+        upstreamStatus: '上游状态码',
+        responseBody: '响应内容',
+        loadFailed: '加载错误详情失败'
+      }
+    }
   },
 
   // Shared keys for channel monitor (admin + user views)
@@ -5143,6 +5179,12 @@ const zhBase = {
           configureLink: '前往 渠道管理 > 渠道定价 配置模型价格',
           enabled: '启用可用渠道',
           enabledHint: '关闭后用户端侧边栏入口隐藏，接口返回空数组。',
+        },
+        userErrorRequests: {
+          title: '用户错误请求',
+          description: '允许普通用户在用量页面查看自己的失败请求记录和错误详情。',
+          enabled: '允许用户查看错误请求',
+          enabledHint: '关闭后仍会记录错误请求，但用户端不会展示错误请求标签页。'
         },
         affiliate: {
           title: '邀请返利',

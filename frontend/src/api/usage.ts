@@ -10,7 +10,10 @@ import type {
   UsageStatsResponse,
   PaginatedResponse,
   TrendDataPoint,
-  ModelStat
+  ModelStat,
+  UserErrorRequest,
+  UserErrorRequestDetail,
+  UserErrorListParams
 } from '@/types'
 
 // ==================== Dashboard Types ====================
@@ -190,6 +193,20 @@ export async function getById(id: number): Promise<UsageLog> {
   return data
 }
 
+export async function listMyErrorRequests(
+  params: UserErrorListParams = {}
+): Promise<PaginatedResponse<UserErrorRequest>> {
+  const { data } = await apiClient.get<PaginatedResponse<UserErrorRequest>>('/usage/errors', {
+    params
+  })
+  return data
+}
+
+export async function getMyErrorDetail(id: number): Promise<UserErrorRequestDetail> {
+  const { data } = await apiClient.get<UserErrorRequestDetail>(`/usage/errors/${id}`)
+  return data
+}
+
 // ==================== Dashboard API ====================
 
 /**
@@ -271,6 +288,8 @@ export const usageAPI = {
   getStatsByDateRange,
   getByDateRange,
   getById,
+  listMyErrorRequests,
+  getMyErrorDetail,
   // Dashboard
   getDashboardStats,
   getDashboardTrend,

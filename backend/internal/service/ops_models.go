@@ -51,13 +51,15 @@ type OpsErrorLog struct {
 	RequestID       string `json:"request_id"`
 	Message         string `json:"message"`
 
-	UserID      *int64 `json:"user_id"`
-	UserEmail   string `json:"user_email"`
-	APIKeyID    *int64 `json:"api_key_id"`
-	AccountID   *int64 `json:"account_id"`
-	AccountName string `json:"account_name"`
-	GroupID     *int64 `json:"group_id"`
-	GroupName   string `json:"group_name"`
+	UserID        *int64 `json:"user_id"`
+	UserEmail     string `json:"user_email"`
+	APIKeyID      *int64 `json:"api_key_id"`
+	APIKeyName    string `json:"api_key_name"`
+	APIKeyDeleted bool   `json:"api_key_deleted"`
+	AccountID     *int64 `json:"account_id"`
+	AccountName   string `json:"account_name"`
+	GroupID       *int64 `json:"group_id"`
+	GroupName     string `json:"group_name"`
 
 	ClientIP    *string `json:"client_ip"`
 	RequestPath string  `json:"request_path"`
@@ -97,6 +99,12 @@ type OpsErrorLogDetail struct {
 
 	// vNext metric semantics
 	IsBusinessLimited bool `json:"is_business_limited"`
+
+	AttemptedKeyPrefix    string `json:"attempted_key_prefix,omitempty"`
+	DeletedKeyOwnerUserID *int64 `json:"deleted_key_owner_user_id,omitempty"`
+	DeletedKeyOwnerEmail  string `json:"deleted_key_owner_email,omitempty"`
+	DeletedKeyName        string `json:"deleted_key_name,omitempty"`
+	APIKeyPrefix          string `json:"api_key_prefix,omitempty"`
 }
 
 type OpsErrorLogFilter struct {
@@ -110,11 +118,16 @@ type OpsErrorLogFilter struct {
 	StatusCodes      []int
 	StatusCodesOther bool
 	Phase            string
+	ErrorPhasesAny   []string
+	ErrorTypesAny    []string
 	Owner            string
 	Source           string
 	Resolved         *bool
 	Query            string
 	UserQuery        string // Search by user email
+	UserID           *int64
+	APIKeyID         *int64
+	Model            string
 
 	// Optional correlation keys for exact matching.
 	RequestID       string

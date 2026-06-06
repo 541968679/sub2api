@@ -358,6 +358,7 @@ export interface PublicSettings {
   channel_monitor_enabled: boolean
   channel_monitor_default_interval_seconds: number
   available_channels_enabled: boolean
+  allow_user_view_error_requests: boolean
   affiliate_enabled: boolean
 }
 
@@ -577,6 +578,35 @@ export interface PaginatedResponse<T> {
   page: number
   page_size: number
   pages: number
+}
+
+export interface UserErrorRequest {
+  id: number
+  created_at: string
+  model: string
+  inbound_endpoint: string
+  status_code: number
+  category: string
+  platform: string
+  message: string
+  key_name: string
+  key_deleted: boolean
+}
+
+export interface UserErrorRequestDetail extends UserErrorRequest {
+  error_body: string
+  upstream_status_code?: number | null
+}
+
+export interface UserErrorListParams {
+  page?: number
+  page_size?: number
+  start_date?: string
+  end_date?: string
+  model?: string
+  category?: string
+  api_key_id?: number
+  status_code?: number
 }
 
 // ==================== UI State Types ====================

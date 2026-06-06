@@ -1021,6 +1021,42 @@ const enBase = {
     imageSize: 'Size',
     imageQuality: 'Quality',
     userAgent: 'User-Agent',
+    tabs: {
+      usage: 'Usage',
+      errors: 'Error Requests'
+    },
+    errors: {
+      time: 'Time',
+      model: 'Model',
+      endpoint: 'Endpoint',
+      status: 'Status',
+      category: 'Category',
+      platform: 'Platform',
+      message: 'Message',
+      keyName: 'Key Name',
+      keyDeleted: 'Deleted',
+      allKeys: 'All keys',
+      modelPlaceholder: 'Search model',
+      allCategories: 'All categories',
+      empty: 'No error requests',
+      failedToLoad: 'Failed to load error requests',
+      categories: {
+        auth: 'Auth failed',
+        rate_limit: 'Rate limited',
+        quota: 'Balance/Subscription',
+        invalid_request: 'Invalid request',
+        service_unavailable: 'Service unavailable',
+        upstream: 'Upstream error',
+        internal: 'Platform error',
+        other: 'Other'
+      },
+      detail: {
+        title: 'Error Request Detail',
+        upstreamStatus: 'Upstream Status',
+        responseBody: 'Response',
+        loadFailed: 'Failed to load error detail'
+      }
+    },
     antigravity: {
       title: 'Antigravity Credit Cost Analysis',
       subtitle: 'AI Credits consumed vs antigravity quota & calls within the selected range',
@@ -5414,6 +5450,12 @@ const enBase = {
           configureLink: 'Configure model pricing in Channel Management > Channel Pricing',
           enabled: 'Enable Available Channels',
           enabledHint: 'When off, the sidebar entry is hidden and the endpoint returns an empty list.',
+        },
+        userErrorRequests: {
+          title: 'User Error Requests',
+          description: 'Allow users to view their own failed requests and error details on the usage page.',
+          enabled: 'Allow users to view error requests',
+          enabledHint: 'When off, error requests are still recorded but the user-facing error requests tab is hidden.'
         },
         affiliate: {
           title: 'Affiliate (Invite Rebate)',

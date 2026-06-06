@@ -203,7 +203,8 @@ type SystemSettings struct {
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
 	// Available Channels feature switch (user-facing aggregate view)
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
+	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled bool `json:"affiliate_enabled"`
@@ -270,7 +271,8 @@ type PublicSettings struct {
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`
 
-	AvailableChannelsEnabled bool `json:"available_channels_enabled"`
+	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
+	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 }

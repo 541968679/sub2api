@@ -98,7 +98,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	userModelPricingRepository := repository.NewUserModelPricingRepository(db)
 	globalModelPricingService := service.NewGlobalModelPricingService(globalModelPricingRepository, globalPricingCache, pricingService, channelService, groupRepository, userModelPricingRepository)
 	userModelPricingService := service.NewUserModelPricingService(userModelPricingRepository)
-	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, globalModelPricingService, userModelPricingService)
+	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, globalModelPricingService, userModelPricingService, opsService, settingService)
 	redeemHandler := handler.NewRedeemHandler(redeemService)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 	announcementRepository := repository.NewAnnouncementRepository(client)

@@ -295,6 +295,10 @@ const (
 	// sidebar entry is hidden. Defaults to false (opt-in feature).
 	SettingKeyAvailableChannelsEnabled = "available_channels_enabled"
 
+	// SettingKeyAllowUserViewErrorRequests controls whether end users can view
+	// their own failed requests. Defaults to false.
+	SettingKeyAllowUserViewErrorRequests = "allow_user_view_error_requests"
+
 	// =========================
 	// Overload Cooldown (529)
 	// =========================
