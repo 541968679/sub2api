@@ -1189,6 +1189,7 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return
 
+  _usageCache.delete(props.account.id)
   requestAutoLoad()
 })
 

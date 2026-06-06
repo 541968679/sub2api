@@ -470,19 +470,25 @@ const rankingDoughnutOptions = computed(() => ({
   }
 }))
 
+const safeNumber = (value: unknown): number => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : 0
+}
+
 const formatTokens = (value: number): string => {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(2)}B`
-  } else if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(2)}M`
-  } else if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(2)}K`
+  const numeric = safeNumber(value)
+  if (numeric >= 1_000_000_000) {
+    return `${(numeric / 1_000_000_000).toFixed(2)}B`
+  } else if (numeric >= 1_000_000) {
+    return `${(numeric / 1_000_000).toFixed(2)}M`
+  } else if (numeric >= 1_000) {
+    return `${(numeric / 1_000).toFixed(2)}K`
   }
-  return value.toLocaleString()
+  return numeric.toLocaleString()
 }
 
 const formatNumber = (value: number): string => {
-  return value.toLocaleString()
+  return safeNumber(value).toLocaleString()
 }
 
 const getRankingUserLabel = (item: UserSpendingRankingItem): string => {
@@ -496,13 +502,14 @@ const getRankingRowLabel = (item: RankingDisplayItem): string => {
 }
 
 const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
+  const numeric = safeNumber(value)
+  if (numeric >= 1000) {
+    return (numeric / 1000).toFixed(2) + 'K'
+  } else if (numeric >= 1) {
+    return numeric.toFixed(2)
+  } else if (numeric >= 0.01) {
+    return numeric.toFixed(3)
   }
-  return value.toFixed(4)
+  return numeric.toFixed(4)
 }
 </script>

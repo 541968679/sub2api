@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] test: add upstream sync phase 0 guards and smoke checks
+
+**Affected files**: backend/tools/upstream-sync-guard/main.go, backend/tools/smoke/main.go, frontend/src/i18n/__tests__/menuLocaleCoverage.spec.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, frontend/src/components/account/AccountUsageCell.vue, frontend/src/components/account/__tests__/AccountUsageCell.spec.ts, frontend/src/components/charts/ModelDistributionChart.vue, frontend/src/components/charts/GroupDistributionChart.vue, frontend/src/components/charts/__tests__/ModelDistributionChart.spec.ts, frontend/src/components/charts/__tests__/GroupDistributionChart.spec.ts, frontend/src/views/admin/DashboardView.vue, frontend/src/views/auth/__tests__/EmailVerifyView.spec.ts, frontend/src/composables/usePersistedPageSize.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: phase 0 protection only; no upstream runtime merge yet. The guard is intended to stop future upstream-sync phases from deleting local custom features.
+**Change details**:
+- Added an upstream-sync guard that fails on protected local feature deletion, historical migration rewrites, duplicate migration numbers, and missing custom feature signatures.
+- Added reusable real HTTP smoke tooling for quick/custom/openai/images/bridge/embeddings suites. The quick/custom suites reuse the local dev database and write JSON reports under tmp/smoke.
+- Added frontend i18n/menu coverage so router/sidebar/static translation keys must exist in both zh/en locales and cannot render raw variable names.
+- Fixed existing frontend test baselines and numeric formatting edge cases that blocked the phase 0 test gate without changing upstream-sync behavior.
+- Verified with `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -SkipAIClient`, `go test -tags=unit ./internal/server ./internal/handler ./internal/service`, `pnpm run typecheck`, `pnpm run test:run`, `go run ./tools/upstream-sync-guard`, and `go run ./tools/smoke --suite quick,custom`.
+
 ## [2026-06-05] feat: extend announcements across popup, dashboard banner, and API key rules surfaces
 
 **Affected files**: backend/ent/schema/announcement.go, backend/ent/schema/announcement_read.go, backend/migrations/148_extend_announcements_surfaces.sql, backend/migrations/149_announcement_reads_drop_read_at_default.sql, backend/internal/domain/announcement.go, backend/internal/service/announcement.go, backend/internal/service/announcement_service.go, backend/internal/repository/announcement_repo.go, backend/internal/repository/announcement_read_repo.go, backend/internal/handler/announcement_handler.go, backend/internal/handler/admin/announcement_handler.go, backend/internal/handler/dto/announcement.go, backend/internal/server/routes/user.go, frontend/src/types/index.ts, frontend/src/api/announcements.ts, frontend/src/api/admin/announcements.ts, frontend/src/stores/announcements.ts, frontend/src/views/admin/AnnouncementsView.vue, frontend/src/views/user/DashboardView.vue, frontend/src/components/user/dashboard/DashboardAnnouncementBanner.vue, frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/announcements.md, docs/dev/codebase/README.md

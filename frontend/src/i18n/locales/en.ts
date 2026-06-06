@@ -1,4 +1,4 @@
-export default {
+const enBase = {
   // Home Page
   home: {
     viewOnGithub: 'View on GitHub',
@@ -326,6 +326,7 @@ export default {
     settings: 'Settings',
     chooseFile: 'Choose File',
     copy: 'Copy',
+    login: 'Login',
     notAvailable: 'N/A',
     now: 'Now',
     today: 'Today',
@@ -7212,3 +7213,84 @@ export default {
   },
 
 }
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function mergeLocale<T extends Record<string, unknown>>(base: T, patch: Record<string, unknown>): T {
+  const merged: Record<string, unknown> = { ...base }
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (isPlainObject(value) && isPlainObject(merged[key])) {
+      merged[key] = mergeLocale(merged[key] as Record<string, unknown>, value)
+    } else {
+      merged[key] = value
+    }
+  }
+
+  return merged as T
+}
+
+const phase0LocalePatch = {
+  common: {
+    required: 'Required',
+    tryAgain: 'Please try again',
+    sending: 'Sending...',
+    creating: 'Creating...',
+    apply: 'Apply'
+  },
+  usage: {
+    input: 'Input',
+    output: 'Output',
+    cacheCreation: 'Cache Creation'
+  },
+  admin: {
+    accounts: {
+      fromModel: 'Requested model',
+      toModel: 'Upstream model',
+      deleteMapping: 'Delete mapping',
+      oauth: {
+        openai: {
+          accessTokenAuth: 'Access token auth',
+          mobileRefreshTokenAuth: 'Mobile refresh token auth'
+        }
+      }
+    },
+    users: {
+      passwordCopied: 'Password copied'
+    },
+    channels: {
+      emptyModelsInPricing: '{platform} has a pricing entry without models. Add models or remove the entry.',
+      noGroupsSelected: '{platform} has no groups selected. Select at least one group or disable the platform.'
+    },
+    groups: {
+      accountsUnit: 'accounts',
+      failedToSave: 'Failed to save'
+    },
+    ops: {
+      result: 'Result',
+      timeRange: {
+        custom: 'Custom'
+      },
+      customTimeRange: {
+        startTime: 'Start time',
+        endTime: 'End time'
+      },
+      runtime: {
+        metricThresholds: 'Metric Thresholds',
+        metricThresholdsHint: 'Configure alert thresholds for runtime metrics.',
+        requestErrorRateMaxPercent: 'Request Error Rate Maximum (%)',
+        requestErrorRateMaxPercentHint: 'Request error rate above this value is highlighted.',
+        slaMinPercent: 'SLA Minimum Percentage',
+        slaMinPercentHint: 'SLA below this value is highlighted.',
+        ttftP99MaxMs: 'TTFT P99 Maximum (ms)',
+        ttftP99MaxMsHint: 'TTFT P99 above this value is highlighted.',
+        upstreamErrorRateMaxPercent: 'Upstream Error Rate Maximum (%)',
+        upstreamErrorRateMaxPercentHint: 'Upstream error rate above this value is highlighted.'
+      }
+    }
+  }
+}
+
+export default mergeLocale(enBase, phase0LocalePatch)

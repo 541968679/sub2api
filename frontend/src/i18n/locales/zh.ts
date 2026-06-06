@@ -6747,7 +6747,12 @@ const zhBase = {
 const v117ZhPatch = {
   common: {
     login: '登录',
-    done: '已完成'
+    done: '已完成',
+    required: '必填',
+    tryAgain: '请重试',
+    sending: '发送中...',
+    creating: '创建中...',
+    apply: '应用'
   },
   nav: {
     distribution: '成为代理',
@@ -6983,6 +6988,9 @@ const v117ZhPatch = {
     }
   },
   usage: {
+    input: '输入',
+    output: '输出',
+    cacheCreation: '缓存创建',
     antigravity: {
       title: 'Antigravity 用量',
       subtitle: '查看 Antigravity 账号的调用、额度和节流状态',
@@ -7321,6 +7329,9 @@ const v117ZhPatch = {
       applySuggested: '应用建议值'
     },
     accounts: {
+      fromModel: '请求模型',
+      toModel: '上游模型',
+      deleteMapping: '删除映射',
       useEmailAsName: '使用邮箱作为名称',
       autoAssignProxy: '自动分配代理',
       autoAssignProxyHint: '创建或导入账号时，从可用代理池中自动分配代理。',
@@ -7330,6 +7341,10 @@ const v117ZhPatch = {
         autoAssignProxyResult: '自动分配完成：成功 {success}，跳过 {skipped}，失败 {failed}'
       },
       oauth: {
+        openai: {
+          accessTokenAuth: 'Access Token 认证',
+          mobileRefreshTokenAuth: 'Mobile Refresh Token 认证'
+        },
         gemini: {
           refreshTokenAuth: 'Refresh Token 认证',
           refreshTokenDesc: '使用 Gemini Refresh Token 创建 OAuth 账号。',
@@ -7358,6 +7373,24 @@ const v117ZhPatch = {
       batchDefaultProtocolHint: '批量导入时未填写协议的代理将使用此协议。',
       forceDeleteConfirm: '该代理仍有关联账号，确定强制删除吗？'
     },
+    channels: {
+      emptyModelsInPricing: '{platform} 平台下有定价条目未添加模型，请添加模型或删除该条目',
+      noGroupsSelected: '{platform} 平台未选择分组，请至少选择一个分组或禁用该平台'
+    },
+    ops: {
+      runtime: {
+        metricThresholds: '指标阈值配置',
+        metricThresholdsHint: '配置运行时指标的告警阈值。',
+        requestErrorRateMaxPercent: '请求错误率最大值（%）',
+        requestErrorRateMaxPercentHint: '请求错误率高于此值时高亮显示。',
+        slaMinPercent: 'SLA 最低百分比',
+        slaMinPercentHint: 'SLA 低于此值时高亮显示。',
+        ttftP99MaxMs: 'TTFT P99 最大值（毫秒）',
+        ttftP99MaxMsHint: 'TTFT P99 高于此值时高亮显示。',
+        upstreamErrorRateMaxPercent: '上游错误率最大值（%）',
+        upstreamErrorRateMaxPercentHint: '上游错误率高于此值时高亮显示。'
+      }
+    },
     usage: {
       actions: '操作',
       viewUserPerspective: '查看用户视角',
@@ -7381,6 +7414,7 @@ const v117ZhPatch = {
       userViewEmptySection: '暂无可对比数据'
     },
     users: {
+      passwordCopied: '密码已复制',
       modelPricing: '模型定价',
       modelPricingConfig: '模型定价配置',
       modelPricingHint: '为该用户配置单独的模型展示价或计费价覆盖。',
