@@ -2546,3 +2546,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Kept local `toolu_*` preservation by validating tool call IDs by type rather than by fixed input index, since upstream todo guard can prepend developer input.
 - Verified with `go test -tags=unit ./internal/service -run "ForwardAsAnthropic|ClaudeGPTBridge|OpenAICompat|ToolContinuation|ReplayGuard|PromptCache|CodexTransform"`, `go test -tags=unit ./internal/handler -run "OpenAIMessages|ClaudeGPTBridge|FunctionCallOutput"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, `go run ./tools/upstream-sync-guard`, `git diff --check`, and `go run ./tools/smoke --suite openai,bridge`.
 - Local smoke note: the dev PostgreSQL `schema_migrations` table had stale checksums for already-applied `150-166` migrations from a prior branch state; the local dev DB records were updated to match the current migration files so the backend could start for real-request smoke. No migration files were changed.
+
+## [2026-06-06] feat: add OpenAI embeddings endpoint and endpoint capability scheduling
+
+**Affected files**: backend/internal/handler/endpoint.go, backend/internal/handler/openai_embeddings.go, backend/internal/server/routes/gateway.go, backend/internal/service/account.go, backend/internal/service/http_upstream_profile.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_embeddings.go, backend/internal/service/upstream_context.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI Embeddings sync from `upstream/main@1f423ae0`; scoped to OpenAI API key embeddings and endpoint capability scheduling, without changing the local Claude-GPT bridge scheduler path.
+**Change details**:
+- Added OpenAI-compatible `POST /v1/embeddings` for OpenAI groups, including request validation, OpenAI API-key forwarding, upstream response passthrough, usage extraction, and usage-log recording.
+- Added `credentials.openai_capabilities` endpoint gating with `chat_completions` and `embeddings`; missing configuration remains backward-compatible and allows existing OpenAI API key accounts to serve chat completions.
+- Updated `/v1/responses`, `/v1/chat/completions`, native OpenAI `/v1/messages`, and OpenAI WS initial account selection to require the chat-completions capability, while the Claude-GPT bridge still uses `SelectAccountWithSchedulerForClaudeGPTBridge`.
+- Added the minimal upstream context/profile helpers needed by embeddings forwarding, and kept pool-mode retry behavior on the existing local default status-code list.
+- Verified with `go test -tags=unit ./internal/handler -run "Endpoint|Embeddings"`, `go test -tags=unit ./internal/service -run "Embeddings|OpenAIAccountScheduler|OpenAIImage|PoolMode"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
