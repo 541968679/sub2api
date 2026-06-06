@@ -17,8 +17,14 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
+
+var openaiCCRawAllowedHeaders = map[string]bool{
+	"accept-language": true,
+	"user-agent":      true,
+}
 
 // forwardAsRawChatCompletions 直转客户端的 Chat Completions 请求到上游
 // `{base_url}/v1/chat/completions`，**不**做 CC↔Responses 协议转换。
@@ -53,7 +59,8 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		return nil, fmt.Errorf("missing model in request")
 	}
 	clientStream := gjson.GetBytes(body, "stream").Bool()
-	includeUsage := gjson.GetBytes(body, "stream_options.include_usage").Bool()
+	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, originalModel)
+	serviceTier := extractOpenAIServiceTierFromBody(body)
 
 	// 2. Resolve model mapping (same as ForwardAsChatCompletions)
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
@@ -75,6 +82,13 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		return nil, policyErr
 	}
 	upstreamBody = updatedBody
+	if clientStream {
+		var usageErr error
+		upstreamBody, usageErr = ensureOpenAIChatStreamUsage(upstreamBody)
+		if usageErr != nil {
+			return nil, fmt.Errorf("enable stream usage: %w", usageErr)
+		}
+	}
 
 	logger.L().Debug("openai chat_completions raw: forwarding without protocol conversion",
 		zap.Int64("account_id", account.ID),
@@ -114,7 +128,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// Whitelist passthrough headers (subset of openaiAllowedHeaders relevant to CC).
 	for key, values := range c.Request.Header {
 		lowerKey := strings.ToLower(key)
-		if openaiAllowedHeaders[lowerKey] {
+		if openaiCCRawAllowedHeaders[lowerKey] {
 			for _, v := range values {
 				upstreamReq.Header.Add(key, v)
 			}
@@ -188,9 +202,9 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 
 	// 8. Forward response
 	if clientStream {
-		return s.streamRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, includeUsage, startTime)
+		return s.streamRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
-	return s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, startTime)
+	return s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
 
 // streamRawChatCompletions 透传上游 CC SSE 流到客户端，并提取 usage（包括
@@ -201,7 +215,8 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
-	includeUsage bool,
+	reasoningEffort *string,
+	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
@@ -224,36 +239,45 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 
 	var usage OpenAIUsage
 	var firstTokenMs *int
+	clientDisconnected := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		// Direct passthrough: write each line + blank line separator
-		if _, werr := c.Writer.WriteString(line + "\n"); werr != nil {
-			logger.L().Debug("openai chat_completions raw: client write failed",
-				zap.Error(werr),
-				zap.String("request_id", requestID),
-			)
-			break
+		if payload, ok := extractOpenAISSEDataLine(line); ok {
+			trimmedPayload := strings.TrimSpace(payload)
+			if trimmedPayload != "[DONE]" {
+				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
+				if u := extractCCStreamUsage(payload); u != nil {
+					usage = *u
+				}
+				if firstTokenMs == nil && !usageOnlyChunk {
+					elapsed := int(time.Since(startTime).Milliseconds())
+					firstTokenMs = &elapsed
+				}
+			}
+		}
+
+		outLine := line
+		if mult := getDisplayTokenMultipliers(c); mult != nil {
+			outLine = rewriteOpenAIChatSSEUsageTokens(outLine, mult)
+		}
+		if !clientDisconnected {
+			if _, werr := c.Writer.WriteString(outLine + "\n"); werr != nil {
+				clientDisconnected = true
+				logger.L().Debug("openai chat_completions raw: client disconnected, continuing to drain upstream for billing",
+					zap.Error(werr),
+					zap.String("request_id", requestID),
+				)
+			}
 		}
 		if line == "" {
-			c.Writer.Flush()
+			if !clientDisconnected {
+				c.Writer.Flush()
+			}
 			continue
 		}
-		c.Writer.Flush()
-
-		// Track first token timing on first non-empty data line
-		if firstTokenMs == nil && strings.HasPrefix(line, "data: ") && line != "data: [DONE]" {
-			elapsed := int(time.Since(startTime).Milliseconds())
-			firstTokenMs = &elapsed
-		}
-
-		// Extract usage from any chunk that carries it (CC streams typically put
-		// usage in the final chunk before [DONE], but may also appear elsewhere).
-		if strings.HasPrefix(line, "data: ") && line != "data: [DONE]" {
-			payload := line[6:]
-			if u := extractCCStreamUsage(payload); u != nil {
-				usage = *u
-			}
+		if !clientDisconnected {
+			c.Writer.Flush()
 		}
 	}
 
@@ -266,34 +290,61 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 	}
 
-	_ = includeUsage // CC 协议下 usage 是否包含由客户端的 stream_options 决定，上游会自行处理；我们仅做提取。
-
 	return &OpenAIForwardResult{
-		RequestID:     requestID,
-		Usage:         usage,
-		Model:         originalModel,
-		BillingModel:  billingModel,
-		UpstreamModel: upstreamModel,
-		Stream:        true,
-		Duration:      time.Since(startTime),
-		FirstTokenMs:  firstTokenMs,
+		RequestID:       requestID,
+		Usage:           usage,
+		Model:           originalModel,
+		BillingModel:    billingModel,
+		UpstreamModel:   upstreamModel,
+		ReasoningEffort: reasoningEffort,
+		ServiceTier:     serviceTier,
+		Stream:          true,
+		Duration:        time.Since(startTime),
+		FirstTokenMs:    firstTokenMs,
 	}, nil
 }
 
 // bufferRawChatCompletions 透传上游 CC 非流式 JSON 响应。
+func ensureOpenAIChatStreamUsage(body []byte) ([]byte, error) {
+	updated, err := sjson.SetBytes(body, "stream_options.include_usage", true)
+	if err != nil {
+		return body, err
+	}
+	return updated, nil
+}
+
+func rewriteOpenAIChatSSEUsageTokens(line string, mult *DisplayTokenMultipliers) string {
+	if mult == nil || !mult.IsNonTrivial() {
+		return line
+	}
+	payload, ok := extractOpenAISSEDataLine(line)
+	if !ok || strings.TrimSpace(payload) == "" || strings.TrimSpace(payload) == "[DONE]" {
+		return line
+	}
+	if !gjson.Get(payload, "usage").Exists() {
+		return line
+	}
+	rewritten := rewriteOpenAIChatUsageTokens([]byte(payload), "usage", mult)
+	return "data: " + string(rewritten)
+}
+
 func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	c *gin.Context,
 	resp *http.Response,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
+	reasoningEffort *string,
+	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
 	requestID := resp.Header.Get("x-request-id")
 
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
-		writeChatCompletionsError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
+		if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
+			writeChatCompletionsError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
+		}
 		return nil, fmt.Errorf("read upstream body: %w", err)
 	}
 
@@ -317,17 +368,22 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	} else {
 		c.Writer.Header().Set("Content-Type", "application/json")
 	}
+	if mult := getDisplayTokenMultipliers(c); mult != nil {
+		respBody = rewriteOpenAIChatUsageTokens(respBody, "usage", mult)
+	}
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(respBody)
 
 	return &OpenAIForwardResult{
-		RequestID:     requestID,
-		Usage:         usage,
-		Model:         originalModel,
-		BillingModel:  billingModel,
-		UpstreamModel: upstreamModel,
-		Stream:        false,
-		Duration:      time.Since(startTime),
+		RequestID:       requestID,
+		Usage:           usage,
+		Model:           originalModel,
+		BillingModel:    billingModel,
+		UpstreamModel:   upstreamModel,
+		ReasoningEffort: reasoningEffort,
+		ServiceTier:     serviceTier,
+		Stream:          false,
+		Duration:        time.Since(startTime),
 	}, nil
 }
 
@@ -368,12 +424,5 @@ func extractCCStreamUsage(payload string) *OpenAIUsage {
 //
 // 与 buildOpenAIResponsesURL 是姐妹函数。
 func buildOpenAIChatCompletionsURL(base string) string {
-	normalized := strings.TrimRight(strings.TrimSpace(base), "/")
-	if strings.HasSuffix(normalized, "/chat/completions") {
-		return normalized
-	}
-	if strings.HasSuffix(normalized, "/v1") {
-		return normalized + "/chat/completions"
-	}
-	return normalized + "/v1/chat/completions"
+	return buildOpenAIEndpointURL(base, "/v1/chat/completions")
 }

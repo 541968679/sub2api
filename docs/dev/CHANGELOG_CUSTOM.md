@@ -2491,3 +2491,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Converted upstream Chat Completions JSON/SSE responses back into Responses JSON/SSE for downstream clients, including DeepSeek reasoning-only streams and usage-only stream chunks.
 - Extended JSON usage extraction to accept Chat Completions `prompt_tokens` / `completion_tokens` fields when this fallback path reads upstream usage.
 - Verified with focused fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
+
+## [2026-06-06] fix: sync upstream raw chat completions usage and URL handling
+
+**Affected files**: backend/internal/service/openai_endpoint_url.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; scoped to OpenAI API key raw Chat Completions forwarding and shared OpenAI endpoint URL construction.
+**Change details**:
+- Forced raw `/v1/chat/completions` stream forwarding to request `stream_options.include_usage=true`, so upstream usage is available for billing even when the client omitted the option.
+- Continued draining upstream SSE after downstream client disconnects, preserving usage extraction without writing more data to the disconnected client.
+- Added a raw Chat Completions header allowlist so Codex/OAuth-specific headers like `session_id`, `conversation_id`, and `x-codex-turn-state` are not forwarded to third-party API-key upstreams.
+- Added shared OpenAI endpoint URL construction for versioned compatible base URLs such as `/api/paas/v4`, covering Responses and Chat Completions.
+- Routed raw Chat Completions non-streaming reads through the existing upstream response-size guard and kept display-token rewriting downstream-only.
+- Verified with focused raw/fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.

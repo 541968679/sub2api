@@ -5,11 +5,13 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
@@ -174,6 +176,117 @@ func TestForwardResponses_AutoSupportedAccountStillUsesResponsesEndpoint(t *test
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
 	require.Equal(t, "ok", gjson.Get(rec.Body.String(), "output.0.content.0.text").String())
+}
+
+func TestBuildOpenAIChatCompletionsURL_HandlesVersionedBaseURL(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t,
+		"https://api.openai.com/v1/chat/completions",
+		buildOpenAIChatCompletionsURL("https://api.openai.com/v1"),
+	)
+	require.Equal(t,
+		"https://open.bigmodel.cn/api/paas/v4/chat/completions",
+		buildOpenAIChatCompletionsURL("https://open.bigmodel.cn/api/paas/v4"),
+	)
+	require.Equal(t,
+		"https://api.openai.com/v1/responses",
+		buildOpenAIResponsesURL("https://api.openai.com/v1"),
+	)
+	require.Equal(t,
+		"https://open.bigmodel.cn/api/paas/v4/responses",
+		buildOpenAIResponsesURL("https://open.bigmodel.cn/api/paas/v4"),
+	)
+}
+
+func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndDrainsAfterDisconnect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Writer = &rawChatFailingWriter{ResponseWriter: c.Writer}
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("conversation_id", "must-not-forward")
+	c.Request.Header.Set("session_id", "must-not-forward")
+	c.Request.Header.Set("x-codex-turn-state", "must-not-forward")
+	c.Request.Header.Set("accept-language", "zh-CN")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"content":"ok"}}]}`,
+		"",
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"prompt_tokens":17,"completion_tokens":8,"total_tokens":25,"prompt_tokens_details":{"cached_tokens":6}}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_raw_disconnect"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, rawChatCompletionsTestAccount(), body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 17, result.Usage.InputTokens)
+	require.Equal(t, 8, result.Usage.OutputTokens)
+	require.Equal(t, 6, result.Usage.CacheReadInputTokens)
+	require.True(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Bool())
+	require.Equal(t, "zh-CN", upstream.lastReq.Header.Get("accept-language"))
+	require.Empty(t, upstream.lastReq.Header.Get("conversation_id"))
+	require.Empty(t, upstream.lastReq.Header.Get("session_id"))
+	require.Empty(t, upstream.lastReq.Header.Get("x-codex-turn-state"))
+}
+
+func TestBufferRawChatCompletions_RejectsOversizedResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader("toolong")),
+	}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+	svc.cfg.Gateway.UpstreamResponseReadMaxBytes = 3
+
+	result, err := svc.bufferRawChatCompletions(c, resp, "gpt-5.4", "gpt-5.4", "gpt-5.4", nil, nil, time.Now())
+	require.ErrorIs(t, err, ErrUpstreamResponseBodyTooLarge)
+	require.Nil(t, result)
+	require.Equal(t, http.StatusBadGateway, rec.Code)
+}
+
+func TestEnsureOpenAIChatStreamUsage(t *testing.T) {
+	t.Parallel()
+
+	body, err := ensureOpenAIChatStreamUsage([]byte(`{"model":"gpt-5.4"}`))
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(body, "stream_options.include_usage").Bool())
+
+	body, err = ensureOpenAIChatStreamUsage([]byte(`{"model":"gpt-5.4","stream_options":{"include_usage":false}}`))
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(body, "stream_options.include_usage").Bool())
+}
+
+type rawChatFailingWriter struct {
+	gin.ResponseWriter
+}
+
+func (w *rawChatFailingWriter) Write(_ []byte) (int, error) {
+	return 0, errors.New("client disconnected")
+}
+
+func (w *rawChatFailingWriter) WriteString(_ string) (int, error) {
+	return 0, errors.New("client disconnected")
 }
 
 func forceChatResponsesFallbackAccount() *Account {
