@@ -12,3 +12,13 @@ func TestShouldEnqueueSchedulerOutboxForExtraUpdates_CompactCapabilityKeysAreRel
 		t.Fatalf("expected compact capability updates to enqueue scheduler outbox")
 	}
 }
+
+func TestShouldEnqueueSchedulerOutboxForExtraUpdates_OpenAIImagesEndpointToggleIsRelevant(t *testing.T) {
+	updates := map[string]any{
+		"openai_images_endpoint_enabled": false,
+	}
+
+	if !shouldEnqueueSchedulerOutboxForExtraUpdates(updates) {
+		t.Fatalf("expected OpenAI images endpoint toggle updates to enqueue scheduler outbox")
+	}
+}

@@ -33,6 +33,26 @@ Important mechanisms:
 - The mapping is account-global. There is no group-level or account-group-level
   Claude-GPT mapping.
 
+## OpenAI Images Endpoint Scheduling
+
+OpenAI OAuth/API-key accounts can opt out of independent Images endpoint
+scheduling with `extra.openai_images_endpoint_enabled=false`.
+
+This switch only affects `/v1/images/generations` and `/v1/images/edits`.
+Missing, null, or non-boolean values default to enabled for backward
+compatibility. It is intentionally separate from
+`extra.codex_image_generation_bridge`, which only controls Codex
+`/v1/responses` image tool injection.
+
+Implementation notes:
+
+- Create/Edit account forms save `false` only when disabled; re-enabling removes
+  the extra key.
+- The scheduler reads the same `Account.SupportsOpenAIImageCapability()` helper
+  in both scheduler and load-awareness fallback paths.
+- `openai_images_endpoint_enabled` is scheduler-relevant, so updating it must
+  enqueue scheduler outbox work and refresh account snapshots.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

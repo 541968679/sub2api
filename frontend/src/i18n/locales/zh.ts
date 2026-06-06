@@ -3157,6 +3157,9 @@ const zhBase = {
         codexImageGenerationBridgeInherit: '跟随全局',
         codexImageGenerationBridgeEnabled: '开启',
         codexImageGenerationBridgeDisabled: '关闭',
+        imagesEndpointScheduling: '图片端点调度',
+        imagesEndpointSchedulingDesc:
+          '控制该账号是否参与 /v1/images/generations 与 /v1/images/edits 调度；不影响 Codex /v1/responses 图片工具桥接。',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           '默认关闭。开启后可启用 responses_websockets_v2 协议能力（受网关全局开关与账号类型开关约束）。',

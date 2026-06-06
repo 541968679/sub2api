@@ -162,6 +162,102 @@ func TestOpenAIGatewayService_IsCodexImageGenerationBridgeEnabled(t *testing.T) 
 	})
 }
 
+func TestAccount_OpenAIImagesEndpointEnabled(t *testing.T) {
+	tests := []struct {
+		name    string
+		account *Account
+		want    bool
+	}{
+		{
+			name: "missing extra defaults enabled",
+			account: &Account{
+				Platform: PlatformOpenAI,
+			},
+			want: true,
+		},
+		{
+			name: "top-level enabled",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					"openai_images_endpoint_enabled": true,
+				},
+			},
+			want: true,
+		},
+		{
+			name: "top-level disabled",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					"openai_images_endpoint_enabled": false,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "nested openai disabled",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					"openai": map[string]any{
+						"openai_images_endpoint_enabled": false,
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "invalid type defaults enabled",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					"openai_images_endpoint_enabled": "false",
+				},
+			},
+			want: true,
+		},
+		{
+			name: "non-openai disabled",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Extra: map[string]any{
+					"openai_images_endpoint_enabled": true,
+				},
+			},
+			want: false,
+		},
+		{
+			name:    "nil account disabled",
+			account: nil,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.account.OpenAIImagesEndpointEnabled())
+		})
+	}
+}
+
+func TestAccount_OpenAIImagesEndpointToggleDoesNotAffectCodexBridge(t *testing.T) {
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Gateway: config.GatewayConfig{CodexImageGenerationBridgeEnabled: true},
+		},
+	}
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Extra: map[string]any{
+			"openai_images_endpoint_enabled": false,
+		},
+	}
+
+	require.False(t, account.OpenAIImagesEndpointEnabled())
+	require.True(t, svc.isCodexImageGenerationBridgeEnabled(account))
+}
+
 func boolPtrForTest(v bool) *bool {
 	return &v
 }

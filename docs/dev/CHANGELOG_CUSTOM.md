@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] feat: add account-level OpenAI images endpoint scheduling toggle
+
+**Affected files**: backend/internal/service/account.go, backend/internal/service/codex_image_generation_bridge.go, backend/internal/service/openai_account_scheduler_test.go, backend/internal/repository/account_repo_compact_extra_test.go, backend/tools/smoke/main.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/CreateAccountModal.spec.ts, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/codebase/gateway.md
+**Upstream compatibility**: local Phase 4.5 overlay only. The switch is intentionally independent from upstream Codex image-generation bridge controls and from later Phase 5 quota/risk-control/usage-error features.
+**Change details**:
+- Added `extra.openai_images_endpoint_enabled` as an account-level opt-out for independent OpenAI-compatible Images endpoints. Missing, null, or non-boolean values remain enabled for compatibility; JSON boolean `false` excludes the account from `/v1/images/generations` and `/v1/images/edits` scheduling.
+- Kept the switch independent from Codex `/v1/responses` image-generation bridge injection, OpenAI chat/responses, embeddings, Claude-GPT bridge, display-token behavior, and billing/pricing semantics.
+- Routed scheduler and legacy load-awareness selection through the same `SupportsOpenAIImageCapability` helper and kept the extra key scheduler-relevant so account snapshot refreshes happen when the toggle changes.
+- Added Create/Edit account UI controls with Chinese/English i18n; enabled state omits the extra key, disabled state writes `false`.
+- Hardened smoke fixture selection so images smoke does not choose OpenAI accounts with `openai_images_endpoint_enabled=false`.
+
 ## [2026-06-06] fix: include user model display pricing in admin usage rows
 
 **Affected files**: backend/internal/handler/admin/usage_handler.go, frontend/src/components/admin/usage/UsageTable.vue, frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts

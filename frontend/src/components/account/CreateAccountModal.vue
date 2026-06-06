@@ -2680,6 +2680,30 @@
       >
         <div class="flex items-center justify-between">
           <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.imagesEndpointScheduling') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.imagesEndpointSchedulingDesc') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="openai-images-endpoint-enabled"
+            @click="openAIImagesEndpointEnabled = !openAIImagesEndpointEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openAIImagesEndpointEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openAIImagesEndpointEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+        <div class="flex items-center justify-between">
+          <div>
             <label class="input-label mb-0">{{ t('admin.accounts.openai.compactMode') }}</label>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.openai.compactModeDesc') }}
@@ -3356,6 +3380,7 @@ const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
+const openAIImagesEndpointEnabled = ref(true)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -3786,6 +3811,7 @@ watch(
       openaiPassthroughEnabled.value = false
       openaiClaudeGPTBridgeEnabled.value = false
       openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
+      openAIImagesEndpointEnabled.value = true
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
@@ -4205,6 +4231,7 @@ const resetForm = () => {
   openaiClaudeGPTBridgeEnabled.value = false
   openAICompactMode.value = 'auto'
   openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
+  openAIImagesEndpointEnabled.value = true
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   codexCLIOnlyEnabled.value = false
@@ -4285,6 +4312,11 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     extra.openai_claude_gpt_bridge_enabled = true
   } else {
     delete extra.openai_claude_gpt_bridge_enabled
+  }
+  if (openAIImagesEndpointEnabled.value) {
+    delete extra.openai_images_endpoint_enabled
+  } else {
+    extra.openai_images_endpoint_enabled = false
   }
 
   if (accountCategory.value === 'oauth-based' && codexCLIOnlyEnabled.value) {

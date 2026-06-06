@@ -724,7 +724,8 @@ func queryOpenAIChatAPIKey(ctx context.Context, db *sql.DB, raw string) (*fixtur
 func queryOpenAIImageAPIKey(ctx context.Context, db *sql.DB, raw string) (*fixtureAPIKey, error) {
 	return queryOpenAIFixtureAPIKey(ctx, db, raw, `
   AND g.allow_image_generation = TRUE
-  AND a.type IN ('oauth', 'apikey')`)
+  AND a.type IN ('oauth', 'apikey')
+  AND `+openAIImagesEndpointEnabledSQL())
 }
 
 func queryOpenAIEmbeddingAPIKey(ctx context.Context, db *sql.DB, raw string) (*fixtureAPIKey, error) {
@@ -804,6 +805,19 @@ func openAIEndpointCapabilitySQL(capability string) string {
       jsonb_typeof(a.credentials->'openai_capabilities') = 'object'
       AND a.credentials->'openai_capabilities'->>'` + escaped + `' = 'true'
     )
+  )`
+}
+
+func openAIImagesEndpointEnabledSQL() string {
+	return `(
+    CASE
+      WHEN jsonb_typeof(a.extra->'openai_images_endpoint_enabled') = 'boolean'
+        THEN a.extra->>'openai_images_endpoint_enabled' <> 'false'
+      WHEN jsonb_typeof(a.extra->'openai') = 'object'
+        AND jsonb_typeof(a.extra->'openai'->'openai_images_endpoint_enabled') = 'boolean'
+        THEN a.extra->'openai'->>'openai_images_endpoint_enabled' <> 'false'
+      ELSE TRUE
+    END
   )`
 }
 

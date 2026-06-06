@@ -123,6 +123,13 @@ upstream prompt-cache/session/continuation behavior.
   -> RecordUsage task submission
 ```
 
+OpenAI Images endpoint scheduling also checks
+`account.extra.openai_images_endpoint_enabled`. Only JSON boolean `false`
+disables an account for `/v1/images/generations` and `/v1/images/edits`; missing
+or invalid values remain enabled. This does not control Codex `/v1/responses`
+`image_generation` tool injection, which remains governed by the separate Codex
+image bridge setting.
+
 ### API Key Usage Query
 
 ```
@@ -159,6 +166,7 @@ assigned to a scheduling group.
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
 | Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, and cost-window checks. |
 | OpenAI image trace logs | `OPENAI_IMAGE_TRACE_LOG=true` emits structured `openai.images.trace` events for `/v1/images/generations` with `model=gpt-image-2` only. Fields are limited to safe timing/correlation data (`request_id`, `client_request_id`, `trace_id`, `account_id`, model, size, quality, stream, status, timestamps, upstream request id); prompts, image bytes/base64, auth headers, cookies, API keys, and full bodies must not be logged. |
+| OpenAI Images account opt-out | `extra.openai_images_endpoint_enabled=false` excludes an OpenAI OAuth/API-key account from independent `/v1/images/*` scheduling only. It must not disable OpenAI chat/responses/embeddings, Claude-GPT bridge, or Codex `/v1/responses` image tool injection. |
 | OpenAI Images upstream 400 passthrough | `OpenAIGatewayHandler.Images` binds an Images request context after parsing `/v1/images/*`. `OpenAIGatewayService.handleErrorResponse` uses that context to return upstream 400 user errors, such as invalid image dimensions, as downstream 400 with the upstream `error.message` and `error.type` instead of masking them as generic 502. Keep this scoped to Images requests. |
 | OpenAI OAuth image timeout/retry | The Codex `/responses` image tool path retries fast no-header transport failures up to 3 total attempts with short backoff. It also wraps the full upstream wait/body read in an image-generation timeout: 1K = 180s, 2K = 240s, 4K/unknown = 360s. Timeout errors return `image_generation_timeout` (504) before any non-streaming response is written; no-header retry exhaustion returns `image_generation_upstream_unreachable` (502). |
 

@@ -3404,6 +3404,9 @@ const enBase = {
         codexImageGenerationBridgeInherit: 'Inherit global',
         codexImageGenerationBridgeEnabled: 'Enabled',
         codexImageGenerationBridgeDisabled: 'Disabled',
+        imagesEndpointScheduling: 'Images endpoint scheduling',
+        imagesEndpointSchedulingDesc:
+          'Controls whether this account can serve /v1/images/generations and /v1/images/edits. It does not affect the Codex /v1/responses image tool bridge.',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           'Disabled by default. Enable to allow responses_websockets_v2 capability (still gated by global and account-type switches).',
