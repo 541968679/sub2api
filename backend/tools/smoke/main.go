@@ -88,17 +88,21 @@ type fixtureAPIKey struct {
 }
 
 type smokeRunner struct {
-	baseURL     string
-	frontendURL string
-	cfg         configFile
-	db          *sql.DB
-	client      *http.Client
-	report      report
-	adminToken  string
-	userToken   string
-	apiKey      *fixtureAPIKey
-	adminUser   *fixtureUser
-	normalUser  *fixtureUser
+	baseURL      string
+	frontendURL  string
+	cfg          configFile
+	db           *sql.DB
+	client       *http.Client
+	report       report
+	adminToken   string
+	userToken    string
+	apiKey       *fixtureAPIKey
+	openAIKey    *fixtureAPIKey
+	imageKey     *fixtureAPIKey
+	embeddingKey *fixtureAPIKey
+	bridgeKey    *fixtureAPIKey
+	adminUser    *fixtureUser
+	normalUser   *fixtureUser
 }
 
 func main() {
@@ -111,6 +115,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "smoke: %v\n", err)
 		os.Exit(2)
 	}
+	loadLocalEnv(filepath.Join(root, "tmp", "smoke", "local.env"))
 	cfg, err := readConfig(root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "smoke: %v\n", err)
@@ -247,8 +252,11 @@ func (r *smokeRunner) runCustom(ctx context.Context) {
 }
 
 func (r *smokeRunner) runOpenAI(ctx context.Context) {
-	if r.apiKey == nil {
-		r.add("openai", "openai fixture", "failed", 0, "", "", 0, errors.New("no active API key found in database"), nil)
+	key := firstFixtureKey(r.openAIKey)
+	if key == nil {
+		r.add("openai", "openai fixture", "failed", 0, "", "", 0, errors.New("no OpenAI chat API key fixture found"), map[string]string{
+			"required": "active downstream API key bound to a group with an active OpenAI upstream account",
+		})
 		return
 	}
 	body := map[string]any{
@@ -256,7 +264,7 @@ func (r *smokeRunner) runOpenAI(ctx context.Context) {
 		"input":  "Sub2API smoke test. Reply with ok.",
 		"stream": false,
 	}
-	r.postJSON(ctx, "openai", "responses non-stream", r.baseURL+"/v1/responses", apiKeyHeaders(r.apiKey.Key), body, expectStatusRange(200, 499))
+	r.postJSON(ctx, "openai", "responses non-stream", r.baseURL+"/v1/responses", apiKeyHeaders(key.Key), body, expectStatus(200))
 	chat := map[string]any{
 		"model": "gpt-5.5",
 		"messages": []map[string]string{
@@ -264,12 +272,15 @@ func (r *smokeRunner) runOpenAI(ctx context.Context) {
 		},
 		"stream": false,
 	}
-	r.postJSON(ctx, "openai", "chat completions non-stream", r.baseURL+"/v1/chat/completions", apiKeyHeaders(r.apiKey.Key), chat, expectStatusRange(200, 499))
+	r.postJSON(ctx, "openai", "chat completions non-stream", r.baseURL+"/v1/chat/completions", apiKeyHeaders(key.Key), chat, expectStatus(200))
 }
 
 func (r *smokeRunner) runImages(ctx context.Context) {
-	if r.apiKey == nil {
-		r.add("images", "image fixture", "failed", 0, "", "", 0, errors.New("no active API key found in database"), nil)
+	key := firstFixtureKey(r.imageKey)
+	if key == nil {
+		r.add("images", "image fixture", "failed", 0, "", "", 0, errors.New("no image-capable OpenAI API key fixture found"), map[string]string{
+			"required": "active downstream API key bound to a group with allow_image_generation=true and an active OpenAI OAuth or API Key upstream account",
+		})
 		return
 	}
 	invalid := map[string]any{
@@ -277,12 +288,13 @@ func (r *smokeRunner) runImages(ctx context.Context) {
 		"prompt": "Sub2API smoke test",
 		"size":   "not-a-size",
 	}
-	r.postJSON(ctx, "images", "invalid size passthrough", r.baseURL+"/v1/images/generations", apiKeyHeaders(r.apiKey.Key), invalid, expectStatusRange(400, 499))
+	r.postJSON(ctx, "images", "invalid size passthrough", r.baseURL+"/v1/images/generations", apiKeyHeaders(key.Key), invalid, expectStatus(400))
 }
 
 func (r *smokeRunner) runBridge(ctx context.Context) {
-	if r.apiKey == nil {
-		r.add("bridge", "bridge fixture", "failed", 0, "", "", 0, errors.New("no active API key found in database"), nil)
+	key := firstFixtureKey(r.bridgeKey)
+	if key == nil {
+		r.add("bridge", "bridge fixture", "failed", 0, "", "", 0, errors.New("no Antigravity API key fixture found"), nil)
 		return
 	}
 	body := map[string]any{
@@ -297,19 +309,22 @@ func (r *smokeRunner) runBridge(ctx context.Context) {
 			},
 		},
 	}
-	r.postJSON(ctx, "bridge", "antigravity messages bridge/native", r.baseURL+"/antigravity/v1/messages", apiKeyHeaders(r.apiKey.Key), body, expectStatusRange(200, 499))
+	r.postJSON(ctx, "bridge", "antigravity messages bridge/native", r.baseURL+"/antigravity/v1/messages", apiKeyHeaders(key.Key), body, expectStatusRange(200, 499))
 }
 
 func (r *smokeRunner) runEmbeddings(ctx context.Context) {
-	if r.apiKey == nil {
-		r.add("embeddings", "embedding fixture", "failed", 0, "", "", 0, errors.New("no active API key found in database"), nil)
+	key := firstFixtureKey(r.embeddingKey)
+	if key == nil {
+		r.add("embeddings", "embedding fixture", "failed", 0, "", "", 0, errors.New("no embeddings-capable OpenAI API key fixture found"), map[string]string{
+			"required": "active downstream API key bound to a group with an active OpenAI API Key upstream account whose openai_capabilities include embeddings or are unset",
+		})
 		return
 	}
 	body := map[string]any{
 		"model": "text-embedding-3-small",
 		"input": "Sub2API smoke test",
 	}
-	r.postJSON(ctx, "embeddings", "openai embeddings", r.baseURL+"/v1/embeddings", apiKeyHeaders(r.apiKey.Key), body, expectStatusRange(200, 499))
+	r.postJSON(ctx, "embeddings", "openai embeddings", r.baseURL+"/v1/embeddings", apiKeyHeaders(key.Key), body, expectStatus(200))
 }
 
 func (r *smokeRunner) loadFixtures(ctx context.Context) {
@@ -331,6 +346,10 @@ func (r *smokeRunner) loadFixtures(ctx context.Context) {
 		r.normalUser = r.adminUser
 	}
 	r.apiKey, _ = queryAPIKey(ctx, r.db)
+	r.openAIKey, _ = queryOpenAIChatAPIKey(ctx, r.db, os.Getenv("SUB2API_SMOKE_OPENAI_API_KEY"))
+	r.imageKey, _ = queryOpenAIImageAPIKey(ctx, r.db, firstNonEmpty(os.Getenv("SUB2API_SMOKE_OPENAI_IMAGES_API_KEY"), os.Getenv("SUB2API_SMOKE_OPENAI_API_KEY")))
+	r.embeddingKey, _ = queryOpenAIEmbeddingAPIKey(ctx, r.db, firstNonEmpty(os.Getenv("SUB2API_SMOKE_OPENAI_EMBEDDINGS_API_KEY"), os.Getenv("SUB2API_SMOKE_OPENAI_API_KEY")))
+	r.bridgeKey, _ = queryAPIKeyByRawKey(ctx, r.db, os.Getenv("SUB2API_SMOKE_ANTIGRAVITY_API_KEY"))
 }
 
 func (r *smokeRunner) tryLogin(ctx context.Context, suite, name string) (string, bool) {
@@ -669,6 +688,141 @@ LIMIT 1`
 	return &key, nil
 }
 
+func queryAPIKeyByRawKey(ctx context.Context, db *sql.DB, raw string) (*fixtureAPIKey, error) {
+	raw = normalizeRawAPIKey(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	query := `
+SELECT ak.id, ak.key, ak.user_id, ak.group_id
+FROM api_keys ak
+JOIN users u ON u.id = ak.user_id
+LEFT JOIN groups g ON g.id = ak.group_id
+WHERE ak.key = $1
+  AND ak.status = 'active'
+  AND ak.deleted_at IS NULL
+  AND u.status = 'active'
+  AND u.deleted_at IS NULL
+  AND (ak.expires_at IS NULL OR ak.expires_at > now())
+  AND (ak.quota <= 0 OR ak.quota_used < ak.quota)
+  AND (ak.group_id IS NULL OR g.deleted_at IS NULL)
+LIMIT 1`
+	row := db.QueryRowContext(ctx, query, raw)
+	var key fixtureAPIKey
+	if err := row.Scan(&key.ID, &key.Key, &key.UserID, &key.GroupID); err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+func queryOpenAIChatAPIKey(ctx context.Context, db *sql.DB, raw string) (*fixtureAPIKey, error) {
+	return queryOpenAIFixtureAPIKey(ctx, db, raw, `
+  AND a.type IN ('oauth', 'apikey')
+  AND `+openAIEndpointCapabilitySQL("chat_completions"))
+}
+
+func queryOpenAIImageAPIKey(ctx context.Context, db *sql.DB, raw string) (*fixtureAPIKey, error) {
+	return queryOpenAIFixtureAPIKey(ctx, db, raw, `
+  AND g.allow_image_generation = TRUE
+  AND a.type IN ('oauth', 'apikey')`)
+}
+
+func queryOpenAIEmbeddingAPIKey(ctx context.Context, db *sql.DB, raw string) (*fixtureAPIKey, error) {
+	return queryOpenAIFixtureAPIKey(ctx, db, raw, `
+  AND a.type = 'apikey'
+  AND `+openAIEndpointCapabilitySQL("embeddings"))
+}
+
+func queryOpenAIFixtureAPIKey(ctx context.Context, db *sql.DB, raw string, accountWhere string) (*fixtureAPIKey, error) {
+	raw = normalizeRawAPIKey(raw)
+	if raw != "" {
+		key, err := queryOpenAIFixtureAPIKeyOnce(ctx, db, raw, accountWhere)
+		if err == nil || !errors.Is(err, sql.ErrNoRows) {
+			return key, err
+		}
+	}
+	key, err := queryOpenAIFixtureAPIKeyOnce(ctx, db, "", accountWhere)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return key, err
+}
+
+func queryOpenAIFixtureAPIKeyOnce(ctx context.Context, db *sql.DB, raw string, accountWhere string) (*fixtureAPIKey, error) {
+	query := `
+SELECT DISTINCT ak.id, ak.key, ak.user_id, ak.group_id
+FROM api_keys ak
+JOIN users u ON u.id = ak.user_id
+JOIN groups g ON g.id = ak.group_id
+JOIN account_groups ag ON ag.group_id = g.id
+JOIN accounts a ON a.id = ag.account_id
+WHERE ak.status = 'active'
+  AND ak.deleted_at IS NULL
+  AND u.status = 'active'
+  AND u.deleted_at IS NULL
+  AND g.status = 'active'
+  AND g.deleted_at IS NULL
+  AND (ak.expires_at IS NULL OR ak.expires_at > now())
+  AND (ak.quota <= 0 OR ak.quota_used < ak.quota)
+  AND a.platform = 'openai'
+  AND a.status = 'active'
+  AND a.schedulable = TRUE
+  AND a.deleted_at IS NULL
+  AND (a.auto_pause_on_expired = FALSE OR a.expires_at IS NULL OR a.expires_at > now())
+  AND (a.rate_limit_reset_at IS NULL OR a.rate_limit_reset_at <= now())
+  AND (a.overload_until IS NULL OR a.overload_until <= now())
+  AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= now())
+` + accountWhere
+	args := []any{}
+	if raw != "" {
+		query += `
+  AND ak.key = $1`
+		args = append(args, raw)
+	}
+	query += `
+ORDER BY ak.id ASC
+LIMIT 1`
+	row := db.QueryRowContext(ctx, query, args...)
+	var key fixtureAPIKey
+	if err := row.Scan(&key.ID, &key.Key, &key.UserID, &key.GroupID); err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+func openAIEndpointCapabilitySQL(capability string) string {
+	escaped := strings.ReplaceAll(capability, "'", "''")
+	arrayJSON, _ := json.Marshal([]string{capability})
+	return `(
+    NOT (a.credentials ? 'openai_capabilities')
+    OR a.credentials->'openai_capabilities' IS NULL
+    OR (
+      jsonb_typeof(a.credentials->'openai_capabilities') = 'array'
+      AND a.credentials->'openai_capabilities' @> '` + string(arrayJSON) + `'::jsonb
+    )
+    OR (
+      jsonb_typeof(a.credentials->'openai_capabilities') = 'object'
+      AND a.credentials->'openai_capabilities'->>'` + escaped + `' = 'true'
+    )
+  )`
+}
+
+func normalizeRawAPIKey(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "Bearer ")
+	raw = strings.TrimPrefix(raw, "bearer ")
+	return strings.TrimSpace(raw)
+}
+
+func firstFixtureKey(keys ...*fixtureAPIKey) *fixtureAPIKey {
+	for _, key := range keys {
+		if key != nil && strings.TrimSpace(key.Key) != "" {
+			return key
+		}
+	}
+	return nil
+}
+
 func repoRoot() (string, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -710,6 +864,36 @@ func readConfig(root string) (configFile, error) {
 		return cfg, nil
 	}
 	return cfg, fmt.Errorf("read config: %w", lastErr)
+}
+
+func loadLocalEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(strings.TrimPrefix(line, "\ufeff"))
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || os.Getenv(key) != "" {
+			continue
+		}
+		if len(value) >= 2 {
+			quote := value[0]
+			if (quote == '\'' || quote == '"') && value[len(value)-1] == quote {
+				value = value[1 : len(value)-1]
+			}
+		}
+		_ = os.Setenv(key, value)
+	}
 }
 
 func openDB(cfg configFile) (*sql.DB, error) {

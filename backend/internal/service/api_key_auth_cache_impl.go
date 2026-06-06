@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 8 // v8: added DownstreamUsageTokenMode on user snapshot
+const apiKeyAuthSnapshotVersion = 9 // v9: added AllowImageGeneration on group snapshot
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -259,6 +259,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ImagePrice1K:                    apiKey.Group.ImagePrice1K,
 			ImagePrice2K:                    apiKey.Group.ImagePrice2K,
 			ImagePrice4K:                    apiKey.Group.ImagePrice4K,
+			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
@@ -326,6 +327,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ImagePrice1K:                    snapshot.Group.ImagePrice1K,
 			ImagePrice2K:                    snapshot.Group.ImagePrice2K,
 			ImagePrice4K:                    snapshot.Group.ImagePrice4K,
+			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,

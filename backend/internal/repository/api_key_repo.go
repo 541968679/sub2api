@@ -171,6 +171,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldImagePrice1k,
 				group.FieldImagePrice2k,
 				group.FieldImagePrice4k,
+				group.FieldAllowImageGeneration,
 				group.FieldClaudeCodeOnly,
 				group.FieldFallbackGroupID,
 				group.FieldFallbackGroupIDOnInvalidRequest,

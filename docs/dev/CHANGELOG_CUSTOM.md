@@ -2593,3 +2593,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added OpenAI API Key account Create/Edit controls for `credentials.openai_capabilities` with `chat_completions` and `embeddings`, preserving the backward-compatible default when both are selected.
 - Added Chinese/English i18n keys and EditAccountModal regressions covering endpoint capability save, minimum-one capability behavior, and legacy Codex image bridge migration.
 - Verified with `go test -tags=unit ./internal/service -run "CodexImageGenerationBridge|ImageGenerationBridge|OpenAIWS|OpenAIGatewayService"`, `pnpm run typecheck`, `pnpm run test:run -- EditAccountModal CreateAccountModal BulkEditAccountModal`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] fix: preserve image generation group permissions in API key auth cache
+
+**Affected files**: backend/internal/repository/api_key_repo.go, backend/internal/service/api_key_auth_cache.go, backend/internal/service/api_key_auth_cache_impl.go, backend/internal/service/api_key_service_cache_test.go, backend/tools/smoke/main.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI Images/Embeddings real-request validation hardening; scoped to API-key auth hot path and smoke fixture selection, without changing pricing, Claude-GPT bridge, distribution, public `/key-usage`, or account scheduling semantics.
+**Change details**:
+- Fixed `GetByKeyForAuth` to select `groups.allow_image_generation`; otherwise the lightweight API-key auth path hydrated `apiKey.Group.AllowImageGeneration=false` even when the database group enabled images.
+- Added `AllowImageGeneration` to the API-key auth cache snapshot and bumped the snapshot version to invalidate old cached group snapshots.
+- Added a snapshot round-trip regression test so image permissions are preserved through auth cache DB-load and cache-hit paths.
+- Hardened `backend/tools/smoke` to load ignored `tmp/smoke/local.env`, use platform-specific local keys without printing secrets, and select fixtures by real capability: OpenAI chat/responses, image-capable OpenAI group, embeddings-capable OpenAI API-key group, and Antigravity bridge key.
+- Tightened real-request assertions so `/v1/responses`, `/v1/chat/completions`, `/v1/images/generations` invalid-size passthrough, and `/v1/embeddings` must return their expected statuses instead of accepting broad 2xx-4xx ranges.
+- Verified with `go test -tags=unit ./internal/service -run "APIKeyService_SnapshotRoundTrip_PreservesAllowImageGeneration|OpenAI.*Images|ImageGeneration|Embeddings|CodexImageGenerationBridge"`, `go test -tags=unit ./internal/server ./internal/handler -run "Embeddings|OpenAI.*Images|ImageConcurrency"`, `go run ./tools/upstream-sync-guard`, `git diff --check`, and `go run ./tools/smoke --suite openai,images,embeddings`.
+- Local smoke note: OpenAI chat/responses and images invalid-size passthrough pass against the current dev stack; embeddings is blocked by fixture availability because the local database currently has no active OpenAI `apikey` upstream account in any downstream-key group.

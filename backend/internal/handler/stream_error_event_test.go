@@ -133,6 +133,7 @@ func TestOpenAIForwardErrorAlreadyCommunicated(t *testing.T) {
 	_, _ = c.Writer.WriteString("event: response.failed\n")
 
 	assert.True(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("upstream response failed: policy blocked")))
+	assert.True(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("upstream error: 400 message=invalid size")))
 	assert.True(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("non-streaming openai protocol error: response.failed")))
 	assert.False(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("temporary network failure")))
 	assert.False(t, openAIForwardErrorAlreadyCommunicated(c, c.Writer.Size(), errors.New("upstream response failed: policy blocked")))
