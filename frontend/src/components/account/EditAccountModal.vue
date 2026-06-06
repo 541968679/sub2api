@@ -1370,6 +1370,30 @@
         </div>
       </div>
 
+      <div
+        v-if="account?.platform === 'openai' && account?.type === 'apikey'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <label class="input-label">{{ t('admin.accounts.openai.endpointCapabilities') }}</label>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label
+            v-for="option in openAIEndpointCapabilityOptions"
+            :key="option.value"
+            class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-dark-600"
+          >
+            <input
+              type="checkbox"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500"
+              :data-testid="`openai-endpoint-capability-${option.value}`"
+              :checked="openAIEndpointCapabilities.includes(option.value)"
+              @change="toggleOpenAIEndpointCapability(option.value, $event)"
+            />
+            <span class="text-gray-700 dark:text-gray-200">{{ option.label }}</span>
+          </label>
+        </div>
+        <p class="input-hint">{{ t('admin.accounts.openai.endpointCapabilitiesDesc') }}</p>
+      </div>
+
       <!-- Anthropic/Antigravity API Key 自动透传开关 -->
       <div
         v-if="(account?.platform === 'anthropic' || account?.platform === 'antigravity') && account?.type === 'apikey'"
@@ -1557,6 +1581,21 @@
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.codexImageGenerationBridge') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.codexImageGenerationBridgeDesc') }}
+            </p>
+          </div>
+          <div class="w-44">
+            <Select
+              v-model="codexImageGenerationBridgeMode"
+              :options="codexImageGenerationBridgeOptions"
+              data-testid="codex-image-generation-bridge-mode"
+            />
+          </div>
+        </div>
         <div class="flex items-center justify-between">
           <div>
             <label class="input-label mb-0">{{ t('admin.accounts.openai.compactMode') }}</label>
@@ -2156,7 +2195,15 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useQuotaNotifyState } from '@/composables/useQuotaNotifyState'
-import type { Account, Proxy, AdminGroup, CheckMixedChannelResponse, GroupPlatform, OpenAICompactMode } from '@/types'
+import type {
+  Account,
+  Proxy,
+  AdminGroup,
+  CheckMixedChannelResponse,
+  GroupPlatform,
+  OpenAICompactMode,
+  OpenAIEndpointCapability
+} from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -2310,9 +2357,12 @@ const customBaseUrl = ref('')
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
+const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
+type CodexImageGenerationBridgeMode = 'inherit' | 'enabled' | 'disabled'
+const codexImageGenerationBridgeMode = ref<CodexImageGenerationBridgeMode>('inherit')
 const anthropicPassthroughEnabled = ref(false)
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
@@ -2368,6 +2418,64 @@ const openAICompactModeOptions = computed(() => [
   { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
   { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
 ])
+const codexImageGenerationBridgeOptions = computed(() => [
+  { value: 'inherit', label: t('admin.accounts.openai.codexImageGenerationBridgeInherit') },
+  { value: 'enabled', label: t('admin.accounts.openai.codexImageGenerationBridgeEnabled') },
+  { value: 'disabled', label: t('admin.accounts.openai.codexImageGenerationBridgeDisabled') }
+])
+const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapability; label: string }[]>(() => [
+  { value: 'chat_completions', label: t('admin.accounts.openai.capabilityChatCompletions') },
+  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') }
+])
+const normalizeOpenAIEndpointCapabilities = (values: OpenAIEndpointCapability[]) => {
+  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+  const selected = allowed.filter((value) => values.includes(value))
+  return selected.length > 0 ? selected : allowed
+}
+const readOpenAIEndpointCapabilities = (credentials?: Record<string, unknown>): OpenAIEndpointCapability[] => {
+  const raw = credentials?.openai_capabilities
+  if (Array.isArray(raw)) {
+    return normalizeOpenAIEndpointCapabilities(
+      raw.filter((value): value is OpenAIEndpointCapability =>
+        value === 'chat_completions' || value === 'embeddings'
+      )
+    )
+  }
+  if (raw !== null && typeof raw === 'object') {
+    const capabilityMap = raw as Record<string, unknown>
+    return normalizeOpenAIEndpointCapabilities(
+      openAIEndpointCapabilityOptions.value
+        .map((option) => option.value)
+        .filter((value) => capabilityMap[value] === true)
+    )
+  }
+  return ['chat_completions', 'embeddings']
+}
+const toggleOpenAIEndpointCapability = (capability: OpenAIEndpointCapability, event?: Event) => {
+  if (openAIEndpointCapabilities.value.includes(capability)) {
+    if (openAIEndpointCapabilities.value.length <= 1) {
+      const input = event?.target as HTMLInputElement | null
+      if (input) input.checked = true
+      return
+    }
+    openAIEndpointCapabilities.value = openAIEndpointCapabilities.value.filter(
+      (value) => value !== capability
+    )
+    return
+  }
+  openAIEndpointCapabilities.value = normalizeOpenAIEndpointCapabilities([
+    ...openAIEndpointCapabilities.value,
+    capability
+  ])
+}
+const applyOpenAIEndpointCapabilities = (credentials: Record<string, unknown>) => {
+  const capabilities = normalizeOpenAIEndpointCapabilities(openAIEndpointCapabilities.value)
+  if (capabilities.length === 2) {
+    delete credentials.openai_capabilities
+    return
+  }
+  credentials.openai_capabilities = capabilities
+}
 const isOpenAIModelRestrictionDisabled = computed(() =>
   props.account?.platform === 'openai' && openaiPassthroughEnabled.value
 )
@@ -2530,16 +2638,31 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openaiPassthroughEnabled.value = false
   openaiClaudeGPTBridgeEnabled.value = false
   openAICompactMode.value = 'auto'
+  openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
   openAICompactModelMappings.value = []
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   codexCLIOnlyEnabled.value = false
+  codexImageGenerationBridgeMode.value = 'inherit'
   anthropicPassthroughEnabled.value = false
   webSearchEmulationMode.value = 'default'
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
     openaiClaudeGPTBridgeEnabled.value = extra?.openai_claude_gpt_bridge_enabled === true
     openAICompactMode.value = (extra?.openai_compact_mode as OpenAICompactMode) || 'auto'
+    if (newAccount.type === 'apikey') {
+      openAIEndpointCapabilities.value = readOpenAIEndpointCapabilities(
+        newAccount.credentials as Record<string, unknown> | undefined
+      )
+    }
+    const codexImageGenerationBridgeValue = typeof extra?.codex_image_generation_bridge === 'boolean'
+      ? extra.codex_image_generation_bridge
+      : extra?.codex_image_generation_bridge_enabled
+    if (codexImageGenerationBridgeValue === true) {
+      codexImageGenerationBridgeMode.value = 'enabled'
+    } else if (codexImageGenerationBridgeValue === false) {
+      codexImageGenerationBridgeMode.value = 'disabled'
+    }
     openaiOAuthResponsesWebSocketV2Mode.value = resolveOpenAIWSModeFromExtra(extra, {
       modeKey: 'openai_oauth_responses_websockets_v2_mode',
       enabledKey: 'openai_oauth_responses_websockets_v2_enabled',
@@ -3323,6 +3446,9 @@ const handleSubmit = async () => {
         newCredentials.model_mapping = currentCredentials.model_mapping
       }
       if (props.account.platform === 'openai') {
+        if (props.account.type === 'apikey') {
+          applyOpenAIEndpointCapabilities(newCredentials)
+        }
         const compactModelMapping = buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
         if (compactModelMapping) {
           newCredentials.compact_model_mapping = compactModelMapping
@@ -3682,6 +3808,12 @@ const handleSubmit = async () => {
         delete newExtra.openai_compact_mode
       } else {
         newExtra.openai_compact_mode = openAICompactMode.value
+      }
+      delete newExtra.codex_image_generation_bridge_enabled
+      if (codexImageGenerationBridgeMode.value === 'inherit') {
+        delete newExtra.codex_image_generation_bridge
+      } else {
+        newExtra.codex_image_generation_bridge = codexImageGenerationBridgeMode.value === 'enabled'
       }
 
       if (props.account.type === 'oauth') {

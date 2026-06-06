@@ -247,4 +247,59 @@ describe('EditAccountModal', () => {
     })
     expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([12])
   })
+
+  it('submits OpenAI API Key endpoint capabilities', async () => {
+    const account = buildAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="openai-endpoint-capability-chat_completions"]').setValue(false)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.openai_capabilities).toEqual([
+      'embeddings'
+    ])
+  })
+
+  it('keeps at least one OpenAI API Key endpoint capability selected', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      openai_capabilities: ['embeddings']
+    }
+    const wrapper = mountModal(account)
+
+    const embeddingCheckbox = wrapper.get<HTMLInputElement>(
+      '[data-testid="openai-endpoint-capability-embeddings"]'
+    )
+    await embeddingCheckbox.setValue(false)
+
+    expect(embeddingCheckbox.element.checked).toBe(true)
+  })
+
+  it('migrates legacy Codex image-generation bridge extra to the new field', async () => {
+    const account = buildAccount()
+    account.extra = {
+      codex_image_generation_bridge_enabled: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_image_generation_bridge).toBe(true)
+    expect(
+      updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_image_generation_bridge_enabled
+    ).toBeUndefined()
+  })
 })

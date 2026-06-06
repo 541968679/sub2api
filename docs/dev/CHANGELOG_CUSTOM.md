@@ -2581,3 +2581,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added OpenAI image 429 cooldown handling that writes `openai:image_generation` model-rate-limit scope instead of disabling/rate-limiting the whole OpenAI account when the upstream error is image-specific.
 - Kept `ImageSize` / `ImageSizeInfo` / `ImageQuality` as the local real-billing inputs and retained safe `OPENAI_IMAGE_TRACE_LOG` timing/correlation log points without logging prompts, image bytes, auth, cookies, API keys, or full bodies.
 - Verified with `go test -tags=unit ./internal/service -run "OpenAI.*Images|ImageOutput|ImageTrace|ModelRateLimit|Handle429_OpenAIImage|CalculateOpenAI429|OpenAIImageRateLimit"`, `go test -tags=unit ./internal/handler -run "OpenAI.*Images|Images|GroupModel"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] feat: add OpenAI account endpoint capabilities and Codex image bridge override
+
+**Affected files**: backend/internal/config/config.go, backend/internal/service/codex_image_generation_bridge.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/types/index.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 account-management minimal union from `upstream/main@1f423ae0`; scoped to OpenAI API-key endpoint capabilities and account-level Codex image-generation bridge override, without bringing in upstream account page re-layout, Codex session import, or model sync preview.
+**Change details**:
+- Added `gateway.codex_image_generation_bridge_enabled` as a default-off global fallback and `extra.codex_image_generation_bridge` account override for Codex `/v1/responses` image-generation tool injection.
+- Kept backward compatibility for legacy `extra.codex_image_generation_bridge_enabled` and nested `extra.openai.*` values, while frontend saves the new field and removes the legacy key.
+- Gated HTTP and WS Codex image-generation bridge injection by the account override/global fallback without changing independent `/v1/images/*` scheduling, local Claude-GPT bridge dispatch, display-token behavior, or Antigravity fallback semantics.
+- Added OpenAI API Key account Create/Edit controls for `credentials.openai_capabilities` with `chat_completions` and `embeddings`, preserving the backward-compatible default when both are selected.
+- Added Chinese/English i18n keys and EditAccountModal regressions covering endpoint capability save, minimum-one capability behavior, and legacy Codex image bridge migration.
+- Verified with `go test -tags=unit ./internal/service -run "CodexImageGenerationBridge|ImageGenerationBridge|OpenAIWS|OpenAIGatewayService"`, `pnpm run typecheck`, `pnpm run test:run -- EditAccountModal CreateAccountModal BulkEditAccountModal`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.

@@ -3393,6 +3393,17 @@ const enBase = {
         claudeGPTBridge: 'Claude-GPT bridge',
         claudeGPTBridgeDesc:
           'Allow this OpenAI account to bind Antigravity groups and serve Claude /v1/messages requests through the current model mapping.',
+        endpointCapabilities: 'API Key endpoint capabilities',
+        endpointCapabilitiesDesc:
+          'Restrict which endpoint types this OpenAI API Key can be scheduled for. Keep at least one selected. Default allows text and embeddings.',
+        capabilityChatCompletions: 'Text / Chat / Responses',
+        capabilityEmbeddings: 'Embeddings',
+        codexImageGenerationBridge: 'Codex image tool bridge',
+        codexImageGenerationBridgeDesc:
+          'Controls whether Codex /v1/responses requests inject the image_generation tool for this account. /v1/images/* scheduling is still controlled by group image permission and account capabilities.',
+        codexImageGenerationBridgeInherit: 'Inherit global',
+        codexImageGenerationBridgeEnabled: 'Enabled',
+        codexImageGenerationBridgeDisabled: 'Disabled',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           'Disabled by default. Enable to allow responses_websockets_v2 capability (still gated by global and account-type switches).',

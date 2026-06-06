@@ -3146,6 +3146,17 @@ const zhBase = {
         claudeGPTBridge: 'Claude-GPT bridge',
         claudeGPTBridgeDesc:
           '开启后可将该 OpenAI 账号绑定到 Antigravity 分组，并使用当前模型映射处理 Claude /v1/messages 请求。',
+        endpointCapabilities: 'API Key 端点能力',
+        endpointCapabilitiesDesc:
+          '限制该 OpenAI API Key 可参与调度的端点类型；至少保留一项。默认同时参与文本与 Embeddings。',
+        capabilityChatCompletions: '文本 / Chat / Responses',
+        capabilityEmbeddings: 'Embeddings',
+        codexImageGenerationBridge: 'Codex 图片工具桥接',
+        codexImageGenerationBridgeDesc:
+          '控制 Codex /v1/responses 请求是否为该账号注入 image_generation 工具。图片端点 /v1/images/* 调度仍由分组图片权限与账号能力决定。',
+        codexImageGenerationBridgeInherit: '跟随全局',
+        codexImageGenerationBridgeEnabled: '开启',
+        codexImageGenerationBridgeDisabled: '关闭',
         responsesWebsocketsV2: 'Responses WebSocket v2',
         responsesWebsocketsV2Desc:
           '默认关闭。开启后可启用 responses_websockets_v2 协议能力（受网关全局开关与账号类型开关约束）。',

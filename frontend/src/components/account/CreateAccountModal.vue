@@ -1057,6 +1057,27 @@
           <p class="input-hint">{{ t('admin.accounts.gemini.tier.aiStudioHint') }}</p>
         </div>
 
+        <div v-if="form.platform === 'openai'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+          <label class="input-label">{{ t('admin.accounts.openai.endpointCapabilities') }}</label>
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label
+              v-for="option in openAIEndpointCapabilityOptions"
+              :key="option.value"
+              class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-dark-600"
+            >
+              <input
+                type="checkbox"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500"
+                :data-testid="`create-openai-endpoint-capability-${option.value}`"
+                :checked="openAIEndpointCapabilities.includes(option.value)"
+                @change="toggleOpenAIEndpointCapability(option.value, $event)"
+              />
+              <span class="text-gray-700 dark:text-gray-200">{{ option.label }}</span>
+            </label>
+          </div>
+          <p class="input-hint">{{ t('admin.accounts.openai.endpointCapabilitiesDesc') }}</p>
+        </div>
+
         <!-- Model Restriction Section (Antigravity 已在上层条件排除) -->
         <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -3176,7 +3197,8 @@ import type {
   AccountType,
   CheckMixedChannelResponse,
   CreateAccountRequest,
-  OpenAICompactMode
+  OpenAICompactMode,
+  OpenAIEndpointCapability
 } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -3333,6 +3355,7 @@ const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
+const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -3394,6 +3417,40 @@ const openAICompactModeOptions = computed(() => [
   { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
   { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
 ])
+const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapability; label: string }[]>(() => [
+  { value: 'chat_completions', label: t('admin.accounts.openai.capabilityChatCompletions') },
+  { value: 'embeddings', label: t('admin.accounts.openai.capabilityEmbeddings') }
+])
+const normalizeOpenAIEndpointCapabilities = (values: OpenAIEndpointCapability[]) => {
+  const allowed: OpenAIEndpointCapability[] = ['chat_completions', 'embeddings']
+  const selected = allowed.filter((value) => values.includes(value))
+  return selected.length > 0 ? selected : allowed
+}
+const toggleOpenAIEndpointCapability = (capability: OpenAIEndpointCapability, event?: Event) => {
+  if (openAIEndpointCapabilities.value.includes(capability)) {
+    if (openAIEndpointCapabilities.value.length <= 1) {
+      const input = event?.target as HTMLInputElement | null
+      if (input) input.checked = true
+      return
+    }
+    openAIEndpointCapabilities.value = openAIEndpointCapabilities.value.filter(
+      (value) => value !== capability
+    )
+    return
+  }
+  openAIEndpointCapabilities.value = normalizeOpenAIEndpointCapabilities([
+    ...openAIEndpointCapabilities.value,
+    capability
+  ])
+}
+const applyOpenAIEndpointCapabilities = (credentials: Record<string, unknown>) => {
+  const capabilities = normalizeOpenAIEndpointCapabilities(openAIEndpointCapabilities.value)
+  if (capabilities.length === 2) {
+    delete credentials.openai_capabilities
+    return
+  }
+  credentials.openai_capabilities = capabilities
+}
 
 function buildAntigravityExtra(): Record<string, unknown> | undefined {
   const extra: Record<string, unknown> = {}
@@ -3728,6 +3785,7 @@ watch(
     if (newPlatform !== 'openai') {
       openaiPassthroughEnabled.value = false
       openaiClaudeGPTBridgeEnabled.value = false
+      openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
@@ -4146,6 +4204,7 @@ const resetForm = () => {
   openaiPassthroughEnabled.value = false
   openaiClaudeGPTBridgeEnabled.value = false
   openAICompactMode.value = 'auto'
+  openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
   codexCLIOnlyEnabled.value = false
@@ -4522,6 +4581,9 @@ const handleSubmit = async () => {
     }
   }
   if (form.platform === 'openai') {
+    if (form.type === 'apikey') {
+      applyOpenAIEndpointCapabilities(credentials)
+    }
     const compactModelMapping = buildOpenAICompactModelMapping()
     if (compactModelMapping) {
       credentials.compact_model_mapping = compactModelMapping
@@ -4642,6 +4704,9 @@ const createAccountAndFinish = async (
     }
   }
   if (platform === 'openai') {
+    if (type === 'apikey') {
+      applyOpenAIEndpointCapabilities(credentials)
+    }
     const compactModelMapping = buildOpenAICompactModelMapping()
     if (compactModelMapping) {
       credentials.compact_model_mapping = compactModelMapping

@@ -2606,7 +2606,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		apiKey := openAIWSAPIKeyFromContext(c)
 		imageGenerationAllowed := openAIWSGroupAllowsImageGeneration(apiKey)
-		codexBridgeEnabled := isCodexCLI && imageGenerationAllowed
+		codexBridgeEnabled := isCodexCLI && imageGenerationAllowed && s.isCodexImageGenerationBridgeEnabled(account)
 		if codexBridgeEnabled {
 			payloadMap := make(map[string]any)
 			if err := json.Unmarshal(normalized, &payloadMap); err != nil {
