@@ -1,7 +1,10 @@
 // Package openai provides helpers and types for OpenAI API integration.
 package openai
 
-import _ "embed"
+import (
+	_ "embed"
+	"strings"
+)
 
 // Model represents an OpenAI model
 type Model struct {
@@ -60,8 +63,33 @@ func IsDefaultModel(id string) bool {
 // DefaultTestModel default model for testing OpenAI accounts
 const DefaultTestModel = "gpt-5.4"
 
-// DefaultInstructions default instructions for non-Codex CLI requests
-// Content loaded from instructions.txt at compile time
+// DefaultInstructions default instructions for non-Codex CLI requests.
 //
 //go:embed instructions.txt
 var DefaultInstructions string
+
+//go:embed instructions_gpt5_1.txt
+var instructionsGPT51 string
+
+//go:embed instructions_gpt5_2.txt
+var instructionsGPT52 string
+
+// CodexBaseInstructionsForModel returns the closest Codex base instructions for
+// the target model, falling back to the default prompt when a model-specific
+// prompt is unavailable.
+func CodexBaseInstructionsForModel(model string) string {
+	m := strings.ToLower(strings.TrimSpace(model))
+	switch {
+	case strings.Contains(m, "codex"):
+		return DefaultInstructions
+	case strings.HasPrefix(m, "gpt-5.2"):
+		if strings.TrimSpace(instructionsGPT52) != "" {
+			return instructionsGPT52
+		}
+	case strings.HasPrefix(m, "gpt-5.1"), strings.HasPrefix(m, "gpt-5"):
+		if strings.TrimSpace(instructionsGPT51) != "" {
+			return instructionsGPT51
+		}
+	}
+	return DefaultInstructions
+}
