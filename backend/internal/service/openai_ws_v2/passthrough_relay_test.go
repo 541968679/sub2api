@@ -183,7 +183,7 @@ func TestRelay_BasicRelayAndUsage(t *testing.T) {
 	require.Equal(t, 7, result.Usage.InputTokens)
 	require.Equal(t, 3, result.Usage.OutputTokens)
 	require.Equal(t, 2, result.Usage.CacheReadInputTokens)
-	require.NotNil(t, result.FirstTokenMs)
+	require.Nil(t, result.FirstTokenMs)
 	require.Equal(t, int64(1), result.ClientToUpstreamFrames)
 	require.Equal(t, int64(1), result.UpstreamToClientFrames)
 	require.Equal(t, int64(0), result.DroppedDownstreamFrames)
@@ -622,6 +622,36 @@ func TestRelay_UsageParseFailureDoesNotBlockRelay(t *testing.T) {
 	clientWrites := clientConn.Writes()
 	require.Len(t, clientWrites, 1)
 	require.GreaterOrEqual(t, SnapshotMetrics().UsageParseFailureTotal, baseline+1)
+}
+
+func TestRelay_BeforeWriteClientRejectsFirstErrorBeforeDownstreamWrite(t *testing.T) {
+	t.Parallel()
+
+	clientConn := newPassthroughTestFrameConn(nil, false)
+	upstreamConn := newPassthroughTestFrameConn([]passthroughTestFrame{
+		{
+			msgType: coderws.MessageText,
+			payload: []byte(`{"type":"error","error":{"code":"rate_limit_exceeded","type":"rate_limit_error","message":"rate limited"}}`),
+		},
+	}, true)
+
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-4o","input":[]}`)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	result, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
+		BeforeWriteClient: func(msgType coderws.MessageType, payload []byte, wroteDownstream bool) error {
+			require.Equal(t, coderws.MessageText, msgType)
+			require.False(t, wroteDownstream)
+			require.Contains(t, string(payload), "rate_limit_exceeded")
+			return errors.New("failover")
+		},
+	})
+	require.NotNil(t, relayExit)
+	require.Equal(t, "upstream_message", relayExit.Stage)
+	require.False(t, relayExit.WroteDownstream)
+	require.Equal(t, "gpt-4o", result.RequestModel)
+	require.Empty(t, clientConn.Writes())
 }
 
 func TestRelay_WriteUpstreamFirstMessageFails(t *testing.T) {

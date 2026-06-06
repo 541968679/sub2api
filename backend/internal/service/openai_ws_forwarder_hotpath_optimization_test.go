@@ -23,12 +23,55 @@ func TestParseOpenAIWSEventEnvelope(t *testing.T) {
 func TestParseOpenAIWSResponseUsageFromCompletedEvent(t *testing.T) {
 	usage := &OpenAIUsage{}
 	parseOpenAIWSResponseUsageFromCompletedEvent(
-		[]byte(`{"type":"response.completed","response":{"usage":{"input_tokens":11,"output_tokens":7,"input_tokens_details":{"cached_tokens":3}}}}`),
+		[]byte(`{"type":"response.completed","response":{"usage":{"input_tokens":11,"output_tokens":7,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"image_tokens":2}}}}`),
 		usage,
 	)
 	require.Equal(t, 11, usage.InputTokens)
 	require.Equal(t, 7, usage.OutputTokens)
 	require.Equal(t, 3, usage.CacheReadInputTokens)
+	require.Equal(t, 2, usage.ImageOutputTokens)
+}
+
+func TestParseOpenAIWSResponseUsageFromTerminalEvents(t *testing.T) {
+	for _, eventType := range []string{
+		"response.completed",
+		"response.done",
+		"response.failed",
+		"response.incomplete",
+		"response.cancelled",
+		"response.canceled",
+	} {
+		t.Run(eventType, func(t *testing.T) {
+			require.True(t, openAIWSEventShouldParseUsage(eventType))
+			usage := &OpenAIUsage{}
+			parseOpenAIWSResponseUsageFromCompletedEvent(
+				[]byte(`{"type":"`+eventType+`","response":{"usage":{"input_tokens":12,"output_tokens":4,"input_tokens_details":{"cached_tokens":3},"output_tokens_details":{"image_tokens":2}}}}`),
+				usage,
+			)
+			require.Equal(t, 12, usage.InputTokens)
+			require.Equal(t, 4, usage.OutputTokens)
+			require.Equal(t, 3, usage.CacheReadInputTokens)
+			require.Equal(t, 2, usage.ImageOutputTokens)
+		})
+	}
+}
+
+func TestIsOpenAIWSTokenEvent_TerminalEventsExcluded(t *testing.T) {
+	for _, eventType := range []string{
+		"response.completed",
+		"response.done",
+		"response.failed",
+		"response.incomplete",
+		"response.cancelled",
+		"response.canceled",
+	} {
+		t.Run(eventType, func(t *testing.T) {
+			require.True(t, isOpenAIWSTerminalEvent(eventType))
+			require.False(t, isOpenAIWSTokenEvent(eventType))
+		})
+	}
+	require.True(t, isOpenAIWSTokenEvent("response.output_text.delta"))
+	require.True(t, isOpenAIWSTokenEvent("response.output_audio.delta"))
 }
 
 func TestOpenAIWSErrorEventHelpers_ConsistentWithWrapper(t *testing.T) {
