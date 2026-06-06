@@ -909,6 +909,7 @@ const zhBase = {
     actualCost: '实际',
     accountCost: '成本',
     userBilled: '用户扣费',
+    userDisplayCost: '用户展示',
     accountBilled: '账号计费',
     accountMultiplier: '账号倍率',
     avgDuration: '平均耗时',

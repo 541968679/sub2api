@@ -954,6 +954,7 @@ const enBase = {
     actualCost: 'Actual',
     accountCost: 'Cost',
     userBilled: 'User billed',
+    userDisplayCost: 'User display',
     accountBilled: 'Account billed',
     accountMultiplier: 'Account rate',
     avgDuration: 'Avg Duration',

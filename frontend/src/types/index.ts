@@ -1316,6 +1316,16 @@ export interface UsageLogAccountSummary {
   name: string
 }
 
+export interface DisplayUsageFields {
+  display_input_tokens: number
+  display_output_tokens: number
+  display_cache_read_tokens: number
+  display_input_cost: number
+  display_output_cost: number
+  display_cache_read_cost: number
+  display_total_cost: number
+}
+
 export interface AdminUsageLog extends UsageLog {
   upstream_model?: string | null
   model_mapping_chain?: string | null
@@ -1331,6 +1341,7 @@ export interface AdminUsageLog extends UsageLog {
 
   // 用户请求 IP（仅管理员可见）
   ip_address?: string | null
+  display_fields?: DisplayUsageFields | null
 
   // 最小账号信息（仅管理员接口返回）
   account?: UsageLogAccountSummary

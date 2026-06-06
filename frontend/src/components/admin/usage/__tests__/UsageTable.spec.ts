@@ -21,6 +21,7 @@ const messages: Record<string, string> = {
   'usage.accountMultiplier': 'Account rate',
   'usage.original': 'Original',
   'usage.userBilled': 'User billed',
+  'usage.userDisplayCost': 'User display',
   'usage.accountBilled': 'Account billed',
 }
 
@@ -108,6 +109,57 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
     expect(text).toContain('$0.069568')
+  })
+
+  it('shows user display pricing fields for admin rows', async () => {
+    const row = {
+      request_id: 'req-admin-display-1',
+      actual_cost: 0.0000476,
+      total_cost: 0.0000476,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0.0000408,
+      output_cost: 0.0000068,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 408,
+      output_tokens: 34,
+      display_fields: {
+        display_input_tokens: 4080,
+        display_output_tokens: 340,
+        display_cache_read_tokens: 0,
+        display_input_cost: 0.0000408,
+        display_output_cost: 0.0000068,
+        display_cache_read_cost: 0,
+        display_total_cost: 0.0000476,
+      },
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    await wrapper.find('.group.relative').trigger('mouseenter')
+    await nextTick()
+
+    const text = wrapper.text()
+    expect(text).toContain('User display')
+    expect(text).toContain('$0.1000 / 1M tokens')
+    expect(text).toContain('$0.2000 / 1M tokens')
+    expect(text).toContain('$0.0100 / 1M tokens')
+    expect(text).toContain('$0.0200 / 1M tokens')
   })
 
   it('shows requested and upstream models separately for admin rows', () => {

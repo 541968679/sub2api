@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-06] fix: include user model display pricing in admin usage rows
+
+**Affected files**: backend/internal/handler/admin/usage_handler.go, frontend/src/components/admin/usage/UsageTable.vue, frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
+**Upstream compatibility**: local custom display-pricing behavior only. This preserves real billing and stored usage costs while making the admin usage list reflect the owning user's display-pricing override data.
+**Change details**:
+- Loaded user-level display-pricing overrides per usage-row owner in the admin usage list before building admin DTOs.
+- Added `display_fields` typing and an admin tooltip section that shows the owning user's display-priced token/cost values separately from real stored costs.
+- Added frontend coverage for admin rows that include user display fields and corrected the `$ / 1M tokens` test expectations.
+- Verified with `pnpm run test:run -- UsageTable`, `go test -tags=unit ./internal/handler/dto ./internal/handler/admin`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
 ## [2026-06-06] fix: preserve Anthropic tool IDs in OpenAI bridge
 
 **Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_compat_model_test.go

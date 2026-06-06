@@ -315,6 +315,35 @@
               <span class="font-medium text-white">${{ tooltipData.cache_read_cost.toFixed(6) }}</span>
             </div>
           </div>
+          <div v-if="tooltipData?.display_fields" class="mb-2 border-b border-gray-700 pb-1.5">
+            <div class="text-xs font-semibold text-amber-300 mb-1">{{ t('usage.userDisplayCost') }}</div>
+            <div v-if="tooltipData.display_fields.display_input_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.inputCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.display_fields.display_input_cost.toFixed(6) }}</span>
+            </div>
+            <div v-if="tooltipData.display_fields.display_output_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.outputCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.display_fields.display_output_cost.toFixed(6) }}</span>
+            </div>
+            <template v-if="!tooltipData.billing_mode || tooltipData.billing_mode === BILLING_MODE_TOKEN">
+              <div v-if="tooltipData.display_fields.display_input_tokens > 0" class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.inputTokenPrice') }}</span>
+                <span class="font-medium text-sky-300">{{ formatTokenPricePerMillion(tooltipData.display_fields.display_input_cost, tooltipData.display_fields.display_input_tokens) }} {{ t('usage.perMillionTokens') }}</span>
+              </div>
+              <div v-if="tooltipData.display_fields.display_output_tokens > 0" class="flex items-center justify-between gap-4">
+                <span class="text-gray-400">{{ t('usage.outputTokenPrice') }}</span>
+                <span class="font-medium text-violet-300">{{ formatTokenPricePerMillion(tooltipData.display_fields.display_output_cost, tooltipData.display_fields.display_output_tokens) }} {{ t('usage.perMillionTokens') }}</span>
+              </div>
+            </template>
+            <div v-if="tooltipData.display_fields.display_cache_read_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheReadCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.display_fields.display_cache_read_cost.toFixed(6) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
+              <span class="text-gray-400">{{ t('usage.totalCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.display_fields.display_total_cost.toFixed(6) }}</span>
+            </div>
+          </div>
           <!-- Rate and Summary -->
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.serviceTier') }}</span>

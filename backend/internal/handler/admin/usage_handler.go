@@ -201,9 +201,14 @@ func (h *UsageHandler) List(c *gin.Context) {
 		return
 	}
 
-	displayMap := h.loadDisplayPricingMap(c)
+	globalDisplayMap := h.loadDisplayPricingMap(c)
+	userDisplayMaps := h.loadUserDisplayPricingMaps(c, records, globalDisplayMap)
 	out := make([]dto.AdminUsageLog, 0, len(records))
 	for i := range records {
+		displayMap := globalDisplayMap
+		if userMap, ok := userDisplayMaps[records[i].UserID]; ok {
+			displayMap = userMap
+		}
 		out = append(out, *dto.UsageLogFromServiceAdmin(&records[i], displayMap))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
@@ -717,6 +722,27 @@ func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingM
 		return nil
 	}
 	return dto.BuildDisplayPricingMap(pricings)
+}
+
+func (h *UsageHandler) loadUserDisplayPricingMaps(c *gin.Context, records []service.UsageLog, globalMap dto.DisplayPricingMap) map[int64]dto.DisplayPricingMap {
+	if h.userModelPricingService == nil || len(records) == 0 {
+		return nil
+	}
+
+	userIDs := make(map[int64]struct{})
+	for i := range records {
+		userIDs[records[i].UserID] = struct{}{}
+	}
+
+	result := make(map[int64]dto.DisplayPricingMap, len(userIDs))
+	for userID := range userIDs {
+		overrides, err := h.userModelPricingService.GetEnabledByUserID(c.Request.Context(), userID)
+		if err != nil || len(overrides) == 0 {
+			continue
+		}
+		result[userID] = dto.BuildUserDisplayPricingMap(globalMap, overrides)
+	}
+	return result
 }
 
 // UserViewSnapshot is one column of the side-by-side comparison.
