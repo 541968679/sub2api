@@ -7,6 +7,7 @@ import { apiClient } from '../client'
 import type {
   AdminGroup,
   GroupPlatform,
+  ModelsListConfig,
   CreateGroupRequest,
   UpdateGroupRequest,
   PaginatedResponse
@@ -74,6 +75,25 @@ export async function getByPlatform(platform: GroupPlatform): Promise<AdminGroup
 export async function getById(id: number): Promise<AdminGroup> {
   const { data } = await apiClient.get<AdminGroup>(`/admin/groups/${id}`)
   return data
+}
+
+/**
+ * Get candidate model IDs for a group's custom /v1/models list.
+ * @param id - Group ID, or 0 for create form candidates by platform
+ * @param platform - Optional platform override
+ * @returns Candidate model IDs
+ */
+export async function getModelsListCandidates(
+  id: number,
+  platform?: GroupPlatform
+): Promise<string[]> {
+  const { data } = await apiClient.get<{ models: string[] }>(
+    `/admin/groups/${id}/models-list-candidates`,
+    {
+      params: platform ? { platform } : undefined
+    }
+  )
+  return data.models || []
 }
 
 /**
@@ -232,6 +252,8 @@ export interface GroupRPMOverrideEntry {
   rpm_override: number
 }
 
+export type { ModelsListConfig }
+
 /**
  * Get RPM overrides for users in a group (subset of rate-multipliers endpoint).
  */
@@ -307,6 +329,7 @@ export const groupsAPI = {
   getAll,
   getByPlatform,
   getById,
+  getModelsListCandidates,
   create,
   update,
   delete: deleteGroup,

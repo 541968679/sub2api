@@ -199,6 +199,39 @@ var criticalSignatures = []criticalSignature{
 		},
 	},
 	{
+		Name: "usage error request routes",
+		Path: "backend/internal/server/routes/user.go",
+		Contains: []string{
+			`usage.GET("/errors", h.Usage.ListErrors)`,
+			`usage.GET("/errors/:id", h.Usage.GetErrorDetail)`,
+		},
+	},
+	{
+		Name: "admin group models list route",
+		Path: "backend/internal/server/routes/admin.go",
+		Contains: []string{
+			`groups.GET("/:id/models-list-candidates", h.Admin.Group.GetModelsListCandidates)`,
+		},
+	},
+	{
+		Name: "group models list gateway",
+		Path: "backend/internal/handler/gateway_handler.go",
+		Contains: []string{
+			"CustomModelsListEnabled",
+			"filterModelsByCustomList",
+			"writeCustomModelsList",
+		},
+	},
+	{
+		Name: "group models list frontend",
+		Path: "frontend/src/views/admin/GroupsView.vue",
+		Contains: []string{
+			"GroupModelsListConfigPanel",
+			"models_list_config",
+			"getModelsListCandidates",
+		},
+	},
+	{
 		Name: "distribution admin routes",
 		Path: "backend/internal/server/routes/admin.go",
 		Contains: []string{

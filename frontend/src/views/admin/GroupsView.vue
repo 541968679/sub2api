@@ -69,7 +69,7 @@
               {{ t("admin.groups.sortOrder") }}
             </button>
             <button
-              @click="showCreateModal = true"
+              @click="openCreateModal"
               class="btn btn-primary"
               data-tour="groups-create-btn"
             >
@@ -332,7 +332,7 @@
               :title="t('admin.groups.noGroupsYet')"
               :description="t('admin.groups.createFirstGroup')"
               :action-text="t('admin.groups.createGroup')"
-              @action="showCreateModal = true"
+              @action="openCreateModal"
             />
           </template>
         </DataTable>
@@ -550,6 +550,18 @@
             </div>
           </div>
         </div>
+        <GroupModelsListConfigPanel
+          :state="createModelsListState"
+          :loading="createModelsListLoading"
+          @toggle-enabled="createModelsListState.enabled = !createModelsListState.enabled"
+          @select-all="selectAllModelsListItems(createModelsListState)"
+          @invert-selection="invertModelsListSelection(createModelsListState)"
+          @toggle-item="toggleModelsListItem(createModelsListState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelsListItem(createModelsListState, fromIndex, toIndex)
+          "
+        />
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -1721,6 +1733,18 @@
             </div>
           </div>
         </div>
+        <GroupModelsListConfigPanel
+          :state="editModelsListState"
+          :loading="editModelsListLoading"
+          @toggle-enabled="editModelsListState.enabled = !editModelsListState.enabled"
+          @select-all="selectAllModelsListItems(editModelsListState)"
+          @invert-selection="invertModelsListSelection(editModelsListState)"
+          @toggle-item="toggleModelsListItem(editModelsListState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelsListItem(editModelsListState, fromIndex, toIndex)
+          "
+        />
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2829,6 +2853,7 @@ import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import Icon from "@/components/icons/Icon.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import GroupModelsListConfigPanel from "@/components/admin/group/GroupModelsListConfigPanel.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
@@ -2841,6 +2866,16 @@ import {
   resetMessagesDispatchFormState,
   type MessagesDispatchMappingRow,
 } from "./groupsMessagesDispatch";
+import {
+  buildModelsListConfig,
+  createModelsListState as createInitialModelsListState,
+  invertModelsListSelection,
+  moveModelsListItem,
+  resetModelsListState,
+  selectAllModelsListItems,
+  setModelsListCandidates,
+  toggleModelsListItem,
+} from "./groupsModelsList";
 
 const { t } = useI18n();
 const appStore = useAppStore();
@@ -3074,6 +3109,12 @@ const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
 const createMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
+const createModelsListState = reactive(createInitialModelsListState());
+const editModelsListState = reactive(createInitialModelsListState());
+const createModelsListLoading = ref(false);
+const editModelsListLoading = ref(false);
+let createModelsListCandidatesRequestID = 0;
+let editModelsListCandidatesRequestID = 0;
 
 const createForm = reactive({
   name: "",
@@ -3353,6 +3394,44 @@ const parseModelAccessText = (value: string): string[] => {
 const modelAccessTextFromArray = (values?: string[] | null): string =>
   (values || []).join("\n");
 
+const loadModelsListCandidates = async (
+  mode: "create" | "edit",
+  groupID: number,
+  platform: GroupPlatform,
+) => {
+  const requestID =
+    mode === "create"
+      ? ++createModelsListCandidatesRequestID
+      : ++editModelsListCandidatesRequestID;
+  const isCurrentRequest = () =>
+    mode === "create"
+      ? requestID === createModelsListCandidatesRequestID
+      : requestID === editModelsListCandidatesRequestID;
+  const state = mode === "create" ? createModelsListState : editModelsListState;
+  const loadingRef =
+    mode === "create" ? createModelsListLoading : editModelsListLoading;
+  loadingRef.value = true;
+  try {
+    const models = await adminAPI.groups.getModelsListCandidates(
+      groupID,
+      platform,
+    );
+    if (!isCurrentRequest()) {
+      return;
+    }
+    setModelsListCandidates(state, models);
+  } catch (error) {
+    if (!isCurrentRequest()) {
+      return;
+    }
+    console.error("Error loading group models list candidates:", error);
+  } finally {
+    if (isCurrentRequest()) {
+      loadingRef.value = false;
+    }
+  }
+};
+
 // 将 API 格式的路由规则转换为 UI 格式（需要加载账号名称）
 const convertApiFormatToRoutingRules = async (
   apiFormat: Record<string, number[]> | null,
@@ -3563,6 +3642,11 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   loadGroups();
 };
 
+const openCreateModal = () => {
+  showCreateModal.value = true;
+  loadModelsListCandidates("create", 0, createForm.platform);
+};
+
 const closeCreateModal = () => {
   showCreateModal.value = false;
   createModelRoutingRules.value.forEach((rule) => {
@@ -3592,6 +3676,7 @@ const closeCreateModal = () => {
   createForm.copy_accounts_from_group_ids = [];
   createForm.blocked_models_text = "";
   createForm.allowed_models_text = "";
+  resetModelsListState(createModelsListState);
   createModelRoutingRules.value = [];
 };
 
@@ -3638,6 +3723,7 @@ const handleCreateGroup = async () => {
       ),
       blocked_models: parseModelAccessText(createForm.blocked_models_text),
       allowed_models: parseModelAccessText(createForm.allowed_models_text),
+      models_list_config: buildModelsListConfig(createModelsListState),
       messages_dispatch_model_config:
         createForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -3724,6 +3810,8 @@ const handleEdit = async (group: AdminGroup) => {
   editModelRoutingRules.value = await convertApiFormatToRoutingRules(
     group.model_routing,
   );
+  resetModelsListState(editModelsListState, group.models_list_config);
+  loadModelsListCandidates("edit", group.id, group.platform);
   showEditModal.value = true;
 };
 
@@ -3739,6 +3827,7 @@ const closeEditModal = () => {
   editForm.blocked_models_text = "";
   editForm.allowed_models_text = "";
   resetMessagesDispatchFormState(editForm);
+  resetModelsListState(editModelsListState);
 };
 
 const handleUpdateGroup = async () => {
@@ -3773,6 +3862,7 @@ const handleUpdateGroup = async () => {
       ),
       blocked_models: parseModelAccessText(editForm.blocked_models_text),
       allowed_models: parseModelAccessText(editForm.allowed_models_text),
+      models_list_config: buildModelsListConfig(editModelsListState),
       messages_dispatch_model_config:
         editForm.platform === "openai"
           ? messagesDispatchFormStateToConfig({
@@ -3883,6 +3973,10 @@ watch(
       createForm.require_oauth_only = false;
       createForm.require_privacy_set = false;
     }
+    resetModelsListState(createModelsListState);
+    if (showCreateModal.value) {
+      loadModelsListCandidates("create", 0, newVal);
+    }
   },
 );
 
@@ -3898,6 +3992,15 @@ watch(
     if (!["openai", "antigravity", "anthropic", "gemini"].includes(newVal)) {
       editForm.require_oauth_only = false;
       editForm.require_privacy_set = false;
+    }
+    if (editingGroup.value) {
+      resetModelsListState(
+        editModelsListState,
+        newVal === editingGroup.value.platform
+          ? editingGroup.value.models_list_config
+          : undefined,
+      );
+      loadModelsListCandidates("edit", editingGroup.value.id, newVal);
     }
   },
 );
@@ -3972,6 +4075,7 @@ const saveSortOrder = async () => {
 
 onMounted(() => {
   loadGroups();
+  loadModelsListCandidates("create", 0, createForm.platform);
   document.addEventListener("click", handleClickOutside);
 });
 

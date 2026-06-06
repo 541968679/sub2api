@@ -743,6 +743,7 @@ func TestAPIContracts(t *testing.T) {
 					"min_claude_code_version": "",
 					"max_claude_code_version": "",
 					"allow_ungrouped_key_scheduling": false,
+					"allow_user_view_error_requests": false,
 					"backend_mode_enabled": false,
 					"enable_cch_signing": false,
 					"enable_anthropic_cache_ttl_1h_injection": false,
@@ -946,6 +947,7 @@ func TestAPIContracts(t *testing.T) {
 					"min_claude_code_version": "",
 					"max_claude_code_version": "",
 					"allow_ungrouped_key_scheduling": false,
+					"allow_user_view_error_requests": false,
 					"backend_mode_enabled": false,
 					"enable_fingerprint_unification": true,
 					"enable_metadata_passthrough": false,
@@ -1154,7 +1156,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	adminService := service.NewAdminService(userRepo, groupRepo, &accountRepo, proxyRepo, apiKeyRepo, redeemRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	authHandler := handler.NewAuthHandler(cfg, nil, userService, settingService, nil, redeemService, nil)
 	apiKeyHandler := handler.NewAPIKeyHandler(apiKeyService)
-	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
+	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 

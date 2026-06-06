@@ -230,12 +230,6 @@ func (s *OpsCleanupService) runCleanupOnce(ctx context.Context) (opsCleanupDelet
 		}
 		out.errorLogs = n
 
-		n, err = runOne(truncate, cutoff, "ops_retry_attempts", "created_at", false)
-		if err != nil {
-			return out, err
-		}
-		out.retryAttempts = n
-
 		n, err = runOne(truncate, cutoff, "ops_alert_events", "created_at", false)
 		if err != nil {
 			return out, err

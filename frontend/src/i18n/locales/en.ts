@@ -2264,6 +2264,17 @@ const enBase = {
         blockedHint: 'One model or trailing-wildcard pattern per line, or comma-separated.',
         allowedHint: 'Leave empty to disable whitelist filtering.'
       },
+      modelsList: {
+        title: 'Custom /v1/models List',
+        hint: 'Only changes the model list shown by /v1/models for API keys in this group. Scheduling, allowlists, model mapping, and billing are unchanged.',
+        selectedCount: '{selected} / {total} selected',
+        selectAll: 'Select all',
+        invert: 'Invert',
+        loading: 'Loading model candidates...',
+        empty: 'No model candidates available',
+        moveUp: 'Move up',
+        moveDown: 'Move down'
+      },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
       platformHint: 'Select the platform this group is associated with',

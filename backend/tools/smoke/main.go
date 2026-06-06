@@ -101,6 +101,7 @@ type smokeRunner struct {
 	imageKey     *fixtureAPIKey
 	embeddingKey *fixtureAPIKey
 	bridgeKey    *fixtureAPIKey
+	bridgeModel  string
 	adminUser    *fixtureUser
 	normalUser   *fixtureUser
 }
@@ -221,6 +222,7 @@ func (r *smokeRunner) runCustom(ctx context.Context) {
 		r.get(ctx, "custom", "public usage records", r.baseURL+"/v1/usage/records?page=1&page_size=1", headers, expectEnvelopeOK())
 		r.get(ctx, "custom", "public usage stats", r.baseURL+"/v1/usage/stats", headers, expectEnvelopeOK())
 		r.get(ctx, "custom", "public usage trend", r.baseURL+"/v1/usage/trend", headers, expectEnvelopeOK())
+		r.get(ctx, "custom", "gateway models list", r.baseURL+"/v1/models", headers, expectModelsList())
 	}
 
 	if r.userToken == "" {
@@ -234,6 +236,7 @@ func (r *smokeRunner) runCustom(ctx context.Context) {
 		r.get(ctx, "custom", "user pricing page", r.baseURL+"/api/v1/user/pricing-page", headers, expectEnvelopeOK())
 		r.get(ctx, "custom", "user announcements", r.baseURL+"/api/v1/announcements", headers, expectEnvelopeOK())
 		r.get(ctx, "custom", "user usage page api", r.baseURL+"/api/v1/usage?page=1&page_size=1", headers, expectEnvelopeOK())
+		r.get(ctx, "custom", "user usage error requests", r.baseURL+"/api/v1/usage/errors?page=1&page_size=1", headers, expectEnvelopeOK())
 	}
 
 	if r.adminToken == "" {
@@ -248,6 +251,9 @@ func (r *smokeRunner) runCustom(ctx context.Context) {
 		r.get(ctx, "custom", "admin announcements", r.baseURL+"/api/v1/admin/announcements?page=1&page_size=1", headers, expectEnvelopeOK())
 		r.get(ctx, "custom", "admin usage", r.baseURL+"/api/v1/admin/usage?page=1&page_size=1", headers, expectEnvelopeOK())
 		r.get(ctx, "custom", "admin settings", r.baseURL+"/api/v1/admin/settings", headers, expectEnvelopeOK())
+		if r.apiKey != nil && r.apiKey.GroupID.Valid {
+			r.get(ctx, "custom", "admin group models-list candidates", fmt.Sprintf("%s/api/v1/admin/groups/%d/models-list-candidates", r.baseURL, r.apiKey.GroupID.Int64), headers, expectModelsListCandidates())
+		}
 	}
 }
 
@@ -297,8 +303,15 @@ func (r *smokeRunner) runBridge(ctx context.Context) {
 		r.add("bridge", "bridge fixture", "failed", 0, "", "", 0, errors.New("no Antigravity API key fixture found"), nil)
 		return
 	}
+	model := strings.TrimSpace(r.bridgeModel)
+	if model == "" {
+		r.add("bridge", "bridge model fixture", "failed", 0, "", "", 0, errors.New("no Claude-GPT bridge model mapping found for Antigravity fixture group"), map[string]string{
+			"required": "Antigravity downstream API key group bound to an active OpenAI bridge account with a claude-* => gpt-* model_mapping entry",
+		})
+		return
+	}
 	body := map[string]any{
-		"model":      "claude-sonnet-4-5",
+		"model":      model,
 		"max_tokens": 16,
 		"messages": []map[string]any{
 			{
@@ -331,6 +344,9 @@ func (r *smokeRunner) loadFixtures(ctx context.Context) {
 	if err := r.ensureSmokeAdmin(ctx); err != nil {
 		r.add("fixture", "ensure smoke admin", "failed", 0, "", "", 0, err, nil)
 	}
+	if err := r.ensureUsageErrorRequestsEnabled(ctx); err != nil {
+		r.add("fixture", "enable user error requests", "failed", 0, "", "", 0, err, nil)
+	}
 	smokeAdminEmail := firstNonEmpty(os.Getenv("SUB2API_SMOKE_ADMIN_EMAIL"), "smoke-admin@sub2api.local")
 	r.adminUser, _ = queryUser(ctx, r.db, "email = "+sqlQuote(smokeAdminEmail)+" AND role = 'admin'")
 	if r.adminUser == nil {
@@ -350,6 +366,7 @@ func (r *smokeRunner) loadFixtures(ctx context.Context) {
 	r.imageKey, _ = queryOpenAIImageAPIKey(ctx, r.db, firstNonEmpty(os.Getenv("SUB2API_SMOKE_OPENAI_IMAGES_API_KEY"), os.Getenv("SUB2API_SMOKE_OPENAI_API_KEY")))
 	r.embeddingKey, _ = queryOpenAIEmbeddingAPIKey(ctx, r.db, firstNonEmpty(os.Getenv("SUB2API_SMOKE_OPENAI_EMBEDDINGS_API_KEY"), os.Getenv("SUB2API_SMOKE_OPENAI_API_KEY")))
 	r.bridgeKey, _ = queryAPIKeyByRawKey(ctx, r.db, os.Getenv("SUB2API_SMOKE_ANTIGRAVITY_API_KEY"))
+	r.bridgeModel, _ = queryBridgeModel(ctx, r.db, r.bridgeKey)
 }
 
 func (r *smokeRunner) tryLogin(ctx context.Context, suite, name string) (string, bool) {
@@ -437,6 +454,15 @@ ON CONFLICT (email) WHERE deleted_at IS NULL DO NOTHING`
 		return nil
 	}
 	_, err = r.db.ExecContext(ctx, updateQuery, email, string(hash))
+	return err
+}
+
+func (r *smokeRunner) ensureUsageErrorRequestsEnabled(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, `
+INSERT INTO settings (key, value, updated_at)
+VALUES ('allow_user_view_error_requests', 'true', now())
+ON CONFLICT (key)
+DO UPDATE SET value = EXCLUDED.value, updated_at = now()`)
 	return err
 }
 
@@ -639,6 +665,53 @@ func expectEnvelopeOK() expectation {
 	}
 }
 
+func expectModelsList() expectation {
+	return func(resp *http.Response, body []byte) error {
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("expected HTTP 200, got %d", resp.StatusCode)
+		}
+		var payload struct {
+			Object string            `json:"object"`
+			Data   []json.RawMessage `json:"data"`
+		}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			return fmt.Errorf("invalid models list JSON: %w", err)
+		}
+		if payload.Object != "list" {
+			return fmt.Errorf("expected object=list, got %q", payload.Object)
+		}
+		if payload.Data == nil {
+			return errors.New("models list data is missing")
+		}
+		return nil
+	}
+}
+
+func expectModelsListCandidates() expectation {
+	return func(resp *http.Response, body []byte) error {
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("expected HTTP 200, got %d", resp.StatusCode)
+		}
+		var env struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    struct {
+				Models []string `json:"models"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(body, &env); err != nil {
+			return fmt.Errorf("invalid JSON envelope: %w", err)
+		}
+		if env.Code != 0 {
+			return fmt.Errorf("expected envelope code 0, got %d (%s)", env.Code, env.Message)
+		}
+		if env.Data.Models == nil {
+			return errors.New("models candidates are missing")
+		}
+		return nil
+	}
+}
+
 func envelopeData(body []byte) map[string]any {
 	var env struct {
 		Data map[string]any `json:"data"`
@@ -732,6 +805,47 @@ func queryOpenAIEmbeddingAPIKey(ctx context.Context, db *sql.DB, raw string) (*f
 	return queryOpenAIFixtureAPIKey(ctx, db, raw, `
   AND a.type = 'apikey'
   AND `+openAIEndpointCapabilitySQL("embeddings"))
+}
+
+func queryBridgeModel(ctx context.Context, db *sql.DB, key *fixtureAPIKey) (string, error) {
+	if key == nil || !key.GroupID.Valid {
+		return "", nil
+	}
+	query := `
+SELECT mapping.key
+FROM account_groups ag
+JOIN accounts a ON a.id = ag.account_id
+CROSS JOIN LATERAL jsonb_each_text(coalesce(a.credentials->'model_mapping', '{}'::jsonb)) AS mapping(key, value)
+WHERE ag.group_id = $1
+  AND a.platform = 'openai'
+  AND a.status = 'active'
+  AND a.schedulable = TRUE
+  AND a.deleted_at IS NULL
+  AND (a.auto_pause_on_expired = FALSE OR a.expires_at IS NULL OR a.expires_at > now())
+  AND (a.rate_limit_reset_at IS NULL OR a.rate_limit_reset_at <= now())
+  AND (a.overload_until IS NULL OR a.overload_until <= now())
+  AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= now())
+  AND jsonb_typeof(a.extra->'openai_claude_gpt_bridge_enabled') = 'boolean'
+  AND a.extra->>'openai_claude_gpt_bridge_enabled' = 'true'
+  AND lower(mapping.key) LIKE 'claude-%'
+  AND lower(mapping.value) LIKE 'gpt-%'
+  AND mapping.key <> mapping.value
+ORDER BY
+  CASE
+    WHEN lower(mapping.key) LIKE '%sonnet%' THEN 0
+    WHEN lower(mapping.key) LIKE '%haiku%' THEN 1
+    ELSE 2
+  END,
+  mapping.key
+LIMIT 1`
+	var model string
+	if err := db.QueryRowContext(ctx, query, key.GroupID.Int64).Scan(&model); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", err
+	}
+	return model, nil
 }
 
 func queryOpenAIFixtureAPIKey(ctx context.Context, db *sql.DB, raw string, accountWhere string) (*fixtureAPIKey, error) {

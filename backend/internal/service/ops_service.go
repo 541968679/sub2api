@@ -120,8 +120,8 @@ func (s *OpsService) IsMonitoringEnabled(ctx context.Context) bool {
 	}
 }
 
-func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogInput, rawRequestBody []byte) error {
-	prepared, ok, err := s.prepareErrorLogInput(ctx, entry, rawRequestBody)
+func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogInput, _ []byte) error {
+	prepared, ok, err := s.prepareErrorLogInput(ctx, entry)
 	if err != nil {
 		log.Printf("[Ops] RecordError prepare failed: %v", err)
 		return err
@@ -144,7 +144,7 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 	}
 	prepared := make([]*OpsInsertErrorLogInput, 0, len(entries))
 	for _, entry := range entries {
-		item, ok, err := s.prepareErrorLogInput(ctx, entry, nil)
+		item, ok, err := s.prepareErrorLogInput(ctx, entry)
 		if err != nil {
 			log.Printf("[Ops] RecordErrorBatch prepare failed: %v", err)
 			continue
@@ -180,7 +180,7 @@ func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertE
 	return nil
 }
 
-func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertErrorLogInput, rawRequestBody []byte) (*OpsInsertErrorLogInput, bool, error) {
+func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertErrorLogInput) (*OpsInsertErrorLogInput, bool, error) {
 	if entry == nil {
 		return nil, false, nil
 	}
@@ -204,11 +204,6 @@ func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertE
 	}
 	if entry.ErrorType == "" {
 		entry.ErrorType = "api_error"
-	}
-
-	// Sanitize + trim request body (errors only).
-	if len(rawRequestBody) > 0 {
-		entry.RequestBodyJSON, entry.RequestBodyTruncated, entry.RequestBodyBytes = PrepareOpsRequestBodyForQueue(rawRequestBody)
 	}
 
 	// Sanitize + truncate error_body to avoid storing sensitive data.
@@ -380,27 +375,7 @@ func (s *OpsService) LookupDeletedKeyAudit(ctx context.Context, key string) (*De
 	return lookup.LookupDeletedKeyAudit(ctx, key)
 }
 
-func (s *OpsService) ListRetryAttemptsByErrorID(ctx context.Context, errorID int64, limit int) ([]*OpsRetryAttempt, error) {
-	if err := s.RequireMonitoringEnabled(ctx); err != nil {
-		return nil, err
-	}
-	if s.opsRepo == nil {
-		return nil, infraerrors.ServiceUnavailable("OPS_REPO_UNAVAILABLE", "Ops repository not available")
-	}
-	if errorID <= 0 {
-		return nil, infraerrors.BadRequest("OPS_ERROR_INVALID_ID", "invalid error id")
-	}
-	items, err := s.opsRepo.ListRetryAttemptsByErrorID(ctx, errorID, limit)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []*OpsRetryAttempt{}, nil
-		}
-		return nil, infraerrors.InternalServer("OPS_RETRY_LIST_FAILED", "Failed to list retry attempts").WithCause(err)
-	}
-	return items, nil
-}
-
-func (s *OpsService) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64, resolvedRetryID *int64) error {
+func (s *OpsService) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64) error {
 	if err := s.RequireMonitoringEnabled(ctx); err != nil {
 		return err
 	}
@@ -417,7 +392,7 @@ func (s *OpsService) UpdateErrorResolution(ctx context.Context, errorID int64, r
 		}
 		return infraerrors.InternalServer("OPS_ERROR_LOAD_FAILED", "Failed to load ops error log").WithCause(err)
 	}
-	return s.opsRepo.UpdateErrorResolution(ctx, errorID, resolved, resolvedByUserID, resolvedRetryID, nil)
+	return s.opsRepo.UpdateErrorResolution(ctx, errorID, resolved, resolvedByUserID, nil)
 }
 
 func sanitizeAndTrimRequestBody(raw []byte, maxBytes int) (jsonString string, truncated bool, bytesLen int) {

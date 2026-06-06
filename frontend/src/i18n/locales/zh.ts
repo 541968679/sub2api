@@ -2151,6 +2151,17 @@ const zhBase = {
         blockedHint: '每行一个模型或末尾通配符模式，也可用逗号分隔。',
         allowedHint: '留空则不启用白名单过滤。'
       },
+      modelsList: {
+        title: '/v1/models 自定义列表',
+        hint: '只影响该分组 API Key 调用 /v1/models 时展示的模型列表，不影响调度、白名单、模型映射或计费。',
+        selectedCount: '已选 {selected} / {total}',
+        selectAll: '全选',
+        invert: '反选',
+        loading: '加载模型候选中...',
+        empty: '暂无可用模型候选',
+        moveUp: '上移',
+        moveDown: '下移'
+      },
       exclusiveObj: {
         yes: '是',
         no: '否'
