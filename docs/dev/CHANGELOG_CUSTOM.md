@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-07] feat: sync Phase 7 upstream model sync
+
+**Affected files**: backend/internal/service/upstream_models.go, backend/internal/service/upstream_models_test.go, backend/internal/handler/admin/account_handler.go, backend/internal/handler/admin/account_handler_available_models_test.go, backend/internal/handler/admin/admin_service_stub_test.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/accounts.ts, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/ModelWhitelistSelector.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped Phase 7 sync from `upstream/main@f868f7cb`; adds admin-only model-list sync without changing billing, authentication, payment, account scheduling, display pricing, model mapping resolution, Claude-GPT bridge, OpenAI image endpoint scheduling, or Codex image bridge behavior.
+**Change details**:
+- Added upstream model-list fetching for saved accounts and create-flow preview credentials, including OpenAI API key, Anthropic OAuth/API key, Gemini API key/OAuth where supported, Antigravity OAuth, and compatible Antigravity API-key base URLs.
+- Added admin APIs `POST /api/v1/admin/accounts/:id/models/sync-upstream` and `POST /api/v1/admin/accounts/models/sync-upstream-preview`.
+- Added frontend sync controls to account whitelist editors and Antigravity mapping editors; sync results only append missing models or mappings and never remove or replace local entries.
+- Kept preview sync in memory only: it reads form `platform`, `type`, `base_url`, and `api_key` and does not create or update accounts.
+
 ## [2026-06-07] feat: sync Phase 7 channel monitor OpenAI API mode
 
 **Affected files**: backend/internal/handler/admin/channel_monitor_handler.go, backend/internal/handler/admin/channel_monitor_template_handler.go, backend/internal/service/channel_monitor_*.go, backend/internal/repository/channel_monitor_*.go, frontend/src/api/admin/channelMonitor.ts, frontend/src/api/admin/channelMonitorTemplate.ts, frontend/src/constants/channelMonitor.ts, frontend/src/components/admin/monitor/Monitor*.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/channel-monitor.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md

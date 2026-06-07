@@ -257,6 +257,10 @@ func (s *stubAdminService) GetGroup(ctx context.Context, id int64) (*service.Gro
 	return &group, nil
 }
 
+func (s *stubAdminService) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
+	return nil, nil
+}
+
 func (s *stubAdminService) CreateGroup(ctx context.Context, input *service.CreateGroupInput) (*service.Group, error) {
 	group := service.Group{ID: 200, Name: input.Name, Status: service.StatusActive}
 	return &group, nil

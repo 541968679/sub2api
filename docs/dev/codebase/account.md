@@ -53,6 +53,51 @@ Implementation notes:
 - `openai_images_endpoint_enabled` is scheduler-relevant, so updating it must
   enqueue scheduler outbox work and refresh account snapshots.
 
+## Upstream Model Sync
+
+Admins can fetch a live model list from an account's upstream model-list API and
+append missing entries to the local whitelist or Antigravity mapping editor.
+
+Data model:
+
+- No new persisted schema is added. Saved-account sync reads the existing
+  account credentials from DB.
+- Create-flow preview builds a temporary in-memory account from
+  `platform`, `type`, `base_url`, and `api_key`; it does not create or update an
+  account.
+- The returned model IDs are used only by the frontend to append missing local
+  entries.
+
+Key files:
+
+- `backend/internal/service/upstream_models.go`: builds provider-specific
+  model-list requests and parses OpenAI-style `data`, Gemini-style `models`,
+  and array responses.
+- `backend/internal/handler/admin/account_handler.go`: exposes
+  `POST /api/v1/admin/accounts/:id/models/sync-upstream` and
+  `POST /api/v1/admin/accounts/models/sync-upstream-preview`.
+- `frontend/src/components/account/ModelWhitelistSelector.vue`: sync button for
+  saved accounts and create-flow preview credentials.
+- `frontend/src/components/account/EditAccountModal.vue`: Antigravity saved
+  account mapping sync.
+- `frontend/src/components/account/CreateAccountModal.vue`: temporary preview
+  credentials for API-key account creation, including Antigravity compatible
+  upstream mappings.
+
+Important mechanisms:
+
+- Sync is append-only. Existing whitelist entries and Antigravity mappings are
+  never deleted or replaced by the sync result.
+- Saved-account sync can use stored credentials, proxy assignment, and provider
+  token providers.
+- Preview sync only uses form credentials and never persists secrets.
+- Antigravity OAuth uses the Cloud Code `FetchAvailableModels` path.
+  Antigravity API-key sync intentionally requires a compatible gateway base URL
+  ending in `/antigravity`.
+- This feature does not alter billing, display pricing, model mapping
+  resolution, Claude-GPT bridge behavior, OpenAI image endpoint scheduling, or
+  Codex image bridge settings.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

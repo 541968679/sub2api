@@ -6,7 +6,7 @@
 
 | 模块 | 文件 | 说明 | 最后更新 |
 |------|------|------|---------|
-| 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity/Gemini OAuth、AI Credits、批量导入、OpenAI Claude-GPT bridge 账号绑定 | 2026-06-03 |
+| 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity/Gemini OAuth、AI Credits、批量导入、OpenAI Claude-GPT bridge 账号绑定 | 2026-06-07 |
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符、Claude-GPT 账号级映射 | 2026-06-03 |
 | 计费系统 | [billing.md](billing.md) | 五级定价链、费用计算、展示变换、费率乘数、缓存命中计费、Claude-GPT bridge 缓存展示 | 2026-06-03 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式、Antigravity Claude-GPT bridge preflight；图片耗时诊断见 [../OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md](../OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md)，超时修复复测见 [../OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md](../OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md) | 2026-06-03 |
