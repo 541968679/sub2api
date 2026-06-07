@@ -192,3 +192,102 @@ git push origin main
 - **合并后测试**: 通过 / 失败（说明）
 - **备注**: 
 -->
+# Upstream Sync Notes
+
+## 2026-06-07 - Staged OpenAI/Codex sync through Phase 6.5
+
+- **Branch**: `codex/openai-codex-upstream-sync`
+- **Local baseline**: clean local secondary-development baseline before staged
+  sync (`850b9f0a` in the planning notes).
+- **Upstream target**: `upstream/main@635ad81c`
+- **Strategy**: manual staged sync and small cherry-pick/port batches only. No
+  full `git merge upstream/main` was used after the bad all-at-once merge was
+  reverted.
+- **Latest local sync commit in this phase**: `9f0742a7` (`fix: sync phase 6.5
+  long-context billing`)
+- **Pushed/deployed**: no.
+
+### Synced Scope
+
+- Phase 0/1 protection and safety: upstream-sync guard, i18n/menu checks,
+  reusable real-request smoke tooling, selected API-key and Images safety fixes.
+- Phase 2 data model union: upstream migrations appended locally as `150-166`;
+  existing local migrations and custom schema were not renumbered or rewritten.
+- Phase 3 OpenAI/Codex core: upstream OpenAI Messages / Claude-GPT bridge core,
+  request conversion, Codex transform, continuation/digest, replay/todo guards,
+  tool pairing, terminal events, and `response.failed` handling.
+- Phase 4/4.5 WS, Images, Embeddings, account controls: OpenAI WS HTTP bridge,
+  Images routing/cooldown/metadata/error passthrough, OpenAI-compatible
+  `/v1/embeddings`, account Codex image bridge controls, and local independent
+  `extra.openai_images_endpoint_enabled` for `/v1/images/*`.
+- Phase 5 stable core: leader locks, Redis Lua `TIME` compatibility, Postgres
+  bootstrap, account/user cleanup, scheduler snapshot refresh, usage
+  failed/error request display, ops error attribution, and group custom
+  `/v1/models` list.
+- Phase 6/6.5 OpenAI/Codex follow-up fixes: error/stream terminal semantics,
+  usage/request context propagation, response-id account binding, WS failover,
+  request hotpath/OOM reductions, apicompat audit, OAuth 401 credential safety,
+  Codex/Claude Code mimicry updates, and long-context cache-read/cache-creation
+  multiplier fixes.
+
+### Preserved Local Secondary Development
+
+- Claude-GPT bridge for Antigravity dispatch, including scheduler cache fields,
+  stale DB refresh, bridge usage model semantics, cache display, and
+  `prompt_cache_key` preservation.
+- Display token and display pricing behavior; display rewriting remains
+  downstream-only and does not alter billing, stored usage, quota, or account
+  stats.
+- Global and user model pricing, including user override priority over
+  channel/global/base pricing.
+- Distribution user/admin API and UI.
+- Public unauthenticated `/key-usage` page and `/v1/usage*` API-key usage
+  endpoints.
+- AI credit snapshot, custom announcement surfaces, InvokeAI/AIClient2API/a2-proxy
+  docs and local dev-stack behavior.
+- `OPENAI_IMAGE_TRACE_LOG` remains opt-in and safe-field-only.
+
+### Verification Summary
+
+- Unit/static gates passed during closeout:
+  - `go run ./tools/upstream-sync-guard`
+  - `git diff --check`
+  - `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`
+  - `go test -tags=unit ./internal/service ./internal/handler -run "OpenAI|Codex|Responses|Chat|Messages|WS|Usage|OAuth|Image|Bridge"`
+  - `go test -tags=unit ./internal/service ./internal/handler ./internal/repository ./internal/server`
+  - `go test -tags=unit ./internal/service -run "Billing|Pricing|LongContext|DisplayToken|UserModelPricing|GlobalModelPricing"`
+- Real-request smoke:
+  - `go run ./tools/smoke --suite openai,bridge,images,custom` passed 28/28 on
+    2026-06-07.
+  - Covered OpenAI `/v1/responses`, OpenAI `/v1/chat/completions`,
+    Antigravity Claude-GPT bridge, Images upstream 400 passthrough, distribution,
+    pricing pages/API, public `/key-usage`, announcements, usage errors, and
+    group models-list candidates.
+  - `go run ./tools/smoke --suite embeddings` now selects and forwards to the
+    local OpenAI API-key account, but the configured upstream
+    `https://api.1188soft.com/` returns `404 page not found` for
+    `/v1/embeddings`. This is an upstream/base-URL fixture compatibility issue,
+    not a Sub2API account-selection or route-registration failure.
+
+### Deferred Upstream Items
+
+- user x platform quota service/UI and quota flusher integration.
+- risk-control/content moderation APIs and frontend page.
+- channel monitor OpenAI API mode.
+- account quota auto-pause/window tooltip changes.
+- payment/Airwallex/multi-currency, DingTalk/email/legal/marketing changes.
+- account page large re-layout, Codex session import, and upstream model sync
+  preview.
+- broader pricing or image-output-token channel override changes not covered by
+  the long-context regression tests.
+
+### Follow-Up Notes
+
+- Keep future upstream syncs staged. Do not use an all-at-once full merge for
+  OpenAI/Codex, billing, quota, or frontend account-page areas.
+- Bridge smoke requires an OpenAI account bound to the Antigravity group with
+  `extra.openai_claude_gpt_bridge_enabled=true` and a Claude-to-GPT
+  `credentials.model_mapping` entry.
+- Embeddings smoke requires an OpenAI API-key account whose model mapping
+  includes the requested embedding model, and whose upstream base URL exposes an
+  OpenAI-compatible embeddings endpoint.

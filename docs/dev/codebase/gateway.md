@@ -12,6 +12,8 @@
 | Account.platform/type/status | `backend/internal/service/account.go` | Core inputs for scheduling and upstream token lookup. |
 | Account.extra.mixed_scheduling | `backend/internal/service/account.go` | Whether an Antigravity account may join Anthropic/Gemini mixed scheduling. |
 | Account.extra.openai_claude_gpt_bridge_enabled | `backend/internal/service/account.go` | Whether an OpenAI account may serve Claude-GPT bridge requests for bound Antigravity groups. |
+| Account.credentials.openai_capabilities | `backend/internal/service/account.go` | Optional OpenAI API-key endpoint capability list, currently used by chat completions and embeddings scheduling. |
+| Account.extra.openai_images_endpoint_enabled | `backend/internal/service/account.go` | Local account-level opt-out for independent `/v1/images/*` scheduling only. |
 | APIKey.group_id | `backend/internal/service/api_key.go` | Scheduling group bound to the user request. |
 
 ## Key Files
@@ -22,9 +24,12 @@
 | Handler | `backend/internal/handler/gateway_handler_chat_completions.go` | `/v1/chat/completions` compatibility entry for Anthropic groups. |
 | Handler | `backend/internal/handler/group_model_access.go` | Shared group model access checks, including Responses image tool validation. |
 | Handler | `backend/internal/handler/openai_gateway_handler.go` | OpenAI-compatible gateway plus Anthropic Messages bridge for OpenAI and Antigravity bridge preflight. |
+| Handler | `backend/internal/handler/openai_embeddings.go` | OpenAI-compatible `/v1/embeddings` entry for API-key OpenAI upstream accounts. |
 | Handler | `backend/internal/handler/openai_images.go` | OpenAI-compatible `/v1/images/*` entry, image request parsing orchestration, scheduling, and usage submission. |
 | Service | `backend/internal/service/gateway_service.go` | Account selection, mixed scheduling, sticky sessions, and Anthropic upstream request building. |
 | Service | `backend/internal/service/gateway_forward_as_chat_completions.go` | Chat Completions -> Responses -> Anthropic Messages conversion and forwarding. |
+| Service | `backend/internal/service/openai_account_scheduler.go` | OpenAI account scheduler, endpoint capability checks, image capability checks, bridge eligibility, and WS failover selection. |
+| Service | `backend/internal/service/openai_embeddings.go` | OpenAI API-key embeddings forwarding, model mapping, upstream response passthrough, and embeddings usage extraction. |
 | Service | `backend/internal/service/openai_images.go` | OpenAI Images API key forwarding, request normalization, and direct image response handling. |
 | Service | `backend/internal/service/openai_images_responses.go` | OpenAI OAuth image forwarding through Codex `/responses` and stream/non-stream transformation. |
 | Service | `backend/internal/service/openai_image_trace.go` | Temporary `OPENAI_IMAGE_TRACE_LOG` diagnostics for `gpt-image-2` generations. |
@@ -108,6 +113,36 @@ headers after request construction, bridge usage fields, display cache override,
 and display-token downstream rewriting. Non-bridge OpenAI Messages should follow
 upstream prompt-cache/session/continuation behavior.
 
+### OpenAI Responses / Chat / WS Current Sync Point
+
+The staged sync through Phase 6.5 intentionally keeps OpenAI/Codex hot paths
+close to `upstream/main@635ad81c` while retaining local overlays. The currently
+synced behavior includes:
+
+- Responses and Chat Completions error semantics, including `response.failed`,
+  SSE terminal reconstruction, silent-refusal failover, and upstream error
+  passthrough where a downstream response has already been written.
+- Request context propagation for async usage recording, client request id echo,
+  upstream response-id account binding, and `completion_tokens_details`
+  preservation.
+- Responses WebSocket oversized HTTP bridge, rate-limit failover, account switch
+  metrics, terminal-event timing corrections, and usage deduplication.
+- Request body hotpath hardening: parsed request maps are scoped to the exact
+  body hash/length, released after validation/forwarding, and not retained just
+  to extract scalar usage fields.
+- OAuth runtime safety: upstream 401 invalidates caches and marks temporary
+  unschedulable without persisting stale credentials over a concurrent token
+  refresh.
+- Codex/Claude Code mimicry: current CLI/package/runtime fingerprints, client
+  metadata injection, count-tokens validation, billing-block recognition, and
+  backend-only allowed-client hooks.
+
+The Phase 6.5 billing change is deliberately narrow: long-context pricing now
+applies the input-side multiplier to cache reads and cache creation when the
+configured model pricing metadata already triggers long-context mode. It must
+not write model prices, override global/user model pricing, or change display
+pricing/display-token behavior.
+
 ### OpenAI Images Diagnostics
 
 ```
@@ -129,6 +164,31 @@ disables an account for `/v1/images/generations` and `/v1/images/edits`; missing
 or invalid values remain enabled. This does not control Codex `/v1/responses`
 `image_generation` tool injection, which remains governed by the separate Codex
 image bridge setting.
+
+### OpenAI Embeddings
+
+```
+/v1/embeddings
+  -> OpenAIGatewayHandler.Embeddings
+  -> validate JSON body and requested model
+  -> ResolveChannelMappingAndRestrict
+  -> SelectAccountWithSchedulerForCapability(... OpenAIEndpointCapabilityEmbeddings)
+     -> account must be OpenAI API-key type
+     -> account.credentials.openai_capabilities must include embeddings, or be unset
+     -> account model_mapping must support the requested embedding model
+  -> OpenAIGatewayService.ForwardEmbeddings
+     -> map model through account/channel mapping
+     -> POST to account.GetOpenAIBaseURL() + /v1/embeddings
+     -> pass upstream status/body through and extract usage
+  -> RecordUsage
+```
+
+Embeddings are lower priority than the Codex/OpenAI main request path, but the
+route is part of the synced OpenAI-compatible surface. Local real-request smoke
+now reaches the configured OpenAI API-key account; the current dev fixture
+returns `404 page not found` from its upstream `/v1/embeddings` endpoint, which
+means the Sub2API route and account selection are working but the fixture base
+URL or upstream service is not embeddings-compatible.
 
 ### API Key Usage Query
 
@@ -189,6 +249,7 @@ the setting persists only `groups.models_list_config`.
 | Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, and cost-window checks. |
 | OpenAI image trace logs | `OPENAI_IMAGE_TRACE_LOG=true` emits structured `openai.images.trace` events for `/v1/images/generations` with `model=gpt-image-2` only. Fields are limited to safe timing/correlation data (`request_id`, `client_request_id`, `trace_id`, `account_id`, model, size, quality, stream, status, timestamps, upstream request id); prompts, image bytes/base64, auth headers, cookies, API keys, and full bodies must not be logged. |
 | OpenAI Images account opt-out | `extra.openai_images_endpoint_enabled=false` excludes an OpenAI OAuth/API-key account from independent `/v1/images/*` scheduling only. It must not disable OpenAI chat/responses/embeddings, Claude-GPT bridge, or Codex `/v1/responses` image tool injection. |
+| OpenAI endpoint capabilities | `credentials.openai_capabilities` restricts OpenAI API-key endpoint scheduling for chat completions and embeddings. Missing config means default capabilities are allowed. This is independent from Images endpoint opt-out and Codex image-generation bridge settings. |
 | Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
 | OpenAI Images upstream 400 passthrough | `OpenAIGatewayHandler.Images` binds an Images request context after parsing `/v1/images/*`. `OpenAIGatewayService.handleErrorResponse` uses that context to return upstream 400 user errors, such as invalid image dimensions, as downstream 400 with the upstream `error.message` and `error.type` instead of masking them as generic 502. Keep this scoped to Images requests. |
 | OpenAI OAuth image timeout/retry | The Codex `/responses` image tool path retries fast no-header transport failures up to 3 total attempts with short backoff. It also wraps the full upstream wait/body read in an image-generation timeout: 1K = 180s, 2K = 240s, 4K/unknown = 360s. Timeout errors return `image_generation_timeout` (504) before any non-streaming response is written; no-header retry exhaustion returns `image_generation_upstream_unreachable` (502). |
@@ -200,3 +261,5 @@ the setting persists only `groups.models_list_config`.
 - **Image trace is temporary and opt-in**: Keep `OPENAI_IMAGE_TRACE_LOG` disabled by default. It is for targeted local/production timing windows and should be turned off after sampling.
 - **OpenAI Images 400s are usually client input**: Invalid image size, unsupported image options, and similar upstream 400s should remain visible to the client on `/v1/images/*`. Do not require `OPENAI_IMAGE_TRACE_LOG` for this behavior.
 - **OpenAI image timeout is not account failover**: The first version treats long generation timeout as a client-facing 504 instead of switching accounts, because previous sampling showed the elapsed time is dominated by upstream generation rather than Sub2API scheduling. Revisit only with evidence that account switching materially improves completion probability.
+- **Embeddings fixture has two gates**: scheduler selection requires both endpoint capability and model support. If `/v1/embeddings` returns 503 `no available accounts`, check `credentials.model_mapping` for the requested embedding model before debugging the forwarder. If it returns upstream 404, check the account base URL and upstream service support for `/v1/embeddings`.
+- **Future upstream syncs must stay staged**: OpenAI/Codex, billing, quota, risk-control, and account-page updates should continue as small batches with guard/unit/smoke gates. Avoid all-at-once merges that can silently delete local secondary-development features.

@@ -2740,4 +2740,13 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added a local pricing resolver regression that locks user-level model pricing as the final override over channel/global/base pricing while preserving inherited long-context metadata.
 - Preserved global/user model pricing values, display pricing, display token, Claude-GPT bridge usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
 - Verified with `go test -tags=unit ./internal/service -run "OpenAIGPT54LongContextAppliesMultiplierToCache|OpenAIGPT54NoLongContextKeepsCache|LongContextAppliesMultiplierToCacheCreation5mAnd1h|UserOverride_BeatsChannelGlobal"` and `go test -tags=unit ./internal/service -run "Billing|Pricing|LongContext|DisplayToken|UserModelPricing|GlobalModelPricing"`.
-- Custom real-request smoke passed with `go run ./tools/smoke --suite custom`; full `openai,bridge,images,custom` smoke is currently blocked by local fixture state because there is no active OpenAI upstream account/Claude-GPT mapping available after the existing OpenAI OAuth account reported a revoked token.
+- Real-request smoke after refreshing local fixtures passed with `go run ./tools/smoke --suite openai,bridge,images,custom` (28/28). OpenAI responses/chat, Claude-GPT bridge, Images upstream 400 passthrough, distribution, pricing, public `/key-usage`, announcements, usage errors, and group models-list checks are covered. `go run ./tools/smoke --suite embeddings` now reaches the OpenAI API-key account, but that account's upstream base URL returns `404 page not found` for `/v1/embeddings`; this is recorded as a fixture/upstream endpoint compatibility issue, not a Sub2API routing failure.
+
+## [2026-06-07] docs: record phased OpenAI/Codex upstream sync closeout
+
+**Affected files**: docs/dev/UPSTREAM_SYNC.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation-only closeout for the staged upstream sync through Phase 6.5; no runtime, schema, API, pricing, or deployment behavior changes.
+**Change details**:
+- Added a current upstream-sync summary for `codex/openai-codex-upstream-sync` documenting the manual staged sync from `upstream/main@635ad81c`, the features already synced, preserved local overlays, and deferred upstream items.
+- Updated the gateway codebase note with the current OpenAI/Codex flow, local Claude-GPT bridge overlay boundaries, request hotpath/usage/WS/OAuth/Codex mimicry fixes, long-context billing guardrails, and real-request smoke status.
+- Recorded that `openai,bridge,images,custom` real-request smoke passes against the current dev stack, while embeddings reaches the API-key upstream and currently fails at that upstream's `/v1/embeddings` endpoint with 404.
