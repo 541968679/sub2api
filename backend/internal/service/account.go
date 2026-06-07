@@ -1492,6 +1492,51 @@ func (a *Account) IsCodexCLIOnlyEnabled() bool {
 	return ok && enabled
 }
 
+// GetCodexCLIOnlyAllowedClients returns named extra client presets allowed by codex_cli_only.
+func (a *Account) GetCodexCLIOnlyAllowedClients() []string {
+	if a == nil || !a.IsOpenAIOAuth() || a.Extra == nil {
+		return nil
+	}
+	raw, ok := a.Extra["codex_cli_only_allowed_clients"]
+	if !ok {
+		return nil
+	}
+
+	add := func(out []string, v string) []string {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return out
+		}
+		return append(out, v)
+	}
+
+	switch v := raw.(type) {
+	case []string:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			out = add(out, item)
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = add(out, s)
+			}
+		}
+		return out
+	case string:
+		parts := strings.Split(v, ",")
+		out := make([]string, 0, len(parts))
+		for _, item := range parts {
+			out = add(out, item)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
 // WindowCostSchedulability 窗口费用调度状态
 type WindowCostSchedulability int
 

@@ -57,6 +57,38 @@ func TestClaudeCodeValidator_NonMessagesPathUAOnly(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestClaudeCodeValidator_CountTokensPathBypass(t *testing.T) {
+	validator := NewClaudeCodeValidator()
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages/count_tokens", nil)
+	req.Header.Set("User-Agent", "claude-cli/2.1.161 (external, cli)")
+
+	ok := validator.Validate(req, map[string]any{"model": "claude-sonnet-4"})
+	require.True(t, ok)
+}
+
+func TestClaudeCodeValidator_BillingBlockCountsAsSystemPrompt(t *testing.T) {
+	validator := NewClaudeCodeValidator()
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages", nil)
+	req.Header.Set("User-Agent", "claude-cli/2.1.161 (external, cli)")
+	req.Header.Set("X-App", "claude-code")
+	req.Header.Set("anthropic-beta", "context-management-2025-06-27")
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	ok := validator.Validate(req, map[string]any{
+		"model": "claude-sonnet-4",
+		"system": []any{
+			map[string]any{
+				"type": "text",
+				"text": "x-anthropic-billing-header: cc_version=2.1.161; cc_entrypoint=cli; cch=00000;",
+			},
+		},
+		"metadata": map[string]any{
+			"user_id": "user_" + "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2" + "_account__session_12345678-1234-1234-1234-123456789abc",
+		},
+	})
+	require.True(t, ok)
+}
+
 func TestExtractVersion(t *testing.T) {
 	v := NewClaudeCodeValidator()
 	tests := []struct {

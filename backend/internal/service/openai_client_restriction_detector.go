@@ -7,31 +7,25 @@ import (
 )
 
 const (
-	// CodexClientRestrictionReasonDisabled 表示账号未开启 codex_cli_only。
-	CodexClientRestrictionReasonDisabled = "codex_cli_only_disabled"
-	// CodexClientRestrictionReasonMatchedUA 表示请求命中官方客户端 UA 白名单。
-	CodexClientRestrictionReasonMatchedUA = "official_client_user_agent_matched"
-	// CodexClientRestrictionReasonMatchedOriginator 表示请求命中官方客户端 originator 白名单。
-	CodexClientRestrictionReasonMatchedOriginator = "official_client_originator_matched"
-	// CodexClientRestrictionReasonNotMatchedUA 表示请求未命中官方客户端 UA 白名单。
-	CodexClientRestrictionReasonNotMatchedUA = "official_client_user_agent_not_matched"
-	// CodexClientRestrictionReasonForceCodexCLI 表示通过 ForceCodexCLI 配置兜底放行。
-	CodexClientRestrictionReasonForceCodexCLI = "force_codex_cli_enabled"
+	CodexClientRestrictionReasonDisabled                   = "codex_cli_only_disabled"
+	CodexClientRestrictionReasonMatchedUA                  = "official_client_user_agent_matched"
+	CodexClientRestrictionReasonMatchedOriginator          = "official_client_originator_matched"
+	CodexClientRestrictionReasonMatchedAllowedClient       = "allowed_client_matched"
+	CodexClientRestrictionReasonMatchedGlobalAllowedClient = "global_allowed_client_matched"
+	CodexClientRestrictionReasonNotMatchedUA               = "official_client_user_agent_not_matched"
+	CodexClientRestrictionReasonForceCodexCLI              = "force_codex_cli_enabled"
 )
 
-// CodexClientRestrictionDetectionResult 是 codex_cli_only 统一检测入口结果。
 type CodexClientRestrictionDetectionResult struct {
 	Enabled bool
 	Matched bool
 	Reason  string
 }
 
-// CodexClientRestrictionDetector 定义 codex_cli_only 统一检测入口。
 type CodexClientRestrictionDetector interface {
-	Detect(c *gin.Context, account *Account) CodexClientRestrictionDetectionResult
+	Detect(c *gin.Context, account *Account, globalAllowedClients []string) CodexClientRestrictionDetectionResult
 }
 
-// OpenAICodexClientRestrictionDetector 为 OpenAI OAuth codex_cli_only 的默认实现。
 type OpenAICodexClientRestrictionDetector struct {
 	cfg *config.Config
 }
@@ -40,7 +34,7 @@ func NewOpenAICodexClientRestrictionDetector(cfg *config.Config) *OpenAICodexCli
 	return &OpenAICodexClientRestrictionDetector{cfg: cfg}
 }
 
-func (d *OpenAICodexClientRestrictionDetector) Detect(c *gin.Context, account *Account) CodexClientRestrictionDetectionResult {
+func (d *OpenAICodexClientRestrictionDetector) Detect(c *gin.Context, account *Account, globalAllowedClients []string) CodexClientRestrictionDetectionResult {
 	if account == nil || !account.IsCodexCLIOnlyEnabled() {
 		return CodexClientRestrictionDetectionResult{
 			Enabled: false,
@@ -75,6 +69,23 @@ func (d *OpenAICodexClientRestrictionDetector) Detect(c *gin.Context, account *A
 			Enabled: true,
 			Matched: true,
 			Reason:  CodexClientRestrictionReasonMatchedOriginator,
+		}
+	}
+
+	if allowed := account.GetCodexCLIOnlyAllowedClients(); len(allowed) > 0 &&
+		openai.MatchAllowedClients(userAgent, originator, allowed) {
+		return CodexClientRestrictionDetectionResult{
+			Enabled: true,
+			Matched: true,
+			Reason:  CodexClientRestrictionReasonMatchedAllowedClient,
+		}
+	}
+	if len(globalAllowedClients) > 0 &&
+		openai.MatchAllowedClients(userAgent, originator, globalAllowedClients) {
+		return CodexClientRestrictionDetectionResult{
+			Enabled: true,
+			Matched: true,
+			Reason:  CodexClientRestrictionReasonMatchedGlobalAllowedClient,
 		}
 	}
 

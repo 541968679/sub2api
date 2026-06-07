@@ -41,7 +41,7 @@ const (
 	// OpenAI Platform API for API Key accounts (fallback)
 	openaiPlatformAPIURL   = "https://api.openai.com/v1/responses"
 	openaiStickySessionTTL = time.Hour // 粘性会话TTL
-	codexCLIUserAgent      = "codex_cli_rs/0.125.0"
+	codexCLIUserAgent      = "codex_cli_rs/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color"
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
@@ -902,7 +902,7 @@ func SnapshotOpenAICompatibilityFallbackMetrics() OpenAICompatibilityFallbackMet
 }
 
 func (s *OpenAIGatewayService) detectCodexClientRestriction(c *gin.Context, account *Account) CodexClientRestrictionDetectionResult {
-	return s.getCodexClientRestrictionDetector().Detect(c, account)
+	return s.getCodexClientRestrictionDetector().Detect(c, account, nil)
 }
 
 func getAPIKeyIDFromContext(c *gin.Context) int64 {
@@ -2283,9 +2283,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	// 非透传模式下，instructions 为空时注入默认指令。
 	if isInstructionsEmpty(reqBody) {
-		reqBody["instructions"] = "You are a helpful coding assistant."
+		defaultInstructions := defaultCodexSynthInstructions(reqModel)
+		reqBody["instructions"] = defaultInstructions
 		bodyModified = true
-		markPatchSet("instructions", "You are a helpful coding assistant.")
+		markPatchSet("instructions", defaultInstructions)
 	}
 
 	codexImageGenerationBridgeEnabled := isCodexCLI && s.isCodexImageGenerationBridgeEnabled(account)
@@ -2422,6 +2423,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		if codexResult.PromptCacheKey != "" {
 			promptCacheKey = codexResult.PromptCacheKey
+		}
+		if applyCodexClientMetadata(reqBody, account) {
+			bodyModified = true
+			disablePatch()
 		}
 	}
 

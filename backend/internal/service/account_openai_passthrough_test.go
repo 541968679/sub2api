@@ -135,6 +135,63 @@ func TestAccount_IsCodexCLIOnlyEnabled(t *testing.T) {
 	})
 }
 
+func TestAccount_GetCodexCLIOnlyAllowedClients(t *testing.T) {
+	t.Run("OpenAI OAuth reads JSONB array", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"codex_cli_only_allowed_clients": []any{"claude_code", " ", 123, "custom"},
+			},
+		}
+		require.Equal(t, []string{"claude_code", "custom"}, account.GetCodexCLIOnlyAllowedClients())
+	})
+
+	t.Run("OpenAI OAuth reads string slice", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"codex_cli_only_allowed_clients": []string{"claude_code", ""},
+			},
+		}
+		require.Equal(t, []string{"claude_code"}, account.GetCodexCLIOnlyAllowedClients())
+	})
+
+	t.Run("OpenAI OAuth reads comma string", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"codex_cli_only_allowed_clients": "claude_code, custom , ",
+			},
+		}
+		require.Equal(t, []string{"claude_code", "custom"}, account.GetCodexCLIOnlyAllowedClients())
+	})
+
+	t.Run("non OAuth accounts ignore field", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeAPIKey,
+			Extra: map[string]any{
+				"codex_cli_only_allowed_clients": []any{"claude_code"},
+			},
+		}
+		require.Nil(t, account.GetCodexCLIOnlyAllowedClients())
+	})
+
+	t.Run("invalid field type ignored", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"codex_cli_only_allowed_clients": true,
+			},
+		}
+		require.Nil(t, account.GetCodexCLIOnlyAllowedClients())
+	})
+}
+
 func TestAccount_IsOpenAIResponsesWebSocketV2Enabled(t *testing.T) {
 	t.Run("OAuth使用OAuth专用开关", func(t *testing.T) {
 		account := &Account{

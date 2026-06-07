@@ -47,6 +47,11 @@ var claudeCodeSystemPrompts = []string{
 	"You are an interactive CLI tool that helps users",
 }
 
+const (
+	claudeCodeBillingHeaderPrefix = "x-anthropic-billing-header"
+	claudeCodeCLIEntrypointMarker = "cc_entrypoint=cli"
+)
+
 // NewClaudeCodeValidator 创建验证器实例
 func NewClaudeCodeValidator() *ClaudeCodeValidator {
 	return &ClaudeCodeValidator{}
@@ -74,6 +79,10 @@ func (v *ClaudeCodeValidator) Validate(r *http.Request, body map[string]any) boo
 	// Step 2: 非 messages 路径，只要 UA 匹配就通过
 	path := r.URL.Path
 	if !strings.Contains(path, "messages") {
+		return true
+	}
+
+	if isMessagesCountTokensPath(path) {
 		return true
 	}
 
@@ -128,6 +137,10 @@ func (v *ClaudeCodeValidator) Validate(r *http.Request, body map[string]any) boo
 	return true
 }
 
+func isMessagesCountTokensPath(path string) bool {
+	return strings.HasSuffix(path, "/messages/count_tokens")
+}
+
 // hasClaudeCodeSystemPrompt 检查请求是否包含 Claude Code 系统提示词
 // 使用字符串相似度匹配（Dice coefficient）
 func (v *ClaudeCodeValidator) hasClaudeCodeSystemPrompt(body map[string]any) bool {
@@ -156,6 +169,11 @@ func (v *ClaudeCodeValidator) hasClaudeCodeSystemPrompt(body map[string]any) boo
 		text, ok := entryMap["text"].(string)
 		if !ok || text == "" {
 			continue
+		}
+
+		if strings.HasPrefix(text, claudeCodeBillingHeaderPrefix) &&
+			strings.Contains(text, claudeCodeCLIEntrypointMarker) {
+			return true
 		}
 
 		// 计算与所有模板的最佳相似度
