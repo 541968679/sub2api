@@ -10,6 +10,7 @@
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符、Claude-GPT 账号级映射 | 2026-06-03 |
 | 计费系统 | [billing.md](billing.md) | 五级定价链、费用计算、展示变换、费率乘数、缓存命中计费、Claude-GPT bridge 缓存展示 | 2026-06-03 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式、Antigravity Claude-GPT bridge preflight；图片耗时诊断见 [../OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md](../OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md)，超时修复复测见 [../OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md](../OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md) | 2026-06-03 |
+| Channel Monitor | [channel-monitor.md](channel-monitor.md) | Admin monitor CRUD, OpenAI chat/responses api_mode, request templates, checks, and rollups | 2026-06-07 |
 | Announcements | [announcements.md](announcements.md) | Admin-authored announcements, popup scheduling, dashboard banners, and API key usage rules | 2026-06-05 |
 | OpenAI Claude-GPT Bridge | [../OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md](../OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md) | OpenAI account-side Claude-GPT bridge for Antigravity groups, including routing, billing, usage, cache-display override, deployment status, and context-window notes | 2026-06-03 |
 | Kiro Gateway 附加项目 | [kiro-gateway.md](kiro-gateway.md) | 独立 sidecar 接入 Kiro 反代 API 到 Sub2API | 2026-05-10 |

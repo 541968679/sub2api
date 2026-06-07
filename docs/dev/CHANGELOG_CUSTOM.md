@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-07] feat: sync Phase 7 channel monitor OpenAI API mode
+
+**Affected files**: backend/internal/handler/admin/channel_monitor_handler.go, backend/internal/handler/admin/channel_monitor_template_handler.go, backend/internal/service/channel_monitor_*.go, backend/internal/repository/channel_monitor_*.go, frontend/src/api/admin/channelMonitor.ts, frontend/src/api/admin/channelMonitorTemplate.ts, frontend/src/constants/channelMonitor.ts, frontend/src/components/admin/monitor/Monitor*.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/channel-monitor.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped Phase 7 sync from `upstream/main@f868f7cb`; keeps historical and empty `api_mode` as `chat_completions`, only lets OpenAI monitors/templates opt into `responses`, and does not change billing, authentication, payment, or account scheduling paths.
+**Change details**:
+- Added OpenAI `api_mode` to Channel Monitor create/update/list responses, repository Ent mapping, scheduled check options, and frontend API types/UI.
+- Added protocol-aware OpenAI checks: `chat_completions` keeps `/v1/chat/completions`; `responses` uses `/v1/responses` with `instructions`, `input`, and `max_output_tokens`, parsing `output_text` first and nested output content as fallback.
+- Scoped request templates by provider and `api_mode`; template application now filters matching monitors by both provider and `api_mode` so Chat and Responses request bodies are not mixed.
+- Added Chinese/English UI labels and codebase documentation for the monitor flow.
+
 ## [2026-06-07] docs: sync Phase 7 Sub2API admin skill
 
 **Affected files**: skills/sub2api-admin/SKILL.md, skills/sub2api-admin/agents/openai.yaml, skills/sub2api-admin/references/admin-cli.md, skills/sub2api-admin/scripts/sub2api-admin.js, docs/dev/CHANGELOG_CUSTOM.md
