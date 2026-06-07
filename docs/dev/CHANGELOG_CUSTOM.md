@@ -2677,3 +2677,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - HTTP Responses/Chat paths bind the upstream response id to the selected account through the existing OpenAI WS sticky state store, allowing later `previous_response_id` continuations to reuse the same account without adding schema or pricing changes.
 - Chat Completions streaming conversion always requests/emits a usage chunk for gateway billing completeness, while display-token rewriting stays downstream-only and real usage remains unmodified.
 - Verified with `go test -tags=unit ./internal/handler -run "UsageRecord|OpenAI|Gateway"`, `go test -tags=unit ./internal/service -run "OpenAI|ResponseID|Usage|ChatCompletions"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-07] fix: sync Phase 6C OpenAI websocket failover
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6C scoped sync from `upstream/main@635ad81c`; the remaining local delta was OpenAI Responses WebSocket account failover after upstream WS rate-limit errors. Other Phase 6C WS fixes for tool-output continuation, terminal-event timing, usage parsing/deduplication, model fallback, and Codex image bridge injection were already present from earlier Phase 3/4/6B syncs.
+**Change details**:
+- Wrapped OpenAI `/v1/responses` WebSocket ingress forwarding in the same failover pattern used by local OpenAI HTTP handlers: failed account IDs are excluded, account switch metrics are recorded, and the next schedulable OpenAI account is selected when the service returns an `UpstreamFailoverError`.
+- Reacquires the user concurrency slot before retrying a WS upstream after a failed turn, while releasing the failed account slot immediately to avoid leaking account concurrency.
+- Added a WS-specific failover-exhausted close mapper so 429 and transient upstream failures close the client socket with retryable WebSocket status/reason instead of a generic internal error.
+- Kept endpoint-capability scheduling, local account image endpoint switch, Codex image bridge injection, Claude-GPT bridge routing, display-token usage semantics, and pricing untouched.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAIWS|WebSocket|HTTPBridge|RateLimit|ResponseID|Usage|CodexImage|ToolContinuation"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler -run "OpenAI|Codex|Responses|Chat|Messages|WS|Usage|OAuth|Image|Bridge"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
