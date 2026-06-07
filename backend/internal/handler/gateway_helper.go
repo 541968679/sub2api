@@ -87,10 +87,8 @@ func claudeCodeBodyMapFromContextCache(c *gin.Context) map[string]any {
 	if c == nil {
 		return nil
 	}
-	if cached, ok := c.Get(service.OpenAIParsedRequestBodyKey); ok {
-		if bodyMap, ok := cached.(map[string]any); ok {
-			return bodyMap
-		}
+	if bodyMap := service.CachedOpenAIParsedRequestBody(c); bodyMap != nil {
+		return bodyMap
 	}
 	if cached, ok := c.Get(claudeCodeParsedRequestContextKey); ok {
 		switch v := cached.(type) {

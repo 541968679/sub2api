@@ -204,7 +204,7 @@ func TestSetClaudeCodeClientContext_ReuseParsedRequestAndContextCache(t *testing
 		c.Request.Header.Set("X-App", "claude-code")
 		c.Request.Header.Set("anthropic-beta", "message-batches-2024-09-24")
 		c.Request.Header.Set("anthropic-version", "2023-06-01")
-		c.Set(service.OpenAIParsedRequestBodyKey, map[string]any{
+		service.CacheOpenAIParsedRequestBody(c, []byte(`{"model":"claude-3-5-sonnet-20241022"}`), map[string]any{
 			"model": "claude-3-5-sonnet-20241022",
 			"system": []any{
 				map[string]any{"text": "You are Claude Code, Anthropic's official CLI for Claude."},

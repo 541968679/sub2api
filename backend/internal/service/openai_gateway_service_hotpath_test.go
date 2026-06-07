@@ -111,12 +111,26 @@ func TestGetOpenAIRequestBodyMap_UsesContextCache(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
+	body := []byte(`{"model":"cached-model","stream":true}`)
 	cached := map[string]any{"model": "cached-model", "stream": true}
-	c.Set(OpenAIParsedRequestBodyKey, cached)
+	CacheOpenAIParsedRequestBody(c, body, cached)
 
-	got, err := getOpenAIRequestBodyMap(c, []byte(`{invalid-json`))
+	got, err := getOpenAIRequestBodyMap(c, body)
 	require.NoError(t, err)
 	require.Equal(t, cached, got)
+}
+
+func TestGetOpenAIRequestBodyMap_IgnoresStaleContextCache(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	CacheOpenAIParsedRequestBody(c, []byte(`{"model":"cached-model"}`), map[string]any{"model": "cached-model"})
+
+	got, err := getOpenAIRequestBodyMap(c, []byte(`{"model":"fresh-model","stream":true}`))
+	require.NoError(t, err)
+	require.Equal(t, "fresh-model", got["model"])
+	require.Equal(t, true, got["stream"])
 }
 
 func TestGetOpenAIRequestBodyMap_ParseErrorWithoutCache(t *testing.T) {
@@ -136,9 +150,9 @@ func TestGetOpenAIRequestBodyMap_WriteBackContextCache(t *testing.T) {
 
 	cached, ok := c.Get(OpenAIParsedRequestBodyKey)
 	require.True(t, ok)
-	cachedMap, ok := cached.(map[string]any)
+	cachedEntry, ok := cached.(openAIParsedRequestBodyCache)
 	require.True(t, ok)
-	require.Equal(t, got, cachedMap)
+	require.Equal(t, got, cachedEntry.reqBody)
 }
 
 func TestSanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(t *testing.T) {

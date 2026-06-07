@@ -46,6 +46,8 @@ const (
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
 	// OpenAIParsedRequestBodyKey 缓存 handler 侧已解析的请求体，避免重复解析。
+	// The cached map is bound to the exact body bytes so failover/retry paths
+	// never reuse mutable state from a previous upstream attempt.
 	OpenAIParsedRequestBodyKey = "openai_parsed_request_body"
 	// OpenAI WS Mode 失败后的重连次数上限（不含首次尝试）。
 	// 与 Codex 客户端保持一致：失败后最多重连 5 次。
@@ -2106,6 +2108,20 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode i
 	return isOpenAITransientProcessingError(statusCode, upstreamMsg, upstreamBody)
 }
 
+func marshalOpenAIUpstreamJSON(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	out := buf.Bytes()
+	if len(out) > 0 && out[len(out)-1] == '\n' {
+		out = out[:len(out)-1]
+	}
+	return out, nil
+}
+
 func (s *OpenAIGatewayService) readUpstreamErrorBody(resp *http.Response) []byte {
 	if resp == nil || resp.Body == nil {
 		return nil
@@ -2536,11 +2552,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		if !serializedByPatch {
 			var marshalErr error
-			body, marshalErr = json.Marshal(reqBody)
+			body, marshalErr = marshalOpenAIUpstreamJSON(reqBody)
 			if marshalErr != nil {
 				return nil, fmt.Errorf("serialize request body: %w", marshalErr)
 			}
 		}
+		CacheOpenAIParsedRequestBody(c, body, reqBody)
 	}
 
 	// Get access token
@@ -2815,10 +2832,11 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			upstreamCode := extractUpstreamErrorCode(respBody)
 			if !httpInvalidEncryptedContentRetryTried && resp.StatusCode == http.StatusBadRequest && upstreamCode == "invalid_encrypted_content" {
 				if trimOpenAIEncryptedReasoningItems(reqBody) {
-					body, err = json.Marshal(reqBody)
+					body, err = marshalOpenAIUpstreamJSON(reqBody)
 					if err != nil {
 						return nil, fmt.Errorf("serialize invalid_encrypted_content retry body: %w", err)
 					}
+					CacheOpenAIParsedRequestBody(c, body, reqBody)
 					setOpsUpstreamRequestBody(c, body)
 					httpInvalidEncryptedContentRetryTried = true
 					logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying non-WSv2 request once after invalid_encrypted_content (account: %s)", account.Name)
@@ -2847,6 +2865,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				})
 
 				s.handleFailoverSideEffects(ctx, resp, account)
+				releaseOpenAIParsedRequestBody(c)
 				return nil, &UpstreamFailoverError{
 					StatusCode:             resp.StatusCode,
 					ResponseBody:           respBody,
@@ -2890,8 +2909,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			usage = &OpenAIUsage{}
 		}
 
-		reasoningEffort := extractOpenAIReasoningEffort(reqBody, originalModel)
-		serviceTier := extractOpenAIServiceTier(reqBody)
+		reasoningEffort := extractOpenAIReasoningEffortFromBody(body, originalModel)
+		serviceTier := extractOpenAIServiceTierFromBody(body)
+		releaseOpenAIParsedRequestBody(c)
 
 		return &OpenAIForwardResult{
 			RequestID:       resp.Header.Get("x-request-id"),
@@ -6511,7 +6531,7 @@ func sanitizeEmptyBase64InputImagesInOpenAIBody(body []byte) ([]byte, bool, erro
 	if !sanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody) {
 		return body, false, nil
 	}
-	normalized, err := json.Marshal(reqBody)
+	normalized, err := marshalOpenAIUpstreamJSON(reqBody)
 	if err != nil {
 		return body, false, fmt.Errorf("serialize sanitized request body: %w", err)
 	}
@@ -6617,9 +6637,17 @@ func isEmptyBase64DataURI(raw string) bool {
 }
 
 func getOpenAIRequestBodyMap(c *gin.Context, body []byte) (map[string]any, error) {
+	bodyHash := xxhash.Sum64(body)
+	bodyLen := len(body)
 	if c != nil {
 		if cached, ok := c.Get(OpenAIParsedRequestBodyKey); ok {
-			if reqBody, ok := cached.(map[string]any); ok && reqBody != nil {
+			if cache, ok := cached.(openAIParsedRequestBodyCache); ok && cache.reqBody != nil && cache.bodyLen == bodyLen && cache.bodyHash == bodyHash {
+				return cache.reqBody, nil
+			}
+			// Backward-compatible read for tests or callers compiled before the
+			// body-bound cache wrapper. Only use it when no body was supplied, so
+			// a stale map cannot be applied to different bytes.
+			if reqBody, ok := cached.(map[string]any); ok && reqBody != nil && len(body) == 0 {
 				return reqBody, nil
 			}
 		}
@@ -6630,9 +6658,52 @@ func getOpenAIRequestBodyMap(c *gin.Context, body []byte) (map[string]any, error
 		return nil, fmt.Errorf("parse request: %w", err)
 	}
 	if c != nil {
-		c.Set(OpenAIParsedRequestBodyKey, reqBody)
+		CacheOpenAIParsedRequestBody(c, body, reqBody)
 	}
 	return reqBody, nil
+}
+
+type openAIParsedRequestBodyCache struct {
+	bodyHash uint64
+	bodyLen  int
+	reqBody  map[string]any
+}
+
+// CacheOpenAIParsedRequestBody stores a parsed OpenAI request map only for the
+// exact body bytes it was decoded from.
+func CacheOpenAIParsedRequestBody(c *gin.Context, body []byte, reqBody map[string]any) {
+	if c == nil || reqBody == nil {
+		return
+	}
+	c.Set(OpenAIParsedRequestBodyKey, openAIParsedRequestBodyCache{
+		bodyHash: xxhash.Sum64(body),
+		bodyLen:  len(body),
+		reqBody:  reqBody,
+	})
+}
+
+// CachedOpenAIParsedRequestBody exposes the current request-local cache for
+// lightweight client detection that does not have a body parameter.
+func CachedOpenAIParsedRequestBody(c *gin.Context) map[string]any {
+	if c == nil {
+		return nil
+	}
+	if cached, ok := c.Get(OpenAIParsedRequestBodyKey); ok {
+		switch v := cached.(type) {
+		case openAIParsedRequestBodyCache:
+			return v.reqBody
+		case map[string]any:
+			return v
+		}
+	}
+	return nil
+}
+
+func releaseOpenAIParsedRequestBody(c *gin.Context) {
+	if c == nil || c.Keys == nil {
+		return
+	}
+	delete(c.Keys, OpenAIParsedRequestBodyKey)
 }
 
 func extractOpenAIReasoningEffort(reqBody map[string]any, requestedModel string) *string {
