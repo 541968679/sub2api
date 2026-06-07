@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-07] docs: sync Phase 7 Sub2API admin skill
+
+**Affected files**: skills/sub2api-admin/SKILL.md, skills/sub2api-admin/agents/openai.yaml, skills/sub2api-admin/references/admin-cli.md, skills/sub2api-admin/scripts/sub2api-admin.js, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped Phase 7 sync from `upstream/main@f868f7cb`; documentation/tooling only, with no runtime, schema, API, deployment, or global Codex skill installation changes.
+**Change details**:
+- Added the upstream `sub2api-admin` repository skill and bundled admin CLI reference/script for AI-assisted Sub2API admin API operations.
+- Kept the skill as repo-local documentation/tooling; it is not wired into backend/frontend runtime and does not install into the workstation global skill registry.
+- Preserved the upstream safety notes around admin API keys and account exports so credentials are not printed in chat or logs.
+
 ## [2026-06-06] docs: record local GitHub CLI credential recovery
 
 **Affected files**: AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
