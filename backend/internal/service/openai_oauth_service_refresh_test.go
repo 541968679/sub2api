@@ -3,11 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +35,41 @@ func (s *openaiOAuthClientRefreshStub) RefreshTokenWithClientID(ctx context.Cont
 func TestOpenAIOAuthService_RefreshAccountToken_NoRefreshTokenUsesExistingAccessToken(t *testing.T) {
 	client := &openaiOAuthClientRefreshStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	var privacyClientCalls int32
+
+	const subscriptionExpiresAt = "2026-07-01T00:00:00Z"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "Bearer existing-access-token", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/backend-api/accounts/check/v4-2023-04-27":
+			_, _ = w.Write([]byte(`{"accounts":{"acct_1":{"account":{"plan_type":"plus","is_default":true},"entitlement":{}}}}`))
+		case "/backend-api/subscriptions":
+			require.Equal(t, "acct_1", r.URL.Query().Get("account_id"))
+			_, _ = w.Write([]byte(`{"plan_type":"plus","active_until":"` + subscriptionExpiresAt + `","will_renew":true,"id":"sub_1"}`))
+		case "/backend-api/settings/account_user_setting":
+			require.Equal(t, http.MethodPatch, r.Method)
+			_, _ = w.Write([]byte(`{"ok":true}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	oldCheckURL, oldSubscriptionsURL, oldSettingsURL := chatGPTAccountsCheckURL, chatGPTSubscriptionsURL, openAISettingsURL
+	chatGPTAccountsCheckURL = server.URL + "/backend-api/accounts/check/v4-2023-04-27"
+	chatGPTSubscriptionsURL = server.URL + "/backend-api/subscriptions"
+	openAISettingsURL = server.URL + "/backend-api/settings/account_user_setting"
+	defer func() {
+		chatGPTAccountsCheckURL = oldCheckURL
+		chatGPTSubscriptionsURL = oldSubscriptionsURL
+		openAISettingsURL = oldSettingsURL
+	}()
+
+	svc.SetPrivacyClientFactory(func(proxyURL string) (*req.Client, error) {
+		atomic.AddInt32(&privacyClientCalls, 1)
+		return req.C(), nil
+	})
 
 	expiresAt := time.Now().Add(30 * time.Minute).UTC().Format(time.RFC3339)
 	account := &Account{
@@ -39,9 +77,10 @@ func TestOpenAIOAuthService_RefreshAccountToken_NoRefreshTokenUsesExistingAccess
 		Platform: PlatformOpenAI,
 		Type:     AccountTypeOAuth,
 		Credentials: map[string]any{
-			"access_token": "existing-access-token",
-			"expires_at":   expiresAt,
-			"client_id":    "client-id-1",
+			"access_token":       "existing-access-token",
+			"expires_at":         expiresAt,
+			"client_id":          "client-id-1",
+			"chatgpt_account_id": "acct_1",
 		},
 	}
 
@@ -50,5 +89,9 @@ func TestOpenAIOAuthService_RefreshAccountToken_NoRefreshTokenUsesExistingAccess
 	require.NotNil(t, info)
 	require.Equal(t, "existing-access-token", info.AccessToken)
 	require.Equal(t, "client-id-1", info.ClientID)
+	require.Equal(t, "plus", info.PlanType)
+	require.Equal(t, subscriptionExpiresAt, info.SubscriptionExpiresAt)
+	require.Equal(t, PrivacyModeTrainingOff, info.PrivacyMode)
 	require.Zero(t, atomic.LoadInt32(&client.refreshCalls), "existing access token should be reused without calling refresh")
+	require.Positive(t, atomic.LoadInt32(&privacyClientCalls), "existing access token should still run enrichment")
 }
