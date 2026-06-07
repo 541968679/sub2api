@@ -2728,3 +2728,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added `codex-auto-review` to OpenAI default models and switched synthetic Codex default instructions to the upstream model-aware helper where available.
 - Preserved pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge routing/usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
 - Verified with `go test -tags=unit ./internal/service -run "ClaudeCodeValidator|CodexClientRestriction|CodexCLIOnly|CodexTransform|OpenAI.*Hotpath|OpenAIGatewayService|GetCodexCLIOnlyAllowedClients"` and `go test -tags=unit ./internal/pkg/openai ./internal/pkg/claude`.
+
+## [2026-06-07] fix: sync Phase 6.5 long-context cache billing multipliers
+
+**Affected files**: backend/internal/service/billing_service.go, backend/internal/service/billing_service_test.go, backend/internal/service/model_pricing_resolver_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6.5 scoped sync of upstream long-context billing fixes `b9509e82` and `ed2aac25`; this only changes how existing model pricing metadata is applied when long-context pricing is already triggered. It does not write model prices, change global/user pricing configuration, or alter display pricing/display-token semantics.
+**Change details**:
+- Long-context pricing now applies the input-side multiplier to `cache_read_tokens`, matching OpenAI GPT-5.4/GPT-5.5 long-context semantics where cache reads are input-side replays.
+- Long-context pricing now applies the same input-side multiplier to cache creation cost, including standard cache writes and `5m`/`1h` ephemeral cache creation breakdown prices.
+- Added regression tests proving below-threshold cache read/write prices remain at base price, while above-threshold cache read/write prices are multiplied.
+- Added a local pricing resolver regression that locks user-level model pricing as the final override over channel/global/base pricing while preserving inherited long-context metadata.
+- Preserved global/user model pricing values, display pricing, display token, Claude-GPT bridge usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAIGPT54LongContextAppliesMultiplierToCache|OpenAIGPT54NoLongContextKeepsCache|LongContextAppliesMultiplierToCacheCreation5mAnd1h|UserOverride_BeatsChannelGlobal"` and `go test -tags=unit ./internal/service -run "Billing|Pricing|LongContext|DisplayToken|UserModelPricing|GlobalModelPricing"`.
+- Custom real-request smoke passed with `go run ./tools/smoke --suite custom`; full `openai,bridge,images,custom` smoke is currently blocked by local fixture state because there is no active OpenAI upstream account/Claude-GPT mapping available after the existing OpenAI OAuth account reported a revoked token.

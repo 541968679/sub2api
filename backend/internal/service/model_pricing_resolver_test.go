@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -705,6 +706,61 @@ func newTestGlobalPricingCache(entries ...*GlobalModelPricing) *GlobalPricingCac
 	return c
 }
 
+type modelPricingResolverUserOverrideRepoStub struct {
+	overrides map[string]*UserModelPricingOverride
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) GetByUserID(context.Context, int64) ([]UserModelPricingOverride, error) {
+	return nil, nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) GetEnabledByUserID(context.Context, int64) ([]UserModelPricingOverride, error) {
+	return nil, nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) GetByUserAndModel(_ context.Context, userID int64, model string) (*UserModelPricingOverride, error) {
+	if s == nil {
+		return nil, nil
+	}
+	override := s.overrides[fmt.Sprintf("%d:%s", userID, strings.ToLower(model))]
+	if override == nil {
+		return nil, nil
+	}
+	return override, nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) GetByID(context.Context, int64) (*UserModelPricingOverride, error) {
+	return nil, nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) Create(context.Context, *UserModelPricingOverride) error {
+	return nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) Update(context.Context, *UserModelPricingOverride) error {
+	return nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) Delete(context.Context, int64) error {
+	return nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) DeleteByUserID(context.Context, int64) error {
+	return nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) BatchUpsert(context.Context, int64, []UserModelPricingOverride) error {
+	return nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) GetEnabledCountByModel(context.Context) (map[string]int, error) {
+	return nil, nil
+}
+
+func (s *modelPricingResolverUserOverrideRepoStub) GetByModel(context.Context, string) ([]UserModelPricingOverride, error) {
+	return nil, nil
+}
+
 // TestResolve_GlobalOverride_PreservesPriorityAndLongContext 是对 Bug C 的回归测试。
 // 关键验证：管理员配了全局覆盖（只改 input/output 单价），叠加后：
 //   - Priority tier 字段被同步到新价（而不是归零）
@@ -853,4 +909,56 @@ func TestResolve_ChannelOverride_BeatsGlobalOverride(t *testing.T) {
 		"channel override must win over global override")
 	require.InDelta(t, 99e-6, resolved.BasePricing.InputPricePerToken, 1e-12,
 		"channel price (99) must be applied, not global (50)")
+}
+
+func TestResolve_UserOverride_BeatsChannelGlobalAndKeepsLongContextMetadata(t *testing.T) {
+	bs := newTestBillingServiceWithRichPricing()
+
+	globalInput := 50e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:      "claude-sonnet-4",
+		InputPrice: &globalInput,
+		Enabled:    true,
+	})
+
+	r := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:    "anthropic",
+		Models:      []string{"claude-sonnet-4"},
+		BillingMode: BillingModeToken,
+		InputPrice:  testPtrFloat64(99e-6),
+	}})
+	r.billingService = bs
+	r.globalPricingCache = cache
+
+	userID := int64(42)
+	userInput := 7e-6
+	userOutput := 8e-6
+	r.userModelPricingRepo = &modelPricingResolverUserOverrideRepoStub{
+		overrides: map[string]*UserModelPricingOverride{
+			"42:claude-sonnet-4": {
+				UserID:      userID,
+				Model:       "claude-sonnet-4",
+				InputPrice:  &userInput,
+				OutputPrice: &userOutput,
+				Enabled:     true,
+			},
+		},
+	}
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "claude-sonnet-4",
+		GroupID: groupIDPtr(),
+		UserID:  &userID,
+	})
+
+	require.Equal(t, PricingSourceUser, resolved.Source)
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, userInput, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, userInput, resolved.BasePricing.InputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, userOutput, resolved.BasePricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, userOutput, resolved.BasePricing.OutputPricePerTokenPriority, 1e-12)
+	require.InDelta(t, 0.3e-6, resolved.BasePricing.CacheReadPricePerToken, 1e-12)
+	require.Equal(t, 200000, resolved.BasePricing.LongContextInputThreshold)
+	require.InDelta(t, 2.0, resolved.BasePricing.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, resolved.BasePricing.LongContextOutputMultiplier, 1e-12)
 }
