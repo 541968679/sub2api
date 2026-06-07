@@ -1605,6 +1605,31 @@ func TestOpenAINonStreamingRealUsageDoesNotRewrite(t *testing.T) {
 	require.JSONEq(t, string(body), rec.Body.String())
 }
 
+func TestExtractOpenAIResponseIDFromJSONBytes(t *testing.T) {
+	require.Equal(t, "resp_root", extractOpenAIResponseIDFromJSONBytes([]byte(`{"id":"resp_root"}`)))
+	require.Equal(t, "resp_nested", extractOpenAIResponseIDFromJSONBytes([]byte(`{"type":"response.completed","response":{"id":"resp_nested"}}`)))
+	require.Equal(t, "", extractOpenAIResponseIDFromJSONBytes([]byte(`{"response":{}}`)))
+	require.Equal(t, "", extractOpenAIResponseIDFromJSONBytes([]byte(`not-json`)))
+}
+
+func TestOpenAIGatewayService_BindHTTPResponseAccount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	groupID := int64(42)
+	c.Set("api_key", &APIKey{GroupID: &groupID})
+
+	ctx := context.Background()
+	svc.bindHTTPResponseAccount(ctx, c, &Account{ID: 321}, " resp_http_1 ")
+
+	accountID, err := svc.getOpenAIWSStateStore().GetResponseAccount(ctx, groupID, "resp_http_1")
+	require.NoError(t, err)
+	require.Equal(t, int64(321), accountID)
+}
+
 func TestOpenAIStreamingDisplayUsageRewritesTerminalEventOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -2500,9 +2525,10 @@ func TestOpenAIChatStreamingDisplayUsageRewritesUsageChunkOnly(t *testing.T) {
 		Header: http.Header{"X-Request-Id": []string{"req-chat"}},
 	}
 
-	result, err := svc.handleChatStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", true, time.Now())
+	result, err := svc.handleChatStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	require.Equal(t, "resp_chat", result.ResponseID)
 	require.Equal(t, 1000, result.Usage.InputTokens)
 	require.Equal(t, 100, result.Usage.OutputTokens)
 	require.Equal(t, 200, result.Usage.CacheReadInputTokens)
@@ -2512,7 +2538,7 @@ func TestOpenAIChatStreamingDisplayUsageRewritesUsageChunkOnly(t *testing.T) {
 	require.Contains(t, body, "data: [DONE]")
 }
 
-func TestOpenAIChatStreamingIncludeUsageFalseDoesNotAddUsageChunk(t *testing.T) {
+func TestOpenAIChatStreamingAlwaysPreservesUsageChunkForBilling(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := &OpenAIGatewayService{cfg: &config.Config{}}
 
@@ -2527,10 +2553,11 @@ func TestOpenAIChatStreamingIncludeUsageFalseDoesNotAddUsageChunk(t *testing.T) 
 		Header:     http.Header{"X-Request-Id": []string{"req-chat"}},
 	}
 
-	result, err := svc.handleChatStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", false, time.Now())
+	result, err := svc.handleChatStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	require.Equal(t, "resp_chat", result.ResponseID)
 	require.Equal(t, 1000, result.Usage.InputTokens)
-	require.NotContains(t, rec.Body.String(), `"usage":`)
+	require.Contains(t, rec.Body.String(), `"usage":{"prompt_tokens":2200,"completion_tokens":400,"total_tokens":2600`)
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
 }
