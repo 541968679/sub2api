@@ -33,6 +33,32 @@ Important mechanisms:
 - The mapping is account-global. There is no group-level or account-group-level
   Claude-GPT mapping.
 
+## API Key Exclusive Group Runtime Guard
+
+API keys are validated against exclusive-group authorization both when they are
+created and when they are used.
+
+Data model:
+
+- `users.allowed_groups` is the source of truth for standard exclusive groups.
+- Subscription groups still use active subscription checks instead of
+  `allowed_groups`.
+- The lightweight API-key auth path stores `allowed_groups` and group
+  `is_exclusive` in `APIKeyAuthSnapshot`, so cache hits enforce the same rule as
+  DB reads.
+
+Important mechanisms:
+
+- `backend/internal/server/middleware/api_key_auth.go` rejects an API key with
+  `GROUP_NOT_ALLOWED` when its bound group is exclusive and the owner no longer
+  has that group in `allowed_groups`.
+- `backend/internal/repository/api_key_repo.go:GetByKeyForAuth` must select
+  user allowed groups and group exclusivity fields; removing either field
+  weakens runtime enforcement.
+- `backend/internal/service/admin_service.go:UpdateUser` invalidates API-key
+  auth cache when `allowed_groups` changes, so permission removals do not wait
+  for cache TTL expiry.
+
 ## OpenAI Images Endpoint Scheduling
 
 OpenAI OAuth/API-key accounts can opt out of independent Images endpoint

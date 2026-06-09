@@ -34,6 +34,7 @@ type APIKeyAuthUserSnapshot struct {
 	Role                     string  `json:"role"`
 	Balance                  float64 `json:"balance"`
 	Concurrency              int     `json:"concurrency"`
+	AllowedGroups            []int64 `json:"allowed_groups,omitempty"`
 	DownstreamUsageTokenMode string  `json:"downstream_usage_token_mode"`
 
 	// Balance notification fields (required for CheckBalanceAfterDeduction)
@@ -58,6 +59,7 @@ type APIKeyAuthGroupSnapshot struct {
 	ID                              int64    `json:"id"`
 	Name                            string   `json:"name"`
 	Platform                        string   `json:"platform"`
+	IsExclusive                     bool     `json:"is_exclusive"`
 	Status                          string   `json:"status"`
 	SubscriptionType                string   `json:"subscription_type"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`

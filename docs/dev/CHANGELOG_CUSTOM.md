@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] fix: sync Phase 8A API key group and OpenAI sticky guards
+
+**Affected files**: backend/internal/repository/api_key_repo.go, backend/internal/server/middleware/api_key_auth.go, backend/internal/server/middleware/api_key_auth_test.go, backend/internal/service/admin_service.go, backend/internal/service/api_key_auth_cache.go, backend/internal/service/api_key_auth_cache_impl.go, backend/internal/service/api_key_service_cache_test.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_account_scheduler_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_state_store.go, backend/internal/service/channel_service.go, backend/internal/service/channel_service_test.go, backend/internal/handler/openai_gateway_handler.go, docs/dev/codebase/account.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped Phase 8A sync from `upstream/main@be017445`, covering upstream `1a86c6ce`, `a4362963`, `87dd5f5d`, and `9a0e4398`; does not merge proxy fallback, quota, risk-control, payment, DingTalk, or account-page re-layout changes.
+**Change details**:
+- Revalidated API key exclusive-group access at request time by loading user `allowed_groups` and group `is_exclusive` into the auth path and auth cache.
+- Invalidated API key auth cache when admin user `allowed_groups` changes, so removed exclusive-group access does not survive until cache TTL expiry.
+- Added OpenAI sticky-session group checks so stale session-bound accounts outside the current group are cleared before selection continues.
+- Namespaced local OpenAI response-id account bindings by group and stripped mismatched WSv2 first-packet `previous_response_id` when the current group did not hit the sticky previous-response binding.
+- Added focused unit coverage for exclusive-group API key rejection, auth-cache round trip fields, sticky group clearing, and `previous_response_id` body stripping.
+
 ## [2026-06-07] feat: sync Phase 7 upstream model sync
 
 **Affected files**: backend/internal/service/upstream_models.go, backend/internal/service/upstream_models_test.go, backend/internal/handler/admin/account_handler.go, backend/internal/handler/admin/account_handler_available_models_test.go, backend/internal/handler/admin/admin_service_stub_test.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/accounts.ts, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/ModelWhitelistSelector.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md

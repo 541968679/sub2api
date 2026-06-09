@@ -1505,7 +1505,7 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 		return nil
 	}
 	account = s.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, account, eligibility)
-	if account == nil {
+	if account == nil || !openAIStickyAccountMatchesGroup(account, groupID) {
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
@@ -1721,6 +1721,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 				if !clearSticky && isOpenAIAccountEligibleForScheduleRequest(account, eligibility) {
 					account = s.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, account, eligibility)
 					if account == nil {
+						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
+					} else if !openAIStickyAccountMatchesGroup(account, groupID) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel, eligibility.RequireCompact) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)

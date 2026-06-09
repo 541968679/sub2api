@@ -306,6 +306,45 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesAllowImageGeneration(t *testin
 	require.True(t, roundTrip.Group.AllowImageGeneration)
 }
 
+func TestAPIKeyService_SnapshotRoundTrip_PreservesExclusiveGroupAuthorizationFields(t *testing.T) {
+	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	groupID := int64(9)
+	apiKey := &APIKey{
+		ID:      1,
+		UserID:  2,
+		GroupID: &groupID,
+		Key:     "k-exclusive",
+		Status:  StatusActive,
+		User: &User{
+			ID:            2,
+			Status:        StatusActive,
+			Role:          RoleUser,
+			Balance:       10,
+			Concurrency:   3,
+			AllowedGroups: []int64{groupID, 11},
+		},
+		Group: &Group{
+			ID:               groupID,
+			Name:             "exclusive",
+			Platform:         PlatformOpenAI,
+			Status:           StatusActive,
+			SubscriptionType: SubscriptionTypeStandard,
+			RateMultiplier:   1,
+			IsExclusive:      true,
+		},
+	}
+
+	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	roundTrip := svc.snapshotToAPIKey(apiKey.Key, snapshot)
+
+	require.NotNil(t, roundTrip)
+	require.NotNil(t, roundTrip.User)
+	require.NotNil(t, roundTrip.Group)
+	require.Equal(t, []int64{groupID, 11}, roundTrip.User.AllowedGroups)
+	require.True(t, roundTrip.Group.IsExclusive)
+	require.True(t, roundTrip.User.CanBindGroup(roundTrip.Group.ID, roundTrip.Group.IsExclusive))
+}
+
 func TestAPIKeyService_AuthCacheSnapshotRoundTripPreservesDownstreamUsageTokenMode(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	apiKey := &APIKey{
