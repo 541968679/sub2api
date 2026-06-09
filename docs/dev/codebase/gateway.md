@@ -115,8 +115,8 @@ upstream prompt-cache/session/continuation behavior.
 
 ### OpenAI Responses / Chat / WS Current Sync Point
 
-The staged sync through Phase 6.5 intentionally keeps OpenAI/Codex hot paths
-close to `upstream/main@635ad81c` while retaining local overlays. The currently
+The staged sync through Phase 8B intentionally keeps OpenAI/Codex hot paths
+close to `upstream/main@be017445` while retaining local overlays. The currently
 synced behavior includes:
 
 - Responses and Chat Completions error semantics, including `response.failed`,
@@ -131,6 +131,12 @@ synced behavior includes:
   the current group before reuse; stale `previous_response_id` values are
   stripped from the first WSv2 packet when the current group did not hit a
   previous-response binding and the payload is not a tool-output continuation.
+- Phase 8B transport/header hardening: OpenAI transport errors without HTTP
+  status codes return `UpstreamFailoverError`, persistent proxy/DNS/routing
+  faults temporarily unschedule the account, API-key Chat Completions injects
+  missing `prompt_cache_key` into the converted Responses body, and buffered
+  non-streaming JSON outputs overwrite any upstream `text/event-stream`
+  `Content-Type` before writing downstream.
 - Request body hotpath hardening: parsed request maps are scoped to the exact
   body hash/length, released after validation/forwarding, and not retained just
   to extract scalar usage fields.

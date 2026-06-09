@@ -2494,7 +2494,7 @@ func TestOpenAIChatBufferedRealUsageDoesNotRewrite(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(strings.NewReader(`data: {"type":"response.completed","response":{"id":"resp_chat","status":"completed","usage":{"input_tokens":1000,"output_tokens":100,"total_tokens":1100,"input_tokens_details":{"cached_tokens":200}}}}`)),
-		Header:     http.Header{"X-Request-Id": []string{"req-chat"}},
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"req-chat"}},
 	}
 
 	result, err := svc.handleChatBufferedStreamingResponse(resp, c, "gpt-4o", "gpt-4o", "gpt-4o", time.Now())
@@ -2504,6 +2504,7 @@ func TestOpenAIChatBufferedRealUsageDoesNotRewrite(t *testing.T) {
 	require.Equal(t, int64(200), gjson.Get(rec.Body.String(), "usage.prompt_tokens_details.cached_tokens").Int())
 	require.Equal(t, int64(100), gjson.Get(rec.Body.String(), "usage.completion_tokens").Int())
 	require.Equal(t, int64(1100), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
+	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
 }
 
 func TestOpenAIChatStreamingDisplayUsageRewritesUsageChunkOnly(t *testing.T) {

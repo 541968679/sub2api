@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] fix: sync Phase 8B OpenAI transport and response header guards
+
+**Affected files**: backend/internal/service/openai_upstream_transport_error.go, backend/internal/service/openai_upstream_transport_error_test.go, backend/internal/service/openai_upstream_transport_error_handle_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_test.go, backend/internal/service/openai_gateway_service_test.go, backend/internal/service/gateway_forward_as_chat_completions.go, backend/internal/service/gateway_forward_as_chat_completions_test.go, backend/internal/service/gateway_forward_as_responses.go, backend/internal/service/gateway_forward_as_responses_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped Phase 8B sync from `upstream/main@be017445`, covering upstream `217f8599`, `d251487d`, and `154e0ed6`; preserves local Claude-GPT bridge, OpenAI image endpoint, Codex image bridge, display-pricing/model-mapping, and Phase 8A group isolation behavior.
+**Change details**:
+- Converted OpenAI transport-layer failures without HTTP status codes into failover errors, while temporarily unscheduling accounts for persistent proxy/DNS/routing faults.
+- Added API-key Chat Completions -> Responses `prompt_cache_key` body propagation and kept `session_id` isolated by API key.
+- Forced non-streaming buffered JSON responses to `application/json` after upstream SSE headers are filtered through, preventing downstream stream misclassification.
+- Added unit coverage for transport error classification/handling, API-key prompt-cache propagation, and JSON Content-Type correction on buffered responses.
+
 ## [2026-06-09] fix: sync Phase 8A API key group and OpenAI sticky guards
 
 **Affected files**: backend/internal/repository/api_key_repo.go, backend/internal/server/middleware/api_key_auth.go, backend/internal/server/middleware/api_key_auth_test.go, backend/internal/service/admin_service.go, backend/internal/service/api_key_auth_cache.go, backend/internal/service/api_key_auth_cache_impl.go, backend/internal/service/api_key_service_cache_test.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_account_scheduler_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_state_store.go, backend/internal/service/channel_service.go, backend/internal/service/channel_service_test.go, backend/internal/handler/openai_gateway_handler.go, docs/dev/codebase/account.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
