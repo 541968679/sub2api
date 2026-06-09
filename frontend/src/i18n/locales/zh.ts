@@ -3117,6 +3117,10 @@ const zhBase = {
       bulkActions: {
         selected: '已选择 {count} 个账号',
         selectCurrentPage: '本页全选',
+        selectFiltered: '跨页全选（{count}）',
+        selectingFiltered: '正在选择...',
+        selectFilteredSuccess: '已选择 {count} 个账号',
+        selectFilteredFailed: '跨页全选失败',
         clear: '清除选择',
         edit: '批量编辑账号',
         delete: '批量删除',

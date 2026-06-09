@@ -152,13 +152,16 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
+          :total="pagination.total"
+          :selecting-all-filtered="selectingAllFiltered"
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
-          @select-page="selectPage"
+          @select-page="selectPageAccounts"
+          @select-filtered="selectAllFilteredAccounts"
           @toggle-schedulable="handleBulkToggleSchedulable"
           @auto-assign-proxy="handleBulkAutoAssignProxy"
         />
@@ -187,7 +190,7 @@
             />
           </template>
           <template #cell-select="{ row }">
-            <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <input type="checkbox" :checked="isSelected(row.id)" @change="toggleAccountSelection(row)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </template>
           <template #cell-name="{ row, value }">
             <div class="flex flex-col">
@@ -419,6 +422,7 @@ const getProxyAccountCount = (proxyId: number | null): number | undefined => {
 }
 const accountTableRef = ref<HTMLElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
+type AccountSelectionMetadata = Pick<Account, 'platform' | 'type'>
 type AccountBulkEditTarget =
   | {
       mode: 'selected'
@@ -442,20 +446,19 @@ type AccountBulkEditTarget =
       selectedPlatforms: AccountPlatform[]
       selectedTypes: AccountType[]
     }
+
+const selectedAccountMetadata = ref<Map<number, AccountSelectionMetadata>>(new Map())
+const selectedAccountMetadataList = computed(() =>
+  selIds.value
+    .map((id) => selectedAccountMetadata.value.get(id))
+    .filter((metadata): metadata is AccountSelectionMetadata => Boolean(metadata))
+)
 const selPlatforms = computed<AccountPlatform[]>(() => {
-  const platforms = new Set(
-    accounts.value
-      .filter(a => isSelected(a.id))
-      .map(a => a.platform)
-  )
+  const platforms = new Set(selectedAccountMetadataList.value.map(a => a.platform))
   return [...platforms]
 })
 const selTypes = computed<AccountType[]>(() => {
-  const types = new Set(
-    accounts.value
-      .filter(a => isSelected(a.id))
-      .map(a => a.type)
-  )
+  const types = new Set(selectedAccountMetadataList.value.map(a => a.type))
   return [...types]
 })
 const showCreate = ref(false)
@@ -466,6 +469,7 @@ const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
 const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
+const selectingAllFiltered = ref(false)
 const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
 const showReAuth = ref(false)
@@ -496,6 +500,7 @@ const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 // Sorting settings
 const ACCOUNT_SORT_STORAGE_KEY = 'account-table-sort'
 type AccountSortOrder = 'asc' | 'desc'
+const SELECT_ALL_FILTERED_PAGE_SIZE = 1000
 type AccountSortState = {
   sort_by: string
   sort_order: AccountSortOrder
@@ -781,18 +786,60 @@ const {
   selectedIds: selIds,
   allVisibleSelected,
   isSelected,
-  setSelectedIds,
+  setSelectedIds: setSelectedIdsRaw,
   select,
   deselect,
-  toggle: toggleSel,
-  clear: clearSelection,
-  removeMany: removeSelectedAccounts,
+  toggle: toggleSelection,
+  clear: clearTableSelection,
+  removeMany: removeSelectedAccountIds,
   toggleVisible,
-  selectVisible: selectPage,
   batchUpdate
 } = useTableSelection<Account>({
   rows: accounts,
   getId: (account) => account.id
+})
+
+const rememberAccountSelectionMetadata = (rows: Account[]) => {
+  if (rows.length === 0) return
+  const next = new Map(selectedAccountMetadata.value)
+  for (const account of rows) {
+    next.set(account.id, {
+      platform: account.platform,
+      type: account.type
+    })
+  }
+  selectedAccountMetadata.value = next
+}
+
+const setSelectedIds = (ids: number[]) => {
+  setSelectedIdsRaw(ids)
+}
+
+const clearSelection = () => {
+  clearTableSelection()
+  selectedAccountMetadata.value = new Map()
+}
+
+const removeSelectedAccounts = (ids: number[]) => {
+  removeSelectedAccountIds(ids)
+  if (ids.length === 0) return
+  const next = new Map(selectedAccountMetadata.value)
+  ids.forEach((id) => next.delete(id))
+  selectedAccountMetadata.value = next
+}
+
+const toggleAccountSelection = (account: Account) => {
+  rememberAccountSelectionMetadata([account])
+  toggleSelection(account.id)
+}
+
+const selectPageAccounts = () => {
+  rememberAccountSelectionMetadata(accounts.value)
+  toggleVisible(true)
+}
+
+watch(accounts, (rows) => {
+  rememberAccountSelectionMetadata(rows)
 })
 
 const swipeVirtualContext: SwipeSelectVirtualContext = {
@@ -1206,6 +1253,9 @@ const openMenu = (a: Account, e: MouseEvent) => {
 }
 const toggleSelectAllVisible = (event: Event) => {
   const target = event.target as HTMLInputElement
+  if (target.checked) {
+    rememberAccountSelectionMetadata(accounts.value)
+  }
   toggleVisible(target.checked)
 }
 const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
@@ -1369,6 +1419,34 @@ const buildBulkEditFilterSnapshot = () => {
     privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
     sort_by: typeof rawParams.sort_by === 'string' ? rawParams.sort_by : '',
     sort_order: sortOrder
+  }
+}
+
+const selectAllFilteredAccounts = async () => {
+  if (selectingAllFiltered.value) return
+  selectingAllFiltered.value = true
+  try {
+    const filters = buildBulkEditFilterSnapshot()
+    const ids = new Set<number>()
+    let page = 1
+    let pages = 1
+
+    do {
+      const result = await adminAPI.accounts.list(page, SELECT_ALL_FILTERED_PAGE_SIZE, filters)
+      rememberAccountSelectionMetadata(result.items)
+      result.items.forEach((account) => ids.add(account.id))
+      pages = result.pages || Math.ceil((result.total || ids.size) / SELECT_ALL_FILTERED_PAGE_SIZE) || page
+      page += 1
+    } while (page <= pages)
+
+    const selectedIds = Array.from(ids)
+    setSelectedIds(selectedIds)
+    appStore.showSuccess(t('admin.accounts.bulkActions.selectFilteredSuccess', { count: selectedIds.length }))
+  } catch (error) {
+    console.error('Failed to select all filtered accounts:', error)
+    appStore.showError(t('admin.accounts.bulkActions.selectFilteredFailed'))
+  } finally {
+    selectingAllFiltered.value = false
   }
 }
 

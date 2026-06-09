@@ -29,7 +29,8 @@ vi.mock('@/api/admin', () => ({
       toggleSchedulable: vi.fn()
     },
     proxies: {
-      getAll: getAllProxies
+      getAll: getAllProxies,
+      getAllWithCount: getAllProxies
     },
     groups: {
       getAll: getAllGroups
@@ -67,9 +68,15 @@ const DataTableStub = {
 }
 
 const AccountBulkActionsBarStub = {
-  props: ['selectedIds'],
-  emits: ['edit-filtered'],
-  template: '<button data-test="edit-filtered" @click="$emit(\'edit-filtered\')">edit filtered</button>'
+  props: ['selectedIds', 'total', 'selectingAllFiltered'],
+  emits: ['edit-filtered', 'select-filtered'],
+  template: `
+    <div>
+      <span data-test="selected-count">{{ selectedIds.length }}</span>
+      <button data-test="edit-filtered" @click="$emit('edit-filtered')">edit filtered</button>
+      <button data-test="select-filtered" @click="$emit('select-filtered')">select filtered</button>
+    </div>
+  `
 }
 
 const BulkEditAccountModalStub = {
@@ -148,5 +155,80 @@ describe('admin AccountsView bulk edit scope', () => {
 
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-show')).toBe('true')
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-target-mode')).toBe('filtered')
+  })
+
+  it('selects account ids from every filtered page', async () => {
+    listAccounts
+      .mockResolvedValueOnce({
+        items: [],
+        total: 3,
+        page: 1,
+        page_size: 20,
+        pages: 1
+      })
+      .mockResolvedValueOnce({
+        items: [
+          { id: 1, platform: 'openai', type: 'oauth' },
+          { id: 2, platform: 'anthropic', type: 'setup-token' }
+        ],
+        total: 3,
+        page: 1,
+        page_size: 1000,
+        pages: 2
+      })
+      .mockResolvedValueOnce({
+        items: [
+          { id: 3, platform: 'gemini', type: 'oauth' }
+        ],
+        total: 3,
+        page: 2,
+        page_size: 1000,
+        pages: 2
+      })
+
+    const wrapper = mount(AccountsView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          TablePageLayout: {
+            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+          },
+          DataTable: DataTableStub,
+          Pagination: true,
+          ConfirmDialog: true,
+          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+          AccountTableFilters: { template: '<div></div>' },
+          AccountBulkActionsBar: AccountBulkActionsBarStub,
+          AccountActionMenu: true,
+          ImportDataModal: true,
+          ReAuthAccountModal: true,
+          AccountTestModal: true,
+          AccountStatsModal: true,
+          ScheduledTestsPanel: true,
+          SyncFromCrsModal: true,
+          TempUnschedStatusModal: true,
+          ErrorPassthroughRulesModal: true,
+          TLSFingerprintProfilesModal: true,
+          CreateAccountModal: true,
+          EditAccountModal: true,
+          BulkEditAccountModal: BulkEditAccountModalStub,
+          PlatformTypeBadge: true,
+          AccountCapacityCell: true,
+          AccountStatusIndicator: true,
+          AccountTodayStatsCell: true,
+          AccountGroupsCell: true,
+          AccountUsageCell: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-test="select-filtered"]').trigger('click')
+    await flushPromises()
+
+    expect(listAccounts).toHaveBeenNthCalledWith(2, 1, 1000, expect.objectContaining({ sort_by: 'name', sort_order: 'asc' }))
+    expect(listAccounts).toHaveBeenNthCalledWith(3, 2, 1000, expect.objectContaining({ sort_by: 'name', sort_order: 'asc' }))
+    expect(wrapper.get('[data-test="selected-count"]').text()).toBe('3')
   })
 })

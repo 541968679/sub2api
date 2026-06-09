@@ -3362,6 +3362,10 @@ const enBase = {
       bulkActions: {
         selected: '{count} account(s) selected',
         selectCurrentPage: 'Select this page',
+        selectFiltered: 'Select all filtered ({count})',
+        selectingFiltered: 'Selecting...',
+        selectFilteredSuccess: 'Selected {count} account(s)',
+        selectFilteredFailed: 'Failed to select all filtered accounts',
         clear: 'Clear selection',
         edit: 'Bulk Edit',
         delete: 'Bulk Delete',

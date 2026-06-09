@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] fix: support cross-page account selection
+
+**Affected files**: frontend/src/views/admin/AccountsView.vue, frontend/src/components/admin/account/AccountBulkActionsBar.vue, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only account-management selection fix; reuses the existing admin account list API and does not change backend contracts, account scheduling, billing, or account mutations.
+**Change details**:
+- Added a "select all filtered" action to the account bulk-actions bar so admins can select account IDs across paginated results.
+- Fetches account IDs in 1000-row pages using the current filter and sort snapshot, then writes the deduplicated IDs into the existing table-selection state.
+- Caches selected account platform/type metadata from visible and fetched rows so bulk-edit option gating remains correct after cross-page selection.
+- Added focused AccountsView coverage for selecting IDs from multiple filtered pages.
+
 ## [2026-06-09] feat: expose distribution wallet refund totals
 
 **Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, frontend/src/types/index.ts, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
