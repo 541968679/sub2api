@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] fix: sync Phase 8C usage window, ops metric, and select UI
+
+**Affected files**: backend/internal/repository/account_repo.go, backend/internal/service/account_service.go, backend/internal/service/account_usage_service.go, backend/internal/service/account_usage_session_window_test.go, backend/internal/service/ops_alert_evaluator_service.go, backend/internal/service/ops_alert_evaluator_service_test.go, backend/internal/handler/admin/ops_alerts_handler.go, backend/internal/server/api_contract_test.go, backend/internal/service/*_test.go, frontend/src/components/account/UsageProgressBar.vue, frontend/src/components/account/__tests__/UsageProgressBar.spec.ts, frontend/src/components/common/Select.vue, frontend/src/api/admin/ops.ts, frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/codebase/ops.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped Phase 8C sync from `upstream/main@be017445`, covering upstream `16bc8769`, `f20e6bf7`, and `f5cecea5`; does not change billing, account scheduling selection policy, payment, auth, or OpenAI bridge behavior.
+**Change details**:
+- Synced active 5h usage `ResetsAt` back into `accounts.session_window_end` and zeroed expired setup-token 5h windows before rendering.
+- Added `account_temp_unscheduled_count` as a backend/frontend Ops alert metric for accounts currently inside a temporary unschedulable window.
+- Replaced hard-coded UsageProgressBar reset text with i18n keys and distinguished stale positive-utilization windows as pending refresh.
+- Increased common Select dropdown option area from `max-h-60` to `max-h-80` so 7+ item status filters are not visually hidden.
+
 ## [2026-06-09] fix: sync Phase 8B OpenAI transport and response header guards
 
 **Affected files**: backend/internal/service/openai_upstream_transport_error.go, backend/internal/service/openai_upstream_transport_error_test.go, backend/internal/service/openai_upstream_transport_error_handle_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_test.go, backend/internal/service/openai_gateway_service_test.go, backend/internal/service/gateway_forward_as_chat_completions.go, backend/internal/service/gateway_forward_as_chat_completions_test.go, backend/internal/service/gateway_forward_as_responses.go, backend/internal/service/gateway_forward_as_responses_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md

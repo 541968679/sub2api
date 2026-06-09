@@ -106,6 +106,40 @@ func TestCountAccountsByCondition(t *testing.T) {
 	})
 }
 
+func TestComputeRuleMetric_AccountTempUnscheduledCount(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	futureUntil := now.Add(5 * time.Minute)
+	pastUntil := now.Add(-1 * time.Minute)
+
+	availability := &OpsAccountAvailability{
+		Accounts: map[int64]*AccountAvailability{
+			1: {TempUnschedulableUntil: &futureUntil},
+			2: {TempUnschedulableUntil: &futureUntil},
+			3: {TempUnschedulableUntil: &pastUntil},
+			4: {HasError: true},
+			5: {IsRateLimited: true},
+		},
+	}
+
+	opsService := &OpsService{
+		getAccountAvailability: func(_ context.Context, _ string, _ *int64) (*OpsAccountAvailability, error) {
+			return availability, nil
+		},
+	}
+	svc := &OpsAlertEvaluatorService{
+		opsService: opsService,
+		opsRepo:    &stubOpsRepo{},
+	}
+
+	rule := &OpsAlertRule{MetricType: "account_temp_unscheduled_count"}
+	val, ok := svc.computeRuleMetric(context.Background(), rule, nil, now.Add(-5*time.Minute), now, "", nil)
+
+	require.True(t, ok)
+	require.InDelta(t, 2.0, val, 0.0001)
+}
+
 func TestComputeRuleMetricNewIndicators(t *testing.T) {
 	t.Parallel()
 

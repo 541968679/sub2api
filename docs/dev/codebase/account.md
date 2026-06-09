@@ -241,6 +241,27 @@ AccountsView.vue: refreshAICreditsTotal()
   → 汇总 ai_credits[].amount
 ```
 
+### Setup Token 5h Usage Window
+
+```
+active usage poll
+  -> account_usage_service.go: syncActiveToPassive()
+     -> account_repo.go: UpdateExtra(session_window_utilization)
+     -> account_repo.go: UpdateSessionWindowEnd(resets_at)
+
+account list / usage cell
+  -> account_usage_service.go: estimateSetupTokenUsage()
+     -> read Account.SessionWindowEnd as the 5h reset time
+     -> zero utilization when the stored window end is already expired
+  -> UsageProgressBar.vue
+     -> show usage.resetNow for truly idle windows
+     -> show usage.resetPending when utilization is still positive but resets_at is stale
+```
+
+`UpdateSessionWindowEnd` intentionally updates only `session_window_end`; it does
+not overwrite `session_window_start` or `session_window_status`, because those
+can be written by the request-path rate-limit/session-window logic.
+
 ## 重要机制
 
 | 机制 | 说明 | 相关文件 |

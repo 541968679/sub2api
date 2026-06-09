@@ -956,6 +956,8 @@ const enBase = {
     userBilled: 'User billed',
     userDisplayCost: 'User display',
     accountBilled: 'Account billed',
+    resetNow: 'Now',
+    resetPending: 'Pending refresh',
     accountMultiplier: 'Account rate',
     avgDuration: 'Avg Duration',
     inSelectedRange: 'in selected range',
@@ -5140,6 +5142,7 @@ const enBase = {
           accountRateLimitedCount: 'Rate-limited Accounts',
           accountErrorCount: 'Error Accounts (excluding temporarily unschedulable)',
           accountErrorRatio: 'Error Account Ratio (%)',
+          accountTempUnscheduledCount: 'Temporarily Unschedulable Accounts',
           overloadAccountCount: 'Overloaded Accounts'
         },
         metricDescriptions: {
@@ -5157,6 +5160,7 @@ const enBase = {
           accountRateLimitedCount: 'Number of rate-limited accounts within the window.',
           accountErrorCount: 'Number of error accounts within the window (excluding temporarily unschedulable).',
           accountErrorRatio: 'Error account ratio within the window (0-100).',
+          accountTempUnscheduledCount: 'Number of accounts currently temporarily unschedulable (for example proxy or credential failure auto-eviction).',
           overloadAccountCount: 'Number of overloaded accounts within the window.'
         },
         hints: {

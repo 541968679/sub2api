@@ -490,6 +490,12 @@ func (s *AccountUsageService) syncActiveToPassive(ctx context.Context, accountID
 			slog.Warn("sync_active_to_passive_failed", "account_id", accountID, "error", err)
 		}
 	}
+
+	if usage.FiveHour != nil && usage.FiveHour.ResetsAt != nil {
+		if err := s.accountRepo.UpdateSessionWindowEnd(ctx, accountID, *usage.FiveHour.ResetsAt); err != nil {
+			slog.Warn("sync_active_to_passive_session_window_end_failed", "account_id", accountID, "error", err)
+		}
+	}
 }
 
 func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
@@ -1292,6 +1298,11 @@ func (s *AccountUsageService) estimateSetupTokenUsage(account *Account) *UsageIn
 			Utilization:      utilization,
 			ResetsAt:         account.SessionWindowEnd,
 			RemainingSeconds: remaining,
+		}
+		if info.FiveHour.ResetsAt != nil && !time.Now().Before(*info.FiveHour.ResetsAt) {
+			info.FiveHour.Utilization = 0
+			info.FiveHour.ResetsAt = nil
+			info.FiveHour.RemainingSeconds = 0
 		}
 	} else {
 		// 没有窗口信息，返回空数据
