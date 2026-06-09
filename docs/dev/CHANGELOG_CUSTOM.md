@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] fix: snapshot long-context billing for display pricing
+
+**Affected files**: backend/internal/service/billing_service.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/gateway_service.go, backend/internal/service/usage_log.go, backend/internal/repository/usage_log_repo.go, backend/ent/schema/usage_log.go, backend/migrations/167_usage_log_long_context_snapshot.sql, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/mappers.go, backend/internal/handler/dto/types.go, frontend/src/types/index.ts, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: additive usage log fields and DTO response fields; no request parameter changes and no pricing-page UI changes.
+**Change details**:
+- Added usage-log long-context snapshot fields for whether long-context pricing applied, the threshold, and the input/output multipliers used by the request.
+- Propagated the snapshot from token cost calculation through OpenAI/standard gateway usage recording and repository insert/select paths.
+- Adjusted user/admin display DTO mapping to copy display pricing config and apply the snapshot as an effective per-request display price before the existing display transform.
+- Added unit coverage for long-context threshold boundaries, channel interval exclusion, repository persistence/scan compatibility, display-token behavior, and a fake-upstream OpenAI Responses HTTP flow.
+
 ## [2026-06-09] fix: support cross-page account selection
 
 **Affected files**: frontend/src/views/admin/AccountsView.vue, frontend/src/components/admin/account/AccountBulkActionsBar.vue, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md

@@ -28,7 +28,7 @@ import (
 	gocache "github.com/patrickmn/go-cache"
 )
 
-const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, user_agent, ip_address, image_count, image_size, image_quality, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, account_stats_cost, created_at"
+const usageLogSelectColumns = "id, user_id, api_key_id, account_id, request_id, model, requested_model, upstream_model, group_id, subscription_id, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cache_creation_5m_tokens, cache_creation_1h_tokens, image_output_tokens, image_output_cost, input_cost, output_cost, cache_creation_cost, cache_read_cost, total_cost, actual_cost, rate_multiplier, account_rate_multiplier, billing_type, request_type, stream, openai_ws_mode, duration_ms, first_token_ms, user_agent, ip_address, image_count, image_size, image_quality, service_tier, reasoning_effort, inbound_endpoint, upstream_endpoint, cache_ttl_overridden, channel_id, model_mapping_chain, billing_tier, billing_mode, long_context_applied, long_context_input_threshold, long_context_input_multiplier, long_context_output_multiplier, account_stats_cost, created_at"
 
 // usageLogInsertArgTypes must stay in the same order as:
 //  1. prepareUsageLogInsert().args
@@ -83,6 +83,10 @@ var usageLogInsertArgTypes = [...]string{
 	"text",        // model_mapping_chain
 	"text",        // billing_tier
 	"text",        // billing_mode
+	"boolean",     // long_context_applied
+	"integer",     // long_context_input_threshold
+	"numeric",     // long_context_input_multiplier
+	"numeric",     // long_context_output_multiplier
 	"numeric",     // account_stats_cost
 	"timestamptz", // created_at
 }
@@ -363,6 +367,10 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
+			long_context_applied,
+			long_context_input_threshold,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
 			account_stats_cost,
 			created_at
 		) VALUES (
@@ -371,7 +379,7 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			$10, $11, $12, $13,
 			$14, $15, $16, $17,
 			$18, $19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47
+			$24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
@@ -802,6 +810,10 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
+			long_context_applied,
+			long_context_input_threshold,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
 			account_stats_cost,
 			created_at
 		) AS (VALUES `)
@@ -880,6 +892,10 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				model_mapping_chain,
 				billing_tier,
 				billing_mode,
+				long_context_applied,
+				long_context_input_threshold,
+				long_context_input_multiplier,
+				long_context_output_multiplier,
 				account_stats_cost,
 				created_at
 			)
@@ -929,6 +945,10 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				model_mapping_chain,
 				billing_tier,
 				billing_mode,
+				long_context_applied,
+				long_context_input_threshold,
+				long_context_input_multiplier,
+				long_context_output_multiplier,
 				account_stats_cost,
 				created_at
 			FROM input
@@ -1018,6 +1038,10 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
+			long_context_applied,
+			long_context_input_threshold,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
 			account_stats_cost,
 			created_at
 		) AS (VALUES `)
@@ -1093,6 +1117,10 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
+			long_context_applied,
+			long_context_input_threshold,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
 			account_stats_cost,
 			created_at
 		)
@@ -1142,6 +1170,10 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
+			long_context_applied,
+			long_context_input_threshold,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
 			account_stats_cost,
 			created_at
 		FROM input
@@ -1199,6 +1231,10 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			model_mapping_chain,
 			billing_tier,
 			billing_mode,
+			long_context_applied,
+			long_context_input_threshold,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
 			account_stats_cost,
 			created_at
 		) VALUES (
@@ -1207,7 +1243,7 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			$10, $11, $12, $13,
 			$14, $15, $16, $17,
 			$18, $19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47
+			$24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`, prepared.args...)
@@ -1243,6 +1279,20 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 	modelMappingChain := nullString(log.ModelMappingChain)
 	billingTier := nullString(log.BillingTier)
 	billingMode := nullString(log.BillingMode)
+	var longContextInputThreshold any
+	var longContextInputMultiplier any
+	var longContextOutputMultiplier any
+	if log.LongContextApplied {
+		if log.LongContextInputThreshold > 0 {
+			longContextInputThreshold = log.LongContextInputThreshold
+		}
+		if log.LongContextInputMultiplier > 0 {
+			longContextInputMultiplier = log.LongContextInputMultiplier
+		}
+		if log.LongContextOutputMultiplier > 0 {
+			longContextOutputMultiplier = log.LongContextOutputMultiplier
+		}
+	}
 	requestedModel := strings.TrimSpace(log.RequestedModel)
 	if requestedModel == "" {
 		requestedModel = strings.TrimSpace(log.Model)
@@ -1305,6 +1355,10 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			modelMappingChain,
 			billingTier,
 			billingMode,
+			log.LongContextApplied,
+			longContextInputThreshold,
+			longContextInputMultiplier,
+			longContextOutputMultiplier,
 			log.AccountStatsCost, // account_stats_cost
 			createdAt,
 		},
@@ -4330,6 +4384,10 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		modelMappingChain     sql.NullString
 		billingTier           sql.NullString
 		billingMode           sql.NullString
+		longContextApplied    bool
+		longContextThreshold  sql.NullInt64
+		longContextInputMult  sql.NullFloat64
+		longContextOutputMult sql.NullFloat64
 		accountStatsCost      sql.NullFloat64
 		createdAt             time.Time
 	)
@@ -4381,6 +4439,10 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		&modelMappingChain,
 		&billingTier,
 		&billingMode,
+		&longContextApplied,
+		&longContextThreshold,
+		&longContextInputMult,
+		&longContextOutputMult,
 		&accountStatsCost,
 		&createdAt,
 	); err != nil {
@@ -4409,6 +4471,7 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 		TotalCost:             totalCost,
 		ActualCost:            actualCost,
 		RateMultiplier:        rateMultiplier,
+		LongContextApplied:    longContextApplied,
 		AccountRateMultiplier: nullFloat64Ptr(accountRateMultiplier),
 		BillingType:           int8(billingType),
 		RequestType:           service.RequestTypeFromInt16(requestTypeRaw),
@@ -4480,6 +4543,15 @@ func scanUsageLog(scanner interface{ Scan(...any) error }) (*service.UsageLog, e
 	}
 	if billingMode.Valid {
 		log.BillingMode = &billingMode.String
+	}
+	if longContextThreshold.Valid {
+		log.LongContextInputThreshold = int(longContextThreshold.Int64)
+	}
+	if longContextInputMult.Valid {
+		log.LongContextInputMultiplier = longContextInputMult.Float64
+	}
+	if longContextOutputMult.Valid {
+		log.LongContextOutputMultiplier = longContextOutputMult.Float64
 	}
 	if accountStatsCost.Valid {
 		log.AccountStatsCost = &accountStatsCost.Float64

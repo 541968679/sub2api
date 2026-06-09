@@ -287,6 +287,33 @@ CalculateCostUnified(CostInput)
 - **ImageOutputCost 是独立字段**：不包含在 OutputCost 中，但包含在 TotalCost 中
 - **展示倍率只有一个来源**：user_group_rate.display_rate_multiplier（2026-05-04 统一）。模型级 display_rate_multiplier 字段仍在 DB 中但不再使用
 - **展示变换的 token 取整误差**：小额请求（极少 token）时 round() 误差占比较大，导致 TotalCost × Rate 与 ActualCost 有微小偏差
+### Long-context display pricing snapshot (2026-06-09)
+
+Token billing snapshots long-context pricing on each `usage_logs` row with
+`long_context_applied`, `long_context_input_threshold`,
+`long_context_input_multiplier`, and `long_context_output_multiplier`.
+
+`computeTokenBreakdown` sets the snapshot only when session-level long-context
+pricing is actually applied. Channel interval pricing keeps
+`long_context_applied=false` because intervals already encode context-window
+price tiers.
+
+User-facing display transforms do not re-evaluate long-context rules. Before
+calling `ApplyDisplayTransform`, DTO mapping copies the display price config and
+multiplies only the per-request effective prices when the usage snapshot says
+long context applied:
+
+```
+display_input_price *= long_context_input_multiplier
+display_output_price *= long_context_output_multiplier
+display_cache_read_price *= long_context_input_multiplier
+```
+
+This preserves `actual_cost` and prevents long-context requests from showing
+inflated token counts when the configured display price is the short-context
+base price. Custom display prices still scale tokens by the custom price ratio,
+but do not get an extra long-context token amplification.
+
 ### Display cache premium handling (2026-05-06)
 
 User-facing display pricing keeps cache-read token counts unchanged. When both

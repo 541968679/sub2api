@@ -171,6 +171,76 @@ func TestBuildUserDisplayPricingMap_UserOverridesGlobalDisplayPrices(t *testing.
 	}
 }
 
+func TestUsageLogFromService_LongContextUsesEffectiveDisplayPrices(t *testing.T) {
+	displayInput := 2.5e-6
+	displayOutput := 15e-6
+	log := &service.UsageLog{
+		Model:                       "gpt-5.4",
+		InputTokens:                 300000,
+		OutputTokens:                2000,
+		InputCost:                   300000 * 2.5e-6 * 2.0,
+		OutputCost:                  2000 * 15e-6 * 1.5,
+		TotalCost:                   300000*2.5e-6*2.0 + 2000*15e-6*1.5,
+		ActualCost:                  300000*2.5e-6*2.0 + 2000*15e-6*1.5,
+		RateMultiplier:              1.0,
+		LongContextApplied:          true,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2.0,
+		LongContextOutputMultiplier: 1.5,
+	}
+
+	out := UsageLogFromService(log, DisplayPricingMap{
+		"gpt-5.4": &DisplayPricingConfig{
+			DisplayInputPrice:  &displayInput,
+			DisplayOutputPrice: &displayOutput,
+		},
+	})
+
+	if out.InputTokens != 300000 {
+		t.Fatalf("input tokens should remain real with effective long-context display price, got %d", out.InputTokens)
+	}
+	if out.OutputTokens != 2000 {
+		t.Fatalf("output tokens should remain real with effective long-context display price, got %d", out.OutputTokens)
+	}
+	assertClose(t, "input_cost", out.InputCost, log.InputCost)
+	assertClose(t, "output_cost", out.OutputCost, log.OutputCost)
+	assertClose(t, "actual_cost", out.ActualCost, log.ActualCost)
+}
+
+func TestUsageLogFromService_LongContextCustomDisplayPriceScalesOnce(t *testing.T) {
+	displayInput := 1.25e-6
+	displayOutput := 7.5e-6
+	log := &service.UsageLog{
+		Model:                       "gpt-5.4",
+		InputTokens:                 300000,
+		OutputTokens:                2000,
+		InputCost:                   300000 * 2.5e-6 * 2.0,
+		OutputCost:                  2000 * 15e-6 * 1.5,
+		TotalCost:                   300000*2.5e-6*2.0 + 2000*15e-6*1.5,
+		ActualCost:                  300000*2.5e-6*2.0 + 2000*15e-6*1.5,
+		RateMultiplier:              1.0,
+		LongContextApplied:          true,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2.0,
+		LongContextOutputMultiplier: 1.5,
+	}
+
+	out := UsageLogFromService(log, DisplayPricingMap{
+		"gpt-5.4": &DisplayPricingConfig{
+			DisplayInputPrice:  &displayInput,
+			DisplayOutputPrice: &displayOutput,
+		},
+	})
+
+	if out.InputTokens != 600000 {
+		t.Fatalf("input tokens should scale by custom display price only once, got %d", out.InputTokens)
+	}
+	if out.OutputTokens != 4000 {
+		t.Fatalf("output tokens should scale by custom display price only once, got %d", out.OutputTokens)
+	}
+	assertClose(t, "actual_cost", out.ActualCost, log.ActualCost)
+}
+
 func TestApplyUserDisplayRate_ScalesTokensAndPreservesActualCost(t *testing.T) {
 	log := UsageLog{
 		InputTokens:     1000,

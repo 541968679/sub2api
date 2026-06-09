@@ -35528,79 +35528,86 @@ func (m *UsageCleanupTaskMutation) ResetEdge(name string) error {
 // UsageLogMutation represents an operation that mutates the UsageLog nodes in the graph.
 type UsageLogMutation struct {
 	config
-	op                          Op
-	typ                         string
-	id                          *int64
-	request_id                  *string
-	model                       *string
-	requested_model             *string
-	upstream_model              *string
-	channel_id                  *int64
-	addchannel_id               *int64
-	model_mapping_chain         *string
-	billing_tier                *string
-	billing_mode                *string
-	input_tokens                *int
-	addinput_tokens             *int
-	output_tokens               *int
-	addoutput_tokens            *int
-	cache_creation_tokens       *int
-	addcache_creation_tokens    *int
-	cache_read_tokens           *int
-	addcache_read_tokens        *int
-	cache_creation_5m_tokens    *int
-	addcache_creation_5m_tokens *int
-	cache_creation_1h_tokens    *int
-	addcache_creation_1h_tokens *int
-	input_cost                  *float64
-	addinput_cost               *float64
-	output_cost                 *float64
-	addoutput_cost              *float64
-	cache_creation_cost         *float64
-	addcache_creation_cost      *float64
-	cache_read_cost             *float64
-	addcache_read_cost          *float64
-	total_cost                  *float64
-	addtotal_cost               *float64
-	actual_cost                 *float64
-	addactual_cost              *float64
-	rate_multiplier             *float64
-	addrate_multiplier          *float64
-	account_rate_multiplier     *float64
-	addaccount_rate_multiplier  *float64
-	billing_type                *int8
-	addbilling_type             *int8
-	stream                      *bool
-	duration_ms                 *int
-	addduration_ms              *int
-	first_token_ms              *int
-	addfirst_token_ms           *int
-	user_agent                  *string
-	ip_address                  *string
-	image_count                 *int
-	addimage_count              *int
-	image_size                  *string
-	image_input_size            *string
-	image_output_size           *string
-	image_size_source           *string
-	image_size_breakdown        *map[string]int
-	image_quality               *string
-	cache_ttl_overridden        *bool
-	created_at                  *time.Time
-	clearedFields               map[string]struct{}
-	user                        *int64
-	cleareduser                 bool
-	api_key                     *int64
-	clearedapi_key              bool
-	account                     *int64
-	clearedaccount              bool
-	group                       *int64
-	clearedgroup                bool
-	subscription                *int64
-	clearedsubscription         bool
-	done                        bool
-	oldValue                    func(context.Context) (*UsageLog, error)
-	predicates                  []predicate.UsageLog
+	op                                Op
+	typ                               string
+	id                                *int64
+	request_id                        *string
+	model                             *string
+	requested_model                   *string
+	upstream_model                    *string
+	channel_id                        *int64
+	addchannel_id                     *int64
+	model_mapping_chain               *string
+	billing_tier                      *string
+	billing_mode                      *string
+	input_tokens                      *int
+	addinput_tokens                   *int
+	output_tokens                     *int
+	addoutput_tokens                  *int
+	cache_creation_tokens             *int
+	addcache_creation_tokens          *int
+	cache_read_tokens                 *int
+	addcache_read_tokens              *int
+	cache_creation_5m_tokens          *int
+	addcache_creation_5m_tokens       *int
+	cache_creation_1h_tokens          *int
+	addcache_creation_1h_tokens       *int
+	input_cost                        *float64
+	addinput_cost                     *float64
+	output_cost                       *float64
+	addoutput_cost                    *float64
+	cache_creation_cost               *float64
+	addcache_creation_cost            *float64
+	cache_read_cost                   *float64
+	addcache_read_cost                *float64
+	total_cost                        *float64
+	addtotal_cost                     *float64
+	actual_cost                       *float64
+	addactual_cost                    *float64
+	rate_multiplier                   *float64
+	addrate_multiplier                *float64
+	long_context_applied              *bool
+	long_context_input_threshold      *int
+	addlong_context_input_threshold   *int
+	long_context_input_multiplier     *float64
+	addlong_context_input_multiplier  *float64
+	long_context_output_multiplier    *float64
+	addlong_context_output_multiplier *float64
+	account_rate_multiplier           *float64
+	addaccount_rate_multiplier        *float64
+	billing_type                      *int8
+	addbilling_type                   *int8
+	stream                            *bool
+	duration_ms                       *int
+	addduration_ms                    *int
+	first_token_ms                    *int
+	addfirst_token_ms                 *int
+	user_agent                        *string
+	ip_address                        *string
+	image_count                       *int
+	addimage_count                    *int
+	image_size                        *string
+	image_input_size                  *string
+	image_output_size                 *string
+	image_size_source                 *string
+	image_size_breakdown              *map[string]int
+	image_quality                     *string
+	cache_ttl_overridden              *bool
+	created_at                        *time.Time
+	clearedFields                     map[string]struct{}
+	user                              *int64
+	cleareduser                       bool
+	api_key                           *int64
+	clearedapi_key                    bool
+	account                           *int64
+	clearedaccount                    bool
+	group                             *int64
+	clearedgroup                      bool
+	subscription                      *int64
+	clearedsubscription               bool
+	done                              bool
+	oldValue                          func(context.Context) (*UsageLog, error)
+	predicates                        []predicate.UsageLog
 }
 
 var _ ent.Mutation = (*UsageLogMutation)(nil)
@@ -37022,6 +37029,252 @@ func (m *UsageLogMutation) ResetRateMultiplier() {
 	m.addrate_multiplier = nil
 }
 
+// SetLongContextApplied sets the "long_context_applied" field.
+func (m *UsageLogMutation) SetLongContextApplied(b bool) {
+	m.long_context_applied = &b
+}
+
+// LongContextApplied returns the value of the "long_context_applied" field in the mutation.
+func (m *UsageLogMutation) LongContextApplied() (r bool, exists bool) {
+	v := m.long_context_applied
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLongContextApplied returns the old "long_context_applied" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldLongContextApplied(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLongContextApplied is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLongContextApplied requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLongContextApplied: %w", err)
+	}
+	return oldValue.LongContextApplied, nil
+}
+
+// ResetLongContextApplied resets all changes to the "long_context_applied" field.
+func (m *UsageLogMutation) ResetLongContextApplied() {
+	m.long_context_applied = nil
+}
+
+// SetLongContextInputThreshold sets the "long_context_input_threshold" field.
+func (m *UsageLogMutation) SetLongContextInputThreshold(i int) {
+	m.long_context_input_threshold = &i
+	m.addlong_context_input_threshold = nil
+}
+
+// LongContextInputThreshold returns the value of the "long_context_input_threshold" field in the mutation.
+func (m *UsageLogMutation) LongContextInputThreshold() (r int, exists bool) {
+	v := m.long_context_input_threshold
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLongContextInputThreshold returns the old "long_context_input_threshold" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldLongContextInputThreshold(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLongContextInputThreshold is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLongContextInputThreshold requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLongContextInputThreshold: %w", err)
+	}
+	return oldValue.LongContextInputThreshold, nil
+}
+
+// AddLongContextInputThreshold adds i to the "long_context_input_threshold" field.
+func (m *UsageLogMutation) AddLongContextInputThreshold(i int) {
+	if m.addlong_context_input_threshold != nil {
+		*m.addlong_context_input_threshold += i
+	} else {
+		m.addlong_context_input_threshold = &i
+	}
+}
+
+// AddedLongContextInputThreshold returns the value that was added to the "long_context_input_threshold" field in this mutation.
+func (m *UsageLogMutation) AddedLongContextInputThreshold() (r int, exists bool) {
+	v := m.addlong_context_input_threshold
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLongContextInputThreshold clears the value of the "long_context_input_threshold" field.
+func (m *UsageLogMutation) ClearLongContextInputThreshold() {
+	m.long_context_input_threshold = nil
+	m.addlong_context_input_threshold = nil
+	m.clearedFields[usagelog.FieldLongContextInputThreshold] = struct{}{}
+}
+
+// LongContextInputThresholdCleared returns if the "long_context_input_threshold" field was cleared in this mutation.
+func (m *UsageLogMutation) LongContextInputThresholdCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldLongContextInputThreshold]
+	return ok
+}
+
+// ResetLongContextInputThreshold resets all changes to the "long_context_input_threshold" field.
+func (m *UsageLogMutation) ResetLongContextInputThreshold() {
+	m.long_context_input_threshold = nil
+	m.addlong_context_input_threshold = nil
+	delete(m.clearedFields, usagelog.FieldLongContextInputThreshold)
+}
+
+// SetLongContextInputMultiplier sets the "long_context_input_multiplier" field.
+func (m *UsageLogMutation) SetLongContextInputMultiplier(f float64) {
+	m.long_context_input_multiplier = &f
+	m.addlong_context_input_multiplier = nil
+}
+
+// LongContextInputMultiplier returns the value of the "long_context_input_multiplier" field in the mutation.
+func (m *UsageLogMutation) LongContextInputMultiplier() (r float64, exists bool) {
+	v := m.long_context_input_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLongContextInputMultiplier returns the old "long_context_input_multiplier" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldLongContextInputMultiplier(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLongContextInputMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLongContextInputMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLongContextInputMultiplier: %w", err)
+	}
+	return oldValue.LongContextInputMultiplier, nil
+}
+
+// AddLongContextInputMultiplier adds f to the "long_context_input_multiplier" field.
+func (m *UsageLogMutation) AddLongContextInputMultiplier(f float64) {
+	if m.addlong_context_input_multiplier != nil {
+		*m.addlong_context_input_multiplier += f
+	} else {
+		m.addlong_context_input_multiplier = &f
+	}
+}
+
+// AddedLongContextInputMultiplier returns the value that was added to the "long_context_input_multiplier" field in this mutation.
+func (m *UsageLogMutation) AddedLongContextInputMultiplier() (r float64, exists bool) {
+	v := m.addlong_context_input_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLongContextInputMultiplier clears the value of the "long_context_input_multiplier" field.
+func (m *UsageLogMutation) ClearLongContextInputMultiplier() {
+	m.long_context_input_multiplier = nil
+	m.addlong_context_input_multiplier = nil
+	m.clearedFields[usagelog.FieldLongContextInputMultiplier] = struct{}{}
+}
+
+// LongContextInputMultiplierCleared returns if the "long_context_input_multiplier" field was cleared in this mutation.
+func (m *UsageLogMutation) LongContextInputMultiplierCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldLongContextInputMultiplier]
+	return ok
+}
+
+// ResetLongContextInputMultiplier resets all changes to the "long_context_input_multiplier" field.
+func (m *UsageLogMutation) ResetLongContextInputMultiplier() {
+	m.long_context_input_multiplier = nil
+	m.addlong_context_input_multiplier = nil
+	delete(m.clearedFields, usagelog.FieldLongContextInputMultiplier)
+}
+
+// SetLongContextOutputMultiplier sets the "long_context_output_multiplier" field.
+func (m *UsageLogMutation) SetLongContextOutputMultiplier(f float64) {
+	m.long_context_output_multiplier = &f
+	m.addlong_context_output_multiplier = nil
+}
+
+// LongContextOutputMultiplier returns the value of the "long_context_output_multiplier" field in the mutation.
+func (m *UsageLogMutation) LongContextOutputMultiplier() (r float64, exists bool) {
+	v := m.long_context_output_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLongContextOutputMultiplier returns the old "long_context_output_multiplier" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldLongContextOutputMultiplier(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLongContextOutputMultiplier is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLongContextOutputMultiplier requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLongContextOutputMultiplier: %w", err)
+	}
+	return oldValue.LongContextOutputMultiplier, nil
+}
+
+// AddLongContextOutputMultiplier adds f to the "long_context_output_multiplier" field.
+func (m *UsageLogMutation) AddLongContextOutputMultiplier(f float64) {
+	if m.addlong_context_output_multiplier != nil {
+		*m.addlong_context_output_multiplier += f
+	} else {
+		m.addlong_context_output_multiplier = &f
+	}
+}
+
+// AddedLongContextOutputMultiplier returns the value that was added to the "long_context_output_multiplier" field in this mutation.
+func (m *UsageLogMutation) AddedLongContextOutputMultiplier() (r float64, exists bool) {
+	v := m.addlong_context_output_multiplier
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearLongContextOutputMultiplier clears the value of the "long_context_output_multiplier" field.
+func (m *UsageLogMutation) ClearLongContextOutputMultiplier() {
+	m.long_context_output_multiplier = nil
+	m.addlong_context_output_multiplier = nil
+	m.clearedFields[usagelog.FieldLongContextOutputMultiplier] = struct{}{}
+}
+
+// LongContextOutputMultiplierCleared returns if the "long_context_output_multiplier" field was cleared in this mutation.
+func (m *UsageLogMutation) LongContextOutputMultiplierCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldLongContextOutputMultiplier]
+	return ok
+}
+
+// ResetLongContextOutputMultiplier resets all changes to the "long_context_output_multiplier" field.
+func (m *UsageLogMutation) ResetLongContextOutputMultiplier() {
+	m.long_context_output_multiplier = nil
+	m.addlong_context_output_multiplier = nil
+	delete(m.clearedFields, usagelog.FieldLongContextOutputMultiplier)
+}
+
 // SetAccountRateMultiplier sets the "account_rate_multiplier" field.
 func (m *UsageLogMutation) SetAccountRateMultiplier(f float64) {
 	m.account_rate_multiplier = &f
@@ -38013,7 +38266,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 42)
+	fields := make([]string, 0, 46)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -38091,6 +38344,18 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldRateMultiplier)
+	}
+	if m.long_context_applied != nil {
+		fields = append(fields, usagelog.FieldLongContextApplied)
+	}
+	if m.long_context_input_threshold != nil {
+		fields = append(fields, usagelog.FieldLongContextInputThreshold)
+	}
+	if m.long_context_input_multiplier != nil {
+		fields = append(fields, usagelog.FieldLongContextInputMultiplier)
+	}
+	if m.long_context_output_multiplier != nil {
+		fields = append(fields, usagelog.FieldLongContextOutputMultiplier)
 	}
 	if m.account_rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
@@ -38200,6 +38465,14 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.ActualCost()
 	case usagelog.FieldRateMultiplier:
 		return m.RateMultiplier()
+	case usagelog.FieldLongContextApplied:
+		return m.LongContextApplied()
+	case usagelog.FieldLongContextInputThreshold:
+		return m.LongContextInputThreshold()
+	case usagelog.FieldLongContextInputMultiplier:
+		return m.LongContextInputMultiplier()
+	case usagelog.FieldLongContextOutputMultiplier:
+		return m.LongContextOutputMultiplier()
 	case usagelog.FieldAccountRateMultiplier:
 		return m.AccountRateMultiplier()
 	case usagelog.FieldBillingType:
@@ -38293,6 +38566,14 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldActualCost(ctx)
 	case usagelog.FieldRateMultiplier:
 		return m.OldRateMultiplier(ctx)
+	case usagelog.FieldLongContextApplied:
+		return m.OldLongContextApplied(ctx)
+	case usagelog.FieldLongContextInputThreshold:
+		return m.OldLongContextInputThreshold(ctx)
+	case usagelog.FieldLongContextInputMultiplier:
+		return m.OldLongContextInputMultiplier(ctx)
+	case usagelog.FieldLongContextOutputMultiplier:
+		return m.OldLongContextOutputMultiplier(ctx)
 	case usagelog.FieldAccountRateMultiplier:
 		return m.OldAccountRateMultiplier(ctx)
 	case usagelog.FieldBillingType:
@@ -38516,6 +38797,34 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetRateMultiplier(v)
 		return nil
+	case usagelog.FieldLongContextApplied:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLongContextApplied(v)
+		return nil
+	case usagelog.FieldLongContextInputThreshold:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLongContextInputThreshold(v)
+		return nil
+	case usagelog.FieldLongContextInputMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLongContextInputMultiplier(v)
+		return nil
+	case usagelog.FieldLongContextOutputMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLongContextOutputMultiplier(v)
+		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		v, ok := value.(float64)
 		if !ok {
@@ -38678,6 +38987,15 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addrate_multiplier != nil {
 		fields = append(fields, usagelog.FieldRateMultiplier)
 	}
+	if m.addlong_context_input_threshold != nil {
+		fields = append(fields, usagelog.FieldLongContextInputThreshold)
+	}
+	if m.addlong_context_input_multiplier != nil {
+		fields = append(fields, usagelog.FieldLongContextInputMultiplier)
+	}
+	if m.addlong_context_output_multiplier != nil {
+		fields = append(fields, usagelog.FieldLongContextOutputMultiplier)
+	}
 	if m.addaccount_rate_multiplier != nil {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
 	}
@@ -38729,6 +39047,12 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedActualCost()
 	case usagelog.FieldRateMultiplier:
 		return m.AddedRateMultiplier()
+	case usagelog.FieldLongContextInputThreshold:
+		return m.AddedLongContextInputThreshold()
+	case usagelog.FieldLongContextInputMultiplier:
+		return m.AddedLongContextInputMultiplier()
+	case usagelog.FieldLongContextOutputMultiplier:
+		return m.AddedLongContextOutputMultiplier()
 	case usagelog.FieldAccountRateMultiplier:
 		return m.AddedAccountRateMultiplier()
 	case usagelog.FieldBillingType:
@@ -38846,6 +39170,27 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddRateMultiplier(v)
 		return nil
+	case usagelog.FieldLongContextInputThreshold:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLongContextInputThreshold(v)
+		return nil
+	case usagelog.FieldLongContextInputMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLongContextInputMultiplier(v)
+		return nil
+	case usagelog.FieldLongContextOutputMultiplier:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddLongContextOutputMultiplier(v)
+		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		v, ok := value.(float64)
 		if !ok {
@@ -38912,6 +39257,15 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(usagelog.FieldSubscriptionID) {
 		fields = append(fields, usagelog.FieldSubscriptionID)
+	}
+	if m.FieldCleared(usagelog.FieldLongContextInputThreshold) {
+		fields = append(fields, usagelog.FieldLongContextInputThreshold)
+	}
+	if m.FieldCleared(usagelog.FieldLongContextInputMultiplier) {
+		fields = append(fields, usagelog.FieldLongContextInputMultiplier)
+	}
+	if m.FieldCleared(usagelog.FieldLongContextOutputMultiplier) {
+		fields = append(fields, usagelog.FieldLongContextOutputMultiplier)
 	}
 	if m.FieldCleared(usagelog.FieldAccountRateMultiplier) {
 		fields = append(fields, usagelog.FieldAccountRateMultiplier)
@@ -38983,6 +39337,15 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ClearSubscriptionID()
+		return nil
+	case usagelog.FieldLongContextInputThreshold:
+		m.ClearLongContextInputThreshold()
+		return nil
+	case usagelog.FieldLongContextInputMultiplier:
+		m.ClearLongContextInputMultiplier()
+		return nil
+	case usagelog.FieldLongContextOutputMultiplier:
+		m.ClearLongContextOutputMultiplier()
 		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		m.ClearAccountRateMultiplier()
@@ -39102,6 +39465,18 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldRateMultiplier:
 		m.ResetRateMultiplier()
+		return nil
+	case usagelog.FieldLongContextApplied:
+		m.ResetLongContextApplied()
+		return nil
+	case usagelog.FieldLongContextInputThreshold:
+		m.ResetLongContextInputThreshold()
+		return nil
+	case usagelog.FieldLongContextInputMultiplier:
+		m.ResetLongContextInputMultiplier()
+		return nil
+	case usagelog.FieldLongContextOutputMultiplier:
+		m.ResetLongContextOutputMultiplier()
 		return nil
 	case usagelog.FieldAccountRateMultiplier:
 		m.ResetAccountRateMultiplier()

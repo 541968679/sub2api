@@ -86,6 +86,10 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // model_mapping_chain
 			sqlmock.AnyArg(), // billing_tier
 			sqlmock.AnyArg(), // billing_mode
+			log.LongContextApplied,
+			sqlmock.AnyArg(), // long_context_input_threshold
+			sqlmock.AnyArg(), // long_context_input_multiplier
+			sqlmock.AnyArg(), // long_context_output_multiplier
 			sqlmock.AnyArg(), // account_stats_cost
 			createdAt,
 		).
@@ -166,6 +170,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // model_mapping_chain
 			sqlmock.AnyArg(), // billing_tier
 			sqlmock.AnyArg(), // billing_mode
+			log.LongContextApplied,
+			sqlmock.AnyArg(), // long_context_input_threshold
+			sqlmock.AnyArg(), // long_context_input_multiplier
+			sqlmock.AnyArg(), // long_context_output_multiplier
 			sqlmock.AnyArg(), // account_stats_cost
 			createdAt,
 		).
@@ -230,6 +238,28 @@ func TestPrepareUsageLogInsert_ArgCountMatchesTypes(t *testing.T) {
 	})
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
+}
+
+func TestPrepareUsageLogInsert_LongContextSnapshot(t *testing.T) {
+	prepared := prepareUsageLogInsert(&service.UsageLog{
+		UserID:                      1,
+		APIKeyID:                    2,
+		AccountID:                   3,
+		RequestID:                   "req-long-context",
+		Model:                       "gpt-5.4",
+		RequestedModel:              "gpt-5.4",
+		LongContextApplied:          true,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2.0,
+		LongContextOutputMultiplier: 1.5,
+		CreatedAt:                   time.Date(2025, 1, 6, 12, 0, 0, 0, time.UTC),
+	})
+
+	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
+	require.Equal(t, true, prepared.args[45])
+	require.Equal(t, 272000, prepared.args[46])
+	require.Equal(t, 2.0, prepared.args[47])
+	require.Equal(t, 1.5, prepared.args[48])
 }
 
 func TestCoalesceTrimmedString(t *testing.T) {
@@ -593,6 +623,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
+			false,             // long_context_applied
+			sql.NullInt64{},   // long_context_input_threshold
+			sql.NullFloat64{}, // long_context_input_multiplier
+			sql.NullFloat64{}, // long_context_output_multiplier
 			sql.NullFloat64{}, // account_stats_cost
 			now,
 		}})
@@ -642,6 +676,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
+			false,             // long_context_applied
+			sql.NullInt64{},   // long_context_input_threshold
+			sql.NullFloat64{}, // long_context_input_multiplier
+			sql.NullFloat64{}, // long_context_output_multiplier
 			sql.NullFloat64{}, // account_stats_cost
 			now,
 		}})
@@ -691,6 +729,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // model_mapping_chain
 			sql.NullString{},  // billing_tier
 			sql.NullString{},  // billing_mode
+			false,             // long_context_applied
+			sql.NullInt64{},   // long_context_input_threshold
+			sql.NullFloat64{}, // long_context_input_multiplier
+			sql.NullFloat64{}, // long_context_output_multiplier
 			sql.NullFloat64{}, // account_stats_cost
 			now,
 		}})
@@ -699,4 +741,68 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.Equal(t, "priority", *log.ServiceTier)
 	})
 
+}
+
+func TestScanUsageLogLongContextSnapshot(t *testing.T) {
+	now := time.Now().UTC()
+	log, err := scanUsageLog(usageLogScannerStub{values: []any{
+		int64(4),
+		int64(13),
+		int64(23),
+		int64(33),
+		sql.NullString{Valid: true, String: "req-4"},
+		"gpt-5.4",
+		sql.NullString{Valid: true, String: "gpt-5.4"},
+		sql.NullString{},
+		sql.NullInt64{},
+		sql.NullInt64{},
+		300000,
+		2000,
+		0,
+		1000,
+		0,
+		0,
+		0,
+		0.0,
+		1.5,
+		0.045,
+		0.0,
+		0.005,
+		1.55,
+		1.55,
+		1.0,
+		sql.NullFloat64{},
+		int16(service.BillingTypeBalance),
+		int16(service.RequestTypeSync),
+		false,
+		false,
+		sql.NullInt64{},
+		sql.NullInt64{},
+		sql.NullString{},
+		sql.NullString{},
+		0,
+		sql.NullString{},
+		sql.NullString{},
+		sql.NullString{},
+		sql.NullString{},
+		sql.NullString{},
+		sql.NullString{},
+		false,
+		sql.NullInt64{},
+		sql.NullString{},
+		sql.NullString{},
+		sql.NullString{},
+		true,
+		sql.NullInt64{Valid: true, Int64: 272000},
+		sql.NullFloat64{Valid: true, Float64: 2.0},
+		sql.NullFloat64{Valid: true, Float64: 1.5},
+		sql.NullFloat64{},
+		now,
+	}})
+
+	require.NoError(t, err)
+	require.True(t, log.LongContextApplied)
+	require.Equal(t, 272000, log.LongContextInputThreshold)
+	require.Equal(t, 2.0, log.LongContextInputMultiplier)
+	require.Equal(t, 1.5, log.LongContextOutputMultiplier)
 }

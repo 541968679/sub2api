@@ -542,6 +542,101 @@ func (_u *UsageLogUpdate) AddRateMultiplier(v float64) *UsageLogUpdate {
 	return _u
 }
 
+// SetLongContextApplied sets the "long_context_applied" field.
+func (_u *UsageLogUpdate) SetLongContextApplied(v bool) *UsageLogUpdate {
+	_u.mutation.SetLongContextApplied(v)
+	return _u
+}
+
+// SetNillableLongContextApplied sets the "long_context_applied" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableLongContextApplied(v *bool) *UsageLogUpdate {
+	if v != nil {
+		_u.SetLongContextApplied(*v)
+	}
+	return _u
+}
+
+// SetLongContextInputThreshold sets the "long_context_input_threshold" field.
+func (_u *UsageLogUpdate) SetLongContextInputThreshold(v int) *UsageLogUpdate {
+	_u.mutation.ResetLongContextInputThreshold()
+	_u.mutation.SetLongContextInputThreshold(v)
+	return _u
+}
+
+// SetNillableLongContextInputThreshold sets the "long_context_input_threshold" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableLongContextInputThreshold(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetLongContextInputThreshold(*v)
+	}
+	return _u
+}
+
+// AddLongContextInputThreshold adds value to the "long_context_input_threshold" field.
+func (_u *UsageLogUpdate) AddLongContextInputThreshold(v int) *UsageLogUpdate {
+	_u.mutation.AddLongContextInputThreshold(v)
+	return _u
+}
+
+// ClearLongContextInputThreshold clears the value of the "long_context_input_threshold" field.
+func (_u *UsageLogUpdate) ClearLongContextInputThreshold() *UsageLogUpdate {
+	_u.mutation.ClearLongContextInputThreshold()
+	return _u
+}
+
+// SetLongContextInputMultiplier sets the "long_context_input_multiplier" field.
+func (_u *UsageLogUpdate) SetLongContextInputMultiplier(v float64) *UsageLogUpdate {
+	_u.mutation.ResetLongContextInputMultiplier()
+	_u.mutation.SetLongContextInputMultiplier(v)
+	return _u
+}
+
+// SetNillableLongContextInputMultiplier sets the "long_context_input_multiplier" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableLongContextInputMultiplier(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetLongContextInputMultiplier(*v)
+	}
+	return _u
+}
+
+// AddLongContextInputMultiplier adds value to the "long_context_input_multiplier" field.
+func (_u *UsageLogUpdate) AddLongContextInputMultiplier(v float64) *UsageLogUpdate {
+	_u.mutation.AddLongContextInputMultiplier(v)
+	return _u
+}
+
+// ClearLongContextInputMultiplier clears the value of the "long_context_input_multiplier" field.
+func (_u *UsageLogUpdate) ClearLongContextInputMultiplier() *UsageLogUpdate {
+	_u.mutation.ClearLongContextInputMultiplier()
+	return _u
+}
+
+// SetLongContextOutputMultiplier sets the "long_context_output_multiplier" field.
+func (_u *UsageLogUpdate) SetLongContextOutputMultiplier(v float64) *UsageLogUpdate {
+	_u.mutation.ResetLongContextOutputMultiplier()
+	_u.mutation.SetLongContextOutputMultiplier(v)
+	return _u
+}
+
+// SetNillableLongContextOutputMultiplier sets the "long_context_output_multiplier" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableLongContextOutputMultiplier(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetLongContextOutputMultiplier(*v)
+	}
+	return _u
+}
+
+// AddLongContextOutputMultiplier adds value to the "long_context_output_multiplier" field.
+func (_u *UsageLogUpdate) AddLongContextOutputMultiplier(v float64) *UsageLogUpdate {
+	_u.mutation.AddLongContextOutputMultiplier(v)
+	return _u
+}
+
+// ClearLongContextOutputMultiplier clears the value of the "long_context_output_multiplier" field.
+func (_u *UsageLogUpdate) ClearLongContextOutputMultiplier() *UsageLogUpdate {
+	_u.mutation.ClearLongContextOutputMultiplier()
+	return _u
+}
+
 // SetAccountRateMultiplier sets the "account_rate_multiplier" field.
 func (_u *UsageLogUpdate) SetAccountRateMultiplier(v float64) *UsageLogUpdate {
 	_u.mutation.ResetAccountRateMultiplier()
@@ -1150,6 +1245,36 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.LongContextApplied(); ok {
+		_spec.SetField(usagelog.FieldLongContextApplied, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LongContextInputThreshold(); ok {
+		_spec.SetField(usagelog.FieldLongContextInputThreshold, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedLongContextInputThreshold(); ok {
+		_spec.AddField(usagelog.FieldLongContextInputThreshold, field.TypeInt, value)
+	}
+	if _u.mutation.LongContextInputThresholdCleared() {
+		_spec.ClearField(usagelog.FieldLongContextInputThreshold, field.TypeInt)
+	}
+	if value, ok := _u.mutation.LongContextInputMultiplier(); ok {
+		_spec.SetField(usagelog.FieldLongContextInputMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedLongContextInputMultiplier(); ok {
+		_spec.AddField(usagelog.FieldLongContextInputMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.LongContextInputMultiplierCleared() {
+		_spec.ClearField(usagelog.FieldLongContextInputMultiplier, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.LongContextOutputMultiplier(); ok {
+		_spec.SetField(usagelog.FieldLongContextOutputMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedLongContextOutputMultiplier(); ok {
+		_spec.AddField(usagelog.FieldLongContextOutputMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.LongContextOutputMultiplierCleared() {
+		_spec.ClearField(usagelog.FieldLongContextOutputMultiplier, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.AccountRateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldAccountRateMultiplier, field.TypeFloat64, value)
@@ -1919,6 +2044,101 @@ func (_u *UsageLogUpdateOne) AddRateMultiplier(v float64) *UsageLogUpdateOne {
 	return _u
 }
 
+// SetLongContextApplied sets the "long_context_applied" field.
+func (_u *UsageLogUpdateOne) SetLongContextApplied(v bool) *UsageLogUpdateOne {
+	_u.mutation.SetLongContextApplied(v)
+	return _u
+}
+
+// SetNillableLongContextApplied sets the "long_context_applied" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableLongContextApplied(v *bool) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetLongContextApplied(*v)
+	}
+	return _u
+}
+
+// SetLongContextInputThreshold sets the "long_context_input_threshold" field.
+func (_u *UsageLogUpdateOne) SetLongContextInputThreshold(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetLongContextInputThreshold()
+	_u.mutation.SetLongContextInputThreshold(v)
+	return _u
+}
+
+// SetNillableLongContextInputThreshold sets the "long_context_input_threshold" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableLongContextInputThreshold(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetLongContextInputThreshold(*v)
+	}
+	return _u
+}
+
+// AddLongContextInputThreshold adds value to the "long_context_input_threshold" field.
+func (_u *UsageLogUpdateOne) AddLongContextInputThreshold(v int) *UsageLogUpdateOne {
+	_u.mutation.AddLongContextInputThreshold(v)
+	return _u
+}
+
+// ClearLongContextInputThreshold clears the value of the "long_context_input_threshold" field.
+func (_u *UsageLogUpdateOne) ClearLongContextInputThreshold() *UsageLogUpdateOne {
+	_u.mutation.ClearLongContextInputThreshold()
+	return _u
+}
+
+// SetLongContextInputMultiplier sets the "long_context_input_multiplier" field.
+func (_u *UsageLogUpdateOne) SetLongContextInputMultiplier(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetLongContextInputMultiplier()
+	_u.mutation.SetLongContextInputMultiplier(v)
+	return _u
+}
+
+// SetNillableLongContextInputMultiplier sets the "long_context_input_multiplier" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableLongContextInputMultiplier(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetLongContextInputMultiplier(*v)
+	}
+	return _u
+}
+
+// AddLongContextInputMultiplier adds value to the "long_context_input_multiplier" field.
+func (_u *UsageLogUpdateOne) AddLongContextInputMultiplier(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddLongContextInputMultiplier(v)
+	return _u
+}
+
+// ClearLongContextInputMultiplier clears the value of the "long_context_input_multiplier" field.
+func (_u *UsageLogUpdateOne) ClearLongContextInputMultiplier() *UsageLogUpdateOne {
+	_u.mutation.ClearLongContextInputMultiplier()
+	return _u
+}
+
+// SetLongContextOutputMultiplier sets the "long_context_output_multiplier" field.
+func (_u *UsageLogUpdateOne) SetLongContextOutputMultiplier(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetLongContextOutputMultiplier()
+	_u.mutation.SetLongContextOutputMultiplier(v)
+	return _u
+}
+
+// SetNillableLongContextOutputMultiplier sets the "long_context_output_multiplier" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableLongContextOutputMultiplier(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetLongContextOutputMultiplier(*v)
+	}
+	return _u
+}
+
+// AddLongContextOutputMultiplier adds value to the "long_context_output_multiplier" field.
+func (_u *UsageLogUpdateOne) AddLongContextOutputMultiplier(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddLongContextOutputMultiplier(v)
+	return _u
+}
+
+// ClearLongContextOutputMultiplier clears the value of the "long_context_output_multiplier" field.
+func (_u *UsageLogUpdateOne) ClearLongContextOutputMultiplier() *UsageLogUpdateOne {
+	_u.mutation.ClearLongContextOutputMultiplier()
+	return _u
+}
+
 // SetAccountRateMultiplier sets the "account_rate_multiplier" field.
 func (_u *UsageLogUpdateOne) SetAccountRateMultiplier(v float64) *UsageLogUpdateOne {
 	_u.mutation.ResetAccountRateMultiplier()
@@ -2557,6 +2777,36 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedRateMultiplier(); ok {
 		_spec.AddField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.LongContextApplied(); ok {
+		_spec.SetField(usagelog.FieldLongContextApplied, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.LongContextInputThreshold(); ok {
+		_spec.SetField(usagelog.FieldLongContextInputThreshold, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedLongContextInputThreshold(); ok {
+		_spec.AddField(usagelog.FieldLongContextInputThreshold, field.TypeInt, value)
+	}
+	if _u.mutation.LongContextInputThresholdCleared() {
+		_spec.ClearField(usagelog.FieldLongContextInputThreshold, field.TypeInt)
+	}
+	if value, ok := _u.mutation.LongContextInputMultiplier(); ok {
+		_spec.SetField(usagelog.FieldLongContextInputMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedLongContextInputMultiplier(); ok {
+		_spec.AddField(usagelog.FieldLongContextInputMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.LongContextInputMultiplierCleared() {
+		_spec.ClearField(usagelog.FieldLongContextInputMultiplier, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.LongContextOutputMultiplier(); ok {
+		_spec.SetField(usagelog.FieldLongContextOutputMultiplier, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedLongContextOutputMultiplier(); ok {
+		_spec.AddField(usagelog.FieldLongContextOutputMultiplier, field.TypeFloat64, value)
+	}
+	if _u.mutation.LongContextOutputMultiplierCleared() {
+		_spec.ClearField(usagelog.FieldLongContextOutputMultiplier, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.AccountRateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldAccountRateMultiplier, field.TypeFloat64, value)

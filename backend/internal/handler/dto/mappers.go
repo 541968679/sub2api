@@ -573,50 +573,54 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		requestedModel = l.Model
 	}
 	return UsageLog{
-		ID:                    l.ID,
-		UserID:                l.UserID,
-		APIKeyID:              l.APIKeyID,
-		AccountID:             l.AccountID,
-		RequestID:             l.RequestID,
-		Model:                 requestedModel,
-		ServiceTier:           l.ServiceTier,
-		ReasoningEffort:       l.ReasoningEffort,
-		InboundEndpoint:       l.InboundEndpoint,
-		UpstreamEndpoint:      l.UpstreamEndpoint,
-		GroupID:               l.GroupID,
-		SubscriptionID:        l.SubscriptionID,
-		InputTokens:           l.InputTokens,
-		OutputTokens:          l.OutputTokens,
-		CacheCreationTokens:   l.CacheCreationTokens,
-		CacheReadTokens:       l.CacheReadTokens,
-		CacheCreation5mTokens: l.CacheCreation5mTokens,
-		CacheCreation1hTokens: l.CacheCreation1hTokens,
-		InputCost:             l.InputCost,
-		OutputCost:            l.OutputCost,
-		ImageOutputCost:       l.ImageOutputCost,
-		CacheCreationCost:     l.CacheCreationCost,
-		CacheReadCost:         l.CacheReadCost,
-		TotalCost:             l.TotalCost,
-		ActualCost:            l.ActualCost,
-		RateMultiplier:        l.RateMultiplier,
-		BillingType:           l.BillingType,
-		RequestType:           requestType.String(),
-		Stream:                stream,
-		OpenAIWSMode:          openAIWSMode,
-		DurationMs:            l.DurationMs,
-		FirstTokenMs:          l.FirstTokenMs,
-		ImageCount:            l.ImageCount,
-		ImageSize:             l.ImageSize,
-		ImageQuality:          l.ImageQuality,
-		MediaType:             l.MediaType,
-		UserAgent:             l.UserAgent,
-		CacheTTLOverridden:    l.CacheTTLOverridden,
-		BillingMode:           l.BillingMode,
-		CreatedAt:             l.CreatedAt,
-		User:                  UserFromServiceShallow(l.User),
-		APIKey:                APIKeyFromService(l.APIKey),
-		Group:                 GroupFromServiceShallow(l.Group),
-		Subscription:          UserSubscriptionFromService(l.Subscription),
+		ID:                          l.ID,
+		UserID:                      l.UserID,
+		APIKeyID:                    l.APIKeyID,
+		AccountID:                   l.AccountID,
+		RequestID:                   l.RequestID,
+		Model:                       requestedModel,
+		ServiceTier:                 l.ServiceTier,
+		ReasoningEffort:             l.ReasoningEffort,
+		InboundEndpoint:             l.InboundEndpoint,
+		UpstreamEndpoint:            l.UpstreamEndpoint,
+		GroupID:                     l.GroupID,
+		SubscriptionID:              l.SubscriptionID,
+		InputTokens:                 l.InputTokens,
+		OutputTokens:                l.OutputTokens,
+		CacheCreationTokens:         l.CacheCreationTokens,
+		CacheReadTokens:             l.CacheReadTokens,
+		CacheCreation5mTokens:       l.CacheCreation5mTokens,
+		CacheCreation1hTokens:       l.CacheCreation1hTokens,
+		InputCost:                   l.InputCost,
+		OutputCost:                  l.OutputCost,
+		ImageOutputCost:             l.ImageOutputCost,
+		CacheCreationCost:           l.CacheCreationCost,
+		CacheReadCost:               l.CacheReadCost,
+		TotalCost:                   l.TotalCost,
+		ActualCost:                  l.ActualCost,
+		RateMultiplier:              l.RateMultiplier,
+		LongContextApplied:          l.LongContextApplied,
+		LongContextInputThreshold:   l.LongContextInputThreshold,
+		LongContextInputMultiplier:  l.LongContextInputMultiplier,
+		LongContextOutputMultiplier: l.LongContextOutputMultiplier,
+		BillingType:                 l.BillingType,
+		RequestType:                 requestType.String(),
+		Stream:                      stream,
+		OpenAIWSMode:                openAIWSMode,
+		DurationMs:                  l.DurationMs,
+		FirstTokenMs:                l.FirstTokenMs,
+		ImageCount:                  l.ImageCount,
+		ImageSize:                   l.ImageSize,
+		ImageQuality:                l.ImageQuality,
+		MediaType:                   l.MediaType,
+		UserAgent:                   l.UserAgent,
+		CacheTTLOverridden:          l.CacheTTLOverridden,
+		BillingMode:                 l.BillingMode,
+		CreatedAt:                   l.CreatedAt,
+		User:                        UserFromServiceShallow(l.User),
+		APIKey:                      APIKeyFromService(l.APIKey),
+		Group:                       GroupFromServiceShallow(l.Group),
+		Subscription:                UserSubscriptionFromService(l.Subscription),
 	}
 }
 
@@ -631,6 +635,7 @@ func UsageLogFromService(l *service.UsageLog, displayMap DisplayPricingMap) *Usa
 	if displayMap != nil {
 		if cfg := displayMap[toLowerModel(u.Model)]; cfg != nil {
 			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
+			cfg = effectiveDisplayPricingForUsageLog(&u, cfg)
 			ApplyDisplayTransform(&u, cfg)
 		}
 	}
@@ -659,6 +664,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap)
 	if displayMap != nil {
 		if cfg := displayMap[toLowerModel(base.Model)]; cfg != nil {
 			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
+			cfg = effectiveDisplayPricingForUsageLog(&base, cfg)
 			admin.DisplayFields = ComputeDisplayFields(&base, cfg)
 		}
 	}

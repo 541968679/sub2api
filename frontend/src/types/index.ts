@@ -1322,6 +1322,10 @@ export interface UsageLog {
   total_cost: number
   actual_cost: number
   rate_multiplier: number
+  long_context_applied: boolean
+  long_context_input_threshold?: number
+  long_context_input_multiplier?: number
+  long_context_output_multiplier?: number
   billing_type: number
 
   request_type?: UsageRequestType

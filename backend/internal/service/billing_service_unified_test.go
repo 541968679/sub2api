@@ -229,6 +229,44 @@ func TestCalculateCostUnified_UsesPreResolvedPricing(t *testing.T) {
 	require.Equal(t, string(BillingModePerRequest), cost.BillingMode)
 }
 
+func TestCalculateCostUnified_ChannelIntervalsDoNotSetLongContextSnapshot(t *testing.T) {
+	bs := newTestBillingService()
+	resolver := NewModelPricingResolver(nil, bs)
+	inputPrice := 9e-6
+	outputPrice := 18e-6
+
+	preResolved := &ResolvedPricing{
+		Mode: BillingModeToken,
+		BasePricing: &ModelPricing{
+			InputPricePerToken:          2.5e-6,
+			OutputPricePerToken:         15e-6,
+			LongContextInputThreshold:   272000,
+			LongContextInputMultiplier:  2.0,
+			LongContextOutputMultiplier: 1.5,
+		},
+		Intervals: []PricingInterval{
+			{
+				MinTokens:   0,
+				InputPrice:  &inputPrice,
+				OutputPrice: &outputPrice,
+			},
+		},
+	}
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "gpt-5.4",
+		Tokens:         UsageTokens{InputTokens: 300000, OutputTokens: 2000},
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+		Resolved:       preResolved,
+	})
+	require.NoError(t, err)
+	require.False(t, cost.LongContextApplied)
+	require.InDelta(t, 300000*inputPrice+2000*outputPrice, cost.TotalCost, 1e-10)
+	require.Equal(t, string(BillingModeToken), cost.BillingMode)
+}
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------

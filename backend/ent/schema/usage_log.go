@@ -100,6 +100,19 @@ func (UsageLog) Fields() []ent.Field {
 		field.Float("rate_multiplier").
 			Default(1).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
+		field.Bool("long_context_applied").
+			Default(false),
+		field.Int("long_context_input_threshold").
+			Optional().
+			Nillable(),
+		field.Float("long_context_input_multiplier").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
+		field.Float("long_context_output_multiplier").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}),
 
 		// account_rate_multiplier: 账号计费倍率快照（NULL 表示按 1.0 处理）
 		field.Float("account_rate_multiplier").

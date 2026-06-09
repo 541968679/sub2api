@@ -107,8 +107,15 @@ type CostBreakdown struct {
 	CacheReadCost     float64
 	TotalCost         float64
 	ActualCost        float64 // 应用倍率后的实际费用
-	BillingMode       string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
-	BillingTier       string  // 按次/图片计费最终命中的档位
+	// Long-context fields snapshot the pricing rule that was applied to this
+	// cost. Display layers consume the snapshot instead of re-evaluating model
+	// pricing that may change after the usage row is written.
+	LongContextApplied          bool
+	LongContextInputThreshold   int
+	LongContextInputMultiplier  float64
+	LongContextOutputMultiplier float64
+	BillingMode                 string // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
+	BillingTier                 string // 按次/图片计费最终命中的档位
 }
 
 // BillingService 计费服务
@@ -537,7 +544,8 @@ func (s *BillingService) computeTokenBreakdown(
 		tierMultiplier = serviceTierCostMultiplier(serviceTier)
 	}
 
-	if applyLongCtx && s.shouldApplySessionLongContextPricing(tokens, pricing) {
+	longContextApplied := applyLongCtx && s.shouldApplySessionLongContextPricing(tokens, pricing)
+	if longContextApplied {
 		inputPrice *= pricing.LongContextInputMultiplier
 		outputPrice *= pricing.LongContextOutputMultiplier
 		cacheReadPrice *= pricing.LongContextInputMultiplier
@@ -545,6 +553,12 @@ func (s *BillingService) computeTokenBreakdown(
 	}
 
 	bd := &CostBreakdown{}
+	if longContextApplied {
+		bd.LongContextApplied = true
+		bd.LongContextInputThreshold = pricing.LongContextInputThreshold
+		bd.LongContextInputMultiplier = pricing.LongContextInputMultiplier
+		bd.LongContextOutputMultiplier = pricing.LongContextOutputMultiplier
+	}
 	bd.InputCost = float64(tokens.InputTokens) * inputPrice
 
 	// 分离图片输出 token 与文本输出 token

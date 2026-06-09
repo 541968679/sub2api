@@ -190,6 +190,33 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesWholeSessionMultipliers(t *t
 	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, cost.TotalCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, cost.ActualCost, 1e-10)
+	require.True(t, cost.LongContextApplied)
+	require.Equal(t, 272000, cost.LongContextInputThreshold)
+	require.InDelta(t, 2.0, cost.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, cost.LongContextOutputMultiplier, 1e-12)
+}
+
+func TestCalculateCost_OpenAIGPT54LongContextBoundarySnapshot(t *testing.T) {
+	svc := newTestBillingService()
+
+	atThreshold, err := svc.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:     172000,
+		CacheReadTokens: 100000,
+		OutputTokens:    1000,
+	}, 1.0)
+	require.NoError(t, err)
+	require.False(t, atThreshold.LongContextApplied)
+
+	aboveThreshold, err := svc.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:     172001,
+		CacheReadTokens: 100000,
+		OutputTokens:    1000,
+	}, 1.0)
+	require.NoError(t, err)
+	require.True(t, aboveThreshold.LongContextApplied)
+	require.Equal(t, 272000, aboveThreshold.LongContextInputThreshold)
+	require.InDelta(t, 2.0, aboveThreshold.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, aboveThreshold.LongContextOutputMultiplier, 1e-12)
 }
 
 func TestCalculateCost_OpenAIGPT54LongContextAppliesMultiplierToCacheRead(t *testing.T) {

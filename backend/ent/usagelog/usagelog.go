@@ -66,6 +66,14 @@ const (
 	FieldActualCost = "actual_cost"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
+	// FieldLongContextApplied holds the string denoting the long_context_applied field in the database.
+	FieldLongContextApplied = "long_context_applied"
+	// FieldLongContextInputThreshold holds the string denoting the long_context_input_threshold field in the database.
+	FieldLongContextInputThreshold = "long_context_input_threshold"
+	// FieldLongContextInputMultiplier holds the string denoting the long_context_input_multiplier field in the database.
+	FieldLongContextInputMultiplier = "long_context_input_multiplier"
+	// FieldLongContextOutputMultiplier holds the string denoting the long_context_output_multiplier field in the database.
+	FieldLongContextOutputMultiplier = "long_context_output_multiplier"
 	// FieldAccountRateMultiplier holds the string denoting the account_rate_multiplier field in the database.
 	FieldAccountRateMultiplier = "account_rate_multiplier"
 	// FieldBillingType holds the string denoting the billing_type field in the database.
@@ -176,6 +184,10 @@ var Columns = []string{
 	FieldTotalCost,
 	FieldActualCost,
 	FieldRateMultiplier,
+	FieldLongContextApplied,
+	FieldLongContextInputThreshold,
+	FieldLongContextInputMultiplier,
+	FieldLongContextOutputMultiplier,
 	FieldAccountRateMultiplier,
 	FieldBillingType,
 	FieldStream,
@@ -245,6 +257,8 @@ var (
 	DefaultActualCost float64
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
+	// DefaultLongContextApplied holds the default value on creation for the "long_context_applied" field.
+	DefaultLongContextApplied bool
 	// DefaultBillingType holds the default value on creation for the "billing_type" field.
 	DefaultBillingType int8
 	// DefaultStream holds the default value on creation for the "stream" field.
@@ -407,6 +421,26 @@ func ByActualCost(opts ...sql.OrderTermOption) OrderOption {
 // ByRateMultiplier orders the results by the rate_multiplier field.
 func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRateMultiplier, opts...).ToFunc()
+}
+
+// ByLongContextApplied orders the results by the long_context_applied field.
+func ByLongContextApplied(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLongContextApplied, opts...).ToFunc()
+}
+
+// ByLongContextInputThreshold orders the results by the long_context_input_threshold field.
+func ByLongContextInputThreshold(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLongContextInputThreshold, opts...).ToFunc()
+}
+
+// ByLongContextInputMultiplier orders the results by the long_context_input_multiplier field.
+func ByLongContextInputMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLongContextInputMultiplier, opts...).ToFunc()
+}
+
+// ByLongContextOutputMultiplier orders the results by the long_context_output_multiplier field.
+func ByLongContextOutputMultiplier(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLongContextOutputMultiplier, opts...).ToFunc()
 }
 
 // ByAccountRateMultiplier orders the results by the account_rate_multiplier field.

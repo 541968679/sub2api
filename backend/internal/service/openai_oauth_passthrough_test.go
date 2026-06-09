@@ -983,6 +983,91 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 	require.Empty(t, upstream.lastReq.Header.Get("X-Test"))
 }
 
+func TestOpenAIGatewayService_APIKeyPassthrough_LongContextForwardRecordUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
+	c.Request.Header.Set("User-Agent", "curl/8.0")
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	originalBody := []byte(`{"model":"gpt-5.4","stream":false,"input":"long context fixture"}`)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+			"X-Request-Id": []string{"rid-long-context"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"id":"resp_long_context","model":"gpt-5.4","output":[],"usage":{"input_tokens":300000,"output_tokens":2000,"input_tokens_details":{"cached_tokens":0}}}`)),
+	}
+	upstream := &httpUpstreamRecorder{resp: resp}
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	svc.httpUpstream = upstream
+
+	account := &Account{
+		ID:          456,
+		Name:        "apikey-acc",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-api-key",
+			"base_url": "https://api.openai.com",
+		},
+		Extra:          map[string]any{"openai_passthrough": true},
+		Status:         StatusActive,
+		Schedulable:    true,
+		RateMultiplier: f64p(1),
+	}
+	apiKey := &APIKey{
+		ID:      100,
+		GroupID: i64p(11),
+		Group: &Group{
+			ID:             11,
+			RateMultiplier: 1.0,
+		},
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, originalBody)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "rid-long-context", result.RequestID)
+	require.Equal(t, "resp_long_context", result.ResponseID)
+	require.Equal(t, 300000, result.Usage.InputTokens)
+	require.Equal(t, 2000, result.Usage.OutputTokens)
+	require.Equal(t, originalBody, upstream.lastBody)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	err = svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result:           result,
+		APIKey:           apiKey,
+		User:             &User{ID: 200},
+		Account:          account,
+		InboundEndpoint:  "/v1/responses",
+		UpstreamEndpoint: "/v1/responses",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 300000, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 2000, usageRepo.lastLog.OutputTokens)
+	require.True(t, usageRepo.lastLog.LongContextApplied)
+	require.Equal(t, 272000, usageRepo.lastLog.LongContextInputThreshold)
+	require.InDelta(t, 2.0, usageRepo.lastLog.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, usageRepo.lastLog.LongContextOutputMultiplier, 1e-12)
+
+	expectedInput := 300000 * 2.5e-6 * 2.0
+	expectedOutput := 2000 * 15e-6 * 1.5
+	require.InDelta(t, expectedInput, usageRepo.lastLog.InputCost, 1e-10)
+	require.InDelta(t, expectedOutput, usageRepo.lastLog.OutputCost, 1e-10)
+	require.InDelta(t, expectedInput+expectedOutput, usageRepo.lastLog.TotalCost, 1e-10)
+	require.InDelta(t, expectedInput+expectedOutput, usageRepo.lastLog.ActualCost, 1e-10)
+	require.InDelta(t, expectedInput+expectedOutput, userRepo.lastAmount, 1e-10)
+}
+
 func TestOpenAIGatewayService_OAuthPassthrough_WarnOnTimeoutHeadersForStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	logSink, restore := captureStructuredLog(t)

@@ -185,6 +185,26 @@ func RateMultiplier(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldRateMultiplier, v))
 }
 
+// LongContextApplied applies equality check predicate on the "long_context_applied" field. It's identical to LongContextAppliedEQ.
+func LongContextApplied(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextApplied, v))
+}
+
+// LongContextInputThreshold applies equality check predicate on the "long_context_input_threshold" field. It's identical to LongContextInputThresholdEQ.
+func LongContextInputThreshold(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputMultiplier applies equality check predicate on the "long_context_input_multiplier" field. It's identical to LongContextInputMultiplierEQ.
+func LongContextInputMultiplier(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextOutputMultiplier applies equality check predicate on the "long_context_output_multiplier" field. It's identical to LongContextOutputMultiplierEQ.
+func LongContextOutputMultiplier(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextOutputMultiplier, v))
+}
+
 // AccountRateMultiplier applies equality check predicate on the "account_rate_multiplier" field. It's identical to AccountRateMultiplierEQ.
 func AccountRateMultiplier(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldAccountRateMultiplier, v))
@@ -1453,6 +1473,166 @@ func RateMultiplierLT(v float64) predicate.UsageLog {
 // RateMultiplierLTE applies the LTE predicate on the "rate_multiplier" field.
 func RateMultiplierLTE(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldRateMultiplier, v))
+}
+
+// LongContextAppliedEQ applies the EQ predicate on the "long_context_applied" field.
+func LongContextAppliedEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextApplied, v))
+}
+
+// LongContextAppliedNEQ applies the NEQ predicate on the "long_context_applied" field.
+func LongContextAppliedNEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldLongContextApplied, v))
+}
+
+// LongContextInputThresholdEQ applies the EQ predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputThresholdNEQ applies the NEQ predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdNEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputThresholdIn applies the In predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldLongContextInputThreshold, vs...))
+}
+
+// LongContextInputThresholdNotIn applies the NotIn predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdNotIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldLongContextInputThreshold, vs...))
+}
+
+// LongContextInputThresholdGT applies the GT predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdGT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputThresholdGTE applies the GTE predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdGTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputThresholdLT applies the LT predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdLT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputThresholdLTE applies the LTE predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdLTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldLongContextInputThreshold, v))
+}
+
+// LongContextInputThresholdIsNil applies the IsNil predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldLongContextInputThreshold))
+}
+
+// LongContextInputThresholdNotNil applies the NotNil predicate on the "long_context_input_threshold" field.
+func LongContextInputThresholdNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldLongContextInputThreshold))
+}
+
+// LongContextInputMultiplierEQ applies the EQ predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextInputMultiplierNEQ applies the NEQ predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextInputMultiplierIn applies the In predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldLongContextInputMultiplier, vs...))
+}
+
+// LongContextInputMultiplierNotIn applies the NotIn predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldLongContextInputMultiplier, vs...))
+}
+
+// LongContextInputMultiplierGT applies the GT predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextInputMultiplierGTE applies the GTE predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextInputMultiplierLT applies the LT predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextInputMultiplierLTE applies the LTE predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldLongContextInputMultiplier, v))
+}
+
+// LongContextInputMultiplierIsNil applies the IsNil predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldLongContextInputMultiplier))
+}
+
+// LongContextInputMultiplierNotNil applies the NotNil predicate on the "long_context_input_multiplier" field.
+func LongContextInputMultiplierNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldLongContextInputMultiplier))
+}
+
+// LongContextOutputMultiplierEQ applies the EQ predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldLongContextOutputMultiplier, v))
+}
+
+// LongContextOutputMultiplierNEQ applies the NEQ predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldLongContextOutputMultiplier, v))
+}
+
+// LongContextOutputMultiplierIn applies the In predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldLongContextOutputMultiplier, vs...))
+}
+
+// LongContextOutputMultiplierNotIn applies the NotIn predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldLongContextOutputMultiplier, vs...))
+}
+
+// LongContextOutputMultiplierGT applies the GT predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldLongContextOutputMultiplier, v))
+}
+
+// LongContextOutputMultiplierGTE applies the GTE predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldLongContextOutputMultiplier, v))
+}
+
+// LongContextOutputMultiplierLT applies the LT predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldLongContextOutputMultiplier, v))
+}
+
+// LongContextOutputMultiplierLTE applies the LTE predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldLongContextOutputMultiplier, v))
+}
+
+// LongContextOutputMultiplierIsNil applies the IsNil predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldLongContextOutputMultiplier))
+}
+
+// LongContextOutputMultiplierNotNil applies the NotNil predicate on the "long_context_output_multiplier" field.
+func LongContextOutputMultiplierNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldLongContextOutputMultiplier))
 }
 
 // AccountRateMultiplierEQ applies the EQ predicate on the "account_rate_multiplier" field.

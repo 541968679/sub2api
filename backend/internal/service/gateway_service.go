@@ -8770,6 +8770,10 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.CacheReadCost = cost.CacheReadCost
 		usageLog.TotalCost = cost.TotalCost
 		usageLog.ActualCost = cost.ActualCost
+		usageLog.LongContextApplied = cost.LongContextApplied
+		usageLog.LongContextInputThreshold = cost.LongContextInputThreshold
+		usageLog.LongContextInputMultiplier = cost.LongContextInputMultiplier
+		usageLog.LongContextOutputMultiplier = cost.LongContextOutputMultiplier
 		if cost.BillingTier != "" {
 			usageLog.BillingTier = optionalTrimmedStringPtr(cost.BillingTier)
 		}

@@ -392,14 +392,18 @@ type UsageLog struct {
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"`
 
-	InputCost         float64 `json:"input_cost"`
-	OutputCost        float64 `json:"output_cost"`
-	ImageOutputCost   float64 `json:"image_output_cost"`
-	CacheCreationCost float64 `json:"cache_creation_cost"`
-	CacheReadCost     float64 `json:"cache_read_cost"`
-	TotalCost         float64 `json:"total_cost"`
-	ActualCost        float64 `json:"actual_cost"`
-	RateMultiplier    float64 `json:"rate_multiplier"`
+	InputCost                   float64 `json:"input_cost"`
+	OutputCost                  float64 `json:"output_cost"`
+	ImageOutputCost             float64 `json:"image_output_cost"`
+	CacheCreationCost           float64 `json:"cache_creation_cost"`
+	CacheReadCost               float64 `json:"cache_read_cost"`
+	TotalCost                   float64 `json:"total_cost"`
+	ActualCost                  float64 `json:"actual_cost"`
+	RateMultiplier              float64 `json:"rate_multiplier"`
+	LongContextApplied          bool    `json:"long_context_applied"`
+	LongContextInputThreshold   int     `json:"long_context_input_threshold,omitempty"`
+	LongContextInputMultiplier  float64 `json:"long_context_input_multiplier,omitempty"`
+	LongContextOutputMultiplier float64 `json:"long_context_output_multiplier,omitempty"`
 
 	BillingType  int8   `json:"billing_type"`
 	RequestType  string `json:"request_type"`

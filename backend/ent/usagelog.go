@@ -75,6 +75,14 @@ type UsageLog struct {
 	ActualCost float64 `json:"actual_cost,omitempty"`
 	// RateMultiplier holds the value of the "rate_multiplier" field.
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
+	// LongContextApplied holds the value of the "long_context_applied" field.
+	LongContextApplied bool `json:"long_context_applied,omitempty"`
+	// LongContextInputThreshold holds the value of the "long_context_input_threshold" field.
+	LongContextInputThreshold *int `json:"long_context_input_threshold,omitempty"`
+	// LongContextInputMultiplier holds the value of the "long_context_input_multiplier" field.
+	LongContextInputMultiplier *float64 `json:"long_context_input_multiplier,omitempty"`
+	// LongContextOutputMultiplier holds the value of the "long_context_output_multiplier" field.
+	LongContextOutputMultiplier *float64 `json:"long_context_output_multiplier,omitempty"`
 	// AccountRateMultiplier holds the value of the "account_rate_multiplier" field.
 	AccountRateMultiplier *float64 `json:"account_rate_multiplier,omitempty"`
 	// BillingType holds the value of the "billing_type" field.
@@ -192,11 +200,11 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case usagelog.FieldImageSizeBreakdown:
 			values[i] = new([]byte)
-		case usagelog.FieldStream, usagelog.FieldCacheTTLOverridden:
+		case usagelog.FieldLongContextApplied, usagelog.FieldStream, usagelog.FieldCacheTTLOverridden:
 			values[i] = new(sql.NullBool)
-		case usagelog.FieldInputCost, usagelog.FieldOutputCost, usagelog.FieldCacheCreationCost, usagelog.FieldCacheReadCost, usagelog.FieldTotalCost, usagelog.FieldActualCost, usagelog.FieldRateMultiplier, usagelog.FieldAccountRateMultiplier:
+		case usagelog.FieldInputCost, usagelog.FieldOutputCost, usagelog.FieldCacheCreationCost, usagelog.FieldCacheReadCost, usagelog.FieldTotalCost, usagelog.FieldActualCost, usagelog.FieldRateMultiplier, usagelog.FieldLongContextInputMultiplier, usagelog.FieldLongContextOutputMultiplier, usagelog.FieldAccountRateMultiplier:
 			values[i] = new(sql.NullFloat64)
-		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldAPIKeyID, usagelog.FieldAccountID, usagelog.FieldChannelID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldFirstTokenMs, usagelog.FieldImageCount:
+		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldAPIKeyID, usagelog.FieldAccountID, usagelog.FieldChannelID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldLongContextInputThreshold, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldFirstTokenMs, usagelog.FieldImageCount:
 			values[i] = new(sql.NullInt64)
 		case usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldImageQuality:
 			values[i] = new(sql.NullString)
@@ -386,6 +394,33 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field rate_multiplier", values[i])
 			} else if value.Valid {
 				_m.RateMultiplier = value.Float64
+			}
+		case usagelog.FieldLongContextApplied:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field long_context_applied", values[i])
+			} else if value.Valid {
+				_m.LongContextApplied = value.Bool
+			}
+		case usagelog.FieldLongContextInputThreshold:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field long_context_input_threshold", values[i])
+			} else if value.Valid {
+				_m.LongContextInputThreshold = new(int)
+				*_m.LongContextInputThreshold = int(value.Int64)
+			}
+		case usagelog.FieldLongContextInputMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field long_context_input_multiplier", values[i])
+			} else if value.Valid {
+				_m.LongContextInputMultiplier = new(float64)
+				*_m.LongContextInputMultiplier = value.Float64
+			}
+		case usagelog.FieldLongContextOutputMultiplier:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field long_context_output_multiplier", values[i])
+			} else if value.Valid {
+				_m.LongContextOutputMultiplier = new(float64)
+				*_m.LongContextOutputMultiplier = value.Float64
 			}
 		case usagelog.FieldAccountRateMultiplier:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -649,6 +684,24 @@ func (_m *UsageLog) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("rate_multiplier=")
 	builder.WriteString(fmt.Sprintf("%v", _m.RateMultiplier))
+	builder.WriteString(", ")
+	builder.WriteString("long_context_applied=")
+	builder.WriteString(fmt.Sprintf("%v", _m.LongContextApplied))
+	builder.WriteString(", ")
+	if v := _m.LongContextInputThreshold; v != nil {
+		builder.WriteString("long_context_input_threshold=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.LongContextInputMultiplier; v != nil {
+		builder.WriteString("long_context_input_multiplier=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.LongContextOutputMultiplier; v != nil {
+		builder.WriteString("long_context_output_multiplier=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.AccountRateMultiplier; v != nil {
 		builder.WriteString("account_rate_multiplier=")

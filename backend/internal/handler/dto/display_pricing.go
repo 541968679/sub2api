@@ -53,6 +53,28 @@ func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *D
 	return cfg
 }
 
+func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) *DisplayPricingConfig {
+	if d == nil || cfg == nil || !d.LongContextApplied {
+		return cfg
+	}
+	clone := *cfg
+	if d.LongContextInputMultiplier > 0 {
+		if clone.DisplayInputPrice != nil {
+			value := *clone.DisplayInputPrice * d.LongContextInputMultiplier
+			clone.DisplayInputPrice = &value
+		}
+		if clone.DisplayCacheReadPrice != nil {
+			value := *clone.DisplayCacheReadPrice * d.LongContextInputMultiplier
+			clone.DisplayCacheReadPrice = &value
+		}
+	}
+	if d.LongContextOutputMultiplier > 0 && clone.DisplayOutputPrice != nil {
+		value := *clone.DisplayOutputPrice * d.LongContextOutputMultiplier
+		clone.DisplayOutputPrice = &value
+	}
+	return &clone
+}
+
 // ApplyDisplayTransform modifies a user-facing UsageLog DTO in-place to use display prices.
 // The actual_cost field is never changed. Rate multiplier is not changed here;
 // use ApplyUserDisplayRate for that.

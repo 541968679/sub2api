@@ -757,6 +757,10 @@ func TestOpenAIGatewayServiceRecordUsage_Gpt54LongContextBillsWholeSession(t *te
 	require.InDelta(t, expectedOutput, usageRepo.lastLog.OutputCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, usageRepo.lastLog.TotalCost, 1e-10)
 	require.InDelta(t, (expectedInput+expectedOutput)*1.1, usageRepo.lastLog.ActualCost, 1e-10)
+	require.True(t, usageRepo.lastLog.LongContextApplied)
+	require.Equal(t, 272000, usageRepo.lastLog.LongContextInputThreshold)
+	require.InDelta(t, 2.0, usageRepo.lastLog.LongContextInputMultiplier, 1e-12)
+	require.InDelta(t, 1.5, usageRepo.lastLog.LongContextOutputMultiplier, 1e-12)
 	require.Equal(t, 1, userRepo.deductCalls)
 }
 
