@@ -124,6 +124,13 @@
               <button @click="openExportDataDialog" class="btn btn-secondary">
                 {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
               </button>
+              <button
+                @click="handleDeleteExportedAccounts"
+                :disabled="deletingExported"
+                class="btn btn-danger"
+              >
+                {{ deletingExported ? t('admin.accounts.deleteExportedDeleting') : t('admin.accounts.deleteExported') }}
+              </button>
             </template>
           </AccountTableActions>
           <span
@@ -497,7 +504,8 @@ const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
 const exportOnlyUnexported = ref(false)
 const markExportedAfterExport = ref(false)
-const exportAccountLimit = ref('')
+const exportAccountLimit = ref<string | number>('')
+const deletingExported = ref(false)
 const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const selectingAllFiltered = ref(false)
@@ -532,6 +540,7 @@ const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 const ACCOUNT_SORT_STORAGE_KEY = 'account-table-sort'
 type AccountSortOrder = 'asc' | 'desc'
 const SELECT_ALL_FILTERED_PAGE_SIZE = 1000
+const DELETE_EXPORTED_BATCH_SIZE = 10
 type AccountSortState = {
   sort_by: string
   sort_order: AccountSortOrder
@@ -1487,6 +1496,74 @@ const selectAllFilteredAccounts = async () => {
   }
 }
 
+const collectExportedAccountIdsForCurrentFilters = async () => {
+  const filters = buildAccountQueryFilters()
+  const ids = new Set<number>()
+  let page = 1
+  let pages = 1
+
+  do {
+    const result = await adminAPI.accounts.list(page, SELECT_ALL_FILTERED_PAGE_SIZE, filters)
+    result.items.forEach((account) => {
+      if (getAccountExportedAt(account).trim()) {
+        ids.add(account.id)
+      }
+    })
+    pages = result.pages || Math.ceil((result.total || ids.size) / SELECT_ALL_FILTERED_PAGE_SIZE) || page
+    page += 1
+  } while (page <= pages)
+
+  return Array.from(ids)
+}
+
+const deleteAccountIdsInBatches = async (ids: number[]) => {
+  let success = 0
+  const failed: number[] = []
+
+  for (let offset = 0; offset < ids.length; offset += DELETE_EXPORTED_BATCH_SIZE) {
+    const batch = ids.slice(offset, offset + DELETE_EXPORTED_BATCH_SIZE)
+    const results = await Promise.allSettled(batch.map(id => adminAPI.accounts.delete(id)))
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        success += 1
+      } else {
+        failed.push(batch[index])
+      }
+    })
+  }
+
+  return { success, failed }
+}
+
+const handleDeleteExportedAccounts = async () => {
+  if (deletingExported.value) return
+  deletingExported.value = true
+  try {
+    const ids = await collectExportedAccountIdsForCurrentFilters()
+    if (ids.length === 0) {
+      appStore.showWarning(t('admin.accounts.deleteExportedNone'))
+      return
+    }
+    if (!confirm(t('admin.accounts.deleteExportedConfirm', { count: ids.length }))) {
+      return
+    }
+
+    const result = await deleteAccountIdsInBatches(ids)
+    removeSelectedAccounts(ids)
+    if (result.failed.length > 0) {
+      appStore.showError(t('admin.accounts.deleteExportedPartial', { success: result.success, failed: result.failed.length }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.deleteExportedSuccess', { count: result.success }))
+    }
+    reload()
+  } catch (error) {
+    console.error('Failed to delete exported accounts:', error)
+    appStore.showError(t('admin.accounts.deleteExportedFailed'))
+  } finally {
+    deletingExported.value = false
+  }
+}
+
 const collectSelectionMetadata = (rows: Account[]) => {
   const selectedPlatforms = Array.from(new Set(rows.map(account => account.platform)))
   const selectedTypes = Array.from(new Set(rows.map(account => account.type)))
@@ -1637,7 +1714,7 @@ const openExportDataDialog = () => {
 }
 
 const parseExportAccountLimit = (): number | undefined => {
-  const raw = exportAccountLimit.value.trim()
+  const raw = String(exportAccountLimit.value ?? '').trim()
   if (!raw) return undefined
   const parsed = Number(raw)
   if (!Number.isInteger(parsed) || parsed <= 0) {

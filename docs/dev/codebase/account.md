@@ -241,6 +241,11 @@ AccountsView.vue: handleExportData()
         - only_unexported 跳过 extra.exported_at 非空的账号
       → resolveExportProxies()（include_proxies=true 时）
       → mark_exported=true 时批量写入 extra.exported_at
+
+AccountsView.vue: handleDeleteExportedAccounts()
+  → 按当前筛选条件分页调用 GET /api/v1/admin/accounts
+  → 前端筛出 extra.exported_at 非空账号
+  → 二次确认后按 10 个一批调用 DELETE /api/v1/admin/accounts/:id
 ```
 
 重要机制：
@@ -248,6 +253,7 @@ AccountsView.vue: handleExportData()
 - 导出格式仍是 `DataPayload{exported_at, proxies, accounts}`，账号凭据和代理密码会原样包含在 JSON 中。
 - “已导出”标记存放在 `account.extra.exported_at`，不需要数据库迁移；空字符串或缺失都视为未导出。
 - `mark_exported` 只标记本次实际进入导出 payload 的账号；如果同时传 `only_unexported`，已导出账号不会被重复标记。
+- “删除已导出账号”按钮只作用于当前筛选条件下 `extra.exported_at` 非空的账号，不会忽略页面筛选直接删除全库。
 - 前端账号表提供可切换的“导出时间”列，默认隐藏，必要时从列设置里打开查看。
 
 ### AI Credits 获取链路

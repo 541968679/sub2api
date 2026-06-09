@@ -25,6 +25,8 @@
 **Upstream compatibility**: additive account export query parameters and account `extra.exported_at` metadata; existing export/import JSON format remains compatible and no database migration is required.
 **Change details**:
 - Added account export options for a maximum account count, exporting only accounts without `extra.exported_at`, and marking exported accounts by writing `extra.exported_at` after a successful export.
+- Fixed export count parsing so number inputs cannot trigger a runtime `.trim is not a function` error.
+- Added a destructive toolbar action to delete accounts with `extra.exported_at` under the current account filters, using batched existing delete calls after confirmation.
 - Preserved selected-account export precedence while applying the new count and unexported filters to selected or filtered export flows.
 - Added an optional hidden "Exported At" account-table column and Chinese/English UI text for the new export controls.
 - Added focused backend handler tests for count-limited unexported export and post-export marking.
