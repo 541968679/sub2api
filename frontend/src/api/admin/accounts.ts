@@ -545,6 +545,9 @@ export async function exportData(options?: {
     sort_order?: 'asc' | 'desc'
   }
   includeProxies?: boolean
+  limit?: number
+  onlyUnexported?: boolean
+  markExported?: boolean
 }): Promise<AdminDataPayload> {
   const params: Record<string, string> = {}
   if (options?.ids && options.ids.length > 0) {
@@ -562,6 +565,15 @@ export async function exportData(options?: {
   }
   if (options?.includeProxies === false) {
     params.include_proxies = 'false'
+  }
+  if (typeof options?.limit === 'number' && options.limit > 0) {
+    params.limit = String(Math.floor(options.limit))
+  }
+  if (options?.onlyUnexported) {
+    params.only_unexported = 'true'
+  }
+  if (options?.markExported) {
+    params.mark_exported = 'true'
   }
   const { data } = await apiClient.get<AdminDataPayload>('/admin/accounts/data', { params })
   return data

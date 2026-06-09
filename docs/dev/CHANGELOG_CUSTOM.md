@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] feat: account export count and exported-state options
+
+**Affected files**: backend/internal/handler/admin/account_data.go, backend/internal/service/account.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/account_data_handler_test.go, backend/internal/handler/admin/admin_service_stub_test.go, frontend/src/views/admin/AccountsView.vue, frontend/src/api/admin/accounts.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: additive account export query parameters and account `extra.exported_at` metadata; existing export/import JSON format remains compatible and no database migration is required.
+**Change details**:
+- Added account export options for a maximum account count, exporting only accounts without `extra.exported_at`, and marking exported accounts by writing `extra.exported_at` after a successful export.
+- Preserved selected-account export precedence while applying the new count and unexported filters to selected or filtered export flows.
+- Added an optional hidden "Exported At" account-table column and Chinese/English UI text for the new export controls.
+- Added focused backend handler tests for count-limited unexported export and post-export marking.
+
 ## [2026-06-09] fix: snapshot long-context billing for display pricing
 
 **Affected files**: backend/internal/service/billing_service.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/gateway_service.go, backend/internal/service/usage_log.go, backend/internal/repository/usage_log_repo.go, backend/ent/schema/usage_log.go, backend/migrations/167_usage_log_long_context_snapshot.sql, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/mappers.go, backend/internal/handler/dto/types.go, frontend/src/types/index.ts, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md

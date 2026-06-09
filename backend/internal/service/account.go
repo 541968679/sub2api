@@ -70,6 +70,8 @@ type Account struct {
 type OpenAIEndpointCapability string
 
 const (
+	AccountExtraExportedAtKey = "exported_at"
+
 	OpenAIEndpointCapabilityChatCompletions OpenAIEndpointCapability = "chat_completions"
 	OpenAIEndpointCapabilityEmbeddings      OpenAIEndpointCapability = "embeddings"
 )

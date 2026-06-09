@@ -24,6 +24,12 @@ const (
 	dataPageCap    = 1000
 )
 
+type accountExportOptions struct {
+	Limit          int
+	OnlyUnexported bool
+	MarkExported   bool
+}
+
 type DataPayload struct {
 	Type       string        `json:"type,omitempty"`
 	Version    int           `json:"version,omitempty"`
@@ -93,7 +99,13 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 		return
 	}
 
-	accounts, err := h.resolveExportAccounts(ctx, selectedIDs, c)
+	exportOptions, err := parseAccountExportOptions(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	accounts, err := h.resolveExportAccounts(ctx, selectedIDs, c, exportOptions)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -164,10 +176,22 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 		})
 	}
 
+	exportedAt := time.Now().UTC()
 	payload := DataPayload{
-		ExportedAt: time.Now().UTC().Format(time.RFC3339),
+		ExportedAt: exportedAt.Format(time.RFC3339),
 		Proxies:    dataProxies,
 		Accounts:   dataAccounts,
+	}
+
+	if exportOptions.MarkExported && len(accounts) > 0 {
+		accountIDs := make([]int64, 0, len(accounts))
+		for i := range accounts {
+			accountIDs = append(accountIDs, accounts[i].ID)
+		}
+		if _, err := h.adminService.MarkAccountsExported(ctx, accountIDs, exportedAt); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
 	}
 
 	response.Success(c, payload)
@@ -379,17 +403,30 @@ func (h *AccountHandler) listAllProxies(ctx context.Context) ([]service.Proxy, e
 	return out, nil
 }
 
-func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode, sortBy, sortOrder string) ([]service.Account, error) {
+func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode, sortBy, sortOrder string, options accountExportOptions) ([]service.Account, error) {
 	page := 1
 	pageSize := dataPageCap
+	if options.Limit > 0 && options.Limit < pageSize {
+		pageSize = options.Limit
+	}
 	var out []service.Account
+	scanned := 0
 	for {
 		items, total, err := h.adminService.ListAccounts(ctx, page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, items...)
-		if len(out) >= int(total) || len(items) == 0 {
+		scanned += len(items)
+		for i := range items {
+			if options.OnlyUnexported && isAccountMarkedExported(items[i]) {
+				continue
+			}
+			out = append(out, items[i])
+			if options.Limit > 0 && len(out) >= options.Limit {
+				break
+			}
+		}
+		if (options.Limit > 0 && len(out) >= options.Limit) || scanned >= int(total) || len(items) == 0 {
 			break
 		}
 		page++
@@ -397,7 +434,7 @@ func (h *AccountHandler) listAccountsFiltered(ctx context.Context, platform, acc
 	return out, nil
 }
 
-func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64, c *gin.Context) ([]service.Account, error) {
+func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64, c *gin.Context, options accountExportOptions) ([]service.Account, error) {
 	if len(ids) > 0 {
 		accounts, err := h.adminService.GetAccountsByIDs(ctx, ids)
 		if err != nil {
@@ -408,7 +445,13 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 			if acc == nil {
 				continue
 			}
+			if options.OnlyUnexported && isAccountMarkedExported(*acc) {
+				continue
+			}
 			out = append(out, *acc)
+			if options.Limit > 0 && len(out) >= options.Limit {
+				break
+			}
 		}
 		return out, nil
 	}
@@ -437,7 +480,21 @@ func (h *AccountHandler) resolveExportAccounts(ctx context.Context, ids []int64,
 		}
 	}
 
-	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+	return h.listAccountsFiltered(ctx, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder, options)
+}
+
+func isAccountMarkedExported(account service.Account) bool {
+	if account.Extra == nil {
+		return false
+	}
+	value, ok := account.Extra[service.AccountExtraExportedAtKey]
+	if !ok || value == nil {
+		return false
+	}
+	if text, ok := value.(string); ok {
+		return strings.TrimSpace(text) != ""
+	}
+	return true
 }
 
 func (h *AccountHandler) resolveExportProxies(ctx context.Context, accounts []service.Account) ([]service.Proxy, error) {
@@ -509,6 +566,53 @@ func parseIncludeProxies(c *gin.Context) (bool, error) {
 		return false, nil
 	default:
 		return true, fmt.Errorf("invalid include_proxies value: %s", raw)
+	}
+}
+
+func parseAccountExportOptions(c *gin.Context) (accountExportOptions, error) {
+	limit, err := parseAccountExportLimit(c.Query("limit"))
+	if err != nil {
+		return accountExportOptions{}, err
+	}
+	onlyUnexported, err := parseAccountExportBool(c.Query("only_unexported"), false, "only_unexported")
+	if err != nil {
+		return accountExportOptions{}, err
+	}
+	markExported, err := parseAccountExportBool(c.Query("mark_exported"), false, "mark_exported")
+	if err != nil {
+		return accountExportOptions{}, err
+	}
+	return accountExportOptions{
+		Limit:          limit,
+		OnlyUnexported: onlyUnexported,
+		MarkExported:   markExported,
+	}, nil
+}
+
+func parseAccountExportLimit(raw string) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit <= 0 {
+		return 0, fmt.Errorf("invalid limit value: %s", raw)
+	}
+	return limit, nil
+}
+
+func parseAccountExportBool(raw string, defaultValue bool, name string) (bool, error) {
+	value := strings.TrimSpace(strings.ToLower(raw))
+	if value == "" {
+		return defaultValue, nil
+	}
+	switch value {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off":
+		return false, nil
+	default:
+		return defaultValue, fmt.Errorf("invalid %s value: %s", name, value)
 	}
 }
 

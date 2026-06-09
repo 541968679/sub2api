@@ -228,6 +228,28 @@ AccountsView.vue: load() / reload()
   → refreshAICreditsTotal() → 逐个 GET /admin/accounts/:id/usage（按 email 去重）
 ```
 
+### 账号数据导出
+
+```
+AccountsView.vue: handleExportData()
+  → GET /api/v1/admin/accounts/data?limit=&only_unexported=&mark_exported=&include_proxies=
+    → account_data.go: ExportData()
+      → resolveExportAccounts()
+        - 选中账号优先：ids 存在时只解析这些账号
+        - 未选中时按当前列表筛选、排序分批读取
+        - limit 限制最终导出账号数量
+        - only_unexported 跳过 extra.exported_at 非空的账号
+      → resolveExportProxies()（include_proxies=true 时）
+      → mark_exported=true 时批量写入 extra.exported_at
+```
+
+重要机制：
+
+- 导出格式仍是 `DataPayload{exported_at, proxies, accounts}`，账号凭据和代理密码会原样包含在 JSON 中。
+- “已导出”标记存放在 `account.extra.exported_at`，不需要数据库迁移；空字符串或缺失都视为未导出。
+- `mark_exported` 只标记本次实际进入导出 payload 的账号；如果同时传 `only_unexported`，已导出账号不会被重复标记。
+- 前端账号表提供可切换的“导出时间”列，默认隐藏，必要时从列设置里打开查看。
+
 ### AI Credits 获取链路
 
 ```

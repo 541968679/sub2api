@@ -218,6 +218,49 @@ func TestExportDataSelectedIDsOverrideFilters(t *testing.T) {
 	require.Equal(t, 0, adminSvc.lastListAccounts.calls)
 }
 
+func TestExportDataLimitAndOnlyUnexported(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	adminSvc.accounts = []service.Account{
+		{ID: 1, Name: "exported", Status: service.StatusActive, Extra: map[string]any{service.AccountExtraExportedAtKey: "2026-06-09T01:00:00Z"}},
+		{ID: 2, Name: "fresh-1", Status: service.StatusActive},
+		{ID: 3, Name: "fresh-2", Status: service.StatusActive, Extra: map[string]any{service.AccountExtraExportedAtKey: ""}},
+		{ID: 4, Name: "fresh-3", Status: service.StatusActive},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data?only_unexported=true&limit=2&include_proxies=false", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp dataResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Len(t, resp.Data.Accounts, 2)
+	require.Equal(t, "fresh-1", resp.Data.Accounts[0].Name)
+	require.Equal(t, "fresh-2", resp.Data.Accounts[1].Name)
+}
+
+func TestExportDataMarkExportedUsesExportedAccounts(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	adminSvc.accounts = []service.Account{
+		{ID: 1, Name: "exported", Status: service.StatusActive, Extra: map[string]any{service.AccountExtraExportedAtKey: "2026-06-09T01:00:00Z"}},
+		{ID: 2, Name: "fresh", Status: service.StatusActive},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data?only_unexported=true&mark_exported=true&include_proxies=false", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp dataResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, 0, resp.Code)
+	require.Len(t, resp.Data.Accounts, 1)
+	require.Equal(t, "fresh", resp.Data.Accounts[0].Name)
+	require.Equal(t, []int64{2}, adminSvc.markedExportedIDs)
+	require.False(t, adminSvc.markedExportedAt.IsZero())
+}
+
 func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 	router, adminSvc := setupAccountDataRouter()
 

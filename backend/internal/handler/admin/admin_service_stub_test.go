@@ -24,6 +24,8 @@ type stubAdminService struct {
 	updatedProxyIDs      []int64
 	updatedProxies       []*service.UpdateProxyInput
 	testedProxyIDs       []int64
+	markedExportedIDs    []int64
+	markedExportedAt     time.Time
 	createAccountErr     error
 	updateAccountErr     error
 	bulkUpdateAccountErr error
@@ -343,6 +345,12 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
 	}
 	account := service.Account{ID: id, Name: input.Name, Status: service.StatusActive}
 	return &account, nil
+}
+
+func (s *stubAdminService) MarkAccountsExported(ctx context.Context, ids []int64, exportedAt time.Time) (int64, error) {
+	s.markedExportedIDs = append([]int64(nil), ids...)
+	s.markedExportedAt = exportedAt
+	return int64(len(ids)), nil
 }
 
 func (s *stubAdminService) DeleteAccount(ctx context.Context, id int64) error {

@@ -76,6 +76,7 @@ type AdminService interface {
 	GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error)
 	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
 	UpdateAccount(ctx context.Context, id int64, input *UpdateAccountInput) (*Account, error)
+	MarkAccountsExported(ctx context.Context, ids []int64, exportedAt time.Time) (int64, error)
 	DeleteAccount(ctx context.Context, id int64) error
 	RefreshAccountCredentials(ctx context.Context, id int64) (*Account, error)
 	ClearAccountError(ctx context.Context, id int64) (*Account, error)
@@ -2343,6 +2344,40 @@ func (s *adminServiceImpl) GetAccountsByIDs(ctx context.Context, ids []int64) ([
 	}
 
 	return accounts, nil
+}
+
+func (s *adminServiceImpl) MarkAccountsExported(ctx context.Context, ids []int64, exportedAt time.Time) (int64, error) {
+	ids = normalizeExportAccountIDs(ids)
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	if exportedAt.IsZero() {
+		exportedAt = time.Now().UTC()
+	}
+	return s.accountRepo.BulkUpdate(ctx, ids, AccountBulkUpdate{
+		Extra: map[string]any{
+			AccountExtraExportedAtKey: exportedAt.UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func normalizeExportAccountIDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {

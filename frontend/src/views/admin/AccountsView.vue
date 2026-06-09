@@ -275,6 +275,9 @@
               {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
             </span>
           </template>
+          <template #cell-exported_at="{ row }">
+            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatExportedAt(row) }}</span>
+          </template>
           <template #cell-priority="{ value }">
             <span class="text-sm text-gray-700 dark:text-gray-300">{{ value }}</span>
           </template>
@@ -344,10 +347,35 @@
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
-      <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-        <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
-        <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
-      </label>
+      <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+        <label class="flex items-center gap-2">
+          <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
+          <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="exportOnlyUnexported" />
+          <span>{{ t('admin.accounts.dataExportOnlyUnexported') }}</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="markExportedAfterExport" />
+          <span>{{ t('admin.accounts.dataExportMarkExported') }}</span>
+        </label>
+        <label class="block">
+          <span class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.accounts.dataExportLimit') }}</span>
+          <input
+            v-model="exportAccountLimit"
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            class="input w-full"
+            :placeholder="t('admin.accounts.dataExportLimitPlaceholder')"
+          />
+        </label>
+        <p v-if="selIds.length" class="text-xs text-amber-700 dark:text-amber-300">
+          {{ t('admin.accounts.dataExportSelectedHint', { count: selIds.length }) }}
+        </p>
+      </div>
     </ConfirmDialog>
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
@@ -467,6 +495,9 @@ const showSync = ref(false)
 const showImportData = ref(false)
 const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
+const exportOnlyUnexported = ref(false)
+const markExportedAfterExport = ref(false)
+const exportAccountLimit = ref('')
 const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const selectingAllFiltered = ref(false)
@@ -494,7 +525,7 @@ const exportingData = ref(false)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'priority', 'rate_multiplier']
+const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'priority', 'rate_multiplier', 'exported_at']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 
 // Sorting settings
@@ -555,6 +586,11 @@ const usageManualRefreshToken = ref(0)
 function getAccountEmail(row: { extra?: Record<string, unknown>; credentials?: Record<string, unknown> }): string | undefined {
   const email = row.extra?.email_address || row.credentials?.email
   return typeof email === 'string' ? email : undefined
+}
+
+function getAccountExportedAt(row: Account): string {
+  const exportedAt = row.extra?.exported_at
+  return typeof exportedAt === 'string' ? exportedAt : ''
 }
 
 const totalAICredits = ref(0)
@@ -1179,6 +1215,7 @@ const allColumns = computed(() => {
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
+    { key: 'exported_at', label: t('admin.accounts.columns.exportedAt'), sortable: false },
     { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
     { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
     { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
@@ -1593,17 +1630,44 @@ const formatExportTimestamp = () => {
 }
 const openExportDataDialog = () => {
   includeProxyOnExport.value = true
+  exportOnlyUnexported.value = false
+  markExportedAfterExport.value = false
+  exportAccountLimit.value = ''
   showExportDataDialog.value = true
 }
+
+const parseExportAccountLimit = (): number | undefined => {
+  const raw = exportAccountLimit.value.trim()
+  if (!raw) return undefined
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(t('admin.accounts.dataExportLimitInvalid'))
+  }
+  return parsed
+}
+
 const handleExportData = async () => {
   if (exportingData.value) return
+  let limit: number | undefined
+  try {
+    limit = parseExportAccountLimit()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.dataExportLimitInvalid'))
+    return
+  }
   exportingData.value = true
   try {
+    const exportOptions = {
+      includeProxies: includeProxyOnExport.value,
+      limit,
+      onlyUnexported: exportOnlyUnexported.value,
+      markExported: markExportedAfterExport.value
+    }
     const dataPayload = await adminAPI.accounts.exportData(
       selIds.value.length > 0
-        ? { ids: selIds.value, includeProxies: includeProxyOnExport.value }
+        ? { ids: selIds.value, ...exportOptions }
         : {
-            includeProxies: includeProxyOnExport.value,
+            ...exportOptions,
             filters: buildAccountQueryFilters()
           }
     )
@@ -1617,6 +1681,9 @@ const handleExportData = async () => {
     link.click()
     URL.revokeObjectURL(url)
     appStore.showSuccess(t('admin.accounts.dataExported'))
+    if (markExportedAfterExport.value) {
+      reload()
+    }
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.dataExportFailed'))
   } finally {
@@ -1721,6 +1788,26 @@ const formatExpiresAt = (value: number | null) => {
     'sv-SE'
   )
 }
+
+const formatExportedAt = (row: Account) => {
+  const exportedAt = getAccountExportedAt(row)
+  if (!exportedAt) return '-'
+  const date = new Date(exportedAt)
+  if (Number.isNaN(date.getTime())) return exportedAt
+  return formatDateTime(
+    date,
+    {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    },
+    'sv-SE'
+  )
+}
+
 const isExpired = (value: number | null) => {
   if (!value) return false
   return value * 1000 <= Date.now()
