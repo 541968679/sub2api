@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -162,13 +164,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
-		u := dto.UsageLogFromService(&records[i], displayMap)
-		if userDisplayRates != nil && records[i].GroupID != nil {
-			if dr, ok := userDisplayRates[*records[i].GroupID]; ok && dr.DisplayRateMultiplier != nil {
-				dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
-			}
-		}
-		out = append(out, *u)
+		out = append(out, *displayUsageRecordForUser(&records[i], displayMap, userDisplayRates))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -359,13 +355,7 @@ func (h *UsageHandler) PublicRecords(c *gin.Context) {
 	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
-		u := dto.UsageLogFromService(&records[i], displayMap)
-		if userDisplayRates != nil && records[i].GroupID != nil {
-			if dr, ok := userDisplayRates[*records[i].GroupID]; ok && dr.DisplayRateMultiplier != nil {
-				dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
-			}
-		}
-		out = append(out, *u)
+		out = append(out, *displayUsageRecordForUser(&records[i], displayMap, userDisplayRates))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -379,17 +369,23 @@ func (h *UsageHandler) PublicStats(c *gin.Context) {
 		return
 	}
 
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "Invalid API key")
+		return
+	}
+
 	startTime, endTime, ok := parseUsageDateRangeQuery(c)
 	if !ok {
 		return
 	}
 
-	stats, err := h.usageService.GetStatsByAPIKey(c.Request.Context(), apiKey.ID, startTime, endTime)
+	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKey.ID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, stats)
+	response.Success(c, aggregateDisplayedPublicUsageStats(records))
 }
 
 // PublicTrend returns selected-range usage trend data for the API key used to authenticate the request.
@@ -413,11 +409,12 @@ func (h *UsageHandler) PublicTrend(c *gin.Context) {
 	}
 	granularity := c.DefaultQuery("granularity", "day")
 
-	trend, err := h.usageService.GetUserUsageTrendWithFilters(c.Request.Context(), subject.UserID, apiKey.ID, startTime, endTime, granularity)
+	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKey.ID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
+	trend := aggregateDisplayedPublicUsageTrend(records, granularity)
 
 	response.Success(c, gin.H{
 		"trend":       trend,
@@ -756,6 +753,120 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"stats": stats})
+}
+
+const publicUsageAggregationPageSize = 1000
+
+func (h *UsageHandler) loadAllDisplayedPublicUsageRecords(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
+	displayMap := h.loadDisplayPricingMapForUser(c, userID)
+	userDisplayRates := h.loadUserDisplayRates(c, userID)
+	filters := usagestats.UsageLogFilters{
+		UserID:     userID,
+		APIKeyID:   apiKeyID,
+		StartTime:  &startTime,
+		EndTime:    &endTime,
+		ExactTotal: true,
+	}
+	out := make([]dto.UsageLog, 0)
+	for page := 1; ; page++ {
+		records, result, err := h.usageService.ListWithFilters(c.Request.Context(), pagination.PaginationParams{
+			Page:      page,
+			PageSize:  publicUsageAggregationPageSize,
+			SortBy:    "created_at",
+			SortOrder: pagination.SortOrderAsc,
+		}, filters)
+		if err != nil {
+			return nil, err
+		}
+		for i := range records {
+			out = append(out, *displayUsageRecordForUser(&records[i], displayMap, userDisplayRates))
+		}
+		if len(records) == 0 || result == nil || page >= result.Pages || int64(len(out)) >= result.Total {
+			break
+		}
+	}
+	return out, nil
+}
+
+func displayUsageRecordForUser(record *service.UsageLog, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) *dto.UsageLog {
+	u := dto.UsageLogFromService(record, displayMap)
+	if u == nil {
+		return nil
+	}
+	if userDisplayRates != nil && record.GroupID != nil {
+		if dr, ok := userDisplayRates[*record.GroupID]; ok && dr.DisplayRateMultiplier != nil {
+			dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
+		}
+	}
+	return u
+}
+
+func aggregateDisplayedPublicUsageStats(records []dto.UsageLog) *service.UsageStats {
+	stats := &service.UsageStats{}
+	var durationSum float64
+	for i := range records {
+		record := &records[i]
+		stats.TotalRequests++
+		stats.TotalInputTokens += int64(record.InputTokens)
+		stats.TotalOutputTokens += int64(record.OutputTokens)
+		stats.TotalCacheTokens += int64(record.CacheCreationTokens + record.CacheReadTokens)
+		stats.TotalCost += record.TotalCost
+		stats.TotalActualCost += record.ActualCost
+		if record.DurationMs != nil {
+			durationSum += float64(*record.DurationMs)
+		}
+	}
+	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	if stats.TotalRequests > 0 {
+		stats.AverageDurationMs = durationSum / float64(stats.TotalRequests)
+	}
+	return stats
+}
+
+func aggregateDisplayedPublicUsageTrend(records []dto.UsageLog, granularity string) []usagestats.TrendDataPoint {
+	buckets := make(map[string]*usagestats.TrendDataPoint)
+	for i := range records {
+		record := &records[i]
+		label := publicUsageTrendBucketLabel(record.CreatedAt, granularity)
+		point := buckets[label]
+		if point == nil {
+			point = &usagestats.TrendDataPoint{Date: label}
+			buckets[label] = point
+		}
+		point.Requests++
+		point.InputTokens += int64(record.InputTokens)
+		point.OutputTokens += int64(record.OutputTokens)
+		point.CacheCreationTokens += int64(record.CacheCreationTokens)
+		point.CacheReadTokens += int64(record.CacheReadTokens)
+		point.TotalTokens += int64(record.InputTokens + record.OutputTokens + record.CacheCreationTokens + record.CacheReadTokens)
+		point.Cost += record.TotalCost
+		point.ActualCost += record.ActualCost
+	}
+
+	labels := make([]string, 0, len(buckets))
+	for label := range buckets {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	out := make([]usagestats.TrendDataPoint, 0, len(labels))
+	for _, label := range labels {
+		out = append(out, *buckets[label])
+	}
+	return out
+}
+
+func publicUsageTrendBucketLabel(t time.Time, granularity string) string {
+	switch granularity {
+	case "hour":
+		return t.Format("2006-01-02 15:00")
+	case "week":
+		year, week := t.ISOWeek()
+		return fmt.Sprintf("%04d-%02d", year, week)
+	case "month":
+		return t.Format("2006-01")
+	default:
+		return t.Format("2006-01-02")
+	}
 }
 
 func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingMap {

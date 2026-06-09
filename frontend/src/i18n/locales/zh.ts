@@ -145,8 +145,16 @@ const zhBase = {
     totalTokens: '总 Tokens',
     cost: '费用',
     // Status
+    availableBalance: '可用余额/额度',
     quotaMode: 'Key 限额模式',
     walletBalance: '钱包余额',
+    subscriptionRemaining: '订阅剩余额度',
+    rateWindowRemaining: '窗口剩余额度',
+    balanceUnavailable: '暂无余额信息',
+    quotaDetail: '总额度 {limit} · 已用 {used}',
+    subscriptionDetail: '{plan} · 到期 {expires}',
+    rateLimitDetail: '{window} 上限 {limit}',
+    noExpiry: '不过期',
     // Ring card titles
     totalQuota: '总额度',
     limit5h: '5 小时限额',
@@ -6858,6 +6866,7 @@ const v117ZhPatch = {
       balance: '分销余额',
       recharged: '累计充值',
       spent: '累计消耗',
+      refunded: '累计退款',
     },
     intro: {
       eyebrow: '代理合作',
@@ -6924,6 +6933,11 @@ const v117ZhPatch = {
           description: 'API Key 可停用后再启用；退款只退剩余额度对应成本，退款后 Key 会彻底失效。',
         },
       },
+      customerUsage: {
+        title: '客户用量查询',
+        description: '交付 API Key 后，让客户打开 {url}，输入该 Key 查看余额、用量记录、趋势和费用。',
+        copyLink: '复制查询链接',
+      },
     },
     features: {
       recharge: {
@@ -6975,6 +6989,7 @@ const v117ZhPatch = {
       apiKeyUsageTitle: '使用说明：',
       apiKeyUsageBaseUrl: '将 API Base URL 设置为 {baseUrl}',
       apiKeyUsageBearer: '将 API Key 作为 Bearer Token 使用',
+      apiKeyUsageCustomerUsage: '客户用量查询：{url}',
       apiKeyUsageOpenAI: 'OpenAI 兼容调用示例',
     },
     assets: {

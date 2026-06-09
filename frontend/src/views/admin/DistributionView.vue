@@ -69,7 +69,7 @@
           </div>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[1180px] text-left text-sm">
+          <table class="w-full min-w-[1260px] text-left text-sm">
             <thead>
               <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
                 <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.user') }}</th>
@@ -79,6 +79,7 @@
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.balance') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.recharged') }}</th>
                 <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.spent') }}</th>
+                <th class="px-3 py-2 font-medium text-right">{{ t('distribution.stats.refunded') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('admin.distribution.columns.createdAt') }}</th>
                 <th class="px-3 py-2 font-medium">{{ t('common.actions') }}</th>
               </tr>
@@ -97,6 +98,7 @@
                 <td class="px-3 py-3 text-right font-medium">{{ agent.wallet ? formatCurrency(agent.wallet.balance, 'CNY') : '-' }}</td>
                 <td class="px-3 py-3 text-right">{{ agent.wallet ? formatCurrency(agent.wallet.total_recharged, 'CNY') : '-' }}</td>
                 <td class="px-3 py-3 text-right">{{ agent.wallet ? formatCurrency(agent.wallet.total_spent, 'CNY') : '-' }}</td>
+                <td class="px-3 py-3 text-right">{{ agent.wallet ? formatCurrency(agent.wallet.total_refunded, 'CNY') : '-' }}</td>
                 <td class="px-3 py-3">{{ formatDateTime(agent.created_at) }}</td>
                 <td class="px-3 py-3">
                   <div class="flex items-center gap-2">

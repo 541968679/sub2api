@@ -83,6 +83,7 @@ type DistributionWallet struct {
 	Balance        float64   `json:"balance"`
 	TotalRecharged float64   `json:"total_recharged"`
 	TotalSpent     float64   `json:"total_spent"`
+	TotalRefunded  float64   `json:"total_refunded"`
 	TotalRebate    float64   `json:"total_rebate"`
 	Status         string    `json:"status"`
 	CreatedAt      time.Time `json:"created_at"`

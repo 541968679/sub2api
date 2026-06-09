@@ -295,10 +295,18 @@ WHERE ($1 = '%%' OR u.email ILIKE $1 OR u.username ILIKE $1 OR dw.user_id::text 
 	rows, err := client.QueryContext(ctx, `
 SELECT dw.id, dw.user_id, dw.agent_id, COALESCE(u.email, ''), COALESCE(u.username, ''),
        dw.balance::double precision, dw.total_recharged::double precision,
-       dw.total_spent::double precision, dw.total_rebate::double precision,
+       dw.total_spent::double precision,
+       COALESCE(refunds.total_refunded, 0)::double precision,
+       dw.total_rebate::double precision,
        dw.status, dw.created_at, dw.updated_at
 FROM distribution_wallets dw
 JOIN users u ON u.id = dw.user_id
+LEFT JOIN (
+    SELECT wallet_id, SUM(amount) AS total_refunded
+    FROM distribution_wallet_ledger
+    WHERE action = 'asset_refund' AND amount > 0
+    GROUP BY wallet_id
+) refunds ON refunds.wallet_id = dw.id
 WHERE ($1 = '%%' OR u.email ILIKE $1 OR u.username ILIKE $1 OR dw.user_id::text = trim(both '%' from $1))
 ORDER BY dw.updated_at DESC, dw.id DESC
 LIMIT $2 OFFSET $3`, like, pageSize, offset)
@@ -310,7 +318,7 @@ LIMIT $2 OFFSET $3`, like, pageSize, offset)
 	out := make([]service.DistributionWallet, 0)
 	for rows.Next() {
 		var item service.DistributionWallet
-		if err := rows.Scan(&item.ID, &item.UserID, &item.AgentID, &item.UserEmail, &item.Username, &item.Balance, &item.TotalRecharged, &item.TotalSpent, &item.TotalRebate, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.UserID, &item.AgentID, &item.UserEmail, &item.Username, &item.Balance, &item.TotalRecharged, &item.TotalSpent, &item.TotalRefunded, &item.TotalRebate, &item.Status, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, item)
@@ -787,7 +795,13 @@ RETURNING id, user_id, agent_id, balance::double precision, total_recharged::dou
 	if err := rows.Scan(&wallet.ID, &wallet.UserID, &wallet.AgentID, &wallet.Balance, &wallet.TotalRecharged, &wallet.TotalSpent, &wallet.TotalRebate, &wallet.Status, &wallet.CreatedAt, &wallet.UpdatedAt); err != nil {
 		return nil, err
 	}
-	return &wallet, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := loadDistributionWalletRefundTotal(ctx, client, &wallet); err != nil {
+		return nil, err
+	}
+	return &wallet, nil
 }
 
 func (r *distributionRepository) AdjustWalletBalance(ctx context.Context, userID int64, amount float64, action, referenceType, referenceID, note string, createdBy int64) (*service.DistributionWallet, error) {
@@ -836,6 +850,9 @@ INSERT INTO distribution_wallet_ledger (wallet_id, user_id, action, amount, bala
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
 			updated.ID, updated.UserID, action, amount, updated.Balance, referenceType, referenceID, note, nullablePositiveInt64(createdBy))
 		if err != nil {
+			return err
+		}
+		if err := loadDistributionWalletRefundTotal(txCtx, txClient, &updated); err != nil {
 			return err
 		}
 		out = &updated
@@ -935,6 +952,9 @@ RETURNING id, user_id, agent_id, balance::double precision, total_recharged::dou
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := loadDistributionWalletRefundTotal(ctx, client, &wallet); err != nil {
+		return nil, err
+	}
 	return &wallet, nil
 }
 
@@ -963,7 +983,31 @@ WHERE user_id = $1`, userID)
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := loadDistributionWalletRefundTotal(ctx, client, &wallet); err != nil {
+		return nil, err
+	}
 	return &wallet, nil
+}
+
+func loadDistributionWalletRefundTotal(ctx context.Context, client *dbent.Client, wallet *service.DistributionWallet) error {
+	if client == nil || wallet == nil || wallet.ID <= 0 {
+		return nil
+	}
+	rows, err := client.QueryContext(ctx, `
+SELECT COALESCE(SUM(amount), 0)::double precision
+FROM distribution_wallet_ledger
+WHERE wallet_id = $1 AND action = 'asset_refund' AND amount > 0`, wallet.ID)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = rows.Close() }()
+	if !rows.Next() {
+		return rows.Err()
+	}
+	if err := rows.Scan(&wallet.TotalRefunded); err != nil {
+		return err
+	}
+	return rows.Err()
 }
 
 func queryDistributionAPIKeyReference(ctx context.Context, client *dbent.Client, id int64, userID int64, forUpdate bool) (*service.DistributionAPIKeyReference, error) {

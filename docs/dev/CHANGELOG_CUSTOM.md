@@ -19,6 +19,33 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-09] feat: expose distribution wallet refund totals
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, frontend/src/types/index.ts, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: additive API response field for distribution wallets; no schema or billing behavior changes.
+**Change details**:
+- Added a derived `total_refunded` wallet field based on all positive `asset_refund` ledger entries.
+- Displayed cumulative refunds on the approved-agent page and in the admin distribution agent accounts table.
+- Keeps the visible reconciliation relationship complete: total recharged equals balance plus gross spend minus refunded amount.
+
+## [2026-06-09] feat: show customer usage lookup link in agent center
+
+**Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only agent center copy/link enhancement; uses the existing public `/key-usage` route and does not change API key auth, usage storage, or billing behavior.
+**Change details**:
+- Added customer usage lookup guidance inside the approved-agent tutorial, with the fully joined lookup URL based on the current site origin plus `/key-usage`.
+- Included the same customer usage lookup URL in generated API key delivery text so agents can send customers to the public usage page.
+- Added Chinese and English labels for the customer usage lookup guidance.
+
+## [2026-06-09] fix: align public API key usage display totals
+
+**Affected files**: backend/internal/handler/usage_handler.go, backend/internal/handler/usage_handler_public_alignment_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to API-key-authenticated public usage endpoints used by `/key-usage`; does not change usage storage, billing deduction, admin dashboards, or authenticated user dashboard endpoints.
+**Change details**:
+- Changed public `/v1/usage/stats` and `/v1/usage/trend` to aggregate from the same display-transformed records used by `/v1/usage/records`, including user model display pricing and user group display rate multipliers.
+- Batched the public stats/trend source query at 1000 rows per page so totals cover the full selected date range instead of the visible table page.
+- Added handler tests asserting records, stats, and trend totals match for actual cost, display cost, and display-transformed token counts.
+
 ## [2026-06-09] fix: sync Phase 8C usage window, ops metric, and select UI
 
 **Affected files**: backend/internal/repository/account_repo.go, backend/internal/service/account_service.go, backend/internal/service/account_usage_service.go, backend/internal/service/account_usage_session_window_test.go, backend/internal/service/ops_alert_evaluator_service.go, backend/internal/service/ops_alert_evaluator_service_test.go, backend/internal/handler/admin/ops_alerts_handler.go, backend/internal/server/api_contract_test.go, backend/internal/service/*_test.go, frontend/src/components/account/UsageProgressBar.vue, frontend/src/components/account/__tests__/UsageProgressBar.spec.ts, frontend/src/components/common/Select.vue, frontend/src/api/admin/ops.ts, frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/codebase/ops.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
@@ -49,6 +76,15 @@
 - Added OpenAI sticky-session group checks so stale session-bound accounts outside the current group are cleared before selection continues.
 - Namespaced local OpenAI response-id account bindings by group and stripped mismatched WSv2 first-packet `previous_response_id` when the current group did not hit the sticky previous-response binding.
 - Added focused unit coverage for exclusive-group API key rejection, auth-cache round trip fields, sticky group clearing, and `previous_response_id` body stripping.
+
+## [2026-06-09] feat: show API key balance on public usage page
+
+**Affected files**: frontend/src/views/KeyUsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only enhancement for the local public `/key-usage` page; reuses the existing API-key-authenticated `/v1/usage` summary endpoint without changing gateway authentication, billing, usage storage, or backend routes.
+**Change details**:
+- Added an available balance/quota card to `/key-usage` so customers can see the queried API key's wallet balance, fixed key quota remaining, subscription remaining quota, or rate-limit window remaining from the existing `/v1/usage` response.
+- Kept records, stats, and trend queries unchanged; the balance summary is loaded alongside `/v1/usage/records`, `/v1/usage/stats`, and `/v1/usage/trend` using the same browser-local Bearer API key.
+- Added Chinese and English labels for the new balance states and details.
 
 ## [2026-06-07] feat: sync Phase 7 upstream model sync
 

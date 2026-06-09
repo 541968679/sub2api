@@ -145,8 +145,16 @@ const enBase = {
     totalTokens: 'Total Tokens',
     cost: 'Cost',
     // Status
+    availableBalance: 'Available Balance / Quota',
     quotaMode: 'Key Quota Mode',
     walletBalance: 'Wallet Balance',
+    subscriptionRemaining: 'Subscription Remaining',
+    rateWindowRemaining: 'Window Remaining',
+    balanceUnavailable: 'No balance information',
+    quotaDetail: 'Total {limit} · Used {used}',
+    subscriptionDetail: '{plan} · Expires {expires}',
+    rateLimitDetail: '{window} limit {limit}',
+    noExpiry: 'No expiry',
     // Ring card titles
     totalQuota: 'Total Quota',
     limit5h: '5-Hour Limit',
@@ -7107,6 +7115,7 @@ const enBase = {
       balance: 'Distribution balance',
       recharged: 'Total recharged',
       spent: 'Total spent',
+      refunded: 'Total refunded',
     },
     intro: {
       eyebrow: 'Agent program',
@@ -7173,6 +7182,11 @@ const enBase = {
           description: 'API keys can be disabled and re-enabled. Refunds return only the remaining quota value to the agent wallet.',
         },
       },
+      customerUsage: {
+        title: 'Customer usage lookup',
+        description: 'After delivering an API key, send the customer to {url}. They can enter the key there to view balance, usage records, trends, and costs.',
+        copyLink: 'Copy lookup link',
+      },
     },
     features: {
       recharge: {
@@ -7224,6 +7238,7 @@ const enBase = {
       apiKeyUsageTitle: 'Usage:',
       apiKeyUsageBaseUrl: 'Set the API base URL to {baseUrl}',
       apiKeyUsageBearer: 'Use the API key as a Bearer token',
+      apiKeyUsageCustomerUsage: 'Customer usage lookup: {url}',
       apiKeyUsageOpenAI: 'OpenAI-compatible example',
     },
     assets: {

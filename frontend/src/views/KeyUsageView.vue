@@ -28,7 +28,26 @@
     <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <TablePageLayout scroll-mode="page">
         <template #actions>
-          <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="card p-4">
+              <div class="flex items-center gap-3">
+                <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
+                  <Icon name="creditCard" size="md" class="text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {{ balanceCardTitle }}
+                  </p>
+                  <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                    {{ balanceCardValue }}
+                  </p>
+                  <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+                    {{ balanceCardDetail }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div class="card p-4">
               <div class="flex items-center gap-3">
                 <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
@@ -453,6 +472,7 @@ const appStore = useAppStore()
 let recordsAbortController: AbortController | null = null
 let statsAbortController: AbortController | null = null
 let trendAbortController: AbortController | null = null
+let summaryAbortController: AbortController | null = null
 
 const apiKey = ref('')
 const keyVisible = ref(false)
@@ -460,9 +480,51 @@ const queried = ref(false)
 const usageStats = ref<UsageStatsResponse | null>(null)
 const usageTrend = ref<TrendDataPoint[]>([])
 const usageLogs = ref<UsageLog[]>([])
+const usageSummary = ref<PublicUsageSummary | null>(null)
 const loading = ref(false)
 const trendLoading = ref(false)
 const isDark = ref(document.documentElement.classList.contains('dark'))
+
+interface PublicUsageQuota {
+  limit: number
+  used: number
+  remaining: number
+  unit?: string
+}
+
+interface PublicUsageRateLimit {
+  window: string
+  limit: number
+  used: number
+  remaining: number
+  reset_at?: string | null
+  window_start?: string | null
+}
+
+interface PublicUsageSubscription {
+  daily_usage_usd?: number
+  weekly_usage_usd?: number
+  monthly_usage_usd?: number
+  daily_limit_usd?: number
+  weekly_limit_usd?: number
+  monthly_limit_usd?: number
+  expires_at?: string | null
+}
+
+interface PublicUsageSummary {
+  mode: 'quota_limited' | 'unrestricted'
+  isValid?: boolean
+  status?: string
+  planName?: string
+  unit?: string
+  remaining?: number
+  balance?: number
+  quota?: PublicUsageQuota
+  rate_limits?: PublicUsageRateLimit[]
+  expires_at?: string | null
+  days_until_expiry?: number
+  subscription?: PublicUsageSubscription
+}
 
 const tooltipVisible = ref(false)
 const tooltipPosition = ref({ x: 0, y: 0 })
@@ -514,6 +576,63 @@ const columns = computed<Column[]>(() => [
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false }
 ])
 
+const firstRateLimit = computed(() => usageSummary.value?.rate_limits?.[0] || null)
+
+const visibleBalanceAmount = computed<number | null>(() => {
+  const summary = usageSummary.value
+  if (!summary) return null
+  if (Number.isFinite(summary.quota?.remaining)) return summary.quota!.remaining
+  if (Number.isFinite(summary.balance)) return summary.balance!
+  if (Number.isFinite(summary.remaining)) return summary.remaining!
+  if (Number.isFinite(firstRateLimit.value?.remaining)) return firstRateLimit.value!.remaining
+  return null
+})
+
+const balanceCardTitle = computed(() => {
+  const summary = usageSummary.value
+  if (!summary) return t('keyUsage.availableBalance')
+  if (summary.quota) return t('keyUsage.remainingQuota')
+  if (summary.subscription) return t('keyUsage.subscriptionRemaining')
+  if (Number.isFinite(summary.balance)) return t('keyUsage.walletBalance')
+  if (firstRateLimit.value) return t('keyUsage.rateWindowRemaining')
+  return t('keyUsage.availableBalance')
+})
+
+const balanceCardValue = computed(() => {
+  if (!queried.value) return '-'
+  const amount = visibleBalanceAmount.value
+  if (amount == null) return '-'
+  return formatUSD(amount)
+})
+
+const balanceCardDetail = computed(() => {
+  if (!queried.value) return t('keyUsage.awaitingQuery')
+  const summary = usageSummary.value
+  if (!summary) return t('keyUsage.balanceUnavailable')
+  if (summary.quota) {
+    return t('keyUsage.quotaDetail', {
+      limit: formatUSD(summary.quota.limit),
+      used: formatUSD(summary.quota.used)
+    })
+  }
+  if (summary.subscription) {
+    return t('keyUsage.subscriptionDetail', {
+      plan: summary.planName || t('keyUsage.subscriptionType'),
+      expires: summary.subscription.expires_at ? formatDateTime(summary.subscription.expires_at) : t('keyUsage.noExpiry')
+    })
+  }
+  if (Number.isFinite(summary.balance)) {
+    return summary.planName || t('keyUsage.walletBalance')
+  }
+  if (firstRateLimit.value) {
+    return t('keyUsage.rateLimitDetail', {
+      window: formatRateLimitWindow(firstRateLimit.value.window),
+      limit: formatUSD(firstRateLimit.value.limit)
+    })
+  }
+  return t('keyUsage.balanceUnavailable')
+})
+
 const timezone = (): string => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -562,6 +681,25 @@ async function publicUsageFetch<T>(path: string, params: URLSearchParams, signal
     throw new Error(body.message || t('keyUsage.queryFailedRetry'))
   }
   return body as T
+}
+
+const loadUsageSummary = async () => {
+  if (!apiKey.value.trim()) return
+  summaryAbortController?.abort()
+  const current = new AbortController()
+  summaryAbortController = current
+  try {
+    const summary = await publicUsageFetch<PublicUsageSummary>(
+      '/v1/usage',
+      queryParams(),
+      current.signal
+    )
+    if (current.signal.aborted) return
+    usageSummary.value = summary
+  } catch {
+    if (current.signal.aborted) return
+    usageSummary.value = null
+  }
 }
 
 const buildRecordsParams = () =>
@@ -647,7 +785,7 @@ const loadUsageTrend = async () => {
 }
 
 const loadAll = async () => {
-  await Promise.all([loadUsageLogs(), loadUsageStats(), loadUsageTrend()])
+  await Promise.all([loadUsageSummary(), loadUsageLogs(), loadUsageStats(), loadUsageTrend()])
 }
 
 const applyFilters = () => {
@@ -713,6 +851,18 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
+const formatUSD = (value: number): string => {
+  if (!Number.isFinite(value)) return '-'
+  return `$${value.toFixed(4)}`
+}
+
+const formatRateLimitWindow = (window: string): string => {
+  if (window === '5h') return t('keyUsage.limit5h')
+  if (window === '1d') return t('keyUsage.limitDaily')
+  if (window === '7d') return t('keyUsage.limit7d')
+  return window
+}
+
 const formatImageMeta = (value: string | null | undefined): string => {
   return value?.trim() || '-'
 }
@@ -770,6 +920,7 @@ onBeforeUnmount(() => {
   recordsAbortController?.abort()
   statsAbortController?.abort()
   trendAbortController?.abort()
+  summaryAbortController?.abort()
   hideTooltip()
   hideTokenTooltip()
 })

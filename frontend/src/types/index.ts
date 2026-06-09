@@ -186,6 +186,7 @@ export interface DistributionWallet {
   balance: number
   total_recharged: number
   total_spent: number
+  total_refunded: number
   total_rebate: number
   status: DistributionWalletStatus
   created_at: string

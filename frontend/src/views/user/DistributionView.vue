@@ -6,7 +6,7 @@
       </div>
 
       <template v-else>
-        <div class="grid gap-4 md:grid-cols-4">
+        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div class="card p-5">
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('distribution.stats.status') }}</p>
             <p class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{{ statusLabel }}</p>
@@ -27,6 +27,12 @@
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('distribution.stats.spent') }}</p>
             <p class="mt-2 text-2xl font-semibold text-primary-600 dark:text-primary-400">
               {{ formatCurrency(summary?.wallet?.total_spent ?? 0, 'CNY') }}
+            </p>
+          </div>
+          <div class="card p-5">
+            <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('distribution.stats.refunded') }}</p>
+            <p class="mt-2 text-2xl font-semibold text-rose-600 dark:text-rose-400">
+              {{ formatCurrency(summary?.wallet?.total_refunded ?? 0, 'CNY') }}
             </p>
           </div>
         </div>
@@ -111,6 +117,27 @@
                   <p class="mt-1 text-sm leading-5 text-gray-500 dark:text-dark-400">{{ step.description }}</p>
                 </div>
               </div>
+            </div>
+          </div>
+          <div class="mt-5 rounded-xl border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-900/40 dark:bg-primary-950/20">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('distribution.tutorial.customerUsage.title') }}</p>
+                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-dark-300">
+                  {{ t('distribution.tutorial.customerUsage.description', { url: customerUsageURL }) }}
+                </p>
+                <a
+                  class="mt-2 block break-all font-mono text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300 dark:hover:text-primary-200"
+                  :href="customerUsageURL"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {{ customerUsageURL }}
+                </a>
+              </div>
+              <button class="btn btn-secondary shrink-0" type="button" @click="copy(customerUsageURL)">
+                {{ t('distribution.tutorial.customerUsage.copyLink') }}
+              </button>
             </div>
           </div>
         </div>
@@ -390,6 +417,7 @@ const subscriptionForm = reactive({ plan_id: 0, note: '' })
 const apiForm = reactive({ name: 'Distribution API Key', quota_usd: 10, group_id: 0, expires_in_days: 0 })
 const generating = reactive({ balance: false, subscription: false, api: false })
 const rechargeDialog = reactive({ open: false, quota_usd: 10, asset: null as DistributionAsset | null })
+const customerUsageURL = computed(() => new URL('/key-usage', window.location.origin).toString())
 const benefitItems = computed(() => [
   {
     title: t('distribution.intro.benefits.lowCost.title'),
@@ -680,7 +708,8 @@ function apiKeyCopyText(baseURL: string, key: string): string {
     t('distribution.generated.apiKeyUsageTitle'),
     `1. ${t('distribution.generated.apiKeyUsageBaseUrl', { baseUrl: normalizedBaseURL })}`,
     `2. ${t('distribution.generated.apiKeyUsageBearer')}`,
-    `3. ${t('distribution.generated.apiKeyUsageOpenAI')}:`,
+    `3. ${t('distribution.generated.apiKeyUsageCustomerUsage', { url: customerUsageURL.value })}`,
+    `4. ${t('distribution.generated.apiKeyUsageOpenAI')}:`,
     `curl ${normalizedBaseURL}/v1/chat/completions \\`,
     `  -H "Authorization: Bearer ${key}" \\`,
     `  -H "Content-Type: application/json" \\`,
