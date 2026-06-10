@@ -330,6 +330,9 @@ var claudeVersionRe = regexp.MustCompile(`claude-(?:haiku|sonnet|opus)-(\d+)[-.]
 // Claude 4.5+ 支持 cache_control 中的 ttl 字段（"5m" 和 "1h"）
 func isBedrockClaude45OrNewer(modelID string) bool {
 	lower := strings.ToLower(modelID)
+	if strings.Contains(lower, "claude-fable-5") {
+		return true
+	}
 	matches := claudeVersionRe.FindStringSubmatch(lower)
 	if matches == nil {
 		return false
