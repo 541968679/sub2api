@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-10] fix: align OpenAI account test with raw chat-compatible upstreams
+
+**Affected files**: backend/internal/service/account_test_service.go, backend/internal/service/account_test_service_openai_test.go, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: backend account-test behavior now follows the existing OpenAI API-key gateway capability flag for third-party OpenAI-compatible upstreams; no schema, account credential, billing, scheduling, or frontend contract changes.
+**Change details**:
+- Changed OpenAI API-key account connection tests to use `/v1/chat/completions` when `openai_compat.ShouldUseResponsesAPI(account.extra)` is false, matching the real gateway path used for DeepSeek/Kimi/GLM/Qwen-style upstreams.
+- Added a Chat Completions test payload and SSE parser for admin account tests, mapping `delta.content` and `delta.reasoning_content` chunks into the existing test UI content events.
+- Preserved the existing `/v1/responses` account-test path for OpenAI OAuth accounts and API-key accounts that support Responses.
+- Added a regression test proving `force_chat_completions` accounts no longer fail before contacting upstream and send the expected `/v1/chat/completions` request.
+- Verified with `go test -tags=unit ./internal/service -run TestAccountTestService_OpenAIAPIKeyForceChatCompletionsUsesRawChatTestPath -count=1`, `go test -tags=unit ./internal/service -run "TestAccountTestService_OpenAI" -count=1`, and `git diff --check`.
+
 ## [2026-06-10] fix: batch account deletion after cross-page selection
 
 **Affected files**: frontend/src/views/admin/AccountsView.vue, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md

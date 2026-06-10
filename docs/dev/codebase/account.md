@@ -79,6 +79,24 @@ Implementation notes:
 - `openai_images_endpoint_enabled` is scheduler-relevant, so updating it must
   enqueue scheduler outbox work and refresh account snapshots.
 
+## OpenAI API-Key Account Connection Tests
+
+The admin account-test endpoint must follow the same upstream capability
+decision as the real OpenAI API-key gateway path.
+
+Important mechanisms:
+
+- API-key accounts that support Responses continue to test with
+  `{base_url}/v1/responses`.
+- API-key accounts whose `extra.openai_responses_mode` or
+  `extra.openai_responses_supported` resolve to "do not use Responses" test
+  with `{base_url}/v1/chat/completions`, matching the production raw
+  Chat Completions forwarding path.
+- The Chat Completions test stream maps upstream `delta.content` and
+  `delta.reasoning_content` chunks into the existing account-test SSE
+  `content` events, so DeepSeek/Kimi/GLM/Qwen-style compatible upstreams can be
+  validated from the admin UI instead of failing before the request is sent.
+
 ## Upstream Model Sync
 
 Admins can fetch a live model list from an account's upstream model-list API and
