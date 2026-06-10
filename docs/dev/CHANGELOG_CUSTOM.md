@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-10] upstream-sync: add Claude Fable 5 support
+
+**Affected files**: backend/internal/domain/constants.go, backend/internal/domain/constants_test.go, backend/internal/pkg/antigravity/claude_types.go, backend/internal/pkg/antigravity/claude_types_test.go, backend/internal/pkg/antigravity/request_transformer.go, backend/internal/pkg/claude/constants.go, backend/internal/service/antigravity_model_mapping_test.go, backend/internal/service/bedrock_request.go, backend/internal/service/bedrock_request_test.go, frontend/src/components/account/AccountStatusIndicator.vue, frontend/src/components/account/AccountUsageCell.vue, frontend/src/components/keys/UseKeyModal.vue, frontend/src/components/keys/__tests__/UseKeyModal.spec.ts, frontend/src/composables/__tests__/useModelWhitelist.spec.ts, frontend/src/composables/useModelWhitelist.ts
+**Upstream compatibility**: cherry-picked upstream `d662c97302586edfd711a4a2b3a19fe2a95aa1e1` as local commit `170b4972`; conflict resolution retained the current branch's existing Opus 4.8 and Bedrock baseline while applying the Claude Fable 5 model, mapping, whitelist, and focused Bedrock ID/cache-control support. No database migration, pricing resource, or deployment change.
+**Change details**:
+- Added `claude-fable-5` to Claude, Antigravity, and Bedrock default model mappings, model lists, UI whitelist presets, account usage/status labels, and generated OpenCode config.
+- Added focused regression coverage for Claude/Antigravity model exposure, default mapping passthrough, Bedrock model ID resolution, and frontend whitelist/OpenCode config rendering.
+- Verified with `go test -tags=unit ./internal/domain ./internal/pkg/antigravity ./internal/service -run "TestDefault|TestAntigravity|TestIsBedrockClaude45OrNewer|TestResolveBedrockModelID" -count=1`, `pnpm --dir frontend test:run src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts`, and `git diff --check`.
+
 ## [2026-06-10] fix: normalize OpenAI Responses account-test URLs
 
 **Affected files**: backend/internal/service/account_test_service.go, backend/internal/service/openai_apikey_responses_probe.go, backend/internal/service/account_test_service_openai_test.go, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md
