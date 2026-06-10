@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-10] fix: tolerate compatible OpenAI account-test streams
+
+**Affected files**: backend/internal/service/account_test_service.go, backend/internal/service/account_test_service_openai_test.go, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: account-test parser hardening only; no API contract, account schema, billing, scheduling, or frontend behavior changes.
+**Change details**:
+- Relaxed OpenAI account-test stream completion for compatibility providers: once a Responses or Chat Completions test stream emits valid content, EOF or `[DONE]` is accepted as a successful connectivity probe instead of requiring `response.completed`.
+- Added tolerance for Chat Completions chunks returned through the Responses test parser, mapping `delta.content` and `delta.reasoning_content` into existing account-test content events.
+- Preserved failure behavior for empty OpenAI streams that end before any content, completion marker, or terminal chat chunk.
+- Handled final SSE lines without a trailing newline so the last content chunk or `[DONE]` marker is not discarded at EOF.
+- Added regression coverage for empty stream failure, Responses content plus EOF, Responses content plus `[DONE]`, Chat Completions chunks through the Responses parser, and raw Chat Completions content plus EOF.
+- Verified with `go test -tags=unit ./internal/service -run "TestAccountTestService_OpenAI(EmptyStreamBeforeCompletedFails|ResponsesPathAccepts|ChatCompletionsPathAccepts|APIKeyForceChatCompletions)" -count=1`, `go test -tags=unit ./internal/service -run "TestAccountTestService_OpenAI" -count=1`, and `git diff --check`.
+
 ## [2026-06-10] fix: align OpenAI account test with raw chat-compatible upstreams
 
 **Affected files**: backend/internal/service/account_test_service.go, backend/internal/service/account_test_service_openai_test.go, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md

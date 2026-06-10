@@ -1319,50 +1319,53 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
 	seenCompleted := false
+	seenContent := false
+	seenChatTerminal := false
 
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				if seenCompleted {
-					s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-					return nil
-				}
-				return s.sendErrorAndEnd(c, "Stream ended before response.completed")
-			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+	finish := func() error {
+		if seenCompleted || seenChatTerminal || seenContent {
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
 		}
+		return s.sendErrorAndEnd(c, "Stream ended before response.completed")
+	}
 
+	processLine := func(line string) (done bool, err error) {
 		line = strings.TrimSpace(line)
 		if line == "" || !sseDataPrefix.MatchString(line) {
-			continue
+			return false, nil
 		}
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
 		if jsonStr == "[DONE]" {
-			if seenCompleted {
-				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-				return nil
-			}
-			return s.sendErrorAndEnd(c, "Stream ended before response.completed")
+			return true, finish()
 		}
 
 		var data map[string]any
 		if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-			continue
+			return false, nil
 		}
 
 		eventType, _ := data["type"].(string)
 
 		switch eventType {
 		case "response.output_text.delta":
-			// OpenAI Responses API uses "delta" field for text content
+			// OpenAI Responses API uses "delta" field for text content.
 			if delta, ok := data["delta"].(string); ok && delta != "" {
 				s.sendEvent(c, TestEvent{Type: "content", Text: delta})
+				seenContent = true
+			}
+		case "response.output_text.done":
+			if text, ok := data["text"].(string); ok && text != "" {
+				if !seenContent {
+					s.sendEvent(c, TestEvent{Type: "content", Text: text})
+				}
+				seenContent = true
 			}
 		case "response.completed", "response.done":
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-			return nil
+			seenCompleted = true
+			return true, nil
 		case "response.failed":
 			errorMsg := "OpenAI response failed"
 			if responseData, ok := data["response"].(map[string]any); ok {
@@ -1372,7 +1375,7 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 					}
 				}
 			}
-			return s.sendErrorAndEnd(c, errorMsg)
+			return true, s.sendErrorAndEnd(c, errorMsg)
 		case "error":
 			errorMsg := "Unknown error"
 			if errData, ok := data["error"].(map[string]any); ok {
@@ -1380,74 +1383,133 @@ func (s *AccountTestService) processOpenAIStream(c *gin.Context, body io.Reader)
 					errorMsg = msg
 				}
 			}
-			return s.sendErrorAndEnd(c, errorMsg)
+			return true, s.sendErrorAndEnd(c, errorMsg)
+		}
+
+		chatContent, chatTerminal, handled, err := s.emitOpenAIChatCompletionsTestEvent(c, data)
+		if err != nil {
+			return true, err
+		}
+		if handled {
+			seenContent = seenContent || chatContent
+			seenChatTerminal = seenChatTerminal || chatTerminal
+		}
+		return false, nil
+	}
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+		}
+
+		done, processErr := processLine(line)
+		if processErr != nil || done {
+			return processErr
+		}
+		if err == io.EOF {
+			return finish()
 		}
 	}
 }
 
 func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
+	seenContent := false
 	seenTerminalChunk := false
 
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				if seenTerminalChunk {
-					s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-					return nil
-				}
-				return s.sendErrorAndEnd(c, "Stream ended before chat completion finished")
-			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
+	finish := func() error {
+		if seenTerminalChunk || seenContent {
+			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+			return nil
 		}
+		return s.sendErrorAndEnd(c, "Stream ended before chat completion finished")
+	}
 
+	processLine := func(line string) (done bool, err error) {
 		line = strings.TrimSpace(line)
 		if line == "" || !sseDataPrefix.MatchString(line) {
-			continue
+			return false, nil
 		}
 
 		jsonStr := sseDataPrefix.ReplaceAllString(line, "")
 		if jsonStr == "[DONE]" {
 			s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
-			return nil
+			return true, nil
 		}
 
 		var data map[string]any
 		if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
-			continue
+			return false, nil
 		}
 
-		if errData, ok := data["error"].(map[string]any); ok {
-			errorMsg := "Unknown error"
-			if msg, ok := errData["message"].(string); ok && msg != "" {
-				errorMsg = msg
-			}
-			return s.sendErrorAndEnd(c, errorMsg)
+		content, terminal, _, err := s.emitOpenAIChatCompletionsTestEvent(c, data)
+		if err != nil {
+			return true, err
+		}
+		if content {
+			seenContent = true
+		}
+		if terminal {
+			seenTerminalChunk = true
+		}
+		return false, nil
+	}
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Stream read error: %s", err.Error()))
 		}
 
-		choices, _ := data["choices"].([]any)
-		for _, item := range choices {
-			choice, _ := item.(map[string]any)
-			if choice == nil {
-				continue
-			}
-			if finishReason, _ := choice["finish_reason"].(string); finishReason != "" {
-				seenTerminalChunk = true
-			}
-			delta, _ := choice["delta"].(map[string]any)
-			if delta == nil {
-				continue
-			}
-			if text, _ := delta["content"].(string); text != "" {
-				s.sendEvent(c, TestEvent{Type: "content", Text: text})
-				continue
-			}
-			if reasoning, _ := delta["reasoning_content"].(string); reasoning != "" {
-				s.sendEvent(c, TestEvent{Type: "content", Text: reasoning})
-			}
+		done, processErr := processLine(line)
+		if processErr != nil || done {
+			return processErr
+		}
+		if err == io.EOF {
+			return finish()
 		}
 	}
+}
+
+func (s *AccountTestService) emitOpenAIChatCompletionsTestEvent(c *gin.Context, data map[string]any) (sawContent bool, terminal bool, handled bool, err error) {
+	if errData, ok := data["error"].(map[string]any); ok {
+		errorMsg := "Unknown error"
+		if msg, ok := errData["message"].(string); ok && msg != "" {
+			errorMsg = msg
+		}
+		return false, false, true, s.sendErrorAndEnd(c, errorMsg)
+	}
+
+	choices, ok := data["choices"].([]any)
+	if !ok {
+		return false, false, false, nil
+	}
+
+	for _, item := range choices {
+		choice, _ := item.(map[string]any)
+		if choice == nil {
+			continue
+		}
+		if finishReason, _ := choice["finish_reason"].(string); finishReason != "" {
+			terminal = true
+		}
+		delta, _ := choice["delta"].(map[string]any)
+		if delta == nil {
+			continue
+		}
+		if text, _ := delta["content"].(string); text != "" {
+			s.sendEvent(c, TestEvent{Type: "content", Text: text})
+			sawContent = true
+			continue
+		}
+		if reasoning, _ := delta["reasoning_content"].(string); reasoning != "" {
+			s.sendEvent(c, TestEvent{Type: "content", Text: reasoning})
+			sawContent = true
+		}
+	}
+
+	return sawContent, terminal, true, nil
 }
 
 // testOpenAIImageAPIKey tests OpenAI image generation using an API Key account.

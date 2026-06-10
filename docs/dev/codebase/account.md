@@ -96,6 +96,13 @@ Important mechanisms:
   `delta.reasoning_content` chunks into the existing account-test SSE
   `content` events, so DeepSeek/Kimi/GLM/Qwen-style compatible upstreams can be
   validated from the admin UI instead of failing before the request is sent.
+- Account-test stream parsing is intentionally connectivity-oriented: once a
+  Responses or Chat Completions stream emits valid content, EOF or `[DONE]`
+  completes the test even when a compatible upstream omits
+  `response.completed`. Empty streams still fail before reporting success.
+- The Responses test parser also tolerates Chat Completions-style chunks from
+  compatible upstreams and handles the final SSE line even when it lacks a
+  trailing newline.
 
 ## Upstream Model Sync
 
