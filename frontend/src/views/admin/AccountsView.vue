@@ -540,7 +540,7 @@ const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 const ACCOUNT_SORT_STORAGE_KEY = 'account-table-sort'
 type AccountSortOrder = 'asc' | 'desc'
 const SELECT_ALL_FILTERED_PAGE_SIZE = 1000
-const DELETE_EXPORTED_BATCH_SIZE = 10
+const DELETE_ACCOUNT_BATCH_SIZE = 10
 type AccountSortState = {
   sort_by: string
   sort_order: AccountSortOrder
@@ -1304,7 +1304,26 @@ const toggleSelectAllVisible = (event: Event) => {
   }
   toggleVisible(target.checked)
 }
-const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
+const handleBulkDelete = async () => {
+  const accountIds = [...selIds.value]
+  if (accountIds.length === 0) return
+  if (!confirm(t('admin.accounts.bulkDeleteConfirm', { count: accountIds.length }))) return
+  try {
+    const result = await deleteAccountIdsInBatches(accountIds)
+    removeSelectedAccounts(accountIds.filter(id => !result.failed.includes(id)))
+    if (result.failed.length > 0) {
+      appStore.showError(t('admin.accounts.bulkDeletePartial', { success: result.success, failed: result.failed.length }))
+      setSelectedIds(result.failed)
+    } else {
+      appStore.showSuccess(t('admin.accounts.bulkDeleteSuccess', { count: result.success }))
+      clearSelection()
+    }
+    reload()
+  } catch (error) {
+    console.error('Failed to bulk delete accounts:', error)
+    appStore.showError(t('admin.accounts.bulkDeleteFailed'))
+  }
+}
 const handleBulkResetStatus = async () => {
   if (!confirm(t('common.confirm'))) return
   try {
@@ -1520,8 +1539,8 @@ const deleteAccountIdsInBatches = async (ids: number[]) => {
   let success = 0
   const failed: number[] = []
 
-  for (let offset = 0; offset < ids.length; offset += DELETE_EXPORTED_BATCH_SIZE) {
-    const batch = ids.slice(offset, offset + DELETE_EXPORTED_BATCH_SIZE)
+  for (let offset = 0; offset < ids.length; offset += DELETE_ACCOUNT_BATCH_SIZE) {
+    const batch = ids.slice(offset, offset + DELETE_ACCOUNT_BATCH_SIZE)
     const results = await Promise.allSettled(batch.map(id => adminAPI.accounts.delete(id)))
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {

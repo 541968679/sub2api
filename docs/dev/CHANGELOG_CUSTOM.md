@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-10] fix: batch account deletion after cross-page selection
+
+**Affected files**: frontend/src/views/admin/AccountsView.vue, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only account-management deletion hardening; reuses the existing single-account delete API and does not change backend contracts, scheduling, billing, or account data shape.
+**Change details**:
+- Changed selected-account bulk deletion to snapshot selected IDs and delete them through the existing bounded batched helper instead of firing one unbounded `Promise.all` over every selected account.
+- Keeps successfully deleted accounts removed from selection while retaining failed IDs selected so admins can retry only the failed deletions.
+- Reused the same 10-account batch behavior as exported-account cleanup, preventing cross-page selections from overwhelming the browser/backend or aborting the UI flow after the first failed delete.
+- Added an AccountsView regression test that selects 12 accounts across filtered results, verifies deletion starts in a 10-request batch, continues to the second batch after a failure, and leaves only the failed ID selected.
+- Verified with `pnpm --dir frontend test:run src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`.
+
 ## [2026-06-09] feat: account export count and exported-state options
 
 **Affected files**: backend/internal/handler/admin/account_data.go, backend/internal/service/account.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/account_data_handler_test.go, backend/internal/handler/admin/admin_service_stub_test.go, frontend/src/views/admin/AccountsView.vue, frontend/src/api/admin/accounts.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md

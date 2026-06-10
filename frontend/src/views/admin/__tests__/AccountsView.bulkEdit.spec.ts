@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import AccountsView from '../AccountsView.vue'
@@ -8,13 +8,15 @@ const {
   listWithEtag,
   getBatchTodayStats,
   getAllProxies,
-  getAllGroups
+  getAllGroups,
+  deleteAccount
 } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getAllProxies: vi.fn(),
-  getAllGroups: vi.fn()
+  getAllGroups: vi.fn(),
+  deleteAccount: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -23,7 +25,7 @@ vi.mock('@/api/admin', () => ({
       list: listAccounts,
       listWithEtag,
       getBatchTodayStats,
-      delete: vi.fn(),
+      delete: deleteAccount,
       batchClearError: vi.fn(),
       batchRefresh: vi.fn(),
       toggleSchedulable: vi.fn()
@@ -69,10 +71,11 @@ const DataTableStub = {
 
 const AccountBulkActionsBarStub = {
   props: ['selectedIds', 'total', 'selectingAllFiltered'],
-  emits: ['edit-filtered', 'select-filtered'],
+  emits: ['delete', 'edit-filtered', 'select-filtered'],
   template: `
     <div>
       <span data-test="selected-count">{{ selectedIds.length }}</span>
+      <button data-test="delete-selected" @click="$emit('delete')">delete selected</button>
       <button data-test="edit-filtered" @click="$emit('edit-filtered')">edit filtered</button>
       <button data-test="select-filtered" @click="$emit('select-filtered')">select filtered</button>
     </div>
@@ -84,6 +87,43 @@ const BulkEditAccountModalStub = {
   template: '<div data-test="bulk-edit-modal" :data-show="String(show)" :data-target-mode="target?.mode ?? \'\'"></div>'
 }
 
+const mountAccountsView = () => mount(AccountsView, {
+  global: {
+    stubs: {
+      AppLayout: { template: '<div><slot /></div>' },
+      TablePageLayout: {
+        template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+      },
+      DataTable: DataTableStub,
+      Pagination: true,
+      ConfirmDialog: true,
+      AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
+      AccountTableFilters: { template: '<div></div>' },
+      AccountBulkActionsBar: AccountBulkActionsBarStub,
+      AccountActionMenu: true,
+      ImportDataModal: true,
+      ReAuthAccountModal: true,
+      AccountTestModal: true,
+      AccountStatsModal: true,
+      ScheduledTestsPanel: true,
+      SyncFromCrsModal: true,
+      TempUnschedStatusModal: true,
+      ErrorPassthroughRulesModal: true,
+      TLSFingerprintProfilesModal: true,
+      CreateAccountModal: true,
+      EditAccountModal: true,
+      BulkEditAccountModal: BulkEditAccountModalStub,
+      PlatformTypeBadge: true,
+      AccountCapacityCell: true,
+      AccountStatusIndicator: true,
+      AccountTodayStatsCell: true,
+      AccountGroupsCell: true,
+      AccountUsageCell: true,
+      Icon: true
+    }
+  }
+})
+
 describe('admin AccountsView bulk edit scope', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -93,6 +133,7 @@ describe('admin AccountsView bulk edit scope', () => {
     getBatchTodayStats.mockReset()
     getAllProxies.mockReset()
     getAllGroups.mockReset()
+    deleteAccount.mockReset()
 
     listAccounts.mockResolvedValue({
       items: [],
@@ -109,45 +150,15 @@ describe('admin AccountsView bulk edit scope', () => {
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
+    deleteAccount.mockResolvedValue({ message: 'ok' })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('opens bulk edit in filtered-results mode from the bulk actions dropdown', async () => {
-    const wrapper = mount(AccountsView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
-          },
-          DataTable: DataTableStub,
-          Pagination: true,
-          ConfirmDialog: true,
-          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
-          AccountTableFilters: { template: '<div></div>' },
-          AccountBulkActionsBar: AccountBulkActionsBarStub,
-          AccountActionMenu: true,
-          ImportDataModal: true,
-          ReAuthAccountModal: true,
-          AccountTestModal: true,
-          AccountStatsModal: true,
-          ScheduledTestsPanel: true,
-          SyncFromCrsModal: true,
-          TempUnschedStatusModal: true,
-          ErrorPassthroughRulesModal: true,
-          TLSFingerprintProfilesModal: true,
-          CreateAccountModal: true,
-          EditAccountModal: true,
-          BulkEditAccountModal: BulkEditAccountModalStub,
-          PlatformTypeBadge: true,
-          AccountCapacityCell: true,
-          AccountStatusIndicator: true,
-          AccountTodayStatsCell: true,
-          AccountGroupsCell: true,
-          AccountUsageCell: true,
-          Icon: true
-        }
-      }
-    })
+    const wrapper = mountAccountsView()
 
     await flushPromises()
     await wrapper.get('[data-test="edit-filtered"]').trigger('click')
@@ -186,42 +197,7 @@ describe('admin AccountsView bulk edit scope', () => {
         pages: 2
       })
 
-    const wrapper = mount(AccountsView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
-          },
-          DataTable: DataTableStub,
-          Pagination: true,
-          ConfirmDialog: true,
-          AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
-          AccountTableFilters: { template: '<div></div>' },
-          AccountBulkActionsBar: AccountBulkActionsBarStub,
-          AccountActionMenu: true,
-          ImportDataModal: true,
-          ReAuthAccountModal: true,
-          AccountTestModal: true,
-          AccountStatsModal: true,
-          ScheduledTestsPanel: true,
-          SyncFromCrsModal: true,
-          TempUnschedStatusModal: true,
-          ErrorPassthroughRulesModal: true,
-          TLSFingerprintProfilesModal: true,
-          CreateAccountModal: true,
-          EditAccountModal: true,
-          BulkEditAccountModal: BulkEditAccountModalStub,
-          PlatformTypeBadge: true,
-          AccountCapacityCell: true,
-          AccountStatusIndicator: true,
-          AccountTodayStatsCell: true,
-          AccountGroupsCell: true,
-          AccountUsageCell: true,
-          Icon: true
-        }
-      }
-    })
+    const wrapper = mountAccountsView()
 
     await flushPromises()
     await wrapper.get('[data-test="select-filtered"]').trigger('click')
@@ -230,5 +206,81 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(listAccounts).toHaveBeenNthCalledWith(2, 1, 1000, expect.objectContaining({ sort_by: 'name', sort_order: 'asc' }))
     expect(listAccounts).toHaveBeenNthCalledWith(3, 2, 1000, expect.objectContaining({ sort_by: 'name', sort_order: 'asc' }))
     expect(wrapper.get('[data-test="selected-count"]').text()).toBe('3')
+  })
+
+  it('bulk deletes selected accounts in bounded batches and keeps failures selected', async () => {
+    const selectedAccounts = Array.from({ length: 12 }, (_, index) => ({
+      id: index + 1,
+      platform: 'openai',
+      type: 'oauth'
+    }))
+
+    listAccounts
+      .mockResolvedValueOnce({
+        items: [],
+        total: selectedAccounts.length,
+        page: 1,
+        page_size: 20,
+        pages: 1
+      })
+      .mockResolvedValueOnce({
+        items: selectedAccounts,
+        total: selectedAccounts.length,
+        page: 1,
+        page_size: 1000,
+        pages: 1
+      })
+      .mockResolvedValue({
+        items: [],
+        total: 1,
+        page: 1,
+        page_size: 20,
+        pages: 1
+      })
+
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    let activeDeletes = 0
+    let maxActiveDeletes = 0
+    const completeDeletes: Array<() => void> = []
+
+    deleteAccount.mockImplementation((id: number) => {
+      activeDeletes += 1
+      maxActiveDeletes = Math.max(maxActiveDeletes, activeDeletes)
+      return new Promise((resolve, reject) => {
+        completeDeletes.push(() => {
+          activeDeletes -= 1
+          if (id === 2) {
+            reject(new Error('delete failed'))
+          } else {
+            resolve({ message: 'ok' })
+          }
+        })
+      })
+    })
+
+    const wrapper = mountAccountsView()
+    await flushPromises()
+    await wrapper.get('[data-test="select-filtered"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="selected-count"]').text()).toBe('12')
+
+    await wrapper.get('[data-test="delete-selected"]').trigger('click')
+    await flushPromises()
+    const firstBatchCalls = deleteAccount.mock.calls.length
+    const firstBatchMaxActive = maxActiveDeletes
+
+    completeDeletes.splice(0).forEach(complete => complete())
+    await flushPromises()
+    const totalCallsAfterSecondBatchStarts = deleteAccount.mock.calls.length
+
+    completeDeletes.splice(0).forEach(complete => complete())
+    await flushPromises()
+
+    expect(firstBatchCalls).toBe(10)
+    expect(firstBatchMaxActive).toBeLessThanOrEqual(10)
+    expect(totalCallsAfterSecondBatchStarts).toBe(12)
+    expect(deleteAccount.mock.calls.map(call => call[0])).toEqual(selectedAccounts.map(account => account.id))
+    expect(wrapper.get('[data-test="selected-count"]').text()).toBe('1')
   })
 })

@@ -228,6 +228,26 @@ AccountsView.vue: load() / reload()
   → refreshAICreditsTotal() → 逐个 GET /admin/accounts/:id/usage（按 email 去重）
 ```
 
+### 账号跨页选择 + 批量删除
+
+```
+AccountsView.vue: selectAllFilteredAccounts()
+  → 按当前筛选/排序快照分页调用 GET /api/v1/admin/accounts
+  → 收集去重后的 account.id 写入表格选择状态
+
+AccountsView.vue: handleBulkDelete()
+  → 快照当前选中 ID
+  → 二次确认后复用 deleteAccountIdsInBatches()
+  → 每 10 个账号一批调用 DELETE /api/v1/admin/accounts/:id
+  → Promise.allSettled 统计每批结果，成功项移出选择，失败项保留以便重试
+```
+
+重要机制：
+
+- 跨页全选只收集当前筛选条件下的账号 ID，不改变后端列表或删除接口契约。
+- 批量删除不能一次性对 `selIds` 使用 `Promise.all`，否则大量跨页选择会同时发出过多 DELETE 请求，且任一失败会让 UI 过早进入错误分支。
+- 普通批量删除和“删除已导出账号”共用同一个 10 并发分批删除 helper，单个账号删除失败不会阻断后续批次。
+
 ### 账号数据导出
 
 ```
@@ -304,6 +324,7 @@ can be written by the request-path rate-limit/session-window logic.
 | 隐私模式设置 | 创建/刷新账号后自动调用 setUserSettings 设置隐私 | `antigravity_oauth_service.go:256` |
 | 批量 vs 单创建 | 批量走 handleAntigravityValidateRT()，单创建走 handleAntigravityExchange()，extra 构建需两处一致 | `CreateAccountModal.vue` |
 | 账号分组全选 | 创建、编辑、批量编辑共用 `GroupSelector` 的 `show-toggle-all` 入口；全选/取消全选只作用于当前可选分组，保留平台过滤外的既有 `group_ids` | `GroupSelector.vue`, `CreateAccountModal.vue`, `EditAccountModal.vue`, `BulkEditAccountModal.vue` |
+| 跨页批量删除 | 跨页选择后的删除必须通过 `deleteAccountIdsInBatches` 以 10 个账号为一批执行，并保留失败 ID 供重试 | `AccountsView.vue`, `AccountsView.bulkEdit.spec.ts` |
 | Gemini RT client 绑定 | Google OAuth 的 refresh_token 绑定签发它的 client_id；google_one 批量导入强制用内置 Gemini CLI client，自建 client 的 RT 报 unauthorized_client | `gemini_oauth_service.go:ValidateGoogleOneRefreshToken` |
 
 ## 已知陷阱
