@@ -557,7 +557,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		if !openai_compat.ShouldUseResponsesAPI(account.Extra) {
 			return s.testOpenAIChatCompletionsAPIKey(c, ctx, account, testModelID, prompt, normalizedBaseURL)
 		}
-		apiURL = strings.TrimSuffix(normalizedBaseURL, "/") + "/responses"
+		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
 	} else {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
 	}

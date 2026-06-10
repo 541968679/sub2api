@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-10] fix: normalize OpenAI Responses account-test URLs
+
+**Affected files**: backend/internal/service/account_test_service.go, backend/internal/service/openai_apikey_responses_probe.go, backend/internal/service/account_test_service_openai_test.go, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: OpenAI API-key account-test and capability-probe URL normalization only; no schema, frontend, billing, scheduling, or gateway contract changes.
+**Change details**:
+- Reused the shared OpenAI endpoint URL builder for API-key Responses account tests so root base URLs now call `/v1/responses` instead of `/responses`.
+- Reused the same builder in the automatic API-key Responses capability probe so `openai_responses_supported` is learned from the real Responses endpoint.
+- Added regression coverage for root base URLs in both the direct admin account-test path and the capability-probe path.
+- Verified with `go test -tags=unit ./internal/service -run "TestAccountTestService_OpenAI" -count=1`, `git diff --check`, and a real local admin test request against account `2988` returning HTTP 200 plus `test_complete success=true`.
+
 ## [2026-06-10] fix: tolerate compatible OpenAI account-test streams
 
 **Affected files**: backend/internal/service/account_test_service.go, backend/internal/service/account_test_service_openai_test.go, docs/dev/codebase/account.md, docs/dev/CHANGELOG_CUSTOM.md

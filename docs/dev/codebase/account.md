@@ -86,8 +86,10 @@ decision as the real OpenAI API-key gateway path.
 
 Important mechanisms:
 
-- API-key accounts that support Responses continue to test with
-  `{base_url}/v1/responses`.
+- API-key accounts that support Responses continue to test with the shared
+  OpenAI endpoint URL builder: root base URLs such as `https://example.com`
+  map to `https://example.com/v1/responses`, while versioned base URLs such as
+  `https://example.com/v1` map to `https://example.com/v1/responses`.
 - API-key accounts whose `extra.openai_responses_mode` or
   `extra.openai_responses_supported` resolve to "do not use Responses" test
   with `{base_url}/v1/chat/completions`, matching the production raw
