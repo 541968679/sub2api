@@ -262,6 +262,27 @@ func TestSettingService_UpdateSettings_TablePreferences(t *testing.T) {
 	require.Equal(t, "[20,100]", repo.updates[SettingKeyTablePageSizeOptions])
 }
 
+func TestSettingService_UpdateSettings_LegalConsentSettings(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		LegalConsent: LegalConsentSettings{
+			Enabled:            true,
+			Version:            "legal-v3",
+			Content:            "Internal use only.",
+			ConfirmationPhrase: "I agree to legal-v3",
+			MinReadSeconds:     45,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "true", repo.updates[SettingKeyLegalConsentEnabled])
+	require.Equal(t, "legal-v3", repo.updates[SettingKeyLegalConsentVersion])
+	require.Equal(t, "Internal use only.", repo.updates[SettingKeyLegalConsentContent])
+	require.Equal(t, "I agree to legal-v3", repo.updates[SettingKeyLegalConsentConfirmationPhrase])
+	require.Equal(t, "45", repo.updates[SettingKeyLegalConsentMinReadSeconds])
+}
+
 func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	svc := NewSettingService(repo, &config.Config{})

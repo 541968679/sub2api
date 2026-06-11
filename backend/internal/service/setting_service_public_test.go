@@ -91,6 +91,27 @@ func TestSettingService_GetPublicSettings_ExposesForceEmailOnThirdPartySignup(t 
 	require.True(t, settings.ForceEmailOnThirdPartySignup)
 }
 
+func TestSettingService_GetPublicSettings_ExposesLegalConsentSettings(t *testing.T) {
+	repo := &settingPublicRepoStub{
+		values: map[string]string{
+			SettingKeyLegalConsentEnabled:            "true",
+			SettingKeyLegalConsentVersion:            "legal-v3",
+			SettingKeyLegalConsentContent:            "Internal use only.",
+			SettingKeyLegalConsentConfirmationPhrase: "I agree to legal-v3",
+			SettingKeyLegalConsentMinReadSeconds:     "45",
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	settings, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	require.True(t, settings.LegalConsent.Enabled)
+	require.Equal(t, "legal-v3", settings.LegalConsent.Version)
+	require.Equal(t, "Internal use only.", settings.LegalConsent.Content)
+	require.Equal(t, "I agree to legal-v3", settings.LegalConsent.ConfirmationPhrase)
+	require.Equal(t, 45, settings.LegalConsent.MinReadSeconds)
+}
+
 func TestSettingService_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *testing.T) {
 	svc := NewSettingService(&settingPublicRepoStub{
 		values: map[string]string{
