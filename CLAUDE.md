@@ -1,244 +1,227 @@
-# Sub2API - Claude Code Project Context
+# CLAUDE.md
 
-## Project Overview
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Sub2API is an AI API gateway platform that aggregates multiple AI subscription accounts (Claude, OpenAI, Gemini, etc.) and distributes access via unified API keys. It supports token-level billing, load balancing, rate limiting, and circuit breaking.
+## Read this chain first
 
-- **Upstream**: https://github.com/Wei-Shaw/sub2api
-- **License**: MIT
-- **Run Modes**: `standard` (full SaaS with billing) / `simple` (internal use, no billing)
+1. `AGENTS.md` — repository-local agent rules, dev-stack entrypoints, local ports, and sibling-repo boundaries.
+2. `docs/dev/ARCHITECTURE.md` — top-level request flow, Wire DI, Settings KV, migrations, and known pitfalls.
+3. `docs/dev/codebase/README.md` — module map.
+4. The relevant `docs/dev/codebase/{module}.md` file before changing a subsystem.
+5. `docs/dev/RELATED_PROJECTS.md` when the task touches AIClient2API, InvokeAI, `new-api`, shared ports, or cross-repo contracts.
 
-## Quick Reference
+If you trace a flow across 3+ files, update the corresponding `docs/dev/codebase/*.md`. Update `docs/dev/ARCHITECTURE.md` only for cross-cutting conventions, new top-level modules, reusable patterns, or environment/build pitfalls.
 
-- `docs/dev/ARCHITECTURE.md` — **顶层技术架构文档（入口）**。新会话探索代码前先读，含请求流、Wire/Settings/路由约定、常见任务模板、已知坑
-- `docs/dev/codebase/` — 结构化代码地图（按模块拆分，探索结果沉淀），入口 `codebase/README.md`
-- `docs/dev/CHANGELOG_CUSTOM.md` — 二开变更日志
-- `docs/dev/DEPLOYMENT.md` — 部署运维手册
-- `docs/dev/SECONDARY_DEV.md` — 二开指南
-- `DEV_GUIDE.md` — 开发环境配置和常见坑点
+## Development commands
 
-## Tech Stack
+### Normal local start/stop
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Go 1.26.2, Gin, Ent ORM, Wire DI, gRPC |
-| Frontend | Vue 3, TypeScript, Vite 5, TailwindCSS, Pinia, pnpm |
-| Database | PostgreSQL 16+ |
-| Cache | Redis 7+ |
-| Deploy | Docker (multi-stage), systemd, GoReleaser |
-| CI/CD | GitHub Actions |
+Use the repo script for normal local work; it manages backend, frontend, and optional sibling services.
 
-## Project Structure
-
-```
-├── backend/
-│   ├── cmd/server/          # Entry point (main.go, wire.go, VERSION)
-│   ├── ent/                 # Ent ORM generated code & schema/
-│   ├── internal/
-│   │   ├── config/          # Configuration loading (Viper-based)
-│   │   ├── domain/          # Core domain models
-│   │   ├── handler/         # HTTP handlers (gateway, auth, admin, API keys)
-│   │   ├── service/         # Business logic layer
-│   │   ├── repository/      # Data access layer (200+ files, includes *_cache.go)
-│   │   ├── server/          # HTTP server setup
-│   │   │   └── routes/      # Route definitions (admin, auth, gateway, payment, user)
-│   │   ├── middleware/       # HTTP middleware (rate limiting, recovery, CORS)
-│   │   ├── payment/         # Payment providers (Stripe, WeChat, Alipay)
-│   │   ├── setup/           # First-run setup wizard
-│   │   ├── integration/     # Integration tests
-│   │   ├── testutil/        # Test helpers
-│   │   ├── pkg/             # Internal packages
-│   │   ├── model/           # Data models
-│   │   ├── util/            # Utilities
-│   │   └── web/             # Embedded frontend serving
-│   ├── migrations/          # Database migrations (Atlas-based)
-│   ├── Makefile             # Backend build targets
-│   └── go.mod
-├── frontend/
-│   ├── src/
-│   │   ├── api/             # Axios API client
-│   │   ├── components/      # Vue components
-│   │   ├── views/           # Page views (admin/, auth/, user/, setup/)
-│   │   ├── stores/          # Pinia stores
-│   │   ├── router/          # Vue Router
-│   │   ├── i18n/            # Internationalization
-│   │   ├── types/           # TypeScript definitions
-│   │   └── composables/     # Vue composition functions
-│   ├── package.json
-│   ├── pnpm-lock.yaml       # MUST be committed
-│   └── vite.config.ts       # Frontend builds to backend/internal/web/dist
-├── deploy/
-│   ├── docker-compose.yml   # Production (PG + Redis + App)
-│   ├── docker-compose.dev.yml
-│   ├── docker-deploy.sh     # One-click Docker setup
-│   ├── install.sh           # Binary + systemd install
-│   ├── config.example.yaml
-│   └── .env.example
-├── Dockerfile               # Multi-stage: node→go→alpine
-├── Makefile                 # Root orchestration
-├── .goreleaser.yaml         # Multi-platform release
-└── DEV_GUIDE.md             # Developer setup & common pitfalls
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 status
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 stop
+scripts\dev-stack.cmd restart
 ```
 
-## Development Commands
+Useful flags:
+
+```powershell
+# Start only Sub2API, skip AIClient2API
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -SkipAIClient
+
+# Also include the sibling new-api integration on 127.0.0.1:13200
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -IncludeNewAPI
+```
+
+Default local endpoints:
+
+- Backend: `http://127.0.0.1:18081`
+- Frontend: `http://127.0.0.1:15174`
+- PostgreSQL: `127.0.0.1:5432`
+- Redis: `127.0.0.1:6379`
+
+Avoid local ports `8080`, `8081`, `5173`, `5174`, and `5175`; this checkout reserves `18081` and `15174` instead.
 
 ### Backend
 
+Run from `backend/` unless using the `pnpm --dir` style from repo root.
+
 ```bash
-cd backend
-go run ./cmd/server/                    # Run dev server
-go generate ./ent                       # Regenerate Ent ORM (after schema changes)
-go generate ./cmd/server                # Regenerate Wire DI
-go test -tags=unit ./...                # Unit tests
-go test -tags=integration ./...         # Integration tests (needs PG + Redis)
-golangci-lint run ./...                 # Lint check
+go generate ./ent
+go generate ./cmd/server
+go test ./...
+go test -tags=unit ./...
+go test -tags=integration ./...
+golangci-lint run ./...
 CGO_ENABLED=0 go build -ldflags="-s -w" -trimpath -o bin/server ./cmd/server
 ```
 
+Single-package / single-test patterns:
+
+```bash
+go test -tags=unit ./internal/service -run TestSettingService_GetPublicSettings -count=1
+go test -tags=unit ./internal/handler/dto -run TestPublicSettingsInjectionPayload_SchemaDoesNotDrift -count=1
+```
+
+Notes:
+
+- `backend/Makefile` exposes `build`, `generate`, `test`, `test-unit`, `test-integration`, and `test-e2e`.
+- Wire output is generated from `backend/cmd/server/wire.go` into `wire_gen.go`.
+- `go generate ./cmd/server` is currently known to fail on duplicate payment service bindings; if it does, reconcile `backend/cmd/server/wire_gen.go` manually to match the provider graph.
+
 ### Frontend
 
-```bash
-cd frontend
-pnpm install --frozen-lockfile          # Install deps (NEVER use npm)
-pnpm dev                                # Dev server on :5175
-pnpm build                              # Production build → backend/internal/web/dist
-pnpm run lint:check                     # ESLint check
-pnpm run typecheck                      # TypeScript check
-pnpm run test                           # Vitest
-```
-
-### Root Makefile
+Use `pnpm` only.
 
 ```bash
-make build                # Build frontend + backend
-make test                 # Run all tests + lint
-make secret-scan          # Python security scanner
+pnpm --dir frontend install --frozen-lockfile
+pnpm --dir frontend build
+pnpm --dir frontend run lint:check
+pnpm --dir frontend run typecheck
+pnpm --dir frontend test
+pnpm --dir frontend test:run
+pnpm --dir frontend test:coverage
 ```
 
-## Key Development Rules
-
-1. **Every change must be committed promptly** — do `git add` + `git commit` immediately after each fix/feature is verified, not batched. **Do NOT `git push` or deploy to production without explicit user permission** — local commits are fine, but pushing to `origin` (the fork, which drives production deploys) and SSH 部署都require the user to say "push"/"deploy" (or equivalent) for this specific change. A one-time earlier approval does not carry over to future commits.
-2. **Every change must be logged** — append an entry to `docs/dev/CHANGELOG_CUSTOM.md` describing what changed, why, and which files were affected.
-3. **Architecture doc = entry point for code exploration** — before diving into code in a new conversation or an unfamiliar module, read `docs/dev/ARCHITECTURE.md` first. It's the navigation hub: tech stack, directory map, request lifecycle, Wire/Settings/migration conventions, common task templates (§5), known gotchas (§6). Don't re-explore what the doc already documents. **Update ARCHITECTURE.md** when:
-   - adding a new top-level module / service / frontend area,
-   - introducing or changing a cross-cutting architectural convention (DI, Settings KV, routing, auth, error handling),
-   - discovering a new environment/build gotcha that affects future work,
-   - templatising a reusable pattern that other developers would benefit from (add to §5 common task templates).
-
-   Module-internal implementation details do **not** belong in ARCHITECTURE.md — those go in `docs/dev/codebase/{module}.md` (see rule 4).
-4. **Exploration results → Codebase Map** — after deep exploration of a specific module (traced full data flow across 3+ files), update or create the corresponding file in `docs/dev/codebase/`. Use the fixed template (数据模型 → 关键文件 → 核心流程 → 重要机制 → 已知陷阱). New conversations should read relevant module docs BEFORE exploring code. **Update module docs when**:
-   - modifying a module's core flow (e.g., adding a new pricing layer, changing display transform logic),
-   - fixing a bug that reveals a non-obvious invariant or constraint (add to 已知陷阱),
-   - adding/removing/renaming key types, interfaces, or fields that the doc references,
-   - changing the priority/order of a multi-layer system (e.g., pricing resolution chain, rate multiplier precedence).
-
-   Rule of thumb: if the change would make someone reading the existing doc make a wrong assumption, update the doc in the same commit.
-5. **pnpm only** — never use npm. Delete `node_modules` and reinstall if mixed.
-6. **pnpm-lock.yaml must be committed** — CI uses `--frozen-lockfile`.
-7. **Ent schema changes** → run `go generate ./ent` and commit generated files.
-8. **Wire DI changes** → run `go generate ./cmd/server` and commit `wire_gen.go`.
-9. **Interface changes** → update ALL test stubs/mocks that implement the interface.
-10. **Frontend embeds into backend** — `pnpm build` output goes to `backend/internal/web/dist`, compiled into the Go binary with `-tags embed`.
-11. **Windows dev notes**: use `127.0.0.1` not `localhost` for psql; no Chinese paths for psql; no native `make` (use raw commands).
-12. **Currency symbols** — this project has two currencies, never mix them up:
-    - **¥ (CNY)**: subscription plan prices (`price`, `original_price`) — what users pay via WeChat/Alipay.
-    - **$ (USD)**: API usage costs and limits (fields ending in `_usd` such as `daily_limit_usd`, `daily_usage_usd`) — upstream AI API cost tracking.
-    - Channel pricing labels (`$/MTok`, `$/M`) are also USD (upstream API rates). Account-level costs (`AccountStatsModal`) are USD.
-    - Rule of thumb: if the field name ends with `_usd`, use `$`; if it's a plan/order selling price, use `¥`.
-
-## Configuration
-
-- Primary config: `config.yaml` (Viper-based, supports env var overrides)
-- Docker config: environment variables in `docker-compose.yml`
-- Key secrets: `JWT_SECRET`, `TOTP_ENCRYPTION_KEY` — must be fixed for persistence across restarts
-- Database: PostgreSQL connection pool (`MAX_OPEN_CONNS`, `MAX_IDLE_CONNS`)
-- Redis: pool size 1024 default, TLS optional
-
-## Deployment
-
-- **Docker Compose**: `deploy/docker-compose.yml` — app + PG + Redis, auto-setup on first run
-- **Binary + systemd**: `deploy/install.sh` → installs to `/opt/sub2api` with systemd service
-- **CI Release**: tag `v*` → GitHub Actions → GoReleaser → multi-arch Docker images + binaries
-
-## Git & Repository
-
-- **Fork (origin)**: https://github.com/541968679/sub2api — push all changes here
-- **Upstream**: https://github.com/Wei-Shaw/sub2api — official repo, pull-only
-
-## Workflow: Local Dev → Production
-
-### 1. Start Local Environment
+Single-spec / single-case patterns:
 
 ```bash
-# Ensure Docker Desktop is running (PG + Redis containers auto-restart)
-# sub2api-pg-dev (5432), sub2api-redis-dev (6379), credentials: sub2api/sub2api
-
-# Start backend (port 8081, 8080 is occupied by Docker)
-cd backend
-SERVER_PORT=8081 SERVER_MODE=debug \
-  DATABASE_HOST=127.0.0.1 DATABASE_PORT=5432 \
-  DATABASE_USER=sub2api DATABASE_PASSWORD=sub2api \
-  DATABASE_DBNAME=sub2api DATABASE_SSLMODE=disable \
-  REDIS_HOST=127.0.0.1 REDIS_PORT=6379 \
-  ADMIN_PASSWORD=admin123456 \
-  go run ./cmd/server/
-
-# Start frontend (another terminal, proxies to backend:8081)
-cd frontend
-pnpm dev
-# → http://localhost:5175  (admin: admin@sub2api.local / admin123456)
+pnpm --dir frontend exec vitest run src/views/auth/__tests__/LinuxDoCallbackView.spec.ts
+pnpm --dir frontend exec vitest run src/views/auth/__tests__/LinuxDoCallbackView.spec.ts -t "renders callback result"
 ```
 
-### 2. Develop & Test Locally
+Frontend build output goes to `backend/internal/web/dist` and is embedded into the Go binary for production.
 
-Edit code → Vite hot-reloads frontend automatically. Backend requires restart after Go changes.
-
-### 3. Commit & Push to Fork
+### Root orchestration
 
 ```bash
-git add <changed-files>
-git commit -m "fix/feat: description"
-git push origin main
+make build
+make test
 ```
 
-### 4. Deploy to Production Server
+Important nuance: root `make test` does **not** run the full frontend Vitest suite. It runs backend tests, frontend lint, frontend typecheck, and only the critical spec list defined in the root `Makefile` (`FRONTEND_CRITICAL_VITEST`). For a broader frontend check, run `pnpm --dir frontend test:run` directly.
 
-```bash
-ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
+On Windows, native `make` may be unavailable; use the underlying `go ...` and `pnpm ...` commands instead.
+
+## High-level architecture
+
+### Product shape
+
+Sub2API is an AI API gateway that multiplexes upstream accounts (Claude, OpenAI, Gemini, Antigravity, etc.) behind user API keys. The two main run modes are:
+
+- `standard` — full SaaS behavior with billing/quota enforcement
+- `simple` — internal mode with billing and quota checks disabled
+
+### Backend bootstrap and request flow
+
+The backend entry is `backend/cmd/server/main.go`.
+
+- Startup first decides between setup wizard mode and normal server mode.
+- Normal server bootstraps configuration, logger, and the full dependency graph through Wire (`backend/cmd/server/wire.go`, generated `wire_gen.go`).
+- `backend/internal/server/router.go` attaches logging, CORS, security headers, embedded-frontend middleware, and then delegates route registration to `backend/internal/server/routes/`.
+
+The main runtime path is:
+
+```text
+Gin middleware -> handler -> service -> repository -> Ent/PostgreSQL + Redis
 ```
 
-The update.sh script: pulls code → builds Docker image (no-cache) → restarts container → health check.
+Handlers should stay thin: parse/bind/auth/response. Business behavior lives in services. Data access and caching live in repositories.
 
-### 5. Sync Upstream (Official) Updates
+### Route families and protocol adapters
 
-```bash
-git fetch upstream
-git merge upstream/main    # Git preserves our custom changes
-# Resolve conflicts if any, then:
-git push origin main
-ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
-```
+The route layout is split by both product area and upstream protocol:
 
-Track all custom changes in `docs/dev/CHANGELOG_CUSTOM.md` and sync history in `docs/dev/UPSTREAM_SYNC.md`.
+- `GET /api/v1/settings/public`, `/api/v1/auth/*`, `/api/v1/admin/*`, `/api/v1/...` user/payment/admin routes
+- `/v1/*` — Anthropic-compatible gateway surface plus OpenAI-compatible endpoints routed by group platform
+- `/v1beta/*` — Gemini native API compatibility
+- Root aliases like `/responses`, `/chat/completions`, `/embeddings`, `/images/*`, and `/backend-api/codex/*`
+- `/antigravity/v1/*` and `/antigravity/v1beta/*` — Antigravity-specific surfaces
 
-## Production Server
+The important big-picture split is in `backend/internal/server/routes/gateway.go`:
 
-- **URL**: https://zerocode.kaynlab.com
-- **Admin**: admin@zerocode.kaynlab.com
-- **Server**: 172.245.247.80 (RackNerd, LA, Ubuntu 24.04, 5C/6G)
-- **SSH**: `ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80` （密钥认证，密码认证不可靠）
-  - 部署：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"`
-  - 查日志：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "docker logs sub2api --since 10m"`
-  - 重启：`ssh -i ~/.ssh/id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose up -d sub2api"`
-- **Stack**: Docker Compose (sub2api-custom:latest + PG 18 + Redis 8) + Caddy (auto HTTPS)
-- **Firewall**: UFW, ports 22/80/443 only
-- **Paths**: repo at `/opt/sub2api/repo`, compose at `/opt/sub2api/docker-compose.yml`
+- API-key middleware authenticates the key and resolves the key's active group/platform.
+- The gateway then dispatches requests to either `GatewayHandler` or `OpenAIGatewayHandler` depending on platform and endpoint.
+- This is why Anthropic-style, OpenAI-style, Gemini, Codex, and Antigravity requests can coexist on one deployment while still sharing billing, scheduling, and error reporting infrastructure.
 
-## Architecture Notes
+### Gateway hot path
 
-- **Entry**: `backend/cmd/server/main.go` → Wire DI → Gin HTTP server with h2c
-- **Request flow**: Gin middleware → handler → service → repository → Ent/PostgreSQL + Redis cache
-- **Gateway**: `handler/gateway_handler.go` is the core API proxy (~66K)
-- **Scheduling**: Sticky session + round-robin across upstream AI accounts
-- **Circuit breaker**: 5-failure threshold, 10-min cooldown on 529 status
-- **Billing**: Token-level tracking in `service/account_usage_service.go`
+The gateway is the core of the product, and the non-obvious flow spans routes, handlers, services, and repositories:
+
+- `backend/internal/handler/gateway_handler.go` and `openai_gateway_handler.go` are the HTTP-layer protocol adapters.
+- `backend/internal/service/gateway_service.go` and OpenAI-specific gateway services orchestrate upstream request construction, sticky session behavior, failover, and response streaming.
+- `backend/internal/service/account_usage_service.go` records token usage and billing effects.
+- Redis-backed caches and scheduler state live in `backend/internal/repository/*_cache.go`.
+
+When debugging routing problems, always inspect the route file, handler, service, and any scheduler/cache helper together; behavior is spread across those layers by design.
+
+### Dependency injection and generated code
+
+Wire is the assembly mechanism for nearly everything in the backend.
+
+- Provider sets live in `backend/internal/repository/wire.go`, `backend/internal/service/wire.go`, and `backend/internal/handler/wire.go`.
+- `backend/internal/handler/handler.go` defines the top-level `Handlers` container and nested `AdminHandlers` container used by route registration.
+- Adding a new handler/service/repository usually means updating both the constructor and the relevant provider set.
+
+Ent is used similarly:
+
+- Hand-written schema: `backend/ent/schema/`
+- Generated ORM code: `backend/ent/`
+- Database migrations: `backend/migrations/*.sql`
+
+Do not rely on Ent auto-migrate here; schema changes require raw SQL migrations plus regenerated Ent code.
+
+### Settings KV is the runtime configuration spine
+
+Most admin-editable runtime behavior goes through the Settings KV stack rather than dedicated config files.
+
+The cross-file chain is:
+
+- setting keys/constants in `backend/internal/service/domain_constants.go`
+- persistence in `backend/internal/repository/setting_repo.go`
+- higher-level assembly/caching in `backend/internal/service/setting_service.go`
+- public exposure through `GET /api/v1/settings/public`
+- frontend caching/consumption in `frontend/src/stores/app.ts`
+
+If you add a new public setting, expect to touch backend constants/service/DTOs, the admin settings surface, and the frontend app-store cache path.
+
+### Frontend architecture
+
+The frontend is a Vue 3 SPA embedded into the backend for production.
+
+The main cross-file control points are:
+
+- `frontend/src/router/index.ts` — route truth source, auth/admin guards, title metadata
+- `frontend/src/api/client.ts` — Axios instance with auth token injection, refresh flow, locale header, timezone param, and response-envelope unwrapping
+- `frontend/src/stores/app.ts` — global toasts, loading state, cached public settings, version info
+- `frontend/src/stores/auth.ts` — persisted auth/session state
+- `frontend/src/i18n/locales/{zh,en}.ts` — i18n truth sources; keep both in sync
+
+A subtle but important pattern: both dev and production inject public settings into the initial HTML.
+
+- Production does it through the backend embedded-frontend middleware in `backend/internal/server/router.go` / `backend/internal/web`.
+- Dev mode mirrors that in `frontend/vite.config.ts` by fetching `/api/v1/settings/public` before serving `index.html`.
+
+This keeps auth/setup pages from rendering with stale defaults before the first async settings fetch.
+
+### Cross-repo integration boundaries
+
+This repository has explicit local integration points with sibling checkouts:
+
+- `AIClient2API`
+- `InvokeAI`
+- `new-api`
+
+Those relationships are documented in `docs/dev/RELATED_PROJECTS.md`. When a task changes an integration contract, update both Sub2API docs and the sibling repository's own integration/rule docs.
+
+## Project-specific rules and pitfalls
+
+- Append every verified local change to `docs/dev/CHANGELOG_CUSTOM.md`.
+- Keep `frontend/pnpm-lock.yaml` committed; never switch this repo to npm.
+- Use `127.0.0.1`, not `localhost`, for local PostgreSQL/Redis on Windows.
+- Viper checks `E:\app\data\config.yaml` before local config; a stale file there can silently override `backend/config.yaml`.
+- New i18n keys must be added to both `frontend/src/i18n/locales/zh.ts` and `frontend/src/i18n/locales/en.ts`.
+- After deep exploration or a bug fix that reveals module invariants, update the relevant `docs/dev/codebase/*.md` file.
+- For Nginx reverse proxies in front of Codex/OpenAI-compatible flows, set `underscores_in_headers on;` or sticky-session headers such as `session_id` can be dropped.
