@@ -303,6 +303,13 @@ describe('useAppStore', () => {
         promo_code_enabled: true,
         password_reset_enabled: false,
         invitation_code_enabled: false,
+        legal_consent: {
+          enabled: true,
+          version: 'test',
+          content: 'terms',
+          confirmation_phrase: 'agree',
+          min_read_seconds: 0,
+        },
         turnstile_enabled: false,
         turnstile_site_key: '',
         site_name: 'Updated Site',

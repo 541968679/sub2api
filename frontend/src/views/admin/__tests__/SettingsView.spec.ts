@@ -279,6 +279,13 @@ const baseSettingsResponse = {
   registration_email_suffix_whitelist: [],
   promo_code_enabled: true,
   invitation_code_enabled: false,
+  legal_consent: {
+    enabled: true,
+    version: "test",
+    content: "terms",
+    confirmation_phrase: "agree",
+    min_read_seconds: 0,
+  },
   password_reset_enabled: false,
   totp_enabled: false,
   totp_encryption_key_configured: false,

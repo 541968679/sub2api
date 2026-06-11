@@ -6,8 +6,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
-import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
-import { clearStaleAuthForLegalConsent, hasAcceptedCurrentLegalConsent } from '@/utils/legalConsent'
+import type { LegalConsentSettings, User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
+import {
+  clearStaleAuthForLegalConsent,
+  hasAcceptedCurrentLegalConsent,
+  resolveLegalConsentSettings
+} from '@/utils/legalConsent'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -102,7 +106,12 @@ export const useAuthStore = defineStore('auth', () => {
    * Also starts auto-refresh and immediately fetches latest user data
    */
   function checkAuth(): void {
-    clearStaleAuthForLegalConsent()
+    const legalConsentSettings = window.__APP_CONFIG__?.legal_consent
+      ? resolveLegalConsentSettings(window.__APP_CONFIG__.legal_consent)
+      : null
+    if (legalConsentSettings) {
+      clearStaleAuthForLegalConsent(legalConsentSettings)
+    }
 
     const savedToken = localStorage.getItem(AUTH_TOKEN_KEY)
     const savedUser = localStorage.getItem(AUTH_USER_KEY)
@@ -113,7 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (savedToken && savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser) as User
-        if (!hasAcceptedCurrentLegalConsent(parsedUser.id)) {
+        if (legalConsentSettings && !hasAcceptedCurrentLegalConsent(parsedUser.id, legalConsentSettings)) {
           clearAuth({ preservePendingAuthSession: true })
           return
         }
@@ -473,6 +482,18 @@ export const useAuthStore = defineStore('auth', () => {
     clearPendingAuthSessionStorage()
   }
 
+  function enforceLegalConsentSettings(settings: LegalConsentSettings | null | undefined): boolean {
+    if (!settings?.enabled) {
+      return false
+    }
+    const currentUser = user.value
+    if (!currentUser?.id || hasAcceptedCurrentLegalConsent(currentUser.id, settings)) {
+      return false
+    }
+    clearAuth({ preservePendingAuthSession: true })
+    return true
+  }
+
   // ==================== Return Store API ====================
 
   return {
@@ -495,6 +516,7 @@ export const useAuthStore = defineStore('auth', () => {
     setToken,
     logout,
     checkAuth,
+    enforceLegalConsentSettings,
     refreshUser,
     setPendingAuthSession,
     clearPendingAuthSession

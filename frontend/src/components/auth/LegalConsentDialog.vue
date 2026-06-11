@@ -20,61 +20,14 @@
         <section class="space-y-6">
           <div>
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-400">
-              {{ t('legalConsent.version', { version: CURRENT_LEGAL_CONSENT_VERSION }) }}
+              {{ t('legalConsent.version', { version: resolvedSettings.version }) }}
             </p>
             <h4 class="mt-2 text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('legalConsent.disclaimerTitle') }}
+              {{ t('legalConsent.contentTitle') }}
             </h4>
-            <p class="mt-2">
-              {{ t('legalConsent.disclaimerBody') }}
-            </p>
-          </div>
-
-          <div>
-            <h4 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('legalConsent.regionTitle') }}
-            </h4>
-            <p class="mt-2">
-              {{ t('legalConsent.regionBody') }}
-            </p>
-          </div>
-
-          <div>
-            <h4 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('legalConsent.prohibitedTitle') }}
-            </h4>
-            <ul class="mt-2 list-disc space-y-2 pl-5">
-              <li v-for="item in prohibitedItems" :key="item">
-                {{ item }}
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('legalConsent.enforcementTitle') }}
-            </h4>
-            <p class="mt-2">
-              {{ t('legalConsent.enforcementBody') }}
-            </p>
-          </div>
-
-          <div>
-            <h4 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('legalConsent.accountTitle') }}
-            </h4>
-            <p class="mt-2">
-              {{ t('legalConsent.accountBody') }}
-            </p>
-          </div>
-
-          <div>
-            <h4 class="text-base font-semibold text-gray-900 dark:text-white">
-              {{ t('legalConsent.availabilityTitle') }}
-            </h4>
-            <p class="mt-2">
-              {{ t('legalConsent.availabilityBody') }}
-            </p>
+            <div class="mt-3 whitespace-pre-wrap">
+              {{ resolvedSettings.content }}
+            </div>
           </div>
         </section>
       </div>
@@ -151,18 +104,17 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import {
-  CURRENT_LEGAL_CONFIRMATION_PHRASE,
-  CURRENT_LEGAL_CONSENT_VERSION,
+  resolveLegalConsentSettings,
   type LegalConsentPayload
 } from '@/utils/legalConsent'
+import type { LegalConsentSettings } from '@/types'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   show: boolean
   mode: 'register' | 'login'
   minReadSeconds?: number
-}>(), {
-  minReadSeconds: 20
-})
+  settings?: Partial<LegalConsentSettings> | null
+}>()
 
 const emit = defineEmits<{
   (e: 'accept', payload: LegalConsentPayload): void
@@ -178,25 +130,23 @@ const typedConfirmation = ref('')
 const elapsedSeconds = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const confirmationPhrase = computed(() => CURRENT_LEGAL_CONFIRMATION_PHRASE)
+const resolvedSettings = computed(() => {
+  const settings = resolveLegalConsentSettings(props.settings)
+  if (props.minReadSeconds !== undefined) {
+    return {
+      ...settings,
+      min_read_seconds: props.minReadSeconds
+    }
+  }
+  return settings
+})
+const confirmationPhrase = computed(() => resolvedSettings.value.confirmation_phrase)
 const dialogTitle = computed(() => (
   props.mode === 'login'
     ? t('legalConsent.loginTitle')
     : t('legalConsent.registerTitle')
 ))
-const prohibitedItems = computed(() => [
-  t('legalConsent.prohibited.nsfw'),
-  t('legalConsent.prohibited.violence'),
-  t('legalConsent.prohibited.minors'),
-  t('legalConsent.prohibited.sillyTavern'),
-  t('legalConsent.prohibited.privacy'),
-  t('legalConsent.prohibited.fraud'),
-  t('legalConsent.prohibited.security'),
-  t('legalConsent.prohibited.commercial'),
-  t('legalConsent.prohibited.disclosure'),
-  t('legalConsent.prohibited.illegal')
-])
-const remainingSeconds = computed(() => Math.max(0, props.minReadSeconds - elapsedSeconds.value))
+const remainingSeconds = computed(() => Math.max(0, resolvedSettings.value.min_read_seconds - elapsedSeconds.value))
 const canAccept = computed(() => (
   termsChecked.value &&
   authorizedUseChecked.value &&

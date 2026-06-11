@@ -175,8 +175,10 @@ import {
 import {
   clearPendingRegisterLegalConsent,
   getPendingRegisterLegalConsent,
-  markLegalConsentAccepted
+  markLegalConsentAccepted,
+  resolveLegalConsentSettings
 } from '@/utils/legalConsent'
+import type { LegalConsentSettings } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -235,6 +237,10 @@ const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
 const siteName = ref<string>('ZeroCode')
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+const localLegalConsentSettings = ref<LegalConsentSettings | null>(null)
+const legalConsentSettings = computed(() => resolveLegalConsentSettings(
+  localLegalConsentSettings.value || appStore.cachedPublicSettings?.legal_consent
+))
 
 // Turnstile for resend
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -302,6 +308,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    localLegalConsentSettings.value = settings.legal_consent || null
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }
@@ -540,12 +547,12 @@ async function handleVerify(): Promise<void> {
         invitation_code: invitationCode.value || undefined,
         ...(affCode.value ? { aff_code: affCode.value } : {})
       })
-      const legalConsent = getPendingRegisterLegalConsent()
+      const legalConsent = getPendingRegisterLegalConsent(legalConsentSettings.value)
       if (legalConsent) {
         markLegalConsentAccepted(registeredUser.id, {
           ...legalConsent,
           source: 'email_verify'
-        })
+        }, legalConsentSettings.value)
         clearPendingRegisterLegalConsent()
       }
     }

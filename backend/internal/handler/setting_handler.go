@@ -39,6 +39,7 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		PromoCodeEnabled:                 settings.PromoCodeEnabled,
 		PasswordResetEnabled:             settings.PasswordResetEnabled,
 		InvitationCodeEnabled:            settings.InvitationCodeEnabled,
+		LegalConsent:                     toDTOLegalConsentSettings(settings.LegalConsent),
 		TotpEnabled:                      settings.TotpEnabled,
 		TurnstileEnabled:                 settings.TurnstileEnabled,
 		TurnstileSiteKey:                 settings.TurnstileSiteKey,
@@ -81,6 +82,16 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 
 		AffiliateEnabled: settings.AffiliateEnabled,
 	})
+}
+
+func toDTOLegalConsentSettings(s service.LegalConsentSettings) dto.LegalConsentSettings {
+	return dto.LegalConsentSettings{
+		Enabled:            s.Enabled,
+		Version:            s.Version,
+		Content:            s.Content,
+		ConfirmationPhrase: s.ConfirmationPhrase,
+		MinReadSeconds:     s.MinReadSeconds,
+	}
 }
 
 // toDTOLoginPageContent 把 service.LoginPageContent 镜像到 DTO。nil 直接透传。

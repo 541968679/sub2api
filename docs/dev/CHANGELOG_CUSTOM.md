@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] feat: make legal consent terms admin-editable and versioned
+
+**Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/handler/dto/settings.go, backend/internal/handler/setting_handler.go, backend/internal/handler/admin/setting_handler.go, frontend/src/utils/legalConsent.ts, frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/views/auth/LoginView.vue, frontend/src/views/auth/RegisterView.vue, frontend/src/views/auth/EmailVerifyView.vue, frontend/src/stores/app.ts, frontend/src/stores/auth.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/api/admin/settings.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, related tests.
+**Upstream compatibility**: Settings KV/API/frontend auth-flow extension only; no database migration, gateway routing, billing, pricing, or deployment contract change.
+**Change details**:
+- Added `legal_consent.*` Settings KV keys for enablement, version, content, confirmation phrase, and minimum read seconds, with the internal-research/non-commercial/no-online-recharge terms as defaults.
+- Exposed `legal_consent` through admin settings, public settings, and SSR `window.__APP_CONFIG__` injection so auth pages can use the current configured version before first async refresh.
+- Updated registration, login, and email-verification consent flows to resolve dynamic terms settings and store acceptance against the configured version; changing the version now invalidates previous local acceptances.
+- Added runtime enforcement after public settings load so already-authenticated users are logged out if their stored acceptance does not match the current legal consent version.
+- Added an admin settings editor under Security for enabling/disabling confirmation, editing the version, body, confirmation phrase, and read countdown.
+- Verified with `go test -tags=unit ./internal/service -run "TestSettingService_(GetPublicSettings_ExposesLegalConsentSettings|UpdateSettings_LegalConsentSettings)$" -count=1`, `go test -tags=unit ./internal/handler/dto -run TestPublicSettingsInjectionPayload_SchemaDoesNotDrift -count=1`, `go test -tags=unit ./internal/handler ./internal/handler/dto ./internal/handler/admin -count=1`, `pnpm exec vitest run src/utils/__tests__/legalConsent.spec.ts src/components/auth/__tests__/LegalConsentDialog.spec.ts src/stores/__tests__/auth.spec.ts`, `pnpm exec vitest run src/views/admin/__tests__/SettingsView.spec.ts`, `pnpm run typecheck`, and `pnpm build`.
+- Broader `go test -tags=unit ./internal/service -count=1` still fails in existing `TestOpenAIGatewayService_OpenAIAccountSchedulerMetrics` (`openai_account_scheduler_test.go:1306`, metric value `0` expected `>= 1`), unrelated to legal consent settings.
+
 ## [2026-06-11] test: verify display-token amplification with long-context pricing
 
 **Affected files**: backend/internal/handler/dto/display_pricing_test.go, backend/internal/service/display_token_rewrite_test.go, docs/dev/CHANGELOG_CUSTOM.md

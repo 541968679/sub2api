@@ -262,6 +262,7 @@
     <LegalConsentDialog
       :show="showLegalConsentDialog"
       mode="register"
+      :settings="legalConsentSettings"
       @accept="handleLegalConsentAccepted"
       @cancel="showLegalConsentDialog = false"
     />
@@ -313,9 +314,11 @@ import {
   clearPendingRegisterLegalConsent,
   getPendingRegisterLegalConsent,
   markLegalConsentAccepted,
+  resolveLegalConsentSettings,
   storePendingRegisterLegalConsent,
   type LegalConsentPayload
 } from '@/utils/legalConsent'
+import type { LegalConsentSettings } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -334,6 +337,10 @@ const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
 const showLegalConsentDialog = ref<boolean>(false)
 const pendingValidatedRegister = ref<boolean>(false)
+const localLegalConsentSettings = ref<LegalConsentSettings | null>(null)
+const legalConsentSettings = computed(() => resolveLegalConsentSettings(
+  localLegalConsentSettings.value || appStore.cachedPublicSettings?.legal_consent
+))
 
 // Public settings
 const registrationEnabled = ref<boolean>(true)
@@ -432,6 +439,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    localLegalConsentSettings.value = settings.legal_consent || null
 
     // Read promo code from URL parameter only if promo code is enabled
     if (promoCodeEnabled.value) {
@@ -699,6 +707,10 @@ async function handleRegister(): Promise<void> {
     if (!validateRegisterPreconditions()) {
       return
     }
+    if (!legalConsentSettings.value.enabled) {
+      await submitRegister()
+      return
+    }
     showLegalConsentDialog.value = true
     return
   }
@@ -746,7 +758,7 @@ function validateRegisterPreconditions(): boolean {
 
 async function handleLegalConsentAccepted(payload: LegalConsentPayload): Promise<void> {
   showLegalConsentDialog.value = false
-  storePendingRegisterLegalConsent(payload)
+  storePendingRegisterLegalConsent(payload, legalConsentSettings.value)
   pendingValidatedRegister.value = true
   await handleRegister()
 }
@@ -761,8 +773,8 @@ async function submitRegister(): Promise<void> {
     }
   }
 
-  const legalConsent = getPendingRegisterLegalConsent()
-  if (!legalConsent) {
+  const legalConsent = getPendingRegisterLegalConsent(legalConsentSettings.value)
+  if (legalConsentSettings.value.enabled && !legalConsent) {
     showLegalConsentDialog.value = true
     return
   }
@@ -804,7 +816,9 @@ async function submitRegister(): Promise<void> {
       invitation_code: formData.invitation_code || undefined,
       ...(affCode ? { aff_code: affCode } : {})
     })
-    markLegalConsentAccepted(registeredUser.id, legalConsent)
+    if (legalConsent) {
+      markLegalConsentAccepted(registeredUser.id, legalConsent, legalConsentSettings.value)
+    }
     clearPendingRegisterLegalConsent()
     clearAffiliateReferralCode()
 

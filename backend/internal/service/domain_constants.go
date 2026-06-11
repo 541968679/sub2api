@@ -101,6 +101,11 @@ const (
 	SettingKeyPasswordResetEnabled             = "password_reset_enabled"              // 是否启用忘记密码功能（需要先开启邮件验证）
 	SettingKeyFrontendURL                      = "frontend_url"                        // 前端基础URL，用于生成邮件中的重置密码链接
 	SettingKeyInvitationCodeEnabled            = "invitation_code_enabled"             // 是否启用邀请码注册
+	SettingKeyLegalConsentEnabled              = "legal_consent.enabled"               // 是否强制要求确认使用条款与免责声明
+	SettingKeyLegalConsentVersion              = "legal_consent.version"               // 使用条款版本号，变更后前端会要求重新确认
+	SettingKeyLegalConsentContent              = "legal_consent.content"               // 使用条款正文
+	SettingKeyLegalConsentConfirmationPhrase   = "legal_consent.confirmation_phrase"   // 用户必须输入的确认语
+	SettingKeyLegalConsentMinReadSeconds       = "legal_consent.min_read_seconds"      // 条款弹窗最短阅读秒数
 	SettingKeyAffiliateEnabled                 = "affiliate_enabled"                   // 邀请返利功能总开关
 	SettingKeyAffiliateRebateRate              = "affiliate_rebate_rate"               // 邀请返利比例（百分比，0-100）
 	SettingKeyAffiliateRebateFreezeHours       = "affiliate_rebate_freeze_hours"       // 返利冻结期（小时，0=不冻结）

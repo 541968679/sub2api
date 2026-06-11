@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import {
   CURRENT_LEGAL_CONFIRMATION_PHRASE,
   CURRENT_LEGAL_CONSENT_VERSION,
+  DEFAULT_LEGAL_CONSENT_SETTINGS,
   markLegalConsentAccepted
 } from '@/utils/legalConsent'
 
@@ -60,6 +61,7 @@ describe('useAuthStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    delete window.__APP_CONFIG__
     vi.useFakeTimers()
     vi.clearAllMocks()
   })
@@ -175,6 +177,9 @@ describe('useAuthStore', () => {
         authorizedUseAttestation: true,
         source: 'login'
       })
+      window.__APP_CONFIG__ = {
+        legal_consent: DEFAULT_LEGAL_CONSENT_SETTINGS
+      } as any
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
 
@@ -234,6 +239,9 @@ describe('useAuthStore', () => {
     })
 
     it('requires current legal consent before restoring persisted auth', () => {
+      window.__APP_CONFIG__ = {
+        legal_consent: DEFAULT_LEGAL_CONSENT_SETTINGS
+      } as any
       localStorage.setItem('legal_consent:force_logout_version', CURRENT_LEGAL_CONSENT_VERSION)
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
@@ -252,11 +260,77 @@ describe('useAuthStore', () => {
       expect(mockGetCurrentUser).not.toHaveBeenCalled()
     })
 
+    it('restores persisted auth when the injected legal settings match a custom version', () => {
+      const settings = {
+        ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+        version: 'legal-v3',
+        confirmation_phrase: 'I agree to legal-v3'
+      }
+      window.__APP_CONFIG__ = {
+        legal_consent: settings
+      } as any
+      localStorage.setItem('legal_consent:force_logout_version', 'legal-v3')
+      markLegalConsentAccepted(fakeUser.id, {
+        typedConfirmation: 'I agree to legal-v3',
+        dwellSeconds: 20,
+        scrolledToBottom: true,
+        authorizedUseAttestation: true,
+        source: 'login'
+      }, settings)
+      localStorage.setItem('auth_token', 'saved-token')
+      localStorage.setItem('auth_user', JSON.stringify(fakeUser))
+      localStorage.setItem('refresh_token', 'saved-refresh')
+      localStorage.setItem('token_expires_at', String(Date.now() + 3600_000))
+
+      mockGetCurrentUser.mockResolvedValue({ data: fakeUser })
+
+      const store = useAuthStore()
+      store.checkAuth()
+
+      expect(store.isAuthenticated).toBe(true)
+      expect(store.token).toBe('saved-token')
+      expect(localStorage.getItem('auth_token')).toBe('saved-token')
+    })
+
+    it('clears active auth when loaded legal settings require a newer version', async () => {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      const store = useAuthStore()
+      await store.login({ email: 'test@example.com', password: '123456' })
+
+      markLegalConsentAccepted(fakeUser.id, {
+        typedConfirmation: 'I agree to legal-v3',
+        dwellSeconds: 20,
+        scrolledToBottom: true,
+        authorizedUseAttestation: true,
+        source: 'login'
+      }, {
+        enabled: true,
+        version: 'legal-v3',
+        content: 'terms',
+        confirmation_phrase: 'I agree to legal-v3',
+        min_read_seconds: 0
+      })
+
+      expect(store.enforceLegalConsentSettings({
+        enabled: true,
+        version: 'legal-v4',
+        content: 'terms',
+        confirmation_phrase: 'I agree to legal-v4',
+        min_read_seconds: 0
+      })).toBe(true)
+      expect(store.isAuthenticated).toBe(false)
+      expect(localStorage.getItem('auth_token')).toBeNull()
+    })
+
     it('恢复持久化 pending auth session', () => {
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
       localStorage.setItem('refresh_token', 'saved-refresh')
       localStorage.setItem('token_expires_at', String(Date.now() + 3600_000))
+
+      window.__APP_CONFIG__ = {
+        legal_consent: DEFAULT_LEGAL_CONSENT_SETTINGS
+      } as any
 
       const forcedStore = useAuthStore()
       forcedStore.checkAuth()

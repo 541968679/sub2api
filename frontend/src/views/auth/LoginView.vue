@@ -297,6 +297,7 @@
     <LegalConsentDialog
       :show="showLegalConsentDialog"
       mode="login"
+      :settings="legalConsentSettings"
       @accept="handleLegalConsentAccepted"
       @cancel="handleLegalConsentCancelled"
     />
@@ -317,14 +318,14 @@ import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, isTotp2FARequired, isWeChatWebOAuthEnabled } from '@/api/auth'
 import { sanitizeUrl } from '@/utils/url'
-import type { TotpLoginResponse } from '@/types'
+import type { LegalConsentSettings, TotpLoginResponse, User } from '@/types'
 import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
 import {
   hasAcceptedCurrentLegalConsent,
   markLegalConsentAccepted,
+  resolveLegalConsentSettings,
   type LegalConsentPayload
 } from '@/utils/legalConsent'
-import type { User } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -346,6 +347,10 @@ const docUrl = computed(() => appStore.docUrl)
 // to the i18n defaults below, so deleting a field in admin = restoring the
 // original translation. Keeps every language correct without per-field branching.
 const loginPageOverrides = computed(() => appStore.cachedPublicSettings?.login_page ?? null)
+const localLegalConsentSettings = ref<LegalConsentSettings | null>(null)
+const legalConsentSettings = computed(() => resolveLegalConsentSettings(
+  localLegalConsentSettings.value || appStore.cachedPublicSettings?.legal_consent
+))
 const pickLoginText = (value: string | undefined | null, fallback: string): string => {
   const v = typeof value === 'string' ? value.trim() : ''
   return v !== '' ? v : fallback
@@ -533,6 +538,7 @@ onMounted(async () => {
     oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
     backendModeEnabled.value = settings.backend_mode_enabled
     passwordResetEnabled.value = settings.password_reset_enabled
+    localLegalConsentSettings.value = settings.legal_consent || null
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }
@@ -683,8 +689,12 @@ function handle2FACancel(): void {
 
 async function completeAuthenticatedLogin(user: User | null | undefined, redirectTo: string): Promise<void> {
   pendingRedirectAfterConsent.value = redirectTo || '/dashboard'
+  if (!appStore.publicSettingsLoaded) {
+    const settings = await appStore.fetchPublicSettings()
+    localLegalConsentSettings.value = settings?.legal_consent || localLegalConsentSettings.value
+  }
 
-  if (!user?.id || !hasAcceptedCurrentLegalConsent(user.id)) {
+  if (!user?.id || !hasAcceptedCurrentLegalConsent(user.id, legalConsentSettings.value)) {
     showLegalConsentDialog.value = true
     return
   }
@@ -697,7 +707,7 @@ async function handleLegalConsentAccepted(payload: LegalConsentPayload): Promise
     markLegalConsentAccepted(authStore.user.id, {
       ...payload,
       source: 'login'
-    })
+    }, legalConsentSettings.value)
   }
   showLegalConsentDialog.value = false
   await finishLoginRedirect()

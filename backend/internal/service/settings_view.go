@@ -19,6 +19,7 @@ type SystemSettings struct {
 	PasswordResetEnabled             bool
 	FrontendURL                      string
 	InvitationCodeEnabled            bool
+	LegalConsent                     LegalConsentSettings
 	TotpEnabled                      bool // TOTP 双因素认证
 
 	SMTPHost               string
@@ -193,6 +194,7 @@ type PublicSettings struct {
 	PromoCodeEnabled                 bool
 	PasswordResetEnabled             bool
 	InvitationCodeEnabled            bool
+	LegalConsent                     LegalConsentSettings
 	TotpEnabled                      bool // TOTP 双因素认证
 	TurnstileEnabled                 bool
 	TurnstileSiteKey                 string
@@ -240,6 +242,14 @@ type PublicSettings struct {
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`
+}
+
+type LegalConsentSettings struct {
+	Enabled            bool   `json:"enabled"`
+	Version            string `json:"version"`
+	Content            string `json:"content"`
+	ConfirmationPhrase string `json:"confirmation_phrase"`
+	MinReadSeconds     int    `json:"min_read_seconds"`
 }
 
 type LoginPageContent struct {

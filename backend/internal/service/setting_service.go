@@ -35,6 +35,43 @@ var (
 	)
 )
 
+const (
+	DefaultLegalConsentVersion            = "2026-06-11-internal-research-v2"
+	DefaultLegalConsentConfirmationPhrase = "我确认本人为授权内部测试人员，已阅读并同意上述使用条款与免责声明，知悉本平台非商业服务且不提供在线充值，如有任何风险或问题由本人自行承担"
+	DefaultLegalConsentMinReadSeconds     = 20
+	legalConsentMinReadSecondsMin         = 0
+	legalConsentMinReadSecondsMax         = 300
+	DefaultLegalConsentContent            = `⚠️ 重要声明
+本平台仅作为内部技术研究、模型接口测试、系统联调及数据验证用途。
+
+平台不面向公众开放注册、充值、购买、代充、转售或任何商业化使用。
+
+非授权人员请立即停止访问。
+
+🔬 内部科研用途
+本系统用于内部大模型接口兼容性测试、模型能力验证、请求日志分析、计费规则模拟及技术架构研究。
+
+🔐 权限使用说明
+平台账号仅限授权人员本人使用，不得转借、共享、出租、出售或提供给任何第三方使用。
+
+📌 使用协议
+一、使用范围：
+本平台仅限内部授权人员用于科研测试、技术验证及系统维护，不提供任何对外服务。
+
+二、禁止行为：
+禁止将本平台用于公开运营、商业销售、接口转售、批量注册、违法违规内容生成、恶意请求、压力攻击、数据抓取或任何违反法律法规的用途。
+
+三、账号安全：
+用户应妥善保管账号、密码及令牌 Key。因个人泄露、转借、共享导致的风险和损失，由使用者自行承担。
+
+四、风控处理：
+如发现异常访问、接口滥用、违规调用、恶意测试、传播平台信息等行为，平台有权立即限制、暂停或关闭相关权限。
+
+🚫 本平台当前不提供在线充值、不开放公众注册、不承接外部客户、不进行公开商业运营。
+
+继续访问或使用本平台，即表示您已阅读并同意以上公告及相关协议内容。`
+)
+
 type SettingRepository interface {
 	Get(ctx context.Context, key string) (*Setting, error)
 	GetValue(ctx context.Context, key string) (string, error)
@@ -410,6 +447,11 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyPromoCodeEnabled,
 		SettingKeyPasswordResetEnabled,
 		SettingKeyInvitationCodeEnabled,
+		SettingKeyLegalConsentEnabled,
+		SettingKeyLegalConsentVersion,
+		SettingKeyLegalConsentContent,
+		SettingKeyLegalConsentConfirmationPhrase,
+		SettingKeyLegalConsentMinReadSeconds,
 		SettingKeyTotpEnabled,
 		SettingKeyTurnstileEnabled,
 		SettingKeyTurnstileSiteKey,
@@ -518,6 +560,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		PromoCodeEnabled:                 settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用
 		PasswordResetEnabled:             passwordResetEnabled,
 		InvitationCodeEnabled:            settings[SettingKeyInvitationCodeEnabled] == "true",
+		LegalConsent:                     parseLegalConsentSettings(settings),
 		TotpEnabled:                      settings[SettingKeyTotpEnabled] == "true",
 		TurnstileEnabled:                 settings[SettingKeyTurnstileEnabled] == "true",
 		TurnstileSiteKey:                 settings[SettingKeyTurnstileSiteKey],
@@ -737,6 +780,8 @@ type PublicSettingsInjectionPayload struct {
 	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
 	AffiliateEnabled                     bool `json:"affiliate_enabled"`
+
+	LegalConsent LegalConsentSettings `json:"legal_consent"`
 }
 
 // GetPublicSettingsForInjection returns public settings in a format suitable for HTML injection.
@@ -793,6 +838,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
+		LegalConsent:                         settings.LegalConsent,
 	}, nil
 }
 
@@ -1116,6 +1162,13 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyFrontendURL] = settings.FrontendURL
 	updates[SettingKeyInvitationCodeEnabled] = strconv.FormatBool(settings.InvitationCodeEnabled)
 	updates[SettingKeyTotpEnabled] = strconv.FormatBool(settings.TotpEnabled)
+	legalConsent := normalizeLegalConsentSettings(settings.LegalConsent)
+	settings.LegalConsent = legalConsent
+	updates[SettingKeyLegalConsentEnabled] = strconv.FormatBool(legalConsent.Enabled)
+	updates[SettingKeyLegalConsentVersion] = legalConsent.Version
+	updates[SettingKeyLegalConsentContent] = legalConsent.Content
+	updates[SettingKeyLegalConsentConfirmationPhrase] = legalConsent.ConfirmationPhrase
+	updates[SettingKeyLegalConsentMinReadSeconds] = strconv.Itoa(legalConsent.MinReadSeconds)
 
 	// 邮件服务设置（只有非空才更新密码）
 	updates[SettingKeySMTPHost] = settings.SMTPHost
@@ -1859,6 +1912,11 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyEmailVerifyEnabled:                       "false",
 		SettingKeyRegistrationEmailSuffixWhitelist:         "[]",
 		SettingKeyPromoCodeEnabled:                         "true", // 默认启用优惠码功能
+		SettingKeyLegalConsentEnabled:                      "true",
+		SettingKeyLegalConsentVersion:                      DefaultLegalConsentVersion,
+		SettingKeyLegalConsentContent:                      DefaultLegalConsentContent,
+		SettingKeyLegalConsentConfirmationPhrase:           DefaultLegalConsentConfirmationPhrase,
+		SettingKeyLegalConsentMinReadSeconds:               strconv.Itoa(DefaultLegalConsentMinReadSeconds),
 		SettingKeySiteName:                                 "ZeroCode",
 		SettingKeySiteLogo:                                 "",
 		SettingCNYPerUSD:                                   "",
@@ -2005,6 +2063,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		PasswordResetEnabled:             emailVerifyEnabled && settings[SettingKeyPasswordResetEnabled] == "true",
 		FrontendURL:                      settings[SettingKeyFrontendURL],
 		InvitationCodeEnabled:            settings[SettingKeyInvitationCodeEnabled] == "true",
+		LegalConsent:                     parseLegalConsentSettings(settings),
 		TotpEnabled:                      settings[SettingKeyTotpEnabled] == "true",
 		SMTPHost:                         settings[SettingKeySMTPHost],
 		SMTPUsername:                     settings[SettingKeySMTPUsername],
@@ -2387,6 +2446,59 @@ func isFalseSettingValue(value string) bool {
 	default:
 		return false
 	}
+}
+
+func parseLegalConsentSettings(settings map[string]string) LegalConsentSettings {
+	enabled := true
+	if raw, ok := settings[SettingKeyLegalConsentEnabled]; ok {
+		enabled = raw == "true"
+	}
+	return normalizeLegalConsentSettings(LegalConsentSettings{
+		Enabled:            enabled,
+		Version:            settings[SettingKeyLegalConsentVersion],
+		Content:            settings[SettingKeyLegalConsentContent],
+		ConfirmationPhrase: settings[SettingKeyLegalConsentConfirmationPhrase],
+		MinReadSeconds:     parseLegalConsentMinReadSeconds(settings[SettingKeyLegalConsentMinReadSeconds]),
+	})
+}
+
+func normalizeLegalConsentSettings(settings LegalConsentSettings) LegalConsentSettings {
+	settings.Version = strings.TrimSpace(settings.Version)
+	if settings.Version == "" {
+		settings.Version = DefaultLegalConsentVersion
+	}
+	settings.Content = strings.TrimSpace(settings.Content)
+	if settings.Content == "" {
+		settings.Content = DefaultLegalConsentContent
+	}
+	settings.ConfirmationPhrase = strings.TrimSpace(settings.ConfirmationPhrase)
+	if settings.ConfirmationPhrase == "" {
+		settings.ConfirmationPhrase = DefaultLegalConsentConfirmationPhrase
+	}
+	settings.MinReadSeconds = clampLegalConsentMinReadSeconds(settings.MinReadSeconds)
+	return settings
+}
+
+func parseLegalConsentMinReadSeconds(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return DefaultLegalConsentMinReadSeconds
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return DefaultLegalConsentMinReadSeconds
+	}
+	return clampLegalConsentMinReadSeconds(v)
+}
+
+func clampLegalConsentMinReadSeconds(v int) int {
+	if v < legalConsentMinReadSecondsMin {
+		return legalConsentMinReadSecondsMin
+	}
+	if v > legalConsentMinReadSecondsMax {
+		return legalConsentMinReadSecondsMax
+	}
+	return v
 }
 
 func normalizeVisibleMethodSettingSource(method, source string, enabled bool) (string, error) {

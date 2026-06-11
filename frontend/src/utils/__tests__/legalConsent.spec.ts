@@ -3,9 +3,11 @@ import {
   CURRENT_LEGAL_CONFIRMATION_PHRASE,
   CURRENT_LEGAL_CONSENT_VERSION,
   clearStaleAuthForLegalConsent,
+  DEFAULT_LEGAL_CONSENT_SETTINGS,
   getPendingRegisterLegalConsent,
   hasAcceptedCurrentLegalConsent,
   markLegalConsentAccepted,
+  resolveLegalConsentSettings,
   storePendingRegisterLegalConsent
 } from '@/utils/legalConsent'
 
@@ -17,6 +19,48 @@ describe('legal consent persistence', () => {
 
   it('uses the internal research terms version', () => {
     expect(CURRENT_LEGAL_CONSENT_VERSION).toBe('2026-06-11-internal-research-v2')
+  })
+
+  it('invalidates acceptance when a configured legal version changes', () => {
+    const v3 = {
+      ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+      version: 'legal-v3',
+      confirmation_phrase: 'I agree to legal-v3'
+    }
+    markLegalConsentAccepted(1, {
+      typedConfirmation: 'I agree to legal-v3',
+      dwellSeconds: 20,
+      scrolledToBottom: true,
+      authorizedUseAttestation: true,
+      source: 'login'
+    }, v3)
+
+    expect(hasAcceptedCurrentLegalConsent(1, v3)).toBe(true)
+    expect(hasAcceptedCurrentLegalConsent(1, { ...v3, version: 'legal-v4' })).toBe(false)
+  })
+
+  it('records the accepted version as the current force-logout version', () => {
+    const v3 = {
+      ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+      version: 'legal-v3',
+      confirmation_phrase: 'I agree to legal-v3'
+    }
+
+    markLegalConsentAccepted(1, {
+      typedConfirmation: 'I agree to legal-v3',
+      dwellSeconds: 20,
+      scrolledToBottom: true,
+      authorizedUseAttestation: true,
+      source: 'login'
+    }, v3)
+
+    expect(localStorage.getItem('legal_consent:force_logout_version')).toBe('legal-v3')
+  })
+
+  it('treats disabled legal consent as already accepted', () => {
+    const disabled = resolveLegalConsentSettings({ enabled: false })
+    expect(hasAcceptedCurrentLegalConsent(1, disabled)).toBe(true)
+    expect(clearStaleAuthForLegalConsent(disabled)).toBe(false)
   })
 
   it('stores acceptance by user and current legal version only', () => {
@@ -77,6 +121,29 @@ describe('legal consent persistence', () => {
       authorizedUseAttestation: true,
       source: 'register'
     })
+  })
+
+  it('invalidates pending register consent when configured version changes', () => {
+    const v3 = {
+      ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+      version: 'legal-v3',
+      confirmation_phrase: 'I agree to legal-v3'
+    }
+
+    storePendingRegisterLegalConsent({
+      typedConfirmation: 'I agree to legal-v3',
+      dwellSeconds: 20,
+      scrolledToBottom: true,
+      authorizedUseAttestation: true,
+      source: 'register'
+    }, v3)
+
+    expect(getPendingRegisterLegalConsent(v3)).toMatchObject({
+      typedConfirmation: 'I agree to legal-v3',
+      authorizedUseAttestation: true,
+      source: 'register'
+    })
+    expect(getPendingRegisterLegalConsent({ ...v3, version: 'legal-v4' })).toBeNull()
   })
 
   it('clears existing auth tokens once for a new legal force-logout version', () => {

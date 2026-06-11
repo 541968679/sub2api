@@ -5323,6 +5323,20 @@ const zhBase = {
         totpKeyNotConfigured:
           '请先在环境变量中配置 TOTP_ENCRYPTION_KEY。使用命令 openssl rand -hex 32 生成密钥。'
       },
+      legalConsent: {
+        title: '使用条款与免责声明',
+        description: '配置注册、登录前必须确认的条款内容与版本',
+        enabled: '启用强制确认',
+        enabledHint: '开启后，用户注册或条款版本变更后的登录必须完成确认',
+        version: '条款版本',
+        versionHint: '修改版本号会要求所有用户重新确认',
+        minReadSeconds: '最短阅读秒数',
+        minReadSecondsHint: '范围 0-300 秒，用户倒计时结束并滚动到底部后才能确认',
+        content: '条款正文',
+        contentHint: '将原样按换行显示在注册/登录确认弹窗中',
+        confirmationPhrase: '确认语',
+        confirmationPhraseHint: '用户必须逐字输入该文本后才能确认'
+      },
       turnstile: {
         title: 'Cloudflare Turnstile',
         description: '登录和注册的机器人防护',
@@ -7579,6 +7593,7 @@ const v117ZhPatch = {
     registerNotice: '注册前必须完整阅读并确认以下使用条款与免责声明。未完成确认前不会创建账户。',
     loginNotice: '平台使用条款与免责声明已更新。继续访问或使用前，请完整阅读并确认。',
     version: '条款版本：{version}',
+    contentTitle: '使用条款与免责声明',
     disclaimerTitle: '重要声明',
     disclaimerBody: '本平台仅用于内部技术研究、模型接口测试、系统联调、数据验证、计费规则模拟及相关技术架构研究。本平台不是面向公众提供的商业化 AI 服务平台，不开放公众注册、充值、购买、代充、转售、分销或任何形式的对外经营使用；不承接外部客户，不提供在线充值服务，不进行公开商业运营。系统中出现的余额、额度、价格、计费、订单、账单等信息，仅用于内部测试、统计、风控、核算模拟或技术验证，不代表实际销售、充值承诺、付款凭证或对外服务关系。非授权人员、非内部测试人员、非指定维护人员，请立即停止访问、注册、登录或使用本平台。',
     regionTitle: '内部科研用途',

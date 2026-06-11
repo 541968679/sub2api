@@ -5594,6 +5594,20 @@ const enBase = {
         totpKeyNotConfigured:
           'Please configure TOTP_ENCRYPTION_KEY in environment variables first. Generate a key with: openssl rand -hex 32'
       },
+      legalConsent: {
+        title: 'Use Terms and Disclaimer',
+        description: 'Configure the terms users must confirm before registration or continued login',
+        enabled: 'Require confirmation',
+        enabledHint: 'When enabled, users must confirm terms on registration and after version changes',
+        version: 'Terms version',
+        versionHint: 'Changing this value forces every user to confirm again',
+        minReadSeconds: 'Minimum read seconds',
+        minReadSecondsHint: '0-300 seconds. Users must wait and scroll to the bottom before confirming',
+        content: 'Terms content',
+        contentHint: 'Shown as-is with line breaks in the registration/login confirmation dialog',
+        confirmationPhrase: 'Confirmation phrase',
+        confirmationPhraseHint: 'Users must type this exact text before they can confirm'
+      },
       turnstile: {
         title: 'Cloudflare Turnstile',
         description: 'Bot protection for login and registration',
@@ -7414,6 +7428,7 @@ const phase0LocalePatch = {
     registerNotice: 'You must read and confirm these use terms and disclaimer before an account can be created.',
     loginNotice: 'The platform use terms and disclaimer have been updated. Read and confirm them before continuing.',
     version: 'Terms version: {version}',
+    contentTitle: 'Use Terms and Disclaimer',
     disclaimerTitle: 'Important Notice',
     disclaimerBody: 'This platform is only for internal technical research, model API testing, system integration, data validation, billing-rule simulation, and related architecture research. It is not a public commercial AI service platform and is not open for public registration, recharge, purchase, top-up service, resale, distribution, or any external business use. It does not accept external customers, does not provide online recharge, and does not conduct public commercial operations. Balance, quota, pricing, billing, order, or invoice-like information in the system is only for internal testing, statistics, risk control, accounting simulation, or technical validation, and does not represent sales, recharge commitments, payment proof, or an external service relationship. Unauthorized persons, non-internal testers, and non-designated maintainers must stop accessing, registering, logging in, or using this platform immediately.',
     regionTitle: 'Internal Research Use',

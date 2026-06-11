@@ -115,6 +115,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PasswordResetEnabled:                   settings.PasswordResetEnabled,
 		FrontendURL:                            settings.FrontendURL,
 		InvitationCodeEnabled:                  settings.InvitationCodeEnabled,
+		LegalConsent:                           legalConsentSettingsToDTO(settings.LegalConsent),
 		TotpEnabled:                            settings.TotpEnabled,
 		TotpEncryptionKeyConfigured:            h.settingService.IsTotpEncryptionKeyConfigured(),
 		SMTPHost:                               settings.SMTPHost,
@@ -325,17 +326,38 @@ func openAIClaudeGPTBridgeCacheDisplaySettingsFromDTO(s *dto.OpenAIClaudeGPTBrid
 	}
 }
 
+func legalConsentSettingsToDTO(s service.LegalConsentSettings) dto.LegalConsentSettings {
+	return dto.LegalConsentSettings{
+		Enabled:            s.Enabled,
+		Version:            s.Version,
+		Content:            s.Content,
+		ConfirmationPhrase: s.ConfirmationPhrase,
+		MinReadSeconds:     s.MinReadSeconds,
+	}
+}
+
+func legalConsentSettingsFromDTO(s dto.LegalConsentSettings) service.LegalConsentSettings {
+	return service.LegalConsentSettings{
+		Enabled:            s.Enabled,
+		Version:            s.Version,
+		Content:            s.Content,
+		ConfirmationPhrase: s.ConfirmationPhrase,
+		MinReadSeconds:     s.MinReadSeconds,
+	}
+}
+
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
 	// 注册设置
-	RegistrationEnabled              bool     `json:"registration_enabled"`
-	EmailVerifyEnabled               bool     `json:"email_verify_enabled"`
-	RegistrationEmailSuffixWhitelist []string `json:"registration_email_suffix_whitelist"`
-	PromoCodeEnabled                 bool     `json:"promo_code_enabled"`
-	PasswordResetEnabled             bool     `json:"password_reset_enabled"`
-	FrontendURL                      string   `json:"frontend_url"`
-	InvitationCodeEnabled            bool     `json:"invitation_code_enabled"`
-	TotpEnabled                      bool     `json:"totp_enabled"` // TOTP 双因素认证
+	RegistrationEnabled              bool                      `json:"registration_enabled"`
+	EmailVerifyEnabled               bool                      `json:"email_verify_enabled"`
+	RegistrationEmailSuffixWhitelist []string                  `json:"registration_email_suffix_whitelist"`
+	PromoCodeEnabled                 bool                      `json:"promo_code_enabled"`
+	PasswordResetEnabled             bool                      `json:"password_reset_enabled"`
+	FrontendURL                      string                    `json:"frontend_url"`
+	InvitationCodeEnabled            bool                      `json:"invitation_code_enabled"`
+	LegalConsent                     *dto.LegalConsentSettings `json:"legal_consent"`
+	TotpEnabled                      bool                      `json:"totp_enabled"` // TOTP 双因素认证
 
 	// 邮件服务设置
 	SMTPHost     string `json:"smtp_host"`
@@ -1180,6 +1202,11 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
+	legalConsent := previousSettings.LegalConsent
+	if req.LegalConsent != nil {
+		legalConsent = legalConsentSettingsFromDTO(*req.LegalConsent)
+	}
+
 	settings := &service.SystemSettings{
 		RegistrationEnabled:              req.RegistrationEnabled,
 		EmailVerifyEnabled:               req.EmailVerifyEnabled,
@@ -1188,6 +1215,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PasswordResetEnabled:             req.PasswordResetEnabled,
 		FrontendURL:                      req.FrontendURL,
 		InvitationCodeEnabled:            req.InvitationCodeEnabled,
+		LegalConsent:                     legalConsent,
 		TotpEnabled:                      req.TotpEnabled,
 		SMTPHost:                         req.SMTPHost,
 		SMTPPort:                         req.SMTPPort,
@@ -1542,6 +1570,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PasswordResetEnabled:                   updatedSettings.PasswordResetEnabled,
 		FrontendURL:                            updatedSettings.FrontendURL,
 		InvitationCodeEnabled:                  updatedSettings.InvitationCodeEnabled,
+		LegalConsent:                           legalConsentSettingsToDTO(updatedSettings.LegalConsent),
 		TotpEnabled:                            updatedSettings.TotpEnabled,
 		TotpEncryptionKeyConfigured:            h.settingService.IsTotpEncryptionKeyConfigured(),
 		SMTPHost:                               updatedSettings.SMTPHost,

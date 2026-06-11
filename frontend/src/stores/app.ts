@@ -301,6 +301,13 @@ export const useAppStore = defineStore('app', () => {
     docUrl.value = config.doc_url || ''
     paymentCnyPerUsd.value = Number(config.payment_cny_per_usd) || 0
     publicSettingsLoaded.value = true
+    import('@/stores/auth')
+      .then(({ useAuthStore }) => {
+        useAuthStore().enforceLegalConsentSettings(config.legal_consent)
+      })
+      .catch((error) => {
+        console.error('Failed to enforce legal consent settings:', error)
+      })
   }
 
   /**
@@ -327,6 +334,13 @@ export const useAppStore = defineStore('app', () => {
         promo_code_enabled: true,
         password_reset_enabled: false,
         invitation_code_enabled: false,
+        legal_consent: {
+          enabled: true,
+          version: '2026-06-11-internal-research-v2',
+          content: '',
+          confirmation_phrase: '',
+          min_read_seconds: 20,
+        },
         turnstile_enabled: false,
         turnstile_site_key: '',
         site_name: siteName.value,

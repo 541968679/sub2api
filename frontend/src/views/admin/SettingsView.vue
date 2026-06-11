@@ -1444,6 +1444,94 @@
             </div>
           </div>
 
+          <!-- Legal Consent Settings -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.legalConsent.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.legalConsent.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">
+                    {{ t("admin.settings.legalConsent.enabled") }}
+                  </label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.legalConsent.enabledHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.legal_consent.enabled" />
+              </div>
+
+              <div class="grid gap-4 border-t border-gray-100 pt-4 dark:border-dark-700 md:grid-cols-2">
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.legalConsent.version") }}
+                  </label>
+                  <input
+                    v-model="form.legal_consent.version"
+                    type="text"
+                    class="input"
+                    :placeholder="DEFAULT_LEGAL_CONSENT_SETTINGS.version"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.legalConsent.versionHint") }}
+                  </p>
+                </div>
+
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.legalConsent.minReadSeconds") }}
+                  </label>
+                  <input
+                    v-model.number="form.legal_consent.min_read_seconds"
+                    type="number"
+                    min="0"
+                    max="300"
+                    class="input"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.legalConsent.minReadSecondsHint") }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.legalConsent.content") }}
+                </label>
+                <textarea
+                  v-model="form.legal_consent.content"
+                  class="input min-h-[260px] font-mono text-sm leading-6"
+                  :placeholder="DEFAULT_LEGAL_CONSENT_SETTINGS.content"
+                ></textarea>
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.legalConsent.contentHint") }}
+                </p>
+              </div>
+
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.legalConsent.confirmationPhrase") }}
+                </label>
+                <textarea
+                  v-model="form.legal_consent.confirmation_phrase"
+                  class="input min-h-[92px] resize-y"
+                  :placeholder="DEFAULT_LEGAL_CONSENT_SETTINGS.confirmation_phrase"
+                ></textarea>
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.legalConsent.confirmationPhraseHint") }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <!-- Cloudflare Turnstile Settings -->
           <div class="card">
             <div
@@ -5658,6 +5746,7 @@ import {
   normalizeRegistrationEmailSuffixDomains,
   parseRegistrationEmailSuffixWhitelistInput,
 } from "@/utils/registrationEmailPolicy";
+import { DEFAULT_LEGAL_CONSENT_SETTINGS } from "@/utils/legalConsent";
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
@@ -5815,6 +5904,7 @@ const form = reactive<SettingsForm>({
   registration_email_suffix_whitelist: [],
   promo_code_enabled: true,
   invitation_code_enabled: false,
+  legal_consent: { ...DEFAULT_LEGAL_CONSENT_SETTINGS },
   password_reset_enabled: false,
   totp_enabled: false,
   totp_encryption_key_configured: false,
@@ -6489,6 +6579,10 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.legal_consent = {
+      ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+      ...(settings.legal_consent || {}),
+    };
     if (!form.openai_claude_gpt_bridge_cache_display_settings) {
       form.openai_claude_gpt_bridge_cache_display_settings = {
         enabled: false,
@@ -6802,6 +6896,16 @@ async function saveSettings() {
         ),
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
+      legal_consent: {
+        enabled: form.legal_consent.enabled,
+        version: form.legal_consent.version,
+        content: form.legal_consent.content,
+        confirmation_phrase: form.legal_consent.confirmation_phrase,
+        min_read_seconds: Math.max(
+          0,
+          Math.min(300, Math.floor(Number(form.legal_consent.min_read_seconds) || 0)),
+        ),
+      },
       password_reset_enabled: form.password_reset_enabled,
       totp_enabled: form.totp_enabled,
       default_balance: form.default_balance,

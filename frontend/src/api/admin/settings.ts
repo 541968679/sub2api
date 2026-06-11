@@ -17,6 +17,14 @@ export interface OpenAIClaudeGPTBridgeCacheDisplaySettings {
   max_percent: number;
 }
 
+export interface LegalConsentSettings {
+  enabled: boolean;
+  version: string;
+  content: string;
+  confirmation_phrase: string;
+  min_read_seconds: number;
+}
+
 export type AuthSourceType = "email" | "linuxdo" | "oidc" | "wechat";
 
 export interface AuthSourceDefaultsValue {
@@ -310,6 +318,7 @@ export interface SystemSettings {
   password_reset_enabled: boolean;
   frontend_url: string;
   invitation_code_enabled: boolean;
+  legal_consent: LegalConsentSettings;
   totp_enabled: boolean; // TOTP 双因素认证
   totp_encryption_key_configured: boolean; // TOTP 加密密钥是否已配置
   // Default settings
@@ -511,6 +520,7 @@ export interface UpdateSettingsRequest {
   password_reset_enabled?: boolean;
   frontend_url?: string;
   invitation_code_enabled?: boolean;
+  legal_consent?: LegalConsentSettings;
   totp_enabled?: boolean; // TOTP 双因素认证
   default_balance?: number;
   affiliate_rebate_rate?: number;
@@ -716,6 +726,7 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     password_reset_enabled: s.password_reset_enabled,
     frontend_url: s.frontend_url,
     invitation_code_enabled: s.invitation_code_enabled,
+    legal_consent: s.legal_consent,
     totp_enabled: s.totp_enabled,
     default_balance: s.default_balance,
     default_concurrency: s.default_concurrency,

@@ -316,6 +316,14 @@ export interface LoginPageContent {
   form_subtitle?: string
 }
 
+export interface LegalConsentSettings {
+  enabled: boolean
+  version: string
+  content: string
+  confirmation_phrase: string
+  min_read_seconds: number
+}
+
 export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
@@ -324,6 +332,7 @@ export interface PublicSettings {
   promo_code_enabled: boolean
   password_reset_enabled: boolean
   invitation_code_enabled: boolean
+  legal_consent: LegalConsentSettings
   turnstile_enabled: boolean
   turnstile_site_key: string
   site_name: string
