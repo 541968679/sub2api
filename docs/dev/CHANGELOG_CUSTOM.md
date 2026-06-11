@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] fix: bump Dockerfile Go builder to 1.26.4 to match go.mod
+
+**Affected files**: Dockerfile
+**Upstream compatibility**: build-only; keep in sync with go.mod `go` directive on future syncs.
+**Change details**:
+- The upstream sync bumped `backend/go.mod` to `go 1.26.4`, but the Docker builder stayed on `golang:1.26.2-alpine`. Official golang images set `GOTOOLCHAIN=local`, so the production `docker build --no-cache` in update.sh would fail with "go.mod requires go >= 1.26.4". Bumped `GOLANG_IMAGE` to `golang:1.26.4-alpine` (verified the tag exists on Docker Hub). CI is unaffected (uses `go-version-file: backend/go.mod`).
+
+---
+
 ## [2026-06-11] test: align four stale test expectations with intentional behavior changes
 
 **Affected files**: backend/ent/schema/auth_identity_schema_test.go, backend/internal/server/api_contract_test.go, backend/internal/service/openai_account_scheduler_test.go, backend/internal/service/openai_ws_v2/passthrough_relay_internal_test.go
