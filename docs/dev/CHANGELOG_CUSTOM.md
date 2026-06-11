@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] test: align four stale test expectations with intentional behavior changes
+
+**Affected files**: backend/ent/schema/auth_identity_schema_test.go, backend/internal/server/api_contract_test.go, backend/internal/service/openai_account_scheduler_test.go, backend/internal/service/openai_ws_v2/passthrough_relay_internal_test.go
+**Upstream compatibility**: test-only; no runtime behavior change.
+**Change details**:
+- `auth_identity_schema_test`: User.signup_source validator now intentionally allows github/google/dingtalk (migrations 152/154); test expected "github" to be rejected. Updated allowed list and use "not-a-source" as the invalid probe.
+- `api_contract_test` (admin settings x2): fc9bc4fc added `legal_consent` to GET /api/v1/admin/settings. Set explicit legal consent settings in both subtest setups and added the object to expected JSON (avoids depending on the long default copy).
+- `openai_account_scheduler_test` (SchedulerMetrics): the phase-8a sticky guard `openAIStickyAccountMatchesGroup` rejects sticky bindings for accounts not bound to the request group; the new test's account fixture lacked `GroupIDs`, so the sticky hit silently fell through to load-balance. Fixture now binds the account to the group.
+- `passthrough_relay_internal_test`: `isTokenEvent` intentionally no longer counts terminal events (`response.completed`/`response.done`) as first-token signals (beb91eef); updated expectation to False.
+
+---
+
 ## [2026-06-11] test: fix pre-deploy check failures (build tag + API contract)
 
 **Affected files**: backend/internal/service/announcement_service_test.go, backend/internal/server/api_contract_test.go

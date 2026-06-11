@@ -234,7 +234,7 @@ func TestHelperFunctionsCoverage(t *testing.T) {
 
 	require.True(t, isTokenEvent("response.output_text.delta"))
 	require.True(t, isTokenEvent("response.output_audio.delta"))
-	require.True(t, isTokenEvent("response.completed"))
+	require.False(t, isTokenEvent("response.completed"))
 	require.False(t, isTokenEvent(""))
 	require.False(t, isTokenEvent("response.created"))
 

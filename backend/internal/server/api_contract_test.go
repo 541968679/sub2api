@@ -635,6 +635,12 @@ func TestAPIContracts(t *testing.T) {
 					service.SettingPaymentVisibleMethodAlipayEnabled: "true",
 					service.SettingPaymentVisibleMethodWxpayEnabled:  "false",
 					"openai_advanced_scheduler_enabled":              "true",
+
+					service.SettingKeyLegalConsentEnabled:            "true",
+					service.SettingKeyLegalConsentVersion:            "test-v1",
+					service.SettingKeyLegalConsentContent:            "terms",
+					service.SettingKeyLegalConsentConfirmationPhrase: "I agree",
+					service.SettingKeyLegalConsentMinReadSeconds:     "5",
 				})
 			},
 			method:     http.MethodGet,
@@ -652,6 +658,13 @@ func TestAPIContracts(t *testing.T) {
 					"frontend_url": "",
 					"totp_enabled": false,
 					"totp_encryption_key_configured": false,
+					"legal_consent": {
+						"enabled": true,
+						"version": "test-v1",
+						"content": "terms",
+						"confirmation_phrase": "I agree",
+						"min_read_seconds": 5
+					},
 					"smtp_host": "smtp.example.com",
 					"smtp_port": 587,
 					"smtp_username": "user",
@@ -858,6 +871,12 @@ func TestAPIContracts(t *testing.T) {
 					service.SettingKeyRegistrationEnabled:              "true",
 					service.SettingKeyEmailVerifyEnabled:               "false",
 					service.SettingKeyRegistrationEmailSuffixWhitelist: "[]",
+
+					service.SettingKeyLegalConsentEnabled:            "true",
+					service.SettingKeyLegalConsentVersion:            "test-v1",
+					service.SettingKeyLegalConsentContent:            "terms",
+					service.SettingKeyLegalConsentConfirmationPhrase: "I agree",
+					service.SettingKeyLegalConsentMinReadSeconds:     "5",
 				})
 			},
 			method:     http.MethodGet,
@@ -892,6 +911,13 @@ func TestAPIContracts(t *testing.T) {
 					"linuxdo_connect_redirect_url": "",
 					"oidc_connect_enabled": true,
 					"oidc_connect_provider_name": "ConfigOIDC",
+					"legal_consent": {
+						"enabled": true,
+						"version": "test-v1",
+						"content": "terms",
+						"confirmation_phrase": "I agree",
+						"min_read_seconds": 5
+					},
 					"oidc_connect_client_id": "oidc-config-client",
 					"oidc_connect_client_secret_configured": true,
 					"oidc_connect_issuer_url": "https://issuer.example.com",
