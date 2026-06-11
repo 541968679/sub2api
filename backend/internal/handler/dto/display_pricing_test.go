@@ -241,6 +241,52 @@ func TestUsageLogFromService_LongContextCustomDisplayPriceScalesOnce(t *testing.
 	assertClose(t, "actual_cost", out.ActualCost, log.ActualCost)
 }
 
+func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmplificationInvariant(t *testing.T) {
+	displayInput := 5e-6
+	displayOutput := 30e-6
+	displayCacheRead := 0.5e-6
+	log := &service.UsageLog{
+		Model:                       "gpt-5.5",
+		InputTokens:                 1000,
+		OutputTokens:                100,
+		CacheReadTokens:             2000,
+		InputCost:                   1000 * 10e-6 * 2.0,
+		OutputCost:                  100 * 60e-6 * 1.5,
+		CacheReadCost:               2000 * 1e-6 * 2.0,
+		TotalCost:                   1000*10e-6*2.0 + 100*60e-6*1.5 + 2000*1e-6*2.0,
+		ActualCost:                  2.0 * (1000*10e-6*2.0 + 100*60e-6*1.5 + 2000*1e-6*2.0),
+		RateMultiplier:              2.0,
+		LongContextApplied:          true,
+		LongContextInputThreshold:   272000,
+		LongContextInputMultiplier:  2.0,
+		LongContextOutputMultiplier: 1.5,
+	}
+
+	out := UsageLogFromService(log, DisplayPricingMap{
+		"gpt-5.5": &DisplayPricingConfig{
+			DisplayInputPrice:     &displayInput,
+			DisplayOutputPrice:    &displayOutput,
+			DisplayCacheReadPrice: &displayCacheRead,
+		},
+	})
+	ApplyUserDisplayRate(out, 1.0)
+
+	if out.InputTokens != 4400 {
+		t.Fatalf("input tokens should only include model display ratio and display-rate scaling, got %d", out.InputTokens)
+	}
+	if out.OutputTokens != 400 {
+		t.Fatalf("output tokens should only include model display ratio and display-rate scaling, got %d", out.OutputTokens)
+	}
+	if out.CacheReadTokens != 4000 {
+		t.Fatalf("cache read tokens should only be affected by display-rate scaling, got %d", out.CacheReadTokens)
+	}
+	if out.RateMultiplier != 1.0 {
+		t.Fatalf("rate multiplier should be rewritten to display rate, got %.2f", out.RateMultiplier)
+	}
+	assertClose(t, "actual_cost", out.ActualCost, log.ActualCost)
+	assertClose(t, "total_cost*rate", out.TotalCost*out.RateMultiplier, out.ActualCost)
+}
+
 func TestApplyUserDisplayRate_ScalesTokensAndPreservesActualCost(t *testing.T) {
 	log := UsageLog{
 		InputTokens:     1000,

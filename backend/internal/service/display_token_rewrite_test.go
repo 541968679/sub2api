@@ -128,6 +128,62 @@ func TestDisplayToken_ComputeMultipliersUsesUserDisplayPricingOverride(t *testin
 	require.InDelta(t, 1.0, mult.CacheCreateMult, 1e-12)
 }
 
+func TestDisplayToken_LongContextEffectivePricesKeepTokenAmplificationInvariant(t *testing.T) {
+	realInput := 10e-6
+	realOutput := 60e-6
+	realCacheRead := 1e-6
+	displayInput := 5e-6
+	displayOutput := 30e-6
+	displayCacheRead := 0.5e-6
+	userRepo := &displayTokenUserModelPricingRepoStub{
+		override: &UserModelPricingOverride{
+			UserID:                42,
+			Model:                 "gpt-5.5",
+			InputPrice:            &realInput,
+			OutputPrice:           &realOutput,
+			CacheReadPrice:        &realCacheRead,
+			DisplayInputPrice:     &displayInput,
+			DisplayOutputPrice:    &displayOutput,
+			DisplayCacheReadPrice: &displayCacheRead,
+			Enabled:               true,
+		},
+	}
+	billing := &BillingService{
+		pricingService: &PricingService{
+			pricingData: map[string]*LiteLLMModelPricing{
+				"gpt-5.5": {
+					InputCostPerToken:       5e-6,
+					OutputCostPerToken:      30e-6,
+					CacheReadInputTokenCost: 0.5e-6,
+				},
+			},
+		},
+	}
+	resolver := NewModelPricingResolver(&ChannelService{}, billing, nil, userRepo)
+
+	mult := computeDisplayTokenMultipliers(context.Background(), "gpt-5.5", 42, nil, 2.0, 1.0, resolver)
+	require.NotNil(t, mult)
+
+	require.InDelta(t, 2.0, mult.InputMult, 1e-12)
+	require.InDelta(t, 2.0, mult.OutputMult, 1e-12)
+	require.InDelta(t, 1.0, mult.CacheReadMult, 1e-12)
+	require.InDelta(t, 0.1, mult.CacheReadInputMult, 1e-12)
+	require.InDelta(t, 2.0, displayTokenRateScale(mult), 1e-12)
+
+	longInputMultiplier := 2.0
+	longOutputMultiplier := 1.5
+	longDisplayInput := displayInput * longInputMultiplier
+	longDisplayOutput := displayOutput * longOutputMultiplier
+	longDisplayCacheRead := displayCacheRead * longInputMultiplier
+	require.InDelta(t, mult.InputMult, displayTokenMultiplier(realInput*longInputMultiplier, &longDisplayInput), 1e-12)
+	require.InDelta(t, mult.OutputMult, displayTokenMultiplier(realOutput*longOutputMultiplier, &longDisplayOutput), 1e-12)
+	require.InDelta(t, mult.CacheReadInputMult, displayCacheReadInputPremiumMultiplier(
+		realCacheRead*longInputMultiplier,
+		&longDisplayCacheRead,
+		&longDisplayInput,
+	), 1e-12)
+}
+
 func TestDisplayToken_EqualDisplayPriceDoesNotScaleTokens(t *testing.T) {
 	input := 4e-6
 	output := 8e-6

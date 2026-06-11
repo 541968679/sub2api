@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] test: verify display-token amplification with long-context pricing
+
+**Affected files**: backend/internal/handler/dto/display_pricing_test.go, backend/internal/service/display_token_rewrite_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: test-only coverage for existing display pricing and downstream display-token rewrite behavior; no production logic, schema, API, pricing resource, or deployment change.
+**Change details**:
+- Added a usage-log DTO regression proving long-context effective display prices and user-group display-rate token amplification compose without extra long-context token amplification.
+- Added a downstream display-token rewrite regression proving short-price token amplification ratios remain invariant when both real and display prices are lifted by the GPT long-context multipliers.
+- Verified with `go test -tags=unit ./internal/handler/dto -run "LongContext.*Display|ApplyUserDisplayRate"`, `go test -tags=unit ./internal/service -run "DisplayToken_LongContext|DisplayToken_ComputeMultipliers|DisplayToken_ClaudeUsageRewrite"`, `go test -tags=unit ./internal/service -run "Billing|Pricing|LongContext|DisplayToken|UserModelPricing|GlobalModelPricing"`, `go test -tags=unit ./internal/handler -run "Usage|Display|LongContext|Pricing"`, and `git diff --check`.
+
 ## [2026-06-11] copy: position legal terms as internal research use
 
 **Affected files**: frontend/src/utils/legalConsent.ts, frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/utils/__tests__/legalConsent.spec.ts, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts, frontend/src/stores/__tests__/auth.spec.ts, docs/dev/CHANGELOG_CUSTOM.md
