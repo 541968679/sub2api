@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
-import { CURRENT_LEGAL_CONSENT_VERSION, markLegalConsentAccepted } from '@/utils/legalConsent'
+import {
+  CURRENT_LEGAL_CONFIRMATION_PHRASE,
+  CURRENT_LEGAL_CONSENT_VERSION,
+  markLegalConsentAccepted
+} from '@/utils/legalConsent'
 
 // Mock authAPI
 const mockLogin = vi.fn()
@@ -165,10 +169,10 @@ describe('useAuthStore', () => {
     it('从 localStorage 恢复持久化状态', () => {
       localStorage.setItem('legal_consent:force_logout_version', CURRENT_LEGAL_CONSENT_VERSION)
       markLegalConsentAccepted(fakeUser.id, {
-        typedConfirmation: '我已同意上述条款，如有任何风险或问题自行承担',
+        typedConfirmation: CURRENT_LEGAL_CONFIRMATION_PHRASE,
         dwellSeconds: 20,
         scrolledToBottom: true,
-        regionAttestation: true,
+        authorizedUseAttestation: true,
         source: 'login'
       })
       localStorage.setItem('auth_token', 'saved-token')
@@ -209,10 +213,10 @@ describe('useAuthStore', () => {
     it('恢复 refresh token 和过期时间', () => {
       localStorage.setItem('legal_consent:force_logout_version', CURRENT_LEGAL_CONSENT_VERSION)
       markLegalConsentAccepted(fakeUser.id, {
-        typedConfirmation: '我已同意上述条款，如有任何风险或问题自行承担',
+        typedConfirmation: CURRENT_LEGAL_CONFIRMATION_PHRASE,
         dwellSeconds: 20,
         scrolledToBottom: true,
-        regionAttestation: true,
+        authorizedUseAttestation: true,
         source: 'login'
       })
       const futureTs = String(Date.now() + 3600_000)

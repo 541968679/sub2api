@@ -92,12 +92,12 @@
 
         <label class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-700">
           <input
-            v-model="regionChecked"
-            data-testid="legal-consent-region-check"
+            v-model="authorizedUseChecked"
+            data-testid="legal-consent-authorized-use-check"
             type="checkbox"
             class="mt-1 h-4 w-4"
           />
-          <span>{{ t('legalConsent.regionCheck') }}</span>
+          <span>{{ t('legalConsent.authorizedUseCheck') }}</span>
         </label>
 
         <div>
@@ -151,6 +151,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import {
+  CURRENT_LEGAL_CONFIRMATION_PHRASE,
   CURRENT_LEGAL_CONSENT_VERSION,
   type LegalConsentPayload
 } from '@/utils/legalConsent'
@@ -171,13 +172,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const termsChecked = ref(false)
-const regionChecked = ref(false)
+const authorizedUseChecked = ref(false)
 const scrolledToBottom = ref(false)
 const typedConfirmation = ref('')
 const elapsedSeconds = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 
-const confirmationPhrase = computed(() => t('legalConsent.confirmationPhrase'))
+const confirmationPhrase = computed(() => CURRENT_LEGAL_CONFIRMATION_PHRASE)
 const dialogTitle = computed(() => (
   props.mode === 'login'
     ? t('legalConsent.loginTitle')
@@ -191,12 +192,14 @@ const prohibitedItems = computed(() => [
   t('legalConsent.prohibited.privacy'),
   t('legalConsent.prohibited.fraud'),
   t('legalConsent.prohibited.security'),
+  t('legalConsent.prohibited.commercial'),
+  t('legalConsent.prohibited.disclosure'),
   t('legalConsent.prohibited.illegal')
 ])
 const remainingSeconds = computed(() => Math.max(0, props.minReadSeconds - elapsedSeconds.value))
 const canAccept = computed(() => (
   termsChecked.value &&
-  regionChecked.value &&
+  authorizedUseChecked.value &&
   scrolledToBottom.value &&
   remainingSeconds.value === 0 &&
   typedConfirmation.value.trim() === confirmationPhrase.value
@@ -210,7 +213,7 @@ watch(
       return
     }
     termsChecked.value = false
-    regionChecked.value = false
+    authorizedUseChecked.value = false
     scrolledToBottom.value = false
     typedConfirmation.value = ''
     elapsedSeconds.value = 0
@@ -244,7 +247,7 @@ function accept(): void {
     typedConfirmation: typedConfirmation.value.trim(),
     dwellSeconds: elapsedSeconds.value,
     scrolledToBottom: scrolledToBottom.value,
-    regionAttestation: regionChecked.value,
+    authorizedUseAttestation: authorizedUseChecked.value,
     source: props.mode
   })
 }

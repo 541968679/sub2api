@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] copy: position legal terms as internal research use
+
+**Affected files**: frontend/src/utils/legalConsent.ts, frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/utils/__tests__/legalConsent.spec.ts, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts, frontend/src/stores/__tests__/auth.spec.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only legal-consent copy and version update; no backend schema, API, gateway, billing, or deployment contract change.
+**Change details**:
+- Reframed the legal dialog as "Use Terms and Disclaimer" for an internal research/testing platform instead of public service terms.
+- Added explicit copy that the platform is non-commercial, does not provide online recharge, does not accept external customers, and is limited to authorized internal technical testing.
+- Updated prohibited conduct and enforcement wording to cover public operation, API resale, top-up/resale/distribution, external integrations, platform information disclosure, abuse, scraping, and pressure attacks.
+- Bumped the legal consent version to `2026-06-11-internal-research-v2` and changed stored consent validation to require the new internal-authorized-use attestation and exact confirmation phrase.
+- Added validation for pending registration consent so stale pre-upgrade session payloads cannot bypass the new confirmation text.
+- Verified with `pnpm exec vitest run src/utils/__tests__/legalConsent.spec.ts src/components/auth/__tests__/LegalConsentDialog.spec.ts src/stores/__tests__/auth.spec.ts`, `pnpm run typecheck`, and `pnpm build`.
+
 ## [2026-06-11] feat: require legal consent on registration and login
 
 **Affected files**: frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/utils/legalConsent.ts, frontend/src/views/auth/RegisterView.vue, frontend/src/views/auth/LoginView.vue, frontend/src/views/auth/EmailVerifyView.vue, frontend/src/stores/auth.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts, frontend/src/utils/__tests__/legalConsent.spec.ts, frontend/src/stores/__tests__/auth.spec.ts, docs/dev/CHANGELOG_CUSTOM.md

@@ -1,11 +1,9 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import LegalConsentDialog from '@/components/auth/LegalConsentDialog.vue'
+import { CURRENT_LEGAL_CONFIRMATION_PHRASE } from '@/utils/legalConsent'
 
 const t = (key: string, params?: Record<string, unknown>) => {
-  if (key === 'legalConsent.confirmationPhrase') {
-    return '我已同意上述条款，如有任何风险或问题自行承担'
-  }
   if (key === 'legalConsent.countdown') {
     return `请继续阅读 ${params?.seconds} 秒`
   }
@@ -47,10 +45,8 @@ describe('LegalConsentDialog', () => {
     expect(confirmButton.attributes('disabled')).toBeDefined()
 
     await wrapper.get('[data-testid="legal-consent-terms-check"]').setValue(true)
-    await wrapper.get('[data-testid="legal-consent-region-check"]').setValue(true)
-    await wrapper.get('[data-testid="legal-consent-confirmation"]').setValue(
-      '我已同意上述条款，如有任何风险或问题自行承担'
-    )
+    await wrapper.get('[data-testid="legal-consent-authorized-use-check"]').setValue(true)
+    await wrapper.get('[data-testid="legal-consent-confirmation"]').setValue(CURRENT_LEGAL_CONFIRMATION_PHRASE)
     vi.advanceTimersByTime(2500)
     await wrapper.vm.$nextTick()
     expect(confirmButton.attributes('disabled')).toBeDefined()
@@ -67,10 +63,10 @@ describe('LegalConsentDialog', () => {
 
     await wrapper.get('[data-testid="legal-consent-confirm"]').trigger('click')
     expect(wrapper.emitted('accept')?.[0]?.[0]).toMatchObject({
-      typedConfirmation: '我已同意上述条款，如有任何风险或问题自行承担',
+      typedConfirmation: CURRENT_LEGAL_CONFIRMATION_PHRASE,
       dwellSeconds: 2,
       scrolledToBottom: true,
-      regionAttestation: true,
+      authorizedUseAttestation: true,
     })
   })
 })

@@ -1,6 +1,8 @@
 const AUTH_STORAGE_KEYS = ['auth_token', 'refresh_token', 'auth_user', 'token_expires_at'] as const
 
-export const CURRENT_LEGAL_CONSENT_VERSION = '2026-06-11-v1'
+export const CURRENT_LEGAL_CONSENT_VERSION = '2026-06-11-internal-research-v2'
+export const CURRENT_LEGAL_CONFIRMATION_PHRASE =
+  '我确认本人为授权内部测试人员，已阅读并同意上述使用条款与免责声明，知悉本平台非商业服务且不提供在线充值，如有任何风险或问题由本人自行承担'
 const CONSENT_STORAGE_PREFIX = 'legal_consent:user:'
 const FORCE_LOGOUT_STORAGE_KEY = 'legal_consent:force_logout_version'
 
@@ -8,7 +10,7 @@ export interface LegalConsentPayload {
   typedConfirmation: string
   dwellSeconds: number
   scrolledToBottom: boolean
-  regionAttestation: boolean
+  authorizedUseAttestation: boolean
   source: 'register' | 'login' | 'email_verify'
 }
 
@@ -19,6 +21,15 @@ interface StoredLegalConsent extends LegalConsentPayload {
 
 function userConsentStorageKey(userID: number | string): string {
   return `${CONSENT_STORAGE_PREFIX}${String(userID)}`
+}
+
+function isCurrentLegalConsentPayload(payload: Partial<LegalConsentPayload> | null | undefined): boolean {
+  return (
+    payload?.scrolledToBottom === true &&
+    payload.authorizedUseAttestation === true &&
+    typeof payload.typedConfirmation === 'string' &&
+    payload.typedConfirmation.trim() === CURRENT_LEGAL_CONFIRMATION_PHRASE
+  )
 }
 
 export function hasAcceptedCurrentLegalConsent(userID: number | string | null | undefined): boolean {
@@ -34,10 +45,7 @@ export function hasAcceptedCurrentLegalConsent(userID: number | string | null | 
     const parsed = JSON.parse(raw) as Partial<StoredLegalConsent>
     return (
       parsed.version === CURRENT_LEGAL_CONSENT_VERSION &&
-      parsed.scrolledToBottom === true &&
-      parsed.regionAttestation === true &&
-      typeof parsed.typedConfirmation === 'string' &&
-      parsed.typedConfirmation.trim().length > 0
+      isCurrentLegalConsentPayload(parsed)
     )
   } catch {
     localStorage.removeItem(userConsentStorageKey(userID))
@@ -68,7 +76,12 @@ export function getPendingRegisterLegalConsent(): LegalConsentPayload | null {
     if (!raw) {
       return null
     }
-    return JSON.parse(raw) as LegalConsentPayload
+    const parsed = JSON.parse(raw) as Partial<LegalConsentPayload>
+    if (!isCurrentLegalConsentPayload(parsed)) {
+      sessionStorage.removeItem('register_legal_consent')
+      return null
+    }
+    return parsed as LegalConsentPayload
   } catch {
     sessionStorage.removeItem('register_legal_consent')
     return null
