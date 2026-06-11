@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { CURRENT_LEGAL_CONSENT_VERSION, markLegalConsentAccepted } from '@/utils/legalConsent'
 
 // Mock authAPI
 const mockLogin = vi.fn()
@@ -162,6 +163,14 @@ describe('useAuthStore', () => {
 
   describe('checkAuth', () => {
     it('从 localStorage 恢复持久化状态', () => {
+      localStorage.setItem('legal_consent:force_logout_version', CURRENT_LEGAL_CONSENT_VERSION)
+      markLegalConsentAccepted(fakeUser.id, {
+        typedConfirmation: '我已同意上述条款，如有任何风险或问题自行承担',
+        dwellSeconds: 20,
+        scrolledToBottom: true,
+        regionAttestation: true,
+        source: 'login'
+      })
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
 
@@ -198,6 +207,14 @@ describe('useAuthStore', () => {
     })
 
     it('恢复 refresh token 和过期时间', () => {
+      localStorage.setItem('legal_consent:force_logout_version', CURRENT_LEGAL_CONSENT_VERSION)
+      markLegalConsentAccepted(fakeUser.id, {
+        typedConfirmation: '我已同意上述条款，如有任何风险或问题自行承担',
+        dwellSeconds: 20,
+        scrolledToBottom: true,
+        regionAttestation: true,
+        source: 'login'
+      })
       const futureTs = String(Date.now() + 3600_000)
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))
@@ -212,7 +229,39 @@ describe('useAuthStore', () => {
       expect(store.isAuthenticated).toBe(true)
     })
 
+    it('requires current legal consent before restoring persisted auth', () => {
+      localStorage.setItem('legal_consent:force_logout_version', CURRENT_LEGAL_CONSENT_VERSION)
+      localStorage.setItem('auth_token', 'saved-token')
+      localStorage.setItem('auth_user', JSON.stringify(fakeUser))
+      localStorage.setItem('refresh_token', 'saved-refresh')
+      localStorage.setItem('token_expires_at', String(Date.now() + 3600_000))
+
+      const store = useAuthStore()
+      store.checkAuth()
+
+      expect(store.isAuthenticated).toBe(false)
+      expect(store.token).toBeNull()
+      expect(store.user).toBeNull()
+      expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+      expect(localStorage.getItem('auth_user')).toBeNull()
+      expect(mockGetCurrentUser).not.toHaveBeenCalled()
+    })
+
     it('恢复持久化 pending auth session', () => {
+      localStorage.setItem('auth_token', 'saved-token')
+      localStorage.setItem('auth_user', JSON.stringify(fakeUser))
+      localStorage.setItem('refresh_token', 'saved-refresh')
+      localStorage.setItem('token_expires_at', String(Date.now() + 3600_000))
+
+      const forcedStore = useAuthStore()
+      forcedStore.checkAuth()
+
+      expect(forcedStore.isAuthenticated).toBe(false)
+      expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+      expect(localStorage.getItem('legal_consent:force_logout_version')).toBe(CURRENT_LEGAL_CONSENT_VERSION)
+
       localStorage.setItem(
         'pending_auth_session',
         JSON.stringify({

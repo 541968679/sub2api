@@ -259,6 +259,13 @@
       </form>
     </div>
 
+    <LegalConsentDialog
+      :show="showLegalConsentDialog"
+      mode="register"
+      @accept="handleLegalConsentAccepted"
+      @cancel="showLegalConsentDialog = false"
+    />
+
     <!-- Footer -->
     <template #footer>
       <p class="text-gray-500 dark:text-dark-400">
@@ -282,6 +289,7 @@ import { AuthLayout } from '@/components/layout'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
 import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
+import LegalConsentDialog from '@/components/auth/LegalConsentDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
@@ -301,6 +309,13 @@ import {
   loadAffiliateReferralCode,
   resolveAffiliateReferralCode
 } from '@/utils/oauthAffiliate'
+import {
+  clearPendingRegisterLegalConsent,
+  getPendingRegisterLegalConsent,
+  markLegalConsentAccepted,
+  storePendingRegisterLegalConsent,
+  type LegalConsentPayload
+} from '@/utils/legalConsent'
 
 const { t, locale } = useI18n()
 
@@ -317,6 +332,8 @@ const isLoading = ref<boolean>(false)
 const settingsLoaded = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
+const showLegalConsentDialog = ref<boolean>(false)
+const pendingValidatedRegister = ref<boolean>(false)
 
 // Public settings
 const registrationEnabled = ref<boolean>(true)
@@ -678,9 +695,22 @@ async function handleRegister(): Promise<void> {
   // Clear previous error
   errorMessage.value = ''
 
+  if (!pendingValidatedRegister.value) {
+    if (!validateRegisterPreconditions()) {
+      return
+    }
+    showLegalConsentDialog.value = true
+    return
+  }
+
+  pendingValidatedRegister.value = false
+  await submitRegister()
+}
+
+function validateRegisterPreconditions(): boolean {
   // Validate form
   if (!validateForm()) {
-    return
+    return false
   }
 
   // Check promo code validation status
@@ -688,12 +718,12 @@ async function handleRegister(): Promise<void> {
     // If promo code is being validated, wait
     if (promoValidating.value) {
       errorMessage.value = t('auth.promoCodeValidating')
-      return
+      return false
     }
     // If promo code is invalid, block submission
     if (promoValidation.invalid) {
       errorMessage.value = t('auth.promoCodeInvalidCannotRegister')
-      return
+      return false
     }
   }
 
@@ -702,23 +732,39 @@ async function handleRegister(): Promise<void> {
     // If still validating, wait
     if (invitationValidating.value) {
       errorMessage.value = t('auth.invitationCodeValidating')
-      return
+      return false
     }
     // If invitation code is invalid, block submission
     if (invitationValidation.invalid) {
       errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
+      return false
+    }
+  }
+
+  return true
+}
+
+async function handleLegalConsentAccepted(payload: LegalConsentPayload): Promise<void> {
+  showLegalConsentDialog.value = false
+  storePendingRegisterLegalConsent(payload)
+  pendingValidatedRegister.value = true
+  await handleRegister()
+}
+
+async function submitRegister(): Promise<void> {
+  if (invitationCodeEnabled.value && formData.invitation_code.trim() && !invitationValidation.valid) {
+    errorMessage.value = t('auth.invitationCodeValidating')
+    await validateInvitationCodeDebounced(formData.invitation_code.trim())
+    if (!invitationValidation.valid) {
+      errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
       return
     }
-    // If invitation code is required but not validated yet
-    if (formData.invitation_code.trim() && !invitationValidation.valid) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      // Trigger validation
-      await validateInvitationCodeDebounced(formData.invitation_code.trim())
-      if (!invitationValidation.valid) {
-        errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-        return
-      }
-    }
+  }
+
+  const legalConsent = getPendingRegisterLegalConsent()
+  if (!legalConsent) {
+    showLegalConsentDialog.value = true
+    return
   }
 
   isLoading.value = true
@@ -750,7 +796,7 @@ async function handleRegister(): Promise<void> {
     }
 
     // Otherwise, directly register
-    await authStore.register({
+    const registeredUser = await authStore.register({
       email: formData.email,
       password: formData.password,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
@@ -758,6 +804,8 @@ async function handleRegister(): Promise<void> {
       invitation_code: formData.invitation_code || undefined,
       ...(affCode ? { aff_code: affCode } : {})
     })
+    markLegalConsentAccepted(registeredUser.id, legalConsent)
+    clearPendingRegisterLegalConsent()
     clearAffiliateReferralCode()
 
     // Show success toast

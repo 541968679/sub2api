@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] feat: require legal consent on registration and login
+
+**Affected files**: frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/utils/legalConsent.ts, frontend/src/views/auth/RegisterView.vue, frontend/src/views/auth/LoginView.vue, frontend/src/views/auth/EmailVerifyView.vue, frontend/src/stores/auth.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts, frontend/src/utils/__tests__/legalConsent.spec.ts, frontend/src/stores/__tests__/auth.spec.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only legal-consent gate; no backend schema, gateway, billing, or API contract change. Existing registered users are forced out of locally persisted frontend auth once per current legal-consent version when the new app build loads.
+**Change details**:
+- Added a reusable legal consent dialog for registration and post-login flows with a read-time countdown, required scroll-to-bottom, explicit terms and region attestations, and an exact typed confirmation phrase.
+- Added local per-user/per-version consent persistence and a pending registration consent handoff so email-verification registration records acceptance after the user is created.
+- Updated login and 2FA success paths to require current-version consent before redirecting to the dashboard; users who already accepted the current version are not prompted again.
+- Updated auth restoration so locally persisted sessions without a current legal-consent record are cleared instead of bypassing the login confirmation flow.
+- Added Chinese and English legal-consent copy covering region restrictions, disclaimer, prohibited conduct, enforcement, account/API key security, and service availability risk.
+- Verified with `pnpm exec vitest run src/stores/__tests__/auth.spec.ts src/utils/__tests__/legalConsent.spec.ts src/components/auth/__tests__/LegalConsentDialog.spec.ts src/views/auth/__tests__/EmailVerifyView.spec.ts`, `pnpm run typecheck`, `pnpm run test:run`, `pnpm build`, and HTTP 200 checks for `/register` and `/login` on the local frontend dev server.
+
 ## [2026-06-10] upstream-sync: add Claude Fable 5 support
 
 **Affected files**: backend/internal/domain/constants.go, backend/internal/domain/constants_test.go, backend/internal/pkg/antigravity/claude_types.go, backend/internal/pkg/antigravity/claude_types_test.go, backend/internal/pkg/antigravity/request_transformer.go, backend/internal/pkg/claude/constants.go, backend/internal/service/antigravity_model_mapping_test.go, backend/internal/service/bedrock_request.go, backend/internal/service/bedrock_request_test.go, frontend/src/components/account/AccountStatusIndicator.vue, frontend/src/components/account/AccountUsageCell.vue, frontend/src/components/keys/UseKeyModal.vue, frontend/src/components/keys/__tests__/UseKeyModal.spec.ts, frontend/src/composables/__tests__/useModelWhitelist.spec.ts, frontend/src/composables/useModelWhitelist.ts

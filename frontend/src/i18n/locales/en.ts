@@ -7407,6 +7407,43 @@ const phase0LocalePatch = {
         upstreamErrorRateMaxPercentHint: 'Upstream error rate above this value is highlighted.'
       }
     }
+  },
+  legalConsent: {
+    registerTitle: 'Terms and Disclaimer Confirmation',
+    loginTitle: 'Terms Updated',
+    registerNotice: 'You must read and confirm these terms before an account can be created.',
+    loginNotice: 'The platform terms and disclaimer have been updated. Read and confirm them before continuing.',
+    version: 'Terms version: {version}',
+    disclaimerTitle: 'Disclaimer',
+    disclaimerBody: 'This platform only provides AI API forwarding. It does not guarantee the accuracy, completeness, legality, fitness, or availability of upstream model outputs. You are responsible for your inputs, outputs, use cases, and consequences from using this service.',
+    regionTitle: 'Region and Legal Restrictions',
+    regionBody: 'This service is not provided to Mainland China and is not open for registration, access, purchase, or use by individuals, organizations, or devices located in Mainland China. If you are in Mainland China, or applicable law prohibits your use of this service, stop accessing it and do not register or use it.',
+    prohibitedTitle: 'Prohibited Conduct',
+    prohibited: {
+      nsfw: 'Generating or distributing pornographic, explicit sexual, or other NSFW content.',
+      violence: 'Generating violent, terrorist, bloody, extremist, or harm-inciting content.',
+      minors: 'Generating, requesting, or distributing any inappropriate, sexualized, or exploitative content involving minors.',
+      sillyTavern: 'Connecting this platform API to roleplay tools such as SillyTavern for prohibited content.',
+      privacy: 'Infringing privacy, reputation, likeness, personal information, trade secrets, or intellectual property rights.',
+      fraud: 'Fraud, gambling, money laundering, phishing, misleading promotion, spam, or other illegal activity.',
+      security: 'Generating malware, attack scripts, credential theft, exploit instructions, safety bypasses, or cybersecurity abuse.',
+      illegal: 'Endangering national security, public safety, public order, or violating applicable law or upstream provider policies.'
+    },
+    enforcementTitle: 'Enforcement',
+    enforcementBody: 'Based on automated detection, manual review, user reports, upstream feedback, or regulatory requests, the platform may warn, rate limit, suspend, terminate, freeze or deduct balance, preserve evidence, report to authorities, and cooperate with investigations. You bear the legal consequences of misuse.',
+    accountTitle: 'Account and API Key Security',
+    accountBody: 'You must protect your account, password, API Key, and credentials. Losses, abuse, suspension, or legal liability caused by leakage, sharing, resale, lending, or poor custody are your responsibility.',
+    availabilityTitle: 'Availability and Upstream Risk',
+    availabilityBody: 'The platform does not guarantee uninterrupted, stable, error-free, or permanent availability. Models, pricing, quota, rate limits, upstream accounts, payment channels, available regions, and features may change due to technical, operational, upstream policy, or legal reasons.',
+    termsCheck: 'I have fully read and agree to the terms, disclaimer, acceptable use policy, privacy rules, and payment/refund rules.',
+    regionCheck: 'I confirm that I, my organization, my device, and payment source are not located in Mainland China, and applicable law does not prohibit my use of this service.',
+    confirmationLabel: 'Confirmation phrase',
+    confirmationHint: 'Type this exact phrase: {phrase}',
+    confirmationPhrase: '我已同意上述条款，如有任何风险或问题自行承担',
+    countdown: 'Please continue reading for {seconds} more seconds.',
+    scrollRequired: 'Scroll to the bottom of the terms before confirming.',
+    ready: 'Reading requirements satisfied. You can confirm now.',
+    acceptButton: 'I have read and agree'
   }
 }
 

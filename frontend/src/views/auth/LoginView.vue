@@ -293,6 +293,13 @@
       @verify="handle2FAVerify"
       @cancel="handle2FACancel"
     />
+
+    <LegalConsentDialog
+      :show="showLegalConsentDialog"
+      mode="login"
+      @accept="handleLegalConsentAccepted"
+      @cancel="handleLegalConsentCancelled"
+    />
   </div>
 </template>
 
@@ -304,6 +311,7 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
 import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
+import LegalConsentDialog from '@/components/auth/LegalConsentDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
@@ -311,6 +319,12 @@ import { getPublicSettings, isTotp2FARequired, isWeChatWebOAuthEnabled } from '@
 import { sanitizeUrl } from '@/utils/url'
 import type { TotpLoginResponse } from '@/types'
 import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
+import {
+  hasAcceptedCurrentLegalConsent,
+  markLegalConsentAccepted,
+  type LegalConsentPayload
+} from '@/utils/legalConsent'
+import type { User } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -471,6 +485,8 @@ const show2FAModal = ref<boolean>(false)
 const totpTempToken = ref<string>('')
 const totpUserEmailMasked = ref<string>('')
 const totpModalRef = ref<InstanceType<typeof TotpLoginModal> | null>(null)
+const showLegalConsentDialog = ref<boolean>(false)
+const pendingRedirectAfterConsent = ref<string>('/dashboard')
 
 const formData = reactive({
   email: '',
@@ -607,13 +623,9 @@ async function handleLogin(): Promise<void> {
       return
     }
 
-    // Show success toast
-    clearAllAffiliateReferralCodes()
-    appStore.showSuccess(t('auth.loginSuccess'))
-
     // Redirect to dashboard or intended route
     const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
-    await router.push(redirectTo)
+    await completeAuthenticatedLogin(response.user, redirectTo)
   } catch (error: unknown) {
     // Reset Turnstile on error
     if (turnstileRef.value) {
@@ -649,14 +661,9 @@ async function handle2FAVerify(code: string): Promise<void> {
   try {
     await authStore.login2FA(totpTempToken.value, code)
 
-    // Close modal and show success
     show2FAModal.value = false
-    clearAllAffiliateReferralCodes()
-    appStore.showSuccess(t('auth.loginSuccess'))
-
-    // Redirect to dashboard or intended route
     const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
-    await router.push(redirectTo)
+    await completeAuthenticatedLogin(authStore.user as User | null, redirectTo)
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: { message?: string } } }
     const message = err.response?.data?.message || err.message || t('profile.totp.loginFailed')
@@ -672,6 +679,39 @@ function handle2FACancel(): void {
   show2FAModal.value = false
   totpTempToken.value = ''
   totpUserEmailMasked.value = ''
+}
+
+async function completeAuthenticatedLogin(user: User | null | undefined, redirectTo: string): Promise<void> {
+  pendingRedirectAfterConsent.value = redirectTo || '/dashboard'
+
+  if (!user?.id || !hasAcceptedCurrentLegalConsent(user.id)) {
+    showLegalConsentDialog.value = true
+    return
+  }
+
+  await finishLoginRedirect()
+}
+
+async function handleLegalConsentAccepted(payload: LegalConsentPayload): Promise<void> {
+  if (authStore.user?.id) {
+    markLegalConsentAccepted(authStore.user.id, {
+      ...payload,
+      source: 'login'
+    })
+  }
+  showLegalConsentDialog.value = false
+  await finishLoginRedirect()
+}
+
+async function finishLoginRedirect(): Promise<void> {
+  clearAllAffiliateReferralCodes()
+  appStore.showSuccess(t('auth.loginSuccess'))
+  await router.push(pendingRedirectAfterConsent.value || '/dashboard')
+}
+
+async function handleLegalConsentCancelled(): Promise<void> {
+  showLegalConsentDialog.value = false
+  await authStore.logout().catch(() => undefined)
 }
 </script>
 

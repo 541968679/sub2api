@@ -172,6 +172,11 @@ import {
   loadAffiliateReferralCode,
   oauthAffiliatePayload
 } from '@/utils/oauthAffiliate'
+import {
+  clearPendingRegisterLegalConsent,
+  getPendingRegisterLegalConsent,
+  markLegalConsentAccepted
+} from '@/utils/legalConsent'
 
 const { t, locale } = useI18n()
 
@@ -526,7 +531,7 @@ async function handleVerify(): Promise<void> {
       authStore.clearPendingAuthSession?.()
     } else {
       // Register with verification code
-      await authStore.register({
+      const registeredUser = await authStore.register({
         email: email.value,
         password: password.value,
         verify_code: verifyCode.value.trim(),
@@ -535,6 +540,14 @@ async function handleVerify(): Promise<void> {
         invitation_code: invitationCode.value || undefined,
         ...(affCode.value ? { aff_code: affCode.value } : {})
       })
+      const legalConsent = getPendingRegisterLegalConsent()
+      if (legalConsent) {
+        markLegalConsentAccepted(registeredUser.id, {
+          ...legalConsent,
+          source: 'email_verify'
+        })
+        clearPendingRegisterLegalConsent()
+      }
     }
 
     // Clear session data

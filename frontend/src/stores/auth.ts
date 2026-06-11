@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
 import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
+import { clearStaleAuthForLegalConsent, hasAcceptedCurrentLegalConsent } from '@/utils/legalConsent'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -101,6 +102,8 @@ export const useAuthStore = defineStore('auth', () => {
    * Also starts auto-refresh and immediately fetches latest user data
    */
   function checkAuth(): void {
+    clearStaleAuthForLegalConsent()
+
     const savedToken = localStorage.getItem(AUTH_TOKEN_KEY)
     const savedUser = localStorage.getItem(AUTH_USER_KEY)
     const savedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
@@ -109,8 +112,14 @@ export const useAuthStore = defineStore('auth', () => {
 
     if (savedToken && savedUser) {
       try {
+        const parsedUser = JSON.parse(savedUser) as User
+        if (!hasAcceptedCurrentLegalConsent(parsedUser.id)) {
+          clearAuth({ preservePendingAuthSession: true })
+          return
+        }
+
         token.value = savedToken
-        user.value = JSON.parse(savedUser)
+        user.value = parsedUser
         refreshTokenValue.value = savedRefreshToken
         tokenExpiresAt.value = savedExpiresAt ? parseInt(savedExpiresAt, 10) : null
 
