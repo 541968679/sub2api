@@ -19,6 +19,27 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-11] test: fix pre-deploy check failures (build tag + API contract)
+
+**Affected files**: backend/internal/service/announcement_service_test.go, backend/internal/server/api_contract_test.go
+**Upstream compatibility**: test-only; no runtime behavior change.
+**Change details**:
+- Added missing `//go:build unit` tag to `announcement_service_test.go` — it references `userRepoStub` defined in unit-tagged `admin_service_delete_test.go`, so untagged builds (`go vet ./...`, plain `go test ./...`) failed to compile the service package.
+- Added `long_context_applied: false` to the `GET /api/v1/usage` expected payload in the API contract test — the field was intentionally added to the usage DTO by the long-context pricing snapshot work (a5bba54f) but the contract expectation was not updated.
+
+---
+
+## [2026-06-11] docs: refresh Claude Code repo guide
+
+**Affected files**: CLAUDE.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: docs-only; no runtime, API, schema, billing, or deployment behavior change.
+**Change details**:
+- Rewrote the root `CLAUDE.md` to point future Claude sessions at the repository doc chain (`AGENTS.md` -> `docs/dev/ARCHITECTURE.md` -> `docs/dev/codebase/*.md`) instead of duplicating module maps.
+- Documented the repo-specific local dev entrypoint via `scripts/dev-stack.ps1`/`.cmd`, the enforced local ports (`18081` backend, `15174` frontend), and the optional `-SkipAIClient` / `-IncludeNewAPI` flags.
+- Added the backend, frontend, and root build/test/lint commands that are actually used in this checkout, including package-scoped `go test -run ...` and Vitest single-spec examples.
+- Summarized the big-picture architecture that spans multiple files: setup vs normal boot, Wire DI, route-family/protocol dispatch, gateway handler/service split, Settings KV as the runtime config spine, and frontend public-settings injection in both Vite dev and embedded production modes.
+- Captured project-specific pitfalls from the current docs and repo state, including the known Wire generation issue, Windows config override path, pnpm-only workflow, and the README reverse-proxy requirement for `underscores_in_headers on;`.
+
 ## [2026-06-11] feat: make legal consent terms admin-editable and versioned
 
 **Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/handler/dto/settings.go, backend/internal/handler/setting_handler.go, backend/internal/handler/admin/setting_handler.go, frontend/src/utils/legalConsent.ts, frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/views/auth/LoginView.vue, frontend/src/views/auth/RegisterView.vue, frontend/src/views/auth/EmailVerifyView.vue, frontend/src/stores/app.ts, frontend/src/stores/auth.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/api/admin/settings.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, related tests.

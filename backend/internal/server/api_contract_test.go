@@ -558,6 +558,7 @@ func TestAPIContracts(t *testing.T) {
 							"image_size": null,
 							"media_type": null,
 							"cache_ttl_overridden": false,
+							"long_context_applied": false,
 							"created_at": "2025-01-02T03:04:05Z",
 							"user_agent": null
 						}
