@@ -7410,9 +7410,13 @@ const phase0LocalePatch = {
       },
       openai: {
         applyClaudeGPTBridgeTemplate: 'Apply common Claude-GPT mapping',
+        editClaudeGPTBridgeTemplate: 'Edit template',
+        restoreDefaultClaudeGPTBridgeTemplate: 'Restore default',
         claudeGPTBridgeTemplateHint:
           'Add common Claude requests such as Opus 4.8 and Sonnet 4.6 to GPT 5.5 / GPT 5.4 mappings. Existing mappings are kept.',
-        claudeGPTBridgeTemplateAlreadyApplied: 'Common Claude-GPT mappings are already applied'
+        claudeGPTBridgeTemplateAlreadyApplied: 'Common Claude-GPT mappings are already applied',
+        claudeGPTBridgeTemplateSaved: 'Claude-GPT mapping template saved locally',
+        claudeGPTBridgeTemplateRestored: 'Default Claude-GPT mapping template restored'
       }
     },
     users: {

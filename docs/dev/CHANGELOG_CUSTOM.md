@@ -41,6 +41,7 @@
 **Change details**:
 - Added a shared OpenAI Claude-GPT bridge mapping template for common Claude requests such as `claude-opus-4-8`, `claude-opus-4-7`, `claude-sonnet-4-6`, and `claude-haiku-4-5` mapped to `gpt-5.5` / `gpt-5.4`.
 - Added one-click template buttons next to the OpenAI Claude-GPT bridge toggle in both create and edit account modals.
+- Added local-browser editing for the common Claude-GPT bridge template, stored in `localStorage` with a restore-default action.
 - Template application switches to model-mapping mode, preserves existing mappings, and only appends missing defaults.
 - Added focused Vitest coverage for create/edit payloads and verified the target specs plus ESLint.
 

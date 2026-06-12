@@ -263,7 +263,7 @@ const openaiPresetMappings = [
   { label: 'Sonnet→5.4', from: 'claude-sonnet-4-6', to: 'gpt-5.4', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' }
 ]
 
-export const openAIClaudeGPTBridgePresetMappings = [
+export const defaultOpenAIClaudeGPTBridgePresetMappings = [
   { from: 'claude-opus-4-8', to: 'gpt-5.5' },
   { from: 'claude-opus-4-7', to: 'gpt-5.5' },
   { from: 'claude-opus-4-6', to: 'gpt-5.4' },
@@ -274,6 +274,70 @@ export const openAIClaudeGPTBridgePresetMappings = [
   { from: 'claude-haiku-4-5', to: 'gpt-5.4' },
   { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.4' }
 ] as const
+
+export type OpenAIClaudeGPTBridgeTemplateMapping = {
+  from: string
+  to: string
+}
+
+export const openAIClaudeGPTBridgeTemplateStorageKey = 'sub2api.openaiClaudeGPTBridgeTemplate'
+export const openAIClaudeGPTBridgePresetMappings = defaultOpenAIClaudeGPTBridgePresetMappings
+
+export function getDefaultOpenAIClaudeGPTBridgeTemplate(): OpenAIClaudeGPTBridgeTemplateMapping[] {
+  return defaultOpenAIClaudeGPTBridgePresetMappings.map((mapping) => ({ ...mapping }))
+}
+
+export function normalizeOpenAIClaudeGPTBridgeTemplate(
+  mappings: OpenAIClaudeGPTBridgeTemplateMapping[]
+): OpenAIClaudeGPTBridgeTemplateMapping[] {
+  const normalized: OpenAIClaudeGPTBridgeTemplateMapping[] = []
+  const seen = new Set<string>()
+
+  for (const mapping of mappings) {
+    const from = mapping.from.trim()
+    const to = mapping.to.trim()
+    if (!from || !to || seen.has(from)) continue
+    normalized.push({ from, to })
+    seen.add(from)
+  }
+
+  return normalized
+}
+
+export function loadOpenAIClaudeGPTBridgeTemplate(): OpenAIClaudeGPTBridgeTemplateMapping[] {
+  try {
+    const raw = window.localStorage.getItem(openAIClaudeGPTBridgeTemplateStorageKey)
+    if (!raw) return getDefaultOpenAIClaudeGPTBridgeTemplate()
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return getDefaultOpenAIClaudeGPTBridgeTemplate()
+
+    const normalized = normalizeOpenAIClaudeGPTBridgeTemplate(
+      parsed.map((mapping) => ({
+        from: typeof mapping?.from === 'string' ? mapping.from : '',
+        to: typeof mapping?.to === 'string' ? mapping.to : ''
+      }))
+    )
+
+    return normalized.length > 0 ? normalized : getDefaultOpenAIClaudeGPTBridgeTemplate()
+  } catch {
+    return getDefaultOpenAIClaudeGPTBridgeTemplate()
+  }
+}
+
+export function saveOpenAIClaudeGPTBridgeTemplate(
+  mappings: OpenAIClaudeGPTBridgeTemplateMapping[]
+): OpenAIClaudeGPTBridgeTemplateMapping[] {
+  const normalized = normalizeOpenAIClaudeGPTBridgeTemplate(mappings)
+  const template = normalized.length > 0 ? normalized : getDefaultOpenAIClaudeGPTBridgeTemplate()
+  window.localStorage.setItem(openAIClaudeGPTBridgeTemplateStorageKey, JSON.stringify(template))
+  return template.map((mapping) => ({ ...mapping }))
+}
+
+export function resetOpenAIClaudeGPTBridgeTemplate(): OpenAIClaudeGPTBridgeTemplateMapping[] {
+  window.localStorage.removeItem(openAIClaudeGPTBridgeTemplateStorageKey)
+  return getDefaultOpenAIClaudeGPTBridgeTemplate()
+}
 
 const geminiPresetMappings = [
   { label: 'Flash 2.0', from: 'gemini-2.0-flash', to: 'gemini-2.0-flash', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },

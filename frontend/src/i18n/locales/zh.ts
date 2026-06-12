@@ -7509,9 +7509,13 @@ const v117ZhPatch = {
       },
       openai: {
         applyClaudeGPTBridgeTemplate: '应用常用 Claude-GPT 映射',
+        editClaudeGPTBridgeTemplate: '编辑模板',
+        restoreDefaultClaudeGPTBridgeTemplate: '恢复默认',
         claudeGPTBridgeTemplateHint:
           '一键加入 Opus 4.8、Sonnet 4.6 等常用 Claude 请求到 GPT 5.5 / GPT 5.4 的映射；已有映射会保留。',
-        claudeGPTBridgeTemplateAlreadyApplied: '常用 Claude-GPT 映射已应用'
+        claudeGPTBridgeTemplateAlreadyApplied: '常用 Claude-GPT 映射已应用',
+        claudeGPTBridgeTemplateSaved: 'Claude-GPT 映射模板已保存到本机',
+        claudeGPTBridgeTemplateRestored: '已恢复默认 Claude-GPT 映射模板'
       }
     },
     groups: {

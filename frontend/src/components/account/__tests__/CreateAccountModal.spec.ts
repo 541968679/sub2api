@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 
@@ -143,6 +143,10 @@ async function mountOpenAIAPIKeyModal() {
 }
 
 describe('CreateAccountModal', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
   it('omits OpenAI images endpoint toggle when enabled by default', async () => {
     const wrapper = await mountOpenAIAPIKeyModal()
 
@@ -175,6 +179,28 @@ describe('CreateAccountModal', () => {
     expect(payload?.credentials?.model_mapping).toMatchObject({
       'claude-opus-4-8': 'gpt-5.5',
       'claude-sonnet-4-6': 'gpt-5.4'
+    })
+  })
+
+  it('edits the local OpenAI Claude-GPT bridge template before applying it', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-openai-claude-gpt-bridge-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="edit-openai-claude-gpt-bridge-template"]').trigger('click')
+    await wrapper.get('[data-testid="openai-claude-gpt-bridge-template-from-0"]').setValue('claude-custom')
+    await wrapper.get('[data-testid="openai-claude-gpt-bridge-template-to-0"]').setValue('gpt-custom')
+    await wrapper.get('[data-testid="save-openai-claude-gpt-bridge-template"]').trigger('click')
+    await wrapper.get('[data-testid="apply-openai-claude-gpt-bridge-template"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload?.credentials?.model_mapping).toMatchObject({
+      'claude-custom': 'gpt-custom'
+    })
+    expect(JSON.parse(window.localStorage.getItem('sub2api.openaiClaudeGPTBridgeTemplate') || '[]')[0]).toEqual({
+      from: 'claude-custom',
+      to: 'gpt-custom'
     })
   })
 })
