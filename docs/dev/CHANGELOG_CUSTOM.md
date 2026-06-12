@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] ci: bump hardcoded Go version checks to 1.26.4
+
+**Affected files**: .github/workflows/backend-ci.yml, .github/workflows/release.yml, .github/workflows/security-scan.yml
+**Upstream compatibility**: keep these "Verify Go version" greps in sync with the go.mod `go` directive on every sync that bumps Go.
+**Change details**:
+- The go.mod bump to 1.26.4 made all four hardcoded `go version | grep -q 'go1.26.2'` verify steps fail (CI, golangci-lint, security scan, release), which blocked the v0.1.139 GHCR image publish. Bumped all four to go1.26.4 — same root cause as the Dockerfile builder image fix.
+
+---
+
 ## [2026-06-12] fix(ui): legal consent dialog auto-passes scroll gate when terms do not overflow
 
 **Affected files**: frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts
