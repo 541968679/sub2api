@@ -375,3 +375,36 @@ service layer is the required enforcement point for internal callers. Migration
 PostgreSQL CHECK constraints so new inserts/updates are blocked even if an
 unvalidated write path is introduced later, without scanning historical rows
 during startup.
+
+### Per-Turn Billing IDs on Multi-Turn WS Connections (2026-06-12)
+
+`usage_billing_dedup` and `usage_logs` both dedupe on `(request_id,
+api_key_id)`. `resolveUsageBillingRequestID` prefers `ctxkey.ClientRequestID`,
+then `ctxkey.RequestID`, then the upstream request id — and both context keys
+are minted ONCE per HTTP request. An OpenAI WebSocket connection is one HTTP
+upgrade request serving many turns, so any usage-record task that inherits the
+connection context bills every turn under the same request id: turns 2..N are
+silently dropped from billing and usage history.
+
+Invariant: every `RecordUsage` call on a multi-turn connection must go through
+`turnUsageRecordContext` (openai_gateway_handler.go), which suffixes both
+context ids with the per-turn upstream response id (fallback: turn number).
+The WS forwarder, HTTP bridge, and passthrough adapter all share the single
+`AfterTurn` hook, so the fix lives there. If a future upstream sync rewrites
+the hook or adds a new multi-turn path, re-apply the same derivation.
+
+### usage_logs Image Size Must Be a Billing Tier (2026-06-12)
+
+Migration 156 adds CHECK `usage_logs_image_billing_size_check`: rows with
+`image_count > 0` must have `image_size` IN ('1K','2K','4K','mixed'). The
+OpenAI forward paths still carry raw request sizes ("1024x1024", "auto", "")
+in `result.ImageSize`; writing them unmodified makes the INSERT fail AFTER
+billing already deducted balance (write is best-effort: user charged, row
+lost). Both usage-log write points (`openai_gateway_service.go`,
+`gateway_service.go`) must build `ImageSize` via
+`normalizedImageBillingSizePtr` (image_billing_size.go, ported from
+upstream). Upstream instead normalizes at the parse points and persists four
+extra audit columns (image_input_size/image_output_size/image_size_source/
+image_size_breakdown) that this fork has not synced yet — when that sync
+lands, move normalization back to the parse points and drop the write-point
+shim.
