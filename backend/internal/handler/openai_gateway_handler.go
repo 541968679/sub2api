@@ -87,6 +87,29 @@ func wrapUsageRecordTaskContext(parent context.Context, task service.UsageRecord
 	}
 }
 
+// turnUsageRecordContext derives a per-turn billing context for multi-turn
+// WebSocket connections. The connection carries a single client request id
+// across all turns, so without a per-turn suffix every turn after the first
+// collides on the usage_billing_dedup / usage_logs (request_id, api_key_id)
+// keys and is silently dropped from billing and usage history.
+func turnUsageRecordContext(parent context.Context, turn int, turnRequestID string) context.Context {
+	if parent == nil {
+		return nil
+	}
+	suffix := strings.TrimSpace(turnRequestID)
+	if suffix == "" {
+		suffix = strconv.Itoa(turn)
+	}
+	derived := parent
+	if clientRequestID, _ := parent.Value(ctxkey.ClientRequestID).(string); strings.TrimSpace(clientRequestID) != "" {
+		derived = context.WithValue(derived, ctxkey.ClientRequestID, strings.TrimSpace(clientRequestID)+":turn:"+suffix)
+	}
+	if requestID, _ := parent.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
+		derived = context.WithValue(derived, ctxkey.RequestID, strings.TrimSpace(requestID)+":turn:"+suffix)
+	}
+	return derived
+}
+
 func isOpenAIClaudeGPTBridgeRequest(c *gin.Context) bool {
 	if c == nil {
 		return false
@@ -1558,7 +1581,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, turnAccount.ID, result.ResponseHeaders)
 				}
 				h.gatewayService.ReportOpenAIAccountScheduleResult(turnAccount.ID, true, result.FirstTokenMs)
-				h.submitUsageRecordTask(ctx, func(taskCtx context.Context) {
+				h.submitUsageRecordTask(turnUsageRecordContext(ctx, turn, result.RequestID), func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 						Result:             result,
 						APIKey:             apiKey,
