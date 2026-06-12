@@ -26,6 +26,7 @@ import (
 var (
 	ErrInvalidCredentials      = infraerrors.Unauthorized("INVALID_CREDENTIALS", "invalid email or password")
 	ErrUserNotActive           = infraerrors.Forbidden("USER_NOT_ACTIVE", "user is not active")
+	ErrUserPendingApproval     = infraerrors.Forbidden("USER_PENDING_APPROVAL", "account application is pending administrator approval")
 	ErrEmailExists             = infraerrors.Conflict("EMAIL_EXISTS", "email already exists")
 	ErrEmailReserved           = infraerrors.BadRequest("EMAIL_RESERVED", "email is reserved")
 	ErrInvalidToken            = infraerrors.Unauthorized("INVALID_TOKEN", "invalid token")
@@ -124,6 +125,19 @@ func (s *AuthService) EntClient() *dbent.Client {
 	return s.entClient
 }
 
+func validateUserCanAuthenticate(user *User) error {
+	if user == nil {
+		return ErrInvalidCredentials
+	}
+	if user.Status == StatusPendingApproval {
+		return ErrUserPendingApproval
+	}
+	if !user.IsActive() {
+		return ErrUserNotActive
+	}
+	return nil
+}
+
 // Register 用户注册，返回token和用户
 func (s *AuthService) Register(ctx context.Context, email, password string) (string, *User, error) {
 	return s.RegisterWithVerification(ctx, email, password, "", "", "", "")
@@ -213,7 +227,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		Balance:      grantPlan.Balance,
 		Concurrency:  grantPlan.Concurrency,
 		RPMLimit:     defaultRPMLimit,
-		Status:       StatusActive,
+		Status:       StatusPendingApproval,
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -224,7 +238,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		logger.LegacyPrintf("service.auth", "[Auth] Database error creating user: %v", err)
 		return "", nil, ErrServiceUnavailable
 	}
-	s.postAuthUserBootstrap(ctx, user, "email", true)
+	s.postAuthUserBootstrap(ctx, user, "email", false)
 	s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 	if s.affiliateService != nil {
 		if _, err := s.affiliateService.EnsureUserAffiliate(ctx, user.ID); err != nil {
@@ -258,13 +272,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		}
 	}
 
-	// 生成token
-	token, err := s.GenerateToken(user)
-	if err != nil {
-		return "", nil, fmt.Errorf("generate token: %w", err)
-	}
-
-	return token, user, nil
+	return "", user, nil
 }
 
 // SendVerifyCodeResult 发送验证码返回结果
@@ -449,8 +457,8 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (string
 	}
 
 	// 检查用户状态
-	if !user.IsActive() {
-		return "", nil, ErrUserNotActive
+	if err := validateUserCanAuthenticate(user); err != nil {
+		return "", nil, err
 	}
 
 	// 生成JWT token
@@ -515,7 +523,7 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 				Balance:      grantPlan.Balance,
 				Concurrency:  grantPlan.Concurrency,
 				RPMLimit:     defaultRPMLimit,
-				Status:       StatusActive,
+				Status:       StatusPendingApproval,
 				SignupSource: signupSource,
 			}
 
@@ -542,8 +550,8 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 		}
 	}
 
-	if !user.IsActive() {
-		return "", nil, ErrUserNotActive
+	if err := validateUserCanAuthenticate(user); err != nil {
+		return "", nil, err
 	}
 
 	// 尽力补全：当用户名为空时，使用第三方返回的用户名回填。
@@ -632,7 +640,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				Balance:      grantPlan.Balance,
 				Concurrency:  grantPlan.Concurrency,
 				RPMLimit:     defaultRPMLimit,
-				Status:       StatusActive,
+				Status:       StatusPendingApproval,
 				SignupSource: signupSource,
 			}
 
@@ -699,8 +707,11 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 		}
 	}
 
-	if !user.IsActive() {
-		return nil, nil, ErrUserNotActive
+	if err := validateUserCanAuthenticate(user); err != nil {
+		if errors.Is(err, ErrUserPendingApproval) {
+			return nil, user, nil
+		}
+		return nil, nil, err
 	}
 
 	if user.Username == "" && username != "" {

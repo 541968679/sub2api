@@ -248,6 +248,7 @@ import {
   completeLinuxDoOAuthRegistration,
   exchangePendingOAuthCompletion,
   getOAuthCompletionKind,
+  isRegisterApplicationPending,
   isOAuthLoginCompletion,
   login2FA,
   persistOAuthTokenContext,
@@ -622,6 +623,14 @@ async function finalizePendingAccountResponse(completion: LinuxDoPendingActionRe
     needsAdoptionConfirmation.value = false
     isProcessing.value = false
     persistPendingAuthSession(redirect)
+    return
+  }
+
+  if (isRegisterApplicationPending(completion)) {
+    clearPendingAuthSession()
+    clearAllAffiliateReferralCodes()
+    appStore.showSuccess(t('auth.applicationSubmittedSuccess'))
+    await router.replace('/login')
     return
   }
 

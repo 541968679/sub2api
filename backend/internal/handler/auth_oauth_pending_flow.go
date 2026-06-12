@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/oauth"
@@ -1524,7 +1525,15 @@ func (h *AuthHandler) transitionPendingOAuthAccountToChoiceState(
 	return session, nil
 }
 
-func writeOAuthTokenPairResponse(c *gin.Context, tokenPair *service.TokenPair) {
+func writeOAuthTokenPairResponse(c *gin.Context, tokenPair *service.TokenPair, user *service.User) {
+	if tokenPair == nil {
+		response.Success(c, gin.H{
+			"status":  service.StatusPendingApproval,
+			"message": "Application submitted. Please wait for administrator approval.",
+			"user":    dto.UserFromService(user),
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"access_token":  tokenPair.AccessToken,
 		"refresh_token": tokenPair.RefreshToken,
@@ -1605,8 +1614,11 @@ func (h *AuthHandler) bindPendingOAuthLogin(c *gin.Context, provider string) {
 		return
 	}
 
+	if tokenPair != nil {
+		h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
+	}
 	clearCookies()
-	writeOAuthTokenPairResponse(c, tokenPair)
+	writeOAuthTokenPairResponse(c, tokenPair, user)
 }
 
 func respondPendingOAuthBindingApplyError(c *gin.Context, err error) {
@@ -1791,9 +1803,8 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		return
 	}
 
-	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
 	clearCookies()
-	writeOAuthTokenPairResponse(c, tokenPair)
+	writeOAuthTokenPairResponse(c, tokenPair, user)
 }
 
 // ExchangePendingOAuthCompletion redeems a pending OAuth browser session into a frontend-safe payload.

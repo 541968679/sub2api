@@ -30,6 +30,14 @@
         <input v-model="form.username" type="text" class="input" />
       </div>
       <div>
+        <label class="input-label">{{ t('admin.users.columns.status') }}</label>
+        <select v-model="form.status" class="input">
+          <option value="active">{{ t('common.active') }}</option>
+          <option value="pending_approval">{{ t('admin.users.pendingApproval') }}</option>
+          <option value="disabled">{{ t('admin.users.disabled') }}</option>
+        </select>
+      </div>
+      <div>
         <label class="input-label">{{ t('admin.users.notes') }}</label>
         <textarea v-model="form.notes" rows="3" class="input"></textarea>
       </div>
@@ -76,7 +84,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, DownstreamUsageTokenMode, UserAttributeValuesMap } from '@/types'
+import type { AdminUser, DownstreamUsageTokenMode, UserAttributeValuesMap, UserStatus } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import UserAttributeForm from '@/components/user/UserAttributeForm.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -90,6 +98,7 @@ const form = reactive({
   email: '',
   password: '',
   username: '',
+  status: 'active' as UserStatus,
   notes: '',
   concurrency: 1,
   rpm_limit: 0,
@@ -103,6 +112,7 @@ watch(() => props.user, (u) => {
       email: u.email,
       password: '',
       username: u.username || '',
+      status: u.status,
       notes: u.notes || '',
       concurrency: u.concurrency,
       rpm_limit: u.rpm_limit ?? 0,
@@ -138,6 +148,7 @@ const handleUpdateUser = async () => {
     const data: any = {
       email: form.email,
       username: form.username,
+      status: form.status,
       notes: form.notes,
       concurrency: form.concurrency,
       rpm_limit: form.rpm_limit,

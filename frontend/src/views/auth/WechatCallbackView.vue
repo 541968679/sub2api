@@ -331,6 +331,7 @@ import {
   getAuthToken,
   hasExplicitWeChatOAuthCapabilities,
   getOAuthCompletionKind,
+  isRegisterApplicationPending,
   isOAuthLoginCompletion,
   login2FA,
   prepareOAuthBindAccessTokenCookie,
@@ -415,7 +416,7 @@ watch(errorMessage, value => {
 
 type PendingWeChatCompletion = PendingOAuthExchangeResponse & {
   step?: string
-  status?: string
+  status?: 'pending_approval'
   state?: string
   pending_email?: string
   resolved_email?: string
@@ -856,6 +857,14 @@ async function finalizePendingAccountResponse(completion: PendingWeChatCompletio
     needsAdoptionConfirmation.value = false
     isProcessing.value = false
     persistPendingAuthSession(redirect)
+    return
+  }
+
+  if (isRegisterApplicationPending(completion)) {
+    clearPendingAuthSession()
+    clearAllAffiliateReferralCodes()
+    appStore.showSuccess(t('auth.applicationSubmittedSuccess'))
+    await router.replace('/login')
     return
   }
 

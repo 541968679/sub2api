@@ -149,7 +149,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 		Role:         RoleUser,
 		Balance:      grantPlan.Balance,
 		Concurrency:  grantPlan.Concurrency,
-		Status:       StatusActive,
+		Status:       StatusPendingApproval,
 		SignupSource: signupSource,
 	}
 
@@ -160,12 +160,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 		return nil, nil, ErrServiceUnavailable
 	}
 
-	tokenPair, err := s.GenerateTokenPair(ctx, user, "")
-	if err != nil {
-		_ = s.RollbackOAuthEmailAccountCreation(ctx, user.ID, "")
-		return nil, nil, fmt.Errorf("generate token pair: %w", err)
-	}
-	return tokenPair, user, nil
+	return nil, user, nil
 }
 
 // FinalizeOAuthEmailAccount applies invitation usage and normal signup bootstrap

@@ -8,6 +8,7 @@ import type {
   LoginRequest,
   RegisterRequest,
   AuthResponse,
+  RegisterApplicationResponse,
   CurrentUserResponse,
   SendVerifyCodeRequest,
   SendVerifyCodeResponse,
@@ -20,12 +21,19 @@ import type {
  * Login response type - can be either full auth or 2FA required
  */
 export type LoginResponse = AuthResponse | TotpLoginResponse
+export type RegisterResponse = AuthResponse | RegisterApplicationResponse
 
 /**
  * Type guard to check if login response requires 2FA
  */
 export function isTotp2FARequired(response: LoginResponse): response is TotpLoginResponse {
   return 'requires_2fa' in response && response.requires_2fa === true
+}
+
+export function isRegisterApplicationPending(
+  response: Partial<AuthResponse> & Partial<RegisterApplicationResponse>
+): response is RegisterApplicationResponse {
+  return !response.access_token && response.status === 'pending_approval' && !!response.user
 }
 
 /**
@@ -132,8 +140,12 @@ export async function login2FA(request: TotpLogin2FARequest): Promise<AuthRespon
  * @param userData - Registration data (username, email, password)
  * @returns Authentication response with token and user data
  */
-export async function register(userData: RegisterRequest): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/auth/register', userData)
+export async function register(userData: RegisterRequest): Promise<RegisterResponse> {
+  const { data } = await apiClient.post<RegisterResponse>('/auth/register', userData)
+
+  if (isRegisterApplicationPending(data)) {
+    return data
+  }
 
   // Store token and user data
   setAuthToken(data.access_token)
@@ -207,8 +219,11 @@ export interface PendingOAuthBindLoginResponse extends Partial<OAuthTokenRespons
 
 export type PendingOAuthExchangeResponse = PendingOAuthBindLoginResponse
 
-export interface PendingOAuthCreateAccountResponse extends OAuthTokenResponse {
+export interface PendingOAuthCreateAccountResponse extends Partial<OAuthTokenResponse> {
   auth_result?: string
+  status?: 'pending_approval'
+  message?: string
+  user?: RegisterApplicationResponse['user']
 }
 
 export interface PendingOAuthSendVerifyCodeResponse extends SendVerifyCodeResponse {
@@ -566,7 +581,7 @@ export async function completeLinuxDoOAuthRegistration(
   invitationCode: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
-): Promise<OAuthTokenResponse> {
+): Promise<PendingOAuthCreateAccountResponse> {
   return createPendingLinuxDoOAuthAccount(invitationCode, decision, affiliateCode)
 }
 
@@ -579,7 +594,7 @@ export async function completeOIDCOAuthRegistration(
   invitationCode: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
-): Promise<OAuthTokenResponse> {
+): Promise<PendingOAuthCreateAccountResponse> {
   return createPendingOIDCOAuthAccount(invitationCode, decision, affiliateCode)
 }
 
@@ -587,7 +602,7 @@ export async function completeWeChatOAuthRegistration(
   invitationCode: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
-): Promise<OAuthTokenResponse> {
+): Promise<PendingOAuthCreateAccountResponse> {
   return createPendingWeChatOAuthAccount(invitationCode, decision, affiliateCode)
 }
 

@@ -56,7 +56,7 @@ type UpdateUserRequest struct {
 	Concurrency              *int     `json:"concurrency"`
 	RPMLimit                 *int     `json:"rpm_limit"`
 	DownstreamUsageTokenMode *string  `json:"downstream_usage_token_mode" binding:"omitempty,oneof=real display"`
-	Status                   string   `json:"status" binding:"omitempty,oneof=active disabled"`
+	Status                   string   `json:"status" binding:"omitempty,oneof=active disabled pending_approval"`
 	AllowedGroups            *[]int64 `json:"allowed_groups"`
 	// GroupRates 用户专属分组倍率配置（兼容旧格式）
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率

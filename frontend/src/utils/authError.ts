@@ -1,7 +1,9 @@
 interface APIErrorLike {
+  reason?: string
   message?: string
   response?: {
     data?: {
+      reason?: string
       detail?: string
       message?: string
     }
@@ -17,9 +19,15 @@ export function buildAuthErrorMessage(
   error: unknown,
   options: {
     fallback: string
+    pendingApproval?: string
   }
 ): string {
   const { fallback } = options
+  const err = (error || {}) as APIErrorLike
+  const reason = err.reason || err.response?.data?.reason
+  if (reason === 'USER_PENDING_APPROVAL') {
+    return options.pendingApproval || fallback
+  }
   const message = extractErrorMessage(error)
   return message || fallback
 }

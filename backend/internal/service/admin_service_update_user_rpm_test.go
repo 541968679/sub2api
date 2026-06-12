@@ -107,6 +107,23 @@ func TestAdminService_UpdateUser_RejectsInvalidDownstreamUsageTokenMode(t *testi
 	require.Empty(t, invalidator.userIDs)
 }
 
+func TestAdminService_UpdateUser_ApprovesPendingApprovalUser(t *testing.T) {
+	base := &userRepoStub{user: &User{ID: 42, Email: "pending@example.com", Status: StatusPendingApproval}}
+	repo := &rpmUserRepoStub{userRepoStub: base}
+	svc := &adminServiceImpl{
+		userRepo:       repo,
+		redeemCodeRepo: &redeemRepoStub{},
+	}
+
+	updated, err := svc.UpdateUser(context.Background(), 42, &UpdateUserInput{
+		Status: StatusActive,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Equal(t, StatusActive, updated.Status)
+	require.Equal(t, StatusActive, base.user.Status)
+}
+
 func TestAdminService_CreateUser_DefaultsDownstreamUsageTokenModeReal(t *testing.T) {
 	repo := &userRepoStub{nextID: 101}
 	svc := &adminServiceImpl{

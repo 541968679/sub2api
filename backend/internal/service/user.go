@@ -100,6 +100,15 @@ func (u *User) IsActive() bool {
 	return u.Status == StatusActive
 }
 
+func IsValidUserStatus(status string) bool {
+	switch status {
+	case StatusActive, StatusDisabled, StatusPendingApproval:
+		return true
+	default:
+		return false
+	}
+}
+
 // CanBindGroup checks whether a user can bind to a given group.
 // For standard groups:
 // - Public groups (non-exclusive): all users can bind

@@ -654,8 +654,9 @@ func TestCompleteOIDCOAuthRegistrationAppliesPendingAdoptionDecision(t *testing.
 	handler.CompleteOIDCOAuthRegistration(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	responseData := decodeJSONBody(t, recorder)
-	require.NotEmpty(t, responseData["access_token"])
+	responseData := decodeJSONResponseData(t, recorder)
+	require.Equal(t, service.StatusPendingApproval, responseData["status"])
+	require.Empty(t, responseData["access_token"])
 
 	userEntity, err := client.User.Query().
 		Where(dbuser.EmailEQ(session.ResolvedEmail)).
@@ -833,9 +834,10 @@ func TestCompleteOIDCOAuthRegistrationBindsIdentityWithoutAdoptionFlags(t *testi
 	handler.CompleteOIDCOAuthRegistration(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	responseData := decodeJSONBody(t, recorder)
-	require.NotEmpty(t, responseData["access_token"])
-	require.NotEmpty(t, responseData["refresh_token"])
+	responseData := decodeJSONResponseData(t, recorder)
+	require.Equal(t, service.StatusPendingApproval, responseData["status"])
+	require.Empty(t, responseData["access_token"])
+	require.Empty(t, responseData["refresh_token"])
 
 	userEntity, err := client.User.Query().
 		Where(dbuser.EmailEQ(session.ResolvedEmail)).

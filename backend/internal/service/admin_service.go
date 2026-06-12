@@ -752,6 +752,9 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	if input.DownstreamUsageTokenMode != nil && !IsValidDownstreamUsageTokenMode(*input.DownstreamUsageTokenMode) {
 		return nil, infraerrors.BadRequest("INVALID_DOWNSTREAM_USAGE_TOKEN_MODE", "downstream_usage_token_mode must be one of real or display")
 	}
+	if input.Status != "" && !IsValidUserStatus(input.Status) {
+		return nil, infraerrors.BadRequest("INVALID_USER_STATUS", "status must be one of active, disabled, or pending_approval")
+	}
 
 	user, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
@@ -759,7 +762,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	}
 
 	// Protect admin users: cannot disable admin accounts
-	if user.Role == "admin" && input.Status == "disabled" {
+	if user.Role == "admin" && input.Status != "" && input.Status != StatusActive {
 		return nil, errors.New("cannot disable admin user")
 	}
 

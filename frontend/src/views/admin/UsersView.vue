@@ -42,6 +42,7 @@
                 :options="[
                   { value: '', label: t('admin.users.allStatus') },
                   { value: 'active', label: t('common.active') },
+                  { value: 'pending_approval', label: t('admin.users.pendingApproval') },
                   { value: 'disabled', label: t('admin.users.disabled') }
                 ]"
                 @change="applyFilter"
@@ -442,11 +443,11 @@
               <span
                 :class="[
                   'inline-block h-2 w-2 rounded-full',
-                  value === 'active' ? 'bg-green-500' : 'bg-red-500'
+                  getUserStatusDotClass(value)
                 ]"
               ></span>
-              <span class="text-sm text-gray-700 dark:text-gray-300">
-                {{ value === 'active' ? t('common.active') : t('admin.users.disabled') }}
+              <span :class="['text-sm', getUserStatusTextClass(value)]">
+                {{ getUserStatusLabel(value) }}
               </span>
             </div>
           </template>
@@ -484,14 +485,12 @@
                 @click="handleToggleStatus(row)"
                 :class="[
                   'flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors',
-                  row.status === 'active'
-                    ? 'hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400'
-                    : 'hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
+                  getToggleStatusButtonClass(row)
                 ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
                 <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('admin.users.disable') : t('admin.users.enable') }}</span>
+                <span class="text-xs">{{ getToggleStatusLabel(row) }}</span>
               </button>
 
               <!-- More Actions Menu Trigger -->
@@ -638,7 +637,7 @@ import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, AdminGroup, UserAttributeDefinition } from '@/types'
+import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -661,6 +660,56 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 
 const appStore = useAppStore()
+
+const getUserStatusLabel = (status: UserStatus | string) => {
+  switch (status) {
+    case 'active':
+      return t('common.active')
+    case 'pending_approval':
+      return t('admin.users.pendingApproval')
+    case 'disabled':
+      return t('admin.users.disabled')
+    default:
+      return status || t('common.unknown')
+  }
+}
+
+const getUserStatusDotClass = (status: UserStatus | string) => {
+  switch (status) {
+    case 'active':
+      return 'bg-green-500'
+    case 'pending_approval':
+      return 'bg-amber-500'
+    default:
+      return 'bg-red-500'
+  }
+}
+
+const getUserStatusTextClass = (status: UserStatus | string) => {
+  switch (status) {
+    case 'active':
+      return 'text-green-700 dark:text-green-300'
+    case 'pending_approval':
+      return 'text-amber-700 dark:text-amber-300'
+    default:
+      return 'text-gray-700 dark:text-gray-300'
+  }
+}
+
+const getToggleStatusTarget = (user: AdminUser): UserStatus =>
+  user.status === 'active' ? 'disabled' : 'active'
+
+const getToggleStatusLabel = (user: AdminUser) => {
+  if (user.status === 'pending_approval') {
+    return t('admin.users.approve')
+  }
+  return user.status === 'active' ? t('admin.users.disable') : t('admin.users.enable')
+}
+
+const getToggleStatusButtonClass = (user: AdminUser) =>
+  user.status === 'active'
+    ? 'hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-900/20 dark:hover:text-orange-400'
+    : 'hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
 
 // Generate dynamic attribute columns from enabled definitions
 const attributeColumns = computed<Column[]>(() =>
@@ -1311,11 +1360,15 @@ const closeEditModal = () => {
 }
 
 const handleToggleStatus = async (user: AdminUser) => {
-  const newStatus = user.status === 'active' ? 'disabled' : 'active'
+  const newStatus = getToggleStatusTarget(user)
   try {
     await adminAPI.users.toggleStatus(user.id, newStatus)
     appStore.showSuccess(
-      newStatus === 'active' ? t('admin.users.userEnabled') : t('admin.users.userDisabled')
+      user.status === 'pending_approval'
+        ? t('admin.users.userApproved')
+        : newStatus === 'active'
+          ? t('admin.users.userEnabled')
+          : t('admin.users.userDisabled')
     )
     loadUsers()
   } catch (error: any) {

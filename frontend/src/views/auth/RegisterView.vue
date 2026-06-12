@@ -296,6 +296,7 @@ import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
   getPublicSettings,
+  isRegisterApplicationPending,
   isWeChatWebOAuthEnabled,
   validatePromoCode,
   validateInvitationCode
@@ -808,7 +809,7 @@ async function submitRegister(): Promise<void> {
     }
 
     // Otherwise, directly register
-    const registeredUser = await authStore.register({
+    const registerResponse = await authStore.register({
       email: formData.email,
       password: formData.password,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
@@ -817,10 +818,16 @@ async function submitRegister(): Promise<void> {
       ...(affCode ? { aff_code: affCode } : {})
     })
     if (legalConsent) {
-      markLegalConsentAccepted(registeredUser.id, legalConsent, legalConsentSettings.value)
+      markLegalConsentAccepted(registerResponse.user.id, legalConsent, legalConsentSettings.value)
     }
     clearPendingRegisterLegalConsent()
     clearAffiliateReferralCode()
+
+    if (isRegisterApplicationPending(registerResponse)) {
+      appStore.showSuccess(t('auth.applicationSubmittedSuccess'))
+      await router.push('/login')
+      return
+    }
 
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))

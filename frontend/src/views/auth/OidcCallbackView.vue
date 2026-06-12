@@ -257,6 +257,7 @@ import {
   exchangePendingOAuthCompletion,
   getOAuthCompletionKind,
   getPublicSettings,
+  isRegisterApplicationPending,
   isOAuthLoginCompletion,
   login2FA,
   persistOAuthTokenContext,
@@ -644,6 +645,14 @@ async function finalizePendingAccountResponse(completion: PendingOidcCompletion)
     needsAdoptionConfirmation.value = false
     isProcessing.value = false
     persistPendingAuthSession(redirect)
+    return
+  }
+
+  if (isRegisterApplicationPending(completion)) {
+    clearPendingAuthSession()
+    clearAllAffiliateReferralCodes()
+    appStore.showSuccess(t('auth.applicationSubmittedSuccess'))
+    await router.replace('/login')
     return
   }
 

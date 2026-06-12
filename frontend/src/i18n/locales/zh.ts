@@ -7173,6 +7173,16 @@ const v117ZhPatch = {
       rulesModalTitle: 'API 密钥使用规则',
     }
   },
+  auth: {
+    createAccount: '内部测试授权申请',
+    signUpToStart: '申请 {siteName} 内部测试授权',
+    signUp: '申请授权',
+    registrationDisabled: '内部测试授权申请入口暂未开放，请联系管理员。',
+    accountCreatedSuccess: '授权申请已提交，请等待管理员审批。',
+    applicationSubmittedSuccess: '授权申请已提交，请等待管理员审批。',
+    pendingApprovalLoginBlocked: '您的内部测试授权申请正在等待管理员审批，通过前无法访问平台功能。',
+    verifyAndCreate: '验证并提交申请'
+  },
   admin: {
     distribution: {
       title: '分销管理',
@@ -7563,6 +7573,9 @@ const v117ZhPatch = {
     },
     users: {
       passwordCopied: '密码已复制',
+      pendingApproval: '待审批',
+      approve: '通过',
+      userApproved: '用户已审批通过',
       modelPricing: '模型定价',
       modelPricingConfig: '模型定价配置',
       modelPricingHint: '为该用户配置单独的模型展示价或计费价覆盖。',

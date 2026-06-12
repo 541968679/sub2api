@@ -19,6 +19,21 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] feat: require admin approval for self-service account applications
+
+**Affected files**: backend/internal/domain/constants.go, backend/internal/service/auth_service.go, backend/internal/service/auth_oauth_email_flow.go, backend/internal/service/admin_service.go, backend/internal/handler/auth_handler.go, backend/internal/handler/auth_oauth_pending_flow.go, backend/internal/handler/auth_linuxdo_oauth.go, backend/internal/handler/auth_oidc_oauth.go, backend/internal/handler/auth_wechat_oauth.go, backend/internal/handler/admin/user_handler.go, frontend/src/api/auth.ts, frontend/src/stores/auth.ts, frontend/src/utils/authError.ts, frontend/src/views/auth/RegisterView.vue, frontend/src/views/auth/EmailVerifyView.vue, frontend/src/views/auth/LoginView.vue, frontend/src/views/auth/LinuxDoCallbackView.vue, frontend/src/views/auth/OidcCallbackView.vue, frontend/src/views/auth/WechatCallbackView.vue, frontend/src/views/admin/UsersView.vue, frontend/src/components/admin/user/UserEditModal.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/auth.md
+**Upstream compatibility**: local auth/access-control policy change; no schema migration, billing, gateway routing, pricing, or deployment behavior changes.
+**Change details**:
+- Added `pending_approval` as a user status and made email/OAuth self-service registration create pending users without issuing access or refresh tokens.
+- Blocked pending users from login with `USER_PENDING_APPROVAL`, while preserving existing active-user login behavior.
+- Updated LinuxDo, OIDC, WeChat, and pending OAuth account-completion flows to return a pending application response and avoid recording successful login unless a token pair is issued.
+- Extended admin user update/filter UI and APIs so administrators can see pending users and approve them by setting status to `active`.
+- Updated frontend auth stores, registration/email verification/OAuth callback views, and login error mapping to handle pending application responses without storing auth state.
+- Added unit coverage for pending registration, pending login, OAuth pending account creation, and admin approval.
+- Verified with `go test -tags=unit ./internal/service`, `go test -tags=unit ./internal/handler`, `pnpm --dir frontend exec vitest run src/stores/__tests__/auth.spec.ts src/views/auth/__tests__/EmailVerifyView.spec.ts`, `pnpm --dir frontend run typecheck`, and `pnpm --dir frontend run build`.
+
+---
+
 ## [2026-06-12] improve: one-click OpenAI Claude-GPT bridge mapping template
 
 **Affected files**: frontend/src/composables/useModelWhitelist.ts, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/CreateAccountModal.spec.ts, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

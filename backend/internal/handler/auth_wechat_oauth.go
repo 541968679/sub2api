@@ -565,7 +565,9 @@ func (h *AuthHandler) CompleteWeChatOAuthRegistration(c *gin.Context) {
 		response.ErrorFrom(c, infraerrors.InternalServer("PENDING_AUTH_ADOPTION_APPLY_FAILED", "failed to apply oauth profile adoption").WithCause(err))
 		return
 	}
-	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
+	if tokenPair != nil {
+		h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
+	}
 	if _, err := pendingSvc.ConsumeBrowserSession(c.Request.Context(), sessionToken, browserSessionKey); err != nil {
 		clearOAuthPendingSessionCookie(c, secureCookie)
 		clearOAuthPendingBrowserCookie(c, secureCookie)
@@ -575,12 +577,7 @@ func (h *AuthHandler) CompleteWeChatOAuthRegistration(c *gin.Context) {
 	clearOAuthPendingSessionCookie(c, secureCookie)
 	clearOAuthPendingBrowserCookie(c, secureCookie)
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token":  tokenPair.AccessToken,
-		"refresh_token": tokenPair.RefreshToken,
-		"expires_in":    tokenPair.ExpiresIn,
-		"token_type":    "Bearer",
-	})
+	writeOAuthTokenPairResponse(c, tokenPair, user)
 }
 
 func (h *AuthHandler) createWeChatPendingSession(

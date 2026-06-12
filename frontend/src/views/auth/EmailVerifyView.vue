@@ -157,6 +157,7 @@ import {
   persistOAuthTokenContext,
   getPublicSettings,
   isOAuthLoginCompletion,
+  isRegisterApplicationPending,
   type PendingOAuthSendVerifyCodeResponse,
   sendPendingOAuthVerifyCode,
   sendVerifyCode,
@@ -179,6 +180,7 @@ import {
   resolveLegalConsentSettings
 } from '@/utils/legalConsent'
 import type { LegalConsentSettings } from '@/types'
+import type { User } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -208,10 +210,13 @@ type PendingAuthSessionSummary = {
 }
 type PendingOAuthCreateAccountResponse = {
   auth_result?: string
-  access_token: string
+  access_token?: string
   refresh_token?: string
   expires_in?: number
   token_type?: string
+  status?: 'pending_approval'
+  message?: string
+  user?: User
   provider?: string
   redirect?: string
 }
@@ -530,6 +535,13 @@ async function handleVerify(): Promise<void> {
         return
       }
       if (!isOAuthLoginCompletion(data)) {
+        if (isRegisterApplicationPending(data)) {
+          sessionStorage.removeItem('register_data')
+          clearAllAffiliateReferralCodes()
+          appStore.showSuccess(t('auth.applicationSubmittedSuccess'))
+          await router.push('/login')
+          return
+        }
         throw new Error(t('auth.verifyFailed'))
       }
 
@@ -538,7 +550,7 @@ async function handleVerify(): Promise<void> {
       authStore.clearPendingAuthSession?.()
     } else {
       // Register with verification code
-      const registeredUser = await authStore.register({
+      const registerResponse = await authStore.register({
         email: email.value,
         password: password.value,
         verify_code: verifyCode.value.trim(),
@@ -549,11 +561,18 @@ async function handleVerify(): Promise<void> {
       })
       const legalConsent = getPendingRegisterLegalConsent(legalConsentSettings.value)
       if (legalConsent) {
-        markLegalConsentAccepted(registeredUser.id, {
+        markLegalConsentAccepted(registerResponse.user.id, {
           ...legalConsent,
           source: 'email_verify'
         }, legalConsentSettings.value)
         clearPendingRegisterLegalConsent()
+      }
+      if (isRegisterApplicationPending(registerResponse)) {
+        sessionStorage.removeItem('register_data')
+        clearAllAffiliateReferralCodes()
+        appStore.showSuccess(t('auth.applicationSubmittedSuccess'))
+        await router.push('/login')
+        return
       }
     }
 

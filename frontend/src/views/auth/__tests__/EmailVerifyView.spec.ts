@@ -97,6 +97,19 @@ vi.mock('@/api/client', () => ({
 }))
 
 describe('EmailVerifyView', () => {
+  const authUser = {
+    id: 77,
+    username: 'normal',
+    email: 'normal@example.com',
+    role: 'user',
+    balance: 0,
+    concurrency: 1,
+    status: 'active',
+    allowed_groups: null,
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01',
+  }
+
   beforeEach(() => {
     pushMock.mockReset()
     showSuccessMock.mockReset()
@@ -426,7 +439,13 @@ describe('EmailVerifyView', () => {
         invitation_code: 'INVITE',
       })
     )
-    registerMock.mockResolvedValue({})
+    registerMock.mockResolvedValue({
+      access_token: 'email-access-token',
+      refresh_token: 'email-refresh-token',
+      expires_in: 3600,
+      token_type: 'Bearer',
+      user: authUser,
+    })
 
     const wrapper = mount(EmailVerifyView, {
       global: {
@@ -454,5 +473,52 @@ describe('EmailVerifyView', () => {
     })
     expect(apiClientPostMock).not.toHaveBeenCalled()
     expect(pushMock).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('redirects to login when normal email registration is pending approval', async () => {
+    sessionStorage.setItem(
+      'register_data',
+      JSON.stringify({
+        email: 'pending@example.com',
+        password: 'secret-456',
+      })
+    )
+    registerMock.mockResolvedValue({
+      status: 'pending_approval',
+      message: 'Application submitted',
+      user: {
+        ...authUser,
+        id: 88,
+        email: 'pending@example.com',
+        status: 'pending_approval',
+      },
+    })
+
+    const wrapper = mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+    await wrapper.get('#code').setValue('654321')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(registerMock).toHaveBeenCalledWith({
+      email: 'pending@example.com',
+      password: 'secret-456',
+      verify_code: '654321',
+      turnstile_token: undefined,
+      promo_code: undefined,
+      invitation_code: undefined,
+    })
+    expect(showSuccessMock).toHaveBeenCalledWith('auth.applicationSubmittedSuccess')
+    expect(pushMock).toHaveBeenCalledWith('/login')
   })
 })

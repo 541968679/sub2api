@@ -5,7 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
-import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
+import { authAPI, isRegisterApplicationPending, isTotp2FARequired, type LoginResponse, type RegisterResponse } from '@/api'
 import type { LegalConsentSettings, User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
 import {
   clearStaleAuthForLegalConsent,
@@ -335,14 +335,19 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns Promise resolving to the newly registered and authenticated user
    * @throws Error if registration fails
    */
-  async function register(userData: RegisterRequest): Promise<User> {
+  async function register(userData: RegisterRequest): Promise<RegisterResponse> {
     try {
       const response = await authAPI.register(userData)
+
+      if (isRegisterApplicationPending(response)) {
+        clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })
+        return response
+      }
 
       // Use the common helper to set auth state
       setAuthFromResponse(response)
 
-      return user.value!
+      return response
     } catch (error) {
       // Clear any partial state on error
       clearAuth({ preservePendingAuthSession: pendingAuthSession.value !== null })

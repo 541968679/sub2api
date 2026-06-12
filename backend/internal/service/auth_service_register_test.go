@@ -380,16 +380,35 @@ func TestAuthService_Register_Success(t *testing.T) {
 
 	token, user, err := service.Register(context.Background(), "user@test.com", "password")
 	require.NoError(t, err)
-	require.NotEmpty(t, token)
+	require.Empty(t, token)
 	require.NotNil(t, user)
 	require.Equal(t, int64(5), user.ID)
 	require.Equal(t, "user@test.com", user.Email)
 	require.Equal(t, RoleUser, user.Role)
-	require.Equal(t, StatusActive, user.Status)
+	require.Equal(t, StatusPendingApproval, user.Status)
 	require.Equal(t, 3.5, user.Balance)
 	require.Equal(t, 2, user.Concurrency)
 	require.Len(t, repo.created, 1)
 	require.True(t, user.CheckPassword("password"))
+}
+
+func TestAuthService_Login_PendingApprovalReturnsDedicatedError(t *testing.T) {
+	user := &User{
+		ID:     7,
+		Email:  "pending@test.com",
+		Role:   RoleUser,
+		Status: StatusPendingApproval,
+	}
+	require.NoError(t, user.SetPassword("password"))
+
+	service := newAuthService(&userRepoStub{user: user}, map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+	}, nil)
+
+	token, gotUser, err := service.Login(context.Background(), user.Email, "password")
+	require.ErrorIs(t, err, ErrUserPendingApproval)
+	require.Empty(t, token)
+	require.Nil(t, gotUser)
 }
 
 func TestAuthService_ValidateToken_ExpiredReturnsClaimsWithError(t *testing.T) {
@@ -624,9 +643,10 @@ func TestAuthService_LoginOrRegisterOAuthWithTokenPair_UsesLinuxDoAuthSourceDefa
 
 	tokenPair, user, err := service.LoginOrRegisterOAuthWithTokenPair(context.Background(), "linuxdo-123@linuxdo-connect.invalid", "linuxdo_user", "", "")
 	require.NoError(t, err)
-	require.NotNil(t, tokenPair)
+	require.Nil(t, tokenPair)
 	require.NotNil(t, user)
 	require.Equal(t, int64(61), user.ID)
+	require.Equal(t, StatusPendingApproval, user.Status)
 	require.Equal(t, 21.75, user.Balance)
 	require.Equal(t, 9, user.Concurrency)
 	require.Len(t, repo.created, 1)

@@ -141,7 +141,7 @@ func newOAuthEmailFlowAuthService(
 	)
 }
 
-func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFails(t *testing.T) {
+func TestRegisterOAuthEmailAccountCreatesPendingApprovalUserWithoutTokenPair(t *testing.T) {
 	userRepo := &userRepoStub{nextID: 42}
 	redeemRepo := &redeemCodeRepoStub{
 		codesByCode: map[string]*RedeemCode{
@@ -182,11 +182,10 @@ func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFai
 		"oidc",
 	)
 
+	require.NoError(t, err)
 	require.Nil(t, tokenPair)
-	require.Nil(t, user)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "generate token pair")
-	require.Equal(t, []int64{42}, userRepo.deletedIDs)
+	require.NotNil(t, user)
+	require.Equal(t, StatusPendingApproval, user.Status)
 	require.Len(t, userRepo.created, 1)
 	require.Empty(t, redeemRepo.useCalls)
 	require.Empty(t, redeemRepo.updateCalls)
@@ -223,10 +222,11 @@ func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *tes
 	)
 
 	require.NoError(t, err)
-	require.NotNil(t, tokenPair)
+	require.Nil(t, tokenPair)
 	require.NotNil(t, user)
 	require.Len(t, userRepo.created, 1)
 	require.Equal(t, "oidc", userRepo.created[0].SignupSource)
+	require.Equal(t, StatusPendingApproval, userRepo.created[0].Status)
 }
 
 func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing.T) {
@@ -260,10 +260,11 @@ func TestRegisterOAuthEmailAccountFallsBackUnknownSignupSourceToEmail(t *testing
 	)
 
 	require.NoError(t, err)
-	require.NotNil(t, tokenPair)
+	require.Nil(t, tokenPair)
 	require.NotNil(t, user)
 	require.Len(t, userRepo.created, 1)
 	require.Equal(t, "email", userRepo.created[0].SignupSource)
+	require.Equal(t, StatusPendingApproval, userRepo.created[0].Status)
 }
 
 func TestRollbackOAuthEmailAccountCreationRestoresInvitationUsage(t *testing.T) {

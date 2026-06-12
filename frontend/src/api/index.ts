@@ -7,7 +7,13 @@
 export { apiClient } from './client'
 
 // Auth API
-export { authAPI, isTotp2FARequired, type LoginResponse } from './auth'
+export {
+  authAPI,
+  isRegisterApplicationPending,
+  isTotp2FARequired,
+  type LoginResponse,
+  type RegisterResponse
+} from './auth'
 
 // User APIs
 export { keysAPI } from './keys'

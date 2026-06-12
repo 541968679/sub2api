@@ -79,9 +79,18 @@ type AuthResponse struct {
 	User         *dto.User `json:"user"`
 }
 
+type RegisterApplicationResponse struct {
+	Status  string    `json:"status"`
+	Message string    `json:"message"`
+	User    *dto.User `json:"user"`
+}
+
 func ensureLoginUserActive(user *service.User) error {
 	if user == nil {
 		return infraerrors.Unauthorized("INVALID_USER", "user not found")
+	}
+	if user.Status == service.StatusPendingApproval {
+		return service.ErrUserPendingApproval
 	}
 	if !user.IsActive() {
 		return service.ErrUserNotActive
@@ -176,6 +185,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	)
 	if err != nil {
 		response.ErrorFrom(c, err)
+		return
+	}
+
+	if user.Status == service.StatusPendingApproval {
+		response.Success(c, RegisterApplicationResponse{
+			Status:  service.StatusPendingApproval,
+			Message: "Application submitted. Please wait for administrator approval.",
+			User:    dto.UserFromService(user),
+		})
 		return
 	}
 

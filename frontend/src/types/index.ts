@@ -63,6 +63,8 @@ export interface UserProfileSourceContext {
   provider_label?: string | null
 }
 
+export type UserStatus = 'active' | 'disabled' | 'pending_approval'
+
 export interface User {
   id: number
   username: string
@@ -88,7 +90,7 @@ export interface User {
   balance: number // User balance for API usage
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
-  status: 'active' | 'disabled' // Account status
+  status: UserStatus // Account status
   allowed_groups: number[] | null // Allowed group IDs (null = all non-exclusive groups)
   balance_notify_enabled: boolean
   balance_notify_threshold: number | null
@@ -378,6 +380,12 @@ export interface AuthResponse {
   expires_in?: number     // New: Access Token expiry time in seconds
   token_type: string
   user: User & { run_mode?: 'standard' | 'simple' }
+}
+
+export interface RegisterApplicationResponse {
+  status: 'pending_approval'
+  message?: string
+  user: User
 }
 
 export interface CurrentUserResponse extends User {
@@ -1626,7 +1634,7 @@ export interface UpdateUserRequest {
   balance?: number
   concurrency?: number
   downstream_usage_token_mode?: DownstreamUsageTokenMode
-  status?: 'active' | 'disabled'
+  status?: UserStatus
   allowed_groups?: number[] | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)
   // null 表示删除该分组的专属倍率

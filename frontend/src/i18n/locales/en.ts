@@ -7387,6 +7387,16 @@ const phase0LocalePatch = {
     output: 'Output',
     cacheCreation: 'Cache Creation'
   },
+  auth: {
+    createAccount: 'Internal Test Authorization',
+    signUpToStart: 'Apply for {siteName} internal test authorization',
+    signUp: 'Apply for Access',
+    registrationDisabled: 'The internal test authorization application entry is currently closed. Please contact an administrator.',
+    accountCreatedSuccess: 'Application submitted. Please wait for administrator approval.',
+    applicationSubmittedSuccess: 'Application submitted. Please wait for administrator approval.',
+    pendingApprovalLoginBlocked: 'Your internal test authorization application is pending administrator approval. Platform features are unavailable until approval.',
+    verifyAndCreate: 'Verify & Submit Application'
+  },
   admin: {
     accounts: {
       fromModel: 'Requested model',
@@ -7406,7 +7416,10 @@ const phase0LocalePatch = {
       }
     },
     users: {
-      passwordCopied: 'Password copied'
+      passwordCopied: 'Password copied',
+      pendingApproval: 'Pending approval',
+      approve: 'Approve',
+      userApproved: 'User approved successfully'
     },
     channels: {
       emptyModelsInPricing: '{platform} has a pricing entry without models. Add models or remove the entry.',

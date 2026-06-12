@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS user_provider_default_grants (
 	return svc, repo, client
 }
 
-func TestAuthServiceRegisterDualWritesEmailIdentity(t *testing.T) {
+func TestAuthServiceRegisterCreatesPendingApprovalEmailIdentity(t *testing.T) {
 	svc, _, client := newAuthServiceWithEnt(t, map[string]string{
 		service.SettingKeyRegistrationEnabled: "true",
 	}, nil)
@@ -149,14 +149,15 @@ func TestAuthServiceRegisterDualWritesEmailIdentity(t *testing.T) {
 
 	token, user, err := svc.Register(ctx, "user@example.com", "password")
 	require.NoError(t, err)
-	require.NotEmpty(t, token)
+	require.Empty(t, token)
 	require.NotNil(t, user)
+	require.Equal(t, service.StatusPendingApproval, user.Status)
 
 	storedUser, err := client.User.Get(ctx, user.ID)
 	require.NoError(t, err)
 	require.Equal(t, "email", storedUser.SignupSource)
-	require.NotNil(t, storedUser.LastLoginAt)
-	require.NotNil(t, storedUser.LastActiveAt)
+	require.Nil(t, storedUser.LastLoginAt)
+	require.Nil(t, storedUser.LastActiveAt)
 
 	identity, err := client.AuthIdentity.Query().
 		Where(

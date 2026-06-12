@@ -26,6 +26,8 @@ vi.mock('@/api', () => ({
     refreshToken: (...args: any[]) => mockRefreshToken(...args),
   },
   isTotp2FARequired: (response: any) => response?.requires_2fa === true,
+  isRegisterApplicationPending: (response: any) =>
+    !response?.access_token && response?.status === 'pending_approval' && !!response?.user,
 }))
 
 const fakeUser = {
@@ -438,6 +440,35 @@ describe('useAuthStore', () => {
         provider: 'oidc',
         redirect: '/register',
       })
+    })
+
+    it('keeps pending oauth session and does not authenticate when registration needs approval', async () => {
+      const store = useAuthStore()
+      store.setPendingAuthSession({
+        token: 'pending-token',
+        token_field: 'pending_auth_token',
+        provider: 'oidc',
+        redirect: '/register',
+      })
+      mockRegister.mockResolvedValue({
+        status: 'pending_approval',
+        message: 'Application submitted',
+        user: {
+          ...fakeUser,
+          id: 9,
+          email: 'pending@example.com',
+          status: 'pending_approval',
+        },
+      })
+
+      const result = await store.register({ email: 'pending@example.com', password: 'secret-123' })
+
+      expect(result.status).toBe('pending_approval')
+      expect(store.isAuthenticated).toBe(false)
+      expect(store.user).toBeNull()
+      expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(store.hasPendingAuthSession).toBe(true)
+      expect(store.pendingAuthSession?.provider).toBe('oidc')
     })
   })
 

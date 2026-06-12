@@ -1024,15 +1024,15 @@ func TestCreateOIDCOAuthAccountCreatesUserBindsIdentityAndConsumesSession(t *tes
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 
-	var payload map[string]any
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
-	require.NotEmpty(t, payload["access_token"])
-	require.NotEmpty(t, payload["refresh_token"])
-	require.Equal(t, "Bearer", payload["token_type"])
+	payload := decodeJSONResponseData(t, recorder)
+	require.Equal(t, service.StatusPendingApproval, payload["status"])
+	require.Empty(t, payload["access_token"])
+	require.Empty(t, payload["refresh_token"])
+	require.Empty(t, payload["token_type"])
 
 	createdUser, err := client.User.Query().Where(dbuser.EmailEQ("fresh@example.com")).Only(ctx)
 	require.NoError(t, err)
-	require.Equal(t, service.StatusActive, createdUser.Status)
+	require.Equal(t, service.StatusPendingApproval, createdUser.Status)
 
 	identity, err := client.AuthIdentity.Query().
 		Where(
