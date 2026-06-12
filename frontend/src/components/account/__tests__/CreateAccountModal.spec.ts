@@ -11,6 +11,7 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError: vi.fn(),
     showSuccess: vi.fn(),
+    showInfo: vi.fn(),
     showWarning: vi.fn()
   })
 }))
@@ -159,5 +160,21 @@ describe('CreateAccountModal', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_images_endpoint_enabled).toBe(false)
+  })
+
+  it('applies the OpenAI Claude-GPT bridge mapping template before creating an API Key account', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-openai-claude-gpt-bridge-toggle"]').trigger('click')
+    await wrapper.get('[data-testid="apply-openai-claude-gpt-bridge-template"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload?.extra?.openai_claude_gpt_bridge_enabled).toBe(true)
+    expect(payload?.credentials?.model_mapping).toMatchObject({
+      'claude-opus-4-8': 'gpt-5.5',
+      'claude-sonnet-4-6': 'gpt-5.4'
+    })
   })
 })

@@ -248,6 +248,34 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([12])
   })
 
+  it('applies the OpenAI Claude-GPT bridge mapping template without overwriting existing mappings', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      ...account.credentials,
+      model_mapping: {
+        'claude-opus-4-8': 'custom-gpt-opus'
+      }
+    }
+    account.extra = {
+      openai_claude_gpt_bridge_enabled: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="apply-openai-claude-gpt-bridge-template"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toMatchObject({
+      'claude-opus-4-8': 'custom-gpt-opus',
+      'claude-sonnet-4-6': 'gpt-5.4'
+    })
+  })
+
   it('submits OpenAI API Key endpoint capabilities', async () => {
     const account = buildAccount()
     updateAccountMock.mockReset()
