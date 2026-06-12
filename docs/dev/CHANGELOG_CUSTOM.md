@@ -19,6 +19,35 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] fix(billing): per-turn billing request id for multi-turn OpenAI WebSocket connections
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/turn_usage_record_context_test.go
+**Upstream compatibility**: fork-side fix for a regression introduced by the phase-6b upstream sync (87f2a29c); watch for upstream's own fix when syncing later.
+**Change details**:
+- P0 found in pre-deploy review: phase 6b made async usage-record tasks inherit the request context, so every turn of an OpenAI WS connection resolved the same billing request id (`client:<connection-uuid>`). Turns 2..N then collided on the `usage_billing_dedup`/`usage_logs (request_id, api_key_id)` keys — tokens were neither billed nor logged (silent revenue loss for Codex WS-mode multi-turn traffic).
+- Added `turnUsageRecordContext` which suffixes both `ctxkey.ClientRequestID` and `ctxkey.RequestID` with the per-turn upstream response id (falling back to the turn number) inside the WS `AfterTurn` hook. This covers the forwarder, HTTP-bridge, and passthrough adapter paths, which all share that hook. Unit tests added.
+
+---
+
+## [2026-06-12] fix(billing): normalize usage-log image size to billing tier (migration 156 compatibility)
+
+**Affected files**: backend/internal/service/image_billing_size.go (new, ported from upstream), backend/internal/service/image_billing_size_test.go (new), backend/internal/service/openai_gateway_service.go, backend/internal/service/gateway_service.go
+**Upstream compatibility**: partial port of upstream's image billing size classifier; the forward-result audit fields (image_input_size/image_output_size/image_size_source/image_size_breakdown) are still unsynced — finish that on a later sync, then move normalization back to the parse points like upstream.
+**Change details**:
+- P1 found in pre-deploy review: migration 156 adds CHECK `usage_logs_image_billing_size_check` (image_count > 0 requires image_size IN 1K/2K/4K/mixed), but the fork's OpenAI image paths still write raw request sizes ("1024x1024", "auto", "") — after deploy every OpenAI image-generation usage-log INSERT would violate the constraint: user charged, row silently dropped.
+- Ported upstream's pure classifier functions (ClassifyImageBillingTier / NormalizeImageBillingTierOrDefault / ResolveImageBillingSize) and normalized image_size at both usage-log write points (`normalizedImageBillingSizePtr`), covering images/responses/WS-bridge and the Anthropic-side path. Upstream's classifier tests ported as-is.
+
+---
+
+## [2026-06-12] fix(pricing): add claude-fable-5 to checked-in fallback pricing
+
+**Affected files**: backend/resources/model-pricing/model_prices_and_context_window.json
+**Upstream compatibility**: additive entry copied verbatim from the live remote pricing cache (backend/data/model_pricing.json); upstream may add it later — dedupe on sync.
+**Change details**:
+- P2 from pre-deploy review: claude-fable-5 is enabled for routing/billing but missing from the checked-in fallback pricing file. If the remote pricing download fails on a fresh container, billing would fall back to claude-sonnet-4 rates ($3/$15 vs real $10/$50, ~70% undercharge). Added the entry ($10/MTok input, $50/MTok output, cache rates included).
+
+---
+
 ## [2026-06-11] fix: bump Dockerfile Go builder to 1.26.4 to match go.mod
 
 **Affected files**: Dockerfile
