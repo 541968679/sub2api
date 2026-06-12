@@ -19,7 +19,7 @@
     "@stripe/stripe-js": "^9.0.1",
     "@tanstack/vue-virtual": "^3.13.23",
     "@vueuse/core": "^10.7.0",
-    "axios": "^1.15.0",
+    "axios": "^1.17.0",
     "chart.js": "^4.4.1",
     "dompurify": "^3.3.1",
     "driver.js": "^1.4.0",
@@ -56,5 +56,10 @@
     "vite-plugin-checker": "^0.9.1",
     "vitest": "^2.1.9",
     "vue-tsc": "^2.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "js-cookie": ">=3.0.8"
+    }
   }
 }

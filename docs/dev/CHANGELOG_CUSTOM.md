@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] chore(deps): bump axios to 1.17.0 and override js-cookie >=3.0.8
+
+**Affected files**: frontend/package.json, frontend/pnpm-lock.yaml
+**Upstream compatibility**: pure dependency bump; the js-cookie pnpm override can be dropped once ahooks/@lobehub pull a patched version.
+**Change details**:
+- Security Scan's pnpm audit gate flagged 11 high advisories on axios <=1.15.0 (prototype-pollution gadgets, NO_PROXY bypasses, Proxy-Authorization leaks, ReDoS) and 1 on js-cookie 3.0.5 (prototype hijack in assign()). Bumped axios to 1.17.0; js-cookie is transitive (ahooks/@lobehub/ui, js-beautify) so forced >=3.0.8 via pnpm.overrides.
+- Frontend typecheck/tests/build re-verified green after the bump. Not part of the v0.1.139 image; rides the next release tag.
+
+---
+
 ## [2026-06-12] ci: bump hardcoded Go version checks to 1.26.4
 
 **Affected files**: .github/workflows/backend-ci.yml, .github/workflows/release.yml, .github/workflows/security-scan.yml
