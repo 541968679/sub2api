@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] improve: one-click OpenAI Claude-GPT bridge mapping template
+
+**Affected files**: frontend/src/composables/useModelWhitelist.ts, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/CreateAccountModal.spec.ts, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: admin UX improvement only; no backend, schema, billing, or gateway behavior changes.
+**Change details**:
+- Added a shared OpenAI Claude-GPT bridge mapping template for common Claude requests such as `claude-opus-4-8`, `claude-opus-4-7`, `claude-sonnet-4-6`, and `claude-haiku-4-5` mapped to `gpt-5.5` / `gpt-5.4`.
+- Added one-click template buttons next to the OpenAI Claude-GPT bridge toggle in both create and edit account modals.
+- Template application switches to model-mapping mode, preserves existing mappings, and only appends missing defaults.
+- Added focused Vitest coverage for create/edit payloads and verified the target specs plus ESLint.
+
+---
+
 ## [2026-06-12] improve: admin account sorting and test-model ordering
 
 **Affected files**: backend/internal/repository/account_repo.go, backend/internal/repository/account_repo_sort_integration_test.go, frontend/src/views/admin/AccountsView.vue, frontend/src/components/admin/account/AccountTableFilters.vue, frontend/src/components/admin/account/AccountTestModal.vue, frontend/src/components/account/AccountTestModal.vue, frontend/src/components/admin/account/accountModelSort.ts, frontend/src/components/admin/account/__tests__/accountModelSort.spec.ts, frontend/src/components/admin/account/__tests__/AccountTestModal.spec.ts, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

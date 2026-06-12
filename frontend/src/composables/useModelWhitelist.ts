@@ -263,6 +263,18 @@ const openaiPresetMappings = [
   { label: 'Sonnet→5.4', from: 'claude-sonnet-4-6', to: 'gpt-5.4', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' }
 ]
 
+export const openAIClaudeGPTBridgePresetMappings = [
+  { from: 'claude-opus-4-8', to: 'gpt-5.5' },
+  { from: 'claude-opus-4-7', to: 'gpt-5.5' },
+  { from: 'claude-opus-4-6', to: 'gpt-5.4' },
+  { from: 'claude-opus-4-5-20251101', to: 'gpt-5.4' },
+  { from: 'claude-sonnet-4-6', to: 'gpt-5.4' },
+  { from: 'claude-sonnet-4-5', to: 'gpt-5.4' },
+  { from: 'claude-sonnet-4-5-20250929', to: 'gpt-5.4' },
+  { from: 'claude-haiku-4-5', to: 'gpt-5.4' },
+  { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.4' }
+] as const
+
 const geminiPresetMappings = [
   { label: 'Flash 2.0', from: 'gemini-2.0-flash', to: 'gemini-2.0-flash', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },
   { label: '2.5 Flash', from: 'gemini-2.5-flash', to: 'gemini-2.5-flash', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },

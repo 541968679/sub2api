@@ -7397,6 +7397,12 @@ const phase0LocalePatch = {
           accessTokenAuth: 'Access token auth',
           mobileRefreshTokenAuth: 'Mobile refresh token auth'
         }
+      },
+      openai: {
+        applyClaudeGPTBridgeTemplate: 'Apply common Claude-GPT mapping',
+        claudeGPTBridgeTemplateHint:
+          'Add common Claude requests such as Opus 4.8 and Sonnet 4.6 to GPT 5.5 / GPT 5.4 mappings. Existing mappings are kept.',
+        claudeGPTBridgeTemplateAlreadyApplied: 'Common Claude-GPT mappings are already applied'
       }
     },
     users: {

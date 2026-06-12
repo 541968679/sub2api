@@ -1344,6 +1344,7 @@
           </div>
           <button
             type="button"
+            data-testid="edit-openai-claude-gpt-bridge-toggle"
             @click="openaiClaudeGPTBridgeEnabled = !openaiClaudeGPTBridgeEnabled"
             :class="[
               'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
@@ -1357,6 +1358,25 @@
               ]"
             />
           </button>
+        </div>
+        <div
+          v-if="openaiClaudeGPTBridgeEnabled"
+          class="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20"
+        >
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-xs text-green-700 dark:text-green-300">
+              {{ t('admin.accounts.openai.claudeGPTBridgeTemplateHint') }}
+            </p>
+            <button
+              type="button"
+              data-testid="apply-openai-claude-gpt-bridge-template"
+              @click="applyOpenAIClaudeGPTBridgePreset"
+              class="inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700"
+            >
+              <Icon name="sparkles" size="sm" class="mr-1.5" :stroke-width="2" />
+              {{ t('admin.accounts.openai.applyClaudeGPTBridgeTemplate') }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2264,7 +2284,8 @@ import {
   getPresetMappingsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
-  isValidWildcardPattern
+  isValidWildcardPattern,
+  openAIClaudeGPTBridgePresetMappings
 } from '@/composables/useModelWhitelist'
 
 interface Props {
@@ -3019,6 +3040,38 @@ const addPresetMapping = (from: string, to: string) => {
     return
   }
   modelMappings.value.push({ from, to })
+}
+
+const applyOpenAIClaudeGPTBridgePreset = () => {
+  const existingFromModels = new Set(
+    modelMappings.value
+      .map((mapping) => mapping.from.trim())
+      .filter(Boolean)
+  )
+
+  if (modelRestrictionMode.value === 'whitelist') {
+    for (const model of allowedModels.value.map((model) => model.trim()).filter(Boolean)) {
+      if (!existingFromModels.has(model)) {
+        modelMappings.value.push({ from: model, to: model })
+        existingFromModels.add(model)
+      }
+    }
+    allowedModels.value = []
+  }
+
+  modelRestrictionMode.value = 'mapping'
+
+  let added = 0
+  for (const preset of openAIClaudeGPTBridgePresetMappings) {
+    if (existingFromModels.has(preset.from)) continue
+    modelMappings.value.push({ from: preset.from, to: preset.to })
+    existingFromModels.add(preset.from)
+    added += 1
+  }
+
+  if (added === 0) {
+    appStore.showInfo(t('admin.accounts.openai.claudeGPTBridgeTemplateAlreadyApplied'))
+  }
 }
 
 const addAntigravityModelMapping = () => {
