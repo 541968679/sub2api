@@ -2860,6 +2860,17 @@ const zhBase = {
       allGroups: '全部分组',
       ungroupedGroup: '未分配分组',
       oauthType: 'OAuth',
+      sort: {
+        createdDesc: '最新添加',
+        createdAsc: '最早添加',
+        platformAsc: '平台 A-Z',
+        typeAsc: '类型 A-Z',
+        availabilityDesc: '可用优先',
+        availabilityAsc: '不可用优先',
+        nameAsc: '名称 A-Z',
+        lastUsedDesc: '最近使用',
+        priorityAsc: '低优先级在前'
+      },
       // Schedulable toggle
       schedulable: '参与调度',
       schedulableHint: '开启后账号参与API请求调度',

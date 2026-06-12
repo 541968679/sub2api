@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] improve: admin account sorting and test-model ordering
+
+**Affected files**: backend/internal/repository/account_repo.go, backend/internal/repository/account_repo_sort_integration_test.go, frontend/src/views/admin/AccountsView.vue, frontend/src/components/admin/account/AccountTableFilters.vue, frontend/src/components/admin/account/AccountTestModal.vue, frontend/src/components/account/AccountTestModal.vue, frontend/src/components/admin/account/accountModelSort.ts, frontend/src/components/admin/account/__tests__/accountModelSort.spec.ts, frontend/src/components/admin/account/__tests__/AccountTestModal.spec.ts, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: admin UX improvement only; no schema, billing, gateway, or deployment behavior changes.
+**Change details**:
+- Added an explicit account-list sort selector for newest/oldest added, platform, type, availability, name, recent use, and priority while preserving server-side pagination.
+- Extended account repository ordering to support `platform`, `type`, and computed `availability`, where active, schedulable, non-rate-limited, non-temporarily-unschedulable accounts sort as available.
+- Switched the default account-list request ordering to newest-added first for easier account organization.
+- Centralized account connection-test model ordering so mainstream/newer models such as Opus 4.8, GPT-5.5, and GPT-5.4 appear first, including compact spellings like `opus48` and `gpt55`.
+- Verified with `pnpm -C frontend exec vitest run src/components/admin/account/__tests__/accountModelSort.spec.ts src/components/admin/account/__tests__/AccountTestModal.spec.ts src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`, `go test -tags=integration ./internal/repository -run 'TestAccountRepoSuite/TestListWithFilters_SortBy(TypeAsc|AvailabilityDesc|PriorityDesc)'`, `git diff --check`, and `pnpm -C frontend run typecheck` (currently blocked by unrelated pre-existing auth/register TypeScript errors in `src/api/auth.ts` and `src/stores/auth.ts`).
+
+---
+
 ## [2026-06-12] chore(deps): bump axios to 1.17.0 and override js-cookie >=3.0.8
 
 **Affected files**: frontend/package.json, frontend/pnpm-lock.yaml

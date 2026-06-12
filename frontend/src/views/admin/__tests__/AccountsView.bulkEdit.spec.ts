@@ -203,8 +203,8 @@ describe('admin AccountsView bulk edit scope', () => {
     await wrapper.get('[data-test="select-filtered"]').trigger('click')
     await flushPromises()
 
-    expect(listAccounts).toHaveBeenNthCalledWith(2, 1, 1000, expect.objectContaining({ sort_by: 'name', sort_order: 'asc' }))
-    expect(listAccounts).toHaveBeenNthCalledWith(3, 2, 1000, expect.objectContaining({ sort_by: 'name', sort_order: 'asc' }))
+    expect(listAccounts).toHaveBeenNthCalledWith(2, 1, 1000, expect.objectContaining({ sort_by: 'created_at', sort_order: 'desc' }))
+    expect(listAccounts).toHaveBeenNthCalledWith(3, 2, 1000, expect.objectContaining({ sort_by: 'created_at', sort_order: 'desc' }))
     expect(wrapper.get('[data-test="selected-count"]').text()).toBe('3')
   })
 

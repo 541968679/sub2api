@@ -598,9 +598,27 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 	case "status":
 		field = dbaccount.FieldStatus
 		defaultOrder = false
+	case "platform":
+		field = dbaccount.FieldPlatform
+		defaultOrder = false
+	case "type":
+		field = dbaccount.FieldType
+		defaultOrder = false
 	case "schedulable":
 		field = dbaccount.FieldSchedulable
 		defaultOrder = false
+	case "availability":
+		availabilityOrder := func(direction string) func(*entsql.Selector) {
+			return func(s *entsql.Selector) {
+				s.OrderExpr(entsql.Expr(
+					"(CASE WHEN status = '" + service.StatusActive + "' AND schedulable = TRUE AND (rate_limit_reset_at IS NULL OR rate_limit_reset_at <= NOW()) AND (temp_unschedulable_until IS NULL OR temp_unschedulable_until <= NOW()) THEN 1 ELSE 0 END) " + direction,
+				))
+			}
+		}
+		if sortOrder == pagination.SortOrderDesc {
+			return []func(*entsql.Selector){availabilityOrder("DESC"), dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
+		}
+		return []func(*entsql.Selector){availabilityOrder("ASC"), dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
 	case "priority":
 		field = dbaccount.FieldPriority
 		defaultOrder = false

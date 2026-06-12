@@ -3175,6 +3175,17 @@ const enBase = {
       oauthType: 'OAuth',
       setupToken: 'Setup Token',
       apiKey: 'API Key',
+      sort: {
+        createdDesc: 'Newest Added',
+        createdAsc: 'Oldest Added',
+        platformAsc: 'Platform A-Z',
+        typeAsc: 'Type A-Z',
+        availabilityDesc: 'Available First',
+        availabilityAsc: 'Unavailable First',
+        nameAsc: 'Name A-Z',
+        lastUsedDesc: 'Recently Used',
+        priorityAsc: 'Priority Low First'
+      },
       // Schedulable toggle
       schedulable: 'Schedulable',
       schedulableHint: 'Enable to include this account in API request scheduling',

@@ -59,7 +59,7 @@ function createStreamResponse(lines: string[]) {
   } as Response
 }
 
-function mountModal() {
+function mountModal(account: Record<string, unknown> = {}) {
   return mount(AccountTestModal, {
     props: {
       show: false,
@@ -68,13 +68,27 @@ function mountModal() {
         name: 'Gemini Image Test',
         platform: 'gemini',
         type: 'apikey',
-        status: 'active'
+        status: 'active',
+        ...account
       }
     } as any,
     global: {
       stubs: {
         BaseDialog: { template: '<div><slot /><slot name="footer" /></div>' },
-        Select: { template: '<div class="select-stub"></div>' },
+        Select: {
+          props: ['options', 'valueKey', 'labelKey'],
+          template: `
+            <div class="select-stub">
+              <span
+                v-for="option in options"
+                :key="option[valueKey || 'value']"
+                class="select-option"
+              >
+                {{ option[labelKey || 'label'] }}
+              </span>
+            </div>
+          `
+        },
         TextArea: {
           props: ['modelValue'],
           emits: ['update:modelValue'],
@@ -143,5 +157,31 @@ describe('AccountTestModal', () => {
     const preview = wrapper.find('img[alt="test-image-1"]')
     expect(preview.exists()).toBe(true)
     expect(preview.attributes('src')).toBe('data:image/png;base64,QUJD')
+  })
+
+  it('orders OpenAI and Claude test models by mainstream newest priority', async () => {
+    getAvailableModels.mockResolvedValueOnce([
+      { id: 'gpt-4o-mini', display_name: 'GPT-4o mini' },
+      { id: 'claude-sonnet-4', display_name: 'Claude Sonnet 4' },
+      { id: 'gpt-5.4', display_name: 'GPT-5.4' },
+      { id: 'opus48', display_name: 'Opus 4.8' },
+      { id: 'gpt5.5', display_name: 'GPT-5.5' }
+    ])
+
+    const wrapper = mountModal({
+      name: 'OpenAI Test',
+      platform: 'openai'
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(wrapper.findAll('.select-option').map((option) => option.text())).toEqual([
+      'Opus 4.8',
+      'GPT-5.5',
+      'GPT-5.4',
+      'Claude Sonnet 4',
+      'GPT-4o mini'
+    ])
+    expect((wrapper.vm as any).selectedModelId).toBe('opus48')
   })
 })

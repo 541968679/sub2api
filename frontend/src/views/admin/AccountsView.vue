@@ -7,7 +7,7 @@
             v-model:searchQuery="params.search"
             :filters="params"
             :groups="groups"
-            @update:filters="(newFilters) => Object.assign(params, newFilters)"
+            @update:filters="handleFilterUpdate"
             @change="debouncedReload"
             @update:searchQuery="debouncedReload"
           />
@@ -183,7 +183,6 @@
           @sort="handleSort"
           default-sort-key="name"
           default-sort-order="asc"
-          :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
           :estimate-row-height="72"
           :overscan="5"
         >
@@ -547,15 +546,20 @@ type AccountSortState = {
 }
 const ACCOUNT_SORTABLE_KEYS = new Set([
   'name',
+  'platform',
+  'type',
+  'platform_type',
   'status',
   'schedulable',
+  'availability',
   'priority',
   'rate_multiplier',
   'last_used_at',
-  'expires_at'
+  'expires_at',
+  'created_at'
 ])
 const loadInitialAccountSortState = (): AccountSortState => {
-  const fallback: AccountSortState = { sort_by: 'name', sort_order: 'asc' }
+  const fallback: AccountSortState = { sort_by: 'created_at', sort_order: 'desc' }
   try {
     const raw = localStorage.getItem(ACCOUNT_SORT_STORAGE_KEY)
     if (!raw) return fallback
@@ -953,17 +957,36 @@ const handlePageSizeChange = (size: number) => {
   baseHandlePageSizeChange(size)
 }
 
+const saveAccountSortState = () => {
+  localStorage.setItem(ACCOUNT_SORT_STORAGE_KEY, JSON.stringify({
+    key: sortState.sort_by,
+    order: sortState.sort_order
+  }))
+}
+
 const handleSort = (key: string, order: AccountSortOrder) => {
-  sortState.sort_by = key
+  const sortBy = key === 'platform_type' ? 'platform' : key
+  sortState.sort_by = sortBy
   sortState.sort_order = order
   const requestParams = params as any
-  requestParams.sort_by = key
+  requestParams.sort_by = sortBy
   requestParams.sort_order = order
   pagination.page = 1
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
+  saveAccountSortState()
   load()
+}
+
+const handleFilterUpdate = (newFilters: Record<string, unknown>) => {
+  Object.assign(params, newFilters)
+  const requestParams = params as any
+  if (typeof requestParams.sort_by === 'string' && ACCOUNT_SORTABLE_KEYS.has(requestParams.sort_by)) {
+    sortState.sort_by = requestParams.sort_by
+  }
+  sortState.sort_order = requestParams.sort_order === 'desc' ? 'desc' : 'asc'
+  saveAccountSortState()
 }
 
 watch(loading, (isLoading, wasLoading) => {
@@ -1210,7 +1233,7 @@ const allColumns = computed(() => {
   const c = [
     { key: 'select', label: '', sortable: false },
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
-    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
+    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: true },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },

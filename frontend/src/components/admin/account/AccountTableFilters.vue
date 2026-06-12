@@ -31,6 +31,7 @@
       <Select :model-value="filters.status" class="w-40" :options="sOpts" @update:model-value="updateStatus" @change="$emit('change')" />
       <Select :model-value="filters.privacy_mode" class="w-40" :options="privacyOpts" @update:model-value="updatePrivacyMode" @change="$emit('change')" />
       <Select :model-value="filters.group" class="w-40" :options="gOpts" @update:model-value="updateGroup" @change="$emit('change')" />
+      <Select :model-value="sortValue" class="w-52" :options="sortOpts" @update:model-value="updateSort" />
     </div>
   </div>
 </template>
@@ -60,6 +61,24 @@ const updateType = (value: string | number | boolean | null) => { emit('update:f
 const updateStatus = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, status: value }) }
 const updatePrivacyMode = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, privacy_mode: value }) }
 const updateGroup = (value: string | number | boolean | null) => { emit('update:filters', { ...props.filters, group: value }) }
+const sortValue = computed(() => {
+  const sortBy = props.filters.sort_by || 'created_at'
+  const fallbackOrder = sortBy === 'created_at' || sortBy === 'last_used_at' || sortBy === 'availability' ? 'desc' : 'asc'
+  const sortOrder = props.filters.sort_order === 'asc' || props.filters.sort_order === 'desc'
+    ? props.filters.sort_order
+    : fallbackOrder
+  return `${sortBy}:${sortOrder}`
+})
+const updateSort = (value: string | number | boolean | null) => {
+  if (typeof value !== 'string') return
+  const [sortBy, sortOrder] = value.split(':')
+  emit('update:filters', {
+    ...props.filters,
+    sort_by: sortBy || 'name',
+    sort_order: sortOrder === 'desc' ? 'desc' : 'asc'
+  })
+  emit('change')
+}
 
 const pOpts = computed(() => [
   { value: '', label: t('common.all') },
@@ -95,5 +114,16 @@ const gOpts = computed(() => [
   { value: '', label: t('admin.accounts.allGroups') },
   { value: 'ungrouped', label: t('admin.accounts.ungroupedGroup') },
   ...(props.groups || []).map(g => ({ value: String(g.id), label: g.name })),
+])
+const sortOpts = computed(() => [
+  { value: 'created_at:desc', label: t('admin.accounts.sort.createdDesc') },
+  { value: 'created_at:asc', label: t('admin.accounts.sort.createdAsc') },
+  { value: 'platform:asc', label: t('admin.accounts.sort.platformAsc') },
+  { value: 'type:asc', label: t('admin.accounts.sort.typeAsc') },
+  { value: 'availability:desc', label: t('admin.accounts.sort.availabilityDesc') },
+  { value: 'availability:asc', label: t('admin.accounts.sort.availabilityAsc') },
+  { value: 'name:asc', label: t('admin.accounts.sort.nameAsc') },
+  { value: 'last_used_at:desc', label: t('admin.accounts.sort.lastUsedDesc') },
+  { value: 'priority:asc', label: t('admin.accounts.sort.priorityAsc') },
 ])
 </script>
