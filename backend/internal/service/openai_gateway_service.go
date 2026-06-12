@@ -5627,7 +5627,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		CacheReadTokens:     cacheReadInputTokens,
 		ImageOutputTokens:   result.Usage.ImageOutputTokens,
 		ImageCount:          result.ImageCount,
-		ImageSize:           optionalTrimmedStringPtr(result.ImageSize),
+		ImageSize:           normalizedImageBillingSizePtr(result.ImageCount, result.ImageSize),
 		ImageQuality:        optionalTrimmedStringPtr(result.ImageQuality),
 	}
 	if cost != nil {

@@ -8751,7 +8751,7 @@ func (s *GatewayService) buildRecordUsageLog(
 		DurationMs:            &durationMs,
 		FirstTokenMs:          result.FirstTokenMs,
 		ImageCount:            result.ImageCount,
-		ImageSize:             optionalTrimmedStringPtr(result.ImageSize),
+		ImageSize:             normalizedImageBillingSizePtr(result.ImageCount, result.ImageSize),
 		ImageQuality:          optionalTrimmedStringPtr("auto"),
 		CacheTTLOverridden:    cacheTTLOverridden,
 		ChannelID:             optionalInt64Ptr(input.ChannelID),
