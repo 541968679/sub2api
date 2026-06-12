@@ -47,6 +47,12 @@ describe('LegalConsentDialog', () => {
       },
     })
 
+    // 在 syncScrollGate 的 nextTick 回调执行前模拟出溢出，
+    // 否则 jsdom 的 0 尺寸会让滚动门槛被自动放行。
+    const scrollEl = wrapper.get('[data-testid="legal-consent-scroll"]').element
+    Object.defineProperty(scrollEl, 'clientHeight', { value: 200, configurable: true })
+    Object.defineProperty(scrollEl, 'scrollHeight', { value: 1000, configurable: true })
+
     const confirmButton = wrapper.get('[data-testid="legal-consent-confirm"]')
     expect(confirmButton.attributes('disabled')).toBeDefined()
 
@@ -57,10 +63,7 @@ describe('LegalConsentDialog', () => {
     await wrapper.vm.$nextTick()
     expect(confirmButton.attributes('disabled')).toBeDefined()
 
-    const scrollEl = wrapper.get('[data-testid="legal-consent-scroll"]').element
     Object.defineProperty(scrollEl, 'scrollTop', { value: 800, configurable: true })
-    Object.defineProperty(scrollEl, 'clientHeight', { value: 200, configurable: true })
-    Object.defineProperty(scrollEl, 'scrollHeight', { value: 1000, configurable: true })
 
     await wrapper.get('[data-testid="legal-consent-scroll"]').trigger('scroll')
     await wrapper.vm.$nextTick()
@@ -98,6 +101,10 @@ describe('LegalConsentDialog', () => {
       },
     })
 
+    const scrollEl = wrapper.get('[data-testid="legal-consent-scroll"]').element
+    Object.defineProperty(scrollEl, 'clientHeight', { value: 200, configurable: true })
+    Object.defineProperty(scrollEl, 'scrollHeight', { value: 1000, configurable: true })
+
     expect(wrapper.text()).toContain('Custom internal-only terms')
     expect(wrapper.text()).toContain('legal-v9')
 
@@ -105,12 +112,47 @@ describe('LegalConsentDialog', () => {
     await wrapper.get('[data-testid="legal-consent-authorized-use-check"]').setValue(true)
     await wrapper.get('[data-testid="legal-consent-confirmation"]').setValue('I agree to legal-v9')
 
-    const scrollEl = wrapper.get('[data-testid="legal-consent-scroll"]').element
     Object.defineProperty(scrollEl, 'scrollTop', { value: 800, configurable: true })
-    Object.defineProperty(scrollEl, 'clientHeight', { value: 200, configurable: true })
-    Object.defineProperty(scrollEl, 'scrollHeight', { value: 1000, configurable: true })
     await wrapper.get('[data-testid="legal-consent-scroll"]').trigger('scroll')
 
     expect(wrapper.get('[data-testid="legal-consent-confirm"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('passes the scroll gate automatically when the terms content does not overflow', async () => {
+    const wrapper = mount(LegalConsentDialog, {
+      props: {
+        show: true,
+        mode: 'login',
+        settings: {
+          enabled: true,
+          version: 'legal-v9',
+          content: 'short terms',
+          confirmation_phrase: 'I agree to legal-v9',
+          min_read_seconds: 0,
+        },
+      },
+      global: {
+        stubs: {
+          Teleport: true,
+          Transition: false,
+          Icon: true,
+        },
+      },
+    })
+
+    // jsdom 不做布局，scrollHeight === clientHeight === 0，等同内容未溢出。
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    await wrapper.get('[data-testid="legal-consent-terms-check"]').setValue(true)
+    await wrapper.get('[data-testid="legal-consent-authorized-use-check"]').setValue(true)
+    await wrapper.get('[data-testid="legal-consent-confirmation"]').setValue('I agree to legal-v9')
+
+    expect(wrapper.get('[data-testid="legal-consent-confirm"]').attributes('disabled')).toBeUndefined()
+
+    await wrapper.get('[data-testid="legal-consent-confirm"]').trigger('click')
+    expect(wrapper.emitted('accept')?.[0]?.[0]).toMatchObject({
+      scrolledToBottom: true,
+    })
   })
 })

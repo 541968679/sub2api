@@ -13,6 +13,7 @@
       </div>
 
       <div
+        ref="scrollContainer"
         data-testid="legal-consent-scroll"
         class="max-h-[48vh] overflow-y-auto rounded-lg border border-gray-200 bg-white p-4 text-sm leading-7 text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200"
         @scroll="handleScroll"
@@ -100,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import {
@@ -126,6 +127,7 @@ const { t } = useI18n()
 const termsChecked = ref(false)
 const authorizedUseChecked = ref(false)
 const scrolledToBottom = ref(false)
+const scrollContainer = ref<HTMLElement | null>(null)
 const typedConfirmation = ref('')
 const elapsedSeconds = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
@@ -167,6 +169,9 @@ watch(
     scrolledToBottom.value = false
     typedConfirmation.value = ''
     elapsedSeconds.value = 0
+    // 内容不足以产生滚动条时不会触发 scroll 事件，需要主动放行，
+    // 否则管理员配置较短条款会让接受按钮永远不可用。
+    void nextTick().then(syncScrollGate)
     timer = setInterval(() => {
       elapsedSeconds.value += 1
       if (remainingSeconds.value === 0) {
@@ -187,6 +192,16 @@ function stopTimer(): void {
 function handleScroll(event: Event): void {
   const target = event.target as HTMLElement
   scrolledToBottom.value = target.scrollTop + target.clientHeight >= target.scrollHeight - 4
+}
+
+function syncScrollGate(): void {
+  const el = scrollContainer.value
+  if (!el) {
+    return
+  }
+  if (el.scrollHeight <= el.clientHeight + 4) {
+    scrolledToBottom.value = true
+  }
 }
 
 function accept(): void {

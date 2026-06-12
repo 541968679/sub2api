@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-12] fix(ui): legal consent dialog auto-passes scroll gate when terms do not overflow
+
+**Affected files**: frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts
+**Upstream compatibility**: fork-only feature (legal consent), no upstream overlap.
+**Change details**:
+- P2 from pre-deploy review: `scrolledToBottom` was only ever set by a scroll event, which never fires when the rendered terms fit inside the dialog (short admin-configured content, tall screens). The accept button then stays permanently disabled — bricking login/registration for all users.
+- On dialog open, after render, the gate now auto-passes when `scrollHeight <= clientHeight + 4`. Spec updated to mock overflow dimensions before the gate check; added a no-overflow auto-pass case.
+
+---
+
 ## [2026-06-12] fix(billing): per-turn billing request id for multi-turn OpenAI WebSocket connections
 
 **Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/turn_usage_record_context_test.go
