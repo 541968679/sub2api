@@ -87,6 +87,20 @@ const BulkEditAccountModalStub = {
   template: '<div data-test="bulk-edit-modal" :data-show="String(show)" :data-target-mode="target?.mode ?? \'\'"></div>'
 }
 
+const ConfirmDialogStub = {
+  props: ['show', 'title', 'message', 'confirmText', 'cancelText'],
+  emits: ['confirm', 'cancel'],
+  template: `
+    <div v-if="show" data-test="confirm-dialog">
+      <div data-test="confirm-title">{{ title }}</div>
+      <div data-test="confirm-message">{{ message }}</div>
+      <slot />
+      <button data-test="confirm" @click="$emit('confirm')">{{ confirmText }}</button>
+      <button data-test="cancel" @click="$emit('cancel')">{{ cancelText }}</button>
+    </div>
+  `
+}
+
 const mountAccountsView = () => mount(AccountsView, {
   global: {
     stubs: {
@@ -96,7 +110,7 @@ const mountAccountsView = () => mount(AccountsView, {
       },
       DataTable: DataTableStub,
       Pagination: true,
-      ConfirmDialog: true,
+      ConfirmDialog: ConfirmDialogStub,
       AccountTableActions: { template: '<div><slot name="beforeCreate" /><slot name="after" /></div>' },
       AccountTableFilters: { template: '<div></div>' },
       AccountBulkActionsBar: AccountBulkActionsBarStub,
@@ -166,6 +180,19 @@ describe('admin AccountsView bulk edit scope', () => {
 
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-show')).toBe('true')
     expect(wrapper.get('[data-test="bulk-edit-modal"]').attributes('data-target-mode')).toBe('filtered')
+  })
+
+  it('shows Codex auth as an explicit top-level export format', async () => {
+    const wrapper = mountAccountsView()
+
+    await flushPromises()
+    const exportButton = wrapper.findAll('button').find(button => button.text() === 'admin.accounts.dataExport')
+    expect(exportButton).toBeTruthy()
+
+    await exportButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="confirm-dialog"]').text()).toContain('admin.accounts.dataExportFormatCodex')
   })
 
   it('selects account ids from every filtered page', async () => {
