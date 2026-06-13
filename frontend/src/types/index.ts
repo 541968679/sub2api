@@ -1290,6 +1290,18 @@ export interface AdminDataAccount {
   auto_pause_on_expired?: boolean
 }
 
+export interface CodexAuthPayload {
+  auth_mode: 'chatgpt'
+  OPENAI_API_KEY: string | null
+  tokens: {
+    id_token: string
+    access_token: string
+    refresh_token: string
+    account_id: string
+  }
+  last_refresh: string
+}
+
 export interface AdminDataImportError {
   kind: 'proxy' | 'account'
   name?: string

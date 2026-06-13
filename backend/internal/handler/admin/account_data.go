@@ -30,6 +30,13 @@ type accountExportOptions struct {
 	MarkExported   bool
 }
 
+type accountExportFormat string
+
+const (
+	accountExportFormatSub2API accountExportFormat = ""
+	accountExportFormatCodex   accountExportFormat = "codex"
+)
+
 type DataPayload struct {
 	Type       string        `json:"type,omitempty"`
 	Version    int           `json:"version,omitempty"`
@@ -64,6 +71,20 @@ type DataAccount struct {
 	AutoPauseOnExpired *bool          `json:"auto_pause_on_expired,omitempty"`
 }
 
+type CodexAuthPayload struct {
+	AuthMode     string          `json:"auth_mode"`
+	OpenAIAPIKey *string         `json:"OPENAI_API_KEY"`
+	Tokens       CodexAuthTokens `json:"tokens"`
+	LastRefresh  string          `json:"last_refresh"`
+}
+
+type CodexAuthTokens struct {
+	IDToken      string `json:"id_token"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	AccountID    string `json:"account_id"`
+}
+
 type DataImportRequest struct {
 	Data                 DataPayload `json:"data"`
 	SkipDefaultGroupBind *bool       `json:"skip_default_group_bind"`
@@ -93,6 +114,12 @@ func buildProxyKey(protocol, host string, port int, username, password string) s
 func (h *AccountHandler) ExportData(c *gin.Context) {
 	ctx := c.Request.Context()
 
+	exportFormat, err := parseAccountExportFormat(c)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	selectedIDs, err := parseAccountIDs(c)
 	if err != nil {
 		response.BadRequest(c, err.Error())
@@ -108,6 +135,19 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 	accounts, err := h.resolveExportAccounts(ctx, selectedIDs, c, exportOptions)
 	if err != nil {
 		response.ErrorFrom(c, err)
+		return
+	}
+
+	if exportFormat == accountExportFormatCodex {
+		payload, includedAccountIDs := buildCodexAuthPayloads(accounts)
+		exportedAt := time.Now().UTC()
+		if exportOptions.MarkExported && len(includedAccountIDs) > 0 {
+			if _, err := h.adminService.MarkAccountsExported(ctx, includedAccountIDs, exportedAt); err != nil {
+				response.ErrorFrom(c, err)
+				return
+			}
+		}
+		response.Success(c, payload)
 		return
 	}
 
@@ -195,6 +235,54 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 	}
 
 	response.Success(c, payload)
+}
+
+func buildCodexAuthPayloads(accounts []service.Account) ([]CodexAuthPayload, []int64) {
+	payloads := make([]CodexAuthPayload, 0, len(accounts))
+	accountIDs := make([]int64, 0, len(accounts))
+	for i := range accounts {
+		if payload, ok := buildCodexAuthPayload(accounts[i]); ok {
+			payloads = append(payloads, payload)
+			accountIDs = append(accountIDs, accounts[i].ID)
+		}
+	}
+	return payloads, accountIDs
+}
+
+func buildCodexAuthPayload(account service.Account) (CodexAuthPayload, bool) {
+	if account.Platform != service.PlatformOpenAI || account.Type != service.AccountTypeOAuth {
+		return CodexAuthPayload{}, false
+	}
+	idToken := strings.TrimSpace(account.GetCredential("id_token"))
+	accessToken := strings.TrimSpace(account.GetCredential("access_token"))
+	refreshToken := strings.TrimSpace(account.GetCredential("refresh_token"))
+	accountID := strings.TrimSpace(account.GetCredential("chatgpt_account_id"))
+	if accountID == "" {
+		accountID = strings.TrimSpace(account.GetCredential("account_id"))
+	}
+	if idToken == "" || accessToken == "" || refreshToken == "" || accountID == "" {
+		return CodexAuthPayload{}, false
+	}
+
+	lastRefresh := strings.TrimSpace(account.GetCredential("last_refresh"))
+	if lastRefresh == "" {
+		lastRefresh = strings.TrimSpace(account.GetCredential("updated_at"))
+	}
+	if lastRefresh == "" {
+		lastRefresh = account.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	}
+
+	return CodexAuthPayload{
+		AuthMode:     "chatgpt",
+		OpenAIAPIKey: nil,
+		Tokens: CodexAuthTokens{
+			IDToken:      idToken,
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+			AccountID:    accountID,
+		},
+		LastRefresh: lastRefresh,
+	}, true
 }
 
 func (h *AccountHandler) ImportData(c *gin.Context) {
@@ -566,6 +654,18 @@ func parseIncludeProxies(c *gin.Context) (bool, error) {
 		return false, nil
 	default:
 		return true, fmt.Errorf("invalid include_proxies value: %s", raw)
+	}
+}
+
+func parseAccountExportFormat(c *gin.Context) (accountExportFormat, error) {
+	raw := strings.TrimSpace(strings.ToLower(c.Query("format")))
+	switch raw {
+	case "", "sub2api", "data":
+		return accountExportFormatSub2API, nil
+	case string(accountExportFormatCodex):
+		return accountExportFormatCodex, nil
+	default:
+		return accountExportFormatSub2API, fmt.Errorf("invalid export format: %s", raw)
 	}
 }
 

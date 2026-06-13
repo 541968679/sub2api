@@ -289,6 +289,13 @@ AccountsView.vue: handleExportData()
       → resolveExportProxies()（include_proxies=true 时）
       → mark_exported=true 时批量写入 extra.exported_at
 
+AccountsView.vue: handleExportCodexAuth()
+  → GET /api/v1/admin/accounts/data?format=codex&ids=&limit=1
+    → account_data.go: ExportData()
+      → resolveExportAccounts()
+      → 仅保留 platform=openai、type=oauth 且具备完整 id_token/access_token/refresh_token/account_id 的账号
+      → 返回 Codex auth.json 形状的 JSON 对象数组
+
 AccountsView.vue: handleDeleteExportedAccounts()
   → 按当前筛选条件分页调用 GET /api/v1/admin/accounts
   → 前端筛出 extra.exported_at 非空账号
@@ -298,6 +305,10 @@ AccountsView.vue: handleDeleteExportedAccounts()
 重要机制：
 
 - 导出格式仍是 `DataPayload{exported_at, proxies, accounts}`，账号凭据和代理密码会原样包含在 JSON 中。
+- `format=codex` 是额外导出格式，面向 OpenAI OAuth 账号输出 Codex `auth.json` 兼容对象：`auth_mode=chatgpt`、`OPENAI_API_KEY=null`、`tokens.{id_token,access_token,refresh_token,account_id}`、`last_refresh`。
+- Codex 导出跳过非 OpenAI OAuth 账号和 token 不完整的账号；`account_id` 优先使用 `credentials.chatgpt_account_id`，缺失时回退到 `credentials.account_id`。
+- `format=codex&mark_exported=true` 只标记实际进入 Codex payload 的账号，不能把同批中不兼容或 token 不完整的账号误标为已导出。
+- CC-Switch 一键导入暂不接入账号导出：公开 `ccswitch://v1/import?resource=provider&app=codex...` 协议导入的是 API key/endpoint 形式的第三方 Codex provider，并生成 `model_provider="custom"`；它不能表达 OpenAI Official / ChatGPT OAuth token bundle。
 - “已导出”标记存放在 `account.extra.exported_at`，不需要数据库迁移；空字符串或缺失都视为未导出。
 - `mark_exported` 只标记本次实际进入导出 payload 的账号；如果同时传 `only_unexported`，已导出账号不会被重复标记。
 - “删除已导出账号”按钮只作用于当前筛选条件下 `extra.exported_at` 非空的账号，不会忽略页面筛选直接删除全库。

@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-13] feat: export OpenAI OAuth accounts as Codex auth
+
+**Affected files**: backend/internal/handler/admin/account_data.go, backend/internal/handler/admin/account_data_handler_test.go, frontend/src/api/admin/accounts.ts, frontend/src/components/admin/account/AccountActionMenu.vue, frontend/src/views/admin/AccountsView.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/account.md
+**Upstream compatibility**: additive admin export format and UI action only; no schema, billing, gateway routing, or existing Sub2API export/import JSON contract changes.
+**Change details**:
+- Added `GET /api/v1/admin/accounts/data?format=codex` to export only complete OpenAI OAuth credentials as Codex `auth.json` compatible payloads with `auth_mode=chatgpt`, `OPENAI_API_KEY=null`, OAuth tokens, account id, and last refresh time.
+- Preserved existing account selection/filter/export options, while making `mark_exported=true` for Codex exports mark only accounts that actually enter the Codex payload.
+- Added an OpenAI OAuth account-row action that downloads a single Codex auth JSON file, plus Chinese/English i18n and frontend types/API wiring.
+- Investigated CC-Switch import support and did not add one-click import: the public `ccswitch://v1/import?resource=provider&app=codex...` path requires API key/endpoint provider input and creates a custom Codex provider, not an OpenAI Official / ChatGPT OAuth account with token-bundle auth.
+- Verified with `go test ./internal/handler/admin -run "TestExportData(CodexFormat|IncludesSecrets|WithoutProxies|LimitAndOnlyUnexported|MarkExportedUsesExportedAccounts)" -count=1`, `go test ./internal/handler/admin -run "TestExportData|TestImportData" -count=1`, and `pnpm run typecheck` in `frontend`.
+
+---
+
 ## [2026-06-12] feat: require admin approval for self-service account applications
 
 **Affected files**: backend/internal/domain/constants.go, backend/internal/service/auth_service.go, backend/internal/service/auth_oauth_email_flow.go, backend/internal/service/admin_service.go, backend/internal/handler/auth_handler.go, backend/internal/handler/auth_oauth_pending_flow.go, backend/internal/handler/auth_linuxdo_oauth.go, backend/internal/handler/auth_oidc_oauth.go, backend/internal/handler/auth_wechat_oauth.go, backend/internal/handler/admin/user_handler.go, frontend/src/api/auth.ts, frontend/src/stores/auth.ts, frontend/src/utils/authError.ts, frontend/src/views/auth/RegisterView.vue, frontend/src/views/auth/EmailVerifyView.vue, frontend/src/views/auth/LoginView.vue, frontend/src/views/auth/LinuxDoCallbackView.vue, frontend/src/views/auth/OidcCallbackView.vue, frontend/src/views/auth/WechatCallbackView.vue, frontend/src/views/admin/UsersView.vue, frontend/src/components/admin/user/UserEditModal.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/auth.md
