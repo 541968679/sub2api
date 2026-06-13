@@ -36,7 +36,7 @@
               <Icon name="shield" size="sm" />
               {{ t('admin.accounts.setPrivacy') }}
             </button>
-            <button v-if="isOpenAIOAuth" @click="$emit('export-codex', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-sky-600 hover:bg-gray-100 dark:hover:bg-dark-700">
+            <button v-if="isOpenAICodexExportCandidate" @click="$emit('export-codex', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-sky-600 hover:bg-gray-100 dark:hover:bg-dark-700">
               <Icon name="download" size="sm" />
               {{ t('admin.accounts.exportCodexAuth') }}
             </button>
@@ -85,6 +85,11 @@ const hasRecoverableState = computed(() => {
 })
 const isAntigravityOAuth = computed(() => props.account?.platform === 'antigravity' && props.account?.type === 'oauth')
 const isOpenAIOAuth = computed(() => props.account?.platform === 'openai' && props.account?.type === 'oauth')
+const isOpenAICodexExportCandidate = computed(() => {
+  if (props.account?.platform !== 'openai') return false
+  const type = String(props.account?.type ?? '')
+  return type === 'oauth' || type === 'official'
+})
 const supportsPrivacy = computed(() => isAntigravityOAuth.value || isOpenAIOAuth.value)
 const hasQuotaLimit = computed(() => {
   return (props.account?.type === 'apikey' || props.account?.type === 'bedrock') && (

@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-13] fix: expose Codex auth export in account export dialog
+
+**Affected files**: frontend/src/views/admin/AccountsView.vue, frontend/src/components/admin/account/AccountActionMenu.vue, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: admin UI discoverability fix only; reuses the existing Codex export API and does not change schema, billing, gateway routing, or the default Sub2API data-bundle export contract.
+**Change details**:
+- Added an explicit export-format selector to the admin account export dialog so Codex `auth.json` export is discoverable from the top-level Export button instead of only the per-row overflow menu.
+- Routed the Codex format option through the existing `exportCodexAuth` API and kept the original Sub2API data-bundle export as the default behavior.
+- Kept single-account Codex export in the row action menu and made the visibility check tolerant of legacy OpenAI `official` account type labels while the backend still validates required OAuth token fields before exporting.
+- Added a frontend regression test that opens the export dialog and asserts the Codex format option is visible.
+- Verified with `pnpm run test:run -- src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`, `pnpm run typecheck`, and `pnpm run lint:check`.
+
+---
+
 ## [2026-06-13] feat: export OpenAI OAuth accounts as Codex auth
 
 **Affected files**: backend/internal/handler/admin/account_data.go, backend/internal/handler/admin/account_data_handler_test.go, frontend/src/api/admin/accounts.ts, frontend/src/components/admin/account/AccountActionMenu.vue, frontend/src/views/admin/AccountsView.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/account.md

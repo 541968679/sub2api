@@ -354,7 +354,32 @@
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-        <label class="flex items-center gap-2">
+        <div class="space-y-2">
+          <span class="block text-xs font-medium text-gray-500 dark:text-gray-400">{{ t('admin.accounts.dataExportFormat') }}</span>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <label
+              class="flex cursor-pointer items-start gap-2 rounded-md border p-3 transition-colors"
+              :class="exportDataFormat === 'sub2api' ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-200' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'"
+            >
+              <input v-model="exportDataFormat" type="radio" value="sub2api" class="mt-0.5 h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500" />
+              <span>
+                <span class="block font-medium">{{ t('admin.accounts.dataExportFormatSub2API') }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.dataExportFormatSub2APIDesc') }}</span>
+              </span>
+            </label>
+            <label
+              class="flex cursor-pointer items-start gap-2 rounded-md border p-3 transition-colors"
+              :class="exportDataFormat === 'codex' ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/20 dark:text-primary-200' : 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'"
+            >
+              <input v-model="exportDataFormat" type="radio" value="codex" class="mt-0.5 h-4 w-4 border-gray-300 text-primary-600 focus:ring-primary-500" />
+              <span>
+                <span class="block font-medium">{{ t('admin.accounts.dataExportFormatCodex') }}</span>
+                <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.dataExportFormatCodexDesc') }}</span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <label v-if="exportDataFormat === 'sub2api'" class="flex items-center gap-2">
           <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
           <span>{{ t('admin.accounts.dataExportIncludeProxies') }}</span>
         </label>
@@ -500,6 +525,8 @@ const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
 const showExportDataDialog = ref(false)
+type AccountExportDataFormat = 'sub2api' | 'codex'
+const exportDataFormat = ref<AccountExportDataFormat>('sub2api')
 const includeProxyOnExport = ref(true)
 const exportOnlyUnexported = ref(false)
 const markExportedAfterExport = ref(false)
@@ -1761,6 +1788,7 @@ const downloadJsonFile = (payload: unknown, filename: string) => {
   URL.revokeObjectURL(url)
 }
 const openExportDataDialog = () => {
+  exportDataFormat.value = 'sub2api'
   includeProxyOnExport.value = true
   exportOnlyUnexported.value = false
   markExportedAfterExport.value = false
@@ -1789,11 +1817,39 @@ const handleExportData = async () => {
   }
   exportingData.value = true
   try {
-    const exportOptions = {
-      includeProxies: includeProxyOnExport.value,
+    const commonExportOptions = {
       limit,
       onlyUnexported: exportOnlyUnexported.value,
       markExported: markExportedAfterExport.value
+    }
+    if (exportDataFormat.value === 'codex') {
+      const payloads = await adminAPI.accounts.exportCodexAuth(
+        selIds.value.length > 0
+          ? { ids: selIds.value, ...commonExportOptions }
+          : {
+              ...commonExportOptions,
+              filters: buildAccountQueryFilters()
+            }
+      )
+      if (payloads.length === 0) {
+        appStore.showWarning(t('admin.accounts.exportCodexAuthUnavailable'))
+        return
+      }
+      const timestamp = formatExportTimestamp()
+      const filename = payloads.length === 1
+        ? `codex-auth-${timestamp}.json`
+        : `codex-auth-accounts-${timestamp}.json`
+      downloadJsonFile(payloads.length === 1 ? payloads[0] : payloads, filename)
+      appStore.showSuccess(t('admin.accounts.exportCodexAuthSuccess'))
+      if (markExportedAfterExport.value) {
+        reload()
+      }
+      return
+    }
+
+    const exportOptions = {
+      includeProxies: includeProxyOnExport.value,
+      ...commonExportOptions
     }
     const dataPayload = await adminAPI.accounts.exportData(
       selIds.value.length > 0
@@ -1811,7 +1867,7 @@ const handleExportData = async () => {
       reload()
     }
   } catch (error: any) {
-    appStore.showError(error?.message || t('admin.accounts.dataExportFailed'))
+    appStore.showError(error?.message || t(exportDataFormat.value === 'codex' ? 'admin.accounts.exportCodexAuthFailed' : 'admin.accounts.dataExportFailed'))
   } finally {
     exportingData.value = false
     showExportDataDialog.value = false
