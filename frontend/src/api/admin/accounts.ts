@@ -16,6 +16,7 @@ import type {
   TempUnschedulableStatus,
   AdminDataPayload,
   AdminDataImportResult,
+  CodexAuthPayload,
   CheckMixedChannelRequest,
   CheckMixedChannelResponse
 } from '@/types'
@@ -579,6 +580,52 @@ export async function exportData(options?: {
   return data
 }
 
+export async function exportCodexAuth(options?: {
+  ids?: number[]
+  filters?: {
+    platform?: string
+    type?: string
+    status?: string
+    group?: string
+    privacy_mode?: string
+    search?: string
+    sort_by?: string
+    sort_order?: 'asc' | 'desc'
+  }
+  limit?: number
+  onlyUnexported?: boolean
+  markExported?: boolean
+}): Promise<CodexAuthPayload[]> {
+  const params: Record<string, string> = {
+    format: 'codex',
+    include_proxies: 'false'
+  }
+  if (options?.ids && options.ids.length > 0) {
+    params.ids = options.ids.join(',')
+  } else if (options?.filters) {
+    const { platform, type, status, group, privacy_mode, search, sort_by, sort_order } = options.filters
+    if (platform) params.platform = platform
+    if (type) params.type = type
+    if (status) params.status = status
+    if (group) params.group = group
+    if (privacy_mode) params.privacy_mode = privacy_mode
+    if (search) params.search = search
+    if (sort_by) params.sort_by = sort_by
+    if (sort_order) params.sort_order = sort_order
+  }
+  if (typeof options?.limit === 'number' && options.limit > 0) {
+    params.limit = String(Math.floor(options.limit))
+  }
+  if (options?.onlyUnexported) {
+    params.only_unexported = 'true'
+  }
+  if (options?.markExported) {
+    params.mark_exported = 'true'
+  }
+  const { data } = await apiClient.get<CodexAuthPayload[]>('/admin/accounts/data', { params })
+  return data
+}
+
 export async function importData(payload: {
   data: AdminDataPayload
   skip_default_group_bind?: boolean
@@ -739,6 +786,7 @@ export const accountsAPI = {
   previewFromCrs,
   syncFromCrs,
   exportData,
+  exportCodexAuth,
   importData,
   getAntigravityDefaultModelMapping,
   updateAntigravityDefaultModelMapping,

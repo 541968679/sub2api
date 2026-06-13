@@ -336,7 +336,7 @@
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
@@ -1747,6 +1747,19 @@ const formatExportTimestamp = () => {
   const pad2 = (value: number) => String(value).padStart(2, '0')
   return `${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
 }
+const sanitizeFilenamePart = (value: string) => {
+  const normalized = value.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-')
+  return normalized.slice(0, 80) || 'openai-oauth'
+}
+const downloadJsonFile = (payload: unknown, filename: string) => {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
 const openExportDataDialog = () => {
   includeProxyOnExport.value = true
   exportOnlyUnexported.value = false
@@ -1792,13 +1805,7 @@ const handleExportData = async () => {
     )
     const timestamp = formatExportTimestamp()
     const filename = `sub2api-account-${timestamp}.json`
-    const blob = new Blob([JSON.stringify(dataPayload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadJsonFile(dataPayload, filename)
     appStore.showSuccess(t('admin.accounts.dataExported'))
     if (markExportedAfterExport.value) {
       reload()
@@ -1808,6 +1815,23 @@ const handleExportData = async () => {
   } finally {
     exportingData.value = false
     showExportDataDialog.value = false
+  }
+}
+const handleExportCodexAuth = async (account: Account) => {
+  try {
+    const payloads = await adminAPI.accounts.exportCodexAuth({ ids: [account.id], limit: 1 })
+    const payload = payloads[0]
+    if (!payload) {
+      appStore.showWarning(t('admin.accounts.exportCodexAuthUnavailable'))
+      return
+    }
+    const timestamp = formatExportTimestamp()
+    const filename = `codex-auth-${sanitizeFilenamePart(account.name)}-${timestamp}.json`
+    downloadJsonFile(payload, filename)
+    appStore.showSuccess(t('admin.accounts.exportCodexAuthSuccess'))
+  } catch (error: any) {
+    console.error('Failed to export Codex auth:', error)
+    appStore.showError(error?.message || t('admin.accounts.exportCodexAuthFailed'))
   }
 }
 const closeTestModal = () => { showTest.value = false; testingAcc.value = null }

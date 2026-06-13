@@ -18,15 +18,15 @@ type dataResponse struct {
 }
 
 type codexDataResponse struct {
-	Code int                 `json:"code"`
+	Code int                `json:"code"`
 	Data []codexAuthPayload `json:"data"`
 }
 
 type codexAuthPayload struct {
-	AuthMode     string              `json:"auth_mode"`
-	OpenAIAPIKey *string             `json:"OPENAI_API_KEY"`
+	AuthMode     string               `json:"auth_mode"`
+	OpenAIAPIKey *string              `json:"OPENAI_API_KEY"`
 	Tokens       codexAuthTokenBundle `json:"tokens"`
-	LastRefresh  string              `json:"last_refresh"`
+	LastRefresh  string               `json:"last_refresh"`
 }
 
 type codexAuthTokenBundle struct {
@@ -331,6 +331,55 @@ func TestExportDataCodexFormatOnlyIncludesOpenAIOAuthAccounts(t *testing.T) {
 	require.Equal(t, "refresh-token", resp.Data[0].Tokens.RefreshToken)
 	require.Equal(t, "acct-from-credentials", resp.Data[0].Tokens.AccountID)
 	require.Equal(t, "2026-06-09T11:27:12.995388700Z", resp.Data[0].LastRefresh)
+}
+
+func TestExportDataCodexFormatMarkExportedOnlyMarksIncludedAccounts(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+	adminSvc.accounts = []service.Account{
+		{
+			ID:       1,
+			Name:     "codex-ready",
+			Platform: service.PlatformOpenAI,
+			Type:     service.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"id_token":           "id-token",
+				"access_token":       "access-token",
+				"refresh_token":      "refresh-token",
+				"chatgpt_account_id": "acct-1",
+			},
+			Status: service.StatusActive,
+		},
+		{
+			ID:       2,
+			Name:     "missing-id-token",
+			Platform: service.PlatformOpenAI,
+			Type:     service.AccountTypeOAuth,
+			Credentials: map[string]any{
+				"access_token":       "access-token-2",
+				"refresh_token":      "refresh-token-2",
+				"chatgpt_account_id": "acct-2",
+			},
+			Status: service.StatusActive,
+		},
+		{
+			ID:          3,
+			Name:        "openai-apikey",
+			Platform:    service.PlatformOpenAI,
+			Type:        service.AccountTypeAPIKey,
+			Credentials: map[string]any{"api_key": "sk-test"},
+			Status:      service.StatusActive,
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/data?format=codex&mark_exported=true&include_proxies=false", nil)
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp codexDataResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 1)
+	require.Equal(t, []int64{1}, adminSvc.markedExportedIDs)
 }
 
 func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
