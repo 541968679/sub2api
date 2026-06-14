@@ -19,6 +19,14 @@ export interface AdminUsageStatsResponse {
   total_actual_cost: number
   total_account_cost: number
   average_duration_ms: number
+  // Cache-hit stats (same definition as the dashboard cache-status module):
+  // read/creation rate denominator = input + cache_read + cache_creation.
+  total_cache_read_tokens: number
+  total_cache_creation_tokens: number
+  cache_hit_requests: number
+  cache_read_rate: number
+  cache_creation_rate: number
+  request_hit_rate: number
   endpoints?: EndpointStat[]
   upstream_endpoints?: EndpointStat[]
   endpoint_paths?: EndpointStat[]

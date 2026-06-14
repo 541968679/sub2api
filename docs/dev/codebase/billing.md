@@ -408,3 +408,32 @@ extra audit columns (image_input_size/image_output_size/image_size_source/
 image_size_breakdown) that this fork has not synced yet — when that sync
 lands, move normalization back to the parse points and drop the write-point
 shim.
+
+### Cache-Hit Rate Card on Admin Usage Page (2026-06-14)
+
+The admin usage page (`UsageView` → `UsageStatsCards`) shows a "Cache Hit Rate"
+summary card alongside requests/tokens/cost/duration. It reuses the canonical
+cache formula shared with the dashboard cache-status module
+(`fillCacheStatusSummary`, usage_log_repo.go):
+
+```
+prompt_total      = input_tokens + cache_read_tokens + cache_creation_tokens
+cache_read_rate   = cache_read_tokens / prompt_total
+cache_creation_rate = cache_creation_tokens / prompt_total
+request_hit_rate  = cache_hit_requests / total_requests   (cache_hit_requests = COUNT WHERE cache_read_tokens > 0)
+```
+
+Unlike the dashboard `/admin/dashboard/cache-status` endpoint (which only takes
+`window` + `platform`), this card is backed by the existing
+`GET /api/v1/admin/usage/stats` (`GetStatsWithFilters`), so it honors the usage
+page's full filter set (user/api-key/account/group/model/request-type/billing/
+date-range). The rates are computed server-side and returned on `UsageStats`
+(`total_cache_read_tokens`, `total_cache_creation_tokens`, `cache_hit_requests`,
+`cache_read_rate`, `cache_creation_rate`, `request_hit_rate`); no new route, no
+schema change, no Ent regen.
+
+Data-quality caveat (surfaced in the card tooltip): Antigravity does not report
+`cache_creation_tokens` (always 0), and the OpenAI/Claude-GPT bridge
+`cache_read_tokens` may be a display-override value rather than a real upstream
+count. Mixed-platform aggregates are therefore indicative only — filter by group
+to a single platform for a clean reading.

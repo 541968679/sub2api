@@ -3675,7 +3675,10 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as total_account_cost,
-			COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+			COALESCE(AVG(duration_ms), 0) as avg_duration_ms,
+			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
+			COUNT(*) FILTER (WHERE cache_read_tokens > 0) as cache_hit_requests
 		FROM usage_logs
 		%s
 	`, buildWhere(conditions))
@@ -3695,11 +3698,21 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 		&stats.TotalActualCost,
 		&totalAccountCost,
 		&stats.AverageDurationMs,
+		&stats.TotalCacheReadTokens,
+		&stats.TotalCacheCreationTokens,
+		&stats.CacheHitRequests,
 	); err != nil {
 		return nil, err
 	}
 	stats.TotalAccountCost = &totalAccountCost
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+
+	// 缓存命中口径与 Dashboard cache-status 保持一致（fillCacheStatusSummary）：
+	// 读取率/创建率分母 = input + cache_read + cache_creation；命中率 = 命中请求数 / 总请求数。
+	promptTotal := stats.TotalInputTokens + stats.TotalCacheReadTokens + stats.TotalCacheCreationTokens
+	stats.CacheReadRate = cacheStatusRate(stats.TotalCacheReadTokens, promptTotal)
+	stats.CacheCreationRate = cacheStatusRate(stats.TotalCacheCreationTokens, promptTotal)
+	stats.RequestHitRate = cacheStatusRate(stats.CacheHitRequests, stats.TotalRequests)
 
 	start := time.Unix(0, 0).UTC()
 	if filters.StartTime != nil {

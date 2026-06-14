@@ -303,18 +303,25 @@ type UsageLogFilters struct {
 
 // UsageStats represents usage statistics
 type UsageStats struct {
-	TotalRequests     int64          `json:"total_requests"`
-	TotalInputTokens  int64          `json:"total_input_tokens"`
-	TotalOutputTokens int64          `json:"total_output_tokens"`
-	TotalCacheTokens  int64          `json:"total_cache_tokens"`
-	TotalTokens       int64          `json:"total_tokens"`
-	TotalCost         float64        `json:"total_cost"`
-	TotalActualCost   float64        `json:"total_actual_cost"`
-	TotalAccountCost  *float64       `json:"total_account_cost,omitempty"`
-	AverageDurationMs float64        `json:"average_duration_ms"`
-	Endpoints         []EndpointStat `json:"endpoints,omitempty"`
-	UpstreamEndpoints []EndpointStat `json:"upstream_endpoints,omitempty"`
-	EndpointPaths     []EndpointStat `json:"endpoint_paths,omitempty"`
+	TotalRequests     int64    `json:"total_requests"`
+	TotalInputTokens  int64    `json:"total_input_tokens"`
+	TotalOutputTokens int64    `json:"total_output_tokens"`
+	TotalCacheTokens  int64    `json:"total_cache_tokens"`
+	TotalTokens       int64    `json:"total_tokens"`
+	TotalCost         float64  `json:"total_cost"`
+	TotalActualCost   float64  `json:"total_actual_cost"`
+	TotalAccountCost  *float64 `json:"total_account_cost,omitempty"`
+	AverageDurationMs float64  `json:"average_duration_ms"`
+	// 缓存命中统计：口径与 CacheStatusSummary 一致（读取率/创建率分母为 input+cache_read+cache_creation）。
+	TotalCacheReadTokens     int64          `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64          `json:"total_cache_creation_tokens"`
+	CacheHitRequests         int64          `json:"cache_hit_requests"`
+	CacheReadRate            float64        `json:"cache_read_rate"`
+	CacheCreationRate        float64        `json:"cache_creation_rate"`
+	RequestHitRate           float64        `json:"request_hit_rate"`
+	Endpoints                []EndpointStat `json:"endpoints,omitempty"`
+	UpstreamEndpoints        []EndpointStat `json:"upstream_endpoints,omitempty"`
+	EndpointPaths            []EndpointStat `json:"endpoint_paths,omitempty"`
 }
 
 // BatchUserUsageStats represents usage stats for a single user

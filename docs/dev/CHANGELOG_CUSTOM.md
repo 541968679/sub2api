@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-14] feat: cache-hit rate card on admin usage page
+
+**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/UsageStatsCards.vue, frontend/src/components/admin/usage/__tests__/UsageStatsCards.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: additive local admin feature; no schema/migration, no Ent regen, no new route, and no Wire changes. Extends the existing `GET /api/v1/admin/usage/stats` aggregation over existing `usage_logs` columns, so it inherits the usage page's full filter set (user/api-key/account/group/model/request-type/billing/date-range).
+**Change details**:
+- Added a "Cache Hit Rate" summary card to the admin usage page (`UsageStatsCards`), reusing the project's canonical cache formula: read rate = `cache_read / (input + cache_read + cache_creation)`, plus creation rate and per-request hit rate. Identical definition to the dashboard cache-status module (`fillCacheStatusSummary`), so the two views never disagree.
+- Extended `UsageStats` (and the `AdminUsageStatsResponse` TS type) with `total_cache_read_tokens`, `total_cache_creation_tokens`, `cache_hit_requests`, `cache_read_rate`, `cache_creation_rate`, `request_hit_rate`. Rates are computed server-side via the existing `cacheStatusRate` helper to keep one source of truth.
+- `GetStatsWithFilters` now also aggregates `SUM(cache_read_tokens)`, `SUM(cache_creation_tokens)`, and `COUNT(*) FILTER (WHERE cache_read_tokens > 0)` in the same filtered query; the `Stats` handler serializes the struct unchanged.
+- Card tooltip documents the data-quality caveats (Antigravity does not report `cache_creation`; OpenAI/Claude-GPT bridge `cache_read` may be a display-override value), advising group filtering to a single platform for a clean read.
+- Added i18n keys `usage.cacheHitTitle/cacheCreationRate/cacheRequestHitRate/cacheHitHint` to both zh.ts and en.ts.
+- Verified with `go build ./internal/... ./cmd/...`, `go vet ./internal/repository ./internal/pkg/usagestats`, `pnpm --dir frontend run typecheck`, and `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageStatsCards.spec.ts` (2/2 passing).
+
 ## [2026-06-13] fix: expose Codex auth export in account export dialog
 
 **Affected files**: frontend/src/views/admin/AccountsView.vue, frontend/src/components/admin/account/AccountActionMenu.vue, frontend/src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
