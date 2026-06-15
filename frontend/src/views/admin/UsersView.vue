@@ -865,7 +865,7 @@ const searchQuery = ref('')
 const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
   const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
-  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
+  const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'concurrency', 'current_concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
   try {
     const raw = localStorage.getItem(USER_SORT_STORAGE_KEY)
     if (!raw) return fallback
@@ -873,7 +873,7 @@ const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' }
     const key = typeof parsed.key === 'string' ? parsed.key : ''
     if (!sortable.has(key)) return fallback
     return {
-      sort_by: key,
+      sort_by: key === 'concurrency' ? 'current_concurrency' : key,
       sort_order: parsed.order === 'asc' ? 'asc' : 'desc'
     }
   } catch {
@@ -1296,7 +1296,7 @@ const handlePageSizeChange = (pageSize: number) => {
 }
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.sort_by = key
+  sortState.sort_by = key === 'concurrency' ? 'current_concurrency' : key
   sortState.sort_order = order
   pagination.page = 1
   loadUsers()

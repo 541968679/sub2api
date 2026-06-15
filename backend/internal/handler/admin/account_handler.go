@@ -25,6 +25,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -134,6 +135,14 @@ type UpdateAccountRequest struct {
 	ExpiresAt               *int64         `json:"expires_at"`
 	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
 	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+}
+
+// UpdateRefreshTokenRequest represents a manual refresh-token replacement request.
+// 用于 OAuth 账号 refresh token 过期/失效后，管理员手动粘贴新的 refresh token。
+type UpdateRefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+	Validate     *bool  `json:"validate"`  // nil/缺省 => 默认校验（向上游换取新 access_token 后再落库）
+	ClientID     string `json:"client_id"` // 可选，仅 OpenAI OAuth 使用
 }
 
 // BulkUpdateAccountsRequest represents the payload for bulk editing accounts
@@ -976,6 +985,125 @@ func (h *AccountHandler) Refresh(c *gin.Context) {
 	}
 
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), updatedAccount))
+}
+
+// UpdateRefreshToken manually replaces an OAuth account's refresh token.
+// POST /api/v1/admin/accounts/:id/refresh-token
+//
+// Unlike /:id/refresh (which auto-refreshes using the account's STORED refresh token),
+// this accepts a NEW refresh token pasted by the admin. By default it validates the token
+// by exchanging it for a fresh access token upstream (reusing refreshSingleAccount) before
+// persisting and re-enabling the account; pass validate=false to save without validating
+// (e.g. when the upstream/proxy is temporarily unreachable).
+func (h *AccountHandler) UpdateRefreshToken(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	var req UpdateRefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		response.BadRequest(c, "refresh_token is required")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	account, err := h.adminService.GetAccount(ctx, accountID)
+	if err != nil {
+		response.NotFound(c, "Account not found")
+		return
+	}
+
+	if !account.IsOAuth() {
+		response.ErrorFrom(c, infraerrors.BadRequest("NOT_OAUTH", "cannot update refresh token for non-OAuth account"))
+		return
+	}
+
+	// 在已存凭证基础上合并新的 refresh token（深拷贝，避免覆盖 access_token/project_id/oauth_type 等平台字段）。
+	mergedCredentials := make(map[string]any, len(account.Credentials)+1)
+	for k, v := range account.Credentials {
+		mergedCredentials[k] = v
+	}
+	mergedCredentials["refresh_token"] = refreshToken
+	if account.IsOpenAI() {
+		if clientID := strings.TrimSpace(req.ClientID); clientID != "" {
+			mergedCredentials["client_id"] = clientID
+		}
+	}
+
+	validate := req.Validate == nil || *req.Validate
+
+	if validate {
+		// 克隆账号并注入新 refresh token，复用 refreshSingleAccount 向上游换取 access_token 做校验与落库。
+		// 校验失败时不落库，账号仍保留原有（过期）凭证。
+		clone := *account
+		clone.Credentials = mergedCredentials
+
+		updatedAccount, warning, refreshErr := h.refreshSingleAccount(ctx, &clone)
+		if refreshErr != nil {
+			response.ErrorFrom(c, refreshErr)
+			return
+		}
+
+		h.logRefreshTokenAudit(c, account, true)
+
+		if warning == "missing_project_id_temporary" {
+			response.Success(c, gin.H{
+				"message": "Refresh token updated successfully, but project_id could not be retrieved (will retry automatically)",
+				"warning": "missing_project_id_temporary",
+			})
+			return
+		}
+
+		// 校验成功后清除 error/限流/临时不可调度状态，重新启用账号。
+		if cleared, clearErr := h.adminService.ClearAccountError(ctx, accountID); clearErr == nil {
+			updatedAccount = cleared
+		}
+		response.Success(c, h.buildAccountResponseWithRuntime(ctx, updatedAccount))
+		return
+	}
+
+	// 跳过校验：直接保存新 refresh token，并清除 error 状态、刷新 token 缓存。
+	if _, err := h.adminService.UpdateAccount(ctx, accountID, &service.UpdateAccountInput{Credentials: mergedCredentials}); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	cleared, err := h.adminService.ClearAccountError(ctx, accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if h.tokenCacheInvalidator != nil {
+		if invalidateErr := h.tokenCacheInvalidator.InvalidateToken(ctx, cleared); invalidateErr != nil {
+			log.Printf("[WARN] Failed to invalidate token cache for account %d: %v", cleared.ID, invalidateErr)
+		}
+	}
+	h.logRefreshTokenAudit(c, account, false)
+	response.Success(c, h.buildAccountResponseWithRuntime(ctx, cleared))
+}
+
+// logRefreshTokenAudit records an audit line for a manual refresh-token update.
+// The refresh token value itself is NEVER logged.
+func (h *AccountHandler) logRefreshTokenAudit(c *gin.Context, account *service.Account, validated bool) {
+	var operatorID int64
+	if subject, ok := middleware2.GetAuthSubjectFromContext(c); ok {
+		operatorID = subject.UserID
+	}
+	slog.Info("admin_update_refresh_token",
+		"audit", true,
+		"operator_id", operatorID,
+		"account_id", account.ID,
+		"platform", account.Platform,
+		"validated", validated,
+	)
 }
 
 // GetStats handles getting account statistics

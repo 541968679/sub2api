@@ -1999,6 +1999,108 @@ func (r *usageLogRepository) GetDailyStatsAggregated(ctx context.Context, userID
 	return result, nil
 }
 
+// GetSubscriptionProfitRaw 聚合每个"付费包月订阅"的用量与套餐信息（不含派生计算）。
+//
+// 口径：
+//   - 仅纳入存在已支付订阅订单（payment_orders）的订阅，自动排除兑换码/管理员赠送的订阅。
+//   - 套餐与标价取自该订阅最近一笔已支付订单的 plan_id（INNER JOIN 保证"无付费订单则不计入"）。
+//   - 用量按 subscription_id 聚合该订阅的全部 usage_logs（即该订阅整个生命周期）。
+//   - startTime/endTime 用于按 starts_at 筛选要展示的订阅区间。
+//   - ConsumedUSD 取 actual_cost（与仪表盘"实际扣除"口径一致，即计入额度的刀数）。
+func (r *usageLogRepository) GetSubscriptionProfitRaw(ctx context.Context, activeOnly bool, startTime, endTime time.Time) (rows []usagestats.SubscriptionProfitRaw, err error) {
+	// 默认只看"当前有效订阅"（无需选择日期）；activeOnly=false 时按 starts_at 区间查历史。
+	where := "s.deleted_at IS NULL AND s.status = 'active' AND s.starts_at <= now() AND s.expires_at > now()"
+	var args []any
+	if !activeOnly {
+		where = "s.deleted_at IS NULL AND s.starts_at >= $1 AND s.starts_at < $2"
+		args = []any{startTime, endTime}
+	}
+	query := fmt.Sprintf(`
+		SELECT
+			s.id,
+			s.user_id,
+			COALESCE(u.email, ''),
+			s.group_id,
+			COALESCE(g.name, ''),
+			COALESCE(g.daily_limit_usd, 0),
+			s.starts_at,
+			s.expires_at,
+			s.status,
+			p.id,
+			COALESCE(p.name, ''),
+			COALESCE(p.price, 0),
+			COALESCE(SUM(l.input_tokens), 0),
+			COALESCE(SUM(l.output_tokens), 0),
+			COALESCE(SUM(l.cache_creation_tokens), 0),
+			COALESCE(SUM(l.cache_read_tokens), 0),
+			COUNT(l.id),
+			COALESCE(SUM(l.actual_cost), 0)
+		FROM user_subscriptions s
+		JOIN LATERAL (
+			SELECT po.plan_id
+			FROM payment_orders po
+			WHERE po.user_id = s.user_id
+				AND po.order_type = 'subscription'
+				AND po.subscription_group_id = s.group_id
+				AND po.plan_id IS NOT NULL
+				AND po.status IN ('PAID', 'COMPLETED', 'RECHARGING')
+			ORDER BY po.paid_at DESC NULLS LAST
+			LIMIT 1
+		) ord ON TRUE
+		JOIN subscription_plans p ON p.id = ord.plan_id
+		LEFT JOIN users u ON u.id = s.user_id
+		LEFT JOIN groups g ON g.id = s.group_id
+		LEFT JOIN usage_logs l ON l.subscription_id = s.id
+		WHERE %s
+		GROUP BY s.id, s.user_id, u.email, s.group_id, g.name, g.daily_limit_usd,
+			s.starts_at, s.expires_at, s.status, p.id, p.name, p.price
+		ORDER BY s.starts_at DESC
+	`, where)
+
+	queryRows, err := r.sql.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := queryRows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			rows = nil
+		}
+	}()
+
+	rows = make([]usagestats.SubscriptionProfitRaw, 0)
+	for queryRows.Next() {
+		var row usagestats.SubscriptionProfitRaw
+		if err = queryRows.Scan(
+			&row.SubscriptionID,
+			&row.UserID,
+			&row.UserEmail,
+			&row.GroupID,
+			&row.GroupName,
+			&row.DailyLimitUSD,
+			&row.StartsAt,
+			&row.ExpiresAt,
+			&row.Status,
+			&row.PlanID,
+			&row.PlanName,
+			&row.PlanPrice,
+			&row.InputTokens,
+			&row.OutputTokens,
+			&row.CacheCreationTokens,
+			&row.CacheReadTokens,
+			&row.RequestCount,
+			&row.ConsumedUSD,
+		); err != nil {
+			return nil, err
+		}
+		rows = append(rows, row)
+	}
+	if err = queryRows.Err(); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // resolveUsageStatsTimezone 获取用于 SQL 分组的时区名称。
 // 优先使用应用初始化的时区，其次尝试读取 TZ 环境变量，最后回落为 UTC。
 func resolveUsageStatsTimezone() string {

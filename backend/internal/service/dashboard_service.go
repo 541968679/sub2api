@@ -106,6 +106,137 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 	}
 }
 
+// GetSubscriptionProfit 计算包月/日限订阅的成本与利润统计。
+//
+// 成本口径：真实成本(RMB) = 总 token 数 × 进货单价(purchasePricePerMTok，元/百万 token)。
+// 收入口径：套餐标价(plan.price)。
+// 仅统计存在已支付订单的订阅（兑换码/管理员赠送已在仓库层排除）。
+func (s *DashboardService) GetSubscriptionProfit(ctx context.Context, activeOnly bool, startTime, endTime time.Time, costMode string, purchasePrice float64) (*usagestats.SubscriptionProfitResponse, error) {
+	raws, err := s.usageRepo.GetSubscriptionProfitRaw(ctx, activeOnly, startTime, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription profit raw: %w", err)
+	}
+	if purchasePrice < 0 {
+		purchasePrice = 0
+	}
+	if costMode != "per_dollar" {
+		costMode = "per_mtok"
+	}
+
+	resp := &usagestats.SubscriptionProfitResponse{
+		Rows:   make([]usagestats.SubscriptionProfitRow, 0, len(raws)),
+		ByPlan: make([]usagestats.SubscriptionPlanProfit, 0),
+	}
+	resp.Summary.CostMode = costMode
+	resp.Summary.PurchasePrice = purchasePrice
+
+	type planAgg struct {
+		row          usagestats.SubscriptionPlanProfit
+		cacheRateSum float64
+		fullDaysSum  float64
+	}
+	planMap := make(map[int64]*planAgg)
+	planOrder := make([]int64, 0)
+
+	for _, raw := range raws {
+		totalTokens := raw.InputTokens + raw.OutputTokens + raw.CacheCreationTokens + raw.CacheReadTokens
+		cacheTokens := raw.CacheCreationTokens + raw.CacheReadTokens
+		// 成本口径：per_dollar = 消耗刀数 × 元/刀；per_mtok = 总token × 元/百万token。
+		var realCost float64
+		if costMode == "per_dollar" {
+			realCost = raw.ConsumedUSD * purchasePrice
+		} else {
+			realCost = float64(totalTokens) * purchasePrice / 1_000_000.0
+		}
+
+		row := usagestats.SubscriptionProfitRow{
+			SubscriptionID:      raw.SubscriptionID,
+			UserID:              raw.UserID,
+			UserEmail:           raw.UserEmail,
+			GroupID:             raw.GroupID,
+			GroupName:           raw.GroupName,
+			PlanID:              raw.PlanID,
+			PlanName:            raw.PlanName,
+			PlanPrice:           raw.PlanPrice,
+			Status:              raw.Status,
+			StartsAt:            raw.StartsAt.Format(time.RFC3339),
+			ExpiresAt:           raw.ExpiresAt.Format(time.RFC3339),
+			DailyLimitUSD:       raw.DailyLimitUSD,
+			InputTokens:         raw.InputTokens,
+			OutputTokens:        raw.OutputTokens,
+			CacheCreationTokens: raw.CacheCreationTokens,
+			CacheReadTokens:     raw.CacheReadTokens,
+			TotalTokens:         totalTokens,
+			RequestCount:        raw.RequestCount,
+			ConsumedUSD:         raw.ConsumedUSD,
+			RealCostRMB:         realCost,
+			GrossProfitRMB:      raw.PlanPrice - realCost,
+		}
+		if totalTokens > 0 {
+			row.CacheRate = float64(cacheTokens) / float64(totalTokens)
+		}
+		if raw.ConsumedUSD > 0 {
+			row.AvgPricePerDollar = raw.PlanPrice / raw.ConsumedUSD
+			row.RealCostPerDollar = realCost / raw.ConsumedUSD
+		}
+		if realCost > 0 {
+			row.ProfitMultiple = raw.PlanPrice / realCost
+		}
+		if raw.DailyLimitUSD > 0 {
+			row.EquivalentFullDays = raw.ConsumedUSD / raw.DailyLimitUSD
+		}
+		resp.Rows = append(resp.Rows, row)
+
+		// 汇总
+		resp.Summary.SubscriptionCount++
+		resp.Summary.TotalRevenueRMB += row.PlanPrice
+		resp.Summary.TotalRealCostRMB += realCost
+		resp.Summary.TotalGrossProfitRMB += row.GrossProfitRMB
+		resp.Summary.TotalConsumedUSD += row.ConsumedUSD
+		if realCost > 0 && row.PlanPrice < realCost {
+			resp.Summary.LossCount++
+		}
+		if realCost > 0 && row.ProfitMultiple < 2 {
+			resp.Summary.BelowTwoCount++
+		}
+
+		// 按套餐分组
+		agg, ok := planMap[raw.PlanID]
+		if !ok {
+			agg = &planAgg{row: usagestats.SubscriptionPlanProfit{
+				PlanID:    raw.PlanID,
+				PlanName:  raw.PlanName,
+				PlanPrice: raw.PlanPrice,
+			}}
+			planMap[raw.PlanID] = agg
+			planOrder = append(planOrder, raw.PlanID)
+		}
+		agg.row.Count++
+		agg.row.TotalRevenueRMB += row.PlanPrice
+		agg.row.TotalRealCostRMB += realCost
+		agg.cacheRateSum += row.CacheRate
+		agg.fullDaysSum += row.EquivalentFullDays
+	}
+
+	if resp.Summary.TotalRealCostRMB > 0 {
+		resp.Summary.AvgProfitMultiple = resp.Summary.TotalRevenueRMB / resp.Summary.TotalRealCostRMB
+	}
+
+	for _, planID := range planOrder {
+		agg := planMap[planID]
+		if agg.row.TotalRealCostRMB > 0 {
+			agg.row.AvgProfitMultiple = agg.row.TotalRevenueRMB / agg.row.TotalRealCostRMB
+		}
+		if agg.row.Count > 0 {
+			agg.row.AvgEquivalentFullDays = agg.fullDaysSum / float64(agg.row.Count)
+			agg.row.AvgCacheRate = agg.cacheRateSum / float64(agg.row.Count)
+		}
+		resp.ByPlan = append(resp.ByPlan, agg.row)
+	}
+
+	return resp, nil
+}
+
 func (s *DashboardService) GetDashboardStats(ctx context.Context) (*usagestats.DashboardStats, error) {
 	if s.cache != nil {
 		cached, fresh, err := s.getCachedDashboardStats(ctx)

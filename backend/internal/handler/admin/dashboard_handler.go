@@ -128,6 +128,76 @@ func (h *DashboardHandler) GetStats(c *gin.Context) {
 	})
 }
 
+// GetSubscriptionProfit handles getting per-subscription cost/profit statistics for
+// monthly (daily-limited) subscription users.
+// GET /api/v1/admin/dashboard/subscription-profit
+func (h *DashboardHandler) GetSubscriptionProfit(c *gin.Context) {
+	// 默认只看当前有效订阅，无需选择日期；active_only=false 时按 start_date/end_date 查历史。
+	activeOnly := true
+	if v := strings.TrimSpace(c.Query("active_only")); v == "false" || v == "0" {
+		activeOnly = false
+	}
+	costMode := "per_mtok"
+	if c.Query("cost_mode") == "per_dollar" {
+		costMode = "per_dollar"
+	}
+	startTime, endTime := parseSubscriptionStartRange(c)
+	purchasePrice := parsePurchasePrice(c)
+
+	resp, err := h.dashboardService.GetSubscriptionProfit(c.Request.Context(), activeOnly, startTime, endTime, costMode, purchasePrice)
+	if err != nil {
+		response.Error(c, 500, "Failed to get subscription profit statistics")
+		return
+	}
+	response.Success(c, resp)
+}
+
+// parseSubscriptionStartRange parses start_date/end_date used to filter subscriptions by
+// their starts_at. Defaults to the last 90 days (monthly subscriptions span ~30 days each).
+func parseSubscriptionStartRange(c *gin.Context) (time.Time, time.Time) {
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	var startTime, endTime time.Time
+	if startDate != "" {
+		if t, err := timezone.ParseInUserLocation("2006-01-02", startDate, userTZ); err == nil {
+			startTime = t
+		} else {
+			startTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -90), userTZ)
+		}
+	} else {
+		startTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -90), userTZ)
+	}
+	if endDate != "" {
+		if t, err := timezone.ParseInUserLocation("2006-01-02", endDate, userTZ); err == nil {
+			endTime = t.Add(24 * time.Hour)
+		} else {
+			endTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+		}
+	} else {
+		endTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+	}
+	return startTime, endTime
+}
+
+// parsePurchasePrice reads the relay's purchase price. Unit depends on cost_mode:
+// per_mtok → RMB per million tokens (default 0.25 = ¥10 / 40M tokens);
+// per_dollar → RMB per $1 of usage (valued at the customer's 7/40/2 prices).
+func parsePurchasePrice(c *gin.Context) float64 {
+	const defaultPrice = 0.25
+	raw := strings.TrimSpace(c.Query("purchase_price"))
+	if raw == "" {
+		return defaultPrice
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil || v < 0 {
+		return defaultPrice
+	}
+	return v
+}
+
 // GetCacheStatus handles getting prompt-cache status statistics.
 // GET /api/v1/admin/dashboard/cache-status?window=24h&platform=antigravity
 func (h *DashboardHandler) GetCacheStatus(c *gin.Context) {

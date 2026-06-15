@@ -77,6 +77,9 @@ type UsageLogRepository interface {
 	GetAccountStatsAggregated(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.UsageStats, error)
 	GetModelStatsAggregated(ctx context.Context, modelName string, startTime, endTime time.Time) (*usagestats.UsageStats, error)
 	GetDailyStatsAggregated(ctx context.Context, userID int64, startTime, endTime time.Time) ([]map[string]any, error)
+
+	// Cost analysis: per-subscription profit/usage aggregation (paid subscriptions only)
+	GetSubscriptionProfitRaw(ctx context.Context, activeOnly bool, startTime, endTime time.Time) ([]usagestats.SubscriptionProfitRaw, error)
 }
 
 type accountWindowStatsBatchReader interface {

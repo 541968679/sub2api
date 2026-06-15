@@ -2,10 +2,12 @@ package admin
 
 import (
 	"context"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -17,6 +19,9 @@ type UserWithConcurrency struct {
 	dto.AdminUser
 	CurrentConcurrency int `json:"current_concurrency"`
 }
+
+const userCurrentConcurrencySortKey = "current_concurrency"
+const userCurrentConcurrencySortFetchPageSize = 1000
 
 // UserHandler handles admin user management
 type UserHandler struct {
@@ -121,13 +126,67 @@ func (h *UserHandler) List(c *gin.Context) {
 		filters.IncludeSubscriptions = &includeSubscriptions
 	}
 
+	if isUserCurrentConcurrencySort(sortBy) {
+		h.listSortedByCurrentConcurrency(c, page, pageSize, filters, sortOrder)
+		return
+	}
+
 	users, total, err := h.adminService.ListUsers(c.Request.Context(), page, pageSize, filters, sortBy, sortOrder)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	// Batch get current concurrency (nil map if unavailable)
+	loadInfo := h.getUsersLoadInfo(c.Request.Context(), users)
+	response.Paginated(c, buildUsersWithConcurrency(users, loadInfo), total, page, pageSize)
+}
+
+func isUserCurrentConcurrencySort(sortBy string) bool {
+	return strings.EqualFold(strings.TrimSpace(sortBy), userCurrentConcurrencySortKey)
+}
+
+func (h *UserHandler) listSortedByCurrentConcurrency(c *gin.Context, page, pageSize int, filters service.UserListFilters, sortOrder string) {
+	ctx := c.Request.Context()
+	allUsers := make([]service.User, 0)
+	var total int64
+	for fetchPage := 1; ; fetchPage++ {
+		users, pageTotal, err := h.adminService.ListUsers(ctx, fetchPage, userCurrentConcurrencySortFetchPageSize, filters, "id", pagination.SortOrderAsc)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		if fetchPage == 1 {
+			total = pageTotal
+			if total > 0 && total < int64(userCurrentConcurrencySortFetchPageSize) {
+				allUsers = make([]service.User, 0, int(total))
+			}
+		}
+		allUsers = append(allUsers, users...)
+		if len(users) == 0 || int64(len(allUsers)) >= total {
+			break
+		}
+	}
+
+	loadInfo := h.getUsersLoadInfo(ctx, allUsers)
+	sortUsersByCurrentConcurrency(allUsers, loadInfo, sortOrder)
+
+	start := (page - 1) * pageSize
+	if start < 0 {
+		start = 0
+	}
+	end := start + pageSize
+	if start > len(allUsers) {
+		start = len(allUsers)
+	}
+	if end > len(allUsers) {
+		end = len(allUsers)
+	}
+	pageUsers := allUsers[start:end]
+
+	response.Paginated(c, buildUsersWithConcurrency(pageUsers, loadInfo), total, page, pageSize)
+}
+
+func (h *UserHandler) getUsersLoadInfo(ctx context.Context, users []service.User) map[int64]*service.UserLoadInfo {
 	var loadInfo map[int64]*service.UserLoadInfo
 	if len(users) > 0 && h.concurrencyService != nil {
 		usersConcurrency := make([]service.UserWithConcurrency, len(users))
@@ -137,10 +196,36 @@ func (h *UserHandler) List(c *gin.Context) {
 				MaxConcurrency: users[i].Concurrency,
 			}
 		}
-		loadInfo, _ = h.concurrencyService.GetUsersLoadBatch(c.Request.Context(), usersConcurrency)
+		loadInfo, _ = h.concurrencyService.GetUsersLoadBatch(ctx, usersConcurrency)
 	}
+	return loadInfo
+}
 
-	// Build response with concurrency info
+func sortUsersByCurrentConcurrency(users []service.User, loadInfo map[int64]*service.UserLoadInfo, sortOrder string) {
+	order := pagination.NormalizeSortOrder(sortOrder, pagination.SortOrderDesc)
+	current := func(userID int64) int {
+		if info := loadInfo[userID]; info != nil {
+			return info.CurrentConcurrency
+		}
+		return 0
+	}
+	sort.SliceStable(users, func(i, j int) bool {
+		left := current(users[i].ID)
+		right := current(users[j].ID)
+		if left != right {
+			if order == pagination.SortOrderAsc {
+				return left < right
+			}
+			return left > right
+		}
+		if order == pagination.SortOrderAsc {
+			return users[i].ID < users[j].ID
+		}
+		return users[i].ID > users[j].ID
+	})
+}
+
+func buildUsersWithConcurrency(users []service.User, loadInfo map[int64]*service.UserLoadInfo) []UserWithConcurrency {
 	out := make([]UserWithConcurrency, len(users))
 	for i := range users {
 		out[i] = UserWithConcurrency{
@@ -150,8 +235,7 @@ func (h *UserHandler) List(c *gin.Context) {
 			out[i].CurrentConcurrency = info.CurrentConcurrency
 		}
 	}
-
-	response.Paginated(c, out, total, page, pageSize)
+	return out
 }
 
 // parseAttributeFilters extracts attribute filters from query params

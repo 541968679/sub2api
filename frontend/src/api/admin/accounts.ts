@@ -204,6 +204,28 @@ export async function refreshCredentials(id: number): Promise<Account> {
 }
 
 /**
+ * Manually update an OAuth account's refresh token.
+ * Distinct from refreshCredentials (which auto-refreshes using the STORED token):
+ * this submits a NEW refresh token pasted by the admin.
+ * @param id - Account ID
+ * @param refreshToken - The new refresh token
+ * @param opts - validate (default true) exchanges the token upstream before saving; clientId is OpenAI-only
+ * @returns Updated account
+ */
+export async function updateRefreshToken(
+  id: number,
+  refreshToken: string,
+  opts?: { validate?: boolean; clientId?: string }
+): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/refresh-token`, {
+    refresh_token: refreshToken,
+    validate: opts?.validate ?? true,
+    ...(opts?.clientId ? { client_id: opts.clientId } : {})
+  })
+  return data
+}
+
+/**
  * Get account usage statistics
  * @param id - Account ID
  * @param days - Number of days (default: 30)
@@ -763,6 +785,7 @@ export const accountsAPI = {
   toggleStatus,
   testAccount,
   refreshCredentials,
+  updateRefreshToken,
   getStats,
   clearError,
   getUsage,

@@ -783,6 +783,16 @@ const adminNavItems = computed((): NavItem[] => {
       hideInSimpleMode: true,
       featureFlag: flagAdminPayment,
     },
+    {
+      path: '/admin/cost-analysis',
+      label: t('nav.costAnalysis'),
+      icon: ChartIcon,
+      hideInSimpleMode: true,
+      expandOnly: true,
+      children: [
+        { path: '/admin/cost-analysis/subscriptions', label: t('nav.costSubscriptionProfit'), icon: CreditCardIcon },
+      ],
+    },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon }
   ]
 

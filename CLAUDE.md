@@ -46,7 +46,7 @@ Avoid local ports `8080`, `8081`, `5173`, `5174`, and `5175`; this checkout rese
 
 ### Backend
 
-Run from `backend/` unless using the `pnpm --dir` style from repo root.
+Run from `backend/` unless using the `pnpm --dir` style from repo root. For normal local work the dev-stack runs the backend under `air` (config `backend/.air.toml`), so file saves auto-recompile and restart — no manual kill/rebuild needed. The raw commands below are for one-off builds, generation, and targeted test runs.
 
 ```bash
 go generate ./ent
@@ -105,11 +105,17 @@ Important nuance: root `make test` does **not** run the full frontend Vitest sui
 
 On Windows, native `make` may be unavailable; use the underlying `go ...` and `pnpm ...` commands instead.
 
+The root `make secret-scan` target references `tools/secret_scan.py`, which is not present in this checkout; verify tooling before relying on that target.
+
 ## High-level architecture
 
 ### Product shape
 
-Sub2API is an AI API gateway that multiplexes upstream accounts (Claude, OpenAI, Gemini, Antigravity, etc.) behind user API keys. The two main run modes are:
+Sub2API is an AI API gateway that multiplexes upstream accounts (Claude, OpenAI, Gemini, Antigravity, etc.) behind user API keys.
+
+Stack: backend Go 1.26.4 (Gin, Ent ORM, Wire DI, PostgreSQL, Redis); frontend Vue 3 + Vite 5 + TypeScript + Pinia + Tailwind, package-managed with pnpm.
+
+The two main run modes are:
 
 - `standard` — full SaaS behavior with billing/quota enforcement
 - `simple` — internal mode with billing and quota checks disabled
@@ -218,7 +224,8 @@ Those relationships are documented in `docs/dev/RELATED_PROJECTS.md`. When a tas
 
 ## Project-specific rules and pitfalls
 
-- Append every verified local change to `docs/dev/CHANGELOG_CUSTOM.md`.
+- Append every verified local change to `docs/dev/CHANGELOG_CUSTOM.md`. `docs/dev` may be git-ignored, so use `git add -f` when committing doc updates there or the change is silently dropped.
+- Commit verified local changes promptly, but never `git push` or run a deploy without explicit per-task permission from the user; approval for one push/deploy does not carry to the next.
 - Keep `frontend/pnpm-lock.yaml` committed; never switch this repo to npm.
 - Use `127.0.0.1`, not `localhost`, for local PostgreSQL/Redis on Windows.
 - Viper checks `E:\app\data\config.yaml` before local config; a stale file there can silently override `backend/config.yaml`.

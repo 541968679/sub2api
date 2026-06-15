@@ -383,6 +383,22 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/cost-analysis',
+    redirect: '/admin/cost-analysis/subscriptions'
+  },
+  {
+    path: '/admin/cost-analysis/subscriptions',
+    name: 'AdminCostSubscriptionProfit',
+    component: () => import('@/views/admin/cost/SubscriptionProfitView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Subscription Cost & Profit',
+      titleKey: 'costAnalysis.subscriptionProfit.title',
+      descriptionKey: 'costAnalysis.subscriptionProfit.description'
+    }
+  },
+  {
     path: '/admin/ops',
     name: 'AdminOps',
     component: () => import('@/views/admin/ops/OpsDashboard.vue'),
@@ -805,6 +821,7 @@ router.beforeEach((to, _from, next) => {
     const restrictedPaths = [
       '/admin/groups',
       '/admin/subscriptions',
+      '/admin/cost-analysis',
       '/admin/redeem',
       '/subscriptions',
       '/redeem'

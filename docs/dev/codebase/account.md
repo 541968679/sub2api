@@ -188,6 +188,7 @@ Important mechanisms:
 | **Frontend View** | `frontend/src/views/admin/AccountsView.vue` | 账号列表页：表格、搜索、AI Credits 汇总 |
 | **Frontend Component** | `frontend/src/components/account/CreateAccountModal.vue` | 创建弹窗：单个 + 批量导入 |
 | **Frontend Component** | `frontend/src/components/account/EditAccountModal.vue` | 编辑弹窗 |
+| **Frontend Component** | `frontend/src/components/admin/account/UpdateRefreshTokenModal.vue` | 手动更新 OAuth refresh token 弹窗（RT 过期恢复） |
 | **Frontend Component** | `frontend/src/components/account/BulkEditAccountModal.vue` | 批量编辑弹窗 |
 | **Frontend Component** | `frontend/src/components/common/GroupSelector.vue` | 账号/公告等场景复用的分组多选器；账号表单通过 `show-toggle-all` 开启全选/取消全选 |
 | **Frontend Component** | `frontend/src/components/account/AccountUsageCell.vue` | 用量单元格：展示 5h/7d 窗口 + AI Credits |
@@ -241,6 +242,27 @@ Important mechanisms:
 ```
 
 限制：RT 必须由内置 Gemini CLI OAuth client（ID `681255809395-...`）签发；自建 client 的 RT 会返回 `unauthorized_client` 错误，提示中已包含对应说明。code_assist 与 ai_studio 暂不支持批量 RT 导入（ai_studio 依赖运营方自配 OAuth client，code_assist 的 project_id 失败率更高）。
+
+### 手动更新 Refresh Token（OAuth 账号 RT 过期场景）
+
+当 OAuth 账号的 refresh_token 过期/失效（自动刷新与 `/:id/refresh` 都会失败、账号被标记 `status=error`）时，管理员可粘贴一个新的 refresh_token 手动恢复，无需走完整的浏览器重新授权。
+
+```
+AccountActionMenu.vue: "Update Refresh Token"（仅 type=oauth 可见）
+  → UpdateRefreshTokenModal.vue: handleSubmit()
+    → accounts.ts: updateRefreshToken(id, rt, { validate, clientId? })
+      → POST /api/v1/admin/accounts/:id/refresh-token
+        → account_handler.go: UpdateRefreshToken()
+          → 合并新 RT 到账号现有 credentials（深拷贝，保留 access_token/project_id/oauth_type/client_id/scope）
+          → validate=true（默认）：克隆账号注入新 RT → refreshSingleAccount()
+              → 各平台 RefreshAccountToken() 向上游换取新 access_token（校验 RT 是否可用）
+              → 落库新凭证 + InvalidateToken；成功后 ClearAccountError() 重新启用账号
+              → 校验失败则不落库（账号保留原过期凭证）
+          → validate=false：直接 UpdateAccount(merged) + ClearAccountError() + InvalidateToken（不调用上游）
+        ← 更新后的账号（前端 patchAccountInList 原地刷新行）
+```
+
+与已有动作的区别：`/:id/refresh`（自动刷新，复用账号已存 RT）、重新授权（完整 OAuth 浏览器流程）、本接口（手动粘贴新 RT）。refresh_token 值不会写入日志。
 
 ### 账号列表 + 搜索
 

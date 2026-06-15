@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-15] fix: sort admin users by current concurrency
+
+**Affected files**: backend/internal/handler/admin/user_handler.go, backend/internal/handler/admin/user_handler_activity_test.go, frontend/src/views/admin/UsersView.vue, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: admin UI/API behavior fix only; no schema, migration, Wire, billing, or gateway routing changes. Reuses the existing Redis-backed user concurrency load API already used by the user list response.
+**Change details**:
+- Changed the admin Users table so clicking the "Concurrency" column requests `sort_by=current_concurrency` instead of sorting by the configured concurrency limit.
+- Added a `current_concurrency` virtual sort path in `UserHandler.List`: it fetches the filtered user set, reads current Redis concurrency counts, sorts by current occupancy, then applies the requested page slice before returning the existing paginated response shape.
+- Kept normal database-backed user sorts unchanged, including `email`, `balance`, `status`, `last_used_at`, `last_active_at`, and `created_at`.
+- Added a unit regression test proving `sort_by=current_concurrency` orders by real-time occupancy while preserving the displayed configured concurrency value.
+- Verified with `go test -tags=unit ./internal/handler/admin -run "TestUserHandlerList(SortsByCurrentConcurrency|IncludesActivityFieldsAndSortParams)$" -count=1` from `backend`, and `pnpm --dir frontend run typecheck`.
+
 ## [2026-06-14] feat: cache-hit rate card on admin usage page
 
 **Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/UsageStatsCards.vue, frontend/src/components/admin/usage/__tests__/UsageStatsCards.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
@@ -30,6 +41,17 @@
 - Card tooltip documents the data-quality caveats (Antigravity does not report `cache_creation`; OpenAI/Claude-GPT bridge `cache_read` may be a display-override value), advising group filtering to a single platform for a clean read.
 - Added i18n keys `usage.cacheHitTitle/cacheCreationRate/cacheRequestHitRate/cacheHitHint` to both zh.ts and en.ts.
 - Verified with `go build ./internal/... ./cmd/...`, `go vet ./internal/repository ./internal/pkg/usagestats`, `pnpm --dir frontend run typecheck`, and `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageStatsCards.spec.ts` (2/2 passing).
+
+## [2026-06-13] feat: manual OAuth refresh-token update for accounts
+
+**Affected files**: backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, backend/internal/handler/admin/account_handler_refresh_token_test.go, frontend/src/api/admin/accounts.ts, frontend/src/components/admin/account/UpdateRefreshTokenModal.vue, frontend/src/components/admin/account/AccountActionMenu.vue, frontend/src/views/admin/AccountsView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: additive local admin feature; no schema/migration and no billing/gateway routing changes. Reuses the existing per-platform OAuth refresh path and the existing `accounts.credentials` JSONB column.
+**Change details**:
+- Added `POST /api/v1/admin/accounts/:id/refresh-token` (`AccountHandler.UpdateRefreshToken`) so an admin can paste a new OAuth refresh token when the stored one has expired/revoked — distinct from the existing auto `/:id/refresh` (which reuses the stored token) and from full Re-authorize.
+- Default `validate=true` clones the account in memory, injects the pasted refresh token, and reuses `refreshSingleAccount` to exchange it for a fresh access token per platform (Claude/OpenAI/Gemini/Antigravity) before persisting; on success it calls `ClearAccountError` to re-enable a previously errored account. `validate=false` saves the merged credentials without an upstream call (e.g. when the upstream/proxy is temporarily unreachable).
+- Credentials are key-merged (not overwritten) so `access_token`/`project_id`/`oauth_type`/`client_id`/`scope` are preserved; the refresh token value is never logged (audit line records operator/account/platform/validated only).
+- Frontend: new "Update Refresh Token" row action (oauth accounts only) opening a new `UpdateRefreshTokenModal` with a token textarea, a "validate before saving" toggle, and an optional OpenAI `client_id` field; on success the account row is patched in place via the existing `handleAccountUpdated`. Added paired zh/en i18n keys under `admin.accounts`.
+- Verified with `go test -tags=unit ./internal/handler/admin -run TestUpdateRefreshToken -count=1`, `go build ./...`, `pnpm --dir frontend run typecheck`, and `pnpm --dir frontend run lint:check`.
 
 ## [2026-06-13] fix: expose Codex auth export in account export dialog
 
@@ -3156,3 +3178,28 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added a current upstream-sync summary for `codex/openai-codex-upstream-sync` documenting the manual staged sync from `upstream/main@635ad81c`, the features already synced, preserved local overlays, and deferred upstream items.
 - Updated the gateway codebase note with the current OpenAI/Codex flow, local Claude-GPT bridge overlay boundaries, request hotpath/usage/WS/OAuth/Codex mimicry fixes, long-context billing guardrails, and real-request smoke status.
 - Recorded that `openai,bridge,images,custom` real-request smoke passes against the current dev stack, while embeddings reaches the API-key upstream and currently fails at that upstream's `/v1/embeddings` endpoint with 404.
+
+## [2026-06-14] feat: cost-analysis module — subscription cost/profit stats
+
+**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/account_usage_service.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/dashboard_service.go, backend/internal/handler/admin/dashboard_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/components/layout/AppSidebar.vue, frontend/src/router/index.ts, frontend/src/i18n/locales/{zh,en}.ts
+**Purpose**: New admin "Cost Analysis" (成本分析) sidebar module; first page = per-subscription cost/profit for monthly / daily-limited users, so the operator can see real margin per subscription/plan.
+**Change details**:
+- New endpoint `GET /api/v1/admin/dashboard/subscription-profit?start_date&end_date&purchase_price_per_mtok`.
+- Repo `GetSubscriptionProfitRaw` aggregates per `subscription_id`: joins user_subscriptions → (LATERAL latest paid subscription payment_order → subscription_plans) → groups → users → usage_logs. INNER JOIN on the paid order excludes redeem-code / admin-granted subscriptions. Filters subscriptions by `starts_at` range; `deleted_at IS NULL`.
+- Cost basis: real_cost_rmb = total tokens × purchase price (RMB / million tokens), default 0.25 (= ¥10 / 40M tokens), passed as a query param driven by a UI input persisted in localStorage (no settings/Wire change in v1). Revenue = plan list price. Consumed "$" = SUM(actual_cost). Derived: avg ¥/$, real cost ¥/$, profit multiple, equivalent full-days (consumed$ ÷ daily_limit_usd), cache rate; plus summary + by-plan rollups (loss / <2x counts).
+- Frontend: new collapsible nav group 成本分析 (expandOnly) in AppSidebar; routes `/admin/cost-analysis` → redirect → `/admin/cost-analysis/subscriptions`; SubscriptionProfitView (control bar + summary cards + by-plan + detail table, multiple color-coded). Added to simple-mode restrictedPaths. New i18n keys nav.costAnalysis / nav.costSubscriptionProfit and costAnalysis.* in zh + en.
+- Verified: `CGO_ENABLED=0 go -C backend build ./...` (exit 0); `pnpm --dir frontend run typecheck` + `lint:check` (both exit 0). Not yet runtime-tested against live data; no DB migration (uses existing columns).
+
+## [2026-06-14] fix: wrap SubscriptionProfitView in AppLayout (sidebar)
+
+**Affected files**: frontend/src/views/admin/cost/SubscriptionProfitView.vue
+**Issue**: The cost-analysis page rendered bare content so the left sidebar vanished — admin views must wrap their template in `<AppLayout>` (which renders AppSidebar + AppHeader). Wrapped the page in `<AppLayout>` and imported it. Verified: `typecheck` + `lint:check` exit 0.
+
+## [2026-06-14] feat: cost-analysis subscription view — active-by-default + per-dollar cost mode
+
+**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/{account_usage_service,dashboard_service}.go, backend/internal/repository/usage_log_repo.go, backend/internal/handler/admin/dashboard_handler.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Change details**:
+- Default now shows **currently-active subscriptions** with no date picking required: `active_only` query param defaults true → repo filters `status='active' AND starts_at <= now() AND expires_at > now()`. Date range is optional (active_only=false → filter by starts_at, history mode).
+- Added **cost basis mode**: `cost_mode=per_mtok` (real cost = total tokens × ¥/M, default 0.25) or `per_dollar` (real cost = consumed $ × ¥/$). Endpoint params renamed: `purchase_price` + `cost_mode` (was `purchase_price_per_mtok`). Summary echoes cost_mode + purchase_price. The per_dollar path is the simple form (consumed_usd × rate); finer ¥/$ valuation nuances deferred per user.
+- Frontend: "仅当前有效订阅" checkbox (default on, hides date inputs), cost-basis selector with dynamic unit label, localStorage persists price + mode. New i18n keys activeOnly/activeHint/costMode/unitPerMtok/unitPerDollar (zh+en).
+- Verified: `go -C backend build ./...`, `pnpm --dir frontend typecheck` + `lint:check` all exit 0.

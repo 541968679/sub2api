@@ -394,3 +394,98 @@ type AccountUsageStatsResponse struct {
 	Endpoints         []EndpointStat        `json:"endpoints"`
 	UpstreamEndpoints []EndpointStat        `json:"upstream_endpoints"`
 }
+
+// ============================================================================
+// 成本分析：包月/日限订阅的成本与利润统计
+// ============================================================================
+
+// SubscriptionProfitRaw 是仓库层聚合出的单个订阅原始行（不含派生计算）。
+// 进货成本与倍数等派生指标由 service 层根据进货单价计算。
+type SubscriptionProfitRaw struct {
+	SubscriptionID      int64
+	UserID              int64
+	UserEmail           string
+	GroupID             int64
+	GroupName           string
+	PlanID              int64
+	PlanName            string
+	PlanPrice           float64 // 套餐标价（收入，人民币）
+	Status              string
+	StartsAt            time.Time
+	ExpiresAt           time.Time
+	DailyLimitUSD       float64 // 日额度（刀，按 7/40/2 计）
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
+	RequestCount        int64
+	ConsumedUSD         float64 // 消耗刀数（Σ actual_cost，按客户计价 7/40/2）
+}
+
+// SubscriptionProfitRow 是单个包月订阅的成本/利润统计行（含派生指标）。
+type SubscriptionProfitRow struct {
+	SubscriptionID int64   `json:"subscription_id"`
+	UserID         int64   `json:"user_id"`
+	UserEmail      string  `json:"user_email"`
+	GroupID        int64   `json:"group_id"`
+	GroupName      string  `json:"group_name"`
+	PlanID         int64   `json:"plan_id"`
+	PlanName       string  `json:"plan_name"`
+	PlanPrice      float64 `json:"plan_price"` // 套餐标价（收入，人民币）
+	Status         string  `json:"status"`
+	StartsAt       string  `json:"starts_at"`
+	ExpiresAt      string  `json:"expires_at"`
+	DailyLimitUSD  float64 `json:"daily_limit_usd"` // 日额度（刀）
+
+	// 原始用量
+	InputTokens         int64   `json:"input_tokens"`
+	OutputTokens        int64   `json:"output_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	TotalTokens         int64   `json:"total_tokens"`
+	RequestCount        int64   `json:"request_count"`
+	ConsumedUSD         float64 `json:"consumed_usd"` // 消耗刀数（Σ actual_cost）
+
+	// 派生指标
+	CacheRate          float64 `json:"cache_rate"`           // 缓存 token 占比
+	RealCostRMB        float64 `json:"real_cost_rmb"`        // 真实成本 = 总 token × 进货单价
+	AvgPricePerDollar  float64 `json:"avg_price_per_dollar"` // 平均单价 元/刀 = 标价 ÷ 消耗刀数
+	RealCostPerDollar  float64 `json:"real_cost_per_dollar"` // 真实成本 元/刀
+	GrossProfitRMB     float64 `json:"gross_profit_rmb"`     // 毛利 = 标价 − 真实成本
+	ProfitMultiple     float64 `json:"profit_multiple"`      // 倍数 = 标价 ÷ 真实成本（真实成本为 0 时为 0）
+	EquivalentFullDays float64 `json:"equivalent_full_days"` // 等效满额天数 = 消耗刀数 ÷ 日额度
+}
+
+// SubscriptionProfitSummary 是全部订阅的汇总指标。
+type SubscriptionProfitSummary struct {
+	SubscriptionCount    int64   `json:"subscription_count"`
+	TotalRevenueRMB      float64 `json:"total_revenue_rmb"`
+	TotalRealCostRMB     float64 `json:"total_real_cost_rmb"`
+	TotalGrossProfitRMB  float64 `json:"total_gross_profit_rmb"`
+	TotalConsumedUSD     float64 `json:"total_consumed_usd"`
+	AvgProfitMultiple float64 `json:"avg_profit_multiple"` // 整体 = 总收入 ÷ 总成本
+	LossCount         int64   `json:"loss_count"`          // 倍数 < 1（亏损）
+	BelowTwoCount     int64   `json:"below_two_count"`     // 倍数 < 2（薄利）
+	CostMode          string  `json:"cost_mode"`           // per_mtok（元/百万token）| per_dollar（元/刀）
+	PurchasePrice     float64 `json:"purchase_price"`      // 回显进货单价（单位随 cost_mode）
+}
+
+// SubscriptionPlanProfit 是按套餐分组的汇总。
+type SubscriptionPlanProfit struct {
+	PlanID                int64   `json:"plan_id"`
+	PlanName              string  `json:"plan_name"`
+	PlanPrice             float64 `json:"plan_price"`
+	Count                 int64   `json:"count"`
+	TotalRevenueRMB       float64 `json:"total_revenue_rmb"`
+	TotalRealCostRMB      float64 `json:"total_real_cost_rmb"`
+	AvgProfitMultiple     float64 `json:"avg_profit_multiple"`
+	AvgEquivalentFullDays float64 `json:"avg_equivalent_full_days"`
+	AvgCacheRate          float64 `json:"avg_cache_rate"`
+}
+
+// SubscriptionProfitResponse 是包月成本/利润接口的完整响应。
+type SubscriptionProfitResponse struct {
+	Summary SubscriptionProfitSummary `json:"summary"`
+	ByPlan  []SubscriptionPlanProfit  `json:"by_plan"`
+	Rows    []SubscriptionProfitRow   `json:"rows"`
+}

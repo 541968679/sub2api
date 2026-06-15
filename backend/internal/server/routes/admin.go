@@ -239,6 +239,8 @@ func registerDashboardRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		dashboard.POST("/api-keys-usage", h.Admin.Dashboard.GetBatchAPIKeysUsage)
 		dashboard.GET("/user-breakdown", h.Admin.Dashboard.GetUserBreakdown)
 		dashboard.POST("/aggregation/backfill", h.Admin.Dashboard.BackfillAggregation)
+		// 成本分析：包月/日限订阅成本利润统计
+		dashboard.GET("/subscription-profit", h.Admin.Dashboard.GetSubscriptionProfit)
 	}
 }
 
@@ -308,6 +310,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.POST("/:id/test", h.Admin.Account.Test)
 		accounts.POST("/:id/recover-state", h.Admin.Account.RecoverState)
 		accounts.POST("/:id/refresh", h.Admin.Account.Refresh)
+		accounts.POST("/:id/refresh-token", h.Admin.Account.UpdateRefreshToken)
 		accounts.POST("/:id/set-privacy", h.Admin.Account.SetPrivacy)
 		accounts.POST("/:id/refresh-tier", h.Admin.Account.RefreshTier)
 		accounts.GET("/:id/stats", h.Admin.Account.GetStats)
