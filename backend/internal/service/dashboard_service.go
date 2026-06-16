@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -109,8 +110,7 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 // GetSubscriptionProfit 计算包月/日限订阅的成本与利润统计。
 //
 // 成本口径：真实成本(RMB) = 总 token 数 × 进货单价(purchasePricePerMTok，元/百万 token)。
-// 收入口径：套餐标价(plan.price)。
-// 仅统计存在已支付订单的订阅（兑换码/管理员赠送已在仓库层排除）。
+// 收入口径：已支付订单套餐标价(plan.price)；无付费订单的订阅收入按 0 计，并通过 source 标注来源。
 func (s *DashboardService) GetSubscriptionProfit(ctx context.Context, activeOnly bool, startTime, endTime time.Time, costMode string, purchasePrice float64) (*usagestats.SubscriptionProfitResponse, error) {
 	raws, err := s.usageRepo.GetSubscriptionProfitRaw(ctx, activeOnly, startTime, endTime)
 	if err != nil {
@@ -139,6 +139,18 @@ func (s *DashboardService) GetSubscriptionProfit(ctx context.Context, activeOnly
 	planOrder := make([]int64, 0)
 
 	for _, raw := range raws {
+		source := determineSubscriptionProfitSource(raw)
+		planName := strings.TrimSpace(raw.PlanName)
+		if planName == "" {
+			planName = strings.TrimSpace(raw.GroupName)
+		}
+		if planName == "" {
+			planName = fmt.Sprintf("Group #%d", raw.GroupID)
+		}
+		planID := raw.PlanID
+		if planID == 0 {
+			planID = -raw.GroupID
+		}
 		totalTokens := raw.InputTokens + raw.OutputTokens + raw.CacheCreationTokens + raw.CacheReadTokens
 		cacheTokens := raw.CacheCreationTokens + raw.CacheReadTokens
 		// 成本口径：per_dollar = 消耗刀数 × 元/刀；per_mtok = 总token × 元/百万token。
@@ -156,8 +168,10 @@ func (s *DashboardService) GetSubscriptionProfit(ctx context.Context, activeOnly
 			GroupID:             raw.GroupID,
 			GroupName:           raw.GroupName,
 			PlanID:              raw.PlanID,
-			PlanName:            raw.PlanName,
+			PlanName:            planName,
 			PlanPrice:           raw.PlanPrice,
+			Source:              source,
+			HasPaidOrder:        raw.HasPaidOrder,
 			Status:              raw.Status,
 			StartsAt:            raw.StartsAt.Format(time.RFC3339),
 			ExpiresAt:           raw.ExpiresAt.Format(time.RFC3339),
@@ -201,15 +215,15 @@ func (s *DashboardService) GetSubscriptionProfit(ctx context.Context, activeOnly
 		}
 
 		// 按套餐分组
-		agg, ok := planMap[raw.PlanID]
+		agg, ok := planMap[planID]
 		if !ok {
 			agg = &planAgg{row: usagestats.SubscriptionPlanProfit{
-				PlanID:    raw.PlanID,
-				PlanName:  raw.PlanName,
+				PlanID:    planID,
+				PlanName:  planName,
 				PlanPrice: raw.PlanPrice,
 			}}
-			planMap[raw.PlanID] = agg
-			planOrder = append(planOrder, raw.PlanID)
+			planMap[planID] = agg
+			planOrder = append(planOrder, planID)
 		}
 		agg.row.Count++
 		agg.row.TotalRevenueRMB += row.PlanPrice
@@ -235,6 +249,23 @@ func (s *DashboardService) GetSubscriptionProfit(ctx context.Context, activeOnly
 	}
 
 	return resp, nil
+}
+
+func determineSubscriptionProfitSource(raw usagestats.SubscriptionProfitRaw) string {
+	if raw.HasPaidOrder {
+		return "paid"
+	}
+	notes := strings.ToLower(strings.TrimSpace(raw.Notes))
+	if strings.Contains(notes, "兑换码") || strings.Contains(notes, "redeem") {
+		return "redeem"
+	}
+	if strings.Contains(notes, "auto assigned by default") {
+		return "default"
+	}
+	if raw.AssignedBy != nil && *raw.AssignedBy > 0 {
+		return "admin"
+	}
+	return "system"
 }
 
 func (s *DashboardService) GetDashboardStats(ctx context.Context) (*usagestats.DashboardStats, error) {

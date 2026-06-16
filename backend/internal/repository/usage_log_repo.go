@@ -1999,12 +1999,12 @@ func (r *usageLogRepository) GetDailyStatsAggregated(ctx context.Context, userID
 	return result, nil
 }
 
-// GetSubscriptionProfitRaw 聚合每个"付费包月订阅"的用量与套餐信息（不含派生计算）。
+// GetSubscriptionProfitRaw 聚合每个包月订阅的用量与套餐信息（不含派生计算）。
 //
 // 口径：
-//   - 仅纳入存在已支付订阅订单（payment_orders）的订阅，自动排除兑换码/管理员赠送的订阅。
-//   - 套餐与标价取自该订阅最近一笔已支付订单的 plan_id（INNER JOIN 保证"无付费订单则不计入"）。
-//   - 用量按 subscription_id 聚合该订阅的全部 usage_logs（即该订阅整个生命周期）。
+//   - 纳入所有匹配的订阅；已支付订阅订单仅用于收入与套餐归因。
+//   - 套餐与标价取自该订阅最近一笔已支付订单的 plan_id；无付费订单时 plan_id/price 为 0。
+//   - 用量按 subscription_id 聚合该订阅有效期内的 usage_logs。
 //   - startTime/endTime 用于按 starts_at 筛选要展示的订阅区间。
 //   - ConsumedUSD 取 actual_cost（与仪表盘"实际扣除"口径一致，即计入额度的刀数）。
 func (r *usageLogRepository) GetSubscriptionProfitRaw(ctx context.Context, activeOnly bool, startTime, endTime time.Time) (rows []usagestats.SubscriptionProfitRaw, err error) {
@@ -2026,9 +2026,12 @@ func (r *usageLogRepository) GetSubscriptionProfitRaw(ctx context.Context, activ
 			s.starts_at,
 			s.expires_at,
 			s.status,
-			p.id,
+			COALESCE(p.id, 0),
 			COALESCE(p.name, ''),
 			COALESCE(p.price, 0),
+			(p.id IS NOT NULL),
+			s.assigned_by,
+			COALESCE(s.notes, ''),
 			COALESCE(SUM(l.input_tokens), 0),
 			COALESCE(SUM(l.output_tokens), 0),
 			COALESCE(SUM(l.cache_creation_tokens), 0),
@@ -2036,7 +2039,7 @@ func (r *usageLogRepository) GetSubscriptionProfitRaw(ctx context.Context, activ
 			COUNT(l.id),
 			COALESCE(SUM(l.actual_cost), 0)
 		FROM user_subscriptions s
-		JOIN LATERAL (
+		LEFT JOIN LATERAL (
 			SELECT po.plan_id
 			FROM payment_orders po
 			WHERE po.user_id = s.user_id
@@ -2047,13 +2050,15 @@ func (r *usageLogRepository) GetSubscriptionProfitRaw(ctx context.Context, activ
 			ORDER BY po.paid_at DESC NULLS LAST
 			LIMIT 1
 		) ord ON TRUE
-		JOIN subscription_plans p ON p.id = ord.plan_id
+		LEFT JOIN subscription_plans p ON p.id = ord.plan_id
 		LEFT JOIN users u ON u.id = s.user_id
 		LEFT JOIN groups g ON g.id = s.group_id
 		LEFT JOIN usage_logs l ON l.subscription_id = s.id
+			AND l.created_at >= s.starts_at
+			AND l.created_at < s.expires_at
 		WHERE %s
 		GROUP BY s.id, s.user_id, u.email, s.group_id, g.name, g.daily_limit_usd,
-			s.starts_at, s.expires_at, s.status, p.id, p.name, p.price
+			s.starts_at, s.expires_at, s.status, p.id, p.name, p.price, s.assigned_by, s.notes
 		ORDER BY s.starts_at DESC
 	`, where)
 
@@ -2084,6 +2089,9 @@ func (r *usageLogRepository) GetSubscriptionProfitRaw(ctx context.Context, activ
 			&row.PlanID,
 			&row.PlanName,
 			&row.PlanPrice,
+			&row.HasPaidOrder,
+			&row.AssignedBy,
+			&row.Notes,
 			&row.InputTokens,
 			&row.OutputTokens,
 			&row.CacheCreationTokens,

@@ -437,3 +437,25 @@ Data-quality caveat (surfaced in the card tooltip): Antigravity does not report
 `cache_read_tokens` may be a display-override value rather than a real upstream
 count. Mixed-platform aggregates are therefore indicative only — filter by group
 to a single platform for a clean reading.
+
+### Subscription Cost / Profit Admin Page
+
+The admin cost-analysis page (`/admin/cost-analysis/subscriptions`) is backed by
+`GET /api/v1/admin/dashboard/subscription-profit`:
+
+- Repository: `usage_log_repo.go:GetSubscriptionProfitRaw`
+- Service: `dashboard_service.go:GetSubscriptionProfit`
+- Frontend: `frontend/src/views/admin/cost/SubscriptionProfitView.vue`
+
+The page is subscription-centric, not order-centric. It includes all matching
+`user_subscriptions` rows and uses the latest paid subscription order only for
+revenue attribution. Subscriptions without a paid order are still returned with
+`has_paid_order=false`, `source` set to `redeem`, `admin`, `default`, or
+`system`, and revenue `0`, so gifted or redeemed subscriptions remain visible in
+cost analysis instead of disappearing from the table.
+
+Usage is aggregated from `usage_logs` by `subscription_id` and constrained to the
+subscription validity window (`created_at >= starts_at AND created_at <
+expires_at`). The page can estimate cost by token volume (`per_mtok`) or by
+displayed consumed dollars (`per_dollar`); both are operator-side estimates and
+do not alter stored `actual_cost` or billing.

@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-15] fix: show all subscriptions in cost-analysis profit view
+
+**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/dashboard_service.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: admin analytics/UI fix only; no schema, migration, Wire, gateway, or billing mutation changes. The endpoint response is additive (`source`, `has_paid_order`) and keeps existing cost fields.
+**Change details**:
+- Changed subscription cost/profit aggregation from paid-order-only to all matching `user_subscriptions`; latest paid subscription orders now only provide revenue/plan attribution. Redeem/admin/default/system subscriptions remain visible with zero revenue and a source tag.
+- Constrained usage aggregation to the subscription validity window so usage outside `starts_at`/`expires_at` is not pulled into the page.
+- Reworked the detail table to show complete subscription context in fewer columns: user, plan, group, source, revenue, subscription id, usage, cost, cache/full-days, profit, status, and date range.
+- Updated zh/en copy and codebase billing docs to document the new visibility and revenue attribution rules.
+
 ## [2026-06-15] fix: sort admin users by current concurrency
 
 **Affected files**: backend/internal/handler/admin/user_handler.go, backend/internal/handler/admin/user_handler_activity_test.go, frontend/src/views/admin/UsersView.vue, docs/dev/CHANGELOG_CUSTOM.md

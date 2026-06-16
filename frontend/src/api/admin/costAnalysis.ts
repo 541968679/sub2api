@@ -4,8 +4,8 @@
  * Cost-side metrics for the relay station. The first module covers per-subscription
  * profit for monthly / daily-limited users:
  *   real cost (RMB) = total tokens × purchase price (RMB per million tokens)
- *   revenue        = plan list price
- *   only paid subscriptions are counted (redeem / admin grants excluded server-side)
+ *   revenue        = paid plan list price, or 0 for redeem/admin/default grants
+ *   all matching subscriptions are counted and tagged with their source.
  */
 
 import { apiClient } from '../client'
@@ -19,6 +19,8 @@ export interface SubscriptionProfitRow {
   plan_id: number
   plan_name: string
   plan_price: number
+  source: 'paid' | 'redeem' | 'admin' | 'default' | 'system' | string
+  has_paid_order: boolean
   status: string
   starts_at: string
   expires_at: string

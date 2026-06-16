@@ -410,6 +410,9 @@ type SubscriptionProfitRaw struct {
 	PlanID              int64
 	PlanName            string
 	PlanPrice           float64 // 套餐标价（收入，人民币）
+	HasPaidOrder        bool    // 是否找到可归因的已支付订阅订单
+	AssignedBy          *int64
+	Notes               string
 	Status              string
 	StartsAt            time.Time
 	ExpiresAt           time.Time
@@ -432,6 +435,8 @@ type SubscriptionProfitRow struct {
 	PlanID         int64   `json:"plan_id"`
 	PlanName       string  `json:"plan_name"`
 	PlanPrice      float64 `json:"plan_price"` // 套餐标价（收入，人民币）
+	Source         string  `json:"source"`     // paid | redeem | admin | default | system
+	HasPaidOrder   bool    `json:"has_paid_order"`
 	Status         string  `json:"status"`
 	StartsAt       string  `json:"starts_at"`
 	ExpiresAt      string  `json:"expires_at"`
@@ -458,16 +463,16 @@ type SubscriptionProfitRow struct {
 
 // SubscriptionProfitSummary 是全部订阅的汇总指标。
 type SubscriptionProfitSummary struct {
-	SubscriptionCount    int64   `json:"subscription_count"`
-	TotalRevenueRMB      float64 `json:"total_revenue_rmb"`
-	TotalRealCostRMB     float64 `json:"total_real_cost_rmb"`
-	TotalGrossProfitRMB  float64 `json:"total_gross_profit_rmb"`
-	TotalConsumedUSD     float64 `json:"total_consumed_usd"`
-	AvgProfitMultiple float64 `json:"avg_profit_multiple"` // 整体 = 总收入 ÷ 总成本
-	LossCount         int64   `json:"loss_count"`          // 倍数 < 1（亏损）
-	BelowTwoCount     int64   `json:"below_two_count"`     // 倍数 < 2（薄利）
-	CostMode          string  `json:"cost_mode"`           // per_mtok（元/百万token）| per_dollar（元/刀）
-	PurchasePrice     float64 `json:"purchase_price"`      // 回显进货单价（单位随 cost_mode）
+	SubscriptionCount   int64   `json:"subscription_count"`
+	TotalRevenueRMB     float64 `json:"total_revenue_rmb"`
+	TotalRealCostRMB    float64 `json:"total_real_cost_rmb"`
+	TotalGrossProfitRMB float64 `json:"total_gross_profit_rmb"`
+	TotalConsumedUSD    float64 `json:"total_consumed_usd"`
+	AvgProfitMultiple   float64 `json:"avg_profit_multiple"` // 整体 = 总收入 ÷ 总成本
+	LossCount           int64   `json:"loss_count"`          // 倍数 < 1（亏损）
+	BelowTwoCount       int64   `json:"below_two_count"`     // 倍数 < 2（薄利）
+	CostMode            string  `json:"cost_mode"`           // per_mtok（元/百万token）| per_dollar（元/刀）
+	PurchasePrice       float64 `json:"purchase_price"`      // 回显进货单价（单位随 cost_mode）
 }
 
 // SubscriptionPlanProfit 是按套餐分组的汇总。
