@@ -392,6 +392,27 @@ func TestAuthService_Register_Success(t *testing.T) {
 	require.True(t, user.CheckPassword("password"))
 }
 
+func TestAuthService_Register_ApprovalDisabledCreatesActiveUserWithToken(t *testing.T) {
+	repo := &userRepoStub{nextID: 6}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled:                 "true",
+		SettingKeyRegistrationApprovalRequired:        "false",
+		SettingKeyAuthSourceDefaultEmailGrantOnSignup: "false",
+	}, nil)
+
+	token, user, err := service.Register(context.Background(), "active@test.com", "password")
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	require.NotNil(t, user)
+	require.Equal(t, int64(6), user.ID)
+	require.Equal(t, StatusActive, user.Status)
+	require.Len(t, repo.created, 1)
+
+	claims, err := service.ValidateToken(token)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, claims.UserID)
+}
+
 func TestAuthService_Login_PendingApprovalReturnsDedicatedError(t *testing.T) {
 	user := &User{
 		ID:     7,

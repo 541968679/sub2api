@@ -275,6 +275,7 @@ const ImageUploadStub = defineComponent({
 
 const baseSettingsResponse = {
   registration_enabled: true,
+  registration_approval_required: true,
   email_verify_enabled: false,
   registration_email_suffix_whitelist: [],
   promo_code_enabled: true,
@@ -573,6 +574,24 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+  });
+
+  it("submits registration approval setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      registration_approval_required: false,
+    });
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        registration_approval_required: false,
+      }),
+    );
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {

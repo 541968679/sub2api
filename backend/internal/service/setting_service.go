@@ -1161,6 +1161,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyPasswordResetEnabled] = strconv.FormatBool(settings.PasswordResetEnabled)
 	updates[SettingKeyFrontendURL] = settings.FrontendURL
 	updates[SettingKeyInvitationCodeEnabled] = strconv.FormatBool(settings.InvitationCodeEnabled)
+	updates[SettingKeyRegistrationApprovalRequired] = strconv.FormatBool(settings.RegistrationApprovalRequired)
 	updates[SettingKeyTotpEnabled] = strconv.FormatBool(settings.TotpEnabled)
 	legalConsent := normalizeLegalConsentSettings(settings.LegalConsent)
 	settings.LegalConsent = legalConsent
@@ -1482,6 +1483,15 @@ func (s *SettingService) IsRegistrationEnabled(ctx context.Context) bool {
 		return false
 	}
 	return value == "true"
+}
+
+// IsRegistrationApprovalRequired checks whether new self-service users require admin approval.
+func (s *SettingService) IsRegistrationApprovalRequired(ctx context.Context) bool {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationApprovalRequired)
+	if err != nil {
+		return true
+	}
+	return value != "false"
 }
 
 // IsBackendModeEnabled checks if backend mode is enabled
@@ -1909,6 +1919,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 	// 初始化默认设置
 	defaults := map[string]string{
 		SettingKeyRegistrationEnabled:                      "true",
+		SettingKeyRegistrationApprovalRequired:             "true",
 		SettingKeyEmailVerifyEnabled:                       "false",
 		SettingKeyRegistrationEmailSuffixWhitelist:         "[]",
 		SettingKeyPromoCodeEnabled:                         "true", // 默认启用优惠码功能
@@ -2057,6 +2068,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	emailVerifyEnabled := settings[SettingKeyEmailVerifyEnabled] == "true"
 	result := &SystemSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
+		RegistrationApprovalRequired:     settings[SettingKeyRegistrationApprovalRequired] != "false",
 		EmailVerifyEnabled:               emailVerifyEnabled,
 		RegistrationEmailSuffixWhitelist: ParseRegistrationEmailSuffixWhitelist(settings[SettingKeyRegistrationEmailSuffixWhitelist]),
 		PromoCodeEnabled:                 settings[SettingKeyPromoCodeEnabled] != "false", // 默认启用

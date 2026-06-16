@@ -191,6 +191,45 @@ func TestRegisterOAuthEmailAccountCreatesPendingApprovalUserWithoutTokenPair(t *
 	require.Empty(t, redeemRepo.updateCalls)
 }
 
+func TestRegisterOAuthEmailAccountApprovalDisabledCreatesActiveUser(t *testing.T) {
+	userRepo := &userRepoStub{nextID: 43}
+	emailCache := &emailCacheStub{
+		data: &VerificationCodeData{
+			Code:      "246810",
+			Attempts:  0,
+			CreatedAt: time.Now().UTC(),
+			ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
+		},
+	}
+	authService := newOAuthEmailFlowAuthService(
+		userRepo,
+		&redeemCodeRepoStub{},
+		&refreshTokenCacheStub{},
+		map[string]string{
+			SettingKeyRegistrationEnabled:          "true",
+			SettingKeyRegistrationApprovalRequired: "false",
+			SettingKeyEmailVerifyEnabled:           "true",
+		},
+		emailCache,
+	)
+
+	tokenPair, user, err := authService.RegisterOAuthEmailAccount(
+		context.Background(),
+		"fresh-active@example.com",
+		"secret-123",
+		"246810",
+		"",
+		"oidc",
+	)
+
+	require.NoError(t, err)
+	require.Nil(t, tokenPair)
+	require.NotNil(t, user)
+	require.Equal(t, StatusActive, user.Status)
+	require.Len(t, userRepo.created, 1)
+	require.Equal(t, StatusActive, userRepo.created[0].Status)
+}
+
 func TestRegisterOAuthEmailAccountSetsNormalizedSignupSourceOnCreatedUser(t *testing.T) {
 	userRepo := &userRepoStub{nextID: 42}
 	emailCache := &emailCacheStub{

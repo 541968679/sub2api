@@ -102,6 +102,7 @@ const (
 	SettingKeyPasswordResetEnabled             = "password_reset_enabled"              // 是否启用忘记密码功能（需要先开启邮件验证）
 	SettingKeyFrontendURL                      = "frontend_url"                        // 前端基础URL，用于生成邮件中的重置密码链接
 	SettingKeyInvitationCodeEnabled            = "invitation_code_enabled"             // 是否启用邀请码注册
+	SettingKeyRegistrationApprovalRequired     = "registration_approval_required"      // 新用户注册后是否需要管理员审批
 	SettingKeyLegalConsentEnabled              = "legal_consent.enabled"               // 是否强制要求确认使用条款与免责声明
 	SettingKeyLegalConsentVersion              = "legal_consent.version"               // 使用条款版本号，变更后前端会要求重新确认
 	SettingKeyLegalConsentContent              = "legal_consent.content"               // 使用条款正文

@@ -1803,6 +1803,14 @@ func (h *AuthHandler) createPendingOAuthAccount(c *gin.Context, provider string)
 		return
 	}
 
+	if tokenPair == nil && user != nil && user.Status == service.StatusActive {
+		tokenPair, err = h.authService.GenerateTokenPair(c.Request.Context(), user, "")
+		if err != nil {
+			response.ErrorFrom(c, infraerrors.InternalServer("TOKEN_GENERATION_FAILED", "failed to generate token pair").WithCause(err))
+			return
+		}
+	}
+
 	clearCookies()
 	writeOAuthTokenPairResponse(c, tokenPair, user)
 }

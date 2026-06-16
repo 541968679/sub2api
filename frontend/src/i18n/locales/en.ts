@@ -5681,6 +5681,8 @@ const enBase = {
         description: 'Control user registration and verification',
         enableRegistration: 'Enable Registration',
         enableRegistrationHint: 'Allow new users to register',
+        approvalRequired: 'Require admin approval',
+        approvalRequiredHint: 'When enabled, new users stay pending approval. When disabled, successful registrations are activated and signed in immediately.',
         emailVerification: 'Email Verification',
         emailVerificationHint: 'Require email verification for new registrations',
         emailSuffixWhitelist: 'Email Domain Whitelist',

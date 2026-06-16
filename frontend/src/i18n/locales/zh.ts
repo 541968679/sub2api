@@ -5410,6 +5410,8 @@ const zhBase = {
         description: '控制用户注册和验证',
         enableRegistration: '开放注册',
         enableRegistrationHint: '允许新用户注册',
+        approvalRequired: '注册需管理员审批',
+        approvalRequiredHint: '开启后新用户先进入待审批状态；关闭后注册成功即自动激活并登录',
         emailVerification: '邮箱验证',
         emailVerificationHint: '新用户注册时需要验证邮箱',
         emailSuffixWhitelist: '邮箱域名白名单',

@@ -138,6 +138,13 @@ func validateUserCanAuthenticate(user *User) error {
 	return nil
 }
 
+func (s *AuthService) registrationInitialStatus(ctx context.Context) string {
+	if s == nil || s.settingService == nil || s.settingService.IsRegistrationApprovalRequired(ctx) {
+		return StatusPendingApproval
+	}
+	return StatusActive
+}
+
 // Register 用户注册，返回token和用户
 func (s *AuthService) Register(ctx context.Context, email, password string) (string, *User, error) {
 	return s.RegisterWithVerification(ctx, email, password, "", "", "", "")
@@ -227,7 +234,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		Balance:      grantPlan.Balance,
 		Concurrency:  grantPlan.Concurrency,
 		RPMLimit:     defaultRPMLimit,
-		Status:       StatusPendingApproval,
+		Status:       s.registrationInitialStatus(ctx),
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -272,6 +279,13 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		}
 	}
 
+	if user.Status == StatusActive {
+		token, err := s.GenerateToken(user)
+		if err != nil {
+			return "", nil, fmt.Errorf("generate token: %w", err)
+		}
+		return token, user, nil
+	}
 	return "", user, nil
 }
 
@@ -523,7 +537,7 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 				Balance:      grantPlan.Balance,
 				Concurrency:  grantPlan.Concurrency,
 				RPMLimit:     defaultRPMLimit,
-				Status:       StatusPendingApproval,
+				Status:       s.registrationInitialStatus(ctx),
 				SignupSource: signupSource,
 			}
 
@@ -640,7 +654,7 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				Balance:      grantPlan.Balance,
 				Concurrency:  grantPlan.Concurrency,
 				RPMLimit:     defaultRPMLimit,
-				Status:       StatusPendingApproval,
+				Status:       s.registrationInitialStatus(ctx),
 				SignupSource: signupSource,
 			}
 

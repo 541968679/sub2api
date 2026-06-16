@@ -19,6 +19,7 @@ type SystemSettings struct {
 	PasswordResetEnabled             bool
 	FrontendURL                      string
 	InvitationCodeEnabled            bool
+	RegistrationApprovalRequired     bool
 	LegalConsent                     LegalConsentSettings
 	TotpEnabled                      bool // TOTP 双因素认证
 

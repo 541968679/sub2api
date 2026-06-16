@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-16] feat: make registration approval configurable
+
+**Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/service/auth_service.go, backend/internal/service/auth_oauth_email_flow.go, backend/internal/handler/dto/settings.go, backend/internal/handler/admin/setting_handler.go, backend/internal/handler/auth_oauth_pending_flow.go, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/auth.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: additive local settings/auth policy feature; no schema migration, Wire, gateway, billing, pricing, or deployment behavior changes. Existing installs default to requiring approval when the new setting is missing.
+**Change details**:
+- Added `registration_approval_required` to the Settings KV flow and admin settings API/UI. The default is `true`, preserving the existing pending-approval registration policy.
+- Changed email registration, direct OAuth first-login registration, and pending OAuth email-completion account creation to choose initial status from the new setting: `pending_approval` when enabled, `active` when disabled.
+- Kept `registration_enabled` as the separate registration-entry gate; it still controls whether new applications/registrations can be submitted at all.
+- Delayed token-pair generation for active pending-OAuth email-completion accounts until after identity binding transaction commit, avoiding pre-commit refresh-token issuance.
+- Added backend unit coverage for approval-disabled email registration and OAuth email-completion creation, plus frontend SettingsView coverage for saving the new switch.
+- Verified with `go test -tags=unit ./internal/service -run 'TestAuthService_Register_(Success|ApprovalDisabledCreatesActiveUserWithToken)|TestRegisterOAuthEmailAccount(ApprovalDisabledCreatesActiveUser|CreatesPendingApprovalUserWithoutTokenPair)'`, `go test -tags=unit ./internal/service ./internal/handler ./internal/handler/admin`, `pnpm -C frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts`, `pnpm -C frontend run typecheck`, and `git diff --check`.
+
 ## [2026-06-15] fix: show all subscriptions in cost-analysis profit view
 
 **Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/dashboard_service.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md

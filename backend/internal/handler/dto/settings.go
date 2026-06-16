@@ -33,6 +33,7 @@ type SystemSettings struct {
 	PasswordResetEnabled             bool                 `json:"password_reset_enabled"`
 	FrontendURL                      string               `json:"frontend_url"`
 	InvitationCodeEnabled            bool                 `json:"invitation_code_enabled"`
+	RegistrationApprovalRequired     bool                 `json:"registration_approval_required"`
 	LegalConsent                     LegalConsentSettings `json:"legal_consent"`
 	TotpEnabled                      bool                 `json:"totp_enabled"`
 	TotpEncryptionKeyConfigured      bool                 `json:"totp_encryption_key_configured"`

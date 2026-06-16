@@ -149,7 +149,7 @@ func (s *AuthService) RegisterOAuthEmailAccount(
 		Role:         RoleUser,
 		Balance:      grantPlan.Balance,
 		Concurrency:  grantPlan.Concurrency,
-		Status:       StatusPendingApproval,
+		Status:       s.registrationInitialStatus(ctx),
 		SignupSource: signupSource,
 	}
 

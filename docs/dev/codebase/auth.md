@@ -3,10 +3,12 @@
 ## Data Model
 
 - User authentication state is persisted client-side in `auth_token`, `refresh_token`, `auth_user`, and `token_expires_at`.
-- Self-service email and first-time OAuth registrations create users with
-  `status=pending_approval`. These users are stored in the normal `users`
-  table but do not receive access or refresh tokens until an administrator
-  changes the status to `active`.
+- Self-service email and first-time OAuth registrations use the runtime
+  setting `registration_approval_required` to decide their initial user status.
+  The default is `true`, which creates `status=pending_approval` users in the
+  normal `users` table with no access or refresh tokens until an administrator
+  changes the status to `active`. When the setting is `false`, successful
+  registrations create `active` users and issue tokens immediately.
 - Legal consent acceptance is stored client-side per user under `legal_consent:user:{id}` with the accepted `version`, typed confirmation payload, and timestamp.
 - Registration consent before account creation is stored in session storage under `register_legal_consent`; it includes the configured legal consent `version` so pending registration consent is invalidated when the version changes.
 - Legal consent settings are runtime Settings KV entries, not database columns:
@@ -50,14 +52,16 @@
 4. Login checks whether the authenticated user has accepted the configured version. If not, it opens `LegalConsentDialog`; accepting stores the configured version and then completes redirect.
 5. Registration validates form prerequisites, shows `LegalConsentDialog`, stores a pending versioned consent payload, then submits an internal test authorization application through direct registration or email verification.
 6. Email verification rechecks the pending consent against the current configured version before marking the new user as accepted.
-7. Self-service email registration and first-time LinuxDo/OIDC/WeChat account creation return a pending application response with `status=pending_approval`, `message`, and `user`; no token is returned or stored.
-8. Pending users cannot log in. The backend returns `USER_PENDING_APPROVAL`, and the login page shows a pending-approval message instead of restoring auth state.
-9. Administrators approve applications from the user list or edit dialog by changing the user status to `active`. Only active users can receive auth tokens and access normal authenticated pages.
-10. After public settings load, `appStore` asks `authStore` to enforce the current legal consent settings. If the active user has not accepted the configured version, the auth store clears the login state and preserves pending third-party auth session state.
+7. If `registration_approval_required=true`, self-service email registration and first-time LinuxDo/OIDC/WeChat account creation return a pending application response with `status=pending_approval`, `message`, and `user`; no token is returned or stored.
+8. If `registration_approval_required=false`, the same registration paths create `active` users and return normal token responses.
+9. Pending users cannot log in. The backend returns `USER_PENDING_APPROVAL`, and the login page shows a pending-approval message instead of restoring auth state.
+10. Administrators approve applications from the user list or edit dialog by changing the user status to `active`. Only active users can receive auth tokens and access normal authenticated pages.
+11. After public settings load, `appStore` asks `authStore` to enforce the current legal consent settings. If the active user has not accepted the configured version, the auth store clears the login state and preserves pending third-party auth session state.
 
 ## Important Mechanisms
 
 - `pending_approval` is a first-class user status accepted by admin update APIs and user filters, but `User.IsActive()` remains true only for `active`.
+- `registration_enabled` controls whether new registrations can be submitted at all; `registration_approval_required` controls whether accepted registrations start as `pending_approval` or `active`.
 - `AuthService.validateUserCanAuthenticate` maps pending users to `ErrUserPendingApproval`; other non-active statuses still use `ErrUserNotActive`.
 - Registration paths intentionally call post-registration bootstrap without touching login timestamps, because the account has not actually authenticated yet.
 - `RegisterOAuthEmailAccount` and `LoginOrRegisterOAuthWithTokenPair` return a `nil` token pair for pending users. OAuth handlers must only record successful login when a token pair exists.

@@ -1261,6 +1261,21 @@
                 <Toggle v-model="form.registration_enabled" />
               </div>
 
+              <!-- Registration Approval -->
+              <div
+                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.registration.approvalRequired")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.registration.approvalRequiredHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.registration_approval_required" />
+              </div>
+
               <!-- Email Verification -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -5900,6 +5915,7 @@ type SettingsForm = Omit<
 
 const form = reactive<SettingsForm>({
   registration_enabled: true,
+  registration_approval_required: true,
   email_verify_enabled: false,
   registration_email_suffix_whitelist: [],
   promo_code_enabled: true,
@@ -6896,6 +6912,7 @@ async function saveSettings() {
         ),
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
+      registration_approval_required: form.registration_approval_required,
       legal_consent: {
         enabled: form.legal_consent.enabled,
         version: form.legal_consent.version,
