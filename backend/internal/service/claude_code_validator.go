@@ -49,7 +49,7 @@ var claudeCodeSystemPrompts = []string{
 
 const (
 	claudeCodeBillingHeaderPrefix = "x-anthropic-billing-header"
-	claudeCodeCLIEntrypointMarker = "cc_entrypoint=cli"
+	claudeCodeEntrypointMarker    = "cc_entrypoint="
 )
 
 // NewClaudeCodeValidator 创建验证器实例
@@ -172,7 +172,7 @@ func (v *ClaudeCodeValidator) hasClaudeCodeSystemPrompt(body map[string]any) boo
 		}
 
 		if strings.HasPrefix(text, claudeCodeBillingHeaderPrefix) &&
-			strings.Contains(text, claudeCodeCLIEntrypointMarker) {
+			strings.Contains(text, claudeCodeEntrypointMarker) {
 			return true
 		}
 
