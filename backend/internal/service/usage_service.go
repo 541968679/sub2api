@@ -324,6 +324,17 @@ func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, star
 	return stats, nil
 }
 
+// GetUserDisplayAggregateGroups returns per-(model, group, rate, long-context) aggregate
+// sums for a user, used to compute display-value statistics. apiKeyID > 0 narrows to one
+// key; nil start/end means unbounded (all-time).
+func (s *UsageService) GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) ([]usagestats.DisplayAggregateGroup, error) {
+	groups, err := s.usageRepo.GetUserDisplayAggregateGroups(ctx, userID, apiKeyID, startTime, endTime)
+	if err != nil {
+		return nil, fmt.Errorf("get user display aggregate groups: %w", err)
+	}
+	return groups, nil
+}
+
 // GetAPIKeyModelStats returns per-model usage stats for a specific API Key.
 func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, 0, apiKeyID, 0, 0, nil, nil, nil)

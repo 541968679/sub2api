@@ -459,3 +459,34 @@ subscription validity window (`created_at >= starts_at AND created_at <
 expires_at`). The page can estimate cost by token volume (`per_mtok`) or by
 displayed consumed dollars (`per_dollar`); both are operator-side estimates and
 do not alter stored `actual_cost` or billing.
+
+### User-facing aggregate stats must be display values (2026-06-19)
+
+Invariant: every **user-facing** statistic — both the per-row records list and the
+aggregate stat cards/charts — must show display values (after `ApplyDisplayTransform`
++ `ApplyUserDisplayRate`), never raw `usage_logs` columns. Users must not see real
+token counts or real unit prices. Admin surfaces keep showing real values.
+
+This previously held only for the per-row records list. The aggregate endpoints
+`GET /api/v1/usage/stats`, `/usage/dashboard/stats`, `/usage/dashboard/trend`,
+`/usage/dashboard/models` summed raw columns and leaked real tokens. They now derive
+display values:
+
+- Bounded ranges aggregate from the same display-transformed records the user sees
+  (`loadAllDisplayedPublicUsageRecords` → `aggregateDisplayedPublicUsageStats` /
+  `aggregateDisplayedPublicUsageTrend` / `aggregateDisplayedModelStats`), so the cards
+  reconcile exactly with the records list.
+- The unbounded all-time dashboard totals use `GetUserDisplayAggregateGroups`
+  (`usage_log_repo.go`): SQL groups by every field the transform branches on (model,
+  group_id, rate_multiplier, long-context snapshot), then the handler applies the
+  transform once per group and sums (`aggregateDisplayedGroups`). This avoids loading
+  every row (heaviest user ~247k) and matches per-row summation within rounding.
+
+`actual_cost` is never changed by the transform, so endpoints that only return
+`actual_cost` (e.g. `POST /usage/dashboard/api-keys-usage`, the green "消费额度" the
+user pays) are already display-correct and were left as-is.
+
+Not yet converted: `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` →
+`buildUsageData`/`GetAPIKeyModelStats`) still returns raw tokens even though its
+siblings `/v1/usage/stats|trend|records` are display values — `GatewayHandler` lacks
+the pricing/display services (would need Wire DI or service-layer display aggregation).

@@ -324,6 +324,36 @@ type UsageStats struct {
 	EndpointPaths            []EndpointStat `json:"endpoint_paths,omitempty"`
 }
 
+// DisplayAggregateGroup holds raw aggregate sums for one display-transform-invariant
+// group of usage_logs rows. Rows are grouped by every field the user-facing display
+// transform branches on (model, group, rate multiplier, long-context snapshot), so the
+// transform can be applied once per group and summed — equivalent to transforming every
+// row and summing, but at O(groups) instead of O(rows). Used to compute display-value
+// statistics for unbounded ranges (e.g. the all-time dashboard totals) without loading
+// every row into memory.
+type DisplayAggregateGroup struct {
+	Model                       string
+	GroupID                     *int64
+	RateMultiplier              float64
+	LongContextApplied          bool
+	LongContextInputMultiplier  *float64
+	LongContextOutputMultiplier *float64
+
+	Requests            int64
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
+	InputCost           float64
+	OutputCost          float64
+	CacheCreationCost   float64
+	CacheReadCost       float64
+	TotalCost           float64
+	ActualCost          float64
+	// DurationSum is SUM(COALESCE(duration_ms,0)); average is DurationSum/Requests.
+	DurationSum int64
+}
+
 // BatchUserUsageStats represents usage stats for a single user
 type BatchUserUsageStats struct {
 	UserID          int64   `json:"user_id"`

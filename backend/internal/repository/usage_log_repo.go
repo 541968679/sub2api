@@ -2807,6 +2807,108 @@ func (r *usageLogRepository) GetUserModelStats(ctx context.Context, userID int64
 	return results, nil
 }
 
+// GetUserDisplayAggregateGroups returns per-(model, group, rate, long-context) aggregate
+// sums for a user, so callers can apply the user-facing display transform once per group
+// and sum the results. apiKeyID > 0 narrows to one key; nil start/end means unbounded
+// (used for the all-time dashboard totals, where loading every row is infeasible).
+func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) (groups []usagestats.DisplayAggregateGroup, err error) {
+	var sb strings.Builder
+	sb.WriteString(`
+		SELECT
+			model,
+			group_id,
+			COALESCE(rate_multiplier, 1) AS rate_multiplier,
+			COALESCE(long_context_applied, false) AS long_context_applied,
+			long_context_input_multiplier,
+			long_context_output_multiplier,
+			COUNT(*) AS requests,
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(cache_creation_tokens), 0),
+			COALESCE(SUM(cache_read_tokens), 0),
+			COALESCE(SUM(input_cost), 0),
+			COALESCE(SUM(output_cost), 0),
+			COALESCE(SUM(cache_creation_cost), 0),
+			COALESCE(SUM(cache_read_cost), 0),
+			COALESCE(SUM(total_cost), 0),
+			COALESCE(SUM(actual_cost), 0),
+			COALESCE(SUM(COALESCE(duration_ms, 0)), 0)
+		FROM usage_logs
+		WHERE user_id = $1`)
+	args := []any{userID}
+	if apiKeyID > 0 {
+		args = append(args, apiKeyID)
+		sb.WriteString(fmt.Sprintf(" AND api_key_id = $%d", len(args)))
+	}
+	if startTime != nil {
+		args = append(args, *startTime)
+		sb.WriteString(fmt.Sprintf(" AND created_at >= $%d", len(args)))
+	}
+	if endTime != nil {
+		args = append(args, *endTime)
+		sb.WriteString(fmt.Sprintf(" AND created_at < $%d", len(args)))
+	}
+	sb.WriteString(`
+		GROUP BY model, group_id, rate_multiplier, long_context_applied,
+			long_context_input_multiplier, long_context_output_multiplier`)
+
+	rows, err := r.sql.QueryContext(ctx, sb.String(), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			groups = nil
+		}
+	}()
+
+	for rows.Next() {
+		var g usagestats.DisplayAggregateGroup
+		var groupID sql.NullInt64
+		var lcIn, lcOut sql.NullFloat64
+		if scanErr := rows.Scan(
+			&g.Model,
+			&groupID,
+			&g.RateMultiplier,
+			&g.LongContextApplied,
+			&lcIn,
+			&lcOut,
+			&g.Requests,
+			&g.InputTokens,
+			&g.OutputTokens,
+			&g.CacheCreationTokens,
+			&g.CacheReadTokens,
+			&g.InputCost,
+			&g.OutputCost,
+			&g.CacheCreationCost,
+			&g.CacheReadCost,
+			&g.TotalCost,
+			&g.ActualCost,
+			&g.DurationSum,
+		); scanErr != nil {
+			return nil, scanErr
+		}
+		if groupID.Valid {
+			v := groupID.Int64
+			g.GroupID = &v
+		}
+		if lcIn.Valid {
+			v := lcIn.Float64
+			g.LongContextInputMultiplier = &v
+		}
+		if lcOut.Valid {
+			v := lcOut.Float64
+			g.LongContextOutputMultiplier = &v
+		}
+		groups = append(groups, g)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
+	}
+	return groups, nil
+}
+
 // UsageLogFilters represents filters for usage log queries
 type UsageLogFilters = usagestats.UsageLogFilters
 

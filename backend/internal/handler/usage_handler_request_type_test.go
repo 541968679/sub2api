@@ -134,9 +134,10 @@ func TestUserUsageDashboardTrendFiltersByAPIKey(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, int64(42), repo.trendUserID)
-	require.Equal(t, int64(7), repo.trendAPIKeyID)
-	require.Equal(t, "hour", repo.trendGranularity)
+	// The dashboard trend now aggregates from display-transformed usage records, so it
+	// filters via ListWithFilters (user + selected API key) rather than the raw trend query.
+	require.Equal(t, int64(42), repo.listFilters.UserID)
+	require.Equal(t, int64(7), repo.listFilters.APIKeyID)
 }
 
 func TestUserUsageDashboardTrendInvalidAPIKeyID(t *testing.T) {

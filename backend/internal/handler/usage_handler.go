@@ -534,19 +534,16 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		endTime = now
 	}
 
-	var stats *service.UsageStats
-	var err error
-	if apiKeyID > 0 {
-		stats, err = h.usageService.GetStatsByAPIKey(c.Request.Context(), apiKeyID, startTime, endTime)
-	} else {
-		stats, err = h.usageService.GetStatsByUser(c.Request.Context(), subject.UserID, startTime, endTime)
-	}
+	// Aggregate from the same display-transformed records the user sees in the records
+	// list, so the stat cards show display values (never real tokens/prices) and reconcile
+	// exactly with the records table for the selected range.
+	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKeyID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	response.Success(c, stats)
+	response.Success(c, aggregateDisplayedPublicUsageStats(records))
 }
 
 // parseUserTimeRange parses start_date, end_date query parameters for user dashboard
@@ -624,6 +621,45 @@ func (h *UsageHandler) DashboardStats(c *gin.Context) {
 		return
 	}
 
+	// Override raw token/cost totals with user-facing display values so the dashboard never
+	// exposes real token counts or unit prices. API-key counts and RPM/TPM are preserved;
+	// actual_cost is unchanged by the display transform. The all-time totals use per-group
+	// aggregation (unbounded range — loading every row is infeasible for heavy users).
+	displayMap := h.loadDisplayPricingMapForUser(c, subject.UserID)
+	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
+
+	allTime, err := h.userDashboardDisplayTotals(c, subject.UserID, displayMap, userDisplayRates, nil, nil)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	today := timezone.Today()
+	todayEnd := today.AddDate(0, 0, 1)
+	todayTotals, err := h.userDashboardDisplayTotals(c, subject.UserID, displayMap, userDisplayRates, &today, &todayEnd)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	stats.TotalRequests = allTime.Requests
+	stats.TotalInputTokens = allTime.InputTokens
+	stats.TotalOutputTokens = allTime.OutputTokens
+	stats.TotalCacheCreationTokens = allTime.CacheCreationTokens
+	stats.TotalCacheReadTokens = allTime.CacheReadTokens
+	stats.TotalTokens = allTime.totalTokens()
+	stats.TotalCost = allTime.TotalCost
+	stats.TotalActualCost = allTime.ActualCost
+	stats.AverageDurationMs = allTime.averageDurationMs()
+
+	stats.TodayRequests = todayTotals.Requests
+	stats.TodayInputTokens = todayTotals.InputTokens
+	stats.TodayOutputTokens = todayTotals.OutputTokens
+	stats.TodayCacheCreationTokens = todayTotals.CacheCreationTokens
+	stats.TodayCacheReadTokens = todayTotals.CacheReadTokens
+	stats.TodayTokens = todayTotals.totalTokens()
+	stats.TodayCost = todayTotals.TotalCost
+	stats.TodayActualCost = todayTotals.ActualCost
+
 	response.Success(c, stats)
 }
 
@@ -660,17 +696,14 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 		apiKeyID = id
 	}
 
-	var trend []usagestats.TrendDataPoint
-	var err error
-	if apiKeyID > 0 {
-		trend, err = h.usageService.GetUserUsageTrendWithFilters(c.Request.Context(), subject.UserID, apiKeyID, startTime, endTime, granularity)
-	} else {
-		trend, err = h.usageService.GetUserUsageTrendByUserID(c.Request.Context(), subject.UserID, startTime, endTime, granularity)
-	}
+	// Bucket the same display-transformed records the user sees, so trend tokens/cost are
+	// display values consistent with the stat cards and records list.
+	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKeyID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
+	trend := aggregateDisplayedPublicUsageTrend(records, granularity)
 
 	response.Success(c, gin.H{
 		"trend":       trend,
@@ -691,11 +724,14 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 
 	startTime, endTime := parseUserTimeRange(c)
 
-	stats, err := h.usageService.GetUserModelStats(c.Request.Context(), subject.UserID, startTime, endTime)
+	// Group the same display-transformed records the user sees, so per-model tokens/cost
+	// are display values (never real tokens/prices).
+	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, 0, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
+	stats := aggregateDisplayedModelStats(records)
 
 	response.Success(c, gin.H{
 		"models":     stats,
@@ -901,4 +937,143 @@ func (h *UsageHandler) loadUserDisplayRates(c *gin.Context, userID int64) map[in
 		return nil
 	}
 	return rates
+}
+
+// displayUsageTotals accumulates user-facing display token/cost totals.
+// Cache-creation and cache-read are kept separate so it can also fill the
+// dashboard's split cache fields. All values are display values (the same
+// transform applied to the per-row usage records); actual_cost is unchanged.
+type displayUsageTotals struct {
+	Requests            int64
+	InputTokens         int64
+	OutputTokens        int64
+	CacheCreationTokens int64
+	CacheReadTokens     int64
+	TotalCost           float64
+	ActualCost          float64
+	DurationSum         float64
+}
+
+func (t *displayUsageTotals) addDisplayed(u *dto.UsageLog, requests int64, durationSum float64) {
+	if u == nil {
+		return
+	}
+	t.Requests += requests
+	t.InputTokens += int64(u.InputTokens)
+	t.OutputTokens += int64(u.OutputTokens)
+	t.CacheCreationTokens += int64(u.CacheCreationTokens)
+	t.CacheReadTokens += int64(u.CacheReadTokens)
+	t.TotalCost += u.TotalCost
+	t.ActualCost += u.ActualCost
+	t.DurationSum += durationSum
+}
+
+func (t *displayUsageTotals) totalTokens() int64 {
+	return t.InputTokens + t.OutputTokens + t.CacheCreationTokens + t.CacheReadTokens
+}
+
+func (t *displayUsageTotals) averageDurationMs() float64 {
+	if t.Requests <= 0 {
+		return 0
+	}
+	return t.DurationSum / float64(t.Requests)
+}
+
+// groupToServiceUsageLog builds a synthetic service.UsageLog from a display-aggregate
+// group so it can be run through the exact same per-row display transform.
+func groupToServiceUsageLog(g *usagestats.DisplayAggregateGroup) *service.UsageLog {
+	rec := &service.UsageLog{
+		Model:               g.Model,
+		GroupID:             g.GroupID,
+		InputTokens:         int(g.InputTokens),
+		OutputTokens:        int(g.OutputTokens),
+		CacheCreationTokens: int(g.CacheCreationTokens),
+		CacheReadTokens:     int(g.CacheReadTokens),
+		InputCost:           g.InputCost,
+		OutputCost:          g.OutputCost,
+		CacheCreationCost:   g.CacheCreationCost,
+		CacheReadCost:       g.CacheReadCost,
+		TotalCost:           g.TotalCost,
+		ActualCost:          g.ActualCost,
+		RateMultiplier:      g.RateMultiplier,
+		LongContextApplied:  g.LongContextApplied,
+	}
+	if g.LongContextInputMultiplier != nil {
+		rec.LongContextInputMultiplier = *g.LongContextInputMultiplier
+	}
+	if g.LongContextOutputMultiplier != nil {
+		rec.LongContextOutputMultiplier = *g.LongContextOutputMultiplier
+	}
+	return rec
+}
+
+// aggregateDisplayedGroups applies the per-row display transform once per aggregate
+// group and sums the results into display totals. Used for unbounded ranges where
+// loading every row is infeasible (e.g. all-time dashboard totals).
+func (h *UsageHandler) aggregateDisplayedGroups(groups []usagestats.DisplayAggregateGroup, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) displayUsageTotals {
+	var totals displayUsageTotals
+	for i := range groups {
+		g := &groups[i]
+		u := displayUsageRecordForUser(groupToServiceUsageLog(g), displayMap, userDisplayRates)
+		totals.addDisplayed(u, g.Requests, float64(g.DurationSum))
+	}
+	return totals
+}
+
+// userDashboardDisplayTotals computes display-value totals for a user over an optional
+// time range (nil bounds = all-time) using per-group aggregation.
+func (h *UsageHandler) userDashboardDisplayTotals(c *gin.Context, userID int64, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData, startTime, endTime *time.Time) (displayUsageTotals, error) {
+	groups, err := h.usageService.GetUserDisplayAggregateGroups(c.Request.Context(), userID, 0, startTime, endTime)
+	if err != nil {
+		return displayUsageTotals{}, err
+	}
+	return h.aggregateDisplayedGroups(groups, displayMap, userDisplayRates), nil
+}
+
+// aggregateDisplayedModelStats groups already-display-transformed usage records by model.
+func aggregateDisplayedModelStats(records []dto.UsageLog) []usagestats.ModelStat {
+	type acc struct {
+		requests   int64
+		input      int64
+		output     int64
+		cacheCreat int64
+		cacheRead  int64
+		cost       float64
+		actualCost float64
+	}
+	byModel := make(map[string]*acc)
+	order := make([]string, 0)
+	for i := range records {
+		r := &records[i]
+		a := byModel[r.Model]
+		if a == nil {
+			a = &acc{}
+			byModel[r.Model] = a
+			order = append(order, r.Model)
+		}
+		a.requests++
+		a.input += int64(r.InputTokens)
+		a.output += int64(r.OutputTokens)
+		a.cacheCreat += int64(r.CacheCreationTokens)
+		a.cacheRead += int64(r.CacheReadTokens)
+		a.cost += r.TotalCost
+		a.actualCost += r.ActualCost
+	}
+	out := make([]usagestats.ModelStat, 0, len(order))
+	for _, model := range order {
+		a := byModel[model]
+		out = append(out, usagestats.ModelStat{
+			Model:               model,
+			Requests:            a.requests,
+			InputTokens:         a.input,
+			OutputTokens:        a.output,
+			CacheCreationTokens: a.cacheCreat,
+			CacheReadTokens:     a.cacheRead,
+			TotalTokens:         a.input + a.output + a.cacheCreat + a.cacheRead,
+			Cost:                a.cost,
+			ActualCost:          a.actualCost,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TotalTokens > out[j].TotalTokens })
+	return out
 }
