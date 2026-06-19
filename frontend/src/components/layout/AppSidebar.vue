@@ -730,10 +730,10 @@ function finalizeNav(items: NavItem[]): NavItem[] {
 // User navigation items (for regular users)
 const userNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
 
-// Personal navigation items (for admin's "My Account" section, without Dashboard).
+// Personal navigation items (for admin's "My Account" section, including Dashboard).
 // Admins access 鍙敤娓犻亾 from this section just like regular users 鈥?there is no
 // separate admin entry, since the page is purely a user-facing view.
-const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(false)))
+const personalNavItems = computed((): NavItem[] => finalizeNav(buildSelfNavItems(true)))
 
 // Custom menu items filtered by visibility
 const customMenuItemsForUser = computed(() => {

@@ -490,6 +490,15 @@
 - Verified: frontend `typecheck` + `lint:check` + `build` all pass.
 **Still pending (Phase 2)**: redeem-code/distribution bundle support + admin assign-by-plan; optional admin plans-list bundle badge.
 
+## [2026-06-19] fix: show user-facing Dashboard in admin's "My Account" sidebar section
+
+**Affected files**: frontend/src/components/layout/AppSidebar.vue, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only sidebar navigation tweak; no backend, route-guard, schema, Wire, gateway, or billing changes. Low merge-conflict risk (single line + comment in AppSidebar.vue).
+**Change details**:
+- Admins (role `admin`) previously had no entry to the user-facing `/dashboard` because `personalNavItems` was built with `buildSelfNavItems(false)`, intentionally dropping the Dashboard item from the admin "My Account" section. The route itself already allowed access (`/dashboard` meta is `requiresAuth: true, requiresAdmin: false`); only the menu entry was missing.
+- Flipped `personalNavItems` to `buildSelfNavItems(true)` so the admin "My Account" section now includes the user-side Dashboard link (distinct from `/admin/dashboard` in the admin section).
+- Updated the accompanying comment to reflect that Dashboard is now included.
+
 ## [2026-06-16] feat: make registration approval configurable
 
 **Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/service/auth_service.go, backend/internal/service/auth_oauth_email_flow.go, backend/internal/handler/dto/settings.go, backend/internal/handler/admin/setting_handler.go, backend/internal/handler/auth_oauth_pending_flow.go, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/auth.md, docs/dev/CHANGELOG_CUSTOM.md
