@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -44,6 +45,8 @@ type GatewayHandler struct {
 	billingCacheService       *service.BillingCacheService
 	usageService              *service.UsageService
 	apiKeyService             *service.APIKeyService
+	modelPricingService       *service.GlobalModelPricingService
+	userModelPricingService   *service.UserModelPricingService
 	usageRecordWorkerPool     *service.UsageRecordWorkerPool
 	errorPassthroughService   *service.ErrorPassthroughService
 	concurrencyHelper         *ConcurrencyHelper
@@ -64,6 +67,8 @@ func NewGatewayHandler(
 	billingCacheService *service.BillingCacheService,
 	usageService *service.UsageService,
 	apiKeyService *service.APIKeyService,
+	modelPricingService *service.GlobalModelPricingService,
+	userModelPricingService *service.UserModelPricingService,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	errorPassthroughService *service.ErrorPassthroughService,
 	userMsgQueueService *service.UserMessageQueueService,
@@ -97,6 +102,8 @@ func NewGatewayHandler(
 		billingCacheService:       billingCacheService,
 		usageService:              usageService,
 		apiKeyService:             apiKeyService,
+		modelPricingService:       modelPricingService,
+		userModelPricingService:   userModelPricingService,
 		usageRecordWorkerPool:     usageRecordWorkerPool,
 		errorPassthroughService:   errorPassthroughService,
 		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
@@ -1149,14 +1156,18 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	// 解析可选的日期范围参数（用于 model_stats 查询）
 	startTime, endTime := h.parseUsageDateRange(c)
 
-	// Best-effort: 获取用量统计（按当前 API Key 过滤），失败不影响基础响应
-	usageData := h.buildUsageData(ctx, apiKey.ID)
+	// 展示口径：用户侧只能看到展示值（放大后的 token / 展示单价），绝不暴露真实 token。
+	displayMap := buildDisplayPricingMapForUser(ctx, h.modelPricingService, h.userModelPricingService, apiKey.UserID)
+	userDisplayRates := loadUserGroupDisplayRates(ctx, h.apiKeyService, apiKey.UserID)
 
-	// Best-effort: 获取模型统计
+	// Best-effort: 获取用量统计（按当前 API Key 过滤，展示值），失败不影响基础响应
+	usageData := h.buildUsageData(ctx, apiKey, displayMap, userDisplayRates)
+
+	// Best-effort: 获取模型统计（展示值）
 	var modelStats any
 	if h.usageService != nil {
-		if stats, err := h.usageService.GetAPIKeyModelStats(ctx, apiKey.ID, startTime, endTime); err == nil && len(stats) > 0 {
-			modelStats = stats
+		if records, err := loadDisplayedUsageRecords(ctx, h.usageService, displayMap, userDisplayRates, apiKey.UserID, apiKey.ID, startTime, endTime); err == nil && len(records) > 0 {
+			modelStats = aggregateDisplayedModelStats(records)
 		}
 	}
 
@@ -1190,40 +1201,59 @@ func (h *GatewayHandler) parseUsageDateRange(c *gin.Context) (time.Time, time.Ti
 	return startTime, endTime
 }
 
-// buildUsageData 构建 today/total 用量摘要
-func (h *GatewayHandler) buildUsageData(ctx context.Context, apiKeyID int64) gin.H {
-	if h.usageService == nil {
+// buildUsageData 构建 today/total 用量摘要（展示值）。
+// token / cost 走展示口径（放大后的 token + 展示单价），actual_cost 不变；
+// RPM/TPM/平均时延仍来自实时聚合。绝不向用户暴露真实 token。
+func (h *GatewayHandler) buildUsageData(ctx context.Context, apiKey *service.APIKey, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) gin.H {
+	if h.usageService == nil || apiKey == nil {
 		return nil
 	}
-	dashStats, err := h.usageService.GetAPIKeyDashboardStats(ctx, apiKeyID)
+	dashStats, err := h.usageService.GetAPIKeyDashboardStats(ctx, apiKey.ID)
 	if err != nil || dashStats == nil {
 		return nil
 	}
+
+	allTime := h.displayUsageTotalsForAPIKey(ctx, apiKey, displayMap, userDisplayRates, nil, nil)
+	today := timezone.Today()
+	todayEnd := today.AddDate(0, 0, 1)
+	todayTotals := h.displayUsageTotalsForAPIKey(ctx, apiKey, displayMap, userDisplayRates, &today, &todayEnd)
+
 	return gin.H{
 		"today": gin.H{
-			"requests":              dashStats.TodayRequests,
-			"input_tokens":          dashStats.TodayInputTokens,
-			"output_tokens":         dashStats.TodayOutputTokens,
-			"cache_creation_tokens": dashStats.TodayCacheCreationTokens,
-			"cache_read_tokens":     dashStats.TodayCacheReadTokens,
-			"total_tokens":          dashStats.TodayTokens,
-			"cost":                  dashStats.TodayCost,
-			"actual_cost":           dashStats.TodayActualCost,
+			"requests":              todayTotals.Requests,
+			"input_tokens":          todayTotals.InputTokens,
+			"output_tokens":         todayTotals.OutputTokens,
+			"cache_creation_tokens": todayTotals.CacheCreationTokens,
+			"cache_read_tokens":     todayTotals.CacheReadTokens,
+			"total_tokens":          todayTotals.totalTokens(),
+			"cost":                  todayTotals.TotalCost,
+			"actual_cost":           todayTotals.ActualCost,
 		},
 		"total": gin.H{
-			"requests":              dashStats.TotalRequests,
-			"input_tokens":          dashStats.TotalInputTokens,
-			"output_tokens":         dashStats.TotalOutputTokens,
-			"cache_creation_tokens": dashStats.TotalCacheCreationTokens,
-			"cache_read_tokens":     dashStats.TotalCacheReadTokens,
-			"total_tokens":          dashStats.TotalTokens,
-			"cost":                  dashStats.TotalCost,
-			"actual_cost":           dashStats.TotalActualCost,
+			"requests":              allTime.Requests,
+			"input_tokens":          allTime.InputTokens,
+			"output_tokens":         allTime.OutputTokens,
+			"cache_creation_tokens": allTime.CacheCreationTokens,
+			"cache_read_tokens":     allTime.CacheReadTokens,
+			"total_tokens":          allTime.totalTokens(),
+			"cost":                  allTime.TotalCost,
+			"actual_cost":           allTime.ActualCost,
 		},
 		"average_duration_ms": dashStats.AverageDurationMs,
 		"rpm":                 dashStats.Rpm,
 		"tpm":                 dashStats.Tpm,
 	}
+}
+
+// displayUsageTotalsForAPIKey returns display-value usage totals for one API key over an
+// optional time range (nil bounds = all-time), via per-group aggregation. Errors degrade
+// to empty totals so the usage endpoint stays best-effort.
+func (h *GatewayHandler) displayUsageTotalsForAPIKey(ctx context.Context, apiKey *service.APIKey, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData, startTime, endTime *time.Time) displayUsageTotals {
+	groups, err := h.usageService.GetUserDisplayAggregateGroups(ctx, apiKey.UserID, apiKey.ID, startTime, endTime)
+	if err != nil {
+		return displayUsageTotals{}
+	}
+	return aggregateDisplayedGroups(groups, displayMap, userDisplayRates)
 }
 
 // usageQuotaLimited 处理 quota_limited 模式的响应

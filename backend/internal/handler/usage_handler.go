@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sort"
@@ -793,9 +794,10 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 
 const publicUsageAggregationPageSize = 1000
 
-func (h *UsageHandler) loadAllDisplayedPublicUsageRecords(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
-	displayMap := h.loadDisplayPricingMapForUser(c, userID)
-	userDisplayRates := h.loadUserDisplayRates(c, userID)
+// loadDisplayedUsageRecords pages through usage records in [startTime, endTime] and applies
+// the per-row display transform. Shared by the JWT user handlers and the API-key gateway
+// handler so both produce identical display values. apiKeyID > 0 narrows to one key.
+func loadDisplayedUsageRecords(ctx context.Context, usageService *service.UsageService, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
 	filters := usagestats.UsageLogFilters{
 		UserID:     userID,
 		APIKeyID:   apiKeyID,
@@ -805,7 +807,7 @@ func (h *UsageHandler) loadAllDisplayedPublicUsageRecords(c *gin.Context, userID
 	}
 	out := make([]dto.UsageLog, 0)
 	for page := 1; ; page++ {
-		records, result, err := h.usageService.ListWithFilters(c.Request.Context(), pagination.PaginationParams{
+		records, result, err := usageService.ListWithFilters(ctx, pagination.PaginationParams{
 			Page:      page,
 			PageSize:  publicUsageAggregationPageSize,
 			SortBy:    "created_at",
@@ -822,6 +824,12 @@ func (h *UsageHandler) loadAllDisplayedPublicUsageRecords(c *gin.Context, userID
 		}
 	}
 	return out, nil
+}
+
+func (h *UsageHandler) loadAllDisplayedPublicUsageRecords(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
+	displayMap := h.loadDisplayPricingMapForUser(c, userID)
+	userDisplayRates := h.loadUserDisplayRates(c, userID)
+	return loadDisplayedUsageRecords(c.Request.Context(), h.usageService, displayMap, userDisplayRates, userID, apiKeyID, startTime, endTime)
 }
 
 func displayUsageRecordForUser(record *service.UsageLog, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) *dto.UsageLog {
@@ -905,38 +913,44 @@ func publicUsageTrendBucketLabel(t time.Time, granularity string) string {
 	}
 }
 
-func (h *UsageHandler) loadDisplayPricingMap(c *gin.Context) dto.DisplayPricingMap {
-	if h.modelPricingService == nil {
-		return nil
+// buildDisplayPricingMapForUser builds the user's display-pricing map (global enabled
+// display prices, then per-user model overlays). Shared by the JWT user handlers and the
+// API-key gateway handler so both produce identical display values.
+func buildDisplayPricingMapForUser(ctx context.Context, modelPricingService *service.GlobalModelPricingService, userModelPricingService *service.UserModelPricingService, userID int64) dto.DisplayPricingMap {
+	var globalMap dto.DisplayPricingMap
+	if modelPricingService != nil {
+		if pricings, err := modelPricingService.GetAllEnabledPricings(ctx); err == nil {
+			globalMap = dto.BuildDisplayPricingMap(pricings)
+		}
 	}
-	pricings, err := h.modelPricingService.GetAllEnabledPricings(c.Request.Context())
-	if err != nil {
-		return nil
-	}
-	return dto.BuildDisplayPricingMap(pricings)
-}
-
-func (h *UsageHandler) loadDisplayPricingMapForUser(c *gin.Context, userID int64) dto.DisplayPricingMap {
-	globalMap := h.loadDisplayPricingMap(c)
-	if h.userModelPricingService == nil {
+	if userModelPricingService == nil {
 		return globalMap
 	}
-	userOverrides, err := h.userModelPricingService.GetEnabledByUserID(c.Request.Context(), userID)
+	userOverrides, err := userModelPricingService.GetEnabledByUserID(ctx, userID)
 	if err != nil || len(userOverrides) == 0 {
 		return globalMap
 	}
 	return dto.BuildUserDisplayPricingMap(globalMap, userOverrides)
 }
 
-func (h *UsageHandler) loadUserDisplayRates(c *gin.Context, userID int64) map[int64]service.UserGroupRateData {
-	if h.apiKeyService == nil {
+// loadUserGroupDisplayRates loads the user's per-group display rate multipliers.
+func loadUserGroupDisplayRates(ctx context.Context, apiKeyService *service.APIKeyService, userID int64) map[int64]service.UserGroupRateData {
+	if apiKeyService == nil {
 		return nil
 	}
-	rates, err := h.apiKeyService.GetUserGroupRatesFull(c.Request.Context(), userID)
+	rates, err := apiKeyService.GetUserGroupRatesFull(ctx, userID)
 	if err != nil {
 		return nil
 	}
 	return rates
+}
+
+func (h *UsageHandler) loadDisplayPricingMapForUser(c *gin.Context, userID int64) dto.DisplayPricingMap {
+	return buildDisplayPricingMapForUser(c.Request.Context(), h.modelPricingService, h.userModelPricingService, userID)
+}
+
+func (h *UsageHandler) loadUserDisplayRates(c *gin.Context, userID int64) map[int64]service.UserGroupRateData {
+	return loadUserGroupDisplayRates(c.Request.Context(), h.apiKeyService, userID)
 }
 
 // displayUsageTotals accumulates user-facing display token/cost totals.
@@ -1010,7 +1024,7 @@ func groupToServiceUsageLog(g *usagestats.DisplayAggregateGroup) *service.UsageL
 // aggregateDisplayedGroups applies the per-row display transform once per aggregate
 // group and sums the results into display totals. Used for unbounded ranges where
 // loading every row is infeasible (e.g. all-time dashboard totals).
-func (h *UsageHandler) aggregateDisplayedGroups(groups []usagestats.DisplayAggregateGroup, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) displayUsageTotals {
+func aggregateDisplayedGroups(groups []usagestats.DisplayAggregateGroup, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) displayUsageTotals {
 	var totals displayUsageTotals
 	for i := range groups {
 		g := &groups[i]
@@ -1027,7 +1041,7 @@ func (h *UsageHandler) userDashboardDisplayTotals(c *gin.Context, userID int64, 
 	if err != nil {
 		return displayUsageTotals{}, err
 	}
-	return h.aggregateDisplayedGroups(groups, displayMap, userDisplayRates), nil
+	return aggregateDisplayedGroups(groups, displayMap, userDisplayRates), nil
 }
 
 // aggregateDisplayedModelStats groups already-display-transformed usage records by model.

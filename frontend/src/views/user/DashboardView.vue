@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { usageAPI, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -46,5 +46,27 @@ const loadCharts = async () => { loadingCharts.value = true; try { const res = a
 const loadRecent = async () => { loadingUsage.value = true; try { const res = await usageAPI.getByDateRange(startDate.value, endDate.value); recentUsage.value = res.items.slice(0, 5) } catch (error) { console.error('Failed to load recent usage:', error) } finally { loadingUsage.value = false } }
 const refreshAll = () => { loadStats(); loadCharts(); loadRecent() }
 
-onMounted(() => { refreshAll() })
+// Keep the summary cards (今日/累计) live, the same way the balance auto-refreshes.
+// Without this, a tab left open across midnight keeps showing the previous day's "今日":
+// the cards are only fetched in onMounted, while the balance is refreshed by a global
+// 60s timer in the auth store — so the balance looks current but the stats are stale.
+// Refetch silently (no full-page spinner) on tab focus/visibility and on a light
+// visible-only interval, which also corrects the day rollover within ~60s.
+const refreshStatsSilently = async () => {
+  try { stats.value = await usageAPI.getDashboardStats() } catch (error) { console.error('Failed to refresh dashboard stats:', error) }
+}
+const onVisible = () => { if (document.visibilityState === 'visible') refreshStatsSilently() }
+let statsTimer: ReturnType<typeof setInterval> | null = null
+
+onMounted(() => {
+  refreshAll()
+  document.addEventListener('visibilitychange', onVisible)
+  window.addEventListener('focus', onVisible)
+  statsTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshStatsSilently() }, 60000)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisible)
+  window.removeEventListener('focus', onVisible)
+  if (statsTimer) { clearInterval(statsTimer); statsTimer = null }
+})
 </script>

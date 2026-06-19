@@ -85,7 +85,7 @@ func TestAggregateDisplayedGroups_ReconcilesWithPerRow(t *testing.T) {
 
 	// Per-group: transform the aggregate once (what the dashboard all-time path does).
 	group := groupFromDisplayAggTestRows(rows)
-	groupAgg := (&UsageHandler{}).aggregateDisplayedGroups(
+	groupAgg := aggregateDisplayedGroups(
 		[]usagestats.DisplayAggregateGroup{group}, displayMap, nil)
 
 	// The two paths reconcile.
@@ -111,7 +111,7 @@ func TestAggregateDisplayedGroups_NoDisplayConfig(t *testing.T) {
 		makeDisplayAggTestRow("haiku", 1000, 200, 0, 100000),
 	}
 	group := groupFromDisplayAggTestRows(rows)
-	groupAgg := (&UsageHandler{}).aggregateDisplayedGroups(
+	groupAgg := aggregateDisplayedGroups(
 		[]usagestats.DisplayAggregateGroup{group}, dto.DisplayPricingMap{}, nil)
 
 	require.Equal(t, int64(1000), groupAgg.InputTokens)
