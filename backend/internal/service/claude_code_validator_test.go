@@ -112,6 +112,29 @@ func TestClaudeCodeValidator_BillingBlockAnyEntrypointCountsAsSystemPrompt(t *te
 	require.True(t, ok)
 }
 
+func TestClaudeCodeValidator_NoCCHBlockStillRequiresClaudeCodeUA(t *testing.T) {
+	validator := NewClaudeCodeValidator()
+	req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages", nil)
+	req.Header.Set("User-Agent", "curl/8.0.0")
+	req.Header.Set("X-App", "claude-code")
+	req.Header.Set("anthropic-beta", "context-management-2025-06-27")
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	ok := validator.Validate(req, map[string]any{
+		"model": "claude-sonnet-4",
+		"system": []any{
+			map[string]any{
+				"type": "text",
+				"text": "x-anthropic-billing-header: cc_version=2.1.181; cc_entrypoint=cli;",
+			},
+		},
+		"metadata": map[string]any{
+			"user_id": "user_" + "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2" + "_account__session_12345678-1234-1234-1234-123456789abc",
+		},
+	})
+	require.False(t, ok)
+}
+
 func TestClaudeCodeValidator_BillingBlockWithoutEntrypointFallsThrough(t *testing.T) {
 	validator := NewClaudeCodeValidator()
 	req := httptest.NewRequest(http.MethodPost, "http://example.com/v1/messages", nil)
