@@ -7089,6 +7089,8 @@ const enBase = {
     selectPlan: 'Select Plan',
     planFeatures: 'Features',
     planCard: {
+      includedGroups: 'Included',
+      bundleQuotaNote: 'Bundle — each group has its own quota pool. Switch your API key group, or use one key per group.',
       rate: 'Rate',
       dailyLimit: 'Daily',
       weeklyLimit: 'Weekly',
@@ -7176,6 +7178,8 @@ const enBase = {
       deleteChannelConfirm: 'Are you sure you want to delete this channel?',
       planName: 'Plan Name',
       planDescription: 'Plan Description',
+      memberGroups: 'Bundle groups (additional)',
+      memberGroupsHint: 'Optionally bundle other subscription groups into this plan. Each member group keeps its own independent quota pool.',
       createPlan: 'Create Plan',
       editPlan: 'Edit Plan',
       deletePlan: 'Delete Plan',

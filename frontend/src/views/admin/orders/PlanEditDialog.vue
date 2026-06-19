@@ -33,6 +33,23 @@
         </div>
       </div>
 
+      <!-- Bundle: additional member groups (each keeps its own quota pool) -->
+      <div v-if="memberGroupOptions.length">
+        <label class="input-label">{{ t('payment.admin.memberGroups') }}</label>
+        <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.memberGroupsHint') }}</p>
+        <div class="grid grid-cols-2 gap-2">
+          <label
+            v-for="opt in memberGroupOptions"
+            :key="opt.id"
+            class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 p-2 text-sm dark:border-dark-600"
+          >
+            <input type="checkbox" :value="opt.id" v-model="planForm.member_group_ids" class="rounded" />
+            <span class="truncate" :class="platformTextClass(String(opt.platform))">{{ opt.name }}</span>
+            <span class="ml-auto text-xs text-gray-400">{{ opt.platform }}</span>
+          </label>
+        </div>
+      </div>
+
       <div><label class="input-label">{{ t('payment.admin.planDescription') }} <span class="text-red-500">*</span></label><textarea v-model="planForm.description" rows="2" class="input" required></textarea></div>
       <div class="grid grid-cols-2 gap-4">
         <div><label class="input-label">{{ t('payment.admin.price') }} <span class="text-red-500">*</span></label><input v-model.number="planForm.price" type="number" step="0.01" min="0.01" class="input" required /></div>
@@ -105,7 +122,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
-const planForm = reactive({ name: '', group_id: null as number | null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+const planForm = reactive({ name: '', group_id: null as number | null, member_group_ids: [] as number[], description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
 const planFeaturesText = ref('')
 
 const validityUnitOptions = computed(() => [
@@ -129,14 +146,28 @@ const selectedGroupInfo = computed(() => {
   return props.groups.find(g => g.id === planForm.group_id) || null
 })
 
+// Subscription-type groups eligible as bundle members (everything except the primary).
+const memberGroupOptions = computed(() =>
+  props.groups
+    .filter(g => g.subscription_type === 'subscription' && g.id !== planForm.group_id)
+    .map(g => ({ id: g.id, name: g.name, platform: g.platform })),
+)
+
+// Keep the primary group out of the bundle member set when it changes.
+watch(() => planForm.group_id, (gid) => {
+  if (gid != null) {
+    planForm.member_group_ids = planForm.member_group_ids.filter(id => id !== gid)
+  }
+})
+
 // Reset form when dialog opens
 watch(() => props.show, (visible) => {
   if (!visible) return
   if (props.plan) {
-    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
+    Object.assign(planForm, { name: props.plan.name, group_id: props.plan.group_id, member_group_ids: props.plan.member_group_ids ? [...props.plan.member_group_ids] : [], description: props.plan.description, price: props.plan.price, original_price: props.plan.original_price || 0, validity_days: props.plan.validity_days, validity_unit: props.plan.validity_unit || 'days', sort_order: props.plan.sort_order || 0, for_sale: props.plan.for_sale })
     planFeaturesText.value = (props.plan.features || []).join('\n')
   } else {
-    Object.assign(planForm, { name: '', group_id: null, description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
+    Object.assign(planForm, { name: '', group_id: null, member_group_ids: [], description: '', price: 0, original_price: 0, validity_days: 30, validity_unit: 'days', sort_order: 0, for_sale: true })
     planFeaturesText.value = ''
   }
 })
@@ -147,6 +178,7 @@ function buildPlanPayload() {
   return {
     name: planForm.name,
     group_id: planForm.group_id,
+    member_group_ids: planForm.member_group_ids,
     description: planForm.description,
     price: planForm.price,
     original_price: planForm.original_price || 0,

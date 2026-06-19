@@ -3265,3 +3265,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Refund intentionally untouched (this deployment has refunds disabled); documented limitation: a future bundle refund would only roll back the primary group.
 - Verified: `go generate ./ent`, `go build ./...` (exit 0), `go vet` clean, `go test ./internal/service` (untagged) + `go test -tags=unit ./internal/service/...` all pass.
 **Pending (Phase 2/3)**: redeem-code/distribution bundle support + admin assign-by-plan; frontend (admin plan editor multi-select, purchase page member-group display, zh/en i18n).
+
+## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 3 frontend
+
+**Affected files**: frontend/src/types/payment.ts, frontend/src/views/admin/orders/PlanEditDialog.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: additive UI on top of the Phase 1 backend. No behavior change for single-group plans (no member groups selected → renders exactly as before).
+**Change details**:
+- `types/payment.ts`: added `PlanMemberGroup` interface and `member_group_ids` + `member_groups` on `SubscriptionPlan`.
+- Admin `PlanEditDialog.vue`: added a "Bundle groups (additional)" checkbox list of subscription-type groups (excluding the primary), bound to `planForm.member_group_ids`; the primary group is auto-pruned from the member set when it changes; payload now sends `member_group_ids`; edit pre-fills from the plan (admin list returns the raw ent struct).
+- Purchase `SubscriptionPlanCard.vue`: when `member_groups.length > 1`, renders an "Included" section listing each member group (platform-colored name + its own daily/weekly/monthly limit) plus a note that each group has an independent quota pool and the user switches the API key group / uses one key per group; single-group plans keep the original quota box via `v-else`.
+- i18n: added `payment.planCard.{includedGroups,bundleQuotaNote}` and `payment.admin.{memberGroups,memberGroupsHint}` to both `zh.ts` and `en.ts` base blocks (both files use `mergeLocale(base, patch)` deep-merge; keys added to the base `payment` block).
+- Verified: frontend `typecheck` + `lint:check` + `build` all pass.
+**Still pending (Phase 2)**: redeem-code/distribution bundle support + admin assign-by-plan; optional admin plans-list bundle badge.

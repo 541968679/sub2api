@@ -6825,6 +6825,8 @@ const zhBase = {
     selectPlan: '选择套餐',
     planFeatures: '功能特性',
     planCard: {
+      includedGroups: '包含',
+      bundleQuotaNote: '混合套餐——每个分组各有独立额度池。切换 API 密钥所属分组，或每个分组各用一把密钥。',
       rate: '倍率',
       dailyLimit: '日限额',
       weeklyLimit: '周限额',
@@ -6911,6 +6913,8 @@ const zhBase = {
       deleteChannelConfirm: '确定要删除此渠道吗？',
       planName: '套餐名称',
       planDescription: '套餐描述',
+      memberGroups: '混合分组（附加）',
+      memberGroupsHint: '可选：将其他订阅分组打包进本套餐。每个成员分组各自拥有独立额度池。',
       createPlan: '创建套餐',
       editPlan: '编辑套餐',
       deletePlan: '删除套餐',

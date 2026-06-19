@@ -108,6 +108,17 @@ export interface PaymentOrder {
 
 // ==================== Plans & Channels ====================
 
+/** One group included in a (possibly bundled) plan, with its own quota pool. */
+export interface PlanMemberGroup {
+  group_id: number
+  platform?: string
+  name?: string
+  daily_limit_usd?: number | null
+  weekly_limit_usd?: number | null
+  monthly_limit_usd?: number | null
+  supported_model_scopes?: string[]
+}
+
 export interface SubscriptionPlan {
   id: number
   group_id: number
@@ -118,6 +129,10 @@ export interface SubscriptionPlan {
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
   supported_model_scopes?: string[]
+  /** Additional bundled subscription group IDs (extra members beyond group_id). */
+  member_group_ids?: number[]
+  /** Full effective member set (primary first) with per-group info; >1 = bundle. */
+  member_groups?: PlanMemberGroup[]
   name: string
   description: string
   price: number

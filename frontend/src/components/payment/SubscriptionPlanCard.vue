@@ -32,8 +32,18 @@
         </div>
       </div>
 
-      <!-- Group quota info -->
-      <div class="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-xs dark:bg-dark-700/50">
+      <!-- Bundle: included groups, each with its own independent quota pool -->
+      <div v-if="isBundle" class="mb-3 space-y-1.5 rounded-lg bg-gray-50 p-3 text-xs dark:bg-dark-700/50">
+        <span class="block text-[11px] font-medium text-gray-400 dark:text-dark-500">{{ t('payment.planCard.includedGroups') }}</span>
+        <div v-for="mg in plan.member_groups" :key="mg.group_id" class="flex items-center justify-between gap-2">
+          <span class="truncate font-semibold" :class="platformTextClass(mg.platform || '')">{{ mg.name || ('#' + mg.group_id) }}</span>
+          <span class="shrink-0 text-[11px] text-gray-500 dark:text-dark-400">{{ memberQuotaText(mg) }}</span>
+        </div>
+        <p class="pt-1 text-[10px] leading-4 text-gray-400 dark:text-dark-500">{{ t('payment.planCard.bundleQuotaNote') }}</p>
+      </div>
+
+      <!-- Group quota info (single-group plans) -->
+      <div v-else class="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-xs dark:bg-dark-700/50">
         <div v-if="plan.daily_limit_usd != null" class="space-y-1">
           <span class="block truncate text-[11px] text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
           <p class="truncate font-semibold text-gray-700 dark:text-gray-300">${{ plan.daily_limit_usd }}</p>
@@ -88,7 +98,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { SubscriptionPlan } from '@/types/payment'
+import type { SubscriptionPlan, PlanMemberGroup } from '@/types/payment'
 import type { UserSubscription } from '@/types'
 import {
   platformAccentBarClass,
@@ -107,6 +117,16 @@ const platform = computed(() => props.plan.group_platform || '')
 const isRenewal = computed(() =>
   props.activeSubscriptions?.some(s => s.group_id === props.plan.group_id && s.status === 'active') ?? false
 )
+
+// A bundle plan bundles more than one group; render each member's own quota pool.
+const isBundle = computed(() => (props.plan.member_groups?.length ?? 0) > 1)
+
+function memberQuotaText(mg: PlanMemberGroup): string {
+  if (mg.daily_limit_usd != null) return `${t('payment.planCard.dailyLimit')} $${mg.daily_limit_usd}`
+  if (mg.weekly_limit_usd != null) return `${t('payment.planCard.weeklyLimit')} $${mg.weekly_limit_usd}`
+  if (mg.monthly_limit_usd != null) return `${t('payment.planCard.monthlyLimit')} $${mg.monthly_limit_usd}`
+  return t('payment.planCard.unlimited')
+}
 
 // Derived color classes from central config
 const accentClass = computed(() => platformAccentBarClass(platform.value))
