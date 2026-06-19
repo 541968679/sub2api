@@ -15,6 +15,8 @@ const (
 	FieldID = "id"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
+	// FieldMemberGroupIds holds the string denoting the member_group_ids field in the database.
+	FieldMemberGroupIds = "member_group_ids"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
 	// FieldDescription holds the string denoting the description field in the database.
@@ -47,6 +49,7 @@ const (
 var Columns = []string{
 	FieldID,
 	FieldGroupID,
+	FieldMemberGroupIds,
 	FieldName,
 	FieldDescription,
 	FieldPrice,
@@ -72,6 +75,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultMemberGroupIds holds the default value on creation for the "member_group_ids" field.
+	DefaultMemberGroupIds []int64
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
 	// DefaultDescription holds the default value on creation for the "description" field.

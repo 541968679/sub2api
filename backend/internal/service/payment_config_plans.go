@@ -57,6 +57,76 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 	return nil
 }
 
+// PlanMemberGroupIDs returns the effective member group set for a plan:
+// unique(group_id ∪ member_group_ids), with group_id first, dropping ids <= 0.
+// An empty member_group_ids yields just [group_id], i.e. a legacy single-group
+// plan. Pure function, safe for nil plan (returns nil).
+func PlanMemberGroupIDs(p *dbent.SubscriptionPlan) []int64 {
+	if p == nil {
+		return nil
+	}
+	out := make([]int64, 0, len(p.MemberGroupIds)+1)
+	seen := make(map[int64]bool, len(p.MemberGroupIds)+1)
+	add := func(id int64) {
+		if id <= 0 || seen[id] {
+			return
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	add(p.GroupID)
+	for _, id := range p.MemberGroupIds {
+		add(id)
+	}
+	return out
+}
+
+// maxPlanMemberGroups caps how many additional groups a bundle plan can include.
+const maxPlanMemberGroups = 10
+
+// normalizeMemberGroupIDs cleans and validates bundle member group ids for a plan:
+// drops ids <= 0, dedups, removes the primary group_id (implicit member), then
+// verifies every remaining id is an existing subscription-type group. Returns a
+// non-nil empty slice for an empty/clear set.
+func (s *PaymentConfigService) normalizeMemberGroupIDs(ctx context.Context, primaryGroupID int64, raw []int64) ([]int64, error) {
+	cleaned := make([]int64, 0, len(raw))
+	seen := make(map[int64]bool, len(raw))
+	for _, id := range raw {
+		if id <= 0 || id == primaryGroupID || seen[id] {
+			continue
+		}
+		seen[id] = true
+		cleaned = append(cleaned, id)
+	}
+	if len(cleaned) == 0 {
+		return []int64{}, nil
+	}
+	if len(cleaned) > maxPlanMemberGroups {
+		return nil, infraerrors.BadRequest("PLAN_MEMBER_GROUPS_TOO_MANY",
+			fmt.Sprintf("a bundle plan can include at most %d additional groups", maxPlanMemberGroups))
+	}
+	groups, err := s.entClient.Group.Query().Where(group.IDIn(cleaned...)).All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load member groups: %w", err)
+	}
+	byID := make(map[int64]*dbent.Group, len(groups))
+	for _, g := range groups {
+		byID[int64(g.ID)] = g
+	}
+	for _, id := range cleaned {
+		g, ok := byID[id]
+		if !ok {
+			return nil, infraerrors.BadRequest("PLAN_MEMBER_GROUP_NOT_FOUND",
+				fmt.Sprintf("member group %d not found", id))
+		}
+		if g.SubscriptionType != SubscriptionTypeSubscription {
+			return nil, infraerrors.BadRequest("PLAN_MEMBER_GROUP_NOT_SUBSCRIPTION",
+				fmt.Sprintf("member group %d is not a subscription-type group", id))
+		}
+	}
+	return cleaned, nil
+}
+
 // --- Plan CRUD ---
 
 // PlanGroupInfo holds the group details needed for subscription plan display.
@@ -84,10 +154,16 @@ func (s *PaymentConfigService) GetGroupPlatformMap(ctx context.Context, plans []
 func (s *PaymentConfigService) GetGroupInfoMap(ctx context.Context, plans []*dbent.SubscriptionPlan) map[int64]PlanGroupInfo {
 	ids := make([]int64, 0, len(plans))
 	seen := make(map[int64]bool)
+	addID := func(id int64) {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
 	for _, p := range plans {
-		if !seen[p.GroupID] {
-			seen[p.GroupID] = true
-			ids = append(ids, p.GroupID)
+		addID(p.GroupID)
+		for _, mid := range p.MemberGroupIds {
+			addID(mid)
 		}
 	}
 	if len(ids) == 0 {
@@ -124,8 +200,12 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
+	members, err := s.normalizeMemberGroupIDs(ctx, req.GroupID, req.MemberGroupIDs)
+	if err != nil {
+		return nil, err
+	}
 	b := s.entClient.SubscriptionPlan.Create().
-		SetGroupID(req.GroupID).SetName(req.Name).SetDescription(req.Description).
+		SetGroupID(req.GroupID).SetMemberGroupIds(members).SetName(req.Name).SetDescription(req.Description).
 		SetPrice(req.Price).SetValidityDays(req.ValidityDays).SetValidityUnit(req.ValidityUnit).
 		SetFeatures(req.Features).SetProductName(req.ProductName).
 		SetForSale(req.ForSale).SetSortOrder(req.SortOrder)
@@ -145,6 +225,25 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	u := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupID != nil {
 		u.SetGroupID(*req.GroupID)
+	}
+	if req.MemberGroupIDs != nil {
+		// Validate against the effective primary group: the patched group_id if
+		// present, otherwise the plan's current group_id.
+		primary := int64(0)
+		if req.GroupID != nil {
+			primary = *req.GroupID
+		} else {
+			existing, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+			if err != nil {
+				return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+			}
+			primary = existing.GroupID
+		}
+		members, err := s.normalizeMemberGroupIDs(ctx, primary, *req.MemberGroupIDs)
+		if err != nil {
+			return nil, err
+		}
+		u.SetMemberGroupIds(members)
 	}
 	if req.Name != nil {
 		u.SetName(*req.Name)

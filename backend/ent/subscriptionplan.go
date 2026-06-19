@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -19,6 +20,8 @@ type SubscriptionPlan struct {
 	ID int64 `json:"id,omitempty"`
 	// GroupID holds the value of the "group_id" field.
 	GroupID int64 `json:"group_id,omitempty"`
+	// Additional bundled subscription group IDs; empty = single-group plan
+	MemberGroupIds []int64 `json:"member_group_ids,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
 	// Description holds the value of the "description" field.
@@ -51,6 +54,8 @@ func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case subscriptionplan.FieldMemberGroupIds:
+			values[i] = new([]byte)
 		case subscriptionplan.FieldForSale:
 			values[i] = new(sql.NullBool)
 		case subscriptionplan.FieldPrice, subscriptionplan.FieldOriginalPrice:
@@ -87,6 +92,14 @@ func (_m *SubscriptionPlan) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field group_id", values[i])
 			} else if value.Valid {
 				_m.GroupID = value.Int64
+			}
+		case subscriptionplan.FieldMemberGroupIds:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field member_group_ids", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.MemberGroupIds); err != nil {
+					return fmt.Errorf("unmarshal field member_group_ids: %w", err)
+				}
 			}
 		case subscriptionplan.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -199,6 +212,9 @@ func (_m *SubscriptionPlan) String() string {
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("group_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.GroupID))
+	builder.WriteString(", ")
+	builder.WriteString("member_group_ids=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MemberGroupIds))
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)

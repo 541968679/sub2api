@@ -287,6 +287,31 @@ func (s *SubscriptionService) AssignOrExtendSubscription(ctx context.Context, in
 	return sub, false, nil // false 表示是新建
 }
 
+// GroupAssignResult 记录批量分配中单个分组的结果。
+type GroupAssignResult struct {
+	GroupID  int64
+	Sub      *UserSubscription
+	Extended bool // true 表示续期，false 表示新建
+	Err      error
+}
+
+// AssignOrExtendSubscriptionToGroups 为一组分组逐个分配/续期订阅（混合套餐扇出）。
+//
+// 复用现有的 AssignOrExtendSubscription：每个分组各自开事务、各自失效缓存。
+// 故意不包一个大事务——部分失败时已成功的分组必须提交，外层调用方（如支付履约的
+// 逐组幂等审计）才能在重试时跳过已完成的分组、只补失败的那个。
+// base.GroupID 会被忽略，每个分组用各自的 id。返回每组结果，调用方自行决定如何处理错误。
+func (s *SubscriptionService) AssignOrExtendSubscriptionToGroups(ctx context.Context, base *AssignSubscriptionInput, groupIDs []int64) []GroupAssignResult {
+	results := make([]GroupAssignResult, 0, len(groupIDs))
+	for _, gid := range groupIDs {
+		in := *base
+		in.GroupID = gid
+		sub, extended, err := s.AssignOrExtendSubscription(ctx, &in)
+		results = append(results, GroupAssignResult{GroupID: gid, Sub: sub, Extended: extended, Err: err})
+	}
+	return results
+}
+
 // createSubscription 创建新订阅（内部方法）
 func (s *SubscriptionService) createSubscription(ctx context.Context, input *AssignSubscriptionInput) (*UserSubscription, error) {
 	validityDays := input.ValidityDays

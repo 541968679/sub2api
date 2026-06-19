@@ -200,6 +200,9 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 	}
 	if plan != nil {
 		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
+		// Snapshot the effective member group set so later plan edits don't change
+		// async/retried fulfillment. Empty member_group_ids → snapshot of [group_id].
+		b.SetMemberGroupIds(PlanMemberGroupIDs(plan))
 	}
 	order, err := b.Save(ctx)
 	if err != nil {

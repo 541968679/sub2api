@@ -31,6 +31,14 @@ func (SubscriptionPlan) Annotations() []schema.Annotation {
 func (SubscriptionPlan) Fields() []ent.Field {
 	return []ent.Field{
 		field.Int64("group_id"),
+		// member_group_ids holds additional subscription-type group IDs bundled
+		// into this plan. Empty = legacy single-group plan. The effective member
+		// set is unique(group_id ∪ member_group_ids); group_id stays the primary
+		// / representative group.
+		field.JSON("member_group_ids", []int64{}).
+			Default([]int64{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("Additional bundled subscription group IDs; empty = single-group plan"),
 		field.String("name").
 			MaxLen(100).
 			NotEmpty(),

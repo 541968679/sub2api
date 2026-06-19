@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
@@ -383,6 +384,18 @@ func (_u *PaymentOrderUpdate) AddSubscriptionDays(v int) *PaymentOrderUpdate {
 // ClearSubscriptionDays clears the value of the "subscription_days" field.
 func (_u *PaymentOrderUpdate) ClearSubscriptionDays() *PaymentOrderUpdate {
 	_u.mutation.ClearSubscriptionDays()
+	return _u
+}
+
+// SetMemberGroupIds sets the "member_group_ids" field.
+func (_u *PaymentOrderUpdate) SetMemberGroupIds(v []int64) *PaymentOrderUpdate {
+	_u.mutation.SetMemberGroupIds(v)
+	return _u
+}
+
+// AppendMemberGroupIds appends value to the "member_group_ids" field.
+func (_u *PaymentOrderUpdate) AppendMemberGroupIds(v []int64) *PaymentOrderUpdate {
+	_u.mutation.AppendMemberGroupIds(v)
 	return _u
 }
 
@@ -968,6 +981,14 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if _u.mutation.SubscriptionDaysCleared() {
 		_spec.ClearField(paymentorder.FieldSubscriptionDays, field.TypeInt)
 	}
+	if value, ok := _u.mutation.MemberGroupIds(); ok {
+		_spec.SetField(paymentorder.FieldMemberGroupIds, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedMemberGroupIds(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, paymentorder.FieldMemberGroupIds, value)
+		})
+	}
 	if value, ok := _u.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)
 	}
@@ -1473,6 +1494,18 @@ func (_u *PaymentOrderUpdateOne) AddSubscriptionDays(v int) *PaymentOrderUpdateO
 // ClearSubscriptionDays clears the value of the "subscription_days" field.
 func (_u *PaymentOrderUpdateOne) ClearSubscriptionDays() *PaymentOrderUpdateOne {
 	_u.mutation.ClearSubscriptionDays()
+	return _u
+}
+
+// SetMemberGroupIds sets the "member_group_ids" field.
+func (_u *PaymentOrderUpdateOne) SetMemberGroupIds(v []int64) *PaymentOrderUpdateOne {
+	_u.mutation.SetMemberGroupIds(v)
+	return _u
+}
+
+// AppendMemberGroupIds appends value to the "member_group_ids" field.
+func (_u *PaymentOrderUpdateOne) AppendMemberGroupIds(v []int64) *PaymentOrderUpdateOne {
+	_u.mutation.AppendMemberGroupIds(v)
 	return _u
 }
 
@@ -2087,6 +2120,14 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.SubscriptionDaysCleared() {
 		_spec.ClearField(paymentorder.FieldSubscriptionDays, field.TypeInt)
+	}
+	if value, ok := _u.mutation.MemberGroupIds(); ok {
+		_spec.SetField(paymentorder.FieldMemberGroupIds, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedMemberGroupIds(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, paymentorder.FieldMemberGroupIds, value)
+		})
 	}
 	if value, ok := _u.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)

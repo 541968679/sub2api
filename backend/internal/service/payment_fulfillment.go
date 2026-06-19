@@ -343,24 +343,61 @@ func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid
 	return nil
 }
 
+// doSub fulfills a subscription order. For bundle plans the order carries a
+// member group snapshot and we fan out into one subscription per member group,
+// each independently idempotent via a per-group audit marker. Legacy single
+// group orders (empty snapshot) fall back to the representative group and behave
+// exactly as before.
 func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder) error {
-	gid := *o.SubscriptionGroupID
+	repGid := *o.SubscriptionGroupID
 	days := *o.SubscriptionDays
-	g, err := s.groupRepo.GetByID(ctx, gid)
-	if err != nil || g.Status != payment.EntityStatusActive {
-		return fmt.Errorf("group %d no longer exists or inactive", gid)
+
+	// Effective member set: snapshot from the order, falling back to the single
+	// representative group for legacy (pre-bundle) orders.
+	groups := o.MemberGroupIds
+	if len(groups) == 0 {
+		groups = []int64{repGid}
 	}
-	// Idempotency: check audit log to see if subscription was already assigned.
-	// Prevents double-extension on retry after markCompleted fails.
+
+	// Fast path: the suffix-less marker is written (via markCompleted) only after
+	// every member succeeded, so its presence means the whole order is done.
 	if s.hasAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS") {
-		slog.Info("subscription already assigned for order, skipping", "orderID", o.ID, "groupID", gid)
+		slog.Info("subscription already assigned for order, skipping", "orderID", o.ID, "groups", groups)
 		return s.markCompleted(ctx, o, "SUBSCRIPTION_SUCCESS")
 	}
+
 	orderNote := fmt.Sprintf("payment order %d", o.ID)
-	_, _, err = s.subscriptionSvc.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{UserID: o.UserID, GroupID: gid, ValidityDays: days, AssignedBy: 0, Notes: orderNote})
-	if err != nil {
-		return fmt.Errorf("assign subscription: %w", err)
+	for _, gid := range groups {
+		gidStr := strconv.FormatInt(gid, 10)
+		// Per-group idempotency: skip members already assigned on a prior partial run.
+		if s.hasAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS:"+gidStr) {
+			continue
+		}
+		g, err := s.groupRepo.GetByID(ctx, gid)
+		if err != nil || g.Status != payment.EntityStatusActive {
+			if gid == repGid {
+				// The representative group must exist & be active — fail the whole
+				// order (legacy behavior) so it can be retried/refunded.
+				return fmt.Errorf("group %d no longer exists or inactive", gid)
+			}
+			// A dead bundled member must not deny the rest of a paid order:
+			// skip it, record an audit marker, and keep fulfilling the others.
+			slog.Warn("bundle member group inactive/missing, skipping", "orderID", o.ID, "groupID", gid)
+			s.writeAuditLog(ctx, o.ID, "SUBSCRIPTION_MEMBER_SKIPPED:"+gidStr, "system", map[string]any{
+				"groupID": gid,
+				"reason":  "group no longer exists or inactive",
+			})
+			continue
+		}
+		if _, _, err := s.subscriptionSvc.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{UserID: o.UserID, GroupID: gid, ValidityDays: days, AssignedBy: 0, Notes: orderNote}); err != nil {
+			return fmt.Errorf("assign subscription (group %d): %w", gid, err)
+		}
+		s.writeAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS:"+gidStr, "system", map[string]any{
+			"groupID":      gid,
+			"validityDays": days,
+		})
 	}
+
 	return s.markCompleted(ctx, o, "SUBSCRIPTION_SUCCESS")
 }
 

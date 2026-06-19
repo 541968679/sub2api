@@ -225,6 +225,12 @@ func (_c *PaymentOrderCreate) SetNillableSubscriptionDays(v *int) *PaymentOrderC
 	return _c
 }
 
+// SetMemberGroupIds sets the "member_group_ids" field.
+func (_c *PaymentOrderCreate) SetMemberGroupIds(v []int64) *PaymentOrderCreate {
+	_c.mutation.SetMemberGroupIds(v)
+	return _c
+}
+
 // SetProviderInstanceID sets the "provider_instance_id" field.
 func (_c *PaymentOrderCreate) SetProviderInstanceID(v string) *PaymentOrderCreate {
 	_c.mutation.SetProviderInstanceID(v)
@@ -543,6 +549,10 @@ func (_c *PaymentOrderCreate) defaults() {
 		v := paymentorder.DefaultOrderType
 		_c.mutation.SetOrderType(v)
 	}
+	if _, ok := _c.mutation.MemberGroupIds(); !ok {
+		v := paymentorder.DefaultMemberGroupIds
+		_c.mutation.SetMemberGroupIds(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := paymentorder.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -637,6 +647,9 @@ func (_c *PaymentOrderCreate) check() error {
 		if err := paymentorder.OrderTypeValidator(v); err != nil {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.MemberGroupIds(); !ok {
+		return &ValidationError{Name: "member_group_ids", err: errors.New(`ent: missing required field "PaymentOrder.member_group_ids"`)}
 	}
 	if v, ok := _c.mutation.ProviderInstanceID(); ok {
 		if err := paymentorder.ProviderInstanceIDValidator(v); err != nil {
@@ -793,6 +806,10 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.SubscriptionDays(); ok {
 		_spec.SetField(paymentorder.FieldSubscriptionDays, field.TypeInt, value)
 		_node.SubscriptionDays = &value
+	}
+	if value, ok := _c.mutation.MemberGroupIds(); ok {
+		_spec.SetField(paymentorder.FieldMemberGroupIds, field.TypeJSON, value)
+		_node.MemberGroupIds = value
 	}
 	if value, ok := _c.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)
@@ -1256,6 +1273,18 @@ func (u *PaymentOrderUpsert) AddSubscriptionDays(v int) *PaymentOrderUpsert {
 // ClearSubscriptionDays clears the value of the "subscription_days" field.
 func (u *PaymentOrderUpsert) ClearSubscriptionDays() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldSubscriptionDays)
+	return u
+}
+
+// SetMemberGroupIds sets the "member_group_ids" field.
+func (u *PaymentOrderUpsert) SetMemberGroupIds(v []int64) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldMemberGroupIds, v)
+	return u
+}
+
+// UpdateMemberGroupIds sets the "member_group_ids" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateMemberGroupIds() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldMemberGroupIds)
 	return u
 }
 
@@ -1989,6 +2018,20 @@ func (u *PaymentOrderUpsertOne) UpdateSubscriptionDays() *PaymentOrderUpsertOne 
 func (u *PaymentOrderUpsertOne) ClearSubscriptionDays() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearSubscriptionDays()
+	})
+}
+
+// SetMemberGroupIds sets the "member_group_ids" field.
+func (u *PaymentOrderUpsertOne) SetMemberGroupIds(v []int64) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetMemberGroupIds(v)
+	})
+}
+
+// UpdateMemberGroupIds sets the "member_group_ids" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateMemberGroupIds() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateMemberGroupIds()
 	})
 }
 
@@ -2942,6 +2985,20 @@ func (u *PaymentOrderUpsertBulk) UpdateSubscriptionDays() *PaymentOrderUpsertBul
 func (u *PaymentOrderUpsertBulk) ClearSubscriptionDays() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearSubscriptionDays()
+	})
+}
+
+// SetMemberGroupIds sets the "member_group_ids" field.
+func (u *PaymentOrderUpsertBulk) SetMemberGroupIds(v []int64) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetMemberGroupIds(v)
+	})
+}
+
+// UpdateMemberGroupIds sets the "member_group_ids" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateMemberGroupIds() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateMemberGroupIds()
 	})
 }
 

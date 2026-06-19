@@ -57,6 +57,8 @@ type PaymentOrder struct {
 	SubscriptionGroupID *int64 `json:"subscription_group_id,omitempty"`
 	// SubscriptionDays holds the value of the "subscription_days" field.
 	SubscriptionDays *int `json:"subscription_days,omitempty"`
+	// Snapshot of bundled subscription group IDs at order creation
+	MemberGroupIds []int64 `json:"member_group_ids,omitempty"`
 	// ProviderInstanceID holds the value of the "provider_instance_id" field.
 	ProviderInstanceID *string `json:"provider_instance_id,omitempty"`
 	// ProviderKey holds the value of the "provider_key" field.
@@ -130,7 +132,7 @@ func (*PaymentOrder) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case paymentorder.FieldProviderSnapshot:
+		case paymentorder.FieldMemberGroupIds, paymentorder.FieldProviderSnapshot:
 			values[i] = new([]byte)
 		case paymentorder.FieldForceRefund:
 			values[i] = new(sql.NullBool)
@@ -283,6 +285,14 @@ func (_m *PaymentOrder) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SubscriptionDays = new(int)
 				*_m.SubscriptionDays = int(value.Int64)
+			}
+		case paymentorder.FieldMemberGroupIds:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field member_group_ids", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.MemberGroupIds); err != nil {
+					return fmt.Errorf("unmarshal field member_group_ids: %w", err)
+				}
 			}
 		case paymentorder.FieldProviderInstanceID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -535,6 +545,9 @@ func (_m *PaymentOrder) String() string {
 		builder.WriteString("subscription_days=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("member_group_ids=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MemberGroupIds))
 	builder.WriteString(", ")
 	if v := _m.ProviderInstanceID; v != nil {
 		builder.WriteString("provider_instance_id=")

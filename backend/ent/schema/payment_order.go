@@ -91,6 +91,14 @@ func (PaymentOrder) Fields() []ent.Field {
 		field.Int("subscription_days").
 			Optional().
 			Nillable(),
+		// member_group_ids snapshots the bundle plan's effective member group set
+		// at order creation. Empty = legacy single-group order (use
+		// subscription_group_id). Frozen so later plan edits don't change
+		// async/retried fulfillment or refund accounting.
+		field.JSON("member_group_ids", []int64{}).
+			Default([]int64{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("Snapshot of bundled subscription group IDs at order creation"),
 		field.String("provider_instance_id").
 			Optional().
 			Nillable().

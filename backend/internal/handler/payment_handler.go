@@ -44,6 +44,35 @@ func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
 	response.Success(c, cfg)
 }
 
+// planMemberGroup is one group included in a (possibly bundled) plan, with the
+// per-group quota/platform details the purchase UI renders.
+type planMemberGroup struct {
+	GroupID         int64    `json:"group_id"`
+	Platform        string   `json:"platform"`
+	Name            string   `json:"name"`
+	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+	ModelScopes     []string `json:"supported_model_scopes"`
+}
+
+// buildPlanMemberGroups returns the plan's effective member set (primary group
+// first), enriched from groupInfo. For a legacy single-group plan this is a
+// one-element slice.
+func buildPlanMemberGroups(p *dbent.SubscriptionPlan, groupInfo map[int64]service.PlanGroupInfo) []planMemberGroup {
+	ids := service.PlanMemberGroupIDs(p)
+	out := make([]planMemberGroup, 0, len(ids))
+	for _, id := range ids {
+		gi := groupInfo[id]
+		out = append(out, planMemberGroup{
+			GroupID: id, Platform: gi.Platform, Name: gi.Name,
+			DailyLimitUSD: gi.DailyLimitUSD, WeeklyLimitUSD: gi.WeeklyLimitUSD,
+			MonthlyLimitUSD: gi.MonthlyLimitUSD, ModelScopes: gi.ModelScopes,
+		})
+	}
+	return out
+}
+
 // GetPlans returns subscription plans available for sale.
 // GET /api/v1/payment/plans
 func (h *PaymentHandler) GetPlans(c *gin.Context) {
@@ -54,25 +83,28 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 	}
 	// Enrich plans with group platform for frontend color coding
 	type planWithPlatform struct {
-		ID            int64    `json:"id"`
-		GroupID       int64    `json:"group_id"`
-		GroupPlatform string   `json:"group_platform"`
-		Name          string   `json:"name"`
-		Description   string   `json:"description"`
-		Price         float64  `json:"price"`
-		OriginalPrice *float64 `json:"original_price,omitempty"`
-		ValidityDays  int      `json:"validity_days"`
-		ValidityUnit  string   `json:"validity_unit"`
-		Features      string   `json:"features"`
-		ProductName   string   `json:"product_name"`
-		ForSale       bool     `json:"for_sale"`
-		SortOrder     int      `json:"sort_order"`
+		ID             int64             `json:"id"`
+		GroupID        int64             `json:"group_id"`
+		GroupPlatform  string            `json:"group_platform"`
+		MemberGroupIDs []int64           `json:"member_group_ids,omitempty"`
+		MemberGroups   []planMemberGroup `json:"member_groups,omitempty"`
+		Name           string            `json:"name"`
+		Description    string            `json:"description"`
+		Price          float64           `json:"price"`
+		OriginalPrice  *float64          `json:"original_price,omitempty"`
+		ValidityDays   int               `json:"validity_days"`
+		ValidityUnit   string            `json:"validity_unit"`
+		Features       string            `json:"features"`
+		ProductName    string            `json:"product_name"`
+		ForSale        bool              `json:"for_sale"`
+		SortOrder      int               `json:"sort_order"`
 	}
-	platformMap := h.configService.GetGroupPlatformMap(c.Request.Context(), plans)
+	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
 		result = append(result, planWithPlatform{
-			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: platformMap[p.GroupID],
+			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: groupInfo[p.GroupID].Platform,
+			MemberGroupIDs: p.MemberGroupIds, MemberGroups: buildPlanMemberGroups(p, groupInfo),
 			Name: p.Name, Description: p.Description, Price: p.Price, OriginalPrice: p.OriginalPrice,
 			ValidityDays: p.ValidityDays, ValidityUnit: p.ValidityUnit, Features: p.Features,
 			ProductName: p.ProductName, ForSale: p.ForSale, SortOrder: p.SortOrder,
@@ -121,6 +153,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		planList = append(planList, checkoutPlan{
 			ID: int64(p.ID), GroupID: p.GroupID,
 			GroupPlatform: gi.Platform, GroupName: gi.Name,
+			MemberGroupIDs: p.MemberGroupIds, MemberGroups: buildPlanMemberGroups(p, groupInfo),
 			RateMultiplier: gi.RateMultiplier, DailyLimitUSD: gi.DailyLimitUSD,
 			WeeklyLimitUSD: gi.WeeklyLimitUSD, MonthlyLimitUSD: gi.MonthlyLimitUSD,
 			ModelScopes: gi.ModelScopes,
@@ -170,23 +203,25 @@ type checkoutInfoResponse struct {
 }
 
 type checkoutPlan struct {
-	ID              int64    `json:"id"`
-	GroupID         int64    `json:"group_id"`
-	GroupPlatform   string   `json:"group_platform"`
-	GroupName       string   `json:"group_name"`
-	RateMultiplier  float64  `json:"rate_multiplier"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	ModelScopes     []string `json:"supported_model_scopes"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price,omitempty"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	Features        []string `json:"features"`
-	ProductName     string   `json:"product_name"`
+	ID              int64             `json:"id"`
+	GroupID         int64             `json:"group_id"`
+	GroupPlatform   string            `json:"group_platform"`
+	GroupName       string            `json:"group_name"`
+	MemberGroupIDs  []int64           `json:"member_group_ids,omitempty"`
+	MemberGroups    []planMemberGroup `json:"member_groups,omitempty"`
+	RateMultiplier  float64           `json:"rate_multiplier"`
+	DailyLimitUSD   *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64          `json:"monthly_limit_usd"`
+	ModelScopes     []string          `json:"supported_model_scopes"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description"`
+	Price           float64           `json:"price"`
+	OriginalPrice   *float64          `json:"original_price,omitempty"`
+	ValidityDays    int               `json:"validity_days"`
+	ValidityUnit    string            `json:"validity_unit"`
+	Features        []string          `json:"features"`
+	ProductName     string            `json:"product_name"`
 }
 
 func (h *PaymentHandler) isFirstRechargeEligible(c *gin.Context, cfg *service.PaymentConfig) bool {
