@@ -52,6 +52,21 @@ PaymentView
 - 支付回调必须使用外网 HTTPS 可访问地址。微信官方回调路径为 `/api/v1/payment/webhook/wxpay`。
 - 支付恢复令牌签名优先用 `PAYMENT_RESUME_SIGNING_KEY`，兼容旧的 TOTP 加密密钥校验。
 
+## 混合/打包订阅 (Bundle Subscription)
+
+一个订阅套餐可以打包多个订阅型分组，一次购买扇出成 **N 条独立 `user_subscription`**（每个成员分组一条），各组用各组自身的 `daily/weekly/monthly_limit_usd` 各自计额度。用户通过切换 API key 的分组（或每组各用一把 key）访问。**网关/计费/额度/缓存热路径完全不变**（仍按 `(user_id, group_id)`），成员组仍单平台。
+
+数据与流程：
+
+- `subscription_plans.member_group_ids` / `payment_orders.member_group_ids`（JSONB，默认 `[]`，迁移 `168`）。空 = 旧单组套餐/订单，行为不变。
+- 有效成员集 = `unique(group_id ∪ member_group_ids)`，`group_id` 为主/代表组。helper `service.PlanMemberGroupIDs(plan)`（`payment_config_plans.go`）。
+- 下单：`createOrderInTx`（`payment_order.go`）把成员集快照到订单（冻结，避免下单后改套餐影响履约）。
+- 履约：`doSub`（`payment_fulfillment.go`）逐组扇出，逐组幂等审计 `SUBSCRIPTION_SUCCESS:<gid>`，死的非主成员写 `SUBSCRIPTION_MEMBER_SKIPPED:<gid>` 跳过；全部成员成功后才写无后缀 `SUBSCRIPTION_SUCCESS` 触发 `markCompleted`。复用现有 `SubscriptionService.AssignOrExtendSubscription`（按 `(user,group)` 幂等）。
+- 校验：管理端 `CreatePlan/UpdatePlan` 的 `member_group_ids` 经 `normalizeMemberGroupIDs` 规范化（丢 ≤0、去重、移除主组、必须是存在的订阅型分组、上限 10）。
+- 对外展示：`GetPlans`/`GetCheckoutInfo`（`handler/payment_handler.go`）暴露 `member_group_ids` + `member_groups`（每成员的 platform/name/limits/scopes）。前端 `SubscriptionPlanCard.vue` 当 `member_groups.length>1` 渲染"包含"区块，管理端 `PlanEditDialog.vue` 多选附加组。
+- **退款未适配**：`payment_refund.go` 仅回滚主组（本部署未启用退款）。若启用，需对混合单做按组逐个回滚或禁止自助退款。
+- 二级渠道（兑换码/分销/管理端按套餐直接分配）当前**未做 bundle 扇出**，仅主购买链路支持。
+
 ## 已知陷阱
 
 - 管理端新增/编辑微信官方实例时，支付商户 `appId` 不一定等于公众号 AppID；JSAPI 场景需要填写 `mpAppId`。
