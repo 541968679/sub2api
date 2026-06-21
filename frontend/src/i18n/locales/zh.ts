@@ -5658,6 +5658,9 @@ const zhBase = {
         docUrl: '文档链接',
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
         docUrlPlaceholder: 'https://docs.example.com',
+        tutorialUrl: '教程链接（飞书）',
+        tutorialUrlHint: '外部教程文档链接（如飞书文档）。配置后，仪表盘「查看教程」、侧边栏「详细教程」以及密钥页「详细教程」按钮均跳转此链接；留空则隐藏这些教程入口。',
+        tutorialUrlPlaceholder: 'https://your-domain.feishu.cn/docx/xxxx',
         siteLogo: '站点Logo',
         uploadImage: '上传图片',
         remove: '移除',
@@ -5673,7 +5676,11 @@ const zhBase = {
         homeContentIframeWarning:
           '⚠️ iframe 模式提示：部分网站设置了 X-Frame-Options 或 CSP 安全策略，禁止被嵌入到 iframe 中。如果页面显示空白或报错，请确认目标网站允许被嵌入，或考虑使用 HTML 模式自行构建页面内容。',
         hideCcsImportButton: '隐藏 CCS 导入按钮',
-        hideCcsImportButtonHint: '启用后将在 API Keys 页面隐藏"导入 CCS"按钮'
+        hideCcsImportButtonHint: '启用后将在 API Keys 页面隐藏"导入 CCS"按钮',
+        ccsImportCodexModel: 'CCS 导入默认模型（OpenAI/Codex）',
+        ccsImportCodexModelHint:
+          '"导入到 CC Switch" 时为 OpenAI/Codex 平台写入的默认模型；留空则使用 CC Switch 内置默认（gpt-5-codex）',
+        ccsImportCodexModelPlaceholder: 'gpt-5-codex'
       },
       purchase: {
         title: '充值/订阅页面',
@@ -7259,7 +7266,8 @@ const v117ZhPatch = {
   },
   keys: {
     guide: {
-      title: '开始使用',
+      title: '快速教程',
+      detailedTutorial: '详细教程',
       subtitle: '按以下步骤开始使用 AI 编程工具',
       dismiss: '知道了，隐藏提示',
       step1Title: '创建 API Key',
@@ -7268,9 +7276,9 @@ const v117ZhPatch = {
       step2Title: '安装 CC Switch',
       step2Desc: 'CC Switch 是桌面工具，可一键把 API Key 导入 Claude Code、Gemini CLI 等编程工具。',
       step2Download: '从 GitHub 下载',
-      step3Title: '使用 Key',
-      step3Desc: '点击 Key 旁边的“导入到 CCS”自动配置，或点击“使用 Key”查看手动配置。',
-      step3DescNoCcs: '点击 Key 旁边的“使用 Key”查看编程工具配置说明。',
+      step3Title: '使用密钥',
+      step3Desc: '点击 Key 旁边的“导入到 CCS”自动配置，或点击“使用密钥”查看手动配置。',
+      step3DescNoCcs: '点击 Key 旁边的“使用密钥”查看编程工具配置说明。',
       rulesTitle: '使用规则',
       rulesAction: '查看',
       rulesModalTitle: 'API 密钥使用规则',

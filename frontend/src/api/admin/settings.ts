@@ -359,8 +359,10 @@ export interface SystemSettings {
   api_base_url: string;
   contact_info: string;
   doc_url: string;
+  tutorial_url: string;
   home_content: string;
   hide_ccs_import_button: boolean;
+  ccs_import_codex_model: string;
   table_default_page_size: number;
   table_page_size_options: number[];
   backend_mode_enabled: boolean;
@@ -559,8 +561,10 @@ export interface UpdateSettingsRequest {
   api_base_url?: string;
   contact_info?: string;
   doc_url?: string;
+  tutorial_url?: string;
   home_content?: string;
   hide_ccs_import_button?: boolean;
+  ccs_import_codex_model?: string;
   table_default_page_size?: number;
   table_page_size_options?: number[];
   backend_mode_enabled?: boolean;
@@ -740,8 +744,10 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     api_base_url: s.api_base_url,
     contact_info: s.contact_info,
     doc_url: s.doc_url,
+    tutorial_url: s.tutorial_url,
     home_content: s.home_content,
     hide_ccs_import_button: s.hide_ccs_import_button,
+    ccs_import_codex_model: s.ccs_import_codex_model,
     table_default_page_size: s.table_default_page_size,
     table_page_size_options: s.table_page_size_options,
     backend_mode_enabled: s.backend_mode_enabled,

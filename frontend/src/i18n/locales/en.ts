@@ -918,7 +918,8 @@ const enBase = {
     },
     // Getting started guide
     guide: {
-      title: 'Getting Started',
+      title: 'Quick Tutorial',
+      detailedTutorial: 'Detailed Tutorial',
       subtitle: 'Follow these steps to start using AI coding tools',
       dismiss: 'Got it, hide this',
       step1Title: 'Create an API Key',
@@ -5934,6 +5935,9 @@ const enBase = {
         docUrl: 'Documentation URL',
         docUrlPlaceholder: 'https://docs.example.com',
         docUrlHint: 'Link to your documentation site. Leave empty to hide the documentation link.',
+        tutorialUrl: 'Tutorial URL (Feishu)',
+        tutorialUrlPlaceholder: 'https://your-domain.feishu.cn/docx/xxxx',
+        tutorialUrlHint: 'Link to your external tutorial doc (e.g. Feishu). When set, the dashboard tutorial card, the sidebar "Tutorial" item, and the keys-page "Detailed Tutorial" button all open this link; leave empty to hide these tutorial entries.',
         siteLogo: 'Site Logo',
         uploadImage: 'Upload Image',
         remove: 'Remove',
@@ -5946,7 +5950,11 @@ const enBase = {
         homeContentHint: 'Customize the home page content. Supports Markdown/HTML. If you enter a URL (starting with http:// or https://), it will be used as an iframe src to embed an external page. When set, the default status information will no longer be displayed.',
         homeContentIframeWarning: '⚠️ iframe mode note: Some websites have X-Frame-Options or CSP security policies that prevent embedding in iframes. If the page appears blank or shows an error, please verify the target website allows embedding, or consider using HTML mode to build your own content.',
         hideCcsImportButton: 'Hide CCS Import Button',
-        hideCcsImportButtonHint: 'When enabled, the "Import to CCS" button will be hidden on the API Keys page'
+        hideCcsImportButtonHint: 'When enabled, the "Import to CCS" button will be hidden on the API Keys page',
+        ccsImportCodexModel: 'CCS Import Default Model (OpenAI/Codex)',
+        ccsImportCodexModelHint:
+          'Model written into the OpenAI/Codex provider when using "Import to CC Switch". Leave empty to use CC Switch\'s built-in default (gpt-5-codex).',
+        ccsImportCodexModelPlaceholder: 'gpt-5-codex'
       },
       purchase: {
         title: 'Recharge / Subscription Page',

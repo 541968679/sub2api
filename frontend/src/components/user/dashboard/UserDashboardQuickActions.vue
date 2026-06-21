@@ -22,9 +22,10 @@
           <p class="primary-card-desc">{{ t('dashboard.topUpHint') }}</p>
         </button>
 
-        <!-- 查看教程 -->
+        <!-- 查看教程（外部飞书教程，仅在后台配置了链接时显示） -->
         <button
-          @click="router.push('/tutorial')"
+          v-if="tutorialUrl"
+          @click="openTutorial"
           class="primary-card group"
           style="--card-from: #ede9fe; --card-to: #e0e7ff; --card-from-dark: rgba(99,102,241,0.12); --card-to-dark: rgba(79,70,229,0.12); --card-border: rgba(99,102,241,0.3); --card-border-dark: rgba(99,102,241,0.2);"
         >
@@ -114,6 +115,11 @@ const { t } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const showTopUp = computed(() => appStore.cachedPublicSettings?.payment_enabled && !authStore.isSimpleMode)
+// External (Feishu) tutorial link; the tutorial card shows only when an admin has configured it.
+const tutorialUrl = computed(() => appStore.tutorialUrl || appStore.cachedPublicSettings?.tutorial_url || '')
+const openTutorial = () => {
+  if (tutorialUrl.value) window.open(tutorialUrl.value, '_blank', 'noopener,noreferrer')
+}
 </script>
 
 <style scoped>

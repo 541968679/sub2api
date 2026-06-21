@@ -6,6 +6,7 @@
         v-if="!guideDismissed"
         :has-keys="apiKeys.length > 0"
         :hide-ccs-import="publicSettings?.hide_ccs_import_button === true"
+        :tutorial-url="publicSettings?.tutorial_url || ''"
         @create-key="showCreateModal = true"
         @dismiss="dismissGuide"
       />
@@ -1796,6 +1797,17 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     usageScript: btoa(usageScript),
     usageAutoInterval: '30'
   })
+
+  // For openai/codex, write the admin-configured default model into the
+  // imported CC Switch provider. cc-switch falls back to gpt-5-codex when the
+  // `model` param is omitted, so an empty setting keeps the legacy behavior.
+  if (platform === 'openai') {
+    const codexModel = publicSettings.value?.ccs_import_codex_model?.trim()
+    if (codexModel) {
+      params.set('model', codexModel)
+    }
+  }
+
   const deeplink = `ccswitch://v1/import?${params.toString()}`
 
   try {

@@ -354,15 +354,10 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // Tutorial page is hidden; detailed tutorial now lives in an external (Feishu)
+    // doc reached via the configurable tutorial_url. Redirect stray bookmarks.
     path: '/tutorial',
-    name: 'Tutorial',
-    component: () => import('@/views/user/TutorialView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Tutorial',
-      titleKey: 'nav.tutorial',
-    }
+    redirect: '/dashboard',
   },
 
   // ==================== Admin Routes ====================

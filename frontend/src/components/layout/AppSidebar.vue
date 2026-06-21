@@ -105,13 +105,16 @@
             </span>
           </div>
 
-          <router-link
+          <component
+            :is="item.external ? 'a' : 'router-link'"
             v-for="item in personalNavItems"
             :key="item.path"
-            :to="item.path"
+            v-bind="item.external
+              ? { href: item.external, target: '_blank', rel: 'noopener noreferrer' }
+              : { to: item.path }"
             class="sidebar-link mb-1"
             :class="{
-              'sidebar-link-active': isActive(item.path),
+              'sidebar-link-active': !item.external && isActive(item.path),
               'sidebar-link-collapsed': sidebarCollapsed,
               'sidebar-link-agent': item.path === '/distribution'
             }"
@@ -122,20 +125,23 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </router-link>
+          </component>
         </div>
       </template>
 
       <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
         <div class="sidebar-section">
-          <router-link
+          <component
+            :is="item.external ? 'a' : 'router-link'"
             v-for="item in userNavItems"
             :key="item.path"
-            :to="item.path"
+            v-bind="item.external
+              ? { href: item.external, target: '_blank', rel: 'noopener noreferrer' }
+              : { to: item.path }"
             class="sidebar-link mb-1"
             :class="{
-              'sidebar-link-active': isActive(item.path),
+              'sidebar-link-active': !item.external && isActive(item.path),
               'sidebar-link-collapsed': sidebarCollapsed,
               'sidebar-link-agent': item.path === '/distribution'
             }"
@@ -146,7 +152,7 @@
             <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
             <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
-          </router-link>
+          </component>
         </div>
       </template>
     </nav>
@@ -206,6 +212,8 @@ interface NavItem {
   icon: unknown
   iconSvg?: string
   hideInSimpleMode?: boolean
+  /** When set, the item renders as an external link (opens in a new tab) instead of a router-link. */
+  external?: string
   children?: NavItem[]
   /**
    * When true, the parent item only toggles the expand/collapse state and
@@ -680,6 +688,9 @@ const flagAffiliate = makeSidebarFlag(FeatureFlags.affiliate)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 
+// External (Feishu) tutorial link; the "详细教程" nav item shows only when configured.
+const tutorialUrl = computed(() => appStore.tutorialUrl || appStore.cachedPublicSettings?.tutorial_url || '')
+
 function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   const items: NavItem[] = []
   if (withDashboard) {
@@ -687,7 +698,9 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
-    { path: '/tutorial', label: t('nav.tutorial'), icon: BookIcon },
+    ...(tutorialUrl.value
+      ? [{ path: '/tutorial', label: t('nav.tutorial'), icon: BookIcon, external: tutorialUrl.value }]
+      : []),
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/distribution', label: t('nav.distribution'), icon: CreditCardIcon, hideInSimpleMode: true },
     { path: '/pricing', label: t('nav.modelPricing'), icon: PriceTagIcon, hideInSimpleMode: true },

@@ -177,8 +177,10 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		APIBaseURL:                             settings.APIBaseURL,
 		ContactInfo:                            settings.ContactInfo,
 		DocURL:                                 settings.DocURL,
+		TutorialURL:                            settings.TutorialURL,
 		HomeContent:                            settings.HomeContent,
 		HideCcsImportButton:                    settings.HideCcsImportButton,
+		CcsImportCodexModel:                    settings.CcsImportCodexModel,
 		PurchaseSubscriptionEnabled:            settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                   settings.TableDefaultPageSize,
@@ -430,8 +432,10 @@ type UpdateSettingsRequest struct {
 	APIBaseURL                  string                `json:"api_base_url"`
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
+	TutorialURL                 string                `json:"tutorial_url"`
 	HomeContent                 string                `json:"home_content"`
 	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
+	CcsImportCodexModel         string                `json:"ccs_import_codex_model"`
 	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
 	TableDefaultPageSize        int                   `json:"table_default_page_size"`
@@ -1278,8 +1282,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		APIBaseURL:                       req.APIBaseURL,
 		ContactInfo:                      req.ContactInfo,
 		DocURL:                           req.DocURL,
+		TutorialURL:                      req.TutorialURL,
 		HomeContent:                      req.HomeContent,
 		HideCcsImportButton:              req.HideCcsImportButton,
+		CcsImportCodexModel:              req.CcsImportCodexModel,
 		PurchaseSubscriptionEnabled:      purchaseEnabled,
 		PurchaseSubscriptionURL:          purchaseURL,
 		TableDefaultPageSize:             req.TableDefaultPageSize,
@@ -1635,8 +1641,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		APIBaseURL:                             updatedSettings.APIBaseURL,
 		ContactInfo:                            updatedSettings.ContactInfo,
 		DocURL:                                 updatedSettings.DocURL,
+		TutorialURL:                            updatedSettings.TutorialURL,
 		HomeContent:                            updatedSettings.HomeContent,
 		HideCcsImportButton:                    updatedSettings.HideCcsImportButton,
+		CcsImportCodexModel:                    updatedSettings.CcsImportCodexModel,
 		PurchaseSubscriptionEnabled:            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                updatedSettings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                   updatedSettings.TableDefaultPageSize,
@@ -1965,11 +1973,17 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.DocURL != after.DocURL {
 		changed = append(changed, "doc_url")
 	}
+	if before.TutorialURL != after.TutorialURL {
+		changed = append(changed, "tutorial_url")
+	}
 	if before.HomeContent != after.HomeContent {
 		changed = append(changed, "home_content")
 	}
 	if before.HideCcsImportButton != after.HideCcsImportButton {
 		changed = append(changed, "hide_ccs_import_button")
+	}
+	if before.CcsImportCodexModel != after.CcsImportCodexModel {
+		changed = append(changed, "ccs_import_codex_model")
 	}
 	if before.DefaultConcurrency != after.DefaultConcurrency {
 		changed = append(changed, "default_concurrency")

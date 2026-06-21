@@ -31,6 +31,7 @@ export const useAppStore = defineStore('app', () => {
   const contactInfo = ref<string>('')
   const apiBaseUrl = ref<string>('')
   const docUrl = ref<string>('')
+  const tutorialUrl = ref<string>('')
   const paymentCnyPerUsd = ref<number>(0)
   const cachedPublicSettings = ref<PublicSettings | null>(null)
 
@@ -299,6 +300,7 @@ export const useAppStore = defineStore('app', () => {
     contactInfo.value = config.contact_info || ''
     apiBaseUrl.value = config.api_base_url || ''
     docUrl.value = config.doc_url || ''
+    tutorialUrl.value = config.tutorial_url || ''
     paymentCnyPerUsd.value = Number(config.payment_cny_per_usd) || 0
     publicSettingsLoaded.value = true
     import('@/stores/auth')
@@ -349,8 +351,10 @@ export const useAppStore = defineStore('app', () => {
         api_base_url: apiBaseUrl.value,
         contact_info: contactInfo.value,
         doc_url: docUrl.value,
+        tutorial_url: tutorialUrl.value,
         home_content: '',
         hide_ccs_import_button: false,
+        ccs_import_codex_model: '',
         payment_enabled: false,
         payment_cny_per_usd: 0,
         table_default_page_size: 20,
@@ -433,6 +437,7 @@ export const useAppStore = defineStore('app', () => {
     contactInfo,
     apiBaseUrl,
     docUrl,
+    tutorialUrl,
     paymentCnyPerUsd,
     cachedPublicSettings,
 

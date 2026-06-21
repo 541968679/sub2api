@@ -343,8 +343,10 @@ export interface PublicSettings {
   api_base_url: string
   contact_info: string
   doc_url: string
+  tutorial_url: string
   home_content: string
   hide_ccs_import_button: boolean
+  ccs_import_codex_model: string
   payment_enabled: boolean
   payment_cny_per_usd: number
   table_default_page_size: number

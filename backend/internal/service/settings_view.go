@@ -97,8 +97,10 @@ type SystemSettings struct {
 	APIBaseURL                  string
 	ContactInfo                 string
 	DocURL                      string
+	TutorialURL                 string
 	HomeContent                 string
 	HideCcsImportButton         bool
+	CcsImportCodexModel         string
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string
 	TableDefaultPageSize        int
@@ -205,8 +207,10 @@ type PublicSettings struct {
 	APIBaseURL                       string
 	ContactInfo                      string
 	DocURL                           string
+	TutorialURL                      string
 	HomeContent                      string
 	HideCcsImportButton              bool
+	CcsImportCodexModel              string
 
 	PurchaseSubscriptionEnabled bool
 	PurchaseSubscriptionURL     string

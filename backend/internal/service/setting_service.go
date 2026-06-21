@@ -461,8 +461,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAPIBaseURL,
 		SettingKeyContactInfo,
 		SettingKeyDocURL,
+		SettingKeyTutorialURL,
 		SettingKeyHomeContent,
 		SettingKeyHideCcsImportButton,
+		SettingKeyCcsImportCodexModel,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
 		SettingKeyTableDefaultPageSize,
@@ -570,8 +572,10 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
+		TutorialURL:                      settings[SettingKeyTutorialURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
+		CcsImportCodexModel:              s.getStringOrDefault(settings, SettingKeyCcsImportCodexModel, "gpt-5-codex"),
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		TableDefaultPageSize:             tableDefaultPageSize,
@@ -747,8 +751,10 @@ type PublicSettingsInjectionPayload struct {
 	APIBaseURL                       string            `json:"api_base_url"`
 	ContactInfo                      string            `json:"contact_info"`
 	DocURL                           string            `json:"doc_url"`
+	TutorialURL                      string            `json:"tutorial_url"`
 	HomeContent                      string            `json:"home_content"`
 	HideCcsImportButton              bool              `json:"hide_ccs_import_button"`
+	CcsImportCodexModel              string            `json:"ccs_import_codex_model"`
 	PurchaseSubscriptionEnabled      bool              `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string            `json:"purchase_subscription_url"`
 	TableDefaultPageSize             int               `json:"table_default_page_size"`
@@ -808,8 +814,10 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		APIBaseURL:                       settings.APIBaseURL,
 		ContactInfo:                      settings.ContactInfo,
 		DocURL:                           settings.DocURL,
+		TutorialURL:                      settings.TutorialURL,
 		HomeContent:                      settings.HomeContent,
 		HideCcsImportButton:              settings.HideCcsImportButton,
+		CcsImportCodexModel:              settings.CcsImportCodexModel,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:             settings.TableDefaultPageSize,
@@ -1256,8 +1264,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
 	updates[SettingKeyContactInfo] = settings.ContactInfo
 	updates[SettingKeyDocURL] = settings.DocURL
+	updates[SettingKeyTutorialURL] = settings.TutorialURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
+	updates[SettingKeyCcsImportCodexModel] = strings.TrimSpace(settings.CcsImportCodexModel)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(
@@ -2092,8 +2102,10 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
+		TutorialURL:                      settings[SettingKeyTutorialURL],
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
+		CcsImportCodexModel:              s.getStringOrDefault(settings, SettingKeyCcsImportCodexModel, "gpt-5-codex"),
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],

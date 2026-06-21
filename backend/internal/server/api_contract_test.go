@@ -651,6 +651,7 @@ func TestAPIContracts(t *testing.T) {
 				"message": "success",
 				"data": {
 					"registration_enabled": true,
+					"registration_approval_required": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
 					"promo_code_enabled": true,
@@ -711,6 +712,7 @@ func TestAPIContracts(t *testing.T) {
 						"api_base_url": "https://api.example.com",
 					"contact_info": "support",
 					"doc_url": "https://docs.example.com",
+					"tutorial_url": "",
 					"auth_source_default_email_balance": 0,
 					"auth_source_default_email_concurrency": 5,
 					"auth_source_default_email_subscriptions": [],
@@ -750,6 +752,7 @@ func TestAPIContracts(t *testing.T) {
 						"invitation_code_enabled": false,
 						"home_content": "",
 					"hide_ccs_import_button": false,
+					"ccs_import_codex_model": "gpt-5-codex",
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
 					"table_default_page_size": 20,
@@ -887,6 +890,7 @@ func TestAPIContracts(t *testing.T) {
 				"message": "success",
 				"data": {
 					"registration_enabled": true,
+					"registration_approval_required": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
 					"promo_code_enabled": true,
@@ -944,8 +948,10 @@ func TestAPIContracts(t *testing.T) {
 					"api_base_url": "",
 					"contact_info": "",
 					"doc_url": "",
+					"tutorial_url": "",
 					"home_content": "",
 					"hide_ccs_import_button": false,
+					"ccs_import_codex_model": "gpt-5-codex",
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
 					"table_default_page_size": 20,
@@ -2215,6 +2221,14 @@ func (r *stubUsageLogRepo) GetAccountTodayStats(ctx context.Context, accountID i
 }
 
 func (r *stubUsageLogRepo) GetDashboardStats(ctx context.Context) (*usagestats.DashboardStats, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetSubscriptionProfitRaw(ctx context.Context, activeOnly bool, startTime, endTime time.Time) ([]usagestats.SubscriptionProfitRaw, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *stubUsageLogRepo) GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) ([]usagestats.DisplayAggregateGroup, error) {
 	return nil, errors.New("not implemented")
 }
 
