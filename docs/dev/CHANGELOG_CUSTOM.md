@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-26] fix: hide Claude-GPT bridge-only mappings from OpenAI `/v1/models`
+
+**Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_hotpath_optimization_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local guard around the existing additive OpenAI Claude-GPT bridge. It only changes the presentation model list returned for OpenAI-platform API keys; model allow/block checks, model mapping, account scheduling, billing, usage recording, and Antigravity bridge forwarding are unchanged.
+**Change details**:
+- Root cause: `GatewayService.GetAvailableModels` aggregates `credentials.model_mapping` keys from schedulable accounts. OpenAI bridge accounts are still OpenAI accounts, so a mapping such as `claude-opus-4-8 -> gpt-5.5` was included in OpenAI-platform `/v1/models` discovery.
+- Added a narrow service-layer filter that hides bridge-only Claude-family mapping keys from OpenAI `/v1/models` when `extra.openai_claude_gpt_bridge_enabled=true` and the mapping resolves to a distinct upstream OpenAI model.
+- Preserved normal OpenAI model aliases such as `gpt-alias -> gpt-5.4`; when a group only has bridge-only Claude mappings, the model-list path falls back to platform defaults instead of exposing Claude IDs.
+- Added a focused regression test for mixed OpenAI alias + Claude-GPT bridge mappings and bridge-only fallback behavior.
+- Verified: `go test -tags=unit ./internal/service -run 'TestGetAvailableModels'` passes.
+
 ## [2026-06-21] feat: hide in-app tutorial page, route tutorial entries to a configurable (Feishu) link
 
 **Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/handler/dto/settings.go, backend/internal/handler/setting_handler.go, backend/internal/handler/admin/setting_handler.go, backend/internal/server/api_contract_test.go, frontend/src/types/index.ts, frontend/src/stores/app.ts, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/components/user/dashboard/UserDashboardQuickActions.vue, frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/views/user/KeysView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/CHANGELOG_CUSTOM.md

@@ -246,6 +246,12 @@ Claude-GPT bridge. The admin candidate endpoint
 model mappings when available and otherwise returns platform defaults; saving
 the setting persists only `groups.models_list_config`.
 
+OpenAI Claude-GPT bridge mappings are intentionally hidden from OpenAI-platform
+`/v1/models` output when the mapping key is a Claude-family request model and
+the mapped upstream model is a distinct GPT/OpenAI model. This keeps bridge-only
+Claude presentation names out of downstream OpenAI key discovery while leaving
+normal OpenAI aliases and Antigravity bridge scheduling unchanged.
+
 ## Important Mechanisms
 
 | Mechanism | Notes |

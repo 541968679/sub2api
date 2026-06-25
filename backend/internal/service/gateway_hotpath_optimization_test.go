@@ -535,6 +535,60 @@ func TestGetAvailableModels_UsesShortCacheAndSupportsInvalidation(t *testing.T) 
 	require.Equal(t, int64(2), store)
 }
 
+func TestGetAvailableModels_OpenAIHidesClaudeGPTBridgeMappings(t *testing.T) {
+	resetGatewayHotpathStatsForTest()
+
+	groupID := int64(10)
+	bridgeOnlyGroupID := int64(11)
+	repo := &modelsListAccountRepoStub{
+		byGroup: map[int64][]Account{
+			groupID: {
+				{
+					ID:       1,
+					Platform: PlatformOpenAI,
+					Extra: map[string]any{
+						"openai_claude_gpt_bridge_enabled": true,
+					},
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"claude-opus-4-8": "gpt-5.5",
+							"claude-*":        "gpt-5.4",
+							"gpt-5.5":         "gpt-5.5",
+							"gpt-alias":       "gpt-5.4",
+						},
+					},
+				},
+			},
+			bridgeOnlyGroupID: {
+				{
+					ID:       2,
+					Platform: PlatformOpenAI,
+					Extra: map[string]any{
+						"openai_claude_gpt_bridge_enabled": true,
+					},
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"claude-opus-4-8": "gpt-5.5",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	svc := &GatewayService{
+		accountRepo:        repo,
+		modelsListCache:    gocache.New(time.Minute, time.Minute),
+		modelsListCacheTTL: time.Minute,
+	}
+
+	models := svc.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI)
+	require.Equal(t, []string{"gpt-5.5", "gpt-alias"}, models)
+
+	bridgeOnlyModels := svc.GetAvailableModels(context.Background(), &bridgeOnlyGroupID, PlatformOpenAI)
+	require.Nil(t, bridgeOnlyModels)
+}
+
 func TestGetAvailableModels_ErrorAndGlobalListBranches(t *testing.T) {
 	resetGatewayHotpathStatsForTest()
 

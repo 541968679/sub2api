@@ -9479,6 +9479,33 @@ func (s *GatewayService) validateUpstreamBaseURL(raw string) (string, error) {
 
 // GetAvailableModels returns the list of models available for a group
 // It aggregates model_mapping keys from all schedulable accounts in the group
+func shouldExposeModelInModelsList(account Account, platform, model string) bool {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return false
+	}
+	if strings.TrimSpace(platform) == PlatformOpenAI &&
+		account.IsOpenAIClaudeGPTBridgeEnabled() &&
+		isClaudeFamilyModelID(model) {
+		if _, ok := account.ResolveClaudeGPTBridgeModel(model); ok {
+			return false
+		}
+	}
+	return true
+}
+
+func isClaudeFamilyModelID(model string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	normalized = strings.TrimPrefix(normalized, "models/")
+	return normalized == "claude" ||
+		strings.HasPrefix(normalized, "claude-") ||
+		strings.HasPrefix(normalized, "claude.") ||
+		strings.HasPrefix(normalized, "claude_") ||
+		strings.Contains(normalized, "/claude-") ||
+		strings.Contains(normalized, ".claude-") ||
+		strings.Contains(normalized, ":claude-")
+}
+
 func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64, platform string) []string {
 	cacheKey := modelsListCacheKey(groupID, platform)
 	if s.modelsListCache != nil {
@@ -9522,8 +9549,11 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	for _, acc := range accounts {
 		mapping := acc.GetModelMapping()
 		if len(mapping) > 0 {
-			hasAnyMapping = true
 			for model := range mapping {
+				if !shouldExposeModelInModelsList(acc, platform, model) {
+					continue
+				}
+				hasAnyMapping = true
 				modelSet[model] = struct{}{}
 			}
 		}
