@@ -2436,6 +2436,16 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 	}
 
+	// gpt-5.3-codex-spark also rejects the image_generation tool (HTTP 400,
+	// param=tools). Strip it here so both APIKey and OAuth /responses paths are
+	// covered regardless of the image-generation feature gate.
+	if isCodexSparkModel(upstreamModel) && hasOpenAIImageGenerationTool(reqBody) {
+		if stripCodexSparkImageGenerationTools(reqBody) {
+			bodyModified = true
+			disablePatch()
+		}
+	}
+
 	if account.Type == AccountTypeOAuth {
 		codexResult := applyCodexOAuthTransform(reqBody, isCodexCLI, isCompactRequest)
 		if codexResult.Modified {
