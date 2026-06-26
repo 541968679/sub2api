@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-26] improve: curate OpenAI and Antigravity `/v1/models` discovery lists
+
+**Affected files**: backend/internal/service/models_list_policy.go, backend/internal/service/admin_service.go, backend/internal/service/models_list_policy_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_models_list_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local presentation policy for model discovery. It only changes `/v1/models`, `/antigravity/models`, `/antigravity/v1/models`, and the admin custom-model-list candidate choices for OpenAI/Antigravity. Scheduling, group allow/block checks, account model mapping, bridge forwarding, billing, and usage recording are unchanged.
+**Change details**:
+- Added shared `GatewayModelDiscoveryIDsForPlatform` policy: OpenAI exposes only `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`; Antigravity exposes only `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-haiku-4-5`, `claude-sonnet-4-6`.
+- `GatewayHandler.Models` now returns these curated lists before account-derived `model_mapping` aggregation for OpenAI/Antigravity. Group `models_list_config` can narrow the curated list but cannot expand it.
+- `/antigravity/models` and `/antigravity/v1/models` now use the same curated Antigravity discovery list while preserving display names from the Antigravity default model metadata.
+- Admin `GET /api/v1/admin/groups/:id/models-list-candidates` uses the same curated candidates for OpenAI/Antigravity so the group custom-list UI cannot select models that the gateway will hide.
+- Verified: `go test -tags=unit ./internal/handler -run 'TestGatewayHandlerModels|TestGatewayHandlerAntigravityModels'`; `go test -tags=unit ./internal/service -run 'TestGatewayModelDiscoveryIDsForPlatform|TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy'`.
+
 ## [2026-06-26] fix: hide Claude-GPT bridge-only mappings from OpenAI `/v1/models`
 
 **Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_hotpath_optimization_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md

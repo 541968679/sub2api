@@ -952,11 +952,19 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		platform = forcedPlatform
 	}
 
+	if discoveryModelIDs, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
+		if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
+			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, apiKey.Group.ModelsListConfig.Models)
+		}
+		writeModelsListForPlatform(c, platform, discoveryModelIDs)
+		return
+	}
+
 	// Get available models from account configurations for the selected group platform.
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
 		availableModels = filterModelsByCustomList(availableModels, defaultModelIDsForPlatform(platform), apiKey.Group.ModelsListConfig.Models)
-		writeCustomModelsList(c, platform, availableModels)
+		writeModelsListForPlatform(c, platform, availableModels)
 		return
 	}
 
@@ -990,6 +998,17 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 // AntigravityModels 返回 Antigravity 支持的全部模型
 // GET /antigravity/models
+func writeModelsListForPlatform(c *gin.Context, platform string, modelIDs []string) {
+	switch platform {
+	case service.PlatformOpenAI:
+		writeOpenAIModelsList(c, modelIDs)
+	case service.PlatformAntigravity:
+		writeAntigravityModelsList(c, modelIDs)
+	default:
+		writeModelsList(c, modelIDs)
+	}
+}
+
 func writeModelsList(c *gin.Context, modelIDs []string) {
 	models := make([]claude.Model, 0, len(modelIDs))
 	for _, modelID := range modelIDs {
@@ -1004,14 +1023,6 @@ func writeModelsList(c *gin.Context, modelIDs []string) {
 		"object": "list",
 		"data":   models,
 	})
-}
-
-func writeCustomModelsList(c *gin.Context, platform string, modelIDs []string) {
-	if platform == service.PlatformOpenAI {
-		writeOpenAIModelsList(c, modelIDs)
-		return
-	}
-	writeModelsList(c, modelIDs)
 }
 
 func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
@@ -1033,6 +1044,31 @@ func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
 			OwnedBy:     "openai",
 			Type:        "model",
 			DisplayName: modelID,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"object": "list",
+		"data":   models,
+	})
+}
+
+func writeAntigravityModelsList(c *gin.Context, modelIDs []string) {
+	defaultsByID := make(map[string]antigravity.ClaudeModel)
+	for _, model := range antigravity.DefaultModels() {
+		defaultsByID[model.ID] = model
+	}
+
+	models := make([]antigravity.ClaudeModel, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		if model, ok := defaultsByID[modelID]; ok {
+			models = append(models, model)
+			continue
+		}
+		models = append(models, antigravity.ClaudeModel{
+			ID:          modelID,
+			Type:        "model",
+			DisplayName: modelID,
+			CreatedAt:   "2024-01-01T00:00:00Z",
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -1093,6 +1129,9 @@ func customModelsListAllowsModel(availablePatterns []string, model string) bool 
 }
 
 func defaultModelIDsForPlatform(platform string) []string {
+	if ids, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
+		return ids
+	}
 	switch platform {
 	case service.PlatformOpenAI:
 		return openai.DefaultModelIDs()
@@ -1115,10 +1154,8 @@ func defaultModelIDsForPlatform(platform string) []string {
 }
 
 func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"object": "list",
-		"data":   antigravity.DefaultModels(),
-	})
+	modelIDs, _ := service.GatewayModelDiscoveryIDsForPlatform(service.PlatformAntigravity)
+	writeAntigravityModelsList(c, modelIDs)
 }
 
 func cloneAPIKeyWithGroup(apiKey *service.APIKey, group *service.Group) *service.APIKey {

@@ -230,6 +230,11 @@ assigned to a scheduling group.
 GET /v1/models with API key
   -> GatewayHandler.Models
   -> resolve group platform, including any force-platform context
+  -> if platform has a curated discovery list:
+     -> OpenAI: gpt-5.5, gpt-5.4, gpt-5.4-mini
+     -> Antigravity: claude-opus-4-8, claude-opus-4-7, claude-opus-4-6, claude-haiku-4-5, claude-sonnet-4-6
+     -> optionally narrow it with group.models_list_config
+     -> return without consulting account model_mapping
   -> GatewayService.GetAvailableModels(group, platform)
   -> if group.models_list_config.enabled && models is non-empty:
      -> filter configured model IDs against available models
@@ -241,10 +246,13 @@ GET /v1/models with API key
 The group custom models list is presentation-only. It changes the response body
 of `GET /v1/models` for that group, but it must not affect model allow/block
 checks, model mapping, account scheduling, billing, usage recording, or the
-Claude-GPT bridge. The admin candidate endpoint
-`GET /api/v1/admin/groups/:id/models-list-candidates` reads schedulable account
-model mappings when available and otherwise returns platform defaults; saving
-the setting persists only `groups.models_list_config`.
+Claude-GPT bridge. OpenAI and Antigravity have curated discovery lists that are
+not expanded by account mappings; the group custom list can only narrow those
+curated lists. The admin candidate endpoint
+`GET /api/v1/admin/groups/:id/models-list-candidates` uses the same curated
+lists for OpenAI and Antigravity, and uses schedulable account model mappings
+or platform defaults for other platforms. Saving the setting persists only
+`groups.models_list_config`.
 
 OpenAI Claude-GPT bridge mappings are intentionally hidden from OpenAI-platform
 `/v1/models` output when the mapping key is a Claude-family request model and
@@ -266,7 +274,7 @@ normal OpenAI aliases and Antigravity bridge scheduling unchanged.
 | OpenAI image trace logs | `OPENAI_IMAGE_TRACE_LOG=true` emits structured `openai.images.trace` events for `/v1/images/generations` with `model=gpt-image-2` only. Fields are limited to safe timing/correlation data (`request_id`, `client_request_id`, `trace_id`, `account_id`, model, size, quality, stream, status, timestamps, upstream request id); prompts, image bytes/base64, auth headers, cookies, API keys, and full bodies must not be logged. |
 | OpenAI Images account opt-out | `extra.openai_images_endpoint_enabled=false` excludes an OpenAI OAuth/API-key account from independent `/v1/images/*` scheduling only. It must not disable OpenAI chat/responses/embeddings, Claude-GPT bridge, or Codex `/v1/responses` image tool injection. |
 | OpenAI endpoint capabilities | `credentials.openai_capabilities` restricts OpenAI API-key endpoint scheduling for chat completions and embeddings. Missing config means default capabilities are allowed. This is independent from Images endpoint opt-out and Codex image-generation bridge settings. |
-| Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
+| Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. For OpenAI and Antigravity it can only narrow the curated discovery lists. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
 | OpenAI Images upstream 400 passthrough | `OpenAIGatewayHandler.Images` binds an Images request context after parsing `/v1/images/*`. `OpenAIGatewayService.handleErrorResponse` uses that context to return upstream 400 user errors, such as invalid image dimensions, as downstream 400 with the upstream `error.message` and `error.type` instead of masking them as generic 502. Keep this scoped to Images requests. |
 | OpenAI OAuth image timeout/retry | The Codex `/responses` image tool path retries fast no-header transport failures up to 3 total attempts with short backoff. It also wraps the full upstream wait/body read in an image-generation timeout: 1K = 180s, 2K = 240s, 4K/unknown = 360s. Timeout errors return `image_generation_timeout` (504) before any non-streaming response is written; no-header retry exhaustion returns `image_generation_upstream_unreachable` (502). |
 
