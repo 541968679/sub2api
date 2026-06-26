@@ -152,7 +152,11 @@ func (d SoftDeleteMixin) applyQueryPredicate(q ent.Query) error {
 	}
 	predicate := sql.FieldIsNull(d.Fields()[0].Descriptor().Name)
 	fn := reflect.MakeFunc(predicateType, func(args []reflect.Value) []reflect.Value {
-		predicate(args[0].Interface().(*sql.Selector))
+		selector, ok := args[0].Interface().(*sql.Selector)
+		if !ok || selector == nil {
+			return nil
+		}
+		predicate(selector)
 		return nil
 	})
 	predicates := reflect.MakeSlice(reflect.SliceOf(predicateType), 1, 1)
