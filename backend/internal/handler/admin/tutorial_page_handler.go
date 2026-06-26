@@ -19,7 +19,7 @@ import (
 
 const (
 	SettingKeyTutorialContent = "tutorial_page.content"
-	tutorialMaxContentBytes   = 1024 * 1024 // 1 MB markdown
+	tutorialMaxContentBytes   = 1024 * 1024      // 1 MB markdown
 	tutorialMaxImageBytes     = 10 * 1024 * 1024 // 10 MB per image
 	tutorialImageDir          = "data/tutorial-images"
 )
@@ -79,7 +79,7 @@ func (h *TutorialPageHandler) UploadImage(c *gin.Context) {
 		response.ErrorFrom(c, infraerrors.BadRequest("NO_FILE", "no image file in request"))
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if header.Size > tutorialMaxImageBytes {
 		response.ErrorFrom(c, infraerrors.BadRequest("FILE_TOO_LARGE", "image exceeds 10MB limit"))
@@ -110,13 +110,30 @@ func (h *TutorialPageHandler) UploadImage(c *gin.Context) {
 		response.ErrorFrom(c, infraerrors.InternalServer("CREATE_FAILED", err.Error()))
 		return
 	}
-	defer dst.Close()
+	dstClosed := false
+	defer func() {
+		if !dstClosed {
+			_ = dst.Close()
+		}
+	}()
 
 	if _, err := io.Copy(dst, file); err != nil {
-		os.Remove(destPath)
+		closeErr := dst.Close()
+		dstClosed = true
+		if closeErr != nil {
+			err = fmt.Errorf("%w; close upload destination: %v", err, closeErr)
+		}
+		_ = os.Remove(destPath)
 		response.ErrorFrom(c, infraerrors.InternalServer("WRITE_FAILED", err.Error()))
 		return
 	}
+	if err := dst.Close(); err != nil {
+		dstClosed = true
+		_ = os.Remove(destPath)
+		response.ErrorFrom(c, infraerrors.InternalServer("WRITE_FAILED", err.Error()))
+		return
+	}
+	dstClosed = true
 
 	url := fmt.Sprintf("/assets/tutorial/%s", filename)
 	c.JSON(http.StatusOK, gin.H{
