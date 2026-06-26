@@ -454,6 +454,7 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 	return s.settingRepo.SetMultiple(ctx, m)
 }
 
+//nolint:unused // Reserved for partial payment settings serialization.
 func formatBoolOrEmpty(v *bool) string {
 	if v == nil {
 		return ""
@@ -482,6 +483,7 @@ func formatPositiveInt(v *int) string {
 	return strconv.Itoa(*v)
 }
 
+//nolint:unused // Reserved for partial payment settings serialization.
 func derefStr(v *string) string {
 	if v == nil {
 		return ""

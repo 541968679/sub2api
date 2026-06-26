@@ -174,17 +174,16 @@ func mutateWithClient(ctx context.Context, m ent.Mutation, fallback ent.Mutator)
 	if mutateMethod.Type().NumIn() != 2 || mutateMethod.Type().NumOut() != 2 {
 		return nil, fmt.Errorf("soft delete: mutation client signature mismatch for %T", m)
 	}
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if !mutateMethod.Type().Out(1).AssignableTo(errorType) {
+		return nil, fmt.Errorf("soft delete: mutation client error return mismatch for %T", m)
+	}
 
 	results := mutateMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(m)})
 	value := results[0].Interface()
 	var err error
 	if !results[1].IsNil() {
-		//nolint:errcheck // ok is checked; errcheck misidentifies reflected error extraction.
-		typedErr, ok := results[1].Interface().(error)
-		if !ok {
-			return nil, fmt.Errorf("soft delete: unexpected error type %T for %T", results[1].Interface(), m)
-		}
-		err = typedErr
+		reflect.ValueOf(&err).Elem().Set(results[1])
 	}
 	if err != nil {
 		return nil, err

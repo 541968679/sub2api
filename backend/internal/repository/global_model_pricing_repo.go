@@ -23,7 +23,7 @@ func NewGlobalModelPricingRepository(db *sql.DB) service.GlobalModelPricingRepos
 
 func (r *globalModelPricingRepository) List(ctx context.Context, params pagination.PaginationParams, search, provider string) ([]service.GlobalModelPricing, *pagination.PaginationResult, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	if search != "" {
