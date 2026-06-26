@@ -25,7 +25,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/h2c" //nolint:staticcheck // Preserve existing h2c setup until the Go 1.26 http.Server Protocols migration is planned.
 )
 
 //go:embed VERSION
@@ -118,7 +118,7 @@ func runSetupServer() {
 
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           h2c.NewHandler(r, &http2.Server{}),
+		Handler:           h2c.NewHandler(r, &http2.Server{}), //nolint:staticcheck // Preserve current unencrypted HTTP/2 behavior.
 		ReadHeaderTimeout: 30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}

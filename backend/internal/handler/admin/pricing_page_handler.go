@@ -95,7 +95,7 @@ func (h *PricingPageHandler) Update(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, pricingPageContentResponse{Intro: req.Intro, Education: req.Education})
+	response.Success(c, pricingPageContentResponse(req))
 }
 
 // loadValue 读取 key 对应的值；未保存 / 空字符串回落到 fallback。

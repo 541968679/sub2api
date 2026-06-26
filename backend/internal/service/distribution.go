@@ -827,7 +827,7 @@ func (s *DistributionService) DisableAsset(ctx context.Context, userID, assetID 
 			return infraerrors.Conflict("DISTRIBUTION_ASSET_REFUNDED", "distribution asset has already been refunded")
 		}
 
-		nextStatus := DistributionAssetStatusDisabled
+		var nextStatus string
 		switch asset.AssetType {
 		case DistributionAssetTypeBalanceRedeemCode, DistributionAssetTypeSubscriptionRedeemCode:
 			if s.redeem == nil {

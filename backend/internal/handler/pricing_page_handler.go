@@ -40,8 +40,8 @@ func NewPricingPageHandler(
 
 // pricingPagePlatform 按平台聚合的价格分组
 type pricingPagePlatform struct {
-	Provider string              `json:"provider"`
-	Models   []pricingPageModel  `json:"models"`
+	Provider string             `json:"provider"`
+	Models   []pricingPageModel `json:"models"`
 }
 
 // pricingPageModel 单个模型的展示信息

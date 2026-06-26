@@ -19,15 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
-## [2026-06-26] chore: satisfy CI errcheck annotations
+## [2026-06-26] chore: satisfy CI lint annotations
 
-**Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/repository/usage_log_repo.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/repository/announcement_read_repo.go, backend/internal/handler/admin/tutorial_page_handler.go, backend/ent/schema/mixins/soft_delete.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: no intended behavior change except returning an upload write error if closing the destination file fails. The rest only makes existing ignored cleanup/write errors explicit for golangci-lint.
+**Affected files**: backend/cmd/server/main.go, backend/ent/schema/mixins/soft_delete.go, backend/internal/service/credit_snapshot_service.go, backend/internal/service/distribution.go, backend/internal/repository/ops_repo.go, backend/internal/repository/usage_log_repo.go, backend/internal/repository/usage_log_repo_request_type_test.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/repository/announcement_read_repo.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/tutorial_page_handler.go, backend/internal/handler/admin/pricing_page_handler.go, backend/internal/handler/pricing_page_handler.go, backend/tools/smoke/main.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: no intended behavior change except returning an upload write error if closing the destination file fails. The rest only makes existing ignored cleanup/write errors explicit or satisfies staticcheck/gofmt annotations for golangci-lint.
 **Change details**:
 - Logged scheduled credit snapshot capture failures instead of dropping the returned error.
 - Made intentionally ignored `strings.Builder.WriteString`, `Rows.Close`, uploaded multipart file close, and cleanup remove errors explicit.
 - Propagated destination-file close failures from tutorial image upload as a write failure and cleaned up the partial file.
-- Simplified soft-delete reflection error extraction so errcheck no longer treats the reflected error as ignored.
+- Added a nil filter guard for ops error-log query building, removed an ineffectual distribution assignment, used a direct pricing content response conversion, and kept current h2c behavior with precise staticcheck suppressions.
+- Formatted the pricing repository/handler files and updated the stale usage stats SQL mock column list.
 
 ## [2026-06-26] chore: track frontend `form-data` audit exception
 

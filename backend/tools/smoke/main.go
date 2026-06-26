@@ -131,7 +131,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "smoke: %v\n", err)
 		os.Exit(2)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	suites := expandSuites(suiteArg)
 	r := &smokeRunner{
@@ -570,7 +570,7 @@ func (r *smokeRunner) request(ctx context.Context, method, rawURL string, header
 	if err != nil {
 		return nil, nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	return resp, data, err
 }
