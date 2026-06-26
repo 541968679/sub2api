@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-26] fix: default new users to downstream display usage tokens
+
+**Affected files**: backend/internal/service/user.go, backend/ent/schema/user.go, backend/migrations/169_default_downstream_usage_token_mode_display.sql, backend/internal/service/admin_service_update_user_rpm_test.go, backend/internal/service/user_defaults_test.go, backend/ent/schema/auth_identity_schema_test.go, frontend/src/components/admin/user/UserEditModal.vue, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local default behavior for the existing `users.downstream_usage_token_mode` setting. Explicit `real` remains supported; existing users keep their stored mode. New users and missing internal values now default to `display`.
+**Change details**:
+- Changed `NormalizeDownstreamUsageTokenMode` and the shared default constant so empty or internal fallback values resolve to `display`.
+- Changed the Ent schema default and added migration 169 to update the PostgreSQL column default for production.
+- Updated the admin user edit modal fallback from `real` to `display` so unset legacy payloads match the backend default.
+- Updated focused service/schema tests and billing documentation to lock the default.
+
 ## [2026-06-26] improve: curate OpenAI and Antigravity `/v1/models` discovery lists
 
 **Affected files**: backend/internal/service/models_list_policy.go, backend/internal/service/admin_service.go, backend/internal/service/models_list_policy_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_models_list_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md

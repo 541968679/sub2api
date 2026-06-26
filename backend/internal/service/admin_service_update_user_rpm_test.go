@@ -124,7 +124,7 @@ func TestAdminService_UpdateUser_ApprovesPendingApprovalUser(t *testing.T) {
 	require.Equal(t, StatusActive, base.user.Status)
 }
 
-func TestAdminService_CreateUser_DefaultsDownstreamUsageTokenModeReal(t *testing.T) {
+func TestAdminService_CreateUser_DefaultsDownstreamUsageTokenModeDisplay(t *testing.T) {
 	repo := &userRepoStub{nextID: 101}
 	svc := &adminServiceImpl{
 		userRepo: repo,
@@ -138,7 +138,7 @@ func TestAdminService_CreateUser_DefaultsDownstreamUsageTokenModeReal(t *testing
 	})
 	require.NoError(t, err)
 	require.NotNil(t, created)
-	require.Equal(t, DownstreamUsageTokenModeReal, created.DownstreamUsageTokenMode)
+	require.Equal(t, DownstreamUsageTokenModeDisplay, created.DownstreamUsageTokenMode)
 	require.Len(t, repo.created, 1)
-	require.Equal(t, DownstreamUsageTokenModeReal, repo.created[0].DownstreamUsageTokenMode)
+	require.Equal(t, DownstreamUsageTokenModeDisplay, repo.created[0].DownstreamUsageTokenMode)
 }

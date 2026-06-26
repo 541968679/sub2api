@@ -102,7 +102,7 @@ const form = reactive({
   notes: '',
   concurrency: 1,
   rpm_limit: 0,
-  downstream_usage_token_mode: 'real' as DownstreamUsageTokenMode,
+  downstream_usage_token_mode: 'display' as DownstreamUsageTokenMode,
   customAttributes: {} as UserAttributeValuesMap
 })
 
@@ -116,7 +116,7 @@ watch(() => props.user, (u) => {
       notes: u.notes || '',
       concurrency: u.concurrency,
       rpm_limit: u.rpm_limit ?? 0,
-      downstream_usage_token_mode: u.downstream_usage_token_mode ?? 'real',
+      downstream_usage_token_mode: u.downstream_usage_token_mode ?? 'display',
       customAttributes: {}
     })
     passwordCopied.value = false

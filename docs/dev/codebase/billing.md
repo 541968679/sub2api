@@ -343,9 +343,10 @@ pricing APIs no longer expose them, and the frontend no longer renders the field
 
 `users.downstream_usage_token_mode` controls only the token counts returned in
 downstream Claude Messages, Antigravity, and OpenAI HTTP Responses / Chat
-Completions response `usage` fields:
+Completions response `usage` fields. New users default to `display`; existing
+users keep their stored mode unless an admin changes it:
 
-- `real` is the default and returns the real upstream token counts.
+- `real` returns the real upstream token counts.
 - `display` reuses `display_token_rewrite.go` to rewrite Claude/Antigravity
   and OpenAI HTTP response usage tokens with the same display pricing chain used
   by usage logs: global display prices plus user model display overrides, then

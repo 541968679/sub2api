@@ -75,7 +75,7 @@ func TestAuthIdentityFoundationSchemas(t *testing.T) {
 	requireHasUniqueIndex(t, adoptionDecision, "pending_auth_session_id")
 
 	userSchema := requireSchema(t, schemas, "User")
-	requireSchemaFields(t, userSchema, "signup_source", "last_login_at", "last_active_at")
+	requireSchemaFields(t, userSchema, "signup_source", "last_login_at", "last_active_at", "downstream_usage_token_mode")
 	signupSource := requireSchemaField(t, userSchema, "signup_source")
 	require.Equal(t, field.TypeString, signupSource.Info.Type)
 	require.True(t, signupSource.Default)
@@ -87,6 +87,22 @@ func TestAuthIdentityFoundationSchemas(t *testing.T) {
 		require.NoError(t, validator(value))
 	}
 	require.Error(t, validator("not-a-source"))
+
+	downstreamUsageTokenMode := requireSchemaField(t, userSchema, "downstream_usage_token_mode")
+	require.Equal(t, field.TypeString, downstreamUsageTokenMode.Info.Type)
+	require.True(t, downstreamUsageTokenMode.Default)
+	require.Equal(t, "display", downstreamUsageTokenMode.DefaultValue)
+	require.Equal(t, 2, downstreamUsageTokenMode.Validators)
+
+	downstreamUsageTokenModeValidators := requireStringFieldValidators(t, User{}.Fields(), "downstream_usage_token_mode")
+	var downstreamUsageTokenModeEnumValidator func(string) error
+	for _, validator := range downstreamUsageTokenModeValidators {
+		if validator("real") == nil && validator("display") == nil && validator("raw") != nil {
+			downstreamUsageTokenModeEnumValidator = validator
+			break
+		}
+	}
+	require.NotNil(t, downstreamUsageTokenModeEnumValidator, "downstream_usage_token_mode should include an enum validator")
 }
 
 func requireSchema(t *testing.T, schemas map[string]*load.Schema, name string) *load.Schema {
@@ -127,15 +143,26 @@ func requireSchemaField(t *testing.T, schema *load.Schema, name string) *load.Fi
 func requireStringFieldValidator(t *testing.T, fields []ent.Field, name string) func(string) error {
 	t.Helper()
 
+	validators := requireStringFieldValidators(t, fields, name)
+	return validators[0]
+}
+
+func requireStringFieldValidators(t *testing.T, fields []ent.Field, name string) []func(string) error {
+	t.Helper()
+
 	for _, entField := range fields {
 		descriptor := entField.Descriptor()
 		if descriptor.Name != name {
 			continue
 		}
 		require.NotEmpty(t, descriptor.Validators, "field %s should include a validator", name)
-		validator, ok := descriptor.Validators[0].(func(string) error)
-		require.True(t, ok, "field %s validator should be func(string) error", name)
-		return validator
+		validators := make([]func(string) error, 0, len(descriptor.Validators))
+		for _, rawValidator := range descriptor.Validators {
+			validator, ok := rawValidator.(func(string) error)
+			require.True(t, ok, "field %s validator should be func(string) error", name)
+			validators = append(validators, validator)
+		}
+		return validators
 	}
 
 	require.Failf(t, "missing field validator", "schema should include field %s", name)
