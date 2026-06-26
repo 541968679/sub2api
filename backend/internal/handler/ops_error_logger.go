@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"runtime"
 	"runtime/debug"
@@ -22,9 +23,10 @@ import (
 )
 
 const (
-	opsModelKey     = "ops_model"
-	opsStreamKey    = "ops_stream"
-	opsAccountIDKey = "ops_account_id"
+	opsModelKey                  = "ops_model"
+	opsStreamKey                 = "ops_stream"
+	opsAccountIDKey              = "ops_account_id"
+	opsRoutingCapacityLimitedKey = "ops_routing_capacity_limited"
 
 	opsUpstreamModelKey = "ops_upstream_model"
 	opsRequestTypeKey   = "ops_request_type"
@@ -373,6 +375,42 @@ func setOpsSelectedAccount(c *gin.Context, accountID int64, platform ...string) 
 		}
 		c.Request = c.Request.WithContext(ctx)
 	}
+}
+
+func markOpsRoutingCapacityLimited(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	c.Set(opsRoutingCapacityLimitedKey, true)
+}
+
+func markOpsRoutingCapacityLimitedIfNoAvailable(c *gin.Context, err error) {
+	if !isOpsNoAvailableAccountError(err) {
+		return
+	}
+	markOpsRoutingCapacityLimited(c)
+}
+
+func isOpsRoutingCapacityLimited(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	v, ok := c.Get(opsRoutingCapacityLimitedKey)
+	if !ok {
+		return false
+	}
+	marked, _ := v.(bool)
+	return marked
+}
+
+func isOpsNoAvailableAccountError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, service.ErrNoAvailableAccounts) || errors.Is(err, service.ErrNoAvailableCompactAccounts) {
+		return true
+	}
+	return isOpsNoAvailableAccountMessage(err.Error())
 }
 
 type opsCaptureWriter struct {
@@ -753,6 +791,9 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		normalizedType := normalizeOpsErrorType(parsed.ErrorType, parsed.Code)
 
 		phase := classifyOpsPhase(normalizedType, parsed.Message, parsed.Code)
+		if isOpsRoutingCapacityLimited(c) {
+			phase = "routing"
+		}
 		isBusinessLimited := classifyOpsIsBusinessLimited(normalizedType, phase, parsed.Code, status, parsed.Message)
 
 		errorOwner := classifyOpsErrorOwner(phase, parsed.Message)
@@ -1137,13 +1178,24 @@ func classifyOpsPhase(errType, message, code string) string {
 	case "upstream_error", "overloaded_error":
 		return "upstream"
 	case "api_error":
-		if strings.Contains(msg, opsErrNoAvailableAccounts) {
+		if isOpsNoAvailableAccountMessage(msg) {
 			return "routing"
 		}
 		return "internal"
 	default:
 		return "internal"
 	}
+}
+
+func isOpsNoAvailableAccountMessage(message string) bool {
+	msg := strings.ToLower(message)
+	return strings.Contains(msg, opsErrNoAvailableAccounts) ||
+		strings.Contains(msg, "no available account") ||
+		strings.Contains(msg, "no available gemini accounts") ||
+		strings.Contains(msg, "no available openai accounts") ||
+		strings.Contains(msg, "no available compatible accounts") ||
+		strings.Contains(msg, "no account supports") ||
+		strings.Contains(msg, "model_not_found")
 }
 
 func classifyOpsSeverity(errType string, status int) string {
