@@ -179,7 +179,8 @@ func mutateWithClient(ctx context.Context, m ent.Mutation, fallback ent.Mutator)
 	value := results[0].Interface()
 	var err error
 	if !results[1].IsNil() {
-		typedErr, ok := results[1].Interface().(error) //nolint:errcheck // ok is checked; errcheck misidentifies reflected error extraction.
+		//nolint:errcheck // ok is checked; errcheck misidentifies reflected error extraction.
+		typedErr, ok := results[1].Interface().(error)
 		if !ok {
 			return nil, fmt.Errorf("soft delete: unexpected error type %T for %T", results[1].Interface(), m)
 		}
