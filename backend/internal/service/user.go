@@ -10,14 +10,18 @@ import (
 const (
 	DownstreamUsageTokenModeReal    = "real"
 	DownstreamUsageTokenModeDisplay = "display"
+
+	DefaultDownstreamUsageTokenMode = DownstreamUsageTokenModeDisplay
 )
 
 func NormalizeDownstreamUsageTokenMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case DownstreamUsageTokenModeReal:
+		return DownstreamUsageTokenModeReal
 	case DownstreamUsageTokenModeDisplay:
 		return DownstreamUsageTokenModeDisplay
 	default:
-		return DownstreamUsageTokenModeReal
+		return DefaultDownstreamUsageTokenMode
 	}
 }
 

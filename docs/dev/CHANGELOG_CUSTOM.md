@@ -19,6 +19,58 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-26] chore: satisfy CI lint annotations
+
+**Affected files**: backend/cmd/server/main.go, backend/ent/schema/mixins/soft_delete.go, backend/internal/server/http.go, backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go, backend/internal/service/distribution.go, backend/internal/service/image_generation_intent.go, backend/internal/service/image_output_accounting.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/openai_messages_bridge.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_compat_prompt_cache_key.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/payment_amounts.go, backend/internal/service/payment_config_service.go, backend/internal/pkg/antigravity/schema_cleaner.go, backend/internal/pkg/tlsfingerprint/dialer_capture_test.go, backend/internal/repository/ops_repo.go, backend/internal/repository/usage_log_repo.go, backend/internal/repository/usage_log_repo_request_type_test.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/repository/announcement_read_repo.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/tutorial_page_handler.go, backend/internal/handler/admin/pricing_page_handler.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/handler/pricing_page_handler.go, backend/tools/smoke/main.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: no intended behavior change except returning an upload write error if closing the destination file fails. The rest only makes existing ignored cleanup/write errors explicit or satisfies staticcheck/gofmt annotations for golangci-lint.
+**Change details**:
+- Logged scheduled credit snapshot capture failures instead of dropping the returned error.
+- Made intentionally ignored `strings.Builder.WriteString`, `Rows.Close`, uploaded multipart file close, and cleanup remove errors explicit.
+- Propagated destination-file close failures from tutorial image upload as a write failure and cleaned up the partial file.
+- Added a nil filter guard for ops error-log query building, removed an ineffectual distribution assignment, used a direct pricing content response conversion, and kept current h2c behavior with precise staticcheck suppressions.
+- Removed a stray local type declaration from Antigravity schema cleaning, added precise unused suppressions for retained helper/request types across bridge, websocket, image accounting, payment, and pricing code, documented an intentional `time.Time` location-identity comparison in the credit snapshot test, formatted the pricing repository/handler files, and updated the stale usage stats SQL mock column list.
+- Made the default TLS fingerprint capture-server integration test skip only certificate validity failures from the bundled external URL so an expired external cert does not block unrelated releases; explicit `TLSFINGERPRINT_CAPTURE_URL` overrides still fail on TLS validity errors.
+
+## [2026-06-26] chore: track frontend `form-data` audit exception
+
+**Affected files**: .github/audit-exceptions.yml, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: CI/security metadata only; no runtime behavior change.
+**Change details**:
+- Added a short-lived audit exception for `form-data` GHSA-hmw2-7cc7-3qxx because the browser frontend does not use Node-side multipart field-name or filename construction, and the current lockfile already resolves `form-data` to 4.0.5.
+- Kept the exception expiring on 2026-07-10 so the next axios/jsdom dependency refresh must revisit it.
+
+## [2026-06-26] fix: default new users to downstream display usage tokens
+
+**Affected files**: backend/internal/service/user.go, backend/ent/schema/user.go, backend/migrations/169_default_downstream_usage_token_mode_display.sql, backend/internal/service/admin_service_update_user_rpm_test.go, backend/internal/service/user_defaults_test.go, backend/ent/schema/auth_identity_schema_test.go, frontend/src/components/admin/user/UserEditModal.vue, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local default behavior for the existing `users.downstream_usage_token_mode` setting. Explicit `real` remains supported; existing users keep their stored mode. New users and missing internal values now default to `display`.
+**Change details**:
+- Changed `NormalizeDownstreamUsageTokenMode` and the shared default constant so empty or internal fallback values resolve to `display`.
+- Changed the Ent schema default and added migration 169 to update the PostgreSQL column default for production.
+- Updated the admin user edit modal fallback from `real` to `display` so unset legacy payloads match the backend default.
+- Updated focused service/schema tests and billing documentation to lock the default.
+
+## [2026-06-26] improve: curate OpenAI and Antigravity `/v1/models` discovery lists
+
+**Affected files**: backend/internal/service/models_list_policy.go, backend/internal/service/admin_service.go, backend/internal/service/models_list_policy_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_models_list_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local presentation policy for model discovery. It only changes `/v1/models`, `/antigravity/models`, `/antigravity/v1/models`, and the admin custom-model-list candidate choices for OpenAI/Antigravity. Scheduling, group allow/block checks, account model mapping, bridge forwarding, billing, and usage recording are unchanged.
+**Change details**:
+- Added shared `GatewayModelDiscoveryIDsForPlatform` policy: OpenAI exposes only `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`; Antigravity exposes only `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-haiku-4-5`, `claude-sonnet-4-6`.
+- `GatewayHandler.Models` now returns these curated lists before account-derived `model_mapping` aggregation for OpenAI/Antigravity. Group `models_list_config` can narrow the curated list but cannot expand it.
+- `/antigravity/models` and `/antigravity/v1/models` now use the same curated Antigravity discovery list while preserving display names from the Antigravity default model metadata.
+- Admin `GET /api/v1/admin/groups/:id/models-list-candidates` uses the same curated candidates for OpenAI/Antigravity so the group custom-list UI cannot select models that the gateway will hide.
+- Verified: `go test -tags=unit ./internal/handler -run 'TestGatewayHandlerModels|TestGatewayHandlerAntigravityModels'`; `go test -tags=unit ./internal/service -run 'TestGatewayModelDiscoveryIDsForPlatform|TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy'`.
+
+## [2026-06-26] fix: hide Claude-GPT bridge-only mappings from OpenAI `/v1/models`
+
+**Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_hotpath_optimization_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local guard around the existing additive OpenAI Claude-GPT bridge. It only changes the presentation model list returned for OpenAI-platform API keys; model allow/block checks, model mapping, account scheduling, billing, usage recording, and Antigravity bridge forwarding are unchanged.
+**Change details**:
+- Root cause: `GatewayService.GetAvailableModels` aggregates `credentials.model_mapping` keys from schedulable accounts. OpenAI bridge accounts are still OpenAI accounts, so a mapping such as `claude-opus-4-8 -> gpt-5.5` was included in OpenAI-platform `/v1/models` discovery.
+- Added a narrow service-layer filter that hides bridge-only Claude-family mapping keys from OpenAI `/v1/models` when `extra.openai_claude_gpt_bridge_enabled=true` and the mapping resolves to a distinct upstream OpenAI model.
+- Preserved normal OpenAI model aliases such as `gpt-alias -> gpt-5.4`; when a group only has bridge-only Claude mappings, the model-list path falls back to platform defaults instead of exposing Claude IDs.
+- Added a focused regression test for mixed OpenAI alias + Claude-GPT bridge mappings and bridge-only fallback behavior.
+- Verified: `go test -tags=unit ./internal/service -run 'TestGetAvailableModels'` passes.
+
 ## [2026-06-21] feat: hide in-app tutorial page, route tutorial entries to a configurable (Feishu) link
 
 **Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/handler/dto/settings.go, backend/internal/handler/setting_handler.go, backend/internal/handler/admin/setting_handler.go, backend/internal/server/api_contract_test.go, frontend/src/types/index.ts, frontend/src/stores/app.ts, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/components/user/dashboard/UserDashboardQuickActions.vue, frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/views/user/KeysView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/CHANGELOG_CUSTOM.md

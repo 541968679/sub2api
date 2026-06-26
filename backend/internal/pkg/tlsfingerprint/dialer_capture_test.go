@@ -4,7 +4,9 @@ package tlsfingerprint
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -14,6 +16,8 @@ import (
 
 	utls "github.com/refraction-networking/utls"
 )
+
+const defaultTLSFingerprintCaptureURL = "https://tls.sub2api.org:8090"
 
 // CapturedFingerprint mirrors the Fingerprint struct from tls-fingerprint-web.
 // Used to deserialize the JSON response from the capture server.
@@ -45,7 +49,7 @@ type CapturedFingerprint struct {
 func TestDialerAgainstCaptureServer(t *testing.T) {
 	captureURL := os.Getenv("TLSFINGERPRINT_CAPTURE_URL")
 	if captureURL == "" {
-		captureURL = "https://tls.sub2api.org:8090"
+		captureURL = defaultTLSFingerprintCaptureURL
 	}
 
 	tests := []struct {
@@ -211,6 +215,10 @@ func fetchCapturedFingerprint(t *testing.T, captureURL string, profile *Profile)
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if captureURL == defaultTLSFingerprintCaptureURL && isCertificateValidityError(err) {
+			t.Skipf("default capture server TLS certificate is not currently valid: %v", err)
+			return nil
+		}
 		t.Fatalf("request failed: %v", err)
 		return nil
 	}
@@ -230,6 +238,14 @@ func fetchCapturedFingerprint(t *testing.T, captureURL string, profile *Profile)
 	}
 
 	return &fp
+}
+
+func isCertificateValidityError(err error) bool {
+	var certInvalid x509.CertificateInvalidError
+	if errors.As(err, &certInvalid) {
+		return certInvalid.Reason == x509.Expired
+	}
+	return strings.Contains(err.Error(), "certificate has expired or is not yet valid")
 }
 
 func uint16sToInts(vals []uint16) []int {

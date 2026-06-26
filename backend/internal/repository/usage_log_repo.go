@@ -2813,7 +2813,7 @@ func (r *usageLogRepository) GetUserModelStats(ctx context.Context, userID int64
 // (used for the all-time dashboard totals, where loading every row is infeasible).
 func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) (groups []usagestats.DisplayAggregateGroup, err error) {
 	var sb strings.Builder
-	sb.WriteString(`
+	_, _ = sb.WriteString(`
 		SELECT
 			model,
 			group_id,
@@ -2838,17 +2838,17 @@ func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, 
 	args := []any{userID}
 	if apiKeyID > 0 {
 		args = append(args, apiKeyID)
-		sb.WriteString(fmt.Sprintf(" AND api_key_id = $%d", len(args)))
+		_, _ = sb.WriteString(fmt.Sprintf(" AND api_key_id = $%d", len(args)))
 	}
 	if startTime != nil {
 		args = append(args, *startTime)
-		sb.WriteString(fmt.Sprintf(" AND created_at >= $%d", len(args)))
+		_, _ = sb.WriteString(fmt.Sprintf(" AND created_at >= $%d", len(args)))
 	}
 	if endTime != nil {
 		args = append(args, *endTime)
-		sb.WriteString(fmt.Sprintf(" AND created_at < $%d", len(args)))
+		_, _ = sb.WriteString(fmt.Sprintf(" AND created_at < $%d", len(args)))
 	}
-	sb.WriteString(`
+	_, _ = sb.WriteString(`
 		GROUP BY model, group_id, rate_multiplier, long_context_applied,
 			long_context_input_multiplier, long_context_output_multiplier`)
 

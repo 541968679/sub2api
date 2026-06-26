@@ -182,6 +182,7 @@ func computeDisplayTokenMultipliers(
 	return mult
 }
 
+//nolint:unused // Kept as a GatewayService-bound adapter for callers that need service-owned pricing resolution.
 func (s *GatewayService) resolveDisplayTokenPricing(ctx context.Context, model string, userID int64, groupID *int64) displayTokenPricingConfig {
 	var resolver *ModelPricingResolver
 	if s != nil {

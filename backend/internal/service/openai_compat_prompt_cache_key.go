@@ -69,6 +69,7 @@ func deriveCompatPromptCacheKey(req *apicompat.ChatCompletionsRequest, mappedMod
 	return compatPromptCacheKeyPrefix + hashSensitiveValueForLog(strings.Join(seedParts, "|"))
 }
 
+//nolint:unused // Reserved for Anthropic-to-OpenAI compat bridge prompt cache keys.
 func deriveAnthropicCompatPromptCacheKey(req *apicompat.AnthropicRequest, mappedModel string) string {
 	if req == nil {
 		return ""

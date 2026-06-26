@@ -12,6 +12,7 @@ func TestCreditCurveBucketKeyIgnoresLocationIdentity(t *testing.T) {
 	a := time.Date(2026, 5, 6, 13, 16, 33, 0, shanghai)
 	b := time.Date(2026, 5, 6, 13, 16, 33, 0, sameOffset)
 
+	//nolint:staticcheck // Intentionally checks time.Location identity, not instant equality.
 	if creditCurveBucketStart(a, creditCurveGranularityHour) == creditCurveBucketStart(b, creditCurveGranularityHour) {
 		t.Fatal("test setup expected time.Time equality to differ by location identity")
 	}

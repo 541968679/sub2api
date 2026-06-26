@@ -114,7 +114,7 @@ func (User) Fields() []ent.Field {
 			Default(0),
 		field.String("downstream_usage_token_mode").
 			MaxLen(20).
-			Default("real").
+			Default("display").
 			Validate(func(value string) error {
 				switch value {
 				case "real", "display":

@@ -1548,6 +1548,7 @@ func openAIWSRawItemsHasPrefix(items []json.RawMessage, prefix []json.RawMessage
 	return true
 }
 
+//nolint:unused // Reserved for websocket transcript validation on function-call output batches.
 func openAIWSRawItemsHasFunctionCallOutput(items []json.RawMessage) bool {
 	for _, item := range items {
 		if isCodexToolCallOutputItemType(gjson.GetBytes(item, "type").String()) {
@@ -1557,6 +1558,7 @@ func openAIWSRawItemsHasFunctionCallOutput(items []json.RawMessage) bool {
 	return false
 }
 
+//nolint:unused // Reserved for websocket transcript validation on mixed tool-call batches.
 func openAIWSRawItemsHaveToolCallContextForOutputs(items []json.RawMessage) bool {
 	if len(items) == 0 {
 		return false

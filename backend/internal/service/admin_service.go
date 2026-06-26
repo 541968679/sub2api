@@ -1522,6 +1522,10 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 		platform = PlatformAnthropic
 	}
 
+	if candidates, ok := GatewayModelDiscoveryIDsForPlatform(platform); ok {
+		return normalizeModelsListCandidates(candidates), nil
+	}
+
 	candidates := make([]string, 0)
 	if s.accountRepo != nil && id > 0 {
 		accounts, err := s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, id, platform)
@@ -1541,6 +1545,9 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 }
 
 func defaultModelsListCandidatesForPlatform(platform string) []string {
+	if ids, ok := GatewayModelDiscoveryIDsForPlatform(platform); ok {
+		return ids
+	}
 	switch platform {
 	case PlatformOpenAI:
 		return openai.DefaultModelIDs()

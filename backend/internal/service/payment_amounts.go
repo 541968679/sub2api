@@ -15,6 +15,7 @@ func normalizeBalanceRechargeMultiplier(multiplier float64) float64 {
 	return multiplier
 }
 
+//nolint:unused // Reserved for payment callbacks that credit balance directly from recharge amount.
 func calculateCreditedBalance(paymentAmount, multiplier float64) float64 {
 	return decimal.NewFromFloat(paymentAmount).
 		Mul(decimal.NewFromFloat(normalizeBalanceRechargeMultiplier(multiplier))).

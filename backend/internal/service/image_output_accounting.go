@@ -191,12 +191,14 @@ func collectOpenAIResponseImageOutputSizesFromJSONBytes(body []byte) []string {
 	return counter.Sizes()
 }
 
+//nolint:unused // Reserved for SSE image accounting paths that are enabled by provider-specific flows.
 func countOpenAIImageOutputsFromSSEBody(body string) int {
 	counter := newOpenAIImageOutputCounter()
 	counter.AddSSEBody(body)
 	return counter.Count()
 }
 
+//nolint:unused // Reserved for SSE image accounting paths that need generated image sizes.
 func collectOpenAIImageOutputSizesFromSSEBody(body string) []string {
 	counter := newOpenAIImageOutputCounter()
 	counter.AddSSEBody(body)

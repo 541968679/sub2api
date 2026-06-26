@@ -1340,6 +1340,8 @@ func isOpenAIAccountEligibleForScheduleRequest(account *Account, req openAIAccou
 
 // isOpenAIAccountEligibleForRequest keeps the legacy call shape for normal
 // OpenAI selection paths.
+//
+//nolint:unused // Kept for legacy call sites that do not pass scheduler eligibility structs.
 func isOpenAIAccountEligibleForRequest(account *Account, requestedModel string, requireCompact bool) bool {
 	return isOpenAIAccountEligibleForScheduleRequest(account, openAIAccountRequestEligibility{
 		RequestedModel: requestedModel,
@@ -1459,6 +1461,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForSchedule(ctx con
 //
 // tryStickySessionHit attempts to get account from sticky session.
 // Returns account if hit and usable; clears session and returns nil if account is unavailable.
+//
+//nolint:unused // Legacy wrapper retained for non-scheduler sticky-session callers.
 func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID *int64, sessionHash, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64) *Account {
 	return s.tryStickySessionHitForSchedule(ctx, groupID, sessionHash, requestedModel, excludedIDs, openAIAccountRequestEligibility{
 		RequestedModel: requestedModel,
@@ -1528,6 +1532,8 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 // Returns nil if no available account. The second return reports whether at
 // least one candidate was filtered out solely because it lacks compact support
 // (only meaningful when requireCompact=true).
+//
+//nolint:unused // Legacy wrapper retained for non-scheduler account selection callers.
 func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *int64, accounts []Account, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool) (*Account, bool) {
 	return s.selectBestAccountForSchedule(ctx, groupID, accounts, requestedModel, excludedIDs, openAIAccountRequestEligibility{
 		RequestedModel: requestedModel,
@@ -1953,6 +1959,7 @@ func (s *OpenAIGatewayService) tryAcquireAccountSlot(ctx context.Context, accoun
 	return s.concurrencyService.AcquireAccountSlot(ctx, accountID, maxConcurrency)
 }
 
+//nolint:unused // Legacy wrapper retained for non-scheduler freshness checks.
 func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.Context, account *Account, requestedModel string, requireCompact bool) *Account {
 	return s.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, account, openAIAccountRequestEligibility{
 		RequestedModel: requestedModel,

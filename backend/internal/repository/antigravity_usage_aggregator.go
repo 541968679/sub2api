@@ -72,7 +72,7 @@ func (r *antigravityUsageAggregator) AggregateUsageWindows(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	windows := make([]service.AntigravityUsageWindow, 0)
 	for rows.Next() {

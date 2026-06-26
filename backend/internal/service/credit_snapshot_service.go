@@ -75,7 +75,9 @@ func (s *CreditSnapshotService) Initialize() error {
 		for {
 			select {
 			case <-ticker.C:
-				s.safeCapture(context.Background(), "scheduled")
+				if _, err := s.safeCapture(context.Background(), "scheduled"); err != nil {
+					logger.LegacyPrintf(creditSnapshotLogComponent, "[CreditSnapshot] Scheduled capture failed: %v", err)
+				}
 			case <-s.stopCh:
 				return
 			}

@@ -54,6 +54,7 @@ type createGlobalOverrideRequest struct {
 	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
 
+//nolint:unused // Reserved for partial update payloads; create/update currently share service DTO mapping directly.
 type updateGlobalOverrideRequest struct {
 	Model            string   `json:"model" binding:"omitempty,max=255"`
 	Provider         string   `json:"provider" binding:"omitempty,max=50"`

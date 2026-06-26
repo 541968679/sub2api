@@ -152,7 +152,11 @@ func (d SoftDeleteMixin) applyQueryPredicate(q ent.Query) error {
 	}
 	predicate := sql.FieldIsNull(d.Fields()[0].Descriptor().Name)
 	fn := reflect.MakeFunc(predicateType, func(args []reflect.Value) []reflect.Value {
-		predicate(args[0].Interface().(*sql.Selector))
+		selector, ok := args[0].Interface().(*sql.Selector)
+		if !ok || selector == nil {
+			return nil
+		}
+		predicate(selector)
 		return nil
 	})
 	predicates := reflect.MakeSlice(reflect.SliceOf(predicateType), 1, 1)
@@ -174,17 +178,16 @@ func mutateWithClient(ctx context.Context, m ent.Mutation, fallback ent.Mutator)
 	if mutateMethod.Type().NumIn() != 2 || mutateMethod.Type().NumOut() != 2 {
 		return nil, fmt.Errorf("soft delete: mutation client signature mismatch for %T", m)
 	}
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if !mutateMethod.Type().Out(1).AssignableTo(errorType) {
+		return nil, fmt.Errorf("soft delete: mutation client error return mismatch for %T", m)
+	}
 
-	results := mutateMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(m)})
+	results := mutateMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(m)}) //nolint:errcheck // Reflected Mutate error is returned in results[1] and checked below.
 	value := results[0].Interface()
 	var err error
 	if !results[1].IsNil() {
-		errValue := results[1].Interface()
-		typedErr, ok := errValue.(error)
-		if !ok {
-			return nil, fmt.Errorf("soft delete: unexpected error type %T for %T", errValue, m)
-		}
-		err = typedErr
+		reflect.ValueOf(&err).Elem().Set(results[1])
 	}
 	if err != nil {
 		return nil, err
