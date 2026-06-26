@@ -133,8 +133,18 @@ docs/*
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/legal/
 !docs/legal/*.md
+!docs/ops/
+!docs/ops/*.md
 .serena/
 .codex/
 frontend/coverage/
 aicodex
 output/
+
+# Local deployment secrets
+*.pem
+*.key
+id_*
+!*.pub
+deploy/production/.env
+deploy/production/backups/

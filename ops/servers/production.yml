@@ -1,0 +1,26 @@
+# Production inventory for the Zhouyu Sub2API deployment.
+# Do not put plaintext secrets in this file.
+name: zhouyu-sub2api-production
+project: zhouyu-api2sub
+upstream_repository: https://github.com/Wei-Shaw/sub2api.git
+host: 47.100.224.163
+ssh_user: root
+local_ssh_key: ./sshkey.pem
+deploy_dir: /opt/sub2api
+compose_file: /opt/sub2api/docker-compose.yml
+env_file: /opt/sub2api/.env
+public_port: 8080
+health_url: http://127.0.0.1:8080/health
+image_variable: SUB2API_IMAGE
+default_image: weishaw/sub2api:latest
+data_dirs:
+  - /opt/sub2api/data
+  - /opt/sub2api/postgres_data
+  - /opt/sub2api/redis_data
+log_files:
+  - /opt/sub2api/deploy.log
+  - /opt/sub2api/backup.log
+notes:
+  - Keep sshkey.pem local and untracked.
+  - Pin SUB2API_IMAGE to an explicit version tag before planned upgrades when possible.
+  - Updates must pull a published image and restart containers; do not build images on the production host.
