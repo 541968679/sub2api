@@ -179,7 +179,7 @@ func mutateWithClient(ctx context.Context, m ent.Mutation, fallback ent.Mutator)
 		return nil, fmt.Errorf("soft delete: mutation client error return mismatch for %T", m)
 	}
 
-	results := mutateMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(m)})
+	results := mutateMethod.Call([]reflect.Value{reflect.ValueOf(ctx), reflect.ValueOf(m)}) //nolint:errcheck // Reflected Mutate error is returned in results[1] and checked below.
 	value := results[0].Interface()
 	var err error
 	if !results[1].IsNil() {
