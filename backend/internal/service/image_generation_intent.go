@@ -110,6 +110,7 @@ func openAIJSONToolsContainImageGeneration(tools gjson.Result) bool {
 	return found
 }
 
+//nolint:unused // Retained for OpenAI request-shape guards used by optional image tool normalization paths.
 func openAIRequestBodyHasImageGenerationTool(body []byte) bool {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return false
@@ -117,6 +118,7 @@ func openAIRequestBodyHasImageGenerationTool(body []byte) bool {
 	return openAIJSONToolsContainImageGeneration(gjson.GetBytes(body, "tools"))
 }
 
+//nolint:unused // Retained for optional OpenAI image-generation tool normalization diagnostics.
 func openAIRequestBodyImageGenerationToolNeedsNormalization(body []byte) bool {
 	if len(body) == 0 || !gjson.ValidBytes(body) {
 		return false

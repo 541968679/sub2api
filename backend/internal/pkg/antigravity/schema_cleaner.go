@@ -339,7 +339,6 @@ func cleanJSONSchemaRecursive(value any) any {
 					}
 				}
 			}
-			type is string
 			if hasNonString {
 				schemaMap["type"] = "string"
 			}
