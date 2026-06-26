@@ -35,3 +35,10 @@ exceptions:
     mitigation: "Proxy configuration not user-controlled; upgrade when axios releases fix"
     expires_on: "2026-07-10"
     owner: "security@your-domain"
+  - package: form-data
+    advisory: "GHSA-hmw2-7cc7-3qxx"
+    severity: high
+    reason: "Browser frontend does not use Node multipart field-name or filename construction"
+    mitigation: "No untrusted Node-side multipart generation in frontend runtime; revisit with next axios/jsdom refresh"
+    expires_on: "2026-07-10"
+    owner: "security@your-domain"

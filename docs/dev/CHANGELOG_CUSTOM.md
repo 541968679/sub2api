@@ -19,6 +19,14 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-26] chore: track frontend `form-data` audit exception
+
+**Affected files**: .github/audit-exceptions.yml, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: CI/security metadata only; no runtime behavior change.
+**Change details**:
+- Added a short-lived audit exception for `form-data` GHSA-hmw2-7cc7-3qxx because the browser frontend does not use Node-side multipart field-name or filename construction, and the current lockfile already resolves `form-data` to 4.0.5.
+- Kept the exception expiring on 2026-07-10 so the next axios/jsdom dependency refresh must revisit it.
+
 ## [2026-06-26] fix: default new users to downstream display usage tokens
 
 **Affected files**: backend/internal/service/user.go, backend/ent/schema/user.go, backend/migrations/169_default_downstream_usage_token_mode_display.sql, backend/internal/service/admin_service_update_user_rpm_test.go, backend/internal/service/user_defaults_test.go, backend/ent/schema/auth_identity_schema_test.go, frontend/src/components/admin/user/UserEditModal.vue, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
