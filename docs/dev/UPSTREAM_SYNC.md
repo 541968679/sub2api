@@ -39,6 +39,31 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream gateway client detection and Vertex beta batch 8
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, then added a supplemental table before including the `ddf91e9a` helper prerequisite discovered during testing.
+- **Synced upstream commits**:
+  - `e3e31bd4` - recognize Claude Code auto mode via any `cc_entrypoint=` marker
+  - `40e1cc14` - filter `anthropic-beta` on the Vertex Anthropic path
+  - `efffd5d7` - add Vertex anthropic-beta filtering tests
+- **Supplemental local reconciliation**:
+  - Added the minimal helper surface from upstream `ddf91e9a`: `sanitizeAnthropicBodyForBetaTokens`, `anthropicBetaTokensContains`, and `deleteHeaderAllForms`.
+  - Did not import the broader `ddf91e9a` count_tokens/API-key passthrough behavior in this batch.
+  - Did not import `6cfb7898` cch-signing deletion in this batch.
+- **Local reconciliation**:
+  - `e3e31bd4` conflicted in the Claude Code validator and tests; manually ported the marker change and focused tests instead of importing the larger upstream test block.
+  - `40e1cc14` conflicted in `gateway_service.go`; resolved by keeping upstream final beta filtering and preserving the fork-local `setOpsUpstreamRequestBody(c, vertexBody)` call after final body sanitization.
+  - `efffd5d7` applied cleanly, then tests were adapted to this fork's current 2-return-value `buildUpstreamRequest` signature.
+- **Fork-local secondary-development impact**:
+  - No frontend-visible UI change.
+  - No database migration, route, i18n, display-token/display-pricing, curated model list, Claude-GPT bridge, OpenAI Images, subscriptions, account scheduling, or billing behavior changes.
+  - Intentional backend behavior changes are limited to broader Claude Code system-prompt recognition and safer Anthropic Vertex beta header/body forwarding.
+  - Fork-local ops request-body capture remains active and now records the final sanitized Vertex body.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator|Test.*Vertex.*Beta|Test.*Anthropic.*Vertex|Test.*Beta.*Filter" -count=1`
+  - `git diff --check`
+
 ### 2026-06-27 - upstream small auth/ops/keys/payment guard batch 7
 
 - **Branch**: `codex/upstream-sync-20260627`

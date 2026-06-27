@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream Claude Code detection and Vertex beta filtering batch
+
+**Affected files**: backend/internal/service/claude_code_validator.go, backend/internal/service/claude_code_validator_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_anthropic_vertex_beta_filter_test.go, backend/internal/service/gateway_request.go, backend/internal/service/header_util.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `e3e31bd4`, `40e1cc14`, and `efffd5d7`, plus the minimal helper surface from `ddf91e9a` required by the Vertex beta tests. The larger `ddf91e9a` count_tokens/API-key passthrough behavior and `6cfb7898` cch-signing deletion remain deferred.
+**Change details**:
+- Claude Code auto mode now treats any `cc_entrypoint=` marker as a Claude Code system prompt, not only `cc_entrypoint=cli`.
+- Vertex Anthropic service-account forwarding now filters unsupported `anthropic-beta` tokens before setting the upstream header.
+- Vertex request body sanitization now uses the final filtered beta header when deciding whether to strip `body.context_management`.
+- Preserved fork-local ops request-body capture by calling `setOpsUpstreamRequestBody(c, vertexBody)` after the final Vertex body sanitize step.
+- Adapted upstream Vertex beta tests to this fork's 2-return-value `buildUpstreamRequest` signature.
+- Fork-local impact: no frontend-visible UI changes, no database migrations, no i18n/routes changes, and no changes to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI Images, subscriptions, account scheduling, or billing. Intentional impact is limited to Claude Code client detection and Anthropic Vertex request header/body compatibility.
+- Verified: `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator|Test.*Vertex.*Beta|Test.*Anthropic.*Vertex|Test.*Beta.*Filter" -count=1`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream small auth/ops/keys/payment guard batch
 
 **Affected files**: backend/internal/service/auth_service.go, backend/internal/service/openai_gateway_chat_completions.go, frontend/src/views/admin/ops/OpsDashboard.vue, frontend/src/components/keys/UseKeyModal.vue, frontend/src/components/payment/PaymentProviderDialog.vue, frontend/src/components/payment/ProviderCard.vue, frontend/src/views/admin/SettingsView.vue, frontend/src/views/admin/__tests__/SettingsView.spec.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
