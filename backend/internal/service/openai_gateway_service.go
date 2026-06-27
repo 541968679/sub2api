@@ -3474,6 +3474,17 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	if combined == "" {
 		return true
 	}
+	retryableMarkers := []string{
+		"selected model is at capacity",
+		"an error occurred while processing your request",
+		"server_is_overloaded",
+		"slow_down",
+	}
+	for _, marker := range retryableMarkers {
+		if strings.Contains(combined, marker) {
+			return true
+		}
+	}
 	nonRetryableMarkers := []string{
 		"invalid_request",
 		"content_policy",
