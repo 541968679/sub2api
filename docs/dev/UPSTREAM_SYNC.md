@@ -40,6 +40,21 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream safety fix batch 4 (Codex Spark image tool strip)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Synced upstream commit**:
+  - `01127820` - strip `image_generation` tool for Codex Spark gateway requests
+- **Local reconciliation**:
+  - Adapted the HTTP `/responses` path to the fork-local `reqBody` mutation and `disablePatch` mechanism instead of upstream request-view helpers.
+  - Kept the local Responses WebSocket fast-policy/ops flow and inserted only the Spark strip step after upstream model normalization.
+  - Avoided bringing unrelated upstream hotpath baseline tests into the fork; only the Spark APIKey regression test was added.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(ApplyCodexOAuthTransform_StripsImageGenerationToolForSpark|ApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias|ApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|StripCodexSparkImageGenerationToolFromRawPayload)" -count=1`
+  - `git diff --check`
+- **Remaining high-priority staged candidates**:
+  - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
+
 ### 2026-06-27 - upstream safety fix batch 3 (passthrough function-call args)
 
 - **Branch**: `codex/upstream-sync-20260627`
@@ -52,7 +67,6 @@ git push origin main
   - `go test -tags=unit ./internal/service -run "Test(HandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments|ForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle|Dedupe|PassthroughFunction)" -count=1`
   - `git diff --check`
 - **Remaining high-priority staged candidates**:
-  - `01127820` - strip `image_generation` tool for Codex Spark gateway requests.
   - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
 
 ### 2026-06-27 - upstream safety fix batch 2 (model availability 404)

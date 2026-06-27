@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream Codex Spark image tool strip
+
+**Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_hotpath_test.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_ws_forwarder_ingress_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `01127820`; preserves fork-local request-body mutation/patch behavior and WS fast-policy flow.
+**Change details**:
+- Strips client-supplied `image_generation` tools for `gpt-5.3-codex-spark` and its effort aliases because Spark is text-only and upstream rejects that tool with `invalid_request_error`.
+- Applies the strip in OAuth Codex transforms, HTTP `/responses` forwarding for APIKey/OAuth paths, and Responses WebSocket ingress.
+- Reconciled upstream conflicts by adapting the HTTP path to the fork-local `reqBody` + `bodyModified` + `disablePatch` mechanism and keeping the local WS fast-policy/ops flow.
+- Verified: `go test -tags=unit ./internal/service -run "Test(ApplyCodexOAuthTransform_StripsImageGenerationToolForSpark|ApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias|ApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|StripCodexSparkImageGenerationToolFromRawPayload)" -count=1`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream passthrough function-call argument dedupe
 
 **Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_passthrough_function_args_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
