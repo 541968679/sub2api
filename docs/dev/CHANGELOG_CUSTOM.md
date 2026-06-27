@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream auth promo and frontend title batch
+
+**Affected files**: backend/internal/service/auth_email_binding.go, backend/internal/service/auth_service_email_bind_test.go, backend/internal/handler/auth_oauth_pending_flow_test.go, backend/internal/service/registration_email_policy.go, backend/internal/service/registration_email_policy_test.go, backend/internal/handler/admin/promo_handler.go, backend/internal/service/promo_service.go, frontend/src/App.vue, frontend/src/i18n/index.ts, frontend/src/router/index.ts, frontend/src/router/title.ts, frontend/src/router/__tests__/title.spec.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `ecedc7c8`, `2dc1387b`, and `952be871`, plus a local wildcard registration email suffix policy adaptation required by the upstream email-bind tests.
+**Change details**:
+- Email identity binding now enforces the registration email suffix whitelist, closing an OAuth pending-flow bypass.
+- Registration email suffix whitelist now supports `*.domain` and `@*.domain` entries, normalized to `@*.domain`, matching subdomains only.
+- Promo-code editing now allows admins to clear an existing expiry date.
+- Custom-page document titles now refresh when route, site settings, custom menu items, admin state, or locale changes.
+- Resolved frontend title conflicts by preserving this fork's existing auth/backend-mode/simple-mode route guard behavior and not importing unrelated upstream compliance-dialog context.
+- Fork-local impact: auth policy becomes stricter when suffix whitelist is configured; promo expiry clearing affects admin promo operations; frontend-visible impact is limited to browser tab title refresh. No changes to billing/display-token accounting, curated model lists, Claude-GPT bridge, OpenAI Images, account scheduling, subscriptions, database migrations, API routes, or payment order amounts.
+- Verified: `go test -tags=unit ./internal/service ./internal/handler ./internal/handler/admin -run "Test.*(Email|Bind|OAuth|Suffix|Promo|PromoCode|Pending)" -count=1`; `pnpm --dir frontend run test:run src/router/__tests__/title.spec.ts`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run lint:check`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream Claude Code detection and Vertex beta filtering batch
 
 **Affected files**: backend/internal/service/claude_code_validator.go, backend/internal/service/claude_code_validator_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_anthropic_vertex_beta_filter_test.go, backend/internal/service/gateway_request.go, backend/internal/service/header_util.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

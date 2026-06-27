@@ -39,6 +39,32 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream auth promo and frontend title batch 9
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, covering feature behavior, affected modules, frontend visibility, tests, and fork-local secondary-development impact.
+- **Synced upstream commits**:
+  - `ecedc7c8` - enforce email bind suffix whitelist
+  - `2dc1387b` - allow clearing promo-code expiry on edit
+  - `952be871` - refresh custom page document title
+- **Supplemental local reconciliation**:
+  - Added wildcard registration email suffix support (`*.domain` and `@*.domain`) because the upstream email-bind tests use `*.edu.cn` and this fork's existing normalization previously dropped that entry as invalid.
+- **Local reconciliation**:
+  - `ecedc7c8` and `2dc1387b` cherry-picked cleanly.
+  - `952be871` conflicted in `App.vue` and `router/index.ts`; resolved by keeping this fork's existing auth/backend-mode/simple-mode route guards and app shell, adding only the title refresh helper/watch path, and avoiding unrelated upstream compliance-dialog context.
+- **Fork-local secondary-development impact**:
+  - Auth policy is intentionally stricter when `registration_email_suffix_whitelist` is configured; email identity binding now follows the same suffix rules as registration/email-code flows.
+  - Promo-code admin editing can now clear expiry without changing redeem-code batch limits or subscription entitlement logic.
+  - Frontend-visible impact is limited to browser tab title refresh for custom pages and locale/site-setting changes.
+  - No billing/display-token accounting, curated model list, Claude-GPT bridge, OpenAI Images, account scheduling, database migration, API route, subscription fulfillment, or payment amount changes.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(NormalizeRegistrationEmailSuffixWhitelist|ParseRegistrationEmailSuffixWhitelist|IsRegistrationEmailSuffixAllowed|AuthServiceBindEmailIdentity_RegistrationSuffixWhitelistWildcard|AuthServiceEmailIdentityBinding_RejectsEmailOutsideRegistrationSuffixWhitelist|AuthServiceBindEmailIdentity_AllowsEmailInsideRegistrationSuffixWhitelist)" -count=1`
+  - `go test -tags=unit ./internal/service ./internal/handler ./internal/handler/admin -run "Test.*(Email|Bind|OAuth|Suffix|Promo|PromoCode|Pending)" -count=1`
+  - `pnpm --dir frontend run test:run src/router/__tests__/title.spec.ts`
+  - `pnpm --dir frontend run typecheck`
+  - `pnpm --dir frontend run lint:check`
+  - `git diff --check`
+
 ### 2026-06-27 - upstream gateway client detection and Vertex beta batch 8
 
 - **Branch**: `codex/upstream-sync-20260627`
