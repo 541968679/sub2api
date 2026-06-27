@@ -13,9 +13,8 @@
 | 上游版本标签 | v0.1.121 |
 
 > Note: the table above tracks the last completed full upstream sync. The
-> 2026-06-27 entry below is a staged safety-fix batch against
-> `upstream/main@c2754222`, not a declaration that the fork has fully caught up
-> with upstream.
+> 2026-06-27 entries below are staged safety-fix batches against upstream, not a
+> declaration that the fork has fully caught up with upstream.
 
 ## 同步操作步骤
 
@@ -39,6 +38,33 @@ git push origin main
 ```
 
 ## 同步记录
+
+### 2026-06-27 - upstream runtime compatibility batch 6
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, including frontend visibility, tests, fork-local secondary-development links, expected impact, risk, and handling strategy.
+- **Synced upstream commits**:
+  - `ad135854` - Docker build context includes `docs/legal`
+  - `f6e0ebc6` - preserve Anthropic official 5h/7d window cooldowns before temporary-unschedulable fallbacks
+  - `c1c28ac7` - decompress zstd upstream responses
+  - `6c7203d8` - preserve SSE `event:error` body for ops logs
+  - `6c2db4f4` - clean unsupported Gemini tool schema fields
+  - `bab8a9a9` - log `/v1/chat/completions` upstream endpoint for chat-only OpenAI API-key accounts
+- **Local reconciliation**:
+  - `f6e0ebc6` conflicted in `ratelimit_service.go`; kept the long-window cooldown persistence while preserving this fork's `HandleUpstreamError(ctx, account, status, headers, body)` signature and existing scheduling/failover semantics.
+  - `bab8a9a9` was manually ported after aborting a conflict-heavy cherry-pick, because the upstream file context also contained risk-control/content-moderation helpers that are not part of this fork's current synced surface. The port only changed OpenAI usage-record upstream endpoint derivation and kept fork-local `submitUsageRecordTask`, request context wrapping, and WebSocket `turnAccount` accounting.
+  - Added a focused handler test for the APIKey forced-Chat-Completions endpoint resolver.
+- **Fork-local secondary-development impact**:
+  - No frontend-visible UI changes.
+  - No change to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI image generation, default-model fallback, i18n, routes, or database migrations.
+  - Intentional runtime impacts: Docker image packaging includes legal docs; Anthropic account cooldowns prefer upstream official 5h/7d windows; zstd responses are parseable; SSE ops logs keep raw upstream error bodies; Gemini tool schemas are cleaned before forwarding; OpenAI usage/ops metadata records the actual raw Chat Completions upstream endpoint for chat-only API-key accounts.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "TestHandleUpstreamError_AnthropicWindowLimitPreemptsTempUnschedRule|Test.*Anthropic.*Window|Test.*Cooldown" -count=1`
+  - `go test -tags=unit ./internal/repository -run "Test.*Decompress|Test.*Zstd|Test.*ContentEncoding" -count=1`
+  - `go test -tags=unit ./internal/service -run "TestHandleStreamingResponse_(SSEErrorEvent|StreamReadError|FailoverBody|EmptyStream|SpecialCharacters)" -count=1`
+  - `go test -tags=unit ./internal/service -run "Test(ConvertClaudeToolsToGeminiTools|CleanToolSchema|GeminiMessagesCompatServiceForward)" -count=1`
+  - `go test -tags=unit ./internal/handler -run "Test(OpenAIUpstreamEndpoint|ResolveOpenAIUpstreamEndpoint)" -count=1`
+  - `git diff --check`
 
 ### 2026-06-27 - upstream safety fix batch 5 (tooling/auth/compat/gateway)
 

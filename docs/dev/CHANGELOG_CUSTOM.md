@@ -19,6 +19,20 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream runtime compatibility batch
+
+**Affected files**: .dockerignore, Dockerfile, deploy/Dockerfile, backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_anthropic_window_limit_test.go, backend/internal/repository/http_upstream.go, backend/internal/repository/decompress_response_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_streaming_test.go, backend/internal/service/gemini_messages_compat_service.go, backend/internal/service/gemini_messages_compat_service_test.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_gateway_endpoint_normalization_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `ad135854`, `f6e0ebc6`, `c1c28ac7`, `6c7203d8`, `6c2db4f4`, and `bab8a9a9`. No frontend UI change. Preserved fork-local scheduling/failover signatures, OpenAI usage-record worker context, WebSocket per-turn account handling, and did not import unrelated upstream risk-control/content-moderation helpers.
+**Change details**:
+- Docker production build context now includes `docs/legal` so admin compliance/legal assets remain available in image builds.
+- Anthropic official account 5h/7d window exhaustion now persists the longer cooldown before temporary-unschedulable fallback rules; reconciled to this fork's 5-argument `RateLimitService.HandleUpstreamError` signature and existing rate-limit persistence path.
+- Upstream HTTP repository responses with `Content-Encoding: zstd` are decompressed before downstream parsing/error handling.
+- Streaming gateway now preserves SSE `event:error` raw data as a typed upstream error so ops logs show the real upstream error body instead of a generic stream failure.
+- Gemini Messages compatibility now strips unsupported schema fields before forwarding tools to Gemini.
+- OpenAI usage records now log `/v1/chat/completions` for API-key accounts forced/probed into raw Chat Completions, including `/responses`, `/messages`, raw chat, and Responses WebSocket recording paths. The manual port kept fork-local `turnAccount` WebSocket accounting and added endpoint resolver tests.
+- Fork-local impact: no changes to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI image generation, default-model fallback, i18n, migrations, or routes. Intentional impact is limited to runtime packaging, rate-limit cooldown choice, upstream body decoding, ops-log fidelity, Gemini request compatibility, and OpenAI upstream endpoint metadata.
+- Verified: `go test -tags=unit ./internal/service -run "TestHandleUpstreamError_AnthropicWindowLimitPreemptsTempUnschedRule|Test.*Anthropic.*Window|Test.*Cooldown" -count=1`; `go test -tags=unit ./internal/repository -run "Test.*Decompress|Test.*Zstd|Test.*ContentEncoding" -count=1`; `go test -tags=unit ./internal/service -run "TestHandleStreamingResponse_(SSEErrorEvent|StreamReadError|FailoverBody|EmptyStream|SpecialCharacters)" -count=1`; `go test -tags=unit ./internal/service -run "Test(ConvertClaudeToolsToGeminiTools|CleanToolSchema|GeminiMessagesCompatServiceForward)" -count=1`; `go test -tags=unit ./internal/handler -run "Test(OpenAIUpstreamEndpoint|ResolveOpenAIUpstreamEndpoint)" -count=1`; `git diff --check`.
+
 ## [2026-06-27] feature: redeem code batch per-user limit
 
 **Affected files**: backend/ent/schema/redeem_code.go, backend/ent/*redeemcode*, backend/migrations/170_redeem_code_batch_user_limit.sql, backend/internal/repository/redeem_code_repo.go, backend/internal/service/redeem_code.go, backend/internal/service/redeem_service.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/redeem_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/views/admin/RedeemView.vue, frontend/src/api/admin/redeem.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/redeem.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
