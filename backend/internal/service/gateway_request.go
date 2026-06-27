@@ -665,6 +665,38 @@ func removeThinkingDependentContextStrategies(body []byte) []byte {
 	return body
 }
 
+const anthropicBetaContextManagementToken = "context-management-2025-06-27"
+
+// sanitizeAnthropicBodyForBetaTokens strips beta-gated Anthropic body fields
+// when the final anthropic-beta header does not contain the required token.
+func sanitizeAnthropicBodyForBetaTokens(body []byte, anthropicBetaHeader string) ([]byte, bool) {
+	if len(body) == 0 {
+		return body, false
+	}
+	if !gjson.GetBytes(body, "context_management").Exists() {
+		return body, false
+	}
+	if anthropicBetaTokensContains(anthropicBetaHeader, anthropicBetaContextManagementToken) {
+		return body, false
+	}
+	if b, err := sjson.DeleteBytes(body, "context_management"); err == nil {
+		return b, true
+	}
+	return body, false
+}
+
+func anthropicBetaTokensContains(header, token string) bool {
+	if header == "" || token == "" {
+		return false
+	}
+	for _, part := range strings.Split(header, ",") {
+		if strings.TrimSpace(part) == token {
+			return true
+		}
+	}
+	return false
+}
+
 // FilterSignatureSensitiveBlocksForRetry is a stronger retry filter for cases where upstream errors indicate
 // signature/thought_signature validation issues involving tool blocks.
 //

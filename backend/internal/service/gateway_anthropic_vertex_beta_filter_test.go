@@ -52,7 +52,7 @@ func TestVertexBetaFilter_StripsUnsupportedClaudeCodeTokens(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
 
 	svc := &GatewayService{}
-	req, _, err := svc.buildUpstreamRequest(
+	req, err := svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(401), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
 	)
@@ -92,7 +92,7 @@ func TestVertexBetaFilter_DropsHeaderWhenAllUnsupported(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
 
 	svc := &GatewayService{}
-	req, _, err := svc.buildUpstreamRequest(
+	req, err := svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(402), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
 	)
@@ -111,7 +111,7 @@ func TestVertexBetaFilter_BodySanitizeKeysOnFinalBeta(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-7","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[{"role":"user","content":"hi"}]}`)
 
 	svc := &GatewayService{}
-	req, _, err := svc.buildUpstreamRequest(
+	req, err := svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(403), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
 	)
@@ -151,7 +151,7 @@ func TestVertexBetaFilter_BlocksViaBetaPolicy(t *testing.T) {
 		"interleaved-thinking-2025-05-14,context-management-2025-06-27")
 	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
 
-	_, _, err = svc.buildUpstreamRequest(
+	_, err = svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(404), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
 	)
