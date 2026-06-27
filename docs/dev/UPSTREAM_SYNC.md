@@ -40,6 +40,21 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream safety fix batch 3 (passthrough function-call args)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Synced upstream commit**:
+  - `2b49d662` - dedupe passthrough function-call arguments
+- **Local reconciliation**:
+  - Applied cleanly after the fork-local OpenAI passthrough sanitization changes.
+  - Kept the normalization after local display-token rewrite and before event classification in streaming passthrough.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(HandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments|ForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle|Dedupe|PassthroughFunction)" -count=1`
+  - `git diff --check`
+- **Remaining high-priority staged candidates**:
+  - `01127820` - strip `image_generation` tool for Codex Spark gateway requests.
+  - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
+
 ### 2026-06-27 - upstream safety fix batch 2 (model availability 404)
 
 - **Branch**: `codex/upstream-sync-20260627`
@@ -55,7 +70,6 @@ git push origin main
   - `go test -tags=unit ./internal/handler -run "Test.*NoAccount" -count=1`
   - `git diff --check`
 - **Remaining high-priority staged candidates**:
-  - `2b49d662` - dedupe passthrough function call args.
   - `01127820` - strip `image_generation` tool for Codex Spark gateway requests.
   - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
 

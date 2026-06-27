@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream passthrough function-call argument dedupe
+
+**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_passthrough_function_args_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: clean staged cherry-pick of `2b49d662`; applies after the existing local display-token rewrite and response.failed sanitization paths.
+**Change details**:
+- Normalized OpenAI Responses passthrough function-call `arguments` fields when upstream sends the same JSON argument string duplicated in a single event payload.
+- Applied the normalization to streaming passthrough events, corrected SSE response bodies, output item payloads, and completed response output arrays.
+- Added focused tests covering raw Responses passthrough and forced Chat Completions fallback output.
+- Verified: `go test -tags=unit ./internal/service -run "Test(HandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments|ForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle|Dedupe|PassthroughFunction)" -count=1`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream model availability 404 safety fix
 
 **Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/gemini_v1beta_handler.go, backend/internal/handler/no_account_error.go, backend/internal/handler/no_account_error_test.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_embeddings.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_images.go, backend/internal/handler/ops_error_logger.go, backend/internal/service/gateway_model_availability.go, backend/internal/service/gateway_model_availability_test.go, backend/internal/service/openai_gateway_model_availability.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
