@@ -39,6 +39,31 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream small auth/ops/keys/payment guard batch 7
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, with feature behavior, affected modules, frontend visibility, tests, fork-local secondary-development links, expected impact, risk, and handling strategy.
+- **Synced upstream commits**:
+  - `82576e0a` - stop swallowing email auth identity create errors caused by a shadowed `err`
+  - `9707dedc` - prevent ops monitoring trend cards from growing unbounded
+  - `ae5e980d` - enforce `codex_cli_only` on `/v1/chat/completions`
+  - `28e7adef` - add `CLAUDE_CODE_ATTRIBUTION_HEADER=0` to Claude Code terminal templates
+  - `65ad7df4` - keep payment provider cards visible when `supported_types` is empty/null
+- **Local reconciliation**:
+  - `ae5e980d` conflicted in `openai_gateway_chat_completions.go`; resolved by inserting the `detectCodexClientRestriction` guard before this fork's existing APIKey raw Chat fallback split, preserving local `openai_compat.ShouldUseResponsesAPI` routing behavior.
+  - The other commits cherry-picked cleanly.
+- **Fork-local secondary-development impact**:
+  - No changes to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI Images, subscriptions/bundle fulfillment, database migrations, routes, or i18n.
+  - Intentional frontend-visible changes are limited to ops dashboard sizing, key usage command templates, and admin payment provider card visibility.
+  - Intentional API behavior change: `codex_cli_only` OpenAI accounts now reject non-matching clients on `/v1/chat/completions` before raw Chat fallback forwarding.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test.*Auth|Test.*Email|Test.*OAuth|Test.*Register" -count=1`
+  - `go test -tags=unit ./internal/service -run "Test.*(Codex|ChatCompletions|CLIOnly|ClientRestriction|RawChat|ResponsesChat)" -count=1`
+  - `pnpm --dir frontend run test:run src/views/admin/__tests__/SettingsView.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts`
+  - `pnpm --dir frontend run typecheck`
+  - `pnpm --dir frontend run lint:check`
+  - `git diff --check`
+
 ### 2026-06-27 - upstream runtime compatibility batch 6
 
 - **Branch**: `codex/upstream-sync-20260627`

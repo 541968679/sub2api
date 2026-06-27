@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream small auth/ops/keys/payment guard batch
+
+**Affected files**: backend/internal/service/auth_service.go, backend/internal/service/openai_gateway_chat_completions.go, frontend/src/views/admin/ops/OpsDashboard.vue, frontend/src/components/keys/UseKeyModal.vue, frontend/src/components/payment/PaymentProviderDialog.vue, frontend/src/components/payment/ProviderCard.vue, frontend/src/views/admin/SettingsView.vue, frontend/src/views/admin/__tests__/SettingsView.spec.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `82576e0a`, `9707dedc`, `ae5e980d`, `28e7adef`, and `65ad7df4`. The `codex_cli_only` chat-completions change conflicted in the fork-local OpenAI raw Chat fallback path and was reconciled by adding the restriction check before the existing local APIKey Responses/Chat split.
+**Change details**:
+- Fixed email auth identity creation error handling so a shadowed `err` no longer swallows failures.
+- Constrained ops dashboard trend cards so the admin monitoring layout cannot grow unbounded.
+- Enforced `codex_cli_only` account policy on `/v1/chat/completions`, including APIKey raw Chat fallback, without changing account scheduling or display-token accounting.
+- Added `CLAUDE_CODE_ATTRIBUTION_HEADER=0` to Claude Code terminal usage templates in the key usage modal.
+- Normalized empty/null payment provider `supported_types` so admin payment provider cards remain visible.
+- Fork-local impact: no changes to billing/display-pricing math, curated model lists, Claude-GPT bridge dispatch, OpenAI images, subscriptions/bundle fulfillment, migrations, routes, or i18n. Intentional frontend-visible impact is limited to ops layout, key usage templates, and admin payment provider display.
+- Verified: `go test -tags=unit ./internal/service -run "Test.*Auth|Test.*Email|Test.*OAuth|Test.*Register" -count=1`; `go test -tags=unit ./internal/service -run "Test.*(Codex|ChatCompletions|CLIOnly|ClientRestriction|RawChat|ResponsesChat)" -count=1`; `pnpm --dir frontend run test:run src/views/admin/__tests__/SettingsView.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run lint:check`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream runtime compatibility batch
 
 **Affected files**: .dockerignore, Dockerfile, deploy/Dockerfile, backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_anthropic_window_limit_test.go, backend/internal/repository/http_upstream.go, backend/internal/repository/decompress_response_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_streaming_test.go, backend/internal/service/gemini_messages_compat_service.go, backend/internal/service/gemini_messages_compat_service_test.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_gateway_endpoint_normalization_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
