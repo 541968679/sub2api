@@ -40,6 +40,33 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream safety fix batch 5 (tooling/auth/compat/gateway)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required assessment table before applying this batch.
+- **Synced upstream commits**:
+  - `ac6e36f9` - admin CLI supports `SUB2API_JWT` auth fallback
+  - `727ac3f6` - add `app_session_terminated` to non-retryable refresh errors
+  - `edfd5e37` - default apicompat tool `strict` to false
+  - `ab9987b2` - fail over on non-JSON 2xx upstream responses
+  - `b256f911` - intercept streaming `max_tokens=1` Haiku probes too
+- **Local reconciliation**:
+  - Kept the fork-local admin skill invocation path (`~/.codex/skills/...`) while adding JWT fallback documentation.
+  - Production refresh code already included the merged non-retryable markers from earlier work, so this batch primarily added explicit test coverage.
+  - Adapted non-JSON 2xx failover to this fork's current `RateLimitService.HandleUpstreamError(ctx, account, status, headers, body)` signature.
+- **Verification**:
+  - `node --check skills/sub2api-admin/scripts/sub2api-admin.js`
+  - `go test -tags=unit ./internal/service -run "TestIsNonRetryableRefreshError|TestNonRetryableRefreshError" -count=1`
+  - `go test -tags=unit ./internal/pkg/apicompat`
+  - `go test -tags=unit ./internal/service -run "Test.*Non.*JSON|Test.*NonStreaming.*Response|Test.*Failover.*Non" -count=1`
+  - `go test -tags=unit ./internal/handler -run "Test.*Intercept|Test.*Haiku|Test.*Warmup|Test.*Suggestion" -count=1`
+  - `git diff --check`
+- **Deferred larger batches**:
+  - Grok subscription support stack.
+  - OpenAI Codex personal access token auth.
+  - `codex_cli_only` engine-fingerprint/app-server settings and frontend stack.
+  - Broader quota/payment/frontend/migration buckets.
+
 ### 2026-06-27 - upstream safety fix batch 4 (Codex Spark image tool strip)
 
 - **Branch**: `codex/upstream-sync-20260627`

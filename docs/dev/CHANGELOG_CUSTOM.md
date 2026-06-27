@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream low-risk tooling/auth/compat gateway batch
+
+**Affected files**: skills/sub2api-admin/SKILL.md, skills/sub2api-admin/references/admin-cli.md, skills/sub2api-admin/scripts/sub2api-admin.js, backend/internal/service/token_refresh_service_test.go, backend/internal/pkg/apicompat/chatcompletions_to_responses.go, backend/internal/pkg/apicompat/chatcompletions_responses_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_non_streaming_response_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_intercept_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of small upstream fixes only; no Grok/PAT/codex-detect UI stack included. Local rate-limit service signature, admin skill install-path convention, and previous refresh-token invalidation behavior were preserved.
+**Change details**:
+- Added `SUB2API_JWT` fallback support to the bundled `sub2api-admin` skill and docs while keeping the local `~/.codex/skills/...` invocation path.
+- Added test coverage for `app_session_terminated` and `refresh_token_invalidated` as non-retryable refresh errors; production code already contained the merged non-retryable markers.
+- Changed apicompat Chat Completions -> Responses tool conversion so default tool `strict` is false, with focused schema tests.
+- Added failover handling for non-streaming upstream HTTP 2xx responses whose bodies are not valid JSON; adapted the upstream helper to this fork's 5-argument `RateLimitService.HandleUpstreamError` signature.
+- Extended `max_tokens=1` Haiku probe interception to streaming requests.
+- Verified: `node --check skills/sub2api-admin/scripts/sub2api-admin.js`; `go test -tags=unit ./internal/service -run "TestIsNonRetryableRefreshError|TestNonRetryableRefreshError" -count=1`; `go test -tags=unit ./internal/pkg/apicompat`; `go test -tags=unit ./internal/service -run "Test.*Non.*JSON|Test.*NonStreaming.*Response|Test.*Failover.*Non" -count=1`; `go test -tags=unit ./internal/handler -run "Test.*Intercept|Test.*Haiku|Test.*Warmup|Test.*Suggestion" -count=1`; `git diff --check`.
+
 ## [2026-06-27] docs: require upstream-sync assessment table before each batch
 
 **Affected files**: AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
