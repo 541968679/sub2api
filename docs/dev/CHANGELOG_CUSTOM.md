@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream model availability 404 safety fix
+
+**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/gemini_v1beta_handler.go, backend/internal/handler/no_account_error.go, backend/internal/handler/no_account_error_test.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_embeddings.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_images.go, backend/internal/handler/ops_error_logger.go, backend/internal/service/gateway_model_availability.go, backend/internal/service/gateway_model_availability_test.go, backend/internal/service/openai_gateway_model_availability.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged upstream sync of `fcd3bc12`; preserves fork-local OpenAI default-model fallback, Claude-GPT bridge fallback, compact unsupported error handling, and ops logging context.
+**Change details**:
+- Added conservative model-availability diagnosis helpers so "group has accounts but none support this requested model" returns 404 `model_not_found` instead of a misleading 503.
+- Kept 503 behavior for transient exhaustion, empty account pools, diagnosis failures, and model-empty paths.
+- Threaded the classifier through Anthropic/OpenAI/Gemini gateway account-selection failure paths, including chat completions, responses, embeddings, images, and count-tokens.
+- Added ops routing-capacity markers needed by the upstream handler changes and kept routing-capacity events categorized as routing errors.
+- Reconciled local conflicts by preserving default mapped-model fallback for OpenAI Chat Completions and Claude-GPT bridge fallback behavior before applying the 404 classifier.
+- Verified: `go test -tags=unit ./internal/service -run "Test.*ModelAvailability" -count=1`; `go test -tags=unit ./internal/handler -run "Test.*NoAccount" -count=1`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream OpenAI/apicompat/images safety batch 1
 
 **Affected files**: backend/internal/pkg/apicompat/openai.go, backend/internal/pkg/apicompat/openai_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_test.go, backend/internal/service/openai_gateway_service_codex_cli_only_test.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_upstream_transport_error_handle_test.go, backend/internal/service/token_refresh_service.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_incomplete_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

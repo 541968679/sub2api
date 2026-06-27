@@ -40,6 +40,25 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream safety fix batch 2 (model availability 404)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Baseline before batch**: `5f9b750c` (batch 1 documented)
+- **Synced upstream commit**:
+  - `fcd3bc12` - return 404 `model_not_found` instead of 503 when no configured account supports the requested model
+- **Local reconciliation**:
+  - Preserved fork-local OpenAI Chat Completions default mapped-model fallback before classifying the no-account result.
+  - Preserved Claude-GPT bridge fallback behavior and `/responses/compact` unsupported handling before applying the generic no-account classifier.
+  - Added the small ops routing-capacity marker helper required by the upstream handler changes.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test.*ModelAvailability" -count=1`
+  - `go test -tags=unit ./internal/handler -run "Test.*NoAccount" -count=1`
+  - `git diff --check`
+- **Remaining high-priority staged candidates**:
+  - `2b49d662` - dedupe passthrough function call args.
+  - `01127820` - strip `image_generation` tool for Codex Spark gateway requests.
+  - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
+
 ### 2026-06-27 - upstream safety fix batch 1 (OpenAI/apicompat/images)
 
 - **Branch**: `codex/upstream-sync-20260627`
@@ -67,7 +86,6 @@ git push origin main
   - `codex_cli_only` engine fingerprint/app-server hardening.
   - OpenAI PAT auth.
   - Admin CLI JWT fallback.
-  - `fcd3bc12` model-not-found 404 response behavior.
   - Broader migrations, quota, proxy, payment, and frontend buckets.
 
 ### 2026-06-02 — cherry-pick Opus 4.8 Antigravity 支持
