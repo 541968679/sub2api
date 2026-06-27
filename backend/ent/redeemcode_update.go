@@ -173,6 +173,40 @@ func (_u *RedeemCodeUpdate) ClearExpiresAt() *RedeemCodeUpdate {
 	return _u
 }
 
+// SetBatchID sets the "batch_id" field.
+func (_u *RedeemCodeUpdate) SetBatchID(v string) *RedeemCodeUpdate {
+	_u.mutation.SetBatchID(v)
+	return _u
+}
+
+// SetNillableBatchID sets the "batch_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableBatchID(v *string) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetBatchID(*v)
+	}
+	return _u
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (_u *RedeemCodeUpdate) ClearBatchID() *RedeemCodeUpdate {
+	_u.mutation.ClearBatchID()
+	return _u
+}
+
+// SetBatchRedeemLimitPerUser sets the "batch_redeem_limit_per_user" field.
+func (_u *RedeemCodeUpdate) SetBatchRedeemLimitPerUser(v bool) *RedeemCodeUpdate {
+	_u.mutation.SetBatchRedeemLimitPerUser(v)
+	return _u
+}
+
+// SetNillableBatchRedeemLimitPerUser sets the "batch_redeem_limit_per_user" field if the given value is not nil.
+func (_u *RedeemCodeUpdate) SetNillableBatchRedeemLimitPerUser(v *bool) *RedeemCodeUpdate {
+	if v != nil {
+		_u.SetBatchRedeemLimitPerUser(*v)
+	}
+	return _u
+}
+
 // SetGroupID sets the "group_id" field.
 func (_u *RedeemCodeUpdate) SetGroupID(v int64) *RedeemCodeUpdate {
 	_u.mutation.SetGroupID(v)
@@ -299,6 +333,11 @@ func (_u *RedeemCodeUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BatchID(); ok {
+		if err := redeemcode.BatchIDValidator(v); err != nil {
+			return &ValidationError{Name: "batch_id", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.batch_id": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -346,6 +385,15 @@ func (_u *RedeemCodeUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 	}
 	if _u.mutation.ExpiresAtCleared() {
 		_spec.ClearField(redeemcode.FieldExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BatchID(); ok {
+		_spec.SetField(redeemcode.FieldBatchID, field.TypeString, value)
+	}
+	if _u.mutation.BatchIDCleared() {
+		_spec.ClearField(redeemcode.FieldBatchID, field.TypeString)
+	}
+	if value, ok := _u.mutation.BatchRedeemLimitPerUser(); ok {
+		_spec.SetField(redeemcode.FieldBatchRedeemLimitPerUser, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)
@@ -574,6 +622,40 @@ func (_u *RedeemCodeUpdateOne) ClearExpiresAt() *RedeemCodeUpdateOne {
 	return _u
 }
 
+// SetBatchID sets the "batch_id" field.
+func (_u *RedeemCodeUpdateOne) SetBatchID(v string) *RedeemCodeUpdateOne {
+	_u.mutation.SetBatchID(v)
+	return _u
+}
+
+// SetNillableBatchID sets the "batch_id" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableBatchID(v *string) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetBatchID(*v)
+	}
+	return _u
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (_u *RedeemCodeUpdateOne) ClearBatchID() *RedeemCodeUpdateOne {
+	_u.mutation.ClearBatchID()
+	return _u
+}
+
+// SetBatchRedeemLimitPerUser sets the "batch_redeem_limit_per_user" field.
+func (_u *RedeemCodeUpdateOne) SetBatchRedeemLimitPerUser(v bool) *RedeemCodeUpdateOne {
+	_u.mutation.SetBatchRedeemLimitPerUser(v)
+	return _u
+}
+
+// SetNillableBatchRedeemLimitPerUser sets the "batch_redeem_limit_per_user" field if the given value is not nil.
+func (_u *RedeemCodeUpdateOne) SetNillableBatchRedeemLimitPerUser(v *bool) *RedeemCodeUpdateOne {
+	if v != nil {
+		_u.SetBatchRedeemLimitPerUser(*v)
+	}
+	return _u
+}
+
 // SetGroupID sets the "group_id" field.
 func (_u *RedeemCodeUpdateOne) SetGroupID(v int64) *RedeemCodeUpdateOne {
 	_u.mutation.SetGroupID(v)
@@ -713,6 +795,11 @@ func (_u *RedeemCodeUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.BatchID(); ok {
+		if err := redeemcode.BatchIDValidator(v); err != nil {
+			return &ValidationError{Name: "batch_id", err: fmt.Errorf(`ent: validator failed for field "RedeemCode.batch_id": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -777,6 +864,15 @@ func (_u *RedeemCodeUpdateOne) sqlSave(ctx context.Context) (_node *RedeemCode, 
 	}
 	if _u.mutation.ExpiresAtCleared() {
 		_spec.ClearField(redeemcode.FieldExpiresAt, field.TypeTime)
+	}
+	if value, ok := _u.mutation.BatchID(); ok {
+		_spec.SetField(redeemcode.FieldBatchID, field.TypeString, value)
+	}
+	if _u.mutation.BatchIDCleared() {
+		_spec.ClearField(redeemcode.FieldBatchID, field.TypeString)
+	}
+	if value, ok := _u.mutation.BatchRedeemLimitPerUser(); ok {
+		_spec.SetField(redeemcode.FieldBatchRedeemLimitPerUser, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.ValidityDays(); ok {
 		_spec.SetField(redeemcode.FieldValidityDays, field.TypeInt, value)

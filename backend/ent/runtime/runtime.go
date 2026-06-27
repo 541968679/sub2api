@@ -1445,8 +1445,16 @@ func init() {
 	redeemcodeDescCreatedAt := redeemcodeFields[7].Descriptor()
 	// redeemcode.DefaultCreatedAt holds the default value on creation for the created_at field.
 	redeemcode.DefaultCreatedAt = redeemcodeDescCreatedAt.Default.(func() time.Time)
+	// redeemcodeDescBatchID is the schema descriptor for batch_id field.
+	redeemcodeDescBatchID := redeemcodeFields[9].Descriptor()
+	// redeemcode.BatchIDValidator is a validator for the "batch_id" field. It is called by the builders before save.
+	redeemcode.BatchIDValidator = redeemcodeDescBatchID.Validators[0].(func(string) error)
+	// redeemcodeDescBatchRedeemLimitPerUser is the schema descriptor for batch_redeem_limit_per_user field.
+	redeemcodeDescBatchRedeemLimitPerUser := redeemcodeFields[10].Descriptor()
+	// redeemcode.DefaultBatchRedeemLimitPerUser holds the default value on creation for the batch_redeem_limit_per_user field.
+	redeemcode.DefaultBatchRedeemLimitPerUser = redeemcodeDescBatchRedeemLimitPerUser.Default.(bool)
 	// redeemcodeDescValidityDays is the schema descriptor for validity_days field.
-	redeemcodeDescValidityDays := redeemcodeFields[10].Descriptor()
+	redeemcodeDescValidityDays := redeemcodeFields[12].Descriptor()
 	// redeemcode.DefaultValidityDays holds the default value on creation for the validity_days field.
 	redeemcode.DefaultValidityDays = redeemcodeDescValidityDays.Default.(int)
 	securitysecretMixin := schema.SecuritySecret{}.Mixin()

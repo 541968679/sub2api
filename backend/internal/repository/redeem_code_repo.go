@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 
 	entsql "entgo.io/ent/dialect/sql"
 )
@@ -31,8 +33,10 @@ func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemC
 		SetStatus(code.Status).
 		SetNotes(code.Notes).
 		SetValidityDays(code.ValidityDays).
+		SetBatchRedeemLimitPerUser(code.BatchRedeemLimitPerUser).
 		SetNillableUsedBy(code.UsedBy).
 		SetNillableUsedAt(code.UsedAt).
+		SetNillableBatchID(code.BatchID).
 		SetNillableGroupID(code.GroupID).
 		Save(ctx)
 	if err == nil {
@@ -58,8 +62,10 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 			SetStatus(c.Status).
 			SetNotes(c.Notes).
 			SetValidityDays(c.ValidityDays).
+			SetBatchRedeemLimitPerUser(c.BatchRedeemLimitPerUser).
 			SetNillableUsedBy(c.UsedBy).
 			SetNillableUsedAt(c.UsedAt).
+			SetNillableBatchID(c.BatchID).
 			SetNillableGroupID(c.GroupID)
 		builders = append(builders, b)
 	}
@@ -179,7 +185,8 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 		SetValue(code.Value).
 		SetStatus(code.Status).
 		SetNotes(code.Notes).
-		SetValidityDays(code.ValidityDays)
+		SetValidityDays(code.ValidityDays).
+		SetBatchRedeemLimitPerUser(code.BatchRedeemLimitPerUser)
 
 	if code.UsedBy != nil {
 		up.SetUsedBy(*code.UsedBy)
@@ -190,6 +197,11 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 		up.SetUsedAt(*code.UsedAt)
 	} else {
 		up.ClearUsedAt()
+	}
+	if code.BatchID != nil {
+		up.SetBatchID(*code.BatchID)
+	} else {
+		up.ClearBatchID()
 	}
 	if code.GroupID != nil {
 		up.SetGroupID(*code.GroupID)
@@ -218,6 +230,9 @@ func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error 
 		SetUsedAt(now).
 		Save(ctx)
 	if err != nil {
+		if isRedeemBatchLimitConstraint(err) {
+			return service.ErrRedeemBatchLimitExceeded
+		}
 		return err
 	}
 	if affected == 0 {
@@ -300,17 +315,19 @@ func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {
 		return nil
 	}
 	out := &service.RedeemCode{
-		ID:           m.ID,
-		Code:         m.Code,
-		Type:         m.Type,
-		Value:        m.Value,
-		Status:       m.Status,
-		UsedBy:       m.UsedBy,
-		UsedAt:       m.UsedAt,
-		Notes:        derefString(m.Notes),
-		CreatedAt:    m.CreatedAt,
-		GroupID:      m.GroupID,
-		ValidityDays: m.ValidityDays,
+		ID:                      m.ID,
+		Code:                    m.Code,
+		Type:                    m.Type,
+		Value:                   m.Value,
+		Status:                  m.Status,
+		UsedBy:                  m.UsedBy,
+		UsedAt:                  m.UsedAt,
+		Notes:                   derefString(m.Notes),
+		CreatedAt:               m.CreatedAt,
+		BatchID:                 m.BatchID,
+		BatchRedeemLimitPerUser: m.BatchRedeemLimitPerUser,
+		GroupID:                 m.GroupID,
+		ValidityDays:            m.ValidityDays,
 	}
 	if m.Edges.User != nil {
 		out.User = userEntityToService(m.Edges.User)
@@ -319,6 +336,14 @@ func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {
 		out.Group = groupEntityToService(m.Edges.Group)
 	}
 	return out
+}
+
+func isRedeemBatchLimitConstraint(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr != nil {
+		return pqErr.Code == "23505" && pqErr.Constraint == "redeemcode_batch_id_used_by"
+	}
+	return false
 }
 
 func redeemCodeEntitiesToService(models []*dbent.RedeemCode) []service.RedeemCode {

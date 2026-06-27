@@ -48,6 +48,42 @@ func postCreateAndRedeemValidation(t *testing.T, handler *RedeemHandler, body an
 	return w.Code
 }
 
+func postGenerateRedeemCodes(t *testing.T, handler *RedeemHandler, body any) int {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	jsonBytes, err := json.Marshal(body)
+	require.NoError(t, err)
+	c.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/admin/redeem-codes/generate", bytes.NewReader(jsonBytes))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	service.SetDefaultIdempotencyCoordinator(nil)
+	handler.Generate(c)
+	return w.Code
+}
+
+func TestGenerateRedeemCodes_PassesBatchLimitFlag(t *testing.T) {
+	adminSvc := newStubAdminService()
+	h := &RedeemHandler{
+		adminService:  adminSvc,
+		redeemService: &service.RedeemService{},
+	}
+
+	code := postGenerateRedeemCodes(t, h, map[string]any{
+		"count":                       3,
+		"type":                        "balance",
+		"value":                       10,
+		"batch_redeem_limit_per_user": true,
+	})
+
+	require.Equal(t, http.StatusOK, code)
+	require.NotNil(t, adminSvc.lastGenerateRedeemCodes)
+	assert.True(t, adminSvc.lastGenerateRedeemCodes.BatchRedeemLimitPerUser)
+	assert.Equal(t, 3, adminSvc.lastGenerateRedeemCodes.Count)
+}
+
 func TestCreateAndRedeem_TypeDefaultsToBalance(t *testing.T) {
 	// 不传 type 字段时应默认 balance，不触发 subscription 校验。
 	// 验证通过后进入 service 层会 panic（返回 0），说明默认值生效。

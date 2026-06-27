@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] feature: redeem code batch per-user limit
+
+**Affected files**: backend/ent/schema/redeem_code.go, backend/ent/*redeemcode*, backend/migrations/170_redeem_code_batch_user_limit.sql, backend/internal/repository/redeem_code_repo.go, backend/internal/service/redeem_code.go, backend/internal/service/redeem_service.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/redeem_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/views/admin/RedeemView.vue, frontend/src/api/admin/redeem.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/redeem.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local admin/user redeem-code behavior. Additive DB fields and a partial unique index preserve existing codes and unrestricted batches.
+**Change details**:
+- Added optional generated redeem-code batch metadata and a per-batch switch so admins can make each user redeem at most one code from the current generated batch.
+- Enforced the limit in `RedeemService.Redeem` before granting benefits and translated the DB unique-index fallback into `REDEEM_BATCH_LIMIT_EXCEEDED` for concurrent redemptions.
+- Added the management UI checkbox, API/request/DTO fields, and Chinese/English i18n copy.
+- Documented the redeem-code flow and the concurrency pitfall in `docs/dev/codebase/redeem.md`.
+- Verified: `go generate ./ent`; `go test -tags=unit ./internal/service ./internal/repository ./internal/handler/admin`; `pnpm run typecheck`.
+
 ## [2026-06-27] sync: upstream low-risk tooling/auth/compat gateway batch
 
 **Affected files**: skills/sub2api-admin/SKILL.md, skills/sub2api-admin/references/admin-cli.md, skills/sub2api-admin/scripts/sub2api-admin.js, backend/internal/service/token_refresh_service_test.go, backend/internal/pkg/apicompat/chatcompletions_to_responses.go, backend/internal/pkg/apicompat/chatcompletions_responses_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_non_streaming_response_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_intercept_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

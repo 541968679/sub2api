@@ -1462,6 +1462,8 @@ export interface RedeemCode {
   used_at: string | null
   created_at: string
   updated_at?: string
+  batch_id?: string | null
+  batch_redeem_limit_per_user: boolean
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
   user?: User
@@ -1474,6 +1476,7 @@ export interface GenerateRedeemCodesRequest {
   value: number
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
+  batch_redeem_limit_per_user?: boolean
 }
 
 export interface RedeemCodeRequest {

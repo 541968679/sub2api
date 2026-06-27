@@ -32,6 +32,10 @@ const (
 	FieldCreatedAt = "created_at"
 	// FieldExpiresAt holds the string denoting the expires_at field in the database.
 	FieldExpiresAt = "expires_at"
+	// FieldBatchID holds the string denoting the batch_id field in the database.
+	FieldBatchID = "batch_id"
+	// FieldBatchRedeemLimitPerUser holds the string denoting the batch_redeem_limit_per_user field in the database.
+	FieldBatchRedeemLimitPerUser = "batch_redeem_limit_per_user"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
 	// FieldValidityDays holds the string denoting the validity_days field in the database.
@@ -70,6 +74,8 @@ var Columns = []string{
 	FieldNotes,
 	FieldCreatedAt,
 	FieldExpiresAt,
+	FieldBatchID,
+	FieldBatchRedeemLimitPerUser,
 	FieldGroupID,
 	FieldValidityDays,
 }
@@ -99,6 +105,10 @@ var (
 	StatusValidator func(string) error
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
+	// BatchIDValidator is a validator for the "batch_id" field. It is called by the builders before save.
+	BatchIDValidator func(string) error
+	// DefaultBatchRedeemLimitPerUser holds the default value on creation for the "batch_redeem_limit_per_user" field.
+	DefaultBatchRedeemLimitPerUser bool
 	// DefaultValidityDays holds the default value on creation for the "validity_days" field.
 	DefaultValidityDays int
 )
@@ -154,6 +164,16 @@ func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByExpiresAt orders the results by the expires_at field.
 func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
+}
+
+// ByBatchID orders the results by the batch_id field.
+func ByBatchID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBatchID, opts...).ToFunc()
+}
+
+// ByBatchRedeemLimitPerUser orders the results by the batch_redeem_limit_per_user field.
+func ByBatchRedeemLimitPerUser(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBatchRedeemLimitPerUser, opts...).ToFunc()
 }
 
 // ByGroupID orders the results by the group_id field.
