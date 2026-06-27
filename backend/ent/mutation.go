@@ -29908,28 +29908,30 @@ func (m *ProxyMutation) ResetEdge(name string) error {
 // RedeemCodeMutation represents an operation that mutates the RedeemCode nodes in the graph.
 type RedeemCodeMutation struct {
 	config
-	op               Op
-	typ              string
-	id               *int64
-	code             *string
-	_type            *string
-	value            *float64
-	addvalue         *float64
-	status           *string
-	used_at          *time.Time
-	notes            *string
-	created_at       *time.Time
-	expires_at       *time.Time
-	validity_days    *int
-	addvalidity_days *int
-	clearedFields    map[string]struct{}
-	user             *int64
-	cleareduser      bool
-	group            *int64
-	clearedgroup     bool
-	done             bool
-	oldValue         func(context.Context) (*RedeemCode, error)
-	predicates       []predicate.RedeemCode
+	op                          Op
+	typ                         string
+	id                          *int64
+	code                        *string
+	_type                       *string
+	value                       *float64
+	addvalue                    *float64
+	status                      *string
+	used_at                     *time.Time
+	notes                       *string
+	created_at                  *time.Time
+	expires_at                  *time.Time
+	batch_id                    *string
+	batch_redeem_limit_per_user *bool
+	validity_days               *int
+	addvalidity_days            *int
+	clearedFields               map[string]struct{}
+	user                        *int64
+	cleareduser                 bool
+	group                       *int64
+	clearedgroup                bool
+	done                        bool
+	oldValue                    func(context.Context) (*RedeemCode, error)
+	predicates                  []predicate.RedeemCode
 }
 
 var _ ent.Mutation = (*RedeemCodeMutation)(nil)
@@ -30426,6 +30428,91 @@ func (m *RedeemCodeMutation) ResetExpiresAt() {
 	delete(m.clearedFields, redeemcode.FieldExpiresAt)
 }
 
+// SetBatchID sets the "batch_id" field.
+func (m *RedeemCodeMutation) SetBatchID(s string) {
+	m.batch_id = &s
+}
+
+// BatchID returns the value of the "batch_id" field in the mutation.
+func (m *RedeemCodeMutation) BatchID() (r string, exists bool) {
+	v := m.batch_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchID returns the old "batch_id" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldBatchID(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchID: %w", err)
+	}
+	return oldValue.BatchID, nil
+}
+
+// ClearBatchID clears the value of the "batch_id" field.
+func (m *RedeemCodeMutation) ClearBatchID() {
+	m.batch_id = nil
+	m.clearedFields[redeemcode.FieldBatchID] = struct{}{}
+}
+
+// BatchIDCleared returns if the "batch_id" field was cleared in this mutation.
+func (m *RedeemCodeMutation) BatchIDCleared() bool {
+	_, ok := m.clearedFields[redeemcode.FieldBatchID]
+	return ok
+}
+
+// ResetBatchID resets all changes to the "batch_id" field.
+func (m *RedeemCodeMutation) ResetBatchID() {
+	m.batch_id = nil
+	delete(m.clearedFields, redeemcode.FieldBatchID)
+}
+
+// SetBatchRedeemLimitPerUser sets the "batch_redeem_limit_per_user" field.
+func (m *RedeemCodeMutation) SetBatchRedeemLimitPerUser(b bool) {
+	m.batch_redeem_limit_per_user = &b
+}
+
+// BatchRedeemLimitPerUser returns the value of the "batch_redeem_limit_per_user" field in the mutation.
+func (m *RedeemCodeMutation) BatchRedeemLimitPerUser() (r bool, exists bool) {
+	v := m.batch_redeem_limit_per_user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldBatchRedeemLimitPerUser returns the old "batch_redeem_limit_per_user" field's value of the RedeemCode entity.
+// If the RedeemCode object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RedeemCodeMutation) OldBatchRedeemLimitPerUser(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldBatchRedeemLimitPerUser is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldBatchRedeemLimitPerUser requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldBatchRedeemLimitPerUser: %w", err)
+	}
+	return oldValue.BatchRedeemLimitPerUser, nil
+}
+
+// ResetBatchRedeemLimitPerUser resets all changes to the "batch_redeem_limit_per_user" field.
+func (m *RedeemCodeMutation) ResetBatchRedeemLimitPerUser() {
+	m.batch_redeem_limit_per_user = nil
+}
+
 // SetGroupID sets the "group_id" field.
 func (m *RedeemCodeMutation) SetGroupID(i int64) {
 	m.group = &i
@@ -30632,7 +30719,7 @@ func (m *RedeemCodeMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RedeemCodeMutation) Fields() []string {
-	fields := make([]string, 0, 11)
+	fields := make([]string, 0, 13)
 	if m.code != nil {
 		fields = append(fields, redeemcode.FieldCode)
 	}
@@ -30659,6 +30746,12 @@ func (m *RedeemCodeMutation) Fields() []string {
 	}
 	if m.expires_at != nil {
 		fields = append(fields, redeemcode.FieldExpiresAt)
+	}
+	if m.batch_id != nil {
+		fields = append(fields, redeemcode.FieldBatchID)
+	}
+	if m.batch_redeem_limit_per_user != nil {
+		fields = append(fields, redeemcode.FieldBatchRedeemLimitPerUser)
 	}
 	if m.group != nil {
 		fields = append(fields, redeemcode.FieldGroupID)
@@ -30692,6 +30785,10 @@ func (m *RedeemCodeMutation) Field(name string) (ent.Value, bool) {
 		return m.CreatedAt()
 	case redeemcode.FieldExpiresAt:
 		return m.ExpiresAt()
+	case redeemcode.FieldBatchID:
+		return m.BatchID()
+	case redeemcode.FieldBatchRedeemLimitPerUser:
+		return m.BatchRedeemLimitPerUser()
 	case redeemcode.FieldGroupID:
 		return m.GroupID()
 	case redeemcode.FieldValidityDays:
@@ -30723,6 +30820,10 @@ func (m *RedeemCodeMutation) OldField(ctx context.Context, name string) (ent.Val
 		return m.OldCreatedAt(ctx)
 	case redeemcode.FieldExpiresAt:
 		return m.OldExpiresAt(ctx)
+	case redeemcode.FieldBatchID:
+		return m.OldBatchID(ctx)
+	case redeemcode.FieldBatchRedeemLimitPerUser:
+		return m.OldBatchRedeemLimitPerUser(ctx)
 	case redeemcode.FieldGroupID:
 		return m.OldGroupID(ctx)
 	case redeemcode.FieldValidityDays:
@@ -30798,6 +30899,20 @@ func (m *RedeemCodeMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetExpiresAt(v)
+		return nil
+	case redeemcode.FieldBatchID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchID(v)
+		return nil
+	case redeemcode.FieldBatchRedeemLimitPerUser:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetBatchRedeemLimitPerUser(v)
 		return nil
 	case redeemcode.FieldGroupID:
 		v, ok := value.(int64)
@@ -30882,6 +30997,9 @@ func (m *RedeemCodeMutation) ClearedFields() []string {
 	if m.FieldCleared(redeemcode.FieldExpiresAt) {
 		fields = append(fields, redeemcode.FieldExpiresAt)
 	}
+	if m.FieldCleared(redeemcode.FieldBatchID) {
+		fields = append(fields, redeemcode.FieldBatchID)
+	}
 	if m.FieldCleared(redeemcode.FieldGroupID) {
 		fields = append(fields, redeemcode.FieldGroupID)
 	}
@@ -30910,6 +31028,9 @@ func (m *RedeemCodeMutation) ClearField(name string) error {
 		return nil
 	case redeemcode.FieldExpiresAt:
 		m.ClearExpiresAt()
+		return nil
+	case redeemcode.FieldBatchID:
+		m.ClearBatchID()
 		return nil
 	case redeemcode.FieldGroupID:
 		m.ClearGroupID()
@@ -30948,6 +31069,12 @@ func (m *RedeemCodeMutation) ResetField(name string) error {
 		return nil
 	case redeemcode.FieldExpiresAt:
 		m.ResetExpiresAt()
+		return nil
+	case redeemcode.FieldBatchID:
+		m.ResetBatchID()
+		return nil
+	case redeemcode.FieldBatchRedeemLimitPerUser:
+		m.ResetBatchRedeemLimitPerUser()
 		return nil
 	case redeemcode.FieldGroupID:
 		m.ResetGroupID()

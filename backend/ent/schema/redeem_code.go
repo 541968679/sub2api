@@ -67,6 +67,12 @@ func (RedeemCode) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.String("batch_id").
+			MaxLen(64).
+			Optional().
+			Nillable(),
+		field.Bool("batch_redeem_limit_per_user").
+			Default(false),
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
@@ -95,5 +101,8 @@ func (RedeemCode) Indexes() []ent.Index {
 		index.Fields("used_by"),
 		index.Fields("group_id"),
 		index.Fields("expires_at"),
+		index.Fields("batch_id", "used_by").
+			Unique().
+			Annotations(entsql.IndexWhere("batch_id IS NOT NULL AND used_by IS NOT NULL AND status = 'used' AND batch_redeem_limit_per_user = true")),
 	}
 }

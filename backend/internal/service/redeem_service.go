@@ -10,16 +10,18 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 )
 
 var (
-	ErrRedeemCodeNotFound  = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
-	ErrRedeemCodeUsed      = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
-	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
-	ErrRedeemRateLimited   = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrRedeemCodeLocked    = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemCodeNotFound       = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
+	ErrRedeemCodeUsed           = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
+	ErrRedeemBatchLimitExceeded = infraerrors.Conflict("REDEEM_BATCH_LIMIT_EXCEEDED", "this redeem code batch can only be redeemed once per user")
+	ErrInsufficientBalance      = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
+	ErrRedeemRateLimited        = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrRedeemCodeLocked         = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
 )
 
 const (
@@ -58,9 +60,10 @@ type RedeemCodeRepository interface {
 
 // GenerateCodesRequest 生成兑换码请求
 type GenerateCodesRequest struct {
-	Count int     `json:"count"`
-	Value float64 `json:"value"`
-	Type  string  `json:"type"`
+	Count                   int     `json:"count"`
+	Value                   float64 `json:"value"`
+	Type                    string  `json:"type"`
+	BatchRedeemLimitPerUser bool    `json:"batch_redeem_limit_per_user"`
 }
 
 // RedeemCodeResponse 兑换码响应
@@ -151,6 +154,15 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		value = 0
 	}
 
+	var batchID *string
+	if req.BatchRedeemLimitPerUser {
+		generatedBatchID, err := GenerateRedeemBatchID()
+		if err != nil {
+			return nil, fmt.Errorf("generate batch id: %w", err)
+		}
+		batchID = &generatedBatchID
+	}
+
 	codes := make([]RedeemCode, 0, req.Count)
 	for i := 0; i < req.Count; i++ {
 		code, err := s.GenerateRandomCode()
@@ -159,10 +171,12 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		}
 
 		codes = append(codes, RedeemCode{
-			Code:   code,
-			Type:   codeType,
-			Value:  value,
-			Status: StatusUnused,
+			Code:                    code,
+			Type:                    codeType,
+			Value:                   value,
+			Status:                  StatusUnused,
+			BatchID:                 batchID,
+			BatchRedeemLimitPerUser: req.BatchRedeemLimitPerUser,
 		})
 	}
 
@@ -287,6 +301,17 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
 	}
 
+	if redeemCode.BatchRedeemLimitPerUser && redeemCode.BatchID != nil {
+		alreadyRedeemed, err := s.hasUserRedeemedLimitedBatch(ctx, userID, *redeemCode.BatchID)
+		if err != nil {
+			return nil, fmt.Errorf("check redeem batch usage: %w", err)
+		}
+		if alreadyRedeemed {
+			s.incrementRedeemErrorCount(ctx, userID)
+			return nil, ErrRedeemBatchLimitExceeded
+		}
+	}
+
 	// 获取用户信息
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -306,6 +331,9 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	// 【关键】先标记兑换码为已使用，确保并发安全
 	// 利用数据库乐观锁（WHERE status = 'unused'）保证原子性
 	if err := s.redeemRepo.Use(txCtx, redeemCode.ID, userID); err != nil {
+		if errors.Is(err, ErrRedeemBatchLimitExceeded) {
+			return nil, ErrRedeemBatchLimitExceeded
+		}
 		if errors.Is(err, ErrRedeemCodeNotFound) || errors.Is(err, ErrRedeemCodeUsed) {
 			return nil, ErrRedeemCodeUsed
 		}
@@ -376,6 +404,20 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 
 	return redeemCode, nil
+}
+
+func (s *RedeemService) hasUserRedeemedLimitedBatch(ctx context.Context, userID int64, batchID string) (bool, error) {
+	if s.entClient == nil || strings.TrimSpace(batchID) == "" {
+		return false, nil
+	}
+	return s.entClient.RedeemCode.Query().
+		Where(
+			redeemcode.BatchIDEQ(batchID),
+			redeemcode.BatchRedeemLimitPerUserEQ(true),
+			redeemcode.StatusEQ(StatusUsed),
+			redeemcode.UsedByEQ(userID),
+		).
+		Exist(ctx)
 }
 
 // invalidateRedeemCaches 失效兑换相关的缓存

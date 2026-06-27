@@ -4519,6 +4519,8 @@ const enBase = {
       amount: 'Amount ($)',
       value: 'Value',
       count: 'Count',
+      batchLimitPerUser: 'Limit each user to one code from this batch',
+      batchLimitPerUserHint: 'Only applies to this generated batch. Other batches and existing codes are unaffected.',
       generating: 'Generating...',
       generate: 'Generate',
       copyAll: 'Copy All',

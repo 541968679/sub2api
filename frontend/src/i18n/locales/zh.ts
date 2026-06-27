@@ -4235,6 +4235,8 @@ const zhBase = {
       amount: '金额 ($)',
       value: '面值',
       count: '数量',
+      batchLimitPerUser: '每个用户最多兑换本批次一个',
+      batchLimitPerUserHint: '仅限制本次生成的这一批兑换码，不影响其他批次或已有兑换码。',
       generate: '生成',
       copyAll: '全部复制',
       download: '下载',

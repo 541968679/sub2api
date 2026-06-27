@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] feature: redeem code batch per-user limit
+
+**Affected files**: backend/ent/schema/redeem_code.go, backend/ent/*redeemcode*, backend/migrations/170_redeem_code_batch_user_limit.sql, backend/internal/repository/redeem_code_repo.go, backend/internal/service/redeem_code.go, backend/internal/service/redeem_service.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/redeem_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/views/admin/RedeemView.vue, frontend/src/api/admin/redeem.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/redeem.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: fork-local admin/user redeem-code behavior. Additive DB fields and a partial unique index preserve existing codes and unrestricted batches.
+**Change details**:
+- Added optional generated redeem-code batch metadata and a per-batch switch so admins can make each user redeem at most one code from the current generated batch.
+- Enforced the limit in `RedeemService.Redeem` before granting benefits and translated the DB unique-index fallback into `REDEEM_BATCH_LIMIT_EXCEEDED` for concurrent redemptions.
+- Added the management UI checkbox, API/request/DTO fields, and Chinese/English i18n copy.
+- Documented the redeem-code flow and the concurrency pitfall in `docs/dev/codebase/redeem.md`.
+- Verified: `go generate ./ent`; `go test -tags=unit ./internal/service ./internal/repository ./internal/handler/admin`; `pnpm run typecheck`; `pnpm run lint:check`.
+
 ## [2026-06-26] chore: satisfy CI lint annotations
 
 **Affected files**: backend/cmd/server/main.go, backend/ent/schema/mixins/soft_delete.go, backend/internal/server/http.go, backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go, backend/internal/service/distribution.go, backend/internal/service/image_generation_intent.go, backend/internal/service/image_output_accounting.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/openai_messages_bridge.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_compat_prompt_cache_key.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/payment_amounts.go, backend/internal/service/payment_config_service.go, backend/internal/pkg/antigravity/schema_cleaner.go, backend/internal/pkg/tlsfingerprint/dialer_capture_test.go, backend/internal/repository/ops_repo.go, backend/internal/repository/usage_log_repo.go, backend/internal/repository/usage_log_repo_request_type_test.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/repository/announcement_read_repo.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/tutorial_page_handler.go, backend/internal/handler/admin/pricing_page_handler.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/handler/pricing_page_handler.go, backend/tools/smoke/main.go, docs/dev/CHANGELOG_CUSTOM.md

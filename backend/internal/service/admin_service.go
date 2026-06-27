@@ -407,11 +407,12 @@ type UpdateProxyInput struct {
 }
 
 type GenerateRedeemCodesInput struct {
-	Count        int
-	Type         string
-	Value        float64
-	GroupID      *int64 // 订阅类型专用：关联的分组ID
-	ValidityDays int    // 订阅类型专用：有效天数
+	Count                   int
+	Type                    string
+	Value                   float64
+	GroupID                 *int64 // 订阅类型专用：关联的分组ID
+	ValidityDays            int    // 订阅类型专用：有效天数
+	BatchRedeemLimitPerUser bool
 }
 
 type ProxyBatchDeleteResult struct {
@@ -3164,6 +3165,15 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		}
 	}
 
+	var batchID *string
+	if input.BatchRedeemLimitPerUser {
+		generatedBatchID, err := GenerateRedeemBatchID()
+		if err != nil {
+			return nil, err
+		}
+		batchID = &generatedBatchID
+	}
+
 	codes := make([]RedeemCode, 0, input.Count)
 	for i := 0; i < input.Count; i++ {
 		codeValue, err := GenerateRedeemCode()
@@ -3171,10 +3181,12 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			return nil, err
 		}
 		code := RedeemCode{
-			Code:   codeValue,
-			Type:   input.Type,
-			Value:  input.Value,
-			Status: StatusUnused,
+			Code:                    codeValue,
+			Type:                    input.Type,
+			Value:                   input.Value,
+			Status:                  StatusUnused,
+			BatchID:                 batchID,
+			BatchRedeemLimitPerUser: input.BatchRedeemLimitPerUser,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {

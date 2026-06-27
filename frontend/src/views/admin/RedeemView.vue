@@ -287,6 +287,23 @@
                 />
               </div>
             </template>
+            <label
+              class="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700/50"
+            >
+              <input
+                v-model="generateForm.batch_redeem_limit_per_user"
+                type="checkbox"
+                class="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-700"
+              />
+              <span>
+                <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                  {{ t('admin.redeem.batchLimitPerUser') }}
+                </span>
+                <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.redeem.batchLimitPerUserHint') }}
+                </span>
+              </span>
+            </label>
             <div>
               <label class="input-label">{{ t('admin.redeem.count') }}</label>
               <input
@@ -562,7 +579,8 @@ const generateForm = reactive({
   value: 10,
   count: 1,
   group_id: null as number | null,
-  validity_days: 30
+  validity_days: 30,
+  batch_redeem_limit_per_user: false
 })
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
@@ -666,7 +684,8 @@ const handleGenerateCodes = async () => {
       generateForm.type,
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
-      generateForm.type === 'subscription' ? generateForm.validity_days : undefined
+      generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
+      generateForm.batch_redeem_limit_per_user
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
@@ -674,6 +693,7 @@ const handleGenerateCodes = async () => {
     // 重置表单
     generateForm.group_id = null
     generateForm.validity_days = 30
+    generateForm.batch_redeem_limit_per_user = false
     loadCodes()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToGenerate'))

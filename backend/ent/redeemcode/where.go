@@ -100,6 +100,16 @@ func ExpiresAt(v time.Time) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldExpiresAt, v))
 }
 
+// BatchID applies equality check predicate on the "batch_id" field. It's identical to BatchIDEQ.
+func BatchID(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldBatchID, v))
+}
+
+// BatchRedeemLimitPerUser applies equality check predicate on the "batch_redeem_limit_per_user" field. It's identical to BatchRedeemLimitPerUserEQ.
+func BatchRedeemLimitPerUser(v bool) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldBatchRedeemLimitPerUser, v))
+}
+
 // GroupID applies equality check predicate on the "group_id" field. It's identical to GroupIDEQ.
 func GroupID(v int64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldGroupID, v))
@@ -588,6 +598,91 @@ func ExpiresAtIsNil() predicate.RedeemCode {
 // ExpiresAtNotNil applies the NotNil predicate on the "expires_at" field.
 func ExpiresAtNotNil() predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldNotNull(FieldExpiresAt))
+}
+
+// BatchIDEQ applies the EQ predicate on the "batch_id" field.
+func BatchIDEQ(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldBatchID, v))
+}
+
+// BatchIDNEQ applies the NEQ predicate on the "batch_id" field.
+func BatchIDNEQ(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldBatchID, v))
+}
+
+// BatchIDIn applies the In predicate on the "batch_id" field.
+func BatchIDIn(vs ...string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldBatchID, vs...))
+}
+
+// BatchIDNotIn applies the NotIn predicate on the "batch_id" field.
+func BatchIDNotIn(vs ...string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldBatchID, vs...))
+}
+
+// BatchIDGT applies the GT predicate on the "batch_id" field.
+func BatchIDGT(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldBatchID, v))
+}
+
+// BatchIDGTE applies the GTE predicate on the "batch_id" field.
+func BatchIDGTE(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldBatchID, v))
+}
+
+// BatchIDLT applies the LT predicate on the "batch_id" field.
+func BatchIDLT(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldBatchID, v))
+}
+
+// BatchIDLTE applies the LTE predicate on the "batch_id" field.
+func BatchIDLTE(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldBatchID, v))
+}
+
+// BatchIDContains applies the Contains predicate on the "batch_id" field.
+func BatchIDContains(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldContains(FieldBatchID, v))
+}
+
+// BatchIDHasPrefix applies the HasPrefix predicate on the "batch_id" field.
+func BatchIDHasPrefix(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldHasPrefix(FieldBatchID, v))
+}
+
+// BatchIDHasSuffix applies the HasSuffix predicate on the "batch_id" field.
+func BatchIDHasSuffix(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldHasSuffix(FieldBatchID, v))
+}
+
+// BatchIDIsNil applies the IsNil predicate on the "batch_id" field.
+func BatchIDIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldBatchID))
+}
+
+// BatchIDNotNil applies the NotNil predicate on the "batch_id" field.
+func BatchIDNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldBatchID))
+}
+
+// BatchIDEqualFold applies the EqualFold predicate on the "batch_id" field.
+func BatchIDEqualFold(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEqualFold(FieldBatchID, v))
+}
+
+// BatchIDContainsFold applies the ContainsFold predicate on the "batch_id" field.
+func BatchIDContainsFold(v string) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldContainsFold(FieldBatchID, v))
+}
+
+// BatchRedeemLimitPerUserEQ applies the EQ predicate on the "batch_redeem_limit_per_user" field.
+func BatchRedeemLimitPerUserEQ(v bool) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldBatchRedeemLimitPerUser, v))
+}
+
+// BatchRedeemLimitPerUserNEQ applies the NEQ predicate on the "batch_redeem_limit_per_user" field.
+func BatchRedeemLimitPerUserNEQ(v bool) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldBatchRedeemLimitPerUser, v))
 }
 
 // GroupIDEQ applies the EQ predicate on the "group_id" field.

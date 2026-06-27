@@ -60,6 +60,7 @@ export async function getById(id: number): Promise<RedeemCode> {
  * @param value - Value of the code
  * @param groupId - Group ID (required for subscription type)
  * @param validityDays - Validity days (for subscription type)
+ * @param batchRedeemLimitPerUser - Whether each user may redeem only one code from this generated batch
  * @returns Array of generated redeem codes
  */
 export async function generate(
@@ -67,12 +68,14 @@ export async function generate(
   type: RedeemCodeType,
   value: number,
   groupId?: number | null,
-  validityDays?: number
+  validityDays?: number,
+  batchRedeemLimitPerUser: boolean = false
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
     type,
-    value
+    value,
+    batch_redeem_limit_per_user: batchRedeemLimitPerUser
   }
 
   // 订阅类型专用字段
