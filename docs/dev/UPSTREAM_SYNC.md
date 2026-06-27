@@ -12,6 +12,11 @@
 | 最后同步日期 | 2026-05-03 |
 | 上游版本标签 | v0.1.121 |
 
+> Note: the table above tracks the last completed full upstream sync. The
+> 2026-06-27 entry below is a staged safety-fix batch against
+> `upstream/main@c2754222`, not a declaration that the fork has fully caught up
+> with upstream.
+
 ## 同步操作步骤
 
 ```bash
@@ -34,6 +39,36 @@ git push origin main
 ```
 
 ## 同步记录
+
+### 2026-06-27 - upstream safety fix batch 1 (OpenAI/apicompat/images)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Baseline**: `origin/main@2c9a1e92` (`v0.1.148` fork release)
+- **Upstream head observed**: `upstream/main@c2754222`
+- **Strategy**: staged cherry-pick/manual port only; no full merge. The full upstream preview still has broad conflicts across generated Ent code, gateway services, billing/account paths, and frontend files.
+- **Synced upstream commits**:
+  - `29122e30` - avoid doubling `tool_call` arguments from single-chunk upstreams
+  - `40c82527` - normalize custom tool schema in apicompat
+  - `8a7269f5` - sanitize verbose OpenAI `response.failed` events
+  - `cc7612bd` - detect OpenAI overloaded error codes
+  - `0a97a5f4` - treat `refresh_token_invalidated` as non-retryable
+  - `65fa7289` - fail over on Chat Completions transport errors
+  - `9491de0a` - pass image content-moderation refusals through as 400 instead of retrying
+- **Local reconciliation**:
+  - Preserved local display-token rewrite behavior in streaming paths.
+  - Adapted the Images refusal patch to the fork-local `OpenAIImageTrace` signature and response shape.
+  - Added local follow-up `59300d06` so retryable `response.failed` markers are checked before generic `invalid_request` non-retryable handling.
+- **Verification**:
+  - `go test -tags=unit ./internal/pkg/apicompat`
+  - `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|SummarizeNoOutputBody|ImagesOAuthNonStreaming|ExtractModelRefusal|HandleOpenAIUpstreamTransportError|ForwardAsRawChatCompletions_TransportErrorFailsOver|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailed|OpenAIStreamingPassthroughResponseFailed|NonRetryableRefreshError)" -count=1 -v`
+  - `git diff --check`
+- **Not synced in this batch**:
+  - Grok subscription stack.
+  - `codex_cli_only` engine fingerprint/app-server hardening.
+  - OpenAI PAT auth.
+  - Admin CLI JWT fallback.
+  - `fcd3bc12` model-not-found 404 response behavior.
+  - Broader migrations, quota, proxy, payment, and frontend buckets.
 
 ### 2026-06-02 — cherry-pick Opus 4.8 Antigravity 支持
 
