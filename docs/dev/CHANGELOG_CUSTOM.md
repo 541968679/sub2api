@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] sync: upstream OpenAI images and overloaded error verification batch
+
+**Affected files**: docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: evaluated `9491de0a`, `b0d5592a`, and `cc7612bd`; no runtime code was changed because equivalent local commits already exist (`ae83aa9b` for content-moderation refusals, existing Images incomplete handling in `openai_images_responses.go`, and `92ec4294` for overloaded error code detection).
+**Change details**:
+- Confirmed OpenAI Images content-moderation refusals already return 400 `content_policy_violation` without failover retry.
+- Confirmed OpenAI Images `response.incomplete` and no-output soft-failure handling already record ops diagnostics and preserve same-account retry behavior.
+- Confirmed OpenAI overloaded/slow-down transient errors already trigger failover classification.
+- Fork-local impact: no new code behavior change in this batch; it is a synchronization audit/documentation entry to avoid duplicate cherry-picks of already-ported OpenAI/Images fixes.
+- Verified: `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|ImagesOAuthNonStreaming|ExtractModelRefusal|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailedBeforeOutput(ServerOverloadedCode|CapacityError|ReturnsFailover)|OpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover)" -count=1`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream auth promo and frontend title batch
 
 **Affected files**: backend/internal/service/auth_email_binding.go, backend/internal/service/auth_service_email_bind_test.go, backend/internal/handler/auth_oauth_pending_flow_test.go, backend/internal/service/registration_email_policy.go, backend/internal/service/registration_email_policy_test.go, backend/internal/handler/admin/promo_handler.go, backend/internal/service/promo_service.go, frontend/src/App.vue, frontend/src/i18n/index.ts, frontend/src/router/index.ts, frontend/src/router/title.ts, frontend/src/router/__tests__/title.spec.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

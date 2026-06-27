@@ -39,6 +39,25 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-27 - upstream OpenAI images and overloaded error verification batch 10
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before handling this batch, covering each OpenAI/Images candidate, tests, frontend visibility, and fork-local secondary-development impact.
+- **Evaluated upstream commits**:
+  - `9491de0a` - pass OpenAI Images content-moderation refusals through as 400
+  - `b0d5592a` - recognize OpenAI Images `response.incomplete` and record soft-failure upstream response diagnostics
+  - `cc7612bd` - detect OpenAI overloaded error codes
+- **Result**:
+  - No runtime code commit was needed. `9491de0a` conflicted because the current branch already has the equivalent local implementation and tests; the attempted cherry-pick was aborted to avoid duplicate/empty changes.
+  - `b0d5592a` behavior is already present in `openai_images_responses.go` and `openai_images_incomplete_test.go`.
+  - `cc7612bd` behavior is already present via local commit `92ec4294`.
+- **Fork-local secondary-development impact**:
+  - No new frontend-visible behavior, API route, database migration, billing/display-token, curated model list, Claude-GPT bridge, subscription, account scheduling, or payment behavior change in this batch.
+  - Existing fork-local OpenAI Images trace/ops recording and same-account retry behavior were verified and left unchanged.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|ImagesOAuthNonStreaming|ExtractModelRefusal|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailedBeforeOutput(ServerOverloadedCode|CapacityError|ReturnsFailover)|OpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover)" -count=1`
+  - `git diff --check`
+
 ### 2026-06-27 - upstream auth promo and frontend title batch 9
 
 - **Branch**: `codex/upstream-sync-20260627`
