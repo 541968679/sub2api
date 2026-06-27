@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-27] docs: require upstream-sync assessment table before each batch
+
+**Affected files**: AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: repository workflow documentation only; no runtime behavior change.
+**Change details**:
+- Added a mandatory upstream-sync preflight rule requiring an assessment table before every sync batch.
+- The table must cover feature behavior, affected modules, frontend visibility, tests, fork-local secondary-development relationships, expected impact, risk, and handling strategy.
+- Made the fork-local impact column mandatory for custom areas such as billing/display-token accounting, curated model lists, Claude-GPT bridge, OpenAI image generation, default-model fallback, scheduling/failover, ops logging, settings, migrations, i18n, and routes.
+
 ## [2026-06-27] sync: upstream Codex Spark image tool strip
 
 **Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_hotpath_test.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_ws_forwarder_ingress_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
