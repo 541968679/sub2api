@@ -245,6 +245,36 @@ func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndDrainsAfterDisc
 	require.Empty(t, upstream.lastReq.Header.Get("x-codex-turn-state"))
 }
 
+func TestForwardAsRawChatCompletions_NormalizesGLMReasoningEffort(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false,"reasoning":{"effort":"medium"}}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_raw_glm_reasoning"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"id":"chatcmpl_glm","object":"chat.completion","model":"glm-4.6","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`,
+		)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	account := rawChatCompletionsTestAccount()
+	account.Credentials["model_mapping"] = map[string]any{"gpt-5.4": "glm-4.6"}
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "glm-4.6", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "high", gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
+}
+
 func TestBufferRawChatCompletions_RejectsOversizedResponse(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

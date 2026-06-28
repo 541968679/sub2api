@@ -253,7 +253,7 @@ func TestAccountTestService_OpenAIResponsesProbeAddsV1ForRootBaseURL(t *testing.
 		},
 	}
 	upstream := &queuedHTTPUpstream{responses: []*http.Response{
-		newJSONResponse(http.StatusOK, `{}`),
+		newJSONResponse(http.StatusOK, `{"output":[{"type":"function_call","name":"probe_ping"}]}`),
 	}}
 	svc := &AccountTestService{
 		accountRepo:  repo,

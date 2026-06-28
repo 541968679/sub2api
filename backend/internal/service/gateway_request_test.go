@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestParseGatewayRequest(t *testing.T) {
@@ -1205,6 +1206,65 @@ func TestNormalizeClaudeOutputEffort(t *testing.T) {
 				require.NotNil(t, got)
 				require.Equal(t, *tt.want, *got)
 			}
+		})
+	}
+}
+
+func TestNormalizeGLMOpenAIReasoningEffort(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     string
+		body      string
+		path      string
+		want      string
+		wantDirty bool
+	}{
+		{
+			name:      "nested medium to high",
+			model:     "glm-4.6",
+			body:      `{"reasoning":{"effort":"medium"}}`,
+			path:      "reasoning.effort",
+			want:      "high",
+			wantDirty: true,
+		},
+		{
+			name:      "flat x-high to max",
+			model:     "glm-4.6",
+			body:      `{"reasoning_effort":"x-high"}`,
+			path:      "reasoning_effort",
+			want:      "max",
+			wantDirty: true,
+		},
+		{
+			name:      "ultracode to max",
+			model:     " GLM-4.6 ",
+			body:      `{"reasoning":{"effort":"ultracode"}}`,
+			path:      "reasoning.effort",
+			want:      "max",
+			wantDirty: true,
+		},
+		{
+			name:      "non glm unchanged",
+			model:     "gpt-5.4",
+			body:      `{"reasoning":{"effort":"medium"}}`,
+			path:      "reasoning.effort",
+			want:      "medium",
+			wantDirty: false,
+		},
+		{
+			name:      "unknown effort unchanged",
+			model:     "glm-4.6",
+			body:      `{"reasoning":{"effort":"turbo"}}`,
+			path:      "reasoning.effort",
+			want:      "turbo",
+			wantDirty: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, dirty := NormalizeGLMOpenAIReasoningEffort([]byte(tt.body), tt.model)
+			require.Equal(t, tt.wantDirty, dirty)
+			require.Equal(t, tt.want, gjson.GetBytes(got, tt.path).String())
 		})
 	}
 }

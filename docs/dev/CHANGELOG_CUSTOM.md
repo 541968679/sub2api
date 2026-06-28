@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-28] sync: upstream OpenAI gateway/probe compatibility batch
+
+**Affected files**: backend/internal/pkg/openai/constants.go, backend/internal/pkg/openai/instructions_gpt5_5.txt, backend/internal/pkg/openai/instructions_test.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/gateway_request.go, backend/internal/service/gateway_request_test.go, backend/internal/service/openai_apikey_responses_probe.go, backend/internal/service/*openai*_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `00d68ff6`, `dbdbfb11`, `89cfe24a`, and `b88f8e4c`. OpenAI chat transport-error failover parity was already present and left unchanged; PAT auth, quota-readiness, and codex-detect engine-fingerprint changes remain deferred for separate assessment.
+**Change details**:
+- Added upstream GPT-5.5 Codex instructions and made non-specific GPT-5.x Codex prompt fallback use the latest embedded prompt while keeping explicit Codex model IDs on this fork's existing default Codex prompt.
+- Updated OAuth `/v1/chat/completions` bridge handling so converted chat requests keep an empty `instructions` field instead of injecting the default long Codex instructions.
+- Added GLM raw chat-completions reasoning effort normalization (`low`/`medium`/`high` -> `high`; `x-high`/`max`/`ultracode` -> `max`) after account model mapping resolves to a `glm-*` upstream model.
+- Hardened OpenAI API-key `/v1/responses` probing by selecting a concrete mapped upstream model, sending a required function-call probe, reading a bounded response body, and treating 2xx responses without `function_call` output as unsupported.
+- Preserved fork-local TLS fingerprint probing, `codex_cli_only` chat-completions restriction, account scheduling/failover boundaries, billing/display-token accounting, curated model-list policy, Claude-GPT bridge behavior, OpenAI Images behavior, default-model fallback, migrations, routes, frontend i18n, subscriptions, and payment behavior.
+- Verified: `go test -tags=unit ./internal/pkg/openai -run TestCodexBaseInstructionsForModel -count=1`; `go test -tags=unit ./internal/service -run "Test(ForwardAsChatCompletions_OAuthDoesNotInjectDefaultInstructions|NormalizeGLMOpenAIReasoningEffort|ForwardAsRawChatCompletions_NormalizesGLMReasoningEffort|OpenAIResponsesProbePayloadRequiresFunctionCall|SelectResponsesProbeModel|DecideResponsesProbeSupport)$" -count=1`; `go test -tags=unit ./internal/pkg/openai -count=1`; `go test -tags=unit ./internal/service -run "Test.*(OpenAI|Responses|ChatCompletions|GLM|Codex|Probe|TransportError|RawChat)" -count=1`; `git diff --check`.
+
 ## [2026-06-28] sync: upstream Claude Code no-cch detection test batch
 
 **Affected files**: backend/internal/service/claude_code_validator_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

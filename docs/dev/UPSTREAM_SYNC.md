@@ -39,6 +39,34 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-28 - upstream OpenAI gateway/probe compatibility batch 12
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this OpenAI-focused batch, including behavior, backend/frontend impact, tests, fork-local secondary-development relation, risk, and handling strategy.
+- **Synced upstream commits**:
+  - `00d68ff6` - add GPT-5.5 Codex instructions and use them as latest fallback
+  - `dbdbfb11` - avoid injecting default Codex instructions in the chat-completions bridge
+  - `89cfe24a` - normalize GLM OpenAI-compatible reasoning effort values on raw chat forwarding
+  - `b88f8e4c` - require function-call output in `/v1/responses` capability probing
+- **Evaluated but not newly changed**:
+  - OpenAI chat transport-error failover parity was already present in this branch and left unchanged.
+  - OpenAI PAT auth, quota-readiness, and codex-detect engine-fingerprint batches remain deferred for separate assessment because they touch account auth/security policy and broader routing behavior.
+- **Local reconciliation**:
+  - Preserved this fork's existing TLS fingerprint path for OpenAI API-key Responses probing while adding the upstream tool-call probe request and 2xx response body validation.
+  - Kept the fork-local `codex_cli_only` chat-completions restriction before the existing APIKey Responses/raw-Chat split.
+  - Repaired the local `instructions_test.go` malformed comment/function line while updating the expected latest fallback prompt.
+- **Fork-local secondary-development impact**:
+  - No frontend-visible change and no frontend files changed.
+  - No database migration, route, i18n, billing/display-token accounting, curated model-list policy, Claude-GPT bridge, OpenAI Images, default-model fallback, subscription/payment, or account scheduling change.
+  - Intentional backend impact is limited to OpenAI gateway compatibility: newer Codex prompt fallback, safer OAuth chat bridge instructions behavior, GLM raw-chat reasoning effort mapping, and stricter Responses probe capability classification.
+  - The Responses probe can mark compatible upstreams that return 2xx without `function_call` output as unsupported, causing later traffic to use the existing raw `/v1/chat/completions` path.
+- **Verification**:
+  - `go test -tags=unit ./internal/pkg/openai -run TestCodexBaseInstructionsForModel -count=1`
+  - `go test -tags=unit ./internal/service -run "Test(ForwardAsChatCompletions_OAuthDoesNotInjectDefaultInstructions|NormalizeGLMOpenAIReasoningEffort|ForwardAsRawChatCompletions_NormalizesGLMReasoningEffort|OpenAIResponsesProbePayloadRequiresFunctionCall|SelectResponsesProbeModel|DecideResponsesProbeSupport)$" -count=1`
+  - `go test -tags=unit ./internal/pkg/openai -count=1`
+  - `go test -tags=unit ./internal/service -run "Test.*(OpenAI|Responses|ChatCompletions|GLM|Codex|Probe|TransportError|RawChat)" -count=1`
+  - `git diff --check`
+
 ### 2026-06-28 - upstream Claude Code no-cch detection test batch 11
 
 - **Branch**: `codex/upstream-sync-20260627`
