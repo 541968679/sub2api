@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-28] sync: upstream Claude Code no-cch detection test batch
+
+**Affected files**: backend/internal/service/claude_code_validator_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `5cb8cdd3` as a local test-only adaptation. Evaluated `30adee43` but did not apply it because this fork no longer contains the upstream `OpenAIQuotaResetCell.vue` entry point or any `openaiQuotaReset` frontend references.
+**Change details**:
+- Added a Claude Code validator regression test proving no-cch billing blocks still cannot bypass the required Claude Code User-Agent check.
+- Kept existing local positive coverage for no-cch billing blocks via `TestClaudeCodeValidator_BillingBlockAnyEntrypointCountsAsSystemPrompt`.
+- Did not import `6cfb7898`; no cch-signing or Claude mimicry runtime behavior was changed.
+- Fork-local impact: no runtime behavior change, no frontend-visible change, no billing/display-token, model-list, routing, account scheduling, subscription, payment, migration, or i18n behavior change. The only code change is test coverage for the existing Claude Code/Codex compatibility path.
+- Verified: `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator" -count=1`; `git diff --check`.
+
 ## [2026-06-27] sync: upstream OpenAI images and overloaded error verification batch
 
 **Affected files**: docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

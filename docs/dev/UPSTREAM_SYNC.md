@@ -39,6 +39,24 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-28 - upstream Claude Code no-cch detection test batch 11
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before handling the batch, then narrowed scope after inspecting candidate commit sizes and actual local file ownership.
+- **Evaluated upstream commits**:
+  - `30adee43` - admin OpenAI weekly limit reset confirmation
+  - `5cb8cdd3` - Claude Code no-cch billing block detection tests
+- **Result**:
+  - `30adee43` was not applied. The target component `frontend/src/components/account/OpenAIQuotaResetCell.vue` is deleted in this fork, and HEAD has no `OpenAIQuotaResetCell` or `openaiQuotaReset` frontend references. Restoring the upstream component would create dead code, so this remains deferred until the current account UI has an equivalent weekly-reset entry point.
+  - `5cb8cdd3` was applied as a local test-only adaptation. The current branch already had positive no-cch coverage through `TestClaudeCodeValidator_BillingBlockAnyEntrypointCountsAsSystemPrompt`; this batch adds the missing no-cch/invalid-UA safety regression.
+- **Fork-local secondary-development impact**:
+  - No runtime behavior change and no frontend-visible change.
+  - No cch-signing deletion, Claude mimicry change, billing/display-token, model-list, route, account scheduling, subscription, payment, migration, or i18n behavior change.
+  - The added coverage protects the existing Claude Code/Codex compatibility path from accidentally loosening User-Agent requirements.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator" -count=1`
+  - `git diff --check`
+
 ### 2026-06-27 - upstream OpenAI images and overloaded error verification batch 10
 
 - **Branch**: `codex/upstream-sync-20260627`
