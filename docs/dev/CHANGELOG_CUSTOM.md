@@ -19,6 +19,26 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-29] fix: OpenAI image API-key fallback user-agent
+
+**Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go
+**Upstream compatibility**: fork-local OpenAI-compatible image forwarding hardening. No API route, database, billing, frontend, i18n, or migration changes.
+**Change details**:
+- Added a fallback `User-Agent: node` for OpenAI API-key `/v1/images/generations` and `/v1/images/edits` upstream requests when neither the downstream client nor the account `credentials.user_agent` provides one.
+- Preserved the existing precedence: account `credentials.user_agent` overrides client UA; client UA is otherwise passed through; fallback is used only to avoid Go's default `Go-http-client/1.1` on image upstreams.
+- Added unit coverage for default fallback, client UA passthrough, and account UA override.
+- Verified: `go test ./internal/service -run 'TestBuildOpenAIImagesRequest_APIKeyUserAgentFallback|TestOpenAIGatewayServiceForwardImages_APIKey'`; `go test ./internal/service`.
+
+## [2026-06-29] perf: OpenAI API-key image relay URL-format default
+
+**Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go
+**Upstream compatibility**: fork-local performance optimization for OpenAI-compatible API-key image forwarding. No route, database, billing, frontend, i18n, or migration changes.
+**Change details**:
+- For API-key JSON image requests that do not explicitly set `response_format`, Sub2API now sends `response_format: "url"` upstream. Explicit client formats such as `b64_json` are preserved.
+- The optimization avoids upstreams returning multi-megabyte `b64_json` payloads when the client did not ask for base64. In the 4K diagnostic case this reduced response bodies from ~7-8MB to ~5.7KB and removed the previous 35-40s post-generation body-download tail.
+- Non-streaming image responses now begin writing downstream when upstream response headers arrive, while still buffering the copied body for usage/image-count extraction after completion.
+- Verified with unit coverage for default URL format, explicit format preservation, response body copy/buffering, and API-key forwarding. Live diagnostics: `1024x576 low` no-format request returned `has_b64_json=false`, `wire_response_bytes=484`, and `body_after_headers_ms=15.9`; 4K `c2` URL-format relay returned `has_b64_json=false`, `wire_response_bytes=5732`, with body-after-headers `0.43s` and `2.20s`.
+
 ## [2026-06-27] feature: redeem code batch per-user limit
 
 **Affected files**: backend/ent/schema/redeem_code.go, backend/ent/*redeemcode*, backend/migrations/170_redeem_code_batch_user_limit.sql, backend/internal/repository/redeem_code_repo.go, backend/internal/service/redeem_code.go, backend/internal/service/redeem_service.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/redeem_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/views/admin/RedeemView.vue, frontend/src/api/admin/redeem.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/redeem.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md

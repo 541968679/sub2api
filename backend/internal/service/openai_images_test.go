@@ -349,6 +349,107 @@ func TestBuildOpenAIImagesURL_HandlesVersionedBaseURL(t *testing.T) {
 	)
 }
 
+func TestBuildOpenAIImagesRequest_APIKeyUserAgentFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name           string
+		clientUA       string
+		accountUA      string
+		wantUA         string
+		wantAccept     string
+		wantAcceptLang string
+	}{
+		{
+			name:   "defaults when no client or account user agent",
+			wantUA: openAIImagesAPIKeyUserAgent,
+		},
+		{
+			name:           "preserves client user agent",
+			clientUA:       "node",
+			wantUA:         "node",
+			wantAccept:     "*/*",
+			wantAcceptLang: "*",
+		},
+		{
+			name:           "account user agent overrides client user agent",
+			clientUA:       "node",
+			accountUA:      "CustomImageClient/1.0",
+			wantUA:         "CustomImageClient/1.0",
+			wantAccept:     "*/*",
+			wantAcceptLang: "*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader([]byte(`{"model":"gpt-image-2"}`)))
+			req.Header.Set("Content-Type", "application/json")
+			if tt.clientUA != "" {
+				req.Header.Set("User-Agent", tt.clientUA)
+				req.Header.Set("Accept", "*/*")
+				req.Header.Set("Accept-Language", "*")
+			}
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = req
+
+			account := &Account{
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"api_key": "test-api-key",
+				},
+			}
+			if tt.accountUA != "" {
+				account.Credentials["user_agent"] = tt.accountUA
+			}
+
+			svc := &OpenAIGatewayService{cfg: &config.Config{}}
+			upstreamReq, err := svc.buildOpenAIImagesRequest(context.Background(), c, account, []byte(`{"model":"gpt-image-2"}`), "application/json", "test-token", openAIImagesGenerationsEndpoint)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantUA, upstreamReq.Header.Get("User-Agent"))
+			require.Equal(t, "Bearer test-token", upstreamReq.Header.Get("Authorization"))
+			require.Equal(t, "application/json", upstreamReq.Header.Get("Content-Type"))
+			require.Equal(t, tt.wantAccept, upstreamReq.Header.Get("Accept"))
+			require.Equal(t, tt.wantAcceptLang, upstreamReq.Header.Get("Accept-Language"))
+		})
+	}
+}
+
+func TestRewriteOpenAIImagesModel_DefaultsURLResponseFormat(t *testing.T) {
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
+
+	rewritten, contentType, err := rewriteOpenAIImagesModel(body, "application/json", "gpt-image-2-4K")
+	require.NoError(t, err)
+	require.Equal(t, "application/json", contentType)
+	require.Equal(t, "gpt-image-2-4K", gjson.GetBytes(rewritten, "model").String())
+	require.Equal(t, "url", gjson.GetBytes(rewritten, "response_format").String())
+	require.Equal(t, "draw a cat", gjson.GetBytes(rewritten, "prompt").String())
+}
+
+func TestRewriteOpenAIImagesModel_PreservesExplicitResponseFormat(t *testing.T) {
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+
+	rewritten, _, err := rewriteOpenAIImagesModel(body, "application/json", "gpt-image-2-4K")
+	require.NoError(t, err)
+	require.Equal(t, "gpt-image-2-4K", gjson.GetBytes(rewritten, "model").String())
+	require.Equal(t, "b64_json", gjson.GetBytes(rewritten, "response_format").String())
+}
+
+func TestCopyOpenAIImagesNonStreamingBodyWritesAndBuffers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	source := `{"created":1710000007,"data":[{"url":"https://example.test/image.png"}],"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}`
+
+	body, err := copyOpenAIImagesNonStreamingBody(strings.NewReader(source), c.Writer, 1024)
+	require.NoError(t, err)
+	require.JSONEq(t, source, string(body))
+	require.JSONEq(t, source, rec.Body.String())
+}
+
 type openAIImageTestSSEEvent struct {
 	Name string
 	Data string
@@ -718,6 +819,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	require.Equal(t, "Bearer test-api-key", upstream.lastReq.Header.Get("Authorization"))
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
 	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "b64_json", gjson.GetBytes(upstream.lastBody, "response_format").String())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
 }

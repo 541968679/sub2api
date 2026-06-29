@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -37,6 +38,8 @@ const (
 	openAIChatGPTStartURL          = "https://chatgpt.com/"
 	openAIChatGPTFilesURL          = "https://chatgpt.com/backend-api/files"
 	openAIImageBackendUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+	openAIImagesAPIKeyUserAgent    = "node"
+	openAIImagesDefaultURLFormat   = "url"
 	openAIImageMaxDownloadBytes    = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
@@ -718,10 +721,21 @@ func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 	if customUA != "" {
 		req.Header.Set("User-Agent", customUA)
 	}
+	ensureOpenAIImagesAPIKeyUserAgent(req)
 	if strings.TrimSpace(contentType) != "" {
 		req.Header.Set("Content-Type", contentType)
 	}
 	return req, nil
+}
+
+func ensureOpenAIImagesAPIKeyUserAgent(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if strings.TrimSpace(req.Header.Get("User-Agent")) != "" {
+		return
+	}
+	req.Header.Set("User-Agent", openAIImagesAPIKeyUserAgent)
 }
 
 func buildOpenAIImagesURL(base string, endpoint string) string {
@@ -749,6 +763,12 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 	rewritten, err := sjson.SetBytes(body, "model", model)
 	if err != nil {
 		return nil, "", fmt.Errorf("rewrite image request model: %w", err)
+	}
+	if !gjson.GetBytes(rewritten, "response_format").Exists() {
+		rewritten, err = sjson.SetBytes(rewritten, "response_format", openAIImagesDefaultURLFormat)
+		if err != nil {
+			return nil, "", fmt.Errorf("default image response format: %w", err)
+		}
 	}
 	return rewritten, contentType, nil
 }
@@ -823,13 +843,6 @@ func cloneMultipartHeader(src textproto.MIMEHeader) textproto.MIMEHeader {
 }
 
 func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context, imageTrace *OpenAIImageTrace) (OpenAIUsage, int, []string, error) {
-	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
-	if err != nil {
-		return OpenAIUsage{}, 0, nil, err
-	}
-	if imageTrace != nil {
-		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
-	}
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := "application/json"
 	if s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled {
@@ -837,16 +850,69 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http
 			contentType = upstreamType
 		}
 	}
+	c.Status(resp.StatusCode)
+	c.Header("Content-Type", contentType)
 	if imageTrace != nil {
 		imageTrace.Log(c, "downstream_response_built", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
-	c.Data(resp.StatusCode, contentType, body)
+	body, err := copyOpenAIImagesNonStreamingBody(resp.Body, c.Writer, resolveUpstreamResponseReadLimit(s.cfg))
+	if err != nil {
+		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
+			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
+		}
+		return OpenAIUsage{}, 0, nil, err
+	}
+	if imageTrace != nil {
+		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
 	if imageTrace != nil {
 		imageTrace.Log(c, "downstream_write_done", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
 
 	usage, _ := extractOpenAIUsageFromJSONBytes(body)
 	return usage, extractOpenAIImageCountFromJSONBytes(body), collectOpenAIResponseImageOutputSizesFromJSONBytes(body), nil
+}
+
+func copyOpenAIImagesNonStreamingBody(reader io.Reader, writer gin.ResponseWriter, maxBytes int64) ([]byte, error) {
+	if reader == nil {
+		return nil, errors.New("response body is nil")
+	}
+	if maxBytes <= 0 {
+		maxBytes = defaultUpstreamResponseReadMaxBytes
+	}
+	if writer == nil {
+		return readUpstreamResponseBodyLimited(reader, maxBytes)
+	}
+
+	var body bytes.Buffer
+	buffer := make([]byte, 32*1024)
+	total := int64(0)
+	for {
+		n, readErr := reader.Read(buffer)
+		if n > 0 {
+			total += int64(n)
+			if total > maxBytes {
+				return nil, fmt.Errorf("%w: limit=%d", ErrUpstreamResponseBodyTooLarge, maxBytes)
+			}
+			chunk := buffer[:n]
+			if _, err := body.Write(chunk); err != nil {
+				return nil, err
+			}
+			if _, err := writer.Write(chunk); err != nil {
+				return nil, err
+			}
+			if flusher, ok := any(writer).(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return nil, readErr
+		}
+	}
+	return body.Bytes(), nil
 }
 
 func (s *OpenAIGatewayService) handleOpenAIImagesStreamingResponse(
