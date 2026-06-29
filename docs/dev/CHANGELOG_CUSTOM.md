@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-29] sync: upstream OpenAI Images route batch
+
+**Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_images_responses.go, backend/internal/service/image_output_accounting.go, backend/internal/service/*openai*image*_test.go, backend/internal/service/image_output_accounting_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of OpenAI Images route behavior from `e5f7836b`, `0da1fe28`, `2c14efea`, `da30c599`, and `381d1d6d`. Deferred `36721d35`, `1e2e8b1d`, and `ef5ad0fb` for separate capability-cooldown, pricing, and frontend-display batches.
+**Change details**:
+- Codex `/v1/responses` image bridge now sets `tool_choice: "auto"` when the bridge injects or preserves an `image_generation` tool and the client did not provide an explicit tool choice; the same helper is used by HTTP and WS ingress paths.
+- OpenAI image-output accounting now counts only real image outputs from `data` arrays (`url`/`b64_json`) and ignores empty `image_generation.completed` events, preventing false image-output billing on text-only Responses payloads.
+- OAuth `/v1/images/generations` and `/v1/images/edits` bridging to Responses now forwards `n` for supported image models while keeping `dall-e-3` at single-image behavior.
+- Retryable OpenAI Images upstream errors embedded in Responses SSE bodies are converted into `UpstreamFailoverError` before any downstream response is written, with standard JSON error bodies and cloned upstream headers for existing failover/ops handling.
+- Fork-local impact: no frontend-visible change, no route/i18n/settings/migration change, no curated model list or Claude-GPT bridge change. Intentional impact is limited to OpenAI image generation, image billing counter correctness, and existing account failover behavior for retryable image upstream failures.
+- Verified: `go test -tags=unit ./internal/service -run "Test(EnsureOpenAIResponsesImageGenerationTool|OpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|OpenAIImageOutputCounter|BuildOpenAIImagesResponsesRequest|OpenAIGatewayServiceForwardImages_OAuth)" -count=1`; `go test -tags=unit ./internal/service -count=1`; `git diff --check`.
+
 ## [2026-06-28] sync: upstream OpenAI gateway/probe compatibility batch
 
 **Affected files**: backend/internal/pkg/openai/constants.go, backend/internal/pkg/openai/instructions_gpt5_5.txt, backend/internal/pkg/openai/instructions_test.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/gateway_request.go, backend/internal/service/gateway_request_test.go, backend/internal/service/openai_apikey_responses_probe.go, backend/internal/service/*openai*_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md

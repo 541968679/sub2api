@@ -39,6 +39,31 @@ git push origin main
 
 ## 同步记录
 
+### 2026-06-29 - upstream OpenAI Images route batch 13
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this OpenAI Images-focused batch, including upstream commit/feature point, concrete behavior, backend/frontend impact, test method, fork-local secondary-development relation, risk, and handling strategy.
+- **Synced upstream commits / behavior**:
+  - `e5f7836b` - Codex image bridge now sets `/v1/responses` `tool_choice: "auto"` when an `image_generation` tool is present and no explicit tool choice was supplied.
+  - `0da1fe28` - OpenAI image-output accounting no longer counts text-only `data` items or empty `image_generation.completed` events as generated images.
+  - `2c14efea` - `/v1/images/*` OAuth-to-Responses image tool request now forwards `n` for supported image models, while preserving the `dall-e-3` exception.
+  - `da30c599` / `381d1d6d` - retryable OpenAI Images upstream errors embedded in Responses SSE bodies now become `UpstreamFailoverError` before any downstream response is written, preserving real upstream error bodies and headers for failover/ops handling.
+- **Deferred / unchanged**:
+  - `36721d35` image capability cooldown remains deferred because it touches account scheduling/rate-limit policy beyond this image-route patch.
+  - `1e2e8b1d` billing channel pricing override remains deferred for the pricing/accounting batch.
+  - `ef5ad0fb` frontend image-output token display remains deferred for a separate frontend-visible batch.
+  - Previously verified image moderation/incomplete/overloaded behavior from batch 10 was left intact.
+- **Fork-local secondary-development impact**:
+  - Frontend-visible impact: none. No frontend files, routes, i18n, or admin/user UI changed.
+  - Billing/display-token accounting impact: targeted positive fix. Image billing counters now require actual image output (`url`, `b64_json`, or `result`) before counting, avoiding false image-output charges on text-only Responses payloads.
+  - OpenAI image generation impact: intended. Multi-image `n` requests are forwarded for supported models; retryable image upstream failures can use existing account failover instead of surfacing a single-account 502.
+  - Account scheduling/failover impact: limited to the existing failover mechanism for retryable OpenAI Images errors. No image capability cooldown, new scheduler policy, or migration was added.
+  - No curated model-list policy, Claude-GPT bridge, default-model fallback, public/admin settings, subscription/payment, or database migration change.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(EnsureOpenAIResponsesImageGenerationTool|OpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|OpenAIImageOutputCounter|BuildOpenAIImagesResponsesRequest|OpenAIGatewayServiceForwardImages_OAuth)" -count=1`
+  - `go test -tags=unit ./internal/service -count=1`
+  - `git diff --check`
+
 ### 2026-06-28 - upstream OpenAI gateway/probe compatibility batch 12
 
 - **Branch**: `codex/upstream-sync-20260627`

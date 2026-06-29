@@ -616,6 +616,61 @@ func TestEnsureOpenAIResponsesImageGenerationTool_PreservesExistingImageTool(t *
 	require.Equal(t, "webp", tool["output_format"])
 }
 
+func TestEnsureOpenAIResponsesImageGenerationToolChoiceAuto(t *testing.T) {
+	t.Run("sets_auto_when_image_tool_exists", func(t *testing.T) {
+		reqBody := map[string]any{
+			"model": "gpt-5.4",
+			"tools": []any{
+				map[string]any{"type": "image_generation", "output_format": "png"},
+			},
+		}
+
+		modified := ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody)
+		require.True(t, modified)
+		require.Equal(t, "auto", reqBody["tool_choice"])
+	})
+
+	t.Run("preserves_existing_tool_choice", func(t *testing.T) {
+		reqBody := map[string]any{
+			"model":       "gpt-5.4",
+			"tool_choice": map[string]any{"type": "image_generation"},
+			"tools": []any{
+				map[string]any{"type": "image_generation", "output_format": "png"},
+			},
+		}
+
+		modified := ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody)
+		require.False(t, modified)
+		require.Equal(t, map[string]any{"type": "image_generation"}, reqBody["tool_choice"])
+	})
+
+	t.Run("skips_without_image_tool", func(t *testing.T) {
+		reqBody := map[string]any{
+			"model": "gpt-5.4",
+			"tools": []any{
+				map[string]any{"type": "web_search"},
+			},
+		}
+
+		modified := ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody)
+		require.False(t, modified)
+		require.NotContains(t, reqBody, "tool_choice")
+	})
+
+	t.Run("skips_spark", func(t *testing.T) {
+		reqBody := map[string]any{
+			"model": "gpt-5.3-codex-spark",
+			"tools": []any{
+				map[string]any{"type": "image_generation", "output_format": "png"},
+			},
+		}
+
+		modified := ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody)
+		require.False(t, modified)
+		require.NotContains(t, reqBody, "tool_choice")
+	})
+}
+
 func TestApplyCodexImageGenerationBridgeInstructions_AppendsBridgeOnce(t *testing.T) {
 	reqBody := map[string]any{
 		"model":        "gpt-5.4",
