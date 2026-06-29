@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-29] hotfix: force URL responses for OpenAI API-key images
+
+**Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go
+**Upstream compatibility**: fork-local production performance guard for OpenAI-compatible API-key image forwarding. No API route, database, billing, frontend, i18n, or migration changes.
+**Change details**:
+- Forced API-key `/v1/images/generations` JSON requests to send `response_format: "url"` upstream even when downstream clients explicitly request `b64_json`.
+- Forced API-key `/v1/images/edits` multipart requests to rewrite or append `response_format=url`, covering image-edit clients that submit multipart form fields.
+- This intentionally trades off `b64_json` compatibility for the API-key relay path to prevent downstream request shape from reintroducing multi-megabyte base64 image response bodies and response-download long tails.
+- Verified with unit coverage for JSON explicit-format override, multipart override, API-key generations forwarding, and API-key edits forwarding.
+
 ## [2026-06-29] fix: OpenAI image API-key fallback user-agent
 
 **Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go

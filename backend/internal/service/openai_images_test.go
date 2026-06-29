@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -429,13 +430,37 @@ func TestRewriteOpenAIImagesModel_DefaultsURLResponseFormat(t *testing.T) {
 	require.Equal(t, "draw a cat", gjson.GetBytes(rewritten, "prompt").String())
 }
 
-func TestRewriteOpenAIImagesModel_PreservesExplicitResponseFormat(t *testing.T) {
+func TestRewriteOpenAIImagesModel_ForcesExplicitResponseFormatToURL(t *testing.T) {
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
 
 	rewritten, _, err := rewriteOpenAIImagesModel(body, "application/json", "gpt-image-2-4K")
 	require.NoError(t, err)
 	require.Equal(t, "gpt-image-2-4K", gjson.GetBytes(rewritten, "model").String())
-	require.Equal(t, "b64_json", gjson.GetBytes(rewritten, "response_format").String())
+	require.Equal(t, "url", gjson.GetBytes(rewritten, "response_format").String())
+}
+
+func TestRewriteOpenAIImagesModel_MultipartForcesURLResponseFormat(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "draw a cat"))
+	require.NoError(t, writer.WriteField("response_format", "b64_json"))
+	require.NoError(t, writer.Close())
+
+	rewritten, contentType, err := rewriteOpenAIImagesModel(body.Bytes(), writer.FormDataContentType(), "gpt-image-2-4K")
+	require.NoError(t, err)
+
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	require.NoError(t, err)
+	require.Equal(t, "multipart/form-data", mediaType)
+	reader := multipart.NewReader(bytes.NewReader(rewritten), params["boundary"])
+	form, err := reader.ReadForm(1 << 20)
+	require.NoError(t, err)
+	defer func() { _ = form.RemoveAll() }()
+
+	require.Equal(t, []string{"gpt-image-2-4K"}, form.Value["model"])
+	require.Equal(t, []string{"draw a cat"}, form.Value["prompt"])
+	require.Equal(t, []string{"url"}, form.Value["response_format"])
 }
 
 func TestCopyOpenAIImagesNonStreamingBodyWritesAndBuffers(t *testing.T) {
@@ -819,7 +844,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	require.Equal(t, "Bearer test-api-key", upstream.lastReq.Header.Get("Authorization"))
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
 	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
-	require.Equal(t, "b64_json", gjson.GetBytes(upstream.lastBody, "response_format").String())
+	require.Equal(t, "url", gjson.GetBytes(upstream.lastBody, "response_format").String())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
 }
@@ -886,6 +911,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
 	require.NoError(t, writer.WriteField("prompt", "replace background"))
+	require.NoError(t, writer.WriteField("response_format", "b64_json"))
 	imagePart, err := writer.CreateFormFile("image", "source.png")
 	require.NoError(t, err)
 	_, err = imagePart.Write([]byte("png-image-content"))
@@ -938,6 +964,13 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 	require.Contains(t, upstream.lastReq.Header.Get("Content-Type"), "multipart/form-data")
 	require.Contains(t, string(upstream.lastBody), `name="model"`)
 	require.Contains(t, string(upstream.lastBody), "gpt-image-2")
+	mediaType, params, err := mime.ParseMediaType(upstream.lastReq.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/form-data", mediaType)
+	upstreamForm, err := multipart.NewReader(bytes.NewReader(upstream.lastBody), params["boundary"]).ReadForm(1 << 20)
+	require.NoError(t, err)
+	defer func() { _ = upstreamForm.RemoveAll() }()
+	require.Equal(t, []string{"url"}, upstreamForm.Value["response_format"])
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "ZWRpdGVk", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
 }
