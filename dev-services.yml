@@ -1,0 +1,78 @@
+project:
+  id: api2sub
+  name: Sub2API
+network:
+  host: 127.0.0.1
+  ports:
+    backend: 18081
+    frontend: 15174
+    aiclient2api: 3000
+    aiclient2api_master: 3100
+    new_api: 13200
+
+services:
+  dev-stack:
+    label: Dev Stack
+    role: managed
+    cwd: .
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
+    ports: [${ports.backend}, ${ports.frontend}, ${ports.aiclient2api}, ${ports.aiclient2api_master}, ${ports.new_api}]
+    health: http://${network.host}:${ports.backend}/health
+    open_url: http://${network.host}:${ports.frontend}
+    pid_file: .run/dev-stack.pid
+    log_file: .run/logs/dev-stack.log
+    reload: false
+    variants:
+      sub2api-only:
+        label: Sub2API Only
+        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -SkipAIClient
+      full:
+        label: Full Stack
+        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
+      with-new-api:
+        label: With new-api
+        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -IncludeNewAPI
+      stop:
+        label: Stop Stack
+        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 stop
+      status:
+        label: Status
+        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 status
+
+  backend:
+    label: Backend
+    role: monitor
+    ports: [${ports.backend}]
+    health: http://${network.host}:${ports.backend}/health
+    open_url: http://${network.host}:${ports.backend}/health
+    reload: false
+
+  frontend:
+    label: Frontend
+    role: monitor
+    ports: [${ports.frontend}]
+    health: http://${network.host}:${ports.frontend}
+    open_url: http://${network.host}:${ports.frontend}
+    reload: true
+
+  aiclient2api:
+    label: AIClient2API
+    role: monitor
+    ports: [${ports.aiclient2api}, ${ports.aiclient2api_master}]
+    open_url: http://${network.host}:${ports.aiclient2api}
+    reload: false
+
+  new-api:
+    label: new-api
+    role: monitor
+    ports: [${ports.new_api}]
+    open_url: http://${network.host}:${ports.new_api}
+    reload: false
+
+groups:
+  core:
+    label: Core
+    services: [dev-stack, backend, frontend]
+  optional:
+    label: Optional Sidecars
+    services: [aiclient2api, new-api]

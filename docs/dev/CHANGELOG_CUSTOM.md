@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-06-29] chore: register project with local dev-console
+
+**Affected files**: dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: local development tooling only; no backend/frontend runtime behavior, migration, route, billing, gateway, or i18n changes.
+**Change details**:
+- Added `dev-services.yml` so the standalone dev-console can show Sub2API as its own project board.
+- Registered monitor entries for backend (`18081`), frontend (`15174`), optional AIClient2API (`3000`/`3100`), and optional new-api (`13200`).
+- Added a `dev-stack` control entry that routes normal start/restart/status/stop actions through `scripts/dev-stack.ps1`, preserving this repo's local startup rule instead of directly launching `air` or `pnpm dev`.
+- Verified registration with `devconsole.py register --root`, `devconsole.py list`, and dev-console `GET /api/ping`.
+
 ## [2026-06-29] sync: upstream OpenAI Images route batch
 
 **Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_images_responses.go, backend/internal/service/image_output_accounting.go, backend/internal/service/*openai*image*_test.go, backend/internal/service/image_output_accounting_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
