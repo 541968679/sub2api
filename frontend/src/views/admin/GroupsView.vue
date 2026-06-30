@@ -867,6 +867,52 @@
           </p>
         </div>
 
+        <!-- 高峰时段倍率配置（仅订阅类型分组） -->
+        <div v-if="createForm.subscription_type === 'subscription'" class="border-t pt-4">
+          <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                v-model="createForm.peak_rate_enabled"
+                type="checkbox"
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>启用高峰时段倍率</span>
+            </label>
+          </div>
+          <div
+            v-if="createForm.peak_rate_enabled"
+            class="mb-4 grid grid-cols-3 gap-3"
+          >
+            <div>
+              <label class="input-label">高峰开始</label>
+              <input
+                v-model="createForm.peak_start"
+                type="time"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">高峰结束</label>
+              <input
+                v-model="createForm.peak_end"
+                type="time"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">高峰倍率</label>
+              <input
+                v-model.number="createForm.peak_rate_multiplier"
+                type="number"
+                step="0.001"
+                min="0"
+                class="input"
+                placeholder="1"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- 支持的模型系列（仅 antigravity 平台） -->
         <div v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
@@ -2129,6 +2175,52 @@
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t("admin.groups.videoPricing.modeHint") }}
           </p>
+        </div>
+
+        <!-- 高峰时段倍率配置（仅订阅类型分组） -->
+        <div v-if="editForm.subscription_type === 'subscription'" class="border-t pt-4">
+          <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                v-model="editForm.peak_rate_enabled"
+                type="checkbox"
+                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>启用高峰时段倍率</span>
+            </label>
+          </div>
+          <div
+            v-if="editForm.peak_rate_enabled"
+            class="mb-4 grid grid-cols-3 gap-3"
+          >
+            <div>
+              <label class="input-label">高峰开始</label>
+              <input
+                v-model="editForm.peak_start"
+                type="time"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">高峰结束</label>
+              <input
+                v-model="editForm.peak_end"
+                type="time"
+                class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">高峰倍率</label>
+              <input
+                v-model.number="editForm.peak_rate_multiplier"
+                type="number"
+                step="0.001"
+                min="0"
+                class="input"
+                placeholder="1"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- 支持的模型系列（仅 antigravity 平台） -->
@@ -4286,13 +4378,31 @@ const confirmDelete = async () => {
   }
 };
 
-// 监听 subscription_type 变化，订阅模式时 is_exclusive 默认为 true
+// 监听 subscription_type 变化，订阅模式时 is_exclusive 默认为 true；标准模式清空高峰配置
 watch(
   () => createForm.subscription_type,
   (newVal) => {
     if (newVal === "subscription") {
       createForm.is_exclusive = true;
       createForm.fallback_group_id_on_invalid_request = null;
+    } else {
+      createForm.peak_rate_enabled = false;
+      createForm.peak_start = "";
+      createForm.peak_end = "";
+      createForm.peak_rate_multiplier = 1.0;
+    }
+  },
+);
+
+// 编辑表单：切回标准模式时清空高峰配置，避免残留随更新请求提交被后端拒绝
+watch(
+  () => editForm.subscription_type,
+  (newVal) => {
+    if (newVal !== "subscription") {
+      editForm.peak_rate_enabled = false;
+      editForm.peak_start = "";
+      editForm.peak_end = "";
+      editForm.peak_rate_multiplier = 1.0;
     }
   },
 );
