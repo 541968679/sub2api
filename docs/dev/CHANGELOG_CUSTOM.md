@@ -133,6 +133,16 @@
 - **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
 - Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。
 
+## [2026-06-30] docs: record OpenAI image URL relay 4K diagnostics
+
+**Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/README.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation only; no backend/frontend runtime behavior, route, database, billing, i18n, or migration changes.
+**Change details**:
+- Added a production diagnostic record for OpenAI API-key image URL relay behavior after the `v0.1.151` forced-URL hotfix.
+- Recorded the `gpt image 2 高质量` group permission finding, the native 4K quality smoke result, and the `c2/c4/c8` 4K concurrency baseline.
+- Documented the timing split between Sub2API API URL response latency and downstream image URL download latency.
+- Recorded the completed Japan-proxy `c2/c8/c16` timing run, including API pre-body latency, image URL pre-body latency, body download time, throughput, URL hosts, and URL/base64 response shape.
+
 ## [2026-06-29] hotfix: force URL responses for OpenAI API-key images
 
 **Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go

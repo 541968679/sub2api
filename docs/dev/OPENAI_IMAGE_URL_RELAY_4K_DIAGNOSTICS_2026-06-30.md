@@ -1,0 +1,193 @@
+# OpenAI Image URL Relay 4K Diagnostics
+
+> Production diagnostics for OpenAI-compatible API-key image forwarding after
+> forcing URL responses on `/v1/images/*`.
+
+## Scope
+
+- Date: 2026-06-30
+- Production endpoint: `https://zerocode.kaynlab.com/v1/images/generations`
+- Gateway version under test: Sub2API `v0.1.151`
+- Model: `gpt-image-2`
+- Size: `3840x2160`
+- Quality: `high`
+- Request shape: JSON `POST /v1/images/generations`
+- Secret policy: do not record downstream API keys, upstream API keys, prompts in
+  logs, image bytes, or base64 payloads in this document.
+
+This record separates two different timing domains:
+
+1. **API URL response latency**: downstream client -> Sub2API -> upstream image
+   generation -> Sub2API returns a small JSON body containing `data[0].url`.
+2. **Image file download latency**: downstream client downloads the PNG directly
+   from the returned image URL host.
+
+In URL response mode, Sub2API does not transfer image file bytes to the
+downstream client. It returns the upstream-provided URL in a small JSON response.
+
+## Production Fix Baseline
+
+The `v0.1.151` hotfix forces API-key image requests to use
+`response_format=url` upstream, including requests where the downstream client
+explicitly sends `response_format=b64_json`.
+
+Verified behavior:
+
+- Explicit downstream `response_format=b64_json` no longer causes Sub2API to
+  return `b64_json`.
+- Production smoke response shape: `has_url=true`, `has_b64_json=false`,
+  response body around hundreds of bytes for the small test and around 5.7 KB
+  for the older storyboard 4K prompt.
+- API response body read after headers is normally millisecond-scale once URL
+  mode is active.
+
+## Group Permission Finding
+
+The new native 4K channel was initially blocked before account scheduling:
+
+```text
+HTTP 403 permission_error
+Image generation is not enabled for this group
+```
+
+Production configuration check found:
+
+| Group ID | Name | `allowed_models` | `allow_image_generation` before | Status |
+|---:|---|---|---:|---|
+| 24 | `gpt image 2` | `["gpt-image-2"]` | `true` | working |
+| 36 | `gpt image 2 高质量` | `["gpt-image-2"]` | `false` | blocked |
+
+The production database was updated for `groups.id=36`:
+
+```text
+allow_image_generation=true
+updated_at=2026-06-30 14:01:41 +08
+```
+
+Redis/API-key auth cache invalidation was intentionally left to the operator in
+that step. A later key smoke test confirmed image generation reached the
+upstream and returned URL output.
+
+## New Native 4K Channel Quality Smoke
+
+Output directory:
+
+```text
+E:\cursor project\InvokeAI\tmp\zerocode-native-4k-new-channel\20260630-cg-toy-4k-quality
+```
+
+Single-image quality smoke result:
+
+| Metric | Value |
+|---|---:|
+| HTTP status | `200` |
+| API headers latency | `83.954s` |
+| API body after headers | `0.002s` |
+| API total latency | `83.956s` |
+| JSON response size | `515 B` |
+| Returned host | `cs.ydn99.com` |
+| Image download latency | `37.101s` |
+| Total with image download | `121.063s` |
+| Image format | `PNG` |
+| Image size | `3840x2160` |
+| Image bytes | `9,407,346` |
+| Response shape | `has_url=true`, `has_b64_json=false` |
+
+Visual result:
+
+- 2x2 contact sheet structure was present.
+- The requested 3D toy / pastel / sunlight style was represented.
+- Sunflower character with sunglasses and guitar, keyboard track, plush toy on
+  butterfly, and low water-view establishing shot were all present.
+- The bottom label text was visually dense and small, but the overall image was
+  usable for quality validation.
+
+## New Native 4K Channel Concurrency Baseline
+
+Output directory:
+
+```text
+E:\cursor project\InvokeAI\tmp\zerocode-native-4k-new-channel\20260630-cg-toy-4k-concurrency-c2-c4-c8
+```
+
+Prompt and request shape were the same as the quality smoke. Each successful
+request also downloaded the returned PNG and saved it as `original.png`.
+
+| Concurrency | Success | Batch wall | API total min/avg/max | JSON body max | Image download min/avg/max | Avg JSON size | Avg image size | URL/base64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| c2 | 2/2 | `188.362s` | `88.299 / 133.761 / 179.222s` | `2.466s` | `9.081 / 16.573 / 24.065s` | `515 B` | `10.14 MB` | `2 / 0` |
+| c4 | 4/4 | `252.535s` | `88.085 / 115.389 / 194.588s` | `1.436s` | `20.206 / 48.343 / 60.695s` | `515 B` | `10.03 MB` | `4 / 0` |
+| c8 | 8/8 | `241.133s` | `78.161 / 104.036 / 180.217s` | `1.489s` | `8.598 / 24.907 / 60.907s` | `515 B` | `9.66 MB` | `8 / 0` |
+
+Findings:
+
+- The new native 4K channel handled `c8` without failures.
+- All returned images were `3840x2160` PNG.
+- All successful API responses were URL-only; no base64 image payloads were
+  returned.
+- The API tail was dominated by time before response headers, meaning upstream
+  generation or upstream-side queueing.
+- Image URL downloads from `cs.ydn99.com` had visible but lower tail latency
+  than earlier Japan-hosted URL observations.
+
+## Japan Proxy Detailed Timing Run
+
+The operator switched the downstream test environment to a Japan proxy server.
+The detailed timing run used `curl.exe` instead of Node `fetch`, because Node
+`fetch` was observed to bypass the local system proxy in this Windows
+environment.
+
+Network probe before each run:
+
+```text
+ip=35.213.12.141
+city=Tokyo
+country=JP
+org=AS19527 Google LLC
+```
+
+`curl` reported `remote_ip=127.0.0.1` for proxied requests, which is the local
+proxy endpoint. The external exit was verified by the `ipinfo.io` probe above.
+
+Output directories:
+
+```text
+E:\cursor project\InvokeAI\tmp\zerocode-native-4k-new-channel\20260630-cg-toy-4k-jp-proxy-c2-c8-c16-detailed
+E:\cursor project\InvokeAI\tmp\zerocode-native-4k-new-channel\20260630-cg-toy-4k-jp-proxy-c8-c16-proxy-only
+```
+
+The `c2` result came from the detailed run. The `c8` and `c16` results came
+from the proxy-only run to avoid auxiliary direct-download controls affecting
+batch wall time.
+
+| Concurrency | API success | Proxy image success | Batch wall | API total avg/max | API pre-body avg/max | API body max | Image total avg/max | Image pre-body avg/max | Image body avg/max | Body throughput avg/min | Avg image bytes | Host | URL/base64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| c2 | 2/2 | 2/2 | `110.174s` | `107.007 / 107.857s` | `107.005 / 107.856s` | `0.004s` | `2.308 / 2.417s` | `0.977 / 1.093s` | `1.331 / 1.338s` | `6.735 / 6.577 MiB/s` | `9,400,641 B` | `file.kayops.com` | `2 / 0` |
+| c8 | 8/8 | 8/8 | `123.582s` | `95.613 / 118.742s` | `95.612 / 118.740s` | `0.004s` | `6.440 / 13.406s` | `4.481 / 8.065s` | `1.959 / 5.340s` | `5.749 / 1.836 MiB/s` | `9,716,372 B` | `cs.ydn99.com` | `8 / 0` |
+| c16 | 16/16 | 16/16 | `150.330s` | `108.269 / 145.275s` | `108.267 / 145.274s` | `0.005s` | `7.170 / 15.702s` | `5.148 / 10.904s` | `2.022 / 5.542s` | `5.705 / 1.631 MiB/s` | `9,500,386 B` | `cs.ydn99.com` | `16 / 0` |
+
+Findings:
+
+- All `c2`, `c8`, and `c16` API requests succeeded and returned URL-only
+  responses. No `b64_json` payload was returned.
+- The API response body transfer was effectively negligible (`<=0.005s` max).
+  The API latency was almost entirely pre-body time, so the dominant cost is
+  before Sub2API returns the URL: upstream generation, upstream queueing, or
+  upstream response wait.
+- Proxy image downloads were successful in the final runs. Average full image
+  download time was `2.308s` at `c2`, `6.440s` at `c8`, and `7.170s` at `c16`.
+- Image download has some tail latency, mostly before image body transfer:
+  `c16` image pre-body max was `10.904s`, while body max was `5.542s`.
+- Body throughput was generally healthy for 4K PNGs of roughly 9-10 MB:
+  average body throughput stayed around `5.7-6.7 MiB/s`.
+- Batch wall time was driven by API pre-body tail, not by final PNG transfer.
+  For `c16`, the API max was `145.275s` and the whole batch finished in
+  `150.330s`.
+
+Operational note:
+
+- A preliminary direct-control diagnostic saw one generated image URL return
+  proxy HTTP `502` while the same URL could be downloaded without the proxy.
+  The final proxy-only `c8` and `c16` runs did not reproduce that failure, but
+  future diagnostics should continue recording per-request image HTTP status,
+  host, pre-body time, body time, and throughput.

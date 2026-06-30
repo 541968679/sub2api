@@ -175,6 +175,11 @@ or invalid values remain enabled. This does not control Codex `/v1/responses`
 `image_generation` tool injection, which remains governed by the separate Codex
 image bridge setting.
 
+For the 2026-06-30 production URL-response diagnostics, see
+[`../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md`](../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md).
+That record distinguishes Sub2API API latency from direct downstream image URL
+download latency and tracks the native 4K `gpt-image-2` channel tests.
+
 ### OpenAI Embeddings
 
 ```

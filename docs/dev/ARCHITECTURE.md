@@ -414,6 +414,7 @@ export default keysAPI
 | 模型映射 | [codebase/model-mapping.md](codebase/model-mapping.md) | 模型白名单 / 映射、默认映射、网关解析、通配符 |
 | 图片耗时诊断进度 | [OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md](OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md) | `gpt-image-2` 本地 trace 验证、耗时拆分、生产测试边界 |
 | 图片超时修复复测 | [OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md](OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md) | `gpt-image-2` 快速失败重试、长等待超时、36 请求并发复测结果 |
+| OpenAI image URL relay 4K diagnostics | [OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md](OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md) | Production URL-response shape, native 4K channel quality/concurrency results, and image URL download timing plan |
 
 **尚未编写** 的（按需补）：`auth.md`（认证体系）、`payment.md`（支付）、`announcements.md`（公告）、`ops.md`（运维监控）、`page-content.md`（页面文案管理：`login_page.*` / `pricing_page.*` settings key + 管理员 tab 页 + 前端 fallback 机制）。
 
