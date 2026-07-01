@@ -278,3 +278,64 @@ Findings:
   around `0.26-0.30 MiB/s`, with c16 minimum at `0.103 MiB/s`.
 - Under a strict 240-second end-to-end limit, success was `2/2` at c2, `7/8`
   at c8, and `12/16` at c16.
+
+## Hajimi Current-Exit Native vs Relay Retest
+
+Date: 2026-07-01
+
+The operator intended to switch the local exit to Hong Kong, but `curl.exe`
+network probes still showed a Tokyo exit:
+
+```text
+ip=35.213.12.141
+city=Tokyo
+country=JP
+org=AS19527 Google LLC
+```
+
+This retest therefore records the actual observed exit as Tokyo, not Hong Kong.
+The image URL host remained `www.geek2api.com`.
+
+Output directories:
+
+```text
+E:\cursor project\InvokeAI\tmp\hajimicc-native-4k\20260701-current-exit-native-relay-smoke
+E:\cursor project\InvokeAI\tmp\hajimicc-native-4k\20260701-current-exit-native-relay-concurrency
+```
+
+Smoke result:
+
+| Path | Success | API total | Image download | Body throughput | Host | URL/base64 |
+|---|---:|---:|---:|---:|---|---:|
+| native `hajimicc.top` | 1/1 | `109.688s` | `1.384s` | `12.312 MiB/s` | `www.geek2api.com` | `1 / 0` |
+| relay `zerocode.kaynlab.com` | 1/1 | `91.496s` | `1.498s` | `10.424 MiB/s` | `www.geek2api.com` | `1 / 0` |
+
+Native concurrency:
+
+| Concurrency | Success | Strict <=240s end-to-end | Batch wall | API total avg/max | Image total avg/max | Body throughput avg/min | URL/base64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| c2 | 2/2 | 2/2 | `173.253s` | `130.318 / 171.805s` | `1.359 / 1.364s` | `11.826 / 11.293 MiB/s` | `2 / 0` |
+| c8 | 7/8 | 7/8 | `240.188s` | `83.733 / 90.621s` | `1.326 / 1.372s` | `11.920 / 10.450 MiB/s` | `7 / 0` |
+| c16 | 15/16 | 15/16 | `240.049s` | `106.374 / 145.000s` | `1.340 / 1.485s` | `11.668 / 10.124 MiB/s` | `15 / 0` |
+
+Relay concurrency:
+
+| Concurrency | Success | Strict <=240s end-to-end | Batch wall | API total avg/max | Image total avg/max | Body throughput avg/min | URL/base64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| c2 | 2/2 | 2/2 | `90.010s` | `86.477 / 88.392s` | `1.468 / 1.542s` | `10.147 / 9.767 MiB/s` | `2 / 0` |
+| c8 | 8/8 | 8/8 | `181.586s` | `99.653 / 180.154s` | `1.547 / 1.698s` | `9.375 / 8.001 MiB/s` | `8 / 0` |
+| c16 | 8/16 | 8/16 | `240.125s` | `92.159 / 110.092s` | `1.472 / 1.610s` | `10.059 / 8.813 MiB/s` | `8 / 0` |
+
+Findings:
+
+- Both native and relay paths returned URL-only `3840x2160` PNG output from
+  `www.geek2api.com`; no base64 payloads were returned.
+- Image URL download performance changed dramatically versus the prior US-exit
+  run: image downloads dropped from `35-48s` averages to about `1.3-1.6s`, with
+  body throughput around `8-12 MiB/s`.
+- The remaining latency is API pre-body time, i.e. generation, queueing, or
+  upstream response wait before URL return.
+- Native c8 and c16 each had one API request time out at the 240-second limit.
+- Relay c2/c8 were stable, but relay c16 returned six HTTP `429` failures and
+  two API timeouts. The relay path therefore appears usable up to c8 in this
+  run, while c16 hit upstream or relay-side concurrency/rate limiting.

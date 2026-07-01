@@ -142,6 +142,15 @@
 - Documented visual text-clarity findings for the generated contact sheet.
 - Recorded `c2/c8/c16` concurrency results under a 4-minute test limit, including API latency, image download latency, body throughput, strict end-to-end success count, and URL/base64 response shape.
 
+## [2026-07-01] docs: record Hajimi native-vs-relay current-exit retest
+
+**Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation only; no backend/frontend runtime behavior, route, database, billing, i18n, or migration changes.
+**Change details**:
+- Recorded a native `hajimicc.top` versus relay `zerocode.kaynlab.com` retest for the Hajimi native 4K channel.
+- Documented that `curl.exe` still observed a Tokyo exit despite the intended Hong Kong switch.
+- Recorded `quality-c1` and `c2/c8/c16` results, including image download throughput improvement, relay c16 HTTP 429 failures, and URL-only response shape.
+
 ## [2026-06-30] docs: record OpenAI image URL relay 4K diagnostics
 
 **Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/README.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
