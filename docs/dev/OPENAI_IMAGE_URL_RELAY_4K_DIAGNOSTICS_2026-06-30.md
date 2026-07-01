@@ -191,3 +191,90 @@ Operational note:
   The final proxy-only `c8` and `c16` runs did not reproduce that failure, but
   future diagnostics should continue recording per-request image HTTP status,
   host, pre-body time, body time, and throughput.
+
+## Hajimi Native 4K Channel Test
+
+Date: 2026-07-01
+
+Upstream endpoint under test:
+
+```text
+https://hajimicc.top/v1/images/generations
+```
+
+The upstream key is intentionally not recorded. The same long 4K storyboard
+prompt, `gpt-image-2`, `3840x2160`, `quality=high`, and
+`response_format=url` were used.
+
+Network probe:
+
+```text
+ip=35.212.230.234
+city=The Dalles
+region=Oregon
+country=US
+org=AS19527 Google LLC
+```
+
+The operator set a 4-minute limit during testing. The script then used
+`240000ms` as the per-network-stage timeout for API and image download calls.
+For interpretation, strict end-to-end completion within 240 seconds is also
+called out below.
+
+Output directories:
+
+```text
+E:\cursor project\InvokeAI\tmp\hajimicc-native-4k\20260701-cg-toy-4k-quality-smoke-4min
+E:\cursor project\InvokeAI\tmp\hajimicc-native-4k\20260701-cg-toy-4k-concurrency-c2-c8-c16-4min
+```
+
+Quality smoke:
+
+| Metric | Value |
+|---|---:|
+| Success | `1/1` |
+| API total | `100.126s` |
+| API pre-body | `100.118s` |
+| API body | `0.008s` |
+| Image download total | `31.629s` |
+| Image pre-body | `4.046s` |
+| Image body | `27.582s` |
+| Image body throughput | `0.344 MiB/s` |
+| Image bytes | `9,945,533 B` |
+| Image size | `3840x2160` |
+| Image format | `PNG` |
+| URL host | `www.geek2api.com` |
+| URL/base64 | `1 / 0` |
+
+Visual quality finding:
+
+- The image followed the requested 2x2 contact-sheet format.
+- `KF1` through `KF4` labels and the Chinese shot descriptions were readable
+  on the 4K original.
+- The scene-level English text on the arch (`SUNNY MELODY`) was also readable.
+- Overall text clarity was better than the earlier native 4K test where labels
+  were visibly dense and small.
+
+Concurrency result:
+
+| Concurrency | Success | Strict <=240s end-to-end | Batch wall | API total avg/max | Image total avg/max | Image body avg/max | Body throughput avg/min | Avg image bytes | URL/base64 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| c2 | 2/2 | 2/2 | `173.391s` | `116.746 / 143.961s` | `35.099 / 40.868s` | `32.807 / 38.899s` | `0.302 / 0.240 MiB/s` | `10,000,185 B` | `2 / 0` |
+| c8 | 7/8 | 7/8 | `240.084s` | `100.022 / 177.273s` | `42.285 / 67.538s` | `39.847 / 65.192s` | `0.262 / 0.135 MiB/s` | `9,590,125 B` | `7 / 0` |
+| c16 | 13/16 | 12/16 | `267.912s` | `104.236 / 176.193s` | `47.927 / 91.605s` | `45.290 / 89.806s` | `0.262 / 0.103 MiB/s` | `9,727,471 B` | `13 / 0` |
+
+Findings:
+
+- The channel can produce native `3840x2160` PNG output with URL-only
+  responses and no base64 payload.
+- Text clarity is good on the quality smoke image.
+- API pre-body latency is in the same broad range as the previous native 4K
+  channel: roughly 90-120 seconds for most successful requests, with long-tail
+  API waits up to about 176-177 seconds in `c8`/`c16`.
+- Image transfer is the weak point for this channel from the current US exit.
+  Successful image downloads averaged `35-48s`, and the body transfer itself
+  dominated that time.
+- Download throughput was low for 9-10 MB PNGs: average body throughput stayed
+  around `0.26-0.30 MiB/s`, with c16 minimum at `0.103 MiB/s`.
+- Under a strict 240-second end-to-end limit, success was `2/2` at c2, `7/8`
+  at c8, and `12/16` at c16.

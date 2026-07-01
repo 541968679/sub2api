@@ -133,6 +133,15 @@
 - **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
 - Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。
 
+## [2026-07-01] docs: record Hajimi native 4K image channel diagnostics
+
+**Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation only; no backend/frontend runtime behavior, route, database, billing, i18n, or migration changes.
+**Change details**:
+- Recorded the direct `hajimicc.top` native 4K image-channel quality smoke test using the existing long 4K storyboard prompt.
+- Documented visual text-clarity findings for the generated contact sheet.
+- Recorded `c2/c8/c16` concurrency results under a 4-minute test limit, including API latency, image download latency, body throughput, strict end-to-end success count, and URL/base64 response shape.
+
 ## [2026-06-30] docs: record OpenAI image URL relay 4K diagnostics
 
 **Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/README.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
