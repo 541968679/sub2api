@@ -60,6 +60,10 @@ interface Props {
   subscriptionType?: SubscriptionType
   rateMultiplier?: number
   userRateMultiplier?: number | null
+  peakRateEnabled?: boolean
+  peakStart?: string
+  peakEnd?: string
+  peakRateMultiplier?: number
   description?: string | null
   selected?: boolean
   showCheckmark?: boolean
@@ -69,7 +73,8 @@ const props = withDefaults(defineProps<Props>(), {
   subscriptionType: 'standard',
   selected: false,
   showCheckmark: true,
-  userRateMultiplier: null
+  userRateMultiplier: null,
+  peakRateEnabled: false
 })
 
 // Whether user has a custom rate different from default
@@ -80,6 +85,18 @@ const hasCustomRate = computed(() => {
     props.rateMultiplier !== undefined &&
     props.userRateMultiplier !== props.rateMultiplier
   )
+})
+
+const hasPeakRate = computed(() => {
+  return Boolean(props.peakRateEnabled && props.peakStart && props.peakEnd)
+})
+
+const peakRateText = computed(() => {
+  return `${props.peakStart}-${props.peakEnd} ×${props.peakRateMultiplier ?? 1}`
+})
+
+const peakRateTitle = computed(() => {
+  return `高峰倍率：${peakRateText.value}`
 })
 
 // Rate pill color matches platform badge color

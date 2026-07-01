@@ -465,6 +465,10 @@
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
+                :peak-start="(option as unknown as GroupOption).peakStart"
+                :peak-end="(option as unknown as GroupOption).peakEnd"
+                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
               />
               <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
             </template>
@@ -475,6 +479,10 @@
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
+                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
+                :peak-start="(option as unknown as GroupOption).peakStart"
+                :peak-end="(option as unknown as GroupOption).peakEnd"
+                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
                 :description="(option as unknown as GroupOption).description"
                 :selected="selected"
               />
@@ -1058,6 +1066,10 @@
               :subscription-type="option.subscriptionType"
               :rate-multiplier="option.rate"
               :user-rate-multiplier="option.userRate"
+              :peak-rate-enabled="option.peakRateEnabled"
+              :peak-start="option.peakStart"
+              :peak-end="option.peakEnd"
+              :peak-rate-multiplier="option.peakRateMultiplier"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1121,6 +1133,10 @@ interface GroupOption {
   description: string | null
   rate: number
   userRate: number | null
+  peakRateEnabled: boolean
+  peakStart: string
+  peakEnd: string
+  peakRateMultiplier: number
   subscriptionType: SubscriptionType
   platform: GroupPlatform
 }

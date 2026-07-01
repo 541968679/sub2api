@@ -852,6 +852,14 @@ const planValiditySuffix = computed(() => {
   return `${selectedPlan.value.validity_days}${t('payment.days')}`
 })
 
+function planHasPeakRate(plan: SubscriptionPlan): boolean {
+  return Boolean(plan.peak_rate_enabled && plan.peak_start && plan.peak_end)
+}
+
+function planPeakRateLabel(plan: SubscriptionPlan): string {
+  return `${plan.peak_start}-${plan.peak_end} ×${plan.peak_rate_multiplier ?? 1}`
+}
+
 function selectPlan(plan: SubscriptionPlan) {
   selectedPlan.value = plan
   errorMessage.value = ''

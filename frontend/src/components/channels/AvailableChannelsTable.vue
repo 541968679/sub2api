@@ -85,7 +85,7 @@
                   <Icon name="shield" size="xs" class="h-3 w-3" />
                   {{ t('availableChannels.exclusive') }}
                 </span>
-                <GroupBadge
+                <div
                   v-for="g in exclusiveGroups(section)"
                   :key="`ex-${g.id}`"
                   :name="g.name"
@@ -107,7 +107,7 @@
                   <Icon name="globe" size="xs" class="h-3 w-3" />
                   {{ t('availableChannels.public') }}
                 </span>
-                <GroupBadge
+                <div
                   v-for="g in publicGroups(section)"
                   :key="`pub-${g.id}`"
                   :name="g.name"

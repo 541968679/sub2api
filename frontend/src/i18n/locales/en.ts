@@ -8005,6 +8005,7 @@ const enBase = {
       includedGroups: 'Included',
       bundleQuotaNote: 'Bundle — each group has its own quota pool. Switch your API key group, or use one key per group.',
       rate: 'Rate',
+      peakRate: 'Peak Rate',
       dailyLimit: 'Daily',
       weeklyLimit: 'Weekly',
       monthlyLimit: 'Monthly',

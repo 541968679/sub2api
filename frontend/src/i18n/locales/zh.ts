@@ -7706,6 +7706,7 @@ const zhBase = {
       includedGroups: '包含',
       bundleQuotaNote: '混合套餐——每个分组各有独立额度池。切换 API 密钥所属分组，或每个分组各用一把密钥。',
       rate: '倍率',
+      peakRate: '高峰倍率',
       dailyLimit: '日限额',
       weeklyLimit: '周限额',
       monthlyLimit: '月限额',
