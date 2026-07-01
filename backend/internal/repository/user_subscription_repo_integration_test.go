@@ -625,6 +625,22 @@ func (s *UserSubscriptionRepoSuite) TestExistsByUserIDAndGroupID() {
 	s.Require().False(notExists)
 }
 
+func (s *UserSubscriptionRepoSuite) TestExistsActiveByUserIDAndGroupID_IgnoresSoftDeletedRows() {
+	user := s.mustCreateUser("exists-active@test.com", service.RoleUser)
+	group := s.mustCreateGroup("g-exists-active")
+	sub := s.mustCreateSubscription(user.ID, group.ID, nil)
+
+	exists, err := s.repo.ExistsActiveByUserIDAndGroupID(s.ctx, user.ID, group.ID)
+	s.Require().NoError(err, "ExistsActiveByUserIDAndGroupID")
+	s.Require().True(exists)
+
+	s.Require().NoError(s.repo.Delete(s.ctx, sub.ID), "Delete")
+
+	exists, err = s.repo.ExistsActiveByUserIDAndGroupID(s.ctx, user.ID, group.ID)
+	s.Require().NoError(err, "ExistsActiveByUserIDAndGroupID after delete")
+	s.Require().False(exists)
+}
+
 // --- CountByGroupID / CountActiveByGroupID ---
 
 func (s *UserSubscriptionRepoSuite) TestCountByGroupID() {
