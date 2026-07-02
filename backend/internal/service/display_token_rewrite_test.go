@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -329,4 +330,190 @@ func TestDisplayToken_OpenAIUsageRewriteNoopForNilOrTrivialMultiplier(t *testing
 		CacheReadMult:   1,
 		CacheCreateMult: 1,
 	})))
+}
+
+// ===========================================================================
+// 缓存创建下游展示改写（成本精确分档口径）
+// ===========================================================================
+
+func TestDisplayToken_ComputeMultipliersUsesDisplayCacheCreationPrice(t *testing.T) {
+	displayCreate := 2.5e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:                     "claude-sonnet-4",
+		BillingMode:               BillingModeToken,
+		DisplayCacheCreationPrice: &displayCreate,
+		Enabled:                   true,
+	})
+	// rich pricing: 5m=3.75e-6, 1h=6e-6, SupportsCacheBreakdown=true
+	resolver := NewModelPricingResolver(&ChannelService{}, newTestBillingServiceWithRichPricing(), cache, nil)
+	svc := &GatewayService{resolver: resolver}
+
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1)
+	require.NotNil(t, mult)
+	require.InDelta(t, 1.5, mult.CacheCreateMult, 1e-12, "fallback mult = 5m price / display price")
+	require.InDelta(t, 1.5, mult.CacheCreate5mMult, 1e-12)
+	require.InDelta(t, 2.4, mult.CacheCreate1hMult, 1e-12, "1h tier mult = 1h price / display price")
+	require.True(t, mult.IsNonTrivial(), "display cache creation price alone must activate the rewrite chain")
+}
+
+func TestDisplayToken_UserDisplayCacheCreationPriceOverridesGlobal(t *testing.T) {
+	globalDisplayCreate := 2.5e-6
+	userDisplayCreate := 1.25e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:                     "claude-sonnet-4",
+		BillingMode:               BillingModeToken,
+		DisplayCacheCreationPrice: &globalDisplayCreate,
+		Enabled:                   true,
+	})
+	userRepo := &displayTokenUserModelPricingRepoStub{
+		override: &UserModelPricingOverride{
+			UserID:                    42,
+			Model:                     "claude-sonnet-4",
+			DisplayCacheCreationPrice: &userDisplayCreate,
+			Enabled:                   true,
+		},
+	}
+	resolver := NewModelPricingResolver(&ChannelService{}, newTestBillingServiceWithRichPricing(), cache, userRepo)
+	svc := &GatewayService{resolver: resolver}
+
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1)
+	require.NotNil(t, mult)
+	require.InDelta(t, 3.0, mult.CacheCreate5mMult, 1e-12)
+	require.InDelta(t, 4.8, mult.CacheCreate1hMult, 1e-12)
+}
+
+func TestDisplayToken_ClaudeUsageRewriteSyncsNestedCacheCreation(t *testing.T) {
+	mult := &DisplayTokenMultipliers{
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.5,
+		CacheCreate5mMult: 1.5,
+		CacheCreate1hMult: 2.4,
+		RateScale:         1.0,
+		RateScaleSet:      true,
+	}
+	line := `data: {"type":"message_start","message":{"usage":{"input_tokens":10,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":2000,"cache_creation":{"ephemeral_5m_input_tokens":1000,"ephemeral_1h_input_tokens":1000}}}}`
+
+	out := RewriteSSEUsageTokens(line, mult)
+	data := strings.TrimPrefix(out, "data: ")
+
+	total := gjson.Get(data, "message.usage.cache_creation_input_tokens").Int()
+	d5m := gjson.Get(data, "message.usage.cache_creation.ephemeral_5m_input_tokens").Int()
+	d1h := gjson.Get(data, "message.usage.cache_creation.ephemeral_1h_input_tokens").Int()
+
+	// 成本精确：displayTotal × 展示价 == 5m×p5m + 1h×p1h
+	// (1000×1.5 + 1000×2.4 = 3900；3900×2.5e-6 == 1000×3.75e-6 + 1000×6e-6)
+	require.EqualValues(t, 3900, total)
+	require.EqualValues(t, 1500, d5m)
+	require.EqualValues(t, 2400, d1h)
+	require.Equal(t, total, d5m+d1h, "nested breakdown must keep summing to the top-level total")
+}
+
+func TestDisplayToken_ClaudeUsageRewritePure1hProductionShape(t *testing.T) {
+	// 生产形状：上游中转返回纯 1h 缓存创建（5m=0, 1h=66061）
+	mult := &DisplayTokenMultipliers{
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.5,
+		CacheCreate5mMult: 1.5,
+		CacheCreate1hMult: 2.4,
+		RateScale:         1.0,
+		RateScaleSet:      true,
+	}
+	body := []byte(`{"usage":{"input_tokens":2,"output_tokens":38,"cache_creation_input_tokens":66061,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":66061}}}`)
+
+	out := rewriteNonStreamUsageTokens(body, mult)
+
+	require.EqualValues(t, 158546, gjson.GetBytes(out, "usage.cache_creation_input_tokens").Int(), "pure-1h rows must amplify at the 1h tier mult")
+	require.EqualValues(t, 0, gjson.GetBytes(out, "usage.cache_creation.ephemeral_5m_input_tokens").Int())
+	require.EqualValues(t, 158546, gjson.GetBytes(out, "usage.cache_creation.ephemeral_1h_input_tokens").Int())
+}
+
+func TestDisplayToken_UsageMapRewriteSyncsNestedCacheCreationWithRateScale(t *testing.T) {
+	mult := &DisplayTokenMultipliers{
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.5,
+		CacheCreate5mMult: 1.5,
+		CacheCreate1hMult: 2.4,
+		RateScale:         2.0,
+		RateScaleSet:      true,
+	}
+	m := map[string]any{
+		"input_tokens":                float64(10),
+		"cache_creation_input_tokens": float64(2000),
+		"cache_creation": map[string]any{
+			"ephemeral_5m_input_tokens": float64(1000),
+			"ephemeral_1h_input_tokens": float64(1000),
+		},
+	}
+
+	ApplyDisplayMultipliersToUsageMap(m, mult)
+
+	require.Equal(t, 7800, m["cache_creation_input_tokens"], "RateScale composes after the tier multipliers")
+	ccObj := m["cache_creation"].(map[string]any)
+	require.Equal(t, 3000, ccObj["ephemeral_5m_input_tokens"])
+	require.Equal(t, 4800, ccObj["ephemeral_1h_input_tokens"])
+}
+
+func TestDisplayToken_UsageMapRewriteWithoutNestedKeepsLegacyBehavior(t *testing.T) {
+	// antigravity 形状：无嵌套对象，仅顶层字段 —— 走单一倍率，行为与既有逻辑一致
+	mult := &DisplayTokenMultipliers{
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.5,
+		CacheCreate5mMult: 1.5,
+		CacheCreate1hMult: 2.4,
+		RateScale:         1.0,
+		RateScaleSet:      true,
+	}
+	m := map[string]any{
+		"input_tokens":                float64(10),
+		"cache_creation_input_tokens": float64(2000),
+	}
+
+	ApplyDisplayMultipliersToUsageMap(m, mult)
+
+	require.Equal(t, 3000, m["cache_creation_input_tokens"])
+}
+
+func TestDisplayToken_OpenAIResponsesUsageScalesCacheCreation(t *testing.T) {
+	mult := &DisplayTokenMultipliers{
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.5,
+		CacheCreate5mMult: 1.5,
+		CacheCreate1hMult: 1.5,
+		RateScale:         1.0,
+		RateScaleSet:      true,
+	}
+	usage := &OpenAIUsage{InputTokens: 100, OutputTokens: 50, CacheCreationInputTokens: 100}
+
+	out := applyOpenAIResponsesUsageDisplayMultipliers(usage, mult)
+
+	require.Equal(t, 150, out.CacheCreationInputTokens)
+}
+
+func TestDisplayToken_CacheCreationRealModeNoop(t *testing.T) {
+	// trivial multipliers（含分档字段为 1）不得改写任何字节
+	mult := &DisplayTokenMultipliers{
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.0,
+		CacheCreate5mMult: 1.0,
+		CacheCreate1hMult: 1.0,
+		RateScale:         1.0,
+		RateScaleSet:      true,
+	}
+	require.False(t, mult.IsNonTrivial())
+
+	body := []byte(`{"usage":{"input_tokens":10,"cache_creation_input_tokens":2000,"cache_creation":{"ephemeral_5m_input_tokens":1000,"ephemeral_1h_input_tokens":1000}}}`)
+	out := rewriteNonStreamUsageTokens(body, mult)
+	require.Equal(t, string(body), string(out))
 }

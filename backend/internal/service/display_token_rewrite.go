@@ -18,17 +18,27 @@ type DisplayTokenMultipliers struct {
 	CacheReadMult      float64
 	CacheCreateMult    float64
 	CacheReadInputMult float64
-	RateScale          float64
-	RateScaleSet       bool
+	// CacheCreate5mMult/CacheCreate1hMult 是缓存创建的分档倍率（真实档价 ÷ 展示创建价），
+	// 响应携带嵌套 5m/1h 明细时按档反算，使下游展示与 usage-log 的
+	// 成本反算口径（真实成本 ÷ 展示价）逐 token 一致；无明细时退化为 CacheCreateMult。
+	CacheCreate5mMult float64
+	CacheCreate1hMult float64
+	RateScale         float64
+	RateScaleSet      bool
 }
 
 type displayTokenPricingConfig struct {
-	InputPrice            float64
-	OutputPrice           float64
-	CacheReadPrice        float64
-	DisplayInputPrice     *float64
-	DisplayOutputPrice    *float64
-	DisplayCacheReadPrice *float64
+	InputPrice                float64
+	OutputPrice               float64
+	CacheReadPrice            float64
+	CacheCreationPrice        float64
+	CacheCreation5mPrice      float64
+	CacheCreation1hPrice      float64
+	SupportsCacheBreakdown    bool
+	DisplayInputPrice         *float64
+	DisplayOutputPrice        *float64
+	DisplayCacheReadPrice     *float64
+	DisplayCacheCreationPrice *float64
 }
 
 type displayTokenMultiplierProvider interface {
@@ -42,8 +52,32 @@ func (m *DisplayTokenMultipliers) IsNonTrivial() bool {
 		m.OutputMult != 1.0 ||
 		m.CacheReadMult != 1.0 ||
 		m.CacheCreateMult != 1.0 ||
+		m.cacheCreate5mMultOrDefault() != 1.0 ||
+		m.cacheCreate1hMultOrDefault() != 1.0 ||
 		m.CacheReadInputMult != 0 ||
 		displayTokenRateScale(m) != 1.0
+}
+
+// cacheCreate5mMultOrDefault 返回 5m 档倍率；未设置（零值）时退回 CacheCreateMult，
+// 保证手工构造的 multipliers（旧测试/调用方）行为不变。
+func (m *DisplayTokenMultipliers) cacheCreate5mMultOrDefault() float64 {
+	if m == nil || m.CacheCreate5mMult == 0 {
+		if m == nil {
+			return 1.0
+		}
+		return m.CacheCreateMult
+	}
+	return m.CacheCreate5mMult
+}
+
+func (m *DisplayTokenMultipliers) cacheCreate1hMultOrDefault() float64 {
+	if m == nil || m.CacheCreate1hMult == 0 {
+		if m == nil {
+			return 1.0
+		}
+		return m.CacheCreateMult
+	}
+	return m.CacheCreate1hMult
 }
 
 func SetDisplayTokenMultipliers(c *gin.Context, m *DisplayTokenMultipliers) {
@@ -154,12 +188,14 @@ func computeDisplayTokenMultipliers(
 	resolver *ModelPricingResolver,
 ) *DisplayTokenMultipliers {
 	mult := &DisplayTokenMultipliers{
-		InputMult:       1.0,
-		OutputMult:      1.0,
-		CacheReadMult:   1.0,
-		CacheCreateMult: 1.0,
-		RateScale:       1.0,
-		RateScaleSet:    true,
+		InputMult:         1.0,
+		OutputMult:        1.0,
+		CacheReadMult:     1.0,
+		CacheCreateMult:   1.0,
+		CacheCreate5mMult: 1.0,
+		CacheCreate1hMult: 1.0,
+		RateScale:         1.0,
+		RateScaleSet:      true,
 	}
 
 	// Layer 1: display pricing. Cache-read tokens stay on the cache line, and
@@ -173,6 +209,25 @@ func computeDisplayTokenMultipliers(
 		pricing.DisplayCacheReadPrice,
 		pricing.DisplayInputPrice,
 	)
+
+	// Cache creation: tokens are back-computed directly at the display price
+	// (matching dto.ApplyDisplayTransform's cost ÷ display-price semantics).
+	// 分档倍率与计费公式对齐（computeCacheCreationCost）：无明细回退按 5m 档价。
+	creationBase := pricing.CacheCreationPrice
+	if pricing.SupportsCacheBreakdown && pricing.CacheCreation5mPrice > 0 {
+		creationBase = pricing.CacheCreation5mPrice
+	}
+	price5m := pricing.CacheCreation5mPrice
+	if price5m <= 0 {
+		price5m = creationBase
+	}
+	price1h := pricing.CacheCreation1hPrice
+	if price1h <= 0 {
+		price1h = price5m
+	}
+	mult.CacheCreateMult = displayTokenMultiplier(creationBase, pricing.DisplayCacheCreationPrice)
+	mult.CacheCreate5mMult = displayTokenMultiplier(price5m, pricing.DisplayCacheCreationPrice)
+	mult.CacheCreate1hMult = displayTokenMultiplier(price1h, pricing.DisplayCacheCreationPrice)
 
 	// Layer 2: user group display rate (rate_multiplier / display_rate_multiplier)
 	if displayRateMultiplier > 0 && displayRateMultiplier != rateMultiplier {
@@ -209,6 +264,10 @@ func resolveDisplayTokenPricing(ctx context.Context, model string, userID int64,
 		cfg.InputPrice = resolved.BasePricing.InputPricePerToken
 		cfg.OutputPrice = resolved.BasePricing.OutputPricePerToken
 		cfg.CacheReadPrice = resolved.BasePricing.CacheReadPricePerToken
+		cfg.CacheCreationPrice = resolved.BasePricing.CacheCreationPricePerToken
+		cfg.CacheCreation5mPrice = resolved.BasePricing.CacheCreation5mPrice
+		cfg.CacheCreation1hPrice = resolved.BasePricing.CacheCreation1hPrice
+		cfg.SupportsCacheBreakdown = resolved.BasePricing.SupportsCacheBreakdown
 	}
 	if resolver.globalPricingCache != nil {
 		if gp := resolver.globalPricingCache.Get(model); gp != nil {
@@ -236,6 +295,19 @@ func mergeGlobalDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *Glo
 	if cfg.CacheReadPrice <= 0 && pricing.CacheReadPrice != nil {
 		cfg.CacheReadPrice = *pricing.CacheReadPrice
 	}
+	if cfg.CacheCreationPrice <= 0 && pricing.CacheWritePrice != nil {
+		cfg.CacheCreationPrice = *pricing.CacheWritePrice
+		if cfg.CacheCreation5mPrice <= 0 {
+			cfg.CacheCreation5mPrice = *pricing.CacheWritePrice
+		}
+		if cfg.CacheCreation1hPrice <= 0 {
+			cfg.CacheCreation1hPrice = *pricing.CacheWritePrice
+		}
+	}
+	if pricing.CacheWrite1hPrice != nil && *pricing.CacheWrite1hPrice > 0 {
+		cfg.CacheCreation1hPrice = *pricing.CacheWrite1hPrice
+		cfg.SupportsCacheBreakdown = true
+	}
 	if pricing.DisplayInputPrice != nil {
 		cfg.DisplayInputPrice = pricing.DisplayInputPrice
 	}
@@ -244,6 +316,9 @@ func mergeGlobalDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *Glo
 	}
 	if pricing.DisplayCacheReadPrice != nil {
 		cfg.DisplayCacheReadPrice = pricing.DisplayCacheReadPrice
+	}
+	if pricing.DisplayCacheCreationPrice != nil {
+		cfg.DisplayCacheCreationPrice = pricing.DisplayCacheCreationPrice
 	}
 }
 
@@ -260,6 +335,15 @@ func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserM
 	if cfg.CacheReadPrice <= 0 && pricing.CacheReadPrice != nil {
 		cfg.CacheReadPrice = *pricing.CacheReadPrice
 	}
+	if cfg.CacheCreationPrice <= 0 && pricing.CacheWritePrice != nil {
+		cfg.CacheCreationPrice = *pricing.CacheWritePrice
+		if cfg.CacheCreation5mPrice <= 0 {
+			cfg.CacheCreation5mPrice = *pricing.CacheWritePrice
+		}
+		if cfg.CacheCreation1hPrice <= 0 {
+			cfg.CacheCreation1hPrice = *pricing.CacheWritePrice
+		}
+	}
 	if pricing.DisplayInputPrice != nil {
 		cfg.DisplayInputPrice = pricing.DisplayInputPrice
 	}
@@ -268,6 +352,9 @@ func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserM
 	}
 	if pricing.DisplayCacheReadPrice != nil {
 		cfg.DisplayCacheReadPrice = pricing.DisplayCacheReadPrice
+	}
+	if pricing.DisplayCacheCreationPrice != nil {
+		cfg.DisplayCacheCreationPrice = pricing.DisplayCacheCreationPrice
 	}
 }
 
@@ -333,6 +420,54 @@ func RewriteSSEUsageTokens(line string, mult *DisplayTokenMultipliers) string {
 	return dataPrefix + string(modified)
 }
 
+// computeDisplayCacheCreationBreakdown 按分档倍率反算缓存创建的展示 token。
+// 有 5m/1h 明细时逐档反算（displayTotal×展示价 == 5m×p5m + 1h×p1h，与
+// usage-log 的成本反算口径一致），display1h 用减法导出保证 5m+1h==total；
+// 无明细时退化为单一 CacheCreateMult。RateScale（展示倍率层）在最后复合。
+func computeDisplayCacheCreationBreakdown(total, cc5m, cc1h int, mult *DisplayTokenMultipliers) (int, int, int) {
+	if total < 0 {
+		total = 0
+	}
+	if cc5m < 0 {
+		cc5m = 0
+	}
+	if cc1h < 0 {
+		cc1h = 0
+	}
+	rateScale := displayTokenRateScale(mult)
+	if cc5m <= 0 && cc1h <= 0 {
+		displayTotal := roundDisplayTokenCount(total, mult.CacheCreateMult)
+		if rateScale != 1.0 {
+			displayTotal = roundDisplayTokenCount(displayTotal, rateScale)
+		}
+		return displayTotal, 0, 0
+	}
+
+	mult5m := mult.cacheCreate5mMultOrDefault()
+	mult1h := mult.cacheCreate1hMultOrDefault()
+	displayTotalRaw := float64(cc5m)*mult5m + float64(cc1h)*mult1h
+	display5mRaw := float64(cc5m) * mult5m
+	if rateScale != 1.0 {
+		displayTotalRaw *= rateScale
+		display5mRaw *= rateScale
+	}
+	displayTotal := int(math.Round(displayTotalRaw))
+	display5m := int(math.Round(display5mRaw))
+	if display5m > displayTotal {
+		display5m = displayTotal
+	}
+	if display5m < 0 {
+		display5m = 0
+	}
+	if cc1h <= 0 {
+		return displayTotal, displayTotal, 0
+	}
+	if cc5m <= 0 {
+		return displayTotal, 0, displayTotal
+	}
+	return displayTotal, display5m, displayTotal - display5m
+}
+
 // ApplyDisplayMultipliersToUsageMap modifies a usage map in-place (for antigravity hook).
 func ApplyDisplayMultipliersToUsageMap(m map[string]any, mult *DisplayTokenMultipliers) {
 	if mult == nil || !mult.IsNonTrivial() {
@@ -343,6 +478,18 @@ func ApplyDisplayMultipliersToUsageMap(m map[string]any, mult *DisplayTokenMulti
 	cacheRead, cacheReadOK := usageMapInt(m, "cache_read_input_tokens")
 	cacheCreate, cacheCreateOK := usageMapInt(m, "cache_creation_input_tokens")
 	displayInput, displayOutput, displayCacheRead, displayCacheCreate := computeSeparatedDisplayUsage(input, output, cacheRead, cacheCreate, mult)
+	// 嵌套 5m/1h 明细：按档反算并同步回写，保持 5m+1h==顶层总量。
+	// antigravity 的 usage map 没有嵌套对象，此分支天然不触发。
+	if ccObj, ok := m["cache_creation"].(map[string]any); ok {
+		cc5m, _ := usageMapInt(ccObj, "ephemeral_5m_input_tokens")
+		cc1h, _ := usageMapInt(ccObj, "ephemeral_1h_input_tokens")
+		if cc5m > 0 || cc1h > 0 {
+			total, d5m, d1h := computeDisplayCacheCreationBreakdown(cacheCreate, cc5m, cc1h, mult)
+			displayCacheCreate = total
+			ccObj["ephemeral_5m_input_tokens"] = d5m
+			ccObj["ephemeral_1h_input_tokens"] = d1h
+		}
+	}
 	if inputOK {
 		m["input_tokens"] = displayInput
 	}
@@ -397,11 +544,15 @@ func rewriteSeparatedUsageTokens(body []byte, usagePath string, mult *DisplayTok
 	outputPath := usagePath + ".output_tokens"
 	cacheReadPath := usagePath + ".cache_read_input_tokens"
 	cacheCreatePath := usagePath + ".cache_creation_input_tokens"
+	cacheCreate5mPath := usagePath + ".cache_creation.ephemeral_5m_input_tokens"
+	cacheCreate1hPath := usagePath + ".cache_creation.ephemeral_1h_input_tokens"
 
 	inputNode := gjson.GetBytes(body, inputPath)
 	outputNode := gjson.GetBytes(body, outputPath)
 	cacheReadNode := gjson.GetBytes(body, cacheReadPath)
 	cacheCreateNode := gjson.GetBytes(body, cacheCreatePath)
+	cacheCreate5mNode := gjson.GetBytes(body, cacheCreate5mPath)
+	cacheCreate1hNode := gjson.GetBytes(body, cacheCreate1hPath)
 
 	displayInput, displayOutput, displayCacheRead, displayCacheCreate := computeSeparatedDisplayUsage(
 		int(inputNode.Int()),
@@ -412,6 +563,29 @@ func rewriteSeparatedUsageTokens(body []byte, usagePath string, mult *DisplayTok
 	)
 
 	var err error
+	// 嵌套 5m/1h 明细：按档反算，顶层与嵌套同步改写，保持 5m+1h==总量。
+	if (cacheCreate5mNode.Exists() || cacheCreate1hNode.Exists()) &&
+		(cacheCreate5mNode.Int() > 0 || cacheCreate1hNode.Int() > 0) {
+		total, d5m, d1h := computeDisplayCacheCreationBreakdown(
+			int(cacheCreateNode.Int()),
+			int(cacheCreate5mNode.Int()),
+			int(cacheCreate1hNode.Int()),
+			mult,
+		)
+		displayCacheCreate = total
+		if cacheCreate5mNode.Exists() {
+			body, err = sjson.SetBytes(body, cacheCreate5mPath, d5m)
+			if err != nil {
+				return body
+			}
+		}
+		if cacheCreate1hNode.Exists() {
+			body, err = sjson.SetBytes(body, cacheCreate1hPath, d1h)
+			if err != nil {
+				return body
+			}
+		}
+	}
 	if inputNode.Exists() {
 		body, err = sjson.SetBytes(body, inputPath, displayInput)
 		if err != nil {
@@ -559,10 +733,12 @@ func applyOpenAIResponsesUsageDisplayMultipliers(usage *OpenAIUsage, mult *Displ
 		return OpenAIUsage{}
 	}
 	displayInput, displayOutput, displayCached := computeOpenAIDisplayUsage(usage.InputTokens, usage.OutputTokens, usage.CacheReadInputTokens, mult)
+	// cache creation 与其它字段同规则缩放（claude-gpt 桥接路径该值恒 0，属 no-op）。
+	_, _, _, displayCacheCreate := computeSeparatedDisplayUsage(0, 0, 0, usage.CacheCreationInputTokens, mult)
 	return OpenAIUsage{
 		InputTokens:              displayInput,
 		OutputTokens:             displayOutput,
-		CacheCreationInputTokens: usage.CacheCreationInputTokens,
+		CacheCreationInputTokens: displayCacheCreate,
 		CacheReadInputTokens:     displayCached,
 		ImageOutputTokens:        usage.ImageOutputTokens,
 	}
