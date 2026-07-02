@@ -24,13 +24,15 @@ import (
 //   - deleteErr: 模拟 Delete 返回的错误
 //   - deletedIDs: 记录被调用删除的 API Key ID，用于断言验证
 type apiKeyRepoStub struct {
-	apiKey         *APIKey // GetKeyAndOwnerID 的返回值
-	getByIDErr     error   // GetKeyAndOwnerID 的错误返回值
-	deleteErr      error   // Delete 的错误返回值
-	deletedIDs     []int64 // 记录已删除的 API Key ID 列表
-	updateLastUsed func(ctx context.Context, id int64, usedAt time.Time) error
-	touchedIDs     []int64
-	touchedUsedAts []time.Time
+	apiKey            *APIKey // GetKeyAndOwnerID 的返回值
+	getByIDErr        error   // GetKeyAndOwnerID 的错误返回值
+	deleteErr         error   // Delete 的错误返回值
+	deletedIDs        []int64 // 记录已删除的 API Key ID 列表
+	updateLastUsed    func(ctx context.Context, id int64, usedAt time.Time) error
+	touchedIDs        []int64
+	touchedUsedAts    []time.Time
+	allowListByUserID bool
+	listByUserIDKeys  []APIKey
 }
 
 // 以下方法在本测试中不应被调用，使用 panic 确保测试失败时能快速定位问题
@@ -82,6 +84,11 @@ func (s *apiKeyRepoStub) Delete(ctx context.Context, id int64) error {
 // 以下是接口要求实现但本测试不关心的方法
 
 func (s *apiKeyRepoStub) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
+	if s.allowListByUserID {
+		return append([]APIKey(nil), s.listByUserIDKeys...), &pagination.PaginationResult{
+			Page: params.Page, PageSize: params.PageSize, Total: int64(len(s.listByUserIDKeys)),
+		}, nil
+	}
 	panic("unexpected ListByUserID call")
 }
 
@@ -268,6 +275,40 @@ func TestApiKeyService_Delete_NotFound(t *testing.T) {
 	require.Empty(t, repo.deletedIDs)
 	require.Empty(t, cache.invalidated)
 	require.Empty(t, cache.deleteAuthKeys)
+}
+
+func TestAPIKeyService_List_FillsCurrentConcurrency(t *testing.T) {
+	repo := &apiKeyRepoStub{
+		allowListByUserID: true,
+		listByUserIDKeys: []APIKey{
+			{ID: 10, UserID: 7, Key: "sk-10", Name: "key-10"},
+			{ID: 11, UserID: 7, Key: "sk-11", Name: "key-11"},
+		},
+	}
+	concurrency := NewConcurrencyService(&stubConcurrencyCacheForTest{
+		apiKeyConcurrency: map[int64]int{10: 2, 11: 0},
+	})
+	svc := &APIKeyService{apiKeyRepo: repo, concurrencyService: concurrency}
+
+	keys, _, err := svc.List(context.Background(), 7, pagination.PaginationParams{Page: 1, PageSize: 20}, APIKeyListFilters{})
+	require.NoError(t, err)
+	require.Len(t, keys, 2)
+	require.Equal(t, 2, keys[0].CurrentConcurrency)
+	require.Equal(t, 0, keys[1].CurrentConcurrency)
+}
+
+func TestAPIKeyService_GetByID_FillsCurrentConcurrency(t *testing.T) {
+	repo := &apiKeyRepoStub{
+		apiKey: &APIKey{ID: 10, UserID: 7, Key: "sk-10", Name: "key-10"},
+	}
+	concurrency := NewConcurrencyService(&stubConcurrencyCacheForTest{
+		apiKeyConcurrency: map[int64]int{10: 4},
+	})
+	svc := &APIKeyService{apiKeyRepo: repo, concurrencyService: concurrency}
+
+	key, err := svc.GetByID(context.Background(), 10)
+	require.NoError(t, err)
+	require.Equal(t, 4, key.CurrentConcurrency)
 }
 
 // TestApiKeyService_Delete_DeleteFails 测试删除操作失败时的错误处理。
