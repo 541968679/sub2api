@@ -811,7 +811,7 @@ func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTo
 	if rateScale != 1.0 {
 		displayInput = roundDisplayTokenCount(displayInput, rateScale)
 		displayOutput = roundDisplayTokenCount(displayOutput, rateScale)
-		// Keep cache-read usage counts real; display-rate scaling is reflected in cost, not this response field.
+		displayCacheRead = roundDisplayTokenCount(displayCacheRead, rateScale)
 		displayCacheCreate = roundDisplayTokenCount(displayCacheCreate, rateScale)
 	}
 
