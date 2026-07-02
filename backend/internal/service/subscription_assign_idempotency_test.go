@@ -132,10 +132,14 @@ func (userSubRepoNoop) BatchUpdateExpiredStatus(context.Context) (int64, error) 
 type subscriptionUserSubRepoStub struct {
 	userSubRepoNoop
 
-	nextID      int64
-	byID        map[int64]*UserSubscription
-	byUserGroup map[string]*UserSubscription
-	createCalls int
+	nextID       int64
+	byID         map[int64]*UserSubscription
+	byUserGroup  map[string]*UserSubscription
+	createCalls  int
+	updateCalls  int
+	resetDaily   int
+	resetWeekly  int
+	resetMonthly int
 }
 
 func newSubscriptionUserSubRepoStub() *subscriptionUserSubRepoStub {
@@ -202,6 +206,58 @@ func (s *subscriptionUserSubRepoStub) GetByID(_ context.Context, id int64) (*Use
 	return &cp, nil
 }
 
+func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscription) error {
+	if sub == nil {
+		return ErrSubscriptionNilInput
+	}
+	current := s.byID[sub.ID]
+	if current == nil {
+		return ErrSubscriptionNotFound
+	}
+	s.updateCalls++
+	oldKey := s.key(current.UserID, current.GroupID)
+	cp := *sub
+	s.byID[cp.ID] = &cp
+	if oldKey != s.key(cp.UserID, cp.GroupID) {
+		delete(s.byUserGroup, oldKey)
+	}
+	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
+	return nil
+}
+
+func (s *subscriptionUserSubRepoStub) ResetDailyUsage(_ context.Context, id int64, windowStart time.Time) error {
+	sub := s.byID[id]
+	if sub == nil {
+		return ErrSubscriptionNotFound
+	}
+	s.resetDaily++
+	sub.DailyUsageUSD = 0
+	sub.DailyWindowStart = &windowStart
+	return nil
+}
+
+func (s *subscriptionUserSubRepoStub) ResetWeeklyUsage(_ context.Context, id int64, windowStart time.Time) error {
+	sub := s.byID[id]
+	if sub == nil {
+		return ErrSubscriptionNotFound
+	}
+	s.resetWeekly++
+	sub.WeeklyUsageUSD = 0
+	sub.WeeklyWindowStart = &windowStart
+	return nil
+}
+
+func (s *subscriptionUserSubRepoStub) ResetMonthlyUsage(_ context.Context, id int64, windowStart time.Time) error {
+	sub := s.byID[id]
+	if sub == nil {
+		return ErrSubscriptionNotFound
+	}
+	s.resetMonthly++
+	sub.MonthlyUsageUSD = 0
+	sub.MonthlyWindowStart = &windowStart
+	return nil
+}
+
 func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {
 	start := time.Date(2026, 2, 20, 10, 0, 0, 0, time.UTC)
 	groupRepo := &subscriptionGroupRepoStub{
@@ -227,6 +283,60 @@ func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(10), sub.ID)
 	require.Equal(t, 0, subRepo.createCalls, "reuse should not create new subscription")
+}
+
+func TestAssignSubscriptionReactivatesExpiredExistingSubscription(t *testing.T) {
+	start := time.Now().AddDate(0, 0, -60)
+	windowStart := startOfDay(start)
+	groupRepo := &subscriptionGroupRepoStub{
+		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+	}
+	subRepo := newSubscriptionUserSubRepoStub()
+	subRepo.seed(&UserSubscription{
+		ID:                 12,
+		UserID:             1002,
+		GroupID:            1,
+		StartsAt:           start,
+		ExpiresAt:          start.AddDate(0, 0, 30),
+		Status:             SubscriptionStatusActive,
+		DailyWindowStart:   &windowStart,
+		WeeklyWindowStart:  &windowStart,
+		MonthlyWindowStart: &windowStart,
+		DailyUsageUSD:      12,
+		WeeklyUsageUSD:     34,
+		MonthlyUsageUSD:    56,
+		Notes:              "redeemed earlier",
+	})
+
+	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
+	adminID := int64(9)
+	before := time.Now()
+	sub, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{
+		UserID:       1002,
+		GroupID:      1,
+		ValidityDays: 30,
+		AssignedBy:   adminID,
+		Notes:        "admin assigned GPT monthly card",
+	})
+	after := time.Now()
+
+	require.NoError(t, err)
+	require.Equal(t, int64(12), sub.ID)
+	require.Equal(t, 0, subRepo.createCalls, "expired assignment should reuse the existing row")
+	require.Equal(t, 1, subRepo.updateCalls)
+	require.Equal(t, 1, subRepo.resetDaily)
+	require.Equal(t, 1, subRepo.resetWeekly)
+	require.Equal(t, 1, subRepo.resetMonthly)
+	require.Equal(t, SubscriptionStatusActive, sub.Status)
+	require.False(t, sub.StartsAt.Before(before))
+	require.False(t, sub.StartsAt.After(after))
+	require.True(t, sub.ExpiresAt.After(before.AddDate(0, 0, 29)))
+	require.Equal(t, 0.0, sub.DailyUsageUSD)
+	require.Equal(t, 0.0, sub.WeeklyUsageUSD)
+	require.Equal(t, 0.0, sub.MonthlyUsageUSD)
+	require.NotNil(t, sub.AssignedBy)
+	require.Equal(t, adminID, *sub.AssignedBy)
+	require.Equal(t, "admin assigned GPT monthly card", sub.Notes)
 }
 
 func TestAssignSubscriptionConflictWhenSemanticsMismatch(t *testing.T) {

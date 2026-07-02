@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] fix: allow admin reassignment of expired subscriptions
+
+**Affected files**: backend/internal/service/subscription_service.go, backend/internal/service/subscription_assign_idempotency_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: backend subscription grant fix. No schema, migration, route, frontend, billing formula, or deployment changes.
+**Change details**:
+- Fixed admin subscription assignment for users who already have an expired same-group subscription, such as an expired GPT monthly-card grant created by a previous redeem code.
+- Reactivating an expired same-group subscription now resets `starts_at`, `expires_at`, status, assigned admin metadata, notes, and daily/weekly/monthly usage windows instead of returning `SUBSCRIPTION_ASSIGN_CONFLICT` because old notes or validity differ.
+- Preserved active-subscription idempotency and conflict checks so duplicate admin requests do not silently extend active subscriptions.
+- Verified: `go test -tags=unit ./internal/service -run "TestAssignSubscription|TestBulkAssignSubscription|TestNormalizeAssignValidityDays|TestDetectAssignSemanticConflictCases"`; `go test -tags=unit ./internal/service`; local API smoke with a temporary `admin_api_key` and expired subscription row, then DB/settings restored.
+
 ## [2026-07-02] fix: align user model pricing override fields
 
 **Affected files**: frontend/src/components/admin/user/UserModelPricingModal.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md

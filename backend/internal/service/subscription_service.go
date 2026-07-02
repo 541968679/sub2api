@@ -428,6 +428,10 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 		if getErr != nil {
 			return nil, false, getErr
 		}
+		if shouldReactivateAssignedSubscription(sub) {
+			sub, reactivateErr := s.reactivateAssignedSubscription(ctx, sub, input)
+			return sub, true, reactivateErr
+		}
 		if conflictReason, conflict := detectAssignSemanticConflict(sub, input); conflict {
 			return nil, false, ErrSubscriptionAssignConflict.WithMetadata(map[string]string{
 				"conflict_reason": conflictReason,
@@ -453,6 +457,94 @@ func (s *SubscriptionService) assignSubscriptionWithReuse(ctx context.Context, i
 	}
 
 	return sub, false, nil
+}
+
+func shouldReactivateAssignedSubscription(existing *UserSubscription) bool {
+	if existing == nil {
+		return false
+	}
+	if existing.Status == SubscriptionStatusExpired {
+		return true
+	}
+	return existing.Status == SubscriptionStatusActive && !existing.ExpiresAt.After(time.Now())
+}
+
+func (s *SubscriptionService) reactivateAssignedSubscription(ctx context.Context, existing *UserSubscription, input *AssignSubscriptionInput) (*UserSubscription, error) {
+	if existing == nil {
+		return nil, ErrSubscriptionNotFound
+	}
+
+	now := time.Now()
+	validityDays := normalizeAssignValidityDays(input.ValidityDays)
+	expiresAt := now.AddDate(0, 0, validityDays)
+	if expiresAt.After(MaxExpiresAt) {
+		expiresAt = MaxExpiresAt
+	}
+
+	reactivated := *existing
+	reactivated.StartsAt = now
+	reactivated.ExpiresAt = expiresAt
+	reactivated.Status = SubscriptionStatusActive
+	reactivated.DailyUsageUSD = 0
+	reactivated.WeeklyUsageUSD = 0
+	reactivated.MonthlyUsageUSD = 0
+	reactivated.AssignedAt = now
+	reactivated.Notes = input.Notes
+	if input.AssignedBy > 0 {
+		reactivated.AssignedBy = &input.AssignedBy
+	} else {
+		reactivated.AssignedBy = nil
+	}
+
+	updateCtx := ctx
+	var tx *dbent.Tx
+	if s.entClient != nil {
+		var err error
+		tx, err = s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("begin transaction: %w", err)
+		}
+		updateCtx = dbent.NewTxContext(ctx, tx)
+	}
+	rollback := func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}
+
+	if err := s.userSubRepo.Update(updateCtx, &reactivated); err != nil {
+		rollback()
+		return nil, fmt.Errorf("reactivate subscription: %w", err)
+	}
+	windowStart := startOfDay(now)
+	if err := s.userSubRepo.ResetDailyUsage(updateCtx, existing.ID, windowStart); err != nil {
+		rollback()
+		return nil, fmt.Errorf("reset daily usage: %w", err)
+	}
+	if err := s.userSubRepo.ResetWeeklyUsage(updateCtx, existing.ID, windowStart); err != nil {
+		rollback()
+		return nil, fmt.Errorf("reset weekly usage: %w", err)
+	}
+	if err := s.userSubRepo.ResetMonthlyUsage(updateCtx, existing.ID, windowStart); err != nil {
+		rollback()
+		return nil, fmt.Errorf("reset monthly usage: %w", err)
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+	}
+
+	s.InvalidateSubCache(input.UserID, input.GroupID)
+	if s.billingCacheService != nil {
+		userID, groupID := input.UserID, input.GroupID
+		go func() {
+			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = s.billingCacheService.InvalidateSubscription(cacheCtx, userID, groupID)
+		}()
+	}
+	return s.userSubRepo.GetByID(ctx, existing.ID)
 }
 
 func detectAssignSemanticConflict(existing *UserSubscription, input *AssignSubscriptionInput) (string, bool) {
