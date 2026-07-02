@@ -645,7 +645,7 @@ func UsageLogFromServiceWithDisplayConfig(l *service.UsageLog, cfg *DisplayPrici
 	u := usageLogFromServiceUser(l)
 	if cfg != nil {
 		cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
-		cfg = effectiveDisplayPricingForUsageLog(&u, cfg)
+		cfg = EffectiveDisplayPricingForUsageLog(&u, cfg)
 		ApplyDisplayTransform(&u, cfg)
 	}
 	return &u
@@ -683,7 +683,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap)
 	if displayMap != nil {
 		if cfg := displayMap[toLowerModel(base.Model)]; cfg != nil {
 			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
-			cfg = effectiveDisplayPricingForUsageLog(&base, cfg)
+			cfg = EffectiveDisplayPricingForUsageLog(&base, cfg)
 			admin.DisplayFields = ComputeDisplayFields(&base, cfg)
 		}
 	}

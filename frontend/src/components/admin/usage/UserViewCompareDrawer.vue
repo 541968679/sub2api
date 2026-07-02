@@ -320,7 +320,7 @@ const buildFormulaRows = (snapshot: UserViewSnapshot, mode: FormulaMode): Formul
       label: t('usage.cacheCreation'),
       tokens: snapshot.cache_creation_tokens,
       cost: snapshot.cache_creation_cost,
-      price: null
+      price: mode === 'user' ? snapshot.display_cache_creation_price ?? null : null
     },
     {
       key: 'output',
@@ -334,7 +334,7 @@ const buildFormulaRows = (snapshot: UserViewSnapshot, mode: FormulaMode): Formul
   return defs
     .filter(def => def.tokens > 0 || Math.abs(def.cost) > epsilon)
     .map(def => {
-      const unitPrice = resolveUnitPrice(def.price, def.tokens, def.cost)
+      const unitPrice = resolveUnitPrice(def.price, def.tokens, def.cost, mode === 'real')
       return {
         key: def.key,
         label: def.label,
@@ -346,9 +346,14 @@ const buildFormulaRows = (snapshot: UserViewSnapshot, mode: FormulaMode): Formul
     })
 }
 
-const resolveUnitPrice = (configured: number | null, tokens: number, cost: number): number | null => {
+const resolveUnitPrice = (
+  configured: number | null,
+  tokens: number,
+  cost: number,
+  allowCostFallback: boolean
+): number | null => {
   if (configured != null && configured > 0) return configured
-  if (tokens > 0 && cost > 0) return cost / tokens
+  if (allowCostFallback && tokens > 0 && cost > 0) return cost / tokens
   return null
 }
 

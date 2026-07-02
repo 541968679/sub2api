@@ -604,7 +604,7 @@ func TestApplyDisplayTransform_CacheCreationLongContextScalesOnce(t *testing.T) 
 		LongContextApplied:         true,
 		LongContextInputMultiplier: 2.0,
 	}
-	cfg := effectiveDisplayPricingForUsageLog(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+	cfg := EffectiveDisplayPricingForUsageLog(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
 
 	ApplyDisplayTransform(&log, cfg)
 

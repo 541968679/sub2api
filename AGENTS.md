@@ -323,6 +323,17 @@ before relying on that target.
 ## Mandatory Workflow Rules
 
 - Read `docs/dev/ARCHITECTURE.md` before exploring unfamiliar code.
+- Before every upstream-sync batch, list an explicit assessment table and wait
+  until that table has been presented before changing sync-related code. The
+  table must include, at minimum: upstream commit/feature point, concrete
+  behavior change, affected backend/frontend modules, whether the change is
+  visible in the frontend, how to test it, relation to fork-local secondary
+  development, expected impact on fork-local features, risk level, and planned
+  handling strategy. The fork-local impact column is mandatory and must call
+  out relevant custom areas such as billing/display-token accounting, curated
+  model lists, Claude-GPT bridge, OpenAI image generation, default-model
+  fallback, account scheduling/failover, ops logging, public/admin settings,
+  migrations, and frontend i18n/routes when applicable.
 - Append every verified change to `docs/dev/CHANGELOG_CUSTOM.md` with what
   changed, why, and affected files.
 - Sub2API repository changes are logged in `docs/dev/CHANGELOG_CUSTOM.md`.

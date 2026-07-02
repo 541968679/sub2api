@@ -750,20 +750,22 @@ func (h *UsageHandler) loadUserDisplayPricingMaps(c *gin.Context, records []serv
 
 // UserViewSnapshot is one column of the side-by-side comparison.
 type UserViewSnapshot struct {
-	InputTokens           int      `json:"input_tokens"`
-	OutputTokens          int      `json:"output_tokens"`
-	CacheReadTokens       int      `json:"cache_read_tokens"`
-	CacheCreationTokens   int      `json:"cache_creation_tokens"`
-	InputCost             float64  `json:"input_cost"`
-	OutputCost            float64  `json:"output_cost"`
-	CacheReadCost         float64  `json:"cache_read_cost"`
-	CacheCreationCost     float64  `json:"cache_creation_cost"`
-	TotalCost             float64  `json:"total_cost"`
-	ActualCost            float64  `json:"actual_cost"`
-	RateMultiplier        float64  `json:"rate_multiplier"`
-	DisplayInputPrice     *float64 `json:"display_input_price,omitempty"`
-	DisplayOutputPrice    *float64 `json:"display_output_price,omitempty"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price,omitempty"`
+	InputTokens                 int      `json:"input_tokens"`
+	OutputTokens                int      `json:"output_tokens"`
+	CacheReadTokens             int      `json:"cache_read_tokens"`
+	CacheCreationTokens         int      `json:"cache_creation_tokens"`
+	InputCost                   float64  `json:"input_cost"`
+	OutputCost                  float64  `json:"output_cost"`
+	CacheReadCost               float64  `json:"cache_read_cost"`
+	CacheCreationCost           float64  `json:"cache_creation_cost"`
+	TotalCost                   float64  `json:"total_cost"`
+	ActualCost                  float64  `json:"actual_cost"`
+	RateMultiplier              float64  `json:"rate_multiplier"`
+	DisplayInputPrice           *float64 `json:"display_input_price,omitempty"`
+	DisplayOutputPrice          *float64 `json:"display_output_price,omitempty"`
+	DisplayCacheReadPrice       *float64 `json:"display_cache_read_price,omitempty"`
+	DisplayCacheCreationPrice   *float64 `json:"display_cache_creation_price,omitempty"`
+	DisplayCacheCreation1hPrice *float64 `json:"display_cache_creation_1h_price,omitempty"`
 }
 
 // UserViewConfigUsed describes the effective display-pricing inputs that produced the user_view column.
@@ -836,6 +838,7 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 	// then layer the user group display rate if present.
 	displayCfg := h.displayConfigForUsageLog(ctx, log, userMap)
 	userDTO := dto.UsageLogFromServiceWithDisplayConfig(log, displayCfg)
+	effectiveDisplayCfg := dto.EffectiveDisplayPricingForUsageLog(userDTO, displayCfg)
 	var groupDisplayRate *float64
 	if log.GroupID != nil && groupRates != nil {
 		if dr, ok := groupRates[*log.GroupID]; ok && dr.DisplayRateMultiplier != nil {
@@ -866,9 +869,15 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 		cfg.DisplayOutputPrice = userDTO.DisplayOutputPrice
 		cfg.DisplayCacheReadPrice = userDTO.DisplayCacheReadPrice
 	}
-	if displayCfg != nil {
-		cfg.DisplayCacheCreationPrice = displayCfg.DisplayCacheCreationPrice
-		cfg.DisplayCacheCreation1hPrice = displayCfg.DisplayCacheCreation1hPrice
+	if effectiveDisplayCfg != nil {
+		cfg.DisplayCacheCreationPrice = effectiveDisplayCfg.DisplayCacheCreationPrice
+		cfg.DisplayCacheCreation1hPrice = effectiveDisplayCfg.DisplayCacheCreation1hPrice
+	}
+
+	userSnapshot := snapshotFromDTO(userDTO)
+	if effectiveDisplayCfg != nil {
+		userSnapshot.DisplayCacheCreationPrice = effectiveDisplayCfg.DisplayCacheCreationPrice
+		userSnapshot.DisplayCacheCreation1hPrice = effectiveDisplayCfg.DisplayCacheCreation1hPrice
 	}
 
 	resp := UserViewPreviewResponse{
@@ -876,7 +885,7 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 		UserID:     log.UserID,
 		Model:      log.Model,
 		Real:       snapshotFromDTO(realDTO),
-		UserView:   snapshotFromDTO(userDTO),
+		UserView:   userSnapshot,
 		ConfigUsed: cfg,
 	}
 	response.Success(c, resp)

@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] merge: integrate staged upstream sync with display billing fixes
+
+**Affected files**: codex/upstream-sync-20260627 merge set, dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md, docs/dev/UPSTREAM_SYNC.md, backend/internal/handler/admin/usage_handler.go, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/mappers.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts
+**Upstream compatibility**: local integration merge. No push, deployment, migration execution, quota mutation, stored usage mutation, or real billing formula change in this merge resolution.
+**Change details**:
+- Merged the staged upstream safety-sync branch `codex/upstream-sync-20260627` into the display-billing integration branch, resolving conflicts only in the dev-console manifest and upstream-sync documentation.
+- Preserved the display-billing invariants fixed earlier: user-facing model unit prices come from configured/effective prices, not usage-cost reverse math; cache-read token counts remain real; cache-read display deltas fold into input display cost/tokens when needed.
+- Combined the local `dev-services.yml` managed-stack entry with upstream-sync's `cwd`, backend health check, `full`, `stop`, and status variants while keeping the repository rule that normal service actions go through `scripts/dev-stack.ps1`.
+- Tightened the admin user-view calculation drawer so only the real billing layer may show an implicit `cost/tokens` unit price. The user display layer now uses only backend-supplied effective display prices, including cache-creation display prices, and otherwise shows no invented unit price.
+- Verified: `go test -tags=unit ./internal/handler/dto ./internal/handler/admin`; `go test -tags=unit ./internal/handler ./internal/handler/admin ./internal/handler/dto ./internal/service ./internal/repository ./internal/pkg/apicompat ./internal/pkg/openai ./cmd/server`; `pnpm --dir frontend run test:run -- src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts src/views/user/__tests__/UsageView.spec.ts`; `pnpm --dir frontend run test:run -- src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts src/views/user/__tests__/UsageView.spec.ts src/router/__tests__/title.spec.ts src/views/admin/__tests__/SettingsView.spec.ts`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run lint:check`.
+
 ## [2026-07-02] feat: expose admin user-view cost calculation process
 
 **Affected files**: AGENTS.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/billing.md, backend/internal/handler/admin/usage_handler.go, backend/cmd/server/wire_gen.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
@@ -61,6 +72,67 @@
 - Added regression tests for the default Claude model list, Bedrock mapping constants, Bedrock region adjustment, and the Sonnet 5-only 1M context beta whitelist.
 - Verified: `go test -tags=unit ./internal/pkg/claude ./internal/domain ./internal/service -count=1`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run build`; `go build -tags embed -trimpath ./cmd/server`; `git diff --check`.
 
+## [2026-07-02] feat(billing): display cache creation price — 缓存创建纳入展示放大体系 + 用户侧可见性
+
+**Affected files**: backend/migrations/171_add_display_cache_creation_price.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/types/index.ts, frontend/src/api/admin/{usage,modelPricing,userModelPricing}.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/components/admin/usage/{UsageTable,UserViewCompareDrawer}.vue, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal}.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: additive, fork-local。新增 DB 列 `display_cache_creation_price`（global_model_pricing + user_model_pricing_overrides，NULL=未配置=行为零变化）；DisplayUsageFields 增加两个 admin 契约字段；用户 DTO 无新 JSON 字段。upstream-sync-guard 已登记 `DisplayCacheCreationPrice` 关键签名。
+**Change details**:
+- 背景：anthropic 平台记录（如 claude-fable-5，input=2/output=38/cache_creation=42778/$0.54）在用户侧"token 很少但很贵"——缓存创建 token/成本此前完全不参与展示换算，且用户可用 cache_creation_cost/tokens 反推真实缓存写单价。
+- 核心（display_pricing.go）：新分支在 ApplyDisplayTransform 中把缓存创建 token 直接按展示价反算放大（display_tokens = 真实成本 ÷ 展示价，cost 保持守恒），**与 cache-read 的 premium 折入 input 机制刻意不同**（用户明确要求：直接放大缓存创建自身 token 数）。守卫：展示价>0 && tokens>0 && cost>0，不依赖 display_input_price。线性变换 → 聚合组与逐行天然等价，GetUserDisplayAggregateGroups 零改动。
+- 5m/1h 细分：新 helper rescaleCacheCreationBreakdown 等比缩放 + 减法导出，保证 5m+1h==total；ApplyUserDisplayRate 同步接入（修复既有"细分不随展示倍率缩放"bug）。
+- 长上下文：effectiveDisplayPricingForUsageLog 对新价乘 LongContextInputMultiplier。
+- 配置链：migration 171（含 user 表 NOT VALID 非负约束，模板 147）→ 实体/两个 raw-SQL repo 全枚举点（global 4 处、user 5 处）→ 校验（validateUserModelPricingOverride）→ admin API（global create/partial-update applyFloat、user create/update/batch）→ 前端两个定价表单（$/MTok 双向换算、applyDisplaySuggested 从 cache_write_price 取建议值）→ i18n zh/en。
+- Admin 可视：DisplayUsageFields + ComputeDisplayFields 增加 display_cache_creation_tokens/cost；UsageTable 双列 tooltip 增行；UserViewCompareDrawer config_used 回传展示创建价。
+- 用户侧可见性（此前完全不显示）：UsageView.vue 与 KeyUsageView.vue 的 token 徽章（amber 图标+1h 标签）、token tooltip（5m/1h 细分）、成本 tooltip、token 合计均渲染 cache creation；admin 专属 TTL override "R" 徽章仍不下发用户。UsageView.spec.ts 两个断言"用户侧隐藏缓存创建"的旧规格测试已反转。
+- 平台边界（软 gate，详见 billing.md 2026-07-02 节）：openai 原生/antigravity OAuth/桥接/gemini 行 cache_creation 恒 0 → no-op；antigravity 分组的 upstream 中转/apikey 型账号行与 openai relay 透传行若命中已配置的 claude-* 模型会同样换算（语义正确）。
+- **本批不改**：display_token_rewrite.go（下游响应 CacheCreateMult 仍恒 1.0）；claude-gpt 桥接 openai_claude_gpt_bridge_cache_display_settings；真实计费链。下游一致性如需跟进，前置为 gateway_service.go OAuth 流式 extractSSEUsagePatch 计费污染修复（PLAN 文档 Phase 0，未实施）。
+- Verified: `go build ./...`、`go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/repository/...` 全过（新增 8 个 display_pricing 用例：放大/独立守卫/no-op/与 read premium 复合/长上下文单次缩放/ComputeDisplayFields/倍率细分一致性）；`./internal/server -run Contract` 仅 redeem/history 一处**既有**失败（基线同样失败，与本改动无关）；前端 typecheck + lint:check + vitest 全量 101 文件/603 用例全过。
+
+## [2026-07-02] fix(billing): 流式计费 patch 先于展示改写提取 —— 修复 display 模式真实扣费污染
+
+**Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_service_streaming_test.go
+**Upstream compatibility**: 单行重排,fork-local。
+**Change details**:
+- 根因:processSSEEvent 先对共享 SSE event map 做展示改写(ApplyDisplayMultipliersToUsageMap 就地变异),后 extractSSEUsagePatch 从同一 map 提取计费 → mergeSSEUsagePatch → ForwardResult.Usage → calculateTokenCost。`downstream_usage_token_mode=display`(migration 169 起新用户默认)且展示倍率非平凡时,**真实扣费按展示 token 计算**(生产已配置展示倍率,污染已实际发生)。
+- 修法:extractSSEUsagePatch 上移到 cache TTL override(刻意影响计费归类,保持在前)之后、display 改写之前;display 改写仍作用于发给客户端的序列化对象,展示语义不变。顺带修复 marshal 失败回退路径"客户端见真实值、计费用展示值"的不自洽。
+- 影响面:所有走 GatewayService 流式路径的账号(anthropic OAuth/SetupToken/ServiceAccount/APIKey + antigravity 分组 apikey 型账号)。**行为变化:display 模式用户的流式扣费从污染值恢复为真实值**(已拍板只修复+记录,不做历史修正)。其余路径经三轮探索核实均为"先提取后改写",安全:passthrough 流式/非流式、标准非流式、claude-gpt 桥接(response-only)、OpenAI 原生全路径、antigravity(hook 变异 usageToMap 全新拷贝,计费走独立累计字段)。
+- 红/绿回归:TestGatewayService_StreamingDisplayModeBillsRealTokens(修复前红)、TestGatewayService_StreamingDisplayModeKeepsTTLOverrideBeforeBillingPatch(TTL 归类仍先于提取)。
+
+## [2026-07-02] feat(billing): cache_write_1h_price —— 1h 缓存创建按溢价分档计费
+
+**Affected files**: backend/migrations/172_add_cache_write_1h_price.sql, backend/internal/service/{global_model_pricing,global_model_pricing_service,model_pricing_resolver}.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/service/model_pricing_resolver_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: additive。新列 NULL = 历史行为逐字节不变(回归钉测试)。
+**Change details**:
+- 背景:官方缓存写入分两档(5m=1.25×输入价,1h=2×输入价)。【2026-07-02 修正】走 LiteLLM 源价的模型(sonnet-5/fable-5)本就按官方分档正确计费——生产 sonnet-5 纯 1h 行隐含 $4.0/MTok = 官方优惠期 1h 价(2×$2),经官方价目表核实,原"1h 溢价漏计"诊断不成立。被压平的是配了全局 cache_write_price 覆盖的模型(opus 系列 $10 平价、sonnet-4-6 $5 平价):单一覆盖价同写三档,1h 溢价无法表达——本字段即为此而设。
+- 全局定价覆盖新增 cache_write_1h_price(migration 172):配置后 applyGlobalPricingOverride 单独写 CacheCreation1hPrice 并强制 SupportsCacheBreakdown=true,computeCacheCreationCost 按 5m×p5m+1h×p1h 分档;admin 表单加"1h 缓存写入价"输入框($/MTok),i18n zh/en。
+- **运营动作**:部署后给 claude-sonnet-5 / claude-fable-5 等中转模型配置 1h 价(按上游实际扣费口径);此后新请求真实成本计入 1h 溢价(admin 成本与用户 actual_cost 同步变化)。
+- 测试:纯 1h 生产形状(66061 tokens)按 1h 价计费、混合行分档、未配置时平价行为回归钉。
+
+## [2026-07-02] feat(billing): 下游响应 usage 缓存创建展示改写(real/display 双模式)
+
+**Affected files**: backend/internal/service/display_token_rewrite{,_test}.go, docs/dev/codebase/billing.md
+**Upstream compatibility**: fork-local。real 模式零变化;display 模式仅在配置了 display_cache_creation_price 的模型上激活。
+**Change details**:
+- computeDisplayTokenMultipliers 接入缓存创建:CacheCreateMult(无明细回退,5m 档口径对齐计费回退)+ CacheCreate5mMult/CacheCreate1hMult 分档倍率(真实档价÷展示创建价);displayTokenPricingConfig/两个 merge 函数补真实价与展示价管道;IsNonTrivial 纳入分档判断(仅配展示创建价即可激活改写链)。
+- 新 helper computeDisplayCacheCreationBreakdown:有嵌套 5m/1h 明细时按档反算(displayTotal×展示价 == 5m×p5m+1h×p1h,与 usage 页成本反算口径逐 token 一致,含纯 1h 中转流量),display1h 减法导出保证 5m+1h==顶层;无明细退化单一倍率。接入 rewriteSeparatedUsageTokens(passthrough 流式/非流式+桥接,顶层与嵌套同步 sjson 回写)与 ApplyDisplayMultipliersToUsageMap(托管流式+antigravity hook;antigravity map 无嵌套,行为不变)。applyOpenAIResponsesUsageDisplayMultipliers 的 CacheCreationInputTokens 改为同规则缩放(桥接恒 0,no-op)。
+- RateScale(展示倍率层)在分档反算后复合,与 ApplyUserDisplayRate 串联语义一致。
+- 前置依赖:同日的流式计费 patch 顺序修复(否则缓存创建计费会被本改写污染)。
+- Verified: go build/vet;display token 全部用例(既有 11 + 新增 8:分档倍率计算/用户级覆盖优先/嵌套同步/纯 1h 生产形状/RateScale 复合/无嵌套回退/OpenAI 结构缩放/trivial no-op);gateway 流式与 handler/repository 全量单测通过。
+
+## [2026-07-02] feat(billing): 5m/1h 缓存分档价格配置面补全（用户级真实价 + 全局/用户级展示价 + LiteLLM 参考）
+
+**Affected files**: backend/migrations/173_add_cache_tier_pricing_fields.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service,model_pricing_resolver,display_token_rewrite}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/internal/service/{display_token_rewrite_test,model_pricing_resolver_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/api/admin/{modelPricing,userModelPricing,usage}.ts, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal,usage/UserViewCompareDrawer}.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: additive。migration 173 新增三列均 NULL=行为零变化;LiteLLMPrices 载荷加 cache_write_1h_price(来自 litellm 的 cache_creation_input_token_cost_above_1hr)。
+**Change details**:
+- **用户级真实 1h 价** `user_model_pricing_overrides.cache_write_1h_price`:applyUserModelPricingOverride 与全局同语义(单独写 CacheCreation1hPrice + 强制 SupportsCacheBreakdown),用户级也能表达 1h 溢价分档计费。
+- **展示价分档** `display_cache_creation_1h_price`(全局 + 用户级):
+  - usage-log 展示(ApplyDisplayTransform):行有 5m/1h 细分且两档展示价不同时,按真实档价比例(r=1h/5m,来自定价条目的 RealCacheWritePrice/RealCacheWrite1hPrice,未知时按 1:1)拆分实际落库成本,各档独立反算展示 token —— 成本总额按构造守恒;只配 5m 档展示价时保持既有"总成本反算"路径(回归钉)。
+  - 下游改写(computeDisplayTokenMultipliers):CacheCreate1hMult 分母改用 1h 展示价(未配回退 5m 档展示价),两侧口径一致。
+  - 长上下文克隆对 1h 展示价同乘 LongContextInputMultiplier;hasDisplayOverride/BuildUserDisplayPricingMap/merge 函数全链纳入。
+- **配置界面补全**:全局定价对话框(LiteLLM 参考区 + 计费区 1h 输入框带 litellm placeholder + 展示区 1h 输入框 + applyDisplaySuggested 从 litellm 1h 取建议)、用户定价模态框(LiteLLM 参考行 + 真实/展示两个 1h 输入框 + 建议值 + $/MTok 双向换算)、对比抽屉 config_used 展示 1h 展示价;i18n zh/en。
+- **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
+- Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。
+
 ## [2026-06-29] hotfix: force URL responses for OpenAI API-key images
 
 **Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go
@@ -91,6 +163,51 @@
 - Non-streaming image responses now begin writing downstream when upstream response headers arrive, while still buffering the copied body for usage/image-count extraction after completion.
 - Verified with unit coverage for default URL format, explicit format preservation, response body copy/buffering, and API-key forwarding. Live diagnostics: `1024x576 low` no-format request returned `has_b64_json=false`, `wire_response_bytes=484`, and `body_after_headers_ms=15.9`; 4K `c2` URL-format relay returned `has_b64_json=false`, `wire_response_bytes=5732`, with body-after-headers `0.43s` and `2.20s`.
 
+## [2026-06-29] chore: register project with local dev-console
+
+**Affected files**: dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: local development tooling only; no backend/frontend runtime behavior, migration, route, billing, gateway, or i18n changes.
+**Change details**:
+- Added `dev-services.yml` so the standalone dev-console can show Sub2API as its own project board.
+- Registered monitor entries for backend (`18081`), frontend (`15174`), optional AIClient2API (`3000`/`3100`), and optional new-api (`13200`).
+- Added a `dev-stack` control entry that routes normal start/restart/status/stop actions through `scripts/dev-stack.ps1`, preserving this repo's local startup rule instead of directly launching `air` or `pnpm dev`.
+- Verified registration with `devconsole.py register --root`, `devconsole.py list`, and dev-console `GET /api/ping`.
+
+## [2026-06-29] sync: upstream OpenAI Images route batch
+
+**Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_images_responses.go, backend/internal/service/image_output_accounting.go, backend/internal/service/*openai*image*_test.go, backend/internal/service/image_output_accounting_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of OpenAI Images route behavior from `e5f7836b`, `0da1fe28`, `2c14efea`, `da30c599`, and `381d1d6d`. Deferred `36721d35`, `1e2e8b1d`, and `ef5ad0fb` for separate capability-cooldown, pricing, and frontend-display batches.
+**Change details**:
+- Codex `/v1/responses` image bridge now sets `tool_choice: "auto"` when the bridge injects or preserves an `image_generation` tool and the client did not provide an explicit tool choice; the same helper is used by HTTP and WS ingress paths.
+- OpenAI image-output accounting now counts only real image outputs from `data` arrays (`url`/`b64_json`) and ignores empty `image_generation.completed` events, preventing false image-output billing on text-only Responses payloads.
+- OAuth `/v1/images/generations` and `/v1/images/edits` bridging to Responses now forwards `n` for supported image models while keeping `dall-e-3` at single-image behavior.
+- Retryable OpenAI Images upstream errors embedded in Responses SSE bodies are converted into `UpstreamFailoverError` before any downstream response is written, with standard JSON error bodies and cloned upstream headers for existing failover/ops handling.
+- Fork-local impact: no frontend-visible change, no route/i18n/settings/migration change, no curated model list or Claude-GPT bridge change. Intentional impact is limited to OpenAI image generation, image billing counter correctness, and existing account failover behavior for retryable image upstream failures.
+- Verified: `go test -tags=unit ./internal/service -run "Test(EnsureOpenAIResponsesImageGenerationTool|OpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|OpenAIImageOutputCounter|BuildOpenAIImagesResponsesRequest|OpenAIGatewayServiceForwardImages_OAuth)" -count=1`; `go test -tags=unit ./internal/service -count=1`; `git diff --check`.
+
+## [2026-06-28] sync: upstream OpenAI gateway/probe compatibility batch
+
+**Affected files**: backend/internal/pkg/openai/constants.go, backend/internal/pkg/openai/instructions_gpt5_5.txt, backend/internal/pkg/openai/instructions_test.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/gateway_request.go, backend/internal/service/gateway_request_test.go, backend/internal/service/openai_apikey_responses_probe.go, backend/internal/service/*openai*_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `00d68ff6`, `dbdbfb11`, `89cfe24a`, and `b88f8e4c`. OpenAI chat transport-error failover parity was already present and left unchanged; PAT auth, quota-readiness, and codex-detect engine-fingerprint changes remain deferred for separate assessment.
+**Change details**:
+- Added upstream GPT-5.5 Codex instructions and made non-specific GPT-5.x Codex prompt fallback use the latest embedded prompt while keeping explicit Codex model IDs on this fork's existing default Codex prompt.
+- Updated OAuth `/v1/chat/completions` bridge handling so converted chat requests keep an empty `instructions` field instead of injecting the default long Codex instructions.
+- Added GLM raw chat-completions reasoning effort normalization (`low`/`medium`/`high` -> `high`; `x-high`/`max`/`ultracode` -> `max`) after account model mapping resolves to a `glm-*` upstream model.
+- Hardened OpenAI API-key `/v1/responses` probing by selecting a concrete mapped upstream model, sending a required function-call probe, reading a bounded response body, and treating 2xx responses without `function_call` output as unsupported.
+- Preserved fork-local TLS fingerprint probing, `codex_cli_only` chat-completions restriction, account scheduling/failover boundaries, billing/display-token accounting, curated model-list policy, Claude-GPT bridge behavior, OpenAI Images behavior, default-model fallback, migrations, routes, frontend i18n, subscriptions, and payment behavior.
+- Verified: `go test -tags=unit ./internal/pkg/openai -run TestCodexBaseInstructionsForModel -count=1`; `go test -tags=unit ./internal/service -run "Test(ForwardAsChatCompletions_OAuthDoesNotInjectDefaultInstructions|NormalizeGLMOpenAIReasoningEffort|ForwardAsRawChatCompletions_NormalizesGLMReasoningEffort|OpenAIResponsesProbePayloadRequiresFunctionCall|SelectResponsesProbeModel|DecideResponsesProbeSupport)$" -count=1`; `go test -tags=unit ./internal/pkg/openai -count=1`; `go test -tags=unit ./internal/service -run "Test.*(OpenAI|Responses|ChatCompletions|GLM|Codex|Probe|TransportError|RawChat)" -count=1`; `git diff --check`.
+
+## [2026-06-28] sync: upstream Claude Code no-cch detection test batch
+
+**Affected files**: backend/internal/service/claude_code_validator_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `5cb8cdd3` as a local test-only adaptation. Evaluated `30adee43` but did not apply it because this fork no longer contains the upstream `OpenAIQuotaResetCell.vue` entry point or any `openaiQuotaReset` frontend references.
+**Change details**:
+- Added a Claude Code validator regression test proving no-cch billing blocks still cannot bypass the required Claude Code User-Agent check.
+- Kept existing local positive coverage for no-cch billing blocks via `TestClaudeCodeValidator_BillingBlockAnyEntrypointCountsAsSystemPrompt`.
+- Did not import `6cfb7898`; no cch-signing or Claude mimicry runtime behavior was changed.
+- Fork-local impact: no runtime behavior change, no frontend-visible change, no billing/display-token, model-list, routing, account scheduling, subscription, payment, migration, or i18n behavior change. The only code change is test coverage for the existing Claude Code/Codex compatibility path.
+- Verified: `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator" -count=1`; `git diff --check`.
+
 ## [2026-06-27] feature: redeem code batch per-user limit
 
 **Affected files**: backend/ent/schema/redeem_code.go, backend/ent/*redeemcode*, backend/migrations/170_redeem_code_batch_user_limit.sql, backend/internal/repository/redeem_code_repo.go, backend/internal/service/redeem_code.go, backend/internal/service/redeem_service.go, backend/internal/service/admin_service.go, backend/internal/handler/admin/redeem_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/views/admin/RedeemView.vue, frontend/src/api/admin/redeem.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/redeem.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
@@ -101,6 +218,136 @@
 - Added the management UI checkbox, API/request/DTO fields, and Chinese/English i18n copy.
 - Documented the redeem-code flow and the concurrency pitfall in `docs/dev/codebase/redeem.md`.
 - Verified: `go generate ./ent`; `go test -tags=unit ./internal/service ./internal/repository ./internal/handler/admin`; `pnpm run typecheck`; `pnpm run lint:check`.
+
+## [2026-06-27] sync: upstream OpenAI images and overloaded error verification batch
+
+**Affected files**: docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: evaluated `9491de0a`, `b0d5592a`, and `cc7612bd`; no runtime code was changed because equivalent local commits already exist (`ae83aa9b` for content-moderation refusals, existing Images incomplete handling in `openai_images_responses.go`, and `92ec4294` for overloaded error code detection).
+**Change details**:
+- Confirmed OpenAI Images content-moderation refusals already return 400 `content_policy_violation` without failover retry.
+- Confirmed OpenAI Images `response.incomplete` and no-output soft-failure handling already record ops diagnostics and preserve same-account retry behavior.
+- Confirmed OpenAI overloaded/slow-down transient errors already trigger failover classification.
+- Fork-local impact: no new code behavior change in this batch; it is a synchronization audit/documentation entry to avoid duplicate cherry-picks of already-ported OpenAI/Images fixes.
+- Verified: `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|ImagesOAuthNonStreaming|ExtractModelRefusal|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailedBeforeOutput(ServerOverloadedCode|CapacityError|ReturnsFailover)|OpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover)" -count=1`; `git diff --check`.
+
+## [2026-06-27] sync: upstream auth promo and frontend title batch
+
+**Affected files**: backend/internal/service/auth_email_binding.go, backend/internal/service/auth_service_email_bind_test.go, backend/internal/handler/auth_oauth_pending_flow_test.go, backend/internal/service/registration_email_policy.go, backend/internal/service/registration_email_policy_test.go, backend/internal/handler/admin/promo_handler.go, backend/internal/service/promo_service.go, frontend/src/App.vue, frontend/src/i18n/index.ts, frontend/src/router/index.ts, frontend/src/router/title.ts, frontend/src/router/__tests__/title.spec.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `ecedc7c8`, `2dc1387b`, and `952be871`, plus a local wildcard registration email suffix policy adaptation required by the upstream email-bind tests.
+**Change details**:
+- Email identity binding now enforces the registration email suffix whitelist, closing an OAuth pending-flow bypass.
+- Registration email suffix whitelist now supports `*.domain` and `@*.domain` entries, normalized to `@*.domain`, matching subdomains only.
+- Promo-code editing now allows admins to clear an existing expiry date.
+- Custom-page document titles now refresh when route, site settings, custom menu items, admin state, or locale changes.
+- Resolved frontend title conflicts by preserving this fork's existing auth/backend-mode/simple-mode route guard behavior and not importing unrelated upstream compliance-dialog context.
+- Fork-local impact: auth policy becomes stricter when suffix whitelist is configured; promo expiry clearing affects admin promo operations; frontend-visible impact is limited to browser tab title refresh. No changes to billing/display-token accounting, curated model lists, Claude-GPT bridge, OpenAI Images, account scheduling, subscriptions, database migrations, API routes, or payment order amounts.
+- Verified: `go test -tags=unit ./internal/service ./internal/handler ./internal/handler/admin -run "Test.*(Email|Bind|OAuth|Suffix|Promo|PromoCode|Pending)" -count=1`; `pnpm --dir frontend run test:run src/router/__tests__/title.spec.ts`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run lint:check`; `git diff --check`.
+
+## [2026-06-27] sync: upstream Claude Code detection and Vertex beta filtering batch
+
+**Affected files**: backend/internal/service/claude_code_validator.go, backend/internal/service/claude_code_validator_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_anthropic_vertex_beta_filter_test.go, backend/internal/service/gateway_request.go, backend/internal/service/header_util.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `e3e31bd4`, `40e1cc14`, and `efffd5d7`, plus the minimal helper surface from `ddf91e9a` required by the Vertex beta tests. The larger `ddf91e9a` count_tokens/API-key passthrough behavior and `6cfb7898` cch-signing deletion remain deferred.
+**Change details**:
+- Claude Code auto mode now treats any `cc_entrypoint=` marker as a Claude Code system prompt, not only `cc_entrypoint=cli`.
+- Vertex Anthropic service-account forwarding now filters unsupported `anthropic-beta` tokens before setting the upstream header.
+- Vertex request body sanitization now uses the final filtered beta header when deciding whether to strip `body.context_management`.
+- Preserved fork-local ops request-body capture by calling `setOpsUpstreamRequestBody(c, vertexBody)` after the final Vertex body sanitize step.
+- Adapted upstream Vertex beta tests to this fork's 2-return-value `buildUpstreamRequest` signature.
+- Fork-local impact: no frontend-visible UI changes, no database migrations, no i18n/routes changes, and no changes to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI Images, subscriptions, account scheduling, or billing. Intentional impact is limited to Claude Code client detection and Anthropic Vertex request header/body compatibility.
+- Verified: `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator|Test.*Vertex.*Beta|Test.*Anthropic.*Vertex|Test.*Beta.*Filter" -count=1`; `git diff --check`.
+
+## [2026-06-27] sync: upstream small auth/ops/keys/payment guard batch
+
+**Affected files**: backend/internal/service/auth_service.go, backend/internal/service/openai_gateway_chat_completions.go, frontend/src/views/admin/ops/OpsDashboard.vue, frontend/src/components/keys/UseKeyModal.vue, frontend/src/components/payment/PaymentProviderDialog.vue, frontend/src/components/payment/ProviderCard.vue, frontend/src/views/admin/SettingsView.vue, frontend/src/views/admin/__tests__/SettingsView.spec.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `82576e0a`, `9707dedc`, `ae5e980d`, `28e7adef`, and `65ad7df4`. The `codex_cli_only` chat-completions change conflicted in the fork-local OpenAI raw Chat fallback path and was reconciled by adding the restriction check before the existing local APIKey Responses/Chat split.
+**Change details**:
+- Fixed email auth identity creation error handling so a shadowed `err` no longer swallows failures.
+- Constrained ops dashboard trend cards so the admin monitoring layout cannot grow unbounded.
+- Enforced `codex_cli_only` account policy on `/v1/chat/completions`, including APIKey raw Chat fallback, without changing account scheduling or display-token accounting.
+- Added `CLAUDE_CODE_ATTRIBUTION_HEADER=0` to Claude Code terminal usage templates in the key usage modal.
+- Normalized empty/null payment provider `supported_types` so admin payment provider cards remain visible.
+- Fork-local impact: no changes to billing/display-pricing math, curated model lists, Claude-GPT bridge dispatch, OpenAI images, subscriptions/bundle fulfillment, migrations, routes, or i18n. Intentional frontend-visible impact is limited to ops layout, key usage templates, and admin payment provider display.
+- Verified: `go test -tags=unit ./internal/service -run "Test.*Auth|Test.*Email|Test.*OAuth|Test.*Register" -count=1`; `go test -tags=unit ./internal/service -run "Test.*(Codex|ChatCompletions|CLIOnly|ClientRestriction|RawChat|ResponsesChat)" -count=1`; `pnpm --dir frontend run test:run src/views/admin/__tests__/SettingsView.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run lint:check`; `git diff --check`.
+
+## [2026-06-27] sync: upstream runtime compatibility batch
+
+**Affected files**: .dockerignore, Dockerfile, deploy/Dockerfile, backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_anthropic_window_limit_test.go, backend/internal/repository/http_upstream.go, backend/internal/repository/decompress_response_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_streaming_test.go, backend/internal/service/gemini_messages_compat_service.go, backend/internal/service/gemini_messages_compat_service_test.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_gateway_endpoint_normalization_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `ad135854`, `f6e0ebc6`, `c1c28ac7`, `6c7203d8`, `6c2db4f4`, and `bab8a9a9`. No frontend UI change. Preserved fork-local scheduling/failover signatures, OpenAI usage-record worker context, WebSocket per-turn account handling, and did not import unrelated upstream risk-control/content-moderation helpers.
+**Change details**:
+- Docker production build context now includes `docs/legal` so admin compliance/legal assets remain available in image builds.
+- Anthropic official account 5h/7d window exhaustion now persists the longer cooldown before temporary-unschedulable fallback rules; reconciled to this fork's 5-argument `RateLimitService.HandleUpstreamError` signature and existing rate-limit persistence path.
+- Upstream HTTP repository responses with `Content-Encoding: zstd` are decompressed before downstream parsing/error handling.
+- Streaming gateway now preserves SSE `event:error` raw data as a typed upstream error so ops logs show the real upstream error body instead of a generic stream failure.
+- Gemini Messages compatibility now strips unsupported schema fields before forwarding tools to Gemini.
+- OpenAI usage records now log `/v1/chat/completions` for API-key accounts forced/probed into raw Chat Completions, including `/responses`, `/messages`, raw chat, and Responses WebSocket recording paths. The manual port kept fork-local `turnAccount` WebSocket accounting and added endpoint resolver tests.
+- Fork-local impact: no changes to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI image generation, default-model fallback, i18n, migrations, or routes. Intentional impact is limited to runtime packaging, rate-limit cooldown choice, upstream body decoding, ops-log fidelity, Gemini request compatibility, and OpenAI upstream endpoint metadata.
+- Verified: `go test -tags=unit ./internal/service -run "TestHandleUpstreamError_AnthropicWindowLimitPreemptsTempUnschedRule|Test.*Anthropic.*Window|Test.*Cooldown" -count=1`; `go test -tags=unit ./internal/repository -run "Test.*Decompress|Test.*Zstd|Test.*ContentEncoding" -count=1`; `go test -tags=unit ./internal/service -run "TestHandleStreamingResponse_(SSEErrorEvent|StreamReadError|FailoverBody|EmptyStream|SpecialCharacters)" -count=1`; `go test -tags=unit ./internal/service -run "Test(ConvertClaudeToolsToGeminiTools|CleanToolSchema|GeminiMessagesCompatServiceForward)" -count=1`; `go test -tags=unit ./internal/handler -run "Test(OpenAIUpstreamEndpoint|ResolveOpenAIUpstreamEndpoint)" -count=1`; `git diff --check`.
+
+## [2026-06-27] sync: upstream low-risk tooling/auth/compat gateway batch
+
+**Affected files**: skills/sub2api-admin/SKILL.md, skills/sub2api-admin/references/admin-cli.md, skills/sub2api-admin/scripts/sub2api-admin.js, backend/internal/service/token_refresh_service_test.go, backend/internal/pkg/apicompat/chatcompletions_to_responses.go, backend/internal/pkg/apicompat/chatcompletions_responses_test.go, backend/internal/service/gateway_service.go, backend/internal/service/gateway_non_streaming_response_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_intercept_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of small upstream fixes only; no Grok/PAT/codex-detect UI stack included. Local rate-limit service signature, admin skill install-path convention, and previous refresh-token invalidation behavior were preserved.
+**Change details**:
+- Added `SUB2API_JWT` fallback support to the bundled `sub2api-admin` skill and docs while keeping the local `~/.codex/skills/...` invocation path.
+- Added test coverage for `app_session_terminated` and `refresh_token_invalidated` as non-retryable refresh errors; production code already contained the merged non-retryable markers.
+- Changed apicompat Chat Completions -> Responses tool conversion so default tool `strict` is false, with focused schema tests.
+- Added failover handling for non-streaming upstream HTTP 2xx responses whose bodies are not valid JSON; adapted the upstream helper to this fork's 5-argument `RateLimitService.HandleUpstreamError` signature.
+- Extended `max_tokens=1` Haiku probe interception to streaming requests.
+- Verified: `node --check skills/sub2api-admin/scripts/sub2api-admin.js`; `go test -tags=unit ./internal/service -run "TestIsNonRetryableRefreshError|TestNonRetryableRefreshError" -count=1`; `go test -tags=unit ./internal/pkg/apicompat`; `go test -tags=unit ./internal/service -run "Test.*Non.*JSON|Test.*NonStreaming.*Response|Test.*Failover.*Non" -count=1`; `go test -tags=unit ./internal/handler -run "Test.*Intercept|Test.*Haiku|Test.*Warmup|Test.*Suggestion" -count=1`; `git diff --check`.
+
+## [2026-06-27] docs: require upstream-sync assessment table before each batch
+
+**Affected files**: AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: repository workflow documentation only; no runtime behavior change.
+**Change details**:
+- Added a mandatory upstream-sync preflight rule requiring an assessment table before every sync batch.
+- The table must cover feature behavior, affected modules, frontend visibility, tests, fork-local secondary-development relationships, expected impact, risk, and handling strategy.
+- Made the fork-local impact column mandatory for custom areas such as billing/display-token accounting, curated model lists, Claude-GPT bridge, OpenAI image generation, default-model fallback, scheduling/failover, ops logging, settings, migrations, i18n, and routes.
+
+## [2026-06-27] sync: upstream Codex Spark image tool strip
+
+**Affected files**: backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_hotpath_test.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_ws_forwarder_ingress_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged sync of `01127820`; preserves fork-local request-body mutation/patch behavior and WS fast-policy flow.
+**Change details**:
+- Strips client-supplied `image_generation` tools for `gpt-5.3-codex-spark` and its effort aliases because Spark is text-only and upstream rejects that tool with `invalid_request_error`.
+- Applies the strip in OAuth Codex transforms, HTTP `/responses` forwarding for APIKey/OAuth paths, and Responses WebSocket ingress.
+- Reconciled upstream conflicts by adapting the HTTP path to the fork-local `reqBody` + `bodyModified` + `disablePatch` mechanism and keeping the local WS fast-policy/ops flow.
+- Verified: `go test -tags=unit ./internal/service -run "Test(ApplyCodexOAuthTransform_StripsImageGenerationToolForSpark|ApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias|ApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|StripCodexSparkImageGenerationToolFromRawPayload)" -count=1`; `git diff --check`.
+
+## [2026-06-27] sync: upstream passthrough function-call argument dedupe
+
+**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_passthrough_function_args_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: clean staged cherry-pick of `2b49d662`; applies after the existing local display-token rewrite and response.failed sanitization paths.
+**Change details**:
+- Normalized OpenAI Responses passthrough function-call `arguments` fields when upstream sends the same JSON argument string duplicated in a single event payload.
+- Applied the normalization to streaming passthrough events, corrected SSE response bodies, output item payloads, and completed response output arrays.
+- Added focused tests covering raw Responses passthrough and forced Chat Completions fallback output.
+- Verified: `go test -tags=unit ./internal/service -run "Test(HandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments|ForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle|Dedupe|PassthroughFunction)" -count=1`; `git diff --check`.
+
+## [2026-06-27] sync: upstream model availability 404 safety fix
+
+**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/gemini_v1beta_handler.go, backend/internal/handler/no_account_error.go, backend/internal/handler/no_account_error_test.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_embeddings.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_images.go, backend/internal/handler/ops_error_logger.go, backend/internal/service/gateway_model_availability.go, backend/internal/service/gateway_model_availability_test.go, backend/internal/service/openai_gateway_model_availability.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged upstream sync of `fcd3bc12`; preserves fork-local OpenAI default-model fallback, Claude-GPT bridge fallback, compact unsupported error handling, and ops logging context.
+**Change details**:
+- Added conservative model-availability diagnosis helpers so "group has accounts but none support this requested model" returns 404 `model_not_found` instead of a misleading 503.
+- Kept 503 behavior for transient exhaustion, empty account pools, diagnosis failures, and model-empty paths.
+- Threaded the classifier through Anthropic/OpenAI/Gemini gateway account-selection failure paths, including chat completions, responses, embeddings, images, and count-tokens.
+- Added ops routing-capacity markers needed by the upstream handler changes and kept routing-capacity events categorized as routing errors.
+- Reconciled local conflicts by preserving default mapped-model fallback for OpenAI Chat Completions and Claude-GPT bridge fallback behavior before applying the 404 classifier.
+- Verified: `go test -tags=unit ./internal/service -run "Test.*ModelAvailability" -count=1`; `go test -tags=unit ./internal/handler -run "Test.*NoAccount" -count=1`; `git diff --check`.
+
+## [2026-06-27] sync: upstream OpenAI/apicompat/images safety batch 1
+
+**Affected files**: backend/internal/pkg/apicompat/openai.go, backend/internal/pkg/apicompat/openai_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_test.go, backend/internal/service/openai_gateway_service_codex_cli_only_test.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_upstream_transport_error_handle_test.go, backend/internal/service/token_refresh_service.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_incomplete_test.go, docs/dev/UPSTREAM_SYNC.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: staged upstream sync only; no full upstream merge. The local fork's display-token rewrite behavior, OpenAI image trace logging, custom model discovery, billing/display semantics, and gateway account failover behavior are preserved.
+**Change details**:
+- Cherry-picked/manual-ported upstream apicompat fixes for custom tool schema normalization and single-chunk `tool_call` argument deduplication.
+- Sanitized verbose OpenAI `response.failed` event payloads before forwarding to clients while preserving usage/error handling in local streaming and passthrough paths.
+- Recognized `server_is_overloaded`, `slow_down`, selected-model-at-capacity, and processing-error `response.failed` messages as retryable failover events before generic `invalid_request` non-retryable filtering.
+- Treated `refresh_token_invalidated` as a non-retryable OAuth refresh credential failure.
+- Let Chat Completions transport errors return `UpstreamFailoverError` so the gateway can switch accounts instead of writing a hard 502 from the transport path.
+- Images no-output handling now distinguishes content-policy text refusals (400, no retry) from true empty upstream responses (retryable same-account failover), with upstream SSE error/incomplete helpers and focused tests.
+- Verified: `go test -tags=unit ./internal/pkg/apicompat`; `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|SummarizeNoOutputBody|ImagesOAuthNonStreaming|ExtractModelRefusal|HandleOpenAIUpstreamTransportError|ForwardAsRawChatCompletions_TransportErrorFailsOver|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailed|OpenAIStreamingPassthroughResponseFailed|NonRetryableRefreshError)" -count=1 -v`; `git diff --check`.
 
 ## [2026-06-26] chore: satisfy CI lint annotations
 
@@ -191,6 +438,58 @@
 - Step 3 stays informational (Claude Code / Gemini CLI tool chips) rather than carrying its own action button: a guide-level "use key" button would be ambiguous about which key it opens when the user has several. Instead, aligned the zh wording so the card points users at the table — changed step3 title and the "使用 Key" references in step3Desc/step3DescNoCcs to "使用密钥", matching the per-row table button (`keys.useKey` = 使用密钥). English already used "Use Key", so en is unchanged.
 - Verified with `pnpm --dir frontend run typecheck` and `pnpm --dir frontend run lint:check`.
 
+## [2026-06-19] fix: user-facing usage statistics must show display values, not raw
+
+**Affected files**: backend/internal/handler/usage_handler.go, backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/account_usage_service.go, backend/internal/service/usage_service.go, backend/internal/handler/usage_handler_request_type_test.go, backend/internal/handler/usage_handler_display_aggregate_test.go
+**Issue**: User-side aggregate stats endpoints summed raw `usage_logs` columns and returned **real** token counts / unit prices, while the per-row usage records list already applied the display-pricing transform (展示单价/展示倍率, the "token 放大机制"). So the dashboard/usage stat cards leaked real tokens and did not reconcile with the records list. Design rule: users must only ever see display values; real tokens/prices are internal.
+**Change details**:
+- `GET /api/v1/usage/stats` (Stats), `/usage/dashboard/trend` (DashboardTrend), `/usage/dashboard/models` (DashboardModels) now aggregate from the same display-transformed records the user sees (`loadAllDisplayedPublicUsageRecords` + `aggregateDisplayedPublicUsageStats` / `aggregateDisplayedPublicUsageTrend` / new `aggregateDisplayedModelStats`) — exact row-for-row reconciliation with the records list for the selected range.
+- `GET /api/v1/usage/dashboard/stats` (DashboardStats) all-time + today token/cost totals now use display values. All-time is unbounded (heaviest user ~247k rows), so it uses per-group SQL aggregation: new repo `GetUserDisplayAggregateGroups` groups by every field the display transform branches on (model, group_id, rate_multiplier, long_context snapshot) and the handler applies the transform once per group and sums (`aggregateDisplayedGroups`). API-key counts, RPM/TPM, and `actual_cost` are unchanged (actual_cost is never altered by the transform).
+- New `usagestats.DisplayAggregateGroup` type; new method added to `UsageLogRepository` interface + `UsageService` passthrough.
+- `POST /usage/dashboard/api-keys-usage` left as-is — it only returns `actual_cost` (real money the user pays), which the display transform never changes, so it does not leak tokens/prices.
+- New unit test `usage_handler_display_aggregate_test.go` proves per-group aggregation reconciles exactly with per-row summation (and preserves real values when no display override exists).
+- Verified: `go -C backend build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/pkg/usagestats/...` pass. Pre-existing unrelated failure `TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost` (stale 8-col sqlmock vs 11-col `GetStatsWithFilters`) also fails on unmodified `main` — not caused by this change.
+**Known follow-ups (not in this change)**:
+- `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` → `buildUsageData` + `GetAPIKeyModelStats`) still returns raw tokens, while its siblings `/v1/usage/stats|trend|records` already show display values. Fixing it needs the pricing/display services on `GatewayHandler` (Wire DI) or pushing the display aggregation into the service layer.
+- Pricing data finding (config, not code): `global_model_pricing` bills `cache_read` at a flat $2.00/M for `claude-opus-4-8`/`claude-sonnet-4-6`/`gpt-5.4`/`gpt-5.5` while displaying $0.25–0.50/M; for cache-heavy users (cache_read ≈ 90% of tokens) this dominates the bill. Confirmed by the operator as intentional config (not a bug) — left unchanged.
+
+## [2026-06-19] fix: user dashboard cards go stale across midnight + `/v1/usage` raw-token leak
+
+**Affected files**: frontend/src/views/user/DashboardView.vue, backend/internal/handler/gateway_handler.go, backend/internal/handler/usage_handler.go, backend/cmd/server/wire_gen.go, backend/internal/handler/usage_handler_display_aggregate_test.go
+**Issue A (stale dashboard)**: A user reported the home dashboard "今日请求/今日消费/今日 Token" cards showing the *previous* day's stats while the balance was correct. Root cause: the balance is refreshed by a global 60s timer in the auth store (`stores/auth.ts` `startAutoRefresh`), but the summary cards were fetched only once in `DashboardView.vue` `onMounted` — no polling, no refetch-on-focus, no day-rollover handling. A tab left open across midnight keeps showing the load-day's "今日". Backend was verified correct (today query returns the right count; no Redis dashboard cache — only `sched:*`/`sticky_session:*` keys).
+**Issue B (`/v1/usage` leak)**: The audit of user-facing token surfaces found `GET /v1/usage` and `/antigravity/v1/usage` (`GatewayHandler.Usage` → `buildUsageData` + `GetAPIKeyModelStats`) were the only remaining endpoints returning **raw** token counts, while their siblings `/v1/usage/{stats,trend,records}` already show display values.
+**Change details**:
+- Frontend: `DashboardView.vue` now silently refetches the summary stats (no full-page spinner) on `visibilitychange`/window `focus` and on a 60s visible-only interval, with listener cleanup in `onBeforeUnmount`. The cards now stay live like the balance and self-correct across midnight within ~60s. The date-range picker still only drives the trend/model widgets (unchanged).
+- Backend: `GatewayHandler.Usage` now produces display values. Added `modelPricingService` + `userModelPricingService` to `GatewayHandler` (constructor + `wire_gen.go` hand-edit). `buildUsageData` rewritten to compute today/all-time via per-group display aggregation (`GetUserDisplayAggregateGroups` scoped to the API key); model stats now come from display-transformed records. `actual_cost`, RPM/TPM, avg duration are unchanged.
+- Refactor (no behavior change): extracted `loadDisplayedUsageRecords`, `buildDisplayPricingMapForUser`, `loadUserGroupDisplayRates` as free functions and made `aggregateDisplayedGroups` a free function, so both `UsageHandler` (JWT) and `GatewayHandler` (API key) share one display path. `UsageHandler` methods now delegate to them.
+- Verified: `go build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/...` pass; frontend `typecheck` + `lint:check` + `build` all pass.
+
+## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 1 backend MVP
+
+**Affected files**: backend/migrations/168_subscription_plan_member_groups.sql, backend/ent/schema/{subscription_plan,payment_order}.go (+ regenerated ent), backend/internal/service/{payment_config_plans,payment_config_service,subscription_service,payment_order,payment_fulfillment}.go, backend/internal/handler/payment_handler.go, backend/internal/service/payment_config_plans_member_test.go
+**Upstream compatibility**: additive, fork-local. New `member_group_ids JSONB NOT NULL DEFAULT '[]'` columns on `subscription_plans` + `payment_orders`; empty = legacy single-group plan/order → identical behavior. No change to the gateway/billing/quota/cache hot path (everything stays keyed by `(user_id, group_id)`). Upstream has no mixed-subscription concept; the new columns/fields are additive and safe across upstream syncs.
+**Change details**:
+- A subscription plan can now bundle multiple subscription-type groups. Effective member set = `unique(group_id ∪ member_group_ids)`, with `group_id` kept as the primary/representative group (price/sort/display/back-compat).
+- One purchase fans out into N independent `user_subscription` rows (one per member group), each with its own quota pool from that group's own `daily/weekly/monthly_limit_usd`. The user switches the API key's group (or uses multiple keys) to access each — chosen "separate quota pools + multi-group switch" model, so each group stays single-platform and the gateway dispatch is untouched.
+- `PlanMemberGroupIDs(plan)` (payment_config_plans.go) computes the effective set; `AssignOrExtendSubscriptionToGroups` (subscription_service.go) reuses the existing per-`(user,group)` `AssignOrExtendSubscription` without a wrapping tx (so partial failures commit and resume).
+- Order creation snapshots the member set onto `payment_orders` (`createOrderInTx`); `doSub` (payment_fulfillment.go) fans out with per-group idempotency markers `SUBSCRIPTION_SUCCESS:<gid>` (and `SUBSCRIPTION_MEMBER_SKIPPED:<gid>` for a dead non-primary member), writing the suffix-less `SUBSCRIPTION_SUCCESS` only after every member succeeds. Legacy single-group orders short-circuit exactly as before.
+- Admin plan Create/Update DTOs accept `member_group_ids` (normalized: drop ≤0, dedup, remove primary, must be existing subscription-type groups, cap 10). Public `GetPlans`/`GetCheckoutInfo` expose `member_group_ids` + `member_groups` (per-member platform/name/limits/scopes).
+- Refund intentionally untouched (this deployment has refunds disabled); documented limitation: a future bundle refund would only roll back the primary group.
+- Verified: `go generate ./ent`, `go build ./...` (exit 0), `go vet` clean, `go test ./internal/service` (untagged) + `go test -tags=unit ./internal/service/...` all pass.
+**Pending (Phase 2/3)**: redeem-code/distribution bundle support + admin assign-by-plan; frontend (admin plan editor multi-select, purchase page member-group display, zh/en i18n).
+
+## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 3 frontend
+
+**Affected files**: frontend/src/types/payment.ts, frontend/src/views/admin/orders/PlanEditDialog.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: additive UI on top of the Phase 1 backend. No behavior change for single-group plans (no member groups selected → renders exactly as before).
+**Change details**:
+- `types/payment.ts`: added `PlanMemberGroup` interface and `member_group_ids` + `member_groups` on `SubscriptionPlan`.
+- Admin `PlanEditDialog.vue`: added a "Bundle groups (additional)" checkbox list of subscription-type groups (excluding the primary), bound to `planForm.member_group_ids`; the primary group is auto-pruned from the member set when it changes; payload now sends `member_group_ids`; edit pre-fills from the plan (admin list returns the raw ent struct).
+- Purchase `SubscriptionPlanCard.vue`: when `member_groups.length > 1`, renders an "Included" section listing each member group (platform-colored name + its own daily/weekly/monthly limit) plus a note that each group has an independent quota pool and the user switches the API key group / uses one key per group; single-group plans keep the original quota box via `v-else`.
+- i18n: added `payment.planCard.{includedGroups,bundleQuotaNote}` and `payment.admin.{memberGroups,memberGroupsHint}` to both `zh.ts` and `en.ts` base blocks (both files use `mergeLocale(base, patch)` deep-merge; keys added to the base `payment` block).
+- Verified: frontend `typecheck` + `lint:check` + `build` all pass.
+**Still pending (Phase 2)**: redeem-code/distribution bundle support + admin assign-by-plan; optional admin plans-list bundle badge.
+
 ## [2026-06-16] feat: make registration approval configurable
 
 **Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/settings_view.go, backend/internal/service/setting_service.go, backend/internal/service/auth_service.go, backend/internal/service/auth_oauth_email_flow.go, backend/internal/handler/dto/settings.go, backend/internal/handler/admin/setting_handler.go, backend/internal/handler/auth_oauth_pending_flow.go, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/auth.md, docs/dev/CHANGELOG_CUSTOM.md
@@ -235,6 +534,31 @@
 - Card tooltip documents the data-quality caveats (Antigravity does not report `cache_creation`; OpenAI/Claude-GPT bridge `cache_read` may be a display-override value), advising group filtering to a single platform for a clean read.
 - Added i18n keys `usage.cacheHitTitle/cacheCreationRate/cacheRequestHitRate/cacheHitHint` to both zh.ts and en.ts.
 - Verified with `go build ./internal/... ./cmd/...`, `go vet ./internal/repository ./internal/pkg/usagestats`, `pnpm --dir frontend run typecheck`, and `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageStatsCards.spec.ts` (2/2 passing).
+
+## [2026-06-14] feat: cost-analysis module — subscription cost/profit stats
+
+**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/account_usage_service.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/dashboard_service.go, backend/internal/handler/admin/dashboard_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/components/layout/AppSidebar.vue, frontend/src/router/index.ts, frontend/src/i18n/locales/{zh,en}.ts
+**Purpose**: New admin "Cost Analysis" (成本分析) sidebar module; first page = per-subscription cost/profit for monthly / daily-limited users, so the operator can see real margin per subscription/plan.
+**Change details**:
+- New endpoint `GET /api/v1/admin/dashboard/subscription-profit?start_date&end_date&purchase_price_per_mtok`.
+- Repo `GetSubscriptionProfitRaw` aggregates per `subscription_id`: joins user_subscriptions → (LATERAL latest paid subscription payment_order → subscription_plans) → groups → users → usage_logs. INNER JOIN on the paid order excludes redeem-code / admin-granted subscriptions. Filters subscriptions by `starts_at` range; `deleted_at IS NULL`.
+- Cost basis: real_cost_rmb = total tokens × purchase price (RMB / million tokens), default 0.25 (= ¥10 / 40M tokens), passed as a query param driven by a UI input persisted in localStorage (no settings/Wire change in v1). Revenue = plan list price. Consumed "$" = SUM(actual_cost). Derived: avg ¥/$, real cost ¥/$, profit multiple, equivalent full-days (consumed$ ÷ daily_limit_usd), cache rate; plus summary + by-plan rollups (loss / <2x counts).
+- Frontend: new collapsible nav group 成本分析 (expandOnly) in AppSidebar; routes `/admin/cost-analysis` → redirect → `/admin/cost-analysis/subscriptions`; SubscriptionProfitView (control bar + summary cards + by-plan + detail table, multiple color-coded). Added to simple-mode restrictedPaths. New i18n keys nav.costAnalysis / nav.costSubscriptionProfit and costAnalysis.* in zh + en.
+- Verified: `CGO_ENABLED=0 go -C backend build ./...` (exit 0); `pnpm --dir frontend run typecheck` + `lint:check` (both exit 0). Not yet runtime-tested against live data; no DB migration (uses existing columns).
+
+## [2026-06-14] fix: wrap SubscriptionProfitView in AppLayout (sidebar)
+
+**Affected files**: frontend/src/views/admin/cost/SubscriptionProfitView.vue
+**Issue**: The cost-analysis page rendered bare content so the left sidebar vanished — admin views must wrap their template in `<AppLayout>` (which renders AppSidebar + AppHeader). Wrapped the page in `<AppLayout>` and imported it. Verified: `typecheck` + `lint:check` exit 0.
+
+## [2026-06-14] feat: cost-analysis subscription view — active-by-default + per-dollar cost mode
+
+**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/{account_usage_service,dashboard_service}.go, backend/internal/repository/usage_log_repo.go, backend/internal/handler/admin/dashboard_handler.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Change details**:
+- Default now shows **currently-active subscriptions** with no date picking required: `active_only` query param defaults true → repo filters `status='active' AND starts_at <= now() AND expires_at > now()`. Date range is optional (active_only=false → filter by starts_at, history mode).
+- Added **cost basis mode**: `cost_mode=per_mtok` (real cost = total tokens × ¥/M, default 0.25) or `per_dollar` (real cost = consumed $ × ¥/$). Endpoint params renamed: `purchase_price` + `cost_mode` (was `purchase_price_per_mtok`). Summary echoes cost_mode + purchase_price. The per_dollar path is the simple form (consumed_usd × rate); finer ¥/$ valuation nuances deferred per user.
+- Frontend: "仅当前有效订阅" checkbox (default on, hides date inputs), cost-basis selector with dynamic unit label, localStorage persists price + mode. New i18n keys activeOnly/activeHint/costMode/unitPerMtok/unitPerDollar (zh+en).
+- Verified: `go -C backend build ./...`, `pnpm --dir frontend typecheck` + `lint:check` all exit 0.
 
 ## [2026-06-13] feat: manual OAuth refresh-token update for accounts
 
@@ -641,6 +965,102 @@
 - Kept the skill as repo-local documentation/tooling; it is not wired into backend/frontend runtime and does not install into the workstation global skill registry.
 - Preserved the upstream safety notes around admin API keys and account exports so credentials are not printed in chat or logs.
 
+## [2026-06-07] fix: sync Phase 6A OpenAI error and stream terminal fixes
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_silent_refusal.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6A scoped sync from `upstream/main@635ad81c`; covers OpenAI/Codex error and stream terminal correctness only, without changing pricing, display token, distribution, public `/key-usage`, Claude-GPT bridge routing, or account page UI.
+**Change details**:
+- Added API-key non-streaming Responses fallback when an upstream returns SSE in a body with the wrong content type, matching the existing OAuth heuristic without masking valid JSON.
+- Normalized streamed Responses terminal events so `response.completed`/`response.done` with empty or null `response.output` gets reconstructed from accumulated text/tool/image deltas before reaching clients.
+- Added the upstream OpenAI silent-refusal detector and connected it to the raw Chat Completions streaming path so large empty stop-without-usage streams can fail over before any downstream output is written.
+- Preserved upstream `response.failed`/protocol errors already written to the client, and mapped exhausted silent-refusal failover to a clear upstream-error message.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*SSE|OpenAI.*Stream|SilentRefusal|ChatCompletions|Responses|Images|GatewayService"`, `go test -tags=unit ./internal/handler -run "OpenAI|Stream|Failed|Images|Gateway"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-07] fix: sync Phase 6B OpenAI usage context and response-id binding
+
+**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/gemini_v1beta_handler.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_embeddings.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_images.go, backend/internal/server/middleware/client_request_id.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_service.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6B scoped sync from `upstream/main@635ad81c`; covers OpenAI usage preservation, request correlation context, and HTTP response-id account binding only. Pricing defaults, global/user model pricing, display pricing, distribution, public `/key-usage`, Claude-GPT bridge routing, and image trace safety remain unchanged.
+**Change details**:
+- Usage-record worker tasks now copy `client_request_id` and request id from the original request context into the detached recording context, so async usage rows keep request correlation after Gin request cancellation.
+- The client request id middleware now echoes `X-Client-Request-ID` for existing or generated ids while keeping the logger context behavior unchanged.
+- OpenAI Responses, passthrough, SSE-to-JSON fallback, and Chat Completions compatibility paths now retain the upstream response id in `OpenAIForwardResult`.
+- HTTP Responses/Chat paths bind the upstream response id to the selected account through the existing OpenAI WS sticky state store, allowing later `previous_response_id` continuations to reuse the same account without adding schema or pricing changes.
+- Chat Completions streaming conversion always requests/emits a usage chunk for gateway billing completeness, while display-token rewriting stays downstream-only and real usage remains unmodified.
+- Verified with `go test -tags=unit ./internal/handler -run "UsageRecord|OpenAI|Gateway"`, `go test -tags=unit ./internal/service -run "OpenAI|ResponseID|Usage|ChatCompletions"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-07] fix: sync Phase 6C OpenAI websocket failover
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6C scoped sync from `upstream/main@635ad81c`; the remaining local delta was OpenAI Responses WebSocket account failover after upstream WS rate-limit errors. Other Phase 6C WS fixes for tool-output continuation, terminal-event timing, usage parsing/deduplication, model fallback, and Codex image bridge injection were already present from earlier Phase 3/4/6B syncs.
+**Change details**:
+- Wrapped OpenAI `/v1/responses` WebSocket ingress forwarding in the same failover pattern used by local OpenAI HTTP handlers: failed account IDs are excluded, account switch metrics are recorded, and the next schedulable OpenAI account is selected when the service returns an `UpstreamFailoverError`.
+- Reacquires the user concurrency slot before retrying a WS upstream after a failed turn, while releasing the failed account slot immediately to avoid leaking account concurrency.
+- Added a WS-specific failover-exhausted close mapper so 429 and transient upstream failures close the client socket with retryable WebSocket status/reason instead of a generic internal error.
+- Kept endpoint-capability scheduling, local account image endpoint switch, Codex image bridge injection, Claude-GPT bridge routing, display-token usage semantics, and pricing untouched.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAIWS|WebSocket|HTTPBridge|RateLimit|ResponseID|Usage|CodexImage|ToolContinuation"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler -run "OpenAI|Codex|Responses|Chat|Messages|WS|Usage|OAuth|Image|Bridge"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-07] fix: sync Phase 6D/6E OpenAI request hotpath and apicompat audit
+
+**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_hotpath_test.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/gateway_helper.go, backend/internal/handler/gateway_helper_hotpath_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6D scoped sync from `upstream/main@635ad81c` for OpenAI request body retention/OOM hardening. Phase 6E apicompat bridge redesign, reasoning-only/DeepSeek handling, and tool pairing were audited and already match the target upstream package, so no duplicate apicompat edits were made.
+**Change details**:
+- Bound the OpenAI parsed-request cache to the exact request body hash/length so failover or retry paths cannot reuse a mutable map decoded from a previous upstream attempt.
+- Added safe cache helpers for handler pre-validation and Claude Code client detection, replacing direct raw map storage in Gin context while preserving backward-compatible reads for lightweight detection.
+- Released the parsed-request cache before OpenAI upstream failover and after successful HTTP response handling, reducing large request body/map retention across streaming response processing.
+- Switched OpenAI request reserialization and empty-base64-image cleanup to the upstream non-HTML-escaping JSON encoder helper, preserving request content while avoiding extra escaping churn.
+- Extracted reasoning effort and service tier for usage records from the final request body bytes instead of retaining the full decoded request map solely for those scalar fields.
+- Confirmed Phase 6E apicompat code has no local diff against `upstream/main@635ad81c`; focused tests cover Responses <-> Chat Completions lifecycle, DeepSeek/reasoning-only streams, and Responses-to-Anthropic tool pairing.
+- Kept pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge overlay, distribution, public `/key-usage`, image trace safety, and account scheduling controls untouched.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*Hotpath|GetOpenAIRequestBodyMap|ExtractOpenAI|SanitizeEmptyBase64|Forward|ResponseID|Usage"`, `go test -tags=unit ./internal/handler -run "SetClaudeCodeClientContext|OpenAI|FunctionCallOutput"`, `go test -tags=unit ./internal/pkg/apicompat -run "ChatCompletions|Responses|DeepSeek|Reasoning|Tool|Pairing|Lifecycle|Invariants"`, `go test -tags=unit ./internal/service -run "ResponsesChatFallback|ForwardAsAnthropic|ChatCompletions|DeepSeek|Tool|Pairing|CodexTransform"`, `go run ./tools/upstream-sync-guard`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler -run "OpenAI|Codex|Responses|Chat|Messages|WS|Usage|OAuth|Image|Bridge"`, and `git diff --check`.
+
+## [2026-06-07] fix: sync Phase 6F OpenAI OAuth runtime fixes
+
+**Affected files**: backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, backend/internal/service/openai_oauth_service.go, backend/internal/service/openai_oauth_service_refresh_test.go, backend/internal/service/openai_privacy_service.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6F scoped sync from `upstream/main@635ad81c`; covers OpenAI OAuth 401 credential safety and token-refresh enrichment only. Codex used-percent snapshot self-heal, OpenAI HTTP2 response-header timeout, and endpoint capability routing were audited and already present locally, so no duplicate account-page or scheduler rewrites were made.
+**Change details**:
+- OAuth 401 handling now invalidates token caches and marks the account temporarily unschedulable without persisting the request-start `account.Credentials` snapshot, preventing a concurrent fresh refresh token from being rolled back by an old snapshot.
+- OpenAI OAuth `RefreshAccountToken` now enriches the existing-access-token/no-refresh-token path using the same ChatGPT backend best-effort account metadata flow as normal token refresh.
+- Added ChatGPT subscriptions fallback enrichment for `subscription_expires_at` when `accounts/check` reports plan metadata but omits entitlement expiry.
+- Kept OAuth privacy-disable best-effort behavior and proxy handling intact, while making backend URLs package-overridable for unit tests only.
+- Preserved pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge overlay, distribution, public `/key-usage`, image trace safety, and account page layout.
+- Verified with `go test -tags=unit ./internal/service -run "OAuth401|RateLimitService_HandleUpstreamError_OAuth401|OpenAIOAuthService_RefreshAccountToken_NoRefreshTokenUsesExistingAccessToken|OpenAITokenRefresher|OpenAITokenProvider"`, `go test -tags=unit ./internal/service -run "CodexSnapshot|ShouldRefreshOpenAICodexSnapshot|OpenAICodex|Endpoint|Capability|OpenAIAccountScheduler"`, `go test -tags=unit ./internal/config ./internal/repository -run "ResponseHeaderTimeout|HTTP2|HTTPUpstream"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-07] fix: sync Phase 6G Codex and Claude Code mimicry fixes
+
+**Affected files**: backend/internal/pkg/claude/constants.go, backend/internal/pkg/openai/constants.go, backend/internal/service/account.go, backend/internal/service/account_openai_passthrough_test.go, backend/internal/service/claude_code_validator.go, backend/internal/service/claude_code_validator_test.go, backend/internal/service/identity_service.go, backend/internal/service/openai_client_restriction_detector.go, backend/internal/service/openai_client_restriction_detector_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_codex_cli_only_test.go, backend/internal/service/openai_oauth_passthrough_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6G scoped sync from `upstream/main@635ad81c`; covers Codex/Claude Code client mimicry and request fingerprint fidelity only. It intentionally does not merge account-page UI/settings, pricing, quota, risk-control, channel monitor, or marketing/login/payment changes.
+**Change details**:
+- Updated Claude Code mimicry defaults to CLI `2.1.161`, package version `0.94.0`, Node runtime `v24.3.0`, and removed `redact-thinking` from the default full-mimicry beta list while keeping the local Claude-GPT bridge overlay unchanged.
+- Aligned the default Claude fingerprint used by identity rewriting with the shared Claude constants so generated metadata and outbound headers stay in sync.
+- Added Claude Code validator compatibility for `/v1/messages/count_tokens` and billing-attribution system blocks that contain `x-anthropic-billing-header` plus `cc_entrypoint=cli`.
+- Updated the Codex OAuth fallback User-Agent to the newer structured `codex_cli_rs/0.125.0 (...)` form and injected `x-codex-installation-id` into OAuth Codex `client_metadata` when an account device id is available.
+- Added a backend-only allowed-client hook for `codex_cli_only_allowed_clients` and global allowed-client inputs, with account JSONB parsing tests. No admin UI/settings persistence was added in this sub-batch.
+- Added `codex-auto-review` to OpenAI default models and switched synthetic Codex default instructions to the upstream model-aware helper where available.
+- Preserved pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge routing/usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
+- Verified with `go test -tags=unit ./internal/service -run "ClaudeCodeValidator|CodexClientRestriction|CodexCLIOnly|CodexTransform|OpenAI.*Hotpath|OpenAIGatewayService|GetCodexCLIOnlyAllowedClients"` and `go test -tags=unit ./internal/pkg/openai ./internal/pkg/claude`.
+
+## [2026-06-07] fix: sync Phase 6.5 long-context cache billing multipliers
+
+**Affected files**: backend/internal/service/billing_service.go, backend/internal/service/billing_service_test.go, backend/internal/service/model_pricing_resolver_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 6.5 scoped sync of upstream long-context billing fixes `b9509e82` and `ed2aac25`; this only changes how existing model pricing metadata is applied when long-context pricing is already triggered. It does not write model prices, change global/user pricing configuration, or alter display pricing/display-token semantics.
+**Change details**:
+- Long-context pricing now applies the input-side multiplier to `cache_read_tokens`, matching OpenAI GPT-5.4/GPT-5.5 long-context semantics where cache reads are input-side replays.
+- Long-context pricing now applies the same input-side multiplier to cache creation cost, including standard cache writes and `5m`/`1h` ephemeral cache creation breakdown prices.
+- Added regression tests proving below-threshold cache read/write prices remain at base price, while above-threshold cache read/write prices are multiplied.
+- Added a local pricing resolver regression that locks user-level model pricing as the final override over channel/global/base pricing while preserving inherited long-context metadata.
+- Preserved global/user model pricing values, display pricing, display token, Claude-GPT bridge usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAIGPT54LongContextAppliesMultiplierToCache|OpenAIGPT54NoLongContextKeepsCache|LongContextAppliesMultiplierToCacheCreation5mAnd1h|UserOverride_BeatsChannelGlobal"` and `go test -tags=unit ./internal/service -run "Billing|Pricing|LongContext|DisplayToken|UserModelPricing|GlobalModelPricing"`.
+- Real-request smoke after refreshing local fixtures passed with `go run ./tools/smoke --suite openai,bridge,images,custom` (28/28). OpenAI responses/chat, Claude-GPT bridge, Images upstream 400 passthrough, distribution, pricing, public `/key-usage`, announcements, usage errors, and group models-list checks are covered. `go run ./tools/smoke --suite embeddings` now reaches the OpenAI API-key account, but that account's upstream base URL returns `404 page not found` for `/v1/embeddings`; this is recorded as a fixture/upstream endpoint compatibility issue, not a Sub2API routing failure.
+
+## [2026-06-07] docs: record phased OpenAI/Codex upstream sync closeout
+
+**Affected files**: docs/dev/UPSTREAM_SYNC.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation-only closeout for the staged upstream sync through Phase 6.5; no runtime, schema, API, pricing, or deployment behavior changes.
+**Change details**:
+- Added a current upstream-sync summary for `codex/openai-codex-upstream-sync` documenting the manual staged sync from `upstream/main@635ad81c`, the features already synced, preserved local overlays, and deferred upstream items.
+- Updated the gateway codebase note with the current OpenAI/Codex flow, local Claude-GPT bridge overlay boundaries, request hotpath/usage/WS/OAuth/Codex mimicry fixes, long-context billing guardrails, and real-request smoke status.
+- Recorded that `openai,bridge,images,custom` real-request smoke passes against the current dev stack, while embeddings reaches the API-key upstream and currently fails at that upstream's `/v1/embeddings` endpoint with 404.
+
 ## [2026-06-06] docs: record local GitHub CLI credential recovery
 
 **Affected files**: AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
@@ -724,6 +1144,140 @@
 - Fixed existing frontend test baselines and numeric formatting edge cases that blocked the phase 0 test gate without changing upstream-sync behavior.
 - Verified with `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -SkipAIClient`, `go test -tags=unit ./internal/server ./internal/handler ./internal/service`, `pnpm run typecheck`, `pnpm run test:run`, `go run ./tools/upstream-sync-guard`, and `go run ./tools/smoke --suite quick,custom`.
 
+## [2026-06-06] fix: sync upstream OpenAI response.failed handling
+
+**Affected files**: backend/internal/handler/stream_error_event.go, backend/internal/handler/stream_error_event_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_images.go, backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_gateway_messages.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; local Claude-GPT bridge and `OPENAI_IMAGE_TRACE_LOG` behavior remain preserved.
+**Change details**:
+- Added Responses-protocol `response.failed` SSE emission when `/responses` streams have already flushed headers, including bare `/responses` and Codex direct route variants.
+- Avoided appending generic fallback errors when OpenAI forwarding already wrote an upstream terminal error event.
+- Kept Anthropic and Chat Completions legacy stream error formats for non-Responses endpoints.
+- Fixed the OpenAI Claude-GPT bridge Codex instruction transform so forced instruction templates can see original Anthropic system/developer text without injecting the generic default instructions first.
+- Verified with `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
+
+## [2026-06-06] fix: sync upstream OpenAI responses chat fallback
+
+**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback.go, backend/internal/service/openai_gateway_responses_chat_fallback_test.go, backend/internal/service/openai_gateway_chat_completions_raw.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; API key accounts marked as not supporting `/v1/responses` now serve Responses clients through `/v1/chat/completions` without changing local Claude-GPT bridge or display-token behavior.
+**Change details**:
+- Added `/v1/responses` -> `/v1/chat/completions` fallback for OpenAI API key accounts whose responses support mode is forced off or probe state says unsupported.
+- Converted upstream Chat Completions JSON/SSE responses back into Responses JSON/SSE for downstream clients, including DeepSeek reasoning-only streams and usage-only stream chunks.
+- Extended JSON usage extraction to accept Chat Completions `prompt_tokens` / `completion_tokens` fields when this fallback path reads upstream usage.
+- Verified with focused fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
+
+## [2026-06-06] fix: sync upstream raw chat completions usage and URL handling
+
+**Affected files**: backend/internal/service/openai_endpoint_url.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; scoped to OpenAI API key raw Chat Completions forwarding and shared OpenAI endpoint URL construction.
+**Change details**:
+- Forced raw `/v1/chat/completions` stream forwarding to request `stream_options.include_usage=true`, so upstream usage is available for billing even when the client omitted the option.
+- Continued draining upstream SSE after downstream client disconnects, preserving usage extraction without writing more data to the disconnected client.
+- Added a raw Chat Completions header allowlist so Codex/OAuth-specific headers like `session_id`, `conversation_id`, and `x-codex-turn-state` are not forwarded to third-party API-key upstreams.
+- Added shared OpenAI endpoint URL construction for versioned compatible base URLs such as `/api/paas/v4`, covering Responses and Chat Completions.
+- Routed raw Chat Completions non-streaming reads through the existing upstream response-size guard and kept display-token rewriting downstream-only.
+- Verified with focused raw/fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
+
+## [2026-06-06] fix: sync upstream OpenAI Messages bridge core
+
+**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_messages_bridge.go, backend/internal/service/openai_messages_continuation.go, backend/internal/service/openai_messages_digest_session.go, backend/internal/service/openai_messages_replay_guard.go, backend/internal/service/openai_messages_todo_guard.go, backend/internal/service/openai_compat_prompt_cache_key.go, backend/internal/service/openai_tool_continuation.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_compat_model_test.go, backend/internal/service/openai_tool_continuation_test.go, backend/internal/handler/openai_gateway_handler_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 3 OpenAI/Codex Messages sync from `upstream/main@1f423ae0`; upstream Anthropic-to-Responses conversion, Codex transform, terminal-event parsing, continuation, digest session, replay guard, and todo guard are used as the core while local Antigravity scheduling, bridge usage, display cache, display-token rewrite, and session-header stripping are preserved.
+**Change details**:
+- Rebased `ForwardAsAnthropic` on the upstream Messages flow, including `previous_response_id` continuation for API-key compat, Anthropic digest-derived prompt cache keys, replay trimming, Claude Code todo guard injection, `response.failed`/missing-terminal handling, and raw SSE frame parsing.
+- Kept the local Claude-GPT bridge overlay: Antigravity preflight remains outside the core, bridge requests still preserve body `prompt_cache_key`, and upstream `session_id` / `conversation_id` headers are deleted after request construction.
+- Preserved bridge usage semantics: downstream model/requested model remain Claude, `upstream_model` remains GPT, bridge cache-display override and display-token SSE/non-stream rewriting still run after upstream terminal usage is parsed.
+- Extended Codex tool-output detection from only `function_call_output` to `tool_search_output`, `custom_tool_call_output`, and `mcp_tool_call_output` in HTTP validation and WS continuation checks, keeping tool continuation behavior aligned with upstream.
+- Kept local `toolu_*` preservation by validating tool call IDs by type rather than by fixed input index, since upstream todo guard can prepend developer input.
+- Verified with `go test -tags=unit ./internal/service -run "ForwardAsAnthropic|ClaudeGPTBridge|OpenAICompat|ToolContinuation|ReplayGuard|PromptCache|CodexTransform"`, `go test -tags=unit ./internal/handler -run "OpenAIMessages|ClaudeGPTBridge|FunctionCallOutput"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, `go run ./tools/upstream-sync-guard`, `git diff --check`, and `go run ./tools/smoke --suite openai,bridge`.
+- Local smoke note: the dev PostgreSQL `schema_migrations` table had stale checksums for already-applied `150-166` migrations from a prior branch state; the local dev DB records were updated to match the current migration files so the backend could start for real-request smoke. No migration files were changed.
+
+## [2026-06-06] feat: add OpenAI embeddings endpoint and endpoint capability scheduling
+
+**Affected files**: backend/internal/handler/endpoint.go, backend/internal/handler/openai_embeddings.go, backend/internal/server/routes/gateway.go, backend/internal/service/account.go, backend/internal/service/http_upstream_profile.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_embeddings.go, backend/internal/service/upstream_context.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI Embeddings sync from `upstream/main@1f423ae0`; scoped to OpenAI API key embeddings and endpoint capability scheduling, without changing the local Claude-GPT bridge scheduler path.
+**Change details**:
+- Added OpenAI-compatible `POST /v1/embeddings` for OpenAI groups, including request validation, OpenAI API-key forwarding, upstream response passthrough, usage extraction, and usage-log recording.
+- Added `credentials.openai_capabilities` endpoint gating with `chat_completions` and `embeddings`; missing configuration remains backward-compatible and allows existing OpenAI API key accounts to serve chat completions.
+- Updated `/v1/responses`, `/v1/chat/completions`, native OpenAI `/v1/messages`, and OpenAI WS initial account selection to require the chat-completions capability, while the Claude-GPT bridge still uses `SelectAccountWithSchedulerForClaudeGPTBridge`.
+- Added the minimal upstream context/profile helpers needed by embeddings forwarding, and kept pool-mode retry behavior on the existing local default status-code list.
+- Verified with `go test -tags=unit ./internal/handler -run "Endpoint|Embeddings"`, `go test -tags=unit ./internal/service -run "Embeddings|OpenAIAccountScheduler|OpenAIImage|PoolMode"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] fix: bridge oversized OpenAI websocket requests through HTTP
+
+**Affected files**: backend/internal/config/config.go, backend/internal/config/config_test.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_ws_http_bridge.go, backend/internal/service/openai_ws_http_bridge_test.go, backend/internal/service/image_output_accounting.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI WS sync from `upstream/main@1f423ae0`; scoped to oversized Responses WebSocket ingress frames and replay continuity, without changing Antigravity Claude-GPT bridge dispatch or fallback semantics.
+**Change details**:
+- Added configurable OpenAI WS client read limit and HTTP bridge threshold defaults so frames above the old 16 MiB WS limit can keep the downstream WS connection while using `/v1/responses` SSE upstream.
+- Added `proxyOpenAIWSHTTPBridgeTurn` to strip WS-only fields, force HTTP streaming, relay SSE events as WS messages, preserve terminal usage parsing, and surface upstream HTTP/SSE errors as WS error events.
+- Preserved tool-call replay context across bridge turns so follow-up `function_call_output` frames can become self-contained HTTP `/responses` requests without forwarding stale `previous_response_id`.
+- Added shared image-output counting helpers required by the WS bridge; independent Images endpoint routing/accounting remains a later Phase 4 sub-batch.
+- Kept local Claude-GPT bridge, display-token, display-pricing, distribution, public `/key-usage`, and docs/dev-stack paths untouched by this sub-batch.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAIWSHTTPBridge|HTTPBridge|OpenAIWS.*Bridge|WebSocket"`, `go test -tags=unit ./internal/service -run "OpenAIWS|HTTPBridge|WebSocket|ClaudeGPTBridge|DisplayToken|Pricing"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] fix: sync upstream OpenAI Images API-key streaming and image cooldown
+
+**Affected files**: backend/internal/handler/openai_images.go, backend/internal/pkg/ctxkey/ctxkey.go, backend/internal/service/image_generation_intent.go, backend/internal/service/model_rate_limit.go, backend/internal/service/openai_images.go, backend/internal/service/ratelimit_service.go, backend/internal/service/model_rate_limit_test.go, backend/internal/service/ratelimit_service_openai_test.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI Images sync from `upstream/main@1f423ae0`; scoped to API-key `/v1/images/*` streaming/error handling and image-generation cooldown, preserving local `OPENAI_IMAGE_TRACE_LOG` and existing image billing semantics.
+**Change details**:
+- Added image-generation intent helpers and context marking so `/v1/images/*` requests honor group `allow_image_generation` and OpenAI image-specific model-rate-limit scope.
+- API-key Images forwarding now uses the detached upstream context, OpenAI HTTP upstream profile, upstream error-body helper, configured pool-mode retry status policy, and upstream 400/error passthrough path.
+- API-key image streaming now supports keepalive comments, idle timeout error events, downstream disconnect drain-for-billing, fallback JSON accounting, image output size accounting, and response usage extraction from streamed image events.
+- Added OpenAI image 429 cooldown handling that writes `openai:image_generation` model-rate-limit scope instead of disabling/rate-limiting the whole OpenAI account when the upstream error is image-specific.
+- Kept `ImageSize` / `ImageSizeInfo` / `ImageQuality` as the local real-billing inputs and retained safe `OPENAI_IMAGE_TRACE_LOG` timing/correlation log points without logging prompts, image bytes, auth, cookies, API keys, or full bodies.
+- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*Images|ImageOutput|ImageTrace|ModelRateLimit|Handle429_OpenAIImage|CalculateOpenAI429|OpenAIImageRateLimit"`, `go test -tags=unit ./internal/handler -run "OpenAI.*Images|Images|GroupModel"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] feat: add OpenAI account endpoint capabilities and Codex image bridge override
+
+**Affected files**: backend/internal/config/config.go, backend/internal/service/codex_image_generation_bridge.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/types/index.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 account-management minimal union from `upstream/main@1f423ae0`; scoped to OpenAI API-key endpoint capabilities and account-level Codex image-generation bridge override, without bringing in upstream account page re-layout, Codex session import, or model sync preview.
+**Change details**:
+- Added `gateway.codex_image_generation_bridge_enabled` as a default-off global fallback and `extra.codex_image_generation_bridge` account override for Codex `/v1/responses` image-generation tool injection.
+- Kept backward compatibility for legacy `extra.codex_image_generation_bridge_enabled` and nested `extra.openai.*` values, while frontend saves the new field and removes the legacy key.
+- Gated HTTP and WS Codex image-generation bridge injection by the account override/global fallback without changing independent `/v1/images/*` scheduling, local Claude-GPT bridge dispatch, display-token behavior, or Antigravity fallback semantics.
+- Added OpenAI API Key account Create/Edit controls for `credentials.openai_capabilities` with `chat_completions` and `embeddings`, preserving the backward-compatible default when both are selected.
+- Added Chinese/English i18n keys and EditAccountModal regressions covering endpoint capability save, minimum-one capability behavior, and legacy Codex image bridge migration.
+- Verified with `go test -tags=unit ./internal/service -run "CodexImageGenerationBridge|ImageGenerationBridge|OpenAIWS|OpenAIGatewayService"`, `pnpm run typecheck`, `pnpm run test:run -- EditAccountModal CreateAccountModal BulkEditAccountModal`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] fix: preserve image generation group permissions in API key auth cache
+
+**Affected files**: backend/internal/repository/api_key_repo.go, backend/internal/service/api_key_auth_cache.go, backend/internal/service/api_key_auth_cache_impl.go, backend/internal/service/api_key_service_cache_test.go, backend/tools/smoke/main.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 4 OpenAI Images/Embeddings real-request validation hardening; scoped to API-key auth hot path and smoke fixture selection, without changing pricing, Claude-GPT bridge, distribution, public `/key-usage`, or account scheduling semantics.
+**Change details**:
+- Fixed `GetByKeyForAuth` to select `groups.allow_image_generation`; otherwise the lightweight API-key auth path hydrated `apiKey.Group.AllowImageGeneration=false` even when the database group enabled images.
+- Added `AllowImageGeneration` to the API-key auth cache snapshot and bumped the snapshot version to invalidate old cached group snapshots.
+- Added a snapshot round-trip regression test so image permissions are preserved through auth cache DB-load and cache-hit paths.
+- Hardened `backend/tools/smoke` to load ignored `tmp/smoke/local.env`, use platform-specific local keys without printing secrets, and select fixtures by real capability: OpenAI chat/responses, image-capable OpenAI group, embeddings-capable OpenAI API-key group, and Antigravity bridge key.
+- Tightened real-request assertions so `/v1/responses`, `/v1/chat/completions`, `/v1/images/generations` invalid-size passthrough, and `/v1/embeddings` must return their expected statuses instead of accepting broad 2xx-4xx ranges.
+- Verified with `go test -tags=unit ./internal/service -run "APIKeyService_SnapshotRoundTrip_PreservesAllowImageGeneration|OpenAI.*Images|ImageGeneration|Embeddings|CodexImageGenerationBridge"`, `go test -tags=unit ./internal/server ./internal/handler -run "Embeddings|OpenAI.*Images|ImageConcurrency"`, `go run ./tools/upstream-sync-guard`, `git diff --check`, and `go run ./tools/smoke --suite openai,images,embeddings`.
+- Local smoke note: OpenAI chat/responses and images invalid-size passthrough pass against the current dev stack; embeddings is blocked by fixture availability because the local database currently has no active OpenAI `apikey` upstream account in any downstream-key group.
+
+## [2026-06-06] fix: sync Phase 5A upstream stability and safety fixes
+
+**Affected files**: backend/internal/service/leader_lock.go, backend/internal/repository/leader_lock_cache.go, backend/internal/service/dashboard_aggregation_service.go, backend/internal/service/subscription_expiry_service.go, backend/internal/service/payment_order_expiry_service.go, backend/internal/repository/session_limit_cache.go, backend/internal/repository/user_msg_queue_cache.go, backend/internal/setup/setup.go, backend/internal/repository/account_repo.go, backend/internal/repository/api_key_repo.go, backend/internal/service/admin_service.go, backend/internal/handler/openai_stream_validation.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_gateway_handler.go, backend/cmd/server/wire_gen.go, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 5A scoped sync from `upstream/main@635ad81c`; this sub-stage only covers operational stability and safety fixes and intentionally does not merge quota, risk-control, usage error requests, group models-list UI, pricing, distribution, or account-page re-layout.
+**Change details**:
+- Added a Redis-backed leader lock for existing dashboard aggregation, subscription-expiry, and payment-order-expiry background tasks so multi-instance deployments do not run the same periodic job concurrently.
+- Added Redis Lua `redis.replicate_commands()` compatibility for scripts that call `TIME`, preserving existing session-limit and user message queue semantics.
+- Changed setup database bootstrap to connect to the maintenance `postgres` database before creating/connecting to the configured target database.
+- Refreshed scheduler account snapshots after clearing temporary unschedulable state.
+- When deleting a user, API keys are deleted first with deleted-key audit support when available; auth caches are invalidated for each key and for the user.
+- Treated allowed proxy-quality HTTP statuses as pass results and added OpenAI-compatible `stream` field type validation for chat completions/responses/messages ingress.
+- Preserved local custom features: pricing/display token, distribution, public `/key-usage`, Claude-GPT bridge, AI credit snapshot, announcement surfaces, image trace logging, and dev-stack/docs.
+- Verified with `go test -tags=unit ./internal/service -run "DeleteUser|ProxyQuality"`, `go test -tags=unit ./internal/server -run TestAPIContracts`, `go test -tags=unit ./internal/setup ./internal/repository ./internal/service ./internal/handler ./internal/server`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
+## [2026-06-06] feat: sync Phase 5 usage errors and group models list
+
+**Affected files**: backend/internal/handler/admin/group_handler.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/admin/ops_handler.go, backend/internal/handler/ops_error_logger.go, backend/internal/repository/group_repo.go, backend/internal/repository/ops_repo.go, backend/internal/server/routes/admin.go, backend/internal/service/admin_service.go, backend/internal/service/ops_*.go, backend/tools/smoke/main.go, backend/tools/upstream-sync-guard/main.go, frontend/src/api/admin/groups.ts, frontend/src/api/admin/ops.ts, frontend/src/components/admin/group/GroupModelsListConfigPanel.vue, frontend/src/types/index.ts, frontend/src/views/admin/GroupsView.vue, frontend/src/views/admin/groupsModelsList.ts, frontend/src/views/admin/__tests__/groupsModelsList.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: Phase 5B/5C scoped sync from `upstream/main@635ad81c`; this entry records the usage failed/error request display already committed in `ed0c9b98` and the current group custom `/v1/models` list integration. Quota, risk-control/content moderation, channel monitor OpenAI API mode, account quota auto-pause, payment/login/marketing updates, and account-page re-layout remain deferred.
+**Change details**:
+- Added user-facing usage error request APIs and frontend usage tab in Phase 5B while preserving local ops panels and accepting upstream removal of ops retry/replay.
+- Added group `models_list_config` create/update persistence, admin candidate model endpoint, and gateway filtering for `GET /v1/models`; this affects only the displayed model list and does not change scheduling, model mapping, allow/block lists, billing, or Claude-GPT bridge behavior.
+- Added a minimal Groups page panel with Chinese/English i18n for configuring the custom `/v1/models` list without replacing the local group rate, RPM override, distribution, or OpenAI Messages controls.
+- Removed remaining ops retry/replay code and frontend retry API exports to match accepted upstream deletion and local migration `155_remove_ops_retry_replay.sql`; normal gateway failover, account-pool retry, 429/5xx cooldown, and request error display remain intact.
+- Extended `backend/tools/smoke` custom suite to check usage error request APIs, `/v1/models` response shape, and group models-list candidates without writing pricing or billing configuration.
+- Extended `backend/tools/upstream-sync-guard` with signatures for usage errors and group models-list route/UI/gateway plumbing.
+- Verified locally with `go test -tags=unit ./internal/handler ./internal/service ./internal/repository -run "Usage|Ops|Error|APIKey|Deleted"`, `go test -tags=unit ./internal/handler ./internal/service ./internal/repository -run "Group|ModelsList|GatewayModels"`, `go test -tags=unit ./internal/handler ./internal/service ./internal/repository ./internal/server`, `go test -tags=unit ./cmd/server`, `pnpm run typecheck`, `pnpm run test:run`, `go run ./tools/upstream-sync-guard`, `git diff --check`, migration duplicate check for new `150+` migrations, and `go run ./tools/smoke --suite custom,bridge` (25/25 passed).
+- Full local smoke `go run ./tools/smoke --suite quick,custom,openai,bridge,images,embeddings` passed 32/33 checks; the only failure is fixture availability for embeddings because the current dev DB has no active OpenAI API-key upstream account bound to the downstream key group. OpenAI responses/chat, images invalid-size passthrough, bridge, usage errors, distribution, pricing, announcements, and group models-list checks passed.
+
 ## [2026-06-05] feat: extend announcements across popup, dashboard banner, and API key rules surfaces
 
 **Affected files**: backend/ent/schema/announcement.go, backend/ent/schema/announcement_read.go, backend/migrations/148_extend_announcements_surfaces.sql, backend/migrations/149_announcement_reads_drop_read_at_default.sql, backend/internal/domain/announcement.go, backend/internal/service/announcement.go, backend/internal/service/announcement_service.go, backend/internal/repository/announcement_repo.go, backend/internal/repository/announcement_read_repo.go, backend/internal/handler/announcement_handler.go, backend/internal/handler/admin/announcement_handler.go, backend/internal/handler/dto/announcement.go, backend/internal/server/routes/user.go, frontend/src/types/index.ts, frontend/src/api/announcements.ts, frontend/src/api/admin/announcements.ts, frontend/src/stores/announcements.ts, frontend/src/views/admin/AnnouncementsView.vue, frontend/src/views/user/DashboardView.vue, frontend/src/components/user/dashboard/DashboardAnnouncementBanner.vue, frontend/src/components/keys/GettingStartedGuide.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/announcements.md, docs/dev/codebase/README.md
@@ -766,6 +1320,31 @@
 - Added the admin UI handoff for OpenAI account bridge configuration and Gateway Forwarding Behavior cache-display settings.
 - Updated the codebase documentation index dates and descriptions for account, model mapping, billing, gateway, and the bridge handoff document.
 
+## [2026-06-03] fix: suppress derived upstream cache/session keys in Claude-GPT bridge
+
+**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_compat_model_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; normal OpenAI `/v1/messages` still forwards explicit prompt/session keys.
+**Change details**:
+- Traced the fixed `raw_cached_tokens=18944` value to raw OpenAI Responses SSE usage at `response.usage.input_tokens_details.cached_tokens`, then found bridge requests were also forwarding stable upstream cache/session signals derived from Claude `metadata.user_id`.
+- Kept real upstream `cached_tokens` preservation, but stopped bridge mode from injecting or forwarding `prompt_cache_key`, `session_id`, and `conversation_id` to OpenAI/Codex upstreams.
+- Preserved local `metadata.user_id`-derived sticky account scheduling, so bridge account selection still remains stable without creating upstream cache identity.
+- Added regression coverage proving bridge OAuth/API-key forwards omit cache/session identifiers while non-bridge OpenAI Messages behavior still forwards them.
+- Verified with focused unit tests and a real local `/v1/messages` bridge request: diagnostics logged all upstream cache/session flags as false, downstream response model stayed `claude-opus-4-8`, and usage row `15770` stored `upstream_model=gpt-5.5`, `input_tokens=25`, `output_tokens=8`, `cache_read_tokens=0`.
+
+## [2026-06-03] fix: generate Claude-GPT bridge cache display from admin percent range
+
+**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/setting_service.go, backend/internal/service/settings_view.go, backend/internal/service/domain_constants.go, backend/internal/service/openai_compat_model_test.go, backend/internal/service/setting_service_update_test.go, backend/internal/handler/admin/setting_handler.go, backend/internal/handler/dto/settings.go, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to OpenAI-backed Claude-GPT bridge requests from Antigravity groups; ordinary OpenAI cache accounting and native Antigravity forwarding remain unchanged.
+**Change details**:
+- Restored body-level `prompt_cache_key` forwarding for bridge OpenAI upstream requests while continuing to remove `session_id` and `conversation_id` headers, keeping the bridge body closer to normal OpenAI traffic so upstream cache can work.
+- Added admin setting `openai_claude_gpt_bridge_cache_display_settings` with `enabled`, `min_percent`, and `max_percent`; backend and frontend validation require `0 <= min_percent <= max_percent <= 100`.
+- When enabled, bridge responses directly generate a random display/billing cache-read value from the configured percentage range over upstream `input_tokens`, replacing upstream `cached_tokens` for downstream Anthropic usage and usage records.
+- Clarified and covered with tests that the generated cache value is not derived from, added to, or scaled from upstream `cached_tokens`; upstream cache data is only diagnostic when the override is enabled.
+- Restored downstream display-token rewriting for OpenAI Messages / Antigravity bridge `/v1/messages`, including streaming Anthropic SSE, so users configured for display-mode downstream usage see response usage aligned with usage-log display.
+- Kept raw upstream `cached_tokens` logging as diagnostics only, so fixed upstream values such as `18944` can still be traced without leaking into user-visible bridge cache display when the override is enabled.
+- Added focused coverage for prompt-cache body forwarding, cache display override, 60%-70% range validation, fixed upstream `18944` rejection, downstream display usage rewrite, and settings persistence/range validation.
+- Verified with a real local Claude Code request through Antigravity API key `5`: upstream reported `raw_cached_tokens=7680`, the bridge generated `display_cached_tokens=14946` from `raw_input_tokens=22273` at `67.1041%`, usage row `15774` stored `model=requested_model=claude-opus-4-8`, `upstream_model=gpt-5.5`, `input_tokens=7327`, `cache_read_tokens=14946`, and downstream Claude Code display-mode usage showed `input_tokens=16149`, `cache_read_input_tokens=14946`, `output_tokens=188`.
+
 ## [2026-06-02] feat: merge upstream Antigravity Opus 4.8 support
 
 **Affected files**: `backend/internal/domain/constants.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/pkg/antigravity/request_transformer.go`, `backend/internal/pkg/claude/constants.go`, `backend/internal/service/antigravity_model_mapping_test.go`, `backend/internal/service/bedrock_request_test.go`, `backend/migrations/146_add_opus48_to_model_mapping.sql`, `frontend/src/composables/useModelWhitelist.ts`, `frontend/src/components/account/AccountStatusIndicator.vue`, `frontend/src/components/account/AccountUsageCell.vue`, `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/codebase/model-mapping.md`
@@ -784,6 +1363,79 @@
 - Extracted `messages[].role=system` entries from Antigravity Claude requests before building Gemini `contents`, including case-insensitive `system` roles.
 - Merged extracted text content into `systemInstruction` alongside top-level `system`, reusing existing OpenCode prompt and `x-anthropic-billing-header` filtering.
 - Added focused transformer coverage proving downstream Gemini `contents` only contain `user`/`model` roles and message-level system text is preserved in `systemInstruction`.
+
+## [2026-06-02] fix: reject negative user model pricing overrides
+
+**Affected files**: backend/internal/service/user_model_pricing_service.go, backend/internal/service/user_model_pricing_service_test.go, backend/internal/handler/admin/user_model_pricing_handler.go, backend/migrations/147_user_model_pricing_non_negative_constraints.sql, frontend/src/components/admin/user/UserModelPricingModal.vue, docs/dev/codebase/billing.md
+**Upstream compatibility**: scoped validation hardening for admin user-level model pricing; valid zero and positive prices remain supported.
+**Change details**:
+- Added service-layer validation for create, update, and batch upsert so user-level real/display price overrides cannot be negative, NaN, or infinite.
+- Rejected non-positive or non-finite `display_rate_multiplier` for user model pricing overrides.
+- Added PostgreSQL `NOT VALID` CHECK constraints to block new invalid writes without scanning historical rows during startup.
+- Added focused unit coverage for the negative update path that can otherwise record negative usage costs.
+
+## [2026-06-02] feat: add OpenAI Claude-GPT bridge for Antigravity groups
+
+**Affected files**: backend/internal/service/account.go, backend/internal/service/admin_service.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_gateway_service.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/server/routes/gateway.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/BulkEditAccountModal.vue, frontend/src/components/common/GroupSelector.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/account.md, docs/dev/codebase/model-mapping.md, docs/dev/codebase/gateway.md, docs/dev/codebase/billing.md
+**Upstream compatibility**: additive account-side routing feature; existing Antigravity subscriptions, API keys, and group platforms remain unchanged.
+**Change details**:
+- Added `extra.openai_claude_gpt_bridge_enabled` for OpenAI accounts and allowed enabled bridge accounts to bind Antigravity groups while still rejecting Anthropic/Gemini bindings.
+- Reused existing `credentials.model_mapping` as the account-global Claude-to-GPT mapping source, requiring an explicit non-self mapping hit before bridge scheduling.
+- Added Antigravity `/v1/messages` bridge preflight: eligible requests route through OpenAI `ForwardAsAnthropic`, while pre-upstream misses reset the request body and fall back to native Antigravity.
+- Kept user-facing usage records and billing on the original Claude requested model while storing the GPT upstream model in `upstream_model` for admin visibility.
+- Added admin account form controls for enabling the bridge and selecting OpenAI plus Antigravity groups when enabled.
+
+## [2026-06-02] fix: make local Antigravity Claude-GPT bridge requests schedulable
+
+**Affected files**: backend/internal/server/routes/gateway.go, backend/internal/repository/scheduler_cache.go, backend/internal/repository/scheduler_cache_unit_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_account_scheduler.go, backend/internal/handler/admin/account_handler_available_models_test.go, backend/internal/service/antigravity_model_mapping_test.go, backend/internal/server/api_contract_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped routing and scheduler metadata fix for the additive OpenAI Claude-GPT bridge; native Antigravity fallback remains unchanged when no eligible bridge account exists.
+**Change details**:
+- Reused the `/v1/messages` Anthropic Messages dispatch handler for `/antigravity/v1/messages`, so Claude Code configurations with `ANTHROPIC_BASE_URL=/antigravity` also preflight OpenAI bridge accounts.
+- Preserved `extra.openai_claude_gpt_bridge_enabled` in slim scheduler metadata and added a bridge-only DB refresh path before stale scheduler snapshot candidates are rejected.
+- Updated stale unit-test expectations for current OpenAI model-list merge behavior, Antigravity unknown Claude/Gemini passthrough, and handler/service constructor signatures.
+- Preserved native Antigravity routing for bridge misses and kept `/antigravity/v1/messages/count_tokens`, `/models`, and `/usage` unchanged.
+- Verified with a real local Claude Code-style request to `http://localhost:18081/antigravity/v1/messages`: `claude-opus-4-8` returned `200` through OpenAI account `41`, downstream response model stayed `claude-opus-4-8`, usage tokens were `23/19`, and the usage row stored `upstream_model=gpt-5.5`.
+
+## [2026-06-02] fix: classify bridge cache status by request group platform
+
+**Affected files**: backend/internal/repository/usage_log_repo.go, backend/internal/repository/usage_log_repo_request_type_test.go, docs/dev/codebase/billing.md, docs/dev/codebase/account.md
+**Upstream compatibility**: scoped dashboard/statistics compatibility fix for the additive OpenAI Claude-GPT bridge; user billing, usage rows, scheduler selection, and native Antigravity AI Credits aggregation are unchanged.
+**Change details**:
+- Changed prompt-cache status platform filtering to prefer `groups.platform` over `accounts.platform`, so OpenAI bridge rows from Antigravity groups appear in the Antigravity cache-status dashboard.
+- Treated `platform=all` as no platform filter in cache-status SQL, matching the existing handler/frontend semantics.
+- Added unit coverage for the `all` filter and group-platform precedence.
+- Documented that Antigravity AI Credits usage aggregation intentionally remains native Antigravity upstream-account scope, while bridge account-cost rules should target `platform=antigravity` plus the GPT upstream model or leave platform empty.
+
+## [2026-06-02] docs: record OpenAI Claude-GPT bridge implementation notes
+
+**Affected files**: docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation-only; records the custom OpenAI account-side bridge design, verification, and residual compatibility risks.
+**Change details**:
+- Added a dedicated bridge handoff document covering account configuration, eligibility, scheduler behavior, gateway routing, billing/usage rules, frontend behavior, and local real-request verification.
+- Recorded residual issues for `/models`, `/messages/count_tokens`, Claude Code context compaction, Codex config isolation, and GPT upstream context-window limits.
+- Linked the bridge document from the codebase documentation index for future maintenance.
+
+## [2026-06-02] fix: normalize OpenAI cached tokens in Antigravity bridge usage
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/channel.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_record_usage_test.go, backend/internal/service/billing_service.go, backend/internal/service/pricing_service.go, backend/internal/service/billing_service_test.go, backend/internal/service/pricing_service_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; ordinary OpenAI cache-read accounting remains unchanged.
+**Change details**:
+- Added a bridge usage flag so Antigravity Claude-GPT requests treat OpenAI `cached_tokens` as ordinary input tokens when writing usage records and calculating user billing.
+- Prevented fixed OpenAI prompt/session cache values such as `18.9k` from appearing as Claude `cache_read_tokens` in usage records.
+- Kept user-facing model and billing model on the original Claude request model while preserving `upstream_model=gpt-5.5` for admin visibility.
+- Corrected local static fallback pricing so `gpt-5.5` no longer inherits `gpt-5.4` fallback prices, and added the missing `gpt-5.4-nano` fallback.
+- Verified with focused unit tests and a real local `/antigravity/v1/messages` bridge request. This cache-zero behavior was later reverted by the follow-up cache-read preservation fix below.
+
+## [2026-06-02] fix: preserve Claude-GPT bridge cache-read usage
+
+**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/channel.go, backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_record_usage_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; ordinary OpenAI usage recording is unchanged.
+**Change details**:
+- Replaced the previous bridge cache-zero flag with a diagnostic-only bridge marker, so OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style `cache_read_tokens`.
+- Restored the existing OpenAI token split for bridge usage: stored ordinary input tokens are `raw_input_tokens - cached_tokens`, and cache-read pricing uses the requested Claude model.
+- Added bridge-only token diagnostics for raw upstream Responses usage, converted Anthropic usage, and final usage-log storage. These logs include request/account/model IDs and token counts only, not request or response content.
+- Updated bridge billing docs to treat repeated values such as `18.9k` as a debugging target that must be traced to raw upstream, conversion, or storage before being accepted as normal.
+- Verified with focused unit tests for bridge model billing and cache-read preservation.
 
 ## [2026-06-01] docs: record A2 Kiro Opus empty stream staged fix
 
@@ -863,6 +1515,36 @@
 - Updated InvokeAI and Sub2API agent rules to forbid ad hoc `invokeai-web`, `pnpm dev`, or `make frontend-dev` startup for normal local development.
 - Verified PowerShell script parsing, non-mutating `status`, frontend `pnpm run lint:tsc`, and a real script-managed restart with backend on `9090`, frontend on `15175`, and no Vite listener left on `5173`.
 
+## [2026-06-01] fix: remove account rate from downstream display token rewrite
+
+**Affected files**: backend/internal/service/display_token_rewrite.go, backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite_test.go
+**Upstream compatibility**: scoped bug fix for user-configured Claude/Antigravity downstream `usage` token display mode; billing and stored usage remain unchanged.
+**Change details**:
+- Removed the obsolete account rate multiplier from downstream display-token multiplier calculation.
+- Kept downstream display token rewriting aligned to model display prices and user group display-rate scaling only.
+- Added regression coverage so equal real/display prices produce a no-op multiplier even when legacy account rate data is high.
+
+## [2026-06-01] fix: stabilize InvokeAI local frontend entrypoint
+
+**Affected files**: E:\cursor project\InvokeAI\scripts\dev-stack.ps1, E:\cursor project\InvokeAI\invokeai\app\api_app.py, E:\cursor project\InvokeAI\invokeai\frontend\web\src\i18n.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\app\store\enhancers\reduxRemember\driver.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\app\components\AppErrorBoundaryFallback.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\common\components\Loading\Loading.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\common\components\InformationalPopover\constants.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\components\Notifications.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\system\components\InvokeAILogoComponent.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\system\components\AboutModal\AboutModal.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\nodes\components\sidePanel\workflow\WorkflowLibrary\WorkflowListItem.tsx, E:\cursor project\InvokeAI\AGENTS.md
+**Upstream compatibility**: local development behavior only, except frontend static asset imports are made compatible with current Vite.
+**Change details**:
+- Made the managed local backend set `INVOKEAI_DEV_FRONTEND_URL`; when present, backend `/` redirects to `http://127.0.0.1:15175` instead of serving the bundled UI, while API routes on port 9090 continue to work.
+- Replaced Vite 7-incompatible imports from `public/...` with public URL references and switched i18n to the existing HTTP backend path.
+- Sorted touched frontend imports so the Vite ESLint overlay no longer blocks the local UI during development.
+- Allowed unauthenticated client-state persistence reads/writes to no-op instead of blocking Redux rehydration, fixing the local 15175 page getting stuck on `Loading` before the login screen.
+- Verified `pnpm run lint:tsc`, `ruff check invokeai/app/api_app.py`, `http://127.0.0.1:9090/` redirecting with 307, and `http://127.0.0.1:15175/` rendering the login page in the browser.
+
+## [2026-06-01] fix: expose OpenAI Images upstream 400 errors
+
+**Affected files**: backend/internal/handler/openai_images.go, backend/internal/service/openai_images_context.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/error_passthrough_runtime_test.go, docs/dev/codebase/gateway.md
+**Upstream compatibility**: scoped OpenAI Images error mapping change; generic OpenAI Responses, Chat Completions, Anthropic, and Gemini gateway error masking remains unchanged.
+**Change details**:
+- Added an explicit Gin context marker for parsed `/v1/images/generations` and `/v1/images/edits` requests.
+- Changed OpenAI gateway error handling so Images upstream 400 user errors return downstream 400 with the upstream `error.message` and `error.type` instead of generic 502.
+- Kept the behavior independent of `OPENAI_IMAGE_TRACE_LOG`, which remains only an opt-in timing diagnostic.
+- Added regression coverage for an upstream invalid image size error such as `4096x1752` not being divisible by 16.
+
 ## [2026-05-31] feat: user-level downstream usage token mode
 
 **Affected files**: backend/ent/schema/user.go, backend/migrations/145_add_user_downstream_usage_token_mode.sql, backend/internal/service/display_token_rewrite.go, backend/internal/handler/gateway_handler.go, backend/internal/service/api_key_auth_cache*.go, backend/internal/handler/admin/user_handler.go, frontend/src/components/admin/user/UserEditModal.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/{zh,en}.ts
@@ -924,6 +1606,16 @@
 - Added production Caddy vhost `invokeai.172.245.247.80.sslip.io` reverse-proxying to loopback-only InvokeAI at `127.0.0.1:9090`.
 - Verified public HTTPS access and `/api/v1/auth/status`; Caddy obtained a Let's Encrypt certificate automatically.
 - Documented the public debug URL without recording any InvokeAI admin password or API key.
+
+## [2026-05-31] fix: canonicalize OpenAI compact model aliases before billing
+
+**Affected files**: backend/internal/service/openai_model_alias.go, backend/internal/service/openai_codex_transform.go, backend/internal/service/pricing_service.go, backend/internal/service/billing_service.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/pricing_service_test.go, backend/internal/service/billing_service_test.go
+**Upstream compatibility**: minimal upstream alias-normalization backport; low risk, pricing/billing lookup only
+**Change details**:
+- Added shared OpenAI/Codex model alias canonicalization so compact or namespaced spellings such as `gpt5.5` and `openai/gpt5.5` resolve to `gpt-5.5` before transform, static pricing, and billing fallback lookup.
+- Preserved local GPT-5.5 Pro pricing by resolving `gpt5.5-pro` to `gpt-5.5-pro` before the generic GPT-5.5 fallback.
+- Added unit coverage for compact GPT-5.5, GPT-5.4, and GPT-5.3 Codex aliases plus pricing fallback behavior.
+- Verification: targeted service tests pass; full `go test -tags=unit ./...` still fails in pre-existing server constructor, admin handler, and Antigravity mapping tests unrelated to this patch.
 
 ## [2026-05-30] feat: enable InvokeAI API-only multi-image queue concurrency
 
@@ -999,6 +1691,25 @@
 - Added `claude-opus-4-8` to the Kiro provider model list.
 - Added the Kiro upstream mapping `claude-opus-4-8 -> claude-opus-4.8`.
 - Added a 1,000,000 token context window entry for Opus 4.8 and restarted the local dev stack.
+
+## [2026-05-29] fix: validate EasyPay API base URL
+
+**Affected files**: backend/internal/payment/provider/easypay.go, backend/internal/payment/provider/easypay_refund_test.go, frontend/src/views/user/paymentUx.ts, frontend/src/views/user/__tests__/paymentUx.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk; rejects invalid EasyPay runtime configuration earlier
+**Change details**:
+- Added EasyPay `apiBase` validation so enabled instances must use an absolute `http(s)` URL and cannot save values like `11` that later become `11/mapi.php`.
+- Kept endpoint-path normalization for valid EasyPay URLs such as `/mapi.php`, `/submit.php`, and `/api.php`.
+- Stopped mapping provider misconfiguration errors to the generic WeChat unavailable prompt, allowing the real configuration error to surface.
+
+## [2026-05-29] fix: repair WeChat Pay mobile QR fallback
+
+**Affected files**: backend/internal/handler/payment_handler.go, backend/internal/service/payment_order.go, backend/internal/service/payment_service.go, backend/internal/service/payment_order_result_test.go, frontend/src/components/payment/paymentFlow.ts, frontend/src/components/payment/__tests__/paymentFlow.spec.ts, frontend/src/types/payment.ts, frontend/src/views/user/PaymentView.vue, frontend/src/views/user/__tests__/PaymentView.spec.ts, docs/dev/codebase/payment.md
+**Upstream compatibility**: low risk; scoped to official WeChat checkout request routing and mobile QR fallback
+**Change details**:
+- Added explicit `is_wechat_browser` request context so the backend can honor frontend overrides instead of always trusting the WeChat User-Agent.
+- Added `force_native_qr` for WeChat mobile fallback; when set, backend clears OpenID/mobile/WeChat context after resume-token restoration so the order uses Native QR instead of returning OAuth/JSAPI again.
+- Preserved `wechat_resume_token` on the fallback request so OAuth callback orders keep their original amount, order type, and plan context.
+- Added frontend and backend regression coverage for the WeChat mobile fallback request shape and force-native normalization.
 
 ## [2026-05-28] docs: clarify new-api sibling subproject relationship
 
@@ -1102,6 +1813,43 @@
 - Added an application-page explanation of the agent model, covering low-cost supply, fast delivery, and asset/customer management benefits.
 - Replaced the approved-state application record card with an agent usage guide and kept the application record visible only for non-approved states.
 
+## [2026-05-25] docs: expand Codex Desktop tutorial setup
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Replaced the terse Codex Desktop installation note with actionable download, platform selection, and installation guidance.
+- Clarified that ZeroCode setup should use CC-Switch first, then restart Codex Desktop so it reads the shared `.codex/config.toml` and `.codex/auth.json` files.
+- Added an explicit jump from the Codex Desktop install section to the existing `4.3.1` CC-Switch configuration flow.
+
+## [2026-05-25] docs: align Codex tutorial structure with Claude Code chapter
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Reworked chapter 4 into separate `CLI 版本：安装与配置` and `Desktop 桌面版：安装与配置` sections, matching chapter 3's version-based tutorial structure.
+- Moved Codex CLI installation, CC-Switch setup, manual configuration, WebSocket option, and verification into one CLI flow.
+- Added a full Codex Desktop flow for install, CC-Switch configuration, local project startup, and Desktop-specific troubleshooting.
+
+## [2026-05-25] docs: make API Keys CCS import the primary setup path
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Updated Claude Code CLI, Codex CLI, and Codex Desktop setup flows to use the API Keys page `导入到 CCS` action as the primary configuration method.
+- Clarified that the API Keys import action maps Anthropic groups to Claude Code, OpenAI groups to Codex, and Gemini groups to Gemini CLI.
+- Reframed manual file copying and the `使用` modal as fallback paths; Claude Code Desktop remains the manual application-level setup path.
+
+## [2026-05-25] feat: restrict distribution API key groups
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/service/api_key_service.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/service/domain_constants.go, backend/internal/service/setting_service.go, frontend/src/views/admin/DistributionView.vue, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: distribution settings/API behavior change; existing unset configs now expose no API key groups to agents
+**Change details**:
+- Added `distribution_api_key_group_ids` Settings KV to let admins select active standard groups exposed to distribution agents.
+- Added `GET /api/v1/distribution/api-key-groups` and changed the agent page to use it instead of `/groups/available`.
+- Enforced the whitelist in distribution API key generation and added a distribution-specific key creation path so the whitelist, not the agent user's own group permissions, is the permission source.
+- Added admin UI multi-select, i18n strings, and distribution module documentation.
+
 ## [2026-05-24] fix: hide user-facing cache-write usage display
 
 **Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/components/user/usage/UsageMetricTrendChart.vue, frontend/src/components/user/dashboard/UserDashboardStats.vue, frontend/src/components/user/dashboard/UserDashboardCharts.vue, frontend/src/components/charts/TokenUsageTrend.vue, frontend/src/views/KeyUsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
@@ -1159,6 +1907,24 @@
 - Added a dedicated gpt-image-2 image generation card with Chinese and English copy and highlight terms.
 - Increased card spacing, minimum height, icon size, and copy rhythm so the left panel reads less crowded.
 
+## [2026-05-23] fix: compact subscription purchase layout
+
+**Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue
+**Upstream compatibility**: frontend-only layout density change; subscription order flow unchanged
+**Change details**:
+- Compressed the active-subscription area into a compact horizontal summary so it no longer dominates the subscription tab.
+- Changed subscription plan browsing to a denser 3-column desktop grid.
+- Reduced plan card height, price scale, quota spacing, and feature rows so the desktop view can show at least six plans at once.
+
+## [2026-05-23] refactor: restore purchase page tab layout
+
+**Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only layout change; payment APIs and order flow unchanged
+**Change details**:
+- Restored the purchase page to a unified tab layout with separate recharge and subscription tabs across desktop and mobile.
+- Relaxed the recharge flow into account, bonus, amount/method, and credit-summary sections instead of a tight two-column checkout.
+- Relaxed subscription plan cards and the subscription confirmation flow with wider cards, larger price treatment, expanded quota/features, and active-subscription summary cards.
+
 ## [2026-05-22] fix: prevent production deploy from restarting with upstream image
 
 **Affected files**: deploy/docker-compose.yml, deploy/.env.example, deploy/update.sh, docs/dev/PRODUCTION_CUSTOM_IMAGE_DEPLOY.md
@@ -1169,6 +1935,16 @@
 - Forced Sub2API container recreation on main-app deploys so Docker Compose cannot reuse a container created from an older image ID.
 - Added post-deploy image-name and image-ID verification so deployments fail and rollback if Compose starts a different image than the one just built.
 - Documented that production deployments must verify both health and the running `sub2api` image.
+
+## [2026-05-22] feat: add admin subscription quota adjustment
+
+**Affected files**: backend/internal/service/subscription_service.go, backend/internal/service/user_subscription_port.go, backend/internal/repository/user_subscription_repo.go, backend/internal/handler/admin/subscription_handler.go, backend/internal/server/routes/admin.go, frontend/src/views/admin/SubscriptionsView.vue, frontend/src/api/admin/subscriptions.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: admin-only feature; preserves existing subscription quota data model
+**Change details**:
+- Added `POST /api/v1/admin/subscriptions/:id/adjust-quota` to set daily, weekly, and/or monthly used quota values for a user subscription.
+- Invalidates subscription billing caches after manual quota adjustments so gateway eligibility uses the updated usage immediately.
+- Added an admin subscription-management dialog for target remaining quota or target used quota, with zh/en UI strings.
+- Added unit coverage for selected usage updates and invalid input handling.
 
 ## [2026-05-19] ops(aiclient2api): align production deploy with CI-built image flow
 
@@ -1207,6 +1983,24 @@
 - Documented the current finding that the successful local baseline spent nearly all server-side time waiting for upstream image result/body data.
 - Linked the progress document from the architecture navigation and gateway module index so it is reachable from the documentation root.
 
+## [2026-05-18] feat: add opt-in OpenAI image timing trace logs
+
+**Affected files**: backend/internal/handler/openai_images.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_image_trace.go, backend/internal/service/openai_images.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_images_test.go, docs/dev/codebase/gateway.md
+**Upstream compatibility**: low risk; disabled by default and scoped to `/v1/images/generations` with `model=gpt-image-2`
+**Change details**:
+- Added `OPENAI_IMAGE_TRACE_LOG=true` gated structured events for image request timing: request received, auth done, account slot acquired, upstream start/headers/body done, downstream response built/write done, and usage task submitted.
+- Kept trace fields limited to safe correlation and timing values; prompts, image/base64 payloads, auth headers, cookies, API keys, and full request bodies are not logged.
+- Covered trace gating and safe fields with focused unit coverage, and documented the temporary diagnostic workflow in the gateway module notes.
+
+## [2026-05-18] fix: align OpenAI OAuth image forwarding headers with account test path
+
+**Affected files**: backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go
+**Upstream compatibility**: low risk; scoped to OAuth-backed OpenAI image generation/edit forwarding
+**Change details**:
+- Changed OAuth image forwarding to build a dedicated Codex `/responses` upstream request matching the successful account-test image path.
+- Stopped propagating third-party client `User-Agent`, `originator`, `session_id`, and `conversation_id` headers into image OAuth upstream requests; default User-Agent now falls back to Codex CLI when the account has no custom UA.
+- Added coverage proving OAuth image forwarding sends `originator=opencode`, Codex CLI UA, and no session/conversation headers.
+
 ## [2026-05-17] docs(poc): link InvokeAI canvas validation setup
 
 **Affected files**: `docs/dev/codebase/README.md`, `docs/dev/codebase/invokeai-poc.md`
@@ -1215,6 +2009,34 @@
 - Documented the external InvokeAI source checkout and runtime root used for the canvas PoC.
 - Recorded the intended integration flow: InvokeAI runs independently on port 9090 and calls Sub2API's OpenAI-compatible image API on port 18081.
 - Captured local startup command, API key placeholder, and known PoC pitfalls for `gpt-image-2` validation.
+
+## [2026-05-17] feat: InvokeAI per-user external OpenAI provider config
+
+**Affected files**: E:\cursor project\InvokeAI\invokeai\app\api\routers\app_info.py, E:\cursor project\InvokeAI\invokeai\app\services\user_external_provider_configs\, E:\cursor project\InvokeAI\invokeai\app\services\external_generation\providers\openai.py, E:\cursor project\InvokeAI\invokeai\app\invocations\external_image_generation.py, E:\cursor project\invokeai-sub2api-poc\invokeai.yaml, docs/dev/codebase/invokeai-poc.md
+**Upstream compatibility**: external InvokeAI checkout change; Sub2API runtime unchanged
+**Change details**:
+- Enabled InvokeAI PoC multiuser mode and strict password checking in the runtime config.
+- Added InvokeAI SQLite migration/service for per-user external provider credentials, with OpenAI generation resolving API key/base URL from the current queue item's user.
+- Kept single-user `api_keys.yaml` compatibility and documented that multiuser config deletion does not remove shared external model records.
+
+## [2026-05-17] chore: add InvokeAI local dev-stack script
+
+**Affected files**: E:\cursor project\InvokeAI\scripts\dev-stack.ps1, E:\cursor project\InvokeAI\scripts\dev-stack.cmd, E:\cursor project\InvokeAI\.gitignore, docs/dev/codebase/invokeai-poc.md
+**Upstream compatibility**: external InvokeAI checkout tooling change; Sub2API runtime unchanged
+**Change details**:
+- Added an InvokeAI local process script with start/restart/stop/status actions, fixed runtime root, fixed `127.0.0.1:9090`, hidden background process launch, process state tracking, and logs under `tmp/dev-stack/logs`.
+- The script enforces multiuser config values and writes `invokeai.yaml` as UTF-8 without BOM to avoid Windows GBK decode failures.
+- Verified `restart` starts InvokeAI and `status` reports the managed process listening on port 9090.
+
+## [2026-05-17] feat: disable InvokeAI setup with built-in admin for local PoC
+
+**Affected files**: E:\cursor project\InvokeAI\invokeai\app\api\dependencies.py, E:\cursor project\InvokeAI\invokeai\app\api\routers\auth.py, E:\cursor project\InvokeAI\invokeai\app\services\config\config_default.py, E:\cursor project\InvokeAI\invokeai\app\services\users\users_common.py, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\auth\components\LoginPage.tsx, E:\cursor project\InvokeAI\scripts\dev-stack.ps1, docs/dev/codebase/invokeai-poc.md
+**Upstream compatibility**: external InvokeAI checkout behavior change for the local PoC
+**Change details**:
+- Added built-in administrator config and startup enforcement so local InvokeAI creates/repairs `admin` / `admin123`.
+- Disabled the public `/api/v1/auth/setup` path when built-in admin mode is enabled, while keeping normal login available.
+- Updated the login field to accept the `admin` username and verified `/status`, `/setup`, and `/login` behavior against the running local service.
+- Removed the frontend `/setup` page entry from the built UI so direct browser access to `http://127.0.0.1:9090/setup` no longer shows the administrator creation form.
 
 ## [2026-05-15] fix(gateway): preserve Anthropic web search beta
 
@@ -1251,6 +2073,7 @@
 - Displayed subscription redeem success with the returned subscription group name and validity days when available.
 - Removed button-like type labels from the redeem form so the hint stays informational.
 - Aligned frontend redeem API types with the backend response fields for subscription codes.
+
 ## [2026-05-15] fix: align distribution asset generation
 
 **Affected files**: backend/internal/service/distribution.go, backend/internal/handler/distribution_handler.go, backend/internal/repository/distribution_repo.go, backend/ent/schema/redeem_code.go, backend/ent/migrate/schema.go, backend/migrations/142_expand_redeem_code_length.sql, backend/cmd/server/wire_gen.go, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts
@@ -1268,7 +2091,6 @@
 **Change details**:
 - Closed the `UPDATE ... RETURNING` result set before inserting the distribution wallet ledger row in admin balance adjustment.
 - Prevents PostgreSQL transaction/driver errors caused by executing the ledger insert while the previous result set is still open.
-
 
 ## [2026-05-15] fix: prevent distribution wallet balance adjustment panic
 
@@ -1333,6 +2155,81 @@
 - Recorded the tokenless `origin` remote URL convention for `541968679/sub2api`.
 - Added rotation guidance for removing or replacing the stored GitHub credential.
 
+## [2026-05-14] feat: 鐢ㄦ埛渚у浘鐗囦娇鐢ㄨ褰曞睍绀哄昂瀵镐笌璐ㄩ噺
+
+**Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk, user usage UI/export display only
+**Change details**:
+- Updated user usage image rows to show image count, requested image size, and requested image quality without exposing billing tiers or pricing formulas.
+- Added image count, image size, and image quality columns to the user CSV usage export.
+- Added Chinese and English i18n labels for image size and image quality.
+- Verified with `pnpm run typecheck`.
+
+## [2026-05-14] chore: document local dev-stack startup
+
+**Affected files**: AGENTS.md, DEV_GUIDE.md, backend/.air.toml, scripts/dev-stack.ps1, scripts/dev-stack.cmd, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: local development tooling and docs only; production runtime unchanged
+**Change details**:
+- Documented the local port convention for backend `18081` and frontend `15174`.
+- Added an `air` hot-reload config for local backend development.
+- Added Windows `dev-stack` wrappers for consistent local start/restart/stop workflows.
+- Kept production deployment ports independent from local development ports.
+
+## [2026-05-14] fix: display pricing usage token rewrite
+
+**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/gateway_service.go, backend/internal/service/antigravity_gateway_service.go
+**Upstream compatibility**: scoped to user-facing usage token display transforms; actual billing cost is unchanged
+**Change details**:
+- Computes effective display token multipliers from account rate, user group rate, display rate, and model display prices.
+- Rewrites Claude/Antigravity streaming and non-streaming usage token fields so user-visible token counts align with display pricing.
+- Leaves actual billing and stored actual cost based on the existing real pricing path.
+- Verified by backend compile through targeted unit tests and frontend build.
+
+## [2026-05-14] fix: 绐佸嚭鍥剧墖璐ㄩ噺鍗曚环閰嶇疆鍏ュ彛
+
+**Affected files**: frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk, admin model pricing UI only
+**Change details**:
+- Made the `low` / `medium` / `high` / `auto` image quality price fields a labeled subsection under megapixel image billing.
+- Clarified that empty quality prices fall back to the default megapixel price.
+- Verified with `pnpm run typecheck`.
+
+## [2026-05-14] feat: 鍥剧墖妗ｄ綅璁¤垂鏀寔 quality 涔樻暟
+
+**Affected files**: backend/internal/service/image_billing.go, backend/internal/service/image_billing_test.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/model_pricing_resolver.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/repository/global_model_pricing_repo.go, backend/migrations/137_add_image_quality_multipliers.sql, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: additive DB/API/UI change; existing tier pricing remains unchanged when multipliers are unset
+**Change details**:
+- Added `image_quality_multipliers` for tier image billing so the matched `1K/2K/4K` price can be multiplied by `low/medium/high/auto`.
+- Defaulted omitted/unknown image quality to `auto`, and left the effective multiplier at `1.0` unless an administrator configures a multiplier.
+- Kept `image_quality_prices` as megapixel-mode USD/MP overrides; tier mode now uses the separate multiplier map.
+- Added admin UI fields for quality multipliers under image tier billing, with `auto` defaulting to `1`.
+- Verified with `go test -tags=unit ./internal/service -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, `go test -tags=unit ./internal/handler/admin -run "ModelPricing"`, `go test -tags=unit ./internal/service ./internal/repository -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, and `pnpm run typecheck`.
+- Full `go test -tags=unit ./internal/handler/admin ./internal/repository` still has an unrelated existing failure in `TestAccountHandlerGetAvailableModels_OpenAIOAuthUsesExplicitModelMapping` where the test expects 1 model but receives 13.
+
+## [2026-05-14] feat: add first-stage distribution system
+
+**Affected files**: backend/migrations/139_add_distribution_agents.sql, backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/{user,admin}.go, frontend/src/views/{user,admin}/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: medium risk; adds a new domain, tables, routes, DI providers, and frontend pages.
+**Change details**:
+- Added distribution agent application, admin review, independent wallet schema, and wallet ledger schema.
+- Added user APIs for distribution summary, application submission, and wallet ledger viewing.
+- Added admin APIs for listing and reviewing distribution applications.
+- Added user/admin frontend pages and sidebar/router entries for distribution.
+- Documented the distribution module and first-release scope.
+- Deferred recharge discount, redeem-code generation, API key package generation, and subscription coupon cashback until business rules are confirmed.
+
+## [2026-05-14] feat: extend distribution system with generation and wallet management
+
+**Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/server/routes/admin.go, backend/internal/service/domain_constants.go, backend/internal/service/setting_service.go, backend/internal/service/user_service.go, backend/internal/repository/api_key_repo.go, backend/internal/repository/redeem_code_repo.go, backend/internal/repository/group_repo.go, backend/internal/repository/user_repo.go, backend/cmd/server/wire_gen.go, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/distribution.md
+**Upstream compatibility**: additive feature expansion; existing application/review flow preserved
+**Change details**:
+- Added distribution settings stored in Settings KV: RMB-per-USD generation ratio and subscription-code discount ratio.
+- Reworked distribution wallet semantics to use RMB balance as the displayed/recorded unit.
+- Added user-side generation flows for balance redeem codes, subscription redeem codes, and fixed-quota API keys.
+- Added admin wallet controls for settings, wallet listing, freeze/unfreeze, manual adjustment, and ledger review.
+- Wired generation paths through transactions so wallet deduction and generated assets commit together.
+- Updated user and admin distribution views to expose the new controls and generation results.
+
 ## [2026-05-12] feat(aiclient2api): Kiro 鍙嶄唬缂撳瓨浼扮畻涓?conversationId 绋冲畾鍖?
 
 **褰卞搷鑼冨洿**: `aiclient2api/src/providers/claude/claud*: 鏃犲啿绐侊紙aiclient2api 鏄嫭绔?fork锛?
@@ -1395,6 +2292,44 @@
 - 瀵规帴璺緞锛歴ub2api Anthropic API Key 璐﹀彿 鈫?`base_url` 鎸囧悜 `http://{A2鍦板潃}:3000/claude-kiro-oauth` 鈫?AIClient2API 杞彂鑷?Kiro 涓婃父
 - 鏂板 `docs/dev/KIRO_PROXY.md` 鏂囨。璁板綍瀹屾暣瀵规帴鏂规
 
+## [2026-05-10] docs: document Kiro Gateway sidecar integration
+
+**Affected files**: docs/dev/codebase/kiro-gateway.md, docs/dev/codebase/README.md
+**Upstream compatibility**: docs-only; records a local sidecar integration without merging external code
+**Change details**:
+- Added a Kiro Gateway sidecar module note for `E:\cursor project\kiro-gateway`, including local startup commands and Sub2API Anthropic API Key account mapping.
+- Documented that Kiro Gateway account management is file-based through `credentials.json`, and that startup requires at least one valid Kiro account.
+- Recorded the current local blocker: detected Kiro IDE credential file exists, but token refresh returns 401 and must be refreshed before the service can stay running.
+
+## [2026-05-08] fix: reuse Antigravity token provider for quota probes
+
+**Affected files**: backend/internal/service/antigravity_quota_fetcher.go, backend/internal/service/antigravity_quota_fetcher_test.go, backend/internal/service/wire.go, backend/cmd/server/wire_gen.go, docs/dev/codebase/account.md
+**Upstream compatibility**: low risk, Antigravity account status/usage probe fix only
+**Change details**:
+- Changed Antigravity quota/AI Credits probes to resolve OAuth access tokens through `AntigravityTokenProvider` instead of reading `credentials.access_token` directly.
+- Kept setup-token and upstream account fallback behavior, while allowing OAuth probes to run when only `refresh_token` is present.
+- Updated Wire provider wiring so `AntigravityQuotaFetcher` is constructed with the shared token provider, matching model test and gateway request token lifecycle.
+- Added focused unit coverage for provider-backed token resolution and refresh-token-only OAuth probe eligibility.
+
+## [2026-05-08] fix: pin pnpm in Docker builds
+
+**Affected files**: Dockerfile, deploy/Dockerfile
+**Upstream compatibility**: build-only fix; runtime behavior unchanged
+**Change details**:
+- Pinned Docker build pnpm installation to `pnpm@9.15.9` instead of `pnpm@latest`.
+- Avoided pnpm 10/11 `approve-builds` behavior breaking non-interactive Docker builds when esbuild/vue-demi postinstall scripts are needed.
+- Verified a full local Docker image build succeeds with the pinned pnpm version.
+
+## [2026-05-08] fix: prevent Antigravity OAuth false auth errors on Chat Completions
+
+**Affected files**: backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/service/gateway_service.go, backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, backend/internal/service/gateway_multiplatform_test.go, docs/dev/codebase/gateway.md, docs/dev/codebase/account.md, docs/dev/codebase/README.md
+**Upstream compatibility**: medium risk; changes gateway account selection for `/v1/chat/completions` compatibility requests and OAuth 401 state handling.
+**Change details**:
+- Production logs showed one `/v1/chat/completions` request on 2026-05-08 12:41:40 selected Antigravity accounts 145, 146, and 144 in sequence, received upstream 401 `Invalid bearer token`, and marked them error while `/antigravity/v1/messages` was still succeeding.
+- Added a context flag that disables Antigravity mixed scheduling for the Anthropic Chat Completions compatibility path, so that path only selects native Anthropic accounts until an Antigravity-specific Chat Completions conversion exists.
+- Changed OAuth 401 handling so Antigravity OAuth accounts follow the same cache invalidation, forced refresh, and temporary-unschedulable path as other OAuth accounts instead of permanent `SetError`.
+- Added regression coverage for mixed-scheduling isolation and updated the OAuth 401 expectations.
+
 ## [2026-05-07] fix(frontend): 璁㈤槄濂楅浠锋牸绗﹀彿 $ 鈫?楼
 
 **褰卞搷鑼冨洿**: `frontend/src/components/payment/SubscriptionPlanCard.vue`, `frontend/src/views/admin/orders/AdminPaymentPlansView.vue`
@@ -1403,6 +2338,151 @@
 - 淇璁㈤槄濂楅鍗＄墖浠锋牸鍜屽垝绾垮師浠锋樉绀?`$` 鑰岄潪 `楼` 鐨勯棶棰橈紙濂楅浠锋牸鏄汉姘戝竵锛?
 - 淇绠＄悊鍚庡彴濂楅鍒楄〃椤典环鏍煎垪鍚屾牱鐨?`$` 鈫?`楼` 閿欒
 - 娉ㄦ剰鍖哄垎锛氬椁愪环鏍硷紙price/original_price锛変负 CNY 鐢?`楼`锛涚敤閲忛檺棰濓紙daily_limit_usd 绛夛級涓?USD 鐢?`$`
+
+## [2026-05-07] fix: avoid permanent error on setup-token 401
+
+**Affected files**: backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, docs/dev/codebase/account.md
+**Upstream compatibility**: low risk, OAuth error-policy bug fix
+**Change details**:
+- Changed 401 handling to treat `setup-token` accounts as OAuth-like accounts via `account.IsOAuth()`, matching gateway credential routing.
+- A first 401 for setup-token accounts now invalidates token state and marks the account temporarily unschedulable instead of immediately setting `status=error`.
+- Added unit coverage for Anthropic setup-token `Invalid bearer token` responses.
+
+## [2026-05-07] docs: 浼樺寲 Codex 鎺ュ叆鏁欑▼
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Renamed chapter 4 from "OpenAI Codex CLI 鎺ュ叆鎸囧崡" to "Codex 鎺ュ叆鎸囧崡".
+- Clarified that Codex CLI and Codex desktop share the same `.codex/config.toml` and `.codex/auth.json` files, so CC-Switch can manage both with one configuration.
+- Removed the WSL2-based Windows installation path and simplified Windows setup to native Node.js/npm installation.
+
+## [2026-05-07] docs: 璋冩暣鏁欑▼骞冲彴椤哄簭骞剁Щ闄?Linux 瀹夎閰嶇疆
+
+**Affected files**: docs/API_USAGE.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Reordered tutorial installation and configuration platform instructions to Windows first, then macOS.
+- Removed Linux-specific installation/configuration paths and commands from Claude Code and Codex setup sections.
+- Updated screenshot notes and platform selectors to reference only Windows and macOS.
+
+<!--
+绀轰緥鏉＄洰锛?
+
+## [2026-05-06] chore: add read-only Antigravity usage audit script
+
+**Affected files**: tools/audit_antigravity_usage.py
+**Upstream compatibility**: low risk, standalone tooling only
+**Change details**:
+- Added a psql-based read-only audit script for Antigravity usage mismatch investigations.
+- Reports local usage by account/API key/client, AI Credits snapshot deltas by email, credits-vs-local reconciliation, suspicious API keys with multiple IPs/User-Agents, duplicate request IDs, billing dedup summaries, and missing client attribution fields.
+- Supports `DATABASE_URL` or `--database-url`, explicit `--start`/`--end` windows, and `--sql-only` for review or server-side execution.
+
+## [2026-05-06] feat: add Antigravity per-request AI Credits sampling
+
+**Affected files**: backend/migrations/134_add_antigravity_credit_request_samples.sql, backend/internal/service/antigravity_credit_sampler.go, backend/internal/repository/antigravity_credit_sample_repo.go, backend/internal/service/antigravity_gateway_service.go, backend/internal/service/gateway_service.go, backend/internal/{service,repository}/wire.go, backend/cmd/server/wire_gen.go
+**Upstream compatibility**: low risk when disabled; diagnostic path is gated by `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`
+**Change details**:
+- Added `antigravity_credit_request_samples` to store request-linked before/after AI Credits balances, delta, account/API key/user/request IDs, timestamps, confidence, and fetch errors.
+- Added an Antigravity credit sampler that captures a balance before forwarding and writes request samples after the usage log is persisted.
+- Wired the sampler into Antigravity Claude/Gemini forwarding and Gateway usage recording.
+- Sampling is disabled by default; enable with comma-separated account IDs in `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`.
+- Concurrent requests on the same sampled account can still blur before/after attribution; prefer temporarily low account concurrency for the diagnostic window.
+
+## [2026-05-06] security: rotate local admin password
+
+**Affected files**: local PostgreSQL `users` table, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: no upstream code impact; local credential rotation only
+**Change details**:
+- Rotated the local administrator password for `admin@sub2api.local` by updating `users.password_hash` in the local `sub2api` database.
+- Verified that the new password matches the stored bcrypt hash.
+- Did not record the plaintext password or password hash in repository files.
+
+## [2026-05-06] fix: avoid IPv6 localhost Caddy upstream failures
+
+**Affected files**: deploy/Caddyfile, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: deployment configuration only; low risk
+**Change details**:
+- Changed the Caddy reverse proxy upstream from `localhost:8080` to `127.0.0.1:8080`.
+- Prevents Caddy from intermittently resolving `localhost` to IPv6 `::1` while Docker publishes Sub2API only on IPv4, which caused `connect: connection refused` 502s during production traffic.
+
+## [2026-05-06] docs: document admin password rotation
+
+**Affected files**: deploy/README.md, deploy/.env.example, docs/dev/SECURITY_OPERATIONS.md, AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Documented that `ADMIN_PASSWORD` is first-run bootstrap only and does not rotate an installed admin account.
+- Added an operational bcrypt-based admin password rotation procedure with `token_version` handling when that column exists.
+- Added a security operations checklist for suspected credential compromise without recording any real password or hash.
+
+## [2026-05-06] feat: add Antigravity credit usage curve
+
+**Affected files**: backend/internal/service/credit_snapshot*.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/handler/admin/usage_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/AntigravityUsageCurveChart.vue, frontend/src/views/admin/UsageView.vue, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: low risk, additive admin-only API and UI
+**Change details**:
+- Added `GET /api/v1/admin/usage/stats/antigravity/curve` to aggregate `ai_credit_snapshots` deltas with Antigravity request count, token count, quota cost, and actual cost by hour/day.
+- Added per-window derived ratios including credits/request, quota/credit, and tokens/credit, plus a simple median-based spike score.
+- Added an admin Usage page line chart comparing AI Credits, requests, tokens, quota cost, and credits/request for the selected time range.
+
+## [2026-05-06] chore: automate Docker disk cleanup after deploy
+
+**Affected files**: deploy/update.sh, deploy/docker-cleanup.sh, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: deployment script only; low risk
+**Change details**:
+- Added post-deploy Docker cleanup for BuildKit cache older than `DOCKER_BUILD_CACHE_MAX_AGE` (default `24h`).
+- Added dangling image cleanup after successful health checks while preserving tagged rollback images.
+- Logs post-cleanup Docker disk usage to `/opt/sub2api/deploy.log`.
+- Added a reusable daily cleanup script for cron/system scheduling.
+
+## [2026-05-06] fix: repair Antigravity credit curve bucket matching
+
+**Affected files**: backend/internal/service/credit_snapshot_service.go
+**Upstream compatibility**: low risk, aggregation bug fix only
+**Change details**:
+- Changed Antigravity credit curve bucket lookup keys from `time.Time` values to Unix seconds so PostgreSQL timestamp locations and request time locations still match the same hour/day window.
+
+## [2026-05-06] fix: align Antigravity credit curve usage buckets to app timezone
+
+**Affected files**: backend/internal/repository/antigravity_usage_aggregator.go
+**Upstream compatibility**: low risk, aggregation bug fix only
+**Change details**:
+- Changed Antigravity usage window aggregation to truncate `usage_logs.created_at` in the configured application timezone before returning buckets, matching the credit snapshot curve buckets.
+
+## [2026-05-06] fix: include historical Antigravity accounts in usage curve
+
+**Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
+**Upstream compatibility**: low risk, aggregation bug fix only
+**Change details**:
+- Changed Antigravity request/cost/token aggregation to join `usage_logs` with `accounts.platform='antigravity'` instead of filtering by the currently active account ID list.
+- Restored historical request counts for soft-deleted or rotated Antigravity accounts so credit curve windows match historical usage logs.
+
+## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
+
+**Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
+**Upstream compatibility**: low risk, aggregation-only display fix
+**Change details**:
+- Changed Antigravity credit snapshot deltas to be attributed across the interval between the previous and current snapshot instead of assigning all credits to the current snapshot bucket.
+- Weighted credit attribution by hourly usage cost, then actual cost, tokens, and call count, with a snapshot-bucket fallback for intervals without usage.
+- Added unit coverage for weighted interval attribution and no-usage fallback behavior.
+
+## [2026-05-06] docs: document Antigravity credit cost analysis
+
+**Affected files**: docs/dev/ANTIGRAVITY_CREDIT_COST_ANALYSIS_2026-05-06.md
+**Upstream compatibility**: docs-only; no runtime behavior changes
+**Change details**:
+- Documented the production analysis explaining why balance revenue per Antigravity AI Credit fell after cache-heavy traffic increased.
+- Recorded period, daily, user-level, model-level, and same-day metrics used to distinguish cache-read pricing effects from account leakage.
+- Added follow-up recommendations for Antigravity-specific pricing calibration and leakage alerts.
+
+## [2026-05-06] fix: shift cache display premium into input display
+
+**Affected files**: backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/handler/admin/user_model_pricing_handler.go, backend/internal/handler/admin/usage_handler.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/user_model_pricing.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/repository/user_model_pricing_repo.go, frontend/src/api/admin/modelPricing.ts, frontend/src/api/admin/userModelPricing.ts, frontend/src/api/admin/usage.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/components/admin/user/UserModelPricingModal.vue, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: display/API/UI behavior change; DB columns retained for rollback compatibility
+**Change details**:
+- Changed user-facing model display pricing so cache-read tokens stay at the real token count and cache-read cost uses `display_cache_read_price`.
+- Moves positive cache-read premium into displayed input cost/tokens only when both `display_cache_read_price` and `display_input_price` are configured; otherwise cache-read usage display remains real. `actual_cost` and `rate_multiplier` remain unchanged.
+- Soft-deprecated `cache_transfer_ratio`: backend no longer reads/writes it, admin/user pricing APIs no longer expose it, and frontend forms/compare drawer no longer render it. Existing DB columns remain.
+- Added DTO unit coverage for cache premium transfer, missing display input price fallback, and display map behavior.
 
 ## [2026-05-04] fix(frontend): 鍏呭€艰闃呴〉闈?UI 浼樺寲
 
@@ -1669,6 +2749,17 @@
 
 ---
 
+## [2026-04-20] fix: 淇 Gemini 璐︽埛 OAuth 鍒锋柊 Token 瓒呮椂
+
+**褰卞搷鑼冨洿**: backend/internal/service/account.go
+**涓婃父鍏煎鎬?*: 鍙兘涓庝笂娓稿悓鍖哄煙淇敼鍐茬獊锛屽悎骞舵椂娉ㄦ剰
+**鍙樻洿璇︽儏**:
+- OAuth token refresh 瓒呮椂浠?10s 鏀逛负 30s
+- 鏂板閲嶈瘯閫昏緫锛堟渶澶?3 娆★紝鎸囨暟閫€閬匡級
+
+**鍏宠仈 Issue/PR**: 鏃狅紙绾夸笂鎺掓煡鍙戠幇锛?
+-->
+
 ## [2026-04-19] feat(admin/usage): "鐢ㄦ埛瑙嗚瀵规瘮"鎶藉眽鍓嶇娈?
 
 **褰卞搷鑼冨洿**:
@@ -1704,76 +2795,6 @@
 - 涓嶅姩鐜版湁鍒楄〃鏌ヨ閫昏緫鈥斺€擿AdminUsageLog.DisplayFields` 浠嶆寜鍏ㄥ眬 displayMap 绠楋紙淇濇寔鍚戝悗鍏煎锛?
 - 宸叉湰鍦?`go run ./cmd/server` 楠岃瘉璺敱姝ｇ‘娉ㄥ唽銆丟in 鏃?radix 鍐茬獊 panic
 - 鍓嶇鍏ュ彛涓庢娊灞?UI 寰呬笅涓€娈垫彁浜?
-
-## [2026-04-18] fix(settings): 鐧诲綍椤典环鏍煎姩鎬佸寲 + 淇鍏呭€肩鐞嗕繚瀛樿娓呯┖娉ㄥ唽绛夎缃?
-
-**褰卞搷鑼冨洿**:
-- `backend/internal/service/settings_view.go` 鈥?`PublicSettings` 鏂板 `PaymentCNYPerUSD float64`
-- `backend/internal/service/setting_service.go` 鈥?`GetPublicSettings` 璇诲彇 `SettingCNYPerUSD`锛沗GetPublicSettingsForInjection` 娉ㄥ叆鍖垮悕缁撴瀯浣撳悓姝ユ柊澧炲瓧娈?
-- `backend/internal/handler/dto/settings.go` 鈥?鍏紑璁剧疆 DTO 鏂板 `payment_cny_per_usd`
-- `backend/internal/handler/setting_handler.go` 鈥?鍦?`GetPublicSettings` 鍝嶅簲閲屽～鍏呮柊瀛楁
-- `frontend/src/types/index.ts` 鈥?`PublicSettings` 鎺ュ彛鏂板 `payment_cny_per_usd: number`
-- `frontend/src/stores/app.ts` 鈥?榛樿绌洪厤缃ˉ榻?`payment_cny_per_usd: 0`
-- `frontend/src/i18n/locales/zh.ts`銆乣en.ts` 鈥?`featurePrice` 鏀逛负甯?`{price}` 鍗犱綅鐨勬ā鏉匡紱鏂板 `featurePriceDefault` 浣滀负鏈厤缃椂鐨勫洖閫€鏂囨
-- `frontend/src/views/auth/LoginView.vue` 鈥?鏂板 `paymentCnyPerUsd` ref锛宍onMounted` 浠庡叕寮€璁剧疆璇诲彇锛沠eature pill 鎸夐厤缃姩鎬佹覆鏌擄紝鏈厤缃洖閫€
-- `frontend/src/api/admin/settings.ts` 鈥?鏂板 `systemSettingsToUpdateRequest(SystemSettings) => UpdateSettingsRequest` 鏄犲皠鍑芥暟锛涙敞鍏?`settingsAPI`
-- `frontend/src/views/admin/RechargeConfigView.vue` 鈥?`save()` 鍏?`getSettings()` 鍐嶆暣浣?`updateSettings(...)`锛屽彧瑕嗙洊 `payment_cny_per_usd` / `payment_bonus_tiers`
-
-**涓婃父鍏煎鎬?*:
-- 鍚庣鏂板瀛楁涓哄彲閫夎拷鍔狅紝鍚堝苟涓婃父鏃惰嫢涓婃父涔熸敼鍔?`PublicSettings` / 鍏紑璁剧疆 handler锛岀暀鎰忓啿绐佷綅缃紙鍧囦负缁撴瀯浣撳熬閮ㄦ垨 return 瀛楁鍒楄〃锛?
-- 鍓嶇鏂板鐨?`systemSettingsToUpdateRequest` 鏄湰鍦颁簩寮€宸ュ叿鍑芥暟锛岀嫭绔嬩簬涓婃父
-
-**鍙樻洿璇︽儏**:
-- Bug 1 鈥?鐧诲綍椤典环鏍肩‖缂栫爜锛歚LoginView` 鍘熷厛娓叉煋 `t('auth.login.featurePrice')` 鐨勯潤鎬佹枃妗?`'0.6 / 1$ 璧?`锛屼笌 admin 鍦?鍏呭€肩鐞?璁剧疆鐨?`payment_cny_per_usd` 瀹屽叏鑴遍挬銆傜幇灏嗚姹囩巼閫氳繃 `/api/v1/settings/public` 鏆撮湶锛堜笌 SSR 娉ㄥ叆璺緞淇濇寔涓€鑷达級锛屽墠绔鍙栧悗浠?`{price} / 1$ 璧穈 妯℃澘娓叉煋锛涗负 0 鎴栨湭閰嶇疆鏃跺洖閫€鍒?`featurePriceDefault` 闈欐€佹枃妗堛€?
-- Bug 2 鈥?"姣忔閮ㄧ讲寮€鏀炬敞鍐岃閲嶇疆"锛氱湡姝ｆ牴鍥犱笉鏄儴缃茶剼鏈€傚悗绔?`UpdateSettingsRequest` 缁濆ぇ澶氭暟 `bool` / `string` 瀛楁鏄?*闈炴寚閽?*锛孞SON 鍙嶅簭鍒楀寲鏃剁己澶卞瓧娈典細琚～ `false` / `""`锛沗RechargeConfigView.save()` 鍙彂 `payment_cny_per_usd` 涓?`payment_bonus_tiers`锛宧andler 缁х画鏋勯€犲畬鏁?`SystemSettings` 骞?`SetMultiple` 鍥炲啓锛屽鑷?`registration_enabled`銆乣site_name`銆丱IDC/LinuxDo 寮€鍏崇瓑琚潤榛樻竻绌恒€備慨澶嶉噰鐢ㄦ渶灏忔敼鍔細`RechargeConfigView` 鍏堟媺瀹屾暣 settings锛岀敤鏂板缓鐨勬槧灏勫嚱鏁拌浆鎴愯姹備綋锛屽啀瑕嗙洊涓や釜 payment 瀛楁鍙戝嚭锛屼娇鍥炲啓鏄?璇绘棫鍊煎啓鏃у€?锛岄伩鍏嶈娓呯┖銆傚嚟鎹被瀛楁锛坄smtp_password` 绛夛級鍦ㄦ槧灏勫嚱鏁颁腑鏁呮剰鐣欑┖锛屽悗绔?绌哄€艰烦杩囪鐩?瀹堟姢缁х画鐢熸晥銆?
-
-**楠岃瘉鏂瑰紡**:
-- `go build ./...` 閫氳繃锛涘墠绔?`pnpm run typecheck` 閫氳繃锛沨andler 鐩稿叧鍗曟祴閫氳繃锛坰ervice 灞傚彈 `gemini_oauth_service_test.go` 棰勫瓨鍦ㄧ殑 mock 鎺ュ彛涓嶅畬鏁村奖鍝嶏紝鏈柊澧炴祴璇曞け璐ワ級
-- 鎵嬪伐锛氬厖鍊肩鐞嗕繚瀛?`cny_per_usd=0.8` 鈫?鐧诲綍椤垫樉绀?`0.8 / 1$ 璧穈锛涘悓鏃剁郴缁熻缃噷"寮€鏀炬敞鍐?绛夊紑鍏充繚鎸佺敤鎴蜂箣鍓嶇殑鍊间笉鍙?
-
-
-**褰卞搷鑼冨洿**:
-- `backend/ent/schema/ai_credit_snapshot.go` 鈥?鏂?Ent schema锛歚AICreditSnapshot { email, credit_type, amount, captured_at }` + 澶嶅悎绱㈠紩
-- `backend/ent/aicreditsnapshot/`銆乣backend/ent/aicreditsnapshot*.go` 鈥?Ent 鐢熸垚浠ｇ爜锛坄go generate ./ent`锛?
-- `backend/migrations/110_add_ai_credit_snapshots.sql` 鈥?寤鸿〃 + `(email, captured_at)` 涓?`(captured_at)` 绱㈠紩
-- `backend/internal/service/credit_snapshot.go` 鈥?`CreditSnapshot` 缁撴瀯銆乣CreditSnapshotRepository`銆乣AntigravityUsageAggregator`銆乣AntigravityUsageRatio` 鍝嶅簲绫诲瀷
-- `backend/internal/service/credit_snapshot_service.go` 鈥?`CreditSnapshotService`锛?5 鍒嗛挓 ticker 瀹氭椂閲囨牱銆乣TriggerManualCapture`锛?0 绉掕繘绋嬪唴鍐峰嵈閿侊級銆乣GetAntigravityUsageRatio`锛堢浉閭婚噰鏍风偣姝ｅ悜 delta 姹傚拰 + `usage_logs` 鑱氬悎锛?
-- `backend/internal/repository/credit_snapshot_repo.go` 鈥?鍩轰簬 Ent 鐨勪粨搴撳疄鐜帮紙Insert/ListInRange/GetLatestBefore锛?
-- `backend/internal/repository/antigravity_usage_aggregator.go` 鈥?鐙珛灏忔帴鍙ｅ疄鐜帮細`SELECT COUNT + SUM(total_cost) FROM usage_logs WHERE account_id = ANY($1) AND created_at 鈭?[start,end)`
-- `backend/internal/handler/admin/usage_handler.go` 鈥?`NewUsageHandler` 鍔?`creditSnapshotService` 渚濊禆锛涙柊澧?`StatsAntigravity` / `RefreshAntigravityStats`锛涙彁鍙?`parseStatsDateRange` 杈呭姪鍑芥暟
-- `backend/internal/handler/admin/{usage_cleanup_handler_test,usage_handler_request_type_test}.go` 鈥?stub 琛ラ綈鏂板弬鏁颁綅 `nil`
-- `backend/internal/server/routes/admin.go` 鈥?`GET /admin/usage/stats/antigravity`銆乣POST /admin/usage/stats/antigravity/refresh`
-- `backend/internal/service/wire.go` 鈥?鏂板 `ProvideCreditSnapshotService` 骞跺叆 `ProviderSet`
-- `backend/internal/repository/wire.go` 鈥?`NewCreditSnapshotRepository` / `NewAntigravityUsageAggregator` 鍔犲叆 `ProviderSet`
-- `backend/cmd/server/wire_gen.go` 鈥?鎵嬪姩缂栨帓鏂?Repo + Service + Handler 渚濊禆锛堜富骞?`go generate` 鍥犲巻鍙?Payment 閲嶅缁戝畾澶辫触锛屾寜鐜版湁妯″紡鎻掑叆锛?
-- `frontend/src/api/admin/usage.ts` 鈥?鏂板 `AntigravityUsageRatio` 绫诲瀷銆乣getAntigravityStats`銆乣refreshAntigravityStats`
-- `frontend/src/components/admin/usage/AntigravityRatioCard.vue` 鈥?鏂扮粍浠讹細4 鍒楁寚鏍囧崱 + 銆岀珛鍗抽噰鏍枫€嶆寜閽?+ 閲囨牱涓嶈冻/鍐峰嵈鎻愮ず
-- `frontend/src/views/admin/UsageView.vue` 鈥?寮曞叆鍗＄墖锛屼笌鐜版湁 `UsageStatsCards` 鍏辩敤 `DateRangePicker`锛屽悓涓€鍒锋柊閾捐矾瑙﹀彂
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鏂板 `usage.antigravity.*` 鏂囨
-
-**涓婃父鍏煎鎬?*: 浣庛€傛墍鏈夋柊澧炴枃浠?瀛楁鍧囦负 additive锛涗粎 `admin/usage_handler.go` 鏋勯€犲櫒鍔犲弬鏁帮紙涓婃父鑻ラ噸鏋?handler 鍒濆鍖栫鍚嶉渶鍚屾锛夛紱`wire_gen.go` 浠嶉渶鎵嬪伐鍚堝苟銆俙AntigravityUsageAggregator` 鍒绘剰娌℃帴鍏?`UsageLogRepository` 鎺ュ彛锛岄伩鍏嶆棩鍚庢敼鍔ㄥ崄鍑犲 stub銆?
-
-**鍙樻洿璇︽儏**:
-1. Antigravity AI Credits 浣欓涓嶅彲鍥炴函鏌ヨ锛堣繙绔?API 鍙粰褰撳墠鍊硷級锛屽洜姝ゆ柊澧?`ai_credit_snapshots` 琛ㄣ€俙CreditSnapshotService` 姣?15 鍒嗛挓鍚姩涓€娆￠噰鏍凤細鎸?`credentials.email` 鍘婚噸锛堝悓 Google 璐﹀彿鍏变韩 credits锛夛紝澶嶇敤 `AccountUsageService.GetUsage` 鐨?3 鍒嗛挓缂撳瓨灞傛媺浣欓锛岄伩鍏嶉澶?API 鍘嬪姏銆?
-2. 鑱氬悎鍙ｅ緞锛氬姣忎釜 email 鍦?`[start - 30 min lookback, end]` 鍐呯殑蹇収鎸夋椂闂村崌搴忚蛋鐩搁偦瀵癸紝绱姞姝ｅ悜 delta銆傝礋鍚?delta锛堝厖鍊?閲嶇疆锛夎烦杩囥€傛淳鐢熸瘮鐜?`quota_per_credit = SUM(total_cost) / total_credits`銆乣calls_per_credit = COUNT(*) / total_credits`锛宍total_credits == 0` 鏃惰繑鍥?null锛堝墠绔睍绀?閲囨牱涓嶈冻"鎻愮ず锛夈€?
-3. 鎵嬪姩瑙﹀彂鎺ュ彛 `POST .../refresh` 鍔?30 绉掕繘绋嬪唴鍐峰嵈閿侊紙`sync.Mutex + lastManualAt`锛夛紝鍐峰嵈鏈熷唴杩斿洖 `manual_refresh_throttled=true` 骞朵笉閲嶅鎵撹繙绔€傜鐞嗗憳璇偣涓嶄細鏀惧ぇ API 鍘嬪姏銆?
-4. 鍓嶇鍗＄墖鎺ュ叆鐜版湁 `startDate`/`endDate`锛宍loadStats()` 缁撴潫鍚庡苟琛屾媺 antigravity 鑱氬悎锛涘け璐ュ彧 `console.error` 涓嶉樆鏂富娴佺▼銆?
-5. 楠岃瘉锛歚docker exec sub2api-pg-dev psql` 纭 migration 110 搴旂敤銆乣ai_credit_snapshots` 琛ㄧ粨鏋勬纭紱鏈湴鍚姩鍚?`[CreditSnapshot] Scheduler started` 涓庤矾鐢?`GET/POST /api/v1/admin/usage/stats/antigravity(/refresh)` 鍧囧凡娉ㄥ唽銆?
-
-**鍏宠仈 Issue/PR**: 鏃?
-
----
-
-## [2026-04-18] fix(keys): 淇銆屽叆闂ㄦ寚鍗椼€嶉噷 CC-Switch 鐨勪笅杞藉湴鍧€
-
-**褰卞搷鑼冨洿**:
-- `frontend/src/components/keys/GettingStartedGuide.vue` 鈥?绗簩姝ヤ笅杞芥寜閽?`href` 浠?`github.com/nicepkg/cc-switch/releases`锛堥敊璇粨搴擄級鏀逛负 `github.com/farion1231/cc-switch/releases`锛堝畼鏂逛粨搴擄級
-
-**涓婃父鍏煎鎬?*: 浣庛€備笂娓歌嫢鏈娇鐢ㄦ閾炬帴鍒欐棤鍐茬獊銆?
-
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
-
----
 
 ## [2026-04-19] feat(pricing): 妯″瀷浠锋牸琛ㄥ悓鏃跺睍绀?CNY 瀹炰粯閲戦锛堟寜鍏呭€肩鐞嗘崲绠楃巼锛?
 
@@ -1866,6 +2887,76 @@
 3. 4 寮犲崱鐗囧綋鍓嶈蛋 i18n 纭紪鐮侊紙鏂囨绋冲畾锛夛紝鍚庣画鑻ラ渶绠＄悊鍛樺彲缂栬緫锛屽姞瀛楁鍒?`LoginPageContent` 鍗冲彲銆?
 4. 鎺ㄥ箍閭€璇?`body` 涓哄崰浣嶇锛岀瓑鏈€缁堟枃妗堢‘瀹氬悗鐩存帴鏀?i18n 鎴栧崌绾т负绠＄悊鍛樺彲缂栬緫瀛楁銆?
 5. 绠＄悊鍛樼紪杈戝櫒閲岀殑 `supportedModelsTitle`銆乣modelsDesc` 涓ゅ瓧娈垫湰娆¤捣涓嶅啀褰卞搷鐧诲綍椤垫覆鏌擄紙淇濈暀瀛楁鏆備笉鍒狅紝鍚庣画缁熶竴娓呯悊锛夈€?
+
+**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
+
+---
+
+## [2026-04-18] fix(settings): 鐧诲綍椤典环鏍煎姩鎬佸寲 + 淇鍏呭€肩鐞嗕繚瀛樿娓呯┖娉ㄥ唽绛夎缃?
+
+**褰卞搷鑼冨洿**:
+- `backend/internal/service/settings_view.go` 鈥?`PublicSettings` 鏂板 `PaymentCNYPerUSD float64`
+- `backend/internal/service/setting_service.go` 鈥?`GetPublicSettings` 璇诲彇 `SettingCNYPerUSD`锛沗GetPublicSettingsForInjection` 娉ㄥ叆鍖垮悕缁撴瀯浣撳悓姝ユ柊澧炲瓧娈?
+- `backend/internal/handler/dto/settings.go` 鈥?鍏紑璁剧疆 DTO 鏂板 `payment_cny_per_usd`
+- `backend/internal/handler/setting_handler.go` 鈥?鍦?`GetPublicSettings` 鍝嶅簲閲屽～鍏呮柊瀛楁
+- `frontend/src/types/index.ts` 鈥?`PublicSettings` 鎺ュ彛鏂板 `payment_cny_per_usd: number`
+- `frontend/src/stores/app.ts` 鈥?榛樿绌洪厤缃ˉ榻?`payment_cny_per_usd: 0`
+- `frontend/src/i18n/locales/zh.ts`銆乣en.ts` 鈥?`featurePrice` 鏀逛负甯?`{price}` 鍗犱綅鐨勬ā鏉匡紱鏂板 `featurePriceDefault` 浣滀负鏈厤缃椂鐨勫洖閫€鏂囨
+- `frontend/src/views/auth/LoginView.vue` 鈥?鏂板 `paymentCnyPerUsd` ref锛宍onMounted` 浠庡叕寮€璁剧疆璇诲彇锛沠eature pill 鎸夐厤缃姩鎬佹覆鏌擄紝鏈厤缃洖閫€
+- `frontend/src/api/admin/settings.ts` 鈥?鏂板 `systemSettingsToUpdateRequest(SystemSettings) => UpdateSettingsRequest` 鏄犲皠鍑芥暟锛涙敞鍏?`settingsAPI`
+- `frontend/src/views/admin/RechargeConfigView.vue` 鈥?`save()` 鍏?`getSettings()` 鍐嶆暣浣?`updateSettings(...)`锛屽彧瑕嗙洊 `payment_cny_per_usd` / `payment_bonus_tiers`
+
+**涓婃父鍏煎鎬?*:
+- 鍚庣鏂板瀛楁涓哄彲閫夎拷鍔狅紝鍚堝苟涓婃父鏃惰嫢涓婃父涔熸敼鍔?`PublicSettings` / 鍏紑璁剧疆 handler锛岀暀鎰忓啿绐佷綅缃紙鍧囦负缁撴瀯浣撳熬閮ㄦ垨 return 瀛楁鍒楄〃锛?
+- 鍓嶇鏂板鐨?`systemSettingsToUpdateRequest` 鏄湰鍦颁簩寮€宸ュ叿鍑芥暟锛岀嫭绔嬩簬涓婃父
+
+**鍙樻洿璇︽儏**:
+- Bug 1 鈥?鐧诲綍椤典环鏍肩‖缂栫爜锛歚LoginView` 鍘熷厛娓叉煋 `t('auth.login.featurePrice')` 鐨勯潤鎬佹枃妗?`'0.6 / 1$ 璧?`锛屼笌 admin 鍦?鍏呭€肩鐞?璁剧疆鐨?`payment_cny_per_usd` 瀹屽叏鑴遍挬銆傜幇灏嗚姹囩巼閫氳繃 `/api/v1/settings/public` 鏆撮湶锛堜笌 SSR 娉ㄥ叆璺緞淇濇寔涓€鑷达級锛屽墠绔鍙栧悗浠?`{price} / 1$ 璧穈 妯℃澘娓叉煋锛涗负 0 鎴栨湭閰嶇疆鏃跺洖閫€鍒?`featurePriceDefault` 闈欐€佹枃妗堛€?
+- Bug 2 鈥?"姣忔閮ㄧ讲寮€鏀炬敞鍐岃閲嶇疆"锛氱湡姝ｆ牴鍥犱笉鏄儴缃茶剼鏈€傚悗绔?`UpdateSettingsRequest` 缁濆ぇ澶氭暟 `bool` / `string` 瀛楁鏄?*闈炴寚閽?*锛孞SON 鍙嶅簭鍒楀寲鏃剁己澶卞瓧娈典細琚～ `false` / `""`锛沗RechargeConfigView.save()` 鍙彂 `payment_cny_per_usd` 涓?`payment_bonus_tiers`锛宧andler 缁х画鏋勯€犲畬鏁?`SystemSettings` 骞?`SetMultiple` 鍥炲啓锛屽鑷?`registration_enabled`銆乣site_name`銆丱IDC/LinuxDo 寮€鍏崇瓑琚潤榛樻竻绌恒€備慨澶嶉噰鐢ㄦ渶灏忔敼鍔細`RechargeConfigView` 鍏堟媺瀹屾暣 settings锛岀敤鏂板缓鐨勬槧灏勫嚱鏁拌浆鎴愯姹備綋锛屽啀瑕嗙洊涓や釜 payment 瀛楁鍙戝嚭锛屼娇鍥炲啓鏄?璇绘棫鍊煎啓鏃у€?锛岄伩鍏嶈娓呯┖銆傚嚟鎹被瀛楁锛坄smtp_password` 绛夛級鍦ㄦ槧灏勫嚱鏁颁腑鏁呮剰鐣欑┖锛屽悗绔?绌哄€艰烦杩囪鐩?瀹堟姢缁х画鐢熸晥銆?
+
+**楠岃瘉鏂瑰紡**:
+- `go build ./...` 閫氳繃锛涘墠绔?`pnpm run typecheck` 閫氳繃锛沨andler 鐩稿叧鍗曟祴閫氳繃锛坰ervice 灞傚彈 `gemini_oauth_service_test.go` 棰勫瓨鍦ㄧ殑 mock 鎺ュ彛涓嶅畬鏁村奖鍝嶏紝鏈柊澧炴祴璇曞け璐ワ級
+- 鎵嬪伐锛氬厖鍊肩鐞嗕繚瀛?`cny_per_usd=0.8` 鈫?鐧诲綍椤垫樉绀?`0.8 / 1$ 璧穈锛涘悓鏃剁郴缁熻缃噷"寮€鏀炬敞鍐?绛夊紑鍏充繚鎸佺敤鎴蜂箣鍓嶇殑鍊间笉鍙?
+
+
+**褰卞搷鑼冨洿**:
+- `backend/ent/schema/ai_credit_snapshot.go` 鈥?鏂?Ent schema锛歚AICreditSnapshot { email, credit_type, amount, captured_at }` + 澶嶅悎绱㈠紩
+- `backend/ent/aicreditsnapshot/`銆乣backend/ent/aicreditsnapshot*.go` 鈥?Ent 鐢熸垚浠ｇ爜锛坄go generate ./ent`锛?
+- `backend/migrations/110_add_ai_credit_snapshots.sql` 鈥?寤鸿〃 + `(email, captured_at)` 涓?`(captured_at)` 绱㈠紩
+- `backend/internal/service/credit_snapshot.go` 鈥?`CreditSnapshot` 缁撴瀯銆乣CreditSnapshotRepository`銆乣AntigravityUsageAggregator`銆乣AntigravityUsageRatio` 鍝嶅簲绫诲瀷
+- `backend/internal/service/credit_snapshot_service.go` 鈥?`CreditSnapshotService`锛?5 鍒嗛挓 ticker 瀹氭椂閲囨牱銆乣TriggerManualCapture`锛?0 绉掕繘绋嬪唴鍐峰嵈閿侊級銆乣GetAntigravityUsageRatio`锛堢浉閭婚噰鏍风偣姝ｅ悜 delta 姹傚拰 + `usage_logs` 鑱氬悎锛?
+- `backend/internal/repository/credit_snapshot_repo.go` 鈥?鍩轰簬 Ent 鐨勪粨搴撳疄鐜帮紙Insert/ListInRange/GetLatestBefore锛?
+- `backend/internal/repository/antigravity_usage_aggregator.go` 鈥?鐙珛灏忔帴鍙ｅ疄鐜帮細`SELECT COUNT + SUM(total_cost) FROM usage_logs WHERE account_id = ANY($1) AND created_at 鈭?[start,end)`
+- `backend/internal/handler/admin/usage_handler.go` 鈥?`NewUsageHandler` 鍔?`creditSnapshotService` 渚濊禆锛涙柊澧?`StatsAntigravity` / `RefreshAntigravityStats`锛涙彁鍙?`parseStatsDateRange` 杈呭姪鍑芥暟
+- `backend/internal/handler/admin/{usage_cleanup_handler_test,usage_handler_request_type_test}.go` 鈥?stub 琛ラ綈鏂板弬鏁颁綅 `nil`
+- `backend/internal/server/routes/admin.go` 鈥?`GET /admin/usage/stats/antigravity`銆乣POST /admin/usage/stats/antigravity/refresh`
+- `backend/internal/service/wire.go` 鈥?鏂板 `ProvideCreditSnapshotService` 骞跺叆 `ProviderSet`
+- `backend/internal/repository/wire.go` 鈥?`NewCreditSnapshotRepository` / `NewAntigravityUsageAggregator` 鍔犲叆 `ProviderSet`
+- `backend/cmd/server/wire_gen.go` 鈥?鎵嬪姩缂栨帓鏂?Repo + Service + Handler 渚濊禆锛堜富骞?`go generate` 鍥犲巻鍙?Payment 閲嶅缁戝畾澶辫触锛屾寜鐜版湁妯″紡鎻掑叆锛?
+- `frontend/src/api/admin/usage.ts` 鈥?鏂板 `AntigravityUsageRatio` 绫诲瀷銆乣getAntigravityStats`銆乣refreshAntigravityStats`
+- `frontend/src/components/admin/usage/AntigravityRatioCard.vue` 鈥?鏂扮粍浠讹細4 鍒楁寚鏍囧崱 + 銆岀珛鍗抽噰鏍枫€嶆寜閽?+ 閲囨牱涓嶈冻/鍐峰嵈鎻愮ず
+- `frontend/src/views/admin/UsageView.vue` 鈥?寮曞叆鍗＄墖锛屼笌鐜版湁 `UsageStatsCards` 鍏辩敤 `DateRangePicker`锛屽悓涓€鍒锋柊閾捐矾瑙﹀彂
+- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鏂板 `usage.antigravity.*` 鏂囨
+
+**涓婃父鍏煎鎬?*: 浣庛€傛墍鏈夋柊澧炴枃浠?瀛楁鍧囦负 additive锛涗粎 `admin/usage_handler.go` 鏋勯€犲櫒鍔犲弬鏁帮紙涓婃父鑻ラ噸鏋?handler 鍒濆鍖栫鍚嶉渶鍚屾锛夛紱`wire_gen.go` 浠嶉渶鎵嬪伐鍚堝苟銆俙AntigravityUsageAggregator` 鍒绘剰娌℃帴鍏?`UsageLogRepository` 鎺ュ彛锛岄伩鍏嶆棩鍚庢敼鍔ㄥ崄鍑犲 stub銆?
+
+**鍙樻洿璇︽儏**:
+1. Antigravity AI Credits 浣欓涓嶅彲鍥炴函鏌ヨ锛堣繙绔?API 鍙粰褰撳墠鍊硷級锛屽洜姝ゆ柊澧?`ai_credit_snapshots` 琛ㄣ€俙CreditSnapshotService` 姣?15 鍒嗛挓鍚姩涓€娆￠噰鏍凤細鎸?`credentials.email` 鍘婚噸锛堝悓 Google 璐﹀彿鍏变韩 credits锛夛紝澶嶇敤 `AccountUsageService.GetUsage` 鐨?3 鍒嗛挓缂撳瓨灞傛媺浣欓锛岄伩鍏嶉澶?API 鍘嬪姏銆?
+2. 鑱氬悎鍙ｅ緞锛氬姣忎釜 email 鍦?`[start - 30 min lookback, end]` 鍐呯殑蹇収鎸夋椂闂村崌搴忚蛋鐩搁偦瀵癸紝绱姞姝ｅ悜 delta銆傝礋鍚?delta锛堝厖鍊?閲嶇疆锛夎烦杩囥€傛淳鐢熸瘮鐜?`quota_per_credit = SUM(total_cost) / total_credits`銆乣calls_per_credit = COUNT(*) / total_credits`锛宍total_credits == 0` 鏃惰繑鍥?null锛堝墠绔睍绀?閲囨牱涓嶈冻"鎻愮ず锛夈€?
+3. 鎵嬪姩瑙﹀彂鎺ュ彛 `POST .../refresh` 鍔?30 绉掕繘绋嬪唴鍐峰嵈閿侊紙`sync.Mutex + lastManualAt`锛夛紝鍐峰嵈鏈熷唴杩斿洖 `manual_refresh_throttled=true` 骞朵笉閲嶅鎵撹繙绔€傜鐞嗗憳璇偣涓嶄細鏀惧ぇ API 鍘嬪姏銆?
+4. 鍓嶇鍗＄墖鎺ュ叆鐜版湁 `startDate`/`endDate`锛宍loadStats()` 缁撴潫鍚庡苟琛屾媺 antigravity 鑱氬悎锛涘け璐ュ彧 `console.error` 涓嶉樆鏂富娴佺▼銆?
+5. 楠岃瘉锛歚docker exec sub2api-pg-dev psql` 纭 migration 110 搴旂敤銆乣ai_credit_snapshots` 琛ㄧ粨鏋勬纭紱鏈湴鍚姩鍚?`[CreditSnapshot] Scheduler started` 涓庤矾鐢?`GET/POST /api/v1/admin/usage/stats/antigravity(/refresh)` 鍧囧凡娉ㄥ唽銆?
+
+**鍏宠仈 Issue/PR**: 鏃?
+
+---
+
+## [2026-04-18] fix(keys): 淇銆屽叆闂ㄦ寚鍗椼€嶉噷 CC-Switch 鐨勪笅杞藉湴鍧€
+
+**褰卞搷鑼冨洿**:
+- `frontend/src/components/keys/GettingStartedGuide.vue` 鈥?绗簩姝ヤ笅杞芥寜閽?`href` 浠?`github.com/nicepkg/cc-switch/releases`锛堥敊璇粨搴擄級鏀逛负 `github.com/farion1231/cc-switch/releases`锛堝畼鏂逛粨搴擄級
+
+**涓婃父鍏煎鎬?*: 浣庛€備笂娓歌嫢鏈娇鐢ㄦ閾炬帴鍒欐棤鍐茬獊銆?
 
 **鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
 
@@ -2331,6 +3422,18 @@ python tools/image_stress_test.py --total 50 --concurrency 5 --mode gemini-nativ
 
 ---
 
+## [2026-04-15] feat: 鏂板浼佷笟寰俊鏀粯鏂瑰紡
+
+**褰卞搷鑼冨洿**: backend/internal/payment/, frontend/src/views/admin/
+**涓婃父鍏煎鎬?*: 浣庡啿绐侀闄╋紝鏂板鏂囦欢涓轰富
+**鍙樻洿璇︽儏**:
+- 鏂板 payment/provider/wechat_work.go
+- 娣诲姞 WeChatWorkProvider 瀹炵幇 PaymentProvider 鎺ュ彛
+- 鍓嶇绠＄悊椤垫柊澧炰紒涓氬井淇℃敮浠橀厤缃〃鍗?
+- config.yaml 鏂板 payment.wechat_work 閰嶇疆娈?
+
+**鍏宠仈 Issue/PR**: #12
+
 ## [2026-04-14] chore(deploy): remote_exec.py 澧炲姞 --update 蹇嵎鏂瑰紡閬垮紑 MSYS2 璺緞杞崲
 
 **褰卞搷鑼冨洿**:
@@ -2593,920 +3696,3 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 **鍙樻洿璇︽儏**:
 - 鏂板 `useEmailAsName` 閫夐」锛屼粎 Antigravity 骞冲彴鍙
 - 鍕鹃€夊悗闅愯棌鍚嶇О杈撳叆妗嗭紝鎵归噺鍜屽崟涓?OAuth 鍒涘缓鍧囦娇鐢ㄩ偖绠变綔涓哄悕绉?
-
-## [2026-05-06] chore: add read-only Antigravity usage audit script
-
-**Affected files**: tools/audit_antigravity_usage.py
-**Upstream compatibility**: low risk, standalone tooling only
-**Change details**:
-- Added a psql-based read-only audit script for Antigravity usage mismatch investigations.
-- Reports local usage by account/API key/client, AI Credits snapshot deltas by email, credits-vs-local reconciliation, suspicious API keys with multiple IPs/User-Agents, duplicate request IDs, billing dedup summaries, and missing client attribution fields.
-- Supports `DATABASE_URL` or `--database-url`, explicit `--start`/`--end` windows, and `--sql-only` for review or server-side execution.
-
-## [2026-05-06] feat: add Antigravity per-request AI Credits sampling
-
-**Affected files**: backend/migrations/134_add_antigravity_credit_request_samples.sql, backend/internal/service/antigravity_credit_sampler.go, backend/internal/repository/antigravity_credit_sample_repo.go, backend/internal/service/antigravity_gateway_service.go, backend/internal/service/gateway_service.go, backend/internal/{service,repository}/wire.go, backend/cmd/server/wire_gen.go
-**Upstream compatibility**: low risk when disabled; diagnostic path is gated by `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`
-**Change details**:
-- Added `antigravity_credit_request_samples` to store request-linked before/after AI Credits balances, delta, account/API key/user/request IDs, timestamps, confidence, and fetch errors.
-- Added an Antigravity credit sampler that captures a balance before forwarding and writes request samples after the usage log is persisted.
-- Wired the sampler into Antigravity Claude/Gemini forwarding and Gateway usage recording.
-- Sampling is disabled by default; enable with comma-separated account IDs in `SUB2API_ANTIGRAVITY_CREDIT_SAMPLE_ACCOUNT_IDS`.
-- Concurrent requests on the same sampled account can still blur before/after attribution; prefer temporarily low account concurrency for the diagnostic window.
-
-## [2026-05-06] security: rotate local admin password
-
-**Affected files**: local PostgreSQL `users` table, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: no upstream code impact; local credential rotation only
-**Change details**:
-- Rotated the local administrator password for `admin@sub2api.local` by updating `users.password_hash` in the local `sub2api` database.
-- Verified that the new password matches the stored bcrypt hash.
-- Did not record the plaintext password or password hash in repository files.
-
-## [2026-05-06] fix: avoid IPv6 localhost Caddy upstream failures
-
-**Affected files**: deploy/Caddyfile, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: deployment configuration only; low risk
-**Change details**:
-- Changed the Caddy reverse proxy upstream from `localhost:8080` to `127.0.0.1:8080`.
-- Prevents Caddy from intermittently resolving `localhost` to IPv6 `::1` while Docker publishes Sub2API only on IPv4, which caused `connect: connection refused` 502s during production traffic.
-
-## [2026-05-06] docs: document admin password rotation
-
-**Affected files**: deploy/README.md, deploy/.env.example, docs/dev/SECURITY_OPERATIONS.md, AGENTS.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Documented that `ADMIN_PASSWORD` is first-run bootstrap only and does not rotate an installed admin account.
-- Added an operational bcrypt-based admin password rotation procedure with `token_version` handling when that column exists.
-- Added a security operations checklist for suspected credential compromise without recording any real password or hash.
-
-## [2026-05-06] feat: add Antigravity credit usage curve
-
-**Affected files**: backend/internal/service/credit_snapshot*.go, backend/internal/repository/antigravity_usage_aggregator.go, backend/internal/handler/admin/usage_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/AntigravityUsageCurveChart.vue, frontend/src/views/admin/UsageView.vue, frontend/src/i18n/locales/en.ts
-**Upstream compatibility**: low risk, additive admin-only API and UI
-**Change details**:
-- Added `GET /api/v1/admin/usage/stats/antigravity/curve` to aggregate `ai_credit_snapshots` deltas with Antigravity request count, token count, quota cost, and actual cost by hour/day.
-- Added per-window derived ratios including credits/request, quota/credit, and tokens/credit, plus a simple median-based spike score.
-- Added an admin Usage page line chart comparing AI Credits, requests, tokens, quota cost, and credits/request for the selected time range.
-
-## [2026-05-06] chore: automate Docker disk cleanup after deploy
-
-**Affected files**: deploy/update.sh, deploy/docker-cleanup.sh, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: deployment script only; low risk
-**Change details**:
-- Added post-deploy Docker cleanup for BuildKit cache older than `DOCKER_BUILD_CACHE_MAX_AGE` (default `24h`).
-- Added dangling image cleanup after successful health checks while preserving tagged rollback images.
-- Logs post-cleanup Docker disk usage to `/opt/sub2api/deploy.log`.
-- Added a reusable daily cleanup script for cron/system scheduling.
-
-## [2026-05-06] fix: repair Antigravity credit curve bucket matching
-
-**Affected files**: backend/internal/service/credit_snapshot_service.go
-**Upstream compatibility**: low risk, aggregation bug fix only
-**Change details**:
-- Changed Antigravity credit curve bucket lookup keys from `time.Time` values to Unix seconds so PostgreSQL timestamp locations and request time locations still match the same hour/day window.
-
-## [2026-05-06] fix: align Antigravity credit curve usage buckets to app timezone
-
-**Affected files**: backend/internal/repository/antigravity_usage_aggregator.go
-**Upstream compatibility**: low risk, aggregation bug fix only
-**Change details**:
-- Changed Antigravity usage window aggregation to truncate `usage_logs.created_at` in the configured application timezone before returning buckets, matching the credit snapshot curve buckets.
-
-## [2026-05-07] fix: avoid permanent error on setup-token 401
-
-**Affected files**: backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, docs/dev/codebase/account.md
-**Upstream compatibility**: low risk, OAuth error-policy bug fix
-**Change details**:
-- Changed 401 handling to treat `setup-token` accounts as OAuth-like accounts via `account.IsOAuth()`, matching gateway credential routing.
-- A first 401 for setup-token accounts now invalidates token state and marks the account temporarily unschedulable instead of immediately setting `status=error`.
-- Added unit coverage for Anthropic setup-token `Invalid bearer token` responses.
-
-## [2026-05-08] fix: reuse Antigravity token provider for quota probes
-
-**Affected files**: backend/internal/service/antigravity_quota_fetcher.go, backend/internal/service/antigravity_quota_fetcher_test.go, backend/internal/service/wire.go, backend/cmd/server/wire_gen.go, docs/dev/codebase/account.md
-**Upstream compatibility**: low risk, Antigravity account status/usage probe fix only
-**Change details**:
-- Changed Antigravity quota/AI Credits probes to resolve OAuth access tokens through `AntigravityTokenProvider` instead of reading `credentials.access_token` directly.
-- Kept setup-token and upstream account fallback behavior, while allowing OAuth probes to run when only `refresh_token` is present.
-- Updated Wire provider wiring so `AntigravityQuotaFetcher` is constructed with the shared token provider, matching model test and gateway request token lifecycle.
-- Added focused unit coverage for provider-backed token resolution and refresh-token-only OAuth probe eligibility.
-
-## [2026-05-08] fix: pin pnpm in Docker builds
-
-**Affected files**: Dockerfile, deploy/Dockerfile
-**Upstream compatibility**: build-only fix; runtime behavior unchanged
-**Change details**:
-- Pinned Docker build pnpm installation to `pnpm@9.15.9` instead of `pnpm@latest`.
-- Avoided pnpm 10/11 `approve-builds` behavior breaking non-interactive Docker builds when esbuild/vue-demi postinstall scripts are needed.
-- Verified a full local Docker image build succeeds with the pinned pnpm version.
-
-## [2026-05-08] fix: prevent Antigravity OAuth false auth errors on Chat Completions
-
-**Affected files**: backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/service/gateway_service.go, backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, backend/internal/service/gateway_multiplatform_test.go, docs/dev/codebase/gateway.md, docs/dev/codebase/account.md, docs/dev/codebase/README.md
-**Upstream compatibility**: medium risk; changes gateway account selection for `/v1/chat/completions` compatibility requests and OAuth 401 state handling.
-**Change details**:
-- Production logs showed one `/v1/chat/completions` request on 2026-05-08 12:41:40 selected Antigravity accounts 145, 146, and 144 in sequence, received upstream 401 `Invalid bearer token`, and marked them error while `/antigravity/v1/messages` was still succeeding.
-- Added a context flag that disables Antigravity mixed scheduling for the Anthropic Chat Completions compatibility path, so that path only selects native Anthropic accounts until an Antigravity-specific Chat Completions conversion exists.
-- Changed OAuth 401 handling so Antigravity OAuth accounts follow the same cache invalidation, forced refresh, and temporary-unschedulable path as other OAuth accounts instead of permanent `SetError`.
-- Added regression coverage for mixed-scheduling isolation and updated the OAuth 401 expectations.
-
-## [2026-05-10] docs: document Kiro Gateway sidecar integration
-
-**Affected files**: docs/dev/codebase/kiro-gateway.md, docs/dev/codebase/README.md
-**Upstream compatibility**: docs-only; records a local sidecar integration without merging external code
-**Change details**:
-- Added a Kiro Gateway sidecar module note for `E:\cursor project\kiro-gateway`, including local startup commands and Sub2API Anthropic API Key account mapping.
-- Documented that Kiro Gateway account management is file-based through `credentials.json`, and that startup requires at least one valid Kiro account.
-- Recorded the current local blocker: detected Kiro IDE credential file exists, but token refresh returns 401 and must be refreshed before the service can stay running.
-
-## [2026-05-14] feat: 鐢ㄦ埛渚у浘鐗囦娇鐢ㄨ褰曞睍绀哄昂瀵镐笌璐ㄩ噺
-
-**Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
-**Upstream compatibility**: low risk, user usage UI/export display only
-**Change details**:
-- Updated user usage image rows to show image count, requested image size, and requested image quality without exposing billing tiers or pricing formulas.
-- Added image count, image size, and image quality columns to the user CSV usage export.
-- Added Chinese and English i18n labels for image size and image quality.
-- Verified with `pnpm run typecheck`.
-
-## [2026-05-14] chore: document local dev-stack startup
-
-**Affected files**: AGENTS.md, DEV_GUIDE.md, backend/.air.toml, scripts/dev-stack.ps1, scripts/dev-stack.cmd, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: local development tooling and docs only; production runtime unchanged
-**Change details**:
-- Documented the local port convention for backend `18081` and frontend `15174`.
-- Added an `air` hot-reload config for local backend development.
-- Added Windows `dev-stack` wrappers for consistent local start/restart/stop workflows.
-- Kept production deployment ports independent from local development ports.
-
-## [2026-05-14] fix: display pricing usage token rewrite
-
-**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/gateway_service.go, backend/internal/service/antigravity_gateway_service.go
-**Upstream compatibility**: scoped to user-facing usage token display transforms; actual billing cost is unchanged
-**Change details**:
-- Computes effective display token multipliers from account rate, user group rate, display rate, and model display prices.
-- Rewrites Claude/Antigravity streaming and non-streaming usage token fields so user-visible token counts align with display pricing.
-- Leaves actual billing and stored actual cost based on the existing real pricing path.
-- Verified by backend compile through targeted unit tests and frontend build.
-
-## [2026-05-14] fix: 绐佸嚭鍥剧墖璐ㄩ噺鍗曚环閰嶇疆鍏ュ彛
-
-**Affected files**: frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
-**Upstream compatibility**: low risk, admin model pricing UI only
-**Change details**:
-- Made the `low` / `medium` / `high` / `auto` image quality price fields a labeled subsection under megapixel image billing.
-- Clarified that empty quality prices fall back to the default megapixel price.
-- Verified with `pnpm run typecheck`.
-
-## [2026-05-14] feat: 鍥剧墖妗ｄ綅璁¤垂鏀寔 quality 涔樻暟
-
-**Affected files**: backend/internal/service/image_billing.go, backend/internal/service/image_billing_test.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/model_pricing_resolver.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/repository/global_model_pricing_repo.go, backend/migrations/137_add_image_quality_multipliers.sql, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/billing.md
-**Upstream compatibility**: additive DB/API/UI change; existing tier pricing remains unchanged when multipliers are unset
-**Change details**:
-- Added `image_quality_multipliers` for tier image billing so the matched `1K/2K/4K` price can be multiplied by `low/medium/high/auto`.
-- Defaulted omitted/unknown image quality to `auto`, and left the effective multiplier at `1.0` unless an administrator configures a multiplier.
-- Kept `image_quality_prices` as megapixel-mode USD/MP overrides; tier mode now uses the separate multiplier map.
-- Added admin UI fields for quality multipliers under image tier billing, with `auto` defaulting to `1`.
-- Verified with `go test -tags=unit ./internal/service -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, `go test -tags=unit ./internal/handler/admin -run "ModelPricing"`, `go test -tags=unit ./internal/service ./internal/repository -run "ImageBilling|GlobalModelPricing|ModelPricingResolver"`, and `pnpm run typecheck`.
-- Full `go test -tags=unit ./internal/handler/admin ./internal/repository` still has an unrelated existing failure in `TestAccountHandlerGetAvailableModels_OpenAIOAuthUsesExplicitModelMapping` where the test expects 1 model but receives 13.
-
-## [2026-05-14] feat: add first-stage distribution system
-
-**Affected files**: backend/migrations/139_add_distribution_agents.sql, backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/{user,admin}.go, frontend/src/views/{user,admin}/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/distribution.md
-**Upstream compatibility**: medium risk; adds a new domain, tables, routes, DI providers, and frontend pages.
-**Change details**:
-- Added distribution agent application, admin review, independent wallet schema, and wallet ledger schema.
-- Added user APIs for distribution summary, application submission, and wallet ledger viewing.
-- Added admin APIs for listing and reviewing distribution applications.
-- Added user/admin frontend pages and sidebar/router entries for distribution.
-- Documented the distribution module and first-release scope.
-- Deferred recharge discount, redeem-code generation, API key package generation, and subscription coupon cashback until business rules are confirmed.
-
-## [2026-05-14] feat: extend distribution system with generation and wallet management
-
-**Affected files**: backend/internal/service/distribution.go, backend/internal/repository/distribution_repo.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/server/routes/admin.go, backend/internal/service/domain_constants.go, backend/internal/service/setting_service.go, backend/internal/service/user_service.go, backend/internal/repository/api_key_repo.go, backend/internal/repository/redeem_code_repo.go, backend/internal/repository/group_repo.go, backend/internal/repository/user_repo.go, backend/cmd/server/wire_gen.go, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/views/user/DistributionView.vue, frontend/src/views/admin/DistributionView.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/distribution.md
-**Upstream compatibility**: additive feature expansion; existing application/review flow preserved
-**Change details**:
-- Added distribution settings stored in Settings KV: RMB-per-USD generation ratio and subscription-code discount ratio.
-- Reworked distribution wallet semantics to use RMB balance as the displayed/recorded unit.
-- Added user-side generation flows for balance redeem codes, subscription redeem codes, and fixed-quota API keys.
-- Added admin wallet controls for settings, wallet listing, freeze/unfreeze, manual adjustment, and ledger review.
-- Wired generation paths through transactions so wallet deduction and generated assets commit together.
-- Updated user and admin distribution views to expose the new controls and generation results.
-
-## [2026-05-17] feat: InvokeAI per-user external OpenAI provider config
-
-**Affected files**: E:\cursor project\InvokeAI\invokeai\app\api\routers\app_info.py, E:\cursor project\InvokeAI\invokeai\app\services\user_external_provider_configs\, E:\cursor project\InvokeAI\invokeai\app\services\external_generation\providers\openai.py, E:\cursor project\InvokeAI\invokeai\app\invocations\external_image_generation.py, E:\cursor project\invokeai-sub2api-poc\invokeai.yaml, docs/dev/codebase/invokeai-poc.md
-**Upstream compatibility**: external InvokeAI checkout change; Sub2API runtime unchanged
-**Change details**:
-- Enabled InvokeAI PoC multiuser mode and strict password checking in the runtime config.
-- Added InvokeAI SQLite migration/service for per-user external provider credentials, with OpenAI generation resolving API key/base URL from the current queue item's user.
-- Kept single-user `api_keys.yaml` compatibility and documented that multiuser config deletion does not remove shared external model records.
-
-## [2026-05-17] chore: add InvokeAI local dev-stack script
-
-**Affected files**: E:\cursor project\InvokeAI\scripts\dev-stack.ps1, E:\cursor project\InvokeAI\scripts\dev-stack.cmd, E:\cursor project\InvokeAI\.gitignore, docs/dev/codebase/invokeai-poc.md
-**Upstream compatibility**: external InvokeAI checkout tooling change; Sub2API runtime unchanged
-**Change details**:
-- Added an InvokeAI local process script with start/restart/stop/status actions, fixed runtime root, fixed `127.0.0.1:9090`, hidden background process launch, process state tracking, and logs under `tmp/dev-stack/logs`.
-- The script enforces multiuser config values and writes `invokeai.yaml` as UTF-8 without BOM to avoid Windows GBK decode failures.
-- Verified `restart` starts InvokeAI and `status` reports the managed process listening on port 9090.
-
-## [2026-05-17] feat: disable InvokeAI setup with built-in admin for local PoC
-
-**Affected files**: E:\cursor project\InvokeAI\invokeai\app\api\dependencies.py, E:\cursor project\InvokeAI\invokeai\app\api\routers\auth.py, E:\cursor project\InvokeAI\invokeai\app\services\config\config_default.py, E:\cursor project\InvokeAI\invokeai\app\services\users\users_common.py, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\auth\components\LoginPage.tsx, E:\cursor project\InvokeAI\scripts\dev-stack.ps1, docs/dev/codebase/invokeai-poc.md
-**Upstream compatibility**: external InvokeAI checkout behavior change for the local PoC
-**Change details**:
-- Added built-in administrator config and startup enforcement so local InvokeAI creates/repairs `admin` / `admin123`.
-- Disabled the public `/api/v1/auth/setup` path when built-in admin mode is enabled, while keeping normal login available.
-- Updated the login field to accept the `admin` username and verified `/status`, `/setup`, and `/login` behavior against the running local service.
-- Removed the frontend `/setup` page entry from the built UI so direct browser access to `http://127.0.0.1:9090/setup` no longer shows the administrator creation form.
-
-## [2026-05-06] fix: include historical Antigravity accounts in usage curve
-
-**Affected files**: backend/internal/service/credit_snapshot.go, backend/internal/service/credit_snapshot_service.go, backend/internal/repository/antigravity_usage_aggregator.go
-**Upstream compatibility**: low risk, aggregation bug fix only
-**Change details**:
-- Changed Antigravity request/cost/token aggregation to join `usage_logs` with `accounts.platform='antigravity'` instead of filtering by the currently active account ID list.
-- Restored historical request counts for soft-deleted or rotated Antigravity accounts so credit curve windows match historical usage logs.
-
-## [2026-05-18] feat: add opt-in OpenAI image timing trace logs
-
-**Affected files**: backend/internal/handler/openai_images.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_image_trace.go, backend/internal/service/openai_images.go, backend/internal/service/openai_images_responses.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_images_test.go, docs/dev/codebase/gateway.md
-**Upstream compatibility**: low risk; disabled by default and scoped to `/v1/images/generations` with `model=gpt-image-2`
-**Change details**:
-- Added `OPENAI_IMAGE_TRACE_LOG=true` gated structured events for image request timing: request received, auth done, account slot acquired, upstream start/headers/body done, downstream response built/write done, and usage task submitted.
-- Kept trace fields limited to safe correlation and timing values; prompts, image/base64 payloads, auth headers, cookies, API keys, and full request bodies are not logged.
-- Covered trace gating and safe fields with focused unit coverage, and documented the temporary diagnostic workflow in the gateway module notes.
-
-## [2026-05-22] feat: add admin subscription quota adjustment
-
-**Affected files**: backend/internal/service/subscription_service.go, backend/internal/service/user_subscription_port.go, backend/internal/repository/user_subscription_repo.go, backend/internal/handler/admin/subscription_handler.go, backend/internal/server/routes/admin.go, frontend/src/views/admin/SubscriptionsView.vue, frontend/src/api/admin/subscriptions.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
-**Upstream compatibility**: admin-only feature; preserves existing subscription quota data model
-**Change details**:
-- Added `POST /api/v1/admin/subscriptions/:id/adjust-quota` to set daily, weekly, and/or monthly used quota values for a user subscription.
-- Invalidates subscription billing caches after manual quota adjustments so gateway eligibility uses the updated usage immediately.
-- Added an admin subscription-management dialog for target remaining quota or target used quota, with zh/en UI strings.
-- Added unit coverage for selected usage updates and invalid input handling.
-
-## [2026-05-23] fix: compact subscription purchase layout
-
-**Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue
-**Upstream compatibility**: frontend-only layout density change; subscription order flow unchanged
-**Change details**:
-- Compressed the active-subscription area into a compact horizontal summary so it no longer dominates the subscription tab.
-- Changed subscription plan browsing to a denser 3-column desktop grid.
-- Reduced plan card height, price scale, quota spacing, and feature rows so the desktop view can show at least six plans at once.
-
-## [2026-05-23] refactor: restore purchase page tab layout
-
-**Affected files**: frontend/src/views/user/PaymentView.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
-**Upstream compatibility**: frontend-only layout change; payment APIs and order flow unchanged
-**Change details**:
-- Restored the purchase page to a unified tab layout with separate recharge and subscription tabs across desktop and mobile.
-- Relaxed the recharge flow into account, bonus, amount/method, and credit-summary sections instead of a tight two-column checkout.
-- Relaxed subscription plan cards and the subscription confirmation flow with wider cards, larger price treatment, expanded quota/features, and active-subscription summary cards.
-
-## [2026-05-25] docs: expand Codex Desktop tutorial setup
-
-**Affected files**: docs/API_USAGE.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Replaced the terse Codex Desktop installation note with actionable download, platform selection, and installation guidance.
-- Clarified that ZeroCode setup should use CC-Switch first, then restart Codex Desktop so it reads the shared `.codex/config.toml` and `.codex/auth.json` files.
-- Added an explicit jump from the Codex Desktop install section to the existing `4.3.1` CC-Switch configuration flow.
-
-## [2026-05-25] docs: align Codex tutorial structure with Claude Code chapter
-
-**Affected files**: docs/API_USAGE.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Reworked chapter 4 into separate `CLI 版本：安装与配置` and `Desktop 桌面版：安装与配置` sections, matching chapter 3's version-based tutorial structure.
-- Moved Codex CLI installation, CC-Switch setup, manual configuration, WebSocket option, and verification into one CLI flow.
-- Added a full Codex Desktop flow for install, CC-Switch configuration, local project startup, and Desktop-specific troubleshooting.
-
-## [2026-05-25] docs: make API Keys CCS import the primary setup path
-
-**Affected files**: docs/API_USAGE.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Updated Claude Code CLI, Codex CLI, and Codex Desktop setup flows to use the API Keys page `导入到 CCS` action as the primary configuration method.
-- Clarified that the API Keys import action maps Anthropic groups to Claude Code, OpenAI groups to Codex, and Gemini groups to Gemini CLI.
-- Reframed manual file copying and the `使用` modal as fallback paths; Claude Code Desktop remains the manual application-level setup path.
-
-## [2026-05-25] feat: restrict distribution API key groups
-
-**Affected files**: backend/internal/service/distribution.go, backend/internal/service/api_key_service.go, backend/internal/handler/distribution_handler.go, backend/internal/server/routes/user.go, backend/internal/service/domain_constants.go, backend/internal/service/setting_service.go, frontend/src/views/admin/DistributionView.vue, frontend/src/views/user/DistributionView.vue, frontend/src/api/distribution.ts, frontend/src/api/admin/distribution.ts, frontend/src/types/index.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/distribution.md
-**Upstream compatibility**: distribution settings/API behavior change; existing unset configs now expose no API key groups to agents
-**Change details**:
-- Added `distribution_api_key_group_ids` Settings KV to let admins select active standard groups exposed to distribution agents.
-- Added `GET /api/v1/distribution/api-key-groups` and changed the agent page to use it instead of `/groups/available`.
-- Enforced the whitelist in distribution API key generation and added a distribution-specific key creation path so the whitelist, not the agent user's own group permissions, is the permission source.
-- Added admin UI multi-select, i18n strings, and distribution module documentation.
-
-## [2026-05-29] fix: validate EasyPay API base URL
-
-**Affected files**: backend/internal/payment/provider/easypay.go, backend/internal/payment/provider/easypay_refund_test.go, frontend/src/views/user/paymentUx.ts, frontend/src/views/user/__tests__/paymentUx.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
-**Upstream compatibility**: low risk; rejects invalid EasyPay runtime configuration earlier
-**Change details**:
-- Added EasyPay `apiBase` validation so enabled instances must use an absolute `http(s)` URL and cannot save values like `11` that later become `11/mapi.php`.
-- Kept endpoint-path normalization for valid EasyPay URLs such as `/mapi.php`, `/submit.php`, and `/api.php`.
-- Stopped mapping provider misconfiguration errors to the generic WeChat unavailable prompt, allowing the real configuration error to surface.
-
-## [2026-05-29] fix: repair WeChat Pay mobile QR fallback
-
-**Affected files**: backend/internal/handler/payment_handler.go, backend/internal/service/payment_order.go, backend/internal/service/payment_service.go, backend/internal/service/payment_order_result_test.go, frontend/src/components/payment/paymentFlow.ts, frontend/src/components/payment/__tests__/paymentFlow.spec.ts, frontend/src/types/payment.ts, frontend/src/views/user/PaymentView.vue, frontend/src/views/user/__tests__/PaymentView.spec.ts, docs/dev/codebase/payment.md
-**Upstream compatibility**: low risk; scoped to official WeChat checkout request routing and mobile QR fallback
-**Change details**:
-- Added explicit `is_wechat_browser` request context so the backend can honor frontend overrides instead of always trusting the WeChat User-Agent.
-- Added `force_native_qr` for WeChat mobile fallback; when set, backend clears OpenID/mobile/WeChat context after resume-token restoration so the order uses Native QR instead of returning OAuth/JSAPI again.
-- Preserved `wechat_resume_token` on the fallback request so OAuth callback orders keep their original amount, order type, and plan context.
-- Added frontend and backend regression coverage for the WeChat mobile fallback request shape and force-native normalization.
-
-## [2026-05-31] fix: canonicalize OpenAI compact model aliases before billing
-
-**Affected files**: backend/internal/service/openai_model_alias.go, backend/internal/service/openai_codex_transform.go, backend/internal/service/pricing_service.go, backend/internal/service/billing_service.go, backend/internal/service/openai_codex_transform_test.go, backend/internal/service/pricing_service_test.go, backend/internal/service/billing_service_test.go
-**Upstream compatibility**: minimal upstream alias-normalization backport; low risk, pricing/billing lookup only
-**Change details**:
-- Added shared OpenAI/Codex model alias canonicalization so compact or namespaced spellings such as `gpt5.5` and `openai/gpt5.5` resolve to `gpt-5.5` before transform, static pricing, and billing fallback lookup.
-- Preserved local GPT-5.5 Pro pricing by resolving `gpt5.5-pro` to `gpt-5.5-pro` before the generic GPT-5.5 fallback.
-- Added unit coverage for compact GPT-5.5, GPT-5.4, and GPT-5.3 Codex aliases plus pricing fallback behavior.
-- Verification: targeted service tests pass; full `go test -tags=unit ./...` still fails in pre-existing server constructor, admin handler, and Antigravity mapping tests unrelated to this patch.
-
-## [2026-05-06] fix: reduce Antigravity credit curve sampling lag
-
-**Affected files**: backend/internal/service/credit_snapshot_service.go, backend/internal/service/credit_snapshot_service_test.go
-**Upstream compatibility**: low risk, aggregation-only display fix
-**Change details**:
-- Changed Antigravity credit snapshot deltas to be attributed across the interval between the previous and current snapshot instead of assigning all credits to the current snapshot bucket.
-- Weighted credit attribution by hourly usage cost, then actual cost, tokens, and call count, with a snapshot-bucket fallback for intervals without usage.
-- Added unit coverage for weighted interval attribution and no-usage fallback behavior.
-
-## [2026-05-18] fix: align OpenAI OAuth image forwarding headers with account test path
-
-**Affected files**: backend/internal/service/openai_images_responses.go, backend/internal/service/openai_images_test.go
-**Upstream compatibility**: low risk; scoped to OAuth-backed OpenAI image generation/edit forwarding
-**Change details**:
-- Changed OAuth image forwarding to build a dedicated Codex `/responses` upstream request matching the successful account-test image path.
-- Stopped propagating third-party client `User-Agent`, `originator`, `session_id`, and `conversation_id` headers into image OAuth upstream requests; default User-Agent now falls back to Codex CLI when the account has no custom UA.
-- Added coverage proving OAuth image forwarding sends `originator=opencode`, Codex CLI UA, and no session/conversation headers.
-
-## [2026-05-06] docs: document Antigravity credit cost analysis
-
-**Affected files**: docs/dev/ANTIGRAVITY_CREDIT_COST_ANALYSIS_2026-05-06.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Documented the production analysis explaining why balance revenue per Antigravity AI Credit fell after cache-heavy traffic increased.
-- Recorded period, daily, user-level, model-level, and same-day metrics used to distinguish cache-read pricing effects from account leakage.
-- Added follow-up recommendations for Antigravity-specific pricing calibration and leakage alerts.
-
-## [2026-05-06] fix: shift cache display premium into input display
-
-**Affected files**: backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/handler/admin/user_model_pricing_handler.go, backend/internal/handler/admin/usage_handler.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/user_model_pricing.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/repository/user_model_pricing_repo.go, frontend/src/api/admin/modelPricing.ts, frontend/src/api/admin/userModelPricing.ts, frontend/src/api/admin/usage.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/components/admin/user/UserModelPricingModal.vue, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/billing.md
-**Upstream compatibility**: display/API/UI behavior change; DB columns retained for rollback compatibility
-**Change details**:
-- Changed user-facing model display pricing so cache-read tokens stay at the real token count and cache-read cost uses `display_cache_read_price`.
-- Moves positive cache-read premium into displayed input cost/tokens only when both `display_cache_read_price` and `display_input_price` are configured; otherwise cache-read usage display remains real. `actual_cost` and `rate_multiplier` remain unchanged.
-- Soft-deprecated `cache_transfer_ratio`: backend no longer reads/writes it, admin/user pricing APIs no longer expose it, and frontend forms/compare drawer no longer render it. Existing DB columns remain.
-- Added DTO unit coverage for cache premium transfer, missing display input price fallback, and display map behavior.
-
-## [2026-05-07] docs: 浼樺寲 Codex 鎺ュ叆鏁欑▼
-
-**Affected files**: docs/API_USAGE.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Renamed chapter 4 from "OpenAI Codex CLI 鎺ュ叆鎸囧崡" to "Codex 鎺ュ叆鎸囧崡".
-- Clarified that Codex CLI and Codex desktop share the same `.codex/config.toml` and `.codex/auth.json` files, so CC-Switch can manage both with one configuration.
-- Removed the WSL2-based Windows installation path and simplified Windows setup to native Node.js/npm installation.
-
-## [2026-05-07] docs: 璋冩暣鏁欑▼骞冲彴椤哄簭骞剁Щ闄?Linux 瀹夎閰嶇疆
-
-**Affected files**: docs/API_USAGE.md
-**Upstream compatibility**: docs-only; no runtime behavior changes
-**Change details**:
-- Reordered tutorial installation and configuration platform instructions to Windows first, then macOS.
-- Removed Linux-specific installation/configuration paths and commands from Claude Code and Codex setup sections.
-- Updated screenshot notes and platform selectors to reference only Windows and macOS.
-
-<!-- 
-绀轰緥鏉＄洰锛?
-
-## [2026-04-15] feat: 鏂板浼佷笟寰俊鏀粯鏂瑰紡
-
-**褰卞搷鑼冨洿**: backend/internal/payment/, frontend/src/views/admin/
-**涓婃父鍏煎鎬?*: 浣庡啿绐侀闄╋紝鏂板鏂囦欢涓轰富
-**鍙樻洿璇︽儏**:
-- 鏂板 payment/provider/wechat_work.go
-- 娣诲姞 WeChatWorkProvider 瀹炵幇 PaymentProvider 鎺ュ彛
-- 鍓嶇绠＄悊椤垫柊澧炰紒涓氬井淇℃敮浠橀厤缃〃鍗?
-- config.yaml 鏂板 payment.wechat_work 閰嶇疆娈?
-
-**鍏宠仈 Issue/PR**: #12
-
-## [2026-04-20] fix: 淇 Gemini 璐︽埛 OAuth 鍒锋柊 Token 瓒呮椂
-
-**褰卞搷鑼冨洿**: backend/internal/service/account.go
-**涓婃父鍏煎鎬?*: 鍙兘涓庝笂娓稿悓鍖哄煙淇敼鍐茬獊锛屽悎骞舵椂娉ㄦ剰
-**鍙樻洿璇︽儏**:
-- OAuth token refresh 瓒呮椂浠?10s 鏀逛负 30s
-- 鏂板閲嶈瘯閫昏緫锛堟渶澶?3 娆★紝鎸囨暟閫€閬匡級
-
-**鍏宠仈 Issue/PR**: 鏃狅紙绾夸笂鎺掓煡鍙戠幇锛?
--->
-
-## [2026-06-01] fix: remove account rate from downstream display token rewrite
-
-**Affected files**: backend/internal/service/display_token_rewrite.go, backend/internal/handler/gateway_handler.go, backend/internal/service/display_token_rewrite_test.go
-**Upstream compatibility**: scoped bug fix for user-configured Claude/Antigravity downstream `usage` token display mode; billing and stored usage remain unchanged.
-**Change details**:
-- Removed the obsolete account rate multiplier from downstream display-token multiplier calculation.
-- Kept downstream display token rewriting aligned to model display prices and user group display-rate scaling only.
-- Added regression coverage so equal real/display prices produce a no-op multiplier even when legacy account rate data is high.
-
-## [2026-06-01] fix: stabilize InvokeAI local frontend entrypoint
-
-**Affected files**: E:\cursor project\InvokeAI\scripts\dev-stack.ps1, E:\cursor project\InvokeAI\invokeai\app\api_app.py, E:\cursor project\InvokeAI\invokeai\frontend\web\src\i18n.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\app\store\enhancers\reduxRemember\driver.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\app\components\AppErrorBoundaryFallback.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\common\components\Loading\Loading.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\common\components\InformationalPopover\constants.ts, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\ui\components\Notifications.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\system\components\InvokeAILogoComponent.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\system\components\AboutModal\AboutModal.tsx, E:\cursor project\InvokeAI\invokeai\frontend\web\src\features\nodes\components\sidePanel\workflow\WorkflowLibrary\WorkflowListItem.tsx, E:\cursor project\InvokeAI\AGENTS.md
-**Upstream compatibility**: local development behavior only, except frontend static asset imports are made compatible with current Vite.
-**Change details**:
-- Made the managed local backend set `INVOKEAI_DEV_FRONTEND_URL`; when present, backend `/` redirects to `http://127.0.0.1:15175` instead of serving the bundled UI, while API routes on port 9090 continue to work.
-- Replaced Vite 7-incompatible imports from `public/...` with public URL references and switched i18n to the existing HTTP backend path.
-- Sorted touched frontend imports so the Vite ESLint overlay no longer blocks the local UI during development.
-- Allowed unauthenticated client-state persistence reads/writes to no-op instead of blocking Redux rehydration, fixing the local 15175 page getting stuck on `Loading` before the login screen.
-- Verified `pnpm run lint:tsc`, `ruff check invokeai/app/api_app.py`, `http://127.0.0.1:9090/` redirecting with 307, and `http://127.0.0.1:15175/` rendering the login page in the browser.
-
-## [2026-06-01] fix: expose OpenAI Images upstream 400 errors
-
-**Affected files**: backend/internal/handler/openai_images.go, backend/internal/service/openai_images_context.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/error_passthrough_runtime_test.go, docs/dev/codebase/gateway.md
-**Upstream compatibility**: scoped OpenAI Images error mapping change; generic OpenAI Responses, Chat Completions, Anthropic, and Gemini gateway error masking remains unchanged.
-**Change details**:
-- Added an explicit Gin context marker for parsed `/v1/images/generations` and `/v1/images/edits` requests.
-- Changed OpenAI gateway error handling so Images upstream 400 user errors return downstream 400 with the upstream `error.message` and `error.type` instead of generic 502.
-- Kept the behavior independent of `OPENAI_IMAGE_TRACE_LOG`, which remains only an opt-in timing diagnostic.
-- Added regression coverage for an upstream invalid image size error such as `4096x1752` not being divisible by 16.
-
-## [2026-06-02] fix: reject negative user model pricing overrides
-
-**Affected files**: backend/internal/service/user_model_pricing_service.go, backend/internal/service/user_model_pricing_service_test.go, backend/internal/handler/admin/user_model_pricing_handler.go, backend/migrations/147_user_model_pricing_non_negative_constraints.sql, frontend/src/components/admin/user/UserModelPricingModal.vue, docs/dev/codebase/billing.md
-**Upstream compatibility**: scoped validation hardening for admin user-level model pricing; valid zero and positive prices remain supported.
-**Change details**:
-- Added service-layer validation for create, update, and batch upsert so user-level real/display price overrides cannot be negative, NaN, or infinite.
-- Rejected non-positive or non-finite `display_rate_multiplier` for user model pricing overrides.
-- Added PostgreSQL `NOT VALID` CHECK constraints to block new invalid writes without scanning historical rows during startup.
-- Added focused unit coverage for the negative update path that can otherwise record negative usage costs.
-
-## [2026-06-02] feat: add OpenAI Claude-GPT bridge for Antigravity groups
-
-**Affected files**: backend/internal/service/account.go, backend/internal/service/admin_service.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_gateway_service.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/server/routes/gateway.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/BulkEditAccountModal.vue, frontend/src/components/common/GroupSelector.vue, frontend/src/types/index.ts, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/codebase/account.md, docs/dev/codebase/model-mapping.md, docs/dev/codebase/gateway.md, docs/dev/codebase/billing.md
-**Upstream compatibility**: additive account-side routing feature; existing Antigravity subscriptions, API keys, and group platforms remain unchanged.
-**Change details**:
-- Added `extra.openai_claude_gpt_bridge_enabled` for OpenAI accounts and allowed enabled bridge accounts to bind Antigravity groups while still rejecting Anthropic/Gemini bindings.
-- Reused existing `credentials.model_mapping` as the account-global Claude-to-GPT mapping source, requiring an explicit non-self mapping hit before bridge scheduling.
-- Added Antigravity `/v1/messages` bridge preflight: eligible requests route through OpenAI `ForwardAsAnthropic`, while pre-upstream misses reset the request body and fall back to native Antigravity.
-- Kept user-facing usage records and billing on the original Claude requested model while storing the GPT upstream model in `upstream_model` for admin visibility.
-- Added admin account form controls for enabling the bridge and selecting OpenAI plus Antigravity groups when enabled.
-
-## [2026-06-02] fix: make local Antigravity Claude-GPT bridge requests schedulable
-
-**Affected files**: backend/internal/server/routes/gateway.go, backend/internal/repository/scheduler_cache.go, backend/internal/repository/scheduler_cache_unit_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_account_scheduler.go, backend/internal/handler/admin/account_handler_available_models_test.go, backend/internal/service/antigravity_model_mapping_test.go, backend/internal/server/api_contract_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: scoped routing and scheduler metadata fix for the additive OpenAI Claude-GPT bridge; native Antigravity fallback remains unchanged when no eligible bridge account exists.
-**Change details**:
-- Reused the `/v1/messages` Anthropic Messages dispatch handler for `/antigravity/v1/messages`, so Claude Code configurations with `ANTHROPIC_BASE_URL=/antigravity` also preflight OpenAI bridge accounts.
-- Preserved `extra.openai_claude_gpt_bridge_enabled` in slim scheduler metadata and added a bridge-only DB refresh path before stale scheduler snapshot candidates are rejected.
-- Updated stale unit-test expectations for current OpenAI model-list merge behavior, Antigravity unknown Claude/Gemini passthrough, and handler/service constructor signatures.
-- Preserved native Antigravity routing for bridge misses and kept `/antigravity/v1/messages/count_tokens`, `/models`, and `/usage` unchanged.
-- Verified with a real local Claude Code-style request to `http://localhost:18081/antigravity/v1/messages`: `claude-opus-4-8` returned `200` through OpenAI account `41`, downstream response model stayed `claude-opus-4-8`, usage tokens were `23/19`, and the usage row stored `upstream_model=gpt-5.5`.
-
-## [2026-06-02] fix: classify bridge cache status by request group platform
-
-**Affected files**: backend/internal/repository/usage_log_repo.go, backend/internal/repository/usage_log_repo_request_type_test.go, docs/dev/codebase/billing.md, docs/dev/codebase/account.md
-**Upstream compatibility**: scoped dashboard/statistics compatibility fix for the additive OpenAI Claude-GPT bridge; user billing, usage rows, scheduler selection, and native Antigravity AI Credits aggregation are unchanged.
-**Change details**:
-- Changed prompt-cache status platform filtering to prefer `groups.platform` over `accounts.platform`, so OpenAI bridge rows from Antigravity groups appear in the Antigravity cache-status dashboard.
-- Treated `platform=all` as no platform filter in cache-status SQL, matching the existing handler/frontend semantics.
-- Added unit coverage for the `all` filter and group-platform precedence.
-- Documented that Antigravity AI Credits usage aggregation intentionally remains native Antigravity upstream-account scope, while bridge account-cost rules should target `platform=antigravity` plus the GPT upstream model or leave platform empty.
-
-## [2026-06-02] docs: record OpenAI Claude-GPT bridge implementation notes
-
-**Affected files**: docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/README.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: documentation-only; records the custom OpenAI account-side bridge design, verification, and residual compatibility risks.
-**Change details**:
-- Added a dedicated bridge handoff document covering account configuration, eligibility, scheduler behavior, gateway routing, billing/usage rules, frontend behavior, and local real-request verification.
-- Recorded residual issues for `/models`, `/messages/count_tokens`, Claude Code context compaction, Codex config isolation, and GPT upstream context-window limits.
-- Linked the bridge document from the codebase documentation index for future maintenance.
-
-## [2026-06-02] fix: normalize OpenAI cached tokens in Antigravity bridge usage
-
-**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/channel.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_record_usage_test.go, backend/internal/service/billing_service.go, backend/internal/service/pricing_service.go, backend/internal/service/billing_service_test.go, backend/internal/service/pricing_service_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; ordinary OpenAI cache-read accounting remains unchanged.
-**Change details**:
-- Added a bridge usage flag so Antigravity Claude-GPT requests treat OpenAI `cached_tokens` as ordinary input tokens when writing usage records and calculating user billing.
-- Prevented fixed OpenAI prompt/session cache values such as `18.9k` from appearing as Claude `cache_read_tokens` in usage records.
-- Kept user-facing model and billing model on the original Claude request model while preserving `upstream_model=gpt-5.5` for admin visibility.
-- Corrected local static fallback pricing so `gpt-5.5` no longer inherits `gpt-5.4` fallback prices, and added the missing `gpt-5.4-nano` fallback.
-- Verified with focused unit tests and a real local `/antigravity/v1/messages` bridge request. This cache-zero behavior was later reverted by the follow-up cache-read preservation fix below.
-
-## [2026-06-02] fix: preserve Claude-GPT bridge cache-read usage
-
-**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/channel.go, backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_record_usage_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; ordinary OpenAI usage recording is unchanged.
-**Change details**:
-- Replaced the previous bridge cache-zero flag with a diagnostic-only bridge marker, so OpenAI `input_tokens_details.cached_tokens` is preserved as Anthropic-style `cache_read_tokens`.
-- Restored the existing OpenAI token split for bridge usage: stored ordinary input tokens are `raw_input_tokens - cached_tokens`, and cache-read pricing uses the requested Claude model.
-- Added bridge-only token diagnostics for raw upstream Responses usage, converted Anthropic usage, and final usage-log storage. These logs include request/account/model IDs and token counts only, not request or response content.
-- Updated bridge billing docs to treat repeated values such as `18.9k` as a debugging target that must be traced to raw upstream, conversion, or storage before being accepted as normal.
-- Verified with focused unit tests for bridge model billing and cache-read preservation.
-
-## [2026-06-03] fix: suppress derived upstream cache/session keys in Claude-GPT bridge
-
-**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_compat_model_test.go, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: scoped to the custom OpenAI Claude-GPT bridge for Antigravity groups; normal OpenAI `/v1/messages` still forwards explicit prompt/session keys.
-**Change details**:
-- Traced the fixed `raw_cached_tokens=18944` value to raw OpenAI Responses SSE usage at `response.usage.input_tokens_details.cached_tokens`, then found bridge requests were also forwarding stable upstream cache/session signals derived from Claude `metadata.user_id`.
-- Kept real upstream `cached_tokens` preservation, but stopped bridge mode from injecting or forwarding `prompt_cache_key`, `session_id`, and `conversation_id` to OpenAI/Codex upstreams.
-- Preserved local `metadata.user_id`-derived sticky account scheduling, so bridge account selection still remains stable without creating upstream cache identity.
-- Added regression coverage proving bridge OAuth/API-key forwards omit cache/session identifiers while non-bridge OpenAI Messages behavior still forwards them.
-- Verified with focused unit tests and a real local `/v1/messages` bridge request: diagnostics logged all upstream cache/session flags as false, downstream response model stayed `claude-opus-4-8`, and usage row `15770` stored `upstream_model=gpt-5.5`, `input_tokens=25`, `output_tokens=8`, `cache_read_tokens=0`.
-
-## [2026-06-03] fix: generate Claude-GPT bridge cache display from admin percent range
-
-**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/setting_service.go, backend/internal/service/settings_view.go, backend/internal/service/domain_constants.go, backend/internal/service/openai_compat_model_test.go, backend/internal/service/setting_service_update_test.go, backend/internal/handler/admin/setting_handler.go, backend/internal/handler/dto/settings.go, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/i18n/locales/en.ts, frontend/src/i18n/locales/zh.ts, docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md, docs/dev/codebase/billing.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: scoped to OpenAI-backed Claude-GPT bridge requests from Antigravity groups; ordinary OpenAI cache accounting and native Antigravity forwarding remain unchanged.
-**Change details**:
-- Restored body-level `prompt_cache_key` forwarding for bridge OpenAI upstream requests while continuing to remove `session_id` and `conversation_id` headers, keeping the bridge body closer to normal OpenAI traffic so upstream cache can work.
-- Added admin setting `openai_claude_gpt_bridge_cache_display_settings` with `enabled`, `min_percent`, and `max_percent`; backend and frontend validation require `0 <= min_percent <= max_percent <= 100`.
-- When enabled, bridge responses directly generate a random display/billing cache-read value from the configured percentage range over upstream `input_tokens`, replacing upstream `cached_tokens` for downstream Anthropic usage and usage records.
-- Clarified and covered with tests that the generated cache value is not derived from, added to, or scaled from upstream `cached_tokens`; upstream cache data is only diagnostic when the override is enabled.
-- Restored downstream display-token rewriting for OpenAI Messages / Antigravity bridge `/v1/messages`, including streaming Anthropic SSE, so users configured for display-mode downstream usage see response usage aligned with usage-log display.
-- Kept raw upstream `cached_tokens` logging as diagnostics only, so fixed upstream values such as `18944` can still be traced without leaking into user-visible bridge cache display when the override is enabled.
-- Added focused coverage for prompt-cache body forwarding, cache display override, 60%-70% range validation, fixed upstream `18944` rejection, downstream display usage rewrite, and settings persistence/range validation.
-- Verified with a real local Claude Code request through Antigravity API key `5`: upstream reported `raw_cached_tokens=7680`, the bridge generated `display_cached_tokens=14946` from `raw_input_tokens=22273` at `67.1041%`, usage row `15774` stored `model=requested_model=claude-opus-4-8`, `upstream_model=gpt-5.5`, `input_tokens=7327`, `cache_read_tokens=14946`, and downstream Claude Code display-mode usage showed `input_tokens=16149`, `cache_read_input_tokens=14946`, `output_tokens=188`.
-
-## [2026-06-06] fix: sync upstream OpenAI response.failed handling
-
-**Affected files**: backend/internal/handler/stream_error_event.go, backend/internal/handler/stream_error_event_test.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_images.go, backend/internal/service/openai_codex_transform.go, backend/internal/service/openai_gateway_messages.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; local Claude-GPT bridge and `OPENAI_IMAGE_TRACE_LOG` behavior remain preserved.
-**Change details**:
-- Added Responses-protocol `response.failed` SSE emission when `/responses` streams have already flushed headers, including bare `/responses` and Codex direct route variants.
-- Avoided appending generic fallback errors when OpenAI forwarding already wrote an upstream terminal error event.
-- Kept Anthropic and Chat Completions legacy stream error formats for non-Responses endpoints.
-- Fixed the OpenAI Claude-GPT bridge Codex instruction transform so forced instruction templates can see original Anthropic system/developer text without injecting the generic default instructions first.
-- Verified with `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
-
-## [2026-06-06] fix: sync upstream OpenAI responses chat fallback
-
-**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback.go, backend/internal/service/openai_gateway_responses_chat_fallback_test.go, backend/internal/service/openai_gateway_chat_completions_raw.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; API key accounts marked as not supporting `/v1/responses` now serve Responses clients through `/v1/chat/completions` without changing local Claude-GPT bridge or display-token behavior.
-**Change details**:
-- Added `/v1/responses` -> `/v1/chat/completions` fallback for OpenAI API key accounts whose responses support mode is forced off or probe state says unsupported.
-- Converted upstream Chat Completions JSON/SSE responses back into Responses JSON/SSE for downstream clients, including DeepSeek reasoning-only streams and usage-only stream chunks.
-- Extended JSON usage extraction to accept Chat Completions `prompt_tokens` / `completion_tokens` fields when this fallback path reads upstream usage.
-- Verified with focused fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
-
-## [2026-06-06] fix: sync upstream raw chat completions usage and URL handling
-
-**Affected files**: backend/internal/service/openai_endpoint_url.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_responses_chat_fallback_test.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 3 OpenAI/Codex core sync from `upstream/main@1f423ae0`; scoped to OpenAI API key raw Chat Completions forwarding and shared OpenAI endpoint URL construction.
-**Change details**:
-- Forced raw `/v1/chat/completions` stream forwarding to request `stream_options.include_usage=true`, so upstream usage is available for billing even when the client omitted the option.
-- Continued draining upstream SSE after downstream client disconnects, preserving usage extraction without writing more data to the disconnected client.
-- Added a raw Chat Completions header allowlist so Codex/OAuth-specific headers like `session_id`, `conversation_id`, and `x-codex-turn-state` are not forwarded to third-party API-key upstreams.
-- Added shared OpenAI endpoint URL construction for versioned compatible base URLs such as `/api/paas/v4`, covering Responses and Chat Completions.
-- Routed raw Chat Completions non-streaming reads through the existing upstream response-size guard and kept display-token rewriting downstream-only.
-- Verified with focused raw/fallback tests, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, and `go run ./tools/upstream-sync-guard`.
-
-## [2026-06-06] fix: sync upstream OpenAI Messages bridge core
-
-**Affected files**: backend/internal/service/openai_gateway_messages.go, backend/internal/service/openai_messages_bridge.go, backend/internal/service/openai_messages_continuation.go, backend/internal/service/openai_messages_digest_session.go, backend/internal/service/openai_messages_replay_guard.go, backend/internal/service/openai_messages_todo_guard.go, backend/internal/service/openai_compat_prompt_cache_key.go, backend/internal/service/openai_tool_continuation.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_compat_model_test.go, backend/internal/service/openai_tool_continuation_test.go, backend/internal/handler/openai_gateway_handler_test.go, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 3 OpenAI/Codex Messages sync from `upstream/main@1f423ae0`; upstream Anthropic-to-Responses conversion, Codex transform, terminal-event parsing, continuation, digest session, replay guard, and todo guard are used as the core while local Antigravity scheduling, bridge usage, display cache, display-token rewrite, and session-header stripping are preserved.
-**Change details**:
-- Rebased `ForwardAsAnthropic` on the upstream Messages flow, including `previous_response_id` continuation for API-key compat, Anthropic digest-derived prompt cache keys, replay trimming, Claude Code todo guard injection, `response.failed`/missing-terminal handling, and raw SSE frame parsing.
-- Kept the local Claude-GPT bridge overlay: Antigravity preflight remains outside the core, bridge requests still preserve body `prompt_cache_key`, and upstream `session_id` / `conversation_id` headers are deleted after request construction.
-- Preserved bridge usage semantics: downstream model/requested model remain Claude, `upstream_model` remains GPT, bridge cache-display override and display-token SSE/non-stream rewriting still run after upstream terminal usage is parsed.
-- Extended Codex tool-output detection from only `function_call_output` to `tool_search_output`, `custom_tool_call_output`, and `mcp_tool_call_output` in HTTP validation and WS continuation checks, keeping tool continuation behavior aligned with upstream.
-- Kept local `toolu_*` preservation by validating tool call IDs by type rather than by fixed input index, since upstream todo guard can prepend developer input.
-- Verified with `go test -tags=unit ./internal/service -run "ForwardAsAnthropic|ClaudeGPTBridge|OpenAICompat|ToolContinuation|ReplayGuard|PromptCache|CodexTransform"`, `go test -tags=unit ./internal/handler -run "OpenAIMessages|ClaudeGPTBridge|FunctionCallOutput"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler`, `go run ./tools/upstream-sync-guard`, `git diff --check`, and `go run ./tools/smoke --suite openai,bridge`.
-- Local smoke note: the dev PostgreSQL `schema_migrations` table had stale checksums for already-applied `150-166` migrations from a prior branch state; the local dev DB records were updated to match the current migration files so the backend could start for real-request smoke. No migration files were changed.
-
-## [2026-06-06] feat: add OpenAI embeddings endpoint and endpoint capability scheduling
-
-**Affected files**: backend/internal/handler/endpoint.go, backend/internal/handler/openai_embeddings.go, backend/internal/server/routes/gateway.go, backend/internal/service/account.go, backend/internal/service/http_upstream_profile.go, backend/internal/service/openai_account_scheduler.go, backend/internal/service/openai_embeddings.go, backend/internal/service/upstream_context.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 4 OpenAI Embeddings sync from `upstream/main@1f423ae0`; scoped to OpenAI API key embeddings and endpoint capability scheduling, without changing the local Claude-GPT bridge scheduler path.
-**Change details**:
-- Added OpenAI-compatible `POST /v1/embeddings` for OpenAI groups, including request validation, OpenAI API-key forwarding, upstream response passthrough, usage extraction, and usage-log recording.
-- Added `credentials.openai_capabilities` endpoint gating with `chat_completions` and `embeddings`; missing configuration remains backward-compatible and allows existing OpenAI API key accounts to serve chat completions.
-- Updated `/v1/responses`, `/v1/chat/completions`, native OpenAI `/v1/messages`, and OpenAI WS initial account selection to require the chat-completions capability, while the Claude-GPT bridge still uses `SelectAccountWithSchedulerForClaudeGPTBridge`.
-- Added the minimal upstream context/profile helpers needed by embeddings forwarding, and kept pool-mode retry behavior on the existing local default status-code list.
-- Verified with `go test -tags=unit ./internal/handler -run "Endpoint|Embeddings"`, `go test -tags=unit ./internal/service -run "Embeddings|OpenAIAccountScheduler|OpenAIImage|PoolMode"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-06] fix: bridge oversized OpenAI websocket requests through HTTP
-
-**Affected files**: backend/internal/config/config.go, backend/internal/config/config_test.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, backend/internal/service/openai_ws_http_bridge.go, backend/internal/service/openai_ws_http_bridge_test.go, backend/internal/service/image_output_accounting.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 4 OpenAI WS sync from `upstream/main@1f423ae0`; scoped to oversized Responses WebSocket ingress frames and replay continuity, without changing Antigravity Claude-GPT bridge dispatch or fallback semantics.
-**Change details**:
-- Added configurable OpenAI WS client read limit and HTTP bridge threshold defaults so frames above the old 16 MiB WS limit can keep the downstream WS connection while using `/v1/responses` SSE upstream.
-- Added `proxyOpenAIWSHTTPBridgeTurn` to strip WS-only fields, force HTTP streaming, relay SSE events as WS messages, preserve terminal usage parsing, and surface upstream HTTP/SSE errors as WS error events.
-- Preserved tool-call replay context across bridge turns so follow-up `function_call_output` frames can become self-contained HTTP `/responses` requests without forwarding stale `previous_response_id`.
-- Added shared image-output counting helpers required by the WS bridge; independent Images endpoint routing/accounting remains a later Phase 4 sub-batch.
-- Kept local Claude-GPT bridge, display-token, display-pricing, distribution, public `/key-usage`, and docs/dev-stack paths untouched by this sub-batch.
-- Verified with `go test -tags=unit ./internal/service -run "OpenAIWSHTTPBridge|HTTPBridge|OpenAIWS.*Bridge|WebSocket"`, `go test -tags=unit ./internal/service -run "OpenAIWS|HTTPBridge|WebSocket|ClaudeGPTBridge|DisplayToken|Pricing"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-06] fix: sync upstream OpenAI Images API-key streaming and image cooldown
-
-**Affected files**: backend/internal/handler/openai_images.go, backend/internal/pkg/ctxkey/ctxkey.go, backend/internal/service/image_generation_intent.go, backend/internal/service/model_rate_limit.go, backend/internal/service/openai_images.go, backend/internal/service/ratelimit_service.go, backend/internal/service/model_rate_limit_test.go, backend/internal/service/ratelimit_service_openai_test.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 4 OpenAI Images sync from `upstream/main@1f423ae0`; scoped to API-key `/v1/images/*` streaming/error handling and image-generation cooldown, preserving local `OPENAI_IMAGE_TRACE_LOG` and existing image billing semantics.
-**Change details**:
-- Added image-generation intent helpers and context marking so `/v1/images/*` requests honor group `allow_image_generation` and OpenAI image-specific model-rate-limit scope.
-- API-key Images forwarding now uses the detached upstream context, OpenAI HTTP upstream profile, upstream error-body helper, configured pool-mode retry status policy, and upstream 400/error passthrough path.
-- API-key image streaming now supports keepalive comments, idle timeout error events, downstream disconnect drain-for-billing, fallback JSON accounting, image output size accounting, and response usage extraction from streamed image events.
-- Added OpenAI image 429 cooldown handling that writes `openai:image_generation` model-rate-limit scope instead of disabling/rate-limiting the whole OpenAI account when the upstream error is image-specific.
-- Kept `ImageSize` / `ImageSizeInfo` / `ImageQuality` as the local real-billing inputs and retained safe `OPENAI_IMAGE_TRACE_LOG` timing/correlation log points without logging prompts, image bytes, auth, cookies, API keys, or full bodies.
-- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*Images|ImageOutput|ImageTrace|ModelRateLimit|Handle429_OpenAIImage|CalculateOpenAI429|OpenAIImageRateLimit"`, `go test -tags=unit ./internal/handler -run "OpenAI.*Images|Images|GroupModel"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-06] feat: add OpenAI account endpoint capabilities and Codex image bridge override
-
-**Affected files**: backend/internal/config/config.go, backend/internal/service/codex_image_generation_bridge.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_ws_forwarder.go, frontend/src/components/account/CreateAccountModal.vue, frontend/src/components/account/EditAccountModal.vue, frontend/src/components/account/__tests__/EditAccountModal.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, frontend/src/types/index.ts, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 4 account-management minimal union from `upstream/main@1f423ae0`; scoped to OpenAI API-key endpoint capabilities and account-level Codex image-generation bridge override, without bringing in upstream account page re-layout, Codex session import, or model sync preview.
-**Change details**:
-- Added `gateway.codex_image_generation_bridge_enabled` as a default-off global fallback and `extra.codex_image_generation_bridge` account override for Codex `/v1/responses` image-generation tool injection.
-- Kept backward compatibility for legacy `extra.codex_image_generation_bridge_enabled` and nested `extra.openai.*` values, while frontend saves the new field and removes the legacy key.
-- Gated HTTP and WS Codex image-generation bridge injection by the account override/global fallback without changing independent `/v1/images/*` scheduling, local Claude-GPT bridge dispatch, display-token behavior, or Antigravity fallback semantics.
-- Added OpenAI API Key account Create/Edit controls for `credentials.openai_capabilities` with `chat_completions` and `embeddings`, preserving the backward-compatible default when both are selected.
-- Added Chinese/English i18n keys and EditAccountModal regressions covering endpoint capability save, minimum-one capability behavior, and legacy Codex image bridge migration.
-- Verified with `go test -tags=unit ./internal/service -run "CodexImageGenerationBridge|ImageGenerationBridge|OpenAIWS|OpenAIGatewayService"`, `pnpm run typecheck`, `pnpm run test:run -- EditAccountModal CreateAccountModal BulkEditAccountModal`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-06] fix: preserve image generation group permissions in API key auth cache
-
-**Affected files**: backend/internal/repository/api_key_repo.go, backend/internal/service/api_key_auth_cache.go, backend/internal/service/api_key_auth_cache_impl.go, backend/internal/service/api_key_service_cache_test.go, backend/tools/smoke/main.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 4 OpenAI Images/Embeddings real-request validation hardening; scoped to API-key auth hot path and smoke fixture selection, without changing pricing, Claude-GPT bridge, distribution, public `/key-usage`, or account scheduling semantics.
-**Change details**:
-- Fixed `GetByKeyForAuth` to select `groups.allow_image_generation`; otherwise the lightweight API-key auth path hydrated `apiKey.Group.AllowImageGeneration=false` even when the database group enabled images.
-- Added `AllowImageGeneration` to the API-key auth cache snapshot and bumped the snapshot version to invalidate old cached group snapshots.
-- Added a snapshot round-trip regression test so image permissions are preserved through auth cache DB-load and cache-hit paths.
-- Hardened `backend/tools/smoke` to load ignored `tmp/smoke/local.env`, use platform-specific local keys without printing secrets, and select fixtures by real capability: OpenAI chat/responses, image-capable OpenAI group, embeddings-capable OpenAI API-key group, and Antigravity bridge key.
-- Tightened real-request assertions so `/v1/responses`, `/v1/chat/completions`, `/v1/images/generations` invalid-size passthrough, and `/v1/embeddings` must return their expected statuses instead of accepting broad 2xx-4xx ranges.
-- Verified with `go test -tags=unit ./internal/service -run "APIKeyService_SnapshotRoundTrip_PreservesAllowImageGeneration|OpenAI.*Images|ImageGeneration|Embeddings|CodexImageGenerationBridge"`, `go test -tags=unit ./internal/server ./internal/handler -run "Embeddings|OpenAI.*Images|ImageConcurrency"`, `go run ./tools/upstream-sync-guard`, `git diff --check`, and `go run ./tools/smoke --suite openai,images,embeddings`.
-- Local smoke note: OpenAI chat/responses and images invalid-size passthrough pass against the current dev stack; embeddings is blocked by fixture availability because the local database currently has no active OpenAI `apikey` upstream account in any downstream-key group.
-
-## [2026-06-06] fix: sync Phase 5A upstream stability and safety fixes
-
-**Affected files**: backend/internal/service/leader_lock.go, backend/internal/repository/leader_lock_cache.go, backend/internal/service/dashboard_aggregation_service.go, backend/internal/service/subscription_expiry_service.go, backend/internal/service/payment_order_expiry_service.go, backend/internal/repository/session_limit_cache.go, backend/internal/repository/user_msg_queue_cache.go, backend/internal/setup/setup.go, backend/internal/repository/account_repo.go, backend/internal/repository/api_key_repo.go, backend/internal/service/admin_service.go, backend/internal/handler/openai_stream_validation.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_gateway_handler.go, backend/cmd/server/wire_gen.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 5A scoped sync from `upstream/main@635ad81c`; this sub-stage only covers operational stability and safety fixes and intentionally does not merge quota, risk-control, usage error requests, group models-list UI, pricing, distribution, or account-page re-layout.
-**Change details**:
-- Added a Redis-backed leader lock for existing dashboard aggregation, subscription-expiry, and payment-order-expiry background tasks so multi-instance deployments do not run the same periodic job concurrently.
-- Added Redis Lua `redis.replicate_commands()` compatibility for scripts that call `TIME`, preserving existing session-limit and user message queue semantics.
-- Changed setup database bootstrap to connect to the maintenance `postgres` database before creating/connecting to the configured target database.
-- Refreshed scheduler account snapshots after clearing temporary unschedulable state.
-- When deleting a user, API keys are deleted first with deleted-key audit support when available; auth caches are invalidated for each key and for the user.
-- Treated allowed proxy-quality HTTP statuses as pass results and added OpenAI-compatible `stream` field type validation for chat completions/responses/messages ingress.
-- Preserved local custom features: pricing/display token, distribution, public `/key-usage`, Claude-GPT bridge, AI credit snapshot, announcement surfaces, image trace logging, and dev-stack/docs.
-- Verified with `go test -tags=unit ./internal/service -run "DeleteUser|ProxyQuality"`, `go test -tags=unit ./internal/server -run TestAPIContracts`, `go test -tags=unit ./internal/setup ./internal/repository ./internal/service ./internal/handler ./internal/server`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-06] feat: sync Phase 5 usage errors and group models list
-
-**Affected files**: backend/internal/handler/admin/group_handler.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/admin/ops_handler.go, backend/internal/handler/ops_error_logger.go, backend/internal/repository/group_repo.go, backend/internal/repository/ops_repo.go, backend/internal/server/routes/admin.go, backend/internal/service/admin_service.go, backend/internal/service/ops_*.go, backend/tools/smoke/main.go, backend/tools/upstream-sync-guard/main.go, frontend/src/api/admin/groups.ts, frontend/src/api/admin/ops.ts, frontend/src/components/admin/group/GroupModelsListConfigPanel.vue, frontend/src/types/index.ts, frontend/src/views/admin/GroupsView.vue, frontend/src/views/admin/groupsModelsList.ts, frontend/src/views/admin/__tests__/groupsModelsList.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 5B/5C scoped sync from `upstream/main@635ad81c`; this entry records the usage failed/error request display already committed in `ed0c9b98` and the current group custom `/v1/models` list integration. Quota, risk-control/content moderation, channel monitor OpenAI API mode, account quota auto-pause, payment/login/marketing updates, and account-page re-layout remain deferred.
-**Change details**:
-- Added user-facing usage error request APIs and frontend usage tab in Phase 5B while preserving local ops panels and accepting upstream removal of ops retry/replay.
-- Added group `models_list_config` create/update persistence, admin candidate model endpoint, and gateway filtering for `GET /v1/models`; this affects only the displayed model list and does not change scheduling, model mapping, allow/block lists, billing, or Claude-GPT bridge behavior.
-- Added a minimal Groups page panel with Chinese/English i18n for configuring the custom `/v1/models` list without replacing the local group rate, RPM override, distribution, or OpenAI Messages controls.
-- Removed remaining ops retry/replay code and frontend retry API exports to match accepted upstream deletion and local migration `155_remove_ops_retry_replay.sql`; normal gateway failover, account-pool retry, 429/5xx cooldown, and request error display remain intact.
-- Extended `backend/tools/smoke` custom suite to check usage error request APIs, `/v1/models` response shape, and group models-list candidates without writing pricing or billing configuration.
-- Extended `backend/tools/upstream-sync-guard` with signatures for usage errors and group models-list route/UI/gateway plumbing.
-- Verified locally with `go test -tags=unit ./internal/handler ./internal/service ./internal/repository -run "Usage|Ops|Error|APIKey|Deleted"`, `go test -tags=unit ./internal/handler ./internal/service ./internal/repository -run "Group|ModelsList|GatewayModels"`, `go test -tags=unit ./internal/handler ./internal/service ./internal/repository ./internal/server`, `go test -tags=unit ./cmd/server`, `pnpm run typecheck`, `pnpm run test:run`, `go run ./tools/upstream-sync-guard`, `git diff --check`, migration duplicate check for new `150+` migrations, and `go run ./tools/smoke --suite custom,bridge` (25/25 passed).
-- Full local smoke `go run ./tools/smoke --suite quick,custom,openai,bridge,images,embeddings` passed 32/33 checks; the only failure is fixture availability for embeddings because the current dev DB has no active OpenAI API-key upstream account bound to the downstream key group. OpenAI responses/chat, images invalid-size passthrough, bridge, usage errors, distribution, pricing, announcements, and group models-list checks passed.
-
-## [2026-06-07] fix: sync Phase 6A OpenAI error and stream terminal fixes
-
-**Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_chat_completions_raw.go, backend/internal/service/openai_silent_refusal.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6A scoped sync from `upstream/main@635ad81c`; covers OpenAI/Codex error and stream terminal correctness only, without changing pricing, display token, distribution, public `/key-usage`, Claude-GPT bridge routing, or account page UI.
-**Change details**:
-- Added API-key non-streaming Responses fallback when an upstream returns SSE in a body with the wrong content type, matching the existing OAuth heuristic without masking valid JSON.
-- Normalized streamed Responses terminal events so `response.completed`/`response.done` with empty or null `response.output` gets reconstructed from accumulated text/tool/image deltas before reaching clients.
-- Added the upstream OpenAI silent-refusal detector and connected it to the raw Chat Completions streaming path so large empty stop-without-usage streams can fail over before any downstream output is written.
-- Preserved upstream `response.failed`/protocol errors already written to the client, and mapped exhausted silent-refusal failover to a clear upstream-error message.
-- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*SSE|OpenAI.*Stream|SilentRefusal|ChatCompletions|Responses|Images|GatewayService"`, `go test -tags=unit ./internal/handler -run "OpenAI|Stream|Failed|Images|Gateway"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-07] fix: sync Phase 6B OpenAI usage context and response-id binding
-
-**Affected files**: backend/internal/handler/gateway_handler.go, backend/internal/handler/gateway_handler_chat_completions.go, backend/internal/handler/gateway_handler_responses.go, backend/internal/handler/gemini_v1beta_handler.go, backend/internal/handler/openai_chat_completions.go, backend/internal/handler/openai_embeddings.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/openai_images.go, backend/internal/server/middleware/client_request_id.go, backend/internal/service/openai_gateway_chat_completions.go, backend/internal/service/openai_gateway_service.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6B scoped sync from `upstream/main@635ad81c`; covers OpenAI usage preservation, request correlation context, and HTTP response-id account binding only. Pricing defaults, global/user model pricing, display pricing, distribution, public `/key-usage`, Claude-GPT bridge routing, and image trace safety remain unchanged.
-**Change details**:
-- Usage-record worker tasks now copy `client_request_id` and request id from the original request context into the detached recording context, so async usage rows keep request correlation after Gin request cancellation.
-- The client request id middleware now echoes `X-Client-Request-ID` for existing or generated ids while keeping the logger context behavior unchanged.
-- OpenAI Responses, passthrough, SSE-to-JSON fallback, and Chat Completions compatibility paths now retain the upstream response id in `OpenAIForwardResult`.
-- HTTP Responses/Chat paths bind the upstream response id to the selected account through the existing OpenAI WS sticky state store, allowing later `previous_response_id` continuations to reuse the same account without adding schema or pricing changes.
-- Chat Completions streaming conversion always requests/emits a usage chunk for gateway billing completeness, while display-token rewriting stays downstream-only and real usage remains unmodified.
-- Verified with `go test -tags=unit ./internal/handler -run "UsageRecord|OpenAI|Gateway"`, `go test -tags=unit ./internal/service -run "OpenAI|ResponseID|Usage|ChatCompletions"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-07] fix: sync Phase 6C OpenAI websocket failover
-
-**Affected files**: backend/internal/handler/openai_gateway_handler.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6C scoped sync from `upstream/main@635ad81c`; the remaining local delta was OpenAI Responses WebSocket account failover after upstream WS rate-limit errors. Other Phase 6C WS fixes for tool-output continuation, terminal-event timing, usage parsing/deduplication, model fallback, and Codex image bridge injection were already present from earlier Phase 3/4/6B syncs.
-**Change details**:
-- Wrapped OpenAI `/v1/responses` WebSocket ingress forwarding in the same failover pattern used by local OpenAI HTTP handlers: failed account IDs are excluded, account switch metrics are recorded, and the next schedulable OpenAI account is selected when the service returns an `UpstreamFailoverError`.
-- Reacquires the user concurrency slot before retrying a WS upstream after a failed turn, while releasing the failed account slot immediately to avoid leaking account concurrency.
-- Added a WS-specific failover-exhausted close mapper so 429 and transient upstream failures close the client socket with retryable WebSocket status/reason instead of a generic internal error.
-- Kept endpoint-capability scheduling, local account image endpoint switch, Codex image bridge injection, Claude-GPT bridge routing, display-token usage semantics, and pricing untouched.
-- Verified with `go test -tags=unit ./internal/service -run "OpenAIWS|WebSocket|HTTPBridge|RateLimit|ResponseID|Usage|CodexImage|ToolContinuation"`, `go test -tags=unit ./internal/handler -run "OpenAI.*WebSocket|OpenAIMessages|ClaudeGPTBridge|Endpoint|Images"`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler -run "OpenAI|Codex|Responses|Chat|Messages|WS|Usage|OAuth|Image|Bridge"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-07] fix: sync Phase 6D/6E OpenAI request hotpath and apicompat audit
-
-**Affected files**: backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_hotpath_test.go, backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/gateway_helper.go, backend/internal/handler/gateway_helper_hotpath_test.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6D scoped sync from `upstream/main@635ad81c` for OpenAI request body retention/OOM hardening. Phase 6E apicompat bridge redesign, reasoning-only/DeepSeek handling, and tool pairing were audited and already match the target upstream package, so no duplicate apicompat edits were made.
-**Change details**:
-- Bound the OpenAI parsed-request cache to the exact request body hash/length so failover or retry paths cannot reuse a mutable map decoded from a previous upstream attempt.
-- Added safe cache helpers for handler pre-validation and Claude Code client detection, replacing direct raw map storage in Gin context while preserving backward-compatible reads for lightweight detection.
-- Released the parsed-request cache before OpenAI upstream failover and after successful HTTP response handling, reducing large request body/map retention across streaming response processing.
-- Switched OpenAI request reserialization and empty-base64-image cleanup to the upstream non-HTML-escaping JSON encoder helper, preserving request content while avoiding extra escaping churn.
-- Extracted reasoning effort and service tier for usage records from the final request body bytes instead of retaining the full decoded request map solely for those scalar fields.
-- Confirmed Phase 6E apicompat code has no local diff against `upstream/main@635ad81c`; focused tests cover Responses <-> Chat Completions lifecycle, DeepSeek/reasoning-only streams, and Responses-to-Anthropic tool pairing.
-- Kept pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge overlay, distribution, public `/key-usage`, image trace safety, and account scheduling controls untouched.
-- Verified with `go test -tags=unit ./internal/service -run "OpenAI.*Hotpath|GetOpenAIRequestBodyMap|ExtractOpenAI|SanitizeEmptyBase64|Forward|ResponseID|Usage"`, `go test -tags=unit ./internal/handler -run "SetClaudeCodeClientContext|OpenAI|FunctionCallOutput"`, `go test -tags=unit ./internal/pkg/apicompat -run "ChatCompletions|Responses|DeepSeek|Reasoning|Tool|Pairing|Lifecycle|Invariants"`, `go test -tags=unit ./internal/service -run "ResponsesChatFallback|ForwardAsAnthropic|ChatCompletions|DeepSeek|Tool|Pairing|CodexTransform"`, `go run ./tools/upstream-sync-guard`, `go test -tags=unit ./internal/pkg/apicompat ./internal/pkg/openai ./internal/pkg/openai_compat`, `go test -tags=unit ./internal/service ./internal/handler -run "OpenAI|Codex|Responses|Chat|Messages|WS|Usage|OAuth|Image|Bridge"`, and `git diff --check`.
-
-## [2026-06-07] fix: sync Phase 6F OpenAI OAuth runtime fixes
-
-**Affected files**: backend/internal/service/ratelimit_service.go, backend/internal/service/ratelimit_service_401_test.go, backend/internal/service/openai_oauth_service.go, backend/internal/service/openai_oauth_service_refresh_test.go, backend/internal/service/openai_privacy_service.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6F scoped sync from `upstream/main@635ad81c`; covers OpenAI OAuth 401 credential safety and token-refresh enrichment only. Codex used-percent snapshot self-heal, OpenAI HTTP2 response-header timeout, and endpoint capability routing were audited and already present locally, so no duplicate account-page or scheduler rewrites were made.
-**Change details**:
-- OAuth 401 handling now invalidates token caches and marks the account temporarily unschedulable without persisting the request-start `account.Credentials` snapshot, preventing a concurrent fresh refresh token from being rolled back by an old snapshot.
-- OpenAI OAuth `RefreshAccountToken` now enriches the existing-access-token/no-refresh-token path using the same ChatGPT backend best-effort account metadata flow as normal token refresh.
-- Added ChatGPT subscriptions fallback enrichment for `subscription_expires_at` when `accounts/check` reports plan metadata but omits entitlement expiry.
-- Kept OAuth privacy-disable best-effort behavior and proxy handling intact, while making backend URLs package-overridable for unit tests only.
-- Preserved pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge overlay, distribution, public `/key-usage`, image trace safety, and account page layout.
-- Verified with `go test -tags=unit ./internal/service -run "OAuth401|RateLimitService_HandleUpstreamError_OAuth401|OpenAIOAuthService_RefreshAccountToken_NoRefreshTokenUsesExistingAccessToken|OpenAITokenRefresher|OpenAITokenProvider"`, `go test -tags=unit ./internal/service -run "CodexSnapshot|ShouldRefreshOpenAICodexSnapshot|OpenAICodex|Endpoint|Capability|OpenAIAccountScheduler"`, `go test -tags=unit ./internal/config ./internal/repository -run "ResponseHeaderTimeout|HTTP2|HTTPUpstream"`, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
-
-## [2026-06-07] fix: sync Phase 6G Codex and Claude Code mimicry fixes
-
-**Affected files**: backend/internal/pkg/claude/constants.go, backend/internal/pkg/openai/constants.go, backend/internal/service/account.go, backend/internal/service/account_openai_passthrough_test.go, backend/internal/service/claude_code_validator.go, backend/internal/service/claude_code_validator_test.go, backend/internal/service/identity_service.go, backend/internal/service/openai_client_restriction_detector.go, backend/internal/service/openai_client_restriction_detector_test.go, backend/internal/service/openai_gateway_service.go, backend/internal/service/openai_gateway_service_codex_cli_only_test.go, backend/internal/service/openai_oauth_passthrough_test.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6G scoped sync from `upstream/main@635ad81c`; covers Codex/Claude Code client mimicry and request fingerprint fidelity only. It intentionally does not merge account-page UI/settings, pricing, quota, risk-control, channel monitor, or marketing/login/payment changes.
-**Change details**:
-- Updated Claude Code mimicry defaults to CLI `2.1.161`, package version `0.94.0`, Node runtime `v24.3.0`, and removed `redact-thinking` from the default full-mimicry beta list while keeping the local Claude-GPT bridge overlay unchanged.
-- Aligned the default Claude fingerprint used by identity rewriting with the shared Claude constants so generated metadata and outbound headers stay in sync.
-- Added Claude Code validator compatibility for `/v1/messages/count_tokens` and billing-attribution system blocks that contain `x-anthropic-billing-header` plus `cc_entrypoint=cli`.
-- Updated the Codex OAuth fallback User-Agent to the newer structured `codex_cli_rs/0.125.0 (...)` form and injected `x-codex-installation-id` into OAuth Codex `client_metadata` when an account device id is available.
-- Added a backend-only allowed-client hook for `codex_cli_only_allowed_clients` and global allowed-client inputs, with account JSONB parsing tests. No admin UI/settings persistence was added in this sub-batch.
-- Added `codex-auto-review` to OpenAI default models and switched synthetic Codex default instructions to the upstream model-aware helper where available.
-- Preserved pricing defaults, global/user model pricing, display pricing/display token, Claude-GPT bridge routing/usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
-- Verified with `go test -tags=unit ./internal/service -run "ClaudeCodeValidator|CodexClientRestriction|CodexCLIOnly|CodexTransform|OpenAI.*Hotpath|OpenAIGatewayService|GetCodexCLIOnlyAllowedClients"` and `go test -tags=unit ./internal/pkg/openai ./internal/pkg/claude`.
-
-## [2026-06-07] fix: sync Phase 6.5 long-context cache billing multipliers
-
-**Affected files**: backend/internal/service/billing_service.go, backend/internal/service/billing_service_test.go, backend/internal/service/model_pricing_resolver_test.go, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: Phase 6.5 scoped sync of upstream long-context billing fixes `b9509e82` and `ed2aac25`; this only changes how existing model pricing metadata is applied when long-context pricing is already triggered. It does not write model prices, change global/user pricing configuration, or alter display pricing/display-token semantics.
-**Change details**:
-- Long-context pricing now applies the input-side multiplier to `cache_read_tokens`, matching OpenAI GPT-5.4/GPT-5.5 long-context semantics where cache reads are input-side replays.
-- Long-context pricing now applies the same input-side multiplier to cache creation cost, including standard cache writes and `5m`/`1h` ephemeral cache creation breakdown prices.
-- Added regression tests proving below-threshold cache read/write prices remain at base price, while above-threshold cache read/write prices are multiplied.
-- Added a local pricing resolver regression that locks user-level model pricing as the final override over channel/global/base pricing while preserving inherited long-context metadata.
-- Preserved global/user model pricing values, display pricing, display token, Claude-GPT bridge usage semantics, distribution, public `/key-usage`, image trace safety, and local docs/dev-stack behavior.
-- Verified with `go test -tags=unit ./internal/service -run "OpenAIGPT54LongContextAppliesMultiplierToCache|OpenAIGPT54NoLongContextKeepsCache|LongContextAppliesMultiplierToCacheCreation5mAnd1h|UserOverride_BeatsChannelGlobal"` and `go test -tags=unit ./internal/service -run "Billing|Pricing|LongContext|DisplayToken|UserModelPricing|GlobalModelPricing"`.
-- Real-request smoke after refreshing local fixtures passed with `go run ./tools/smoke --suite openai,bridge,images,custom` (28/28). OpenAI responses/chat, Claude-GPT bridge, Images upstream 400 passthrough, distribution, pricing, public `/key-usage`, announcements, usage errors, and group models-list checks are covered. `go run ./tools/smoke --suite embeddings` now reaches the OpenAI API-key account, but that account's upstream base URL returns `404 page not found` for `/v1/embeddings`; this is recorded as a fixture/upstream endpoint compatibility issue, not a Sub2API routing failure.
-
-## [2026-06-07] docs: record phased OpenAI/Codex upstream sync closeout
-
-**Affected files**: docs/dev/UPSTREAM_SYNC.md, docs/dev/codebase/gateway.md, docs/dev/CHANGELOG_CUSTOM.md
-**Upstream compatibility**: documentation-only closeout for the staged upstream sync through Phase 6.5; no runtime, schema, API, pricing, or deployment behavior changes.
-**Change details**:
-- Added a current upstream-sync summary for `codex/openai-codex-upstream-sync` documenting the manual staged sync from `upstream/main@635ad81c`, the features already synced, preserved local overlays, and deferred upstream items.
-- Updated the gateway codebase note with the current OpenAI/Codex flow, local Claude-GPT bridge overlay boundaries, request hotpath/usage/WS/OAuth/Codex mimicry fixes, long-context billing guardrails, and real-request smoke status.
-- Recorded that `openai,bridge,images,custom` real-request smoke passes against the current dev stack, while embeddings reaches the API-key upstream and currently fails at that upstream's `/v1/embeddings` endpoint with 404.
-
-## [2026-06-14] feat: cost-analysis module — subscription cost/profit stats
-
-**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/account_usage_service.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/dashboard_service.go, backend/internal/handler/admin/dashboard_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/components/layout/AppSidebar.vue, frontend/src/router/index.ts, frontend/src/i18n/locales/{zh,en}.ts
-**Purpose**: New admin "Cost Analysis" (成本分析) sidebar module; first page = per-subscription cost/profit for monthly / daily-limited users, so the operator can see real margin per subscription/plan.
-**Change details**:
-- New endpoint `GET /api/v1/admin/dashboard/subscription-profit?start_date&end_date&purchase_price_per_mtok`.
-- Repo `GetSubscriptionProfitRaw` aggregates per `subscription_id`: joins user_subscriptions → (LATERAL latest paid subscription payment_order → subscription_plans) → groups → users → usage_logs. INNER JOIN on the paid order excludes redeem-code / admin-granted subscriptions. Filters subscriptions by `starts_at` range; `deleted_at IS NULL`.
-- Cost basis: real_cost_rmb = total tokens × purchase price (RMB / million tokens), default 0.25 (= ¥10 / 40M tokens), passed as a query param driven by a UI input persisted in localStorage (no settings/Wire change in v1). Revenue = plan list price. Consumed "$" = SUM(actual_cost). Derived: avg ¥/$, real cost ¥/$, profit multiple, equivalent full-days (consumed$ ÷ daily_limit_usd), cache rate; plus summary + by-plan rollups (loss / <2x counts).
-- Frontend: new collapsible nav group 成本分析 (expandOnly) in AppSidebar; routes `/admin/cost-analysis` → redirect → `/admin/cost-analysis/subscriptions`; SubscriptionProfitView (control bar + summary cards + by-plan + detail table, multiple color-coded). Added to simple-mode restrictedPaths. New i18n keys nav.costAnalysis / nav.costSubscriptionProfit and costAnalysis.* in zh + en.
-- Verified: `CGO_ENABLED=0 go -C backend build ./...` (exit 0); `pnpm --dir frontend run typecheck` + `lint:check` (both exit 0). Not yet runtime-tested against live data; no DB migration (uses existing columns).
-
-## [2026-06-14] fix: wrap SubscriptionProfitView in AppLayout (sidebar)
-
-**Affected files**: frontend/src/views/admin/cost/SubscriptionProfitView.vue
-**Issue**: The cost-analysis page rendered bare content so the left sidebar vanished — admin views must wrap their template in `<AppLayout>` (which renders AppSidebar + AppHeader). Wrapped the page in `<AppLayout>` and imported it. Verified: `typecheck` + `lint:check` exit 0.
-
-## [2026-06-14] feat: cost-analysis subscription view — active-by-default + per-dollar cost mode
-
-**Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/{account_usage_service,dashboard_service}.go, backend/internal/repository/usage_log_repo.go, backend/internal/handler/admin/dashboard_handler.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Change details**:
-- Default now shows **currently-active subscriptions** with no date picking required: `active_only` query param defaults true → repo filters `status='active' AND starts_at <= now() AND expires_at > now()`. Date range is optional (active_only=false → filter by starts_at, history mode).
-- Added **cost basis mode**: `cost_mode=per_mtok` (real cost = total tokens × ¥/M, default 0.25) or `per_dollar` (real cost = consumed $ × ¥/$). Endpoint params renamed: `purchase_price` + `cost_mode` (was `purchase_price_per_mtok`). Summary echoes cost_mode + purchase_price. The per_dollar path is the simple form (consumed_usd × rate); finer ¥/$ valuation nuances deferred per user.
-- Frontend: "仅当前有效订阅" checkbox (default on, hides date inputs), cost-basis selector with dynamic unit label, localStorage persists price + mode. New i18n keys activeOnly/activeHint/costMode/unitPerMtok/unitPerDollar (zh+en).
-- Verified: `go -C backend build ./...`, `pnpm --dir frontend typecheck` + `lint:check` all exit 0.
-
-## [2026-06-19] fix: user-facing usage statistics must show display values, not raw
-
-**Affected files**: backend/internal/handler/usage_handler.go, backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/account_usage_service.go, backend/internal/service/usage_service.go, backend/internal/handler/usage_handler_request_type_test.go, backend/internal/handler/usage_handler_display_aggregate_test.go
-**Issue**: User-side aggregate stats endpoints summed raw `usage_logs` columns and returned **real** token counts / unit prices, while the per-row usage records list already applied the display-pricing transform (展示单价/展示倍率, the "token 放大机制"). So the dashboard/usage stat cards leaked real tokens and did not reconcile with the records list. Design rule: users must only ever see display values; real tokens/prices are internal.
-**Change details**:
-- `GET /api/v1/usage/stats` (Stats), `/usage/dashboard/trend` (DashboardTrend), `/usage/dashboard/models` (DashboardModels) now aggregate from the same display-transformed records the user sees (`loadAllDisplayedPublicUsageRecords` + `aggregateDisplayedPublicUsageStats` / `aggregateDisplayedPublicUsageTrend` / new `aggregateDisplayedModelStats`) — exact row-for-row reconciliation with the records list for the selected range.
-- `GET /api/v1/usage/dashboard/stats` (DashboardStats) all-time + today token/cost totals now use display values. All-time is unbounded (heaviest user ~247k rows), so it uses per-group SQL aggregation: new repo `GetUserDisplayAggregateGroups` groups by every field the display transform branches on (model, group_id, rate_multiplier, long_context snapshot) and the handler applies the transform once per group and sums (`aggregateDisplayedGroups`). API-key counts, RPM/TPM, and `actual_cost` are unchanged (actual_cost is never altered by the transform).
-- New `usagestats.DisplayAggregateGroup` type; new method added to `UsageLogRepository` interface + `UsageService` passthrough.
-- `POST /usage/dashboard/api-keys-usage` left as-is — it only returns `actual_cost` (real money the user pays), which the display transform never changes, so it does not leak tokens/prices.
-- New unit test `usage_handler_display_aggregate_test.go` proves per-group aggregation reconciles exactly with per-row summation (and preserves real values when no display override exists).
-- Verified: `go -C backend build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/pkg/usagestats/...` pass. Pre-existing unrelated failure `TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost` (stale 8-col sqlmock vs 11-col `GetStatsWithFilters`) also fails on unmodified `main` — not caused by this change.
-**Known follow-ups (not in this change)**:
-- `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` → `buildUsageData` + `GetAPIKeyModelStats`) still returns raw tokens, while its siblings `/v1/usage/stats|trend|records` already show display values. Fixing it needs the pricing/display services on `GatewayHandler` (Wire DI) or pushing the display aggregation into the service layer.
-- Pricing data finding (config, not code): `global_model_pricing` bills `cache_read` at a flat $2.00/M for `claude-opus-4-8`/`claude-sonnet-4-6`/`gpt-5.4`/`gpt-5.5` while displaying $0.25–0.50/M; for cache-heavy users (cache_read ≈ 90% of tokens) this dominates the bill. Confirmed by the operator as intentional config (not a bug) — left unchanged.
-
-## [2026-06-19] fix: user dashboard cards go stale across midnight + `/v1/usage` raw-token leak
-
-**Affected files**: frontend/src/views/user/DashboardView.vue, backend/internal/handler/gateway_handler.go, backend/internal/handler/usage_handler.go, backend/cmd/server/wire_gen.go, backend/internal/handler/usage_handler_display_aggregate_test.go
-**Issue A (stale dashboard)**: A user reported the home dashboard "今日请求/今日消费/今日 Token" cards showing the *previous* day's stats while the balance was correct. Root cause: the balance is refreshed by a global 60s timer in the auth store (`stores/auth.ts` `startAutoRefresh`), but the summary cards were fetched only once in `DashboardView.vue` `onMounted` — no polling, no refetch-on-focus, no day-rollover handling. A tab left open across midnight keeps showing the load-day's "今日". Backend was verified correct (today query returns the right count; no Redis dashboard cache — only `sched:*`/`sticky_session:*` keys).
-**Issue B (`/v1/usage` leak)**: The audit of user-facing token surfaces found `GET /v1/usage` and `/antigravity/v1/usage` (`GatewayHandler.Usage` → `buildUsageData` + `GetAPIKeyModelStats`) were the only remaining endpoints returning **raw** token counts, while their siblings `/v1/usage/{stats,trend,records}` already show display values.
-**Change details**:
-- Frontend: `DashboardView.vue` now silently refetches the summary stats (no full-page spinner) on `visibilitychange`/window `focus` and on a 60s visible-only interval, with listener cleanup in `onBeforeUnmount`. The cards now stay live like the balance and self-correct across midnight within ~60s. The date-range picker still only drives the trend/model widgets (unchanged).
-- Backend: `GatewayHandler.Usage` now produces display values. Added `modelPricingService` + `userModelPricingService` to `GatewayHandler` (constructor + `wire_gen.go` hand-edit). `buildUsageData` rewritten to compute today/all-time via per-group display aggregation (`GetUserDisplayAggregateGroups` scoped to the API key); model stats now come from display-transformed records. `actual_cost`, RPM/TPM, avg duration are unchanged.
-- Refactor (no behavior change): extracted `loadDisplayedUsageRecords`, `buildDisplayPricingMapForUser`, `loadUserGroupDisplayRates` as free functions and made `aggregateDisplayedGroups` a free function, so both `UsageHandler` (JWT) and `GatewayHandler` (API key) share one display path. `UsageHandler` methods now delegate to them.
-- Verified: `go build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/...` pass; frontend `typecheck` + `lint:check` + `build` all pass.
-
-## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 1 backend MVP
-
-**Affected files**: backend/migrations/168_subscription_plan_member_groups.sql, backend/ent/schema/{subscription_plan,payment_order}.go (+ regenerated ent), backend/internal/service/{payment_config_plans,payment_config_service,subscription_service,payment_order,payment_fulfillment}.go, backend/internal/handler/payment_handler.go, backend/internal/service/payment_config_plans_member_test.go
-**Upstream compatibility**: additive, fork-local. New `member_group_ids JSONB NOT NULL DEFAULT '[]'` columns on `subscription_plans` + `payment_orders`; empty = legacy single-group plan/order → identical behavior. No change to the gateway/billing/quota/cache hot path (everything stays keyed by `(user_id, group_id)`). Upstream has no mixed-subscription concept; the new columns/fields are additive and safe across upstream syncs.
-**Change details**:
-- A subscription plan can now bundle multiple subscription-type groups. Effective member set = `unique(group_id ∪ member_group_ids)`, with `group_id` kept as the primary/representative group (price/sort/display/back-compat).
-- One purchase fans out into N independent `user_subscription` rows (one per member group), each with its own quota pool from that group's own `daily/weekly/monthly_limit_usd`. The user switches the API key's group (or uses multiple keys) to access each — chosen "separate quota pools + multi-group switch" model, so each group stays single-platform and the gateway dispatch is untouched.
-- `PlanMemberGroupIDs(plan)` (payment_config_plans.go) computes the effective set; `AssignOrExtendSubscriptionToGroups` (subscription_service.go) reuses the existing per-`(user,group)` `AssignOrExtendSubscription` without a wrapping tx (so partial failures commit and resume).
-- Order creation snapshots the member set onto `payment_orders` (`createOrderInTx`); `doSub` (payment_fulfillment.go) fans out with per-group idempotency markers `SUBSCRIPTION_SUCCESS:<gid>` (and `SUBSCRIPTION_MEMBER_SKIPPED:<gid>` for a dead non-primary member), writing the suffix-less `SUBSCRIPTION_SUCCESS` only after every member succeeds. Legacy single-group orders short-circuit exactly as before.
-- Admin plan Create/Update DTOs accept `member_group_ids` (normalized: drop ≤0, dedup, remove primary, must be existing subscription-type groups, cap 10). Public `GetPlans`/`GetCheckoutInfo` expose `member_group_ids` + `member_groups` (per-member platform/name/limits/scopes).
-- Refund intentionally untouched (this deployment has refunds disabled); documented limitation: a future bundle refund would only roll back the primary group.
-- Verified: `go generate ./ent`, `go build ./...` (exit 0), `go vet` clean, `go test ./internal/service` (untagged) + `go test -tags=unit ./internal/service/...` all pass.
-**Pending (Phase 2/3)**: redeem-code/distribution bundle support + admin assign-by-plan; frontend (admin plan editor multi-select, purchase page member-group display, zh/en i18n).
-
-## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 3 frontend
-
-**Affected files**: frontend/src/types/payment.ts, frontend/src/views/admin/orders/PlanEditDialog.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: additive UI on top of the Phase 1 backend. No behavior change for single-group plans (no member groups selected → renders exactly as before).
-**Change details**:
-- `types/payment.ts`: added `PlanMemberGroup` interface and `member_group_ids` + `member_groups` on `SubscriptionPlan`.
-- Admin `PlanEditDialog.vue`: added a "Bundle groups (additional)" checkbox list of subscription-type groups (excluding the primary), bound to `planForm.member_group_ids`; the primary group is auto-pruned from the member set when it changes; payload now sends `member_group_ids`; edit pre-fills from the plan (admin list returns the raw ent struct).
-- Purchase `SubscriptionPlanCard.vue`: when `member_groups.length > 1`, renders an "Included" section listing each member group (platform-colored name + its own daily/weekly/monthly limit) plus a note that each group has an independent quota pool and the user switches the API key group / uses one key per group; single-group plans keep the original quota box via `v-else`.
-- i18n: added `payment.planCard.{includedGroups,bundleQuotaNote}` and `payment.admin.{memberGroups,memberGroupsHint}` to both `zh.ts` and `en.ts` base blocks (both files use `mergeLocale(base, patch)` deep-merge; keys added to the base `payment` block).
-- Verified: frontend `typecheck` + `lint:check` + `build` all pass.
-**Still pending (Phase 2)**: redeem-code/distribution bundle support + admin assign-by-plan; optional admin plans-list bundle badge.
-
-## [2026-07-02] feat(billing): display cache creation price — 缓存创建纳入展示放大体系 + 用户侧可见性
-
-**Affected files**: backend/migrations/171_add_display_cache_creation_price.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/types/index.ts, frontend/src/api/admin/{usage,modelPricing,userModelPricing}.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/components/admin/usage/{UsageTable,UserViewCompareDrawer}.vue, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal}.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md
-**Upstream compatibility**: additive, fork-local。新增 DB 列 `display_cache_creation_price`（global_model_pricing + user_model_pricing_overrides，NULL=未配置=行为零变化）；DisplayUsageFields 增加两个 admin 契约字段；用户 DTO 无新 JSON 字段。upstream-sync-guard 已登记 `DisplayCacheCreationPrice` 关键签名。
-**Change details**:
-- 背景：anthropic 平台记录（如 claude-fable-5，input=2/output=38/cache_creation=42778/$0.54）在用户侧"token 很少但很贵"——缓存创建 token/成本此前完全不参与展示换算，且用户可用 cache_creation_cost/tokens 反推真实缓存写单价。
-- 核心（display_pricing.go）：新分支在 ApplyDisplayTransform 中把缓存创建 token 直接按展示价反算放大（display_tokens = 真实成本 ÷ 展示价，cost 保持守恒），**与 cache-read 的 premium 折入 input 机制刻意不同**（用户明确要求：直接放大缓存创建自身 token 数）。守卫：展示价>0 && tokens>0 && cost>0，不依赖 display_input_price。线性变换 → 聚合组与逐行天然等价，GetUserDisplayAggregateGroups 零改动。
-- 5m/1h 细分：新 helper rescaleCacheCreationBreakdown 等比缩放 + 减法导出，保证 5m+1h==total；ApplyUserDisplayRate 同步接入（修复既有"细分不随展示倍率缩放"bug）。
-- 长上下文：effectiveDisplayPricingForUsageLog 对新价乘 LongContextInputMultiplier。
-- 配置链：migration 171（含 user 表 NOT VALID 非负约束，模板 147）→ 实体/两个 raw-SQL repo 全枚举点（global 4 处、user 5 处）→ 校验（validateUserModelPricingOverride）→ admin API（global create/partial-update applyFloat、user create/update/batch）→ 前端两个定价表单（$/MTok 双向换算、applyDisplaySuggested 从 cache_write_price 取建议值）→ i18n zh/en。
-- Admin 可视：DisplayUsageFields + ComputeDisplayFields 增加 display_cache_creation_tokens/cost；UsageTable 双列 tooltip 增行；UserViewCompareDrawer config_used 回传展示创建价。
-- 用户侧可见性（此前完全不显示）：UsageView.vue 与 KeyUsageView.vue 的 token 徽章（amber 图标+1h 标签）、token tooltip（5m/1h 细分）、成本 tooltip、token 合计均渲染 cache creation；admin 专属 TTL override "R" 徽章仍不下发用户。UsageView.spec.ts 两个断言"用户侧隐藏缓存创建"的旧规格测试已反转。
-- 平台边界（软 gate，详见 billing.md 2026-07-02 节）：openai 原生/antigravity OAuth/桥接/gemini 行 cache_creation 恒 0 → no-op；antigravity 分组的 upstream 中转/apikey 型账号行与 openai relay 透传行若命中已配置的 claude-* 模型会同样换算（语义正确）。
-- **本批不改**：display_token_rewrite.go（下游响应 CacheCreateMult 仍恒 1.0）；claude-gpt 桥接 openai_claude_gpt_bridge_cache_display_settings；真实计费链。下游一致性如需跟进，前置为 gateway_service.go OAuth 流式 extractSSEUsagePatch 计费污染修复（PLAN 文档 Phase 0，未实施）。
-- Verified: `go build ./...`、`go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/repository/...` 全过（新增 8 个 display_pricing 用例：放大/独立守卫/no-op/与 read premium 复合/长上下文单次缩放/ComputeDisplayFields/倍率细分一致性）；`./internal/server -run Contract` 仅 redeem/history 一处**既有**失败（基线同样失败，与本改动无关）；前端 typecheck + lint:check + vitest 全量 101 文件/603 用例全过。
-
-## [2026-07-02] fix(billing): 流式计费 patch 先于展示改写提取 —— 修复 display 模式真实扣费污染
-
-**Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_service_streaming_test.go
-**Upstream compatibility**: 单行重排,fork-local。
-**Change details**:
-- 根因:processSSEEvent 先对共享 SSE event map 做展示改写(ApplyDisplayMultipliersToUsageMap 就地变异),后 extractSSEUsagePatch 从同一 map 提取计费 → mergeSSEUsagePatch → ForwardResult.Usage → calculateTokenCost。`downstream_usage_token_mode=display`(migration 169 起新用户默认)且展示倍率非平凡时,**真实扣费按展示 token 计算**(生产已配置展示倍率,污染已实际发生)。
-- 修法:extractSSEUsagePatch 上移到 cache TTL override(刻意影响计费归类,保持在前)之后、display 改写之前;display 改写仍作用于发给客户端的序列化对象,展示语义不变。顺带修复 marshal 失败回退路径"客户端见真实值、计费用展示值"的不自洽。
-- 影响面:所有走 GatewayService 流式路径的账号(anthropic OAuth/SetupToken/ServiceAccount/APIKey + antigravity 分组 apikey 型账号)。**行为变化:display 模式用户的流式扣费从污染值恢复为真实值**(已拍板只修复+记录,不做历史修正)。其余路径经三轮探索核实均为"先提取后改写",安全:passthrough 流式/非流式、标准非流式、claude-gpt 桥接(response-only)、OpenAI 原生全路径、antigravity(hook 变异 usageToMap 全新拷贝,计费走独立累计字段)。
-- 红/绿回归:TestGatewayService_StreamingDisplayModeBillsRealTokens(修复前红)、TestGatewayService_StreamingDisplayModeKeepsTTLOverrideBeforeBillingPatch(TTL 归类仍先于提取)。
-
-## [2026-07-02] feat(billing): cache_write_1h_price —— 1h 缓存创建按溢价分档计费
-
-**Affected files**: backend/migrations/172_add_cache_write_1h_price.sql, backend/internal/service/{global_model_pricing,global_model_pricing_service,model_pricing_resolver}.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/service/model_pricing_resolver_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: additive。新列 NULL = 历史行为逐字节不变(回归钉测试)。
-**Change details**:
-- 背景:官方缓存写入分两档(5m=1.25×输入价,1h=2×输入价)。【2026-07-02 修正】走 LiteLLM 源价的模型(sonnet-5/fable-5)本就按官方分档正确计费——生产 sonnet-5 纯 1h 行隐含 $4.0/MTok = 官方优惠期 1h 价(2×$2),经官方价目表核实,原"1h 溢价漏计"诊断不成立。被压平的是配了全局 cache_write_price 覆盖的模型(opus 系列 $10 平价、sonnet-4-6 $5 平价):单一覆盖价同写三档,1h 溢价无法表达——本字段即为此而设。
-- 全局定价覆盖新增 cache_write_1h_price(migration 172):配置后 applyGlobalPricingOverride 单独写 CacheCreation1hPrice 并强制 SupportsCacheBreakdown=true,computeCacheCreationCost 按 5m×p5m+1h×p1h 分档;admin 表单加"1h 缓存写入价"输入框($/MTok),i18n zh/en。
-- **运营动作**:部署后给 claude-sonnet-5 / claude-fable-5 等中转模型配置 1h 价(按上游实际扣费口径);此后新请求真实成本计入 1h 溢价(admin 成本与用户 actual_cost 同步变化)。
-- 测试:纯 1h 生产形状(66061 tokens)按 1h 价计费、混合行分档、未配置时平价行为回归钉。
-
-## [2026-07-02] feat(billing): 下游响应 usage 缓存创建展示改写(real/display 双模式)
-
-**Affected files**: backend/internal/service/display_token_rewrite{,_test}.go, docs/dev/codebase/billing.md
-**Upstream compatibility**: fork-local。real 模式零变化;display 模式仅在配置了 display_cache_creation_price 的模型上激活。
-**Change details**:
-- computeDisplayTokenMultipliers 接入缓存创建:CacheCreateMult(无明细回退,5m 档口径对齐计费回退)+ CacheCreate5mMult/CacheCreate1hMult 分档倍率(真实档价÷展示创建价);displayTokenPricingConfig/两个 merge 函数补真实价与展示价管道;IsNonTrivial 纳入分档判断(仅配展示创建价即可激活改写链)。
-- 新 helper computeDisplayCacheCreationBreakdown:有嵌套 5m/1h 明细时按档反算(displayTotal×展示价 == 5m×p5m+1h×p1h,与 usage 页成本反算口径逐 token 一致,含纯 1h 中转流量),display1h 减法导出保证 5m+1h==顶层;无明细退化单一倍率。接入 rewriteSeparatedUsageTokens(passthrough 流式/非流式+桥接,顶层与嵌套同步 sjson 回写)与 ApplyDisplayMultipliersToUsageMap(托管流式+antigravity hook;antigravity map 无嵌套,行为不变)。applyOpenAIResponsesUsageDisplayMultipliers 的 CacheCreationInputTokens 改为同规则缩放(桥接恒 0,no-op)。
-- RateScale(展示倍率层)在分档反算后复合,与 ApplyUserDisplayRate 串联语义一致。
-- 前置依赖:同日的流式计费 patch 顺序修复(否则缓存创建计费会被本改写污染)。
-- Verified: go build/vet;display token 全部用例(既有 11 + 新增 8:分档倍率计算/用户级覆盖优先/嵌套同步/纯 1h 生产形状/RateScale 复合/无嵌套回退/OpenAI 结构缩放/trivial no-op);gateway 流式与 handler/repository 全量单测通过。
-
-## [2026-07-02] feat(billing): 5m/1h 缓存分档价格配置面补全（用户级真实价 + 全局/用户级展示价 + LiteLLM 参考）
-
-**Affected files**: backend/migrations/173_add_cache_tier_pricing_fields.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service,model_pricing_resolver,display_token_rewrite}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/internal/service/{display_token_rewrite_test,model_pricing_resolver_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/api/admin/{modelPricing,userModelPricing,usage}.ts, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal,usage/UserViewCompareDrawer}.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: additive。migration 173 新增三列均 NULL=行为零变化;LiteLLMPrices 载荷加 cache_write_1h_price(来自 litellm 的 cache_creation_input_token_cost_above_1hr)。
-**Change details**:
-- **用户级真实 1h 价** `user_model_pricing_overrides.cache_write_1h_price`:applyUserModelPricingOverride 与全局同语义(单独写 CacheCreation1hPrice + 强制 SupportsCacheBreakdown),用户级也能表达 1h 溢价分档计费。
-- **展示价分档** `display_cache_creation_1h_price`(全局 + 用户级):
-  - usage-log 展示(ApplyDisplayTransform):行有 5m/1h 细分且两档展示价不同时,按真实档价比例(r=1h/5m,来自定价条目的 RealCacheWritePrice/RealCacheWrite1hPrice,未知时按 1:1)拆分实际落库成本,各档独立反算展示 token —— 成本总额按构造守恒;只配 5m 档展示价时保持既有"总成本反算"路径(回归钉)。
-  - 下游改写(computeDisplayTokenMultipliers):CacheCreate1hMult 分母改用 1h 展示价(未配回退 5m 档展示价),两侧口径一致。
-  - 长上下文克隆对 1h 展示价同乘 LongContextInputMultiplier;hasDisplayOverride/BuildUserDisplayPricingMap/merge 函数全链纳入。
-- **配置界面补全**:全局定价对话框(LiteLLM 参考区 + 计费区 1h 输入框带 litellm placeholder + 展示区 1h 输入框 + applyDisplaySuggested 从 litellm 1h 取建议)、用户定价模态框(LiteLLM 参考行 + 真实/展示两个 1h 输入框 + 建议值 + $/MTok 双向换算)、对比抽屉 config_used 展示 1h 展示价;i18n zh/en。
-- **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
-- Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。

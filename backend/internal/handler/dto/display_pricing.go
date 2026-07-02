@@ -126,7 +126,7 @@ func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *D
 	return cfg
 }
 
-func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) *DisplayPricingConfig {
+func EffectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) *DisplayPricingConfig {
 	if d == nil || cfg == nil || !d.LongContextApplied {
 		return cfg
 	}

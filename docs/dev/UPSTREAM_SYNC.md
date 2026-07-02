@@ -12,6 +12,10 @@
 | 最后同步日期 | 2026-05-03 |
 | 上游版本标签 | v0.1.121 |
 
+> Note: the table above tracks the last completed full upstream sync. The
+> 2026-06-27 entries below are staged safety-fix batches against upstream, not a
+> declaration that the fork has fully caught up with upstream.
+
 ## 同步操作步骤
 
 ```bash
@@ -35,18 +39,332 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-02 - integrate staged upstream sync with display billing fixes
+
+- **Branch**: `codex/cache-creation-display-20260702`
+- **Merged branch**: `codex/upstream-sync-20260627`
+- **Merge strategy**: `git merge --no-ff --no-commit codex/upstream-sync-20260627`, then manual conflict resolution. Conflicts were limited to `dev-services.yml`, `docs/dev/CHANGELOG_CUSTOM.md`, and `docs/dev/UPSTREAM_SYNC.md`.
+- **Display-billing guardrails**:
+  - Verified that the user-side display pricing files were not overwritten by the upstream-sync merge.
+  - Preserved the invariant that user-visible model prices are configured/effective prices, never `cost/tokens` reverse-derived values.
+  - Preserved the cache-read invariant: `cache_read_tokens` remains the real quantity; cache-read display deltas are moved into input display cost/tokens when needed.
+  - Tightened the admin user-view comparison drawer so only the real billing layer may show an implicit `cost/tokens` unit price; the user display layer uses only backend-supplied effective display prices.
+- **Verification**:
+  - `go test -tags=unit ./internal/handler/dto ./internal/handler/admin`
+  - `go test -tags=unit ./internal/handler ./internal/handler/admin ./internal/handler/dto ./internal/service ./internal/repository ./internal/pkg/apicompat ./internal/pkg/openai ./cmd/server`
+  - `pnpm --dir frontend run test:run -- src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts src/views/user/__tests__/UsageView.spec.ts`
+  - `pnpm --dir frontend run test:run -- src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts src/views/user/__tests__/UsageView.spec.ts src/router/__tests__/title.spec.ts src/views/admin/__tests__/SettingsView.spec.ts`
+  - `pnpm --dir frontend run typecheck`
+  - `pnpm --dir frontend run lint:check`
+
 ### 2026-07-02 - production-only Sonnet 5 partial sync
 
 - **Upstream commit**: `db0414233ce324903adc72e858374086da158b4b` (`feat: 适配 sonnet5`).
 - **Merge strategy**: manual partial port, not a full cherry-pick. Only Sonnet 5 model exposure, Bedrock mapping, default 1M beta policy, frontend whitelist presets, and related tests were synced.
 - **Excluded from the same upstream commit**: `backend/internal/pkg/anthropicfp/dateline.go`, because it is unrelated to Sonnet 5 production support.
-- **Production scope**: this patch is intended to ship by itself from `origin/main`/GHCR. It must not be mixed with the unverified local OpenAI/Image changes from the current conversation.
+- **Production scope**: this patch was originally prepared as an isolated production-only sync. That boundary is superseded by the 2026-07-02 integration entry above when using `codex/cache-creation-display-20260702`, where the staged upstream sync is intentionally included and separately verified.
 - **Secondary-development impact**:
   - Claude OAuth `/v1/models` gains `claude-sonnet-5`.
   - Bedrock accounts gain default `claude-sonnet-5` routing with existing region-prefix rewrite behavior preserved.
   - The local configurable beta-policy layer is preserved; only the default for `context-1m-2025-08-07` changes to Sonnet 5 whitelist + filter fallback.
   - No database migration, pricing model, billing formula, API route, or auth behavior changes.
 - **Verification**: see `docs/dev/CHANGELOG_CUSTOM.md` entry for the exact test set.
+
+### 2026-06-29 - upstream OpenAI Images route batch 13
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this OpenAI Images-focused batch, including upstream commit/feature point, concrete behavior, backend/frontend impact, test method, fork-local secondary-development relation, risk, and handling strategy.
+- **Synced upstream commits / behavior**:
+  - `e5f7836b` - Codex image bridge now sets `/v1/responses` `tool_choice: "auto"` when an `image_generation` tool is present and no explicit tool choice was supplied.
+  - `0da1fe28` - OpenAI image-output accounting no longer counts text-only `data` items or empty `image_generation.completed` events as generated images.
+  - `2c14efea` - `/v1/images/*` OAuth-to-Responses image tool request now forwards `n` for supported image models, while preserving the `dall-e-3` exception.
+  - `da30c599` / `381d1d6d` - retryable OpenAI Images upstream errors embedded in Responses SSE bodies now become `UpstreamFailoverError` before any downstream response is written, preserving real upstream error bodies and headers for failover/ops handling.
+- **Deferred / unchanged**:
+  - `36721d35` image capability cooldown remains deferred because it touches account scheduling/rate-limit policy beyond this image-route patch.
+  - `1e2e8b1d` billing channel pricing override remains deferred for the pricing/accounting batch.
+  - `ef5ad0fb` frontend image-output token display remains deferred for a separate frontend-visible batch.
+  - Previously verified image moderation/incomplete/overloaded behavior from batch 10 was left intact.
+- **Fork-local secondary-development impact**:
+  - Frontend-visible impact: none. No frontend files, routes, i18n, or admin/user UI changed.
+  - Billing/display-token accounting impact: targeted positive fix. Image billing counters now require actual image output (`url`, `b64_json`, or `result`) before counting, avoiding false image-output charges on text-only Responses payloads.
+  - OpenAI image generation impact: intended. Multi-image `n` requests are forwarded for supported models; retryable image upstream failures can use existing account failover instead of surfacing a single-account 502.
+  - Account scheduling/failover impact: limited to the existing failover mechanism for retryable OpenAI Images errors. No image capability cooldown, new scheduler policy, or migration was added.
+  - No curated model-list policy, Claude-GPT bridge, default-model fallback, public/admin settings, subscription/payment, or database migration change.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(EnsureOpenAIResponsesImageGenerationTool|OpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|OpenAIImageOutputCounter|BuildOpenAIImagesResponsesRequest|OpenAIGatewayServiceForwardImages_OAuth)" -count=1`
+  - `go test -tags=unit ./internal/service -count=1`
+  - `git diff --check`
+
+### 2026-06-28 - upstream OpenAI gateway/probe compatibility batch 12
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this OpenAI-focused batch, including behavior, backend/frontend impact, tests, fork-local secondary-development relation, risk, and handling strategy.
+- **Synced upstream commits**:
+  - `00d68ff6` - add GPT-5.5 Codex instructions and use them as latest fallback
+  - `dbdbfb11` - avoid injecting default Codex instructions in the chat-completions bridge
+  - `89cfe24a` - normalize GLM OpenAI-compatible reasoning effort values on raw chat forwarding
+  - `b88f8e4c` - require function-call output in `/v1/responses` capability probing
+- **Evaluated but not newly changed**:
+  - OpenAI chat transport-error failover parity was already present in this branch and left unchanged.
+  - OpenAI PAT auth, quota-readiness, and codex-detect engine-fingerprint batches remain deferred for separate assessment because they touch account auth/security policy and broader routing behavior.
+- **Local reconciliation**:
+  - Preserved this fork's existing TLS fingerprint path for OpenAI API-key Responses probing while adding the upstream tool-call probe request and 2xx response body validation.
+  - Kept the fork-local `codex_cli_only` chat-completions restriction before the existing APIKey Responses/raw-Chat split.
+  - Repaired the local `instructions_test.go` malformed comment/function line while updating the expected latest fallback prompt.
+- **Fork-local secondary-development impact**:
+  - No frontend-visible change and no frontend files changed.
+  - No database migration, route, i18n, billing/display-token accounting, curated model-list policy, Claude-GPT bridge, OpenAI Images, default-model fallback, subscription/payment, or account scheduling change.
+  - Intentional backend impact is limited to OpenAI gateway compatibility: newer Codex prompt fallback, safer OAuth chat bridge instructions behavior, GLM raw-chat reasoning effort mapping, and stricter Responses probe capability classification.
+  - The Responses probe can mark compatible upstreams that return 2xx without `function_call` output as unsupported, causing later traffic to use the existing raw `/v1/chat/completions` path.
+- **Verification**:
+  - `go test -tags=unit ./internal/pkg/openai -run TestCodexBaseInstructionsForModel -count=1`
+  - `go test -tags=unit ./internal/service -run "Test(ForwardAsChatCompletions_OAuthDoesNotInjectDefaultInstructions|NormalizeGLMOpenAIReasoningEffort|ForwardAsRawChatCompletions_NormalizesGLMReasoningEffort|OpenAIResponsesProbePayloadRequiresFunctionCall|SelectResponsesProbeModel|DecideResponsesProbeSupport)$" -count=1`
+  - `go test -tags=unit ./internal/pkg/openai -count=1`
+  - `go test -tags=unit ./internal/service -run "Test.*(OpenAI|Responses|ChatCompletions|GLM|Codex|Probe|TransportError|RawChat)" -count=1`
+  - `git diff --check`
+
+### 2026-06-28 - upstream Claude Code no-cch detection test batch 11
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before handling the batch, then narrowed scope after inspecting candidate commit sizes and actual local file ownership.
+- **Evaluated upstream commits**:
+  - `30adee43` - admin OpenAI weekly limit reset confirmation
+  - `5cb8cdd3` - Claude Code no-cch billing block detection tests
+- **Result**:
+  - `30adee43` was not applied. The target component `frontend/src/components/account/OpenAIQuotaResetCell.vue` is deleted in this fork, and HEAD has no `OpenAIQuotaResetCell` or `openaiQuotaReset` frontend references. Restoring the upstream component would create dead code, so this remains deferred until the current account UI has an equivalent weekly-reset entry point.
+  - `5cb8cdd3` was applied as a local test-only adaptation. The current branch already had positive no-cch coverage through `TestClaudeCodeValidator_BillingBlockAnyEntrypointCountsAsSystemPrompt`; this batch adds the missing no-cch/invalid-UA safety regression.
+- **Fork-local secondary-development impact**:
+  - No runtime behavior change and no frontend-visible change.
+  - No cch-signing deletion, Claude mimicry change, billing/display-token, model-list, route, account scheduling, subscription, payment, migration, or i18n behavior change.
+  - The added coverage protects the existing Claude Code/Codex compatibility path from accidentally loosening User-Agent requirements.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator" -count=1`
+  - `git diff --check`
+
+### 2026-06-27 - upstream OpenAI images and overloaded error verification batch 10
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before handling this batch, covering each OpenAI/Images candidate, tests, frontend visibility, and fork-local secondary-development impact.
+- **Evaluated upstream commits**:
+  - `9491de0a` - pass OpenAI Images content-moderation refusals through as 400
+  - `b0d5592a` - recognize OpenAI Images `response.incomplete` and record soft-failure upstream response diagnostics
+  - `cc7612bd` - detect OpenAI overloaded error codes
+- **Result**:
+  - No runtime code commit was needed. `9491de0a` conflicted because the current branch already has the equivalent local implementation and tests; the attempted cherry-pick was aborted to avoid duplicate/empty changes.
+  - `b0d5592a` behavior is already present in `openai_images_responses.go` and `openai_images_incomplete_test.go`.
+  - `cc7612bd` behavior is already present via local commit `92ec4294`.
+- **Fork-local secondary-development impact**:
+  - No new frontend-visible behavior, API route, database migration, billing/display-token, curated model list, Claude-GPT bridge, subscription, account scheduling, or payment behavior change in this batch.
+  - Existing fork-local OpenAI Images trace/ops recording and same-account retry behavior were verified and left unchanged.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|ImagesOAuthNonStreaming|ExtractModelRefusal|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailedBeforeOutput(ServerOverloadedCode|CapacityError|ReturnsFailover)|OpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover)" -count=1`
+  - `git diff --check`
+
+### 2026-06-27 - upstream auth promo and frontend title batch 9
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, covering feature behavior, affected modules, frontend visibility, tests, and fork-local secondary-development impact.
+- **Synced upstream commits**:
+  - `ecedc7c8` - enforce email bind suffix whitelist
+  - `2dc1387b` - allow clearing promo-code expiry on edit
+  - `952be871` - refresh custom page document title
+- **Supplemental local reconciliation**:
+  - Added wildcard registration email suffix support (`*.domain` and `@*.domain`) because the upstream email-bind tests use `*.edu.cn` and this fork's existing normalization previously dropped that entry as invalid.
+- **Local reconciliation**:
+  - `ecedc7c8` and `2dc1387b` cherry-picked cleanly.
+  - `952be871` conflicted in `App.vue` and `router/index.ts`; resolved by keeping this fork's existing auth/backend-mode/simple-mode route guards and app shell, adding only the title refresh helper/watch path, and avoiding unrelated upstream compliance-dialog context.
+- **Fork-local secondary-development impact**:
+  - Auth policy is intentionally stricter when `registration_email_suffix_whitelist` is configured; email identity binding now follows the same suffix rules as registration/email-code flows.
+  - Promo-code admin editing can now clear expiry without changing redeem-code batch limits or subscription entitlement logic.
+  - Frontend-visible impact is limited to browser tab title refresh for custom pages and locale/site-setting changes.
+  - No billing/display-token accounting, curated model list, Claude-GPT bridge, OpenAI Images, account scheduling, database migration, API route, subscription fulfillment, or payment amount changes.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(NormalizeRegistrationEmailSuffixWhitelist|ParseRegistrationEmailSuffixWhitelist|IsRegistrationEmailSuffixAllowed|AuthServiceBindEmailIdentity_RegistrationSuffixWhitelistWildcard|AuthServiceEmailIdentityBinding_RejectsEmailOutsideRegistrationSuffixWhitelist|AuthServiceBindEmailIdentity_AllowsEmailInsideRegistrationSuffixWhitelist)" -count=1`
+  - `go test -tags=unit ./internal/service ./internal/handler ./internal/handler/admin -run "Test.*(Email|Bind|OAuth|Suffix|Promo|PromoCode|Pending)" -count=1`
+  - `pnpm --dir frontend run test:run src/router/__tests__/title.spec.ts`
+  - `pnpm --dir frontend run typecheck`
+  - `pnpm --dir frontend run lint:check`
+  - `git diff --check`
+
+### 2026-06-27 - upstream gateway client detection and Vertex beta batch 8
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, then added a supplemental table before including the `ddf91e9a` helper prerequisite discovered during testing.
+- **Synced upstream commits**:
+  - `e3e31bd4` - recognize Claude Code auto mode via any `cc_entrypoint=` marker
+  - `40e1cc14` - filter `anthropic-beta` on the Vertex Anthropic path
+  - `efffd5d7` - add Vertex anthropic-beta filtering tests
+- **Supplemental local reconciliation**:
+  - Added the minimal helper surface from upstream `ddf91e9a`: `sanitizeAnthropicBodyForBetaTokens`, `anthropicBetaTokensContains`, and `deleteHeaderAllForms`.
+  - Did not import the broader `ddf91e9a` count_tokens/API-key passthrough behavior in this batch.
+  - Did not import `6cfb7898` cch-signing deletion in this batch.
+- **Local reconciliation**:
+  - `e3e31bd4` conflicted in the Claude Code validator and tests; manually ported the marker change and focused tests instead of importing the larger upstream test block.
+  - `40e1cc14` conflicted in `gateway_service.go`; resolved by keeping upstream final beta filtering and preserving the fork-local `setOpsUpstreamRequestBody(c, vertexBody)` call after final body sanitization.
+  - `efffd5d7` applied cleanly, then tests were adapted to this fork's current 2-return-value `buildUpstreamRequest` signature.
+- **Fork-local secondary-development impact**:
+  - No frontend-visible UI change.
+  - No database migration, route, i18n, display-token/display-pricing, curated model list, Claude-GPT bridge, OpenAI Images, subscriptions, account scheduling, or billing behavior changes.
+  - Intentional backend behavior changes are limited to broader Claude Code system-prompt recognition and safer Anthropic Vertex beta header/body forwarding.
+  - Fork-local ops request-body capture remains active and now records the final sanitized Vertex body.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "TestClaudeCodeValidator|Test.*Vertex.*Beta|Test.*Anthropic.*Vertex|Test.*Beta.*Filter" -count=1`
+  - `git diff --check`
+
+### 2026-06-27 - upstream small auth/ops/keys/payment guard batch 7
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, with feature behavior, affected modules, frontend visibility, tests, fork-local secondary-development links, expected impact, risk, and handling strategy.
+- **Synced upstream commits**:
+  - `82576e0a` - stop swallowing email auth identity create errors caused by a shadowed `err`
+  - `9707dedc` - prevent ops monitoring trend cards from growing unbounded
+  - `ae5e980d` - enforce `codex_cli_only` on `/v1/chat/completions`
+  - `28e7adef` - add `CLAUDE_CODE_ATTRIBUTION_HEADER=0` to Claude Code terminal templates
+  - `65ad7df4` - keep payment provider cards visible when `supported_types` is empty/null
+- **Local reconciliation**:
+  - `ae5e980d` conflicted in `openai_gateway_chat_completions.go`; resolved by inserting the `detectCodexClientRestriction` guard before this fork's existing APIKey raw Chat fallback split, preserving local `openai_compat.ShouldUseResponsesAPI` routing behavior.
+  - The other commits cherry-picked cleanly.
+- **Fork-local secondary-development impact**:
+  - No changes to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI Images, subscriptions/bundle fulfillment, database migrations, routes, or i18n.
+  - Intentional frontend-visible changes are limited to ops dashboard sizing, key usage command templates, and admin payment provider card visibility.
+  - Intentional API behavior change: `codex_cli_only` OpenAI accounts now reject non-matching clients on `/v1/chat/completions` before raw Chat fallback forwarding.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test.*Auth|Test.*Email|Test.*OAuth|Test.*Register" -count=1`
+  - `go test -tags=unit ./internal/service -run "Test.*(Codex|ChatCompletions|CLIOnly|ClientRestriction|RawChat|ResponsesChat)" -count=1`
+  - `pnpm --dir frontend run test:run src/views/admin/__tests__/SettingsView.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts`
+  - `pnpm --dir frontend run typecheck`
+  - `pnpm --dir frontend run lint:check`
+  - `git diff --check`
+
+### 2026-06-27 - upstream runtime compatibility batch 6
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required detailed assessment table before applying this batch, including frontend visibility, tests, fork-local secondary-development links, expected impact, risk, and handling strategy.
+- **Synced upstream commits**:
+  - `ad135854` - Docker build context includes `docs/legal`
+  - `f6e0ebc6` - preserve Anthropic official 5h/7d window cooldowns before temporary-unschedulable fallbacks
+  - `c1c28ac7` - decompress zstd upstream responses
+  - `6c7203d8` - preserve SSE `event:error` body for ops logs
+  - `6c2db4f4` - clean unsupported Gemini tool schema fields
+  - `bab8a9a9` - log `/v1/chat/completions` upstream endpoint for chat-only OpenAI API-key accounts
+- **Local reconciliation**:
+  - `f6e0ebc6` conflicted in `ratelimit_service.go`; kept the long-window cooldown persistence while preserving this fork's `HandleUpstreamError(ctx, account, status, headers, body)` signature and existing scheduling/failover semantics.
+  - `bab8a9a9` was manually ported after aborting a conflict-heavy cherry-pick, because the upstream file context also contained risk-control/content-moderation helpers that are not part of this fork's current synced surface. The port only changed OpenAI usage-record upstream endpoint derivation and kept fork-local `submitUsageRecordTask`, request context wrapping, and WebSocket `turnAccount` accounting.
+  - Added a focused handler test for the APIKey forced-Chat-Completions endpoint resolver.
+- **Fork-local secondary-development impact**:
+  - No frontend-visible UI changes.
+  - No change to display-token/display-pricing accounting, curated model lists, Claude-GPT bridge dispatch, OpenAI image generation, default-model fallback, i18n, routes, or database migrations.
+  - Intentional runtime impacts: Docker image packaging includes legal docs; Anthropic account cooldowns prefer upstream official 5h/7d windows; zstd responses are parseable; SSE ops logs keep raw upstream error bodies; Gemini tool schemas are cleaned before forwarding; OpenAI usage/ops metadata records the actual raw Chat Completions upstream endpoint for chat-only API-key accounts.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "TestHandleUpstreamError_AnthropicWindowLimitPreemptsTempUnschedRule|Test.*Anthropic.*Window|Test.*Cooldown" -count=1`
+  - `go test -tags=unit ./internal/repository -run "Test.*Decompress|Test.*Zstd|Test.*ContentEncoding" -count=1`
+  - `go test -tags=unit ./internal/service -run "TestHandleStreamingResponse_(SSEErrorEvent|StreamReadError|FailoverBody|EmptyStream|SpecialCharacters)" -count=1`
+  - `go test -tags=unit ./internal/service -run "Test(ConvertClaudeToolsToGeminiTools|CleanToolSchema|GeminiMessagesCompatServiceForward)" -count=1`
+  - `go test -tags=unit ./internal/handler -run "Test(OpenAIUpstreamEndpoint|ResolveOpenAIUpstreamEndpoint)" -count=1`
+  - `git diff --check`
+
+### 2026-06-27 - upstream safety fix batch 5 (tooling/auth/compat/gateway)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Preflight**: presented the required assessment table before applying this batch.
+- **Synced upstream commits**:
+  - `ac6e36f9` - admin CLI supports `SUB2API_JWT` auth fallback
+  - `727ac3f6` - add `app_session_terminated` to non-retryable refresh errors
+  - `edfd5e37` - default apicompat tool `strict` to false
+  - `ab9987b2` - fail over on non-JSON 2xx upstream responses
+  - `b256f911` - intercept streaming `max_tokens=1` Haiku probes too
+- **Local reconciliation**:
+  - Kept the fork-local admin skill invocation path (`~/.codex/skills/...`) while adding JWT fallback documentation.
+  - Production refresh code already included the merged non-retryable markers from earlier work, so this batch primarily added explicit test coverage.
+  - Adapted non-JSON 2xx failover to this fork's current `RateLimitService.HandleUpstreamError(ctx, account, status, headers, body)` signature.
+- **Verification**:
+  - `node --check skills/sub2api-admin/scripts/sub2api-admin.js`
+  - `go test -tags=unit ./internal/service -run "TestIsNonRetryableRefreshError|TestNonRetryableRefreshError" -count=1`
+  - `go test -tags=unit ./internal/pkg/apicompat`
+  - `go test -tags=unit ./internal/service -run "Test.*Non.*JSON|Test.*NonStreaming.*Response|Test.*Failover.*Non" -count=1`
+  - `go test -tags=unit ./internal/handler -run "Test.*Intercept|Test.*Haiku|Test.*Warmup|Test.*Suggestion" -count=1`
+  - `git diff --check`
+- **Deferred larger batches**:
+  - Grok subscription support stack.
+  - OpenAI Codex personal access token auth.
+  - `codex_cli_only` engine-fingerprint/app-server settings and frontend stack.
+  - Broader quota/payment/frontend/migration buckets.
+
+### 2026-06-27 - upstream safety fix batch 4 (Codex Spark image tool strip)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Synced upstream commit**:
+  - `01127820` - strip `image_generation` tool for Codex Spark gateway requests
+- **Local reconciliation**:
+  - Adapted the HTTP `/responses` path to the fork-local `reqBody` mutation and `disablePatch` mechanism instead of upstream request-view helpers.
+  - Kept the local Responses WebSocket fast-policy/ops flow and inserted only the Spark strip step after upstream model normalization.
+  - Avoided bringing unrelated upstream hotpath baseline tests into the fork; only the Spark APIKey regression test was added.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(ApplyCodexOAuthTransform_StripsImageGenerationToolForSpark|ApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias|ApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark|OpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey|StripCodexSparkImageGenerationToolFromRawPayload)" -count=1`
+  - `git diff --check`
+- **Remaining high-priority staged candidates**:
+  - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
+
+### 2026-06-27 - upstream safety fix batch 3 (passthrough function-call args)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Synced upstream commit**:
+  - `2b49d662` - dedupe passthrough function-call arguments
+- **Local reconciliation**:
+  - Applied cleanly after the fork-local OpenAI passthrough sanitization changes.
+  - Kept the normalization after local display-token rewrite and before event classification in streaming passthrough.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test(HandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments|ForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle|Dedupe|PassthroughFunction)" -count=1`
+  - `git diff --check`
+- **Remaining high-priority staged candidates**:
+  - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
+
+### 2026-06-27 - upstream safety fix batch 2 (model availability 404)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Baseline before batch**: `5f9b750c` (batch 1 documented)
+- **Synced upstream commit**:
+  - `fcd3bc12` - return 404 `model_not_found` instead of 503 when no configured account supports the requested model
+- **Local reconciliation**:
+  - Preserved fork-local OpenAI Chat Completions default mapped-model fallback before classifying the no-account result.
+  - Preserved Claude-GPT bridge fallback behavior and `/responses/compact` unsupported handling before applying the generic no-account classifier.
+  - Added the small ops routing-capacity marker helper required by the upstream handler changes.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run "Test.*ModelAvailability" -count=1`
+  - `go test -tags=unit ./internal/handler -run "Test.*NoAccount" -count=1`
+  - `git diff --check`
+- **Remaining high-priority staged candidates**:
+  - `01127820` - strip `image_generation` tool for Codex Spark gateway requests.
+  - Grok subscription stack, OpenAI PAT auth, admin CLI JWT fallback, and broader quota/payment/frontend/migration buckets remain unsynced.
+
+### 2026-06-27 - upstream safety fix batch 1 (OpenAI/apicompat/images)
+
+- **Branch**: `codex/upstream-sync-20260627`
+- **Baseline**: `origin/main@2c9a1e92` (`v0.1.148` fork release)
+- **Upstream head observed**: `upstream/main@c2754222`
+- **Strategy**: staged cherry-pick/manual port only; no full merge. The full upstream preview still has broad conflicts across generated Ent code, gateway services, billing/account paths, and frontend files.
+- **Synced upstream commits**:
+  - `29122e30` - avoid doubling `tool_call` arguments from single-chunk upstreams
+  - `40c82527` - normalize custom tool schema in apicompat
+  - `8a7269f5` - sanitize verbose OpenAI `response.failed` events
+  - `cc7612bd` - detect OpenAI overloaded error codes
+  - `0a97a5f4` - treat `refresh_token_invalidated` as non-retryable
+  - `65fa7289` - fail over on Chat Completions transport errors
+  - `9491de0a` - pass image content-moderation refusals through as 400 instead of retrying
+- **Local reconciliation**:
+  - Preserved local display-token rewrite behavior in streaming paths.
+  - Adapted the Images refusal patch to the fork-local `OpenAIImageTrace` signature and response shape.
+  - Added local follow-up `59300d06` so retryable `response.failed` markers are checked before generic `invalid_request` non-retryable handling.
+- **Verification**:
+  - `go test -tags=unit ./internal/pkg/apicompat`
+  - `go test -tags=unit ./internal/service -run "Test(ExtractImagesUpstreamError|SummarizeNoOutputBody|ImagesOAuthNonStreaming|ExtractModelRefusal|HandleOpenAIUpstreamTransportError|ForwardAsRawChatCompletions_TransportErrorFailsOver|IsOpenAITransientProcessingError|OpenAIStreamingResponseFailed|OpenAIStreamingPassthroughResponseFailed|NonRetryableRefreshError)" -count=1 -v`
+  - `git diff --check`
+- **Not synced in this batch**:
+  - Grok subscription stack.
+  - `codex_cli_only` engine fingerprint/app-server hardening.
+  - OpenAI PAT auth.
+  - Admin CLI JWT fallback.
+  - Broader migrations, quota, proxy, payment, and frontend buckets.
 
 ### 2026-06-02 — cherry-pick Opus 4.8 Antigravity 支持
 

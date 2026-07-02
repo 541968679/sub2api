@@ -146,4 +146,68 @@ describe('UserViewCompareDrawer', () => {
     expect(text).toContain('$0.036951')
     expect(text).toContain('$0.059122')
   })
+
+  it('does not reverse-derive user display unit prices from display costs', async () => {
+    vi.mocked(adminUsageAPI.getUserViewPreview).mockResolvedValue({
+      log_id: 16745,
+      user_id: 10,
+      model: 'claude-fable-5',
+      real: {
+        input_tokens: 1,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        input_cost: 0.000001,
+        output_cost: 0,
+        cache_read_cost: 0,
+        cache_creation_cost: 0,
+        total_cost: 0.000001,
+        actual_cost: 0.000001,
+        rate_multiplier: 1,
+      },
+      user_view: {
+        input_tokens: 3,
+        output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        input_cost: 0.000025,
+        output_cost: 0,
+        cache_read_cost: 0,
+        cache_creation_cost: 0,
+        total_cost: 0.000025,
+        actual_cost: 0.000025,
+        rate_multiplier: 1,
+      },
+      config_used: {
+        display_input_price: null,
+        display_output_price: null,
+        display_cache_read_price: null,
+        display_cache_creation_price: null,
+        display_cache_creation_1h_price: null,
+        display_rate_multiplier: null,
+        user_group_rate: null,
+        has_user_override: false,
+        group_id: 1,
+      },
+    })
+
+    const wrapper = mount(UserViewCompareDrawer, {
+      props: {
+        open: true,
+        logId: 16745,
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    const text = wrapper.text()
+    expect(text).toContain('1 x $1.0000 / MTok')
+    expect(text).not.toContain('$8.3333 / MTok')
+  })
 })

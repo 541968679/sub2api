@@ -75,6 +75,16 @@ var instructionsGPT51 string
 //go:embed instructions_gpt5_2.txt
 var instructionsGPT52 string
 
+//go:embed instructions_gpt5_5.txt
+var instructionsGPT55 string
+
+func latestCodexInstructions() string {
+	if strings.TrimSpace(instructionsGPT55) != "" {
+		return instructionsGPT55
+	}
+	return DefaultInstructions
+}
+
 // CodexBaseInstructionsForModel returns the closest Codex base instructions for
 // the target model, falling back to the default prompt when a model-specific
 // prompt is unavailable.
@@ -83,14 +93,16 @@ func CodexBaseInstructionsForModel(model string) string {
 	switch {
 	case strings.Contains(m, "codex"):
 		return DefaultInstructions
+	case strings.HasPrefix(m, "gpt-5.5"):
+		return latestCodexInstructions()
 	case strings.HasPrefix(m, "gpt-5.2"):
 		if strings.TrimSpace(instructionsGPT52) != "" {
 			return instructionsGPT52
 		}
-	case strings.HasPrefix(m, "gpt-5.1"), strings.HasPrefix(m, "gpt-5"):
+	case strings.HasPrefix(m, "gpt-5.1"):
 		if strings.TrimSpace(instructionsGPT51) != "" {
 			return instructionsGPT51
 		}
 	}
-	return DefaultInstructions
+	return latestCodexInstructions()
 }
