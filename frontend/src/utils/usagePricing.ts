@@ -47,3 +47,23 @@ export function formatTokenPricePerMillion(
   const formatted = pricePerMillion.toFixed(fractionDigits)
   return options.withCurrencySymbol == false ? formatted : `$${formatted}`
 }
+
+export function formatTokenUnitPricePerMillion(
+  pricePerToken: number | null | undefined,
+  options: TokenPriceFormatOptions = {}
+): string {
+  if (!isFiniteNumber(pricePerToken)) {
+    return options.emptyValue ?? '-'
+  }
+
+  const fractionDigits = options.fractionDigits ?? 4
+  const formatted = (pricePerToken * TOKENS_PER_MILLION).toFixed(fractionDigits)
+  return options.withCurrencySymbol == false ? formatted : `$${formatted}`
+}
+
+export function formatDisplayTokenPricePerMillion(
+  pricePerToken: number | null | undefined,
+  options: TokenPriceFormatOptions = {}
+): string {
+  return formatTokenUnitPricePerMillion(pricePerToken, options)
+}

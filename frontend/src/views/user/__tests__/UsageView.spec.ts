@@ -179,6 +179,8 @@ describe('user UsageView tooltip', () => {
       output_tokens: 101,
       cache_creation_tokens: 12345,
       cache_read_tokens: 278272,
+      display_input_price: 0.000005,
+      display_output_price: 0.000030,
     }
     setupState.tooltipVisible = true
     await nextTick()
@@ -262,6 +264,123 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('1h')
     // the admin-only cache TTL override badge stays hidden from users
     expect(text).not.toContain('R-')
+  })
+
+  it('uses backend display prices instead of deriving unit prices from rounded display tokens', async () => {
+    query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0,
+    })
+    getStatsByDateRange.mockResolvedValue({
+      total_requests: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      avg_duration_ms: 0,
+    })
+    getDashboardTrend.mockResolvedValue({ trend: [], start_date: '2026-07-02', end_date: '2026-07-02', granularity: 'day' })
+    list.mockResolvedValue({ items: [] })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          TablePageLayout: TablePageLayoutStub,
+          Pagination: true,
+          EmptyState: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          UsageMetricTrendChart: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    await nextTick()
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    setupState.tooltipData = {
+      request_id: 'req-fable-rounded',
+      actual_cost: 0.00005,
+      total_cost: 0.000025,
+      rate_multiplier: 1.6,
+      input_cost: 0.000025,
+      output_cost: 0.0015,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 3,
+      output_tokens: 30,
+      cache_creation_tokens: 0,
+      cache_read_tokens: 28041,
+      display_input_price: 0.000010,
+      display_output_price: 0.000050,
+    }
+    setupState.tooltipVisible = true
+    await nextTick()
+
+    const text = wrapper.text()
+    expect(text).toContain('$10.0000 / 1M tokens')
+    expect(text).toContain('$50.0000 / 1M tokens')
+    expect(text).not.toContain('$8.3333 / 1M tokens')
+  })
+
+  it('does not reverse-derive user model prices when backend unit prices are missing', async () => {
+    query.mockResolvedValue({
+      items: [],
+      total: 0,
+      pages: 0,
+    })
+    getStatsByDateRange.mockResolvedValue({
+      total_requests: 0,
+      total_tokens: 0,
+      total_cost: 0,
+      avg_duration_ms: 0,
+    })
+    getDashboardTrend.mockResolvedValue({ trend: [], start_date: '2026-07-02', end_date: '2026-07-02', granularity: 'day' })
+    list.mockResolvedValue({ items: [] })
+
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          TablePageLayout: TablePageLayoutStub,
+          Pagination: true,
+          EmptyState: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          UsageMetricTrendChart: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    await nextTick()
+
+    const setupState = (wrapper.vm as any).$?.setupState
+    setupState.tooltipData = {
+      request_id: 'req-no-unit-price',
+      actual_cost: 0.00005,
+      total_cost: 0.000025,
+      rate_multiplier: 1.6,
+      input_cost: 0.000025,
+      output_cost: 0.0015,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 3,
+      output_tokens: 30,
+      cache_creation_tokens: 0,
+      cache_read_tokens: 0,
+    }
+    setupState.tooltipVisible = true
+    await nextTick()
+
+    const text = wrapper.text()
+    expect(text).toContain('- / 1M tokens')
+    expect(text).not.toContain('$8.3333 / 1M tokens')
   })
 
 })

@@ -1354,6 +1354,9 @@ export interface UsageLog {
   total_cost: number
   actual_cost: number
   rate_multiplier: number
+  display_input_price?: number | null
+  display_output_price?: number | null
+  display_cache_read_price?: number | null
   long_context_applied: boolean
   long_context_input_threshold?: number
   long_context_input_multiplier?: number

@@ -80,7 +80,7 @@ func TestAggregateDisplayedGroups_ReconcilesWithPerRow(t *testing.T) {
 	// Per-row: transform each record then sum (what the records list shows).
 	var rowSum displayUsageTotals
 	for i := range rows {
-		rowSum.addDisplayed(displayUsageRecordForUser(&rows[i], displayMap, nil), 1, 0)
+		rowSum.addDisplayed(displayUsageRecordForUser(t.Context(), &rows[i], displayMap, nil, nil), 1, 0)
 	}
 
 	// Per-group: transform the aggregate once (what the dashboard all-time path does).

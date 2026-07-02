@@ -44,6 +44,13 @@ type ResolvedPricing struct {
 	SupportsCacheBreakdown bool
 }
 
+// TokenUnitPrices are effective per-token prices for a stored usage row.
+type TokenUnitPrices struct {
+	InputPrice     float64
+	OutputPrice    float64
+	CacheReadPrice float64
+}
+
 // ModelPricingResolver 统一模型定价解析器。
 // 解析链：(LiteLLM/Fallback 为底) → Global 叠加 → Channel 叠加 → User 叠加。
 // 注意：Global、Channel、User 均为"叠加覆盖"语义——仅替换非 nil 字段，其余保留底层值。
@@ -354,6 +361,59 @@ func (r *ModelPricingResolver) GetIntervalPricing(resolved *ResolvedPricing, tot
 	}
 
 	return intervalToModelPricing(iv, resolved.SupportsCacheBreakdown)
+}
+
+// ResolveTokenUnitPrices resolves the same model-pricing chain used for billing
+// and returns effective token unit prices for display. The result is never
+// derived from stored usage costs.
+func (r *ModelPricingResolver) ResolveTokenUnitPrices(ctx context.Context, input PricingInput, totalContextTokens int, serviceTier string, longContextApplied bool, longInputMultiplier, longOutputMultiplier float64) TokenUnitPrices {
+	if r == nil {
+		return TokenUnitPrices{}
+	}
+	resolved := r.Resolve(ctx, input)
+	if resolved == nil || resolved.Mode != BillingModeToken {
+		return TokenUnitPrices{}
+	}
+	pricing := r.GetIntervalPricing(resolved, totalContextTokens)
+	if pricing == nil {
+		return TokenUnitPrices{}
+	}
+
+	inputPrice := pricing.InputPricePerToken
+	outputPrice := pricing.OutputPricePerToken
+	cacheReadPrice := pricing.CacheReadPricePerToken
+
+	if usePriorityServiceTierPricing(serviceTier, pricing) {
+		if pricing.InputPricePerTokenPriority > 0 {
+			inputPrice = pricing.InputPricePerTokenPriority
+		}
+		if pricing.OutputPricePerTokenPriority > 0 {
+			outputPrice = pricing.OutputPricePerTokenPriority
+		}
+		if pricing.CacheReadPricePerTokenPriority > 0 {
+			cacheReadPrice = pricing.CacheReadPricePerTokenPriority
+		}
+	} else if tierMultiplier := serviceTierCostMultiplier(serviceTier); tierMultiplier != 1.0 {
+		inputPrice *= tierMultiplier
+		outputPrice *= tierMultiplier
+		cacheReadPrice *= tierMultiplier
+	}
+
+	if longContextApplied && len(resolved.Intervals) == 0 {
+		if longInputMultiplier > 0 {
+			inputPrice *= longInputMultiplier
+			cacheReadPrice *= longInputMultiplier
+		}
+		if longOutputMultiplier > 0 {
+			outputPrice *= longOutputMultiplier
+		}
+	}
+
+	return TokenUnitPrices{
+		InputPrice:     inputPrice,
+		OutputPrice:    outputPrice,
+		CacheReadPrice: cacheReadPrice,
+	}
 }
 
 // intervalToModelPricing 将区间定价转换为 ModelPricing

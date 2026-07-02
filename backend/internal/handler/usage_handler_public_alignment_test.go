@@ -171,7 +171,7 @@ func newPublicUsageAlignmentRouter(repo *publicUsageAlignmentRepo) *gin.Engine {
 			},
 		},
 	})
-	handler := NewUsageHandler(usageSvc, apiKeySvc, nil, userPricingSvc, nil, nil)
+	handler := NewUsageHandler(usageSvc, apiKeySvc, nil, userPricingSvc, nil, nil, nil)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {

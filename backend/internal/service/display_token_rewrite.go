@@ -811,7 +811,6 @@ func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTo
 	if rateScale != 1.0 {
 		displayInput = roundDisplayTokenCount(displayInput, rateScale)
 		displayOutput = roundDisplayTokenCount(displayOutput, rateScale)
-		displayCacheRead = roundDisplayTokenCount(displayCacheRead, rateScale)
 		displayCacheCreate = roundDisplayTokenCount(displayCacheCreate, rateScale)
 	}
 

@@ -44,6 +44,19 @@ func TestResolve_NoGroupID(t *testing.T) {
 	require.Equal(t, "litellm", resolved.Source)
 }
 
+func TestResolveTokenUnitPrices_UsesResolvedPricingNotUsageCost(t *testing.T) {
+	bs := newTestBillingServiceForResolver()
+	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)
+
+	prices := r.ResolveTokenUnitPrices(context.Background(), PricingInput{
+		Model: "claude-sonnet-4",
+	}, 28044, "", false, 0, 0)
+
+	require.InDelta(t, 3e-6, prices.InputPrice, 1e-12)
+	require.InDelta(t, 15e-6, prices.OutputPrice, 1e-12)
+	require.InDelta(t, 0.3e-6, prices.CacheReadPrice, 1e-12)
+}
+
 func TestResolve_UnknownModel(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	r := NewModelPricingResolver(&ChannelService{}, bs, nil, nil)

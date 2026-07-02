@@ -279,7 +279,7 @@ func TestDisplayToken_OpenAIUsageRewriteClampsCachedTokensAboveInput(t *testing.
 	require.Equal(t, int64(240), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
 }
 
-func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRate(t *testing.T) {
+func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRateKeepsCacheReadReal(t *testing.T) {
 	line := `data: {"type":"message_start","message":{"usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":5}}}`
 	mult := &DisplayTokenMultipliers{
 		InputMult:          2,
@@ -294,7 +294,7 @@ func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRate(t *te
 	rewritten := RewriteSSEUsageTokens(line, mult)
 	require.Equal(t, int64(560), gjson.Get(rewritten[len("data: "):], "message.usage.input_tokens").Int())
 	require.Equal(t, int64(60), gjson.Get(rewritten[len("data: "):], "message.usage.output_tokens").Int())
-	require.Equal(t, int64(40), gjson.Get(rewritten[len("data: "):], "message.usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(20), gjson.Get(rewritten[len("data: "):], "message.usage.cache_read_input_tokens").Int())
 	require.Equal(t, int64(10), gjson.Get(rewritten[len("data: "):], "message.usage.cache_creation_input_tokens").Int())
 }
 

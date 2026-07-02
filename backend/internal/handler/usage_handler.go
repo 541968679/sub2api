@@ -26,6 +26,7 @@ type UsageHandler struct {
 	apiKeyService           *service.APIKeyService
 	modelPricingService     *service.GlobalModelPricingService
 	userModelPricingService *service.UserModelPricingService
+	pricingResolver         *service.ModelPricingResolver
 	opsService              *service.OpsService
 	settingService          *service.SettingService
 }
@@ -36,6 +37,7 @@ func NewUsageHandler(
 	apiKeyService *service.APIKeyService,
 	modelPricingService *service.GlobalModelPricingService,
 	userModelPricingService *service.UserModelPricingService,
+	pricingResolver *service.ModelPricingResolver,
 	opsService *service.OpsService,
 	settingService *service.SettingService,
 ) *UsageHandler {
@@ -44,6 +46,7 @@ func NewUsageHandler(
 		apiKeyService:           apiKeyService,
 		modelPricingService:     modelPricingService,
 		userModelPricingService: userModelPricingService,
+		pricingResolver:         pricingResolver,
 		opsService:              opsService,
 		settingService:          settingService,
 	}
@@ -165,7 +168,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
-		out = append(out, *displayUsageRecordForUser(&records[i], displayMap, userDisplayRates))
+		out = append(out, *displayUsageRecordForUser(c.Request.Context(), &records[i], displayMap, userDisplayRates, h.pricingResolver))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -356,7 +359,7 @@ func (h *UsageHandler) PublicRecords(c *gin.Context) {
 	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
 	out := make([]dto.UsageLog, 0, len(records))
 	for i := range records {
-		out = append(out, *displayUsageRecordForUser(&records[i], displayMap, userDisplayRates))
+		out = append(out, *displayUsageRecordForUser(c.Request.Context(), &records[i], displayMap, userDisplayRates, h.pricingResolver))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -452,15 +455,9 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	u := dto.UsageLogFromService(record, h.loadDisplayPricingMapForUser(c, subject.UserID))
-	if record.GroupID != nil {
-		userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
-		if userDisplayRates != nil {
-			if dr, ok := userDisplayRates[*record.GroupID]; ok && dr.DisplayRateMultiplier != nil {
-				dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
-			}
-		}
-	}
+	displayMap := h.loadDisplayPricingMapForUser(c, subject.UserID)
+	userDisplayRates := h.loadUserDisplayRates(c, subject.UserID)
+	u := displayUsageRecordForUser(c.Request.Context(), record, displayMap, userDisplayRates, h.pricingResolver)
 	response.Success(c, u)
 }
 
@@ -797,7 +794,7 @@ const publicUsageAggregationPageSize = 1000
 // loadDisplayedUsageRecords pages through usage records in [startTime, endTime] and applies
 // the per-row display transform. Shared by the JWT user handlers and the API-key gateway
 // handler so both produce identical display values. apiKeyID > 0 narrows to one key.
-func loadDisplayedUsageRecords(ctx context.Context, usageService *service.UsageService, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
+func loadDisplayedUsageRecords(ctx context.Context, usageService *service.UsageService, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData, pricingResolver *service.ModelPricingResolver, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
 	filters := usagestats.UsageLogFilters{
 		UserID:     userID,
 		APIKeyID:   apiKeyID,
@@ -817,7 +814,7 @@ func loadDisplayedUsageRecords(ctx context.Context, usageService *service.UsageS
 			return nil, err
 		}
 		for i := range records {
-			out = append(out, *displayUsageRecordForUser(&records[i], displayMap, userDisplayRates))
+			out = append(out, *displayUsageRecordForUser(ctx, &records[i], displayMap, userDisplayRates, pricingResolver))
 		}
 		if len(records) == 0 || result == nil || page >= result.Pages || int64(len(out)) >= result.Total {
 			break
@@ -829,11 +826,11 @@ func loadDisplayedUsageRecords(ctx context.Context, usageService *service.UsageS
 func (h *UsageHandler) loadAllDisplayedPublicUsageRecords(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]dto.UsageLog, error) {
 	displayMap := h.loadDisplayPricingMapForUser(c, userID)
 	userDisplayRates := h.loadUserDisplayRates(c, userID)
-	return loadDisplayedUsageRecords(c.Request.Context(), h.usageService, displayMap, userDisplayRates, userID, apiKeyID, startTime, endTime)
+	return loadDisplayedUsageRecords(c.Request.Context(), h.usageService, displayMap, userDisplayRates, h.pricingResolver, userID, apiKeyID, startTime, endTime)
 }
 
-func displayUsageRecordForUser(record *service.UsageLog, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) *dto.UsageLog {
-	u := dto.UsageLogFromService(record, displayMap)
+func displayUsageRecordForUser(ctx context.Context, record *service.UsageLog, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData, pricingResolver *service.ModelPricingResolver) *dto.UsageLog {
+	u := dto.UsageLogFromServiceWithDisplayConfig(record, displayConfigForUsageRecord(ctx, record, displayMap, pricingResolver))
 	if u == nil {
 		return nil
 	}
@@ -843,6 +840,37 @@ func displayUsageRecordForUser(record *service.UsageLog, displayMap dto.DisplayP
 		}
 	}
 	return u
+}
+
+func displayConfigForUsageRecord(ctx context.Context, record *service.UsageLog, displayMap dto.DisplayPricingMap, pricingResolver *service.ModelPricingResolver) *dto.DisplayPricingConfig {
+	if record == nil {
+		return nil
+	}
+	model := record.RequestedModel
+	if model == "" {
+		model = record.Model
+	}
+	cfg := dto.DisplayPricingConfigForModel(displayMap, model)
+	if pricingResolver == nil {
+		return cfg
+	}
+
+	var userID *int64
+	if record.UserID > 0 {
+		userID = &record.UserID
+	}
+	serviceTier := ""
+	if record.ServiceTier != nil {
+		serviceTier = *record.ServiceTier
+	}
+	// Long-context multipliers are applied by dto.effectiveDisplayPricingForUsageLog
+	// after this config is attached, so resolver prices stay at the configured base.
+	unitPrices := pricingResolver.ResolveTokenUnitPrices(ctx, service.PricingInput{
+		Model:   model,
+		GroupID: record.GroupID,
+		UserID:  userID,
+	}, record.InputTokens+record.CacheReadTokens, serviceTier, false, 0, 0)
+	return dto.ApplyResolvedUnitPrices(cfg, unitPrices.InputPrice, unitPrices.OutputPrice, unitPrices.CacheReadPrice)
 }
 
 func aggregateDisplayedPublicUsageStats(records []dto.UsageLog) *service.UsageStats {
@@ -1028,7 +1056,7 @@ func aggregateDisplayedGroups(groups []usagestats.DisplayAggregateGroup, display
 	var totals displayUsageTotals
 	for i := range groups {
 		g := &groups[i]
-		u := displayUsageRecordForUser(groupToServiceUsageLog(g), displayMap, userDisplayRates)
+		u := displayUsageRecordForUser(context.Background(), groupToServiceUsageLog(g), displayMap, userDisplayRates, nil)
 		totals.addDisplayed(u, g.Requests, float64(g.DurationSum))
 	}
 	return totals

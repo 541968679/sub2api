@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] fix: use configured display unit prices in user usage
+
+**Affected files**: backend/cmd/server/wire_gen.go, backend/internal/handler/usage_handler.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/service/model_pricing_resolver.go, backend/internal/service/model_pricing_resolver_test.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/display_token_rewrite_test.go, frontend/src/utils/usagePricing.ts, frontend/src/types/index.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/views/user/__tests__/UsageView.spec.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: fork-local user display and billing presentation fix. No database, route, stored usage, real billing, quota, push, or deployment changes.
+**Change details**:
+- Added effective unit-price fields to user usage DTOs and changed user/API-key usage tooltips to use those configured prices instead of reverse-deriving unit prices from rounded display tokens. Explicit display-price overrides win; otherwise the backend resolves the configured model price through the existing User → Channel → Global → LiteLLM/Fallback pricing chain.
+- Removed the user tooltip fallback that computed model unit price from `cost / tokens`; if the backend cannot resolve a unit price, the frontend shows an empty value instead of inventing one from usage costs.
+- Fixed the fable-style small-token rounding case where input cost `$0.000025` and displayed input tokens `3` produced a false `$8.3333/M` tooltip even though the configured display input price is `$10/M`.
+- Preserved real cache-read token quantities in user usage display transforms and downstream display-mode response rewrites; display-rate scaling now keeps cache-read cost tied to cache-read tokens/unit price and folds the cache-read rate delta into input display tokens/cost so the displayed bill remains explainable.
+- Added focused backend and frontend regression coverage for configured unit prices and non-scaled cache-read counts.
+
 ## [2026-07-02] fix: restore local dev-console manifest
 
 **Affected files**: dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md

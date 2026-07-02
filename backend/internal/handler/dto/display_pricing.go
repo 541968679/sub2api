@@ -12,6 +12,10 @@ type DisplayPricingConfig struct {
 	DisplayOutputPrice        *float64
 	DisplayCacheReadPrice     *float64
 	DisplayCacheCreationPrice *float64 // 5m 档展示价；1h 档未配时也作用于 1h
+	UnitInputPrice            *float64
+	UnitOutputPrice           *float64
+	UnitCacheReadPrice        *float64
+	HasDisplayOverride        bool
 	// DisplayCacheCreation1hPrice 是 1h 档展示价（nil = 回退 5m 档展示价）。
 	// 配置后按档反算展示 token，需要真实档价比例来拆分单一的 cache_creation_cost。
 	DisplayCacheCreation1hPrice *float64
@@ -29,7 +33,8 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 	m := make(DisplayPricingMap)
 	for i := range pricings {
 		p := &pricings[i]
-		if !hasDisplayOverride(p) {
+		hasOverride := hasDisplayOverride(p)
+		if !hasOverride && !hasUnitPrice(p) {
 			continue
 		}
 		m[toLowerModel(p.Model)] = &DisplayPricingConfig{
@@ -37,6 +42,10 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 			DisplayOutputPrice:          p.DisplayOutputPrice,
 			DisplayCacheReadPrice:       p.DisplayCacheReadPrice,
 			DisplayCacheCreationPrice:   p.DisplayCacheCreationPrice,
+			UnitInputPrice:              firstPrice(p.DisplayInputPrice, p.InputPrice),
+			UnitOutputPrice:             firstPrice(p.DisplayOutputPrice, p.OutputPrice),
+			UnitCacheReadPrice:          firstPrice(p.DisplayCacheReadPrice, p.CacheReadPrice),
+			HasDisplayOverride:          hasOverride,
 			DisplayCacheCreation1hPrice: p.DisplayCacheCreation1hPrice,
 			RealCacheWritePrice:         p.CacheWritePrice,
 			RealCacheWrite1hPrice:       p.CacheWrite1hPrice,
@@ -50,6 +59,19 @@ func hasDisplayOverride(p *service.GlobalModelPricing) bool {
 		p.DisplayCacheCreationPrice != nil || p.DisplayCacheCreation1hPrice != nil
 }
 
+func hasUnitPrice(p *service.GlobalModelPricing) bool {
+	return p.InputPrice != nil || p.OutputPrice != nil || p.CacheReadPrice != nil
+}
+
+func firstPrice(values ...*float64) *float64 {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
 func toLowerModel(model string) string {
 	b := make([]byte, len(model))
 	for i := range model {
@@ -60,6 +82,44 @@ func toLowerModel(model string) string {
 		b[i] = c
 	}
 	return string(b)
+}
+
+func cloneDisplayPricingConfig(cfg *DisplayPricingConfig) *DisplayPricingConfig {
+	if cfg == nil {
+		return nil
+	}
+	clone := *cfg
+	return &clone
+}
+
+// DisplayPricingConfigForModel returns a cloned display config for a model.
+func DisplayPricingConfigForModel(displayMap DisplayPricingMap, model string) *DisplayPricingConfig {
+	if displayMap == nil {
+		return nil
+	}
+	return cloneDisplayPricingConfig(displayMap[toLowerModel(model)])
+}
+
+// ApplyResolvedUnitPrices adds effective resolver prices to a display config.
+// Explicit display prices still win; resolver prices are only the configured
+// model-price fallback and are never derived from usage costs.
+func ApplyResolvedUnitPrices(cfg *DisplayPricingConfig, inputPrice, outputPrice, cacheReadPrice float64) *DisplayPricingConfig {
+	if cfg == nil {
+		cfg = &DisplayPricingConfig{}
+	}
+	if cfg.DisplayInputPrice == nil && inputPrice > 0 {
+		cfg.UnitInputPrice = &inputPrice
+	}
+	if cfg.DisplayOutputPrice == nil && outputPrice > 0 {
+		cfg.UnitOutputPrice = &outputPrice
+	}
+	if cfg.DisplayCacheReadPrice == nil && cacheReadPrice > 0 {
+		cfg.UnitCacheReadPrice = &cacheReadPrice
+	}
+	if cfg.HasDisplayOverride || cfg.UnitInputPrice != nil || cfg.UnitOutputPrice != nil || cfg.UnitCacheReadPrice != nil {
+		return cfg
+	}
+	return nil
 }
 
 func stripCacheTransferIfChannel(cfg *DisplayPricingConfig, channelID *int64) *DisplayPricingConfig {
@@ -76,9 +136,17 @@ func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) 
 			value := *clone.DisplayInputPrice * d.LongContextInputMultiplier
 			clone.DisplayInputPrice = &value
 		}
+		if clone.UnitInputPrice != nil {
+			value := *clone.UnitInputPrice * d.LongContextInputMultiplier
+			clone.UnitInputPrice = &value
+		}
 		if clone.DisplayCacheReadPrice != nil {
 			value := *clone.DisplayCacheReadPrice * d.LongContextInputMultiplier
 			clone.DisplayCacheReadPrice = &value
+		}
+		if clone.UnitCacheReadPrice != nil {
+			value := *clone.UnitCacheReadPrice * d.LongContextInputMultiplier
+			clone.UnitCacheReadPrice = &value
 		}
 		if clone.DisplayCacheCreationPrice != nil {
 			value := *clone.DisplayCacheCreationPrice * d.LongContextInputMultiplier
@@ -93,6 +161,10 @@ func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) 
 		value := *clone.DisplayOutputPrice * d.LongContextOutputMultiplier
 		clone.DisplayOutputPrice = &value
 	}
+	if d.LongContextOutputMultiplier > 0 && clone.UnitOutputPrice != nil {
+		value := *clone.UnitOutputPrice * d.LongContextOutputMultiplier
+		clone.UnitOutputPrice = &value
+	}
 	return &clone
 }
 
@@ -102,6 +174,15 @@ func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) 
 func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	if cfg == nil {
 		return
+	}
+	if price := firstPrice(cfg.UnitInputPrice, cfg.DisplayInputPrice); price != nil && *price > 0 {
+		d.DisplayInputPrice = price
+	}
+	if price := firstPrice(cfg.UnitOutputPrice, cfg.DisplayOutputPrice); price != nil && *price > 0 {
+		d.DisplayOutputPrice = price
+	}
+	if price := firstPrice(cfg.UnitCacheReadPrice, cfg.DisplayCacheReadPrice); price != nil && *price > 0 {
+		d.DisplayCacheReadPrice = price
 	}
 
 	oldComponentSum := d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
@@ -205,7 +286,7 @@ func rescaleCacheCreationBreakdown(d *UsageLog, realTokens int) {
 // ComputeDisplayFields computes display values for admin DTO (for dual-column comparison).
 // Returns nil if no display override is configured for this model.
 func ComputeDisplayFields(d *UsageLog, cfg *DisplayPricingConfig) *DisplayUsageFields {
-	if cfg == nil {
+	if cfg == nil || !cfg.HasDisplayOverride {
 		return nil
 	}
 	clone := *d
@@ -246,17 +327,20 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 	}
 	scale := currentRate / displayRate
 
-	if d.InputTokens > 0 {
-		d.InputTokens = int(math.Round(float64(d.InputTokens) * scale))
-		d.InputCost *= scale
+	oldTotal := d.TotalCost
+	oldComponentSum := usageLogComponentSum(d)
+	otherCost := oldTotal - oldComponentSum
+	if math.Abs(otherCost) < 1e-12 {
+		otherCost = 0
 	}
-	if d.OutputTokens > 0 {
-		d.OutputTokens = int(math.Round(float64(d.OutputTokens) * scale))
-		d.OutputCost *= scale
+	scaledOtherCost := otherCost * scale
+	targetTotal := oldTotal * scale
+
+	if d.OutputTokens > 0 || d.OutputCost > 0 {
+		d.OutputTokens, d.OutputCost = scaleDisplayedTokenComponent(d.OutputTokens, d.OutputCost, scale, d.DisplayOutputPrice)
 	}
-	if d.CacheReadTokens > 0 {
-		d.CacheReadTokens = int(math.Round(float64(d.CacheReadTokens) * scale))
-		d.CacheReadCost *= scale
+	if d.CacheReadTokens > 0 && d.DisplayCacheReadPrice != nil && *d.DisplayCacheReadPrice > 0 {
+		d.CacheReadCost = float64(d.CacheReadTokens) * *d.DisplayCacheReadPrice
 	}
 	if d.CacheCreationTokens > 0 {
 		realTokens := d.CacheCreationTokens
@@ -266,9 +350,50 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 	}
 	d.ImageOutputCost *= scale
 
-	// Scale TotalCost directly so per-request and other non-component costs survive.
-	d.TotalCost *= scale
+	inputTargetCost := targetTotal - scaledOtherCost - d.OutputCost - d.CacheCreationCost - d.CacheReadCost - d.ImageOutputCost
+	if inputTargetCost < 0 {
+		inputTargetCost = 0
+	}
+	if d.InputTokens > 0 || d.InputCost > 0 || inputTargetCost > 0 {
+		if d.DisplayInputPrice != nil && *d.DisplayInputPrice > 0 && inputTargetCost > 0 {
+			d.InputTokens = roundDisplayTokensFromCost(inputTargetCost, *d.DisplayInputPrice)
+			d.InputCost = float64(d.InputTokens) * *d.DisplayInputPrice
+		} else {
+			if d.InputTokens > 0 {
+				d.InputTokens = int(math.Round(float64(d.InputTokens) * scale))
+			}
+			d.InputCost = inputTargetCost
+		}
+	}
+
+	d.TotalCost = scaledOtherCost + usageLogComponentSum(d)
 	d.RateMultiplier = displayRate
+}
+
+func scaleDisplayedTokenComponent(tokens int, cost float64, scale float64, price *float64) (int, float64) {
+	targetCost := cost * scale
+	if price != nil && *price > 0 && targetCost > 0 {
+		displayTokens := roundDisplayTokensFromCost(targetCost, *price)
+		return displayTokens, float64(displayTokens) * *price
+	}
+	if tokens > 0 {
+		tokens = int(math.Round(float64(tokens) * scale))
+	}
+	return tokens, targetCost
+}
+
+func roundDisplayTokensFromCost(cost float64, price float64) int {
+	if price <= 0 {
+		return 0
+	}
+	return int(math.Round(cost/price + 1e-9))
+}
+
+func usageLogComponentSum(d *UsageLog) float64 {
+	if d == nil {
+		return 0
+	}
+	return d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost + d.ImageOutputCost
 }
 
 // BuildUserDisplayPricingMap merges user-level display overrides on top of the global display map.
@@ -284,7 +409,8 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		if !o.Enabled || o.Model == "" {
 			continue
 		}
-		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil &&
+		if o.InputPrice == nil && o.OutputPrice == nil && o.CacheReadPrice == nil &&
+			o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil &&
 			o.DisplayCacheCreationPrice == nil && o.DisplayCacheCreation1hPrice == nil {
 			continue
 		}
@@ -296,18 +422,32 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		}
 		if o.DisplayInputPrice != nil {
 			existing.DisplayInputPrice = o.DisplayInputPrice
+			existing.UnitInputPrice = o.DisplayInputPrice
+			existing.HasDisplayOverride = true
+		} else if o.InputPrice != nil {
+			existing.UnitInputPrice = o.InputPrice
 		}
 		if o.DisplayOutputPrice != nil {
 			existing.DisplayOutputPrice = o.DisplayOutputPrice
+			existing.UnitOutputPrice = o.DisplayOutputPrice
+			existing.HasDisplayOverride = true
+		} else if o.OutputPrice != nil {
+			existing.UnitOutputPrice = o.OutputPrice
 		}
 		if o.DisplayCacheReadPrice != nil {
 			existing.DisplayCacheReadPrice = o.DisplayCacheReadPrice
+			existing.UnitCacheReadPrice = o.DisplayCacheReadPrice
+			existing.HasDisplayOverride = true
+		} else if o.CacheReadPrice != nil {
+			existing.UnitCacheReadPrice = o.CacheReadPrice
 		}
 		if o.DisplayCacheCreationPrice != nil {
 			existing.DisplayCacheCreationPrice = o.DisplayCacheCreationPrice
+			existing.HasDisplayOverride = true
 		}
 		if o.DisplayCacheCreation1hPrice != nil {
 			existing.DisplayCacheCreation1hPrice = o.DisplayCacheCreation1hPrice
+			existing.HasDisplayOverride = true
 		}
 		// 用户级真实档价（若配置）替换成本拆分比例的来源
 		if o.CacheWritePrice != nil {

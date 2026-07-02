@@ -633,15 +633,32 @@ func UsageLogFromService(l *service.UsageLog, displayMap DisplayPricingMap) *Usa
 	if l == nil {
 		return nil
 	}
+	return UsageLogFromServiceWithDisplayConfig(l, DisplayPricingConfigForModel(displayMap, usageLogDisplayModel(l)))
+}
+
+// UsageLogFromServiceWithDisplayConfig converts a service UsageLog to DTO and
+// applies the exact display config prepared for this row.
+func UsageLogFromServiceWithDisplayConfig(l *service.UsageLog, cfg *DisplayPricingConfig) *UsageLog {
+	if l == nil {
+		return nil
+	}
 	u := usageLogFromServiceUser(l)
-	if displayMap != nil {
-		if cfg := displayMap[toLowerModel(u.Model)]; cfg != nil {
-			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
-			cfg = effectiveDisplayPricingForUsageLog(&u, cfg)
-			ApplyDisplayTransform(&u, cfg)
-		}
+	if cfg != nil {
+		cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
+		cfg = effectiveDisplayPricingForUsageLog(&u, cfg)
+		ApplyDisplayTransform(&u, cfg)
 	}
 	return &u
+}
+
+func usageLogDisplayModel(l *service.UsageLog) string {
+	if l == nil {
+		return ""
+	}
+	if l.RequestedModel != "" {
+		return l.RequestedModel
+	}
+	return l.Model
 }
 
 // UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.

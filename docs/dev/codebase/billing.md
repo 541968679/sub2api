@@ -221,15 +221,15 @@ CalculateCostUnified(CostInput)
     ├─ 1. ApplyDisplayTransform(dto, displayPricingConfig)
     │   来源: 全局模型展示单价 + 用户级模型展示单价（叠加合并）
     │   作用: 根据展示单价反算 token 数（cost 不变，rate 不变）
-    │   影响字段: InputTokens, OutputTokens, CacheReadTokens 及对应 Cost
-    │   不影响: CacheCreationTokens, RateMultiplier, ActualCost
+    │   影响字段: InputTokens, OutputTokens, CacheCreationTokens、相关 Cost；CacheReadTokens 保持真实但 CacheReadCost 可按展示价重算
+    │   不影响: CacheReadTokens, RateMultiplier, ActualCost
     │   安全: 使用 delta 方式更新 TotalCost，不会丢失按次计费/图片计费的费用
     │
     └─ 2. ApplyUserDisplayRate(dto, displayRate)
         来源: user_group_rate 表的 display_rate_multiplier
-        作用: 等比缩放所有 token/cost，修改 RateMultiplier
-        公式: scale = realRate / displayRate, 所有 token 和 cost ×scale
-        影响字段: 全部 token/cost + RateMultiplier + TotalCost
+        作用: 等比缩放展示 token/cost，修改 RateMultiplier
+        公式: scale = realRate / displayRate, 除 CacheReadTokens 外的展示 token 和 cost ×scale
+        影响字段: Input/Output/CacheCreation token、全部 cost、RateMultiplier、TotalCost
         不影响: ActualCost
         注意: TotalCost 直接 ×scale（不是重新求和），正确处理按次计费
 
@@ -333,6 +333,25 @@ display_input_tokens = round(display_input_cost / display_input_price)
 display layer does not manufacture unexplained input tokens or silently drop the
 cache premium. Output display pricing continues to affect only output
 tokens/cost and never absorbs cache premium.
+
+User-facing usage DTOs include the effective `display_input_price`,
+`display_output_price`, and `display_cache_read_price` used for the user-visible
+unit price. These fields prefer explicit display-price overrides; otherwise the
+backend resolves the configured model price through the normal pricing chain
+(User → Channel → Global → LiteLLM/Fallback). Frontend unit-price labels must
+use these fields and must not derive model prices from `cost / displayed_tokens`;
+displayed token counts can be rounded after model display pricing and group
+display-rate scaling, so reverse-derived unit prices can drift from the
+configured model price.
+
+User-group display rate scaling preserves the same cache-read quantity invariant
+and the display bill must remain explainable from displayed tokens and unit
+prices. `ApplyUserDisplayRate` does not multiply `cache_read_tokens` and, when a
+cache-read unit price is known, does not multiply `cache_read_cost`; the
+display-rate delta for cache-read cost is folded into input display tokens/cost
+instead. Downstream response `RateScale` also keeps `cache_read_input_tokens`
+unchanged. `total_cost * rate_multiplier == actual_cost` is preserved up to the
+small rounding tolerance caused by integer display tokens.
 
 `cache_transfer_ratio` is deprecated by soft deletion. The database columns remain
 in `global_model_pricing` and `user_model_pricing_overrides` for rollback and old
@@ -440,7 +459,8 @@ users keep their stored mode unless an admin changes it:
   the cache line during model display pricing, moves any cache-read display
   price premium into non-cached input tokens, then recombines input plus cached
   tokens and recomputes `total_tokens`. User-group display rate scaling is
-  applied after this balancing step.
+  applied after this balancing step for input/output/cache-creation display
+  quantities, while cached-token counts remain real.
 - API keys without a group can still use `display`; model display prices apply
   and group display rate scaling is treated as `1`.
 - Billing, stored usage logs, `actual_cost`, quota deduction, and usage query

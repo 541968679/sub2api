@@ -47,6 +47,7 @@ type GatewayHandler struct {
 	apiKeyService             *service.APIKeyService
 	modelPricingService       *service.GlobalModelPricingService
 	userModelPricingService   *service.UserModelPricingService
+	pricingResolver           *service.ModelPricingResolver
 	usageRecordWorkerPool     *service.UsageRecordWorkerPool
 	errorPassthroughService   *service.ErrorPassthroughService
 	concurrencyHelper         *ConcurrencyHelper
@@ -69,6 +70,7 @@ func NewGatewayHandler(
 	apiKeyService *service.APIKeyService,
 	modelPricingService *service.GlobalModelPricingService,
 	userModelPricingService *service.UserModelPricingService,
+	pricingResolver *service.ModelPricingResolver,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	errorPassthroughService *service.ErrorPassthroughService,
 	userMsgQueueService *service.UserMessageQueueService,
@@ -104,6 +106,7 @@ func NewGatewayHandler(
 		apiKeyService:             apiKeyService,
 		modelPricingService:       modelPricingService,
 		userModelPricingService:   userModelPricingService,
+		pricingResolver:           pricingResolver,
 		usageRecordWorkerPool:     usageRecordWorkerPool,
 		errorPassthroughService:   errorPassthroughService,
 		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
@@ -1203,7 +1206,7 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	// Best-effort: 获取模型统计（展示值）
 	var modelStats any
 	if h.usageService != nil {
-		if records, err := loadDisplayedUsageRecords(ctx, h.usageService, displayMap, userDisplayRates, apiKey.UserID, apiKey.ID, startTime, endTime); err == nil && len(records) > 0 {
+		if records, err := loadDisplayedUsageRecords(ctx, h.usageService, displayMap, userDisplayRates, h.pricingResolver, apiKey.UserID, apiKey.ID, startTime, endTime); err == nil && len(records) > 0 {
 			modelStats = aggregateDisplayedModelStats(records)
 		}
 	}
