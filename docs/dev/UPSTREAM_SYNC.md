@@ -35,6 +35,19 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-02 - production-only Sonnet 5 partial sync
+
+- **Upstream commit**: `db0414233ce324903adc72e858374086da158b4b` (`feat: 适配 sonnet5`).
+- **Merge strategy**: manual partial port, not a full cherry-pick. Only Sonnet 5 model exposure, Bedrock mapping, default 1M beta policy, frontend whitelist presets, and related tests were synced.
+- **Excluded from the same upstream commit**: `backend/internal/pkg/anthropicfp/dateline.go`, because it is unrelated to Sonnet 5 production support.
+- **Production scope**: this patch is intended to ship by itself from `origin/main`/GHCR. It must not be mixed with the unverified local OpenAI/Image changes from the current conversation.
+- **Secondary-development impact**:
+  - Claude OAuth `/v1/models` gains `claude-sonnet-5`.
+  - Bedrock accounts gain default `claude-sonnet-5` routing with existing region-prefix rewrite behavior preserved.
+  - The local configurable beta-policy layer is preserved; only the default for `context-1m-2025-08-07` changes to Sonnet 5 whitelist + filter fallback.
+  - No database migration, pricing model, billing formula, API route, or auth behavior changes.
+- **Verification**: see `docs/dev/CHANGELOG_CUSTOM.md` entry for the exact test set.
+
 ### 2026-06-02 — cherry-pick Opus 4.8 Antigravity 支持
 
 - **上游 commit**: `514ac5c6` (`feat: 适配 claude-opus-4-8`)

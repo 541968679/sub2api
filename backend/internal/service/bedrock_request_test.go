@@ -481,6 +481,20 @@ func TestResolveBedrockModelID(t *testing.T) {
 		assert.Equal(t, "anthropic.claude-fable-5", modelID)
 	})
 
+	t.Run("default Sonnet 5 mapping adjusts region", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformAnthropic,
+			Type:     AccountTypeBedrock,
+			Credentials: map[string]any{
+				"aws_region": "eu-west-1",
+			},
+		}
+
+		modelID, ok := ResolveBedrockModelID(account, "claude-sonnet-5")
+		require.True(t, ok)
+		assert.Equal(t, "eu.anthropic.claude-sonnet-5-v1", modelID)
+	})
+
 	t.Run("force global rewrites anthropic regional model id", func(t *testing.T) {
 		account := &Account{
 			Platform: PlatformAnthropic,

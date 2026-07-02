@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] sync: Sonnet 5 production-only upstream patch
+
+**Affected files**: backend/internal/pkg/claude/constants.go, backend/internal/domain/constants.go, backend/internal/service/settings_view.go, backend/internal/service/gateway_beta_test.go, backend/internal/service/bedrock_request_test.go, backend/internal/domain/constants_test.go, backend/internal/pkg/claude/constants_test.go, frontend/src/composables/useModelWhitelist.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: Manual partial sync from upstream commit `db0414233ce324903adc72e858374086da158b4b` (`feat: 适配 sonnet5`). This intentionally excludes the same upstream commit's unrelated `backend/internal/pkg/anthropicfp/dateline.go` changes and does not include any unfinished local OpenAI/Image work from the current conversation.
+**Change details**:
+- Added `claude-sonnet-5` to the Claude OAuth default model list so `/v1/models` can expose the model.
+- Added the Bedrock default mapping `claude-sonnet-5 -> us.anthropic.claude-sonnet-5-v1`; existing Bedrock region-prefix adjustment still rewrites it according to account `aws_region`.
+- Changed the default `context-1m-2025-08-07` beta policy from blanket filter to a Sonnet 5 whitelist: Sonnet 5 direct/Vertex/Bedrock IDs pass, non-whitelisted models continue to filter the beta token.
+- Added frontend whitelist/preset entries for Anthropic Sonnet 5 and Bedrock Sonnet 5 so admins can pick the model in account mapping UI.
+- Added regression tests for the default Claude model list, Bedrock mapping constants, Bedrock region adjustment, and the Sonnet 5-only 1M context beta whitelist.
+- Verified: `go test -tags=unit ./internal/pkg/claude ./internal/domain ./internal/service -count=1`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run build`; `go build -tags embed -trimpath ./cmd/server`; `git diff --check`.
+
 ## [2026-06-29] hotfix: force URL responses for OpenAI API-key images
 
 **Affected files**: backend/internal/service/openai_images.go, backend/internal/service/openai_images_test.go
