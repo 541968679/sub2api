@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] fix: restore local dev-console manifest
+
+**Affected files**: dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: local developer tooling only. No runtime, database, billing, frontend, or deployment behavior changes.
+**Change details**:
+- Restored the missing repository-root `dev-services.yml` so the local dev-console can register and reload the Sub2API project instead of failing with `Missing config`.
+- Modeled the console-managed entrypoint around the canonical `scripts/dev-stack.ps1` workflow and kept backend/frontend/sidecars as monitor services, preserving the repository rule that normal local service actions go through the dev-stack script.
+- Recorded Sub2API's strict local ports (`18081`, `15174`, `3000`, `3100`, `13200`) in the manifest for dev-console status, health checks, and project board grouping.
+
 ## [2026-07-02] sync: Sonnet 5 production-only upstream patch
 
 **Affected files**: backend/internal/pkg/claude/constants.go, backend/internal/domain/constants.go, backend/internal/service/settings_view.go, backend/internal/service/gateway_beta_test.go, backend/internal/service/bedrock_request_test.go, backend/internal/domain/constants_test.go, backend/internal/pkg/claude/constants_test.go, frontend/src/composables/useModelWhitelist.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/codebase/model-mapping.md
