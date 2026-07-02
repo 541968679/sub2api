@@ -3460,7 +3460,7 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 **Affected files**: backend/migrations/172_add_cache_write_1h_price.sql, backend/internal/service/{global_model_pricing,global_model_pricing_service,model_pricing_resolver}.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/service/model_pricing_resolver_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/{zh,en}.ts
 **Upstream compatibility**: additive。新列 NULL = 历史行为逐字节不变(回归钉测试)。
 **Change details**:
-- 背景:上游中转按 1h/5m 区分扣费(官方 1h=2×输入价),但单一 cache_write_price 覆盖同写三档,且 LiteLLM 源数据缺 1h 价时 SupportsCacheBreakdown=false → 纯 1h 行按 5m 平价计费(生产 claude-sonnet-5 隐含 $4.0/MTok,1h 溢价漏计)。
+- 背景:官方缓存写入分两档(5m=1.25×输入价,1h=2×输入价)。【2026-07-02 修正】走 LiteLLM 源价的模型(sonnet-5/fable-5)本就按官方分档正确计费——生产 sonnet-5 纯 1h 行隐含 $4.0/MTok = 官方优惠期 1h 价(2×$2),经官方价目表核实,原"1h 溢价漏计"诊断不成立。被压平的是配了全局 cache_write_price 覆盖的模型(opus 系列 $10 平价、sonnet-4-6 $5 平价):单一覆盖价同写三档,1h 溢价无法表达——本字段即为此而设。
 - 全局定价覆盖新增 cache_write_1h_price(migration 172):配置后 applyGlobalPricingOverride 单独写 CacheCreation1hPrice 并强制 SupportsCacheBreakdown=true,computeCacheCreationCost 按 5m×p5m+1h×p1h 分档;admin 表单加"1h 缓存写入价"输入框($/MTok),i18n zh/en。
 - **运营动作**:部署后给 claude-sonnet-5 / claude-fable-5 等中转模型配置 1h 价(按上游实际扣费口径);此后新请求真实成本计入 1h 溢价(admin 成本与用户 actual_cost 同步变化)。
 - 测试:纯 1h 生产形状(66061 tokens)按 1h 价计费、混合行分档、未配置时平价行为回归钉。
