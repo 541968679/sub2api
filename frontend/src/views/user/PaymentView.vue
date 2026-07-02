@@ -853,11 +853,11 @@ const planValiditySuffix = computed(() => {
 })
 
 function planHasPeakRate(plan: SubscriptionPlan): boolean {
-  return Boolean(plan.peak_rate_enabled && plan.peak_start && plan.peak_end)
+  return hasPeakRate(plan)
 }
 
 function planPeakRateLabel(plan: SubscriptionPlan): string {
-  return `${plan.peak_start}-${plan.peak_end} ×${plan.peak_rate_multiplier ?? 1}`
+  return formatPeakRateWindow(plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
 }
 
 function selectPlan(plan: SubscriptionPlan) {
