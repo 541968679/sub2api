@@ -133,18 +133,18 @@
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
-                  <label class="text-xs text-gray-500">{{ t('admin.modelPricing.displayCacheReadPrice') }}</label>
-                  <input v-model.number="item.display_cache_read_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
-                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
-                </div>
-                <div>
-                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreationPriceHint')">{{ t('admin.modelPricing.displayCacheCreationPrice') }}</label>
+                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreationPriceHint')">{{ t('admin.users.displayCacheWritePrice') }}</label>
                   <input v-model.number="item.display_cache_creation_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
-                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreation1hPriceHint')">{{ t('admin.modelPricing.displayCacheCreation1hPrice') }}</label>
+                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreation1hPriceHint')">{{ t('admin.users.displayCacheWrite1hPrice') }}</label>
                   <input v-model.number="item.display_cache_creation_1h_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500">{{ t('admin.users.displayCacheReadPrice') }}</label>
+                  <input v-model.number="item.display_cache_read_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
               </div>

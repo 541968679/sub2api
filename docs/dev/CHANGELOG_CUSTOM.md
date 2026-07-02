@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] fix: align user model pricing override fields
+
+**Affected files**: frontend/src/components/admin/user/UserModelPricingModal.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: frontend-only admin UI polish. No backend, API payload, billing/display calculation, schema, or route behavior changes.
+**Change details**:
+- Reordered the user-level model pricing display override fields to mirror the billing override order: input, output, cache write, 1h cache write, cache read.
+- Added user-modal-specific display cache write/read labels so the left and right override columns use consistent wording while preserving the existing `display_cache_creation*` payload fields.
+- Verified: `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run lint:check`; `git diff --check`.
+
 ## [2026-07-02] merge: integrate staged upstream sync with display billing fixes
 
 **Affected files**: codex/upstream-sync-20260627 merge set, dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md, docs/dev/UPSTREAM_SYNC.md, backend/internal/handler/admin/usage_handler.go, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/mappers.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts
