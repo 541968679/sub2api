@@ -762,12 +762,13 @@ type UserViewSnapshot struct {
 
 // UserViewConfigUsed describes which display-pricing inputs produced the user_view column.
 type UserViewConfigUsed struct {
-	DisplayInputPrice     *float64 `json:"display_input_price"`
-	DisplayOutputPrice    *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	UserGroupRate         *float64 `json:"user_group_rate"`
-	HasUserOverride       bool     `json:"has_user_override"`
-	GroupID               *int64   `json:"group_id"`
+	DisplayInputPrice         *float64 `json:"display_input_price"`
+	DisplayOutputPrice        *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price"`
+	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price"`
+	UserGroupRate             *float64 `json:"user_group_rate"`
+	HasUserOverride           bool     `json:"has_user_override"`
+	GroupID                   *int64   `json:"group_id"`
 }
 
 // UserViewPreviewResponse is the payload returned to the admin compare drawer.
@@ -854,6 +855,7 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 			cfg.DisplayInputPrice = entry.DisplayInputPrice
 			cfg.DisplayOutputPrice = entry.DisplayOutputPrice
 			cfg.DisplayCacheReadPrice = entry.DisplayCacheReadPrice
+			cfg.DisplayCacheCreationPrice = entry.DisplayCacheCreationPrice
 		}
 	}
 

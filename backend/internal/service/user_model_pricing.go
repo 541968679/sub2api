@@ -22,10 +22,11 @@ type UserModelPricingOverride struct {
 	CacheReadPrice  *float64 `json:"cache_read_price"`
 
 	// 展示覆盖（仅影响用户看到的 usage log，不影响真实计费）
-	DisplayInputPrice     *float64 `json:"display_input_price"`
-	DisplayOutputPrice    *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	DisplayInputPrice         *float64 `json:"display_input_price"`
+	DisplayOutputPrice        *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price"`
+	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price"`
+	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier"`
 
 	Enabled bool   `json:"enabled"`
 	Notes   string `json:"notes"`

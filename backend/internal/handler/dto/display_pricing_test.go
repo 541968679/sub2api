@@ -350,6 +350,220 @@ func TestApplyUserDisplayRate_HigherDisplayRate(t *testing.T) {
 	assertClose(t, "actual_cost", log.ActualCost, 0.0105)
 }
 
+func TestApplyDisplayTransform_CacheCreationTokensAmplified(t *testing.T) {
+	// Cache creation amplifies its own token count directly (cost preserved),
+	// unlike cache read which keeps tokens and folds the premium into input.
+	dispCreate := 2.5e-6
+	log := UsageLog{
+		Model:                 "claude-fable-5",
+		CacheCreationTokens:   1000,
+		CacheCreation5mTokens: 600,
+		CacheCreation1hTokens: 400,
+		CacheCreationCost:     0.0125, // real price 12.5e-6
+		TotalCost:             0.0125,
+		ActualCost:            0.02,
+		RateMultiplier:        1.6,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+
+	if log.CacheCreationTokens != 5000 {
+		t.Fatalf("cache_creation_tokens should be back-computed at display price, got %d", log.CacheCreationTokens)
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.0125)
+	if log.CacheCreation5mTokens != 3000 || log.CacheCreation1hTokens != 2000 {
+		t.Fatalf("5m/1h breakdown should scale with total, got 5m=%d 1h=%d", log.CacheCreation5mTokens, log.CacheCreation1hTokens)
+	}
+	if log.CacheCreation5mTokens+log.CacheCreation1hTokens != log.CacheCreationTokens {
+		t.Fatal("5m+1h must equal cache_creation_tokens")
+	}
+	if log.InputTokens != 0 || log.InputCost != 0 {
+		t.Fatalf("input must not absorb any cache-creation premium, got tokens=%d cost=%f", log.InputTokens, log.InputCost)
+	}
+	assertClose(t, "total_cost", log.TotalCost, 0.0125)
+	assertClose(t, "actual_cost", log.ActualCost, 0.02)
+}
+
+func TestApplyDisplayTransform_CacheCreationWorksWithoutDisplayInputPrice(t *testing.T) {
+	// Unlike the cache-read premium (requires display_input_price), cache-creation
+	// amplification is self-contained.
+	dispCreate := 5e-6
+	log := UsageLog{
+		InputTokens:         2,
+		InputCost:           2e-5,
+		CacheCreationTokens: 42778,
+		CacheCreationCost:   0.5347250, // real 12.5e-6/token
+		TotalCost:           0.5347450,
+		ActualCost:          0.8555920,
+		RateMultiplier:      1.6,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+
+	if log.CacheCreationTokens != 106945 {
+		t.Fatalf("cache_creation_tokens = 0.534725/5e-6 = 106945, got %d", log.CacheCreationTokens)
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.5347250)
+	if log.InputTokens != 2 {
+		t.Fatalf("input_tokens should stay untouched, got %d", log.InputTokens)
+	}
+	assertClose(t, "total_cost", log.TotalCost, 0.5347450)
+	assertClose(t, "actual_cost", log.ActualCost, 0.8555920)
+}
+
+func TestApplyDisplayTransform_NoCacheCreationPriceLeavesReal(t *testing.T) {
+	dispInput := 1.5e-6
+	log := UsageLog{
+		InputTokens:         1000,
+		InputCost:           0.003,
+		CacheCreationTokens: 2000,
+		CacheCreationCost:   0.025,
+		TotalCost:           0.028,
+		ActualCost:          0.028,
+		RateMultiplier:      1.0,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{DisplayInputPrice: &dispInput})
+
+	if log.CacheCreationTokens != 2000 {
+		t.Fatalf("cache_creation_tokens should stay real without a display creation price, got %d", log.CacheCreationTokens)
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.025)
+	assertClose(t, "total_cost", log.TotalCost, 0.028)
+}
+
+func TestApplyDisplayTransform_CacheCreationZeroRowUntouched(t *testing.T) {
+	// openai / antigravity(OAuth) / bridge shaped rows carry cache_creation=0;
+	// a configured display creation price must be a strict no-op for them.
+	dispCreate := 2.5e-6
+	log := UsageLog{
+		InputTokens:     1000,
+		OutputTokens:    500,
+		CacheReadTokens: 300,
+		InputCost:       0.003,
+		OutputCost:      0.0075,
+		CacheReadCost:   0.0001,
+		TotalCost:       0.0106,
+		ActualCost:      0.0106,
+		RateMultiplier:  1.0,
+	}
+	original := log
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+
+	if log != original {
+		t.Fatal("row without cache creation must be unchanged")
+	}
+}
+
+func TestApplyDisplayTransform_CacheCreationComposesWithCacheReadPremium(t *testing.T) {
+	dispInput := 1.5e-6
+	dispOutput := 7.5e-6
+	dispCache := 0.3e-6
+	dispCreate := 2.5e-6
+	log := UsageLog{
+		InputTokens:         1000,
+		OutputTokens:        500,
+		CacheReadTokens:     5000,
+		CacheCreationTokens: 1000,
+		InputCost:           0.003,
+		OutputCost:          0.0075,
+		CacheReadCost:       0.0045,
+		CacheCreationCost:   0.0125,
+		TotalCost:           0.0275,
+		ActualCost:          0.055,
+		RateMultiplier:      2.0,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{
+		DisplayInputPrice:         &dispInput,
+		DisplayOutputPrice:        &dispOutput,
+		DisplayCacheReadPrice:     &dispCache,
+		DisplayCacheCreationPrice: &dispCreate,
+	})
+
+	// Same expectations as the cache-read premium test...
+	if log.InputTokens != 4000 || log.OutputTokens != 1000 || log.CacheReadTokens != 5000 {
+		t.Fatalf("read-premium math changed: input=%d output=%d cacheRead=%d", log.InputTokens, log.OutputTokens, log.CacheReadTokens)
+	}
+	// ...plus the independent creation amplification (no double counting).
+	if log.CacheCreationTokens != 5000 {
+		t.Fatalf("cache_creation_tokens should amplify independently, got %d", log.CacheCreationTokens)
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.0125)
+	assertClose(t, "total_cost", log.TotalCost, 0.0275)
+	assertClose(t, "actual_cost", log.ActualCost, 0.055)
+}
+
+func TestApplyDisplayTransform_CacheCreationLongContextScalesOnce(t *testing.T) {
+	dispCreate := 2.5e-6
+	log := UsageLog{
+		CacheCreationTokens:        1000,
+		CacheCreationCost:          0.025, // real long-context price 25e-6 (12.5e-6 × 2.0)
+		TotalCost:                  0.025,
+		ActualCost:                 0.025,
+		RateMultiplier:             1.0,
+		LongContextApplied:         true,
+		LongContextInputMultiplier: 2.0,
+	}
+	cfg := effectiveDisplayPricingForUsageLog(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+
+	ApplyDisplayTransform(&log, cfg)
+
+	// effective display price = 2.5e-6 × 2.0 = 5e-6 → 0.025 / 5e-6 = 5000
+	if log.CacheCreationTokens != 5000 {
+		t.Fatalf("long-context display creation price should scale once, got %d tokens", log.CacheCreationTokens)
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.025)
+}
+
+func TestComputeDisplayFields_IncludesCacheCreation(t *testing.T) {
+	dispCreate := 2.5e-6
+	log := UsageLog{
+		CacheCreationTokens: 1000,
+		CacheCreationCost:   0.0125,
+		TotalCost:           0.0125,
+		ActualCost:          0.0125,
+		RateMultiplier:      1.0,
+	}
+
+	fields := ComputeDisplayFields(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+
+	if fields == nil {
+		t.Fatal("display fields expected")
+	}
+	if fields.CacheCreationTokens != 5000 {
+		t.Fatalf("display cache_creation_tokens = 5000, got %d", fields.CacheCreationTokens)
+	}
+	assertClose(t, "display cache_creation_cost", fields.CacheCreationCost, 0.0125)
+	// Original DTO untouched.
+	if log.CacheCreationTokens != 1000 {
+		t.Fatalf("real DTO must stay real, got %d", log.CacheCreationTokens)
+	}
+}
+
+func TestApplyUserDisplayRate_ScalesCacheCreationBreakdownConsistently(t *testing.T) {
+	log := UsageLog{
+		CacheCreationTokens:   6,
+		CacheCreation5mTokens: 3,
+		CacheCreation1hTokens: 3,
+		CacheCreationCost:     0.0001,
+		TotalCost:             0.0001,
+		ActualCost:            0.0001,
+		RateMultiplier:        1.0,
+	}
+
+	ApplyUserDisplayRate(&log, 2.0) // scale 0.5
+
+	if log.CacheCreationTokens != 3 {
+		t.Fatalf("total should scale to 3, got %d", log.CacheCreationTokens)
+	}
+	if log.CacheCreation5mTokens+log.CacheCreation1hTokens != log.CacheCreationTokens {
+		t.Fatalf("5m(%d)+1h(%d) must equal total(%d) even with odd rounding",
+			log.CacheCreation5mTokens, log.CacheCreation1hTokens, log.CacheCreationTokens)
+	}
+}
+
 func assertClose(t *testing.T, name string, got, want float64) {
 	t.Helper()
 	if math.Abs(got-want) > 1e-9 {

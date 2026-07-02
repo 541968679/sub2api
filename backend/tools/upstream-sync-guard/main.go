@@ -139,6 +139,7 @@ var criticalSignatures = []criticalSignature{
 			"ApplyDisplayTransform",
 			"BuildUserDisplayPricingMap",
 			"DisplayCacheReadPrice",
+			"DisplayCacheCreationPrice",
 		},
 	},
 	{
@@ -147,6 +148,7 @@ var criticalSignatures = []criticalSignature{
 		Contains: []string{
 			"DisplayInputPrice",
 			"DisplayOutputPrice",
+			"DisplayCacheCreationPrice",
 			"DisplayRateMultiplier",
 		},
 	},
@@ -156,6 +158,7 @@ var criticalSignatures = []criticalSignature{
 		Contains: []string{
 			"UserModelPricingOverride",
 			"DisplayInputPrice",
+			"DisplayCacheCreationPrice",
 			"DisplayRateMultiplier",
 		},
 	},

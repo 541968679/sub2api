@@ -106,10 +106,11 @@ type GlobalOverride struct {
 	Enabled                 bool                    `json:"enabled"`
 	Notes                   string                  `json:"notes"`
 
-	DisplayInputPrice     *float64 `json:"display_input_price"`
-	DisplayOutputPrice    *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	DisplayInputPrice         *float64 `json:"display_input_price"`
+	DisplayOutputPrice        *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price"`
+	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price"`
+	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier"`
 
 	ShowOnPricingPage bool `json:"show_on_pricing_page"`
 }
@@ -834,10 +835,11 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 		Enabled:                 gp.Enabled,
 		Notes:                   gp.Notes,
 
-		DisplayInputPrice:     gp.DisplayInputPrice,
-		DisplayOutputPrice:    gp.DisplayOutputPrice,
-		DisplayCacheReadPrice: gp.DisplayCacheReadPrice,
-		DisplayRateMultiplier: gp.DisplayRateMultiplier,
+		DisplayInputPrice:         gp.DisplayInputPrice,
+		DisplayOutputPrice:        gp.DisplayOutputPrice,
+		DisplayCacheReadPrice:     gp.DisplayCacheReadPrice,
+		DisplayCacheCreationPrice: gp.DisplayCacheCreationPrice,
+		DisplayRateMultiplier:     gp.DisplayRateMultiplier,
 
 		ShowOnPricingPage: gp.ShowOnPricingPage,
 	}

@@ -46,10 +46,11 @@ type createGlobalOverrideRequest struct {
 	Enabled                 *bool                           `json:"enabled"`
 	Notes                   string                          `json:"notes"`
 
-	DisplayInputPrice     *float64 `json:"display_input_price" binding:"omitempty,min=0"`
-	DisplayOutputPrice    *float64 `json:"display_output_price" binding:"omitempty,min=0"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
+	DisplayInputPrice         *float64 `json:"display_input_price" binding:"omitempty,min=0"`
+	DisplayOutputPrice        *float64 `json:"display_output_price" binding:"omitempty,min=0"`
+	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
+	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price" binding:"omitempty,min=0"`
+	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier" binding:"omitempty,min=0"`
 
 	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
@@ -71,10 +72,11 @@ type updateGlobalOverrideRequest struct {
 	Enabled          *bool    `json:"enabled"`
 	Notes            string   `json:"notes"`
 
-	DisplayInputPrice     *float64 `json:"display_input_price"`
-	DisplayOutputPrice    *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice *float64 `json:"display_cache_read_price"`
-	DisplayRateMultiplier *float64 `json:"display_rate_multiplier"`
+	DisplayInputPrice         *float64 `json:"display_input_price"`
+	DisplayOutputPrice        *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price"`
+	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price"`
+	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier"`
 
 	ShowOnPricingPage *bool `json:"show_on_pricing_page"`
 }
@@ -157,10 +159,11 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 		Enabled:                 enabled,
 		Notes:                   req.Notes,
 
-		DisplayInputPrice:     req.DisplayInputPrice,
-		DisplayOutputPrice:    req.DisplayOutputPrice,
-		DisplayCacheReadPrice: req.DisplayCacheReadPrice,
-		DisplayRateMultiplier: req.DisplayRateMultiplier,
+		DisplayInputPrice:         req.DisplayInputPrice,
+		DisplayOutputPrice:        req.DisplayOutputPrice,
+		DisplayCacheReadPrice:     req.DisplayCacheReadPrice,
+		DisplayCacheCreationPrice: req.DisplayCacheCreationPrice,
+		DisplayRateMultiplier:     req.DisplayRateMultiplier,
 
 		ShowOnPricingPage: showOnPricingPage,
 	}
@@ -264,20 +267,21 @@ func applyGlobalOverrideUpdate(existing *service.GlobalModelPricing, raw updateG
 		return nil
 	}
 	for key, target := range map[string]**float64{
-		"input_price":              &existing.InputPrice,
-		"output_price":             &existing.OutputPrice,
-		"cache_write_price":        &existing.CacheWritePrice,
-		"cache_read_price":         &existing.CacheReadPrice,
-		"image_output_price":       &existing.ImageOutputPrice,
-		"per_request_price":        &existing.PerRequestPrice,
-		"image_price_1k":           &existing.ImagePrice1K,
-		"image_price_2k":           &existing.ImagePrice2K,
-		"image_price_4k":           &existing.ImagePrice4K,
-		"image_megapixel_price":    &existing.ImageMegapixelPrice,
-		"display_input_price":      &existing.DisplayInputPrice,
-		"display_output_price":     &existing.DisplayOutputPrice,
-		"display_cache_read_price": &existing.DisplayCacheReadPrice,
-		"display_rate_multiplier":  &existing.DisplayRateMultiplier,
+		"input_price":                  &existing.InputPrice,
+		"output_price":                 &existing.OutputPrice,
+		"cache_write_price":            &existing.CacheWritePrice,
+		"cache_read_price":             &existing.CacheReadPrice,
+		"image_output_price":           &existing.ImageOutputPrice,
+		"per_request_price":            &existing.PerRequestPrice,
+		"image_price_1k":               &existing.ImagePrice1K,
+		"image_price_2k":               &existing.ImagePrice2K,
+		"image_price_4k":               &existing.ImagePrice4K,
+		"image_megapixel_price":        &existing.ImageMegapixelPrice,
+		"display_input_price":          &existing.DisplayInputPrice,
+		"display_output_price":         &existing.DisplayOutputPrice,
+		"display_cache_read_price":     &existing.DisplayCacheReadPrice,
+		"display_cache_creation_price": &existing.DisplayCacheCreationPrice,
+		"display_rate_multiplier":      &existing.DisplayRateMultiplier,
 	} {
 		if err := applyFloat(key, target); err != nil {
 			return err

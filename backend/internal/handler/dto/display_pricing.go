@@ -8,9 +8,10 @@ import (
 
 // DisplayPricingConfig holds per-model display override settings.
 type DisplayPricingConfig struct {
-	DisplayInputPrice     *float64
-	DisplayOutputPrice    *float64
-	DisplayCacheReadPrice *float64
+	DisplayInputPrice         *float64
+	DisplayOutputPrice        *float64
+	DisplayCacheReadPrice     *float64
+	DisplayCacheCreationPrice *float64
 }
 
 // DisplayPricingMap maps lowercase model name to display config.
@@ -25,16 +26,17 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 			continue
 		}
 		m[toLowerModel(p.Model)] = &DisplayPricingConfig{
-			DisplayInputPrice:     p.DisplayInputPrice,
-			DisplayOutputPrice:    p.DisplayOutputPrice,
-			DisplayCacheReadPrice: p.DisplayCacheReadPrice,
+			DisplayInputPrice:         p.DisplayInputPrice,
+			DisplayOutputPrice:        p.DisplayOutputPrice,
+			DisplayCacheReadPrice:     p.DisplayCacheReadPrice,
+			DisplayCacheCreationPrice: p.DisplayCacheCreationPrice,
 		}
 	}
 	return m
 }
 
 func hasDisplayOverride(p *service.GlobalModelPricing) bool {
-	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil
+	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil || p.DisplayCacheCreationPrice != nil
 }
 
 func toLowerModel(model string) string {
@@ -66,6 +68,10 @@ func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) 
 		if clone.DisplayCacheReadPrice != nil {
 			value := *clone.DisplayCacheReadPrice * d.LongContextInputMultiplier
 			clone.DisplayCacheReadPrice = &value
+		}
+		if clone.DisplayCacheCreationPrice != nil {
+			value := *clone.DisplayCacheCreationPrice * d.LongContextInputMultiplier
+			clone.DisplayCacheCreationPrice = &value
 		}
 	}
 	if d.LongContextOutputMultiplier > 0 && clone.DisplayOutputPrice != nil {
@@ -113,9 +119,45 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 		d.OutputCost = float64(d.OutputTokens) * *cfg.DisplayOutputPrice
 	}
 
+	// Cache creation: unlike cache-read (tokens kept, premium folded into input),
+	// cache-creation tokens are back-computed directly from the real cost at the
+	// display price — the same amplification shape as input/output above.
+	if cfg.DisplayCacheCreationPrice != nil && *cfg.DisplayCacheCreationPrice > 0 && d.CacheCreationTokens > 0 && d.CacheCreationCost > 0 {
+		realTokens := d.CacheCreationTokens
+		displayTokens := d.CacheCreationCost / *cfg.DisplayCacheCreationPrice
+		d.CacheCreationTokens = int(math.Round(displayTokens))
+		d.CacheCreationCost = float64(d.CacheCreationTokens) * *cfg.DisplayCacheCreationPrice
+		rescaleCacheCreationBreakdown(d, realTokens)
+	}
+
 	newComponentSum := d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
 	d.TotalCost += newComponentSum - oldComponentSum
 	// actual_cost is never changed.
+}
+
+// rescaleCacheCreationBreakdown keeps the 5m/1h breakdown summing to the new
+// CacheCreationTokens total after it was rewritten from realTokens. One tier is
+// scaled proportionally and the other derived by subtraction so rounding can
+// never break the 5m+1h == total invariant.
+func rescaleCacheCreationBreakdown(d *UsageLog, realTokens int) {
+	if realTokens <= 0 || (d.CacheCreation5mTokens <= 0 && d.CacheCreation1hTokens <= 0) {
+		return
+	}
+	if d.CacheCreation1hTokens <= 0 {
+		d.CacheCreation5mTokens = d.CacheCreationTokens
+		return
+	}
+	if d.CacheCreation5mTokens <= 0 {
+		d.CacheCreation1hTokens = d.CacheCreationTokens
+		return
+	}
+	factor := float64(d.CacheCreationTokens) / float64(realTokens)
+	scaled5m := int(math.Round(float64(d.CacheCreation5mTokens) * factor))
+	if scaled5m > d.CacheCreationTokens {
+		scaled5m = d.CacheCreationTokens
+	}
+	d.CacheCreation5mTokens = scaled5m
+	d.CacheCreation1hTokens = d.CacheCreationTokens - scaled5m
 }
 
 // ComputeDisplayFields computes display values for admin DTO (for dual-column comparison).
@@ -127,25 +169,29 @@ func ComputeDisplayFields(d *UsageLog, cfg *DisplayPricingConfig) *DisplayUsageF
 	clone := *d
 	ApplyDisplayTransform(&clone, cfg)
 	return &DisplayUsageFields{
-		InputTokens:     clone.InputTokens,
-		OutputTokens:    clone.OutputTokens,
-		CacheReadTokens: clone.CacheReadTokens,
-		InputCost:       clone.InputCost,
-		OutputCost:      clone.OutputCost,
-		CacheReadCost:   clone.CacheReadCost,
-		TotalCost:       clone.TotalCost,
+		InputTokens:         clone.InputTokens,
+		OutputTokens:        clone.OutputTokens,
+		CacheReadTokens:     clone.CacheReadTokens,
+		CacheCreationTokens: clone.CacheCreationTokens,
+		InputCost:           clone.InputCost,
+		OutputCost:          clone.OutputCost,
+		CacheReadCost:       clone.CacheReadCost,
+		CacheCreationCost:   clone.CacheCreationCost,
+		TotalCost:           clone.TotalCost,
 	}
 }
 
 // DisplayUsageFields holds the user-visible values for admin dual-column display.
 type DisplayUsageFields struct {
-	InputTokens     int     `json:"display_input_tokens"`
-	OutputTokens    int     `json:"display_output_tokens"`
-	CacheReadTokens int     `json:"display_cache_read_tokens"`
-	InputCost       float64 `json:"display_input_cost"`
-	OutputCost      float64 `json:"display_output_cost"`
-	CacheReadCost   float64 `json:"display_cache_read_cost"`
-	TotalCost       float64 `json:"display_total_cost"`
+	InputTokens         int     `json:"display_input_tokens"`
+	OutputTokens        int     `json:"display_output_tokens"`
+	CacheReadTokens     int     `json:"display_cache_read_tokens"`
+	CacheCreationTokens int     `json:"display_cache_creation_tokens"`
+	InputCost           float64 `json:"display_input_cost"`
+	OutputCost          float64 `json:"display_output_cost"`
+	CacheReadCost       float64 `json:"display_cache_read_cost"`
+	CacheCreationCost   float64 `json:"display_cache_creation_cost"`
+	TotalCost           float64 `json:"display_total_cost"`
 }
 
 // ApplyUserDisplayRate applies a user-group level display rate multiplier transform.
@@ -171,8 +217,10 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 		d.CacheReadCost *= scale
 	}
 	if d.CacheCreationTokens > 0 {
+		realTokens := d.CacheCreationTokens
 		d.CacheCreationTokens = int(math.Round(float64(d.CacheCreationTokens) * scale))
 		d.CacheCreationCost *= scale
+		rescaleCacheCreationBreakdown(d, realTokens)
 	}
 	d.ImageOutputCost *= scale
 
@@ -194,7 +242,7 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		if !o.Enabled || o.Model == "" {
 			continue
 		}
-		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil {
+		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil && o.DisplayCacheCreationPrice == nil {
 			continue
 		}
 		key := toLowerModel(o.Model)
@@ -211,6 +259,9 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		}
 		if o.DisplayCacheReadPrice != nil {
 			existing.DisplayCacheReadPrice = o.DisplayCacheReadPrice
+		}
+		if o.DisplayCacheCreationPrice != nil {
+			existing.DisplayCacheCreationPrice = o.DisplayCacheCreationPrice
 		}
 	}
 	return merged

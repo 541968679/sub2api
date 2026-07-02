@@ -36,10 +36,11 @@ type GlobalModelPricing struct {
 	Notes                   string                  // 管理员备注
 
 	// Display overrides — only affect user-facing usage log display, not actual billing.
-	DisplayInputPrice     *float64 // 展示给用户的输入单价
-	DisplayOutputPrice    *float64 // 展示给用户的输出单价
-	DisplayCacheReadPrice *float64 // 展示给用户的缓存读取单价
-	DisplayRateMultiplier *float64 // 展示给用户的倍率
+	DisplayInputPrice         *float64 // 展示给用户的输入单价
+	DisplayOutputPrice        *float64 // 展示给用户的输出单价
+	DisplayCacheReadPrice     *float64 // 展示给用户的缓存读取单价
+	DisplayCacheCreationPrice *float64 // 展示给用户的缓存创建单价
+	DisplayRateMultiplier     *float64 // 展示给用户的倍率
 
 	// ShowOnPricingPage 是否在用户「模型计价」页展示。与 Enabled（计费）解耦。
 	ShowOnPricingPage bool
