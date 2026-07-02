@@ -70,6 +70,75 @@
         <p v-else class="px-3 py-2 text-xs text-gray-400 dark:text-gray-600">{{ t('admin.usage.userViewEmptySection') }}</p>
       </div>
 
+      <!-- Cost calculation process -->
+      <div class="space-y-3">
+        <div>
+          <div class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.usage.userViewCalculationTitle') }}</div>
+          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewCalculationHint') }}</p>
+        </div>
+        <div class="grid gap-4 xl:grid-cols-2">
+          <div
+            v-for="calc in calculationPanels"
+            :key="calc.key"
+            class="overflow-hidden rounded-md border border-gray-200 dark:border-dark-700"
+          >
+            <div class="flex items-center justify-between bg-gray-50 px-3 py-2 dark:bg-dark-800">
+              <span class="text-sm font-medium text-gray-800 dark:text-gray-200">{{ calc.title }}</span>
+              <span class="font-mono text-xs text-gray-500 dark:text-gray-400">{{ formatRate(calc.snapshot.rate_multiplier) }}</span>
+            </div>
+            <table class="w-full text-xs">
+              <thead class="bg-gray-50/40 dark:bg-dark-800/60">
+                <tr>
+                  <th class="px-3 py-1.5 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaItem') }}</th>
+                  <th class="px-3 py-1.5 text-right font-medium text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaTokens') }}</th>
+                  <th class="px-3 py-1.5 text-right font-medium text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaUnitPrice') }}</th>
+                  <th class="px-3 py-1.5 text-right font-medium text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaCost') }}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
+                <tr v-for="row in calc.rows" :key="row.key">
+                  <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300">
+                    <div>{{ row.label }}</div>
+                    <div class="font-mono text-[11px] text-gray-400 dark:text-gray-500">{{ row.formula }}</div>
+                  </td>
+                  <td class="px-3 py-1.5 text-right font-mono text-gray-900 dark:text-white">{{ formatFormulaTokens(row.tokens) }}</td>
+                  <td class="px-3 py-1.5 text-right font-mono text-gray-900 dark:text-white">{{ formatUnitPrice(row.unitPrice) }}</td>
+                  <td class="px-3 py-1.5 text-right font-mono text-gray-900 dark:text-white">{{ formatUsd(row.cost) }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="space-y-1 border-t border-gray-100 bg-gray-50/50 px-3 py-2 text-xs dark:border-dark-700 dark:bg-dark-800/50">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaSubtotal') }}</span>
+                <span class="font-mono text-gray-900 dark:text-white">{{ formatUsd(calc.componentSubtotal) }}</span>
+              </div>
+              <div v-if="calc.hasOtherCost" class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaOther') }}</span>
+                <span class="font-mono text-gray-900 dark:text-white">{{ formatUsd(calc.otherCost) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaTotal') }}</span>
+                <span class="font-mono text-gray-900 dark:text-white">{{ formatUsd(calc.snapshot.total_cost) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaBilled') }}</span>
+                <span class="font-mono text-gray-900 dark:text-white">{{ formatUsd(calc.billedCost) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaActual') }}</span>
+                <span class="font-mono text-gray-900 dark:text-white">{{ formatUsd(calc.snapshot.actual_cost) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3 border-t border-gray-200 pt-1 dark:border-dark-700">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.usage.userViewFormulaDiff') }}</span>
+                <span class="font-mono font-medium" :class="calcDiffClass(calc.diff)">
+                  {{ formatSignedUsd(calc.diff) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <p v-if="actualCostMismatch" class="rounded border border-red-300 bg-red-50 p-2 text-xs text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300">
         {{ t('admin.usage.userViewActualCostMismatch') }}
       </p>
@@ -125,9 +194,31 @@ watch(
 
 type CellFormat = 'int' | 'usd' | 'rate'
 type ConfigFormat = 'price' | 'ratio' | 'rate'
+type FormulaMode = 'real' | 'user'
 
 interface CmpRow { key: string; label: string; real: number; user: number; format: CellFormat }
 interface CfgRow { key: string; label: string; value: number | null; format: ConfigFormat }
+interface FormulaRow {
+  key: string
+  label: string
+  tokens: number | null
+  unitPrice: number | null
+  formula: string
+  cost: number
+}
+interface CalculationPanel {
+  key: FormulaMode
+  title: string
+  snapshot: UserViewSnapshot
+  rows: FormulaRow[]
+  componentSubtotal: number
+  otherCost: number
+  hasOtherCost: boolean
+  billedCost: number
+  diff: number
+}
+
+const epsilon = 1e-9
 
 const buildRow = (key: string, label: string, getter: (s: UserViewSnapshot) => number, format: CellFormat, snap: UserViewPreview): CmpRow => ({
   key, label, real: getter(snap.real), user: getter(snap.user_view), format
@@ -182,10 +273,119 @@ const configRows = computed<CfgRow[]>(() => {
   ]
 })
 
+const calculationPanels = computed<CalculationPanel[]>(() => {
+  if (!preview.value) return []
+  return [
+    buildCalculationPanel('real', t('admin.usage.userViewFormulaRealTitle'), preview.value.real),
+    buildCalculationPanel('user', t('admin.usage.userViewFormulaUserTitle'), preview.value.user_view)
+  ]
+})
+
+const buildCalculationPanel = (mode: FormulaMode, title: string, snapshot: UserViewSnapshot): CalculationPanel => {
+  const rows = buildFormulaRows(snapshot, mode)
+  const componentSubtotal = rows.reduce((sum, row) => sum + row.cost, 0)
+  const otherCost = snapshot.total_cost - componentSubtotal
+  const billedCost = snapshot.total_cost * snapshot.rate_multiplier
+  return {
+    key: mode,
+    title,
+    snapshot,
+    rows,
+    componentSubtotal,
+    otherCost,
+    hasOtherCost: Math.abs(otherCost) > epsilon,
+    billedCost,
+    diff: billedCost - snapshot.actual_cost
+  }
+}
+
+const buildFormulaRows = (snapshot: UserViewSnapshot, mode: FormulaMode): FormulaRow[] => {
+  const defs = [
+    {
+      key: 'input',
+      label: t('usage.input'),
+      tokens: snapshot.input_tokens,
+      cost: snapshot.input_cost,
+      price: mode === 'user' ? snapshot.display_input_price ?? null : null
+    },
+    {
+      key: 'cache_read',
+      label: t('usage.cacheRead'),
+      tokens: snapshot.cache_read_tokens,
+      cost: snapshot.cache_read_cost,
+      price: mode === 'user' ? snapshot.display_cache_read_price ?? null : null
+    },
+    {
+      key: 'cache_creation',
+      label: t('usage.cacheCreation'),
+      tokens: snapshot.cache_creation_tokens,
+      cost: snapshot.cache_creation_cost,
+      price: null
+    },
+    {
+      key: 'output',
+      label: t('usage.output'),
+      tokens: snapshot.output_tokens,
+      cost: snapshot.output_cost,
+      price: mode === 'user' ? snapshot.display_output_price ?? null : null
+    }
+  ]
+
+  return defs
+    .filter(def => def.tokens > 0 || Math.abs(def.cost) > epsilon)
+    .map(def => {
+      const unitPrice = resolveUnitPrice(def.price, def.tokens, def.cost)
+      return {
+        key: def.key,
+        label: def.label,
+        tokens: def.tokens,
+        unitPrice,
+        formula: formatFormula(def.tokens, unitPrice),
+        cost: def.cost
+      }
+    })
+}
+
+const resolveUnitPrice = (configured: number | null, tokens: number, cost: number): number | null => {
+  if (configured != null && configured > 0) return configured
+  if (tokens > 0 && cost > 0) return cost / tokens
+  return null
+}
+
 const actualCostMismatch = computed(() => {
   if (!preview.value) return false
   return Math.abs(preview.value.real.actual_cost - preview.value.user_view.actual_cost) > 1e-9
 })
+
+const formatUsd = (v: number): string => `$${v.toFixed(6)}`
+
+const formatSignedUsd = (v: number): string => {
+  if (Math.abs(v) <= epsilon) return '$0.000000'
+  const sign = v > 0 ? '+' : '-'
+  return `${sign}$${Math.abs(v).toFixed(6)}`
+}
+
+const formatRate = (v: number): string => `x${v.toFixed(2)}`
+
+const formatUnitPrice = (v: number | null): string => {
+  if (v == null || v <= 0) return '-'
+  return `$${(v * 1_000_000).toFixed(4)} / MTok`
+}
+
+const formatFormulaTokens = (v: number | null): string => {
+  if (v == null) return '-'
+  return v.toLocaleString()
+}
+
+const formatFormula = (tokens: number, unitPrice: number | null): string => {
+  if (tokens <= 0 || unitPrice == null || unitPrice <= 0) return '-'
+  return `${tokens.toLocaleString()} x ${formatUnitPrice(unitPrice)}`
+}
+
+const calcDiffClass = (diff: number): string => {
+  if (Math.abs(diff) <= 1e-6) return 'text-emerald-600 dark:text-emerald-400'
+  return 'text-amber-600 dark:text-amber-400'
+}
 
 const formatConfig = (v: number | null, f: ConfigFormat): string => {
   if (v == null) return '—'

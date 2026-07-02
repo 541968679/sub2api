@@ -7692,7 +7692,21 @@ const v117ZhPatch = {
       userViewSourceOverride: '模型覆盖',
       userViewActualCost: '实际成本',
       userViewActualCostMismatch: '用户显示费用与实际成本不一致',
-      userViewEmptySection: '暂无可对比数据'
+      userViewEmptySection: '暂无可对比数据',
+      userViewCalculationTitle: '费用计算过程',
+      userViewCalculationHint: '展示真实层和用户展示层如何由 token、单价和倍率计算出 total_cost 与 actual_cost。',
+      userViewFormulaRealTitle: '真实计费层',
+      userViewFormulaUserTitle: '用户展示层',
+      userViewFormulaItem: '项目',
+      userViewFormulaTokens: 'Token',
+      userViewFormulaUnitPrice: '单价',
+      userViewFormulaCost: '费用',
+      userViewFormulaSubtotal: 'Token 组件小计',
+      userViewFormulaOther: '其他 / 非 token 费用',
+      userViewFormulaTotal: 'total_cost',
+      userViewFormulaBilled: 'total_cost x 倍率',
+      userViewFormulaActual: 'actual_cost',
+      userViewFormulaDiff: '差值'
     },
     users: {
       passwordCopied: '密码已复制',

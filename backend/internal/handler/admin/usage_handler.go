@@ -28,6 +28,7 @@ type UsageHandler struct {
 	modelPricingService     *service.GlobalModelPricingService
 	userModelPricingService *service.UserModelPricingService
 	creditSnapshotService   *service.CreditSnapshotService
+	pricingResolver         *service.ModelPricingResolver
 }
 
 // NewUsageHandler creates a new admin usage handler
@@ -39,6 +40,7 @@ func NewUsageHandler(
 	modelPricingService *service.GlobalModelPricingService,
 	userModelPricingService *service.UserModelPricingService,
 	creditSnapshotService *service.CreditSnapshotService,
+	pricingResolver *service.ModelPricingResolver,
 ) *UsageHandler {
 	return &UsageHandler{
 		usageService:            usageService,
@@ -48,6 +50,7 @@ func NewUsageHandler(
 		modelPricingService:     modelPricingService,
 		userModelPricingService: userModelPricingService,
 		creditSnapshotService:   creditSnapshotService,
+		pricingResolver:         pricingResolver,
 	}
 }
 
@@ -747,20 +750,23 @@ func (h *UsageHandler) loadUserDisplayPricingMaps(c *gin.Context, records []serv
 
 // UserViewSnapshot is one column of the side-by-side comparison.
 type UserViewSnapshot struct {
-	InputTokens         int     `json:"input_tokens"`
-	OutputTokens        int     `json:"output_tokens"`
-	CacheReadTokens     int     `json:"cache_read_tokens"`
-	CacheCreationTokens int     `json:"cache_creation_tokens"`
-	InputCost           float64 `json:"input_cost"`
-	OutputCost          float64 `json:"output_cost"`
-	CacheReadCost       float64 `json:"cache_read_cost"`
-	CacheCreationCost   float64 `json:"cache_creation_cost"`
-	TotalCost           float64 `json:"total_cost"`
-	ActualCost          float64 `json:"actual_cost"`
-	RateMultiplier      float64 `json:"rate_multiplier"`
+	InputTokens           int      `json:"input_tokens"`
+	OutputTokens          int      `json:"output_tokens"`
+	CacheReadTokens       int      `json:"cache_read_tokens"`
+	CacheCreationTokens   int      `json:"cache_creation_tokens"`
+	InputCost             float64  `json:"input_cost"`
+	OutputCost            float64  `json:"output_cost"`
+	CacheReadCost         float64  `json:"cache_read_cost"`
+	CacheCreationCost     float64  `json:"cache_creation_cost"`
+	TotalCost             float64  `json:"total_cost"`
+	ActualCost            float64  `json:"actual_cost"`
+	RateMultiplier        float64  `json:"rate_multiplier"`
+	DisplayInputPrice     *float64 `json:"display_input_price,omitempty"`
+	DisplayOutputPrice    *float64 `json:"display_output_price,omitempty"`
+	DisplayCacheReadPrice *float64 `json:"display_cache_read_price,omitempty"`
 }
 
-// UserViewConfigUsed describes which display-pricing inputs produced the user_view column.
+// UserViewConfigUsed describes the effective display-pricing inputs that produced the user_view column.
 type UserViewConfigUsed struct {
 	DisplayInputPrice           *float64 `json:"display_input_price"`
 	DisplayOutputPrice          *float64 `json:"display_output_price"`
@@ -828,7 +834,8 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 	realDTO := dto.UsageLogFromService(log, nil)
 	// User view column: apply global+user override (in-place on a fresh DTO),
 	// then layer the user group display rate if present.
-	userDTO := dto.UsageLogFromService(log, userMap)
+	displayCfg := h.displayConfigForUsageLog(ctx, log, userMap)
+	userDTO := dto.UsageLogFromServiceWithDisplayConfig(log, displayCfg)
 	var groupDisplayRate *float64
 	if log.GroupID != nil && groupRates != nil {
 		if dr, ok := groupRates[*log.GroupID]; ok && dr.DisplayRateMultiplier != nil {
@@ -838,8 +845,12 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 	}
 
 	hasUserOverride := false
+	overrideModel := log.RequestedModel
+	if overrideModel == "" {
+		overrideModel = log.Model
+	}
 	for i := range userOverrides {
-		if strings.EqualFold(userOverrides[i].Model, log.Model) {
+		if strings.EqualFold(userOverrides[i].Model, overrideModel) {
 			hasUserOverride = true
 			break
 		}
@@ -850,15 +861,14 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 		UserGroupRate:   groupDisplayRate,
 		GroupID:         log.GroupID,
 	}
-	if userMap != nil {
-		// display_pricing.toLowerModel is unexported; map keys are lowercased model names.
-		if entry, ok := userMap[strings.ToLower(log.Model)]; ok && entry != nil {
-			cfg.DisplayInputPrice = entry.DisplayInputPrice
-			cfg.DisplayOutputPrice = entry.DisplayOutputPrice
-			cfg.DisplayCacheReadPrice = entry.DisplayCacheReadPrice
-			cfg.DisplayCacheCreationPrice = entry.DisplayCacheCreationPrice
-			cfg.DisplayCacheCreation1hPrice = entry.DisplayCacheCreation1hPrice
-		}
+	if userDTO != nil {
+		cfg.DisplayInputPrice = userDTO.DisplayInputPrice
+		cfg.DisplayOutputPrice = userDTO.DisplayOutputPrice
+		cfg.DisplayCacheReadPrice = userDTO.DisplayCacheReadPrice
+	}
+	if displayCfg != nil {
+		cfg.DisplayCacheCreationPrice = displayCfg.DisplayCacheCreationPrice
+		cfg.DisplayCacheCreation1hPrice = displayCfg.DisplayCacheCreation1hPrice
 	}
 
 	resp := UserViewPreviewResponse{
@@ -872,21 +882,53 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 	response.Success(c, resp)
 }
 
+func (h *UsageHandler) displayConfigForUsageLog(ctx context.Context, log *service.UsageLog, displayMap dto.DisplayPricingMap) *dto.DisplayPricingConfig {
+	if log == nil {
+		return nil
+	}
+	model := log.RequestedModel
+	if model == "" {
+		model = log.Model
+	}
+	cfg := dto.DisplayPricingConfigForModel(displayMap, model)
+	if h.pricingResolver == nil {
+		return cfg
+	}
+
+	var userID *int64
+	if log.UserID > 0 {
+		userID = &log.UserID
+	}
+	serviceTier := ""
+	if log.ServiceTier != nil {
+		serviceTier = *log.ServiceTier
+	}
+	unitPrices := h.pricingResolver.ResolveTokenUnitPrices(ctx, service.PricingInput{
+		Model:   model,
+		GroupID: log.GroupID,
+		UserID:  userID,
+	}, log.InputTokens+log.CacheReadTokens, serviceTier, false, 0, 0)
+	return dto.ApplyResolvedUnitPrices(cfg, unitPrices.InputPrice, unitPrices.OutputPrice, unitPrices.CacheReadPrice)
+}
+
 func snapshotFromDTO(d *dto.UsageLog) UserViewSnapshot {
 	if d == nil {
 		return UserViewSnapshot{}
 	}
 	return UserViewSnapshot{
-		InputTokens:         d.InputTokens,
-		OutputTokens:        d.OutputTokens,
-		CacheReadTokens:     d.CacheReadTokens,
-		CacheCreationTokens: d.CacheCreationTokens,
-		InputCost:           d.InputCost,
-		OutputCost:          d.OutputCost,
-		CacheReadCost:       d.CacheReadCost,
-		CacheCreationCost:   d.CacheCreationCost,
-		TotalCost:           d.TotalCost,
-		ActualCost:          d.ActualCost,
-		RateMultiplier:      d.RateMultiplier,
+		InputTokens:           d.InputTokens,
+		OutputTokens:          d.OutputTokens,
+		CacheReadTokens:       d.CacheReadTokens,
+		CacheCreationTokens:   d.CacheCreationTokens,
+		InputCost:             d.InputCost,
+		OutputCost:            d.OutputCost,
+		CacheReadCost:         d.CacheReadCost,
+		CacheCreationCost:     d.CacheCreationCost,
+		TotalCost:             d.TotalCost,
+		ActualCost:            d.ActualCost,
+		RateMultiplier:        d.RateMultiplier,
+		DisplayInputPrice:     d.DisplayInputPrice,
+		DisplayOutputPrice:    d.DisplayOutputPrice,
+		DisplayCacheReadPrice: d.DisplayCacheReadPrice,
 	}
 }

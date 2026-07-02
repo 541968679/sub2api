@@ -227,13 +227,13 @@ CalculateCostUnified(CostInput)
     │
     └─ 2. ApplyUserDisplayRate(dto, displayRate)
         来源: user_group_rate 表的 display_rate_multiplier
-        作用: 等比缩放展示 token/cost，修改 RateMultiplier
-        公式: scale = realRate / displayRate, 除 CacheReadTokens 外的展示 token 和 cost ×scale
-        影响字段: Input/Output/CacheCreation token、全部 cost、RateMultiplier、TotalCost
+        作用: 按展示倍率重算展示账单并修改 RateMultiplier
+        公式: scale = realRate / displayRate；CacheReadTokens 保持真实，cache-read 展示倍率差额折入 input 展示
+        影响字段: Input/Output/CacheCreation token、相关 cost、RateMultiplier、TotalCost
         不影响: ActualCost
-        注意: TotalCost 直接 ×scale（不是重新求和），正确处理按次计费
+        注意: token 计费展示必须能由展示 token × 展示单价解释；按次/图片等非 token 费用作为 other cost 缩放保留
 
-恒等式: TotalCost × RateMultiplier ≈ ActualCost（存在极小 token 取整误差）
+恒等式: DisplayTotalCost × DisplayRateMultiplier ≈ ActualCost（只允许整数 token 取整误差）
 ```
 
 #### 展示单价 vs 展示倍率
@@ -242,7 +242,7 @@ CalculateCostUnified(CostInput)
 |------|---------|---------|
 | 设置粒度 | per-model（全局或用户级） | per-user-per-group |
 | 设置入口 | 模型配置 / 用户模型定价 | 用户管理 / 分组管理 |
-| 影响范围 | 只改 token 数和组件 cost | 改所有 token/cost + 倍率数字 |
+| 影响范围 | 只改 token 数和组件 cost | 重算展示 token/cost + 倍率数字，cache-read 差额折入 input |
 | 不影响 | RateMultiplier, ActualCost | ActualCost |
 | 串联关系 | 先执行 | 后执行（在展示单价变换结果上再缩放） |
 
@@ -272,7 +272,7 @@ CalculateCostUnified(CostInput)
 | 计费模型来源 | billing_model_source: requested/upstream/channel_mapped | `channel_handler.go` |
 | 全局覆盖叠加 | 非 nil 字段替换基础价，其余从 LiteLLM 继承 | `model_pricing_resolver.go` |
 | 展示变换 delta | ApplyDisplayTransform 用 delta 更新 TotalCost，不丢失按次/图片费用 | `display_pricing.go` |
-| 展示倍率缩放 | ApplyUserDisplayRate 直接 ×scale TotalCost，不重新求和 | `display_pricing.go` |
+| 展示倍率缩放 | ApplyUserDisplayRate 按展示单价重算 token/cost，cache-read 数量不变且差额折入 input | `display_pricing.go` |
 
 ## 已知陷阱
 
@@ -283,7 +283,7 @@ CalculateCostUnified(CostInput)
 - **LiteLLM 模型名不一定匹配**：GetModelPricing 有复杂的模糊匹配链
 - **前端显示 $/1M tokens**：前端以百万 token 为单位，后端存储 per-token 单价
 - **全局覆盖缓存必须在 CUD 后 Invalidate**：新增直接写 repo 的路径必须同步调用 Invalidate
-- **按次计费的组件费用全为 0**：TotalCost 不等于各组件之和，展示变换必须用 delta/直接缩放，不能重新求和
+- **按次计费的组件费用全为 0**：TotalCost 不等于 token 组件之和，展示变换必须保留并缩放 other cost，不能把非 token 费用丢掉
 - **ImageOutputCost 是独立字段**：不包含在 OutputCost 中，但包含在 TotalCost 中
 - **展示倍率只有一个来源**：user_group_rate.display_rate_multiplier（2026-05-04 统一）。模型级 display_rate_multiplier 字段仍在 DB 中但不再使用
 - **展示变换的 token 取整误差**：小额请求（极少 token）时 round() 误差占比较大，导致 TotalCost × Rate 与 ActualCost 有微小偏差

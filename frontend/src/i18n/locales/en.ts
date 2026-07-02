@@ -4803,7 +4803,21 @@ const enBase = {
       userViewSourceOverride: 'With user override',
       userViewConfigHint: 'The user_view column comes from three layers: global display pricing → user-level model overrides → user group display rate. actual_cost is invariant.',
       userViewEmptySection: 'All fields zero in this section, hidden',
-      userViewActualCostMismatch: '⚠ actual_cost differs between real and user_view! Display transform should never change actual cost — investigate.'
+      userViewActualCostMismatch: '⚠ actual_cost differs between real and user_view! Display transform should never change actual cost — investigate.',
+      userViewCalculationTitle: 'Cost calculation process',
+      userViewCalculationHint: 'Shows how each layer reaches total_cost and actual_cost from tokens, unit prices, and rate multiplier.',
+      userViewFormulaRealTitle: 'Real billing layer',
+      userViewFormulaUserTitle: 'User display layer',
+      userViewFormulaItem: 'Item',
+      userViewFormulaTokens: 'Tokens',
+      userViewFormulaUnitPrice: 'Unit price',
+      userViewFormulaCost: 'Cost',
+      userViewFormulaSubtotal: 'Token component subtotal',
+      userViewFormulaOther: 'Other / non-token cost',
+      userViewFormulaTotal: 'total_cost',
+      userViewFormulaBilled: 'total_cost x rate',
+      userViewFormulaActual: 'actual_cost',
+      userViewFormulaDiff: 'Difference'
     },
 
     // Ops Monitoring

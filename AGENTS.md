@@ -204,6 +204,31 @@ will override `backend/config.yaml`. If the backend unexpectedly binds to port
 - `backend/internal/repository/setting_repo.go` - settings persistence.
 - `backend/internal/repository/*_cache.go` - Redis and local cache layers.
 
+### Billing Display Invariants
+
+These rules are core product behavior. Do not change them casually, and add or
+update regression tests whenever touching usage display pricing, user-group
+display rates, cache token rewriting, or admin/user usage previews.
+
+- User-facing model unit prices must come from configured display prices or the
+  normal pricing chain (`User -> Channel -> Global -> LiteLLM -> Fallback`).
+  Frontend code must not derive displayed model prices from `cost / tokens`.
+- Display transforms may change user-visible tokens and component costs, but
+  must never change stored billing, quota deduction, or `actual_cost`.
+- `cache_read_tokens` and downstream `cache_read_input_tokens` must remain the
+  real cache-read quantity. Do not multiply cache-read token counts for display
+  pricing or display-rate changes.
+- When cache-read display price is configured, `cache_read_cost` must remain
+  explainable as `cache_read_tokens * display_cache_read_price`. Cache-read
+  premium or user display-rate delta is folded into input display tokens/cost
+  instead of fabricating cache-read tokens.
+- The displayed bill must stay explainable from displayed tokens, displayed unit
+  prices, and the displayed rate multiplier:
+  `display_total_cost * display_rate_multiplier ~= actual_cost`, allowing only
+  small integer-token rounding tolerance.
+- Admin "user perspective" previews must use the same display transform and
+  effective unit-price resolution path as the real user usage endpoints.
+
 ### Data And Generated Code
 
 - `backend/ent/schema/` - hand-written Ent schemas.

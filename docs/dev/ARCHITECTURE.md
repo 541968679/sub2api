@@ -191,6 +191,13 @@ Redis cache 命名：`repository/*_cache.go`。常见模式：
 
 见 `codebase/billing.md`。要点：四级优先级 `Channel > Global > LiteLLM > Fallback`，还有一层 `User override` 放在展示层（`handler/dto/display_pricing.go`）——**用户展示**的 token / cost 可以与实际扣费不一致（display price 只影响 UI，`actual_cost` 永远按真实价扣）。
 
+Display billing has a hard invariant: user-visible unit prices come from
+configured display prices or the normal pricing chain, never from `cost/tokens`;
+`cache_read_tokens` stays real; cache-read premium or display-rate deltas fold
+into input display tokens/cost; and the final displayed bill must remain
+explainable as displayed tokens * displayed unit prices * displayed rate, with
+only small integer-token rounding tolerance.
+
 ---
 
 ## 4. 前端关键路径

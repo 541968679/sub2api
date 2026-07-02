@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] feat: expose admin user-view cost calculation process
+
+**Affected files**: AGENTS.md, docs/dev/ARCHITECTURE.md, docs/dev/codebase/billing.md, backend/internal/handler/admin/usage_handler.go, backend/cmd/server/wire_gen.go, frontend/src/api/admin/usage.ts, frontend/src/components/admin/usage/UserViewCompareDrawer.vue, frontend/src/components/admin/usage/__tests__/UserViewCompareDrawer.spec.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: fork-local admin debugging UI and documentation. No database, stored billing, quota, push, or deployment changes.
+**Change details**:
+- Added the display-billing invariants to the repository entry rules: user display prices must come from configured/effective pricing, cache-read tokens stay real, cache-read display deltas fold into input, and displayed bills must remain explainable from displayed tokens, unit prices, and rate multiplier.
+- Aligned the admin user-view preview endpoint with the same effective unit-price resolver path as user usage endpoints, including User -> Channel -> Global -> LiteLLM/Fallback pricing.
+- Added real-layer and user-display-layer cost calculation process panels to the admin user perspective comparison drawer, showing token components, unit prices, component subtotal, other cost, `total_cost x rate`, `actual_cost`, and the diff.
+- Added frontend coverage for the fable/cache-read style calculation process so the drawer preserves the explainable display-bill invariant.
+
 ## [2026-07-02] fix: use configured display unit prices in user usage
 
 **Affected files**: backend/cmd/server/wire_gen.go, backend/internal/handler/usage_handler.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/service/model_pricing_resolver.go, backend/internal/service/model_pricing_resolver_test.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/display_token_rewrite_test.go, frontend/src/utils/usagePricing.ts, frontend/src/types/index.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/views/user/__tests__/UsageView.spec.ts, docs/dev/codebase/billing.md

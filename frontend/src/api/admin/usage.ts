@@ -298,6 +298,9 @@ export interface UserViewSnapshot {
   total_cost: number
   actual_cost: number
   rate_multiplier: number
+  display_input_price?: number | null
+  display_output_price?: number | null
+  display_cache_read_price?: number | null
 }
 
 export interface UserViewConfigUsed {
