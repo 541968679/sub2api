@@ -570,3 +570,91 @@ func assertClose(t *testing.T, name string, got, want float64) {
 		t.Fatalf("%s got %.12f, want %.12f", name, got, want)
 	}
 }
+
+func TestApplyDisplayTransform_TieredDisplayCacheCreationPrices(t *testing.T) {
+	// 真实档价 5m=4e-6 / 1h=6.4e-6(ratio 1.6),展示档价 5m=2e-6 / 1h=3.2e-6。
+	// 行:5m=1000, 1h=1000,真实成本 = 1000×4e-6 + 1000×6.4e-6 = 0.0104。
+	// 成本拆分:cost5m=0.004, cost1h=0.0064 → display5m=2000, display1h=2000。
+	real5m := 4e-6
+	real1h := 6.4e-6
+	disp5m := 2e-6
+	disp1h := 3.2e-6
+	log := UsageLog{
+		CacheCreationTokens:   2000,
+		CacheCreation5mTokens: 1000,
+		CacheCreation1hTokens: 1000,
+		CacheCreationCost:     0.0104,
+		TotalCost:             0.0104,
+		ActualCost:            0.0104,
+		RateMultiplier:        1.0,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{
+		DisplayCacheCreationPrice:   &disp5m,
+		DisplayCacheCreation1hPrice: &disp1h,
+		RealCacheWritePrice:         &real5m,
+		RealCacheWrite1hPrice:       &real1h,
+	})
+
+	if log.CacheCreation5mTokens != 2000 || log.CacheCreation1hTokens != 2000 {
+		t.Fatalf("per-tier back-computation expected 2000/2000, got 5m=%d 1h=%d", log.CacheCreation5mTokens, log.CacheCreation1hTokens)
+	}
+	if log.CacheCreationTokens != 4000 {
+		t.Fatalf("total must equal 5m+1h, got %d", log.CacheCreationTokens)
+	}
+	// 成本守恒:2000×2e-6 + 2000×3.2e-6 = 0.0104
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.0104)
+	assertClose(t, "total_cost", log.TotalCost, 0.0104)
+	assertClose(t, "actual_cost", log.ActualCost, 0.0104)
+}
+
+func TestApplyDisplayTransform_TieredDisplayWithoutRealRatioSplitsEvenly(t *testing.T) {
+	// 未配置真实档价时按 1:1 比例拆分成本(总成本仍守恒)。
+	disp5m := 2e-6
+	disp1h := 4e-6
+	log := UsageLog{
+		CacheCreationTokens:   2000,
+		CacheCreation5mTokens: 1000,
+		CacheCreation1hTokens: 1000,
+		CacheCreationCost:     0.008,
+		TotalCost:             0.008,
+		ActualCost:            0.008,
+		RateMultiplier:        1.0,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{
+		DisplayCacheCreationPrice:   &disp5m,
+		DisplayCacheCreation1hPrice: &disp1h,
+	})
+
+	// cost5m = cost1h = 0.004 → display5m = 2000, display1h = 1000
+	if log.CacheCreation5mTokens != 2000 || log.CacheCreation1hTokens != 1000 {
+		t.Fatalf("even split expected 2000/1000, got 5m=%d 1h=%d", log.CacheCreation5mTokens, log.CacheCreation1hTokens)
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.008)
+	assertClose(t, "total_cost", log.TotalCost, 0.008)
+}
+
+func TestApplyDisplayTransform_SingleDisplayPriceKeepsCostExactPath(t *testing.T) {
+	// 只配 5m 档展示价(无 1h 展示价)时,走既有"总成本反算"路径 —— 回归钉。
+	dispCreate := 2.5e-6
+	log := UsageLog{
+		CacheCreationTokens:   1000,
+		CacheCreation5mTokens: 600,
+		CacheCreation1hTokens: 400,
+		CacheCreationCost:     0.0125,
+		TotalCost:             0.0125,
+		ActualCost:            0.0125,
+		RateMultiplier:        1.0,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{DisplayCacheCreationPrice: &dispCreate})
+
+	if log.CacheCreationTokens != 5000 {
+		t.Fatalf("single-price path must back-compute the total, got %d", log.CacheCreationTokens)
+	}
+	if log.CacheCreation5mTokens+log.CacheCreation1hTokens != log.CacheCreationTokens {
+		t.Fatal("5m+1h must equal total after proportional rescale")
+	}
+	assertClose(t, "cache_creation_cost", log.CacheCreationCost, 0.0125)
+}

@@ -517,3 +517,50 @@ func TestDisplayToken_CacheCreationRealModeNoop(t *testing.T) {
 	out := rewriteNonStreamUsageTokens(body, mult)
 	require.Equal(t, string(body), string(out))
 }
+
+func TestDisplayToken_Display1hPriceDrivesCacheCreate1hMult(t *testing.T) {
+	// rich pricing: 5m=3.75e-6, 1h=6e-6;展示 5m=2.5e-6、展示 1h=3e-6 →
+	// Mult5m = 3.75/2.5 = 1.5,Mult1h = 6/3 = 2.0(而非 6/2.5=2.4)。
+	displayCreate := 2.5e-6
+	displayCreate1h := 3e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:                       "claude-sonnet-4",
+		BillingMode:                 BillingModeToken,
+		DisplayCacheCreationPrice:   &displayCreate,
+		DisplayCacheCreation1hPrice: &displayCreate1h,
+		Enabled:                     true,
+	})
+	resolver := NewModelPricingResolver(&ChannelService{}, newTestBillingServiceWithRichPricing(), cache, nil)
+	svc := &GatewayService{resolver: resolver}
+
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1)
+	require.NotNil(t, mult)
+	require.InDelta(t, 1.5, mult.CacheCreate5mMult, 1e-12)
+	require.InDelta(t, 2.0, mult.CacheCreate1hMult, 1e-12, "1h tier must divide by its own display price")
+}
+
+func TestDisplayToken_UserCacheWrite1hPriceFeedsMultipliers(t *testing.T) {
+	// 用户级真实 1h 价覆盖(6.4e-6)+ 全局展示创建价(2e-6)→ Mult1h = 3.2。
+	displayCreate := 2e-6
+	userWrite1h := 6.4e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		Model:                     "claude-sonnet-4",
+		BillingMode:               BillingModeToken,
+		DisplayCacheCreationPrice: &displayCreate,
+		Enabled:                   true,
+	})
+	userRepo := &displayTokenUserModelPricingRepoStub{
+		override: &UserModelPricingOverride{
+			UserID:            42,
+			Model:             "claude-sonnet-4",
+			CacheWrite1hPrice: &userWrite1h,
+			Enabled:           true,
+		},
+	}
+	resolver := NewModelPricingResolver(&ChannelService{}, newTestBillingServiceWithRichPricing(), cache, userRepo)
+	svc := &GatewayService{resolver: resolver}
+
+	mult := svc.ComputeDisplayTokenMultipliers(context.Background(), "claude-sonnet-4", 42, nil, 1, 1)
+	require.NotNil(t, mult)
+	require.InDelta(t, 3.2, mult.CacheCreate1hMult, 1e-12)
+}

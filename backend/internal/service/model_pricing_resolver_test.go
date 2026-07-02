@@ -1054,3 +1054,35 @@ func TestResolve_GlobalOverride_CacheWritePriceOnlyKeepsFlatBehavior(t *testing.
 	}, 1.0)
 	require.InDelta(t, 66061*4e-6, cost, 1e-9, "without a 1h override the flat price keeps applying")
 }
+
+// TestResolve_UserOverride_CacheWrite1hPriceEnablesTierBilling 用户级 1h 档真实价:
+// 与全局覆盖同语义 —— 配置后启用分档计费。
+func TestResolve_UserOverride_CacheWrite1hPriceEnablesTierBilling(t *testing.T) {
+	bs := newTestBillingServiceFlatCachePricing()
+	userID := int64(7)
+	write1h := 6.4e-6
+	userRepo := &modelPricingResolverUserOverrideRepoStub{
+		overrides: map[string]*UserModelPricingOverride{
+			"7:claude-sonnet-5": {
+				UserID:            userID,
+				Model:             "claude-sonnet-5",
+				CacheWrite1hPrice: &write1h,
+				Enabled:           true,
+			},
+		},
+	}
+	r := NewModelPricingResolver(&ChannelService{}, bs, newTestGlobalPricingCache(), userRepo)
+
+	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-5", UserID: &userID})
+	require.NotNil(t, resolved)
+	require.NotNil(t, resolved.BasePricing)
+	require.Equal(t, PricingSourceUser, resolved.Source)
+	require.InDelta(t, 6.4e-6, resolved.BasePricing.CacheCreation1hPrice, 1e-12)
+	require.True(t, resolved.BasePricing.SupportsCacheBreakdown)
+
+	cost := bs.computeCacheCreationCost(resolved.BasePricing, UsageTokens{
+		CacheCreationTokens:   66061,
+		CacheCreation1hTokens: 66061,
+	}, 1.0)
+	require.InDelta(t, 66061*6.4e-6, cost, 1e-9)
+}

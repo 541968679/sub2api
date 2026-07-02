@@ -410,7 +410,7 @@ func (r *ModelPricingResolver) applyUserModelPricingOverride(ctx context.Context
 	}
 
 	hasBillingOverride := override.InputPrice != nil || override.OutputPrice != nil ||
-		override.CacheWritePrice != nil || override.CacheReadPrice != nil
+		override.CacheWritePrice != nil || override.CacheWrite1hPrice != nil || override.CacheReadPrice != nil
 	if !hasBillingOverride {
 		return
 	}
@@ -431,6 +431,14 @@ func (r *ModelPricingResolver) applyUserModelPricingOverride(ctx context.Context
 		resolved.BasePricing.CacheCreationPricePerToken = *override.CacheWritePrice
 		resolved.BasePricing.CacheCreation5mPrice = *override.CacheWritePrice
 		resolved.BasePricing.CacheCreation1hPrice = *override.CacheWritePrice
+	}
+	// 1h 档单独覆盖（语义与 applyGlobalPricingOverride 一致）：
+	// 配置后强制启用分档计费，1h 缓存创建按真实溢价计费。
+	if override.CacheWrite1hPrice != nil {
+		resolved.BasePricing.CacheCreation1hPrice = *override.CacheWrite1hPrice
+		if *override.CacheWrite1hPrice > 0 {
+			resolved.BasePricing.SupportsCacheBreakdown = true
+		}
 	}
 	if override.CacheReadPrice != nil {
 		resolved.BasePricing.CacheReadPricePerToken = *override.CacheReadPrice

@@ -11,7 +11,14 @@ type DisplayPricingConfig struct {
 	DisplayInputPrice         *float64
 	DisplayOutputPrice        *float64
 	DisplayCacheReadPrice     *float64
-	DisplayCacheCreationPrice *float64
+	DisplayCacheCreationPrice *float64 // 5m 档展示价；1h 档未配时也作用于 1h
+	// DisplayCacheCreation1hPrice 是 1h 档展示价（nil = 回退 5m 档展示价）。
+	// 配置后按档反算展示 token，需要真实档价比例来拆分单一的 cache_creation_cost。
+	DisplayCacheCreation1hPrice *float64
+	// RealCacheWritePrice/RealCacheWrite1hPrice 来自定价条目的真实档价，
+	// 仅用于按比例拆分成本（比例未知时按 1:1 处理），不会出现在任何用户可见输出中。
+	RealCacheWritePrice   *float64
+	RealCacheWrite1hPrice *float64
 }
 
 // DisplayPricingMap maps lowercase model name to display config.
@@ -26,17 +33,21 @@ func BuildDisplayPricingMap(pricings []service.GlobalModelPricing) DisplayPricin
 			continue
 		}
 		m[toLowerModel(p.Model)] = &DisplayPricingConfig{
-			DisplayInputPrice:         p.DisplayInputPrice,
-			DisplayOutputPrice:        p.DisplayOutputPrice,
-			DisplayCacheReadPrice:     p.DisplayCacheReadPrice,
-			DisplayCacheCreationPrice: p.DisplayCacheCreationPrice,
+			DisplayInputPrice:           p.DisplayInputPrice,
+			DisplayOutputPrice:          p.DisplayOutputPrice,
+			DisplayCacheReadPrice:       p.DisplayCacheReadPrice,
+			DisplayCacheCreationPrice:   p.DisplayCacheCreationPrice,
+			DisplayCacheCreation1hPrice: p.DisplayCacheCreation1hPrice,
+			RealCacheWritePrice:         p.CacheWritePrice,
+			RealCacheWrite1hPrice:       p.CacheWrite1hPrice,
 		}
 	}
 	return m
 }
 
 func hasDisplayOverride(p *service.GlobalModelPricing) bool {
-	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil || p.DisplayCacheCreationPrice != nil
+	return p.DisplayInputPrice != nil || p.DisplayOutputPrice != nil || p.DisplayCacheReadPrice != nil ||
+		p.DisplayCacheCreationPrice != nil || p.DisplayCacheCreation1hPrice != nil
 }
 
 func toLowerModel(model string) string {
@@ -72,6 +83,10 @@ func effectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) 
 		if clone.DisplayCacheCreationPrice != nil {
 			value := *clone.DisplayCacheCreationPrice * d.LongContextInputMultiplier
 			clone.DisplayCacheCreationPrice = &value
+		}
+		if clone.DisplayCacheCreation1hPrice != nil {
+			value := *clone.DisplayCacheCreation1hPrice * d.LongContextInputMultiplier
+			clone.DisplayCacheCreation1hPrice = &value
 		}
 	}
 	if d.LongContextOutputMultiplier > 0 && clone.DisplayOutputPrice != nil {
@@ -123,11 +138,38 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	// cache-creation tokens are back-computed directly from the real cost at the
 	// display price — the same amplification shape as input/output above.
 	if cfg.DisplayCacheCreationPrice != nil && *cfg.DisplayCacheCreationPrice > 0 && d.CacheCreationTokens > 0 && d.CacheCreationCost > 0 {
-		realTokens := d.CacheCreationTokens
-		displayTokens := d.CacheCreationCost / *cfg.DisplayCacheCreationPrice
-		d.CacheCreationTokens = int(math.Round(displayTokens))
-		d.CacheCreationCost = float64(d.CacheCreationTokens) * *cfg.DisplayCacheCreationPrice
-		rescaleCacheCreationBreakdown(d, realTokens)
+		display5mPrice := *cfg.DisplayCacheCreationPrice
+		display1hPrice := display5mPrice
+		if cfg.DisplayCacheCreation1hPrice != nil && *cfg.DisplayCacheCreation1hPrice > 0 {
+			display1hPrice = *cfg.DisplayCacheCreation1hPrice
+		}
+		hasBreakdown := d.CacheCreation5mTokens > 0 || d.CacheCreation1hTokens > 0
+		if hasBreakdown && display1hPrice != display5mPrice {
+			// 分档展示价：用真实档价比例拆分成本，各档独立反算。
+			// 只用比例（r=1h/5m）拆分实际落库成本，成本总额天然守恒。
+			ratio := 1.0
+			if cfg.RealCacheWritePrice != nil && *cfg.RealCacheWritePrice > 0 &&
+				cfg.RealCacheWrite1hPrice != nil && *cfg.RealCacheWrite1hPrice > 0 {
+				ratio = *cfg.RealCacheWrite1hPrice / *cfg.RealCacheWritePrice
+			}
+			w5m := float64(d.CacheCreation5mTokens)
+			w1h := float64(d.CacheCreation1hTokens) * ratio
+			cost5m := d.CacheCreationCost * w5m / (w5m + w1h)
+			cost1h := d.CacheCreationCost - cost5m
+			display5m := int(math.Round(cost5m / display5mPrice))
+			display1h := int(math.Round(cost1h / display1hPrice))
+			d.CacheCreation5mTokens = display5m
+			d.CacheCreation1hTokens = display1h
+			d.CacheCreationTokens = display5m + display1h
+			d.CacheCreationCost = float64(display5m)*display5mPrice + float64(display1h)*display1hPrice
+		} else {
+			// 单一展示价：总成本反算（1h 溢价已含在成本里，天然按档放大）。
+			realTokens := d.CacheCreationTokens
+			displayTokens := d.CacheCreationCost / display5mPrice
+			d.CacheCreationTokens = int(math.Round(displayTokens))
+			d.CacheCreationCost = float64(d.CacheCreationTokens) * display5mPrice
+			rescaleCacheCreationBreakdown(d, realTokens)
+		}
 	}
 
 	newComponentSum := d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
@@ -242,7 +284,8 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		if !o.Enabled || o.Model == "" {
 			continue
 		}
-		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil && o.DisplayCacheCreationPrice == nil {
+		if o.DisplayInputPrice == nil && o.DisplayOutputPrice == nil && o.DisplayCacheReadPrice == nil &&
+			o.DisplayCacheCreationPrice == nil && o.DisplayCacheCreation1hPrice == nil {
 			continue
 		}
 		key := toLowerModel(o.Model)
@@ -262,6 +305,16 @@ func BuildUserDisplayPricingMap(globalMap DisplayPricingMap, userOverrides []ser
 		}
 		if o.DisplayCacheCreationPrice != nil {
 			existing.DisplayCacheCreationPrice = o.DisplayCacheCreationPrice
+		}
+		if o.DisplayCacheCreation1hPrice != nil {
+			existing.DisplayCacheCreation1hPrice = o.DisplayCacheCreation1hPrice
+		}
+		// 用户级真实档价（若配置）替换成本拆分比例的来源
+		if o.CacheWritePrice != nil {
+			existing.RealCacheWritePrice = o.CacheWritePrice
+		}
+		if o.CacheWrite1hPrice != nil {
+			existing.RealCacheWrite1hPrice = o.CacheWrite1hPrice
 		}
 	}
 	return merged

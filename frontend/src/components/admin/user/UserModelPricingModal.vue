@@ -59,6 +59,7 @@
               <span>{{ t('admin.modelPricing.inputPrice') }}: {{ getSuggestedMTok(item, 'input_price') ?? '-' }}</span>
               <span>{{ t('admin.modelPricing.outputPrice') }}: {{ getSuggestedMTok(item, 'output_price') ?? '-' }}</span>
               <span>{{ t('admin.modelPricing.cacheWritePrice') }}: {{ getSuggestedMTok(item, 'cache_write_price') ?? '-' }}</span>
+              <span>{{ t('admin.modelPricing.cacheWrite1hPrice') }}: {{ getSuggestedMTok(item, 'cache_write_1h_price') ?? '-' }}</span>
               <span>{{ t('admin.modelPricing.cacheReadPrice') }}: {{ getSuggestedMTok(item, 'cache_read_price') ?? '-' }}</span>
               <span class="text-blue-400">($/MTok)</span>
             </div>
@@ -92,6 +93,11 @@
                 <div>
                   <label class="text-xs text-gray-500">{{ t('admin.modelPricing.cacheWritePrice') }}</label>
                   <input v-model.number="item.cache_write_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.cacheWrite1hPriceHint')">{{ t('admin.modelPricing.cacheWrite1hPrice') }}</label>
+                  <input v-model.number="item.cache_write_1h_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
                 <div>
@@ -134,6 +140,11 @@
                 <div>
                   <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreationPriceHint')">{{ t('admin.modelPricing.displayCacheCreationPrice') }}</label>
                   <input v-model.number="item.display_cache_creation_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreation1hPriceHint')">{{ t('admin.modelPricing.displayCacheCreation1hPrice') }}</label>
+                  <input v-model.number="item.display_cache_creation_1h_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
               </div>
@@ -196,11 +207,13 @@ interface OverrideRow {
   input_price: number | null
   output_price: number | null
   cache_write_price: number | null
+  cache_write_1h_price: number | null
   cache_read_price: number | null
   display_input_price: number | null
   display_output_price: number | null
   display_cache_read_price: number | null
   display_cache_creation_price: number | null
+  display_cache_creation_1h_price: number | null
   enabled: boolean
   notes: string
   _deleted?: boolean
@@ -215,6 +228,7 @@ interface ModelInfo {
   input_price: number | null
   output_price: number | null
   cache_write_price: number | null
+  cache_write_1h_price: number | null
   cache_read_price: number | null
 }
 
@@ -262,6 +276,7 @@ async function loadAvailableModels() {
       input_price: i.litellm_prices?.input_price ?? null,
       output_price: i.litellm_prices?.output_price ?? null,
       cache_write_price: i.litellm_prices?.cache_write_price ?? null,
+      cache_write_1h_price: i.litellm_prices?.cache_write_1h_price ?? null,
       cache_read_price: i.litellm_prices?.cache_read_price ?? null,
     }))
   } catch (e) {
@@ -273,7 +288,7 @@ async function loadAvailableModels() {
  * 获取选中模型的 LiteLLM 标准价格，格式化为 $/MTok 用于表单填充。
  * 若该字段没有 LiteLLM 价格则返回 null。
  */
-function getSuggestedMTok(item: OverrideRow, field: 'input_price' | 'output_price' | 'cache_write_price' | 'cache_read_price'): number | null {
+function getSuggestedMTok(item: OverrideRow, field: 'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'): number | null {
   const info = modelInfoMap.value.get(item.model)
   if (!info) return null
   const perToken = info[field]
@@ -282,8 +297,8 @@ function getSuggestedMTok(item: OverrideRow, field: 'input_price' | 'output_pric
 }
 
 function applySuggestedBilling(item: OverrideRow) {
-  const fields: Array<'input_price' | 'output_price' | 'cache_write_price' | 'cache_read_price'> = [
-    'input_price', 'output_price', 'cache_write_price', 'cache_read_price',
+  const fields: Array<'input_price' | 'output_price' | 'cache_write_price' | 'cache_write_1h_price' | 'cache_read_price'> = [
+    'input_price', 'output_price', 'cache_write_price', 'cache_write_1h_price', 'cache_read_price',
   ]
   for (const f of fields) {
     const v = getSuggestedMTok(item, f)
@@ -300,6 +315,8 @@ function applySuggestedDisplay(item: OverrideRow) {
   if (cacheReadMTok != null) item.display_cache_read_price = cacheReadMTok
   const cacheWriteMTok = getSuggestedMTok(item, 'cache_write_price')
   if (cacheWriteMTok != null) item.display_cache_creation_price = cacheWriteMTok
+  const cacheWrite1hMTok = getSuggestedMTok(item, 'cache_write_1h_price')
+  if (cacheWrite1hMTok != null && cacheWrite1hMTok > 0) item.display_cache_creation_1h_price = cacheWrite1hMTok
 }
 
 watch(
@@ -316,11 +333,13 @@ watch(
         input_price: perTokenToMTok(o.input_price) ?? null,
         output_price: perTokenToMTok(o.output_price) ?? null,
         cache_write_price: perTokenToMTok(o.cache_write_price) ?? null,
+        cache_write_1h_price: perTokenToMTok(o.cache_write_1h_price) ?? null,
         cache_read_price: perTokenToMTok(o.cache_read_price) ?? null,
         display_input_price: perTokenToMTok(o.display_input_price) ?? null,
         display_output_price: perTokenToMTok(o.display_output_price) ?? null,
         display_cache_read_price: perTokenToMTok(o.display_cache_read_price) ?? null,
         display_cache_creation_price: perTokenToMTok(o.display_cache_creation_price) ?? null,
+        display_cache_creation_1h_price: perTokenToMTok(o.display_cache_creation_1h_price) ?? null,
         enabled: o.enabled,
         notes: o.notes || '',
       }))
@@ -339,11 +358,13 @@ function addOverride() {
     input_price: null,
     output_price: null,
     cache_write_price: null,
+    cache_write_1h_price: null,
     cache_read_price: null,
     display_input_price: null,
     display_output_price: null,
     display_cache_read_price: null,
     display_cache_creation_price: null,
+    display_cache_creation_1h_price: null,
     enabled: true,
     notes: '',
   })
@@ -372,11 +393,13 @@ async function save() {
         input_price: mTokToPerToken(o.input_price),
         output_price: mTokToPerToken(o.output_price),
         cache_write_price: mTokToPerToken(o.cache_write_price),
+        cache_write_1h_price: mTokToPerToken(o.cache_write_1h_price),
         cache_read_price: mTokToPerToken(o.cache_read_price),
         display_input_price: mTokToPerToken(o.display_input_price),
         display_output_price: mTokToPerToken(o.display_output_price),
         display_cache_read_price: mTokToPerToken(o.display_cache_read_price),
         display_cache_creation_price: mTokToPerToken(o.display_cache_creation_price),
+        display_cache_creation_1h_price: mTokToPerToken(o.display_cache_creation_1h_price),
         enabled: o.enabled,
         notes: o.notes || '',
       }))

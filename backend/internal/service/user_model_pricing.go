@@ -16,17 +16,19 @@ type UserModelPricingOverride struct {
 	Model  string `json:"model"`
 
 	// 真实计费覆盖（非 nil 字段替换上层链路值）
-	InputPrice      *float64 `json:"input_price"`
-	OutputPrice     *float64 `json:"output_price"`
-	CacheWritePrice *float64 `json:"cache_write_price"`
-	CacheReadPrice  *float64 `json:"cache_read_price"`
+	InputPrice        *float64 `json:"input_price"`
+	OutputPrice       *float64 `json:"output_price"`
+	CacheWritePrice   *float64 `json:"cache_write_price"`
+	CacheWrite1hPrice *float64 `json:"cache_write_1h_price"`
+	CacheReadPrice    *float64 `json:"cache_read_price"`
 
 	// 展示覆盖（仅影响用户看到的 usage log，不影响真实计费）
-	DisplayInputPrice         *float64 `json:"display_input_price"`
-	DisplayOutputPrice        *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price"`
-	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price"`
-	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier"`
+	DisplayInputPrice           *float64 `json:"display_input_price"`
+	DisplayOutputPrice          *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice       *float64 `json:"display_cache_read_price"`
+	DisplayCacheCreationPrice   *float64 `json:"display_cache_creation_price"`
+	DisplayCacheCreation1hPrice *float64 `json:"display_cache_creation_1h_price"`
+	DisplayRateMultiplier       *float64 `json:"display_rate_multiplier"`
 
 	Enabled bool   `json:"enabled"`
 	Notes   string `json:"notes"`

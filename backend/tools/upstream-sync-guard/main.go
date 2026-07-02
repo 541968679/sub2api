@@ -140,6 +140,7 @@ var criticalSignatures = []criticalSignature{
 			"BuildUserDisplayPricingMap",
 			"DisplayCacheReadPrice",
 			"DisplayCacheCreationPrice",
+			"DisplayCacheCreation1hPrice",
 		},
 	},
 	{
@@ -149,6 +150,7 @@ var criticalSignatures = []criticalSignature{
 			"DisplayInputPrice",
 			"DisplayOutputPrice",
 			"DisplayCacheCreationPrice",
+			"CacheWrite1hPrice",
 			"DisplayRateMultiplier",
 		},
 	},

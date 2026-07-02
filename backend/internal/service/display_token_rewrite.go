@@ -28,17 +28,18 @@ type DisplayTokenMultipliers struct {
 }
 
 type displayTokenPricingConfig struct {
-	InputPrice                float64
-	OutputPrice               float64
-	CacheReadPrice            float64
-	CacheCreationPrice        float64
-	CacheCreation5mPrice      float64
-	CacheCreation1hPrice      float64
-	SupportsCacheBreakdown    bool
-	DisplayInputPrice         *float64
-	DisplayOutputPrice        *float64
-	DisplayCacheReadPrice     *float64
-	DisplayCacheCreationPrice *float64
+	InputPrice                  float64
+	OutputPrice                 float64
+	CacheReadPrice              float64
+	CacheCreationPrice          float64
+	CacheCreation5mPrice        float64
+	CacheCreation1hPrice        float64
+	SupportsCacheBreakdown      bool
+	DisplayInputPrice           *float64
+	DisplayOutputPrice          *float64
+	DisplayCacheReadPrice       *float64
+	DisplayCacheCreationPrice   *float64 // 5m 档展示价
+	DisplayCacheCreation1hPrice *float64 // 1h 档展示价（nil = 回退 5m 档展示价）
 }
 
 type displayTokenMultiplierProvider interface {
@@ -225,9 +226,13 @@ func computeDisplayTokenMultipliers(
 	if price1h <= 0 {
 		price1h = price5m
 	}
+	display1hPrice := pricing.DisplayCacheCreationPrice
+	if pricing.DisplayCacheCreation1hPrice != nil && *pricing.DisplayCacheCreation1hPrice > 0 {
+		display1hPrice = pricing.DisplayCacheCreation1hPrice
+	}
 	mult.CacheCreateMult = displayTokenMultiplier(creationBase, pricing.DisplayCacheCreationPrice)
 	mult.CacheCreate5mMult = displayTokenMultiplier(price5m, pricing.DisplayCacheCreationPrice)
-	mult.CacheCreate1hMult = displayTokenMultiplier(price1h, pricing.DisplayCacheCreationPrice)
+	mult.CacheCreate1hMult = displayTokenMultiplier(price1h, display1hPrice)
 
 	// Layer 2: user group display rate (rate_multiplier / display_rate_multiplier)
 	if displayRateMultiplier > 0 && displayRateMultiplier != rateMultiplier {
@@ -320,6 +325,9 @@ func mergeGlobalDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *Glo
 	if pricing.DisplayCacheCreationPrice != nil {
 		cfg.DisplayCacheCreationPrice = pricing.DisplayCacheCreationPrice
 	}
+	if pricing.DisplayCacheCreation1hPrice != nil {
+		cfg.DisplayCacheCreation1hPrice = pricing.DisplayCacheCreation1hPrice
+	}
 }
 
 func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserModelPricingOverride) {
@@ -344,6 +352,10 @@ func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserM
 			cfg.CacheCreation1hPrice = *pricing.CacheWritePrice
 		}
 	}
+	if pricing.CacheWrite1hPrice != nil && *pricing.CacheWrite1hPrice > 0 {
+		cfg.CacheCreation1hPrice = *pricing.CacheWrite1hPrice
+		cfg.SupportsCacheBreakdown = true
+	}
 	if pricing.DisplayInputPrice != nil {
 		cfg.DisplayInputPrice = pricing.DisplayInputPrice
 	}
@@ -355,6 +367,9 @@ func mergeUserDisplayTokenPricing(cfg *displayTokenPricingConfig, pricing *UserM
 	}
 	if pricing.DisplayCacheCreationPrice != nil {
 		cfg.DisplayCacheCreationPrice = pricing.DisplayCacheCreationPrice
+	}
+	if pricing.DisplayCacheCreation1hPrice != nil {
+		cfg.DisplayCacheCreation1hPrice = pricing.DisplayCacheCreation1hPrice
 	}
 }
 

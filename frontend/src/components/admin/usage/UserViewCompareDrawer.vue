@@ -176,6 +176,7 @@ const configRows = computed<CfgRow[]>(() => {
     { key: 'display_output_price', label: t('admin.modelPricing.displayOutputPrice'), value: c.display_output_price, format: 'price' },
     { key: 'display_cache_read_price', label: t('admin.modelPricing.displayCacheReadPrice'), value: c.display_cache_read_price, format: 'price' },
     { key: 'display_cache_creation_price', label: t('admin.modelPricing.displayCacheCreationPrice'), value: c.display_cache_creation_price, format: 'price' },
+    { key: 'display_cache_creation_1h_price', label: t('admin.modelPricing.displayCacheCreation1hPrice'), value: c.display_cache_creation_1h_price, format: 'price' },
     { key: 'display_rate_multiplier', label: t('admin.modelPricing.displayRateMultiplier'), value: c.display_rate_multiplier, format: 'rate' },
     { key: 'user_group_rate', label: t('admin.usage.userViewGroupRate'), value: c.user_group_rate, format: 'rate' }
   ]

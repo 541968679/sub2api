@@ -20,33 +20,37 @@ func NewUserModelPricingHandler(svc *service.UserModelPricingService) *UserModel
 }
 
 type createUserModelPricingRequest struct {
-	Model                     string   `json:"model" binding:"required,max=255"`
-	InputPrice                *float64 `json:"input_price" binding:"omitempty,min=0"`
-	OutputPrice               *float64 `json:"output_price" binding:"omitempty,min=0"`
-	CacheWritePrice           *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
-	CacheReadPrice            *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
-	DisplayInputPrice         *float64 `json:"display_input_price" binding:"omitempty,min=0"`
-	DisplayOutputPrice        *float64 `json:"display_output_price" binding:"omitempty,min=0"`
-	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
-	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price" binding:"omitempty,min=0"`
-	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier" binding:"omitempty,gt=0"`
-	Enabled                   *bool    `json:"enabled"`
-	Notes                     string   `json:"notes"`
+	Model                       string   `json:"model" binding:"required,max=255"`
+	InputPrice                  *float64 `json:"input_price" binding:"omitempty,min=0"`
+	OutputPrice                 *float64 `json:"output_price" binding:"omitempty,min=0"`
+	CacheWritePrice             *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
+	CacheWrite1hPrice           *float64 `json:"cache_write_1h_price" binding:"omitempty,min=0"`
+	CacheReadPrice              *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
+	DisplayInputPrice           *float64 `json:"display_input_price" binding:"omitempty,min=0"`
+	DisplayOutputPrice          *float64 `json:"display_output_price" binding:"omitempty,min=0"`
+	DisplayCacheReadPrice       *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
+	DisplayCacheCreationPrice   *float64 `json:"display_cache_creation_price" binding:"omitempty,min=0"`
+	DisplayCacheCreation1hPrice *float64 `json:"display_cache_creation_1h_price" binding:"omitempty,min=0"`
+	DisplayRateMultiplier       *float64 `json:"display_rate_multiplier" binding:"omitempty,gt=0"`
+	Enabled                     *bool    `json:"enabled"`
+	Notes                       string   `json:"notes"`
 }
 
 type updateUserModelPricingRequest struct {
-	Model                     string   `json:"model" binding:"omitempty,max=255"`
-	InputPrice                *float64 `json:"input_price" binding:"omitempty,min=0"`
-	OutputPrice               *float64 `json:"output_price" binding:"omitempty,min=0"`
-	CacheWritePrice           *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
-	CacheReadPrice            *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
-	DisplayInputPrice         *float64 `json:"display_input_price" binding:"omitempty,min=0"`
-	DisplayOutputPrice        *float64 `json:"display_output_price" binding:"omitempty,min=0"`
-	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
-	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price" binding:"omitempty,min=0"`
-	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier" binding:"omitempty,gt=0"`
-	Enabled                   *bool    `json:"enabled"`
-	Notes                     *string  `json:"notes"`
+	Model                       string   `json:"model" binding:"omitempty,max=255"`
+	InputPrice                  *float64 `json:"input_price" binding:"omitempty,min=0"`
+	OutputPrice                 *float64 `json:"output_price" binding:"omitempty,min=0"`
+	CacheWritePrice             *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
+	CacheWrite1hPrice           *float64 `json:"cache_write_1h_price" binding:"omitempty,min=0"`
+	CacheReadPrice              *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
+	DisplayInputPrice           *float64 `json:"display_input_price" binding:"omitempty,min=0"`
+	DisplayOutputPrice          *float64 `json:"display_output_price" binding:"omitempty,min=0"`
+	DisplayCacheReadPrice       *float64 `json:"display_cache_read_price" binding:"omitempty,min=0"`
+	DisplayCacheCreationPrice   *float64 `json:"display_cache_creation_price" binding:"omitempty,min=0"`
+	DisplayCacheCreation1hPrice *float64 `json:"display_cache_creation_1h_price" binding:"omitempty,min=0"`
+	DisplayRateMultiplier       *float64 `json:"display_rate_multiplier" binding:"omitempty,gt=0"`
+	Enabled                     *bool    `json:"enabled"`
+	Notes                       *string  `json:"notes"`
 }
 
 type batchUpsertUserModelPricingRequest struct {
@@ -96,19 +100,21 @@ func (h *UserModelPricingHandler) Create(c *gin.Context) {
 	}
 
 	o := &service.UserModelPricingOverride{
-		UserID:                    userID,
-		Model:                     model,
-		InputPrice:                req.InputPrice,
-		OutputPrice:               req.OutputPrice,
-		CacheWritePrice:           req.CacheWritePrice,
-		CacheReadPrice:            req.CacheReadPrice,
-		DisplayInputPrice:         req.DisplayInputPrice,
-		DisplayOutputPrice:        req.DisplayOutputPrice,
-		DisplayCacheReadPrice:     req.DisplayCacheReadPrice,
-		DisplayCacheCreationPrice: req.DisplayCacheCreationPrice,
-		DisplayRateMultiplier:     req.DisplayRateMultiplier,
-		Enabled:                   enabled,
-		Notes:                     req.Notes,
+		UserID:                      userID,
+		Model:                       model,
+		InputPrice:                  req.InputPrice,
+		OutputPrice:                 req.OutputPrice,
+		CacheWritePrice:             req.CacheWritePrice,
+		CacheWrite1hPrice:           req.CacheWrite1hPrice,
+		CacheReadPrice:              req.CacheReadPrice,
+		DisplayInputPrice:           req.DisplayInputPrice,
+		DisplayOutputPrice:          req.DisplayOutputPrice,
+		DisplayCacheReadPrice:       req.DisplayCacheReadPrice,
+		DisplayCacheCreationPrice:   req.DisplayCacheCreationPrice,
+		DisplayCacheCreation1hPrice: req.DisplayCacheCreation1hPrice,
+		DisplayRateMultiplier:       req.DisplayRateMultiplier,
+		Enabled:                     enabled,
+		Notes:                       req.Notes,
 	}
 
 	if err := h.svc.Create(c.Request.Context(), o); err != nil {
@@ -155,6 +161,9 @@ func (h *UserModelPricingHandler) Update(c *gin.Context) {
 	if req.CacheWritePrice != nil {
 		existing.CacheWritePrice = req.CacheWritePrice
 	}
+	if req.CacheWrite1hPrice != nil {
+		existing.CacheWrite1hPrice = req.CacheWrite1hPrice
+	}
 	if req.CacheReadPrice != nil {
 		existing.CacheReadPrice = req.CacheReadPrice
 	}
@@ -169,6 +178,9 @@ func (h *UserModelPricingHandler) Update(c *gin.Context) {
 	}
 	if req.DisplayCacheCreationPrice != nil {
 		existing.DisplayCacheCreationPrice = req.DisplayCacheCreationPrice
+	}
+	if req.DisplayCacheCreation1hPrice != nil {
+		existing.DisplayCacheCreation1hPrice = req.DisplayCacheCreation1hPrice
 	}
 	if req.DisplayRateMultiplier != nil {
 		existing.DisplayRateMultiplier = req.DisplayRateMultiplier
@@ -229,19 +241,21 @@ func (h *UserModelPricingHandler) BatchUpsert(c *gin.Context) {
 			enabled = *r.Enabled
 		}
 		overrides = append(overrides, service.UserModelPricingOverride{
-			UserID:                    userID,
-			Model:                     model,
-			InputPrice:                r.InputPrice,
-			OutputPrice:               r.OutputPrice,
-			CacheWritePrice:           r.CacheWritePrice,
-			CacheReadPrice:            r.CacheReadPrice,
-			DisplayInputPrice:         r.DisplayInputPrice,
-			DisplayOutputPrice:        r.DisplayOutputPrice,
-			DisplayCacheReadPrice:     r.DisplayCacheReadPrice,
-			DisplayCacheCreationPrice: r.DisplayCacheCreationPrice,
-			DisplayRateMultiplier:     r.DisplayRateMultiplier,
-			Enabled:                   enabled,
-			Notes:                     r.Notes,
+			UserID:                      userID,
+			Model:                       model,
+			InputPrice:                  r.InputPrice,
+			OutputPrice:                 r.OutputPrice,
+			CacheWritePrice:             r.CacheWritePrice,
+			CacheWrite1hPrice:           r.CacheWrite1hPrice,
+			CacheReadPrice:              r.CacheReadPrice,
+			DisplayInputPrice:           r.DisplayInputPrice,
+			DisplayOutputPrice:          r.DisplayOutputPrice,
+			DisplayCacheReadPrice:       r.DisplayCacheReadPrice,
+			DisplayCacheCreationPrice:   r.DisplayCacheCreationPrice,
+			DisplayCacheCreation1hPrice: r.DisplayCacheCreation1hPrice,
+			DisplayRateMultiplier:       r.DisplayRateMultiplier,
+			Enabled:                     enabled,
+			Notes:                       r.Notes,
 		})
 	}
 

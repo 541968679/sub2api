@@ -76,11 +76,12 @@ const (
 
 // LiteLLMPrices 管理后台展示用的 LiteLLM 价格
 type LiteLLMPrices struct {
-	InputPrice       float64 `json:"input_price"`
-	OutputPrice      float64 `json:"output_price"`
-	CacheWritePrice  float64 `json:"cache_write_price"`
-	CacheReadPrice   float64 `json:"cache_read_price"`
-	ImageOutputPrice float64 `json:"image_output_price"`
+	InputPrice        float64 `json:"input_price"`
+	OutputPrice       float64 `json:"output_price"`
+	CacheWritePrice   float64 `json:"cache_write_price"`
+	CacheWrite1hPrice float64 `json:"cache_write_1h_price"`
+	CacheReadPrice    float64 `json:"cache_read_price"`
+	ImageOutputPrice  float64 `json:"image_output_price"`
 }
 
 // GlobalOverride 全局覆盖信息（API 返回用）
@@ -107,11 +108,12 @@ type GlobalOverride struct {
 	Enabled                 bool                    `json:"enabled"`
 	Notes                   string                  `json:"notes"`
 
-	DisplayInputPrice         *float64 `json:"display_input_price"`
-	DisplayOutputPrice        *float64 `json:"display_output_price"`
-	DisplayCacheReadPrice     *float64 `json:"display_cache_read_price"`
-	DisplayCacheCreationPrice *float64 `json:"display_cache_creation_price"`
-	DisplayRateMultiplier     *float64 `json:"display_rate_multiplier"`
+	DisplayInputPrice           *float64 `json:"display_input_price"`
+	DisplayOutputPrice          *float64 `json:"display_output_price"`
+	DisplayCacheReadPrice       *float64 `json:"display_cache_read_price"`
+	DisplayCacheCreationPrice   *float64 `json:"display_cache_creation_price"`
+	DisplayCacheCreation1hPrice *float64 `json:"display_cache_creation_1h_price"`
+	DisplayRateMultiplier       *float64 `json:"display_rate_multiplier"`
 
 	ShowOnPricingPage bool `json:"show_on_pricing_page"`
 }
@@ -180,11 +182,12 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		// LiteLLM 价格
 		if entry.Pricing != nil {
 			item.LiteLLMPrices = &LiteLLMPrices{
-				InputPrice:       entry.Pricing.InputCostPerToken,
-				OutputPrice:      entry.Pricing.OutputCostPerToken,
-				CacheWritePrice:  entry.Pricing.CacheCreationInputTokenCost,
-				CacheReadPrice:   entry.Pricing.CacheReadInputTokenCost,
-				ImageOutputPrice: entry.Pricing.OutputCostPerImageToken,
+				InputPrice:        entry.Pricing.InputCostPerToken,
+				OutputPrice:       entry.Pricing.OutputCostPerToken,
+				CacheWritePrice:   entry.Pricing.CacheCreationInputTokenCost,
+				CacheWrite1hPrice: entry.Pricing.CacheCreationInputTokenCostAbove1hr,
+				CacheReadPrice:    entry.Pricing.CacheReadInputTokenCost,
+				ImageOutputPrice:  entry.Pricing.OutputCostPerImageToken,
 			}
 		}
 
@@ -428,11 +431,12 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 		if litellmPricing != nil {
 			detail.Provider = litellmPricing.LiteLLMProvider
 			detail.LiteLLMPrices = &LiteLLMPrices{
-				InputPrice:       litellmPricing.InputCostPerToken,
-				OutputPrice:      litellmPricing.OutputCostPerToken,
-				CacheWritePrice:  litellmPricing.CacheCreationInputTokenCost,
-				CacheReadPrice:   litellmPricing.CacheReadInputTokenCost,
-				ImageOutputPrice: litellmPricing.OutputCostPerImageToken,
+				InputPrice:        litellmPricing.InputCostPerToken,
+				OutputPrice:       litellmPricing.OutputCostPerToken,
+				CacheWritePrice:   litellmPricing.CacheCreationInputTokenCost,
+				CacheWrite1hPrice: litellmPricing.CacheCreationInputTokenCostAbove1hr,
+				CacheReadPrice:    litellmPricing.CacheReadInputTokenCost,
+				ImageOutputPrice:  litellmPricing.OutputCostPerImageToken,
 			}
 		}
 	}
@@ -510,11 +514,12 @@ func (s *GlobalModelPricingService) suggestPricing(model string) (*LiteLLMPrices
 			return nil, ""
 		}
 		return &LiteLLMPrices{
-			InputPrice:       lp.InputCostPerToken,
-			OutputPrice:      lp.OutputCostPerToken,
-			CacheWritePrice:  lp.CacheCreationInputTokenCost,
-			CacheReadPrice:   lp.CacheReadInputTokenCost,
-			ImageOutputPrice: lp.OutputCostPerImageToken,
+			InputPrice:        lp.InputCostPerToken,
+			OutputPrice:       lp.OutputCostPerToken,
+			CacheWritePrice:   lp.CacheCreationInputTokenCost,
+			CacheWrite1hPrice: lp.CacheCreationInputTokenCostAbove1hr,
+			CacheReadPrice:    lp.CacheReadInputTokenCost,
+			ImageOutputPrice:  lp.OutputCostPerImageToken,
 		}, name
 	}
 
@@ -837,11 +842,12 @@ func ToGlobalOverride(gp *GlobalModelPricing) *GlobalOverride {
 		Enabled:                 gp.Enabled,
 		Notes:                   gp.Notes,
 
-		DisplayInputPrice:         gp.DisplayInputPrice,
-		DisplayOutputPrice:        gp.DisplayOutputPrice,
-		DisplayCacheReadPrice:     gp.DisplayCacheReadPrice,
-		DisplayCacheCreationPrice: gp.DisplayCacheCreationPrice,
-		DisplayRateMultiplier:     gp.DisplayRateMultiplier,
+		DisplayInputPrice:           gp.DisplayInputPrice,
+		DisplayOutputPrice:          gp.DisplayOutputPrice,
+		DisplayCacheReadPrice:       gp.DisplayCacheReadPrice,
+		DisplayCacheCreationPrice:   gp.DisplayCacheCreationPrice,
+		DisplayCacheCreation1hPrice: gp.DisplayCacheCreation1hPrice,
+		DisplayRateMultiplier:       gp.DisplayRateMultiplier,
 
 		ShowOnPricingPage: gp.ShowOnPricingPage,
 	}

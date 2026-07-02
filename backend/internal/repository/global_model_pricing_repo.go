@@ -14,7 +14,7 @@ type globalModelPricingRepository struct {
 	db *sql.DB
 }
 
-const globalModelPricingSelectColumns = `id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price, image_output_price, per_request_price, image_price_1k, image_price_2k, image_price_4k, image_billing_strategy, image_megapixel_price, image_quality_prices, image_quality_multipliers, image_tier_rules, enabled, notes, display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_rate_multiplier, show_on_pricing_page, created_at, updated_at`
+const globalModelPricingSelectColumns = `id, model, provider, billing_mode, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price, image_output_price, per_request_price, image_price_1k, image_price_2k, image_price_4k, image_billing_strategy, image_megapixel_price, image_quality_prices, image_quality_multipliers, image_tier_rules, enabled, notes, display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_cache_creation_1h_price, display_rate_multiplier, show_on_pricing_page, created_at, updated_at`
 
 // NewGlobalModelPricingRepository 创建全局模型定价数据访问实例
 func NewGlobalModelPricingRepository(db *sql.DB) service.GlobalModelPricingRepository {
@@ -134,8 +134,8 @@ func (r *globalModelPricingRepository) Create(ctx context.Context, pricing *serv
 	}
 	imageStrategy := service.NormalizeImageBillingStrategy(pricing.ImageBillingStrategy)
 	err := r.db.QueryRowContext(ctx,
-		`INSERT INTO global_model_pricing (model, provider, billing_mode, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price, image_output_price, per_request_price, image_price_1k, image_price_2k, image_price_4k, image_billing_strategy, image_megapixel_price, image_quality_prices, image_quality_multipliers, image_tier_rules, enabled, notes, display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_rate_multiplier, show_on_pricing_page)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+		`INSERT INTO global_model_pricing (model, provider, billing_mode, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price, image_output_price, per_request_price, image_price_1k, image_price_2k, image_price_4k, image_billing_strategy, image_megapixel_price, image_quality_prices, image_quality_multipliers, image_tier_rules, enabled, notes, display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_cache_creation_1h_price, display_rate_multiplier, show_on_pricing_page)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
 		 RETURNING id, created_at, updated_at`,
 		pricing.Model, pricing.Provider, billingMode,
 		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite1hPrice, pricing.CacheReadPrice,
@@ -143,7 +143,7 @@ func (r *globalModelPricingRepository) Create(ctx context.Context, pricing *serv
 		pricing.ImagePrice1K, pricing.ImagePrice2K, pricing.ImagePrice4K,
 		imageStrategy, pricing.ImageMegapixelPrice, service.ImageQualityPricesJSON(pricing.ImageQualityPrices), service.ImageQualityMultipliersJSON(pricing.ImageQualityMultipliers), service.ImageTierRulesJSON(pricing.ImageTierRules),
 		pricing.Enabled, pricing.Notes,
-		pricing.DisplayInputPrice, pricing.DisplayOutputPrice, pricing.DisplayCacheReadPrice, pricing.DisplayCacheCreationPrice, pricing.DisplayRateMultiplier,
+		pricing.DisplayInputPrice, pricing.DisplayOutputPrice, pricing.DisplayCacheReadPrice, pricing.DisplayCacheCreationPrice, pricing.DisplayCacheCreation1hPrice, pricing.DisplayRateMultiplier,
 		pricing.ShowOnPricingPage,
 	).Scan(&pricing.ID, &pricing.CreatedAt, &pricing.UpdatedAt)
 	if err != nil {
@@ -163,15 +163,15 @@ func (r *globalModelPricingRepository) Update(ctx context.Context, pricing *serv
 	imageStrategy := service.NormalizeImageBillingStrategy(pricing.ImageBillingStrategy)
 	result, err := r.db.ExecContext(ctx,
 		`UPDATE global_model_pricing
-		 SET model = $1, provider = $2, billing_mode = $3, input_price = $4, output_price = $5, cache_write_price = $6, cache_write_1h_price = $7, cache_read_price = $8, image_output_price = $9, per_request_price = $10, image_price_1k = $11, image_price_2k = $12, image_price_4k = $13, image_billing_strategy = $14, image_megapixel_price = $15, image_quality_prices = $16, image_quality_multipliers = $17, image_tier_rules = $18, enabled = $19, notes = $20, display_input_price = $21, display_output_price = $22, display_cache_read_price = $23, display_cache_creation_price = $24, display_rate_multiplier = $25, show_on_pricing_page = $26, updated_at = NOW()
-		 WHERE id = $27`,
+		 SET model = $1, provider = $2, billing_mode = $3, input_price = $4, output_price = $5, cache_write_price = $6, cache_write_1h_price = $7, cache_read_price = $8, image_output_price = $9, per_request_price = $10, image_price_1k = $11, image_price_2k = $12, image_price_4k = $13, image_billing_strategy = $14, image_megapixel_price = $15, image_quality_prices = $16, image_quality_multipliers = $17, image_tier_rules = $18, enabled = $19, notes = $20, display_input_price = $21, display_output_price = $22, display_cache_read_price = $23, display_cache_creation_price = $24, display_cache_creation_1h_price = $25, display_rate_multiplier = $26, show_on_pricing_page = $27, updated_at = NOW()
+		 WHERE id = $28`,
 		pricing.Model, pricing.Provider, billingMode,
 		pricing.InputPrice, pricing.OutputPrice, pricing.CacheWritePrice, pricing.CacheWrite1hPrice, pricing.CacheReadPrice,
 		pricing.ImageOutputPrice, pricing.PerRequestPrice,
 		pricing.ImagePrice1K, pricing.ImagePrice2K, pricing.ImagePrice4K,
 		imageStrategy, pricing.ImageMegapixelPrice, service.ImageQualityPricesJSON(pricing.ImageQualityPrices), service.ImageQualityMultipliersJSON(pricing.ImageQualityMultipliers), service.ImageTierRulesJSON(pricing.ImageTierRules),
 		pricing.Enabled, pricing.Notes,
-		pricing.DisplayInputPrice, pricing.DisplayOutputPrice, pricing.DisplayCacheReadPrice, pricing.DisplayCacheCreationPrice, pricing.DisplayRateMultiplier,
+		pricing.DisplayInputPrice, pricing.DisplayOutputPrice, pricing.DisplayCacheReadPrice, pricing.DisplayCacheCreationPrice, pricing.DisplayCacheCreation1hPrice, pricing.DisplayRateMultiplier,
 		pricing.ShowOnPricingPage,
 		pricing.ID,
 	)
@@ -268,7 +268,7 @@ func scanGlobalModelPricing(scanner globalPricingScanner) (*service.GlobalModelP
 		&p.ImagePrice1K, &p.ImagePrice2K, &p.ImagePrice4K,
 		&p.ImageBillingStrategy, &p.ImageMegapixelPrice, &imageQualityPrices, &imageQualityMultipliers, &imageTierRules,
 		&p.Enabled, &p.Notes,
-		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayCacheReadPrice, &p.DisplayCacheCreationPrice, &p.DisplayRateMultiplier,
+		&p.DisplayInputPrice, &p.DisplayOutputPrice, &p.DisplayCacheReadPrice, &p.DisplayCacheCreationPrice, &p.DisplayCacheCreation1hPrice, &p.DisplayRateMultiplier,
 		&p.ShowOnPricingPage,
 		&p.CreatedAt, &p.UpdatedAt,
 	); err != nil {

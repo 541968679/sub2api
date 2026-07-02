@@ -91,7 +91,7 @@
           </div>
           <div>
             <label class="mb-1 block text-xs text-gray-500" :title="t('admin.modelPricing.cacheWrite1hPriceHint')">{{ t('admin.modelPricing.cacheWrite1hPrice') }} ($/MTok)</label>
-            <input v-model="form.cache_write_1h_price" type="number" step="any" class="input text-sm w-full" placeholder="--" />
+            <input v-model="form.cache_write_1h_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('cache_write_1h_price')" />
           </div>
           <div>
             <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.cacheReadPrice') }} ($/MTok)</label>
@@ -196,6 +196,10 @@
             <div>
               <label class="mb-1 block text-[10px] text-gray-500" :title="t('admin.modelPricing.displayCacheCreationPriceHint')">{{ t('admin.modelPricing.displayCacheCreationPrice') }}</label>
               <input v-model="form.display_cache_creation_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
+            </div>
+            <div>
+              <label class="mb-1 block text-[10px] text-gray-500" :title="t('admin.modelPricing.displayCacheCreation1hPriceHint')">{{ t('admin.modelPricing.displayCacheCreation1hPrice') }}</label>
+              <input v-model="form.display_cache_creation_1h_price" type="number" step="any" min="0" class="input text-sm w-full" placeholder="--" />
             </div>
           </div>
         </div>
@@ -320,6 +324,7 @@ const form = reactive({
   display_output_price: '' as string | number,
   display_cache_read_price: '' as string | number,
   display_cache_creation_price: '' as string | number,
+  display_cache_creation_1h_price: '' as string | number,
   show_on_pricing_page: false,
 })
 
@@ -344,6 +349,7 @@ const litellmFields = computed(() => [
   { key: 'input_price', label: t('admin.modelPricing.inputPrice') + ' ($/MTok)' },
   { key: 'output_price', label: t('admin.modelPricing.outputPrice') + ' ($/MTok)' },
   { key: 'cache_write_price', label: t('admin.modelPricing.cacheWritePrice') + ' ($/MTok)' },
+  { key: 'cache_write_1h_price', label: t('admin.modelPricing.cacheWrite1hPrice') + ' ($/MTok)' },
   { key: 'cache_read_price', label: t('admin.modelPricing.cacheReadPrice') + ' ($/MTok)' },
   { key: 'image_output_price', label: t('admin.modelPricing.imageOutputPrice') + ' ($/MTok)' },
 ])
@@ -443,6 +449,7 @@ async function loadDetail() {
       form.display_output_price = go.display_output_price != null ? perTokenToMTok(go.display_output_price) ?? '' : ''
       form.display_cache_read_price = go.display_cache_read_price != null ? perTokenToMTok(go.display_cache_read_price) ?? '' : ''
       form.display_cache_creation_price = go.display_cache_creation_price != null ? perTokenToMTok(go.display_cache_creation_price) ?? '' : ''
+      form.display_cache_creation_1h_price = go.display_cache_creation_1h_price != null ? perTokenToMTok(go.display_cache_creation_1h_price) ?? '' : ''
       form.show_on_pricing_page = Boolean(go.show_on_pricing_page)
     } else {
       form.enabled = true
@@ -468,6 +475,7 @@ async function loadDetail() {
       form.display_output_price = ''
       form.display_cache_read_price = ''
       form.display_cache_creation_price = ''
+      form.display_cache_creation_1h_price = ''
       form.show_on_pricing_page = false
     }
   } catch {
@@ -507,6 +515,7 @@ async function handleSave() {
       display_output_price: mTokToPerToken(form.display_output_price),
       display_cache_read_price: mTokToPerToken(form.display_cache_read_price),
       display_cache_creation_price: mTokToPerToken(form.display_cache_creation_price),
+      display_cache_creation_1h_price: mTokToPerToken(form.display_cache_creation_1h_price),
       show_on_pricing_page: form.show_on_pricing_page,
     }
 
@@ -561,11 +570,13 @@ function applyDisplaySuggested() {
   const outputPerToken = lp?.output_price ?? sp?.output_price ?? null
   const cacheReadPerToken = lp?.cache_read_price ?? sp?.cache_read_price ?? null
   const cacheWritePerToken = lp?.cache_write_price ?? sp?.cache_write_price ?? null
+  const cacheWrite1hPerToken = lp?.cache_write_1h_price ?? null
 
   form.display_input_price = inputPerToken != null ? (perTokenToMTok(inputPerToken) ?? '') : ''
   form.display_output_price = outputPerToken != null ? (perTokenToMTok(outputPerToken) ?? '') : ''
   form.display_cache_read_price = cacheReadPerToken != null ? (perTokenToMTok(cacheReadPerToken) ?? '') : ''
   form.display_cache_creation_price = cacheWritePerToken != null ? (perTokenToMTok(cacheWritePerToken) ?? '') : ''
+  form.display_cache_creation_1h_price = cacheWrite1hPerToken != null && cacheWrite1hPerToken > 0 ? (perTokenToMTok(cacheWrite1hPerToken) ?? '') : ''
 }
 
 async function handleDelete() {

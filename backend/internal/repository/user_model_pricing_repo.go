@@ -16,19 +16,19 @@ func NewUserModelPricingRepository(sqlDB *sql.DB) service.UserModelPricingReposi
 	return &userModelPricingRepository{sql: sqlDB}
 }
 
-const userModelPricingColumns = `id, user_id, model, input_price, output_price, cache_write_price, cache_read_price,
-	display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_rate_multiplier,
+const userModelPricingColumns = `id, user_id, model, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price,
+	display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_cache_creation_1h_price, display_rate_multiplier,
 	enabled, notes, created_at, updated_at`
 
 func scanOverride(rows *sql.Rows) (service.UserModelPricingOverride, error) {
 	var o service.UserModelPricingOverride
-	var inputP, outputP, cwP, crP sql.NullFloat64
-	var dInputP, dOutputP, dCacheReadP, dCacheCreateP, dRate sql.NullFloat64
+	var inputP, outputP, cwP, cw1hP, crP sql.NullFloat64
+	var dInputP, dOutputP, dCacheReadP, dCacheCreateP, dCacheCreate1hP, dRate sql.NullFloat64
 	var notes sql.NullString
 	err := rows.Scan(
 		&o.ID, &o.UserID, &o.Model,
-		&inputP, &outputP, &cwP, &crP,
-		&dInputP, &dOutputP, &dCacheReadP, &dCacheCreateP, &dRate,
+		&inputP, &outputP, &cwP, &cw1hP, &crP,
+		&dInputP, &dOutputP, &dCacheReadP, &dCacheCreateP, &dCacheCreate1hP, &dRate,
 		&o.Enabled, &notes, &o.CreatedAt, &o.UpdatedAt,
 	)
 	if err != nil {
@@ -42,6 +42,9 @@ func scanOverride(rows *sql.Rows) (service.UserModelPricingOverride, error) {
 	}
 	if cwP.Valid {
 		o.CacheWritePrice = &cwP.Float64
+	}
+	if cw1hP.Valid {
+		o.CacheWrite1hPrice = &cw1hP.Float64
 	}
 	if crP.Valid {
 		o.CacheReadPrice = &crP.Float64
@@ -57,6 +60,9 @@ func scanOverride(rows *sql.Rows) (service.UserModelPricingOverride, error) {
 	}
 	if dCacheCreateP.Valid {
 		o.DisplayCacheCreationPrice = &dCacheCreateP.Float64
+	}
+	if dCacheCreate1hP.Valid {
+		o.DisplayCacheCreation1hPrice = &dCacheCreate1hP.Float64
 	}
 	if dRate.Valid {
 		o.DisplayRateMultiplier = &dRate.Float64
@@ -150,17 +156,17 @@ func (r *userModelPricingRepository) GetByID(ctx context.Context, id int64) (*se
 func (r *userModelPricingRepository) Create(ctx context.Context, o *service.UserModelPricingOverride) error {
 	now := time.Now()
 	query := `INSERT INTO user_model_pricing_overrides
-		(user_id, model, input_price, output_price, cache_write_price, cache_read_price,
-		 display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_rate_multiplier,
+		(user_id, model, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price,
+		 display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_cache_creation_1h_price, display_rate_multiplier,
 		 enabled, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
 		RETURNING id, created_at, updated_at`
 	rows, err := r.sql.QueryContext(ctx, query,
 		o.UserID, o.Model,
 		toNullFloat(o.InputPrice), toNullFloat(o.OutputPrice),
-		toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheReadPrice),
+		toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheWrite1hPrice), toNullFloat(o.CacheReadPrice),
 		toNullFloat(o.DisplayInputPrice), toNullFloat(o.DisplayOutputPrice),
-		toNullFloat(o.DisplayCacheReadPrice), toNullFloat(o.DisplayCacheCreationPrice), toNullFloat(o.DisplayRateMultiplier),
+		toNullFloat(o.DisplayCacheReadPrice), toNullFloat(o.DisplayCacheCreationPrice), toNullFloat(o.DisplayCacheCreation1hPrice), toNullFloat(o.DisplayRateMultiplier),
 		o.Enabled, o.Notes, now,
 	)
 	if err != nil {
@@ -176,16 +182,16 @@ func (r *userModelPricingRepository) Create(ctx context.Context, o *service.User
 func (r *userModelPricingRepository) Update(ctx context.Context, o *service.UserModelPricingOverride) error {
 	now := time.Now()
 	query := `UPDATE user_model_pricing_overrides SET
-		model = $2, input_price = $3, output_price = $4, cache_write_price = $5, cache_read_price = $6,
-		display_input_price = $7, display_output_price = $8, display_cache_read_price = $9, display_cache_creation_price = $10, display_rate_multiplier = $11,
-		enabled = $12, notes = $13, updated_at = $14
+		model = $2, input_price = $3, output_price = $4, cache_write_price = $5, cache_write_1h_price = $6, cache_read_price = $7,
+		display_input_price = $8, display_output_price = $9, display_cache_read_price = $10, display_cache_creation_price = $11, display_cache_creation_1h_price = $12, display_rate_multiplier = $13,
+		enabled = $14, notes = $15, updated_at = $16
 		WHERE id = $1`
 	_, err := r.sql.ExecContext(ctx, query,
 		o.ID, o.Model,
 		toNullFloat(o.InputPrice), toNullFloat(o.OutputPrice),
-		toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheReadPrice),
+		toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheWrite1hPrice), toNullFloat(o.CacheReadPrice),
 		toNullFloat(o.DisplayInputPrice), toNullFloat(o.DisplayOutputPrice),
-		toNullFloat(o.DisplayCacheReadPrice), toNullFloat(o.DisplayCacheCreationPrice), toNullFloat(o.DisplayRateMultiplier),
+		toNullFloat(o.DisplayCacheReadPrice), toNullFloat(o.DisplayCacheCreationPrice), toNullFloat(o.DisplayCacheCreation1hPrice), toNullFloat(o.DisplayRateMultiplier),
 		o.Enabled, o.Notes, now,
 	)
 	if err == nil {
@@ -209,10 +215,10 @@ func (r *userModelPricingRepository) BatchUpsert(ctx context.Context, userID int
 	for _, o := range overrides {
 		_, err := r.sql.ExecContext(ctx, `
 			INSERT INTO user_model_pricing_overrides
-				(user_id, model, input_price, output_price, cache_write_price, cache_read_price,
-				 display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_rate_multiplier,
+				(user_id, model, input_price, output_price, cache_write_price, cache_write_1h_price, cache_read_price,
+				 display_input_price, display_output_price, display_cache_read_price, display_cache_creation_price, display_cache_creation_1h_price, display_rate_multiplier,
 				 enabled, notes, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
 			ON CONFLICT (user_id, model) DO UPDATE SET
 				input_price = EXCLUDED.input_price,
 				output_price = EXCLUDED.output_price,
@@ -228,9 +234,9 @@ func (r *userModelPricingRepository) BatchUpsert(ctx context.Context, userID int
 				updated_at = EXCLUDED.updated_at`,
 			userID, o.Model,
 			toNullFloat(o.InputPrice), toNullFloat(o.OutputPrice),
-			toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheReadPrice),
+			toNullFloat(o.CacheWritePrice), toNullFloat(o.CacheWrite1hPrice), toNullFloat(o.CacheReadPrice),
 			toNullFloat(o.DisplayInputPrice), toNullFloat(o.DisplayOutputPrice),
-			toNullFloat(o.DisplayCacheReadPrice), toNullFloat(o.DisplayCacheCreationPrice), toNullFloat(o.DisplayRateMultiplier),
+			toNullFloat(o.DisplayCacheReadPrice), toNullFloat(o.DisplayCacheCreationPrice), toNullFloat(o.DisplayCacheCreation1hPrice), toNullFloat(o.DisplayRateMultiplier),
 			o.Enabled, o.Notes, now,
 		)
 		if err != nil {

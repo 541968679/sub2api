@@ -3475,3 +3475,17 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - RateScale(展示倍率层)在分档反算后复合,与 ApplyUserDisplayRate 串联语义一致。
 - 前置依赖:同日的流式计费 patch 顺序修复(否则缓存创建计费会被本改写污染)。
 - Verified: go build/vet;display token 全部用例(既有 11 + 新增 8:分档倍率计算/用户级覆盖优先/嵌套同步/纯 1h 生产形状/RateScale 复合/无嵌套回退/OpenAI 结构缩放/trivial no-op);gateway 流式与 handler/repository 全量单测通过。
+
+## [2026-07-02] feat(billing): 5m/1h 缓存分档价格配置面补全（用户级真实价 + 全局/用户级展示价 + LiteLLM 参考）
+
+**Affected files**: backend/migrations/173_add_cache_tier_pricing_fields.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service,model_pricing_resolver,display_token_rewrite}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/internal/service/{display_token_rewrite_test,model_pricing_resolver_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/api/admin/{modelPricing,userModelPricing,usage}.ts, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal,usage/UserViewCompareDrawer}.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: additive。migration 173 新增三列均 NULL=行为零变化;LiteLLMPrices 载荷加 cache_write_1h_price(来自 litellm 的 cache_creation_input_token_cost_above_1hr)。
+**Change details**:
+- **用户级真实 1h 价** `user_model_pricing_overrides.cache_write_1h_price`:applyUserModelPricingOverride 与全局同语义(单独写 CacheCreation1hPrice + 强制 SupportsCacheBreakdown),用户级也能表达 1h 溢价分档计费。
+- **展示价分档** `display_cache_creation_1h_price`(全局 + 用户级):
+  - usage-log 展示(ApplyDisplayTransform):行有 5m/1h 细分且两档展示价不同时,按真实档价比例(r=1h/5m,来自定价条目的 RealCacheWritePrice/RealCacheWrite1hPrice,未知时按 1:1)拆分实际落库成本,各档独立反算展示 token —— 成本总额按构造守恒;只配 5m 档展示价时保持既有"总成本反算"路径(回归钉)。
+  - 下游改写(computeDisplayTokenMultipliers):CacheCreate1hMult 分母改用 1h 展示价(未配回退 5m 档展示价),两侧口径一致。
+  - 长上下文克隆对 1h 展示价同乘 LongContextInputMultiplier;hasDisplayOverride/BuildUserDisplayPricingMap/merge 函数全链纳入。
+- **配置界面补全**:全局定价对话框(LiteLLM 参考区 + 计费区 1h 输入框带 litellm placeholder + 展示区 1h 输入框 + applyDisplaySuggested 从 litellm 1h 取建议)、用户定价模态框(LiteLLM 参考行 + 真实/展示两个 1h 输入框 + 建议值 + $/MTok 双向换算)、对比抽屉 config_used 展示 1h 展示价;i18n zh/en。
+- **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
+- Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。

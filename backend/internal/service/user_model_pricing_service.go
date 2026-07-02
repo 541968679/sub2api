@@ -90,11 +90,13 @@ func validateUserModelPricingOverride(o *UserModelPricingOverride) error {
 		{"input_price", o.InputPrice},
 		{"output_price", o.OutputPrice},
 		{"cache_write_price", o.CacheWritePrice},
+		{"cache_write_1h_price", o.CacheWrite1hPrice},
 		{"cache_read_price", o.CacheReadPrice},
 		{"display_input_price", o.DisplayInputPrice},
 		{"display_output_price", o.DisplayOutputPrice},
 		{"display_cache_read_price", o.DisplayCacheReadPrice},
 		{"display_cache_creation_price", o.DisplayCacheCreationPrice},
+		{"display_cache_creation_1h_price", o.DisplayCacheCreation1hPrice},
 	}
 	for _, p := range prices {
 		if err := validateNonNegativeFiniteFloat(p.name, p.value); err != nil {

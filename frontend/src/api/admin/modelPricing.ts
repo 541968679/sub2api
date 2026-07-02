@@ -11,6 +11,7 @@ export interface LiteLLMPrices {
   input_price: number
   output_price: number
   cache_write_price: number
+  cache_write_1h_price: number
   cache_read_price: number
   image_output_price: number
 }
@@ -41,6 +42,7 @@ export interface GlobalOverride {
   display_output_price: number | null
   display_cache_read_price: number | null
   display_cache_creation_price: number | null
+  display_cache_creation_1h_price: number | null
   display_rate_multiplier: number | null
   show_on_pricing_page: boolean
 }
@@ -135,6 +137,7 @@ export interface CreateOverrideRequest {
   display_output_price?: number | null
   display_cache_read_price?: number | null
   display_cache_creation_price?: number | null
+  display_cache_creation_1h_price?: number | null
   display_rate_multiplier?: number | null
   show_on_pricing_page?: boolean
 }
@@ -164,6 +167,7 @@ export interface UpdateOverrideRequest {
   display_output_price?: number | null
   display_cache_read_price?: number | null
   display_cache_creation_price?: number | null
+  display_cache_creation_1h_price?: number | null
   display_rate_multiplier?: number | null
   show_on_pricing_page?: boolean
 }
