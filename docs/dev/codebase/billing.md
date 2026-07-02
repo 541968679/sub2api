@@ -339,6 +339,45 @@ in `global_model_pricing` and `user_model_pricing_overrides` for rollback and ol
 data compatibility, but the backend no longer reads or writes them, admin/user
 pricing APIs no longer expose them, and the frontend no longer renders the field.
 
+### Display cache creation price:缓存创建展示放大 (2026-07-02)
+
+第 4 个展示价 `display_cache_creation_price`(migration 171,`global_model_pricing` 与
+`user_model_pricing_overrides` 各一列)。与 cache-read 的 premium 折算**刻意不同**:
+缓存创建直接反算放大自己的 token 数,不把差价折进 input/output:
+
+```
+display_cache_creation_tokens = round(real_cache_creation_cost / display_cache_creation_price)
+display_cache_creation_cost   = display_tokens * display_cache_creation_price  (≈ 真实成本,仅取整误差)
+```
+
+要点:
+
+- 生效守卫:`DisplayCacheCreationPrice > 0 && CacheCreationTokens > 0 && CacheCreationCost > 0`,
+  不依赖 `display_input_price`(与 cache-read premium 不同)。任一不满足则整块 no-op 保留真实值。
+- 变换后 `cost/token` 比值恒等于展示价,堵住"用户可从 usage log 反推真实缓存写单价"的泄漏。
+- 该变换对 `CacheCreationCost` 是线性函数(无 max(0,·) 非线性),因此
+  `GetUserDisplayAggregateGroups` 聚合组变换与逐行变换天然等价(仅取整误差),GROUP BY 契约零改动。
+- 5m/1h 细分通过 `rescaleCacheCreationBreakdown`(display_pricing.go)等比缩放:一档取整、
+  另一档减法导出,保证 `5m + 1h == total` 不变量;`ApplyUserDisplayRate` 缩放 cache creation
+  时同样调用它(修复了此前细分不随倍率缩放的旧 bug)。
+- 长上下文:`effectiveDisplayPricingForUsageLog` 克隆时新价乘 `LongContextInputMultiplier`(输入侧)。
+- admin 双列 `DisplayUsageFields` 新增 `display_cache_creation_tokens/cost`;对比抽屉
+  `config_used` 回传 `display_cache_creation_price`。
+- 用户侧可见性:`UsageView.vue` 与 `KeyUsageView.vue` 的 token 徽章、token tooltip(含 5m/1h)、
+  成本 tooltip、token 合计均已渲染 cache creation(此前用户侧完全不显示)。
+  admin 专属的 cache TTL override "R" 徽章仍不给用户看。
+- **平台边界(软 gate)**:该展示价按模型名配置(DisplayPricingMap 小写模型名为键)。
+  openai 原生、antigravity OAuth(Gemini 变换)、claude-gpt 桥接、gemini 路径的行
+  `cache_creation` 恒 0 → 数值 no-op。但 antigravity 分组的 **upstream 中转账号 / apikey 型账号**
+  走 Claude 协议会真实解析 cache_creation,openai relay 透传也可能带
+  `cache_creation_input_tokens` —— 这些行若命中已配置展示价的 claude-* 模型,展示换算同样生效
+  (语义正确:缓存创建真实发生、真实计费)。
+- **本批不改** `display_token_rewrite.go`(下游响应 usage):`CacheCreateMult` 仍恒 1.0,
+  下游响应的 cache_creation token 为真实值。若 usage 页与下游响应需要完全一致,需后续给
+  `computeDisplayTokenMultipliers` 接入 `CacheCreationPrice/DisplayCacheCreationPrice`
+  (前置依赖:先修 gateway_service.go OAuth 流式路径 extractSSEUsagePatch 在展示改写之后
+  提取计费 patch 的污染 bug,见 PLAN_anthropic_cache_creation_display_fix.md Phase 0)。
+
 ### 下游响应 token 模式 (2026-06-01)
 
 `users.downstream_usage_token_mode` controls only the token counts returned in

@@ -131,6 +131,11 @@
                   <input v-model.number="item.display_cache_read_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
                     class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
                 </div>
+                <div>
+                  <label class="text-xs text-gray-500" :title="t('admin.modelPricing.displayCacheCreationPriceHint')">{{ t('admin.modelPricing.displayCacheCreationPrice') }}</label>
+                  <input v-model.number="item.display_cache_creation_price" type="number" step="any" min="0" :placeholder="t('admin.users.noOverride')"
+                    class="w-full rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700" />
+                </div>
               </div>
             </div>
           </div>
@@ -195,6 +200,7 @@ interface OverrideRow {
   display_input_price: number | null
   display_output_price: number | null
   display_cache_read_price: number | null
+  display_cache_creation_price: number | null
   enabled: boolean
   notes: string
   _deleted?: boolean
@@ -292,6 +298,8 @@ function applySuggestedDisplay(item: OverrideRow) {
   if (outputMTok != null) item.display_output_price = outputMTok
   const cacheReadMTok = getSuggestedMTok(item, 'cache_read_price')
   if (cacheReadMTok != null) item.display_cache_read_price = cacheReadMTok
+  const cacheWriteMTok = getSuggestedMTok(item, 'cache_write_price')
+  if (cacheWriteMTok != null) item.display_cache_creation_price = cacheWriteMTok
 }
 
 watch(
@@ -312,6 +320,7 @@ watch(
         display_input_price: perTokenToMTok(o.display_input_price) ?? null,
         display_output_price: perTokenToMTok(o.display_output_price) ?? null,
         display_cache_read_price: perTokenToMTok(o.display_cache_read_price) ?? null,
+        display_cache_creation_price: perTokenToMTok(o.display_cache_creation_price) ?? null,
         enabled: o.enabled,
         notes: o.notes || '',
       }))
@@ -334,6 +343,7 @@ function addOverride() {
     display_input_price: null,
     display_output_price: null,
     display_cache_read_price: null,
+    display_cache_creation_price: null,
     enabled: true,
     notes: '',
   })
@@ -366,6 +376,7 @@ async function save() {
         display_input_price: mTokToPerToken(o.display_input_price),
         display_output_price: mTokToPerToken(o.display_output_price),
         display_cache_read_price: mTokToPerToken(o.display_cache_read_price),
+        display_cache_creation_price: mTokToPerToken(o.display_cache_creation_price),
         enabled: o.enabled,
         notes: o.notes || '',
       }))

@@ -17,11 +17,15 @@ const messages: Record<string, string> = {
   'admin.usage.inputCost': 'Input Cost',
   'admin.usage.outputCost': 'Output Cost',
   'admin.usage.cacheReadCost': 'Cache Read Cost',
+  'admin.usage.cacheCreationCost': 'Cache Creation Cost',
   'usage.tokenDetails': 'Token Details',
   'usage.totalTokens': 'Total Tokens',
   'admin.usage.inputTokens': 'Input Tokens',
   'admin.usage.outputTokens': 'Output Tokens',
   'admin.usage.cacheReadTokens': 'Cache Read Tokens',
+  'admin.usage.cacheCreationTokens': 'Cache Creation Tokens',
+  'admin.usage.cacheCreation5mTokens': 'Cache Write 5m',
+  'admin.usage.cacheCreation1hTokens': 'Cache Write 1h',
   'usage.inputTokenPrice': 'Input price',
   'usage.outputTokenPrice': 'Output price',
   'usage.perMillionTokens': '/ 1M tokens',
@@ -188,10 +192,11 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('$5.0000 / 1M tokens')
     expect(text).toContain('$30.0000 / 1M tokens')
     expect(text).toContain('Cache Read Cost')
-    expect(text).not.toContain('Cache Creation Cost')
+    expect(text).toContain('Cache Creation Cost')
+    expect(text).toContain('$0.120000')
   })
 
-  it('hides cache write token details in the user token tooltip', async () => {
+  it('shows cache creation token details in the user token tooltip', async () => {
     query.mockResolvedValue({
       items: [],
       total: 0,
@@ -244,10 +249,14 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('Output Tokens')
     expect(text).toContain('Cache Read Tokens')
     expect(text).toContain('Total Tokens')
-    expect(text).toContain('60')
-    expect(text).not.toContain('Cache Creation')
+    // cache creation is now user-visible: 5m/1h breakdown rows plus the
+    // creation tokens folded into the total (10 + 20 + 40 + 30 = 100)
+    expect(text).toContain('Cache Write')
+    expect(text).toContain('25')
+    expect(text).toContain('15')
+    expect(text).toContain('100')
+    // the admin-only cache TTL override badge stays hidden from users
     expect(text).not.toContain('R-')
-    expect(text).not.toContain('100')
   })
 
 })

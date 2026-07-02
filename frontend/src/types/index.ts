@@ -1397,9 +1397,11 @@ export interface DisplayUsageFields {
   display_input_tokens: number
   display_output_tokens: number
   display_cache_read_tokens: number
+  display_cache_creation_tokens: number
   display_input_cost: number
   display_output_cost: number
   display_cache_read_cost: number
+  display_cache_creation_cost: number
   display_total_cost: number
 }
 

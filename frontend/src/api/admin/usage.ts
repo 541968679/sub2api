@@ -304,6 +304,7 @@ export interface UserViewConfigUsed {
   display_input_price: number | null
   display_output_price: number | null
   display_cache_read_price: number | null
+  display_cache_creation_price: number | null
   display_rate_multiplier: number | null
   user_group_rate: number | null
   has_user_override: boolean

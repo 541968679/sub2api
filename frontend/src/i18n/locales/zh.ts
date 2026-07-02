@@ -7522,6 +7522,8 @@ const v117ZhPatch = {
       displayInputPrice: '展示输入价（$/百万 Token）',
       displayOutputPrice: '展示输出价（$/百万 Token）',
       displayCacheReadPrice: '展示缓存读取价（$/百万 Token）',
+      displayCacheCreationPrice: '展示缓存创建价（$/百万 Token）',
+      displayCacheCreationPriceHint: '缓存创建按此展示价直接反算 token 数（真实成本 ÷ 展示价），不影响实际计费。设为真实缓存写入价的等比缩小值可让展示 token 等比放大。',
       displayRateMultiplier: '展示倍率',
       billingModeLabel: '计费方式',
       billingModeToken: 'Token',

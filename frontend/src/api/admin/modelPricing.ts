@@ -39,6 +39,7 @@ export interface GlobalOverride {
   display_input_price: number | null
   display_output_price: number | null
   display_cache_read_price: number | null
+  display_cache_creation_price: number | null
   display_rate_multiplier: number | null
   show_on_pricing_page: boolean
 }
@@ -131,6 +132,7 @@ export interface CreateOverrideRequest {
   display_input_price?: number | null
   display_output_price?: number | null
   display_cache_read_price?: number | null
+  display_cache_creation_price?: number | null
   display_rate_multiplier?: number | null
   show_on_pricing_page?: boolean
 }
@@ -158,6 +160,7 @@ export interface UpdateOverrideRequest {
   display_input_price?: number | null
   display_output_price?: number | null
   display_cache_read_price?: number | null
+  display_cache_creation_price?: number | null
   display_rate_multiplier?: number | null
   show_on_pricing_page?: boolean
 }

@@ -3077,6 +3077,8 @@ const enBase = {
       displayInputPrice: 'Display Input ($/MTok)',
       displayOutputPrice: 'Display Output ($/MTok)',
       displayCacheReadPrice: 'Display Cache Read ($/MTok)',
+      displayCacheCreationPrice: 'Display Cache Creation ($/MTok)',
+      displayCacheCreationPriceHint: 'Cache creation tokens are back-computed directly from real cost at this display price (real cost ÷ display price); actual billing is unaffected. Set it below the real cache write price to amplify displayed tokens proportionally.',
       displayRateMultiplier: 'Display Rate',
       billingModeLabel: 'Billing Mode',
       billingModeToken: 'Token',

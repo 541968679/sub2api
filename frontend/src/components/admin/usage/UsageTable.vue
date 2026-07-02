@@ -335,6 +335,10 @@
                 <span class="font-medium text-violet-300">{{ formatTokenPricePerMillion(tooltipData.display_fields.display_output_cost, tooltipData.display_fields.display_output_tokens) }} {{ t('usage.perMillionTokens') }}</span>
               </div>
             </template>
+            <div v-if="tooltipData.display_fields.display_cache_creation_cost > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheCreationCost') }}</span>
+              <span class="font-medium text-white">${{ tooltipData.display_fields.display_cache_creation_cost.toFixed(6) }}</span>
+            </div>
             <div v-if="tooltipData.display_fields.display_cache_read_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.cacheReadCost') }}</span>
               <span class="font-medium text-white">${{ tooltipData.display_fields.display_cache_read_cost.toFixed(6) }}</span>

@@ -3419,3 +3419,19 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - i18n: added `payment.planCard.{includedGroups,bundleQuotaNote}` and `payment.admin.{memberGroups,memberGroupsHint}` to both `zh.ts` and `en.ts` base blocks (both files use `mergeLocale(base, patch)` deep-merge; keys added to the base `payment` block).
 - Verified: frontend `typecheck` + `lint:check` + `build` all pass.
 **Still pending (Phase 2)**: redeem-code/distribution bundle support + admin assign-by-plan; optional admin plans-list bundle badge.
+
+## [2026-07-02] feat(billing): display cache creation price — 缓存创建纳入展示放大体系 + 用户侧可见性
+
+**Affected files**: backend/migrations/171_add_display_cache_creation_price.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/types/index.ts, frontend/src/api/admin/{usage,modelPricing,userModelPricing}.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/components/admin/usage/{UsageTable,UserViewCompareDrawer}.vue, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal}.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: additive, fork-local。新增 DB 列 `display_cache_creation_price`（global_model_pricing + user_model_pricing_overrides，NULL=未配置=行为零变化）；DisplayUsageFields 增加两个 admin 契约字段；用户 DTO 无新 JSON 字段。upstream-sync-guard 已登记 `DisplayCacheCreationPrice` 关键签名。
+**Change details**:
+- 背景：anthropic 平台记录（如 claude-fable-5，input=2/output=38/cache_creation=42778/$0.54）在用户侧"token 很少但很贵"——缓存创建 token/成本此前完全不参与展示换算，且用户可用 cache_creation_cost/tokens 反推真实缓存写单价。
+- 核心（display_pricing.go）：新分支在 ApplyDisplayTransform 中把缓存创建 token 直接按展示价反算放大（display_tokens = 真实成本 ÷ 展示价，cost 保持守恒），**与 cache-read 的 premium 折入 input 机制刻意不同**（用户明确要求：直接放大缓存创建自身 token 数）。守卫：展示价>0 && tokens>0 && cost>0，不依赖 display_input_price。线性变换 → 聚合组与逐行天然等价，GetUserDisplayAggregateGroups 零改动。
+- 5m/1h 细分：新 helper rescaleCacheCreationBreakdown 等比缩放 + 减法导出，保证 5m+1h==total；ApplyUserDisplayRate 同步接入（修复既有"细分不随展示倍率缩放"bug）。
+- 长上下文：effectiveDisplayPricingForUsageLog 对新价乘 LongContextInputMultiplier。
+- 配置链：migration 171（含 user 表 NOT VALID 非负约束，模板 147）→ 实体/两个 raw-SQL repo 全枚举点（global 4 处、user 5 处）→ 校验（validateUserModelPricingOverride）→ admin API（global create/partial-update applyFloat、user create/update/batch）→ 前端两个定价表单（$/MTok 双向换算、applyDisplaySuggested 从 cache_write_price 取建议值）→ i18n zh/en。
+- Admin 可视：DisplayUsageFields + ComputeDisplayFields 增加 display_cache_creation_tokens/cost；UsageTable 双列 tooltip 增行；UserViewCompareDrawer config_used 回传展示创建价。
+- 用户侧可见性（此前完全不显示）：UsageView.vue 与 KeyUsageView.vue 的 token 徽章（amber 图标+1h 标签）、token tooltip（5m/1h 细分）、成本 tooltip、token 合计均渲染 cache creation；admin 专属 TTL override "R" 徽章仍不下发用户。UsageView.spec.ts 两个断言"用户侧隐藏缓存创建"的旧规格测试已反转。
+- 平台边界（软 gate，详见 billing.md 2026-07-02 节）：openai 原生/antigravity OAuth/桥接/gemini 行 cache_creation 恒 0 → no-op；antigravity 分组的 upstream 中转/apikey 型账号行与 openai relay 透传行若命中已配置的 claude-* 模型会同样换算（语义正确）。
+- **本批不改**：display_token_rewrite.go（下游响应 CacheCreateMult 仍恒 1.0）；claude-gpt 桥接 openai_claude_gpt_bridge_cache_display_settings；真实计费链。下游一致性如需跟进，前置为 gateway_service.go OAuth 流式 extractSSEUsagePatch 计费污染修复（PLAN 文档 Phase 0，未实施）。
+- Verified: `go build ./...`、`go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/repository/...` 全过（新增 8 个 display_pricing 用例：放大/独立守卫/no-op/与 read premium 复合/长上下文单次缩放/ComputeDisplayFields/倍率细分一致性）；`./internal/server -run Contract` 仅 redeem/history 一处**既有**失败（基线同样失败，与本改动无关）；前端 typecheck + lint:check + vitest 全量 101 文件/603 用例全过。
