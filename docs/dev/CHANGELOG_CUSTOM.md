@@ -3444,3 +3444,34 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - 平台边界（软 gate，详见 billing.md 2026-07-02 节）：openai 原生/antigravity OAuth/桥接/gemini 行 cache_creation 恒 0 → no-op；antigravity 分组的 upstream 中转/apikey 型账号行与 openai relay 透传行若命中已配置的 claude-* 模型会同样换算（语义正确）。
 - **本批不改**：display_token_rewrite.go（下游响应 CacheCreateMult 仍恒 1.0）；claude-gpt 桥接 openai_claude_gpt_bridge_cache_display_settings；真实计费链。下游一致性如需跟进，前置为 gateway_service.go OAuth 流式 extractSSEUsagePatch 计费污染修复（PLAN 文档 Phase 0，未实施）。
 - Verified: `go build ./...`、`go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/repository/...` 全过（新增 8 个 display_pricing 用例：放大/独立守卫/no-op/与 read premium 复合/长上下文单次缩放/ComputeDisplayFields/倍率细分一致性）；`./internal/server -run Contract` 仅 redeem/history 一处**既有**失败（基线同样失败，与本改动无关）；前端 typecheck + lint:check + vitest 全量 101 文件/603 用例全过。
+
+## [2026-07-02] fix(billing): 流式计费 patch 先于展示改写提取 —— 修复 display 模式真实扣费污染
+
+**Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_service_streaming_test.go
+**Upstream compatibility**: 单行重排,fork-local。
+**Change details**:
+- 根因:processSSEEvent 先对共享 SSE event map 做展示改写(ApplyDisplayMultipliersToUsageMap 就地变异),后 extractSSEUsagePatch 从同一 map 提取计费 → mergeSSEUsagePatch → ForwardResult.Usage → calculateTokenCost。`downstream_usage_token_mode=display`(migration 169 起新用户默认)且展示倍率非平凡时,**真实扣费按展示 token 计算**(生产已配置展示倍率,污染已实际发生)。
+- 修法:extractSSEUsagePatch 上移到 cache TTL override(刻意影响计费归类,保持在前)之后、display 改写之前;display 改写仍作用于发给客户端的序列化对象,展示语义不变。顺带修复 marshal 失败回退路径"客户端见真实值、计费用展示值"的不自洽。
+- 影响面:所有走 GatewayService 流式路径的账号(anthropic OAuth/SetupToken/ServiceAccount/APIKey + antigravity 分组 apikey 型账号)。**行为变化:display 模式用户的流式扣费从污染值恢复为真实值**(已拍板只修复+记录,不做历史修正)。其余路径经三轮探索核实均为"先提取后改写",安全:passthrough 流式/非流式、标准非流式、claude-gpt 桥接(response-only)、OpenAI 原生全路径、antigravity(hook 变异 usageToMap 全新拷贝,计费走独立累计字段)。
+- 红/绿回归:TestGatewayService_StreamingDisplayModeBillsRealTokens(修复前红)、TestGatewayService_StreamingDisplayModeKeepsTTLOverrideBeforeBillingPatch(TTL 归类仍先于提取)。
+
+## [2026-07-02] feat(billing): cache_write_1h_price —— 1h 缓存创建按溢价分档计费
+
+**Affected files**: backend/migrations/172_add_cache_write_1h_price.sql, backend/internal/service/{global_model_pricing,global_model_pricing_service,model_pricing_resolver}.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/service/model_pricing_resolver_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/{zh,en}.ts
+**Upstream compatibility**: additive。新列 NULL = 历史行为逐字节不变(回归钉测试)。
+**Change details**:
+- 背景:上游中转按 1h/5m 区分扣费(官方 1h=2×输入价),但单一 cache_write_price 覆盖同写三档,且 LiteLLM 源数据缺 1h 价时 SupportsCacheBreakdown=false → 纯 1h 行按 5m 平价计费(生产 claude-sonnet-5 隐含 $4.0/MTok,1h 溢价漏计)。
+- 全局定价覆盖新增 cache_write_1h_price(migration 172):配置后 applyGlobalPricingOverride 单独写 CacheCreation1hPrice 并强制 SupportsCacheBreakdown=true,computeCacheCreationCost 按 5m×p5m+1h×p1h 分档;admin 表单加"1h 缓存写入价"输入框($/MTok),i18n zh/en。
+- **运营动作**:部署后给 claude-sonnet-5 / claude-fable-5 等中转模型配置 1h 价(按上游实际扣费口径);此后新请求真实成本计入 1h 溢价(admin 成本与用户 actual_cost 同步变化)。
+- 测试:纯 1h 生产形状(66061 tokens)按 1h 价计费、混合行分档、未配置时平价行为回归钉。
+
+## [2026-07-02] feat(billing): 下游响应 usage 缓存创建展示改写(real/display 双模式)
+
+**Affected files**: backend/internal/service/display_token_rewrite{,_test}.go, docs/dev/codebase/billing.md
+**Upstream compatibility**: fork-local。real 模式零变化;display 模式仅在配置了 display_cache_creation_price 的模型上激活。
+**Change details**:
+- computeDisplayTokenMultipliers 接入缓存创建:CacheCreateMult(无明细回退,5m 档口径对齐计费回退)+ CacheCreate5mMult/CacheCreate1hMult 分档倍率(真实档价÷展示创建价);displayTokenPricingConfig/两个 merge 函数补真实价与展示价管道;IsNonTrivial 纳入分档判断(仅配展示创建价即可激活改写链)。
+- 新 helper computeDisplayCacheCreationBreakdown:有嵌套 5m/1h 明细时按档反算(displayTotal×展示价 == 5m×p5m+1h×p1h,与 usage 页成本反算口径逐 token 一致,含纯 1h 中转流量),display1h 减法导出保证 5m+1h==顶层;无明细退化单一倍率。接入 rewriteSeparatedUsageTokens(passthrough 流式/非流式+桥接,顶层与嵌套同步 sjson 回写)与 ApplyDisplayMultipliersToUsageMap(托管流式+antigravity hook;antigravity map 无嵌套,行为不变)。applyOpenAIResponsesUsageDisplayMultipliers 的 CacheCreationInputTokens 改为同规则缩放(桥接恒 0,no-op)。
+- RateScale(展示倍率层)在分档反算后复合,与 ApplyUserDisplayRate 串联语义一致。
+- 前置依赖:同日的流式计费 patch 顺序修复(否则缓存创建计费会被本改写污染)。
+- Verified: go build/vet;display token 全部用例(既有 11 + 新增 8:分档倍率计算/用户级覆盖优先/嵌套同步/纯 1h 生产形状/RateScale 复合/无嵌套回退/OpenAI 结构缩放/trivial no-op);gateway 流式与 handler/repository 全量单测通过。

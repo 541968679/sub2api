@@ -372,11 +372,36 @@ display_cache_creation_cost   = display_tokens * display_cache_creation_price  (
   走 Claude 协议会真实解析 cache_creation,openai relay 透传也可能带
   `cache_creation_input_tokens` —— 这些行若命中已配置展示价的 claude-* 模型,展示换算同样生效
   (语义正确:缓存创建真实发生、真实计费)。
-- **本批不改** `display_token_rewrite.go`(下游响应 usage):`CacheCreateMult` 仍恒 1.0,
-  下游响应的 cache_creation token 为真实值。若 usage 页与下游响应需要完全一致,需后续给
-  `computeDisplayTokenMultipliers` 接入 `CacheCreationPrice/DisplayCacheCreationPrice`
-  (前置依赖:先修 gateway_service.go OAuth 流式路径 extractSSEUsagePatch 在展示改写之后
-  提取计费 patch 的污染 bug,见 PLAN_anthropic_cache_creation_display_fix.md Phase 0)。
+- **下游响应改写已接通(2026-07-02 第二批)**:`computeDisplayTokenMultipliers` 现在按
+  `真实档价 ÷ 展示创建价` 生成 `CacheCreateMult`(无明细回退,取 5m 档,对齐
+  computeCacheCreationCost 的回退语义)与 `CacheCreate5mMult`/`CacheCreate1hMult` 分档倍率。
+  display 模式下响应的 `cache_creation_input_tokens` 按档反算
+  (`displayTotal×展示价 == 5m×p5m + 1h×p1h`),与 usage 页成本反算口径逐 token 一致;
+  嵌套 `usage.cache_creation.ephemeral_5m/1h_input_tokens` 由
+  `computeDisplayCacheCreationBreakdown` 同步改写(减法导出,5m+1h==顶层恒成立)。
+  antigravity hook 的 usage map 无嵌套对象,走单一倍率分支,行为不变;real 模式零变化。
+
+### 流式计费 patch 顺序不变量(2026-07-02)
+
+`processSSEEvent`(gateway_service.go)中 `extractSSEUsagePatch` **必须**在
+cache TTL override 之后、display 改写(`ApplyDisplayMultipliersToUsageMap`)之前调用:
+TTL override 刻意影响计费归类;display 改写只塑造发给客户端的出站字节,严禁进入计费。
+历史 bug:提取曾在 display 改写之后,`downstream_usage_token_mode=display` 且倍率非平凡时
+真实扣费被展示值污染(回归测试:`TestGatewayService_StreamingDisplayModeBillsRealTokens`)。
+其余路径(passthrough 流式/非流式、标准非流式、claude-gpt 桥接、OpenAI 原生、antigravity)
+均为"先提取计费、后改写出站副本"结构,天然安全 —— 新增改写点时必须遵守同一顺序。
+
+### 1h 缓存创建分档计费(2026-07-02)
+
+`global_model_pricing.cache_write_1h_price`(migration 172,NULL=与 5m 同价):
+配置后 `applyGlobalPricingOverride` 单独写入 `CacheCreation1hPrice` 并置
+`SupportsCacheBreakdown=true`,`computeCacheCreationCost` 按 `5m×p5m + 1h×p1h` 分档计费。
+背景:上游中转按 1h 溢价扣费(官方 1h=2×输入价 vs 5m=1.25×),而单一 `cache_write_price`
+会同写三档,纯 1h 行曾按 5m 价计费(生产 claude-sonnet-5 隐含 $4.0/MTok)。
+LiteLLM 数据侧:`enableBreakdown = price1h > 0 && price1h > price5m`(GetModelPricing),
+源数据缺 1h 价的模型必须靠该覆盖字段表达溢价。用户级覆盖暂无 1h 字段(范围控制)。
+已知数据质量问题:2026-06-11 的 claude-opus-4-8 若干行 `cache_creation_1h_tokens > cache_creation_tokens`
+(细分>总量),历史解析问题,近期数据一致。
 
 ### 下游响应 token 模式 (2026-06-01)
 

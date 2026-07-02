@@ -6,8 +6,9 @@
 > 该设计是线性变换,§3 数学验证提出的"混合符号 premium 聚合不一致"与"InputTokens=0 蒸发"
 > 两个问题不复存在;同时用户侧(UsageView/KeyUsageView)已补齐 cache creation 可见性。
 > 实施记录见 docs/dev/CHANGELOG_CUSTOM.md [2026-07-02] 与 billing.md "Display cache creation price" 节。
-> **未实施**:Phase 0(OAuth 流式计费污染修复,gateway_service.go extractSSEUsagePatch 顺序)
-> 与下游响应 CacheCreateMult —— 两者作为后续任务,Phase 0 是下游改动的硬性前置。
+> **2026-07-02 第二批已全部完成**:Phase 0 计费污染修复(6054412c)、1h 缓存分档真实计费
+> cache_write_1h_price(71c65280)、下游响应缓存创建展示改写含分档倍率与嵌套同步(7f4f7fee)。
+> 详见 CHANGELOG_CUSTOM.md 同日三条目与 billing.md 相关章节。本文档全部工作项已闭环。
 > 产出方式:12-agent 调研工作流(6 维度代码调研 → 2 份竞争设计 → 评审合成 → 3 个对抗验证)。
 > 日期:2026-07-02
 
