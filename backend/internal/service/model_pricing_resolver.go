@@ -243,6 +243,14 @@ func applyGlobalPricingOverride(pricing *ModelPricing, gp *GlobalModelPricing) {
 		pricing.CacheCreation5mPrice = *gp.CacheWritePrice
 		pricing.CacheCreation1hPrice = *gp.CacheWritePrice
 	}
+	// 1h 档单独覆盖：使 1h 缓存创建按真实溢价计费（上游中转按档区分扣费时必配）。
+	// 配置后强制启用分档计费，否则 computeCacheCreationCost 会走平价回退。
+	if gp.CacheWrite1hPrice != nil {
+		pricing.CacheCreation1hPrice = *gp.CacheWrite1hPrice
+		if *gp.CacheWrite1hPrice > 0 {
+			pricing.SupportsCacheBreakdown = true
+		}
+	}
 	if gp.CacheReadPrice != nil {
 		pricing.CacheReadPricePerToken = *gp.CacheReadPrice
 		pricing.CacheReadPricePerTokenPriority = *gp.CacheReadPrice

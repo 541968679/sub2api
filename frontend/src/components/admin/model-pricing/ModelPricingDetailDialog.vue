@@ -90,6 +90,10 @@
             <input v-model="form.cache_write_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('cache_write_price')" />
           </div>
           <div>
+            <label class="mb-1 block text-xs text-gray-500" :title="t('admin.modelPricing.cacheWrite1hPriceHint')">{{ t('admin.modelPricing.cacheWrite1hPrice') }} ($/MTok)</label>
+            <input v-model="form.cache_write_1h_price" type="number" step="any" class="input text-sm w-full" placeholder="--" />
+          </div>
+          <div>
             <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.cacheReadPrice') }} ($/MTok)</label>
             <input v-model="form.cache_read_price" type="number" step="any" class="input text-sm w-full" :placeholder="litellmMTok('cache_read_price')" />
           </div>
@@ -288,6 +292,7 @@ const form = reactive({
   input_price: '' as string | number,
   output_price: '' as string | number,
   cache_write_price: '' as string | number,
+  cache_write_1h_price: '' as string | number,
   cache_read_price: '' as string | number,
   image_output_price: '' as string | number,
   per_request_price: '' as string | number,
@@ -420,6 +425,7 @@ async function loadDetail() {
       form.input_price = go.input_price != null ? perTokenToMTok(go.input_price) ?? '' : ''
       form.output_price = go.output_price != null ? perTokenToMTok(go.output_price) ?? '' : ''
       form.cache_write_price = go.cache_write_price != null ? perTokenToMTok(go.cache_write_price) ?? '' : ''
+      form.cache_write_1h_price = go.cache_write_1h_price != null ? perTokenToMTok(go.cache_write_1h_price) ?? '' : ''
       form.cache_read_price = go.cache_read_price != null ? perTokenToMTok(go.cache_read_price) ?? '' : ''
       form.image_output_price = go.image_output_price != null ? perTokenToMTok(go.image_output_price) ?? '' : ''
       form.per_request_price = go.per_request_price != null ? go.per_request_price : ''
@@ -444,6 +450,7 @@ async function loadDetail() {
       form.input_price = ''
       form.output_price = ''
       form.cache_write_price = ''
+      form.cache_write_1h_price = ''
       form.cache_read_price = ''
       form.image_output_price = ''
       form.per_request_price = ''
@@ -482,6 +489,7 @@ async function handleSave() {
       input_price: mTokToPerToken(form.input_price),
       output_price: mTokToPerToken(form.output_price),
       cache_write_price: mTokToPerToken(form.cache_write_price),
+      cache_write_1h_price: mTokToPerToken(form.cache_write_1h_price),
       cache_read_price: mTokToPerToken(form.cache_read_price),
       image_output_price: mTokToPerToken(form.image_output_price),
       per_request_price: perReqVal,

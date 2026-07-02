@@ -7521,6 +7521,8 @@ const v117ZhPatch = {
       displayPricingHint: '仅影响用户侧用量日志展示，不影响实际计费。留空表示展示真实值。',
       displayInputPrice: '展示输入价（$/百万 Token）',
       displayOutputPrice: '展示输出价（$/百万 Token）',
+      cacheWrite1hPrice: '1h 缓存写入价',
+      cacheWrite1hPriceHint: '1 小时缓存创建单价。留空 = 与缓存写入价（5m 档）同价；Anthropic 官方口径 1h = 2×输入价。配置后按 5m/1h 分档计费。',
       displayCacheReadPrice: '展示缓存读取价（$/百万 Token）',
       displayCacheCreationPrice: '展示缓存创建价（$/百万 Token）',
       displayCacheCreationPriceHint: '缓存创建按此展示价直接反算 token 数（真实成本 ÷ 展示价），不影响实际计费。设为真实缓存写入价的等比缩小值可让展示 token 等比放大。',

@@ -3076,6 +3076,8 @@ const enBase = {
       displayPricingHint: 'Only affects user-facing usage log display, not actual billing. Leave blank = show real values.',
       displayInputPrice: 'Display Input ($/MTok)',
       displayOutputPrice: 'Display Output ($/MTok)',
+      cacheWrite1hPrice: '1h Cache Write',
+      cacheWrite1hPriceHint: '1-hour cache creation unit price. Blank = same as the 5m cache write price; Anthropic official rate is 2x input. When set, cache creation bills per 5m/1h tier.',
       displayCacheReadPrice: 'Display Cache Read ($/MTok)',
       displayCacheCreationPrice: 'Display Cache Creation ($/MTok)',
       displayCacheCreationPriceHint: 'Cache creation tokens are back-computed directly from real cost at this display price (real cost ÷ display price); actual billing is unaffected. Set it below the real cache write price to amplify displayed tokens proportionally.',

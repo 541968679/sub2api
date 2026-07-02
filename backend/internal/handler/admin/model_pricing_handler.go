@@ -32,6 +32,7 @@ type createGlobalOverrideRequest struct {
 	InputPrice              *float64                        `json:"input_price" binding:"omitempty,min=0"`
 	OutputPrice             *float64                        `json:"output_price" binding:"omitempty,min=0"`
 	CacheWritePrice         *float64                        `json:"cache_write_price" binding:"omitempty,min=0"`
+	CacheWrite1hPrice       *float64                        `json:"cache_write_1h_price" binding:"omitempty,min=0"`
 	CacheReadPrice          *float64                        `json:"cache_read_price" binding:"omitempty,min=0"`
 	ImageOutputPrice        *float64                        `json:"image_output_price" binding:"omitempty,min=0"`
 	PerRequestPrice         *float64                        `json:"per_request_price" binding:"omitempty,min=0"`
@@ -62,8 +63,9 @@ type updateGlobalOverrideRequest struct {
 	BillingMode      string   `json:"billing_mode" binding:"omitempty,oneof=token per_request image"`
 	InputPrice       *float64 `json:"input_price" binding:"omitempty,min=0"`
 	OutputPrice      *float64 `json:"output_price" binding:"omitempty,min=0"`
-	CacheWritePrice  *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
-	CacheReadPrice   *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
+	CacheWritePrice   *float64 `json:"cache_write_price" binding:"omitempty,min=0"`
+	CacheWrite1hPrice *float64 `json:"cache_write_1h_price" binding:"omitempty,min=0"`
+	CacheReadPrice    *float64 `json:"cache_read_price" binding:"omitempty,min=0"`
 	ImageOutputPrice *float64 `json:"image_output_price" binding:"omitempty,min=0"`
 	PerRequestPrice  *float64 `json:"per_request_price" binding:"omitempty,min=0"`
 	ImagePrice1K     *float64 `json:"image_price_1k" binding:"omitempty,min=0"`
@@ -145,6 +147,7 @@ func (h *ModelPricingHandler) CreateOverride(c *gin.Context) {
 		InputPrice:              req.InputPrice,
 		OutputPrice:             req.OutputPrice,
 		CacheWritePrice:         req.CacheWritePrice,
+		CacheWrite1hPrice:       req.CacheWrite1hPrice,
 		CacheReadPrice:          req.CacheReadPrice,
 		ImageOutputPrice:        req.ImageOutputPrice,
 		PerRequestPrice:         req.PerRequestPrice,
@@ -270,6 +273,7 @@ func applyGlobalOverrideUpdate(existing *service.GlobalModelPricing, raw updateG
 		"input_price":                  &existing.InputPrice,
 		"output_price":                 &existing.OutputPrice,
 		"cache_write_price":            &existing.CacheWritePrice,
+		"cache_write_1h_price":         &existing.CacheWrite1hPrice,
 		"cache_read_price":             &existing.CacheReadPrice,
 		"image_output_price":           &existing.ImageOutputPrice,
 		"per_request_price":            &existing.PerRequestPrice,

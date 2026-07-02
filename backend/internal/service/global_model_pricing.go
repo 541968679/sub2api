@@ -20,7 +20,8 @@ type GlobalModelPricing struct {
 	BillingMode             BillingMode             // 计费模式
 	InputPrice              *float64                // 每 token 输入价格（USD）
 	OutputPrice             *float64                // 每 token 输出价格（USD）
-	CacheWritePrice         *float64                // 缓存写入价格
+	CacheWritePrice         *float64                // 缓存写入价格（5m 档；未配 1h 档时同写两档）
+	CacheWrite1hPrice       *float64                // 1 小时缓存写入价格（NULL = 与 5m 同价）
 	CacheReadPrice          *float64                // 缓存读取价格
 	ImageOutputPrice        *float64                // 图片输出价格
 	PerRequestPrice         *float64                // 按次计费价格

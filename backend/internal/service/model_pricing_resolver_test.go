@@ -962,3 +962,95 @@ func TestResolve_UserOverride_BeatsChannelGlobalAndKeepsLongContextMetadata(t *t
 	require.InDelta(t, 2.0, resolved.BasePricing.LongContextInputMultiplier, 1e-12)
 	require.InDelta(t, 1.5, resolved.BasePricing.LongContextOutputMultiplier, 1e-12)
 }
+
+// ===========================================================================
+// 10. CacheWrite1hPrice 全局覆盖 — 1h 缓存创建分档计费
+// ===========================================================================
+
+// newTestBillingServiceFlatCachePricing 模拟 claude-sonnet-5 的现实解析结果:
+// LiteLLM 数据缺 1h 价 → SupportsCacheBreakdown=false,缓存创建全部按平价计费。
+func newTestBillingServiceFlatCachePricing() *BillingService {
+	bs := &BillingService{
+		fallbackPrices: make(map[string]*ModelPricing),
+	}
+	bs.fallbackPrices["claude-sonnet-5"] = &ModelPricing{
+		InputPricePerToken:         3.2e-6,
+		OutputPricePerToken:        16e-6,
+		CacheCreationPricePerToken: 4e-6,
+		CacheReadPricePerToken:     0.32e-6,
+		SupportsCacheBreakdown:     false,
+	}
+	return bs
+}
+
+// TestResolve_GlobalOverride_CacheWrite1hPriceEnablesTierBilling 验证:配置
+// cache_write_1h_price 后,1h 缓存创建按溢价分档计费(修复上游中转 1h 溢价漏计)。
+func TestResolve_GlobalOverride_CacheWrite1hPriceEnablesTierBilling(t *testing.T) {
+	bs := newTestBillingServiceFlatCachePricing()
+
+	write5m := 4e-6
+	write1h := 6.4e-6 // 2 × 输入价
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		ID:                1,
+		Model:             "claude-sonnet-5",
+		BillingMode:       BillingModeToken,
+		CacheWritePrice:   &write5m,
+		CacheWrite1hPrice: &write1h,
+		Enabled:           true,
+	})
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache, nil)
+
+	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-5"})
+	require.NotNil(t, resolved)
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, 4e-6, resolved.BasePricing.CacheCreation5mPrice, 1e-12)
+	require.InDelta(t, 6.4e-6, resolved.BasePricing.CacheCreation1hPrice, 1e-12,
+		"1h tier must take the dedicated override, not the flat cache write price")
+	require.True(t, resolved.BasePricing.SupportsCacheBreakdown,
+		"configuring a 1h price must enable tiered cache creation billing")
+
+	// 生产形状回归:纯 1h 行(5m=0, 1h=66061)必须按 1h 价计费
+	cost := bs.computeCacheCreationCost(resolved.BasePricing, UsageTokens{
+		CacheCreationTokens:   66061,
+		CacheCreation1hTokens: 66061,
+	}, 1.0)
+	require.InDelta(t, 66061*6.4e-6, cost, 1e-9)
+
+	// 混合行:5m 与 1h 各按各价
+	mixed := bs.computeCacheCreationCost(resolved.BasePricing, UsageTokens{
+		CacheCreationTokens:   3000,
+		CacheCreation5mTokens: 1000,
+		CacheCreation1hTokens: 2000,
+	}, 1.0)
+	require.InDelta(t, 1000*4e-6+2000*6.4e-6, mixed, 1e-9)
+}
+
+// TestResolve_GlobalOverride_CacheWritePriceOnlyKeepsFlatBehavior 回归钉:
+// 只配 cache_write_price(未配 1h)时,行为与历史完全一致 —— 三档同价、
+// 不强制开启分档,纯 1h 行仍按平价计费。
+func TestResolve_GlobalOverride_CacheWritePriceOnlyKeepsFlatBehavior(t *testing.T) {
+	bs := newTestBillingServiceFlatCachePricing()
+
+	write5m := 4e-6
+	cache := newTestGlobalPricingCache(&GlobalModelPricing{
+		ID:              1,
+		Model:           "claude-sonnet-5",
+		BillingMode:     BillingModeToken,
+		CacheWritePrice: &write5m,
+		Enabled:         true,
+	})
+	r := NewModelPricingResolver(&ChannelService{}, bs, cache, nil)
+
+	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-5"})
+	require.NotNil(t, resolved)
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, 4e-6, resolved.BasePricing.CacheCreation5mPrice, 1e-12)
+	require.InDelta(t, 4e-6, resolved.BasePricing.CacheCreation1hPrice, 1e-12)
+	require.False(t, resolved.BasePricing.SupportsCacheBreakdown)
+
+	cost := bs.computeCacheCreationCost(resolved.BasePricing, UsageTokens{
+		CacheCreationTokens:   66061,
+		CacheCreation1hTokens: 66061,
+	}, 1.0)
+	require.InDelta(t, 66061*4e-6, cost, 1e-9, "without a 1h override the flat price keeps applying")
+}
