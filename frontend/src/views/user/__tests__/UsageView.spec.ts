@@ -24,8 +24,9 @@ const messages: Record<string, string> = {
   'admin.usage.outputTokens': 'Output Tokens',
   'admin.usage.cacheReadTokens': 'Cache Read Tokens',
   'admin.usage.cacheCreationTokens': 'Cache Creation Tokens',
-  'admin.usage.cacheCreation5mTokens': 'Cache Write 5m',
-  'admin.usage.cacheCreation1hTokens': 'Cache Write 1h',
+  // 与真实 locale 一致：5m/1h 两个 key 文案相同，靠模板内的 5m/1h 徽章区分
+  'admin.usage.cacheCreation5mTokens': 'Cache Write',
+  'admin.usage.cacheCreation1hTokens': 'Cache Write',
   'usage.inputTokenPrice': 'Input price',
   'usage.outputTokenPrice': 'Output price',
   'usage.perMillionTokens': '/ 1M tokens',
@@ -255,6 +256,10 @@ describe('user UsageView tooltip', () => {
     expect(text).toContain('25')
     expect(text).toContain('15')
     expect(text).toContain('100')
+    // the two breakdown rows share one label, so the 5m/1h badges must
+    // carry the disambiguation
+    expect(text).toContain('5m')
+    expect(text).toContain('1h')
     // the admin-only cache TTL override badge stays hidden from users
     expect(text).not.toContain('R-')
   })
