@@ -133,6 +133,16 @@
 - **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
 - Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。
 
+## [2026-07-02] docs: record Hajimi candidate 4K key availability failure
+
+**Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: documentation only; no backend/frontend runtime behavior, route, database, billing, i18n, or migration changes.
+**Change details**:
+- Recorded the new `hajimicc.top` native 4K candidate key check by key fingerprint only; the full key is stored only in the ignored local test-secret registry under `tmp/image-channel-secrets/`.
+- Documented that quality c1 and concurrency c2/c4/c8 all fail before generation with HTTP 503: `No available channel for model gpt-image-2 under group 4K-3（原生） (distributor)`.
+- Recorded that no image URL host or no-proxy direct download can be measured for this candidate key until the upstream group has an available `gpt-image-2` channel.
+- Added the current no-proxy direct-access probe for the existing `www.geek2api.com` image URL host, including the observed ~10s first-byte latency.
+
 ## [2026-07-01] docs: record Hajimi native 4K image channel diagnostics
 
 **Affected files**: docs/dev/OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md, docs/dev/CHANGELOG_CUSTOM.md

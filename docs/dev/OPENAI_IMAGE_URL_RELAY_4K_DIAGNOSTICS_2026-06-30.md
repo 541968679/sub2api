@@ -339,3 +339,82 @@ Findings:
 - Relay c2/c8 were stable, but relay c16 returned six HTTP `429` failures and
   two API timeouts. The relay path therefore appears usable up to c8 in this
   run, while c16 hit upstream or relay-side concurrency/rate limiting.
+
+## Hajimi Candidate Native 4K Key Check
+
+Date: 2026-07-02
+
+The operator provided a new native 4K candidate key for the same upstream
+endpoint:
+
+```text
+base_url=https://hajimicc.top/
+key_fingerprint=sk-aGU...um2FAD
+```
+
+The full key is stored only in the local ignored test-secret registry:
+
+```text
+E:\cursor project\api2sub\tmp\image-channel-secrets\native-4k-channels.local.json
+```
+
+That local registry currently tracks the tested native/upscale channels by
+`base_url`, local channel id, and key fingerprint. It must not be committed or
+copied into documentation.
+
+Output directories:
+
+```text
+E:\cursor project\InvokeAI\tmp\hajimicc-native-4k\20260702-new-candidate-quality-concurrency
+E:\cursor project\InvokeAI\tmp\hajimicc-native-4k\20260702-new-candidate-quality-concurrency\startprocess-concurrency-v2
+```
+
+Quality smoke result:
+
+| Metric | Value |
+|---|---:|
+| Success | `0/1` |
+| HTTP status | `503` |
+| API total | `1.193s` |
+| Response bytes | `211 B` |
+| URL/base64 | `0 / 0` |
+| Returned image host | not available |
+| Error | `No available channel for model gpt-image-2 under group 4K-3（原生） (distributor)` |
+
+Concurrency result:
+
+| Concurrency | Success | Failed | Avg API time | Error |
+|---:|---:|---:|---:|---|
+| c2 | 0/2 | 2 | `1.287s` | `No available channel for model gpt-image-2 under group 4K-3（原生） (distributor)` |
+| c4 | 0/4 | 4 | `0.901s` | same |
+| c8 | 0/8 | 8 | `0.728s` | same |
+
+Findings:
+
+- The new candidate key is accepted by the upstream HTTP layer but cannot be
+  scheduled to any available `gpt-image-2` channel in group `4K-3（原生）`.
+- The failure happens before image generation, so no 4K sample image, image URL
+  host, or text-clarity comparison can be produced from this key yet.
+- Because no image URL is returned, a no-proxy direct download test for this
+  candidate's own image host is not possible yet.
+- This differs from the previously tested Hajimi native key, which returned
+  URL-only `3840x2160` PNGs from `www.geek2api.com`.
+
+## Image URL Host Direct-Access Probe
+
+Date: 2026-07-02
+
+Using the last relay-returned `www.geek2api.com/images/...png` URL, `curl.exe`
+was tested with `--noproxy "*"` so the local `127.0.0.1:10808` proxy
+environment was bypassed.
+
+| Test | HTTP | Remote IP | First byte | Total | Bytes |
+|---|---:|---|---:|---:|---:|
+| Range `0-0`, no proxy | `206` | `156.254.17.67` | `10.692s` | `10.692s` | `1 B` |
+| Full PNG download, no proxy | `200` | `156.254.17.67` | `10.200s` | `10.978s` | `8,478,197 B` |
+
+`www.geek2api.com` continued to resolve to many `156.254.17.x` A records with
+TTL `1s`. Direct no-proxy access from the local machine succeeded, but first
+byte latency was around ten seconds in this sample. That is enough to explain
+some downstream/client-side `502` or timeout wrappers even when the image host
+is technically reachable.
