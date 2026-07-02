@@ -7412,6 +7412,11 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 		}
 
+		// 计费 usage 快照：必须在 display 改写之前提取，否则真实扣费会被展示值污染。
+		// 顺序约束：TTL override（刻意影响计费归类）之前不可提取；display 改写只作用于
+		// 发给客户端的出站字节，不得进入计费。
+		usagePatch := s.extractSSEUsagePatch(event)
+
 		// Display token rewriting: 放大 usage 中的 token 字段以匹配后台展示值
 		if mult := getDisplayTokenMultipliers(c); mult != nil {
 			if eventType == "message_start" {
@@ -7439,7 +7444,6 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			}
 		}
 
-		usagePatch := s.extractSSEUsagePatch(event)
 		if anthropicStreamEventIsTerminal(eventName, dataLine) {
 			sawTerminalEvent = true
 		}
