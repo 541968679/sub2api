@@ -255,7 +255,7 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 		d.OutputCost *= scale
 	}
 	if d.CacheReadTokens > 0 {
-		d.CacheReadTokens = int(math.Round(float64(d.CacheReadTokens) * scale))
+		// Cache-read token count is user-visible real usage; only cost follows display-rate scaling.
 		d.CacheReadCost *= scale
 	}
 	if d.CacheCreationTokens > 0 {

@@ -7225,7 +7225,7 @@ const v117ZhPatch = {
     modelsSuffix: '个模型',
     emptyState: '暂无可展示的模型',
     cnyBanner: '当前按人民币充值，余额以 USD 额度展示',
-    unitHint: 'Token 价格单位为美元 / 百万 Token',
+    unitHint: 'Token 价格单位为美元 / 百万 Token。',
     perRequestUnit: '美元 / 次',
     columns: {
       model: '模型',

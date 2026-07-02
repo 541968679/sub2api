@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-02] fix: keep user pricing USD and cache-read counts real
+
+**Affected files**: backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/display_token_rewrite_test.go, frontend/src/views/user/PricingView.vue, frontend/src/views/user/__tests__/PricingView.spec.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md
+**Upstream compatibility**: fork-local display and billing presentation fix. No database, route, stored usage, real billing, quota, push, or deployment changes.
+**Change details**:
+- Restored the user pricing table to display model prices as USD only. `payment_cny_per_usd` remains a recharge setting and no longer converts model unit-price cells, fixing cases such as `8.3333` being shown as a converted CNY-like value.
+- Preserved real cache-read token quantities in user usage display transforms and downstream display-mode response rewrites. Display-rate scaling still adjusts cache-read cost so `total_cost * rate_multiplier == actual_cost` remains intact.
+- Updated regression coverage for DTO display-rate transforms, downstream Claude usage rewrites, and the user pricing page with an active CNY recharge rate.
+- Updated billing documentation so the cache-read invariant is explicit for both usage-log display and downstream response display.
+
 ## [2026-07-02] fix: restore local dev-console manifest
 
 **Affected files**: dev-services.yml, docs/dev/CHANGELOG_CUSTOM.md

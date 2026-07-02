@@ -987,7 +987,7 @@ const enBase = {
     tableTitle: 'Model Price Reference',
     modelsSuffix: 'models',
     cnyBanner: '1 USD = ¥{rate}',
-    unitHint: '1 MTok = one million tokens. ¥ is the actual CNY charge at the current rate; the $ value in parentheses is the underlying USD price.',
+    unitHint: 'Token prices are shown in USD per million tokens.',
     perRequestUnit: 'request',
     emptyState: 'No models have been exposed on this page yet.',
     columns: {

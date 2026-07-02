@@ -277,8 +277,8 @@ func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmp
 	if out.OutputTokens != 400 {
 		t.Fatalf("output tokens should only include model display ratio and display-rate scaling, got %d", out.OutputTokens)
 	}
-	if out.CacheReadTokens != 4000 {
-		t.Fatalf("cache read tokens should only be affected by display-rate scaling, got %d", out.CacheReadTokens)
+	if out.CacheReadTokens != 2000 {
+		t.Fatalf("cache read tokens should stay real after display-rate scaling, got %d", out.CacheReadTokens)
 	}
 	if out.RateMultiplier != 1.0 {
 		t.Fatalf("rate multiplier should be rewritten to display rate, got %.2f", out.RateMultiplier)
@@ -287,7 +287,7 @@ func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmp
 	assertClose(t, "total_cost*rate", out.TotalCost*out.RateMultiplier, out.ActualCost)
 }
 
-func TestApplyUserDisplayRate_ScalesTokensAndPreservesActualCost(t *testing.T) {
+func TestApplyUserDisplayRate_ScalesCostsAndPreservesCacheReadTokensAndActualCost(t *testing.T) {
 	log := UsageLog{
 		InputTokens:     1000,
 		OutputTokens:    500,
@@ -307,9 +307,13 @@ func TestApplyUserDisplayRate_ScalesTokensAndPreservesActualCost(t *testing.T) {
 	if log.RateMultiplier != 1.0 {
 		t.Fatalf("rate_multiplier should be 1.0, got %.2f", log.RateMultiplier)
 	}
-	if log.InputTokens != 2000 || log.OutputTokens != 1000 || log.CacheReadTokens != 400 {
-		t.Fatalf("tokens should be doubled, got input=%d output=%d cache=%d", log.InputTokens, log.OutputTokens, log.CacheReadTokens)
+	if log.InputTokens != 2000 || log.OutputTokens != 1000 {
+		t.Fatalf("input/output tokens should be doubled, got input=%d output=%d", log.InputTokens, log.OutputTokens)
 	}
+	if log.CacheReadTokens != 200 {
+		t.Fatalf("cache read tokens should stay real, got %d", log.CacheReadTokens)
+	}
+	assertClose(t, "cache_read_cost", log.CacheReadCost, 0.0012)
 	assertClose(t, "total_cost*rate", log.TotalCost*log.RateMultiplier, savedActual)
 }
 

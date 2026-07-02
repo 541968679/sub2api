@@ -78,30 +78,18 @@
                     <template v-if="model.billing_mode === 'per_request'">
                       <td class="px-4 py-2 text-right text-gray-900 dark:text-white" colspan="3">
                         <span class="font-semibold">{{ perRequestPrimary(model.per_request_price) }}</span>
-                        <span v-if="perRequestSecondary(model.per_request_price)" class="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          ({{ perRequestSecondary(model.per_request_price) }})
-                        </span>
                         <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">/ {{ t('pricing.perRequestUnit') }}</span>
                       </td>
                     </template>
                     <template v-else>
                       <td class="px-4 py-2 text-right text-gray-900 dark:text-white">
                         <span class="font-semibold">{{ tokenPrimary(model.display_input_price) }}</span>
-                        <span v-if="tokenSecondary(model.display_input_price)" class="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          ({{ tokenSecondary(model.display_input_price) }})
-                        </span>
                       </td>
                       <td class="px-4 py-2 text-right text-gray-900 dark:text-white">
                         <span class="font-semibold">{{ tokenPrimary(model.display_output_price) }}</span>
-                        <span v-if="tokenSecondary(model.display_output_price)" class="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          ({{ tokenSecondary(model.display_output_price) }})
-                        </span>
                       </td>
                       <td class="px-4 py-2 text-right text-gray-900 dark:text-white">
                         <span class="font-semibold">{{ tokenPrimary(model.display_cache_read_price) }}</span>
-                        <span v-if="tokenSecondary(model.display_cache_read_price)" class="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                          ({{ tokenSecondary(model.display_cache_read_price) }})
-                        </span>
                       </td>
                     </template>
                   </tr>
@@ -131,6 +119,7 @@ import DOMPurify from 'dompurify'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { pricingPageAPI, type PricingPageData } from '@/api/pricingPage'
 import { useAppStore } from '@/stores'
+import { formatScaled } from '@/utils/pricing'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -160,33 +149,14 @@ function billingModeLabel(mode: string): string {
   return t('pricing.billingMode.perToken')
 }
 
-// 价格双币种渲染。display_*_price / per_request_price 都是 USD（per token / per call）。
-// primary：人民币（按 cnyRate 实时换算）；secondary：USD 原价加括号显示。
-// 当未配置 cnyRate 时，primary 退化为美元、secondary 为 null（单币种显示）。
-
+// Model prices are stored and displayed as USD. payment_cny_per_usd is a
+// recharge setting and must not convert model-price table values.
 function tokenPrimary(usdPerToken: number | null | undefined): string {
-  if (usdPerToken == null) return '—'
-  const usdMTok = usdPerToken * 1_000_000
-  return cnyRate.value > 0
-    ? `¥${(usdMTok * cnyRate.value).toFixed(2)}`
-    : `$${usdMTok.toFixed(2)}`
-}
-
-function tokenSecondary(usdPerToken: number | null | undefined): string | null {
-  if (usdPerToken == null || cnyRate.value <= 0) return null
-  return `$${(usdPerToken * 1_000_000).toFixed(2)}`
+  return formatScaled(usdPerToken ?? null, 1_000_000)
 }
 
 function perRequestPrimary(usd: number | null | undefined): string {
-  if (usd == null) return '—'
-  return cnyRate.value > 0
-    ? `¥${(usd * cnyRate.value).toFixed(4)}`
-    : `$${usd.toFixed(4)}`
-}
-
-function perRequestSecondary(usd: number | null | undefined): string | null {
-  if (usd == null || cnyRate.value <= 0) return null
-  return `$${usd.toFixed(4)}`
+  return formatScaled(usd ?? null, 1)
 }
 
 onMounted(async () => {
