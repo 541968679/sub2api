@@ -151,7 +151,7 @@
           </tr>
           <tr
             v-for="row in displayRows"
-            :key="row.item.model"
+            :key="row.rowKey"
             class="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30"
           >
             <td class="px-4 py-2.5">
@@ -171,7 +171,7 @@
               <select
                 v-if="row.canEditBillingObject"
                 :value="row.billingObject"
-                :disabled="savingMappingBillingObject === rowMappingPlatform(row) + ':' + row.item.model"
+                :disabled="savingMappingBillingObject === mappingOperationKey(row)"
                 class="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
                 @change="handleMappingBillingObjectChange(row, $event)"
               >
@@ -240,10 +240,10 @@
                   @click="deleteMapping(row)"
                   class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   :title="t('admin.modelPricing.deleteMapping')"
-                  :disabled="deletingMappingFrom === rowMappingPlatform(row) + ':' + row.item.model"
+                  :disabled="deletingMappingFrom === mappingOperationKey(row)"
                 >
                   <span
-                    v-if="deletingMappingFrom === rowMappingPlatform(row) + ':' + row.item.model"
+                    v-if="deletingMappingFrom === mappingOperationKey(row)"
                     class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   ></span>
                   <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -517,6 +517,10 @@ function rowMappingPlatform(row?: RowDisplay): string {
   return normalizeMappingPlatform(row?.item.billing_basis_hint?.platform || row?.resolvedProvider || providerFilter.value)
 }
 
+function mappingOperationKey(row: RowDisplay): string {
+  return `${rowMappingPlatform(row)}:${row.mappingFrom}`
+}
+
 function openAddMapping() {
   mappingPopoverState.show = true
   mappingPopoverState.anchor = addMappingAnchor.value
@@ -533,9 +537,7 @@ function openEditMapping(event: MouseEvent, row: RowDisplay) {
   mappingPopoverState.anchor = target
   mappingPopoverState.mode = 'edit'
   mappingPopoverState.platform = rowMappingPlatform(row)
-  mappingPopoverState.originalFrom = row.item.model
-  // 对 requested_only 类型，row.upstreamDisplay 就是映射目标；
-  // 对 requested_equals_upstream，上游名 == 模型本身（同名映射的 value）
+  mappingPopoverState.originalFrom = row.mappingFrom
   mappingPopoverState.originalTo = row.upstreamDisplay
 }
 
@@ -550,12 +552,12 @@ function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; platfor
 }
 
 async function deleteMapping(row: RowDisplay) {
-  const from = row.item.model
+  const from = row.mappingFrom
   const platform = rowMappingPlatform(row)
   if (!from || !row.canEditMapping) return
   if (!confirm(t('admin.modelPricing.confirmDeleteMapping', { from }))) return
 
-  deletingMappingFrom.value = `${platform}:${from}`
+  deletingMappingFrom.value = mappingOperationKey(row)
   try {
     const current = await adminAPI.accounts.getPlatformDefaultModelMapping(platform)
     if (!(from in current)) {
@@ -585,13 +587,13 @@ async function updateMappingBillingObject(row: RowDisplay, value: MappingBilling
   if (!row.canEditBillingObject || (value !== 'requested' && value !== 'mapped')) {
     return
   }
-  const from = row.item.model
+  const from = row.mappingFrom
   const platform = rowMappingPlatform(row)
   if (!from || !platform || value === row.billingObject) {
     return
   }
 
-  savingMappingBillingObject.value = `${platform}:${from}`
+  savingMappingBillingObject.value = mappingOperationKey(row)
   try {
     const current = await adminAPI.accounts.getPlatformDefaultModelMappingBillingObjects(platform)
     const next = { ...current, [from]: value }
@@ -764,9 +766,11 @@ function isStubRow(item: ModelPricingItem): boolean {
 // 预计算每行四个价格字段的 delta，以及基于 billing_basis_hint 推导的
 // 请求名/上游名双列展示 + 计费模式标签，避免模板内多次计算。
 interface RowDisplay {
+  rowKey: string
   item: ModelPricingItem
   stub: boolean
   deltas: Record<PriceField, PriceDelta>
+  mappingFrom: string
   // 请求名列展示：可能多对一，primary 是首个，moreCount > 0 时展示 +N 并在 tooltip 里列全
   requestedDisplay: { primary: string; moreCount: number; moreTooltip: string }
   // 上游名列展示：单一值
@@ -798,6 +802,7 @@ function mappingBillingObjectClass(value: MappingBillingObject): string {
 }
 
 function deriveNameColumns(item: ModelPricingItem): {
+  mappingFrom: string
   requestedDisplay: RowDisplay['requestedDisplay']
   upstreamDisplay: string
   billingModeLabel: string
@@ -819,12 +824,18 @@ function deriveNameColumns(item: ModelPricingItem): {
           list: related.join(', '),
         })
       : ''
+    const billingObject = normalizeMappingBillingObject(hint?.billing_object)
     return {
+      mappingFrom: hint?.mapping_key || model,
       requestedDisplay: { primary: model, moreCount, moreTooltip },
       upstreamDisplay: model,
-      billingModeLabel: t('admin.modelPricing.billingModeRequestEqualsUpstream'),
-      billingModeClass: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
-      billingObject: 'requested',
+      billingModeLabel: hint?.billing_object_editable
+        ? mappingBillingObjectLabel(billingObject)
+        : t('admin.modelPricing.billingModeRequestEqualsUpstream'),
+      billingModeClass: hint?.billing_object_editable
+        ? mappingBillingObjectClass(billingObject)
+        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+      billingObject,
     }
   }
 
@@ -833,6 +844,7 @@ function deriveNameColumns(item: ModelPricingItem): {
     const upstream = hint.related_models?.[0] ?? model
     const billingObject = normalizeMappingBillingObject(hint.billing_object)
     return {
+      mappingFrom: hint.mapping_key || model,
       requestedDisplay: { primary: model, moreCount: 0, moreTooltip: '' },
       upstreamDisplay: upstream,
       billingModeLabel: mappingBillingObjectLabel(billingObject),
@@ -844,6 +856,7 @@ function deriveNameColumns(item: ModelPricingItem): {
   // upstream_only：模型是映射 value，请求名 = 所有 related_models
   const related = hint.related_models ?? []
   const primary = related[0] ?? model
+  const billingObject = normalizeMappingBillingObject(hint.billing_object)
   const moreCount = Math.max(0, related.length - 1)
   let moreTooltip = ''
   if (moreCount > 0) {
@@ -853,23 +866,25 @@ function deriveNameColumns(item: ModelPricingItem): {
     })
   }
   return {
+    mappingFrom: hint.mapping_key || primary,
     requestedDisplay: { primary, moreCount, moreTooltip },
     upstreamDisplay: model,
-    billingModeLabel: mappingBillingObjectLabel('mapped'),
-    billingModeClass: mappingBillingObjectClass('mapped'),
-    billingObject: 'mapped',
+    billingModeLabel: mappingBillingObjectLabel(billingObject),
+    billingModeClass: mappingBillingObjectClass(billingObject),
+    billingObject,
   }
 }
 
 const displayRows = computed<RowDisplay[]>(() =>
   items.value.map((item) => {
     const nameCols = deriveNameColumns(item)
-    // 映射编辑/删除只允许后端确认存在于自定义默认映射表的 key 行。
+    // 映射编辑/删除由后端按有效默认映射 key 判断。
     const canEditMapping = Boolean(item.billing_basis_hint?.mapping_editable)
     const canEditBillingObject = Boolean(item.billing_basis_hint?.billing_object_editable)
     const resolvedProvider = resolveModelPricingProvider(item, providerFilter.value)
     const canTest = Boolean(resolvedProvider)
     return {
+      rowKey: `${item.model}:${nameCols.mappingFrom}`,
       item,
       stub: isStubRow(item),
       deltas: {

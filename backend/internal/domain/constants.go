@@ -80,13 +80,8 @@ const (
 var GetAntigravityDefaultMappingOverride func() map[string]string
 
 // GetPlatformDefaultMappingOverride 可在应用启动时设置，用于从 settings 表读取平台级默认映射。
-// 返回 nil 表示该平台没有自定义默认映射。
+// 返回 nil 表示该平台没有已保存的默认映射覆盖。
 var GetPlatformDefaultMappingOverride func(platform string) map[string]string
-
-// GetPlatformCustomDefaultMappingOverride returns only administrator-defined
-// default mappings. It intentionally excludes built-in platform mappings so UI
-// callers can distinguish editable rows from runtime defaults.
-var GetPlatformCustomDefaultMappingOverride func(platform string) map[string]string
 
 // GetPlatformDefaultMappingBillingObjectOverride returns per-mapping billing
 // object overrides keyed by mapping source model/pattern.
@@ -115,13 +110,6 @@ func ResolvePlatformDefaultModelMapping(platform string) map[string]string {
 		return DefaultAntigravityModelMapping
 	}
 	return nil
-}
-
-func ResolvePlatformCustomDefaultModelMapping(platform string) map[string]string {
-	if GetPlatformCustomDefaultMappingOverride == nil {
-		return nil
-	}
-	return GetPlatformCustomDefaultMappingOverride(platform)
 }
 
 func ResolvePlatformDefaultMappingBillingObjects(platform string) map[string]string {

@@ -67,6 +67,7 @@ type BillingBasisHint struct {
 	Platform              string   `json:"platform,omitempty"`
 	Type                  string   `json:"type"`
 	RelatedModels         []string `json:"related_models,omitempty"`
+	MappingKey            string   `json:"mapping_key,omitempty"`
 	BillingObject         string   `json:"billing_object,omitempty"`
 	BillingObjectEditable bool     `json:"billing_object_editable,omitempty"`
 	MappingEditable       bool     `json:"mapping_editable,omitempty"`
@@ -231,7 +232,6 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 	}
 
 	defaultMappings := platformDefaultModelMappings()
-	customDefaultMappings := platformCustomDefaultModelMappings()
 	defaultMappingBillingObjects := platformDefaultMappingBillingObjects()
 	providerLower := normalizeDefaultMappingProvider(provider)
 
@@ -308,7 +308,6 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			rowHintPlatform = selectedPlatform
 			b = selectedBucket
 		}
-		customMappings := customDefaultMappings[rowHintPlatform]
 		billingObjects := defaultMappingBillingObjects[rowHintPlatform]
 		switch {
 		case b.sameName:
@@ -316,17 +315,18 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			// （真实的 Antigravity 默认映射几乎总是这种情况，例如
 			// `claude-opus-4-6-thinking` 既有同名自映射也是 claude-opus-4-6 的目标），
 			// 用 RelatedModels 额外承载"被哪些请求名映射到"，前端展示 +N 提示。
-			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedEqualsUpstream, b.sameNameKey, customMappings, billingObjects, false)
+			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedEqualsUpstream, b.sameNameKey, billingObjects, true)
 			if len(b.upstreamFromList) > 0 {
 				hint.RelatedModels = b.upstreamFromList
 			}
 			items[i].BillingBasisHint = hint
 		case len(b.upstreamFromList) > 0:
-			hint := newBillingBasisHint(rowHintPlatform, BillingHintUpstreamOnly, "", customMappings, billingObjects, false)
+			mappingKey := b.upstreamFromList[0]
+			hint := newBillingBasisHint(rowHintPlatform, BillingHintUpstreamOnly, mappingKey, billingObjects, true)
 			hint.RelatedModels = b.upstreamFromList
 			items[i].BillingBasisHint = hint
 		case b.requestedTargetKey != "":
-			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedOnly, b.requestedMappingKey, customMappings, billingObjects, true)
+			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedOnly, b.requestedMappingKey, billingObjects, true)
 			hint.RelatedModels = []string{b.requestedTargetKey}
 			items[i].BillingBasisHint = hint
 		}
@@ -703,16 +703,6 @@ func platformDefaultModelMappings() map[string]map[string]string {
 	return result
 }
 
-func platformCustomDefaultModelMappings() map[string]map[string]string {
-	result := make(map[string]map[string]string, len(defaultMappingPlatforms()))
-	for _, platform := range defaultMappingPlatforms() {
-		if mapping := domain.ResolvePlatformCustomDefaultModelMapping(platform); len(mapping) > 0 {
-			result[platform] = mapping
-		}
-	}
-	return result
-}
-
 func platformDefaultMappingBillingObjects() map[string]map[string]string {
 	result := make(map[string]map[string]string, len(defaultMappingPlatforms()))
 	for _, platform := range defaultMappingPlatforms() {
@@ -763,17 +753,16 @@ func buildPlatformBillingHintIndexes(mappings map[string]map[string]string) map[
 	return result
 }
 
-func newBillingBasisHint(platform, hintType, mappingKey string, customMappings, billingObjects map[string]string, editableBillingObject bool) *BillingBasisHint {
+func newBillingBasisHint(platform, hintType, mappingKey string, billingObjects map[string]string, editable bool) *BillingBasisHint {
 	hint := &BillingBasisHint{
 		Platform:              platform,
 		Type:                  hintType,
 		BillingObject:         domain.MappingBillingObjectRequested,
-		BillingObjectEditable: editableBillingObject,
+		BillingObjectEditable: editable,
+		MappingEditable:       editable,
 	}
 	if mappingKey != "" {
-		if _, ok := customMappings[mappingKey]; ok {
-			hint.MappingEditable = true
-		}
+		hint.MappingKey = mappingKey
 		if object := domain.NormalizeMappingBillingObject(billingObjects[mappingKey]); object != "" {
 			hint.BillingObject = object
 		}

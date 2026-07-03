@@ -142,15 +142,8 @@ func TestGlobalModelPricingListPrefersOverrideProvider(t *testing.T) {
 
 func TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter(t *testing.T) {
 	oldOverride := domain.GetPlatformDefaultMappingOverride
-	oldCustomOverride := domain.GetPlatformCustomDefaultMappingOverride
 	oldBillingObjectOverride := domain.GetPlatformDefaultMappingBillingObjectOverride
 	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
-		if platform == PlatformOpenAI {
-			return map[string]string{"zz-openai-request-model": "zz-openai-upstream-model"}
-		}
-		return nil
-	}
-	domain.GetPlatformCustomDefaultMappingOverride = func(platform string) map[string]string {
 		if platform == PlatformOpenAI {
 			return map[string]string{"zz-openai-request-model": "zz-openai-upstream-model"}
 		}
@@ -164,7 +157,6 @@ func TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter(t *testing.T
 	}
 	t.Cleanup(func() {
 		domain.GetPlatformDefaultMappingOverride = oldOverride
-		domain.GetPlatformCustomDefaultMappingOverride = oldCustomOverride
 		domain.GetPlatformDefaultMappingBillingObjectOverride = oldBillingObjectOverride
 	})
 
@@ -183,27 +175,28 @@ func TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter(t *testing.T
 	require.NotNil(t, item.BillingBasisHint)
 	require.Equal(t, PlatformOpenAI, item.BillingBasisHint.Platform)
 	require.Equal(t, BillingHintRequestedOnly, item.BillingBasisHint.Type)
+	require.Equal(t, "zz-openai-request-model", item.BillingBasisHint.MappingKey)
 	require.Equal(t, []string{"zz-openai-upstream-model"}, item.BillingBasisHint.RelatedModels)
 	require.Equal(t, domain.MappingBillingObjectMapped, item.BillingBasisHint.BillingObject)
 	require.True(t, item.BillingBasisHint.BillingObjectEditable)
 	require.True(t, item.BillingBasisHint.MappingEditable)
 }
 
-func TestGlobalModelPricingListDoesNotMarkRuntimeDefaultMappingEditable(t *testing.T) {
+func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) {
 	oldOverride := domain.GetPlatformDefaultMappingOverride
-	oldCustomOverride := domain.GetPlatformCustomDefaultMappingOverride
 	oldBillingObjectOverride := domain.GetPlatformDefaultMappingBillingObjectOverride
 	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
 		if platform == PlatformOpenAI {
-			return map[string]string{"zz-openai-runtime-default": "zz-openai-upstream-model"}
+			return map[string]string{
+				"zz-openai-runtime-default": "zz-openai-upstream-model",
+				"zz-openai-self":            "zz-openai-self",
+			}
 		}
 		return nil
 	}
-	domain.GetPlatformCustomDefaultMappingOverride = nil
 	domain.GetPlatformDefaultMappingBillingObjectOverride = nil
 	t.Cleanup(func() {
 		domain.GetPlatformDefaultMappingOverride = oldOverride
-		domain.GetPlatformCustomDefaultMappingOverride = oldCustomOverride
 		domain.GetPlatformDefaultMappingBillingObjectOverride = oldBillingObjectOverride
 	})
 
@@ -213,6 +206,14 @@ func TestGlobalModelPricingListDoesNotMarkRuntimeDefaultMappingEditable(t *testi
 		"zz-openai-runtime-default": {
 			LiteLLMProvider:   PlatformOpenAI,
 			InputCostPerToken: 1,
+		},
+		"zz-openai-upstream-model": {
+			LiteLLMProvider:   PlatformOpenAI,
+			InputCostPerToken: 2,
+		},
+		"zz-openai-self": {
+			LiteLLMProvider:   PlatformOpenAI,
+			InputCostPerToken: 3,
 		},
 	}}
 	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
@@ -224,9 +225,27 @@ func TestGlobalModelPricingListDoesNotMarkRuntimeDefaultMappingEditable(t *testi
 	require.NotNil(t, item)
 	require.NotNil(t, item.BillingBasisHint)
 	require.Equal(t, BillingHintRequestedOnly, item.BillingBasisHint.Type)
+	require.Equal(t, "zz-openai-runtime-default", item.BillingBasisHint.MappingKey)
 	require.Equal(t, domain.MappingBillingObjectRequested, item.BillingBasisHint.BillingObject)
 	require.True(t, item.BillingBasisHint.BillingObjectEditable)
-	require.False(t, item.BillingBasisHint.MappingEditable)
+	require.True(t, item.BillingBasisHint.MappingEditable)
+
+	upstreamItem := findModelPricingListItem(result.Items, "zz-openai-upstream-model")
+	require.NotNil(t, upstreamItem)
+	require.NotNil(t, upstreamItem.BillingBasisHint)
+	require.Equal(t, BillingHintUpstreamOnly, upstreamItem.BillingBasisHint.Type)
+	require.Equal(t, "zz-openai-runtime-default", upstreamItem.BillingBasisHint.MappingKey)
+	require.Equal(t, []string{"zz-openai-runtime-default"}, upstreamItem.BillingBasisHint.RelatedModels)
+	require.True(t, upstreamItem.BillingBasisHint.BillingObjectEditable)
+	require.True(t, upstreamItem.BillingBasisHint.MappingEditable)
+
+	selfItem := findModelPricingListItem(result.Items, "zz-openai-self")
+	require.NotNil(t, selfItem)
+	require.NotNil(t, selfItem.BillingBasisHint)
+	require.Equal(t, BillingHintRequestedEqualsUpstream, selfItem.BillingBasisHint.Type)
+	require.Equal(t, "zz-openai-self", selfItem.BillingBasisHint.MappingKey)
+	require.True(t, selfItem.BillingBasisHint.BillingObjectEditable)
+	require.True(t, selfItem.BillingBasisHint.MappingEditable)
 }
 
 func findModelPricingListItem(items []ModelPricingListItem, model string) *ModelPricingListItem {

@@ -63,6 +63,7 @@ export interface BillingBasisHint {
   platform?: string
   type: 'requested_equals_upstream' | 'upstream_only' | 'requested_only'
   related_models?: string[]
+  mapping_key?: string
   billing_object?: 'requested' | 'mapped'
   billing_object_editable?: boolean
   mapping_editable?: boolean

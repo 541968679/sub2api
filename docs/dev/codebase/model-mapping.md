@@ -68,6 +68,12 @@ Settings KV stores the override maps by platform:
 - `openai_default_model_mapping_billing_object`
 - `gemini_default_model_mapping_billing_object`
 
+Platform default mapping settings are saved as the full effective mapping table.
+For Antigravity, no saved setting means the built-in table is used; once the
+admin UI saves the table, the saved table replaces the built-in table. This is
+required so deleting a built-in default mapping persists instead of being
+reintroduced by runtime merge.
+
 Admin APIs:
 
 - `GET /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`
@@ -75,15 +81,18 @@ Admin APIs:
 
 The model-pricing list returns two separate editability flags:
 
+- `mapping_key`: the request-model key to edit/delete or use when saving the
+  billing object. Frontend operations must use this value, not the row's pricing
+  model, because `upstream_only` rows are keyed by the mapped target model.
 - `billing_object_editable`: the row represents a mapping key whose billing
   object can be changed.
-- `mapping_editable`: the row exists in administrator-defined default mapping
-  settings and can be edited or deleted.
+- `mapping_editable`: the row represents an effective platform default mapping
+  key and can be edited or deleted.
 
-Built-in platform defaults and LiteLLM-discovered rows may show their effective
-mapping relationship, but they must not expose edit/delete unless
-`mapping_editable=true`; otherwise deletion only removes a non-existent custom
-setting and the row reappears after reload.
+Built-in platform defaults and LiteLLM-discovered rows that represent an
+effective mapping key should expose edit/delete and billing-object controls. If
+the row only has pricing data and no mapping key, it remains a normal pricing
+row.
 
 ## 数据模型
 

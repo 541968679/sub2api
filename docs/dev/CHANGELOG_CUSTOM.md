@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: make effective default mappings fully editable
+
+**Affected files**: backend/internal/service/{setting_service.go,wire.go,global_model_pricing_service.go,global_model_pricing_service_test.go,setting_service_model_mapping_test.go}, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model configuration correction. No schema, migration, image-channel monitoring, push, or deployment changes.
+**Change details**:
+- Changed Antigravity default mapping persistence so a saved table is treated as the full effective table. Saving `{}` now intentionally means no default mappings, preventing deleted built-in mappings from reappearing after reload.
+- Changed model-pricing hints to return `mapping_key` and mark effective default mapping key rows editable, including built-in/runtime default and LiteLLM-discovered mapping rows.
+- Enabled `计费对象` editing for same-name and upstream-only mapping relationship rows by saving against `mapping_key` instead of the row's pricing model name.
+- Updated frontend edit/delete/billing-object actions to operate on `mapping_key`; this fixes rows where the visible pricing model is the mapped target rather than the requested source.
+- Verified: targeted service tests for editable hints and empty Antigravity overrides; `pnpm --dir frontend run typecheck`.
+
 ## [2026-07-03] fix: add editable billing object for default model mappings
 
 **Affected files**: backend/internal/domain/constants.go, backend/internal/service/{account.go,setting_service.go,global_model_pricing_service.go,gateway_service.go,openai_gateway_service.go}, backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue,ModelMappingInlinePopover.vue}, frontend/src/api/admin/{accounts.ts,modelPricing.ts}, frontend/src/i18n/locales/{zh,en}.ts, frontend/src/views/admin/ChannelsView.vue, docs/dev/codebase/model-mapping.md
@@ -28,7 +39,7 @@
 - Added per-platform `*_default_model_mapping_billing_object` settings and `GET/PUT /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`; valid values are only `requested` and `mapped`.
 - Kept the default behavior as `requested`, so existing traffic still prices by the client-requested model unless an administrator explicitly selects `mapped`.
 - Applied the billing-object override only to platform default mappings. Account-level `credentials.model_mapping`, channel `billing_model_source`, and token/image billing mode remain separate mechanisms.
-- Fixed ineffective delete buttons by returning `mapping_editable` from the backend and only allowing edit/delete when the row exists in custom default mapping settings. Built-in/LiteLLM-derived rows can no longer expose a delete action that silently reappears.
+- Added the initial `mapping_editable` backend flag. The later "make effective default mappings fully editable" entry above supersedes the first custom-only editability rule.
 - Restored channel edit support for existing channel billing sources after removing the mistaken model-config channel billing-basis panel.
 
 ## [2026-07-03] fix: show billed image tier in user usage records

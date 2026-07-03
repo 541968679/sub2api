@@ -3736,9 +3736,6 @@ func (s *SettingService) GetPlatformDefaultModelMapping(ctx context.Context, pla
 			cleaned[from] = to
 		}
 	}
-	if len(cleaned) == 0 {
-		return nil
-	}
 	return cleaned
 }
 
