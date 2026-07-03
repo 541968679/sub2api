@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: align image monitor size options with OpenAI image API
+
+**Affected files**: backend/ent/schema/image_channel_monitor.go, backend/migrations/176_image_channel_monitor_size_default.sql, backend/internal/service/image_channel_monitor_*.go, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: small fork-local image monitor adjustment. It does not change generic channel monitoring or gateway request behavior; image monitor now stores blank `size` as intentional omission and passes custom sizes through to upstream validation.
+**Change details**:
+- Changed image monitor default `size` to blank so the monitor can omit the `size` request field instead of forcing `1024x1024`.
+- Replaced the incorrect 1K/2K/4K square preset selector with size modes: omit `size`, send `auto`, use OpenAI standard presets (`1024x1024`, `1536x1024`, `1024x1536`), or enter a custom `WIDTHxHEIGHT` value.
+- Added service regression coverage for omitting blank `size` and passing custom dimensions through unchanged.
+- Verified: `go generate ./ent`; `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`.
+
 ## [2026-07-03] feat: optimize image channel monitor runtime controls
 
 **Affected files**: backend/ent/schema/image_channel_monitor.go, backend/migrations/175_image_channel_monitor_proxy.sql, backend/internal/service/image_channel_monitor_*.go, backend/internal/repository/image_channel_monitor_repo.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, backend/cmd/server/wire_gen.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
@@ -27,7 +37,7 @@
 - Added optional custom-source proxy binding (`proxy_id`, `proxy_name`) for image monitors and applies the resolved proxy to both the image generation API request and returned-image download probe.
 - Changed manual `POST /admin/image-channel-monitors/:id/run` to start checks asynchronously and return runtime status immediately, avoiding frontend network errors while long image generation continues in the background.
 - Added `GET /admin/image-channel-monitors/:id/status` with per-monitor running/stage/message timestamps and next-check countdown data for UI polling.
-- Updated the admin image monitor page with 1K/2K/4K size presets, custom-source proxy selection, and a per-row status bar showing current stage and next scheduled check countdown.
+- Updated the admin image monitor page with size presets, custom-source proxy selection, and a per-row status bar showing current stage and next scheduled check countdown.
 - Verified: `go generate ./ent`; `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`.
 
 ## [2026-07-03] feat: add dedicated image channel monitor

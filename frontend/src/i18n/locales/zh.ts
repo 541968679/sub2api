@@ -2610,6 +2610,7 @@ const zhBase = {
       history: '历史',
       lastRun: '最近一次生图检测',
       keyError: 'Key 异常',
+      sizeOmitted: '不传 size',
       noMonitorsYet: '暂无图片监控',
       createFirstMonitor: '创建图片监控来跟踪生图请求与返图下载耗时',
       runSuccess: '图片检测已启动',
@@ -2646,7 +2647,14 @@ const zhBase = {
         proxy: '代理',
         noProxy: '不使用代理',
         model: '图片模型',
+        sizeMode: '尺寸模式',
+        sizeModeOmit: '不传 size',
+        sizeModeAuto: 'auto',
+        sizeModePreset: '标准预置',
+        sizeModeCustom: '自定义',
         size: '尺寸',
+        customSize: '自定义尺寸',
+        customSizePlaceholder: '宽x高，例如 2048x2048',
         quality: '质量',
         prompt: '提示词',
         intervalSeconds: '检测间隔（秒）',
@@ -2659,6 +2667,11 @@ const zhBase = {
         apiBody: 'API 响应体',
         apiTotal: 'API 总耗时',
         imageDownload: '图片下载'
+      },
+      sizes: {
+        square: '1024x1024 方图',
+        landscape: '1536x1024 横图',
+        portrait: '1024x1536 竖图'
       },
       status: {
         operational: '正常',

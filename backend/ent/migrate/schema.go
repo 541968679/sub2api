@@ -851,7 +851,7 @@ var (
 		{Name: "proxy_name", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
 		{Name: "model", Type: field.TypeString, Size: 200},
 		{Name: "prompt", Type: field.TypeString, Size: 2000},
-		{Name: "size", Type: field.TypeString, Nullable: true, Size: 32, Default: "1024x1024"},
+		{Name: "size", Type: field.TypeString, Nullable: true, Size: 32, Default: ""},
 		{Name: "quality", Type: field.TypeString, Nullable: true, Size: 32, Default: "auto"},
 		{Name: "n", Type: field.TypeInt, Default: 1},
 		{Name: "download_image", Type: field.TypeBool, Default: true},

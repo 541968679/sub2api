@@ -13,7 +13,6 @@ const (
 
 	imageMonitorDefaultModel           = "gpt-image-1"
 	imageMonitorDefaultPrompt          = "Generate a simple health-check image with a clean geometric shape."
-	imageMonitorDefaultSize            = "1024x1024"
 	imageMonitorDefaultQuality         = "auto"
 	imageMonitorDefaultIntervalSeconds = 300
 	imageMonitorDefaultTimeoutSeconds  = 300

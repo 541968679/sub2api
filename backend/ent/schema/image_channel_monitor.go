@@ -51,7 +51,7 @@ func (ImageChannelMonitor) Fields() []ent.Field {
 			MaxLen(2000),
 		field.String("size").
 			Optional().
-			Default("1024x1024").
+			Default("").
 			MaxLen(32),
 		field.String("quality").
 			Optional().

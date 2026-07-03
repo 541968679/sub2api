@@ -195,3 +195,28 @@ func TestImageChannelMonitorRunCheckUsesCustomProxy(t *testing.T) {
 	require.Equal(t, MonitorStatusOperational, result.Status)
 	require.Equal(t, "http://proxy.example:8080", upstream.proxyURL)
 }
+
+func TestBuildImageMonitorPayloadOmitSizeWhenBlank(t *testing.T) {
+	payload := buildImageMonitorPayload(&ImageChannelMonitor{
+		Model:   "gpt-image-1",
+		Prompt:  "draw",
+		Size:    " ",
+		Quality: "auto",
+		N:       1,
+	})
+
+	require.NotContains(t, payload, "size")
+	require.Equal(t, "auto", payload["quality"])
+}
+
+func TestBuildImageMonitorPayloadPassesCustomSize(t *testing.T) {
+	payload := buildImageMonitorPayload(&ImageChannelMonitor{
+		Model:   "gpt-image-2",
+		Prompt:  "draw",
+		Size:    "3840x2160",
+		Quality: "high",
+		N:       1,
+	})
+
+	require.Equal(t, "3840x2160", payload["size"])
+}

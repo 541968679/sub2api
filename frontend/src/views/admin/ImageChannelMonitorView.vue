@@ -100,7 +100,7 @@
             <div class="text-sm text-gray-900 dark:text-gray-100">
               {{ row.model }}
               <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                {{ row.size }} · {{ row.quality }} · n={{ row.n }}
+                {{ formatSize(row.size) }} · {{ row.quality }} · n={{ row.n }}
               </div>
             </div>
           </template>
@@ -262,18 +262,35 @@
           </button>
         </div>
 
-        <div class="grid gap-4 md:grid-cols-3">
+        <div class="grid gap-4 md:grid-cols-4">
           <label class="block">
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.model') }}</span>
             <input v-model.trim="form.model" class="input" placeholder="gpt-image-1" />
           </label>
           <label class="block">
+            <span class="input-label">{{ t('admin.imageChannelMonitor.form.sizeMode') }}</span>
+            <select v-model="form.size_mode" class="input">
+              <option value="omit">{{ t('admin.imageChannelMonitor.form.sizeModeOmit') }}</option>
+              <option value="auto">{{ t('admin.imageChannelMonitor.form.sizeModeAuto') }}</option>
+              <option value="preset">{{ t('admin.imageChannelMonitor.form.sizeModePreset') }}</option>
+              <option value="custom">{{ t('admin.imageChannelMonitor.form.sizeModeCustom') }}</option>
+            </select>
+          </label>
+          <label v-if="form.size_mode === 'preset'" class="block">
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.size') }}</span>
             <select v-model="form.size" class="input">
-              <option v-for="option in sizeOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
+              <option v-for="option in standardSizeOptions" :key="option.value" :value="option.value">
+                {{ t(option.labelKey) }}
               </option>
             </select>
+          </label>
+          <label v-else-if="form.size_mode === 'custom'" class="block">
+            <span class="input-label">{{ t('admin.imageChannelMonitor.form.customSize') }}</span>
+            <input
+              v-model.trim="form.custom_size"
+              class="input"
+              :placeholder="t('admin.imageChannelMonitor.form.customSizePlaceholder')"
+            />
           </label>
           <label class="block">
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.quality') }}</span>
@@ -410,6 +427,8 @@ const MetricItem = (_props: { label: string; value: string }) =>
 const { t } = useI18n()
 const appStore = useAppStore()
 
+type ImageSizeMode = 'omit' | 'auto' | 'preset' | 'custom'
+
 const monitors = ref<ImageChannelMonitor[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -437,10 +456,12 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 let statusPollTimer: number | null = null
 let clockTimer: number | null = null
 
-const sizeOptions = [
-  { label: '1K (1024x1024)', value: '1024x1024' },
-  { label: '2K (2048x2048)', value: '2048x2048' },
-  { label: '4K (4096x4096)', value: '4096x4096' },
+const defaultStandardSize = '1024x1024'
+
+const standardSizeOptions = [
+  { labelKey: 'admin.imageChannelMonitor.sizes.square', value: '1024x1024' },
+  { labelKey: 'admin.imageChannelMonitor.sizes.landscape', value: '1536x1024' },
+  { labelKey: 'admin.imageChannelMonitor.sizes.portrait', value: '1024x1536' },
 ]
 
 const form = reactive({
@@ -452,7 +473,9 @@ const form = reactive({
   proxy_id: 0,
   model: 'gpt-image-1',
   prompt: 'Generate a simple health-check image with a clean geometric shape.',
-  size: '1024x1024',
+  size_mode: 'omit' as ImageSizeMode,
+  size: defaultStandardSize,
+  custom_size: '',
   quality: 'auto',
   n: 1,
   download_image: true,
@@ -546,7 +569,9 @@ function resetForm() {
     proxy_id: 0,
     model: 'gpt-image-1',
     prompt: 'Generate a simple health-check image with a clean geometric shape.',
-    size: '1024x1024',
+    size_mode: 'omit',
+    size: defaultStandardSize,
+    custom_size: '',
     quality: 'auto',
     n: 1,
     download_image: true,
@@ -574,7 +599,6 @@ function openEditDialog(row: ImageChannelMonitor) {
     proxy_id: row.proxy_id || 0,
     model: row.model,
     prompt: row.prompt,
-    size: row.size,
     quality: row.quality,
     n: row.n,
     download_image: row.download_image,
@@ -582,6 +606,7 @@ function openEditDialog(row: ImageChannelMonitor) {
     interval_seconds: row.interval_seconds,
     timeout_seconds: row.timeout_seconds,
   })
+  applySizeModeFromStoredValue(row.size)
   showDialog.value = true
   if (form.source_type === 'account') {
     loadAccountOptions()
@@ -631,13 +656,42 @@ async function loadProxyOptions() {
   }
 }
 
+function inferSizeMode(size: string): ImageSizeMode {
+  const normalized = size.trim()
+  if (!normalized) return 'omit'
+  if (normalized === 'auto') return 'auto'
+  if (standardSizeOptions.some((option) => option.value === normalized)) return 'preset'
+  return 'custom'
+}
+
+function applySizeModeFromStoredValue(size: string) {
+  const normalized = size.trim()
+  const mode = inferSizeMode(normalized)
+  form.size_mode = mode
+  form.size = mode === 'preset' ? normalized : defaultStandardSize
+  form.custom_size = mode === 'custom' ? normalized : ''
+}
+
+function resolvedPayloadSize() {
+  switch (form.size_mode) {
+    case 'auto':
+      return 'auto'
+    case 'preset':
+      return form.size.trim()
+    case 'custom':
+      return form.custom_size.trim()
+    default:
+      return ''
+  }
+}
+
 function buildPayload() {
   const payload = {
     name: form.name,
     source_type: form.source_type,
     model: form.model,
     prompt: form.prompt,
-    size: form.size,
+    size: resolvedPayloadSize(),
     quality: form.quality,
     n: form.n,
     download_image: form.download_image,
@@ -829,6 +883,12 @@ function inferNextCheckAt(row: ImageChannelMonitor) {
 
 function formatMs(value: number | null) {
   return typeof value === 'number' ? `${value} ms` : '-'
+}
+
+function formatSize(size: string) {
+  const normalized = size.trim()
+  if (!normalized) return t('admin.imageChannelMonitor.sizeOmitted')
+  return normalized
 }
 
 function formatDate(value: string | null) {

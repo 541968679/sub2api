@@ -356,7 +356,7 @@ func (s *ImageChannelMonitorService) buildCreateMonitor(
 		ProxyID:         p.ProxyID,
 		Model:           defaultString(p.Model, imageMonitorDefaultModel),
 		Prompt:          defaultString(p.Prompt, imageMonitorDefaultPrompt),
-		Size:            defaultString(p.Size, imageMonitorDefaultSize),
+		Size:            strings.TrimSpace(p.Size),
 		Quality:         defaultString(p.Quality, imageMonitorDefaultQuality),
 		N:               p.N,
 		DownloadImage:   p.DownloadImage,
@@ -533,7 +533,7 @@ func validateImageMonitorBase(m *ImageChannelMonitor) error {
 	m.Endpoint = normalizeEndpoint(m.Endpoint)
 	m.Model = strings.TrimSpace(m.Model)
 	m.Prompt = strings.TrimSpace(m.Prompt)
-	m.Size = defaultString(m.Size, imageMonitorDefaultSize)
+	m.Size = strings.TrimSpace(m.Size)
 	m.Quality = defaultString(m.Quality, imageMonitorDefaultQuality)
 	return nil
 }

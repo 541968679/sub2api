@@ -2715,6 +2715,7 @@ const enBase = {
       history: 'History',
       lastRun: 'Latest image check',
       keyError: 'Key error',
+      sizeOmitted: 'Size omitted',
       noMonitorsYet: 'No image monitors yet',
       createFirstMonitor: 'Create an image monitor to track generation and returned image download latency',
       runSuccess: 'Image check started',
@@ -2751,7 +2752,14 @@ const enBase = {
         proxy: 'Proxy',
         noProxy: 'No proxy',
         model: 'Image model',
+        sizeMode: 'Size mode',
+        sizeModeOmit: 'Omit size',
+        sizeModeAuto: 'Auto',
+        sizeModePreset: 'Standard preset',
+        sizeModeCustom: 'Custom',
         size: 'Size',
+        customSize: 'Custom size',
+        customSizePlaceholder: 'WidthxHeight, for example 2048x2048',
         quality: 'Quality',
         prompt: 'Prompt',
         intervalSeconds: 'Interval (seconds)',
@@ -2764,6 +2772,11 @@ const enBase = {
         apiBody: 'API body',
         apiTotal: 'API total',
         imageDownload: 'Image download'
+      },
+      sizes: {
+        square: '1024x1024 square',
+        landscape: '1536x1024 landscape',
+        portrait: '1024x1536 portrait'
       },
       status: {
         operational: 'Operational',
