@@ -39,6 +39,7 @@ func ProvideAdminHandlers(
 	tutorialPageHandler *admin.TutorialPageHandler,
 	channelMonitorHandler *admin.ChannelMonitorHandler,
 	channelMonitorTemplateHandler *admin.ChannelMonitorRequestTemplateHandler,
+	imageChannelMonitorHandler *admin.ImageChannelMonitorHandler,
 	paymentHandler *admin.PaymentHandler,
 	affiliateHandler *admin.AffiliateHandler,
 ) *AdminHandlers {
@@ -75,6 +76,7 @@ func ProvideAdminHandlers(
 		TutorialPage:           tutorialPageHandler,
 		ChannelMonitor:         channelMonitorHandler,
 		ChannelMonitorTemplate: channelMonitorTemplateHandler,
+		ImageChannelMonitor:    imageChannelMonitorHandler,
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
 	}

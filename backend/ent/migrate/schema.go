@@ -838,6 +838,72 @@ var (
 			},
 		},
 	}
+	// ImageChannelMonitorsColumns holds the columns for the "image_channel_monitors" table.
+	ImageChannelMonitorsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "source_type", Type: field.TypeEnum, Enums: []string{"custom", "account"}, Default: "custom"},
+		{Name: "endpoint", Type: field.TypeString, Nullable: true, Size: 500, Default: ""},
+		{Name: "api_key_encrypted", Type: field.TypeString, Nullable: true, Default: ""},
+		{Name: "account_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "account_name", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "model", Type: field.TypeString, Size: 200},
+		{Name: "prompt", Type: field.TypeString, Size: 2000},
+		{Name: "size", Type: field.TypeString, Nullable: true, Size: 32, Default: "1024x1024"},
+		{Name: "quality", Type: field.TypeString, Nullable: true, Size: 32, Default: "auto"},
+		{Name: "n", Type: field.TypeInt, Default: 1},
+		{Name: "download_image", Type: field.TypeBool, Default: true},
+		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "interval_seconds", Type: field.TypeInt, Default: 300},
+		{Name: "timeout_seconds", Type: field.TypeInt, Default: 300},
+		{Name: "last_checked_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_by", Type: field.TypeInt64},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+	}
+	// ImageChannelMonitorsTable holds the schema information for the "image_channel_monitors" table.
+	ImageChannelMonitorsTable = &schema.Table{
+		Name:       "image_channel_monitors",
+		Columns:    ImageChannelMonitorsColumns,
+		PrimaryKey: []*schema.Column{ImageChannelMonitorsColumns[0]},
+	}
+	// ImageChannelMonitorHistoriesColumns holds the columns for the "image_channel_monitor_histories" table.
+	ImageChannelMonitorHistoriesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"operational", "degraded", "failed", "error"}, Default: "error"},
+		{Name: "http_status", Type: field.TypeInt, Nullable: true},
+		{Name: "api_header_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "api_body_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "api_total_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "json_bytes", Type: field.TypeInt, Nullable: true},
+		{Name: "has_url", Type: field.TypeBool, Default: false},
+		{Name: "has_b64_json", Type: field.TypeBool, Default: false},
+		{Name: "image_url_host", Type: field.TypeString, Nullable: true, Size: 255, Default: ""},
+		{Name: "image_first_byte_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "image_download_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "image_bytes", Type: field.TypeInt64, Nullable: true},
+		{Name: "image_content_type", Type: field.TypeString, Nullable: true, Size: 100, Default: ""},
+		{Name: "image_width", Type: field.TypeInt, Nullable: true},
+		{Name: "image_height", Type: field.TypeInt, Nullable: true},
+		{Name: "error_stage", Type: field.TypeString, Nullable: true, Size: 64, Default: ""},
+		{Name: "message", Type: field.TypeString, Nullable: true, Size: 500, Default: ""},
+		{Name: "checked_at", Type: field.TypeTime},
+		{Name: "monitor_id", Type: field.TypeInt64},
+	}
+	// ImageChannelMonitorHistoriesTable holds the schema information for the "image_channel_monitor_histories" table.
+	ImageChannelMonitorHistoriesTable = &schema.Table{
+		Name:       "image_channel_monitor_histories",
+		Columns:    ImageChannelMonitorHistoriesColumns,
+		PrimaryKey: []*schema.Column{ImageChannelMonitorHistoriesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "image_channel_monitor_histories_image_channel_monitors_histories",
+				Columns:    []*schema.Column{ImageChannelMonitorHistoriesColumns[19]},
+				RefColumns: []*schema.Column{ImageChannelMonitorsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
 	// PaymentAuditLogsColumns holds the columns for the "payment_audit_logs" table.
 	PaymentAuditLogsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt64, Increment: true},
@@ -1834,6 +1900,8 @@ var (
 		GroupsTable,
 		IdempotencyRecordsTable,
 		IdentityAdoptionDecisionsTable,
+		ImageChannelMonitorsTable,
+		ImageChannelMonitorHistoriesTable,
 		PaymentAuditLogsTable,
 		PaymentOrdersTable,
 		PaymentProviderInstancesTable,
@@ -1920,6 +1988,7 @@ func init() {
 	IdentityAdoptionDecisionsTable.Annotation = &entsql.Annotation{
 		Table: "identity_adoption_decisions",
 	}
+	ImageChannelMonitorHistoriesTable.ForeignKeys[0].RefTable = ImageChannelMonitorsTable
 	PaymentAuditLogsTable.Annotation = &entsql.Annotation{
 		Table: "payment_audit_logs",
 	}

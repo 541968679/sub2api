@@ -21,6 +21,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imagechannelmonitor"
+	"github.com/Wei-Shaw/sub2api/ent/imagechannelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -971,6 +973,164 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	imagechannelmonitorFields := schema.ImageChannelMonitor{}.Fields()
+	_ = imagechannelmonitorFields
+	// imagechannelmonitorDescName is the schema descriptor for name field.
+	imagechannelmonitorDescName := imagechannelmonitorFields[0].Descriptor()
+	// imagechannelmonitor.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	imagechannelmonitor.NameValidator = func() func(string) error {
+		validators := imagechannelmonitorDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imagechannelmonitorDescEndpoint is the schema descriptor for endpoint field.
+	imagechannelmonitorDescEndpoint := imagechannelmonitorFields[2].Descriptor()
+	// imagechannelmonitor.DefaultEndpoint holds the default value on creation for the endpoint field.
+	imagechannelmonitor.DefaultEndpoint = imagechannelmonitorDescEndpoint.Default.(string)
+	// imagechannelmonitor.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
+	imagechannelmonitor.EndpointValidator = imagechannelmonitorDescEndpoint.Validators[0].(func(string) error)
+	// imagechannelmonitorDescAPIKeyEncrypted is the schema descriptor for api_key_encrypted field.
+	imagechannelmonitorDescAPIKeyEncrypted := imagechannelmonitorFields[3].Descriptor()
+	// imagechannelmonitor.DefaultAPIKeyEncrypted holds the default value on creation for the api_key_encrypted field.
+	imagechannelmonitor.DefaultAPIKeyEncrypted = imagechannelmonitorDescAPIKeyEncrypted.Default.(string)
+	// imagechannelmonitorDescAccountName is the schema descriptor for account_name field.
+	imagechannelmonitorDescAccountName := imagechannelmonitorFields[5].Descriptor()
+	// imagechannelmonitor.DefaultAccountName holds the default value on creation for the account_name field.
+	imagechannelmonitor.DefaultAccountName = imagechannelmonitorDescAccountName.Default.(string)
+	// imagechannelmonitor.AccountNameValidator is a validator for the "account_name" field. It is called by the builders before save.
+	imagechannelmonitor.AccountNameValidator = imagechannelmonitorDescAccountName.Validators[0].(func(string) error)
+	// imagechannelmonitorDescModel is the schema descriptor for model field.
+	imagechannelmonitorDescModel := imagechannelmonitorFields[6].Descriptor()
+	// imagechannelmonitor.ModelValidator is a validator for the "model" field. It is called by the builders before save.
+	imagechannelmonitor.ModelValidator = func() func(string) error {
+		validators := imagechannelmonitorDescModel.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(model string) error {
+			for _, fn := range fns {
+				if err := fn(model); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imagechannelmonitorDescPrompt is the schema descriptor for prompt field.
+	imagechannelmonitorDescPrompt := imagechannelmonitorFields[7].Descriptor()
+	// imagechannelmonitor.PromptValidator is a validator for the "prompt" field. It is called by the builders before save.
+	imagechannelmonitor.PromptValidator = func() func(string) error {
+		validators := imagechannelmonitorDescPrompt.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(prompt string) error {
+			for _, fn := range fns {
+				if err := fn(prompt); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// imagechannelmonitorDescSize is the schema descriptor for size field.
+	imagechannelmonitorDescSize := imagechannelmonitorFields[8].Descriptor()
+	// imagechannelmonitor.DefaultSize holds the default value on creation for the size field.
+	imagechannelmonitor.DefaultSize = imagechannelmonitorDescSize.Default.(string)
+	// imagechannelmonitor.SizeValidator is a validator for the "size" field. It is called by the builders before save.
+	imagechannelmonitor.SizeValidator = imagechannelmonitorDescSize.Validators[0].(func(string) error)
+	// imagechannelmonitorDescQuality is the schema descriptor for quality field.
+	imagechannelmonitorDescQuality := imagechannelmonitorFields[9].Descriptor()
+	// imagechannelmonitor.DefaultQuality holds the default value on creation for the quality field.
+	imagechannelmonitor.DefaultQuality = imagechannelmonitorDescQuality.Default.(string)
+	// imagechannelmonitor.QualityValidator is a validator for the "quality" field. It is called by the builders before save.
+	imagechannelmonitor.QualityValidator = imagechannelmonitorDescQuality.Validators[0].(func(string) error)
+	// imagechannelmonitorDescN is the schema descriptor for n field.
+	imagechannelmonitorDescN := imagechannelmonitorFields[10].Descriptor()
+	// imagechannelmonitor.DefaultN holds the default value on creation for the n field.
+	imagechannelmonitor.DefaultN = imagechannelmonitorDescN.Default.(int)
+	// imagechannelmonitor.NValidator is a validator for the "n" field. It is called by the builders before save.
+	imagechannelmonitor.NValidator = imagechannelmonitorDescN.Validators[0].(func(int) error)
+	// imagechannelmonitorDescDownloadImage is the schema descriptor for download_image field.
+	imagechannelmonitorDescDownloadImage := imagechannelmonitorFields[11].Descriptor()
+	// imagechannelmonitor.DefaultDownloadImage holds the default value on creation for the download_image field.
+	imagechannelmonitor.DefaultDownloadImage = imagechannelmonitorDescDownloadImage.Default.(bool)
+	// imagechannelmonitorDescEnabled is the schema descriptor for enabled field.
+	imagechannelmonitorDescEnabled := imagechannelmonitorFields[12].Descriptor()
+	// imagechannelmonitor.DefaultEnabled holds the default value on creation for the enabled field.
+	imagechannelmonitor.DefaultEnabled = imagechannelmonitorDescEnabled.Default.(bool)
+	// imagechannelmonitorDescIntervalSeconds is the schema descriptor for interval_seconds field.
+	imagechannelmonitorDescIntervalSeconds := imagechannelmonitorFields[13].Descriptor()
+	// imagechannelmonitor.DefaultIntervalSeconds holds the default value on creation for the interval_seconds field.
+	imagechannelmonitor.DefaultIntervalSeconds = imagechannelmonitorDescIntervalSeconds.Default.(int)
+	// imagechannelmonitor.IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
+	imagechannelmonitor.IntervalSecondsValidator = imagechannelmonitorDescIntervalSeconds.Validators[0].(func(int) error)
+	// imagechannelmonitorDescTimeoutSeconds is the schema descriptor for timeout_seconds field.
+	imagechannelmonitorDescTimeoutSeconds := imagechannelmonitorFields[14].Descriptor()
+	// imagechannelmonitor.DefaultTimeoutSeconds holds the default value on creation for the timeout_seconds field.
+	imagechannelmonitor.DefaultTimeoutSeconds = imagechannelmonitorDescTimeoutSeconds.Default.(int)
+	// imagechannelmonitor.TimeoutSecondsValidator is a validator for the "timeout_seconds" field. It is called by the builders before save.
+	imagechannelmonitor.TimeoutSecondsValidator = imagechannelmonitorDescTimeoutSeconds.Validators[0].(func(int) error)
+	// imagechannelmonitorDescCreatedAt is the schema descriptor for created_at field.
+	imagechannelmonitorDescCreatedAt := imagechannelmonitorFields[17].Descriptor()
+	// imagechannelmonitor.DefaultCreatedAt holds the default value on creation for the created_at field.
+	imagechannelmonitor.DefaultCreatedAt = imagechannelmonitorDescCreatedAt.Default.(func() time.Time)
+	// imagechannelmonitorDescUpdatedAt is the schema descriptor for updated_at field.
+	imagechannelmonitorDescUpdatedAt := imagechannelmonitorFields[18].Descriptor()
+	// imagechannelmonitor.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	imagechannelmonitor.DefaultUpdatedAt = imagechannelmonitorDescUpdatedAt.Default.(func() time.Time)
+	// imagechannelmonitor.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	imagechannelmonitor.UpdateDefaultUpdatedAt = imagechannelmonitorDescUpdatedAt.UpdateDefault.(func() time.Time)
+	imagechannelmonitorhistoryFields := schema.ImageChannelMonitorHistory{}.Fields()
+	_ = imagechannelmonitorhistoryFields
+	// imagechannelmonitorhistoryDescHasURL is the schema descriptor for has_url field.
+	imagechannelmonitorhistoryDescHasURL := imagechannelmonitorhistoryFields[7].Descriptor()
+	// imagechannelmonitorhistory.DefaultHasURL holds the default value on creation for the has_url field.
+	imagechannelmonitorhistory.DefaultHasURL = imagechannelmonitorhistoryDescHasURL.Default.(bool)
+	// imagechannelmonitorhistoryDescHasB64JSON is the schema descriptor for has_b64_json field.
+	imagechannelmonitorhistoryDescHasB64JSON := imagechannelmonitorhistoryFields[8].Descriptor()
+	// imagechannelmonitorhistory.DefaultHasB64JSON holds the default value on creation for the has_b64_json field.
+	imagechannelmonitorhistory.DefaultHasB64JSON = imagechannelmonitorhistoryDescHasB64JSON.Default.(bool)
+	// imagechannelmonitorhistoryDescImageURLHost is the schema descriptor for image_url_host field.
+	imagechannelmonitorhistoryDescImageURLHost := imagechannelmonitorhistoryFields[9].Descriptor()
+	// imagechannelmonitorhistory.DefaultImageURLHost holds the default value on creation for the image_url_host field.
+	imagechannelmonitorhistory.DefaultImageURLHost = imagechannelmonitorhistoryDescImageURLHost.Default.(string)
+	// imagechannelmonitorhistory.ImageURLHostValidator is a validator for the "image_url_host" field. It is called by the builders before save.
+	imagechannelmonitorhistory.ImageURLHostValidator = imagechannelmonitorhistoryDescImageURLHost.Validators[0].(func(string) error)
+	// imagechannelmonitorhistoryDescImageContentType is the schema descriptor for image_content_type field.
+	imagechannelmonitorhistoryDescImageContentType := imagechannelmonitorhistoryFields[13].Descriptor()
+	// imagechannelmonitorhistory.DefaultImageContentType holds the default value on creation for the image_content_type field.
+	imagechannelmonitorhistory.DefaultImageContentType = imagechannelmonitorhistoryDescImageContentType.Default.(string)
+	// imagechannelmonitorhistory.ImageContentTypeValidator is a validator for the "image_content_type" field. It is called by the builders before save.
+	imagechannelmonitorhistory.ImageContentTypeValidator = imagechannelmonitorhistoryDescImageContentType.Validators[0].(func(string) error)
+	// imagechannelmonitorhistoryDescErrorStage is the schema descriptor for error_stage field.
+	imagechannelmonitorhistoryDescErrorStage := imagechannelmonitorhistoryFields[16].Descriptor()
+	// imagechannelmonitorhistory.DefaultErrorStage holds the default value on creation for the error_stage field.
+	imagechannelmonitorhistory.DefaultErrorStage = imagechannelmonitorhistoryDescErrorStage.Default.(string)
+	// imagechannelmonitorhistory.ErrorStageValidator is a validator for the "error_stage" field. It is called by the builders before save.
+	imagechannelmonitorhistory.ErrorStageValidator = imagechannelmonitorhistoryDescErrorStage.Validators[0].(func(string) error)
+	// imagechannelmonitorhistoryDescMessage is the schema descriptor for message field.
+	imagechannelmonitorhistoryDescMessage := imagechannelmonitorhistoryFields[17].Descriptor()
+	// imagechannelmonitorhistory.DefaultMessage holds the default value on creation for the message field.
+	imagechannelmonitorhistory.DefaultMessage = imagechannelmonitorhistoryDescMessage.Default.(string)
+	// imagechannelmonitorhistory.MessageValidator is a validator for the "message" field. It is called by the builders before save.
+	imagechannelmonitorhistory.MessageValidator = imagechannelmonitorhistoryDescMessage.Validators[0].(func(string) error)
+	// imagechannelmonitorhistoryDescCheckedAt is the schema descriptor for checked_at field.
+	imagechannelmonitorhistoryDescCheckedAt := imagechannelmonitorhistoryFields[18].Descriptor()
+	// imagechannelmonitorhistory.DefaultCheckedAt holds the default value on creation for the checked_at field.
+	imagechannelmonitorhistory.DefaultCheckedAt = imagechannelmonitorhistoryDescCheckedAt.Default.(func() time.Time)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.

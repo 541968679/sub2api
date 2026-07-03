@@ -95,6 +95,7 @@ var ProviderSet = wire.NewSet(
 	NewCreditSnapshotRepository,
 	NewAntigravityUsageAggregator,
 	NewChannelMonitorRepository,
+	NewImageChannelMonitorRepository,
 	NewChannelMonitorRequestTemplateRepository,
 	NewAffiliateRepository,
 	NewDistributionRepository,

@@ -100,6 +100,7 @@ func RegisterAdminRoutes(
 		registerTutorialPageRoutes(admin, h)
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
+		registerImageChannelMonitorRoutes(admin, h)
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
@@ -687,6 +688,19 @@ func registerChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		templates.DELETE("/:id", h.Admin.ChannelMonitorTemplate.Delete)
 		templates.GET("/:id/monitors", h.Admin.ChannelMonitorTemplate.AssociatedMonitors)
 		templates.POST("/:id/apply", h.Admin.ChannelMonitorTemplate.Apply)
+	}
+}
+
+func registerImageChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	monitors := admin.Group("/image-channel-monitors")
+	{
+		monitors.GET("", h.Admin.ImageChannelMonitor.List)
+		monitors.POST("", h.Admin.ImageChannelMonitor.Create)
+		monitors.GET("/:id", h.Admin.ImageChannelMonitor.Get)
+		monitors.PUT("/:id", h.Admin.ImageChannelMonitor.Update)
+		monitors.DELETE("/:id", h.Admin.ImageChannelMonitor.Delete)
+		monitors.POST("/:id/run", h.Admin.ImageChannelMonitor.Run)
+		monitors.GET("/:id/history", h.Admin.ImageChannelMonitor.History)
 	}
 }
 

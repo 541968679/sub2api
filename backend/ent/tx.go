@@ -46,6 +46,10 @@ type Tx struct {
 	IdempotencyRecord *IdempotencyRecordClient
 	// IdentityAdoptionDecision is the client for interacting with the IdentityAdoptionDecision builders.
 	IdentityAdoptionDecision *IdentityAdoptionDecisionClient
+	// ImageChannelMonitor is the client for interacting with the ImageChannelMonitor builders.
+	ImageChannelMonitor *ImageChannelMonitorClient
+	// ImageChannelMonitorHistory is the client for interacting with the ImageChannelMonitorHistory builders.
+	ImageChannelMonitorHistory *ImageChannelMonitorHistoryClient
 	// PaymentAuditLog is the client for interacting with the PaymentAuditLog builders.
 	PaymentAuditLog *PaymentAuditLogClient
 	// PaymentOrder is the client for interacting with the PaymentOrder builders.
@@ -233,6 +237,8 @@ func (tx *Tx) init() {
 	tx.Group = NewGroupClient(tx.config)
 	tx.IdempotencyRecord = NewIdempotencyRecordClient(tx.config)
 	tx.IdentityAdoptionDecision = NewIdentityAdoptionDecisionClient(tx.config)
+	tx.ImageChannelMonitor = NewImageChannelMonitorClient(tx.config)
+	tx.ImageChannelMonitorHistory = NewImageChannelMonitorHistoryClient(tx.config)
 	tx.PaymentAuditLog = NewPaymentAuditLogClient(tx.config)
 	tx.PaymentOrder = NewPaymentOrderClient(tx.config)
 	tx.PaymentProviderInstance = NewPaymentProviderInstanceClient(tx.config)

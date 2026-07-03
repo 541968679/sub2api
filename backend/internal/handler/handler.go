@@ -35,6 +35,7 @@ type AdminHandlers struct {
 	TutorialPage           *admin.TutorialPageHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
+	ImageChannelMonitor    *admin.ImageChannelMonitorHandler
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
 }

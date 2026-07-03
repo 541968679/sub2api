@@ -28,6 +28,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/imagechannelmonitor"
+	"github.com/Wei-Shaw/sub2api/ent/imagechannelmonitorhistory"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -77,6 +79,8 @@ const (
 	TypeGroup                         = "Group"
 	TypeIdempotencyRecord             = "IdempotencyRecord"
 	TypeIdentityAdoptionDecision      = "IdentityAdoptionDecision"
+	TypeImageChannelMonitor           = "ImageChannelMonitor"
+	TypeImageChannelMonitorHistory    = "ImageChannelMonitorHistory"
 	TypePaymentAuditLog               = "PaymentAuditLog"
 	TypePaymentOrder                  = "PaymentOrder"
 	TypePaymentProviderInstance       = "PaymentProviderInstance"
@@ -20884,6 +20888,3666 @@ func (m *IdentityAdoptionDecisionMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown IdentityAdoptionDecision edge %s", name)
+}
+
+// ImageChannelMonitorMutation represents an operation that mutates the ImageChannelMonitor nodes in the graph.
+type ImageChannelMonitorMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *int64
+	name                *string
+	source_type         *imagechannelmonitor.SourceType
+	endpoint            *string
+	api_key_encrypted   *string
+	account_id          *int64
+	addaccount_id       *int64
+	account_name        *string
+	model               *string
+	prompt              *string
+	size                *string
+	quality             *string
+	n                   *int
+	addn                *int
+	download_image      *bool
+	enabled             *bool
+	interval_seconds    *int
+	addinterval_seconds *int
+	timeout_seconds     *int
+	addtimeout_seconds  *int
+	last_checked_at     *time.Time
+	created_by          *int64
+	addcreated_by       *int64
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	histories           map[int64]struct{}
+	removedhistories    map[int64]struct{}
+	clearedhistories    bool
+	done                bool
+	oldValue            func(context.Context) (*ImageChannelMonitor, error)
+	predicates          []predicate.ImageChannelMonitor
+}
+
+var _ ent.Mutation = (*ImageChannelMonitorMutation)(nil)
+
+// imagechannelmonitorOption allows management of the mutation configuration using functional options.
+type imagechannelmonitorOption func(*ImageChannelMonitorMutation)
+
+// newImageChannelMonitorMutation creates new mutation for the ImageChannelMonitor entity.
+func newImageChannelMonitorMutation(c config, op Op, opts ...imagechannelmonitorOption) *ImageChannelMonitorMutation {
+	m := &ImageChannelMonitorMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeImageChannelMonitor,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withImageChannelMonitorID sets the ID field of the mutation.
+func withImageChannelMonitorID(id int64) imagechannelmonitorOption {
+	return func(m *ImageChannelMonitorMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ImageChannelMonitor
+		)
+		m.oldValue = func(ctx context.Context) (*ImageChannelMonitor, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ImageChannelMonitor.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withImageChannelMonitor sets the old ImageChannelMonitor of the mutation.
+func withImageChannelMonitor(node *ImageChannelMonitor) imagechannelmonitorOption {
+	return func(m *ImageChannelMonitorMutation) {
+		m.oldValue = func(context.Context) (*ImageChannelMonitor, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ImageChannelMonitorMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ImageChannelMonitorMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ImageChannelMonitorMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ImageChannelMonitorMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ImageChannelMonitor.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetName sets the "name" field.
+func (m *ImageChannelMonitorMutation) SetName(s string) {
+	m.name = &s
+}
+
+// Name returns the value of the "name" field in the mutation.
+func (m *ImageChannelMonitorMutation) Name() (r string, exists bool) {
+	v := m.name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldName returns the old "name" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldName: %w", err)
+	}
+	return oldValue.Name, nil
+}
+
+// ResetName resets all changes to the "name" field.
+func (m *ImageChannelMonitorMutation) ResetName() {
+	m.name = nil
+}
+
+// SetSourceType sets the "source_type" field.
+func (m *ImageChannelMonitorMutation) SetSourceType(it imagechannelmonitor.SourceType) {
+	m.source_type = &it
+}
+
+// SourceType returns the value of the "source_type" field in the mutation.
+func (m *ImageChannelMonitorMutation) SourceType() (r imagechannelmonitor.SourceType, exists bool) {
+	v := m.source_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSourceType returns the old "source_type" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldSourceType(ctx context.Context) (v imagechannelmonitor.SourceType, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSourceType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSourceType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSourceType: %w", err)
+	}
+	return oldValue.SourceType, nil
+}
+
+// ResetSourceType resets all changes to the "source_type" field.
+func (m *ImageChannelMonitorMutation) ResetSourceType() {
+	m.source_type = nil
+}
+
+// SetEndpoint sets the "endpoint" field.
+func (m *ImageChannelMonitorMutation) SetEndpoint(s string) {
+	m.endpoint = &s
+}
+
+// Endpoint returns the value of the "endpoint" field in the mutation.
+func (m *ImageChannelMonitorMutation) Endpoint() (r string, exists bool) {
+	v := m.endpoint
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEndpoint returns the old "endpoint" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldEndpoint(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEndpoint is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEndpoint requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEndpoint: %w", err)
+	}
+	return oldValue.Endpoint, nil
+}
+
+// ClearEndpoint clears the value of the "endpoint" field.
+func (m *ImageChannelMonitorMutation) ClearEndpoint() {
+	m.endpoint = nil
+	m.clearedFields[imagechannelmonitor.FieldEndpoint] = struct{}{}
+}
+
+// EndpointCleared returns if the "endpoint" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) EndpointCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldEndpoint]
+	return ok
+}
+
+// ResetEndpoint resets all changes to the "endpoint" field.
+func (m *ImageChannelMonitorMutation) ResetEndpoint() {
+	m.endpoint = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldEndpoint)
+}
+
+// SetAPIKeyEncrypted sets the "api_key_encrypted" field.
+func (m *ImageChannelMonitorMutation) SetAPIKeyEncrypted(s string) {
+	m.api_key_encrypted = &s
+}
+
+// APIKeyEncrypted returns the value of the "api_key_encrypted" field in the mutation.
+func (m *ImageChannelMonitorMutation) APIKeyEncrypted() (r string, exists bool) {
+	v := m.api_key_encrypted
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIKeyEncrypted returns the old "api_key_encrypted" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldAPIKeyEncrypted(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIKeyEncrypted is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIKeyEncrypted requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIKeyEncrypted: %w", err)
+	}
+	return oldValue.APIKeyEncrypted, nil
+}
+
+// ClearAPIKeyEncrypted clears the value of the "api_key_encrypted" field.
+func (m *ImageChannelMonitorMutation) ClearAPIKeyEncrypted() {
+	m.api_key_encrypted = nil
+	m.clearedFields[imagechannelmonitor.FieldAPIKeyEncrypted] = struct{}{}
+}
+
+// APIKeyEncryptedCleared returns if the "api_key_encrypted" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) APIKeyEncryptedCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldAPIKeyEncrypted]
+	return ok
+}
+
+// ResetAPIKeyEncrypted resets all changes to the "api_key_encrypted" field.
+func (m *ImageChannelMonitorMutation) ResetAPIKeyEncrypted() {
+	m.api_key_encrypted = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldAPIKeyEncrypted)
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *ImageChannelMonitorMutation) SetAccountID(i int64) {
+	m.account_id = &i
+	m.addaccount_id = nil
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *ImageChannelMonitorMutation) AccountID() (r int64, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldAccountID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// AddAccountID adds i to the "account_id" field.
+func (m *ImageChannelMonitorMutation) AddAccountID(i int64) {
+	if m.addaccount_id != nil {
+		*m.addaccount_id += i
+	} else {
+		m.addaccount_id = &i
+	}
+}
+
+// AddedAccountID returns the value that was added to the "account_id" field in this mutation.
+func (m *ImageChannelMonitorMutation) AddedAccountID() (r int64, exists bool) {
+	v := m.addaccount_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAccountID clears the value of the "account_id" field.
+func (m *ImageChannelMonitorMutation) ClearAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+	m.clearedFields[imagechannelmonitor.FieldAccountID] = struct{}{}
+}
+
+// AccountIDCleared returns if the "account_id" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) AccountIDCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldAccountID]
+	return ok
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *ImageChannelMonitorMutation) ResetAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldAccountID)
+}
+
+// SetAccountName sets the "account_name" field.
+func (m *ImageChannelMonitorMutation) SetAccountName(s string) {
+	m.account_name = &s
+}
+
+// AccountName returns the value of the "account_name" field in the mutation.
+func (m *ImageChannelMonitorMutation) AccountName() (r string, exists bool) {
+	v := m.account_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountName returns the old "account_name" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldAccountName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountName: %w", err)
+	}
+	return oldValue.AccountName, nil
+}
+
+// ClearAccountName clears the value of the "account_name" field.
+func (m *ImageChannelMonitorMutation) ClearAccountName() {
+	m.account_name = nil
+	m.clearedFields[imagechannelmonitor.FieldAccountName] = struct{}{}
+}
+
+// AccountNameCleared returns if the "account_name" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) AccountNameCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldAccountName]
+	return ok
+}
+
+// ResetAccountName resets all changes to the "account_name" field.
+func (m *ImageChannelMonitorMutation) ResetAccountName() {
+	m.account_name = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldAccountName)
+}
+
+// SetModel sets the "model" field.
+func (m *ImageChannelMonitorMutation) SetModel(s string) {
+	m.model = &s
+}
+
+// Model returns the value of the "model" field in the mutation.
+func (m *ImageChannelMonitorMutation) Model() (r string, exists bool) {
+	v := m.model
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldModel returns the old "model" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldModel(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldModel is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldModel requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldModel: %w", err)
+	}
+	return oldValue.Model, nil
+}
+
+// ResetModel resets all changes to the "model" field.
+func (m *ImageChannelMonitorMutation) ResetModel() {
+	m.model = nil
+}
+
+// SetPrompt sets the "prompt" field.
+func (m *ImageChannelMonitorMutation) SetPrompt(s string) {
+	m.prompt = &s
+}
+
+// Prompt returns the value of the "prompt" field in the mutation.
+func (m *ImageChannelMonitorMutation) Prompt() (r string, exists bool) {
+	v := m.prompt
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPrompt returns the old "prompt" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldPrompt(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPrompt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPrompt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPrompt: %w", err)
+	}
+	return oldValue.Prompt, nil
+}
+
+// ResetPrompt resets all changes to the "prompt" field.
+func (m *ImageChannelMonitorMutation) ResetPrompt() {
+	m.prompt = nil
+}
+
+// SetSize sets the "size" field.
+func (m *ImageChannelMonitorMutation) SetSize(s string) {
+	m.size = &s
+}
+
+// Size returns the value of the "size" field in the mutation.
+func (m *ImageChannelMonitorMutation) Size() (r string, exists bool) {
+	v := m.size
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSize returns the old "size" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldSize(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSize is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSize requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSize: %w", err)
+	}
+	return oldValue.Size, nil
+}
+
+// ClearSize clears the value of the "size" field.
+func (m *ImageChannelMonitorMutation) ClearSize() {
+	m.size = nil
+	m.clearedFields[imagechannelmonitor.FieldSize] = struct{}{}
+}
+
+// SizeCleared returns if the "size" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) SizeCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldSize]
+	return ok
+}
+
+// ResetSize resets all changes to the "size" field.
+func (m *ImageChannelMonitorMutation) ResetSize() {
+	m.size = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldSize)
+}
+
+// SetQuality sets the "quality" field.
+func (m *ImageChannelMonitorMutation) SetQuality(s string) {
+	m.quality = &s
+}
+
+// Quality returns the value of the "quality" field in the mutation.
+func (m *ImageChannelMonitorMutation) Quality() (r string, exists bool) {
+	v := m.quality
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldQuality returns the old "quality" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldQuality(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldQuality is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldQuality requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldQuality: %w", err)
+	}
+	return oldValue.Quality, nil
+}
+
+// ClearQuality clears the value of the "quality" field.
+func (m *ImageChannelMonitorMutation) ClearQuality() {
+	m.quality = nil
+	m.clearedFields[imagechannelmonitor.FieldQuality] = struct{}{}
+}
+
+// QualityCleared returns if the "quality" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) QualityCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldQuality]
+	return ok
+}
+
+// ResetQuality resets all changes to the "quality" field.
+func (m *ImageChannelMonitorMutation) ResetQuality() {
+	m.quality = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldQuality)
+}
+
+// SetN sets the "n" field.
+func (m *ImageChannelMonitorMutation) SetN(i int) {
+	m.n = &i
+	m.addn = nil
+}
+
+// N returns the value of the "n" field in the mutation.
+func (m *ImageChannelMonitorMutation) N() (r int, exists bool) {
+	v := m.n
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldN returns the old "n" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldN(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldN is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldN requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldN: %w", err)
+	}
+	return oldValue.N, nil
+}
+
+// AddN adds i to the "n" field.
+func (m *ImageChannelMonitorMutation) AddN(i int) {
+	if m.addn != nil {
+		*m.addn += i
+	} else {
+		m.addn = &i
+	}
+}
+
+// AddedN returns the value that was added to the "n" field in this mutation.
+func (m *ImageChannelMonitorMutation) AddedN() (r int, exists bool) {
+	v := m.addn
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetN resets all changes to the "n" field.
+func (m *ImageChannelMonitorMutation) ResetN() {
+	m.n = nil
+	m.addn = nil
+}
+
+// SetDownloadImage sets the "download_image" field.
+func (m *ImageChannelMonitorMutation) SetDownloadImage(b bool) {
+	m.download_image = &b
+}
+
+// DownloadImage returns the value of the "download_image" field in the mutation.
+func (m *ImageChannelMonitorMutation) DownloadImage() (r bool, exists bool) {
+	v := m.download_image
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDownloadImage returns the old "download_image" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldDownloadImage(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDownloadImage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDownloadImage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDownloadImage: %w", err)
+	}
+	return oldValue.DownloadImage, nil
+}
+
+// ResetDownloadImage resets all changes to the "download_image" field.
+func (m *ImageChannelMonitorMutation) ResetDownloadImage() {
+	m.download_image = nil
+}
+
+// SetEnabled sets the "enabled" field.
+func (m *ImageChannelMonitorMutation) SetEnabled(b bool) {
+	m.enabled = &b
+}
+
+// Enabled returns the value of the "enabled" field in the mutation.
+func (m *ImageChannelMonitorMutation) Enabled() (r bool, exists bool) {
+	v := m.enabled
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabled returns the old "enabled" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldEnabled(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabled is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabled requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabled: %w", err)
+	}
+	return oldValue.Enabled, nil
+}
+
+// ResetEnabled resets all changes to the "enabled" field.
+func (m *ImageChannelMonitorMutation) ResetEnabled() {
+	m.enabled = nil
+}
+
+// SetIntervalSeconds sets the "interval_seconds" field.
+func (m *ImageChannelMonitorMutation) SetIntervalSeconds(i int) {
+	m.interval_seconds = &i
+	m.addinterval_seconds = nil
+}
+
+// IntervalSeconds returns the value of the "interval_seconds" field in the mutation.
+func (m *ImageChannelMonitorMutation) IntervalSeconds() (r int, exists bool) {
+	v := m.interval_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIntervalSeconds returns the old "interval_seconds" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldIntervalSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIntervalSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIntervalSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIntervalSeconds: %w", err)
+	}
+	return oldValue.IntervalSeconds, nil
+}
+
+// AddIntervalSeconds adds i to the "interval_seconds" field.
+func (m *ImageChannelMonitorMutation) AddIntervalSeconds(i int) {
+	if m.addinterval_seconds != nil {
+		*m.addinterval_seconds += i
+	} else {
+		m.addinterval_seconds = &i
+	}
+}
+
+// AddedIntervalSeconds returns the value that was added to the "interval_seconds" field in this mutation.
+func (m *ImageChannelMonitorMutation) AddedIntervalSeconds() (r int, exists bool) {
+	v := m.addinterval_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetIntervalSeconds resets all changes to the "interval_seconds" field.
+func (m *ImageChannelMonitorMutation) ResetIntervalSeconds() {
+	m.interval_seconds = nil
+	m.addinterval_seconds = nil
+}
+
+// SetTimeoutSeconds sets the "timeout_seconds" field.
+func (m *ImageChannelMonitorMutation) SetTimeoutSeconds(i int) {
+	m.timeout_seconds = &i
+	m.addtimeout_seconds = nil
+}
+
+// TimeoutSeconds returns the value of the "timeout_seconds" field in the mutation.
+func (m *ImageChannelMonitorMutation) TimeoutSeconds() (r int, exists bool) {
+	v := m.timeout_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTimeoutSeconds returns the old "timeout_seconds" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldTimeoutSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTimeoutSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTimeoutSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTimeoutSeconds: %w", err)
+	}
+	return oldValue.TimeoutSeconds, nil
+}
+
+// AddTimeoutSeconds adds i to the "timeout_seconds" field.
+func (m *ImageChannelMonitorMutation) AddTimeoutSeconds(i int) {
+	if m.addtimeout_seconds != nil {
+		*m.addtimeout_seconds += i
+	} else {
+		m.addtimeout_seconds = &i
+	}
+}
+
+// AddedTimeoutSeconds returns the value that was added to the "timeout_seconds" field in this mutation.
+func (m *ImageChannelMonitorMutation) AddedTimeoutSeconds() (r int, exists bool) {
+	v := m.addtimeout_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTimeoutSeconds resets all changes to the "timeout_seconds" field.
+func (m *ImageChannelMonitorMutation) ResetTimeoutSeconds() {
+	m.timeout_seconds = nil
+	m.addtimeout_seconds = nil
+}
+
+// SetLastCheckedAt sets the "last_checked_at" field.
+func (m *ImageChannelMonitorMutation) SetLastCheckedAt(t time.Time) {
+	m.last_checked_at = &t
+}
+
+// LastCheckedAt returns the value of the "last_checked_at" field in the mutation.
+func (m *ImageChannelMonitorMutation) LastCheckedAt() (r time.Time, exists bool) {
+	v := m.last_checked_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldLastCheckedAt returns the old "last_checked_at" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldLastCheckedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldLastCheckedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldLastCheckedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldLastCheckedAt: %w", err)
+	}
+	return oldValue.LastCheckedAt, nil
+}
+
+// ClearLastCheckedAt clears the value of the "last_checked_at" field.
+func (m *ImageChannelMonitorMutation) ClearLastCheckedAt() {
+	m.last_checked_at = nil
+	m.clearedFields[imagechannelmonitor.FieldLastCheckedAt] = struct{}{}
+}
+
+// LastCheckedAtCleared returns if the "last_checked_at" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) LastCheckedAtCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldLastCheckedAt]
+	return ok
+}
+
+// ResetLastCheckedAt resets all changes to the "last_checked_at" field.
+func (m *ImageChannelMonitorMutation) ResetLastCheckedAt() {
+	m.last_checked_at = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldLastCheckedAt)
+}
+
+// SetCreatedBy sets the "created_by" field.
+func (m *ImageChannelMonitorMutation) SetCreatedBy(i int64) {
+	m.created_by = &i
+	m.addcreated_by = nil
+}
+
+// CreatedBy returns the value of the "created_by" field in the mutation.
+func (m *ImageChannelMonitorMutation) CreatedBy() (r int64, exists bool) {
+	v := m.created_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedBy returns the old "created_by" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldCreatedBy(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedBy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedBy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedBy: %w", err)
+	}
+	return oldValue.CreatedBy, nil
+}
+
+// AddCreatedBy adds i to the "created_by" field.
+func (m *ImageChannelMonitorMutation) AddCreatedBy(i int64) {
+	if m.addcreated_by != nil {
+		*m.addcreated_by += i
+	} else {
+		m.addcreated_by = &i
+	}
+}
+
+// AddedCreatedBy returns the value that was added to the "created_by" field in this mutation.
+func (m *ImageChannelMonitorMutation) AddedCreatedBy() (r int64, exists bool) {
+	v := m.addcreated_by
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedBy resets all changes to the "created_by" field.
+func (m *ImageChannelMonitorMutation) ResetCreatedBy() {
+	m.created_by = nil
+	m.addcreated_by = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ImageChannelMonitorMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ImageChannelMonitorMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ImageChannelMonitorMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ImageChannelMonitorMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ImageChannelMonitorMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ImageChannelMonitorMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// AddHistoryIDs adds the "histories" edge to the ImageChannelMonitorHistory entity by ids.
+func (m *ImageChannelMonitorMutation) AddHistoryIDs(ids ...int64) {
+	if m.histories == nil {
+		m.histories = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.histories[ids[i]] = struct{}{}
+	}
+}
+
+// ClearHistories clears the "histories" edge to the ImageChannelMonitorHistory entity.
+func (m *ImageChannelMonitorMutation) ClearHistories() {
+	m.clearedhistories = true
+}
+
+// HistoriesCleared reports if the "histories" edge to the ImageChannelMonitorHistory entity was cleared.
+func (m *ImageChannelMonitorMutation) HistoriesCleared() bool {
+	return m.clearedhistories
+}
+
+// RemoveHistoryIDs removes the "histories" edge to the ImageChannelMonitorHistory entity by IDs.
+func (m *ImageChannelMonitorMutation) RemoveHistoryIDs(ids ...int64) {
+	if m.removedhistories == nil {
+		m.removedhistories = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.histories, ids[i])
+		m.removedhistories[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedHistories returns the removed IDs of the "histories" edge to the ImageChannelMonitorHistory entity.
+func (m *ImageChannelMonitorMutation) RemovedHistoriesIDs() (ids []int64) {
+	for id := range m.removedhistories {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// HistoriesIDs returns the "histories" edge IDs in the mutation.
+func (m *ImageChannelMonitorMutation) HistoriesIDs() (ids []int64) {
+	for id := range m.histories {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetHistories resets all changes to the "histories" edge.
+func (m *ImageChannelMonitorMutation) ResetHistories() {
+	m.histories = nil
+	m.clearedhistories = false
+	m.removedhistories = nil
+}
+
+// Where appends a list predicates to the ImageChannelMonitorMutation builder.
+func (m *ImageChannelMonitorMutation) Where(ps ...predicate.ImageChannelMonitor) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ImageChannelMonitorMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ImageChannelMonitorMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ImageChannelMonitor, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ImageChannelMonitorMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ImageChannelMonitorMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ImageChannelMonitor).
+func (m *ImageChannelMonitorMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ImageChannelMonitorMutation) Fields() []string {
+	fields := make([]string, 0, 19)
+	if m.name != nil {
+		fields = append(fields, imagechannelmonitor.FieldName)
+	}
+	if m.source_type != nil {
+		fields = append(fields, imagechannelmonitor.FieldSourceType)
+	}
+	if m.endpoint != nil {
+		fields = append(fields, imagechannelmonitor.FieldEndpoint)
+	}
+	if m.api_key_encrypted != nil {
+		fields = append(fields, imagechannelmonitor.FieldAPIKeyEncrypted)
+	}
+	if m.account_id != nil {
+		fields = append(fields, imagechannelmonitor.FieldAccountID)
+	}
+	if m.account_name != nil {
+		fields = append(fields, imagechannelmonitor.FieldAccountName)
+	}
+	if m.model != nil {
+		fields = append(fields, imagechannelmonitor.FieldModel)
+	}
+	if m.prompt != nil {
+		fields = append(fields, imagechannelmonitor.FieldPrompt)
+	}
+	if m.size != nil {
+		fields = append(fields, imagechannelmonitor.FieldSize)
+	}
+	if m.quality != nil {
+		fields = append(fields, imagechannelmonitor.FieldQuality)
+	}
+	if m.n != nil {
+		fields = append(fields, imagechannelmonitor.FieldN)
+	}
+	if m.download_image != nil {
+		fields = append(fields, imagechannelmonitor.FieldDownloadImage)
+	}
+	if m.enabled != nil {
+		fields = append(fields, imagechannelmonitor.FieldEnabled)
+	}
+	if m.interval_seconds != nil {
+		fields = append(fields, imagechannelmonitor.FieldIntervalSeconds)
+	}
+	if m.timeout_seconds != nil {
+		fields = append(fields, imagechannelmonitor.FieldTimeoutSeconds)
+	}
+	if m.last_checked_at != nil {
+		fields = append(fields, imagechannelmonitor.FieldLastCheckedAt)
+	}
+	if m.created_by != nil {
+		fields = append(fields, imagechannelmonitor.FieldCreatedBy)
+	}
+	if m.created_at != nil {
+		fields = append(fields, imagechannelmonitor.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, imagechannelmonitor.FieldUpdatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ImageChannelMonitorMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case imagechannelmonitor.FieldName:
+		return m.Name()
+	case imagechannelmonitor.FieldSourceType:
+		return m.SourceType()
+	case imagechannelmonitor.FieldEndpoint:
+		return m.Endpoint()
+	case imagechannelmonitor.FieldAPIKeyEncrypted:
+		return m.APIKeyEncrypted()
+	case imagechannelmonitor.FieldAccountID:
+		return m.AccountID()
+	case imagechannelmonitor.FieldAccountName:
+		return m.AccountName()
+	case imagechannelmonitor.FieldModel:
+		return m.Model()
+	case imagechannelmonitor.FieldPrompt:
+		return m.Prompt()
+	case imagechannelmonitor.FieldSize:
+		return m.Size()
+	case imagechannelmonitor.FieldQuality:
+		return m.Quality()
+	case imagechannelmonitor.FieldN:
+		return m.N()
+	case imagechannelmonitor.FieldDownloadImage:
+		return m.DownloadImage()
+	case imagechannelmonitor.FieldEnabled:
+		return m.Enabled()
+	case imagechannelmonitor.FieldIntervalSeconds:
+		return m.IntervalSeconds()
+	case imagechannelmonitor.FieldTimeoutSeconds:
+		return m.TimeoutSeconds()
+	case imagechannelmonitor.FieldLastCheckedAt:
+		return m.LastCheckedAt()
+	case imagechannelmonitor.FieldCreatedBy:
+		return m.CreatedBy()
+	case imagechannelmonitor.FieldCreatedAt:
+		return m.CreatedAt()
+	case imagechannelmonitor.FieldUpdatedAt:
+		return m.UpdatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ImageChannelMonitorMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case imagechannelmonitor.FieldName:
+		return m.OldName(ctx)
+	case imagechannelmonitor.FieldSourceType:
+		return m.OldSourceType(ctx)
+	case imagechannelmonitor.FieldEndpoint:
+		return m.OldEndpoint(ctx)
+	case imagechannelmonitor.FieldAPIKeyEncrypted:
+		return m.OldAPIKeyEncrypted(ctx)
+	case imagechannelmonitor.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case imagechannelmonitor.FieldAccountName:
+		return m.OldAccountName(ctx)
+	case imagechannelmonitor.FieldModel:
+		return m.OldModel(ctx)
+	case imagechannelmonitor.FieldPrompt:
+		return m.OldPrompt(ctx)
+	case imagechannelmonitor.FieldSize:
+		return m.OldSize(ctx)
+	case imagechannelmonitor.FieldQuality:
+		return m.OldQuality(ctx)
+	case imagechannelmonitor.FieldN:
+		return m.OldN(ctx)
+	case imagechannelmonitor.FieldDownloadImage:
+		return m.OldDownloadImage(ctx)
+	case imagechannelmonitor.FieldEnabled:
+		return m.OldEnabled(ctx)
+	case imagechannelmonitor.FieldIntervalSeconds:
+		return m.OldIntervalSeconds(ctx)
+	case imagechannelmonitor.FieldTimeoutSeconds:
+		return m.OldTimeoutSeconds(ctx)
+	case imagechannelmonitor.FieldLastCheckedAt:
+		return m.OldLastCheckedAt(ctx)
+	case imagechannelmonitor.FieldCreatedBy:
+		return m.OldCreatedBy(ctx)
+	case imagechannelmonitor.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case imagechannelmonitor.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ImageChannelMonitor field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ImageChannelMonitorMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case imagechannelmonitor.FieldName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetName(v)
+		return nil
+	case imagechannelmonitor.FieldSourceType:
+		v, ok := value.(imagechannelmonitor.SourceType)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSourceType(v)
+		return nil
+	case imagechannelmonitor.FieldEndpoint:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEndpoint(v)
+		return nil
+	case imagechannelmonitor.FieldAPIKeyEncrypted:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIKeyEncrypted(v)
+		return nil
+	case imagechannelmonitor.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case imagechannelmonitor.FieldAccountName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountName(v)
+		return nil
+	case imagechannelmonitor.FieldModel:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetModel(v)
+		return nil
+	case imagechannelmonitor.FieldPrompt:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPrompt(v)
+		return nil
+	case imagechannelmonitor.FieldSize:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSize(v)
+		return nil
+	case imagechannelmonitor.FieldQuality:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQuality(v)
+		return nil
+	case imagechannelmonitor.FieldN:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetN(v)
+		return nil
+	case imagechannelmonitor.FieldDownloadImage:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDownloadImage(v)
+		return nil
+	case imagechannelmonitor.FieldEnabled:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabled(v)
+		return nil
+	case imagechannelmonitor.FieldIntervalSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIntervalSeconds(v)
+		return nil
+	case imagechannelmonitor.FieldTimeoutSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTimeoutSeconds(v)
+		return nil
+	case imagechannelmonitor.FieldLastCheckedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetLastCheckedAt(v)
+		return nil
+	case imagechannelmonitor.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedBy(v)
+		return nil
+	case imagechannelmonitor.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case imagechannelmonitor.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitor field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ImageChannelMonitorMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_id != nil {
+		fields = append(fields, imagechannelmonitor.FieldAccountID)
+	}
+	if m.addn != nil {
+		fields = append(fields, imagechannelmonitor.FieldN)
+	}
+	if m.addinterval_seconds != nil {
+		fields = append(fields, imagechannelmonitor.FieldIntervalSeconds)
+	}
+	if m.addtimeout_seconds != nil {
+		fields = append(fields, imagechannelmonitor.FieldTimeoutSeconds)
+	}
+	if m.addcreated_by != nil {
+		fields = append(fields, imagechannelmonitor.FieldCreatedBy)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ImageChannelMonitorMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case imagechannelmonitor.FieldAccountID:
+		return m.AddedAccountID()
+	case imagechannelmonitor.FieldN:
+		return m.AddedN()
+	case imagechannelmonitor.FieldIntervalSeconds:
+		return m.AddedIntervalSeconds()
+	case imagechannelmonitor.FieldTimeoutSeconds:
+		return m.AddedTimeoutSeconds()
+	case imagechannelmonitor.FieldCreatedBy:
+		return m.AddedCreatedBy()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ImageChannelMonitorMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case imagechannelmonitor.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountID(v)
+		return nil
+	case imagechannelmonitor.FieldN:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddN(v)
+		return nil
+	case imagechannelmonitor.FieldIntervalSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddIntervalSeconds(v)
+		return nil
+	case imagechannelmonitor.FieldTimeoutSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTimeoutSeconds(v)
+		return nil
+	case imagechannelmonitor.FieldCreatedBy:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCreatedBy(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitor numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ImageChannelMonitorMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(imagechannelmonitor.FieldEndpoint) {
+		fields = append(fields, imagechannelmonitor.FieldEndpoint)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldAPIKeyEncrypted) {
+		fields = append(fields, imagechannelmonitor.FieldAPIKeyEncrypted)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldAccountID) {
+		fields = append(fields, imagechannelmonitor.FieldAccountID)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldAccountName) {
+		fields = append(fields, imagechannelmonitor.FieldAccountName)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldSize) {
+		fields = append(fields, imagechannelmonitor.FieldSize)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldQuality) {
+		fields = append(fields, imagechannelmonitor.FieldQuality)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldLastCheckedAt) {
+		fields = append(fields, imagechannelmonitor.FieldLastCheckedAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ImageChannelMonitorMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ImageChannelMonitorMutation) ClearField(name string) error {
+	switch name {
+	case imagechannelmonitor.FieldEndpoint:
+		m.ClearEndpoint()
+		return nil
+	case imagechannelmonitor.FieldAPIKeyEncrypted:
+		m.ClearAPIKeyEncrypted()
+		return nil
+	case imagechannelmonitor.FieldAccountID:
+		m.ClearAccountID()
+		return nil
+	case imagechannelmonitor.FieldAccountName:
+		m.ClearAccountName()
+		return nil
+	case imagechannelmonitor.FieldSize:
+		m.ClearSize()
+		return nil
+	case imagechannelmonitor.FieldQuality:
+		m.ClearQuality()
+		return nil
+	case imagechannelmonitor.FieldLastCheckedAt:
+		m.ClearLastCheckedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitor nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ImageChannelMonitorMutation) ResetField(name string) error {
+	switch name {
+	case imagechannelmonitor.FieldName:
+		m.ResetName()
+		return nil
+	case imagechannelmonitor.FieldSourceType:
+		m.ResetSourceType()
+		return nil
+	case imagechannelmonitor.FieldEndpoint:
+		m.ResetEndpoint()
+		return nil
+	case imagechannelmonitor.FieldAPIKeyEncrypted:
+		m.ResetAPIKeyEncrypted()
+		return nil
+	case imagechannelmonitor.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case imagechannelmonitor.FieldAccountName:
+		m.ResetAccountName()
+		return nil
+	case imagechannelmonitor.FieldModel:
+		m.ResetModel()
+		return nil
+	case imagechannelmonitor.FieldPrompt:
+		m.ResetPrompt()
+		return nil
+	case imagechannelmonitor.FieldSize:
+		m.ResetSize()
+		return nil
+	case imagechannelmonitor.FieldQuality:
+		m.ResetQuality()
+		return nil
+	case imagechannelmonitor.FieldN:
+		m.ResetN()
+		return nil
+	case imagechannelmonitor.FieldDownloadImage:
+		m.ResetDownloadImage()
+		return nil
+	case imagechannelmonitor.FieldEnabled:
+		m.ResetEnabled()
+		return nil
+	case imagechannelmonitor.FieldIntervalSeconds:
+		m.ResetIntervalSeconds()
+		return nil
+	case imagechannelmonitor.FieldTimeoutSeconds:
+		m.ResetTimeoutSeconds()
+		return nil
+	case imagechannelmonitor.FieldLastCheckedAt:
+		m.ResetLastCheckedAt()
+		return nil
+	case imagechannelmonitor.FieldCreatedBy:
+		m.ResetCreatedBy()
+		return nil
+	case imagechannelmonitor.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case imagechannelmonitor.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitor field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ImageChannelMonitorMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.histories != nil {
+		edges = append(edges, imagechannelmonitor.EdgeHistories)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ImageChannelMonitorMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case imagechannelmonitor.EdgeHistories:
+		ids := make([]ent.Value, 0, len(m.histories))
+		for id := range m.histories {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ImageChannelMonitorMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.removedhistories != nil {
+		edges = append(edges, imagechannelmonitor.EdgeHistories)
+	}
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ImageChannelMonitorMutation) RemovedIDs(name string) []ent.Value {
+	switch name {
+	case imagechannelmonitor.EdgeHistories:
+		ids := make([]ent.Value, 0, len(m.removedhistories))
+		for id := range m.removedhistories {
+			ids = append(ids, id)
+		}
+		return ids
+	}
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ImageChannelMonitorMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedhistories {
+		edges = append(edges, imagechannelmonitor.EdgeHistories)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) EdgeCleared(name string) bool {
+	switch name {
+	case imagechannelmonitor.EdgeHistories:
+		return m.clearedhistories
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ImageChannelMonitorMutation) ClearEdge(name string) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown ImageChannelMonitor unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ImageChannelMonitorMutation) ResetEdge(name string) error {
+	switch name {
+	case imagechannelmonitor.EdgeHistories:
+		m.ResetHistories()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitor edge %s", name)
+}
+
+// ImageChannelMonitorHistoryMutation represents an operation that mutates the ImageChannelMonitorHistory nodes in the graph.
+type ImageChannelMonitorHistoryMutation struct {
+	config
+	op                     Op
+	typ                    string
+	id                     *int64
+	status                 *imagechannelmonitorhistory.Status
+	http_status            *int
+	addhttp_status         *int
+	api_header_ms          *int
+	addapi_header_ms       *int
+	api_body_ms            *int
+	addapi_body_ms         *int
+	api_total_ms           *int
+	addapi_total_ms        *int
+	json_bytes             *int
+	addjson_bytes          *int
+	has_url                *bool
+	has_b64_json           *bool
+	image_url_host         *string
+	image_first_byte_ms    *int
+	addimage_first_byte_ms *int
+	image_download_ms      *int
+	addimage_download_ms   *int
+	image_bytes            *int64
+	addimage_bytes         *int64
+	image_content_type     *string
+	image_width            *int
+	addimage_width         *int
+	image_height           *int
+	addimage_height        *int
+	error_stage            *string
+	message                *string
+	checked_at             *time.Time
+	clearedFields          map[string]struct{}
+	monitor                *int64
+	clearedmonitor         bool
+	done                   bool
+	oldValue               func(context.Context) (*ImageChannelMonitorHistory, error)
+	predicates             []predicate.ImageChannelMonitorHistory
+}
+
+var _ ent.Mutation = (*ImageChannelMonitorHistoryMutation)(nil)
+
+// imagechannelmonitorhistoryOption allows management of the mutation configuration using functional options.
+type imagechannelmonitorhistoryOption func(*ImageChannelMonitorHistoryMutation)
+
+// newImageChannelMonitorHistoryMutation creates new mutation for the ImageChannelMonitorHistory entity.
+func newImageChannelMonitorHistoryMutation(c config, op Op, opts ...imagechannelmonitorhistoryOption) *ImageChannelMonitorHistoryMutation {
+	m := &ImageChannelMonitorHistoryMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeImageChannelMonitorHistory,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withImageChannelMonitorHistoryID sets the ID field of the mutation.
+func withImageChannelMonitorHistoryID(id int64) imagechannelmonitorhistoryOption {
+	return func(m *ImageChannelMonitorHistoryMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *ImageChannelMonitorHistory
+		)
+		m.oldValue = func(ctx context.Context) (*ImageChannelMonitorHistory, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().ImageChannelMonitorHistory.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withImageChannelMonitorHistory sets the old ImageChannelMonitorHistory of the mutation.
+func withImageChannelMonitorHistory(node *ImageChannelMonitorHistory) imagechannelmonitorhistoryOption {
+	return func(m *ImageChannelMonitorHistoryMutation) {
+		m.oldValue = func(context.Context) (*ImageChannelMonitorHistory, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ImageChannelMonitorHistoryMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ImageChannelMonitorHistoryMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ImageChannelMonitorHistoryMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ImageChannelMonitorHistoryMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().ImageChannelMonitorHistory.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetMonitorID sets the "monitor_id" field.
+func (m *ImageChannelMonitorHistoryMutation) SetMonitorID(i int64) {
+	m.monitor = &i
+}
+
+// MonitorID returns the value of the "monitor_id" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) MonitorID() (r int64, exists bool) {
+	v := m.monitor
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMonitorID returns the old "monitor_id" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldMonitorID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMonitorID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMonitorID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMonitorID: %w", err)
+	}
+	return oldValue.MonitorID, nil
+}
+
+// ResetMonitorID resets all changes to the "monitor_id" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetMonitorID() {
+	m.monitor = nil
+}
+
+// SetStatus sets the "status" field.
+func (m *ImageChannelMonitorHistoryMutation) SetStatus(i imagechannelmonitorhistory.Status) {
+	m.status = &i
+}
+
+// Status returns the value of the "status" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) Status() (r imagechannelmonitorhistory.Status, exists bool) {
+	v := m.status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldStatus returns the old "status" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldStatus(ctx context.Context) (v imagechannelmonitorhistory.Status, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
+	}
+	return oldValue.Status, nil
+}
+
+// ResetStatus resets all changes to the "status" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetStatus() {
+	m.status = nil
+}
+
+// SetHTTPStatus sets the "http_status" field.
+func (m *ImageChannelMonitorHistoryMutation) SetHTTPStatus(i int) {
+	m.http_status = &i
+	m.addhttp_status = nil
+}
+
+// HTTPStatus returns the value of the "http_status" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) HTTPStatus() (r int, exists bool) {
+	v := m.http_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHTTPStatus returns the old "http_status" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldHTTPStatus(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHTTPStatus is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHTTPStatus requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHTTPStatus: %w", err)
+	}
+	return oldValue.HTTPStatus, nil
+}
+
+// AddHTTPStatus adds i to the "http_status" field.
+func (m *ImageChannelMonitorHistoryMutation) AddHTTPStatus(i int) {
+	if m.addhttp_status != nil {
+		*m.addhttp_status += i
+	} else {
+		m.addhttp_status = &i
+	}
+}
+
+// AddedHTTPStatus returns the value that was added to the "http_status" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedHTTPStatus() (r int, exists bool) {
+	v := m.addhttp_status
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearHTTPStatus clears the value of the "http_status" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearHTTPStatus() {
+	m.http_status = nil
+	m.addhttp_status = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldHTTPStatus] = struct{}{}
+}
+
+// HTTPStatusCleared returns if the "http_status" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) HTTPStatusCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldHTTPStatus]
+	return ok
+}
+
+// ResetHTTPStatus resets all changes to the "http_status" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetHTTPStatus() {
+	m.http_status = nil
+	m.addhttp_status = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldHTTPStatus)
+}
+
+// SetAPIHeaderMs sets the "api_header_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) SetAPIHeaderMs(i int) {
+	m.api_header_ms = &i
+	m.addapi_header_ms = nil
+}
+
+// APIHeaderMs returns the value of the "api_header_ms" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) APIHeaderMs() (r int, exists bool) {
+	v := m.api_header_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIHeaderMs returns the old "api_header_ms" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldAPIHeaderMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIHeaderMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIHeaderMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIHeaderMs: %w", err)
+	}
+	return oldValue.APIHeaderMs, nil
+}
+
+// AddAPIHeaderMs adds i to the "api_header_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) AddAPIHeaderMs(i int) {
+	if m.addapi_header_ms != nil {
+		*m.addapi_header_ms += i
+	} else {
+		m.addapi_header_ms = &i
+	}
+}
+
+// AddedAPIHeaderMs returns the value that was added to the "api_header_ms" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedAPIHeaderMs() (r int, exists bool) {
+	v := m.addapi_header_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAPIHeaderMs clears the value of the "api_header_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearAPIHeaderMs() {
+	m.api_header_ms = nil
+	m.addapi_header_ms = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldAPIHeaderMs] = struct{}{}
+}
+
+// APIHeaderMsCleared returns if the "api_header_ms" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) APIHeaderMsCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldAPIHeaderMs]
+	return ok
+}
+
+// ResetAPIHeaderMs resets all changes to the "api_header_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetAPIHeaderMs() {
+	m.api_header_ms = nil
+	m.addapi_header_ms = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldAPIHeaderMs)
+}
+
+// SetAPIBodyMs sets the "api_body_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) SetAPIBodyMs(i int) {
+	m.api_body_ms = &i
+	m.addapi_body_ms = nil
+}
+
+// APIBodyMs returns the value of the "api_body_ms" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) APIBodyMs() (r int, exists bool) {
+	v := m.api_body_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIBodyMs returns the old "api_body_ms" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldAPIBodyMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIBodyMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIBodyMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIBodyMs: %w", err)
+	}
+	return oldValue.APIBodyMs, nil
+}
+
+// AddAPIBodyMs adds i to the "api_body_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) AddAPIBodyMs(i int) {
+	if m.addapi_body_ms != nil {
+		*m.addapi_body_ms += i
+	} else {
+		m.addapi_body_ms = &i
+	}
+}
+
+// AddedAPIBodyMs returns the value that was added to the "api_body_ms" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedAPIBodyMs() (r int, exists bool) {
+	v := m.addapi_body_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAPIBodyMs clears the value of the "api_body_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearAPIBodyMs() {
+	m.api_body_ms = nil
+	m.addapi_body_ms = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldAPIBodyMs] = struct{}{}
+}
+
+// APIBodyMsCleared returns if the "api_body_ms" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) APIBodyMsCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldAPIBodyMs]
+	return ok
+}
+
+// ResetAPIBodyMs resets all changes to the "api_body_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetAPIBodyMs() {
+	m.api_body_ms = nil
+	m.addapi_body_ms = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldAPIBodyMs)
+}
+
+// SetAPITotalMs sets the "api_total_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) SetAPITotalMs(i int) {
+	m.api_total_ms = &i
+	m.addapi_total_ms = nil
+}
+
+// APITotalMs returns the value of the "api_total_ms" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) APITotalMs() (r int, exists bool) {
+	v := m.api_total_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPITotalMs returns the old "api_total_ms" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldAPITotalMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPITotalMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPITotalMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPITotalMs: %w", err)
+	}
+	return oldValue.APITotalMs, nil
+}
+
+// AddAPITotalMs adds i to the "api_total_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) AddAPITotalMs(i int) {
+	if m.addapi_total_ms != nil {
+		*m.addapi_total_ms += i
+	} else {
+		m.addapi_total_ms = &i
+	}
+}
+
+// AddedAPITotalMs returns the value that was added to the "api_total_ms" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedAPITotalMs() (r int, exists bool) {
+	v := m.addapi_total_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAPITotalMs clears the value of the "api_total_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearAPITotalMs() {
+	m.api_total_ms = nil
+	m.addapi_total_ms = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldAPITotalMs] = struct{}{}
+}
+
+// APITotalMsCleared returns if the "api_total_ms" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) APITotalMsCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldAPITotalMs]
+	return ok
+}
+
+// ResetAPITotalMs resets all changes to the "api_total_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetAPITotalMs() {
+	m.api_total_ms = nil
+	m.addapi_total_ms = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldAPITotalMs)
+}
+
+// SetJSONBytes sets the "json_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) SetJSONBytes(i int) {
+	m.json_bytes = &i
+	m.addjson_bytes = nil
+}
+
+// JSONBytes returns the value of the "json_bytes" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) JSONBytes() (r int, exists bool) {
+	v := m.json_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldJSONBytes returns the old "json_bytes" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldJSONBytes(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldJSONBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldJSONBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldJSONBytes: %w", err)
+	}
+	return oldValue.JSONBytes, nil
+}
+
+// AddJSONBytes adds i to the "json_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) AddJSONBytes(i int) {
+	if m.addjson_bytes != nil {
+		*m.addjson_bytes += i
+	} else {
+		m.addjson_bytes = &i
+	}
+}
+
+// AddedJSONBytes returns the value that was added to the "json_bytes" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedJSONBytes() (r int, exists bool) {
+	v := m.addjson_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearJSONBytes clears the value of the "json_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearJSONBytes() {
+	m.json_bytes = nil
+	m.addjson_bytes = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldJSONBytes] = struct{}{}
+}
+
+// JSONBytesCleared returns if the "json_bytes" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) JSONBytesCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldJSONBytes]
+	return ok
+}
+
+// ResetJSONBytes resets all changes to the "json_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetJSONBytes() {
+	m.json_bytes = nil
+	m.addjson_bytes = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldJSONBytes)
+}
+
+// SetHasURL sets the "has_url" field.
+func (m *ImageChannelMonitorHistoryMutation) SetHasURL(b bool) {
+	m.has_url = &b
+}
+
+// HasURL returns the value of the "has_url" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) HasURL() (r bool, exists bool) {
+	v := m.has_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHasURL returns the old "has_url" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldHasURL(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHasURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHasURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHasURL: %w", err)
+	}
+	return oldValue.HasURL, nil
+}
+
+// ResetHasURL resets all changes to the "has_url" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetHasURL() {
+	m.has_url = nil
+}
+
+// SetHasB64JSON sets the "has_b64_json" field.
+func (m *ImageChannelMonitorHistoryMutation) SetHasB64JSON(b bool) {
+	m.has_b64_json = &b
+}
+
+// HasB64JSON returns the value of the "has_b64_json" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) HasB64JSON() (r bool, exists bool) {
+	v := m.has_b64_json
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHasB64JSON returns the old "has_b64_json" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldHasB64JSON(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHasB64JSON is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHasB64JSON requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHasB64JSON: %w", err)
+	}
+	return oldValue.HasB64JSON, nil
+}
+
+// ResetHasB64JSON resets all changes to the "has_b64_json" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetHasB64JSON() {
+	m.has_b64_json = nil
+}
+
+// SetImageURLHost sets the "image_url_host" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageURLHost(s string) {
+	m.image_url_host = &s
+}
+
+// ImageURLHost returns the value of the "image_url_host" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageURLHost() (r string, exists bool) {
+	v := m.image_url_host
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageURLHost returns the old "image_url_host" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageURLHost(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageURLHost is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageURLHost requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageURLHost: %w", err)
+	}
+	return oldValue.ImageURLHost, nil
+}
+
+// ClearImageURLHost clears the value of the "image_url_host" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageURLHost() {
+	m.image_url_host = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageURLHost] = struct{}{}
+}
+
+// ImageURLHostCleared returns if the "image_url_host" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageURLHostCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageURLHost]
+	return ok
+}
+
+// ResetImageURLHost resets all changes to the "image_url_host" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageURLHost() {
+	m.image_url_host = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageURLHost)
+}
+
+// SetImageFirstByteMs sets the "image_first_byte_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageFirstByteMs(i int) {
+	m.image_first_byte_ms = &i
+	m.addimage_first_byte_ms = nil
+}
+
+// ImageFirstByteMs returns the value of the "image_first_byte_ms" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageFirstByteMs() (r int, exists bool) {
+	v := m.image_first_byte_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageFirstByteMs returns the old "image_first_byte_ms" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageFirstByteMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageFirstByteMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageFirstByteMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageFirstByteMs: %w", err)
+	}
+	return oldValue.ImageFirstByteMs, nil
+}
+
+// AddImageFirstByteMs adds i to the "image_first_byte_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) AddImageFirstByteMs(i int) {
+	if m.addimage_first_byte_ms != nil {
+		*m.addimage_first_byte_ms += i
+	} else {
+		m.addimage_first_byte_ms = &i
+	}
+}
+
+// AddedImageFirstByteMs returns the value that was added to the "image_first_byte_ms" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedImageFirstByteMs() (r int, exists bool) {
+	v := m.addimage_first_byte_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearImageFirstByteMs clears the value of the "image_first_byte_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageFirstByteMs() {
+	m.image_first_byte_ms = nil
+	m.addimage_first_byte_ms = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageFirstByteMs] = struct{}{}
+}
+
+// ImageFirstByteMsCleared returns if the "image_first_byte_ms" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageFirstByteMsCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageFirstByteMs]
+	return ok
+}
+
+// ResetImageFirstByteMs resets all changes to the "image_first_byte_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageFirstByteMs() {
+	m.image_first_byte_ms = nil
+	m.addimage_first_byte_ms = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageFirstByteMs)
+}
+
+// SetImageDownloadMs sets the "image_download_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageDownloadMs(i int) {
+	m.image_download_ms = &i
+	m.addimage_download_ms = nil
+}
+
+// ImageDownloadMs returns the value of the "image_download_ms" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageDownloadMs() (r int, exists bool) {
+	v := m.image_download_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageDownloadMs returns the old "image_download_ms" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageDownloadMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageDownloadMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageDownloadMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageDownloadMs: %w", err)
+	}
+	return oldValue.ImageDownloadMs, nil
+}
+
+// AddImageDownloadMs adds i to the "image_download_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) AddImageDownloadMs(i int) {
+	if m.addimage_download_ms != nil {
+		*m.addimage_download_ms += i
+	} else {
+		m.addimage_download_ms = &i
+	}
+}
+
+// AddedImageDownloadMs returns the value that was added to the "image_download_ms" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedImageDownloadMs() (r int, exists bool) {
+	v := m.addimage_download_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearImageDownloadMs clears the value of the "image_download_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageDownloadMs() {
+	m.image_download_ms = nil
+	m.addimage_download_ms = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageDownloadMs] = struct{}{}
+}
+
+// ImageDownloadMsCleared returns if the "image_download_ms" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageDownloadMsCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageDownloadMs]
+	return ok
+}
+
+// ResetImageDownloadMs resets all changes to the "image_download_ms" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageDownloadMs() {
+	m.image_download_ms = nil
+	m.addimage_download_ms = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageDownloadMs)
+}
+
+// SetImageBytes sets the "image_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageBytes(i int64) {
+	m.image_bytes = &i
+	m.addimage_bytes = nil
+}
+
+// ImageBytes returns the value of the "image_bytes" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageBytes() (r int64, exists bool) {
+	v := m.image_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageBytes returns the old "image_bytes" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageBytes(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageBytes is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageBytes requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageBytes: %w", err)
+	}
+	return oldValue.ImageBytes, nil
+}
+
+// AddImageBytes adds i to the "image_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) AddImageBytes(i int64) {
+	if m.addimage_bytes != nil {
+		*m.addimage_bytes += i
+	} else {
+		m.addimage_bytes = &i
+	}
+}
+
+// AddedImageBytes returns the value that was added to the "image_bytes" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedImageBytes() (r int64, exists bool) {
+	v := m.addimage_bytes
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearImageBytes clears the value of the "image_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageBytes() {
+	m.image_bytes = nil
+	m.addimage_bytes = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageBytes] = struct{}{}
+}
+
+// ImageBytesCleared returns if the "image_bytes" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageBytesCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageBytes]
+	return ok
+}
+
+// ResetImageBytes resets all changes to the "image_bytes" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageBytes() {
+	m.image_bytes = nil
+	m.addimage_bytes = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageBytes)
+}
+
+// SetImageContentType sets the "image_content_type" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageContentType(s string) {
+	m.image_content_type = &s
+}
+
+// ImageContentType returns the value of the "image_content_type" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageContentType() (r string, exists bool) {
+	v := m.image_content_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageContentType returns the old "image_content_type" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageContentType(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageContentType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageContentType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageContentType: %w", err)
+	}
+	return oldValue.ImageContentType, nil
+}
+
+// ClearImageContentType clears the value of the "image_content_type" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageContentType() {
+	m.image_content_type = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageContentType] = struct{}{}
+}
+
+// ImageContentTypeCleared returns if the "image_content_type" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageContentTypeCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageContentType]
+	return ok
+}
+
+// ResetImageContentType resets all changes to the "image_content_type" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageContentType() {
+	m.image_content_type = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageContentType)
+}
+
+// SetImageWidth sets the "image_width" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageWidth(i int) {
+	m.image_width = &i
+	m.addimage_width = nil
+}
+
+// ImageWidth returns the value of the "image_width" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageWidth() (r int, exists bool) {
+	v := m.image_width
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageWidth returns the old "image_width" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageWidth(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageWidth is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageWidth requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageWidth: %w", err)
+	}
+	return oldValue.ImageWidth, nil
+}
+
+// AddImageWidth adds i to the "image_width" field.
+func (m *ImageChannelMonitorHistoryMutation) AddImageWidth(i int) {
+	if m.addimage_width != nil {
+		*m.addimage_width += i
+	} else {
+		m.addimage_width = &i
+	}
+}
+
+// AddedImageWidth returns the value that was added to the "image_width" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedImageWidth() (r int, exists bool) {
+	v := m.addimage_width
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearImageWidth clears the value of the "image_width" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageWidth() {
+	m.image_width = nil
+	m.addimage_width = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageWidth] = struct{}{}
+}
+
+// ImageWidthCleared returns if the "image_width" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageWidthCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageWidth]
+	return ok
+}
+
+// ResetImageWidth resets all changes to the "image_width" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageWidth() {
+	m.image_width = nil
+	m.addimage_width = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageWidth)
+}
+
+// SetImageHeight sets the "image_height" field.
+func (m *ImageChannelMonitorHistoryMutation) SetImageHeight(i int) {
+	m.image_height = &i
+	m.addimage_height = nil
+}
+
+// ImageHeight returns the value of the "image_height" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageHeight() (r int, exists bool) {
+	v := m.image_height
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldImageHeight returns the old "image_height" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldImageHeight(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldImageHeight is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldImageHeight requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldImageHeight: %w", err)
+	}
+	return oldValue.ImageHeight, nil
+}
+
+// AddImageHeight adds i to the "image_height" field.
+func (m *ImageChannelMonitorHistoryMutation) AddImageHeight(i int) {
+	if m.addimage_height != nil {
+		*m.addimage_height += i
+	} else {
+		m.addimage_height = &i
+	}
+}
+
+// AddedImageHeight returns the value that was added to the "image_height" field in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedImageHeight() (r int, exists bool) {
+	v := m.addimage_height
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearImageHeight clears the value of the "image_height" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearImageHeight() {
+	m.image_height = nil
+	m.addimage_height = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldImageHeight] = struct{}{}
+}
+
+// ImageHeightCleared returns if the "image_height" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ImageHeightCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldImageHeight]
+	return ok
+}
+
+// ResetImageHeight resets all changes to the "image_height" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetImageHeight() {
+	m.image_height = nil
+	m.addimage_height = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldImageHeight)
+}
+
+// SetErrorStage sets the "error_stage" field.
+func (m *ImageChannelMonitorHistoryMutation) SetErrorStage(s string) {
+	m.error_stage = &s
+}
+
+// ErrorStage returns the value of the "error_stage" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ErrorStage() (r string, exists bool) {
+	v := m.error_stage
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorStage returns the old "error_stage" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldErrorStage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorStage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorStage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorStage: %w", err)
+	}
+	return oldValue.ErrorStage, nil
+}
+
+// ClearErrorStage clears the value of the "error_stage" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearErrorStage() {
+	m.error_stage = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldErrorStage] = struct{}{}
+}
+
+// ErrorStageCleared returns if the "error_stage" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ErrorStageCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldErrorStage]
+	return ok
+}
+
+// ResetErrorStage resets all changes to the "error_stage" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetErrorStage() {
+	m.error_stage = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldErrorStage)
+}
+
+// SetMessage sets the "message" field.
+func (m *ImageChannelMonitorHistoryMutation) SetMessage(s string) {
+	m.message = &s
+}
+
+// Message returns the value of the "message" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) Message() (r string, exists bool) {
+	v := m.message
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMessage returns the old "message" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldMessage(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMessage is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMessage requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMessage: %w", err)
+	}
+	return oldValue.Message, nil
+}
+
+// ClearMessage clears the value of the "message" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearMessage() {
+	m.message = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldMessage] = struct{}{}
+}
+
+// MessageCleared returns if the "message" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) MessageCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldMessage]
+	return ok
+}
+
+// ResetMessage resets all changes to the "message" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetMessage() {
+	m.message = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldMessage)
+}
+
+// SetCheckedAt sets the "checked_at" field.
+func (m *ImageChannelMonitorHistoryMutation) SetCheckedAt(t time.Time) {
+	m.checked_at = &t
+}
+
+// CheckedAt returns the value of the "checked_at" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) CheckedAt() (r time.Time, exists bool) {
+	v := m.checked_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCheckedAt returns the old "checked_at" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldCheckedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCheckedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCheckedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCheckedAt: %w", err)
+	}
+	return oldValue.CheckedAt, nil
+}
+
+// ResetCheckedAt resets all changes to the "checked_at" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetCheckedAt() {
+	m.checked_at = nil
+}
+
+// ClearMonitor clears the "monitor" edge to the ImageChannelMonitor entity.
+func (m *ImageChannelMonitorHistoryMutation) ClearMonitor() {
+	m.clearedmonitor = true
+	m.clearedFields[imagechannelmonitorhistory.FieldMonitorID] = struct{}{}
+}
+
+// MonitorCleared reports if the "monitor" edge to the ImageChannelMonitor entity was cleared.
+func (m *ImageChannelMonitorHistoryMutation) MonitorCleared() bool {
+	return m.clearedmonitor
+}
+
+// MonitorIDs returns the "monitor" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MonitorID instead. It exists only for internal usage by the builders.
+func (m *ImageChannelMonitorHistoryMutation) MonitorIDs() (ids []int64) {
+	if id := m.monitor; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMonitor resets all changes to the "monitor" edge.
+func (m *ImageChannelMonitorHistoryMutation) ResetMonitor() {
+	m.monitor = nil
+	m.clearedmonitor = false
+}
+
+// Where appends a list predicates to the ImageChannelMonitorHistoryMutation builder.
+func (m *ImageChannelMonitorHistoryMutation) Where(ps ...predicate.ImageChannelMonitorHistory) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ImageChannelMonitorHistoryMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ImageChannelMonitorHistoryMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.ImageChannelMonitorHistory, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ImageChannelMonitorHistoryMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ImageChannelMonitorHistoryMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (ImageChannelMonitorHistory).
+func (m *ImageChannelMonitorHistoryMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ImageChannelMonitorHistoryMutation) Fields() []string {
+	fields := make([]string, 0, 19)
+	if m.monitor != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldMonitorID)
+	}
+	if m.status != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldStatus)
+	}
+	if m.http_status != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldHTTPStatus)
+	}
+	if m.api_header_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPIHeaderMs)
+	}
+	if m.api_body_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPIBodyMs)
+	}
+	if m.api_total_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPITotalMs)
+	}
+	if m.json_bytes != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldJSONBytes)
+	}
+	if m.has_url != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldHasURL)
+	}
+	if m.has_b64_json != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldHasB64JSON)
+	}
+	if m.image_url_host != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageURLHost)
+	}
+	if m.image_first_byte_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageFirstByteMs)
+	}
+	if m.image_download_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageDownloadMs)
+	}
+	if m.image_bytes != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageBytes)
+	}
+	if m.image_content_type != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageContentType)
+	}
+	if m.image_width != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageWidth)
+	}
+	if m.image_height != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageHeight)
+	}
+	if m.error_stage != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldErrorStage)
+	}
+	if m.message != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldMessage)
+	}
+	if m.checked_at != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldCheckedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ImageChannelMonitorHistoryMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case imagechannelmonitorhistory.FieldMonitorID:
+		return m.MonitorID()
+	case imagechannelmonitorhistory.FieldStatus:
+		return m.Status()
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		return m.HTTPStatus()
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		return m.APIHeaderMs()
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		return m.APIBodyMs()
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		return m.APITotalMs()
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		return m.JSONBytes()
+	case imagechannelmonitorhistory.FieldHasURL:
+		return m.HasURL()
+	case imagechannelmonitorhistory.FieldHasB64JSON:
+		return m.HasB64JSON()
+	case imagechannelmonitorhistory.FieldImageURLHost:
+		return m.ImageURLHost()
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		return m.ImageFirstByteMs()
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		return m.ImageDownloadMs()
+	case imagechannelmonitorhistory.FieldImageBytes:
+		return m.ImageBytes()
+	case imagechannelmonitorhistory.FieldImageContentType:
+		return m.ImageContentType()
+	case imagechannelmonitorhistory.FieldImageWidth:
+		return m.ImageWidth()
+	case imagechannelmonitorhistory.FieldImageHeight:
+		return m.ImageHeight()
+	case imagechannelmonitorhistory.FieldErrorStage:
+		return m.ErrorStage()
+	case imagechannelmonitorhistory.FieldMessage:
+		return m.Message()
+	case imagechannelmonitorhistory.FieldCheckedAt:
+		return m.CheckedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ImageChannelMonitorHistoryMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case imagechannelmonitorhistory.FieldMonitorID:
+		return m.OldMonitorID(ctx)
+	case imagechannelmonitorhistory.FieldStatus:
+		return m.OldStatus(ctx)
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		return m.OldHTTPStatus(ctx)
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		return m.OldAPIHeaderMs(ctx)
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		return m.OldAPIBodyMs(ctx)
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		return m.OldAPITotalMs(ctx)
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		return m.OldJSONBytes(ctx)
+	case imagechannelmonitorhistory.FieldHasURL:
+		return m.OldHasURL(ctx)
+	case imagechannelmonitorhistory.FieldHasB64JSON:
+		return m.OldHasB64JSON(ctx)
+	case imagechannelmonitorhistory.FieldImageURLHost:
+		return m.OldImageURLHost(ctx)
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		return m.OldImageFirstByteMs(ctx)
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		return m.OldImageDownloadMs(ctx)
+	case imagechannelmonitorhistory.FieldImageBytes:
+		return m.OldImageBytes(ctx)
+	case imagechannelmonitorhistory.FieldImageContentType:
+		return m.OldImageContentType(ctx)
+	case imagechannelmonitorhistory.FieldImageWidth:
+		return m.OldImageWidth(ctx)
+	case imagechannelmonitorhistory.FieldImageHeight:
+		return m.OldImageHeight(ctx)
+	case imagechannelmonitorhistory.FieldErrorStage:
+		return m.OldErrorStage(ctx)
+	case imagechannelmonitorhistory.FieldMessage:
+		return m.OldMessage(ctx)
+	case imagechannelmonitorhistory.FieldCheckedAt:
+		return m.OldCheckedAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown ImageChannelMonitorHistory field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ImageChannelMonitorHistoryMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case imagechannelmonitorhistory.FieldMonitorID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMonitorID(v)
+		return nil
+	case imagechannelmonitorhistory.FieldStatus:
+		v, ok := value.(imagechannelmonitorhistory.Status)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetStatus(v)
+		return nil
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHTTPStatus(v)
+		return nil
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIHeaderMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIBodyMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPITotalMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetJSONBytes(v)
+		return nil
+	case imagechannelmonitorhistory.FieldHasURL:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHasURL(v)
+		return nil
+	case imagechannelmonitorhistory.FieldHasB64JSON:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHasB64JSON(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageURLHost:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageURLHost(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageFirstByteMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageDownloadMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageBytes(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageContentType:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageContentType(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageWidth:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageWidth(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageHeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetImageHeight(v)
+		return nil
+	case imagechannelmonitorhistory.FieldErrorStage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorStage(v)
+		return nil
+	case imagechannelmonitorhistory.FieldMessage:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMessage(v)
+		return nil
+	case imagechannelmonitorhistory.FieldCheckedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCheckedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitorHistory field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedFields() []string {
+	var fields []string
+	if m.addhttp_status != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldHTTPStatus)
+	}
+	if m.addapi_header_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPIHeaderMs)
+	}
+	if m.addapi_body_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPIBodyMs)
+	}
+	if m.addapi_total_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPITotalMs)
+	}
+	if m.addjson_bytes != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldJSONBytes)
+	}
+	if m.addimage_first_byte_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageFirstByteMs)
+	}
+	if m.addimage_download_ms != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageDownloadMs)
+	}
+	if m.addimage_bytes != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageBytes)
+	}
+	if m.addimage_width != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageWidth)
+	}
+	if m.addimage_height != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageHeight)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ImageChannelMonitorHistoryMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		return m.AddedHTTPStatus()
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		return m.AddedAPIHeaderMs()
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		return m.AddedAPIBodyMs()
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		return m.AddedAPITotalMs()
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		return m.AddedJSONBytes()
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		return m.AddedImageFirstByteMs()
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		return m.AddedImageDownloadMs()
+	case imagechannelmonitorhistory.FieldImageBytes:
+		return m.AddedImageBytes()
+	case imagechannelmonitorhistory.FieldImageWidth:
+		return m.AddedImageWidth()
+	case imagechannelmonitorhistory.FieldImageHeight:
+		return m.AddedImageHeight()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ImageChannelMonitorHistoryMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddHTTPStatus(v)
+		return nil
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAPIHeaderMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAPIBodyMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAPITotalMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddJSONBytes(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddImageFirstByteMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddImageDownloadMs(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageBytes:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddImageBytes(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageWidth:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddImageWidth(v)
+		return nil
+	case imagechannelmonitorhistory.FieldImageHeight:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddImageHeight(v)
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitorHistory numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ImageChannelMonitorHistoryMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(imagechannelmonitorhistory.FieldHTTPStatus) {
+		fields = append(fields, imagechannelmonitorhistory.FieldHTTPStatus)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldAPIHeaderMs) {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPIHeaderMs)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldAPIBodyMs) {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPIBodyMs)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldAPITotalMs) {
+		fields = append(fields, imagechannelmonitorhistory.FieldAPITotalMs)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldJSONBytes) {
+		fields = append(fields, imagechannelmonitorhistory.FieldJSONBytes)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageURLHost) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageURLHost)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageFirstByteMs) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageFirstByteMs)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageDownloadMs) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageDownloadMs)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageBytes) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageBytes)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageContentType) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageContentType)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageWidth) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageWidth)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldImageHeight) {
+		fields = append(fields, imagechannelmonitorhistory.FieldImageHeight)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldErrorStage) {
+		fields = append(fields, imagechannelmonitorhistory.FieldErrorStage)
+	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldMessage) {
+		fields = append(fields, imagechannelmonitorhistory.FieldMessage)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ImageChannelMonitorHistoryMutation) ClearField(name string) error {
+	switch name {
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		m.ClearHTTPStatus()
+		return nil
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		m.ClearAPIHeaderMs()
+		return nil
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		m.ClearAPIBodyMs()
+		return nil
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		m.ClearAPITotalMs()
+		return nil
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		m.ClearJSONBytes()
+		return nil
+	case imagechannelmonitorhistory.FieldImageURLHost:
+		m.ClearImageURLHost()
+		return nil
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		m.ClearImageFirstByteMs()
+		return nil
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		m.ClearImageDownloadMs()
+		return nil
+	case imagechannelmonitorhistory.FieldImageBytes:
+		m.ClearImageBytes()
+		return nil
+	case imagechannelmonitorhistory.FieldImageContentType:
+		m.ClearImageContentType()
+		return nil
+	case imagechannelmonitorhistory.FieldImageWidth:
+		m.ClearImageWidth()
+		return nil
+	case imagechannelmonitorhistory.FieldImageHeight:
+		m.ClearImageHeight()
+		return nil
+	case imagechannelmonitorhistory.FieldErrorStage:
+		m.ClearErrorStage()
+		return nil
+	case imagechannelmonitorhistory.FieldMessage:
+		m.ClearMessage()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitorHistory nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ImageChannelMonitorHistoryMutation) ResetField(name string) error {
+	switch name {
+	case imagechannelmonitorhistory.FieldMonitorID:
+		m.ResetMonitorID()
+		return nil
+	case imagechannelmonitorhistory.FieldStatus:
+		m.ResetStatus()
+		return nil
+	case imagechannelmonitorhistory.FieldHTTPStatus:
+		m.ResetHTTPStatus()
+		return nil
+	case imagechannelmonitorhistory.FieldAPIHeaderMs:
+		m.ResetAPIHeaderMs()
+		return nil
+	case imagechannelmonitorhistory.FieldAPIBodyMs:
+		m.ResetAPIBodyMs()
+		return nil
+	case imagechannelmonitorhistory.FieldAPITotalMs:
+		m.ResetAPITotalMs()
+		return nil
+	case imagechannelmonitorhistory.FieldJSONBytes:
+		m.ResetJSONBytes()
+		return nil
+	case imagechannelmonitorhistory.FieldHasURL:
+		m.ResetHasURL()
+		return nil
+	case imagechannelmonitorhistory.FieldHasB64JSON:
+		m.ResetHasB64JSON()
+		return nil
+	case imagechannelmonitorhistory.FieldImageURLHost:
+		m.ResetImageURLHost()
+		return nil
+	case imagechannelmonitorhistory.FieldImageFirstByteMs:
+		m.ResetImageFirstByteMs()
+		return nil
+	case imagechannelmonitorhistory.FieldImageDownloadMs:
+		m.ResetImageDownloadMs()
+		return nil
+	case imagechannelmonitorhistory.FieldImageBytes:
+		m.ResetImageBytes()
+		return nil
+	case imagechannelmonitorhistory.FieldImageContentType:
+		m.ResetImageContentType()
+		return nil
+	case imagechannelmonitorhistory.FieldImageWidth:
+		m.ResetImageWidth()
+		return nil
+	case imagechannelmonitorhistory.FieldImageHeight:
+		m.ResetImageHeight()
+		return nil
+	case imagechannelmonitorhistory.FieldErrorStage:
+		m.ResetErrorStage()
+		return nil
+	case imagechannelmonitorhistory.FieldMessage:
+		m.ResetMessage()
+		return nil
+	case imagechannelmonitorhistory.FieldCheckedAt:
+		m.ResetCheckedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitorHistory field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.monitor != nil {
+		edges = append(edges, imagechannelmonitorhistory.EdgeMonitor)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case imagechannelmonitorhistory.EdgeMonitor:
+		if id := m.monitor; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.clearedmonitor {
+		edges = append(edges, imagechannelmonitorhistory.EdgeMonitor)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) EdgeCleared(name string) bool {
+	switch name {
+	case imagechannelmonitorhistory.EdgeMonitor:
+		return m.clearedmonitor
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ImageChannelMonitorHistoryMutation) ClearEdge(name string) error {
+	switch name {
+	case imagechannelmonitorhistory.EdgeMonitor:
+		m.ClearMonitor()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitorHistory unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ImageChannelMonitorHistoryMutation) ResetEdge(name string) error {
+	switch name {
+	case imagechannelmonitorhistory.EdgeMonitor:
+		m.ResetMonitor()
+		return nil
+	}
+	return fmt.Errorf("unknown ImageChannelMonitorHistory edge %s", name)
 }
 
 // PaymentAuditLogMutation represents an operation that mutates the PaymentAuditLog nodes in the graph.

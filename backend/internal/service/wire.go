@@ -557,6 +557,8 @@ var ProviderSet = wire.NewSet(
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
+	ProvideImageChannelMonitorService,
+	ProvideImageChannelMonitorRunner,
 	NewChannelMonitorRequestTemplateService,
 )
 
@@ -594,6 +596,23 @@ func ProvideChannelMonitorService(
 // settingService 用于 runner 每次 fire 读取功能开关。
 func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *SettingService) *ChannelMonitorRunner {
 	r := NewChannelMonitorRunner(svc, settingService)
+	svc.SetScheduler(r)
+	r.Start()
+	return r
+}
+
+func ProvideImageChannelMonitorService(
+	repo ImageChannelMonitorRepository,
+	accountRepo AccountRepository,
+	encryptor SecretEncryptor,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *ImageChannelMonitorService {
+	return NewImageChannelMonitorService(repo, accountRepo, encryptor, httpUpstream, tlsFPProfileService)
+}
+
+func ProvideImageChannelMonitorRunner(svc *ImageChannelMonitorService) *ImageChannelMonitorRunner {
+	r := NewImageChannelMonitorRunner(svc)
 	svc.SetScheduler(r)
 	r.Start()
 	return r

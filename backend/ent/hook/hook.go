@@ -201,6 +201,30 @@ func (f IdentityAdoptionDecisionFunc) Mutate(ctx context.Context, m ent.Mutation
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IdentityAdoptionDecisionMutation", m)
 }
 
+// The ImageChannelMonitorFunc type is an adapter to allow the use of ordinary
+// function as ImageChannelMonitor mutator.
+type ImageChannelMonitorFunc func(context.Context, *ent.ImageChannelMonitorMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ImageChannelMonitorFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ImageChannelMonitorMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ImageChannelMonitorMutation", m)
+}
+
+// The ImageChannelMonitorHistoryFunc type is an adapter to allow the use of ordinary
+// function as ImageChannelMonitorHistory mutator.
+type ImageChannelMonitorHistoryFunc func(context.Context, *ent.ImageChannelMonitorHistoryMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ImageChannelMonitorHistoryFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ImageChannelMonitorHistoryMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ImageChannelMonitorHistoryMutation", m)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)

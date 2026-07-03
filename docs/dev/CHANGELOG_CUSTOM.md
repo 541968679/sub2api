@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] feat: add dedicated image channel monitor
+
+**Affected files**: backend/ent/schema/image_channel_monitor*.go, backend/migrations/174_image_channel_monitors.sql, backend/internal/service/image_channel_monitor_*.go, backend/internal/repository/image_channel_monitor_repo.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, backend/cmd/server/wire_gen.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: additive fork-local module. It does not modify the existing generic channel monitor schema, provider adapters, rollups, or user-facing channel status view. Future upstream changes to the generic monitor should have limited conflict surface except shared DI/router/sidebar files.
+**Change details**:
+- Added independent image monitor tables for monitor configuration and per-run timing history, with custom API source and OpenAI API-key account source.
+- Custom source stores an encrypted API key and public HTTPS base endpoint; account source stores only `account_id` and resolves the current account base URL, API key, proxy, concurrency, and TLS profile at run time.
+- Image checks call `/v1/images/generations` with `response_format=url`, record API header/body/total timing, response shape (`has_url`, `has_b64_json`), returned URL host, and optional returned-image download timing/size/dimensions.
+- Added an independent scheduler/runner, admin CRUD/run/history endpoints under `/api/v1/admin/image-channel-monitors`, and an admin submenu at `渠道管理 -> 图片渠道监控`.
+- Added focused service tests for account-source request construction and `b64_json` response handling.
+- Verified: `go generate ./ent`; `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`. `go generate ./cmd/server` was attempted but blocked by a local Wire tool `go.sum` missing entry, so `wire_gen.go` was manually reconciled.
+
 ## [2026-07-03] feat: redesign login page visuals to Figma v2 (purple gradient)
 
 **Affected files**: frontend/src/views/auth/LoginView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts

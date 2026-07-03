@@ -458,6 +458,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/channels/image-monitor',
+    name: 'AdminImageChannelMonitor',
+    component: () => import('@/views/admin/ImageChannelMonitorView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Image Channel Monitor',
+      titleKey: 'admin.imageChannelMonitor.title',
+      descriptionKey: 'admin.imageChannelMonitor.description'
+    }
+  },
+  {
     path: '/monitor',
     name: 'ChannelStatus',
     component: () => import('@/views/user/ChannelStatusView.vue'),
