@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] fix: restrict production service ports to loopback
+
+**Affected files**: deploy/docker-compose.yml, deploy/.env.example
+**Upstream compatibility**: deployment hardening only. No backend, frontend, schema, image, or API behavior changes.
+**Change details**:
+- Changed the Docker Compose default app port binding from `0.0.0.0:8080` to `127.0.0.1:8080`, keeping public access through host Caddy on 80/443.
+- Changed PostgreSQL and Redis published ports to `127.0.0.1:5432` and `127.0.0.1:6379` to prevent public database/cache exposure.
+- Updated `.env.example` so new deployments default to loopback binding.
+- Production hotfix applied on `root@172.245.247.80` with backup `docker-compose.yml.bak-security-20260703-163646`; verified public `8080`, `5432`, and `6379` are closed while `https://zerocode.kaynlab.com/health` returns `{"status":"ok"}`.
+
 ## [2026-07-03] fix: key mapping rows by requested model
 
 **Affected files**: backend/internal/domain/constants.go, backend/internal/domain/constants_test.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md
