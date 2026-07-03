@@ -131,7 +131,7 @@
             <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.requestedModelName') }}</th>
             <th class="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.upstreamModelName') }}</th>
             <th class="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.billingMode') }}</th>
-            <th class="hidden px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400 xl:table-cell">Provider</th>
+            <th class="hidden px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400 xl:table-cell">{{ t('admin.modelPricing.provider') }}</th>
             <th class="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.inputPrice') }}</th>
             <th class="px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.outputPrice') }}</th>
             <th class="hidden px-4 py-3 text-right font-medium text-gray-500 dark:text-gray-400 lg:table-cell">{{ t('admin.modelPricing.cacheWritePrice') }}</th>
@@ -175,7 +175,7 @@
             </td>
             <td class="hidden px-4 py-2.5 xl:table-cell">
               <span class="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                {{ row.item.provider || '-' }}
+                {{ row.resolvedProvider || '-' }}
               </span>
             </td>
             <td
@@ -230,10 +230,10 @@
                   @click="deleteMapping(row)"
                   class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   :title="t('admin.modelPricing.deleteMapping')"
-                  :disabled="deletingMappingFrom === row.item.model"
+                  :disabled="deletingMappingFrom === rowMappingPlatform(row) + ':' + row.item.model"
                 >
                   <span
-                    v-if="deletingMappingFrom === row.item.model"
+                    v-if="deletingMappingFrom === rowMappingPlatform(row) + ':' + row.item.model"
                     class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   ></span>
                   <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -243,7 +243,7 @@
                 </button>
                 <button
                   v-if="row.canTest"
-                  @click="openTestDialog(row.item.model, row.item.provider)"
+                  @click="openTestDialog(row.item.model, row.resolvedProvider)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-gray-700 dark:hover:text-emerald-400"
                   :title="t('admin.modelPricing.testModel')"
                 >
@@ -253,7 +253,7 @@
                   </svg>
                 </button>
                 <button
-                  @click="openDetail(row.item.model)"
+                  @click="openDetail(row.item.model, row.resolvedProvider)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                   :title="row.stub ? t('admin.modelPricing.createPricing') : t('admin.modelPricing.viewDetail')"
                 >
@@ -304,6 +304,7 @@
     <ModelPricingDetailDialog
       :show="showDetailDialog"
       :model="selectedModel"
+      :initial-provider="selectedModelProvider"
       @close="showDetailDialog = false"
       @saved="loadData"
     />
@@ -315,6 +316,8 @@
       :model="popoverState.model"
       :existing-override="popoverState.existingOverride"
       :litellm-baseline="popoverState.litellmBaseline"
+      :provider="popoverState.provider"
+      :billing-mode="popoverState.billingMode"
       :focus-field="popoverState.focusField"
       @close="closeInlinePopover"
       @saved="handleInlineSaved"
@@ -326,6 +329,7 @@
       :show="mappingPopoverState.show"
       :anchor="mappingPopoverState.anchor"
       :mode="mappingPopoverState.mode"
+      :platform="mappingPopoverState.platform"
       :original-from="mappingPopoverState.originalFrom"
       :original-to="mappingPopoverState.originalTo"
       @close="closeMappingPopover"
@@ -353,6 +357,14 @@ import ModelPricingDetailDialog from './ModelPricingDetailDialog.vue'
 import ModelPricingInlinePopover from './ModelPricingInlinePopover.vue'
 import ModelMappingInlinePopover from './ModelMappingInlinePopover.vue'
 import ModelTestDialog from './ModelTestDialog.vue'
+import {
+  MODEL_PRICING_PROVIDER_OPTIONS,
+  normalizeModelPricingBillingMode,
+  normalizeModelPricingProvider,
+  resolveModelPricingProvider,
+  type ModelPricingBillingMode,
+  type ModelPricingProvider,
+} from './modelPricingOptions'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -369,6 +381,7 @@ const deletingMappingFrom = ref('')
 
 const showDetailDialog = ref(false)
 const selectedModel = ref('')
+const selectedModelProvider = ref('')
 
 // 内联 popover 状态
 type PopoverField = 'input' | 'output' | 'cache_write' | 'cache_read'
@@ -378,6 +391,8 @@ interface PopoverState {
   model: string
   existingOverride: GlobalOverride | null
   litellmBaseline: LiteLLMPrices | null
+  provider: ModelPricingProvider
+  billingMode: ModelPricingBillingMode
   focusField: PopoverField
 }
 const popoverState = reactive<PopoverState>({
@@ -386,6 +401,8 @@ const popoverState = reactive<PopoverState>({
   model: '',
   existingOverride: null,
   litellmBaseline: null,
+  provider: 'antigravity',
+  billingMode: 'token',
   focusField: 'input',
 })
 
@@ -397,13 +414,13 @@ function isNarrowViewport(): boolean {
 function openInlinePopover(event: MouseEvent, item: ModelPricingItem, field: PopoverField) {
   // 移动端：直接打开原 dialog
   if (isNarrowViewport()) {
-    openDetail(item.model)
+    openDetail(item.model, resolveModelPricingProvider(item, providerFilter.value))
     return
   }
   // Stub 模型（无 LiteLLM 数据且无 global_override）走完整 dialog 以获取建议价
   // 和填入 provider / notes 等上下文字段；popover 只负责快速调参
   if (isStubRow(item)) {
-    openDetail(item.model)
+    openDetail(item.model, resolveModelPricingProvider(item, providerFilter.value))
     return
   }
   const target = event.currentTarget as HTMLElement | null
@@ -413,6 +430,8 @@ function openInlinePopover(event: MouseEvent, item: ModelPricingItem, field: Pop
   popoverState.model = item.model
   popoverState.existingOverride = item.global_override ?? null
   popoverState.litellmBaseline = item.litellm_prices ?? null
+  popoverState.provider = resolveModelPricingProvider(item, providerFilter.value)
+  popoverState.billingMode = normalizeModelPricingBillingMode(item.global_override?.billing_mode)
   popoverState.focusField = field
 }
 
@@ -448,8 +467,9 @@ function handleInlineSaved(payload: {
 
 function popoverFallbackToDialog() {
   const model = popoverState.model
+  const provider = popoverState.provider
   closeInlinePopover()
-  if (model) openDetail(model)
+  if (model) openDetail(model, provider)
 }
 
 // 映射编辑 popover 状态
@@ -458,6 +478,7 @@ interface MappingPopoverState {
   show: boolean
   anchor: HTMLElement | null
   mode: 'add' | 'edit'
+  platform: string
   originalFrom: string
   originalTo: string
 }
@@ -465,14 +486,24 @@ const mappingPopoverState = reactive<MappingPopoverState>({
   show: false,
   anchor: null,
   mode: 'add',
+  platform: 'antigravity',
   originalFrom: '',
   originalTo: '',
 })
+
+function normalizeMappingPlatform(platform?: string): ModelPricingProvider {
+  return normalizeModelPricingProvider(platform) || 'antigravity'
+}
+
+function rowMappingPlatform(row?: RowDisplay): string {
+  return row?.resolvedProvider || normalizeMappingPlatform(providerFilter.value)
+}
 
 function openAddMapping() {
   mappingPopoverState.show = true
   mappingPopoverState.anchor = addMappingAnchor.value
   mappingPopoverState.mode = 'add'
+  mappingPopoverState.platform = normalizeMappingPlatform(providerFilter.value)
   mappingPopoverState.originalFrom = ''
   mappingPopoverState.originalTo = ''
 }
@@ -483,6 +514,7 @@ function openEditMapping(event: MouseEvent, row: RowDisplay) {
   mappingPopoverState.show = true
   mappingPopoverState.anchor = target
   mappingPopoverState.mode = 'edit'
+  mappingPopoverState.platform = rowMappingPlatform(row)
   mappingPopoverState.originalFrom = row.item.model
   // 对 requested_only 类型，row.upstreamDisplay 就是映射目标；
   // 对 requested_equals_upstream，上游名 == 模型本身（同名映射的 value）
@@ -494,22 +526,23 @@ function closeMappingPopover() {
   mappingPopoverState.anchor = null
 }
 
-function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; from: string; to?: string }) {
+function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; platform: string; from: string; to?: string }) {
   // 映射变化会影响所有徽标和 related_models，必须整表 reload
   loadData()
 }
 
 async function deleteMapping(row: RowDisplay) {
   const from = row.item.model
+  const platform = rowMappingPlatform(row)
   if (!from) return
   if (!confirm(t('admin.modelPricing.confirmDeleteMapping', { from }))) return
 
-  deletingMappingFrom.value = from
+  deletingMappingFrom.value = `${platform}:${from}`
   try {
-    const current = await adminAPI.accounts.getAntigravityDefaultModelMapping()
+    const current = await adminAPI.accounts.getPlatformDefaultModelMapping(platform)
     const next = { ...current }
     delete next[from]
-    await adminAPI.accounts.updateAntigravityDefaultModelMapping(next)
+    await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
     appStore.showSuccess(t('admin.modelConfig.saved'))
     await loadData()
   } catch {
@@ -545,10 +578,7 @@ function handleSearch() {
 // Provider / Source 的下划线 tab 选项。Anthropic/OpenAI/Gemini/Antigravity 是品牌名不做翻译。
 const providerTabs = computed(() => [
   { value: '', label: t('common.all') },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'antigravity', label: 'Antigravity' },
+  ...MODEL_PRICING_PROVIDER_OPTIONS,
 ])
 
 // 顺序按实际计费优先级（高 → 低）：渠道 > 全局 > 仅 LiteLLM
@@ -684,6 +714,7 @@ interface RowDisplay {
   upstreamDisplay: string
   billingModeLabel: string
   billingModeClass: string
+  resolvedProvider: ModelPricingProvider
   // 行操作是否可用
   canEditMapping: boolean
   canTest: boolean
@@ -756,7 +787,8 @@ const displayRows = computed<RowDisplay[]>(() =>
     // （requested_only 是 key != value 的 key；requested_equals_upstream 是同名 key）
     // upstream_only 行只作为 value 不是 key，不显示编辑入口（要改要去对应 key 行）
     const canEditMapping = hintType === 'requested_only' || hintType === 'requested_equals_upstream'
-    const canTest = !!hintType || item.provider === 'antigravity' || item.provider === 'openai' || item.provider === 'gemini'
+    const resolvedProvider = resolveModelPricingProvider(item, providerFilter.value)
+    const canTest = Boolean(resolvedProvider)
     return {
       item,
       stub: isStubRow(item),
@@ -766,6 +798,7 @@ const displayRows = computed<RowDisplay[]>(() =>
         cache_write: computePriceDelta(item, 'cache_write'),
         cache_read: computePriceDelta(item, 'cache_read'),
       },
+      resolvedProvider,
       canEditMapping,
       canTest,
       ...nameCols,
@@ -786,8 +819,9 @@ function sourceBadgeClass(source: string): string {
   }
 }
 
-function openDetail(model: string) {
+function openDetail(model: string, provider?: string) {
   selectedModel.value = model
+  selectedModelProvider.value = normalizeModelPricingProvider(provider) || ''
   showDetailDialog.value = true
 }
 

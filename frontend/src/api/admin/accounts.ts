@@ -662,14 +662,37 @@ export async function importData(payload: {
 }
 
 /**
+ * Get default model mapping for a platform from backend
+ * @returns Default model mapping (from -> to)
+ */
+export async function getPlatformDefaultModelMapping(platform: string): Promise<Record<string, string>> {
+  const { data } = await apiClient.get<Record<string, string>>(
+    `/admin/accounts/default-model-mapping/${encodeURIComponent(platform)}`
+  )
+  return data
+}
+
+/**
+ * Update default model mapping for a platform
+ * @param mapping - Model mapping (from -> to)
+ */
+export async function updatePlatformDefaultModelMapping(
+  platform: string,
+  mapping: Record<string, string>
+): Promise<Record<string, string>> {
+  const { data } = await apiClient.put<Record<string, string>>(
+    `/admin/accounts/default-model-mapping/${encodeURIComponent(platform)}`,
+    mapping
+  )
+  return data
+}
+
+/**
  * Get Antigravity default model mapping from backend
  * @returns Default model mapping (from -> to)
  */
 export async function getAntigravityDefaultModelMapping(): Promise<Record<string, string>> {
-  const { data } = await apiClient.get<Record<string, string>>(
-    '/admin/accounts/antigravity/default-model-mapping'
-  )
-  return data
+  return getPlatformDefaultModelMapping('antigravity')
 }
 
 /**
@@ -679,11 +702,7 @@ export async function getAntigravityDefaultModelMapping(): Promise<Record<string
 export async function updateAntigravityDefaultModelMapping(
   mapping: Record<string, string>
 ): Promise<Record<string, string>> {
-  const { data } = await apiClient.put<Record<string, string>>(
-    '/admin/accounts/antigravity/default-model-mapping',
-    mapping
-  )
-  return data
+  return updatePlatformDefaultModelMapping('antigravity', mapping)
 }
 
 /**
@@ -811,6 +830,8 @@ export const accountsAPI = {
   exportData,
   exportCodexAuth,
   importData,
+  getPlatformDefaultModelMapping,
+  updatePlatformDefaultModelMapping,
   getAntigravityDefaultModelMapping,
   updateAntigravityDefaultModelMapping,
   batchClearError,

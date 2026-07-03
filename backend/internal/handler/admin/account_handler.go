@@ -2477,22 +2477,71 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) {
 // GetAntigravityDefaultModelMapping 获取 Antigravity 平台的默认模型映射
 // GET /api/v1/admin/accounts/antigravity/default-model-mapping
 func (h *AccountHandler) GetAntigravityDefaultModelMapping(c *gin.Context) {
-	mapping := h.settingService.GetAntigravityDefaultModelMapping(c.Request.Context())
-	if mapping == nil {
-		mapping = domain.DefaultAntigravityModelMapping
-	}
-	response.Success(c, mapping)
+	h.getPlatformDefaultModelMapping(c, service.PlatformAntigravity)
 }
 
 // UpdateAntigravityDefaultModelMapping 更新 Antigravity 平台的全局默认模型映射
 // PUT /api/v1/admin/accounts/antigravity/default-model-mapping
 func (h *AccountHandler) UpdateAntigravityDefaultModelMapping(c *gin.Context) {
+	h.updatePlatformDefaultModelMapping(c, service.PlatformAntigravity)
+}
+
+// GetPlatformDefaultModelMapping 获取指定平台的默认模型映射
+// GET /api/v1/admin/accounts/default-model-mapping/:platform
+func (h *AccountHandler) GetPlatformDefaultModelMapping(c *gin.Context) {
+	h.getPlatformDefaultModelMapping(c, c.Param("platform"))
+}
+
+// UpdatePlatformDefaultModelMapping 更新指定平台的全局默认模型映射
+// PUT /api/v1/admin/accounts/default-model-mapping/:platform
+func (h *AccountHandler) UpdatePlatformDefaultModelMapping(c *gin.Context) {
+	h.updatePlatformDefaultModelMapping(c, c.Param("platform"))
+}
+
+func normalizeDefaultModelMappingPlatform(platform string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case service.PlatformAnthropic:
+		return service.PlatformAnthropic, true
+	case service.PlatformOpenAI:
+		return service.PlatformOpenAI, true
+	case service.PlatformGemini:
+		return service.PlatformGemini, true
+	case service.PlatformAntigravity:
+		return service.PlatformAntigravity, true
+	default:
+		return "", false
+	}
+}
+
+func (h *AccountHandler) getPlatformDefaultModelMapping(c *gin.Context, rawPlatform string) {
+	platform, ok := normalizeDefaultModelMappingPlatform(rawPlatform)
+	if !ok {
+		response.BadRequest(c, "Unsupported platform")
+		return
+	}
+	mapping := h.settingService.GetPlatformDefaultModelMapping(c.Request.Context(), platform)
+	if mapping == nil {
+		if platform == service.PlatformAntigravity {
+			mapping = domain.DefaultAntigravityModelMapping
+		} else {
+			mapping = map[string]string{}
+		}
+	}
+	response.Success(c, mapping)
+}
+
+func (h *AccountHandler) updatePlatformDefaultModelMapping(c *gin.Context, rawPlatform string) {
+	platform, ok := normalizeDefaultModelMappingPlatform(rawPlatform)
+	if !ok {
+		response.BadRequest(c, "Unsupported platform")
+		return
+	}
 	var mapping map[string]string
 	if err := c.ShouldBindJSON(&mapping); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
-	if err := h.settingService.SetAntigravityDefaultModelMapping(c.Request.Context(), mapping); err != nil {
+	if err := h.settingService.SetPlatformDefaultModelMapping(c.Request.Context(), platform, mapping); err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}

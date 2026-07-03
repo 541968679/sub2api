@@ -60,6 +60,7 @@ export interface BillingBasisHint {
    * - upstream_only: 只是上游名，related_models 列出所有映射源请求名（可能多对一）
    * - requested_only: 只是请求名，related_models 单元素为映射目标上游名
    */
+  platform?: string
   type: 'requested_equals_upstream' | 'upstream_only' | 'requested_only'
   related_models?: string[]
 }

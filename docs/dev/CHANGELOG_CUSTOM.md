@@ -63,6 +63,28 @@
 - i18n: replaced `auth.login.features.*`, `postLoginInfo`, `postLoginDetails`, `keyUsageLink` with new v2 keys (billCard*, modelCard*, stat*, trustBadge*, cap*, mobileHero*, registerButton) in both zh and en; login form title default changed to 欢迎回来 / Welcome back, hero heading defaults to 登录后，即刻接入 / 最新旗舰模型.
 - Verified: `pnpm --dir frontend run typecheck`, `lint:check`, i18n locale spec suite, plus live check on the dev stack (127.0.0.1:15174/login desktop + 390px iframe mobile viewport; admin session backed up and restored).
 
+## [2026-07-03] fix: complete provider-aware model config UI
+
+**Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/components/admin/model-pricing/ModelPricingInlinePopover.vue, frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue, frontend/src/components/admin/model-pricing/ModelTestDialog.vue, frontend/src/components/admin/model-pricing/modelPricingOptions.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model-config UI and provider filtering behavior. No schema, migration, Ent, image-channel monitoring, billing formula, quota, push, or deployment changes.
+**Change details**:
+- Centralized provider normalization/options for Anthropic, OpenAI, Gemini, and Antigravity so model pricing, default mappings, detail dialogs, inline quick edits, and model tests use the same platform vocabulary.
+- Added provider selection to model tests and account loading, so tests schedule against accounts from the selected provider instead of defaulting to Antigravity for every non-OpenAI/Gemini case.
+- Replaced free-text provider editing in the model pricing detail dialog with a provider select, and made inline quick edit support provider plus billing mode changes without opening the full dialog.
+- Updated global model pricing list/detail behavior so an override provider is visible and participates in provider filtering, ensuring newly changed provider values can be selected, listed, and scheduled consistently.
+- Verified: `go test -tags=unit ./internal/service -run TestGlobalModelPricingListPrefersOverrideProvider -count=1`; `go test -tags=unit ./internal/service -run "TestGlobalModelPricingListPrefersOverrideProvider|TestAccountPlatformDefaultModelMapping|TestAccountGetMappedModel|TestAccountResolveMappedModel|TestOpenAIAccountResolveClaudeGPTBridgeModel" -count=1`; `pnpm run typecheck`; `pnpm run build`.
+
+## [2026-07-03] feat: add provider-aware default model mappings
+
+**Affected files**: backend/internal/domain/constants.go, backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, backend/internal/service/account.go, backend/internal/service/domain_constants.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/setting_service.go, backend/internal/service/wire.go, frontend/src/api/admin/accounts.ts, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model-config and scheduling behavior. No schema, migration, Ent, unrelated monitoring, billing formula, or quota changes.
+**Change details**:
+- Added provider selection when admins add or edit default model mappings from the model configuration page, supporting Anthropic, OpenAI, Gemini, and Antigravity instead of always writing Antigravity.
+- Added platform-scoped default mapping settings and admin APIs at `/api/v1/admin/accounts/default-model-mapping/:platform`, while keeping the legacy Antigravity endpoint compatible.
+- Wired platform default mappings into account model resolution so configured OpenAI/Anthropic/Gemini mappings can rewrite upstream model names and be schedulable without turning those platforms into restrictive allowlists. Antigravity keeps its strict built-in allowlist behavior.
+- Updated model pricing list hints/filtering so mapped request models appear under their selected provider.
+- Verified in a clean detached worktree containing only this feature: `go test -tags=unit ./internal/service -run "TestAccountPlatformDefaultModelMapping|TestAccountGetMappedModel|TestAccountResolveMappedModel|TestOpenAIAccountResolveClaudeGPTBridgeModel" -count=1`; `pnpm run typecheck`; `go test -tags=unit ./internal/service -count=1`; `pnpm run build`.
+
 ## [2026-07-02] fix: allow admin reassignment of expired subscriptions
 
 **Affected files**: backend/internal/service/subscription_service.go, backend/internal/service/subscription_assign_idempotency_test.go, docs/dev/CHANGELOG_CUSTOM.md

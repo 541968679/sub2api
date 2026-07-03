@@ -72,6 +72,24 @@ const (
 // 返回 nil 表示使用内置 DefaultAntigravityModelMapping。
 var GetAntigravityDefaultMappingOverride func() map[string]string
 
+// GetPlatformDefaultMappingOverride 可在应用启动时设置，用于从 settings 表读取平台级默认映射。
+// 返回 nil 表示该平台没有自定义默认映射。
+var GetPlatformDefaultMappingOverride func(platform string) map[string]string
+
+// ResolvePlatformDefaultModelMapping 返回平台级默认映射。
+// Antigravity 有内置严格白名单；其他平台默认没有映射，只有管理员配置后才返回。
+func ResolvePlatformDefaultModelMapping(platform string) map[string]string {
+	if GetPlatformDefaultMappingOverride != nil {
+		if m := GetPlatformDefaultMappingOverride(platform); m != nil {
+			return m
+		}
+	}
+	if platform == PlatformAntigravity {
+		return DefaultAntigravityModelMapping
+	}
+	return nil
+}
+
 // ResolveAntigravityDefaultMapping 返回管理员自定义映射（如有），否则返回内置默认映射。
 func ResolveAntigravityDefaultMapping() map[string]string {
 	if GetAntigravityDefaultMappingOverride != nil {
@@ -79,7 +97,7 @@ func ResolveAntigravityDefaultMapping() map[string]string {
 			return m
 		}
 	}
-	return DefaultAntigravityModelMapping
+	return ResolvePlatformDefaultModelMapping(PlatformAntigravity)
 }
 
 // DefaultAntigravityModelMapping 是 Antigravity 平台的默认模型映射

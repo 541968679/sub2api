@@ -2034,6 +2034,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyFallbackModelGemini:            "gemini-2.5-pro",
 		SettingKeyFallbackModelAntigravity:       "gemini-2.5-pro",
 		SettingKeyAntigravityDefaultModelMapping: "",
+		SettingKeyAnthropicDefaultModelMapping:   "",
+		SettingKeyOpenAIDefaultModelMapping:      "",
+		SettingKeyGeminiDefaultModelMapping:      "",
 		// Identity patch defaults
 		SettingKeyEnableIdentityPatch: "true",
 		SettingKeyIdentityPatchPrompt: "",
@@ -3676,9 +3679,28 @@ func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings 
 	return s.settingRepo.Set(ctx, SettingKeyStreamTimeoutSettings, string(data))
 }
 
-// GetAntigravityDefaultModelMapping returns the optional global Antigravity model mapping.
-func (s *SettingService) GetAntigravityDefaultModelMapping(ctx context.Context) map[string]string {
-	val, err := s.settingRepo.GetValue(ctx, SettingKeyAntigravityDefaultModelMapping)
+func defaultModelMappingSettingKey(platform string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case PlatformAnthropic:
+		return SettingKeyAnthropicDefaultModelMapping, true
+	case PlatformOpenAI:
+		return SettingKeyOpenAIDefaultModelMapping, true
+	case PlatformGemini:
+		return SettingKeyGeminiDefaultModelMapping, true
+	case PlatformAntigravity:
+		return SettingKeyAntigravityDefaultModelMapping, true
+	default:
+		return "", false
+	}
+}
+
+// GetPlatformDefaultModelMapping returns the optional global model mapping for a platform.
+func (s *SettingService) GetPlatformDefaultModelMapping(ctx context.Context, platform string) map[string]string {
+	key, ok := defaultModelMappingSettingKey(platform)
+	if !ok {
+		return nil
+	}
+	val, err := s.settingRepo.GetValue(ctx, key)
 	if err != nil || strings.TrimSpace(val) == "" {
 		return nil
 	}
@@ -3700,8 +3722,12 @@ func (s *SettingService) GetAntigravityDefaultModelMapping(ctx context.Context) 
 	return cleaned
 }
 
-// SetAntigravityDefaultModelMapping stores the global Antigravity model mapping.
-func (s *SettingService) SetAntigravityDefaultModelMapping(ctx context.Context, mapping map[string]string) error {
+// SetPlatformDefaultModelMapping stores the global model mapping for a platform.
+func (s *SettingService) SetPlatformDefaultModelMapping(ctx context.Context, platform string, mapping map[string]string) error {
+	key, ok := defaultModelMappingSettingKey(platform)
+	if !ok {
+		return fmt.Errorf("unsupported platform for default model mapping: %s", platform)
+	}
 	cleaned := make(map[string]string, len(mapping))
 	for from, to := range mapping {
 		from = strings.TrimSpace(from)
@@ -3712,7 +3738,17 @@ func (s *SettingService) SetAntigravityDefaultModelMapping(ctx context.Context, 
 	}
 	data, err := json.Marshal(cleaned)
 	if err != nil {
-		return fmt.Errorf("marshal antigravity default model mapping: %w", err)
+		return fmt.Errorf("marshal %s default model mapping: %w", platform, err)
 	}
-	return s.settingRepo.Set(ctx, SettingKeyAntigravityDefaultModelMapping, string(data))
+	return s.settingRepo.Set(ctx, key, string(data))
+}
+
+// GetAntigravityDefaultModelMapping returns the optional global Antigravity model mapping.
+func (s *SettingService) GetAntigravityDefaultModelMapping(ctx context.Context) map[string]string {
+	return s.GetPlatformDefaultModelMapping(ctx, PlatformAntigravity)
+}
+
+// SetAntigravityDefaultModelMapping stores the global Antigravity model mapping.
+func (s *SettingService) SetAntigravityDefaultModelMapping(ctx context.Context, mapping map[string]string) error {
+	return s.SetPlatformDefaultModelMapping(ctx, PlatformAntigravity, mapping)
 }
