@@ -1,13 +1,27 @@
 <template>
   <BaseDialog :show="show" @close="handleClose" :title="t('admin.modelPricing.testModelTitle', { model })" width="normal">
     <div class="space-y-3">
+      <!-- Provider Select -->
+      <div>
+        <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+          {{ t('admin.modelPricing.providerLabel') }}
+        </label>
+        <select v-model="selectedProvider" class="input w-full text-sm" :disabled="testRunning" @change="handleProviderChange">
+          <option v-for="option in providerOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+
       <!-- Account Select -->
       <div>
         <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
           {{ t('admin.modelPricing.testAccount') }}
         </label>
         <select v-model="testAccountId" class="input w-full text-sm" :disabled="testRunning">
-          <option v-if="accounts.length === 0" :value="0">{{ t('admin.modelPricing.testNoAccount') }}</option>
+          <option v-if="accounts.length === 0" :value="0">
+            {{ t('admin.modelPricing.testNoAccount', { provider: selectedProviderLabel }) }}
+          </option>
           <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
             {{ acc.credentials?.email || acc.name }} (ID: {{ acc.id }})
           </option>
@@ -51,12 +65,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { computed, ref, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import { useAuthStore } from '@/stores/auth'
 import type { Account } from '@/types'
 import { BaseDialog } from '@/components/common'
+import {
+  MODEL_PRICING_PROVIDER_OPTIONS,
+  inferModelPricingProvider,
+  modelPricingProviderLabel,
+  normalizeModelPricingProvider,
+  type ModelPricingProvider,
+} from './modelPricingOptions'
 
 const props = defineProps<{
   show: boolean
@@ -75,13 +96,17 @@ const testPrompt = ref('你好，你是什么模型')
 const testRunning = ref(false)
 const testOutput = ref<{ text: string; cls: string }[]>([])
 const terminalRef = ref<HTMLElement | null>(null)
+const providerOptions = MODEL_PRICING_PROVIDER_OPTIONS
+const selectedProvider = ref<ModelPricingProvider>('antigravity')
+const selectedProviderLabel = computed(() => modelPricingProviderLabel(selectedProvider.value) || selectedProvider.value)
+
+function defaultProvider(): ModelPricingProvider {
+  return normalizeModelPricingProvider(props.provider) || inferModelPricingProvider(props.model) || 'antigravity'
+}
 
 async function loadAccounts() {
   try {
-    const platform = props.provider === 'openai' ? 'openai'
-      : props.provider === 'gemini' ? 'gemini'
-      : 'antigravity'
-    const resp = await adminAPI.accounts.list(1, 100, { platform })
+    const resp = await adminAPI.accounts.list(1, 100, { platform: selectedProvider.value })
     const items = resp.items || []
     accounts.value = items.filter((a: Account) =>
       a.status === 'active' &&
@@ -98,6 +123,12 @@ async function loadAccounts() {
   }
 }
 
+function handleProviderChange() {
+  testAccountId.value = 0
+  accounts.value = []
+  void loadAccounts()
+}
+
 function appendOutput(text: string, cls = 'text-green-400') {
   testOutput.value.push({ text, cls })
   nextTick(() => {
@@ -111,6 +142,7 @@ async function runTest() {
   testOutput.value = []
 
   appendOutput(`> Model: ${props.model}`, 'text-cyan-400')
+  appendOutput(`> Provider: ${selectedProviderLabel.value}`, 'text-cyan-400')
   const acc = accounts.value.find((a) => a.id === testAccountId.value)
   appendOutput(`> Account: ${acc?.credentials?.email || testAccountId.value}`, 'text-cyan-400')
   appendOutput(`> Prompt: ${testPrompt.value}`, 'text-gray-500')
@@ -196,7 +228,8 @@ watch(
     if (val) {
       testOutput.value = []
       testAccountId.value = 0
-      loadAccounts()
+      selectedProvider.value = defaultProvider()
+      void loadAccounts()
     }
   }
 )

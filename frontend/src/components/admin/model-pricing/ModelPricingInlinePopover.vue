@@ -40,23 +40,65 @@
           {{ t('admin.modelPricing.enabled') }}
         </label>
 
-        <div v-for="field in fields" :key="field.key" class="space-y-0.5">
+        <div class="grid grid-cols-2 gap-2">
+          <div class="space-y-0.5">
+            <label class="block text-xs text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.provider') }}</label>
+            <Select v-model="form.provider" :options="providerOptions" />
+          </div>
+          <div class="space-y-0.5">
+            <label class="block text-xs text-gray-500 dark:text-gray-400">{{ t('admin.modelPricing.billingModeLabel') }}</label>
+            <Select v-model="form.billing_mode" :options="billingModeOptions" />
+          </div>
+        </div>
+
+        <div v-if="form.billing_mode === 'token'" class="space-y-3">
+          <div v-for="field in fields" :key="field.key" class="space-y-0.5">
+            <label class="flex items-baseline justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span>{{ field.label }}</span>
+              <span
+                v-if="field.baselineText"
+                class="text-gray-400 dark:text-gray-500"
+              >
+                {{ t('admin.modelPricing.baselinePrefix') }} {{ field.baselineText }}
+              </span>
+            </label>
+            <input
+              :ref="(el) => setFieldRef(el, field.key)"
+              v-model="form[field.key]"
+              type="number"
+              step="any"
+              class="input w-full text-sm"
+              :placeholder="field.placeholder"
+              @keydown.enter.prevent="handleSave"
+            />
+          </div>
+        </div>
+
+        <div v-else-if="form.billing_mode === 'per_request'" class="space-y-0.5">
           <label class="flex items-baseline justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{{ field.label }}</span>
-            <span
-              v-if="field.baselineText"
-              class="text-gray-400 dark:text-gray-500"
-            >
-              {{ t('admin.modelPricing.baselinePrefix') }} {{ field.baselineText }}
-            </span>
+            <span>{{ t('admin.modelPricing.perRequestPrice') }} ($)</span>
           </label>
           <input
-            :ref="(el) => setFieldRef(el, field.key)"
-            v-model="form[field.key]"
+            v-model="form.per_request_price"
             type="number"
             step="any"
+            min="0"
             class="input w-full text-sm"
-            :placeholder="field.placeholder"
+            @keydown.enter.prevent="handleSave"
+          />
+        </div>
+
+        <div v-else class="space-y-0.5">
+          <label class="flex items-baseline justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>{{ t('admin.modelPricing.imageFallbackPrice') }} ($)</span>
+          </label>
+          <input
+            v-model="form.per_request_price"
+            type="number"
+            step="any"
+            min="0"
+            class="input w-full text-sm"
+            :placeholder="t('admin.modelPricing.imageFallbackPlaceholder')"
             @keydown.enter.prevent="handleSave"
           />
         </div>
@@ -102,6 +144,15 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { GlobalOverride, LiteLLMPrices } from '@/api/admin/modelPricing'
 import { mTokToPerToken, perTokenToMTok } from '@/components/admin/channel/types'
+import Select from '@/components/common/Select.vue'
+import {
+  MODEL_PRICING_PROVIDER_OPTIONS,
+  inferModelPricingProvider,
+  normalizeModelPricingBillingMode,
+  normalizeModelPricingProvider,
+  type ModelPricingBillingMode,
+  type ModelPricingProvider,
+} from './modelPricingOptions'
 
 const props = defineProps<{
   show: boolean
@@ -113,6 +164,8 @@ const props = defineProps<{
   existingOverride: GlobalOverride | null
   /** LiteLLM 基准价（可选，用于 placeholder） */
   litellmBaseline: LiteLLMPrices | null
+  provider?: string
+  billingMode?: string
   /** 触发时聚焦的字段（即用户点击的那个价格字段） */
   focusField?: 'input' | 'output' | 'cache_write' | 'cache_read'
 }>()
@@ -126,6 +179,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const providerOptions = MODEL_PRICING_PROVIDER_OPTIONS
 const panelRef = ref<HTMLElement | null>(null)
 const saving = ref(false)
 const error = ref('')
@@ -142,17 +196,29 @@ type FieldKey = 'input_price' | 'output_price' | 'cache_write_price' | 'cache_re
 
 const form = reactive<{
   enabled: boolean
+  provider: ModelPricingProvider
+  billing_mode: ModelPricingBillingMode
   input_price: number | string
   output_price: number | string
   cache_write_price: number | string
   cache_read_price: number | string
+  per_request_price: number | string
 }>({
   enabled: true,
+  provider: 'antigravity',
+  billing_mode: 'token',
   input_price: '',
   output_price: '',
   cache_write_price: '',
   cache_read_price: '',
+  per_request_price: '',
 })
+
+const billingModeOptions = computed(() => [
+  { value: 'token', label: t('admin.modelPricing.billingModeToken') },
+  { value: 'per_request', label: t('admin.modelPricing.billingModePerRequest') },
+  { value: 'image', label: t('admin.modelPricing.billingModeImage') },
+])
 
 const fields = computed(() => [
   {
@@ -198,7 +264,7 @@ function updatePosition() {
   if (!props.anchor) return
   const rect = props.anchor.getBoundingClientRect()
   const panelWidth = 320 // w-80
-  const panelHeightEst = 380 // 估算
+  const panelHeightEst = 480 // 估算
   const gap = 4
 
   let top = rect.bottom + gap
@@ -218,18 +284,25 @@ function updatePosition() {
 
 function resetForm() {
   const go = props.existingOverride
+  form.provider = normalizeModelPricingProvider(go?.provider) ||
+    normalizeModelPricingProvider(props.provider) ||
+    inferModelPricingProvider(props.model) ||
+    'antigravity'
+  form.billing_mode = normalizeModelPricingBillingMode(go?.billing_mode || props.billingMode)
   if (go) {
     form.enabled = go.enabled
     form.input_price = go.input_price != null ? perTokenToMTok(go.input_price) ?? '' : ''
     form.output_price = go.output_price != null ? perTokenToMTok(go.output_price) ?? '' : ''
     form.cache_write_price = go.cache_write_price != null ? perTokenToMTok(go.cache_write_price) ?? '' : ''
     form.cache_read_price = go.cache_read_price != null ? perTokenToMTok(go.cache_read_price) ?? '' : ''
+    form.per_request_price = go.per_request_price != null ? go.per_request_price : ''
   } else {
     form.enabled = true
     form.input_price = ''
     form.output_price = ''
     form.cache_write_price = ''
     form.cache_read_price = ''
+    form.per_request_price = ''
   }
   error.value = ''
 }
@@ -253,18 +326,19 @@ async function handleSave() {
   saving.value = true
   error.value = ''
   try {
-    // 保留原 override 的 provider / notes / image_output_price / per_request_price 等字段
+    // 保留原 override 的 notes / image_output_price 等高级字段。
     const go = props.existingOverride
+    const perRequestPrice = form.per_request_price === '' ? null : Number(form.per_request_price)
     const payload = {
       model: props.model,
-      provider: go?.provider ?? '',
-      billing_mode: (go?.billing_mode ?? 'token') as 'token' | 'per_request' | 'image',
+      provider: form.provider,
+      billing_mode: form.billing_mode,
       input_price: mTokToPerToken(form.input_price),
       output_price: mTokToPerToken(form.output_price),
       cache_write_price: mTokToPerToken(form.cache_write_price),
       cache_read_price: mTokToPerToken(form.cache_read_price),
       image_output_price: go?.image_output_price ?? null,
-      per_request_price: go?.per_request_price ?? null,
+      per_request_price: perRequestPrice !== null && Number.isFinite(perRequestPrice) ? perRequestPrice : null,
       enabled: form.enabled,
       notes: go?.notes ?? '',
     }

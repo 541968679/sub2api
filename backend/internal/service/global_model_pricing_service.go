@@ -195,6 +195,9 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		// 全局覆盖
 		if gp, ok := overrideMap[modelLower]; ok {
 			item.GlobalOverride = ToGlobalOverride(gp)
+			if strings.TrimSpace(gp.Provider) != "" {
+				item.Provider = gp.Provider
+			}
 			if gp.Enabled {
 				item.EffectiveSource = PricingSourceGlobal
 			}
@@ -438,7 +441,7 @@ func (s *GlobalModelPricingService) GetModelDetail(ctx context.Context, model st
 	}
 	if gp != nil {
 		detail.GlobalOverride = ToGlobalOverride(gp)
-		if detail.Provider == "" {
+		if strings.TrimSpace(gp.Provider) != "" {
 			detail.Provider = gp.Provider
 		}
 	}

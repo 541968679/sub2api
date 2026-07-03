@@ -70,8 +70,8 @@
             <Select v-model="form.billing_mode" :options="billingModeOptions" class="w-full" />
           </div>
           <div>
-            <label class="mb-1 block text-xs text-gray-500">Provider</label>
-            <input v-model="form.provider" type="text" class="input text-sm w-full" :placeholder="detail.provider || ''" />
+            <label class="mb-1 block text-xs text-gray-500">{{ t('admin.modelPricing.provider') }}</label>
+            <Select v-model="form.provider" :options="providerOptions" class="w-full" />
           </div>
         </div>
 
@@ -264,10 +264,17 @@ import { perTokenToMTok, mTokToPerToken } from '@/components/admin/channel/types
 import { BaseDialog } from '@/components/common'
 import Select from '@/components/common/Select.vue'
 import type { ImageTierRule } from '@/api/admin/modelPricing'
+import {
+  MODEL_PRICING_PROVIDER_OPTIONS,
+  inferModelPricingProvider,
+  normalizeModelPricingProvider,
+  type ModelPricingProvider,
+} from './modelPricingOptions'
 
 const props = defineProps<{
   show: boolean
   model: string
+  initialProvider?: string
 }>()
 
 const emit = defineEmits<{
@@ -334,6 +341,8 @@ const billingModeOptions = computed(() => [
   { value: 'image', label: t('admin.modelPricing.billingModeImage') },
 ])
 
+const providerOptions = MODEL_PRICING_PROVIDER_OPTIONS
+
 const imageBillingStrategyOptions = computed(() => [
   { value: 'megapixel', label: t('admin.modelPricing.imageBillingMegapixel') },
   { value: 'tier', label: t('admin.modelPricing.imageBillingTier') },
@@ -363,6 +372,14 @@ function litellmMTok(field: string): string {
   if (!detail.value?.litellm_prices) return ''
   const v = (detail.value.litellm_prices as Record<string, number>)[field]
   return v ? String(perTokenToMTok(v) ?? '') : ''
+}
+
+function resolveFormProvider(...candidates: Array<string | null | undefined>): ModelPricingProvider {
+  for (const candidate of candidates) {
+    const normalized = normalizeModelPricingProvider(candidate)
+    if (normalized) return normalized
+  }
+  return inferModelPricingProvider(props.model) || 'antigravity'
 }
 
 function resetImageQualityPrices(prices: Record<string, number> | null) {
@@ -443,7 +460,7 @@ async function loadDetail() {
       resetImageQualityPrices(go.image_quality_prices || null)
       resetImageQualityMultipliers(go.image_quality_multipliers || null)
       form.image_tier_rules = buildTierRuleForm(go.image_tier_rules, go)
-      form.provider = go.provider
+      form.provider = resolveFormProvider(go.provider, props.initialProvider, detail.value.provider)
       form.notes = go.notes
       form.display_input_price = go.display_input_price != null ? perTokenToMTok(go.display_input_price) ?? '' : ''
       form.display_output_price = go.display_output_price != null ? perTokenToMTok(go.display_output_price) ?? '' : ''
@@ -469,7 +486,7 @@ async function loadDetail() {
       resetImageQualityPrices(null)
       resetImageQualityMultipliers(null)
       form.image_tier_rules = defaultTierRules()
-      form.provider = detail.value.provider || ''
+      form.provider = resolveFormProvider(props.initialProvider, detail.value.provider)
       form.notes = ''
       form.display_input_price = ''
       form.display_output_price = ''

@@ -28,6 +28,24 @@ not edited on Antigravity groups. Whitelist-style self mappings such as
 `"claude-opus-4-8": "claude-opus-4-8"` do not enable the bridge, because they
 would not hide a distinct GPT upstream model.
 
+## Model Config UI Provider Editing (2026-07-03)
+
+The admin model configuration page must treat provider as an editable platform
+dimension, not as an Antigravity-only assumption:
+
+- `modelPricingOptions.ts` is the shared frontend provider vocabulary for
+  Anthropic, OpenAI, Gemini, and Antigravity. Use it from pricing rows, mapping
+  popovers, detail dialogs, inline quick edits, and test dialogs.
+- Model test account loading is provider-scoped. Changing the provider in the
+  test dialog clears the selected account and reloads active schedulable accounts
+  for that provider.
+- Global model pricing detail and inline quick edit both persist `provider` and
+  `billing_mode`. The pricing list/detail service must prefer a non-empty global
+  override provider over the LiteLLM provider so provider edits are visible and
+  filterable immediately.
+- Image billing's flat fallback field continues to use `per_request_price`,
+  matching the existing detail dialog and backend image billing resolver.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: complete provider-aware model config UI
+
+**Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/components/admin/model-pricing/ModelPricingInlinePopover.vue, frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue, frontend/src/components/admin/model-pricing/ModelTestDialog.vue, frontend/src/components/admin/model-pricing/modelPricingOptions.ts, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model-config UI and provider filtering behavior. No schema, migration, Ent, image-channel monitoring, billing formula, quota, push, or deployment changes.
+**Change details**:
+- Centralized provider normalization/options for Anthropic, OpenAI, Gemini, and Antigravity so model pricing, default mappings, detail dialogs, inline quick edits, and model tests use the same platform vocabulary.
+- Added provider selection to model tests and account loading, so tests schedule against accounts from the selected provider instead of defaulting to Antigravity for every non-OpenAI/Gemini case.
+- Replaced free-text provider editing in the model pricing detail dialog with a provider select, and made inline quick edit support provider plus billing mode changes without opening the full dialog.
+- Updated global model pricing list/detail behavior so an override provider is visible and participates in provider filtering, ensuring newly changed provider values can be selected, listed, and scheduled consistently.
+- Verified: `go test -tags=unit ./internal/service -run TestGlobalModelPricingListPrefersOverrideProvider -count=1`; `go test -tags=unit ./internal/service -run "TestGlobalModelPricingListPrefersOverrideProvider|TestAccountPlatformDefaultModelMapping|TestAccountGetMappedModel|TestAccountResolveMappedModel|TestOpenAIAccountResolveClaudeGPTBridgeModel" -count=1`; `pnpm run typecheck`; `pnpm run build`.
+
 ## [2026-07-03] feat: add provider-aware default model mappings
 
 **Affected files**: backend/internal/domain/constants.go, backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, backend/internal/service/account.go, backend/internal/service/domain_constants.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/setting_service.go, backend/internal/service/wire.go, frontend/src/api/admin/accounts.ts, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md

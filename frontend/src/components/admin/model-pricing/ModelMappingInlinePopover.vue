@@ -100,6 +100,11 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
+import {
+  MODEL_PRICING_PROVIDER_OPTIONS,
+  normalizeModelPricingProvider,
+  type ModelPricingProvider,
+} from './modelPricingOptions'
 
 type Mode = 'add' | 'edit'
 
@@ -127,23 +132,14 @@ const fromRef = ref<HTMLInputElement | null>(null)
 const saving = ref(false)
 const error = ref('')
 
-const platformOptions = [
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'antigravity', label: 'Antigravity' },
-]
+const platformOptions = MODEL_PRICING_PROVIDER_OPTIONS
 
-const form = reactive<{ platform: string; from: string; to: string }>({ platform: 'antigravity', from: '', to: '' })
+const form = reactive<{ platform: ModelPricingProvider; from: string; to: string }>({ platform: 'antigravity', from: '', to: '' })
 
-const canSave = computed(() => normalizePlatform(form.platform) !== '' && form.from.trim() !== '' && form.to.trim() !== '')
+const canSave = computed(() => form.from.trim() !== '' && form.to.trim() !== '')
 
-function normalizePlatform(platform?: string): string {
-  const value = (platform || '').trim().toLowerCase()
-  if (platformOptions.some((option) => option.value === value)) {
-    return value
-  }
-  return 'antigravity'
+function normalizePlatform(platform?: string): ModelPricingProvider {
+  return normalizeModelPricingProvider(platform) || 'antigravity'
 }
 
 // Popover 位置
