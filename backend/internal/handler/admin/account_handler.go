@@ -2498,6 +2498,45 @@ func (h *AccountHandler) UpdatePlatformDefaultModelMapping(c *gin.Context) {
 	h.updatePlatformDefaultModelMapping(c, c.Param("platform"))
 }
 
+// GetPlatformDefaultModelMappingBillingObjects 获取指定平台默认映射的计费对象配置
+// GET /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform
+func (h *AccountHandler) GetPlatformDefaultModelMappingBillingObjects(c *gin.Context) {
+	platform, ok := normalizeDefaultModelMappingPlatform(c.Param("platform"))
+	if !ok {
+		response.BadRequest(c, "Unsupported platform")
+		return
+	}
+	objects := h.settingService.GetPlatformDefaultModelMappingBillingObjects(c.Request.Context(), platform)
+	if objects == nil {
+		objects = map[string]string{}
+	}
+	response.Success(c, objects)
+}
+
+// UpdatePlatformDefaultModelMappingBillingObjects 更新指定平台默认映射的计费对象配置
+// PUT /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform
+func (h *AccountHandler) UpdatePlatformDefaultModelMappingBillingObjects(c *gin.Context) {
+	platform, ok := normalizeDefaultModelMappingPlatform(c.Param("platform"))
+	if !ok {
+		response.BadRequest(c, "Unsupported platform")
+		return
+	}
+	var objects map[string]string
+	if err := c.ShouldBindJSON(&objects); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetPlatformDefaultModelMappingBillingObjects(c.Request.Context(), platform, objects); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	cleaned := h.settingService.GetPlatformDefaultModelMappingBillingObjects(c.Request.Context(), platform)
+	if cleaned == nil {
+		cleaned = map[string]string{}
+	}
+	response.Success(c, cleaned)
+}
+
 func normalizeDefaultModelMappingPlatform(platform string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(platform)) {
 	case service.PlatformAnthropic:

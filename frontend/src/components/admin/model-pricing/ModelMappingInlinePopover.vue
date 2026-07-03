@@ -142,6 +142,41 @@ function normalizePlatform(platform?: string): ModelPricingProvider {
   return normalizeModelPricingProvider(platform) || 'antigravity'
 }
 
+async function moveBillingObjectOverride(
+  originalPlatform: ModelPricingProvider,
+  originalFrom: string,
+  nextPlatform: ModelPricingProvider,
+  nextFrom: string
+) {
+  if (!originalFrom || (originalPlatform === nextPlatform && originalFrom === nextFrom)) {
+    return
+  }
+  const oldObjects = await adminAPI.accounts.getPlatformDefaultModelMappingBillingObjects(originalPlatform)
+  const oldObject = oldObjects[originalFrom]
+  if (oldObject) {
+    const nextOldObjects = { ...oldObjects }
+    delete nextOldObjects[originalFrom]
+    await adminAPI.accounts.updatePlatformDefaultModelMappingBillingObjects(originalPlatform, nextOldObjects)
+  }
+  if (oldObject) {
+    const newObjects = originalPlatform === nextPlatform
+      ? { ...oldObjects }
+      : await adminAPI.accounts.getPlatformDefaultModelMappingBillingObjects(nextPlatform)
+    delete newObjects[originalFrom]
+    newObjects[nextFrom] = oldObject
+    await adminAPI.accounts.updatePlatformDefaultModelMappingBillingObjects(nextPlatform, newObjects)
+  }
+}
+
+async function deleteBillingObjectOverride(platform: ModelPricingProvider, from: string) {
+  if (!from) return
+  const objects = await adminAPI.accounts.getPlatformDefaultModelMappingBillingObjects(platform)
+  if (!(from in objects)) return
+  const nextObjects = { ...objects }
+  delete nextObjects[from]
+  await adminAPI.accounts.updatePlatformDefaultModelMappingBillingObjects(platform, nextObjects)
+}
+
 // Popover 位置
 const panelStyle = ref<{ top?: string; left?: string }>({})
 function updatePosition() {
@@ -234,6 +269,9 @@ async function handleSave() {
     next[from] = to
 
     await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
+    if (props.mode === 'edit') {
+      await moveBillingObjectOverride(originalPlatform, props.originalFrom ?? '', platform, from)
+    }
     emit('saved', { mode: props.mode, platform, from, to })
     emit('close')
   } catch (e) {
@@ -256,6 +294,7 @@ async function handleDelete() {
     const next = { ...current }
     delete next[origFrom]
     await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
+    await deleteBillingObjectOverride(platform, origFrom)
     emit('saved', { mode: 'delete', platform, from: origFrom })
     emit('close')
   } catch (e) {

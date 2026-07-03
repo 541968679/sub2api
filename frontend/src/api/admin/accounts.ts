@@ -687,6 +687,35 @@ export async function updatePlatformDefaultModelMapping(
   return data
 }
 
+export type MappingBillingObject = 'requested' | 'mapped'
+
+/**
+ * Get billing object overrides for platform default model mappings.
+ * @returns Mapping source model -> billing object
+ */
+export async function getPlatformDefaultModelMappingBillingObjects(
+  platform: string
+): Promise<Record<string, MappingBillingObject>> {
+  const { data } = await apiClient.get<Record<string, MappingBillingObject>>(
+    `/admin/accounts/default-model-mapping-billing-objects/${encodeURIComponent(platform)}`
+  )
+  return data
+}
+
+/**
+ * Update billing object overrides for platform default model mappings.
+ */
+export async function updatePlatformDefaultModelMappingBillingObjects(
+  platform: string,
+  objects: Record<string, MappingBillingObject>
+): Promise<Record<string, MappingBillingObject>> {
+  const { data } = await apiClient.put<Record<string, MappingBillingObject>>(
+    `/admin/accounts/default-model-mapping-billing-objects/${encodeURIComponent(platform)}`,
+    objects
+  )
+  return data
+}
+
 /**
  * Get Antigravity default model mapping from backend
  * @returns Default model mapping (from -> to)
@@ -832,6 +861,8 @@ export const accountsAPI = {
   importData,
   getPlatformDefaultModelMapping,
   updatePlatformDefaultModelMapping,
+  getPlatformDefaultModelMappingBillingObjects,
+  updatePlatformDefaultModelMappingBillingObjects,
   getAntigravityDefaultModelMapping,
   updateAntigravityDefaultModelMapping,
   batchClearError,

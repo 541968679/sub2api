@@ -4,6 +4,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"log/slog"
 	"reflect"
@@ -611,30 +612,55 @@ func mappingSupportsRequestedModel(mapping map[string]string, requestedModel str
 }
 
 func resolveRequestedModelInMapping(mapping map[string]string, requestedModel string) (mappedModel string, matched bool) {
+	mappedModel, _, matched = resolveRequestedModelInMappingWithKey(mapping, requestedModel)
+	return mappedModel, matched
+}
+
+func resolveRequestedModelInMappingWithKey(mapping map[string]string, requestedModel string) (mappedModel, mappingKey string, matched bool) {
 	if requestedModel == "" {
-		return "", false
+		return "", "", false
 	}
 	if mappedModel, exists := mapping[requestedModel]; exists {
-		return mappedModel, true
+		return mappedModel, requestedModel, true
 	}
-	return matchWildcardMappingResult(mapping, requestedModel)
+	return matchWildcardMappingResultWithKey(mapping, requestedModel)
 }
 
 func resolvePlatformDefaultMappedModel(platform, requestedModel string) (mappedModel string, matched bool) {
+	result := resolvePlatformDefaultMappedModelDetailed(platform, requestedModel)
+	return result.MappedModel, result.Matched
+}
+
+func resolvePlatformDefaultMappedModelDetailed(platform, requestedModel string) MappedModelResolution {
+	result := MappedModelResolution{
+		RequestedModel: requestedModel,
+		MappedModel:    requestedModel,
+	}
 	mapping := domain.ResolvePlatformDefaultModelMapping(platform)
 	if len(mapping) == 0 {
-		return "", false
+		return result
 	}
-	if mappedModel, matched := resolveRequestedModelInMapping(mapping, requestedModel); matched {
-		return mappedModel, true
+	if mappedModel, mappingKey, matched := resolveRequestedModelInMappingWithKey(mapping, requestedModel); matched {
+		result.MappedModel = mappedModel
+		result.Matched = true
+		result.Source = ModelMappingSourcePlatformDefault
+		result.MappingKey = mappingKey
+		result.BillingObject = domain.ResolvePlatformDefaultMappingBillingObject(platform, mappingKey)
+		return result
 	}
 	normalized := normalizeRequestedModelForLookup(platform, requestedModel)
 	if normalized != requestedModel {
-		if mappedModel, matched := resolveRequestedModelInMapping(mapping, normalized); matched {
-			return mappedModel, true
+		if mappedModel, mappingKey, matched := resolveRequestedModelInMappingWithKey(mapping, normalized); matched {
+			result.LookupModel = normalized
+			result.MappedModel = mappedModel
+			result.Matched = true
+			result.Source = ModelMappingSourcePlatformDefault
+			result.MappingKey = mappingKey
+			result.BillingObject = domain.ResolvePlatformDefaultMappingBillingObject(platform, mappingKey)
+			return result
 		}
 	}
-	return "", false
+	return result
 }
 
 // IsModelSupported 检查模型是否在 model_mapping 中（支持通配符）
@@ -669,31 +695,81 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 	return mappedModel
 }
 
+const (
+	ModelMappingSourceAccount         = "account"
+	ModelMappingSourcePlatformDefault = "platform_default"
+)
+
+type MappedModelResolution struct {
+	RequestedModel string
+	LookupModel    string
+	MappedModel    string
+	Matched        bool
+	Source         string
+	MappingKey     string
+	BillingObject  string
+}
+
+func (a *Account) hasExplicitModelMapping() bool {
+	if a == nil || a.Credentials == nil {
+		return false
+	}
+	rawMapping, _ := a.Credentials["model_mapping"].(map[string]any)
+	for _, value := range rawMapping {
+		if strings.TrimSpace(fmt.Sprint(value)) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // ResolveMappedModel 获取映射后的模型名，并返回是否命中了账号级映射。
 // matched=true 表示命中了精确映射或通配符映射，即使映射结果与原模型名相同。
 func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string, matched bool) {
-	mapping := a.GetModelMapping()
-	if len(mapping) == 0 {
-		if mappedModel, matched := resolvePlatformDefaultMappedModel(a.Platform, requestedModel); matched {
-			return mappedModel, true
+	result := a.ResolveMappedModelDetailed(requestedModel)
+	return result.MappedModel, result.Matched
+}
+
+// ResolveMappedModelDetailed resolves a request model and records whether the
+// match came from account credentials or the platform default mapping. The
+// platform default source is the only source affected by model-config
+// "billing object" overrides.
+func (a *Account) ResolveMappedModelDetailed(requestedModel string) MappedModelResolution {
+	result := MappedModelResolution{
+		RequestedModel: requestedModel,
+		MappedModel:    requestedModel,
+	}
+	if a == nil {
+		return result
+	}
+	if a.hasExplicitModelMapping() {
+		mapping := a.GetModelMapping()
+		if mappedModel, mappingKey, matched := resolveRequestedModelInMappingWithKey(mapping, requestedModel); matched {
+			result.MappedModel = mappedModel
+			result.Matched = true
+			result.Source = ModelMappingSourceAccount
+			result.MappingKey = mappingKey
+			return result
 		}
-		return requestedModel, false
-	}
-	if mappedModel, matched := resolveRequestedModelInMapping(mapping, requestedModel); matched {
-		return mappedModel, true
-	}
-	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
-	if normalized != requestedModel {
-		if mappedModel, matched := resolveRequestedModelInMapping(mapping, normalized); matched {
-			return mappedModel, true
+		normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
+		if normalized != requestedModel {
+			if mappedModel, mappingKey, matched := resolveRequestedModelInMappingWithKey(mapping, normalized); matched {
+				result.LookupModel = normalized
+				result.MappedModel = mappedModel
+				result.Matched = true
+				result.Source = ModelMappingSourceAccount
+				result.MappingKey = mappingKey
+				return result
+			}
+		}
+		if a.Platform == PlatformAntigravity {
+			return result
 		}
 	}
-	if a.Platform != PlatformAntigravity {
-		if mappedModel, matched := resolvePlatformDefaultMappedModel(a.Platform, requestedModel); matched {
-			return mappedModel, true
-		}
+	if platformResult := resolvePlatformDefaultMappedModelDetailed(a.Platform, requestedModel); platformResult.Matched {
+		return platformResult
 	}
-	return requestedModel, false
+	return result
 }
 
 // GetOpenAICompactMode returns the compact routing mode for an OpenAI account.
@@ -864,6 +940,11 @@ func matchWildcard(pattern, str string) bool {
 }
 
 func matchWildcardMappingResult(mapping map[string]string, requestedModel string) (string, bool) {
+	target, _, matched := matchWildcardMappingResultWithKey(mapping, requestedModel)
+	return target, matched
+}
+
+func matchWildcardMappingResultWithKey(mapping map[string]string, requestedModel string) (string, string, bool) {
 	// 收集所有匹配的 pattern，按长度降序排序（最长优先）
 	type patternMatch struct {
 		pattern string
@@ -878,7 +959,7 @@ func matchWildcardMappingResult(mapping map[string]string, requestedModel string
 	}
 
 	if len(matches) == 0 {
-		return requestedModel, false // 无匹配，返回原始模型名
+		return requestedModel, "", false // 无匹配，返回原始模型名
 	}
 
 	// 按 pattern 长度降序排序
@@ -889,7 +970,7 @@ func matchWildcardMappingResult(mapping map[string]string, requestedModel string
 		return matches[i].pattern < matches[j].pattern
 	})
 
-	return matches[0].target, true
+	return matches[0].target, matches[0].pattern, true
 }
 
 func (a *Account) IsCustomErrorCodesEnabled() bool {

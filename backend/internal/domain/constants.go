@@ -1,5 +1,7 @@
 package domain
 
+import "strings"
+
 // Status constants
 const (
 	StatusActive          = "active"
@@ -23,6 +25,11 @@ const (
 	PlatformOpenAI      = "openai"
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
+)
+
+const (
+	MappingBillingObjectRequested = "requested"
+	MappingBillingObjectMapped    = "mapped"
 )
 
 // Account type constants
@@ -76,6 +83,26 @@ var GetAntigravityDefaultMappingOverride func() map[string]string
 // 返回 nil 表示该平台没有自定义默认映射。
 var GetPlatformDefaultMappingOverride func(platform string) map[string]string
 
+// GetPlatformCustomDefaultMappingOverride returns only administrator-defined
+// default mappings. It intentionally excludes built-in platform mappings so UI
+// callers can distinguish editable rows from runtime defaults.
+var GetPlatformCustomDefaultMappingOverride func(platform string) map[string]string
+
+// GetPlatformDefaultMappingBillingObjectOverride returns per-mapping billing
+// object overrides keyed by mapping source model/pattern.
+var GetPlatformDefaultMappingBillingObjectOverride func(platform string) map[string]string
+
+func NormalizeMappingBillingObject(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case MappingBillingObjectRequested:
+		return MappingBillingObjectRequested
+	case MappingBillingObjectMapped:
+		return MappingBillingObjectMapped
+	default:
+		return ""
+	}
+}
+
 // ResolvePlatformDefaultModelMapping 返回平台级默认映射。
 // Antigravity 有内置严格白名单；其他平台默认没有映射，只有管理员配置后才返回。
 func ResolvePlatformDefaultModelMapping(platform string) map[string]string {
@@ -88,6 +115,33 @@ func ResolvePlatformDefaultModelMapping(platform string) map[string]string {
 		return DefaultAntigravityModelMapping
 	}
 	return nil
+}
+
+func ResolvePlatformCustomDefaultModelMapping(platform string) map[string]string {
+	if GetPlatformCustomDefaultMappingOverride == nil {
+		return nil
+	}
+	return GetPlatformCustomDefaultMappingOverride(platform)
+}
+
+func ResolvePlatformDefaultMappingBillingObjects(platform string) map[string]string {
+	if GetPlatformDefaultMappingBillingObjectOverride == nil {
+		return nil
+	}
+	return GetPlatformDefaultMappingBillingObjectOverride(platform)
+}
+
+func ResolvePlatformDefaultMappingBillingObject(platform, mappingKey string) string {
+	mappingKey = strings.TrimSpace(mappingKey)
+	if mappingKey != "" {
+		objects := ResolvePlatformDefaultMappingBillingObjects(platform)
+		if len(objects) > 0 {
+			if object := NormalizeMappingBillingObject(objects[mappingKey]); object != "" {
+				return object
+			}
+		}
+	}
+	return MappingBillingObjectRequested
 }
 
 // ResolveAntigravityDefaultMapping 返回管理员自定义映射（如有），否则返回内置默认映射。

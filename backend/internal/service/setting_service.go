@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/imroc/req/v3"
 	"golang.org/x/sync/singleflight"
@@ -2028,15 +2029,19 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeySMTPPort:                                 "587",
 		SettingKeySMTPUseTLS:                               "false",
 		// Model fallback defaults
-		SettingKeyEnableModelFallback:            "false",
-		SettingKeyFallbackModelAnthropic:         "claude-3-5-sonnet-20241022",
-		SettingKeyFallbackModelOpenAI:            "gpt-4o",
-		SettingKeyFallbackModelGemini:            "gemini-2.5-pro",
-		SettingKeyFallbackModelAntigravity:       "gemini-2.5-pro",
-		SettingKeyAntigravityDefaultModelMapping: "",
-		SettingKeyAnthropicDefaultModelMapping:   "",
-		SettingKeyOpenAIDefaultModelMapping:      "",
-		SettingKeyGeminiDefaultModelMapping:      "",
+		SettingKeyEnableModelFallback:                         "false",
+		SettingKeyFallbackModelAnthropic:                      "claude-3-5-sonnet-20241022",
+		SettingKeyFallbackModelOpenAI:                         "gpt-4o",
+		SettingKeyFallbackModelGemini:                         "gemini-2.5-pro",
+		SettingKeyFallbackModelAntigravity:                    "gemini-2.5-pro",
+		SettingKeyAntigravityDefaultModelMapping:              "",
+		SettingKeyAnthropicDefaultModelMapping:                "",
+		SettingKeyOpenAIDefaultModelMapping:                   "",
+		SettingKeyGeminiDefaultModelMapping:                   "",
+		SettingKeyAntigravityDefaultModelMappingBillingObject: "",
+		SettingKeyAnthropicDefaultModelMappingBillingObject:   "",
+		SettingKeyOpenAIDefaultModelMappingBillingObject:      "",
+		SettingKeyGeminiDefaultModelMappingBillingObject:      "",
 		// Identity patch defaults
 		SettingKeyEnableIdentityPatch: "true",
 		SettingKeyIdentityPatchPrompt: "",
@@ -3694,6 +3699,21 @@ func defaultModelMappingSettingKey(platform string) (string, bool) {
 	}
 }
 
+func defaultModelMappingBillingObjectSettingKey(platform string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(platform)) {
+	case PlatformAnthropic:
+		return SettingKeyAnthropicDefaultModelMappingBillingObject, true
+	case PlatformOpenAI:
+		return SettingKeyOpenAIDefaultModelMappingBillingObject, true
+	case PlatformGemini:
+		return SettingKeyGeminiDefaultModelMappingBillingObject, true
+	case PlatformAntigravity:
+		return SettingKeyAntigravityDefaultModelMappingBillingObject, true
+	default:
+		return "", false
+	}
+}
+
 // GetPlatformDefaultModelMapping returns the optional global model mapping for a platform.
 func (s *SettingService) GetPlatformDefaultModelMapping(ctx context.Context, platform string) map[string]string {
 	key, ok := defaultModelMappingSettingKey(platform)
@@ -3739,6 +3759,53 @@ func (s *SettingService) SetPlatformDefaultModelMapping(ctx context.Context, pla
 	data, err := json.Marshal(cleaned)
 	if err != nil {
 		return fmt.Errorf("marshal %s default model mapping: %w", platform, err)
+	}
+	return s.settingRepo.Set(ctx, key, string(data))
+}
+
+func (s *SettingService) GetPlatformDefaultModelMappingBillingObjects(ctx context.Context, platform string) map[string]string {
+	key, ok := defaultModelMappingBillingObjectSettingKey(platform)
+	if !ok {
+		return nil
+	}
+	val, err := s.settingRepo.GetValue(ctx, key)
+	if err != nil || strings.TrimSpace(val) == "" {
+		return nil
+	}
+	var objects map[string]string
+	if err := json.Unmarshal([]byte(val), &objects); err != nil {
+		return nil
+	}
+	cleaned := make(map[string]string, len(objects))
+	for model, object := range objects {
+		model = strings.TrimSpace(model)
+		object = domain.NormalizeMappingBillingObject(object)
+		if model != "" && object != "" {
+			cleaned[model] = object
+		}
+	}
+	if len(cleaned) == 0 {
+		return nil
+	}
+	return cleaned
+}
+
+func (s *SettingService) SetPlatformDefaultModelMappingBillingObjects(ctx context.Context, platform string, objects map[string]string) error {
+	key, ok := defaultModelMappingBillingObjectSettingKey(platform)
+	if !ok {
+		return fmt.Errorf("unsupported platform for default model mapping billing object: %s", platform)
+	}
+	cleaned := make(map[string]string, len(objects))
+	for model, object := range objects {
+		model = strings.TrimSpace(model)
+		object = domain.NormalizeMappingBillingObject(object)
+		if model != "" && object != "" {
+			cleaned[model] = object
+		}
+	}
+	data, err := json.Marshal(cleaned)
+	if err != nil {
+		return fmt.Errorf("marshal %s default model mapping billing objects: %w", platform, err)
 	}
 	return s.settingRepo.Set(ctx, key, string(data))
 }

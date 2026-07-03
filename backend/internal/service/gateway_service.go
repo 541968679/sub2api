@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -504,6 +505,8 @@ type ForwardResult struct {
 	RequestID string
 	Usage     ClaudeUsage
 	Model     string
+	// BillingModel overrides the model name used for pricing when non-empty.
+	BillingModel string
 	// UpstreamModel is the actual upstream model after mapping.
 	// Prefer empty when it is identical to Model; persistence normalizes equal values away as no-op mappings.
 	UpstreamModel    string
@@ -4486,11 +4489,17 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	// - APIKey 账号：使用账号级别的显式映射（如果配置），否则透传原始模型名
 	// - OAuth/SetupToken 账号：使用 Anthropic 标准映射（短ID → 长ID）
 	mappedModel := reqModel
+	billingModel := ""
 	mappingSource := ""
 	if account.Type == AccountTypeAPIKey {
-		mappedModel = account.GetMappedModel(reqModel)
-		if mappedModel != reqModel {
-			mappingSource = "account"
+		modelResolution := account.ResolveMappedModelDetailed(reqModel)
+		mappedModel = modelResolution.MappedModel
+		if modelResolution.Matched {
+			mappingSource = modelResolution.Source
+			if modelResolution.Source == ModelMappingSourcePlatformDefault &&
+				modelResolution.BillingObject == domain.MappingBillingObjectMapped {
+				billingModel = modelResolution.MappedModel
+			}
 		}
 	}
 	if mappingSource == "" && account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount {
@@ -5013,6 +5022,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		RequestID:        resp.Header.Get("x-request-id"),
 		Usage:            *usage,
 		Model:            originalModel, // 使用原始模型用于计费和日志
+		BillingModel:     billingModel,
 		UpstreamModel:    mappedModel,
 		Stream:           reqStream,
 		Duration:         time.Since(startTime),
@@ -8661,6 +8671,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 确定计费模型
 	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
+	if result.BillingModel != "" {
+		billingModel = strings.TrimSpace(result.BillingModel)
+	}
 	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" {
 		billingModel = input.ChannelMappedModel
 	}

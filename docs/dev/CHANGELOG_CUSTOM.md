@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: add editable billing object for default model mappings
+
+**Affected files**: backend/internal/domain/constants.go, backend/internal/service/{account.go,setting_service.go,global_model_pricing_service.go,gateway_service.go,openai_gateway_service.go}, backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue,ModelMappingInlinePopover.vue}, frontend/src/api/admin/{accounts.ts,modelPricing.ts}, frontend/src/i18n/locales/{zh,en}.ts, frontend/src/views/admin/ChannelsView.vue, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model configuration fix. It adds Settings KV entries and admin APIs for per-platform default mapping billing-object overrides, but does not add schema/migration changes and does not touch image channel monitoring.
+**Change details**:
+- Replaced the model configuration table's derived "映射角色" label with an editable "计费对象" field for platform default mapping key rows.
+- Added per-platform `*_default_model_mapping_billing_object` settings and `GET/PUT /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`; valid values are only `requested` and `mapped`.
+- Kept the default behavior as `requested`, so existing traffic still prices by the client-requested model unless an administrator explicitly selects `mapped`.
+- Applied the billing-object override only to platform default mappings. Account-level `credentials.model_mapping`, channel `billing_model_source`, and token/image billing mode remain separate mechanisms.
+- Fixed ineffective delete buttons by returning `mapping_editable` from the backend and only allowing edit/delete when the row exists in custom default mapping settings. Built-in/LiteLLM-derived rows can no longer expose a delete action that silently reappears.
+- Restored channel edit support for existing channel billing sources after removing the mistaken model-config channel billing-basis panel.
+
 ## [2026-07-03] fix: show billed image tier in user usage records
 
 **Affected files**: backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/types/index.ts, frontend/src/views/user/UsageView.vue
@@ -52,15 +64,14 @@
 - The manual panel supports configurable model/prompt/size/quality/n/timeout/download options, file upload for image-to-image, multi-channel selection, concurrent requests, per-channel status, metrics, stage list, and immediate preview as each channel finishes.
 - Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`.
 
-## [2026-07-03] fix: expose provider-aware mapping and channel billing basis controls
+## [2026-07-03] fix: expose provider-aware default mapping controls
 
 **Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, frontend/src/views/admin/ChannelsView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/CHANGELOG_CUSTOM.md
 **Upstream compatibility**: admin model-config UI/backend-list fix. No schema, migration, Ent, image-channel monitoring, pricing formula, quota, push, or deployment changes.
 **Change details**:
-- Added a channel billing-basis control section to the model configuration page, saving the real `billing_model_source` field with only `requested` and `channel_mapped` exposed as new choices.
-- Removed the `upstream` choice from the channel edit dropdown; legacy `upstream` values are displayed as a migration warning and normalize to `channel_mapped` when saved through the UI.
-- Renamed the table's derived mapping label from billing mode to mapping role, so it no longer implies the Token/Image pricing mode or an editable per-row billing-basis value.
-- Fixed provider-aware default mapping hints in the model pricing list so non-Antigravity mapping rows receive `billing_basis_hint`, allowing added mappings to be edited/deleted instead of appearing as plain fallback rows.
+- Fixed provider-aware default mapping hints in the model pricing list so non-Antigravity mapping rows receive `billing_basis_hint`.
+- The table-label and per-row billing behavior from this earlier entry was corrected by the later "editable billing object" change above; model configuration now uses `计费对象` with only `requested` and `mapped` choices.
+- Channel `billing_model_source` remains a separate channel form setting and is not edited from the model configuration table.
 - Verified: `go test -tags=unit ./internal/service -run "TestGlobalModelPricingListPrefersOverrideProvider|TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter|TestAccountPlatformDefaultModelMapping|TestAccountGetMappedModel|TestAccountResolveMappedModel|TestOpenAIAccountResolveClaudeGPTBridgeModel" -count=1`; `pnpm run typecheck`.
 
 ## [2026-07-03] fix: align image monitor size options with OpenAI image API

@@ -46,6 +46,45 @@ dimension, not as an Antigravity-only assumption:
 - Image billing's flat fallback field continues to use `per_request_price`,
   matching the existing detail dialog and backend image billing resolver.
 
+## Default Mapping Billing Object (2026-07-03)
+
+The model configuration page has one editable billing selector for platform
+default mappings: `计费对象` / `Billing Object`.
+
+- Valid values are `requested` and `mapped`.
+- `requested` means pricing lookup uses the client-requested model name. This is
+  the default when no override is saved, preserving existing production
+  behavior.
+- `mapped` means pricing lookup uses the model name after the platform default
+  mapping has rewritten the request.
+- This is not channel `billing_model_source`, and it is not token-vs-image
+  billing mode. Channel billing source, account-level `credentials.model_mapping`,
+  and usage billing mode keep their existing behavior.
+
+Settings KV stores the override maps by platform:
+
+- `antigravity_default_model_mapping_billing_object`
+- `anthropic_default_model_mapping_billing_object`
+- `openai_default_model_mapping_billing_object`
+- `gemini_default_model_mapping_billing_object`
+
+Admin APIs:
+
+- `GET /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`
+- `PUT /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`
+
+The model-pricing list returns two separate editability flags:
+
+- `billing_object_editable`: the row represents a mapping key whose billing
+  object can be changed.
+- `mapping_editable`: the row exists in administrator-defined default mapping
+  settings and can be edited or deleted.
+
+Built-in platform defaults and LiteLLM-discovered rows may show their effective
+mapping relationship, but they must not expose edit/delete unless
+`mapping_editable=true`; otherwise deletion only removes a non-existent custom
+setting and the row reappears after reload.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

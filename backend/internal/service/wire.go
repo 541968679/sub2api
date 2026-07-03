@@ -416,6 +416,12 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	svc := NewSettingService(settingRepo, cfg)
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
+	domain.GetPlatformCustomDefaultMappingOverride = func(platform string) map[string]string {
+		return svc.GetPlatformDefaultModelMapping(context.Background(), platform)
+	}
+	domain.GetPlatformDefaultMappingBillingObjectOverride = func(platform string) map[string]string {
+		return svc.GetPlatformDefaultModelMappingBillingObjects(context.Background(), platform)
+	}
 	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
 		dbMapping := svc.GetPlatformDefaultModelMapping(context.Background(), platform)
 		if platform != PlatformAntigravity {

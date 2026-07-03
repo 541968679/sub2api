@@ -340,6 +340,8 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// Antigravity 默认模型映射
 		accounts.GET("/default-model-mapping/:platform", h.Admin.Account.GetPlatformDefaultModelMapping)
 		accounts.PUT("/default-model-mapping/:platform", h.Admin.Account.UpdatePlatformDefaultModelMapping)
+		accounts.GET("/default-model-mapping-billing-objects/:platform", h.Admin.Account.GetPlatformDefaultModelMappingBillingObjects)
+		accounts.PUT("/default-model-mapping-billing-objects/:platform", h.Admin.Account.UpdatePlatformDefaultModelMappingBillingObjects)
 		accounts.GET("/antigravity/default-model-mapping", h.Admin.Account.GetAntigravityDefaultModelMapping)
 		accounts.PUT("/antigravity/default-model-mapping", h.Admin.Account.UpdateAntigravityDefaultModelMapping)
 

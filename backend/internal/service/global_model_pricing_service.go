@@ -64,9 +64,12 @@ type ModelPricingListItem struct {
 // upstream_only 情况下可能多对一（多个请求名映射到同一个上游名），前端按首个 + "+N" 呈现，
 // tooltip 展开全部 RelatedModels。
 type BillingBasisHint struct {
-	Platform      string   `json:"platform,omitempty"`
-	Type          string   `json:"type"`
-	RelatedModels []string `json:"related_models,omitempty"`
+	Platform              string   `json:"platform,omitempty"`
+	Type                  string   `json:"type"`
+	RelatedModels         []string `json:"related_models,omitempty"`
+	BillingObject         string   `json:"billing_object,omitempty"`
+	BillingObjectEditable bool     `json:"billing_object_editable,omitempty"`
+	MappingEditable       bool     `json:"mapping_editable,omitempty"`
 }
 
 const (
@@ -228,6 +231,8 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 	}
 
 	defaultMappings := platformDefaultModelMappings()
+	customDefaultMappings := platformCustomDefaultModelMappings()
+	defaultMappingBillingObjects := platformDefaultMappingBillingObjects()
 	providerLower := normalizeDefaultMappingProvider(provider)
 
 	// 补全平台默认映射里的可用模型：有些模型只存在于平台映射里，LiteLLM 和全局覆盖
@@ -291,6 +296,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 
 	for i := range items {
 		var b *hintBucket
+		rowHintPlatform := hintPlatform
 		if providerLower != "" {
 			b = hintIndex[strings.ToLower(items[i].Model)]
 		}
@@ -299,32 +305,30 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			if selectedBucket == nil {
 				continue
 			}
-			hintPlatform = selectedPlatform
+			rowHintPlatform = selectedPlatform
 			b = selectedBucket
 		}
+		customMappings := customDefaultMappings[rowHintPlatform]
+		billingObjects := defaultMappingBillingObjects[rowHintPlatform]
 		switch {
 		case b.sameName:
 			// 同名优先：request == upstream；但若同时有其他请求名映射到它
 			// （真实的 Antigravity 默认映射几乎总是这种情况，例如
 			// `claude-opus-4-6-thinking` 既有同名自映射也是 claude-opus-4-6 的目标），
 			// 用 RelatedModels 额外承载"被哪些请求名映射到"，前端展示 +N 提示。
-			hint := &BillingBasisHint{Platform: hintPlatform, Type: BillingHintRequestedEqualsUpstream}
+			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedEqualsUpstream, b.sameNameKey, customMappings, billingObjects, false)
 			if len(b.upstreamFromList) > 0 {
 				hint.RelatedModels = b.upstreamFromList
 			}
 			items[i].BillingBasisHint = hint
 		case len(b.upstreamFromList) > 0:
-			items[i].BillingBasisHint = &BillingBasisHint{
-				Platform:      hintPlatform,
-				Type:          BillingHintUpstreamOnly,
-				RelatedModels: b.upstreamFromList,
-			}
+			hint := newBillingBasisHint(rowHintPlatform, BillingHintUpstreamOnly, "", customMappings, billingObjects, false)
+			hint.RelatedModels = b.upstreamFromList
+			items[i].BillingBasisHint = hint
 		case b.requestedTargetKey != "":
-			items[i].BillingBasisHint = &BillingBasisHint{
-				Platform:      hintPlatform,
-				Type:          BillingHintRequestedOnly,
-				RelatedModels: []string{b.requestedTargetKey},
-			}
+			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedOnly, b.requestedMappingKey, customMappings, billingObjects, true)
+			hint.RelatedModels = []string{b.requestedTargetKey}
+			items[i].BillingBasisHint = hint
 		}
 	}
 
@@ -656,9 +660,11 @@ func (s *GlobalModelPricingService) GetRateMultiplierOverview(ctx context.Contex
 // --- 内部辅助方法 ---
 
 type hintBucket struct {
-	sameName           bool
-	upstreamFromList   []string // 若非空：此模型是 value，收集所有来源 key
-	requestedTargetKey string   // 若非空：此模型是 key，映射到该 value
+	sameName            bool
+	sameNameKey         string
+	upstreamFromList    []string // 若非空：此模型是 value，收集所有来源 key
+	requestedTargetKey  string   // 若非空：此模型是 key，映射到该 value
+	requestedMappingKey string
 }
 
 func defaultMappingPlatforms() []string {
@@ -697,6 +703,26 @@ func platformDefaultModelMappings() map[string]map[string]string {
 	return result
 }
 
+func platformCustomDefaultModelMappings() map[string]map[string]string {
+	result := make(map[string]map[string]string, len(defaultMappingPlatforms()))
+	for _, platform := range defaultMappingPlatforms() {
+		if mapping := domain.ResolvePlatformCustomDefaultModelMapping(platform); len(mapping) > 0 {
+			result[platform] = mapping
+		}
+	}
+	return result
+}
+
+func platformDefaultMappingBillingObjects() map[string]map[string]string {
+	result := make(map[string]map[string]string, len(defaultMappingPlatforms()))
+	for _, platform := range defaultMappingPlatforms() {
+		if objects := domain.ResolvePlatformDefaultMappingBillingObjects(platform); len(objects) > 0 {
+			result[platform] = objects
+		}
+	}
+	return result
+}
+
 func buildBillingHintIndex(mapping map[string]string) map[string]*hintBucket {
 	hintIndex := make(map[string]*hintBucket, len(mapping))
 	getBucket := func(lower string) *hintBucket {
@@ -711,11 +737,14 @@ func buildBillingHintIndex(mapping map[string]string) map[string]*hintBucket {
 		kl := strings.ToLower(k)
 		vl := strings.ToLower(v)
 		if kl == vl {
-			getBucket(kl).sameName = true
+			b := getBucket(kl)
+			b.sameName = true
+			b.sameNameKey = k
 			continue
 		}
-		if getBucket(kl).requestedTargetKey == "" {
-			getBucket(kl).requestedTargetKey = v
+		if b := getBucket(kl); b.requestedTargetKey == "" {
+			b.requestedTargetKey = v
+			b.requestedMappingKey = k
 		}
 		b := getBucket(vl)
 		b.upstreamFromList = append(b.upstreamFromList, k)
@@ -732,6 +761,24 @@ func buildPlatformBillingHintIndexes(mappings map[string]map[string]string) map[
 		result[platform] = buildBillingHintIndex(mapping)
 	}
 	return result
+}
+
+func newBillingBasisHint(platform, hintType, mappingKey string, customMappings, billingObjects map[string]string, editableBillingObject bool) *BillingBasisHint {
+	hint := &BillingBasisHint{
+		Platform:              platform,
+		Type:                  hintType,
+		BillingObject:         domain.MappingBillingObjectRequested,
+		BillingObjectEditable: editableBillingObject,
+	}
+	if mappingKey != "" {
+		if _, ok := customMappings[mappingKey]; ok {
+			hint.MappingEditable = true
+		}
+		if object := domain.NormalizeMappingBillingObject(billingObjects[mappingKey]); object != "" {
+			hint.BillingObject = object
+		}
+	}
+	return hint
 }
 
 func selectBillingHintForItem(item ModelPricingListItem, provider string, indexes map[string]map[string]*hintBucket) (string, *hintBucket) {

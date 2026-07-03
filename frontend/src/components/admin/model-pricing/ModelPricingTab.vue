@@ -122,72 +122,6 @@
       {{ t('admin.modelPricing.inlineEditHint') }}
     </p>
 
-    <!-- Channel billing basis -->
-    <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-      <div class="mb-3 flex items-start justify-between gap-3">
-        <div>
-          <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
-            {{ t('admin.modelPricing.channelBillingBasisTitle') }}
-          </h3>
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {{ t('admin.modelPricing.channelBillingBasisHint') }}
-          </p>
-        </div>
-        <button
-          type="button"
-          @click="loadChannelBillingBasis"
-          :disabled="channelBasisLoading"
-          class="btn btn-secondary shrink-0 text-xs"
-        >
-          <svg class="h-3.5 w-3.5" :class="channelBasisLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-      </div>
-
-      <div v-if="channelBasisLoading" class="py-5 text-center">
-        <span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></span>
-      </div>
-      <p v-else-if="channelBasisRows.length === 0" class="py-5 text-center text-sm text-gray-400">
-        {{ t('admin.modelPricing.channelBillingBasisNoChannels') }}
-      </p>
-      <div v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <div
-          v-for="channel in channelBasisRows"
-          :key="channel.id"
-          class="flex min-w-0 items-start justify-between gap-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900/30"
-        >
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-sm font-medium text-gray-800 dark:text-gray-100" :title="channel.name">
-              {{ channel.name }}
-            </p>
-            <p v-if="channel.billing_model_source === 'upstream'" class="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-              {{ t('admin.modelPricing.channelBillingBasisLegacyUpstream') }}
-            </p>
-          </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <Select
-              v-model="channelBillingBasisDrafts[channel.id]"
-              :options="billingModelSourceOptions"
-              class="w-36"
-            />
-            <button
-              type="button"
-              @click="saveChannelBillingBasis(channel)"
-              :disabled="savingChannelBasisId === channel.id || !isChannelBasisDirty(channel)"
-              class="btn btn-primary text-xs"
-            >
-              <span
-                v-if="savingChannelBasisId === channel.id"
-                class="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
-              ></span>
-              {{ t('common.save') }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Table -->
     <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
       <table class="w-full text-sm">
@@ -234,7 +168,18 @@
               <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ row.upstreamDisplay }}</span>
             </td>
             <td class="px-4 py-2.5 text-center">
-              <span :class="row.billingModeClass" class="inline-block rounded-full px-2 py-0.5 text-xs font-medium">
+              <select
+                v-if="row.canEditBillingObject"
+                :value="row.billingObject"
+                :disabled="savingMappingBillingObject === rowMappingPlatform(row) + ':' + row.item.model"
+                class="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
+                @change="handleMappingBillingObjectChange(row, $event)"
+              >
+                <option v-for="option in mappingBillingObjectOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span v-else :class="row.billingModeClass" class="inline-block rounded-full px-2 py-0.5 text-xs font-medium">
                 {{ row.billingModeLabel }}
               </span>
             </td>
@@ -417,13 +362,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { ModelPricingItem, ModelPricingStats, GlobalOverride, LiteLLMPrices } from '@/api/admin/modelPricing'
-import type { Channel } from '@/api/admin/channels'
 import { perTokenToMTok } from '@/components/admin/channel/types'
-import Select from '@/components/common/Select.vue'
-import {
-  BILLING_MODEL_SOURCE_CHANNEL_MAPPED,
-  BILLING_MODEL_SOURCE_REQUESTED,
-} from '@/constants/channel'
 import ModelPricingDetailDialog from './ModelPricingDetailDialog.vue'
 import ModelPricingInlinePopover from './ModelPricingInlinePopover.vue'
 import ModelMappingInlinePopover from './ModelMappingInlinePopover.vue'
@@ -449,19 +388,13 @@ const searchQuery = ref('')
 const providerFilter = ref('')
 const sourceFilter = ref('')
 const deletingMappingFrom = ref('')
-const channelBasisRows = ref<Channel[]>([])
-const channelBasisLoading = ref(false)
-const savingChannelBasisId = ref<number | null>(null)
+const savingMappingBillingObject = ref('')
 
-type EditableBillingModelSource =
-  | typeof BILLING_MODEL_SOURCE_REQUESTED
-  | typeof BILLING_MODEL_SOURCE_CHANNEL_MAPPED
+type MappingBillingObject = 'requested' | 'mapped'
 
-const channelBillingBasisDrafts = reactive<Record<number, EditableBillingModelSource>>({})
-
-const billingModelSourceOptions = computed(() => [
-  { value: BILLING_MODEL_SOURCE_CHANNEL_MAPPED, label: t('admin.modelPricing.billingModelSourceChannelMapped') },
-  { value: BILLING_MODEL_SOURCE_REQUESTED, label: t('admin.modelPricing.billingModelSourceRequested') },
+const mappingBillingObjectOptions = computed<Array<{ value: MappingBillingObject; label: string }>>(() => [
+  { value: 'requested', label: t('admin.modelPricing.billingObjectRequested') },
+  { value: 'mapped', label: t('admin.modelPricing.billingObjectMapped') },
 ])
 
 const showDetailDialog = ref(false)
@@ -581,7 +514,7 @@ function normalizeMappingPlatform(platform?: string): ModelPricingProvider {
 }
 
 function rowMappingPlatform(row?: RowDisplay): string {
-  return row?.resolvedProvider || normalizeMappingPlatform(providerFilter.value)
+  return normalizeMappingPlatform(row?.item.billing_basis_hint?.platform || row?.resolvedProvider || providerFilter.value)
 }
 
 function openAddMapping() {
@@ -619,15 +552,26 @@ function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; platfor
 async function deleteMapping(row: RowDisplay) {
   const from = row.item.model
   const platform = rowMappingPlatform(row)
-  if (!from) return
+  if (!from || !row.canEditMapping) return
   if (!confirm(t('admin.modelPricing.confirmDeleteMapping', { from }))) return
 
   deletingMappingFrom.value = `${platform}:${from}`
   try {
     const current = await adminAPI.accounts.getPlatformDefaultModelMapping(platform)
+    if (!(from in current)) {
+      appStore.showWarning(t('admin.modelPricing.mappingNotEditable'))
+      await loadData()
+      return
+    }
     const next = { ...current }
     delete next[from]
     await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
+    const objects = await adminAPI.accounts.getPlatformDefaultModelMappingBillingObjects(platform)
+    if (from in objects) {
+      const nextObjects = { ...objects }
+      delete nextObjects[from]
+      await adminAPI.accounts.updatePlatformDefaultModelMappingBillingObjects(platform, nextObjects)
+    }
     appStore.showSuccess(t('admin.modelConfig.saved'))
     await loadData()
   } catch {
@@ -635,6 +579,36 @@ async function deleteMapping(row: RowDisplay) {
   } finally {
     deletingMappingFrom.value = ''
   }
+}
+
+async function updateMappingBillingObject(row: RowDisplay, value: MappingBillingObject) {
+  if (!row.canEditBillingObject || (value !== 'requested' && value !== 'mapped')) {
+    return
+  }
+  const from = row.item.model
+  const platform = rowMappingPlatform(row)
+  if (!from || !platform || value === row.billingObject) {
+    return
+  }
+
+  savingMappingBillingObject.value = `${platform}:${from}`
+  try {
+    const current = await adminAPI.accounts.getPlatformDefaultModelMappingBillingObjects(platform)
+    const next = { ...current, [from]: value }
+    await adminAPI.accounts.updatePlatformDefaultModelMappingBillingObjects(platform, next)
+    appStore.showSuccess(t('admin.modelPricing.billingObjectSaved'))
+    await loadData()
+  } catch {
+    appStore.showError(t('common.error'))
+    await loadData()
+  } finally {
+    savingMappingBillingObject.value = ''
+  }
+}
+
+function handleMappingBillingObjectChange(row: RowDisplay, event: Event) {
+  const value = normalizeMappingBillingObject((event.target as HTMLSelectElement | null)?.value)
+  updateMappingBillingObject(row, value)
 }
 
 // 模型测试 dialog 状态
@@ -706,68 +680,6 @@ async function loadData() {
     appStore.showError(t('common.error'))
   } finally {
     loading.value = false
-  }
-}
-
-function normalizeEditableBillingModelSource(source?: string | null): EditableBillingModelSource {
-  return source === BILLING_MODEL_SOURCE_REQUESTED
-    ? BILLING_MODEL_SOURCE_REQUESTED
-    : BILLING_MODEL_SOURCE_CHANNEL_MAPPED
-}
-
-function isChannelBasisDirty(channel: Channel): boolean {
-  const draft = channelBillingBasisDrafts[channel.id] ?? normalizeEditableBillingModelSource(channel.billing_model_source)
-  return draft !== channel.billing_model_source
-}
-
-async function loadChannelBillingBasis() {
-  channelBasisLoading.value = true
-  try {
-    const result = await adminAPI.channels.list(1, 1000)
-    const rows = result.items || []
-    channelBasisRows.value = rows
-
-    const seen = new Set<number>()
-    for (const channel of rows) {
-      seen.add(channel.id)
-      channelBillingBasisDrafts[channel.id] = normalizeEditableBillingModelSource(channel.billing_model_source)
-    }
-    for (const key of Object.keys(channelBillingBasisDrafts)) {
-      const id = Number(key)
-      if (!seen.has(id)) {
-        delete channelBillingBasisDrafts[id]
-      }
-    }
-  } catch {
-    appStore.showError(t('common.error'))
-  } finally {
-    channelBasisLoading.value = false
-  }
-}
-
-async function saveChannelBillingBasis(channel: Channel) {
-  const nextSource = channelBillingBasisDrafts[channel.id] ?? normalizeEditableBillingModelSource(channel.billing_model_source)
-  if (nextSource !== BILLING_MODEL_SOURCE_REQUESTED && nextSource !== BILLING_MODEL_SOURCE_CHANNEL_MAPPED) {
-    return
-  }
-  savingChannelBasisId.value = channel.id
-  try {
-    const updated = await adminAPI.channels.update(channel.id, {
-      billing_model_source: nextSource,
-    })
-    const idx = channelBasisRows.value.findIndex((item) => item.id === channel.id)
-    if (idx >= 0) {
-      channelBasisRows.value.splice(idx, 1, {
-        ...channelBasisRows.value[idx],
-        billing_model_source: updated.billing_model_source || nextSource,
-      })
-    }
-    channelBillingBasisDrafts[channel.id] = normalizeEditableBillingModelSource(updated.billing_model_source || nextSource)
-    appStore.showSuccess(t('admin.modelPricing.channelBillingBasisSaved'))
-  } catch {
-    appStore.showError(t('common.error'))
-  } finally {
-    savingChannelBasisId.value = null
   }
 }
 
@@ -861,10 +773,28 @@ interface RowDisplay {
   upstreamDisplay: string
   billingModeLabel: string
   billingModeClass: string
+  billingObject: MappingBillingObject
   resolvedProvider: ModelPricingProvider
   // 行操作是否可用
   canEditMapping: boolean
+  canEditBillingObject: boolean
   canTest: boolean
+}
+
+function normalizeMappingBillingObject(value?: string | null): MappingBillingObject {
+  return value === 'mapped' ? 'mapped' : 'requested'
+}
+
+function mappingBillingObjectLabel(value: MappingBillingObject): string {
+  return value === 'mapped'
+    ? t('admin.modelPricing.billingObjectMapped')
+    : t('admin.modelPricing.billingObjectRequested')
+}
+
+function mappingBillingObjectClass(value: MappingBillingObject): string {
+  return value === 'mapped'
+    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
+    : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
 }
 
 function deriveNameColumns(item: ModelPricingItem): {
@@ -872,6 +802,7 @@ function deriveNameColumns(item: ModelPricingItem): {
   upstreamDisplay: string
   billingModeLabel: string
   billingModeClass: string
+  billingObject: MappingBillingObject
 } {
   const hint = item.billing_basis_hint
   const model = item.model
@@ -893,17 +824,20 @@ function deriveNameColumns(item: ModelPricingItem): {
       upstreamDisplay: model,
       billingModeLabel: t('admin.modelPricing.billingModeRequestEqualsUpstream'),
       billingModeClass: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+      billingObject: 'requested',
     }
   }
 
   if (hint.type === 'requested_only') {
     // 模型是映射 key，上游名 = related_models[0]
     const upstream = hint.related_models?.[0] ?? model
+    const billingObject = normalizeMappingBillingObject(hint.billing_object)
     return {
       requestedDisplay: { primary: model, moreCount: 0, moreTooltip: '' },
       upstreamDisplay: upstream,
-      billingModeLabel: t('admin.modelPricing.billingModeByRequested'),
-      billingModeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
+      billingModeLabel: mappingBillingObjectLabel(billingObject),
+      billingModeClass: mappingBillingObjectClass(billingObject),
+      billingObject,
     }
   }
 
@@ -921,19 +855,18 @@ function deriveNameColumns(item: ModelPricingItem): {
   return {
     requestedDisplay: { primary, moreCount, moreTooltip },
     upstreamDisplay: model,
-    billingModeLabel: t('admin.modelPricing.billingModeByUpstream'),
-    billingModeClass: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+    billingModeLabel: mappingBillingObjectLabel('mapped'),
+    billingModeClass: mappingBillingObjectClass('mapped'),
+    billingObject: 'mapped',
   }
 }
 
 const displayRows = computed<RowDisplay[]>(() =>
   items.value.map((item) => {
     const nameCols = deriveNameColumns(item)
-    const hintType = item.billing_basis_hint?.type
-    // 编辑映射按钮：仅对 Antigravity 映射的 key 行显示
-    // （requested_only 是 key != value 的 key；requested_equals_upstream 是同名 key）
-    // upstream_only 行只作为 value 不是 key，不显示编辑入口（要改要去对应 key 行）
-    const canEditMapping = hintType === 'requested_only' || hintType === 'requested_equals_upstream'
+    // 映射编辑/删除只允许后端确认存在于自定义默认映射表的 key 行。
+    const canEditMapping = Boolean(item.billing_basis_hint?.mapping_editable)
+    const canEditBillingObject = Boolean(item.billing_basis_hint?.billing_object_editable)
     const resolvedProvider = resolveModelPricingProvider(item, providerFilter.value)
     const canTest = Boolean(resolvedProvider)
     return {
@@ -947,6 +880,7 @@ const displayRows = computed<RowDisplay[]>(() =>
       },
       resolvedProvider,
       canEditMapping,
+      canEditBillingObject,
       canTest,
       ...nameCols,
     }
@@ -988,8 +922,5 @@ const visiblePages = computed(() => {
   return pages
 })
 
-onMounted(() => {
-  loadData()
-  loadChannelBillingBasis()
-})
+onMounted(loadData)
 </script>

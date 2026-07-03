@@ -457,6 +457,51 @@ func TestAccountPlatformDefaultModelMapping(t *testing.T) {
 	}
 }
 
+func TestAccountPlatformDefaultMappingBillingObject(t *testing.T) {
+	previousPlatformOverride := domain.GetPlatformDefaultMappingOverride
+	previousBillingObjectOverride := domain.GetPlatformDefaultMappingBillingObjectOverride
+	t.Cleanup(func() {
+		domain.GetPlatformDefaultMappingOverride = previousPlatformOverride
+		domain.GetPlatformDefaultMappingBillingObjectOverride = previousBillingObjectOverride
+	})
+
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{"claude-opus-4-8": "gpt-5.5"}
+		}
+		return nil
+	}
+	domain.GetPlatformDefaultMappingBillingObjectOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{"claude-opus-4-8": domain.MappingBillingObjectMapped}
+		}
+		return nil
+	}
+
+	account := &Account{Platform: PlatformOpenAI}
+	resolved := account.ResolveMappedModelDetailed("claude-opus-4-8")
+	if !resolved.Matched || resolved.Source != ModelMappingSourcePlatformDefault {
+		t.Fatalf("ResolveMappedModelDetailed() source = (%v, %q), want platform default match", resolved.Matched, resolved.Source)
+	}
+	if resolved.MappedModel != "gpt-5.5" || resolved.BillingObject != domain.MappingBillingObjectMapped {
+		t.Fatalf("ResolveMappedModelDetailed() = mapped %q billing object %q", resolved.MappedModel, resolved.BillingObject)
+	}
+
+	accountMapping := &Account{
+		Platform: PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"claude-opus-4-8": "gpt-account"},
+		},
+	}
+	resolved = accountMapping.ResolveMappedModelDetailed("claude-opus-4-8")
+	if resolved.Source != ModelMappingSourceAccount {
+		t.Fatalf("account-level mapping source = %q, want account", resolved.Source)
+	}
+	if resolved.BillingObject != "" {
+		t.Fatalf("account-level mapping should not inherit platform billing object, got %q", resolved.BillingObject)
+	}
+}
+
 func TestOpenAIAccountResolveClaudeGPTBridgeModel(t *testing.T) {
 	tests := []struct {
 		name           string

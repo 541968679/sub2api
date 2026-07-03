@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -2337,14 +2338,20 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 
 	// 对所有请求执行模型映射（包含 Codex CLI）。
-	billingModel := account.GetMappedModel(reqModel)
-	if billingModel != reqModel {
-		logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Model mapping applied: %s -> %s (account: %s, isCodexCLI: %v)", reqModel, billingModel, account.Name, isCodexCLI)
-		reqBody["model"] = billingModel
-		bodyModified = true
-		markPatchSet("model", billingModel)
+	modelResolution := account.ResolveMappedModelDetailed(reqModel)
+	forwardModel := modelResolution.MappedModel
+	billingModel := ""
+	if modelResolution.Source == ModelMappingSourcePlatformDefault &&
+		modelResolution.BillingObject == domain.MappingBillingObjectMapped {
+		billingModel = forwardModel
 	}
-	upstreamModel := billingModel
+	if forwardModel != reqModel {
+		logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Model mapping applied: %s -> %s (account: %s, isCodexCLI: %v)", reqModel, forwardModel, account.Name, isCodexCLI)
+		reqBody["model"] = forwardModel
+		bodyModified = true
+		markPatchSet("model", forwardModel)
+	}
+	upstreamModel := forwardModel
 	if normalizeOpenAIResponsesImageOnlyModel(reqBody) {
 		bodyModified = true
 		disablePatch()
@@ -2355,7 +2362,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			"service.openai_gateway",
 			"[OpenAI] Normalized /responses image-only model request inbound_model=%s image_model=%s upstream_model=%s",
 			reqModel,
-			billingModel,
+			forwardModel,
 			upstreamModel,
 		)
 	}
@@ -2396,14 +2403,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	isCompactRequest := isOpenAIResponsesCompactPath(c)
 	compactMapped := false
 	if isCompactRequest {
-		compactMappedModel := resolveOpenAICompactForwardModel(account, billingModel)
-		if compactMappedModel != "" && compactMappedModel != billingModel {
+		compactMappedModel := resolveOpenAICompactForwardModel(account, upstreamModel)
+		if compactMappedModel != "" && compactMappedModel != upstreamModel {
 			compactMapped = true
+			previousModel := upstreamModel
 			upstreamModel = compactMappedModel
 			reqBody["model"] = compactMappedModel
 			bodyModified = true
 			markPatchSet("model", compactMappedModel)
-			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Compact model mapping applied: %s -> %s (account: %s, isCodexCLI: %v)", billingModel, compactMappedModel, account.Name, isCodexCLI)
+			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Compact model mapping applied: %s -> %s (account: %s, isCodexCLI: %v)", previousModel, compactMappedModel, account.Name, isCodexCLI)
 		}
 	}
 
@@ -2945,6 +2953,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			ResponseID:      responseID,
 			Usage:           *usage,
 			Model:           originalModel,
+			BillingModel:    billingModel,
 			UpstreamModel:   upstreamModel,
 			ServiceTier:     serviceTier,
 			ReasoningEffort: reasoningEffort,

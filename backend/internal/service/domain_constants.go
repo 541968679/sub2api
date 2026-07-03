@@ -258,6 +258,12 @@ const (
 	SettingKeyOpenAIDefaultModelMapping      = "openai_default_model_mapping"
 	SettingKeyGeminiDefaultModelMapping      = "gemini_default_model_mapping"
 
+	// Per default-mapping billing object overrides. Values are "requested" or "mapped".
+	SettingKeyAntigravityDefaultModelMappingBillingObject = "antigravity_default_model_mapping_billing_object"
+	SettingKeyAnthropicDefaultModelMappingBillingObject   = "anthropic_default_model_mapping_billing_object"
+	SettingKeyOpenAIDefaultModelMappingBillingObject      = "openai_default_model_mapping_billing_object"
+	SettingKeyGeminiDefaultModelMappingBillingObject      = "gemini_default_model_mapping_billing_object"
+
 	// Request identity patch (Claude -> Gemini systemInstruction injection)
 	SettingKeyEnableIdentityPatch = "enable_identity_patch"
 	SettingKeyIdentityPatchPrompt = "identity_patch_prompt"
