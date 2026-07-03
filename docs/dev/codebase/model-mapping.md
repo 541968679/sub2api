@@ -100,6 +100,15 @@ The frontend must render one row per effective mapping relationship. Do not hide
 additional mapping sources behind a `+N` aggregate if those hidden sources need
 edit, delete, or billing-object controls.
 
+The request model name is the primary key for the model mapping table. The UI
+must not render two rows with the same request model name; when a pricing row and
+an upstream aggregate both describe the same request model, keep one editable
+row keyed by that request model.
+
+Anthropic includes LiteLLM alias defaults for common old naming schemes, for
+example `claude-4-sonnet-20250514 -> claude-sonnet-4-20250514`, so those aliases
+are editable mapping rows rather than plain pricing rows.
+
 ## 数据模型
 
 | 实体/字段 | 位置 | 说明 |

@@ -43,6 +43,24 @@ func TestDefaultAntigravityModelMapping_ContainsNewClaudeModels(t *testing.T) {
 	}
 }
 
+func TestDefaultAnthropicModelMapping_ContainsLiteLLMAliases(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"claude-4-opus-20250514":   "claude-opus-4-20250514",
+		"claude-4-sonnet-20250514": "claude-sonnet-4-20250514",
+	}
+	for from, want := range cases {
+		got, ok := DefaultAnthropicModelMapping[from]
+		if !ok {
+			t.Fatalf("expected Anthropic mapping for %q to exist", from)
+		}
+		if got != want {
+			t.Fatalf("unexpected Anthropic mapping for %q: got %q want %q", from, got, want)
+		}
+	}
+}
+
 func TestDefaultBedrockModelMapping_ContainsNewClaudeModels(t *testing.T) {
 	t.Parallel()
 

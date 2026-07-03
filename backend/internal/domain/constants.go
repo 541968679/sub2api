@@ -99,15 +99,18 @@ func NormalizeMappingBillingObject(value string) string {
 }
 
 // ResolvePlatformDefaultModelMapping 返回平台级默认映射。
-// Antigravity 有内置严格白名单；其他平台默认没有映射，只有管理员配置后才返回。
+// Antigravity 有内置严格白名单；Anthropic 有 LiteLLM/官方命名兼容别名；其他平台默认没有映射，只有管理员配置后才返回。
 func ResolvePlatformDefaultModelMapping(platform string) map[string]string {
 	if GetPlatformDefaultMappingOverride != nil {
 		if m := GetPlatformDefaultMappingOverride(platform); m != nil {
 			return m
 		}
 	}
-	if platform == PlatformAntigravity {
+	switch platform {
+	case PlatformAntigravity:
 		return DefaultAntigravityModelMapping
+	case PlatformAnthropic:
+		return DefaultAnthropicModelMapping
 	}
 	return nil
 }
@@ -191,6 +194,13 @@ var DefaultAntigravityModelMapping = map[string]string{
 	// 其他官方模型
 	"gpt-oss-120b-medium":    "gpt-oss-120b-medium",
 	"tab_flash_lite_preview": "tab_flash_lite_preview",
+}
+
+// DefaultAnthropicModelMapping normalizes common LiteLLM Anthropic aliases to
+// the official Anthropic request model names used elsewhere in Sub2API.
+var DefaultAnthropicModelMapping = map[string]string{
+	"claude-4-opus-20250514":   "claude-opus-4-20250514",
+	"claude-4-sonnet-20250514": "claude-sonnet-4-20250514",
 }
 
 // DefaultBedrockModelMapping 是 AWS Bedrock 平台的默认模型映射

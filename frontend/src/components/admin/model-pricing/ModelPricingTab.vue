@@ -884,30 +884,40 @@ function deriveNameColumnRows(item: ModelPricingItem): NameColumns[] {
 }
 
 const displayRows = computed<RowDisplay[]>(() =>
-  items.value.flatMap((item) => {
+  Array.from(items.value.reduce((rows, item) => {
     const nameRows = deriveNameColumnRows(item)
     // 映射编辑/删除由后端按有效默认映射 key 判断。
     const canEditMapping = Boolean(item.billing_basis_hint?.mapping_editable)
     const canEditBillingObject = Boolean(item.billing_basis_hint?.billing_object_editable)
     const resolvedProvider = resolveModelPricingProvider(item, providerFilter.value)
     const canTest = Boolean(resolvedProvider)
-    return nameRows.map((nameCols) => ({
-      rowKey: `${item.model}:${nameCols.mappingFrom}`,
-      item,
-      stub: isStubRow(item),
-      deltas: {
-        input: computePriceDelta(item, 'input'),
-        output: computePriceDelta(item, 'output'),
-        cache_write: computePriceDelta(item, 'cache_write'),
-        cache_read: computePriceDelta(item, 'cache_read'),
-      },
-      resolvedProvider,
-      canEditMapping,
-      canEditBillingObject,
-      canTest,
-      ...nameCols,
-    }))
-  })
+    for (const nameCols of nameRows) {
+      const row: RowDisplay = {
+        rowKey: nameCols.mappingFrom,
+        item,
+        stub: isStubRow(item),
+        deltas: {
+          input: computePriceDelta(item, 'input'),
+          output: computePriceDelta(item, 'output'),
+          cache_write: computePriceDelta(item, 'cache_write'),
+          cache_read: computePriceDelta(item, 'cache_read'),
+        },
+        resolvedProvider,
+        canEditMapping,
+        canEditBillingObject,
+        canTest,
+        ...nameCols,
+      }
+      const key = nameCols.mappingFrom.toLowerCase()
+      const existing = rows.get(key)
+      const rowIsSourceModel = item.model.toLowerCase() === key
+      const existingIsSourceModel = existing?.item.model.toLowerCase() === key
+      if (!existing || (rowIsSourceModel && !existingIsSourceModel)) {
+        rows.set(key, row)
+      }
+    }
+    return rows
+  }, new Map<string, RowDisplay>()).values())
 )
 
 function sourceBadgeClass(source: string): string {

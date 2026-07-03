@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: key mapping rows by requested model
+
+**Affected files**: backend/internal/domain/constants.go, backend/internal/domain/constants_test.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model mapping correction. No schema, migration, image-channel monitoring, push, or deployment changes.
+**Change details**:
+- Added Anthropic LiteLLM alias defaults such as `claude-4-sonnet-20250514 -> claude-sonnet-4-20250514`, so those request models are treated as mapping records instead of plain pricing rows.
+- Changed the frontend mapping table to use the request model name as the unique row key. If the same request model appears from a pricing row and an upstream aggregate row, only one editable row is rendered.
+- Added regression coverage for Anthropic alias mapping discovery and the requested-model alias example.
+
 ## [2026-07-03] fix: expand every default mapping into an editable row
 
 **Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md

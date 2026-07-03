@@ -269,6 +269,36 @@ func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) 
 	require.True(t, selfItem.BillingBasisHint.MappingEditable)
 }
 
+func TestGlobalModelPricingListIncludesAnthropicAliasMapping(t *testing.T) {
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"claude-4-sonnet-20250514": {
+			LiteLLMProvider:   PlatformAnthropic,
+			InputCostPerToken: 3,
+		},
+		"claude-sonnet-4-20250514": {
+			LiteLLMProvider:   PlatformAnthropic,
+			InputCostPerToken: 3,
+		},
+	}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	result, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", PlatformAnthropic, "")
+	require.NoError(t, err)
+
+	item := findModelPricingListItem(result.Items, "claude-4-sonnet-20250514")
+	require.NotNil(t, item)
+	require.NotNil(t, item.BillingBasisHint)
+	require.Equal(t, PlatformAnthropic, item.BillingBasisHint.Platform)
+	require.Equal(t, BillingHintRequestedOnly, item.BillingBasisHint.Type)
+	require.Equal(t, "claude-4-sonnet-20250514", item.BillingBasisHint.MappingKey)
+	require.Equal(t, []string{"claude-sonnet-4-20250514"}, item.BillingBasisHint.RelatedModels)
+	require.True(t, item.BillingBasisHint.MappingEditable)
+	require.True(t, item.BillingBasisHint.BillingObjectEditable)
+}
+
 func findModelPricingListItem(items []ModelPricingListItem, model string) *ModelPricingListItem {
 	for i := range items {
 		if strings.EqualFold(items[i].Model, model) {
