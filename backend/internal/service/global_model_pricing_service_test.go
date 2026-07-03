@@ -189,12 +189,22 @@ func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) 
 		if platform == PlatformOpenAI {
 			return map[string]string{
 				"zz-openai-runtime-default": "zz-openai-upstream-model",
+				"zz-openai-runtime-alt":     "zz-openai-upstream-model",
 				"zz-openai-self":            "zz-openai-self",
+				"zz-openai-self-alias":      "zz-openai-self",
 			}
 		}
 		return nil
 	}
-	domain.GetPlatformDefaultMappingBillingObjectOverride = nil
+	domain.GetPlatformDefaultMappingBillingObjectOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{
+				"zz-openai-runtime-alt": domain.MappingBillingObjectMapped,
+				"zz-openai-self-alias":  domain.MappingBillingObjectMapped,
+			}
+		}
+		return nil
+	}
 	t.Cleanup(func() {
 		domain.GetPlatformDefaultMappingOverride = oldOverride
 		domain.GetPlatformDefaultMappingBillingObjectOverride = oldBillingObjectOverride
@@ -211,9 +221,17 @@ func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) 
 			LiteLLMProvider:   PlatformOpenAI,
 			InputCostPerToken: 2,
 		},
+		"zz-openai-runtime-alt": {
+			LiteLLMProvider:   PlatformOpenAI,
+			InputCostPerToken: 2.5,
+		},
 		"zz-openai-self": {
 			LiteLLMProvider:   PlatformOpenAI,
 			InputCostPerToken: 3,
+		},
+		"zz-openai-self-alias": {
+			LiteLLMProvider:   PlatformOpenAI,
+			InputCostPerToken: 3.5,
 		},
 	}}
 	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
@@ -234,8 +252,9 @@ func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) 
 	require.NotNil(t, upstreamItem)
 	require.NotNil(t, upstreamItem.BillingBasisHint)
 	require.Equal(t, BillingHintUpstreamOnly, upstreamItem.BillingBasisHint.Type)
-	require.Equal(t, "zz-openai-runtime-default", upstreamItem.BillingBasisHint.MappingKey)
-	require.Equal(t, []string{"zz-openai-runtime-default"}, upstreamItem.BillingBasisHint.RelatedModels)
+	require.Equal(t, "zz-openai-runtime-alt", upstreamItem.BillingBasisHint.MappingKey)
+	require.Equal(t, []string{"zz-openai-runtime-alt", "zz-openai-runtime-default"}, upstreamItem.BillingBasisHint.RelatedModels)
+	require.Equal(t, domain.MappingBillingObjectMapped, upstreamItem.BillingBasisHint.MappingBillingObjects["zz-openai-runtime-alt"])
 	require.True(t, upstreamItem.BillingBasisHint.BillingObjectEditable)
 	require.True(t, upstreamItem.BillingBasisHint.MappingEditable)
 
@@ -244,6 +263,8 @@ func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) 
 	require.NotNil(t, selfItem.BillingBasisHint)
 	require.Equal(t, BillingHintRequestedEqualsUpstream, selfItem.BillingBasisHint.Type)
 	require.Equal(t, "zz-openai-self", selfItem.BillingBasisHint.MappingKey)
+	require.Equal(t, []string{"zz-openai-self-alias"}, selfItem.BillingBasisHint.RelatedModels)
+	require.Equal(t, domain.MappingBillingObjectMapped, selfItem.BillingBasisHint.MappingBillingObjects["zz-openai-self-alias"])
 	require.True(t, selfItem.BillingBasisHint.BillingObjectEditable)
 	require.True(t, selfItem.BillingBasisHint.MappingEditable)
 }

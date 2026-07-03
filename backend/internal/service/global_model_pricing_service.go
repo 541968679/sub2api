@@ -64,13 +64,14 @@ type ModelPricingListItem struct {
 // upstream_only 情况下可能多对一（多个请求名映射到同一个上游名），前端按首个 + "+N" 呈现，
 // tooltip 展开全部 RelatedModels。
 type BillingBasisHint struct {
-	Platform              string   `json:"platform,omitempty"`
-	Type                  string   `json:"type"`
-	RelatedModels         []string `json:"related_models,omitempty"`
-	MappingKey            string   `json:"mapping_key,omitempty"`
-	BillingObject         string   `json:"billing_object,omitempty"`
-	BillingObjectEditable bool     `json:"billing_object_editable,omitempty"`
-	MappingEditable       bool     `json:"mapping_editable,omitempty"`
+	Platform              string            `json:"platform,omitempty"`
+	Type                  string            `json:"type"`
+	RelatedModels         []string          `json:"related_models,omitempty"`
+	MappingKey            string            `json:"mapping_key,omitempty"`
+	MappingBillingObjects map[string]string `json:"mapping_billing_objects,omitempty"`
+	BillingObject         string            `json:"billing_object,omitempty"`
+	BillingObjectEditable bool              `json:"billing_object_editable,omitempty"`
+	MappingEditable       bool              `json:"mapping_editable,omitempty"`
 }
 
 const (
@@ -318,12 +319,14 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedEqualsUpstream, b.sameNameKey, billingObjects, true)
 			if len(b.upstreamFromList) > 0 {
 				hint.RelatedModels = b.upstreamFromList
+				addMappingBillingObjects(hint, billingObjects, b.upstreamFromList...)
 			}
 			items[i].BillingBasisHint = hint
 		case len(b.upstreamFromList) > 0:
 			mappingKey := b.upstreamFromList[0]
 			hint := newBillingBasisHint(rowHintPlatform, BillingHintUpstreamOnly, mappingKey, billingObjects, true)
 			hint.RelatedModels = b.upstreamFromList
+			addMappingBillingObjects(hint, billingObjects, b.upstreamFromList...)
 			items[i].BillingBasisHint = hint
 		case b.requestedTargetKey != "":
 			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedOnly, b.requestedMappingKey, billingObjects, true)
@@ -765,9 +768,27 @@ func newBillingBasisHint(platform, hintType, mappingKey string, billingObjects m
 		hint.MappingKey = mappingKey
 		if object := domain.NormalizeMappingBillingObject(billingObjects[mappingKey]); object != "" {
 			hint.BillingObject = object
+			hint.MappingBillingObjects = map[string]string{mappingKey: object}
 		}
 	}
 	return hint
+}
+
+func addMappingBillingObjects(hint *BillingBasisHint, billingObjects map[string]string, mappingKeys ...string) {
+	for _, key := range mappingKeys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		object := domain.NormalizeMappingBillingObject(billingObjects[key])
+		if object == "" {
+			continue
+		}
+		if hint.MappingBillingObjects == nil {
+			hint.MappingBillingObjects = map[string]string{}
+		}
+		hint.MappingBillingObjects[key] = object
+	}
 }
 
 func selectBillingHintForItem(item ModelPricingListItem, provider string, indexes map[string]map[string]*hintBucket) (string, *hintBucket) {

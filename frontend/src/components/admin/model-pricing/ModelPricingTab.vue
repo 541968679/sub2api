@@ -801,33 +801,51 @@ function mappingBillingObjectClass(value: MappingBillingObject): string {
     : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
 }
 
-function deriveNameColumns(item: ModelPricingItem): {
+interface NameColumns {
   mappingFrom: string
   requestedDisplay: RowDisplay['requestedDisplay']
   upstreamDisplay: string
   billingModeLabel: string
   billingModeClass: string
   billingObject: MappingBillingObject
-} {
+}
+
+function billingObjectForMappingKey(item: ModelPricingItem, mappingKey: string): MappingBillingObject {
+  const hint = item.billing_basis_hint
+  if (!hint) return 'requested'
+  const perKey = hint.mapping_billing_objects?.[mappingKey]
+  if (perKey) return normalizeMappingBillingObject(perKey)
+  if (mappingKey === hint.mapping_key) return normalizeMappingBillingObject(hint.billing_object)
+  return 'requested'
+}
+
+function mappingNameColumns(item: ModelPricingItem, mappingFrom: string, upstreamDisplay: string): NameColumns {
+  const billingObject = billingObjectForMappingKey(item, mappingFrom)
+  return {
+    mappingFrom,
+    requestedDisplay: { primary: mappingFrom, moreCount: 0, moreTooltip: '' },
+    upstreamDisplay,
+    billingModeLabel: mappingBillingObjectLabel(billingObject),
+    billingModeClass: mappingBillingObjectClass(billingObject),
+    billingObject,
+  }
+}
+
+function deriveNameColumnRows(item: ModelPricingItem): NameColumns[] {
   const hint = item.billing_basis_hint
   const model = item.model
   // 默认（无徽标或同名映射）：请求 = 上游 = 模型本身
   if (!hint || hint.type === 'requested_equals_upstream') {
     // Antigravity 场景下，同名映射的模型常常同时也是其他请求名的映射目标
     // （如 claude-opus-4-6-thinking 既是同名 key 又被 claude-opus-4-6 指向）。
-    // 此时后端在 related_models 里额外塞入那些映射源请求名，让用户看到关联。
+    // 此时后端在 related_models 里额外塞入那些映射源请求名；这里展开成独立行。
     const related = hint?.related_models ?? []
-    const moreCount = related.length
-    const moreTooltip = moreCount > 0
-      ? t('admin.modelPricing.mappedFromMultipleTooltip', {
-          count: moreCount,
-          list: related.join(', '),
-        })
-      : ''
-    const billingObject = normalizeMappingBillingObject(hint?.billing_object)
-    return {
+    const rows: NameColumns[] = []
+    const selfKey = hint?.mapping_key || model
+    const billingObject = billingObjectForMappingKey(item, selfKey)
+    rows.push({
       mappingFrom: hint?.mapping_key || model,
-      requestedDisplay: { primary: model, moreCount, moreTooltip },
+      requestedDisplay: { primary: model, moreCount: 0, moreTooltip: '' },
       upstreamDisplay: model,
       billingModeLabel: hint?.billing_object_editable
         ? mappingBillingObjectLabel(billingObject)
@@ -836,54 +854,44 @@ function deriveNameColumns(item: ModelPricingItem): {
         ? mappingBillingObjectClass(billingObject)
         : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
       billingObject,
+    })
+    for (const from of related) {
+      rows.push(mappingNameColumns(item, from, model))
     }
+    return rows
   }
 
   if (hint.type === 'requested_only') {
     // 模型是映射 key，上游名 = related_models[0]
     const upstream = hint.related_models?.[0] ?? model
     const billingObject = normalizeMappingBillingObject(hint.billing_object)
-    return {
+    return [{
       mappingFrom: hint.mapping_key || model,
       requestedDisplay: { primary: model, moreCount: 0, moreTooltip: '' },
       upstreamDisplay: upstream,
       billingModeLabel: mappingBillingObjectLabel(billingObject),
       billingModeClass: mappingBillingObjectClass(billingObject),
       billingObject,
-    }
+    }]
   }
 
   // upstream_only：模型是映射 value，请求名 = 所有 related_models
   const related = hint.related_models ?? []
-  const primary = related[0] ?? model
-  const billingObject = normalizeMappingBillingObject(hint.billing_object)
-  const moreCount = Math.max(0, related.length - 1)
-  let moreTooltip = ''
-  if (moreCount > 0) {
-    moreTooltip = t('admin.modelPricing.mappedFromMultipleTooltip', {
-      count: moreCount,
-      list: related.slice(1).join(', '),
-    })
+  if (related.length > 0) {
+    return related.map((from) => mappingNameColumns(item, from, model))
   }
-  return {
-    mappingFrom: hint.mapping_key || primary,
-    requestedDisplay: { primary, moreCount, moreTooltip },
-    upstreamDisplay: model,
-    billingModeLabel: mappingBillingObjectLabel(billingObject),
-    billingModeClass: mappingBillingObjectClass(billingObject),
-    billingObject,
-  }
+  return [mappingNameColumns(item, hint.mapping_key || model, model)]
 }
 
 const displayRows = computed<RowDisplay[]>(() =>
-  items.value.map((item) => {
-    const nameCols = deriveNameColumns(item)
+  items.value.flatMap((item) => {
+    const nameRows = deriveNameColumnRows(item)
     // 映射编辑/删除由后端按有效默认映射 key 判断。
     const canEditMapping = Boolean(item.billing_basis_hint?.mapping_editable)
     const canEditBillingObject = Boolean(item.billing_basis_hint?.billing_object_editable)
     const resolvedProvider = resolveModelPricingProvider(item, providerFilter.value)
     const canTest = Boolean(resolvedProvider)
-    return {
+    return nameRows.map((nameCols) => ({
       rowKey: `${item.model}:${nameCols.mappingFrom}`,
       item,
       stub: isStubRow(item),
@@ -898,7 +906,7 @@ const displayRows = computed<RowDisplay[]>(() =>
       canEditBillingObject,
       canTest,
       ...nameCols,
-    }
+    }))
   })
 )
 

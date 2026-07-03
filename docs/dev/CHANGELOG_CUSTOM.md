@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: expand every default mapping into an editable row
+
+**Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md
+**Upstream compatibility**: fork-local admin model configuration correction. No schema, migration, image-channel monitoring, push, or deployment changes.
+**Change details**:
+- Added per-key billing-object metadata to mapping hints so multi-source mappings can display the correct `计费对象` for every source key.
+- Changed the model configuration table to expand multi-source default mappings into one row per mapping relationship instead of hiding extra mappings behind `+N`.
+- Edit, delete, and billing-object actions now operate on each expanded row's source mapping key, so all effective mappings have their own operation entry.
+- Added regression coverage for multi-source upstream-only mappings and same-name mappings with aliases.
+
 ## [2026-07-03] fix: make effective default mappings fully editable
 
 **Affected files**: backend/internal/service/{setting_service.go,wire.go,global_model_pricing_service.go,global_model_pricing_service_test.go,setting_service_model_mapping_test.go}, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md

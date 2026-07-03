@@ -84,6 +84,8 @@ The model-pricing list returns two separate editability flags:
 - `mapping_key`: the request-model key to edit/delete or use when saving the
   billing object. Frontend operations must use this value, not the row's pricing
   model, because `upstream_only` rows are keyed by the mapped target model.
+- `mapping_billing_objects`: optional per-source billing-object overrides for
+  rows whose `related_models` contains multiple mapping keys.
 - `billing_object_editable`: the row represents a mapping key whose billing
   object can be changed.
 - `mapping_editable`: the row represents an effective platform default mapping
@@ -93,6 +95,10 @@ Built-in platform defaults and LiteLLM-discovered rows that represent an
 effective mapping key should expose edit/delete and billing-object controls. If
 the row only has pricing data and no mapping key, it remains a normal pricing
 row.
+
+The frontend must render one row per effective mapping relationship. Do not hide
+additional mapping sources behind a `+N` aggregate if those hidden sources need
+edit, delete, or billing-object controls.
 
 ## 数据模型
 
