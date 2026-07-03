@@ -190,7 +190,7 @@
           </template>
 
           <template #cell-tokens="{ row }">
-            <!-- 图片生成请求：用户侧仅展示请求参数，不暴露内部计费规则 -->
+            <!-- 图片生成请求：用户侧展示实际计费档位 -->
             <div v-if="row.image_count > 0 && row.billing_mode === 'image'" class="flex items-center gap-1.5">
               <svg
                 class="h-4 w-4 shrink-0 text-indigo-500"
@@ -207,11 +207,10 @@
               </svg>
               <div class="min-w-0 space-y-0.5">
                 <div class="font-medium text-gray-900 dark:text-white">
-                  {{ row.image_count }}{{ $t('usage.imageUnit') }}
+                  {{ formatImageBillingLabel(row) }}
                 </div>
-                <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{{ t('usage.imageSize') }}: {{ formatImageMeta(row.image_size) }}</span>
-                  <span>{{ t('usage.imageQuality') }}: {{ formatImageMeta(row.image_quality) }}</span>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('usage.imageQuality') }}: {{ formatImageMeta(row.image_quality) }}
                 </div>
               </div>
             </div>
@@ -663,6 +662,11 @@ const formatUserAgent = (ua: string): string => {
 
 const formatImageMeta = (value: string | null | undefined): string => {
   return value?.trim() || '-'
+}
+
+const formatImageBillingLabel = (row: UsageLog): string => {
+  const tier = formatImageMeta(row.billing_tier || row.image_size)
+  return `${row.image_count}${t('usage.imageUnit')}（${tier}${t('usage.billed')}）`
 }
 
 const getRequestTypeLabel = (log: UsageLog): string => {

@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: show billed image tier in user usage records
+
+**Affected files**: backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, frontend/src/types/index.ts, frontend/src/views/user/UsageView.vue
+**Upstream compatibility**: small user-facing usage display adjustment. It exposes the existing usage log `billing_tier` field to regular usage DTOs and changes only the user usage table image token cell.
+**Change details**:
+- Added `billing_tier` to regular user usage records so image rows can display the actual billed tier.
+- Changed the user usage token cell for image requests from request size display to billed-tier display, e.g. `1张（2K计费）`.
+- Kept image quality visible under the billed-tier label and intentionally removed request-size text from that cell.
+- Verified: `go test -tags=unit ./internal/handler/dto`; `pnpm --dir frontend exec eslint src/views/user/UsageView.vue src/types/index.ts`; `git diff --check`.
+- Note: full frontend `pnpm --dir frontend run typecheck` is currently blocked by unrelated `ImageChannelMonitorView.vue` `number` vs `Timeout` errors.
+
 ## [2026-07-03] fix: make manual image channel tests asynchronous
 
 **Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
