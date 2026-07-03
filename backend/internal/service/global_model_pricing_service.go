@@ -274,17 +274,33 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 	// 都映射到 claude-opus-4-6-thinking）。upstream_only 徽标的 RelatedModels
 	// 收集所有映射源请求名，保持字典序稳定。
 	hintIndex := buildBillingHintIndex(hintMapping)
+	hintIndexes := buildPlatformBillingHintIndexes(defaultMappings)
 	// 稳定排序 upstreamFromList，避免 map 遍历顺序导致前端展示跳动
 	for _, b := range hintIndex {
 		if len(b.upstreamFromList) > 1 {
 			sort.Strings(b.upstreamFromList)
 		}
 	}
+	for _, index := range hintIndexes {
+		for _, b := range index {
+			if len(b.upstreamFromList) > 1 {
+				sort.Strings(b.upstreamFromList)
+			}
+		}
+	}
 
 	for i := range items {
-		b, ok := hintIndex[strings.ToLower(items[i].Model)]
-		if !ok {
-			continue
+		var b *hintBucket
+		if providerLower != "" {
+			b = hintIndex[strings.ToLower(items[i].Model)]
+		}
+		if b == nil {
+			selectedPlatform, selectedBucket := selectBillingHintForItem(items[i], providerLower, hintIndexes)
+			if selectedBucket == nil {
+				continue
+			}
+			hintPlatform = selectedPlatform
+			b = selectedBucket
 		}
 		switch {
 		case b.sameName:
@@ -705,6 +721,51 @@ func buildBillingHintIndex(mapping map[string]string) map[string]*hintBucket {
 		b.upstreamFromList = append(b.upstreamFromList, k)
 	}
 	return hintIndex
+}
+
+func buildPlatformBillingHintIndexes(mappings map[string]map[string]string) map[string]map[string]*hintBucket {
+	result := make(map[string]map[string]*hintBucket, len(mappings))
+	for platform, mapping := range mappings {
+		if len(mapping) == 0 {
+			continue
+		}
+		result[platform] = buildBillingHintIndex(mapping)
+	}
+	return result
+}
+
+func selectBillingHintForItem(item ModelPricingListItem, provider string, indexes map[string]map[string]*hintBucket) (string, *hintBucket) {
+	modelLower := strings.ToLower(item.Model)
+	if provider != "" {
+		return provider, indexes[provider][modelLower]
+	}
+	if platform := normalizeProviderForBillingHint(item.Provider); platform != "" {
+		if bucket := indexes[platform][modelLower]; bucket != nil {
+			return platform, bucket
+		}
+	}
+	for _, platform := range defaultMappingPlatforms() {
+		if bucket := indexes[platform][modelLower]; bucket != nil {
+			return platform, bucket
+		}
+	}
+	return "", nil
+}
+
+func normalizeProviderForBillingHint(provider string) string {
+	value := strings.ToLower(strings.TrimSpace(provider))
+	switch {
+	case value == PlatformAnthropic:
+		return PlatformAnthropic
+	case value == PlatformOpenAI || value == "text-completion-openai":
+		return PlatformOpenAI
+	case value == PlatformGemini || strings.HasPrefix(value, "vertex_ai"):
+		return PlatformGemini
+	case value == PlatformAntigravity:
+		return PlatformAntigravity
+	default:
+		return ""
+	}
 }
 
 func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, search, provider, source string) []ModelPricingListItem {

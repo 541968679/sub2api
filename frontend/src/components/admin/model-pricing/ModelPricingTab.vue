@@ -28,7 +28,6 @@
         <p>{{ t('admin.modelPricing.billingBasisIntro') }}</p>
         <ul class="ml-3 list-disc space-y-0.5">
           <li>{{ t('admin.modelPricing.billingBasisRequested') }}</li>
-          <li>{{ t('admin.modelPricing.billingBasisUpstream') }}</li>
           <li>{{ t('admin.modelPricing.billingBasisChannelMapped') }}</li>
         </ul>
         <p class="text-gray-400 dark:text-gray-500">{{ t('admin.modelPricing.billingBasisNoChannel') }}</p>
@@ -122,6 +121,72 @@
     <p class="text-xs text-gray-400 dark:text-gray-500">
       {{ t('admin.modelPricing.inlineEditHint') }}
     </p>
+
+    <!-- Channel billing basis -->
+    <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <div class="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+            {{ t('admin.modelPricing.channelBillingBasisTitle') }}
+          </h3>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.modelPricing.channelBillingBasisHint') }}
+          </p>
+        </div>
+        <button
+          type="button"
+          @click="loadChannelBillingBasis"
+          :disabled="channelBasisLoading"
+          class="btn btn-secondary shrink-0 text-xs"
+        >
+          <svg class="h-3.5 w-3.5" :class="channelBasisLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+
+      <div v-if="channelBasisLoading" class="py-5 text-center">
+        <span class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></span>
+      </div>
+      <p v-else-if="channelBasisRows.length === 0" class="py-5 text-center text-sm text-gray-400">
+        {{ t('admin.modelPricing.channelBillingBasisNoChannels') }}
+      </p>
+      <div v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          v-for="channel in channelBasisRows"
+          :key="channel.id"
+          class="flex min-w-0 items-start justify-between gap-3 rounded-md border border-gray-100 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-gray-900/30"
+        >
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm font-medium text-gray-800 dark:text-gray-100" :title="channel.name">
+              {{ channel.name }}
+            </p>
+            <p v-if="channel.billing_model_source === 'upstream'" class="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+              {{ t('admin.modelPricing.channelBillingBasisLegacyUpstream') }}
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <Select
+              v-model="channelBillingBasisDrafts[channel.id]"
+              :options="billingModelSourceOptions"
+              class="w-36"
+            />
+            <button
+              type="button"
+              @click="saveChannelBillingBasis(channel)"
+              :disabled="savingChannelBasisId === channel.id || !isChannelBasisDirty(channel)"
+              class="btn btn-primary text-xs"
+            >
+              <span
+                v-if="savingChannelBasisId === channel.id"
+                class="mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+              ></span>
+              {{ t('common.save') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Table -->
     <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -352,7 +417,13 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { ModelPricingItem, ModelPricingStats, GlobalOverride, LiteLLMPrices } from '@/api/admin/modelPricing'
+import type { Channel } from '@/api/admin/channels'
 import { perTokenToMTok } from '@/components/admin/channel/types'
+import Select from '@/components/common/Select.vue'
+import {
+  BILLING_MODEL_SOURCE_CHANNEL_MAPPED,
+  BILLING_MODEL_SOURCE_REQUESTED,
+} from '@/constants/channel'
 import ModelPricingDetailDialog from './ModelPricingDetailDialog.vue'
 import ModelPricingInlinePopover from './ModelPricingInlinePopover.vue'
 import ModelMappingInlinePopover from './ModelMappingInlinePopover.vue'
@@ -378,6 +449,20 @@ const searchQuery = ref('')
 const providerFilter = ref('')
 const sourceFilter = ref('')
 const deletingMappingFrom = ref('')
+const channelBasisRows = ref<Channel[]>([])
+const channelBasisLoading = ref(false)
+const savingChannelBasisId = ref<number | null>(null)
+
+type EditableBillingModelSource =
+  | typeof BILLING_MODEL_SOURCE_REQUESTED
+  | typeof BILLING_MODEL_SOURCE_CHANNEL_MAPPED
+
+const channelBillingBasisDrafts = reactive<Record<number, EditableBillingModelSource>>({})
+
+const billingModelSourceOptions = computed(() => [
+  { value: BILLING_MODEL_SOURCE_CHANNEL_MAPPED, label: t('admin.modelPricing.billingModelSourceChannelMapped') },
+  { value: BILLING_MODEL_SOURCE_REQUESTED, label: t('admin.modelPricing.billingModelSourceRequested') },
+])
 
 const showDetailDialog = ref(false)
 const selectedModel = ref('')
@@ -624,6 +709,68 @@ async function loadData() {
   }
 }
 
+function normalizeEditableBillingModelSource(source?: string | null): EditableBillingModelSource {
+  return source === BILLING_MODEL_SOURCE_REQUESTED
+    ? BILLING_MODEL_SOURCE_REQUESTED
+    : BILLING_MODEL_SOURCE_CHANNEL_MAPPED
+}
+
+function isChannelBasisDirty(channel: Channel): boolean {
+  const draft = channelBillingBasisDrafts[channel.id] ?? normalizeEditableBillingModelSource(channel.billing_model_source)
+  return draft !== channel.billing_model_source
+}
+
+async function loadChannelBillingBasis() {
+  channelBasisLoading.value = true
+  try {
+    const result = await adminAPI.channels.list(1, 1000)
+    const rows = result.items || []
+    channelBasisRows.value = rows
+
+    const seen = new Set<number>()
+    for (const channel of rows) {
+      seen.add(channel.id)
+      channelBillingBasisDrafts[channel.id] = normalizeEditableBillingModelSource(channel.billing_model_source)
+    }
+    for (const key of Object.keys(channelBillingBasisDrafts)) {
+      const id = Number(key)
+      if (!seen.has(id)) {
+        delete channelBillingBasisDrafts[id]
+      }
+    }
+  } catch {
+    appStore.showError(t('common.error'))
+  } finally {
+    channelBasisLoading.value = false
+  }
+}
+
+async function saveChannelBillingBasis(channel: Channel) {
+  const nextSource = channelBillingBasisDrafts[channel.id] ?? normalizeEditableBillingModelSource(channel.billing_model_source)
+  if (nextSource !== BILLING_MODEL_SOURCE_REQUESTED && nextSource !== BILLING_MODEL_SOURCE_CHANNEL_MAPPED) {
+    return
+  }
+  savingChannelBasisId.value = channel.id
+  try {
+    const updated = await adminAPI.channels.update(channel.id, {
+      billing_model_source: nextSource,
+    })
+    const idx = channelBasisRows.value.findIndex((item) => item.id === channel.id)
+    if (idx >= 0) {
+      channelBasisRows.value.splice(idx, 1, {
+        ...channelBasisRows.value[idx],
+        billing_model_source: updated.billing_model_source || nextSource,
+      })
+    }
+    channelBillingBasisDrafts[channel.id] = normalizeEditableBillingModelSource(updated.billing_model_source || nextSource)
+    appStore.showSuccess(t('admin.modelPricing.channelBillingBasisSaved'))
+  } catch {
+    appStore.showError(t('common.error'))
+  } finally {
+    savingChannelBasisId.value = null
+  }
+}
+
 type PriceField = 'input' | 'output' | 'cache_write' | 'cache_read'
 
 interface PriceDelta {
@@ -841,5 +988,8 @@ const visiblePages = computed(() => {
   return pages
 })
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadChannelBillingBasis()
+})
 </script>

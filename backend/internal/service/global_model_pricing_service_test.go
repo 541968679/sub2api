@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
@@ -137,6 +138,34 @@ func TestGlobalModelPricingListPrefersOverrideProvider(t *testing.T) {
 	detail, err := svc.GetModelDetail(ctx, model)
 	require.NoError(t, err)
 	require.Equal(t, PlatformOpenAI, detail.Provider)
+}
+
+func TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter(t *testing.T) {
+	oldOverride := domain.GetPlatformDefaultMappingOverride
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{"zz-openai-request-model": "zz-openai-upstream-model"}
+		}
+		return nil
+	}
+	t.Cleanup(func() { domain.GetPlatformDefaultMappingOverride = oldOverride })
+
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	result, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", "", "")
+	require.NoError(t, err)
+	item := findModelPricingListItem(result.Items, "zz-openai-request-model")
+	require.NotNil(t, item)
+	require.Equal(t, PlatformOpenAI, item.Provider)
+	require.Equal(t, PricingSourceFallback, item.EffectiveSource)
+	require.NotNil(t, item.BillingBasisHint)
+	require.Equal(t, PlatformOpenAI, item.BillingBasisHint.Platform)
+	require.Equal(t, BillingHintRequestedOnly, item.BillingBasisHint.Type)
+	require.Equal(t, []string{"zz-openai-upstream-model"}, item.BillingBasisHint.RelatedModels)
 }
 
 func findModelPricingListItem(items []ModelPricingListItem, model string) *ModelPricingListItem {

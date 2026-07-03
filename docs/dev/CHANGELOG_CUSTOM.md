@@ -52,6 +52,17 @@
 - The manual panel supports configurable model/prompt/size/quality/n/timeout/download options, file upload for image-to-image, multi-channel selection, concurrent requests, per-channel status, metrics, stage list, and immediate preview as each channel finishes.
 - Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`.
 
+## [2026-07-03] fix: expose provider-aware mapping and channel billing basis controls
+
+**Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, frontend/src/views/admin/ChannelsView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/CHANGELOG_CUSTOM.md
+**Upstream compatibility**: admin model-config UI/backend-list fix. No schema, migration, Ent, image-channel monitoring, pricing formula, quota, push, or deployment changes.
+**Change details**:
+- Added a channel billing-basis control section to the model configuration page, saving the real `billing_model_source` field with only `requested` and `channel_mapped` exposed as new choices.
+- Removed the `upstream` choice from the channel edit dropdown; legacy `upstream` values are displayed as a migration warning and normalize to `channel_mapped` when saved through the UI.
+- Renamed the table's derived mapping label from billing mode to mapping role, so it no longer implies the Token/Image pricing mode or an editable per-row billing-basis value.
+- Fixed provider-aware default mapping hints in the model pricing list so non-Antigravity mapping rows receive `billing_basis_hint`, allowing added mappings to be edited/deleted instead of appearing as plain fallback rows.
+- Verified: `go test -tags=unit ./internal/service -run "TestGlobalModelPricingListPrefersOverrideProvider|TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter|TestAccountPlatformDefaultModelMapping|TestAccountGetMappedModel|TestAccountResolveMappedModel|TestOpenAIAccountResolveClaudeGPTBridgeModel" -count=1`; `pnpm run typecheck`.
+
 ## [2026-07-03] fix: align image monitor size options with OpenAI image API
 
 **Affected files**: backend/ent/schema/image_channel_monitor.go, backend/migrations/176_image_channel_monitor_size_default.sql, backend/internal/service/image_channel_monitor_*.go, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

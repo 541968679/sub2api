@@ -670,9 +670,12 @@ const statusEditOptions = computed(() => [
 
 const billingModelSourceOptions = computed(() => [
   { value: 'channel_mapped', label: t('admin.channels.form.billingModelSourceChannelMapped', 'Bill by channel-mapped model') },
-  { value: 'requested', label: t('admin.channels.form.billingModelSourceRequested', 'Bill by requested model') },
-  { value: 'upstream', label: t('admin.channels.form.billingModelSourceUpstream', 'Bill by final upstream model') }
+  { value: 'requested', label: t('admin.channels.form.billingModelSourceRequested', 'Bill by requested model') }
 ])
+
+function normalizeEditableBillingModelSource(source?: string | null): 'requested' | 'channel_mapped' {
+  return source === 'requested' ? 'requested' : 'channel_mapped'
+}
 
 // ── State ──
 const channels = ref<Channel[]>([])
@@ -1217,7 +1220,7 @@ async function openEditDialog(channel: Channel) {
   form.description = channel.description || ''
   form.status = channel.status
   form.restrict_models = channel.restrict_models || false
-  form.billing_model_source = channel.billing_model_source || 'channel_mapped'
+  form.billing_model_source = normalizeEditableBillingModelSource(channel.billing_model_source)
   form.apply_pricing_to_account_stats = channel.apply_pricing_to_account_stats || false
   // Must load groups first so apiToForm can map groupID → platform
   await Promise.all([loadGroups(), loadAllChannelsForConflict()])
@@ -1408,7 +1411,7 @@ async function handleSubmit() {
         group_ids,
         model_pricing,
         model_mapping: Object.keys(model_mapping).length > 0 ? model_mapping : {},
-        billing_model_source: form.billing_model_source,
+        billing_model_source: normalizeEditableBillingModelSource(form.billing_model_source),
         restrict_models: form.restrict_models,
         features_config,
         apply_pricing_to_account_stats: form.apply_pricing_to_account_stats,
@@ -1423,7 +1426,7 @@ async function handleSubmit() {
         group_ids,
         model_pricing,
         model_mapping: Object.keys(model_mapping).length > 0 ? model_mapping : {},
-        billing_model_source: form.billing_model_source,
+        billing_model_source: normalizeEditableBillingModelSource(form.billing_model_source),
         restrict_models: form.restrict_models,
         features_config,
         apply_pricing_to_account_stats: form.apply_pricing_to_account_stats,
