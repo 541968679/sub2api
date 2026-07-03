@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] fix: make manual image channel tests asynchronous
+
+**Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: fork-local image monitor UX/runtime fix. It keeps the dedicated image monitor module isolated from the generic channel monitor and does not add schema changes.
+**Change details**:
+- Changed manual image tests so `POST /admin/image-channel-monitors/:id/manual-test` starts an in-memory async run and returns `run_id` plus current status immediately.
+- Added `GET /admin/image-channel-monitors/:id/manual-test/:runID` for polling request stages and final preview results.
+- Updated the manual testing panel to poll each selected channel independently, show the current stage while running, and render metrics/images as soon as a channel completes.
+- Root cause: manual tests previously held the browser request open through image generation and optional image download; the frontend Axios 30s timeout surfaced this as generic `Network error. Please check your connection.` even when the backend job continued.
+- Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`.
+
 ## [2026-07-03] feat: add manual image channel test panel
 
 **Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

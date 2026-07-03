@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,7 @@ type imageMonitorHTTPUpstreamRecorder struct {
 	proxyURL    string
 	accountID   int64
 	concurrency int
+	block       <-chan struct{}
 }
 
 func (r *imageMonitorHTTPUpstreamRecorder) Do(
@@ -59,6 +61,9 @@ func (r *imageMonitorHTTPUpstreamRecorder) DoWithTLS(
 	accountConcurrency int,
 	_ *tlsfingerprint.Profile,
 ) (*http.Response, error) {
+	if r.block != nil {
+		<-r.block
+	}
 	r.req = req
 	r.proxyURL = proxyURL
 	r.accountID = accountID
@@ -77,6 +82,59 @@ func (r *imageMonitorHTTPUpstreamRecorder) DoWithTLS(
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(r.body)),
 	}, nil
+}
+
+type imageMonitorRepoStub struct {
+	monitor *ImageChannelMonitor
+	getErr  error
+}
+
+func (r *imageMonitorRepoStub) Create(context.Context, *ImageChannelMonitor) error { return nil }
+
+func (r *imageMonitorRepoStub) GetByID(context.Context, int64) (*ImageChannelMonitor, error) {
+	if r.getErr != nil {
+		return nil, r.getErr
+	}
+	return r.monitor, nil
+}
+
+func (r *imageMonitorRepoStub) Update(context.Context, *ImageChannelMonitor) error { return nil }
+func (r *imageMonitorRepoStub) Delete(context.Context, int64) error                { return nil }
+
+func (r *imageMonitorRepoStub) List(
+	context.Context,
+	ImageChannelMonitorListParams,
+) ([]*ImageChannelMonitor, int64, error) {
+	return nil, 0, nil
+}
+
+func (r *imageMonitorRepoStub) ListEnabled(context.Context) ([]*ImageChannelMonitor, error) {
+	return nil, nil
+}
+
+func (r *imageMonitorRepoStub) MarkChecked(context.Context, int64, time.Time) error { return nil }
+
+func (r *imageMonitorRepoStub) InsertHistory(context.Context, *ImageChannelMonitorHistoryRow) error {
+	return nil
+}
+
+func (r *imageMonitorRepoStub) ListHistory(
+	context.Context,
+	int64,
+	int,
+) ([]*ImageChannelMonitorHistoryEntry, error) {
+	return nil, nil
+}
+
+func (r *imageMonitorRepoStub) DeleteHistoryBefore(context.Context, time.Time) (int64, error) {
+	return 0, nil
+}
+
+type imageMonitorPlainEncryptor struct{}
+
+func (e imageMonitorPlainEncryptor) Encrypt(plaintext string) (string, error) { return plaintext, nil }
+func (e imageMonitorPlainEncryptor) Decrypt(ciphertext string) (string, error) {
+	return ciphertext, nil
 }
 
 func TestImageChannelMonitorRunCheckUsesOpenAIAPIKeyAccountSource(t *testing.T) {
@@ -282,4 +340,55 @@ func TestImageChannelMonitorManualGenerateAcceptsB64JSONPreview(t *testing.T) {
 	require.Equal(t, MonitorStatusOperational, result.Status)
 	require.True(t, result.HasB64JSON)
 	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", result.ReturnedImageData)
+}
+
+func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T) {
+	release := make(chan struct{})
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body:  `{"data":[{"b64_json":"aGVhbHRoLWNoZWNr","revised_prompt":"ok"}]}`,
+		block: release,
+	}
+	svc := NewImageChannelMonitorService(
+		&imageMonitorRepoStub{monitor: &ImageChannelMonitor{
+			ID:              21,
+			SourceType:      ImageChannelMonitorSourceCustom,
+			Endpoint:        "https://api.example.com",
+			APIKey:          "custom-key",
+			Model:           "gpt-image-1",
+			Prompt:          "draw",
+			Quality:         "auto",
+			N:               1,
+			DownloadImage:   false,
+			IntervalSeconds: 300,
+			TimeoutSeconds:  300,
+		}},
+		nil,
+		nil,
+		imageMonitorPlainEncryptor{},
+		upstream,
+		nil,
+	)
+
+	status, err := svc.StartManualCheck(context.Background(), 21, ImageChannelMonitorManualTestParams{
+		Mode:          ImageChannelMonitorManualGenerate,
+		DownloadImage: false,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, status.RunID)
+	require.True(t, status.Running)
+	require.Nil(t, status.Result)
+
+	close(release)
+
+	require.Eventually(t, func() bool {
+		current, err := svc.GetManualCheckStatus(context.Background(), status.RunID)
+		if err != nil || current.Running || current.Result == nil {
+			return false
+		}
+		status = current
+		return true
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, MonitorStatusOperational, status.Result.Status)
+	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", status.Result.ReturnedImageData)
+	require.NotNil(t, status.CompletedAt)
 }

@@ -24,7 +24,9 @@
   - `backend/internal/service/image_channel_monitor_runner.go`
   - `backend/internal/repository/image_channel_monitor_repo.go`
   - `backend/internal/handler/admin/image_channel_monitor_handler.go`
-  - manual ad-hoc route: `POST /api/v1/admin/image-channel-monitors/:id/manual-test`
+  - manual ad-hoc routes:
+    - `POST /api/v1/admin/image-channel-monitors/:id/manual-test`
+    - `GET /api/v1/admin/image-channel-monitors/:id/manual-test/:runID`
 - Frontend:
   - `frontend/src/api/admin/imageChannelMonitor.ts`
   - `frontend/src/views/admin/ImageChannelMonitorView.vue`
@@ -39,7 +41,8 @@
 5. Scheduled runs and row-level immediate runs call `POST {base}/v1/images/generations` with `response_format=url`.
 6. The service records API response-header latency, response-body read latency, total API latency, JSON size, URL/b64 result shape, and optional image download metrics.
 7. History is stored independently from the generic channel monitor history/rollup tables.
-8. The manual testing panel calls `POST /admin/image-channel-monitors/:id/manual-test` concurrently for selected image monitors. These ad-hoc tests reuse monitor source credentials/proxy/TLS resolution, support text-to-image (`/v1/images/generations`) and image-to-image (`/v1/images/edits`) probes, but do not update runtime status or persist history.
+8. The manual testing panel calls `POST /admin/image-channel-monitors/:id/manual-test` concurrently for selected image monitors. The POST only starts an in-memory manual run and immediately returns `run_id`, `running`, `stage`, and timestamps.
+9. The frontend polls `GET /admin/image-channel-monitors/:id/manual-test/:runID` until `running=false`. Completed manual runs include the previewable result payload. These ad-hoc tests reuse monitor source credentials/proxy/TLS resolution, support text-to-image (`/v1/images/generations`) and image-to-image (`/v1/images/edits`) probes, but do not update scheduled runtime status or persist history.
 
 ## Important Mechanisms
 
@@ -51,6 +54,7 @@
 - Custom source resolves `proxy_id` through `ProxyRepository.GetByID` at run time. The selected proxy is used for both the image API request and the returned-image download probe.
 - Image monitor uses the same `HTTPUpstream.DoWithTLS` path as account testing and OpenAI image gateway requests.
 - Runtime status is in-memory and non-persistent. It exposes `running`, `stage`, `message`, timestamps, and next-check countdown data for UI polling; durable results remain in `image_channel_monitor_histories`.
+- Manual test run status is also in-memory and non-persistent. It is intentionally separate from scheduled runtime status so ad-hoc tests can run without changing row-level countdowns or persisted history.
 - The monitor forces `response_format=url`; `b64_json` responses are recorded with `has_b64_json=true` and status `failed`, because this monitor is specifically checking returned-image URL delivery.
 - Manual tests also request `response_format=url`, but if an upstream returns `b64_json`, the response is treated as a previewable image result instead of a URL-delivery monitor failure.
 - `download_image=false` still verifies image API generation and URL return. `download_image=true` adds a second-stage GET probe for the returned image URL.
@@ -63,4 +67,5 @@
 - `source_type=account` only supports OpenAI API-key accounts in the first version. OAuth/image bridge accounts are intentionally out of scope.
 - Custom endpoint validation requires a public HTTPS origin with no path/query/fragment, matching the generic channel monitor SSRF boundary.
 - Image download now uses the shared `HTTPUpstream` so configured proxies also apply to returned-image download. Private/local returned image URLs still depend on the global URL allowlist behavior in the upstream HTTP layer.
+- Manual tests must stay asynchronous from the browser's perspective. Keeping the POST synchronous can hit the frontend Axios 30s timeout and surface as the generic `Network error. Please check your connection.` while the backend is still generating/downloading.
 - `go generate ./cmd/server` may fail in this checkout because of Wire tool dependency or existing provider conflicts. If so, manually reconcile `backend/cmd/server/wire_gen.go`.

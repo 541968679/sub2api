@@ -191,20 +191,20 @@
                   {{ manualResultBadgeText(item) }}
                 </span>
               </div>
-              <div v-if="item.response" class="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <div v-if="manualRunResult(item)" class="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
                 <div>
                   <dl class="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiHeader')" :value="formatMs(item.response.result.api_header_ms)" />
-                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiBody')" :value="formatMs(item.response.result.api_body_ms)" />
-                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiTotal')" :value="formatMs(item.response.result.api_total_ms)" />
-                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.imageDownload')" :value="formatMs(item.response.result.image_download_ms)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiHeader')" :value="formatMs(manualRunResult(item)?.api_header_ms ?? null)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiBody')" :value="formatMs(manualRunResult(item)?.api_body_ms ?? null)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiTotal')" :value="formatMs(manualRunResult(item)?.api_total_ms ?? null)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.imageDownload')" :value="formatMs(manualRunResult(item)?.image_download_ms ?? null)" />
                   </dl>
-                  <p v-if="item.response.result.message" class="mt-3 text-sm text-red-600 dark:text-red-300">
-                    {{ item.response.result.error_stage ? `${item.response.result.error_stage}: ` : '' }}{{ item.response.result.message }}
+                  <p v-if="manualRunResult(item)?.message" class="mt-3 text-sm text-red-600 dark:text-red-300">
+                    {{ manualRunResult(item)?.error_stage ? `${manualRunResult(item)?.error_stage}: ` : '' }}{{ manualRunResult(item)?.message }}
                   </p>
-                  <div v-if="item.response.result.stages?.length" class="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-dark-400">
+                  <div v-if="manualRunResult(item)?.stages?.length" class="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-dark-400">
                     <span
-                      v-for="stage in item.response.result.stages"
+                      v-for="stage in manualRunResult(item)?.stages"
                       :key="`${item.monitor.id}-${stage.stage}-${stage.at}`"
                       class="rounded bg-gray-100 px-2 py-1 dark:bg-dark-800"
                     >
@@ -593,7 +593,7 @@ import type {
   ImageChannelMonitor,
   ImageChannelMonitorHistoryItem,
   ImageChannelMonitorListParams,
-  ImageChannelManualTestResponse,
+  ImageChannelManualRunResponse,
   ImageChannelMonitorResult,
   ImageChannelMonitorRuntimeStatus,
   ImageMonitorSourceType,
@@ -624,7 +624,7 @@ type ManualResultItem = {
   monitor: ImageChannelMonitor
   state: 'running' | 'done' | 'error'
   message: string
-  response?: ImageChannelManualTestResponse
+  run?: ImageChannelManualRunResponse
 }
 
 const monitors = ref<ImageChannelMonitor[]>([])
@@ -664,6 +664,7 @@ let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 let statusPollTimer: number | null = null
 let clockTimer: number | null = null
+let manualRunSeq = 0
 
 const defaultStandardSize = '1024x1024'
 
@@ -1009,6 +1010,8 @@ function readFileAsDataURL(file: File): Promise<string> {
 }
 
 async function startManualTests() {
+  const seq = manualRunSeq + 1
+  manualRunSeq = seq
   const ids = [...manualSelectedIds.value]
   if (ids.length === 0) {
     appStore.showError(t('admin.imageChannelMonitor.manual.selectTargetsFirst'))
@@ -1050,32 +1053,80 @@ async function startManualTests() {
     input_image_name: manualForm.mode === 'edit' ? manualInputImage.value?.name : undefined,
   }
 
-  await Promise.allSettled(
-    selectedTargets.map(async (target) => {
-      try {
-        const response = await adminAPI.imageChannelMonitor.manualTest(target.id, payload)
-        manualResults.value = {
-          ...manualResults.value,
-          [target.id]: {
-            monitor: response.monitor || target,
-            state: 'done',
-            message: response.result.message || '',
-            response,
-          },
-        }
-      } catch (err: unknown) {
-        manualResults.value = {
-          ...manualResults.value,
-          [target.id]: {
+  try {
+    await Promise.allSettled(
+      selectedTargets.map(async (target) => {
+        try {
+          const run = await adminAPI.imageChannelMonitor.manualTest(target.id, payload)
+          if (manualRunSeq !== seq) return
+          setManualResultFromRun(target, run)
+          if (run.running) {
+            await pollManualRun(target, run.run_id, payload.timeout_seconds, seq)
+          }
+        } catch (err: unknown) {
+          if (manualRunSeq !== seq) return
+          setManualResult(target.id, {
             monitor: target,
             state: 'error',
             message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
-          },
+          })
         }
-      }
-    })
-  )
-  manualRunning.value = false
+      })
+    )
+  } finally {
+    if (manualRunSeq === seq) {
+      manualRunning.value = false
+    }
+  }
+}
+
+async function pollManualRun(
+  target: ImageChannelMonitor,
+  runID: string,
+  timeoutSeconds: number,
+  seq: number
+) {
+  const maxPolls = Math.min(720, Math.max(30, timeoutSeconds + 45))
+  for (let i = 0; i < maxPolls; i += 1) {
+    await wait(1000)
+    if (manualRunSeq !== seq) return
+    try {
+      const run = await adminAPI.imageChannelMonitor.getManualTestStatus(target.id, runID)
+      if (manualRunSeq !== seq) return
+      setManualResultFromRun(target, run)
+      if (!run.running) return
+    } catch (err: unknown) {
+      if (manualRunSeq !== seq) return
+      setManualResult(target.id, {
+        monitor: target,
+        state: 'error',
+        message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
+      })
+      return
+    }
+  }
+  if (manualRunSeq !== seq) return
+  setManualResult(target.id, {
+    monitor: target,
+    state: 'error',
+    message: t('admin.imageChannelMonitor.manual.failed'),
+  })
+}
+
+function setManualResultFromRun(target: ImageChannelMonitor, run: ImageChannelManualRunResponse) {
+  setManualResult(target.id, {
+    monitor: run.monitor || target,
+    state: run.running ? 'running' : run.result ? 'done' : 'error',
+    message: run.message || run.result?.message || '',
+    run,
+  })
+}
+
+function setManualResult(id: number, item: ManualResultItem) {
+  manualResults.value = {
+    ...manualResults.value,
+    [id]: item,
+  }
 }
 
 async function saveMonitor() {
@@ -1245,7 +1296,7 @@ function inferNextCheckAt(row: ImageChannelMonitor) {
 function manualResultBadgeText(item: ManualResultItem) {
   if (item.state === 'running') return t('admin.imageChannelMonitor.manual.running')
   if (item.state === 'error') return t('admin.imageChannelMonitor.manual.error')
-  const status = item.response?.result.status
+  const status = manualRunResult(item)?.status
   return status ? statusLabel(status) : t('admin.imageChannelMonitor.manual.done')
 }
 
@@ -1256,22 +1307,29 @@ function manualResultBadgeClass(item: ManualResultItem) {
   if (item.state === 'error') {
     return 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200'
   }
-  return statusBadgeClass(item.response?.result.status || 'error')
+  return statusBadgeClass(manualRunResult(item)?.status || 'error')
 }
 
 function manualResultStatusText(item: ManualResultItem) {
-  if (item.state === 'running') return item.message
+  if (item.state === 'running') {
+    const stage = item.run?.stage ? t(`admin.imageChannelMonitor.stages.${item.run.stage}`, item.run.stage) : ''
+    return [stage, item.message].filter(Boolean).join(' / ')
+  }
   if (item.state === 'error') return item.message
-  const result = item.response?.result
+  const result = manualRunResult(item)
   if (!result) return ''
   const httpStatus = result.http_status ? `HTTP ${result.http_status}` : ''
   const stage = result.error_stage || result.stages?.at(-1)?.stage || ''
   const stageText = stage ? t(`admin.imageChannelMonitor.stages.${stage}`, stage) : ''
-  return [httpStatus, stageText].filter(Boolean).join(' · ')
+  return [httpStatus, stageText].filter(Boolean).join(' / ')
+}
+
+function manualRunResult(item: ManualResultItem) {
+  return item.run?.result
 }
 
 function manualPreview(item: ManualResultItem) {
-  const result = item.response?.result
+  const result = manualRunResult(item)
   return result?.returned_image_url || result?.returned_image_data || ''
 }
 
@@ -1301,6 +1359,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  manualRunSeq += 1
   if (abortController) abortController.abort()
   if (searchTimeout) clearTimeout(searchTimeout)
   if (statusPollTimer) clearInterval(statusPollTimer)

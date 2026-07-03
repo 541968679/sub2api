@@ -22,6 +22,8 @@ const (
 	imageMonitorMaxDownloadBytes       = 32 * 1024 * 1024
 	imageMonitorRunnerConcurrency      = 3
 	imageMonitorRunOneBuffer           = 15 * time.Second
+	imageMonitorManualRunRetention     = 30 * time.Minute
+	imageMonitorManualRunMax           = 200
 )
 
 var (
@@ -69,6 +71,9 @@ var (
 	)
 	ErrImageChannelMonitorInvalidInputImage = infraerrors.BadRequest(
 		"IMAGE_CHANNEL_MONITOR_INVALID_INPUT_IMAGE", "input image must be a valid base64 image",
+	)
+	ErrImageChannelMonitorManualRunNotFound = infraerrors.NotFound(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_RUN_NOT_FOUND", "manual image test run not found",
 	)
 )
 
@@ -219,6 +224,19 @@ type ImageChannelMonitorManualTestResult struct {
 	Monitor *ImageChannelMonitor
 	Mode    string
 	Result  *ImageChannelMonitorResult
+}
+
+type ImageChannelMonitorManualRunStatus struct {
+	RunID       string
+	Monitor     *ImageChannelMonitor
+	Mode        string
+	Running     bool
+	Stage       string
+	Message     string
+	StartedAt   time.Time
+	UpdatedAt   time.Time
+	CompletedAt *time.Time
+	Result      *ImageChannelMonitorResult
 }
 
 type ImageChannelMonitorRuntimeStatus struct {

@@ -3,7 +3,9 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -36,6 +38,8 @@ type ImageChannelMonitorService struct {
 	scheduler           ImageMonitorScheduler
 	runtimeMu           sync.RWMutex
 	runtimeStatus       map[int64]ImageChannelMonitorRuntimeStatus
+	manualMu            sync.RWMutex
+	manualRuns          map[string]ImageChannelMonitorManualRunStatus
 }
 
 func NewImageChannelMonitorService(
@@ -54,6 +58,7 @@ func NewImageChannelMonitorService(
 		httpUpstream:        httpUpstream,
 		tlsFPProfileService: tlsFPProfileService,
 		runtimeStatus:       make(map[int64]ImageChannelMonitorRuntimeStatus),
+		manualRuns:          make(map[string]ImageChannelMonitorManualRunStatus),
 	}
 }
 
@@ -263,16 +268,84 @@ func (s *ImageChannelMonitorService) RunManualCheck(
 	id int64,
 	p ImageChannelMonitorManualTestParams,
 ) (*ImageChannelMonitorManualTestResult, error) {
-	m, err := s.Get(ctx, id)
+	m, manual, mode, err := s.prepareManualCheck(ctx, id, p)
 	if err != nil {
 		return nil, err
 	}
+	result := s.runManualCheck(ctx, manual, mode, p)
+	return &ImageChannelMonitorManualTestResult{
+		Monitor: m,
+		Mode:    mode,
+		Result:  result,
+	}, nil
+}
+
+func (s *ImageChannelMonitorService) StartManualCheck(
+	ctx context.Context,
+	id int64,
+	p ImageChannelMonitorManualTestParams,
+) (*ImageChannelMonitorManualRunStatus, error) {
+	m, manual, mode, err := s.prepareManualCheck(ctx, id, p)
+	if err != nil {
+		return nil, err
+	}
+	runID := newImageMonitorManualRunID()
+	now := time.Now()
+	status := ImageChannelMonitorManualRunStatus{
+		RunID:     runID,
+		Monitor:   m,
+		Mode:      mode,
+		Running:   true,
+		Stage:     "queued",
+		Message:   "manual image test queued",
+		StartedAt: now,
+		UpdatedAt: now,
+	}
+	s.manualMu.Lock()
+	if s.manualRuns == nil {
+		s.manualRuns = make(map[string]ImageChannelMonitorManualRunStatus)
+	}
+	s.pruneManualRunsLocked(now)
+	s.manualRuns[runID] = status
+	s.manualMu.Unlock()
+
+	go s.runManualCheckDetached(runID, manual, mode, p)
+
+	return s.GetManualCheckStatus(ctx, runID)
+}
+
+func (s *ImageChannelMonitorService) GetManualCheckStatus(
+	_ context.Context,
+	runID string,
+) (*ImageChannelMonitorManualRunStatus, error) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return nil, ErrImageChannelMonitorManualRunNotFound
+	}
+	s.manualMu.RLock()
+	status, ok := s.manualRuns[runID]
+	s.manualMu.RUnlock()
+	if !ok {
+		return nil, ErrImageChannelMonitorManualRunNotFound
+	}
+	return &status, nil
+}
+
+func (s *ImageChannelMonitorService) prepareManualCheck(
+	ctx context.Context,
+	id int64,
+	p ImageChannelMonitorManualTestParams,
+) (*ImageChannelMonitor, *ImageChannelMonitor, string, error) {
+	m, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, nil, "", err
+	}
 	if m.SourceType == ImageChannelMonitorSourceCustom && m.APIKeyDecryptFailed {
-		return nil, ErrImageChannelMonitorAPIKeyDecryptFailed
+		return nil, nil, "", ErrImageChannelMonitorAPIKeyDecryptFailed
 	}
 	mode := normalizeImageMonitorManualMode(p.Mode)
 	if mode == "" {
-		return nil, ErrImageChannelMonitorInvalidManualMode
+		return nil, nil, "", ErrImageChannelMonitorInvalidManualMode
 	}
 
 	manual := *m
@@ -292,14 +365,9 @@ func (s *ImageChannelMonitorService) RunManualCheck(
 		manual.TimeoutSeconds = p.TimeoutSeconds
 	}
 	if err := validateImageMonitorBase(&manual); err != nil {
-		return nil, err
+		return nil, nil, "", err
 	}
-	result := s.runManualCheck(ctx, &manual, mode, p)
-	return &ImageChannelMonitorManualTestResult{
-		Monitor: m,
-		Mode:    mode,
-		Result:  result,
-	}, nil
+	return m, &manual, mode, nil
 }
 
 func (s *ImageChannelMonitorService) runCheckDetached(m *ImageChannelMonitor) {
@@ -314,6 +382,93 @@ func (s *ImageChannelMonitorService) runCheckDetached(m *ImageChannelMonitor) {
 	result := s.runCheck(context.Background(), m)
 	s.finishRuntimeStatus(m.ID, finalImageMonitorRuntimeStage(result), result.Message)
 	s.persistResult(context.Background(), m, result)
+}
+
+func (s *ImageChannelMonitorService) runManualCheckDetached(
+	runID string,
+	m *ImageChannelMonitor,
+	mode string,
+	p ImageChannelMonitorManualTestParams,
+) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			msg := fmt.Sprintf("manual image monitor check panic: %v", rec)
+			s.finishManualRunStatus(runID, "error", truncateMessage(sanitizeErrorMessage(msg)), nil)
+			slog.Error("image_channel_monitor: manual run panic recovered",
+				"run_id", runID, "monitor_id", m.ID, "name", m.Name, "panic", rec)
+		}
+	}()
+	result := s.runManualCheckWithStage(context.Background(), m, mode, p, func(stage, message string) {
+		s.updateManualRunStatus(runID, stage, message)
+	})
+	s.finishManualRunStatus(runID, finalImageMonitorRuntimeStage(result), result.Message, result)
+}
+
+func (s *ImageChannelMonitorService) updateManualRunStatus(runID, stage, message string) {
+	now := time.Now()
+	s.manualMu.Lock()
+	if s.manualRuns == nil {
+		s.manualRuns = make(map[string]ImageChannelMonitorManualRunStatus)
+	}
+	status, ok := s.manualRuns[runID]
+	if !ok {
+		s.manualMu.Unlock()
+		return
+	}
+	status.Stage = strings.TrimSpace(stage)
+	status.Message = strings.TrimSpace(message)
+	status.UpdatedAt = now
+	s.manualRuns[runID] = status
+	s.manualMu.Unlock()
+}
+
+func (s *ImageChannelMonitorService) finishManualRunStatus(
+	runID string,
+	stage string,
+	message string,
+	result *ImageChannelMonitorResult,
+) {
+	now := time.Now()
+	s.manualMu.Lock()
+	if s.manualRuns == nil {
+		s.manualRuns = make(map[string]ImageChannelMonitorManualRunStatus)
+	}
+	status, ok := s.manualRuns[runID]
+	if !ok {
+		s.manualMu.Unlock()
+		return
+	}
+	status.Running = false
+	status.Stage = strings.TrimSpace(stage)
+	status.Message = strings.TrimSpace(message)
+	status.UpdatedAt = now
+	status.CompletedAt = &now
+	status.Result = result
+	s.manualRuns[runID] = status
+	s.manualMu.Unlock()
+}
+
+func (s *ImageChannelMonitorService) pruneManualRunsLocked(now time.Time) {
+	if len(s.manualRuns) == 0 {
+		return
+	}
+	cutoff := now.Add(-imageMonitorManualRunRetention)
+	for runID, status := range s.manualRuns {
+		if status.Running || status.CompletedAt == nil {
+			continue
+		}
+		if status.CompletedAt.Before(cutoff) {
+			delete(s.manualRuns, runID)
+		}
+	}
+	for runID, status := range s.manualRuns {
+		if len(s.manualRuns) <= imageMonitorManualRunMax {
+			return
+		}
+		if !status.Running {
+			delete(s.manualRuns, runID)
+		}
+	}
 }
 
 func (s *ImageChannelMonitorService) tryBeginRuntimeStatus(id int64, stage, message string) bool {
@@ -686,12 +841,22 @@ func (s *ImageChannelMonitorService) runManualCheck(
 	mode string,
 	p ImageChannelMonitorManualTestParams,
 ) *ImageChannelMonitorResult {
+	return s.runManualCheckWithStage(ctx, m, mode, p, nil)
+}
+
+func (s *ImageChannelMonitorService) runManualCheckWithStage(
+	ctx context.Context,
+	m *ImageChannelMonitor,
+	mode string,
+	p ImageChannelMonitorManualTestParams,
+	hook imageMonitorStageFunc,
+) *ImageChannelMonitorResult {
 	result := &ImageChannelMonitorResult{
 		MonitorID: m.ID,
 		Status:    MonitorStatusError,
 		CheckedAt: time.Now(),
 	}
-	stage := imageMonitorStageReporter(result, nil)
+	stage := imageMonitorStageReporter(result, hook)
 	timeout := time.Duration(m.TimeoutSeconds)*time.Second + imageMonitorRunOneBuffer
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -1126,6 +1291,14 @@ func imageURLHost(rawURL string) string {
 
 func imageMonitorIntPtr(v int) *int {
 	return &v
+}
+
+func newImageMonitorManualRunID() string {
+	var b [12]byte
+	if _, err := rand.Read(b[:]); err == nil {
+		return hex.EncodeToString(b[:])
+	}
+	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }
 
 func finalImageMonitorRuntimeStage(result *ImageChannelMonitorResult) string {

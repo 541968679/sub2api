@@ -130,10 +130,17 @@ export interface ImageChannelManualTestParams {
   input_image_name?: string
 }
 
-export interface ImageChannelManualTestResponse {
+export interface ImageChannelManualRunResponse {
+  run_id: string
   monitor: ImageChannelMonitor
   mode: 'generate' | 'edit'
-  result: ImageChannelMonitorResult
+  running: boolean
+  stage: string
+  message: string
+  started_at: string
+  updated_at: string
+  completed_at: string | null
+  result?: ImageChannelMonitorResult
 }
 
 export async function list(
@@ -199,10 +206,20 @@ export async function getStatus(id: number): Promise<ImageChannelMonitorRuntimeS
 export async function manualTest(
   id: number,
   params: ImageChannelManualTestParams
-): Promise<ImageChannelManualTestResponse> {
-  const { data } = await apiClient.post<ImageChannelManualTestResponse>(
+): Promise<ImageChannelManualRunResponse> {
+  const { data } = await apiClient.post<ImageChannelManualRunResponse>(
     `/admin/image-channel-monitors/${id}/manual-test`,
     params
+  )
+  return data
+}
+
+export async function getManualTestStatus(
+  id: number,
+  runID: string
+): Promise<ImageChannelManualRunResponse> {
+  const { data } = await apiClient.get<ImageChannelManualRunResponse>(
+    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}`
   )
   return data
 }
@@ -227,6 +244,7 @@ export const imageChannelMonitorAPI = {
   runNow,
   getStatus,
   manualTest,
+  getManualTestStatus,
   listHistory,
 }
 

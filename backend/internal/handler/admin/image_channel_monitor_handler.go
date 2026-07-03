@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -130,10 +131,17 @@ type imageChannelMonitorStageResponse struct {
 	At      string `json:"at"`
 }
 
-type imageChannelMonitorManualTestResponse struct {
-	Monitor *imageChannelMonitorResponse      `json:"monitor"`
-	Mode    string                            `json:"mode"`
-	Result  imageChannelMonitorResultResponse `json:"result"`
+type imageChannelMonitorManualRunResponse struct {
+	RunID       string                             `json:"run_id"`
+	Monitor     *imageChannelMonitorResponse       `json:"monitor"`
+	Mode        string                             `json:"mode"`
+	Running     bool                               `json:"running"`
+	Stage       string                             `json:"stage"`
+	Message     string                             `json:"message"`
+	StartedAt   string                             `json:"started_at"`
+	UpdatedAt   string                             `json:"updated_at"`
+	CompletedAt *string                            `json:"completed_at"`
+	Result      *imageChannelMonitorResultResponse `json:"result,omitempty"`
 }
 
 type imageChannelMonitorRuntimeStatusResponse struct {
@@ -233,6 +241,30 @@ func imageMonitorRuntimeStatusToResponse(
 	if s.NextCheckAt != nil {
 		v := s.NextCheckAt.UTC().Format(time.RFC3339)
 		out.NextCheckAt = &v
+	}
+	return out
+}
+
+func imageMonitorManualRunToResponse(
+	s *service.ImageChannelMonitorManualRunStatus,
+) imageChannelMonitorManualRunResponse {
+	out := imageChannelMonitorManualRunResponse{
+		RunID:     s.RunID,
+		Monitor:   imageMonitorToResponse(s.Monitor),
+		Mode:      s.Mode,
+		Running:   s.Running,
+		Stage:     s.Stage,
+		Message:   s.Message,
+		StartedAt: s.StartedAt.UTC().Format(time.RFC3339),
+		UpdatedAt: s.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	if s.CompletedAt != nil {
+		v := s.CompletedAt.UTC().Format(time.RFC3339)
+		out.CompletedAt = &v
+	}
+	if s.Result != nil {
+		result := imageMonitorResultToResponse(s.Result)
+		out.Result = &result
 	}
 	return out
 }
@@ -451,7 +483,7 @@ func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
 	if req.DownloadImage != nil {
 		downloadImage = *req.DownloadImage
 	}
-	result, err := h.monitorService.RunManualCheck(c.Request.Context(), id, service.ImageChannelMonitorManualTestParams{
+	status, err := h.monitorService.StartManualCheck(c.Request.Context(), id, service.ImageChannelMonitorManualTestParams{
 		Mode:           req.Mode,
 		Model:          req.Model,
 		Prompt:         req.Prompt,
@@ -468,11 +500,29 @@ func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, imageChannelMonitorManualTestResponse{
-		Monitor: imageMonitorToResponse(result.Monitor),
-		Mode:    result.Mode,
-		Result:  imageMonitorResultToResponse(result.Result),
-	})
+	response.Success(c, imageMonitorManualRunToResponse(status))
+}
+
+func (h *ImageChannelMonitorHandler) ManualTestStatus(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	runID := strings.TrimSpace(c.Param("runID"))
+	if runID == "" {
+		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", "runID is required"))
+		return
+	}
+	status, err := h.monitorService.GetManualCheckStatus(c.Request.Context(), runID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if status.Monitor != nil && status.Monitor.ID != id {
+		response.ErrorFrom(c, service.ErrImageChannelMonitorManualRunNotFound)
+		return
+	}
+	response.Success(c, imageMonitorManualRunToResponse(status))
 }
 
 func (h *ImageChannelMonitorHandler) Status(c *gin.Context) {
