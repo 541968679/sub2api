@@ -479,8 +479,8 @@ const zhBase = {
   auth: {
     login: {
       badge: 'ZEROCODE',
-      headingLine1: 'ZeroCode',
-      headingLine2: '顶级大模型一站式 API 解决方案',
+      headingLine1: '登录后，即刻接入',
+      headingLine2: '最新旗舰模型',
       description: '面向开发者和团队的多模型中转站。统一接口、按量计费、调用记录可查，减少切换不同平台和计费规则的成本。',
       featurePrice: '低至 {price} / 1$',
       featurePriceDefault: '低至 0.6 元 / 1$',
@@ -494,37 +494,10 @@ const zhBase = {
       featureTransparentBillingDesc: '按 Token 计费，批量更优惠。',
       featureAuditTrail: '调用可追溯',
       featureAuditTrailDesc: '每次请求与扣费都有记录。',
-      features: {
-        metered: {
-          title: '按量计费，完全透明',
-          desc: '每 1 美元额度低至 0.7 元，约为官方价格的 1/10，性价比很高。'
-        },
-        models: {
-          title: '顶级模型齐全',
-          desc: 'Opus 4.7、GPT-5.4、Gemini 3.1 Pro 等模型均可满血使用。'
-        },
-        image: {
-          title: 'gpt-image-2 生图',
-          desc: '支持 gpt-image-2 生图模型，用统一 API 生成高质量图片。'
-        },
-        tutorial: {
-          title: '新手友好教程',
-          desc: '提供完整、可读性高的使用教程，帮助你快速上手。'
-        },
-        enterprise: {
-          title: '企业采购通道',
-          desc: '支持大规模采购和开票需求，具体方案可联系客服。'
-        },
-        referral: {
-          title: '邀请好友，共享收益',
-          desc: '成功邀请后双方都可获得账户奖励，并支持持续返佣。'
-        }
-      },
-      title: '登录',
+      title: '欢迎回来',
       subtitle: '进入控制台查看余额、用量和完整模型列表。',
       submitButton: '登录并开始使用',
-      postLoginInfo: '登录后可查看',
-      postLoginDetails: '余额 / 用量明细 / 完整模型列表 / 计价',
+      registerButton: '注册新账号',
       socialDivider: '快捷登录方式',
       linuxdoLogin: 'LinuxDO 登录',
       oidcLogin: 'OIDC / SSO',
@@ -532,7 +505,37 @@ const zhBase = {
       navKeyUsage: '用量查询',
       navApiExamples: 'API 示例',
       navLogin: '登录',
-      keyUsageLink: '无需登录，直接查询 API Key 用量',
+      billCardTitle: '实时用量账单',
+      billCardBadge: '逐笔可查',
+      billRow1Model: 'claude-opus-4-7',
+      billRow1Tokens: '输入 12,438 / 输出 3,207 tok',
+      billRow1Price: '¥0.86',
+      billRow2Model: 'gpt-5.4',
+      billRow2Tokens: '输入 8,102 / 输出 1,940 tok',
+      billRow2Price: '¥0.42',
+      billCardTotalLabel: '今日合计',
+      billCardTotal: '¥1.28',
+      modelCard1Name: 'Opus 4.7',
+      modelCard1Desc: '旗舰模型接入',
+      modelCard2Name: 'GPT-5.4',
+      modelCard2Desc: '满血高性能',
+      modelCard3Name: 'Gemini 3.1 Pro',
+      modelCard3Desc: '约官方 1/10 价',
+      stat1Value: '7×24',
+      stat1Label: '稳定运行',
+      stat2Value: '100%',
+      stat2Label: '账单可查',
+      stat3Value: '0',
+      stat3Label: '注水虚标',
+      trustBadge1: '满血模型能力',
+      trustBadge2: '账单逐笔透明',
+      trustBadge3: '7×24 稳定运行',
+      capImageTitle: 'gpt-image-2 生图',
+      capImageDesc: '统一 API 生成高质量图片，按量计费。',
+      capTutorialTitle: '新手友好教程',
+      capTutorialDesc: '完整、可读性高的教程，快速上手。',
+      mobileHeroModels: 'Opus 4.7 / GPT-5.4 / Gemini 3.1 Pro',
+      mobileHeroDesc: '按量计费，透明账单，随用随选。',
     },
     welcomeBack: '欢迎回来',
     signInToAccount: '登录您的账户以继续',

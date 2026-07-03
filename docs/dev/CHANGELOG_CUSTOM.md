@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] feat: redesign login page visuals to Figma v2 (purple gradient)
+
+**Affected files**: frontend/src/views/auth/LoginView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
+**Upstream compatibility**: frontend-only visual layer rewrite of the login view; all login logic (auth store flow, Turnstile, TOTP 2FA modal, legal consent dialog, LinuxDo/WeChat/OIDC OAuth sections, backend-mode/password-reset flags, admin login_page overrides) is preserved unchanged. Diverges further from upstream login UI; watch this file on upstream merges.
+**Change details**:
+- Rebuilt template per the Figma v2 design (file 5DlRiTxu0w28djyDCdl1Xf, frames 25:2 / 25:75): left purple-gradient hero (#2563EB→#7C3AED→#EC4899) with brand tile, admin-overridable badge/heading/description, a static "live usage bill" sample card, three model cards (Opus 4.7 / GPT-5.4 / Gemini 3.1 Pro) and a 7×24 / 100% / 0 stats row; right light-theme form with trust badges, mail/lock input icons, gradient submit button, outline register button, and two capability cards (gpt-image-2 / tutorials).
+- Mobile: gradient hero with the form card floating over it, forgot-password link, trust chips, and key-usage/docs links (previously desktop-only nav pills).
+- Wired the previously unused `login_page.description` admin override into the hero paragraph; form switched from dark to light theme (Turnstile theme dark→light).
+- i18n: replaced `auth.login.features.*`, `postLoginInfo`, `postLoginDetails`, `keyUsageLink` with new v2 keys (billCard*, modelCard*, stat*, trustBadge*, cap*, mobileHero*, registerButton) in both zh and en; login form title default changed to 欢迎回来 / Welcome back, hero heading defaults to 登录后，即刻接入 / 最新旗舰模型.
+- Verified: `pnpm --dir frontend run typecheck`, `lint:check`, i18n locale spec suite, plus live check on the dev stack (127.0.0.1:15174/login desktop + 390px iframe mobile viewport; admin session backed up and restored).
+
 ## [2026-07-02] fix: allow admin reassignment of expired subscriptions
 
 **Affected files**: backend/internal/service/subscription_service.go, backend/internal/service/subscription_assign_idempotency_test.go, docs/dev/CHANGELOG_CUSTOM.md

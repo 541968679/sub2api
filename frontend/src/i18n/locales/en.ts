@@ -482,8 +482,8 @@ const enBase = {
   auth: {
     login: {
       badge: 'ZEROCODE',
-      headingLine1: 'ZeroCode',
-      headingLine2: 'All-in-One API for Top AI Models',
+      headingLine1: 'Sign in for instant access',
+      headingLine2: 'to the latest flagship models',
       description: 'A unified API gateway for developers and teams. One interface, pay-as-you-go billing, full usage tracking — no more juggling multiple platforms.',
       featurePrice: 'From {price} / 1$',
       featurePriceDefault: 'From $0.6 / 1$',
@@ -497,38 +497,10 @@ const enBase = {
       featureTransparentBillingDesc: 'Pay per token, volume discounts.',
       featureAuditTrail: 'Audit Trail',
       featureAuditTrailDesc: 'Every call and charge is traceable.',
-      // Login feature cards
-      features: {
-        metered: {
-          title: 'Metered & fully transparent',
-          desc: 'From 0.7 CNY per USD — about 1/10 of the official price, excellent value.'
-        },
-        models: {
-          title: 'Top-tier models',
-          desc: 'Opus 4.7, GPT-5.4 and Gemini 3.1 Pro — all at full power.'
-        },
-        image: {
-          title: 'gpt-image-2 generation',
-          desc: 'Use gpt-image-2 through the same unified API to generate high-quality images.'
-        },
-        tutorial: {
-          title: 'Beginner-friendly tutorials',
-          desc: 'Complete, readable guides that get you productive fast.'
-        },
-        enterprise: {
-          title: 'Enterprise channel',
-          desc: 'Bulk purchasing and invoicing supported — contact support for details.'
-        },
-        referral: {
-          title: 'Invite friends, earn together',
-          desc: 'Each successful referral rewards both sides with account credit and ongoing commission.'
-        }
-      },
-      title: 'Sign In',
+      title: 'Welcome back',
       subtitle: 'Access your dashboard to view balance, usage, and full model list.',
       submitButton: 'Sign in & start using',
-      postLoginInfo: 'After sign in you can view',
-      postLoginDetails: 'Balance / Usage details / Full model list / Pricing',
+      registerButton: 'Create account',
       socialDivider: 'Quick sign in options',
       linuxdoLogin: 'LinuxDO Login',
       oidcLogin: 'OIDC / SSO',
@@ -536,7 +508,37 @@ const enBase = {
       navKeyUsage: 'Usage',
       navApiExamples: 'API Examples',
       navLogin: 'Sign In',
-      keyUsageLink: 'Query API Key usage without signing in',
+      billCardTitle: 'Live usage bill',
+      billCardBadge: 'Itemized',
+      billRow1Model: 'claude-opus-4-7',
+      billRow1Tokens: 'In 12,438 / Out 3,207 tok',
+      billRow1Price: '¥0.86',
+      billRow2Model: 'gpt-5.4',
+      billRow2Tokens: 'In 8,102 / Out 1,940 tok',
+      billRow2Price: '¥0.42',
+      billCardTotalLabel: "Today's total",
+      billCardTotal: '¥1.28',
+      modelCard1Name: 'Opus 4.7',
+      modelCard1Desc: 'Flagship access',
+      modelCard2Name: 'GPT-5.4',
+      modelCard2Desc: 'Full-power performance',
+      modelCard3Name: 'Gemini 3.1 Pro',
+      modelCard3Desc: '~1/10 official price',
+      stat1Value: '7×24',
+      stat1Label: 'Always on',
+      stat2Value: '100%',
+      stat2Label: 'Auditable billing',
+      stat3Value: '0',
+      stat3Label: 'Padded specs',
+      trustBadge1: 'Full-power models',
+      trustBadge2: 'Itemized billing',
+      trustBadge3: '7×24 uptime',
+      capImageTitle: 'gpt-image-2 images',
+      capImageDesc: 'Generate high-quality images via the same unified API, metered.',
+      capTutorialTitle: 'Beginner-friendly guides',
+      capTutorialDesc: 'Complete, readable guides that get you productive fast.',
+      mobileHeroModels: 'Opus 4.7 / GPT-5.4 / Gemini 3.1 Pro',
+      mobileHeroDesc: 'Pay as you go with itemized, transparent bills.',
     },
     welcomeBack: 'Welcome Back',
     signInToAccount: 'Sign in to your account to continue',

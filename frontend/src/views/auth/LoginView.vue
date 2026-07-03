@@ -1,29 +1,319 @@
 <template>
-  <div class="login-page relative min-h-screen overflow-hidden bg-gradient-to-br from-[#07111B] via-[#0B1623] to-[#102335]">
-    <!-- Decorative Glow Orbs -->
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div class="absolute -left-20 -top-20 h-[440px] w-[440px] rounded-full bg-[#18D8AA] opacity-[0.08] blur-3xl"></div>
-      <div class="absolute -top-20 right-20 h-[428px] w-[428px] rounded-full bg-[#49A9FF] opacity-[0.10] blur-3xl"></div>
-      <div class="absolute -bottom-20 right-40 h-[496px] w-[496px] rounded-full bg-[#19D7A9] opacity-[0.05] blur-3xl"></div>
-    </div>
+  <div class="login-page relative min-h-screen bg-white lg:flex">
 
-    <!-- Main Container -->
-    <div class="relative z-10 mx-auto flex min-h-screen max-w-[1520px] flex-col px-5 py-6 lg:px-10 lg:py-8">
+    <!-- LEFT PANEL - Marketing hero (desktop only) -->
+    <section class="relative hidden overflow-hidden bg-gradient-to-br from-[#2563EB] via-[#7C3AED] to-[#EC4899] lg:flex lg:w-1/2">
+      <div class="pointer-events-none absolute inset-0 bg-black/20"></div>
+      <!-- Decorative glow orbs -->
+      <div class="pointer-events-none absolute inset-0 overflow-hidden">
+        <div class="absolute -left-24 -top-24 h-[420px] w-[420px] rounded-full bg-white opacity-10 blur-3xl"></div>
+        <div class="absolute -bottom-24 -right-16 h-[460px] w-[460px] rounded-full bg-white opacity-[0.09] blur-3xl"></div>
+        <div class="absolute left-1/3 top-24 h-[260px] w-[260px] rounded-full bg-[#DBEAFE] opacity-10 blur-3xl"></div>
+      </div>
 
-      <!-- Outer Card Border -->
-      <div class="flex flex-1 flex-col rounded-[36px] border border-white/[0.08] bg-white/[0.03] p-4 lg:p-6">
+      <div class="relative z-10 flex w-full flex-col px-12 py-12 xl:px-16">
+        <!-- Brand -->
+        <div v-if="settingsLoaded" class="flex items-center gap-4">
+          <div class="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg">
+            <img v-if="siteLogo" :src="siteLogo" alt="Logo" class="h-8 w-8 object-contain" />
+            <span v-else class="text-xl font-extrabold text-[#6D5DFC]">{{ brandInitial }}</span>
+          </div>
+          <span class="text-2xl font-bold text-white">{{ siteName }}</span>
+        </div>
 
-        <!-- Top Navigation Bar -->
-        <nav class="mb-4 flex items-center justify-between lg:mb-6">
-          <!-- Left: spacer -->
-          <div></div>
+        <!-- Badge + Heading + Description -->
+        <div class="mt-12 xl:mt-14">
+          <span
+            v-if="loginBadge"
+            class="inline-block rounded-full bg-white/15 px-4 py-1.5 text-xs font-bold tracking-[0.2em] text-white/90"
+          >{{ loginBadge }}</span>
+          <h1 class="mt-5 text-[38px] font-bold leading-[1.22] text-white xl:text-[46px]">
+            {{ loginHeading1 }}<br />{{ loginHeading2 }}
+          </h1>
+          <p class="mt-6 max-w-[560px] text-[15px] leading-7 text-white/85">{{ loginHeroDesc }}</p>
+        </div>
 
-          <!-- Right: Nav Pills -->
-          <div class="hidden items-center gap-3 sm:flex">
-            <router-link
-              to="/key-usage"
-              class="rounded-[17px] bg-white/[0.06] px-5 py-2 text-[13px] font-semibold text-[#DCE7F2] transition-colors hover:bg-white/[0.10]"
+        <!-- Live billing sample card -->
+        <div class="mt-10 rounded-2xl border border-white/[0.22] bg-white/[0.12] p-6 shadow-[0_18px_36px_rgba(15,5,60,0.28)]">
+          <div class="flex items-center justify-between">
+            <span class="text-[13px] font-medium text-white/80">{{ t('auth.login.billCardTitle') }}</span>
+            <span class="rounded-full bg-[#22C55E]/[0.22] px-3 py-1 text-[11px] font-bold text-[#BBF7D0]">
+              {{ t('auth.login.billCardBadge') }}
+            </span>
+          </div>
+          <div class="mt-4 space-y-3">
+            <div v-for="row in billRows" :key="row.model" class="flex items-center justify-between gap-3">
+              <span class="shrink-0 text-sm font-bold text-white">{{ row.model }}</span>
+              <span class="flex-1 truncate pl-2 text-xs text-white/60">{{ row.tokens }}</span>
+              <span class="shrink-0 text-sm font-bold text-white">{{ row.price }}</span>
+            </div>
+          </div>
+          <div class="my-4 h-px bg-white/[0.16]"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-white/60">{{ t('auth.login.billCardTotalLabel') }}</span>
+            <span class="text-base font-bold text-white">{{ t('auth.login.billCardTotal') }}</span>
+          </div>
+        </div>
+
+        <!-- Model cards -->
+        <div class="mt-8 grid grid-cols-3 gap-5">
+          <div
+            v-for="card in modelCards"
+            :key="card.name"
+            class="rounded-[14px] border border-white/[0.28] bg-white/[0.17] p-4 shadow-[0_14px_36px_rgba(15,5,60,0.18)]"
+          >
+            <div class="truncate text-lg font-bold text-white xl:text-xl">{{ card.name }}</div>
+            <div class="mt-1.5 truncate text-xs font-medium text-white/[0.78]">{{ card.desc }}</div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="mt-auto grid grid-cols-3 gap-5 pt-9">
+          <div v-for="stat in statItems" :key="stat.label">
+            <div class="text-3xl font-bold text-white xl:text-[34px] xl:leading-none">{{ stat.value }}</div>
+            <div class="mt-2 text-sm text-[#F4EAFF]/[0.85]">{{ stat.label }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL - Login form -->
+    <section class="relative flex min-h-screen w-full flex-col lg:w-1/2">
+      <!-- Top navigation (desktop) -->
+      <nav class="absolute right-8 top-6 z-20 hidden items-center gap-3 lg:flex">
+        <router-link to="/key-usage" class="login-nav-pill">
+          {{ t('auth.login.navKeyUsage') }}
+        </router-link>
+        <a
+          v-if="docUrl"
+          :href="docUrl"
+          target="_blank"
+          rel="noopener"
+          class="login-nav-pill"
+        >
+          {{ t('auth.login.navDocs') }}
+        </a>
+      </nav>
+
+      <!-- Mobile hero (small screens only) -->
+      <div class="relative overflow-hidden bg-gradient-to-br from-[#2563EB] via-[#7C3AED] to-[#EC4899] px-6 pb-16 pt-10 lg:hidden">
+        <div class="pointer-events-none absolute inset-0 bg-black/[0.18]"></div>
+        <div class="relative z-10">
+          <div v-if="settingsLoaded" class="flex items-center gap-3">
+            <div class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-white">
+              <img v-if="siteLogo" :src="siteLogo" alt="Logo" class="h-5 w-5 object-contain" />
+              <span v-else class="text-sm font-extrabold text-[#6D5DFC]">{{ brandInitial }}</span>
+            </div>
+            <span class="text-lg font-bold text-white">{{ siteName }}</span>
+          </div>
+          <h1 class="mt-7 text-[28px] font-bold leading-[1.25] text-white">
+            {{ loginHeading1 }}<br />{{ loginHeading2 }}
+          </h1>
+          <p class="mt-4 text-[15px] font-bold text-[#F5EFFF]">{{ t('auth.login.mobileHeroModels') }}</p>
+          <p class="mt-2 text-[13px] leading-5 text-[#F4EAFF]/[0.92]">{{ t('auth.login.mobileHeroDesc') }}</p>
+        </div>
+      </div>
+
+      <!-- Form column -->
+      <div class="relative z-10 mx-auto flex w-full max-w-[456px] flex-1 flex-col px-4 pb-10 sm:px-6 lg:justify-center lg:px-8 lg:py-20">
+        <!-- On mobile this is a floating card overlapping the hero; on desktop it sits flat -->
+        <div class="-mt-9 rounded-2xl border border-gray-100 bg-white p-6 shadow-[0_24px_48px_rgba(15,23,42,0.16)] sm:p-7 lg:mt-0 lg:rounded-none lg:border-0 lg:p-0 lg:shadow-none">
+          <!-- Title -->
+          <h2 class="text-[26px] font-bold text-gray-900 lg:text-[32px]">{{ loginFormTitle }}</h2>
+          <p class="mt-2 text-sm text-gray-500">{{ loginFormSubtitle }}</p>
+
+          <!-- Trust badges (desktop) -->
+          <div class="mt-5 hidden flex-wrap gap-2.5 lg:flex">
+            <span
+              v-for="badge in trustBadges"
+              :key="badge"
+              class="inline-flex items-center gap-2 rounded-full bg-[#F4F2FF] px-3.5 py-2 text-[13px] font-medium text-gray-600"
             >
+              <span class="h-1.5 w-1.5 rounded-full bg-[#6D5DFC]"></span>
+              {{ badge }}
+            </span>
+          </div>
+
+          <!-- Login Form -->
+          <form class="mt-7" @submit.prevent="handleLogin">
+            <!-- Email -->
+            <div class="mb-5">
+              <label for="email" class="mb-2 block text-[13px] font-semibold text-gray-700">
+                {{ t('auth.emailLabel') }}
+              </label>
+              <div class="relative">
+                <Icon
+                  name="mail"
+                  size="md"
+                  class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  id="email"
+                  v-model="formData.email"
+                  type="email"
+                  required
+                  autofocus
+                  autocomplete="email"
+                  :disabled="isLoading"
+                  :placeholder="t('auth.emailPlaceholder')"
+                  class="login-input"
+                  :class="{ 'login-input-error': errors.email }"
+                />
+              </div>
+              <p v-if="errors.email" class="mt-1.5 text-xs text-red-500">
+                {{ errors.email }}
+              </p>
+            </div>
+
+            <!-- Password -->
+            <div class="mb-5">
+              <label for="password" class="mb-2 block text-[13px] font-semibold text-gray-700">
+                {{ t('auth.passwordLabel') }}
+              </label>
+              <div class="relative">
+                <Icon
+                  name="lock"
+                  size="md"
+                  class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  id="password"
+                  v-model="formData.password"
+                  :type="showPassword ? 'text' : 'password'"
+                  required
+                  autocomplete="current-password"
+                  :disabled="isLoading"
+                  :placeholder="t('auth.passwordPlaceholder')"
+                  class="login-input pr-11"
+                  :class="{ 'login-input-error': errors.password }"
+                />
+                <button
+                  type="button"
+                  class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 transition-colors hover:text-gray-600"
+                  @click="showPassword = !showPassword"
+                >
+                  <Icon v-if="showPassword" name="eyeOff" size="md" />
+                  <Icon v-else name="eye" size="md" />
+                </button>
+              </div>
+              <div class="mt-1.5 flex items-center justify-between">
+                <p v-if="errors.password" class="text-xs text-red-500">
+                  {{ errors.password }}
+                </p>
+                <span v-else></span>
+                <router-link
+                  v-if="passwordResetEnabled && !backendModeEnabled"
+                  to="/forgot-password"
+                  class="text-[13px] font-medium text-[#6D5DFC] transition-colors hover:text-[#8B7BFF]"
+                >
+                  {{ t('auth.forgotPassword') }}
+                </router-link>
+              </div>
+            </div>
+
+            <!-- Turnstile Widget -->
+            <div v-if="turnstileEnabled && turnstileSiteKey" class="mb-5">
+              <TurnstileWidget
+                ref="turnstileRef"
+                :site-key="turnstileSiteKey"
+                theme="light"
+                @verify="onTurnstileVerify"
+                @expire="onTurnstileExpire"
+                @error="onTurnstileError"
+              />
+              <p v-if="errors.turnstile" class="mt-2 text-center text-xs text-red-500">
+                {{ errors.turnstile }}
+              </p>
+            </div>
+
+            <!-- Error Message -->
+            <transition name="fade">
+              <div
+                v-if="errorMessage"
+                class="mb-5 rounded-xl border border-red-200 bg-red-50 p-3"
+              >
+                <div class="flex items-start gap-2">
+                  <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-red-500" />
+                  <p class="text-sm text-red-600">{{ errorMessage }}</p>
+                </div>
+              </div>
+            </transition>
+
+            <!-- Submit Button -->
+            <button
+              type="submit"
+              :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
+              class="login-btn w-full"
+            >
+              <svg
+                v-if="isLoading"
+                class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ isLoading ? t('auth.signingIn') : t('auth.login.submitButton') }}
+            </button>
+
+            <!-- Register Button -->
+            <router-link
+              v-if="!backendModeEnabled"
+              to="/register"
+              class="mt-3 flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white py-3.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              {{ t('auth.login.registerButton') }}
+            </router-link>
+          </form>
+
+          <!-- OAuth Section -->
+          <div v-if="!backendModeEnabled && (linuxdoOAuthEnabled || wechatOAuthEnabled || oidcOAuthEnabled)" class="mt-6">
+            <!-- Divider -->
+            <div class="flex items-center gap-3">
+              <div class="h-px flex-1 bg-gray-200"></div>
+              <span class="text-[13px] text-gray-400">{{ t('auth.login.socialDivider') }}</span>
+              <div class="h-px flex-1 bg-gray-200"></div>
+            </div>
+
+            <!-- OAuth Buttons -->
+            <div class="login-oauth mt-4 flex gap-3">
+              <LinuxDoOAuthSection
+                v-if="linuxdoOAuthEnabled"
+                :disabled="isLoading"
+                :show-divider="false"
+                class="flex-1"
+              />
+              <WechatOAuthSection
+                v-if="wechatOAuthEnabled"
+                :disabled="isLoading"
+                :show-divider="false"
+                class="flex-1"
+              />
+              <OidcOAuthSection
+                v-if="oidcOAuthEnabled"
+                :disabled="isLoading"
+                :provider-name="oidcOAuthProviderName"
+                :show-divider="false"
+                class="flex-1"
+              />
+            </div>
+          </div>
+
+          <!-- Trust chips (mobile) -->
+          <div class="mt-6 flex flex-wrap justify-center gap-2 lg:hidden">
+            <span
+              v-for="badge in trustBadges"
+              :key="badge"
+              class="rounded-full bg-[#F4F2FF] px-3 py-1.5 text-[11px] font-medium text-[#6D5DFC]"
+            >
+              {{ badge }}
+            </span>
+          </div>
+
+          <!-- Nav links (mobile) -->
+          <div class="mt-5 flex items-center justify-center gap-5 lg:hidden">
+            <router-link to="/key-usage" class="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-700">
               {{ t('auth.login.navKeyUsage') }}
             </router-link>
             <a
@@ -31,258 +321,26 @@
               :href="docUrl"
               target="_blank"
               rel="noopener"
-              class="rounded-[17px] bg-white/[0.06] px-5 py-2 text-[13px] font-semibold text-[#DCE7F2] transition-colors hover:bg-white/[0.10]"
+              class="text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-700"
             >
               {{ t('auth.login.navDocs') }}
             </a>
           </div>
-        </nav>
+        </div>
 
-        <!-- Main Content Area -->
-        <div class="flex flex-1 flex-col rounded-[38px] border border-white/[0.08] bg-white/[0.03] lg:flex-row">
-
-          <!-- LEFT PANEL - Marketing (hidden on mobile) -->
-          <div class="hidden flex-1 flex-col gap-8 rounded-l-[32px] bg-gradient-to-br from-[#18D8AA]/[0.16] to-[#4BA8FF]/[0.04] border border-white/[0.08] p-8 lg:flex xl:gap-10 xl:p-10">
-            <!-- Badge + Heading -->
-            <div>
-              <span class="inline-block rounded-[20px] bg-[#ECFFF9] px-4 py-2 text-[13px] font-extrabold tracking-wide text-[#0D2A3C]">
-                {{ loginBadge }}
-              </span>
-
-              <h1 class="mt-6 text-[40px] font-extrabold leading-[1.15] text-white xl:text-[48px]">
-                {{ loginHeading1 }}
-              </h1>
-              <h1 class="text-[40px] font-extrabold leading-[1.15] text-[#9BFFEA] xl:text-[48px]">
-                {{ loginHeading2 }}
-              </h1>
-            </div>
-
-            <!-- Bottom section: 4 equal feature cards in a 2×2 grid -->
-            <div class="grid auto-rows-fr gap-5 sm:grid-cols-2 xl:gap-6">
-              <div
-                v-for="card in featureCards"
-                :key="card.key"
-                class="group relative flex min-h-[188px] flex-col overflow-hidden rounded-[22px] border border-[#2F5672] bg-gradient-to-br from-[#102A40] via-[#0D2031] to-[#081827] p-7 shadow-[0_12px_34px_rgba(0,0,0,0.26)] transition-colors hover:border-[#60A5C9]"
-              >
-                <!-- 顶部光带：每张卡的主题色从左渐变消失，视觉上能一眼识别各自代表什么 -->
-                <div class="absolute inset-x-0 top-0 h-[2px]" :class="card.topStripe"></div>
-
-                <!-- 标题行：较大图标（48×48）+ 19px 粗标题 -->
-                <div class="flex items-center gap-3">
-                  <span
-                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-                    :class="[card.iconBg, card.iconColor]"
-                  >
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
-                      <path stroke-linecap="round" stroke-linejoin="round" :d="card.iconPath" />
-                    </svg>
-                  </span>
-                  <h3 class="text-[19px] font-extrabold leading-snug text-white">{{ card.title }}</h3>
-                </div>
-
-                <!-- 描述：15px，关键词用主题色 + 加粗 突出展示 -->
-                <p class="mt-5 text-[15px] leading-[1.75] text-[#C8D7E4]">
-                  <template v-for="(seg, i) in card.segments" :key="i">
-                    <span
-                      v-if="seg.highlight"
-                      class="font-extrabold"
-                      :class="card.highlightColor"
-                    >{{ seg.text }}</span>
-                    <template v-else>{{ seg.text }}</template>
-                  </template>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <!-- RIGHT PANEL - Login Form -->
-          <div class="flex w-full items-center justify-center p-6 lg:w-[420px] lg:p-8 xl:w-[480px] xl:p-10">
-            <div class="w-full max-w-[414px]">
-
-              <!-- Mobile brand (shown only on small screens) -->
-              <div v-if="settingsLoaded" class="mb-6 text-center lg:hidden">
-                <div class="mb-2 inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-[#25435C] bg-[#0C1A29]">
-                  <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-8 w-8 object-contain" />
-                </div>
-                <div class="text-lg font-bold text-[#EFF6FF]">{{ siteName }}</div>
-              </div>
-
-              <!-- Title -->
-              <h2 class="text-[28px] font-extrabold text-[#F6FBFF]">{{ loginFormTitle }}</h2>
-              <p class="mt-2 text-[14px] text-[#8EA6BD]">{{ loginFormSubtitle }}</p>
-
-              <!-- Login Form -->
-              <form class="mt-8" @submit.prevent="handleLogin">
-                <!-- Email -->
-                <div class="mb-5">
-                  <label for="email" class="mb-2 block text-[13px] font-bold text-[#C8D7E4]">
-                    {{ t('auth.emailLabel') }}
-                  </label>
-                  <input
-                    id="email"
-                    v-model="formData.email"
-                    type="email"
-                    required
-                    autofocus
-                    autocomplete="email"
-                    :disabled="isLoading"
-                    :placeholder="t('auth.emailPlaceholder')"
-                    class="login-input"
-                    :class="{ 'login-input-error': errors.email }"
-                  />
-                  <p v-if="errors.email" class="mt-1.5 text-xs text-red-400">
-                    {{ errors.email }}
-                  </p>
-                </div>
-
-                <!-- Password -->
-                <div class="mb-5">
-                  <label for="password" class="mb-2 block text-[13px] font-bold text-[#C8D7E4]">
-                    {{ t('auth.passwordLabel') }}
-                  </label>
-                  <div class="relative">
-                    <input
-                      id="password"
-                      v-model="formData.password"
-                      :type="showPassword ? 'text' : 'password'"
-                      required
-                      autocomplete="current-password"
-                      :disabled="isLoading"
-                      :placeholder="t('auth.passwordPlaceholder')"
-                      class="login-input pr-11"
-                      :class="{ 'login-input-error': errors.password }"
-                    />
-                    <button
-                      type="button"
-                      class="absolute inset-y-0 right-0 flex items-center pr-4 text-[#7F97AE] transition-colors hover:text-[#C8D7E4]"
-                      @click="showPassword = !showPassword"
-                    >
-                      <Icon v-if="showPassword" name="eyeOff" size="md" />
-                      <Icon v-else name="eye" size="md" />
-                    </button>
-                  </div>
-                  <div class="mt-1.5 flex items-center justify-between">
-                    <p v-if="errors.password" class="text-xs text-red-400">
-                      {{ errors.password }}
-                    </p>
-                    <span v-else></span>
-                    <router-link
-                      v-if="passwordResetEnabled && !backendModeEnabled"
-                      to="/forgot-password"
-                      class="text-xs font-medium text-[#7FE9D4] transition-colors hover:text-[#9BFFEA]"
-                    >
-                      {{ t('auth.forgotPassword') }}
-                    </router-link>
-                  </div>
-                </div>
-
-                <!-- Turnstile Widget -->
-                <div v-if="turnstileEnabled && turnstileSiteKey" class="mb-5">
-                  <TurnstileWidget
-                    ref="turnstileRef"
-                    :site-key="turnstileSiteKey"
-                    theme="dark"
-                    @verify="onTurnstileVerify"
-                    @expire="onTurnstileExpire"
-                    @error="onTurnstileError"
-                  />
-                  <p v-if="errors.turnstile" class="mt-2 text-center text-xs text-red-400">
-                    {{ errors.turnstile }}
-                  </p>
-                </div>
-
-                <!-- Error Message -->
-                <transition name="fade">
-                  <div
-                    v-if="errorMessage"
-                    class="mb-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3"
-                  >
-                    <div class="flex items-start gap-2">
-                      <Icon name="exclamationCircle" size="md" class="mt-0.5 flex-shrink-0 text-red-400" />
-                      <p class="text-sm text-red-300">{{ errorMessage }}</p>
-                    </div>
-                  </div>
-                </transition>
-
-                <!-- Submit Button -->
-                <button
-                  type="submit"
-                  :disabled="isLoading || (turnstileEnabled && !turnstileToken)"
-                  class="login-btn w-full"
-                >
-                  <svg
-                    v-if="isLoading"
-                    class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {{ isLoading ? t('auth.signingIn') : t('auth.login.submitButton') }}
-                </button>
-              </form>
-
-              <!-- Post-login Info -->
-              <div class="mt-6">
-                <p class="text-[13px] font-bold text-[#7FE9D4]">{{ t('auth.login.postLoginInfo') }}</p>
-                <p class="mt-1 text-sm font-bold text-[#F4FAFF]">{{ t('auth.login.postLoginDetails') }}</p>
-                <router-link
-                  to="/key-usage"
-                  class="mt-3 inline-flex text-sm font-bold text-[#7FE9D4] transition-colors hover:text-[#9BFFEA]"
-                >
-                  {{ t('auth.login.keyUsageLink') }}
-                </router-link>
-              </div>
-
-              <!-- OAuth Section -->
-              <div v-if="!backendModeEnabled && (linuxdoOAuthEnabled || wechatOAuthEnabled || oidcOAuthEnabled)" class="mt-6">
-                <!-- Divider -->
-                <div class="flex items-center gap-3">
-                  <div class="h-px flex-1 bg-white/[0.12]"></div>
-                  <span class="text-[13px] text-[#7F97AE]">{{ t('auth.login.socialDivider') }}</span>
-                  <div class="h-px flex-1 bg-white/[0.12]"></div>
-                </div>
-
-                <!-- OAuth Buttons -->
-                <div class="login-oauth mt-4 flex gap-3">
-                  <LinuxDoOAuthSection
-                    v-if="linuxdoOAuthEnabled"
-                    :disabled="isLoading"
-                    :show-divider="false"
-                    class="flex-1"
-                  />
-                  <WechatOAuthSection
-                    v-if="wechatOAuthEnabled"
-                    :disabled="isLoading"
-                    :show-divider="false"
-                    class="flex-1"
-                  />
-                  <OidcOAuthSection
-                    v-if="oidcOAuthEnabled"
-                    :disabled="isLoading"
-                    :provider-name="oidcOAuthProviderName"
-                    :show-divider="false"
-                    class="flex-1"
-                  />
-                </div>
-              </div>
-
-              <!-- Register Link -->
-              <div v-if="!backendModeEnabled" class="mt-6 text-center">
-                <p class="text-sm text-[#7F97AE]">
-                  {{ t('auth.dontHaveAccount') }}
-                  <router-link to="/register" class="font-medium text-[#7FE9D4] transition-colors hover:text-[#9BFFEA]">
-                    {{ t('auth.signUp') }}
-                  </router-link>
-                </p>
-              </div>
-
-            </div>
+        <!-- Capability cards (desktop) -->
+        <div class="mt-10 hidden grid-cols-2 gap-4 lg:grid">
+          <div
+            v-for="cap in capabilityCards"
+            :key="cap.title"
+            class="rounded-xl border border-[#EEF0F5] bg-[#F8F9FC] p-4"
+          >
+            <div class="text-sm font-bold text-gray-900">{{ cap.title }}</div>
+            <div class="mt-1.5 text-xs leading-5 text-gray-500">{{ cap.desc }}</div>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
     <!-- 2FA Modal -->
     <TotpLoginModal
@@ -328,7 +386,7 @@ import {
   type LegalConsentPayload
 } from '@/utils/legalConsent'
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 
 // ==================== Router & Stores ====================
 
@@ -342,6 +400,7 @@ const siteName = computed(() => appStore.siteName || 'ZeroCode')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 const docUrl = computed(() => appStore.docUrl)
+const brandInitial = computed(() => (siteName.value || 'Z').trim().charAt(0).toUpperCase())
 
 // ==================== Login Page Content Overrides ====================
 // Admin-editable copy from settings (public). Empty / missing fields fall back
@@ -359,112 +418,41 @@ const pickLoginText = (value: string | undefined | null, fallback: string): stri
 const loginBadge = computed(() => pickLoginText(loginPageOverrides.value?.badge, t('auth.login.badge')))
 const loginHeading1 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line1, t('auth.login.headingLine1')))
 const loginHeading2 = computed(() => pickLoginText(loginPageOverrides.value?.heading_line2, t('auth.login.headingLine2')))
+const loginHeroDesc = computed(() => pickLoginText(loginPageOverrides.value?.description, t('auth.login.description')))
 const loginFormTitle = computed(() => pickLoginText(loginPageOverrides.value?.form_title, t('auth.login.title')))
 const loginFormSubtitle = computed(() => pickLoginText(loginPageOverrides.value?.form_subtitle, t('auth.login.subtitle')))
 
-// ==================== Feature Cards (2×2 grid) ====================
-// 卡片文字来自 i18n（`auth.login.features.*.title` / `.desc`）。
-// 这里声明的都是「视觉规则」：
-//   - 每张卡的主题色（图标、顶部光带、描述里高亮词的颜色）
-//   - 图标 SVG path（heroicons outline）
-//   - 要在描述里突出展示的关键词（不同语言各配一套；匹配不到就原样显示）
-// 加强版样式可以让价格、Opus/GPT/Gemini 型号名、gpt-image-2 等一眼能看到。
+// ==================== Marketing Content (i18n-driven) ====================
+// 左侧账单示例卡 / 模型卡 / 统计与右侧信任徽章、能力卡的文案都来自 i18n，
+// 中英文各配一套（`auth.login.*`），改文案只动 locale 文件即可。
 
-type FeatureKey = 'metered' | 'models' | 'image' | 'tutorial'
+const billRows = computed(() => [
+  { model: t('auth.login.billRow1Model'), tokens: t('auth.login.billRow1Tokens'), price: t('auth.login.billRow1Price') },
+  { model: t('auth.login.billRow2Model'), tokens: t('auth.login.billRow2Tokens'), price: t('auth.login.billRow2Price') }
+])
 
-const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const modelCards = computed(() => [
+  { name: t('auth.login.modelCard1Name'), desc: t('auth.login.modelCard1Desc') },
+  { name: t('auth.login.modelCard2Name'), desc: t('auth.login.modelCard2Desc') },
+  { name: t('auth.login.modelCard3Name'), desc: t('auth.login.modelCard3Desc') }
+])
 
-function splitWithTerms(text: string, terms: readonly string[]): Array<{ text: string; highlight: boolean }> {
-  const sorted = terms.filter(Boolean).slice().sort((a, b) => b.length - a.length)
-  if (sorted.length === 0) return [{ text, highlight: false }]
-  const pattern = new RegExp(`(${sorted.map(escapeRegExp).join('|')})`, 'g')
-  return text
-    .split(pattern)
-    .filter((part) => part !== '')
-    .map((part) => ({ text: part, highlight: sorted.includes(part) }))
-}
+const statItems = computed(() => [
+  { value: t('auth.login.stat1Value'), label: t('auth.login.stat1Label') },
+  { value: t('auth.login.stat2Value'), label: t('auth.login.stat2Label') },
+  { value: t('auth.login.stat3Value'), label: t('auth.login.stat3Label') }
+])
 
-// 每张卡在不同语言下需要高亮的子串。更动 i18n 文案后若找不到子串，则不加高亮，
-// 不会崩溃——高亮是锦上添花，不影响可读性。
-const featureHighlightTermsZh: Record<FeatureKey, readonly string[]> = {
-  metered: ['0.7 元', '1/10', '超高性价比'],
-  models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
-  image: ['gpt-image-2', '生图', '高质量图片'],
-  tutorial: ['完整', '高可读性', '快速上手']
-}
-const featureHighlightTermsEn: Record<FeatureKey, readonly string[]> = {
-  metered: ['0.7 CNY', '1/10', 'excellent value'],
-  models: ['Opus 4.7', 'GPT-5.4', 'Gemini 3.1 Pro'],
-  image: ['gpt-image-2', 'image generation', 'high-quality images'],
-  tutorial: ['Complete', 'readable', 'productive fast']
-}
+const trustBadges = computed(() => [
+  t('auth.login.trustBadge1'),
+  t('auth.login.trustBadge2'),
+  t('auth.login.trustBadge3')
+])
 
-interface FeatureCardDef {
-  key: FeatureKey
-  /** Tailwind class: 图标圆底色 */
-  iconBg: string
-  /** Tailwind class: 图标描边色 */
-  iconColor: string
-  /** Tailwind class: 描述里高亮词的颜色 */
-  highlightColor: string
-  /** Tailwind class: 卡片顶部渐变光带 */
-  topStripe: string
-  /** heroicon outline path data */
-  iconPath: string
-  title: string
-  segments: Array<{ text: string; highlight: boolean }>
-}
-
-const featureCards = computed<FeatureCardDef[]>(() => {
-  const terms = locale.value.startsWith('en') ? featureHighlightTermsEn : featureHighlightTermsZh
-  const defs: Array<Omit<FeatureCardDef, 'title' | 'segments'> & { key: FeatureKey }> = [
-    {
-      key: 'metered',
-      iconBg: 'bg-[#18D8AA]/15',
-      iconColor: 'text-[#7CF5CC]',
-      highlightColor: 'text-[#9BFFEA]',
-      topStripe: 'bg-gradient-to-r from-[#18D8AA]/70 via-[#18D8AA]/20 to-transparent',
-      // currency (dollar) with circle
-      iconPath:
-        'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4'
-    },
-    {
-      key: 'models',
-      iconBg: 'bg-[#A78BFA]/15',
-      iconColor: 'text-[#C4B5FD]',
-      highlightColor: 'text-[#DDD0FF]',
-      topStripe: 'bg-gradient-to-r from-[#A78BFA]/70 via-[#A78BFA]/20 to-transparent',
-      // sparkles
-      iconPath:
-        'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z'
-    },
-    {
-      key: 'image',
-      iconBg: 'bg-[#4BA8FF]/15',
-      iconColor: 'text-[#91D5FF]',
-      highlightColor: 'text-[#B7E7FF]',
-      topStripe: 'bg-gradient-to-r from-[#4BA8FF]/70 via-[#22D3EE]/25 to-transparent',
-      // photo
-      iconPath:
-        'M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5A1.5 1.5 0 0021.75 18V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25z'
-    },
-    {
-      key: 'tutorial',
-      iconBg: 'bg-[#22D3EE]/15',
-      iconColor: 'text-[#7DE5F5]',
-      highlightColor: 'text-[#A9F0F9]',
-      topStripe: 'bg-gradient-to-r from-[#22D3EE]/70 via-[#22D3EE]/20 to-transparent',
-      // book-open
-      iconPath:
-        'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'
-    }
-  ]
-  return defs.map<FeatureCardDef>((d) => ({
-    ...d,
-    title: t(`auth.login.features.${d.key}.title`),
-    segments: splitWithTerms(t(`auth.login.features.${d.key}.desc`), terms[d.key])
-  }))
-})
+const capabilityCards = computed(() => [
+  { title: t('auth.login.capImageTitle'), desc: t('auth.login.capImageDesc') },
+  { title: t('auth.login.capTutorialTitle'), desc: t('auth.login.capTutorialDesc') }
+])
 
 // ==================== State ====================
 
@@ -721,22 +709,20 @@ async function handleLegalConsentCancelled(): Promise<void> {
 </script>
 
 <style scoped>
-/* ============ Login Page Input ============ */
+/* ============ Login Page Input (light theme) ============ */
 .login-input {
-  @apply w-full rounded-[20px] border px-4 py-4 text-sm transition-all duration-200;
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.10);
-  color: #EFF6FF;
+  @apply w-full rounded-xl border bg-white py-3.5 pl-11 pr-4 text-sm text-gray-900 transition-all duration-200;
+  border-color: #d1d5db;
 }
 
 .login-input::placeholder {
-  color: #7F97AE;
+  color: #9ca3af;
 }
 
 .login-input:focus {
   outline: none;
-  border-color: rgba(20, 213, 165, 0.4);
-  box-shadow: 0 0 0 3px rgba(20, 213, 165, 0.12);
+  border-color: #6d5dfc;
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.14);
 }
 
 .login-input:disabled {
@@ -745,18 +731,18 @@ async function handleLegalConsentCancelled(): Promise<void> {
 }
 
 .login-input-error {
-  border-color: rgba(239, 68, 68, 0.5) !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
 }
 
-/* ============ Login Button ============ */
+/* ============ Login Button (brand gradient) ============ */
 .login-btn {
-  @apply flex items-center justify-center rounded-[20px] py-4 text-base font-extrabold text-white transition-all duration-200;
-  background: linear-gradient(to right, #14D5A5, #239FFF);
+  @apply flex items-center justify-center rounded-xl py-3.5 text-[15px] font-bold text-white transition-all duration-200;
+  background: linear-gradient(to right, #6d5dfc, #a855f7);
+  box-shadow: 0 10px 24px rgba(109, 93, 252, 0.35);
 }
 
 .login-btn:hover:not(:disabled) {
-  opacity: 0.9;
-  box-shadow: 0 8px 24px rgba(20, 213, 165, 0.25);
+  opacity: 0.92;
 }
 
 .login-btn:active:not(:disabled) {
@@ -766,22 +752,28 @@ async function handleLegalConsentCancelled(): Promise<void> {
 .login-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
-/* ============ OAuth Button Override ============ */
+/* ============ Top Nav Pills ============ */
+.login-nav-pill {
+  @apply rounded-full bg-gray-100 px-4 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:bg-gray-200;
+}
+
+/* ============ OAuth Button Override (light theme) ============ */
 .login-oauth :deep(.btn.btn-secondary) {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.10);
-  color: #F4FAFF;
-  border-radius: 18px;
-  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  border-radius: 12px;
+  padding: 12px 16px;
   font-weight: 700;
   font-size: 14px;
 }
 
 .login-oauth :deep(.btn.btn-secondary:hover) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  background: #f9fafb;
+  border-color: #d1d5db;
 }
 
 .login-oauth :deep(.btn.btn-secondary) .icon {
