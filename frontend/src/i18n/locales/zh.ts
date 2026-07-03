@@ -2625,6 +2625,12 @@ const zhBase = {
       historyLoadError: '加载图片监控历史失败',
       deleteError: '删除图片监控失败',
       deleteConfirm: '确定要删除图片监控「{name}」吗？此操作不可撤销。',
+      panels: {
+        monitors: '渠道监控',
+        monitorsDesc: '定时检测与图片渠道历史记录',
+        manual: '手动检测',
+        manualDesc: '对选中渠道执行文生图或图生图即时检测'
+      },
       columns: {
         name: '名称',
         source: '来源',
@@ -2672,6 +2678,22 @@ const zhBase = {
         square: '1024x1024 方图',
         landscape: '1536x1024 横图',
         portrait: '1024x1536 竖图'
+      },
+      manual: {
+        mode: '检测类型',
+        generate: '文生图',
+        edit: '图生图',
+        inputImage: '输入图片',
+        targets: '检测渠道',
+        start: '开始检测',
+        requesting: '正在请求上游生图 API...',
+        running: '检测中',
+        done: '完成',
+        error: '错误',
+        failed: '手动图片检测失败',
+        imageReadError: '读取图片文件失败',
+        selectTargetsFirst: '请至少选择一个渠道',
+        selectImageFirst: '请先选择输入图片'
       },
       status: {
         operational: '正常',

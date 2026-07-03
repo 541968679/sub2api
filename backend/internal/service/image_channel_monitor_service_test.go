@@ -1,9 +1,12 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
@@ -219,4 +222,64 @@ func TestBuildImageMonitorPayloadPassesCustomSize(t *testing.T) {
 	})
 
 	require.Equal(t, "3840x2160", payload["size"])
+}
+
+func TestImageChannelMonitorManualEditUsesEditsEndpointAndMultipart(t *testing.T) {
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body: `{"data":[{"url":"https://cdn.example/edited.png","revised_prompt":"edited"}]}`,
+	}
+	svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
+
+	result := svc.runManualCheck(context.Background(), &ImageChannelMonitor{
+		ID:             15,
+		SourceType:     ImageChannelMonitorSourceCustom,
+		Endpoint:       "https://api.example.com",
+		APIKey:         "custom-key",
+		Model:          "gpt-image-1",
+		Prompt:         "edit",
+		Size:           "1024x1024",
+		Quality:        "auto",
+		N:              1,
+		DownloadImage:  false,
+		TimeoutSeconds: 300,
+	}, ImageChannelMonitorManualEdit, ImageChannelMonitorManualTestParams{
+		InputImageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+		InputImageName: "source.png",
+	})
+
+	require.Equal(t, MonitorStatusOperational, result.Status)
+	require.Equal(t, "https://api.example.com/v1/images/edits", upstream.req.URL.String())
+	mediaType, params, err := mime.ParseMediaType(upstream.req.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "multipart/form-data", mediaType)
+	form, err := multipart.NewReader(bytes.NewReader(upstream.requestBody), params["boundary"]).ReadForm(1 << 20)
+	require.NoError(t, err)
+	require.Equal(t, []string{"gpt-image-1"}, form.Value["model"])
+	require.Equal(t, []string{"edit"}, form.Value["prompt"])
+	require.Equal(t, []string{"url"}, form.Value["response_format"])
+	require.Len(t, form.File["image"], 1)
+}
+
+func TestImageChannelMonitorManualGenerateAcceptsB64JSONPreview(t *testing.T) {
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body: `{"data":[{"b64_json":"aGVhbHRoLWNoZWNr","revised_prompt":"ok"}]}`,
+	}
+	svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
+
+	result := svc.runManualCheck(context.Background(), &ImageChannelMonitor{
+		ID:             16,
+		SourceType:     ImageChannelMonitorSourceCustom,
+		Endpoint:       "https://api.example.com",
+		APIKey:         "custom-key",
+		Model:          "gpt-image-1",
+		Prompt:         "draw",
+		Quality:        "auto",
+		N:              1,
+		DownloadImage:  false,
+		TimeoutSeconds: 300,
+	}, ImageChannelMonitorManualGenerate, ImageChannelMonitorManualTestParams{})
+
+	require.Equal(t, MonitorStatusOperational, result.Status)
+	require.True(t, result.HasB64JSON)
+	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", result.ReturnedImageData)
 }

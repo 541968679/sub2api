@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -11,11 +12,16 @@ import (
 	_ "image/png"
 	"io"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 )
@@ -250,6 +256,50 @@ func (s *ImageChannelMonitorService) RunCheckAsync(
 	go s.runCheckDetached(m)
 
 	return s.GetRuntimeStatus(ctx, id)
+}
+
+func (s *ImageChannelMonitorService) RunManualCheck(
+	ctx context.Context,
+	id int64,
+	p ImageChannelMonitorManualTestParams,
+) (*ImageChannelMonitorManualTestResult, error) {
+	m, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if m.SourceType == ImageChannelMonitorSourceCustom && m.APIKeyDecryptFailed {
+		return nil, ErrImageChannelMonitorAPIKeyDecryptFailed
+	}
+	mode := normalizeImageMonitorManualMode(p.Mode)
+	if mode == "" {
+		return nil, ErrImageChannelMonitorInvalidManualMode
+	}
+
+	manual := *m
+	if strings.TrimSpace(p.Model) != "" {
+		manual.Model = strings.TrimSpace(p.Model)
+	}
+	if strings.TrimSpace(p.Prompt) != "" {
+		manual.Prompt = strings.TrimSpace(p.Prompt)
+	}
+	manual.Size = strings.TrimSpace(p.Size)
+	manual.Quality = defaultString(p.Quality, imageMonitorDefaultQuality)
+	if p.N > 0 {
+		manual.N = p.N
+	}
+	manual.DownloadImage = p.DownloadImage
+	if p.TimeoutSeconds > 0 {
+		manual.TimeoutSeconds = p.TimeoutSeconds
+	}
+	if err := validateImageMonitorBase(&manual); err != nil {
+		return nil, err
+	}
+	result := s.runManualCheck(ctx, &manual, mode, p)
+	return &ImageChannelMonitorManualTestResult{
+		Monitor: m,
+		Mode:    mode,
+		Result:  result,
+	}, nil
 }
 
 func (s *ImageChannelMonitorService) runCheckDetached(m *ImageChannelMonitor) {
@@ -615,16 +665,46 @@ func (s *ImageChannelMonitorService) runCheck(
 		Status:    MonitorStatusError,
 		CheckedAt: time.Now(),
 	}
+	stage := imageMonitorStageReporter(result, func(stage, message string) {
+		s.updateRuntimeStatus(m.ID, stage, message)
+	})
 	timeout := time.Duration(m.TimeoutSeconds)*time.Second + imageMonitorRunOneBuffer
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	s.updateRuntimeStatus(m.ID, "source", "resolving request source")
+	stage("source", "resolving request source")
 	resolved, err := s.resolveSource(runCtx, m)
 	if err != nil {
 		return failImageMonitorResult(result, "source", err)
 	}
-	return s.callImageAPI(runCtx, m, resolved, result)
+	return s.callImageAPI(runCtx, m, resolved, result, stage, false)
+}
+
+func (s *ImageChannelMonitorService) runManualCheck(
+	ctx context.Context,
+	m *ImageChannelMonitor,
+	mode string,
+	p ImageChannelMonitorManualTestParams,
+) *ImageChannelMonitorResult {
+	result := &ImageChannelMonitorResult{
+		MonitorID: m.ID,
+		Status:    MonitorStatusError,
+		CheckedAt: time.Now(),
+	}
+	stage := imageMonitorStageReporter(result, nil)
+	timeout := time.Duration(m.TimeoutSeconds)*time.Second + imageMonitorRunOneBuffer
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	stage("source", "resolving request source")
+	resolved, err := s.resolveSource(runCtx, m)
+	if err != nil {
+		return failImageMonitorResult(result, "source", err)
+	}
+	if mode == ImageChannelMonitorManualEdit {
+		return s.callImageEditAPI(runCtx, m, resolved, result, stage, p)
+	}
+	return s.callImageAPI(runCtx, m, resolved, result, stage, true)
 }
 
 func (s *ImageChannelMonitorService) callImageAPI(
@@ -632,8 +712,10 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	m *ImageChannelMonitor,
 	resolved *imageMonitorResolvedSource,
 	result *ImageChannelMonitorResult,
+	stage imageMonitorStageFunc,
+	allowB64JSON bool,
 ) *ImageChannelMonitorResult {
-	s.updateRuntimeStatus(m.ID, "request_build", "building image generation request")
+	stage("request_build", "building image generation request")
 	bodyBytes, err := json.Marshal(buildImageMonitorPayload(m))
 	if err != nil {
 		return failImageMonitorResult(result, "request_build", err)
@@ -649,8 +731,47 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	req.Header.Set("User-Agent", resolved.userAgent)
 	ensureOpenAIImagesAPIKeyUserAgent(req)
 
+	return s.performImageMonitorAPIRequest(ctx, m, resolved, result, req, stage, allowB64JSON)
+}
+
+func (s *ImageChannelMonitorService) callImageEditAPI(
+	ctx context.Context,
+	m *ImageChannelMonitor,
+	resolved *imageMonitorResolvedSource,
+	result *ImageChannelMonitorResult,
+	stage imageMonitorStageFunc,
+	p ImageChannelMonitorManualTestParams,
+) *ImageChannelMonitorResult {
+	stage("request_build", "building image edit request")
+	bodyBytes, contentType, err := buildImageMonitorEditPayload(m, p)
+	if err != nil {
+		return failImageMonitorResult(result, "request_build", err)
+	}
+	targetURL := buildOpenAIImagesURL(resolved.endpoint, openAIImagesEditsEndpoint)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return failImageMonitorResult(result, "request_build", err)
+	}
+	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
+	req.Header.Set("Authorization", "Bearer "+resolved.apiKey)
+	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("User-Agent", resolved.userAgent)
+	ensureOpenAIImagesAPIKeyUserAgent(req)
+
+	return s.performImageMonitorAPIRequest(ctx, m, resolved, result, req, stage, true)
+}
+
+func (s *ImageChannelMonitorService) performImageMonitorAPIRequest(
+	ctx context.Context,
+	m *ImageChannelMonitor,
+	resolved *imageMonitorResolvedSource,
+	result *ImageChannelMonitorResult,
+	req *http.Request,
+	stage imageMonitorStageFunc,
+	allowB64JSON bool,
+) *ImageChannelMonitorResult {
 	start := time.Now()
-	s.updateRuntimeStatus(m.ID, "api_connect", "waiting for upstream image API headers")
+	stage("api_connect", "waiting for upstream image API headers")
 	resp, err := s.httpUpstream.DoWithTLS(
 		req,
 		resolved.proxyURL,
@@ -665,10 +786,10 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	s.updateRuntimeStatus(m.ID, "api_headers", fmt.Sprintf("upstream returned HTTP %d", resp.StatusCode))
+	stage("api_headers", fmt.Sprintf("upstream returned HTTP %d", resp.StatusCode))
 	result.HTTPStatus = imageMonitorIntPtr(resp.StatusCode)
 	bodyStart := time.Now()
-	s.updateRuntimeStatus(m.ID, "api_body", "reading upstream image API body")
+	stage("api_body", "reading upstream image API body")
 	rawBody, readErr := io.ReadAll(io.LimitReader(resp.Body, imageMonitorMaxResponseBytes+1))
 	bodyMs := int(time.Since(bodyStart) / time.Millisecond)
 	totalMs := int(time.Since(start) / time.Millisecond)
@@ -686,7 +807,7 @@ func (s *ImageChannelMonitorService) callImageAPI(
 		msg := fmt.Sprintf("upstream HTTP %d: %s", resp.StatusCode, truncateForErrorBody(string(rawBody)))
 		return failImageMonitorMessage(result, "api_response", msg)
 	}
-	return s.processImageAPIResponse(ctx, m, resolved, rawBody, result)
+	return s.processImageAPIResponse(ctx, m, resolved, rawBody, result, stage, allowB64JSON)
 }
 
 func buildImageMonitorPayload(m *ImageChannelMonitor) map[string]any {
@@ -705,14 +826,60 @@ func buildImageMonitorPayload(m *ImageChannelMonitor) map[string]any {
 	return payload
 }
 
+func buildImageMonitorEditPayload(
+	m *ImageChannelMonitor,
+	p ImageChannelMonitorManualTestParams,
+) ([]byte, string, error) {
+	imageBytes, contentType, err := decodeImageMonitorInputImage(p.InputImageData, p.InputImageType)
+	if err != nil {
+		return nil, "", err
+	}
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	fields := map[string]string{
+		"model":           strings.TrimSpace(m.Model),
+		"prompt":          strings.TrimSpace(m.Prompt),
+		"n":               strconv.Itoa(m.N),
+		"response_format": openAIImagesDefaultURLFormat,
+	}
+	if strings.TrimSpace(m.Size) != "" {
+		fields["size"] = strings.TrimSpace(m.Size)
+	}
+	if strings.TrimSpace(m.Quality) != "" {
+		fields["quality"] = strings.TrimSpace(m.Quality)
+	}
+	for key, value := range fields {
+		if err := writer.WriteField(key, value); err != nil {
+			return nil, "", fmt.Errorf("write image edit field %s: %w", key, err)
+		}
+	}
+	fileName := sanitizeImageMonitorFileName(p.InputImageName)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, fileName))
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return nil, "", fmt.Errorf("create image edit file part: %w", err)
+	}
+	if _, err := part.Write(imageBytes); err != nil {
+		return nil, "", fmt.Errorf("write image edit file part: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", fmt.Errorf("finalize image edit body: %w", err)
+	}
+	return buf.Bytes(), writer.FormDataContentType(), nil
+}
+
 func (s *ImageChannelMonitorService) processImageAPIResponse(
 	ctx context.Context,
 	m *ImageChannelMonitor,
 	resolved *imageMonitorResolvedSource,
 	rawBody []byte,
 	result *ImageChannelMonitorResult,
+	stage imageMonitorStageFunc,
+	allowB64JSON bool,
 ) *ImageChannelMonitorResult {
-	s.updateRuntimeStatus(m.ID, "json_parse", "parsing image API response")
+	stage("json_parse", "parsing image API response")
 	var parsed struct {
 		Data []struct {
 			URL           string `json:"url"`
@@ -727,7 +894,7 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 		return failedImageMonitorMessage(result, "json_parse", "image API returned empty data")
 	}
 	first := parsed.Data[0]
-	s.updateRuntimeStatus(m.ID, "image_url", "checking returned image payload")
+	stage("image_url", "checking returned image payload")
 	result.HasURL = strings.TrimSpace(first.URL) != ""
 	result.HasB64JSON = strings.TrimSpace(first.B64JSON) != ""
 	result.RevisedPrompt = first.RevisedPrompt
@@ -735,6 +902,12 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 	if !result.HasURL {
 		if result.HasB64JSON {
 			result.ReturnedImageData = "data:image/png;base64," + first.B64JSON
+			if allowB64JSON {
+				stage("complete", "image monitor check completed")
+				result.Status = MonitorStatusOperational
+				result.Message = ""
+				return result
+			}
 			return failedImageMonitorMessage(result, "image_url", "image API returned b64_json instead of url")
 		}
 		return failedImageMonitorMessage(result, "image_url", "image API did not return an image url")
@@ -743,7 +916,7 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 		result.ImageURLHost = host
 	}
 	if m.DownloadImage {
-		s.updateRuntimeStatus(m.ID, "image_download", "downloading returned image")
+		stage("image_download", "downloading returned image")
 		if err := s.probeImageURL(ctx, first.URL, resolved, result); err != nil {
 			result.Status = MonitorStatusDegraded
 			result.ErrorStage = "image_download"
@@ -751,7 +924,7 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 			return result
 		}
 	}
-	s.updateRuntimeStatus(m.ID, "complete", "image monitor check completed")
+	stage("complete", "image monitor check completed")
 	result.Status = MonitorStatusOperational
 	result.Message = ""
 	return result
@@ -920,6 +1093,17 @@ func defaultImageMonitorSource(sourceType string) string {
 	return sourceType
 }
 
+func normalizeImageMonitorManualMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", ImageChannelMonitorManualGenerate:
+		return ImageChannelMonitorManualGenerate
+	case ImageChannelMonitorManualEdit:
+		return ImageChannelMonitorManualEdit
+	default:
+		return ""
+	}
+}
+
 func defaultString(v string, fallback string) string {
 	v = strings.TrimSpace(v)
 	if v == "" {
@@ -958,4 +1142,100 @@ func finalImageMonitorRuntimeStage(result *ImageChannelMonitorResult) string {
 		return result.Status
 	}
 	return "error"
+}
+
+type imageMonitorStageFunc func(stage, message string)
+
+func imageMonitorStageReporter(
+	result *ImageChannelMonitorResult,
+	hook imageMonitorStageFunc,
+) imageMonitorStageFunc {
+	return func(stage, message string) {
+		stage = strings.TrimSpace(stage)
+		message = strings.TrimSpace(message)
+		if result != nil && stage != "" {
+			result.StageEvents = append(result.StageEvents, ImageChannelMonitorStageEvent{
+				Stage:   stage,
+				Message: message,
+				At:      time.Now(),
+			})
+		}
+		if hook != nil {
+			hook(stage, message)
+		}
+	}
+}
+
+func decodeImageMonitorInputImage(raw string, fallbackType string) ([]byte, string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, "", ErrImageChannelMonitorMissingInputImage
+	}
+	contentType := strings.TrimSpace(fallbackType)
+	encoded := raw
+	if strings.HasPrefix(raw, "data:") {
+		comma := strings.Index(raw, ",")
+		if comma <= len("data:") {
+			return nil, "", ErrImageChannelMonitorInvalidInputImage
+		}
+		meta := raw[len("data:"):comma]
+		encoded = raw[comma+1:]
+		parts := strings.Split(meta, ";")
+		if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
+			contentType = strings.TrimSpace(parts[0])
+		}
+		if !containsImageMonitorBase64Marker(parts) {
+			return nil, "", ErrImageChannelMonitorInvalidInputImage
+		}
+	}
+	if contentType == "" {
+		contentType = "image/png"
+	}
+	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		return nil, "", ErrImageChannelMonitorInvalidInputImage
+	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, "", ErrImageChannelMonitorInvalidInputImage
+	}
+	if len(decoded) == 0 || len(decoded) > openAIImageMaxUploadPartSize {
+		return nil, "", ErrImageChannelMonitorInvalidInputImage
+	}
+	if _, _, err := image.DecodeConfig(bytes.NewReader(decoded)); err != nil {
+		return nil, "", ErrImageChannelMonitorInvalidInputImage
+	}
+	return decoded, contentType, nil
+}
+
+func containsImageMonitorBase64Marker(parts []string) bool {
+	for _, part := range parts {
+		if strings.EqualFold(strings.TrimSpace(part), "base64") {
+			return true
+		}
+	}
+	return false
+}
+
+func sanitizeImageMonitorFileName(name string) string {
+	name = strings.TrimSpace(filepath.Base(name))
+	if name == "" || name == "." {
+		return "source.png"
+	}
+	var b strings.Builder
+	for _, r := range name {
+		if r > unicode.MaxASCII || r < 32 {
+			continue
+		}
+		switch r {
+		case '"', '\\', '/', ':', '*', '?', '<', '>', '|':
+			b.WriteByte('_')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	out := strings.TrimSpace(b.String())
+	if out == "" {
+		return "source.png"
+	}
+	return out
 }

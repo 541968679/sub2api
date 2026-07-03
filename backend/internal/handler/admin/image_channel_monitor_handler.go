@@ -58,6 +58,20 @@ type imageChannelMonitorUpdateRequest struct {
 	TimeoutSeconds  *int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
 }
 
+type imageChannelMonitorManualTestRequest struct {
+	Mode           string `json:"mode" binding:"omitempty,oneof=generate edit"`
+	Model          string `json:"model" binding:"omitempty,max=200"`
+	Prompt         string `json:"prompt" binding:"omitempty,max=2000"`
+	Size           string `json:"size" binding:"omitempty,max=32"`
+	Quality        string `json:"quality" binding:"omitempty,max=32"`
+	N              int    `json:"n" binding:"omitempty,min=1,max=10"`
+	DownloadImage  *bool  `json:"download_image"`
+	TimeoutSeconds int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
+	InputImageData string `json:"input_image_data"`
+	InputImageType string `json:"input_image_type" binding:"omitempty,max=100"`
+	InputImageName string `json:"input_image_name" binding:"omitempty,max=255"`
+}
+
 type imageChannelMonitorResponse struct {
 	ID                  int64   `json:"id"`
 	Name                string  `json:"name"`
@@ -85,28 +99,41 @@ type imageChannelMonitorResponse struct {
 }
 
 type imageChannelMonitorResultResponse struct {
-	MonitorID         int64  `json:"monitor_id"`
-	Status            string `json:"status"`
-	HTTPStatus        *int   `json:"http_status"`
-	APIHeaderMs       *int   `json:"api_header_ms"`
-	APIBodyMs         *int   `json:"api_body_ms"`
-	APITotalMs        *int   `json:"api_total_ms"`
-	JSONBytes         *int   `json:"json_bytes"`
-	HasURL            bool   `json:"has_url"`
-	HasB64JSON        bool   `json:"has_b64_json"`
-	ImageURLHost      string `json:"image_url_host"`
-	ImageFirstByteMs  *int   `json:"image_first_byte_ms"`
-	ImageDownloadMs   *int   `json:"image_download_ms"`
-	ImageBytes        *int64 `json:"image_bytes"`
-	ImageContentType  string `json:"image_content_type"`
-	ImageWidth        *int   `json:"image_width"`
-	ImageHeight       *int   `json:"image_height"`
-	ErrorStage        string `json:"error_stage"`
-	Message           string `json:"message"`
-	CheckedAt         string `json:"checked_at"`
-	RevisedPrompt     string `json:"revised_prompt"`
-	ReturnedImageURL  string `json:"returned_image_url"`
-	ReturnedImageData string `json:"returned_image_data"`
+	MonitorID         int64                              `json:"monitor_id"`
+	Status            string                             `json:"status"`
+	HTTPStatus        *int                               `json:"http_status"`
+	APIHeaderMs       *int                               `json:"api_header_ms"`
+	APIBodyMs         *int                               `json:"api_body_ms"`
+	APITotalMs        *int                               `json:"api_total_ms"`
+	JSONBytes         *int                               `json:"json_bytes"`
+	HasURL            bool                               `json:"has_url"`
+	HasB64JSON        bool                               `json:"has_b64_json"`
+	ImageURLHost      string                             `json:"image_url_host"`
+	ImageFirstByteMs  *int                               `json:"image_first_byte_ms"`
+	ImageDownloadMs   *int                               `json:"image_download_ms"`
+	ImageBytes        *int64                             `json:"image_bytes"`
+	ImageContentType  string                             `json:"image_content_type"`
+	ImageWidth        *int                               `json:"image_width"`
+	ImageHeight       *int                               `json:"image_height"`
+	ErrorStage        string                             `json:"error_stage"`
+	Message           string                             `json:"message"`
+	CheckedAt         string                             `json:"checked_at"`
+	RevisedPrompt     string                             `json:"revised_prompt"`
+	ReturnedImageURL  string                             `json:"returned_image_url"`
+	ReturnedImageData string                             `json:"returned_image_data"`
+	Stages            []imageChannelMonitorStageResponse `json:"stages"`
+}
+
+type imageChannelMonitorStageResponse struct {
+	Stage   string `json:"stage"`
+	Message string `json:"message"`
+	At      string `json:"at"`
+}
+
+type imageChannelMonitorManualTestResponse struct {
+	Monitor *imageChannelMonitorResponse      `json:"monitor"`
+	Mode    string                            `json:"mode"`
+	Result  imageChannelMonitorResultResponse `json:"result"`
 }
 
 type imageChannelMonitorRuntimeStatusResponse struct {
@@ -211,7 +238,7 @@ func imageMonitorRuntimeStatusToResponse(
 }
 
 func imageMonitorResultToResponse(r *service.ImageChannelMonitorResult) imageChannelMonitorResultResponse {
-	return imageChannelMonitorResultResponse{
+	resp := imageChannelMonitorResultResponse{
 		MonitorID:         r.MonitorID,
 		Status:            r.Status,
 		HTTPStatus:        r.HTTPStatus,
@@ -235,6 +262,17 @@ func imageMonitorResultToResponse(r *service.ImageChannelMonitorResult) imageCha
 		ReturnedImageURL:  r.ReturnedImageURL,
 		ReturnedImageData: r.ReturnedImageData,
 	}
+	if len(r.StageEvents) > 0 {
+		resp.Stages = make([]imageChannelMonitorStageResponse, 0, len(r.StageEvents))
+		for _, event := range r.StageEvents {
+			resp.Stages = append(resp.Stages, imageChannelMonitorStageResponse{
+				Stage:   event.Stage,
+				Message: event.Message,
+				At:      event.At.UTC().Format(time.RFC3339),
+			})
+		}
+	}
+	return resp
 }
 
 func imageMonitorHistoryToResponse(
@@ -397,6 +435,44 @@ func (h *ImageChannelMonitorHandler) Run(c *gin.Context) {
 		return
 	}
 	response.Success(c, imageMonitorRuntimeStatusToResponse(status))
+}
+
+func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	var req imageChannelMonitorManualTestRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", err.Error()))
+		return
+	}
+	downloadImage := true
+	if req.DownloadImage != nil {
+		downloadImage = *req.DownloadImage
+	}
+	result, err := h.monitorService.RunManualCheck(c.Request.Context(), id, service.ImageChannelMonitorManualTestParams{
+		Mode:           req.Mode,
+		Model:          req.Model,
+		Prompt:         req.Prompt,
+		Size:           req.Size,
+		Quality:        req.Quality,
+		N:              req.N,
+		DownloadImage:  downloadImage,
+		TimeoutSeconds: req.TimeoutSeconds,
+		InputImageData: req.InputImageData,
+		InputImageType: req.InputImageType,
+		InputImageName: req.InputImageName,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, imageChannelMonitorManualTestResponse{
+		Monitor: imageMonitorToResponse(result.Monitor),
+		Mode:    result.Mode,
+		Result:  imageMonitorResultToResponse(result.Result),
+	})
 }
 
 func (h *ImageChannelMonitorHandler) Status(c *gin.Context) {

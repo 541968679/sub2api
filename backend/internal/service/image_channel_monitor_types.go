@@ -8,8 +8,10 @@ import (
 )
 
 const (
-	ImageChannelMonitorSourceCustom  = "custom"
-	ImageChannelMonitorSourceAccount = "account"
+	ImageChannelMonitorSourceCustom   = "custom"
+	ImageChannelMonitorSourceAccount  = "account"
+	ImageChannelMonitorManualGenerate = "generate"
+	ImageChannelMonitorManualEdit     = "edit"
 
 	imageMonitorDefaultModel           = "gpt-image-1"
 	imageMonitorDefaultPrompt          = "Generate a simple health-check image with a clean geometric shape."
@@ -58,6 +60,15 @@ var (
 	)
 	ErrImageChannelMonitorAlreadyRunning = infraerrors.Conflict(
 		"IMAGE_CHANNEL_MONITOR_ALREADY_RUNNING", "image channel monitor check is already running",
+	)
+	ErrImageChannelMonitorInvalidManualMode = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_INVALID_MANUAL_MODE", "manual test mode must be generate or edit",
+	)
+	ErrImageChannelMonitorMissingInputImage = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_MISSING_INPUT_IMAGE", "input image is required for image edit tests",
+	)
+	ErrImageChannelMonitorInvalidInputImage = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_INVALID_INPUT_IMAGE", "input image must be a valid base64 image",
 	)
 )
 
@@ -181,6 +192,33 @@ type ImageChannelMonitorResult struct {
 	RevisedPrompt     string
 	ReturnedImageURL  string
 	ReturnedImageData string
+	StageEvents       []ImageChannelMonitorStageEvent
+}
+
+type ImageChannelMonitorStageEvent struct {
+	Stage   string
+	Message string
+	At      time.Time
+}
+
+type ImageChannelMonitorManualTestParams struct {
+	Mode           string
+	Model          string
+	Prompt         string
+	Size           string
+	Quality        string
+	N              int
+	DownloadImage  bool
+	TimeoutSeconds int
+	InputImageData string
+	InputImageType string
+	InputImageName string
+}
+
+type ImageChannelMonitorManualTestResult struct {
+	Monitor *ImageChannelMonitor
+	Mode    string
+	Result  *ImageChannelMonitorResult
 }
 
 type ImageChannelMonitorRuntimeStatus struct {

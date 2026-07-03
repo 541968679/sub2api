@@ -88,6 +88,13 @@ export interface ImageChannelMonitorResult {
   revised_prompt: string
   returned_image_url: string
   returned_image_data: string
+  stages?: ImageChannelMonitorStage[]
+}
+
+export interface ImageChannelMonitorStage {
+  stage: string
+  message: string
+  at: string
 }
 
 export interface ImageChannelMonitorRuntimeStatus {
@@ -104,9 +111,29 @@ export interface ImageChannelMonitorRuntimeStatus {
 
 export type ImageChannelMonitorHistoryItem = Omit<
   ImageChannelMonitorResult,
-  'revised_prompt' | 'returned_image_url' | 'returned_image_data'
+  'revised_prompt' | 'returned_image_url' | 'returned_image_data' | 'stages'
 > & {
   id: number
+}
+
+export interface ImageChannelManualTestParams {
+  mode?: 'generate' | 'edit'
+  model?: string
+  prompt?: string
+  size?: string
+  quality?: string
+  n?: number
+  download_image?: boolean
+  timeout_seconds?: number
+  input_image_data?: string
+  input_image_type?: string
+  input_image_name?: string
+}
+
+export interface ImageChannelManualTestResponse {
+  monitor: ImageChannelMonitor
+  mode: 'generate' | 'edit'
+  result: ImageChannelMonitorResult
 }
 
 export async function list(
@@ -169,6 +196,17 @@ export async function getStatus(id: number): Promise<ImageChannelMonitorRuntimeS
   return data
 }
 
+export async function manualTest(
+  id: number,
+  params: ImageChannelManualTestParams
+): Promise<ImageChannelManualTestResponse> {
+  const { data } = await apiClient.post<ImageChannelManualTestResponse>(
+    `/admin/image-channel-monitors/${id}/manual-test`,
+    params
+  )
+  return data
+}
+
 export async function listHistory(
   id: number,
   params: { limit?: number } = {}
@@ -188,6 +226,7 @@ export const imageChannelMonitorAPI = {
   del,
   runNow,
   getStatus,
+  manualTest,
   listHistory,
 }
 

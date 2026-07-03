@@ -2730,6 +2730,12 @@ const enBase = {
       historyLoadError: 'Failed to load image monitor history',
       deleteError: 'Failed to delete image monitor',
       deleteConfirm: 'Are you sure you want to delete image monitor "{name}"? This action cannot be undone.',
+      panels: {
+        monitors: 'Channel monitoring',
+        monitorsDesc: 'Scheduled checks and persisted image-channel history',
+        manual: 'Manual testing',
+        manualDesc: 'Run ad-hoc text-to-image or image-to-image tests across selected channels'
+      },
       columns: {
         name: 'Name',
         source: 'Source',
@@ -2777,6 +2783,22 @@ const enBase = {
         square: '1024x1024 square',
         landscape: '1536x1024 landscape',
         portrait: '1024x1536 portrait'
+      },
+      manual: {
+        mode: 'Test type',
+        generate: 'Text to image',
+        edit: 'Image to image',
+        inputImage: 'Input image',
+        targets: 'Channels',
+        start: 'Start test',
+        requesting: 'Requesting upstream image API...',
+        running: 'Running',
+        done: 'Done',
+        error: 'Error',
+        failed: 'Manual image test failed',
+        imageReadError: 'Failed to read image file',
+        selectTargetsFirst: 'Select at least one channel',
+        selectImageFirst: 'Select an input image first'
       },
       status: {
         operational: 'Operational',

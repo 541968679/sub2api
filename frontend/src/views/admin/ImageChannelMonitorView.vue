@@ -2,39 +2,228 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <input
-              v-model="searchQuery"
-              type="search"
-              class="input min-w-0 sm:max-w-xs"
-              :placeholder="t('admin.imageChannelMonitor.searchPlaceholder')"
-              @input="handleSearch"
-            />
-            <select v-model="sourceFilter" class="input sm:w-44" @change="reload">
-              <option value="">{{ t('admin.imageChannelMonitor.allSources') }}</option>
-              <option value="custom">{{ t('admin.imageChannelMonitor.sourceCustom') }}</option>
-              <option value="account">{{ t('admin.imageChannelMonitor.sourceAccount') }}</option>
-            </select>
-            <select v-model="enabledFilter" class="input sm:w-40" @change="reload">
-              <option value="">{{ t('admin.imageChannelMonitor.allStatus') }}</option>
-              <option value="true">{{ t('admin.imageChannelMonitor.onlyEnabled') }}</option>
-              <option value="false">{{ t('admin.imageChannelMonitor.onlyDisabled') }}</option>
-            </select>
+        <div class="space-y-4">
+          <div class="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              class="rounded-lg border p-4 text-left transition"
+              :class="activePanel === 'monitors'
+                ? 'border-primary-500 bg-primary-50 text-primary-900 dark:border-primary-500 dark:bg-primary-900/20 dark:text-primary-100'
+                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200'"
+              @click="activePanel = 'monitors'"
+            >
+              <div class="text-sm font-semibold">{{ t('admin.imageChannelMonitor.panels.monitors') }}</div>
+              <div class="mt-1 text-xs opacity-80">{{ t('admin.imageChannelMonitor.panels.monitorsDesc') }}</div>
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border p-4 text-left transition"
+              :class="activePanel === 'manual'
+                ? 'border-primary-500 bg-primary-50 text-primary-900 dark:border-primary-500 dark:bg-primary-900/20 dark:text-primary-100'
+                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200'"
+              @click="switchPanel('manual')"
+            >
+              <div class="text-sm font-semibold">{{ t('admin.imageChannelMonitor.panels.manual') }}</div>
+              <div class="mt-1 text-xs opacity-80">{{ t('admin.imageChannelMonitor.panels.manualDesc') }}</div>
+            </button>
           </div>
-          <div class="flex items-center gap-2">
-            <button type="button" class="btn btn-secondary" :disabled="loading" @click="reload">
-              {{ t('common.refresh') }}
-            </button>
-            <button type="button" class="btn btn-primary" @click="openCreateDialog">
-              {{ t('admin.imageChannelMonitor.createButton') }}
-            </button>
+
+          <div
+            v-if="activePanel === 'monitors'"
+            class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+          >
+            <div class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                v-model="searchQuery"
+                type="search"
+                class="input min-w-0 sm:max-w-xs"
+                :placeholder="t('admin.imageChannelMonitor.searchPlaceholder')"
+                @input="handleSearch"
+              />
+              <select v-model="sourceFilter" class="input sm:w-44" @change="reload">
+                <option value="">{{ t('admin.imageChannelMonitor.allSources') }}</option>
+                <option value="custom">{{ t('admin.imageChannelMonitor.sourceCustom') }}</option>
+                <option value="account">{{ t('admin.imageChannelMonitor.sourceAccount') }}</option>
+              </select>
+              <select v-model="enabledFilter" class="input sm:w-40" @change="reload">
+                <option value="">{{ t('admin.imageChannelMonitor.allStatus') }}</option>
+                <option value="true">{{ t('admin.imageChannelMonitor.onlyEnabled') }}</option>
+                <option value="false">{{ t('admin.imageChannelMonitor.onlyDisabled') }}</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn btn-secondary" :disabled="loading" @click="reload">
+                {{ t('common.refresh') }}
+              </button>
+              <button type="button" class="btn btn-primary" @click="openCreateDialog">
+                {{ t('admin.imageChannelMonitor.createButton') }}
+              </button>
+            </div>
           </div>
         </div>
       </template>
 
       <template #table>
-        <DataTable :columns="columns" :data="monitors" :loading="loading">
+        <div v-if="activePanel === 'manual'" class="space-y-4">
+          <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <div class="grid gap-4 md:grid-cols-4">
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.mode') }}</span>
+                <select v-model="manualForm.mode" class="input">
+                  <option value="generate">{{ t('admin.imageChannelMonitor.manual.generate') }}</option>
+                  <option value="edit">{{ t('admin.imageChannelMonitor.manual.edit') }}</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.form.model') }}</span>
+                <input v-model.trim="manualForm.model" class="input" placeholder="gpt-image-1" />
+              </label>
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.form.sizeMode') }}</span>
+                <select v-model="manualForm.size_mode" class="input">
+                  <option value="omit">{{ t('admin.imageChannelMonitor.form.sizeModeOmit') }}</option>
+                  <option value="auto">{{ t('admin.imageChannelMonitor.form.sizeModeAuto') }}</option>
+                  <option value="preset">{{ t('admin.imageChannelMonitor.form.sizeModePreset') }}</option>
+                  <option value="custom">{{ t('admin.imageChannelMonitor.form.sizeModeCustom') }}</option>
+                </select>
+              </label>
+              <label v-if="manualForm.size_mode === 'preset'" class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.form.size') }}</span>
+                <select v-model="manualForm.size" class="input">
+                  <option v-for="option in standardSizeOptions" :key="option.value" :value="option.value">
+                    {{ t(option.labelKey) }}
+                  </option>
+                </select>
+              </label>
+              <label v-else-if="manualForm.size_mode === 'custom'" class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.form.customSize') }}</span>
+                <input
+                  v-model.trim="manualForm.custom_size"
+                  class="input"
+                  :placeholder="t('admin.imageChannelMonitor.form.customSizePlaceholder')"
+                />
+              </label>
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.form.quality') }}</span>
+                <input v-model.trim="manualForm.quality" class="input" placeholder="auto" />
+              </label>
+              <label class="block">
+                <span class="input-label">n</span>
+                <input v-model.number="manualForm.n" type="number" min="1" max="10" class="input" />
+              </label>
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.form.timeoutSeconds') }}</span>
+                <input v-model.number="manualForm.timeout_seconds" type="number" min="30" max="600" class="input" />
+              </label>
+            </div>
+            <label class="mt-4 block">
+              <span class="input-label">{{ t('admin.imageChannelMonitor.form.prompt') }}</span>
+              <textarea v-model.trim="manualForm.prompt" class="input min-h-[96px]" />
+            </label>
+            <div class="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px] md:items-end">
+              <label v-if="manualForm.mode === 'edit'" class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.inputImage') }}</span>
+                <input class="input" type="file" accept="image/*" @change="handleManualImageChange" />
+              </label>
+              <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-dark-200">
+                <input
+                  v-model="manualForm.download_image"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600"
+                />
+                {{ t('admin.imageChannelMonitor.form.downloadImage') }}
+              </label>
+            </div>
+          </section>
+
+          <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+                {{ t('admin.imageChannelMonitor.manual.targets') }}
+              </h2>
+              <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-secondary btn-sm" :disabled="manualTargetsLoading" @click="loadManualTargets">
+                  {{ manualTargetsLoading ? t('common.loading') : t('common.refresh') }}
+                </button>
+                <button type="button" class="btn btn-primary btn-sm" :disabled="manualRunning" @click="startManualTests">
+                  {{ manualRunning ? t('common.loading') : t('admin.imageChannelMonitor.manual.start') }}
+                </button>
+              </div>
+            </div>
+            <div class="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              <label
+                v-for="target in manualTargets"
+                :key="target.id"
+                class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm dark:border-dark-700"
+              >
+                <input
+                  v-model="manualSelectedIds"
+                  type="checkbox"
+                  class="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600"
+                  :value="target.id"
+                />
+                <span class="min-w-0">
+                  <span class="block truncate font-medium text-gray-900 dark:text-white">{{ target.name }}</span>
+                  <span class="block truncate text-xs text-gray-500 dark:text-dark-400">
+                    {{ sourceLabel(target.source_type) }} · {{ target.model }} · {{ formatSize(target.size) }}
+                  </span>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section v-if="manualResultList.length > 0" class="space-y-3">
+            <article
+              v-for="item in manualResultList"
+              :key="item.monitor.id"
+              class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+            >
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <h3 class="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                    {{ item.monitor.name }}
+                  </h3>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                    {{ manualResultStatusText(item) }}
+                  </p>
+                </div>
+                <span class="rounded-md px-2 py-0.5 text-xs font-medium" :class="manualResultBadgeClass(item)">
+                  {{ manualResultBadgeText(item) }}
+                </span>
+              </div>
+              <div v-if="item.response" class="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+                <div>
+                  <dl class="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiHeader')" :value="formatMs(item.response.result.api_header_ms)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiBody')" :value="formatMs(item.response.result.api_body_ms)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiTotal')" :value="formatMs(item.response.result.api_total_ms)" />
+                    <MetricItem :label="t('admin.imageChannelMonitor.metrics.imageDownload')" :value="formatMs(item.response.result.image_download_ms)" />
+                  </dl>
+                  <p v-if="item.response.result.message" class="mt-3 text-sm text-red-600 dark:text-red-300">
+                    {{ item.response.result.error_stage ? `${item.response.result.error_stage}: ` : '' }}{{ item.response.result.message }}
+                  </p>
+                  <div v-if="item.response.result.stages?.length" class="mt-3 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-dark-400">
+                    <span
+                      v-for="stage in item.response.result.stages"
+                      :key="`${item.monitor.id}-${stage.stage}-${stage.at}`"
+                      class="rounded bg-gray-100 px-2 py-1 dark:bg-dark-800"
+                    >
+                      {{ t(`admin.imageChannelMonitor.stages.${stage.stage}`, stage.stage) }}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  v-if="manualPreview(item)"
+                  class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800"
+                >
+                  <img :src="manualPreview(item)" class="aspect-square w-full object-contain" alt="" />
+                </div>
+              </div>
+            </article>
+          </section>
+        </div>
+
+        <DataTable v-else :columns="columns" :data="monitors" :loading="loading">
           <template #cell-name="{ row, value }">
             <div class="min-w-0">
               <div class="flex items-center gap-2">
@@ -160,7 +349,7 @@
 
       <template #pagination>
         <Pagination
-          v-if="pagination.total > 0"
+          v-if="activePanel === 'monitors' && pagination.total > 0"
           :page="pagination.page"
           :total="pagination.total"
           :page-size="pagination.page_size"
@@ -404,6 +593,7 @@ import type {
   ImageChannelMonitor,
   ImageChannelMonitorHistoryItem,
   ImageChannelMonitorListParams,
+  ImageChannelManualTestResponse,
   ImageChannelMonitorResult,
   ImageChannelMonitorRuntimeStatus,
   ImageMonitorSourceType,
@@ -428,6 +618,14 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 type ImageSizeMode = 'omit' | 'auto' | 'preset' | 'custom'
+type ImageMonitorPanel = 'monitors' | 'manual'
+
+type ManualResultItem = {
+  monitor: ImageChannelMonitor
+  state: 'running' | 'done' | 'error'
+  message: string
+  response?: ImageChannelManualTestResponse
+}
 
 const monitors = ref<ImageChannelMonitor[]>([])
 const loading = ref(false)
@@ -450,6 +648,17 @@ const proxyOptions = ref<Proxy[]>([])
 const proxiesLoading = ref(false)
 const runtimeStatuses = ref<Record<number, ImageChannelMonitorRuntimeStatus>>({})
 const nowMs = ref(Date.now())
+const activePanel = ref<ImageMonitorPanel>('monitors')
+const manualTargets = ref<ImageChannelMonitor[]>([])
+const manualTargetsLoading = ref(false)
+const manualSelectedIds = ref<number[]>([])
+const manualRunning = ref(false)
+const manualResults = ref<Record<number, ManualResultItem>>({})
+const manualInputImage = ref<{
+  data: string
+  type: string
+  name: string
+} | null>(null)
 
 let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -484,6 +693,19 @@ const form = reactive({
   timeout_seconds: 300,
 })
 
+const manualForm = reactive({
+  mode: 'generate' as 'generate' | 'edit',
+  model: 'gpt-image-1',
+  prompt: 'Generate a simple health-check image with a clean geometric shape.',
+  size_mode: 'omit' as ImageSizeMode,
+  size: defaultStandardSize,
+  custom_size: '',
+  quality: 'auto',
+  n: 1,
+  download_image: true,
+  timeout_seconds: 300,
+})
+
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('admin.imageChannelMonitor.columns.name'), sortable: false },
   { key: 'source_type', label: t('admin.imageChannelMonitor.columns.source'), sortable: false },
@@ -501,6 +723,10 @@ const lastRunPreview = computed(() => {
   if (!lastRunResult.value) return ''
   return lastRunResult.value.returned_image_url || lastRunResult.value.returned_image_data
 })
+
+const manualResultList = computed(() =>
+  Object.values(manualResults.value).sort((a, b) => a.monitor.id - b.monitor.id)
+)
 
 async function reload() {
   if (abortController) abortController.abort()
@@ -549,6 +775,30 @@ async function refreshRuntimeStatuses() {
   const ids = monitors.value.map((item) => item.id)
   if (ids.length === 0) return
   await Promise.all(ids.map((id) => refreshRuntimeStatus(id)))
+}
+
+function switchPanel(panel: ImageMonitorPanel) {
+  activePanel.value = panel
+  if (panel === 'manual') {
+    void loadManualTargets()
+  }
+}
+
+async function loadManualTargets() {
+  manualTargetsLoading.value = true
+  try {
+    const res = await adminAPI.imageChannelMonitor.list({
+      page: 1,
+      page_size: 200,
+    })
+    manualTargets.value = res.items || []
+    const available = new Set(manualTargets.value.map((item) => item.id))
+    manualSelectedIds.value = manualSelectedIds.value.filter((id) => available.has(id))
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.loadError')))
+  } finally {
+    manualTargetsLoading.value = false
+  }
 }
 
 function handleSearch() {
@@ -685,6 +935,19 @@ function resolvedPayloadSize() {
   }
 }
 
+function resolvedManualSize() {
+  switch (manualForm.size_mode) {
+    case 'auto':
+      return 'auto'
+    case 'preset':
+      return manualForm.size.trim()
+    case 'custom':
+      return manualForm.custom_size.trim()
+    default:
+      return ''
+  }
+}
+
 function buildPayload() {
   const payload = {
     name: form.name,
@@ -715,6 +978,104 @@ function buildPayload() {
     payload.proxy_id = 0
   }
   return payload
+}
+
+async function handleManualImageChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    manualInputImage.value = null
+    return
+  }
+  try {
+    manualInputImage.value = {
+      data: await readFileAsDataURL(file),
+      type: file.type || 'image/png',
+      name: file.name,
+    }
+  } catch {
+    manualInputImage.value = null
+    appStore.showError(t('admin.imageChannelMonitor.manual.imageReadError'))
+  }
+}
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+async function startManualTests() {
+  const ids = [...manualSelectedIds.value]
+  if (ids.length === 0) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.selectTargetsFirst'))
+    return
+  }
+  if (manualForm.mode === 'edit' && !manualInputImage.value?.data) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.selectImageFirst'))
+    return
+  }
+  const targetsById = new Map(manualTargets.value.map((item) => [item.id, item]))
+  const selectedTargets = ids
+    .map((id) => targetsById.get(id))
+    .filter((item): item is ImageChannelMonitor => Boolean(item))
+  if (selectedTargets.length === 0) return
+
+  manualRunning.value = true
+  manualResults.value = Object.fromEntries(
+    selectedTargets.map((target) => [
+      target.id,
+      {
+        monitor: target,
+        state: 'running',
+        message: t('admin.imageChannelMonitor.manual.requesting'),
+      } satisfies ManualResultItem,
+    ])
+  )
+
+  const payload = {
+    mode: manualForm.mode,
+    model: manualForm.model,
+    prompt: manualForm.prompt,
+    size: resolvedManualSize(),
+    quality: manualForm.quality,
+    n: manualForm.n,
+    download_image: manualForm.download_image,
+    timeout_seconds: manualForm.timeout_seconds,
+    input_image_data: manualForm.mode === 'edit' ? manualInputImage.value?.data : undefined,
+    input_image_type: manualForm.mode === 'edit' ? manualInputImage.value?.type : undefined,
+    input_image_name: manualForm.mode === 'edit' ? manualInputImage.value?.name : undefined,
+  }
+
+  await Promise.allSettled(
+    selectedTargets.map(async (target) => {
+      try {
+        const response = await adminAPI.imageChannelMonitor.manualTest(target.id, payload)
+        manualResults.value = {
+          ...manualResults.value,
+          [target.id]: {
+            monitor: response.monitor || target,
+            state: 'done',
+            message: response.result.message || '',
+            response,
+          },
+        }
+      } catch (err: unknown) {
+        manualResults.value = {
+          ...manualResults.value,
+          [target.id]: {
+            monitor: target,
+            state: 'error',
+            message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
+          },
+        }
+      }
+    })
+  )
+  manualRunning.value = false
 }
 
 async function saveMonitor() {
@@ -879,6 +1240,39 @@ function nextCheckText(row: ImageChannelMonitor) {
 function inferNextCheckAt(row: ImageChannelMonitor) {
   if (!row.last_checked_at) return ''
   return new Date(new Date(row.last_checked_at).getTime() + row.interval_seconds * 1000).toISOString()
+}
+
+function manualResultBadgeText(item: ManualResultItem) {
+  if (item.state === 'running') return t('admin.imageChannelMonitor.manual.running')
+  if (item.state === 'error') return t('admin.imageChannelMonitor.manual.error')
+  const status = item.response?.result.status
+  return status ? statusLabel(status) : t('admin.imageChannelMonitor.manual.done')
+}
+
+function manualResultBadgeClass(item: ManualResultItem) {
+  if (item.state === 'running') {
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+  }
+  if (item.state === 'error') {
+    return 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-200'
+  }
+  return statusBadgeClass(item.response?.result.status || 'error')
+}
+
+function manualResultStatusText(item: ManualResultItem) {
+  if (item.state === 'running') return item.message
+  if (item.state === 'error') return item.message
+  const result = item.response?.result
+  if (!result) return ''
+  const httpStatus = result.http_status ? `HTTP ${result.http_status}` : ''
+  const stage = result.error_stage || result.stages?.at(-1)?.stage || ''
+  const stageText = stage ? t(`admin.imageChannelMonitor.stages.${stage}`, stage) : ''
+  return [httpStatus, stageText].filter(Boolean).join(' · ')
+}
+
+function manualPreview(item: ManualResultItem) {
+  const result = item.response?.result
+  return result?.returned_image_url || result?.returned_image_data || ''
 }
 
 function formatMs(value: number | null) {

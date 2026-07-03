@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] feat: add manual image channel test panel
+
+**Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: additive fork-local image monitor tooling. It reuses existing image monitor sources and HTTP upstream/proxy/TLS resolution, but keeps ad-hoc manual checks separate from scheduler state and persisted history.
+**Change details**:
+- Added `POST /admin/image-channel-monitors/:id/manual-test` for ad-hoc image checks against an existing image monitor source.
+- Manual checks support text-to-image via `/v1/images/generations` and image-to-image via multipart `/v1/images/edits`, collect request/response/download timings, and return preview data without writing monitor history.
+- Added a top-card switch in the admin image monitor page between scheduled channel monitoring and a manual testing panel.
+- The manual panel supports configurable model/prompt/size/quality/n/timeout/download options, file upload for image-to-image, multi-channel selection, concurrent requests, per-channel status, metrics, stage list, and immediate preview as each channel finishes.
+- Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`.
+
 ## [2026-07-03] fix: align image monitor size options with OpenAI image API
 
 **Affected files**: backend/ent/schema/image_channel_monitor.go, backend/migrations/176_image_channel_monitor_size_default.sql, backend/internal/service/image_channel_monitor_*.go, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
