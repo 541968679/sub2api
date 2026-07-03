@@ -254,6 +254,9 @@ const (
 
 	// Global default model mappings (stored as JSON in settings table)
 	SettingKeyAntigravityDefaultModelMapping = "antigravity_default_model_mapping"
+	SettingKeyAnthropicDefaultModelMapping   = "anthropic_default_model_mapping"
+	SettingKeyOpenAIDefaultModelMapping      = "openai_default_model_mapping"
+	SettingKeyGeminiDefaultModelMapping      = "gemini_default_model_mapping"
 
 	// Request identity patch (Claude -> Gemini systemInstruction injection)
 	SettingKeyEnableIdentityPatch = "enable_identity_patch"

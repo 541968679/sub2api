@@ -28,6 +28,17 @@
       <div class="space-y-3 px-4 py-3">
         <div>
           <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.modelPricing.providerLabel') }}
+          </label>
+          <select v-model="form.platform" class="input w-full text-sm">
+            <option v-for="option in platformOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.modelPricing.requestedModelName') }}
           </label>
           <input
@@ -102,11 +113,13 @@ const props = defineProps<{
   originalFrom?: string
   /** edit 模式必填：原始上游名（初始化 form.to） */
   originalTo?: string
+  /** 当前映射所属平台 */
+  platform?: string
 }>()
 
 const emit = defineEmits<{
   close: []
-  saved: [payload: { mode: 'add' | 'edit' | 'delete'; from: string; to?: string }]
+  saved: [payload: { mode: 'add' | 'edit' | 'delete'; platform: string; from: string; to?: string }]
 }>()
 
 const { t } = useI18n()
@@ -114,9 +127,24 @@ const fromRef = ref<HTMLInputElement | null>(null)
 const saving = ref(false)
 const error = ref('')
 
-const form = reactive<{ from: string; to: string }>({ from: '', to: '' })
+const platformOptions = [
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Gemini' },
+  { value: 'antigravity', label: 'Antigravity' },
+]
 
-const canSave = computed(() => form.from.trim() !== '' && form.to.trim() !== '')
+const form = reactive<{ platform: string; from: string; to: string }>({ platform: 'antigravity', from: '', to: '' })
+
+const canSave = computed(() => normalizePlatform(form.platform) !== '' && form.from.trim() !== '' && form.to.trim() !== '')
+
+function normalizePlatform(platform?: string): string {
+  const value = (platform || '').trim().toLowerCase()
+  if (platformOptions.some((option) => option.value === value)) {
+    return value
+  }
+  return 'antigravity'
+}
 
 // Popover 位置
 const panelStyle = ref<{ top?: string; left?: string }>({})
@@ -141,6 +169,7 @@ function updatePosition() {
 }
 
 function resetForm() {
+  form.platform = normalizePlatform(props.platform)
   if (props.mode === 'edit') {
     form.from = props.originalFrom ?? ''
     form.to = props.originalTo ?? ''
@@ -177,18 +206,30 @@ async function handleSave() {
   if (!canSave.value) return
   const from = form.from.trim()
   const to = form.to.trim()
-  if (!from || !to) return
+  const platform = normalizePlatform(form.platform)
+  if (!platform || !from || !to) return
 
   saving.value = true
   error.value = ''
   try {
     // 整表读 → 修改 → 整表写
-    const current = await adminAPI.accounts.getAntigravityDefaultModelMapping()
+    const originalPlatform = normalizePlatform(props.platform)
+    if (props.mode === 'edit' && originalPlatform !== platform) {
+      const oldMapping = await adminAPI.accounts.getPlatformDefaultModelMapping(originalPlatform)
+      const oldNext = { ...oldMapping }
+      const origFrom = props.originalFrom ?? ''
+      if (origFrom) {
+        delete oldNext[origFrom]
+        await adminAPI.accounts.updatePlatformDefaultModelMapping(originalPlatform, oldNext)
+      }
+    }
+
+    const current = await adminAPI.accounts.getPlatformDefaultModelMapping(platform)
     const next = { ...current }
 
     if (props.mode === 'edit') {
       const origFrom = props.originalFrom ?? ''
-      if (origFrom && origFrom !== from) {
+      if (origFrom && originalPlatform === platform && origFrom !== from) {
         // 改名：先删旧键
         delete next[origFrom]
       }
@@ -196,8 +237,8 @@ async function handleSave() {
     // edit 模式下如果 add 场景下的 from 已存在，会直接覆盖旧 value——这是合理行为
     next[from] = to
 
-    await adminAPI.accounts.updateAntigravityDefaultModelMapping(next)
-    emit('saved', { mode: props.mode, from, to })
+    await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
+    emit('saved', { mode: props.mode, platform, from, to })
     emit('close')
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -214,11 +255,12 @@ async function handleDelete() {
   saving.value = true
   error.value = ''
   try {
-    const current = await adminAPI.accounts.getAntigravityDefaultModelMapping()
+    const platform = normalizePlatform(props.platform)
+    const current = await adminAPI.accounts.getPlatformDefaultModelMapping(platform)
     const next = { ...current }
     delete next[origFrom]
-    await adminAPI.accounts.updateAntigravityDefaultModelMapping(next)
-    emit('saved', { mode: 'delete', from: origFrom })
+    await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
+    emit('saved', { mode: 'delete', platform, from: origFrom })
     emit('close')
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

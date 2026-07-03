@@ -51,7 +51,7 @@ type ModelPricingListItem struct {
 	BillingBasisHint     *BillingBasisHint `json:"billing_basis_hint,omitempty"`
 }
 
-// BillingBasisHint 说明此模型在平台级模型映射（当前仅 Antigravity 默认映射）中
+// BillingBasisHint 说明此模型在平台级模型映射中
 // 扮演的角色。对应"模型名三元组"（客户端请求名 / 上游名 / 计费名）中的前两维。
 //
 // Type 取值：
@@ -64,6 +64,7 @@ type ModelPricingListItem struct {
 // upstream_only 情况下可能多对一（多个请求名映射到同一个上游名），前端按首个 + "+N" 呈现，
 // tooltip 展开全部 RelatedModels。
 type BillingBasisHint struct {
+	Platform      string   `json:"platform,omitempty"`
 	Type          string   `json:"type"`
 	RelatedModels []string `json:"related_models,omitempty"`
 }
@@ -223,26 +224,40 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		items = append(items, item)
 	}
 
-	// 补全 Antigravity 可用模型：有些模型（如 gemini-3-pro-high、tab_flash_lite_preview）
-	// 只存在于 DefaultAntigravityModelMapping 里，LiteLLM 和全局覆盖都没有。为了让
-	// provider=antigravity 过滤时这些模型能被用户看到并管理定价，补一条 stub。
-	antigravityMapping := domain.ResolveAntigravityDefaultMapping()
-	for requestModel := range antigravityMapping {
-		modelLower := strings.ToLower(requestModel)
-		if modelSet[modelLower] {
+	defaultMappings := platformDefaultModelMappings()
+	providerLower := normalizeDefaultMappingProvider(provider)
+
+	// 补全平台默认映射里的可用模型：有些模型只存在于平台映射里，LiteLLM 和全局覆盖
+	// 都没有。为了让对应 provider 过滤时这些模型能被用户看到并管理定价，补一条 stub。
+	for _, platform := range defaultMappingPlatformsForList(providerLower) {
+		mapping := defaultMappings[platform]
+		if len(mapping) == 0 {
 			continue
 		}
-		modelSet[modelLower] = true
-		items = append(items, ModelPricingListItem{
-			Model:                requestModel,
-			Provider:             "antigravity",
-			ChannelOverrideCount: channelOverrideCounts[modelLower],
-			UserOverrideCount:    userOverrideCounts[modelLower],
-			EffectiveSource:      PricingSourceFallback,
-		})
+		for requestModel := range mapping {
+			modelLower := strings.ToLower(requestModel)
+			if modelSet[modelLower] {
+				continue
+			}
+			modelSet[modelLower] = true
+			items = append(items, ModelPricingListItem{
+				Model:                requestModel,
+				Provider:             platform,
+				ChannelOverrideCount: channelOverrideCounts[modelLower],
+				UserOverrideCount:    userOverrideCounts[modelLower],
+				EffectiveSource:      PricingSourceFallback,
+			})
+		}
 	}
 
-	// 基于 Antigravity 默认映射构造三分法徽标索引。徽标含义是"此模型名在平台级
+	hintPlatform := providerLower
+	if hintPlatform == "" {
+		// 未筛选时保留历史行为：列表优先解释 Antigravity 默认映射。
+		hintPlatform = PlatformAntigravity
+	}
+	hintMapping := defaultMappings[hintPlatform]
+
+	// 基于当前供应商默认映射构造三分法徽标索引。徽标含义是"此模型名在平台级
 	// 模型映射里扮演的角色"，对应用户心智模型中的"客户端请求名 / 上游名"二元组
 	// （计费名由顶部 banner 统一解释）。
 	//
@@ -255,34 +270,7 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 	// （如 claude-opus-4-5-thinking / claude-opus-4-5-20251101 / claude-opus-4-6
 	// 都映射到 claude-opus-4-6-thinking）。upstream_only 徽标的 RelatedModels
 	// 收集所有映射源请求名，保持字典序稳定。
-	type hintBucket struct {
-		sameName           bool
-		upstreamFromList   []string // 若非空：此模型是 value，收集所有来源 key
-		requestedTargetKey string   // 若非空：此模型是 key，映射到该 value
-	}
-	hintIndex := make(map[string]*hintBucket, len(antigravityMapping))
-	getBucket := func(lower string) *hintBucket {
-		b := hintIndex[lower]
-		if b == nil {
-			b = &hintBucket{}
-			hintIndex[lower] = b
-		}
-		return b
-	}
-	for k, v := range antigravityMapping {
-		kl := strings.ToLower(k)
-		vl := strings.ToLower(v)
-		if kl == vl {
-			getBucket(kl).sameName = true
-			continue
-		}
-		// key != value
-		if getBucket(kl).requestedTargetKey == "" {
-			getBucket(kl).requestedTargetKey = v
-		}
-		b := getBucket(vl)
-		b.upstreamFromList = append(b.upstreamFromList, k)
-	}
+	hintIndex := buildBillingHintIndex(hintMapping)
 	// 稳定排序 upstreamFromList，避免 map 遍历顺序导致前端展示跳动
 	for _, b := range hintIndex {
 		if len(b.upstreamFromList) > 1 {
@@ -301,18 +289,20 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 			// （真实的 Antigravity 默认映射几乎总是这种情况，例如
 			// `claude-opus-4-6-thinking` 既有同名自映射也是 claude-opus-4-6 的目标），
 			// 用 RelatedModels 额外承载"被哪些请求名映射到"，前端展示 +N 提示。
-			hint := &BillingBasisHint{Type: BillingHintRequestedEqualsUpstream}
+			hint := &BillingBasisHint{Platform: hintPlatform, Type: BillingHintRequestedEqualsUpstream}
 			if len(b.upstreamFromList) > 0 {
 				hint.RelatedModels = b.upstreamFromList
 			}
 			items[i].BillingBasisHint = hint
 		case len(b.upstreamFromList) > 0:
 			items[i].BillingBasisHint = &BillingBasisHint{
+				Platform:      hintPlatform,
 				Type:          BillingHintUpstreamOnly,
 				RelatedModels: b.upstreamFromList,
 			}
 		case b.requestedTargetKey != "":
 			items[i].BillingBasisHint = &BillingBasisHint{
+				Platform:      hintPlatform,
 				Type:          BillingHintRequestedOnly,
 				RelatedModels: []string{b.requestedTargetKey},
 			}
@@ -646,23 +636,91 @@ func (s *GlobalModelPricingService) GetRateMultiplierOverview(ctx context.Contex
 
 // --- 内部辅助方法 ---
 
+type hintBucket struct {
+	sameName           bool
+	upstreamFromList   []string // 若非空：此模型是 value，收集所有来源 key
+	requestedTargetKey string   // 若非空：此模型是 key，映射到该 value
+}
+
+func defaultMappingPlatforms() []string {
+	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity}
+}
+
+func normalizeDefaultMappingProvider(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case PlatformAnthropic:
+		return PlatformAnthropic
+	case PlatformOpenAI:
+		return PlatformOpenAI
+	case PlatformGemini:
+		return PlatformGemini
+	case PlatformAntigravity:
+		return PlatformAntigravity
+	default:
+		return ""
+	}
+}
+
+func defaultMappingPlatformsForList(provider string) []string {
+	if provider != "" {
+		return []string{provider}
+	}
+	return defaultMappingPlatforms()
+}
+
+func platformDefaultModelMappings() map[string]map[string]string {
+	result := make(map[string]map[string]string, len(defaultMappingPlatforms()))
+	for _, platform := range defaultMappingPlatforms() {
+		if mapping := domain.ResolvePlatformDefaultModelMapping(platform); len(mapping) > 0 {
+			result[platform] = mapping
+		}
+	}
+	return result
+}
+
+func buildBillingHintIndex(mapping map[string]string) map[string]*hintBucket {
+	hintIndex := make(map[string]*hintBucket, len(mapping))
+	getBucket := func(lower string) *hintBucket {
+		b := hintIndex[lower]
+		if b == nil {
+			b = &hintBucket{}
+			hintIndex[lower] = b
+		}
+		return b
+	}
+	for k, v := range mapping {
+		kl := strings.ToLower(k)
+		vl := strings.ToLower(v)
+		if kl == vl {
+			getBucket(kl).sameName = true
+			continue
+		}
+		if getBucket(kl).requestedTargetKey == "" {
+			getBucket(kl).requestedTargetKey = v
+		}
+		b := getBucket(vl)
+		b.upstreamFromList = append(b.upstreamFromList, k)
+	}
+	return hintIndex
+}
+
 func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, search, provider, source string) []ModelPricingListItem {
 	if search == "" && provider == "" && source == "" {
 		return items
 	}
 
 	searchLower := strings.ToLower(search)
-	providerLower := strings.ToLower(provider)
+	providerLower := normalizeDefaultMappingProvider(provider)
 
-	// Antigravity 过滤走"模型名是否在 DefaultAntigravityModelMapping 的 key 集合里"，
-	// 因为 Antigravity 平台复用底层模型（provider 实际是 anthropic/gemini/vertex_ai），
-	// 只比较 provider 字段会漏掉大部分可用模型。
-	var antigravityModelSet map[string]bool
-	if providerLower == "antigravity" {
-		mapping := domain.ResolveAntigravityDefaultMapping()
-		antigravityModelSet = make(map[string]bool, len(mapping))
+	// 平台默认映射过滤走"模型名是否在该平台默认映射 key 集合里"。Antigravity 平台
+	// 复用底层模型（provider 实际是 anthropic/gemini/vertex_ai），OpenAI 桥接映射也
+	// 可能使用 Claude 请求名，只比较 provider 字段会漏掉可调度模型。
+	var platformDefaultModelSet map[string]bool
+	if providerLower != "" {
+		mapping := domain.ResolvePlatformDefaultModelMapping(providerLower)
+		platformDefaultModelSet = make(map[string]bool, len(mapping))
 		for k := range mapping {
-			antigravityModelSet[strings.ToLower(k)] = true
+			platformDefaultModelSet[strings.ToLower(k)] = true
 		}
 	}
 
@@ -671,7 +729,7 @@ func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, se
 		if searchLower != "" && !strings.Contains(strings.ToLower(item.Model), searchLower) {
 			continue
 		}
-		if providerLower != "" && !providerMatches(item, providerLower, antigravityModelSet) {
+		if providerLower != "" && !providerMatches(item, providerLower, platformDefaultModelSet) {
 			continue
 		}
 		if source != "" {
@@ -700,11 +758,14 @@ func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, se
 }
 
 // providerMatches 判断单条目是否命中 provider 筛选，处理 LiteLLM 的各种子分类别名。
-// 前端下拉传入的是统一的大类名（anthropic/openai/gemini/antigravity），而 LiteLLM JSON
+// 前端传入的是统一的大类名（anthropic/openai/gemini/antigravity），而 LiteLLM JSON
 // 里实际值会带后缀（如 vertex_ai-language-models、text-completion-openai），严格相等
-// 匹配会漏掉大量模型。Antigravity 特殊处理：按模型名命中 Antigravity 默认映射即算匹配。
-func providerMatches(item ModelPricingListItem, providerLower string, antigravityModelSet map[string]bool) bool {
+// 匹配会漏掉大量模型。平台默认映射命中时也算匹配，保证映射模型在对应供应商下可见。
+func providerMatches(item ModelPricingListItem, providerLower string, platformDefaultModelSet map[string]bool) bool {
 	itemProvider := strings.ToLower(item.Provider)
+	if platformDefaultModelSet != nil && platformDefaultModelSet[strings.ToLower(item.Model)] {
+		return true
+	}
 	switch providerLower {
 	case "gemini":
 		// LiteLLM 里 Gemini 家族的实际 provider：gemini、vertex_ai-language-models、
@@ -714,14 +775,7 @@ func providerMatches(item ModelPricingListItem, providerLower string, antigravit
 		// text-completion-openai 是老版本 completion 接口，也应归入 OpenAI 大类。
 		return itemProvider == "openai" || itemProvider == "text-completion-openai"
 	case "antigravity":
-		// 显式覆盖写的 provider=antigravity，或模型名在 Antigravity 默认映射里。
-		if itemProvider == "antigravity" {
-			return true
-		}
-		if antigravityModelSet != nil && antigravityModelSet[strings.ToLower(item.Model)] {
-			return true
-		}
-		return false
+		return itemProvider == "antigravity"
 	default:
 		return itemProvider == providerLower
 	}

@@ -33,6 +33,7 @@ would not hide a distinct GPT upstream model.
 | 实体/字段 | 位置 | 说明 |
 |-----------|------|------|
 | model_mapping (JSONB) | `account.credentials["model_mapping"]` | `{ "请求模型": "上游模型" }` 键值对 |
+| *_default_model_mapping | Settings KV | 平台级默认映射，当前支持 anthropic/openai/gemini/antigravity |
 | DefaultAntigravityModelMapping | `backend/internal/domain/constants.go:72-115` | Antigravity 平台内置默认映射 |
 | DefaultBedrockModelMapping | `backend/internal/domain/constants.go:121-139` | Bedrock 平台内置默认映射 |
 
@@ -55,8 +56,11 @@ would not hide a distinct GPT upstream model.
 |------|------|------|
 | **Domain** | `backend/internal/domain/constants.go` | DefaultAntigravityModelMapping, DefaultBedrockModelMapping |
 | **Service** | `backend/internal/service/account.go:392-600` | GetModelMapping(), GetMappedModel(), IsModelSupported() |
+| **Service** | `backend/internal/service/setting_service.go` | 平台级默认映射 Settings KV 读写 |
 | **Service** | `backend/internal/service/antigravity_gateway_service.go:959-992` | mapAntigravityModel() — 严格白名单模式 |
 | **Service** | `backend/internal/service/gateway_service.go:8065-8071` | resolveAccountUpstreamModel() — 按平台分发 |
+| **Handler** | `backend/internal/handler/admin/account_handler.go` | 默认映射管理 API |
+| **Frontend Component** | `frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue` | 模型配置页新增/编辑平台级默认映射 |
 | **Frontend Composable** | `frontend/src/composables/useModelWhitelist.ts` | 模型列表、预设映射、buildModelMappingObject() |
 | **Frontend Component** | `frontend/src/components/account/CreateAccountModal.vue` | 创建时的模型配置 UI |
 | **Frontend Component** | `frontend/src/components/account/EditAccountModal.vue` | 编辑时的模型配置 UI |
@@ -93,6 +97,22 @@ CreateAccountModal.vue / EditAccountModal.vue
   → POST/PUT /api/v1/admin/accounts → 保存到 DB
 ```
 
+### 管理员配置平台级默认映射
+
+```
+ModelPricingTab.vue
+  → 新增/编辑映射时选择供应商
+  → ModelMappingInlinePopover.vue
+  → GET/PUT /api/v1/admin/accounts/default-model-mapping/:platform
+  → setting_service.go 写入对应 Settings KV
+  → account.ResolveMappedModel() 调度时读取平台默认映射
+```
+
+- 支持平台：`anthropic`、`openai`、`gemini`、`antigravity`
+- Antigravity 仍保留内置严格白名单，运行时会合并管理员覆盖映射。
+- OpenAI/Anthropic/Gemini 的平台默认映射只负责把已配置请求模型改写到上游模型；未配置模型继续按兼容平台透传，不会因为存在默认映射而变成全局白名单。
+- 当账号自身 `credentials.model_mapping` 没命中时，非 Antigravity 账号会继续尝试平台级默认映射，确保在模型配置页新增的供应商映射能参与账号调度和请求改写。
+
 ### 默认映射回退链
 
 ```
@@ -101,6 +121,11 @@ account.GetModelMapping():
   2. Antigravity 平台 → DefaultAntigravityModelMapping
   3. Bedrock 平台 → DefaultBedrockModelMapping
   4. 其他平台 → nil（无映射，透传）
+
+account.ResolveMappedModel():
+  1. credentials["model_mapping"] 命中 → 使用账号级映射
+  2. 非 Antigravity 账号未命中 → 尝试平台级默认映射
+  3. 仍未命中 → 透传原模型名
 ```
 
 ## 重要机制
@@ -108,6 +133,7 @@ account.GetModelMapping():
 | 机制 | 说明 | 相关文件 |
 |------|------|---------|
 | 映射缓存 | GetModelMapping() 基于 credentials 指针 + FNV64a 哈希缓存，避免重复 JSON 解析 | `account.go:392-423` |
+| 平台级默认映射 | 管理员可在模型配置页为 anthropic/openai/gemini/antigravity 配置默认映射 | `setting_service.go`, `account_handler.go`, `ModelMappingInlinePopover.vue` |
 | 通配符匹配 | `*` 只能在末尾，如 `claude-*` 匹配 `claude-opus-4-5` | `account.go:571-600` |
 | Antigravity 严格模式 | 不在映射中的模型返回空字符串，账号被排除调度 | `antigravity_gateway_service.go:959-992` |
 | Bedrock 区域前缀 | `us.anthropic.claude-*` 中的 `us.` 会根据 aws_region 动态替换 | `domain/constants.go:121-139` |

@@ -4,6 +4,8 @@ package service
 
 import (
 	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 func TestMatchWildcard(t *testing.T) {
@@ -407,6 +409,51 @@ func TestAccountResolveMappedModel(t *testing.T) {
 				t.Fatalf("ResolveMappedModel(%q) = (%q, %v), want (%q, %v)", tt.requestedModel, mappedModel, matched, tt.expectedModel, tt.expectedMatch)
 			}
 		})
+	}
+}
+
+func TestAccountPlatformDefaultModelMapping(t *testing.T) {
+	previousPlatformOverride := domain.GetPlatformDefaultMappingOverride
+	previousAntigravityOverride := domain.GetAntigravityDefaultMappingOverride
+	t.Cleanup(func() {
+		domain.GetPlatformDefaultMappingOverride = previousPlatformOverride
+		domain.GetAntigravityDefaultMappingOverride = previousAntigravityOverride
+	})
+
+	domain.GetAntigravityDefaultMappingOverride = nil
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		switch platform {
+		case PlatformOpenAI:
+			return map[string]string{"claude-opus-4-8": "gpt-5.5"}
+		case PlatformGemini:
+			return map[string]string{"gemini-3.1-pro-preview": "gemini-3.1-pro-high"}
+		default:
+			return nil
+		}
+	}
+
+	openAIAccount := &Account{Platform: PlatformOpenAI}
+	if got := openAIAccount.GetMappedModel("claude-opus-4-8"); got != "gpt-5.5" {
+		t.Fatalf("OpenAI default mapping GetMappedModel() = %q, want %q", got, "gpt-5.5")
+	}
+	if !openAIAccount.IsModelSupported("claude-opus-4-8") {
+		t.Fatalf("OpenAI default mapping should make mapped request model schedulable")
+	}
+	if !openAIAccount.IsModelSupported("custom-openai-compatible-model") {
+		t.Fatalf("OpenAI default mapping must not become a restrictive allowlist for unmatched models")
+	}
+
+	geminiAccount := &Account{Platform: PlatformGemini}
+	if got := geminiAccount.GetMappedModel("gemini-3.1-pro-preview-customtools"); got != "gemini-3.1-pro-high" {
+		t.Fatalf("Gemini default mapping GetMappedModel() = %q, want %q", got, "gemini-3.1-pro-high")
+	}
+	if !geminiAccount.IsModelSupported("gemini-unmapped-custom") {
+		t.Fatalf("Gemini default mapping must not reject unmatched models")
+	}
+
+	antigravityAccount := &Account{Platform: PlatformAntigravity}
+	if antigravityAccount.IsModelSupported("not-in-antigravity-defaults") {
+		t.Fatalf("Antigravity default mapping should remain a strict allowlist")
 	}
 }
 

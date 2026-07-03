@@ -230,10 +230,10 @@
                   @click="deleteMapping(row)"
                   class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   :title="t('admin.modelPricing.deleteMapping')"
-                  :disabled="deletingMappingFrom === row.item.model"
+                  :disabled="deletingMappingFrom === rowMappingPlatform(row) + ':' + row.item.model"
                 >
                   <span
-                    v-if="deletingMappingFrom === row.item.model"
+                    v-if="deletingMappingFrom === rowMappingPlatform(row) + ':' + row.item.model"
                     class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
                   ></span>
                   <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
@@ -326,6 +326,7 @@
       :show="mappingPopoverState.show"
       :anchor="mappingPopoverState.anchor"
       :mode="mappingPopoverState.mode"
+      :platform="mappingPopoverState.platform"
       :original-from="mappingPopoverState.originalFrom"
       :original-to="mappingPopoverState.originalTo"
       @close="closeMappingPopover"
@@ -458,6 +459,7 @@ interface MappingPopoverState {
   show: boolean
   anchor: HTMLElement | null
   mode: 'add' | 'edit'
+  platform: string
   originalFrom: string
   originalTo: string
 }
@@ -465,14 +467,28 @@ const mappingPopoverState = reactive<MappingPopoverState>({
   show: false,
   anchor: null,
   mode: 'add',
+  platform: 'antigravity',
   originalFrom: '',
   originalTo: '',
 })
+
+function normalizeMappingPlatform(platform?: string): string {
+  const value = (platform || '').trim().toLowerCase()
+  if (['anthropic', 'openai', 'gemini', 'antigravity'].includes(value)) {
+    return value
+  }
+  return 'antigravity'
+}
+
+function rowMappingPlatform(row?: RowDisplay): string {
+  return normalizeMappingPlatform(providerFilter.value || row?.item.billing_basis_hint?.platform || row?.item.provider)
+}
 
 function openAddMapping() {
   mappingPopoverState.show = true
   mappingPopoverState.anchor = addMappingAnchor.value
   mappingPopoverState.mode = 'add'
+  mappingPopoverState.platform = normalizeMappingPlatform(providerFilter.value)
   mappingPopoverState.originalFrom = ''
   mappingPopoverState.originalTo = ''
 }
@@ -483,6 +499,7 @@ function openEditMapping(event: MouseEvent, row: RowDisplay) {
   mappingPopoverState.show = true
   mappingPopoverState.anchor = target
   mappingPopoverState.mode = 'edit'
+  mappingPopoverState.platform = rowMappingPlatform(row)
   mappingPopoverState.originalFrom = row.item.model
   // 对 requested_only 类型，row.upstreamDisplay 就是映射目标；
   // 对 requested_equals_upstream，上游名 == 模型本身（同名映射的 value）
@@ -494,22 +511,23 @@ function closeMappingPopover() {
   mappingPopoverState.anchor = null
 }
 
-function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; from: string; to?: string }) {
+function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; platform: string; from: string; to?: string }) {
   // 映射变化会影响所有徽标和 related_models，必须整表 reload
   loadData()
 }
 
 async function deleteMapping(row: RowDisplay) {
   const from = row.item.model
+  const platform = rowMappingPlatform(row)
   if (!from) return
   if (!confirm(t('admin.modelPricing.confirmDeleteMapping', { from }))) return
 
-  deletingMappingFrom.value = from
+  deletingMappingFrom.value = `${platform}:${from}`
   try {
-    const current = await adminAPI.accounts.getAntigravityDefaultModelMapping()
+    const current = await adminAPI.accounts.getPlatformDefaultModelMapping(platform)
     const next = { ...current }
     delete next[from]
-    await adminAPI.accounts.updateAntigravityDefaultModelMapping(next)
+    await adminAPI.accounts.updatePlatformDefaultModelMapping(platform, next)
     appStore.showSuccess(t('admin.modelConfig.saved'))
     await loadData()
   } catch {
