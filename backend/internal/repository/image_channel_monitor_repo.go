@@ -30,6 +30,7 @@ func (r *imageChannelMonitorRepository) Create(ctx context.Context, m *service.I
 		SetEndpoint(m.Endpoint).
 		SetAPIKeyEncrypted(m.APIKey).
 		SetAccountName(m.AccountName).
+		SetProxyName(m.ProxyName).
 		SetModel(m.Model).
 		SetPrompt(m.Prompt).
 		SetSize(m.Size).
@@ -42,6 +43,9 @@ func (r *imageChannelMonitorRepository) Create(ctx context.Context, m *service.I
 		SetCreatedBy(m.CreatedBy)
 	if m.AccountID != nil {
 		builder = builder.SetAccountID(*m.AccountID)
+	}
+	if m.ProxyID != nil {
+		builder = builder.SetProxyID(*m.ProxyID)
 	}
 	created, err := builder.Save(ctx)
 	if err != nil {
@@ -72,6 +76,7 @@ func (r *imageChannelMonitorRepository) Update(ctx context.Context, m *service.I
 		SetEndpoint(m.Endpoint).
 		SetAPIKeyEncrypted(m.APIKey).
 		SetAccountName(m.AccountName).
+		SetProxyName(m.ProxyName).
 		SetModel(m.Model).
 		SetPrompt(m.Prompt).
 		SetSize(m.Size).
@@ -85,6 +90,11 @@ func (r *imageChannelMonitorRepository) Update(ctx context.Context, m *service.I
 		updater = updater.SetAccountID(*m.AccountID)
 	} else {
 		updater = updater.ClearAccountID()
+	}
+	if m.ProxyID != nil {
+		updater = updater.SetProxyID(*m.ProxyID)
+	} else {
+		updater = updater.ClearProxyID()
 	}
 	updated, err := updater.Save(ctx)
 	if err != nil {
@@ -270,6 +280,8 @@ func entToServiceImageMonitor(row *dbent.ImageChannelMonitor) *service.ImageChan
 		APIKey:          row.APIKeyEncrypted,
 		AccountID:       row.AccountID,
 		AccountName:     row.AccountName,
+		ProxyID:         row.ProxyID,
+		ProxyName:       row.ProxyName,
 		Model:           row.Model,
 		Prompt:          row.Prompt,
 		Size:            row.Size,

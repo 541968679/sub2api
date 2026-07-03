@@ -700,6 +700,7 @@ func registerImageChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handle
 		monitors.PUT("/:id", h.Admin.ImageChannelMonitor.Update)
 		monitors.DELETE("/:id", h.Admin.ImageChannelMonitor.Delete)
 		monitors.POST("/:id/run", h.Admin.ImageChannelMonitor.Run)
+		monitors.GET("/:id/status", h.Admin.ImageChannelMonitor.Status)
 		monitors.GET("/:id/history", h.Admin.ImageChannelMonitor.History)
 	}
 }

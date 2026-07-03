@@ -12,6 +12,8 @@ export interface ImageChannelMonitor {
   api_key_decrypt_failed?: boolean
   account_id: number | null
   account_name: string
+  proxy_id: number | null
+  proxy_name: string
   model: string
   prompt: string
   size: string
@@ -49,6 +51,7 @@ export interface ImageChannelMonitorCreateParams {
   endpoint?: string
   api_key?: string
   account_id?: number | null
+  proxy_id?: number | null
   model?: string
   prompt?: string
   size?: string
@@ -85,6 +88,18 @@ export interface ImageChannelMonitorResult {
   revised_prompt: string
   returned_image_url: string
   returned_image_data: string
+}
+
+export interface ImageChannelMonitorRuntimeStatus {
+  monitor_id: number
+  running: boolean
+  stage: string
+  message: string
+  started_at: string | null
+  updated_at: string | null
+  completed_at: string | null
+  next_check_at: string | null
+  seconds_until_next_check: number | null
 }
 
 export type ImageChannelMonitorHistoryItem = Omit<
@@ -140,9 +155,16 @@ export async function del(id: number): Promise<void> {
   await apiClient.delete(`/admin/image-channel-monitors/${id}`)
 }
 
-export async function runNow(id: number): Promise<ImageChannelMonitorResult> {
-  const { data } = await apiClient.post<ImageChannelMonitorResult>(
+export async function runNow(id: number): Promise<ImageChannelMonitorRuntimeStatus> {
+  const { data } = await apiClient.post<ImageChannelMonitorRuntimeStatus>(
     `/admin/image-channel-monitors/${id}/run`
+  )
+  return data
+}
+
+export async function getStatus(id: number): Promise<ImageChannelMonitorRuntimeStatus> {
+  const { data } = await apiClient.get<ImageChannelMonitorRuntimeStatus>(
+    `/admin/image-channel-monitors/${id}/status`
   )
   return data
 }
@@ -165,6 +187,7 @@ export const imageChannelMonitorAPI = {
   update,
   del,
   runNow,
+  getStatus,
   listHistory,
 }
 

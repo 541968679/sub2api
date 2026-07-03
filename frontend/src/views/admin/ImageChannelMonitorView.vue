@@ -49,6 +49,29 @@
               <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
                 {{ row.prompt }}
               </div>
+              <div
+                class="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs dark:bg-dark-800"
+              >
+                <span
+                  class="inline-flex rounded px-1.5 py-0.5 font-medium"
+                  :class="runtimeBadgeClass(row)"
+                >
+                  {{ runtimeStateLabel(row) }}
+                </span>
+                <span class="text-gray-700 dark:text-dark-200">
+                  {{ runtimeStageText(row) }}
+                </span>
+                <span
+                  v-if="runtimeMessage(row)"
+                  class="max-w-[320px] truncate text-gray-500 dark:text-dark-400"
+                  :title="runtimeMessage(row)"
+                >
+                  {{ runtimeMessage(row) }}
+                </span>
+                <span class="ml-auto text-gray-500 dark:text-dark-400">
+                  {{ nextCheckText(row) }}
+                </span>
+              </div>
             </div>
           </template>
 
@@ -62,6 +85,13 @@
               </span>
               <div class="text-xs text-gray-500 dark:text-dark-400">
                 {{ row.source_type === 'account' ? row.account_name || `#${row.account_id}` : row.endpoint }}
+              </div>
+              <div
+                v-if="row.source_type === 'custom' && row.proxy_id"
+                class="text-xs text-gray-500 dark:text-dark-400"
+              >
+                {{ t('admin.imageChannelMonitor.form.proxy') }}:
+                {{ row.proxy_name || `#${row.proxy_id}` }}
               </div>
             </div>
           </template>
@@ -191,7 +221,7 @@
           </label>
         </div>
 
-        <div v-if="form.source_type === 'custom'" class="grid gap-4 md:grid-cols-2">
+        <div v-if="form.source_type === 'custom'" class="grid gap-4 md:grid-cols-3">
           <label class="block">
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.endpoint') }}</span>
             <input v-model.trim="form.endpoint" class="input" placeholder="https://api.openai.com" required />
@@ -205,6 +235,15 @@
               :placeholder="editing ? t('admin.imageChannelMonitor.form.apiKeyEditPlaceholder') : ''"
               :required="!editing"
             />
+          </label>
+          <label class="block">
+            <span class="input-label">{{ t('admin.imageChannelMonitor.form.proxy') }}</span>
+            <select v-model.number="form.proxy_id" class="input" :disabled="proxiesLoading">
+              <option :value="0">{{ t('admin.imageChannelMonitor.form.noProxy') }}</option>
+              <option v-for="proxy in proxyOptions" :key="proxy.id" :value="proxy.id">
+                {{ proxy.name }} ({{ proxy.protocol }}://{{ proxy.host }}:{{ proxy.port }})
+              </option>
+            </select>
           </label>
         </div>
 
@@ -230,7 +269,11 @@
           </label>
           <label class="block">
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.size') }}</span>
-            <input v-model.trim="form.size" class="input" placeholder="1024x1024" />
+            <select v-model="form.size" class="input">
+              <option v-for="option in sizeOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
           </label>
           <label class="block">
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.quality') }}</span>
@@ -338,13 +381,14 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import type { Account } from '@/types'
+import type { Account, Proxy } from '@/types'
 import type { Column } from '@/components/common/types'
 import type {
   ImageChannelMonitor,
   ImageChannelMonitorHistoryItem,
   ImageChannelMonitorListParams,
   ImageChannelMonitorResult,
+  ImageChannelMonitorRuntimeStatus,
   ImageMonitorSourceType,
   ImageMonitorStatus,
 } from '@/api/admin/imageChannelMonitor'
@@ -383,9 +427,21 @@ const showHistoryDialog = ref(false)
 const historyItems = ref<ImageChannelMonitorHistoryItem[]>([])
 const accountOptions = ref<Account[]>([])
 const accountsLoading = ref(false)
+const proxyOptions = ref<Proxy[]>([])
+const proxiesLoading = ref(false)
+const runtimeStatuses = ref<Record<number, ImageChannelMonitorRuntimeStatus>>({})
+const nowMs = ref(Date.now())
 
 let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
+let statusPollTimer: number | null = null
+let clockTimer: number | null = null
+
+const sizeOptions = [
+  { label: '1K (1024x1024)', value: '1024x1024' },
+  { label: '2K (2048x2048)', value: '2048x2048' },
+  { label: '4K (4096x4096)', value: '4096x4096' },
+]
 
 const form = reactive({
   name: '',
@@ -393,6 +449,7 @@ const form = reactive({
   endpoint: 'https://api.openai.com',
   api_key: '',
   account_id: null as number | null,
+  proxy_id: 0,
   model: 'gpt-image-1',
   prompt: 'Generate a simple health-check image with a clean geometric shape.',
   size: '1024x1024',
@@ -440,6 +497,7 @@ async function reload() {
     if (ctrl.signal.aborted || abortController !== ctrl) return
     monitors.value = res.items || []
     pagination.total = res.total
+    void refreshRuntimeStatuses()
   } catch (err: unknown) {
     const e = err as { name?: string; code?: string }
     if (e?.name === 'AbortError' || e?.code === 'ERR_CANCELED') return
@@ -450,6 +508,24 @@ async function reload() {
       abortController = null
     }
   }
+}
+
+async function refreshRuntimeStatus(id: number) {
+  try {
+    const status = await adminAPI.imageChannelMonitor.getStatus(id)
+    runtimeStatuses.value = {
+      ...runtimeStatuses.value,
+      [id]: status,
+    }
+  } catch {
+    // Runtime status is best-effort; the main list/history APIs still carry persisted results.
+  }
+}
+
+async function refreshRuntimeStatuses() {
+  const ids = monitors.value.map((item) => item.id)
+  if (ids.length === 0) return
+  await Promise.all(ids.map((id) => refreshRuntimeStatus(id)))
 }
 
 function handleSearch() {
@@ -467,6 +543,7 @@ function resetForm() {
     endpoint: 'https://api.openai.com',
     api_key: '',
     account_id: null,
+    proxy_id: 0,
     model: 'gpt-image-1',
     prompt: 'Generate a simple health-check image with a clean geometric shape.',
     size: '1024x1024',
@@ -483,6 +560,7 @@ function openCreateDialog() {
   editing.value = null
   resetForm()
   showDialog.value = true
+  loadProxyOptions()
 }
 
 function openEditDialog(row: ImageChannelMonitor) {
@@ -493,6 +571,7 @@ function openEditDialog(row: ImageChannelMonitor) {
     endpoint: row.endpoint || 'https://api.openai.com',
     api_key: '',
     account_id: row.account_id,
+    proxy_id: row.proxy_id || 0,
     model: row.model,
     prompt: row.prompt,
     size: row.size,
@@ -504,7 +583,11 @@ function openEditDialog(row: ImageChannelMonitor) {
     timeout_seconds: row.timeout_seconds,
   })
   showDialog.value = true
-  if (form.source_type === 'account') loadAccountOptions()
+  if (form.source_type === 'account') {
+    loadAccountOptions()
+  } else {
+    loadProxyOptions()
+  }
 }
 
 function closeDialog() {
@@ -515,6 +598,8 @@ function closeDialog() {
 function handleSourceChange() {
   if (form.source_type === 'account') {
     loadAccountOptions()
+  } else {
+    loadProxyOptions()
   }
 }
 
@@ -534,6 +619,18 @@ async function loadAccountOptions() {
   }
 }
 
+async function loadProxyOptions() {
+  if (proxyOptions.value.length > 0 || proxiesLoading.value) return
+  proxiesLoading.value = true
+  try {
+    proxyOptions.value = await adminAPI.proxies.getAll()
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.proxyLoadError')))
+  } finally {
+    proxiesLoading.value = false
+  }
+}
+
 function buildPayload() {
   const payload = {
     name: form.name,
@@ -550,15 +647,18 @@ function buildPayload() {
     endpoint: undefined as string | undefined,
     api_key: undefined as string | undefined,
     account_id: undefined as number | null | undefined,
+    proxy_id: undefined as number | null | undefined,
   }
   if (form.source_type === 'custom') {
     payload.endpoint = form.endpoint
+    payload.proxy_id = form.proxy_id || 0
     if (!editing.value || form.api_key.trim()) {
       payload.api_key = form.api_key.trim()
     }
     payload.account_id = null
   } else {
     payload.account_id = form.account_id
+    payload.proxy_id = 0
   }
   return payload
 }
@@ -593,15 +693,36 @@ async function toggleEnabled(row: ImageChannelMonitor) {
 
 async function runNow(row: ImageChannelMonitor) {
   runningId.value = row.id
+  lastRunResult.value = null
   try {
-    lastRunResult.value = await adminAPI.imageChannelMonitor.runNow(row.id)
+    const status = await adminAPI.imageChannelMonitor.runNow(row.id)
+    runtimeStatuses.value = {
+      ...runtimeStatuses.value,
+      [row.id]: status,
+    }
     appStore.showSuccess(t('admin.imageChannelMonitor.runSuccess'))
-    await reload()
+    void pollRunningMonitor(row.id)
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.runFailed')))
   } finally {
     runningId.value = null
   }
+}
+
+async function pollRunningMonitor(id: number) {
+  for (let i = 0; i < 180; i += 1) {
+    await refreshRuntimeStatus(id)
+    const current = runtimeStatuses.value[id]
+    if (!current?.running) {
+      await reload()
+      return
+    }
+    await wait(1000)
+  }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
 async function openHistory(row: ImageChannelMonitor) {
@@ -671,6 +792,41 @@ function statusBadgeClass(status: ImageMonitorStatus) {
   }
 }
 
+function runtimeStateLabel(row: ImageChannelMonitor) {
+  return runtimeStatuses.value[row.id]?.running
+    ? t('admin.imageChannelMonitor.runtime.running')
+    : t('admin.imageChannelMonitor.runtime.idle')
+}
+
+function runtimeBadgeClass(row: ImageChannelMonitor) {
+  return runtimeStatuses.value[row.id]?.running
+    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+    : 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-200'
+}
+
+function runtimeStageText(row: ImageChannelMonitor) {
+  const stage = runtimeStatuses.value[row.id]?.stage || 'idle'
+  return t(`admin.imageChannelMonitor.stages.${stage}`, stage)
+}
+
+function runtimeMessage(row: ImageChannelMonitor) {
+  return runtimeStatuses.value[row.id]?.message || ''
+}
+
+function nextCheckText(row: ImageChannelMonitor) {
+  if (!row.enabled) return t('admin.imageChannelMonitor.runtime.disabled')
+  const status = runtimeStatuses.value[row.id]
+  const target = status?.next_check_at || inferNextCheckAt(row)
+  if (!target) return t('admin.imageChannelMonitor.runtime.nextCheckUnknown')
+  const seconds = Math.max(0, Math.ceil((new Date(target).getTime() - nowMs.value) / 1000))
+  return t('admin.imageChannelMonitor.runtime.nextCheckIn', { seconds })
+}
+
+function inferNextCheckAt(row: ImageChannelMonitor) {
+  if (!row.last_checked_at) return ''
+  return new Date(new Date(row.last_checked_at).getTime() + row.interval_seconds * 1000).toISOString()
+}
+
 function formatMs(value: number | null) {
   return typeof value === 'number' ? `${value} ms` : '-'
 }
@@ -682,10 +838,18 @@ function formatDate(value: string | null) {
 
 onMounted(() => {
   reload()
+  clockTimer = window.setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1000)
+  statusPollTimer = window.setInterval(() => {
+    void refreshRuntimeStatuses()
+  }, 2000)
 })
 
 onUnmounted(() => {
   if (abortController) abortController.abort()
   if (searchTimeout) clearTimeout(searchTimeout)
+  if (statusPollTimer) clearInterval(statusPollTimer)
+  if (clockTimer) clearInterval(clockTimer)
 })
 </script>

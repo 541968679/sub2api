@@ -57,6 +57,9 @@ var (
 	ErrImageChannelMonitorAPIKeyDecryptFailed = infraerrors.InternalServer(
 		"IMAGE_CHANNEL_MONITOR_KEY_DECRYPT_FAILED", "api key decryption failed; please re-edit the monitor with a fresh key",
 	)
+	ErrImageChannelMonitorAlreadyRunning = infraerrors.Conflict(
+		"IMAGE_CHANNEL_MONITOR_ALREADY_RUNNING", "image channel monitor check is already running",
+	)
 )
 
 type ImageChannelMonitorRepository interface {
@@ -76,6 +79,10 @@ type imageChannelMonitorAccountReader interface {
 	GetByID(ctx context.Context, id int64) (*Account, error)
 }
 
+type imageChannelMonitorProxyReader interface {
+	GetByID(ctx context.Context, id int64) (*Proxy, error)
+}
+
 type ImageMonitorScheduler interface {
 	Schedule(m *ImageChannelMonitor)
 	Unschedule(id int64)
@@ -89,6 +96,8 @@ type ImageChannelMonitor struct {
 	APIKey              string
 	AccountID           *int64
 	AccountName         string
+	ProxyID             *int64
+	ProxyName           string
 	Model               string
 	Prompt              string
 	Size                string
@@ -119,6 +128,7 @@ type ImageChannelMonitorCreateParams struct {
 	Endpoint        string
 	APIKey          string
 	AccountID       *int64
+	ProxyID         *int64
 	Model           string
 	Prompt          string
 	Size            string
@@ -137,6 +147,7 @@ type ImageChannelMonitorUpdateParams struct {
 	Endpoint        *string
 	APIKey          *string
 	AccountID       *int64
+	ProxyID         *int64
 	Model           *string
 	Prompt          *string
 	Size            *string
@@ -171,6 +182,18 @@ type ImageChannelMonitorResult struct {
 	RevisedPrompt     string
 	ReturnedImageURL  string
 	ReturnedImageData string
+}
+
+type ImageChannelMonitorRuntimeStatus struct {
+	MonitorID             int64
+	Running               bool
+	Stage                 string
+	Message               string
+	StartedAt             *time.Time
+	UpdatedAt             *time.Time
+	CompletedAt           *time.Time
+	NextCheckAt           *time.Time
+	SecondsUntilNextCheck *int
 }
 
 type ImageChannelMonitorHistoryRow struct {

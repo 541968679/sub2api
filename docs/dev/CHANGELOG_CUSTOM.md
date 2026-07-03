@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-03] feat: optimize image channel monitor runtime controls
+
+**Affected files**: backend/ent/schema/image_channel_monitor.go, backend/migrations/175_image_channel_monitor_proxy.sql, backend/internal/service/image_channel_monitor_*.go, backend/internal/repository/image_channel_monitor_repo.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, backend/cmd/server/wire_gen.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: additive fork-local extension to the dedicated image monitor. It keeps the generic channel monitor untouched and adds only optional columns/API fields plus an in-memory runtime status endpoint.
+**Change details**:
+- Added optional custom-source proxy binding (`proxy_id`, `proxy_name`) for image monitors and applies the resolved proxy to both the image generation API request and returned-image download probe.
+- Changed manual `POST /admin/image-channel-monitors/:id/run` to start checks asynchronously and return runtime status immediately, avoiding frontend network errors while long image generation continues in the background.
+- Added `GET /admin/image-channel-monitors/:id/status` with per-monitor running/stage/message timestamps and next-check countdown data for UI polling.
+- Updated the admin image monitor page with 1K/2K/4K size presets, custom-source proxy selection, and a per-row status bar showing current stage and next scheduled check countdown.
+- Verified: `go generate ./ent`; `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`.
+
 ## [2026-07-03] feat: add dedicated image channel monitor
 
 **Affected files**: backend/ent/schema/image_channel_monitor*.go, backend/migrations/174_image_channel_monitors.sql, backend/internal/service/image_channel_monitor_*.go, backend/internal/repository/image_channel_monitor_repo.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, backend/cmd/server/wire_gen.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/router/index.ts, frontend/src/components/layout/AppSidebar.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

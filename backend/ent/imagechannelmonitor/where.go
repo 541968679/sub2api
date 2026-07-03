@@ -80,6 +80,16 @@ func AccountName(v string) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldAccountName, v))
 }
 
+// ProxyID applies equality check predicate on the "proxy_id" field. It's identical to ProxyIDEQ.
+func ProxyID(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldProxyID, v))
+}
+
+// ProxyName applies equality check predicate on the "proxy_name" field. It's identical to ProxyNameEQ.
+func ProxyName(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldProxyName, v))
+}
+
 // Model applies equality check predicate on the "model" field. It's identical to ModelEQ.
 func Model(v string) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldModel, v))
@@ -503,6 +513,131 @@ func AccountNameEqualFold(v string) predicate.ImageChannelMonitor {
 // AccountNameContainsFold applies the ContainsFold predicate on the "account_name" field.
 func AccountNameContainsFold(v string) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldContainsFold(FieldAccountName, v))
+}
+
+// ProxyIDEQ applies the EQ predicate on the "proxy_id" field.
+func ProxyIDEQ(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldProxyID, v))
+}
+
+// ProxyIDNEQ applies the NEQ predicate on the "proxy_id" field.
+func ProxyIDNEQ(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldProxyID, v))
+}
+
+// ProxyIDIn applies the In predicate on the "proxy_id" field.
+func ProxyIDIn(vs ...int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIn(FieldProxyID, vs...))
+}
+
+// ProxyIDNotIn applies the NotIn predicate on the "proxy_id" field.
+func ProxyIDNotIn(vs ...int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotIn(FieldProxyID, vs...))
+}
+
+// ProxyIDGT applies the GT predicate on the "proxy_id" field.
+func ProxyIDGT(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGT(FieldProxyID, v))
+}
+
+// ProxyIDGTE applies the GTE predicate on the "proxy_id" field.
+func ProxyIDGTE(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGTE(FieldProxyID, v))
+}
+
+// ProxyIDLT applies the LT predicate on the "proxy_id" field.
+func ProxyIDLT(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLT(FieldProxyID, v))
+}
+
+// ProxyIDLTE applies the LTE predicate on the "proxy_id" field.
+func ProxyIDLTE(v int64) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLTE(FieldProxyID, v))
+}
+
+// ProxyIDIsNil applies the IsNil predicate on the "proxy_id" field.
+func ProxyIDIsNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIsNull(FieldProxyID))
+}
+
+// ProxyIDNotNil applies the NotNil predicate on the "proxy_id" field.
+func ProxyIDNotNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotNull(FieldProxyID))
+}
+
+// ProxyNameEQ applies the EQ predicate on the "proxy_name" field.
+func ProxyNameEQ(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldProxyName, v))
+}
+
+// ProxyNameNEQ applies the NEQ predicate on the "proxy_name" field.
+func ProxyNameNEQ(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldProxyName, v))
+}
+
+// ProxyNameIn applies the In predicate on the "proxy_name" field.
+func ProxyNameIn(vs ...string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIn(FieldProxyName, vs...))
+}
+
+// ProxyNameNotIn applies the NotIn predicate on the "proxy_name" field.
+func ProxyNameNotIn(vs ...string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotIn(FieldProxyName, vs...))
+}
+
+// ProxyNameGT applies the GT predicate on the "proxy_name" field.
+func ProxyNameGT(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGT(FieldProxyName, v))
+}
+
+// ProxyNameGTE applies the GTE predicate on the "proxy_name" field.
+func ProxyNameGTE(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGTE(FieldProxyName, v))
+}
+
+// ProxyNameLT applies the LT predicate on the "proxy_name" field.
+func ProxyNameLT(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLT(FieldProxyName, v))
+}
+
+// ProxyNameLTE applies the LTE predicate on the "proxy_name" field.
+func ProxyNameLTE(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLTE(FieldProxyName, v))
+}
+
+// ProxyNameContains applies the Contains predicate on the "proxy_name" field.
+func ProxyNameContains(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldContains(FieldProxyName, v))
+}
+
+// ProxyNameHasPrefix applies the HasPrefix predicate on the "proxy_name" field.
+func ProxyNameHasPrefix(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldHasPrefix(FieldProxyName, v))
+}
+
+// ProxyNameHasSuffix applies the HasSuffix predicate on the "proxy_name" field.
+func ProxyNameHasSuffix(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldHasSuffix(FieldProxyName, v))
+}
+
+// ProxyNameIsNil applies the IsNil predicate on the "proxy_name" field.
+func ProxyNameIsNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIsNull(FieldProxyName))
+}
+
+// ProxyNameNotNil applies the NotNil predicate on the "proxy_name" field.
+func ProxyNameNotNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotNull(FieldProxyName))
+}
+
+// ProxyNameEqualFold applies the EqualFold predicate on the "proxy_name" field.
+func ProxyNameEqualFold(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEqualFold(FieldProxyName, v))
+}
+
+// ProxyNameContainsFold applies the ContainsFold predicate on the "proxy_name" field.
+func ProxyNameContainsFold(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldContainsFold(FieldProxyName, v))
 }
 
 // ModelEQ applies the EQ predicate on the "model" field.

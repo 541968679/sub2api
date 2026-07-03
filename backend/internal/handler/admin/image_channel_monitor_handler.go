@@ -28,6 +28,7 @@ type imageChannelMonitorCreateRequest struct {
 	Endpoint        string `json:"endpoint" binding:"omitempty,max=500"`
 	APIKey          string `json:"api_key" binding:"omitempty,max=2000"`
 	AccountID       *int64 `json:"account_id"`
+	ProxyID         *int64 `json:"proxy_id"`
 	Model           string `json:"model" binding:"omitempty,max=200"`
 	Prompt          string `json:"prompt" binding:"omitempty,max=2000"`
 	Size            string `json:"size" binding:"omitempty,max=32"`
@@ -45,6 +46,7 @@ type imageChannelMonitorUpdateRequest struct {
 	Endpoint        *string `json:"endpoint" binding:"omitempty,max=500"`
 	APIKey          *string `json:"api_key" binding:"omitempty,max=2000"`
 	AccountID       *int64  `json:"account_id"`
+	ProxyID         *int64  `json:"proxy_id"`
 	Model           *string `json:"model" binding:"omitempty,max=200"`
 	Prompt          *string `json:"prompt" binding:"omitempty,max=2000"`
 	Size            *string `json:"size" binding:"omitempty,max=32"`
@@ -65,6 +67,8 @@ type imageChannelMonitorResponse struct {
 	APIKeyDecryptFailed bool    `json:"api_key_decrypt_failed"`
 	AccountID           *int64  `json:"account_id"`
 	AccountName         string  `json:"account_name"`
+	ProxyID             *int64  `json:"proxy_id"`
+	ProxyName           string  `json:"proxy_name"`
 	Model               string  `json:"model"`
 	Prompt              string  `json:"prompt"`
 	Size                string  `json:"size"`
@@ -105,6 +109,18 @@ type imageChannelMonitorResultResponse struct {
 	ReturnedImageData string `json:"returned_image_data"`
 }
 
+type imageChannelMonitorRuntimeStatusResponse struct {
+	MonitorID             int64   `json:"monitor_id"`
+	Running               bool    `json:"running"`
+	Stage                 string  `json:"stage"`
+	Message               string  `json:"message"`
+	StartedAt             *string `json:"started_at"`
+	UpdatedAt             *string `json:"updated_at"`
+	CompletedAt           *string `json:"completed_at"`
+	NextCheckAt           *string `json:"next_check_at"`
+	SecondsUntilNextCheck *int    `json:"seconds_until_next_check"`
+}
+
 type imageChannelMonitorHistoryItemResponse struct {
 	ID               int64  `json:"id"`
 	MonitorID        int64  `json:"monitor_id"`
@@ -140,6 +156,8 @@ func imageMonitorToResponse(m *service.ImageChannelMonitor) *imageChannelMonitor
 		APIKeyDecryptFailed: m.APIKeyDecryptFailed,
 		AccountID:           m.AccountID,
 		AccountName:         m.AccountName,
+		ProxyID:             m.ProxyID,
+		ProxyName:           m.ProxyName,
 		Model:               m.Model,
 		Prompt:              m.Prompt,
 		Size:                m.Size,
@@ -161,6 +179,35 @@ func imageMonitorToResponse(m *service.ImageChannelMonitor) *imageChannelMonitor
 		resp.LastCheckedAt = &s
 	}
 	return resp
+}
+
+func imageMonitorRuntimeStatusToResponse(
+	s *service.ImageChannelMonitorRuntimeStatus,
+) imageChannelMonitorRuntimeStatusResponse {
+	out := imageChannelMonitorRuntimeStatusResponse{
+		MonitorID:             s.MonitorID,
+		Running:               s.Running,
+		Stage:                 s.Stage,
+		Message:               s.Message,
+		SecondsUntilNextCheck: s.SecondsUntilNextCheck,
+	}
+	if s.StartedAt != nil {
+		v := s.StartedAt.UTC().Format(time.RFC3339)
+		out.StartedAt = &v
+	}
+	if s.UpdatedAt != nil {
+		v := s.UpdatedAt.UTC().Format(time.RFC3339)
+		out.UpdatedAt = &v
+	}
+	if s.CompletedAt != nil {
+		v := s.CompletedAt.UTC().Format(time.RFC3339)
+		out.CompletedAt = &v
+	}
+	if s.NextCheckAt != nil {
+		v := s.NextCheckAt.UTC().Format(time.RFC3339)
+		out.NextCheckAt = &v
+	}
+	return out
 }
 
 func imageMonitorResultToResponse(r *service.ImageChannelMonitorResult) imageChannelMonitorResultResponse {
@@ -274,6 +321,7 @@ func (h *ImageChannelMonitorHandler) Create(c *gin.Context) {
 		Endpoint:        req.Endpoint,
 		APIKey:          req.APIKey,
 		AccountID:       req.AccountID,
+		ProxyID:         req.ProxyID,
 		Model:           req.Model,
 		Prompt:          req.Prompt,
 		Size:            req.Size,
@@ -308,6 +356,7 @@ func (h *ImageChannelMonitorHandler) Update(c *gin.Context) {
 		Endpoint:        req.Endpoint,
 		APIKey:          req.APIKey,
 		AccountID:       req.AccountID,
+		ProxyID:         req.ProxyID,
 		Model:           req.Model,
 		Prompt:          req.Prompt,
 		Size:            req.Size,
@@ -342,12 +391,25 @@ func (h *ImageChannelMonitorHandler) Run(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.monitorService.RunCheck(c.Request.Context(), id)
+	status, err := h.monitorService.RunCheckAsync(c.Request.Context(), id)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, imageMonitorResultToResponse(result))
+	response.Success(c, imageMonitorRuntimeStatusToResponse(status))
+}
+
+func (h *ImageChannelMonitorHandler) Status(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	status, err := h.monitorService.GetRuntimeStatus(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, imageMonitorRuntimeStatusToResponse(status))
 }
 
 func (h *ImageChannelMonitorHandler) History(c *gin.Context) {

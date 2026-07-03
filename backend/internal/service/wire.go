@@ -604,11 +604,12 @@ func ProvideChannelMonitorRunner(svc *ChannelMonitorService, settingService *Set
 func ProvideImageChannelMonitorService(
 	repo ImageChannelMonitorRepository,
 	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
 	encryptor SecretEncryptor,
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
 ) *ImageChannelMonitorService {
-	return NewImageChannelMonitorService(repo, accountRepo, encryptor, httpUpstream, tlsFPProfileService)
+	return NewImageChannelMonitorService(repo, accountRepo, proxyRepo, encryptor, httpUpstream, tlsFPProfileService)
 }
 
 func ProvideImageChannelMonitorRunner(svc *ImageChannelMonitorService) *ImageChannelMonitorRunner {

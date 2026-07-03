@@ -21,6 +21,15 @@ func (s *imageMonitorAccountReaderStub) GetByID(context.Context, int64) (*Accoun
 	return s.account, s.err
 }
 
+type imageMonitorProxyReaderStub struct {
+	proxy *Proxy
+	err   error
+}
+
+func (s *imageMonitorProxyReaderStub) GetByID(context.Context, int64) (*Proxy, error) {
+	return s.proxy, s.err
+}
+
 type imageMonitorHTTPUpstreamRecorder struct {
 	statusCode  int
 	body        string
@@ -88,6 +97,7 @@ func TestImageChannelMonitorRunCheckUsesOpenAIAPIKeyAccountSource(t *testing.T) 
 		nil,
 		&imageMonitorAccountReaderStub{account: account},
 		nil,
+		nil,
 		upstream,
 		nil,
 	)
@@ -123,7 +133,7 @@ func TestImageChannelMonitorRunCheckMarksB64JSONAsFailedForURLMonitor(t *testing
 	upstream := &imageMonitorHTTPUpstreamRecorder{
 		body: `{"data":[{"b64_json":"aGVhbHRoLWNoZWNr","revised_prompt":"ok"}]}`,
 	}
-	svc := NewImageChannelMonitorService(nil, nil, nil, upstream, nil)
+	svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
 
 	result := svc.runCheck(context.Background(), &ImageChannelMonitor{
 		ID:             13,
@@ -145,4 +155,43 @@ func TestImageChannelMonitorRunCheckMarksB64JSONAsFailedForURLMonitor(t *testing
 	require.Equal(t, "image_url", result.ErrorStage)
 	require.Contains(t, result.Message, "b64_json")
 	require.Equal(t, "Bearer custom-key", upstream.req.Header.Get("Authorization"))
+}
+
+func TestImageChannelMonitorRunCheckUsesCustomProxy(t *testing.T) {
+	proxyID := int64(9)
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body: `{"data":[{"url":"https://cdn.example/generated.png","revised_prompt":"ok"}]}`,
+	}
+	svc := NewImageChannelMonitorService(
+		nil,
+		nil,
+		&imageMonitorProxyReaderStub{proxy: &Proxy{
+			ID:       proxyID,
+			Name:     "image-proxy",
+			Protocol: "http",
+			Host:     "proxy.example",
+			Port:     8080,
+		}},
+		nil,
+		upstream,
+		nil,
+	)
+
+	result := svc.runCheck(context.Background(), &ImageChannelMonitor{
+		ID:             14,
+		SourceType:     ImageChannelMonitorSourceCustom,
+		Endpoint:       "https://api.example.com",
+		APIKey:         "custom-key",
+		ProxyID:        &proxyID,
+		Model:          "gpt-image-1",
+		Prompt:         "draw",
+		Size:           "1024x1024",
+		Quality:        "auto",
+		N:              1,
+		DownloadImage:  false,
+		TimeoutSeconds: 300,
+	})
+
+	require.Equal(t, MonitorStatusOperational, result.Status)
+	require.Equal(t, "http://proxy.example:8080", upstream.proxyURL)
 }

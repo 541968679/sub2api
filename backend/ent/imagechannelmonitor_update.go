@@ -144,6 +144,53 @@ func (_u *ImageChannelMonitorUpdate) ClearAccountName() *ImageChannelMonitorUpda
 	return _u
 }
 
+// SetProxyID sets the "proxy_id" field.
+func (_u *ImageChannelMonitorUpdate) SetProxyID(v int64) *ImageChannelMonitorUpdate {
+	_u.mutation.ResetProxyID()
+	_u.mutation.SetProxyID(v)
+	return _u
+}
+
+// SetNillableProxyID sets the "proxy_id" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdate) SetNillableProxyID(v *int64) *ImageChannelMonitorUpdate {
+	if v != nil {
+		_u.SetProxyID(*v)
+	}
+	return _u
+}
+
+// AddProxyID adds value to the "proxy_id" field.
+func (_u *ImageChannelMonitorUpdate) AddProxyID(v int64) *ImageChannelMonitorUpdate {
+	_u.mutation.AddProxyID(v)
+	return _u
+}
+
+// ClearProxyID clears the value of the "proxy_id" field.
+func (_u *ImageChannelMonitorUpdate) ClearProxyID() *ImageChannelMonitorUpdate {
+	_u.mutation.ClearProxyID()
+	return _u
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (_u *ImageChannelMonitorUpdate) SetProxyName(v string) *ImageChannelMonitorUpdate {
+	_u.mutation.SetProxyName(v)
+	return _u
+}
+
+// SetNillableProxyName sets the "proxy_name" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdate) SetNillableProxyName(v *string) *ImageChannelMonitorUpdate {
+	if v != nil {
+		_u.SetProxyName(*v)
+	}
+	return _u
+}
+
+// ClearProxyName clears the value of the "proxy_name" field.
+func (_u *ImageChannelMonitorUpdate) ClearProxyName() *ImageChannelMonitorUpdate {
+	_u.mutation.ClearProxyName()
+	return _u
+}
+
 // SetModel sets the "model" field.
 func (_u *ImageChannelMonitorUpdate) SetModel(v string) *ImageChannelMonitorUpdate {
 	_u.mutation.SetModel(v)
@@ -449,6 +496,11 @@ func (_u *ImageChannelMonitorUpdate) check() error {
 			return &ValidationError{Name: "account_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.account_name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ProxyName(); ok {
+		if err := imagechannelmonitor.ProxyNameValidator(v); err != nil {
+			return &ValidationError{Name: "proxy_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.proxy_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Model(); ok {
 		if err := imagechannelmonitor.ModelValidator(v); err != nil {
 			return &ValidationError{Name: "model", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.model": %w`, err)}
@@ -531,6 +583,21 @@ func (_u *ImageChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, er
 	}
 	if _u.mutation.AccountNameCleared() {
 		_spec.ClearField(imagechannelmonitor.FieldAccountName, field.TypeString)
+	}
+	if value, ok := _u.mutation.ProxyID(); ok {
+		_spec.SetField(imagechannelmonitor.FieldProxyID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedProxyID(); ok {
+		_spec.AddField(imagechannelmonitor.FieldProxyID, field.TypeInt64, value)
+	}
+	if _u.mutation.ProxyIDCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldProxyID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ProxyName(); ok {
+		_spec.SetField(imagechannelmonitor.FieldProxyName, field.TypeString, value)
+	}
+	if _u.mutation.ProxyNameCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldProxyName, field.TypeString)
 	}
 	if value, ok := _u.mutation.Model(); ok {
 		_spec.SetField(imagechannelmonitor.FieldModel, field.TypeString, value)
@@ -766,6 +833,53 @@ func (_u *ImageChannelMonitorUpdateOne) SetNillableAccountName(v *string) *Image
 // ClearAccountName clears the value of the "account_name" field.
 func (_u *ImageChannelMonitorUpdateOne) ClearAccountName() *ImageChannelMonitorUpdateOne {
 	_u.mutation.ClearAccountName()
+	return _u
+}
+
+// SetProxyID sets the "proxy_id" field.
+func (_u *ImageChannelMonitorUpdateOne) SetProxyID(v int64) *ImageChannelMonitorUpdateOne {
+	_u.mutation.ResetProxyID()
+	_u.mutation.SetProxyID(v)
+	return _u
+}
+
+// SetNillableProxyID sets the "proxy_id" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdateOne) SetNillableProxyID(v *int64) *ImageChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetProxyID(*v)
+	}
+	return _u
+}
+
+// AddProxyID adds value to the "proxy_id" field.
+func (_u *ImageChannelMonitorUpdateOne) AddProxyID(v int64) *ImageChannelMonitorUpdateOne {
+	_u.mutation.AddProxyID(v)
+	return _u
+}
+
+// ClearProxyID clears the value of the "proxy_id" field.
+func (_u *ImageChannelMonitorUpdateOne) ClearProxyID() *ImageChannelMonitorUpdateOne {
+	_u.mutation.ClearProxyID()
+	return _u
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (_u *ImageChannelMonitorUpdateOne) SetProxyName(v string) *ImageChannelMonitorUpdateOne {
+	_u.mutation.SetProxyName(v)
+	return _u
+}
+
+// SetNillableProxyName sets the "proxy_name" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdateOne) SetNillableProxyName(v *string) *ImageChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetProxyName(*v)
+	}
+	return _u
+}
+
+// ClearProxyName clears the value of the "proxy_name" field.
+func (_u *ImageChannelMonitorUpdateOne) ClearProxyName() *ImageChannelMonitorUpdateOne {
+	_u.mutation.ClearProxyName()
 	return _u
 }
 
@@ -1087,6 +1201,11 @@ func (_u *ImageChannelMonitorUpdateOne) check() error {
 			return &ValidationError{Name: "account_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.account_name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ProxyName(); ok {
+		if err := imagechannelmonitor.ProxyNameValidator(v); err != nil {
+			return &ValidationError{Name: "proxy_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.proxy_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Model(); ok {
 		if err := imagechannelmonitor.ModelValidator(v); err != nil {
 			return &ValidationError{Name: "model", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.model": %w`, err)}
@@ -1186,6 +1305,21 @@ func (_u *ImageChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *Ima
 	}
 	if _u.mutation.AccountNameCleared() {
 		_spec.ClearField(imagechannelmonitor.FieldAccountName, field.TypeString)
+	}
+	if value, ok := _u.mutation.ProxyID(); ok {
+		_spec.SetField(imagechannelmonitor.FieldProxyID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedProxyID(); ok {
+		_spec.AddField(imagechannelmonitor.FieldProxyID, field.TypeInt64, value)
+	}
+	if _u.mutation.ProxyIDCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldProxyID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ProxyName(); ok {
+		_spec.SetField(imagechannelmonitor.FieldProxyName, field.TypeString, value)
+	}
+	if _u.mutation.ProxyNameCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldProxyName, field.TypeString)
 	}
 	if value, ok := _u.mutation.Model(); ok {
 		_spec.SetField(imagechannelmonitor.FieldModel, field.TypeString, value)

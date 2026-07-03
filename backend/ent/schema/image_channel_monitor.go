@@ -36,6 +36,13 @@ func (ImageChannelMonitor) Fields() []ent.Field {
 			Optional().
 			Default("").
 			MaxLen(200),
+		field.Int64("proxy_id").
+			Optional().
+			Nillable(),
+		field.String("proxy_name").
+			Optional().
+			Default("").
+			MaxLen(200),
 		field.String("model").
 			NotEmpty().
 			MaxLen(200),

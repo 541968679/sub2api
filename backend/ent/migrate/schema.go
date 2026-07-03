@@ -847,6 +847,8 @@ var (
 		{Name: "api_key_encrypted", Type: field.TypeString, Nullable: true, Default: ""},
 		{Name: "account_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "account_name", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
+		{Name: "proxy_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "proxy_name", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
 		{Name: "model", Type: field.TypeString, Size: 200},
 		{Name: "prompt", Type: field.TypeString, Size: 2000},
 		{Name: "size", Type: field.TypeString, Nullable: true, Size: 32, Default: "1024x1024"},

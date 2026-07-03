@@ -27,6 +27,10 @@ const (
 	FieldAccountID = "account_id"
 	// FieldAccountName holds the string denoting the account_name field in the database.
 	FieldAccountName = "account_name"
+	// FieldProxyID holds the string denoting the proxy_id field in the database.
+	FieldProxyID = "proxy_id"
+	// FieldProxyName holds the string denoting the proxy_name field in the database.
+	FieldProxyName = "proxy_name"
 	// FieldModel holds the string denoting the model field in the database.
 	FieldModel = "model"
 	// FieldPrompt holds the string denoting the prompt field in the database.
@@ -75,6 +79,8 @@ var Columns = []string{
 	FieldAPIKeyEncrypted,
 	FieldAccountID,
 	FieldAccountName,
+	FieldProxyID,
+	FieldProxyName,
 	FieldModel,
 	FieldPrompt,
 	FieldSize,
@@ -113,6 +119,10 @@ var (
 	DefaultAccountName string
 	// AccountNameValidator is a validator for the "account_name" field. It is called by the builders before save.
 	AccountNameValidator func(string) error
+	// DefaultProxyName holds the default value on creation for the "proxy_name" field.
+	DefaultProxyName string
+	// ProxyNameValidator is a validator for the "proxy_name" field. It is called by the builders before save.
+	ProxyNameValidator func(string) error
 	// ModelValidator is a validator for the "model" field. It is called by the builders before save.
 	ModelValidator func(string) error
 	// PromptValidator is a validator for the "prompt" field. It is called by the builders before save.
@@ -211,6 +221,16 @@ func ByAccountID(opts ...sql.OrderTermOption) OrderOption {
 // ByAccountName orders the results by the account_name field.
 func ByAccountName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAccountName, opts...).ToFunc()
+}
+
+// ByProxyID orders the results by the proxy_id field.
+func ByProxyID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProxyID, opts...).ToFunc()
+}
+
+// ByProxyName orders the results by the proxy_name field.
+func ByProxyName(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProxyName, opts...).ToFunc()
 }
 
 // ByModel orders the results by the model field.

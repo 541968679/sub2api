@@ -99,6 +99,34 @@ func (_c *ImageChannelMonitorCreate) SetNillableAccountName(v *string) *ImageCha
 	return _c
 }
 
+// SetProxyID sets the "proxy_id" field.
+func (_c *ImageChannelMonitorCreate) SetProxyID(v int64) *ImageChannelMonitorCreate {
+	_c.mutation.SetProxyID(v)
+	return _c
+}
+
+// SetNillableProxyID sets the "proxy_id" field if the given value is not nil.
+func (_c *ImageChannelMonitorCreate) SetNillableProxyID(v *int64) *ImageChannelMonitorCreate {
+	if v != nil {
+		_c.SetProxyID(*v)
+	}
+	return _c
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (_c *ImageChannelMonitorCreate) SetProxyName(v string) *ImageChannelMonitorCreate {
+	_c.mutation.SetProxyName(v)
+	return _c
+}
+
+// SetNillableProxyName sets the "proxy_name" field if the given value is not nil.
+func (_c *ImageChannelMonitorCreate) SetNillableProxyName(v *string) *ImageChannelMonitorCreate {
+	if v != nil {
+		_c.SetProxyName(*v)
+	}
+	return _c
+}
+
 // SetModel sets the "model" field.
 func (_c *ImageChannelMonitorCreate) SetModel(v string) *ImageChannelMonitorCreate {
 	_c.mutation.SetModel(v)
@@ -323,6 +351,10 @@ func (_c *ImageChannelMonitorCreate) defaults() {
 		v := imagechannelmonitor.DefaultAccountName
 		_c.mutation.SetAccountName(v)
 	}
+	if _, ok := _c.mutation.ProxyName(); !ok {
+		v := imagechannelmonitor.DefaultProxyName
+		_c.mutation.SetProxyName(v)
+	}
 	if _, ok := _c.mutation.Size(); !ok {
 		v := imagechannelmonitor.DefaultSize
 		_c.mutation.SetSize(v)
@@ -387,6 +419,11 @@ func (_c *ImageChannelMonitorCreate) check() error {
 	if v, ok := _c.mutation.AccountName(); ok {
 		if err := imagechannelmonitor.AccountNameValidator(v); err != nil {
 			return &ValidationError{Name: "account_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.account_name": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.ProxyName(); ok {
+		if err := imagechannelmonitor.ProxyNameValidator(v); err != nil {
+			return &ValidationError{Name: "proxy_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.proxy_name": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Model(); !ok {
@@ -504,6 +541,14 @@ func (_c *ImageChannelMonitorCreate) createSpec() (*ImageChannelMonitor, *sqlgra
 	if value, ok := _c.mutation.AccountName(); ok {
 		_spec.SetField(imagechannelmonitor.FieldAccountName, field.TypeString, value)
 		_node.AccountName = value
+	}
+	if value, ok := _c.mutation.ProxyID(); ok {
+		_spec.SetField(imagechannelmonitor.FieldProxyID, field.TypeInt64, value)
+		_node.ProxyID = &value
+	}
+	if value, ok := _c.mutation.ProxyName(); ok {
+		_spec.SetField(imagechannelmonitor.FieldProxyName, field.TypeString, value)
+		_node.ProxyName = value
 	}
 	if value, ok := _c.mutation.Model(); ok {
 		_spec.SetField(imagechannelmonitor.FieldModel, field.TypeString, value)
@@ -724,6 +769,48 @@ func (u *ImageChannelMonitorUpsert) UpdateAccountName() *ImageChannelMonitorUpse
 // ClearAccountName clears the value of the "account_name" field.
 func (u *ImageChannelMonitorUpsert) ClearAccountName() *ImageChannelMonitorUpsert {
 	u.SetNull(imagechannelmonitor.FieldAccountName)
+	return u
+}
+
+// SetProxyID sets the "proxy_id" field.
+func (u *ImageChannelMonitorUpsert) SetProxyID(v int64) *ImageChannelMonitorUpsert {
+	u.Set(imagechannelmonitor.FieldProxyID, v)
+	return u
+}
+
+// UpdateProxyID sets the "proxy_id" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsert) UpdateProxyID() *ImageChannelMonitorUpsert {
+	u.SetExcluded(imagechannelmonitor.FieldProxyID)
+	return u
+}
+
+// AddProxyID adds v to the "proxy_id" field.
+func (u *ImageChannelMonitorUpsert) AddProxyID(v int64) *ImageChannelMonitorUpsert {
+	u.Add(imagechannelmonitor.FieldProxyID, v)
+	return u
+}
+
+// ClearProxyID clears the value of the "proxy_id" field.
+func (u *ImageChannelMonitorUpsert) ClearProxyID() *ImageChannelMonitorUpsert {
+	u.SetNull(imagechannelmonitor.FieldProxyID)
+	return u
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (u *ImageChannelMonitorUpsert) SetProxyName(v string) *ImageChannelMonitorUpsert {
+	u.Set(imagechannelmonitor.FieldProxyName, v)
+	return u
+}
+
+// UpdateProxyName sets the "proxy_name" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsert) UpdateProxyName() *ImageChannelMonitorUpsert {
+	u.SetExcluded(imagechannelmonitor.FieldProxyName)
+	return u
+}
+
+// ClearProxyName clears the value of the "proxy_name" field.
+func (u *ImageChannelMonitorUpsert) ClearProxyName() *ImageChannelMonitorUpsert {
+	u.SetNull(imagechannelmonitor.FieldProxyName)
 	return u
 }
 
@@ -1074,6 +1161,55 @@ func (u *ImageChannelMonitorUpsertOne) UpdateAccountName() *ImageChannelMonitorU
 func (u *ImageChannelMonitorUpsertOne) ClearAccountName() *ImageChannelMonitorUpsertOne {
 	return u.Update(func(s *ImageChannelMonitorUpsert) {
 		s.ClearAccountName()
+	})
+}
+
+// SetProxyID sets the "proxy_id" field.
+func (u *ImageChannelMonitorUpsertOne) SetProxyID(v int64) *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetProxyID(v)
+	})
+}
+
+// AddProxyID adds v to the "proxy_id" field.
+func (u *ImageChannelMonitorUpsertOne) AddProxyID(v int64) *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.AddProxyID(v)
+	})
+}
+
+// UpdateProxyID sets the "proxy_id" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertOne) UpdateProxyID() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdateProxyID()
+	})
+}
+
+// ClearProxyID clears the value of the "proxy_id" field.
+func (u *ImageChannelMonitorUpsertOne) ClearProxyID() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearProxyID()
+	})
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (u *ImageChannelMonitorUpsertOne) SetProxyName(v string) *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetProxyName(v)
+	})
+}
+
+// UpdateProxyName sets the "proxy_name" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertOne) UpdateProxyName() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdateProxyName()
+	})
+}
+
+// ClearProxyName clears the value of the "proxy_name" field.
+func (u *ImageChannelMonitorUpsertOne) ClearProxyName() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearProxyName()
 	})
 }
 
@@ -1621,6 +1757,55 @@ func (u *ImageChannelMonitorUpsertBulk) UpdateAccountName() *ImageChannelMonitor
 func (u *ImageChannelMonitorUpsertBulk) ClearAccountName() *ImageChannelMonitorUpsertBulk {
 	return u.Update(func(s *ImageChannelMonitorUpsert) {
 		s.ClearAccountName()
+	})
+}
+
+// SetProxyID sets the "proxy_id" field.
+func (u *ImageChannelMonitorUpsertBulk) SetProxyID(v int64) *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetProxyID(v)
+	})
+}
+
+// AddProxyID adds v to the "proxy_id" field.
+func (u *ImageChannelMonitorUpsertBulk) AddProxyID(v int64) *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.AddProxyID(v)
+	})
+}
+
+// UpdateProxyID sets the "proxy_id" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertBulk) UpdateProxyID() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdateProxyID()
+	})
+}
+
+// ClearProxyID clears the value of the "proxy_id" field.
+func (u *ImageChannelMonitorUpsertBulk) ClearProxyID() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearProxyID()
+	})
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (u *ImageChannelMonitorUpsertBulk) SetProxyName(v string) *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetProxyName(v)
+	})
+}
+
+// UpdateProxyName sets the "proxy_name" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertBulk) UpdateProxyName() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdateProxyName()
+	})
+}
+
+// ClearProxyName clears the value of the "proxy_name" field.
+func (u *ImageChannelMonitorUpsertBulk) ClearProxyName() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearProxyName()
 	})
 }
 

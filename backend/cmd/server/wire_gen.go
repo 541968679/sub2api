@@ -247,7 +247,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	channelMonitorRequestTemplateService := service.NewChannelMonitorRequestTemplateService(channelMonitorRequestTemplateRepository)
 	channelMonitorRequestTemplateHandler := admin.NewChannelMonitorRequestTemplateHandler(channelMonitorRequestTemplateService)
 	imageChannelMonitorRepository := repository.NewImageChannelMonitorRepository(client, db)
-	imageChannelMonitorService := service.ProvideImageChannelMonitorService(imageChannelMonitorRepository, accountRepository, secretEncryptor, httpUpstream, tlsFingerprintProfileService)
+	imageChannelMonitorService := service.ProvideImageChannelMonitorService(imageChannelMonitorRepository, accountRepository, proxyRepository, secretEncryptor, httpUpstream, tlsFingerprintProfileService)
 	imageChannelMonitorHandler := admin.NewImageChannelMonitorHandler(imageChannelMonitorService)
 	paymentHandler := admin.NewPaymentHandler(paymentService, paymentConfigService)
 	affiliateHandler := admin.NewAffiliateHandler(affiliateService, adminService)

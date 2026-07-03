@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
@@ -22,15 +23,19 @@ import (
 type ImageChannelMonitorService struct {
 	repo                ImageChannelMonitorRepository
 	accountReader       imageChannelMonitorAccountReader
+	proxyReader         imageChannelMonitorProxyReader
 	encryptor           SecretEncryptor
 	httpUpstream        HTTPUpstream
 	tlsFPProfileService *TLSFingerprintProfileService
 	scheduler           ImageMonitorScheduler
+	runtimeMu           sync.RWMutex
+	runtimeStatus       map[int64]ImageChannelMonitorRuntimeStatus
 }
 
 func NewImageChannelMonitorService(
 	repo ImageChannelMonitorRepository,
 	accountReader imageChannelMonitorAccountReader,
+	proxyReader imageChannelMonitorProxyReader,
 	encryptor SecretEncryptor,
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
@@ -38,9 +43,11 @@ func NewImageChannelMonitorService(
 	return &ImageChannelMonitorService{
 		repo:                repo,
 		accountReader:       accountReader,
+		proxyReader:         proxyReader,
 		encryptor:           encryptor,
 		httpUpstream:        httpUpstream,
 		tlsFPProfileService: tlsFPProfileService,
+		runtimeStatus:       make(map[int64]ImageChannelMonitorRuntimeStatus),
 	}
 }
 
@@ -126,6 +133,9 @@ func (s *ImageChannelMonitorService) Delete(ctx context.Context, id int64) error
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete image channel monitor: %w", err)
 	}
+	s.runtimeMu.Lock()
+	delete(s.runtimeStatus, id)
+	s.runtimeMu.Unlock()
 	if s.scheduler != nil {
 		s.scheduler.Unschedule(id)
 	}
@@ -149,6 +159,50 @@ func (s *ImageChannelMonitorService) ListHistory(
 	return s.repo.ListHistory(ctx, id, limit)
 }
 
+func (s *ImageChannelMonitorService) GetRuntimeStatus(
+	ctx context.Context,
+	id int64,
+) (*ImageChannelMonitorRuntimeStatus, error) {
+	m, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	status := ImageChannelMonitorRuntimeStatus{
+		MonitorID: id,
+		Running:   false,
+		Stage:     "idle",
+		Message:   "",
+	}
+
+	s.runtimeMu.RLock()
+	if current, ok := s.runtimeStatus[id]; ok {
+		status = current
+	}
+	s.runtimeMu.RUnlock()
+
+	now := time.Now()
+	if m.Enabled && m.IntervalSeconds > 0 {
+		var next time.Time
+		if m.LastCheckedAt != nil {
+			next = m.LastCheckedAt.Add(time.Duration(m.IntervalSeconds) * time.Second)
+			if next.Before(now) {
+				next = now
+			}
+		} else {
+			next = now
+		}
+		seconds := int(time.Until(next).Seconds())
+		if seconds < 0 {
+			seconds = 0
+		}
+		status.NextCheckAt = &next
+		status.SecondsUntilNextCheck = &seconds
+	}
+
+	return &status, nil
+}
+
 func (s *ImageChannelMonitorService) ListEnabledMonitors(ctx context.Context) ([]*ImageChannelMonitor, error) {
 	items, err := s.repo.ListEnabled(ctx)
 	if err != nil {
@@ -165,12 +219,120 @@ func (s *ImageChannelMonitorService) RunCheck(ctx context.Context, id int64) (*I
 	if err != nil {
 		return nil, err
 	}
+	if !s.tryBeginRuntimeStatus(m.ID, "source", "resolving monitor source") {
+		return nil, ErrImageChannelMonitorAlreadyRunning
+	}
 	if m.SourceType == ImageChannelMonitorSourceCustom && m.APIKeyDecryptFailed {
+		s.finishRuntimeStatus(m.ID, "source", "api key decrypt failed")
 		return nil, ErrImageChannelMonitorAPIKeyDecryptFailed
 	}
 	result := s.runCheck(ctx, m)
+	s.finishRuntimeStatus(m.ID, finalImageMonitorRuntimeStage(result), result.Message)
 	s.persistResult(ctx, m, result)
 	return result, nil
+}
+
+func (s *ImageChannelMonitorService) RunCheckAsync(
+	ctx context.Context,
+	id int64,
+) (*ImageChannelMonitorRuntimeStatus, error) {
+	m, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if m.SourceType == ImageChannelMonitorSourceCustom && m.APIKeyDecryptFailed {
+		return nil, ErrImageChannelMonitorAPIKeyDecryptFailed
+	}
+	if !s.tryBeginRuntimeStatus(m.ID, "queued", "image monitor check queued") {
+		return s.GetRuntimeStatus(ctx, id)
+	}
+
+	go s.runCheckDetached(m)
+
+	return s.GetRuntimeStatus(ctx, id)
+}
+
+func (s *ImageChannelMonitorService) runCheckDetached(m *ImageChannelMonitor) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			msg := fmt.Sprintf("image monitor check panic: %v", rec)
+			s.finishRuntimeStatus(m.ID, "error", truncateMessage(sanitizeErrorMessage(msg)))
+			slog.Error("image_channel_monitor: async run panic recovered",
+				"monitor_id", m.ID, "name", m.Name, "panic", rec)
+		}
+	}()
+	result := s.runCheck(context.Background(), m)
+	s.finishRuntimeStatus(m.ID, finalImageMonitorRuntimeStage(result), result.Message)
+	s.persistResult(context.Background(), m, result)
+}
+
+func (s *ImageChannelMonitorService) tryBeginRuntimeStatus(id int64, stage, message string) bool {
+	if id <= 0 {
+		return false
+	}
+	now := time.Now()
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if s.runtimeStatus == nil {
+		s.runtimeStatus = make(map[int64]ImageChannelMonitorRuntimeStatus)
+	}
+	if current, ok := s.runtimeStatus[id]; ok && current.Running {
+		return false
+	}
+	s.runtimeStatus[id] = ImageChannelMonitorRuntimeStatus{
+		MonitorID: id,
+		Running:   true,
+		Stage:     stage,
+		Message:   message,
+		StartedAt: &now,
+		UpdatedAt: &now,
+	}
+	return true
+}
+
+func (s *ImageChannelMonitorService) updateRuntimeStatus(id int64, stage, message string) {
+	if id <= 0 {
+		return
+	}
+	now := time.Now()
+	s.runtimeMu.Lock()
+	if s.runtimeStatus == nil {
+		s.runtimeStatus = make(map[int64]ImageChannelMonitorRuntimeStatus)
+	}
+	status := s.runtimeStatus[id]
+	if status.MonitorID == 0 {
+		status.MonitorID = id
+		status.Running = true
+		status.StartedAt = &now
+	}
+	status.Stage = stage
+	status.Message = message
+	status.UpdatedAt = &now
+	s.runtimeStatus[id] = status
+	s.runtimeMu.Unlock()
+}
+
+func (s *ImageChannelMonitorService) finishRuntimeStatus(id int64, stage, message string) {
+	if id <= 0 {
+		return
+	}
+	now := time.Now()
+	s.runtimeMu.Lock()
+	if s.runtimeStatus == nil {
+		s.runtimeStatus = make(map[int64]ImageChannelMonitorRuntimeStatus)
+	}
+	status := s.runtimeStatus[id]
+	if status.MonitorID == 0 {
+		status.MonitorID = id
+		status.StartedAt = &now
+	}
+	status.Running = false
+	status.Stage = stage
+	status.Message = message
+	status.UpdatedAt = &now
+	status.CompletedAt = &now
+	s.runtimeStatus[id] = status
+	s.runtimeMu.Unlock()
 }
 
 func (s *ImageChannelMonitorService) buildCreateMonitor(
@@ -191,6 +353,7 @@ func (s *ImageChannelMonitorService) buildCreateMonitor(
 		SourceType:      defaultImageMonitorSource(p.SourceType),
 		Endpoint:        strings.TrimSpace(p.Endpoint),
 		AccountID:       p.AccountID,
+		ProxyID:         p.ProxyID,
 		Model:           defaultString(p.Model, imageMonitorDefaultModel),
 		Prompt:          defaultString(p.Prompt, imageMonitorDefaultPrompt),
 		Size:            defaultString(p.Size, imageMonitorDefaultSize),
@@ -225,6 +388,9 @@ func (s *ImageChannelMonitorService) applyUpdate(
 	}
 	if p.AccountID != nil {
 		m.AccountID = p.AccountID
+	}
+	if p.ProxyID != nil {
+		m.ProxyID = p.ProxyID
 	}
 	if p.Model != nil {
 		m.Model = strings.TrimSpace(*p.Model)
@@ -285,6 +451,19 @@ func (s *ImageChannelMonitorService) normalizeAndSecure(
 		}
 		m.AccountID = nil
 		m.AccountName = ""
+		if m.ProxyID != nil && *m.ProxyID <= 0 {
+			m.ProxyID = nil
+			m.ProxyName = ""
+		}
+		if m.ProxyID != nil {
+			proxy, err := s.resolveMonitorProxy(ctx, *m.ProxyID)
+			if err != nil {
+				return "", err
+			}
+			m.ProxyName = proxy.Name
+		} else {
+			m.ProxyName = ""
+		}
 		if apiKeyProvided {
 			encrypted, err := s.encryptor.Encrypt(apiKey)
 			if err != nil {
@@ -311,10 +490,22 @@ func (s *ImageChannelMonitorService) normalizeAndSecure(
 		m.Endpoint = ""
 		m.APIKey = ""
 		m.AccountName = account.Name
+		m.ProxyID = nil
+		m.ProxyName = ""
 		return "", nil
 	default:
 		return "", ErrImageChannelMonitorInvalidSource
 	}
+}
+
+func (s *ImageChannelMonitorService) resolveMonitorProxy(ctx context.Context, id int64) (*Proxy, error) {
+	if id <= 0 {
+		return nil, ErrProxyNotFound
+	}
+	if s.proxyReader == nil {
+		return nil, ErrProxyNotFound
+	}
+	return s.proxyReader.GetByID(ctx, id)
 }
 
 func validateImageMonitorBase(m *ImageChannelMonitor) error {
@@ -363,9 +554,18 @@ func (s *ImageChannelMonitorService) resolveSource(
 ) (*imageMonitorResolvedSource, error) {
 	switch m.SourceType {
 	case ImageChannelMonitorSourceCustom:
+		proxyURL := ""
+		if m.ProxyID != nil {
+			proxy, err := s.resolveMonitorProxy(ctx, *m.ProxyID)
+			if err != nil {
+				return nil, err
+			}
+			proxyURL = proxy.URL()
+		}
 		return &imageMonitorResolvedSource{
 			endpoint:    m.Endpoint,
 			apiKey:      m.APIKey,
+			proxyURL:    proxyURL,
 			concurrency: 1,
 			userAgent:   openAIImagesAPIKeyUserAgent,
 		}, nil
@@ -419,6 +619,7 @@ func (s *ImageChannelMonitorService) runCheck(
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	s.updateRuntimeStatus(m.ID, "source", "resolving request source")
 	resolved, err := s.resolveSource(runCtx, m)
 	if err != nil {
 		return failImageMonitorResult(result, "source", err)
@@ -432,6 +633,7 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	resolved *imageMonitorResolvedSource,
 	result *ImageChannelMonitorResult,
 ) *ImageChannelMonitorResult {
+	s.updateRuntimeStatus(m.ID, "request_build", "building image generation request")
 	bodyBytes, err := json.Marshal(buildImageMonitorPayload(m))
 	if err != nil {
 		return failImageMonitorResult(result, "request_build", err)
@@ -448,6 +650,7 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	ensureOpenAIImagesAPIKeyUserAgent(req)
 
 	start := time.Now()
+	s.updateRuntimeStatus(m.ID, "api_connect", "waiting for upstream image API headers")
 	resp, err := s.httpUpstream.DoWithTLS(
 		req,
 		resolved.proxyURL,
@@ -462,8 +665,10 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	s.updateRuntimeStatus(m.ID, "api_headers", fmt.Sprintf("upstream returned HTTP %d", resp.StatusCode))
 	result.HTTPStatus = imageMonitorIntPtr(resp.StatusCode)
 	bodyStart := time.Now()
+	s.updateRuntimeStatus(m.ID, "api_body", "reading upstream image API body")
 	rawBody, readErr := io.ReadAll(io.LimitReader(resp.Body, imageMonitorMaxResponseBytes+1))
 	bodyMs := int(time.Since(bodyStart) / time.Millisecond)
 	totalMs := int(time.Since(start) / time.Millisecond)
@@ -481,7 +686,7 @@ func (s *ImageChannelMonitorService) callImageAPI(
 		msg := fmt.Sprintf("upstream HTTP %d: %s", resp.StatusCode, truncateForErrorBody(string(rawBody)))
 		return failImageMonitorMessage(result, "api_response", msg)
 	}
-	return s.processImageAPIResponse(ctx, m, rawBody, result)
+	return s.processImageAPIResponse(ctx, m, resolved, rawBody, result)
 }
 
 func buildImageMonitorPayload(m *ImageChannelMonitor) map[string]any {
@@ -503,9 +708,11 @@ func buildImageMonitorPayload(m *ImageChannelMonitor) map[string]any {
 func (s *ImageChannelMonitorService) processImageAPIResponse(
 	ctx context.Context,
 	m *ImageChannelMonitor,
+	resolved *imageMonitorResolvedSource,
 	rawBody []byte,
 	result *ImageChannelMonitorResult,
 ) *ImageChannelMonitorResult {
+	s.updateRuntimeStatus(m.ID, "json_parse", "parsing image API response")
 	var parsed struct {
 		Data []struct {
 			URL           string `json:"url"`
@@ -520,6 +727,7 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 		return failedImageMonitorMessage(result, "json_parse", "image API returned empty data")
 	}
 	first := parsed.Data[0]
+	s.updateRuntimeStatus(m.ID, "image_url", "checking returned image payload")
 	result.HasURL = strings.TrimSpace(first.URL) != ""
 	result.HasB64JSON = strings.TrimSpace(first.B64JSON) != ""
 	result.RevisedPrompt = first.RevisedPrompt
@@ -535,13 +743,15 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 		result.ImageURLHost = host
 	}
 	if m.DownloadImage {
-		if err := probeImageURL(ctx, first.URL, result); err != nil {
+		s.updateRuntimeStatus(m.ID, "image_download", "downloading returned image")
+		if err := s.probeImageURL(ctx, first.URL, resolved, result); err != nil {
 			result.Status = MonitorStatusDegraded
 			result.ErrorStage = "image_download"
 			result.Message = truncateMessage(sanitizeErrorMessage(err.Error()))
 			return result
 		}
 	}
+	s.updateRuntimeStatus(m.ID, "complete", "image monitor check completed")
 	result.Status = MonitorStatusOperational
 	result.Message = ""
 	return result
@@ -595,13 +805,35 @@ func (s *ImageChannelMonitorService) decryptInPlace(m *ImageChannelMonitor) {
 	m.APIKeyDecryptFailed = false
 }
 
-func probeImageURL(ctx context.Context, rawURL string, result *ImageChannelMonitorResult) error {
+func (s *ImageChannelMonitorService) probeImageURL(
+	ctx context.Context,
+	rawURL string,
+	resolved *imageMonitorResolvedSource,
+	result *ImageChannelMonitorResult,
+) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err
 	}
+	if resolved != nil && strings.TrimSpace(resolved.userAgent) != "" {
+		req.Header.Set("User-Agent", resolved.userAgent)
+	}
 	start := time.Now()
-	resp, err := monitorHTTPClient.Do(req)
+	if s.httpUpstream == nil {
+		return fmt.Errorf("http upstream is not configured")
+	}
+	proxyURL := ""
+	accountID := int64(0)
+	concurrency := 1
+	if resolved != nil {
+		proxyURL = resolved.proxyURL
+		accountID = resolved.accountID
+		concurrency = resolved.concurrency
+		if concurrency <= 0 {
+			concurrency = 1
+		}
+	}
+	resp, err := s.httpUpstream.Do(req, proxyURL, accountID, concurrency)
 	if err != nil {
 		return err
 	}
@@ -710,4 +942,20 @@ func imageURLHost(rawURL string) string {
 
 func imageMonitorIntPtr(v int) *int {
 	return &v
+}
+
+func finalImageMonitorRuntimeStage(result *ImageChannelMonitorResult) string {
+	if result == nil {
+		return "error"
+	}
+	if result.Status == MonitorStatusOperational {
+		return "complete"
+	}
+	if strings.TrimSpace(result.ErrorStage) != "" {
+		return result.ErrorStage
+	}
+	if strings.TrimSpace(result.Status) != "" {
+		return result.Status
+	}
+	return "error"
 }

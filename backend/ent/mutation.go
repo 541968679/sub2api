@@ -20903,6 +20903,9 @@ type ImageChannelMonitorMutation struct {
 	account_id          *int64
 	addaccount_id       *int64
 	account_name        *string
+	proxy_id            *int64
+	addproxy_id         *int64
+	proxy_name          *string
 	model               *string
 	prompt              *string
 	size                *string
@@ -21314,6 +21317,125 @@ func (m *ImageChannelMonitorMutation) AccountNameCleared() bool {
 func (m *ImageChannelMonitorMutation) ResetAccountName() {
 	m.account_name = nil
 	delete(m.clearedFields, imagechannelmonitor.FieldAccountName)
+}
+
+// SetProxyID sets the "proxy_id" field.
+func (m *ImageChannelMonitorMutation) SetProxyID(i int64) {
+	m.proxy_id = &i
+	m.addproxy_id = nil
+}
+
+// ProxyID returns the value of the "proxy_id" field in the mutation.
+func (m *ImageChannelMonitorMutation) ProxyID() (r int64, exists bool) {
+	v := m.proxy_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProxyID returns the old "proxy_id" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldProxyID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProxyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProxyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProxyID: %w", err)
+	}
+	return oldValue.ProxyID, nil
+}
+
+// AddProxyID adds i to the "proxy_id" field.
+func (m *ImageChannelMonitorMutation) AddProxyID(i int64) {
+	if m.addproxy_id != nil {
+		*m.addproxy_id += i
+	} else {
+		m.addproxy_id = &i
+	}
+}
+
+// AddedProxyID returns the value that was added to the "proxy_id" field in this mutation.
+func (m *ImageChannelMonitorMutation) AddedProxyID() (r int64, exists bool) {
+	v := m.addproxy_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearProxyID clears the value of the "proxy_id" field.
+func (m *ImageChannelMonitorMutation) ClearProxyID() {
+	m.proxy_id = nil
+	m.addproxy_id = nil
+	m.clearedFields[imagechannelmonitor.FieldProxyID] = struct{}{}
+}
+
+// ProxyIDCleared returns if the "proxy_id" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) ProxyIDCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldProxyID]
+	return ok
+}
+
+// ResetProxyID resets all changes to the "proxy_id" field.
+func (m *ImageChannelMonitorMutation) ResetProxyID() {
+	m.proxy_id = nil
+	m.addproxy_id = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldProxyID)
+}
+
+// SetProxyName sets the "proxy_name" field.
+func (m *ImageChannelMonitorMutation) SetProxyName(s string) {
+	m.proxy_name = &s
+}
+
+// ProxyName returns the value of the "proxy_name" field in the mutation.
+func (m *ImageChannelMonitorMutation) ProxyName() (r string, exists bool) {
+	v := m.proxy_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProxyName returns the old "proxy_name" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldProxyName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProxyName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProxyName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProxyName: %w", err)
+	}
+	return oldValue.ProxyName, nil
+}
+
+// ClearProxyName clears the value of the "proxy_name" field.
+func (m *ImageChannelMonitorMutation) ClearProxyName() {
+	m.proxy_name = nil
+	m.clearedFields[imagechannelmonitor.FieldProxyName] = struct{}{}
+}
+
+// ProxyNameCleared returns if the "proxy_name" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) ProxyNameCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldProxyName]
+	return ok
+}
+
+// ResetProxyName resets all changes to the "proxy_name" field.
+func (m *ImageChannelMonitorMutation) ResetProxyName() {
+	m.proxy_name = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldProxyName)
 }
 
 // SetModel sets the "model" field.
@@ -21991,7 +22113,7 @@ func (m *ImageChannelMonitorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ImageChannelMonitorMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 21)
 	if m.name != nil {
 		fields = append(fields, imagechannelmonitor.FieldName)
 	}
@@ -22009,6 +22131,12 @@ func (m *ImageChannelMonitorMutation) Fields() []string {
 	}
 	if m.account_name != nil {
 		fields = append(fields, imagechannelmonitor.FieldAccountName)
+	}
+	if m.proxy_id != nil {
+		fields = append(fields, imagechannelmonitor.FieldProxyID)
+	}
+	if m.proxy_name != nil {
+		fields = append(fields, imagechannelmonitor.FieldProxyName)
 	}
 	if m.model != nil {
 		fields = append(fields, imagechannelmonitor.FieldModel)
@@ -22069,6 +22197,10 @@ func (m *ImageChannelMonitorMutation) Field(name string) (ent.Value, bool) {
 		return m.AccountID()
 	case imagechannelmonitor.FieldAccountName:
 		return m.AccountName()
+	case imagechannelmonitor.FieldProxyID:
+		return m.ProxyID()
+	case imagechannelmonitor.FieldProxyName:
+		return m.ProxyName()
 	case imagechannelmonitor.FieldModel:
 		return m.Model()
 	case imagechannelmonitor.FieldPrompt:
@@ -22116,6 +22248,10 @@ func (m *ImageChannelMonitorMutation) OldField(ctx context.Context, name string)
 		return m.OldAccountID(ctx)
 	case imagechannelmonitor.FieldAccountName:
 		return m.OldAccountName(ctx)
+	case imagechannelmonitor.FieldProxyID:
+		return m.OldProxyID(ctx)
+	case imagechannelmonitor.FieldProxyName:
+		return m.OldProxyName(ctx)
 	case imagechannelmonitor.FieldModel:
 		return m.OldModel(ctx)
 	case imagechannelmonitor.FieldPrompt:
@@ -22192,6 +22328,20 @@ func (m *ImageChannelMonitorMutation) SetField(name string, value ent.Value) err
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAccountName(v)
+		return nil
+	case imagechannelmonitor.FieldProxyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProxyID(v)
+		return nil
+	case imagechannelmonitor.FieldProxyName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProxyName(v)
 		return nil
 	case imagechannelmonitor.FieldModel:
 		v, ok := value.(string)
@@ -22295,6 +22445,9 @@ func (m *ImageChannelMonitorMutation) AddedFields() []string {
 	if m.addaccount_id != nil {
 		fields = append(fields, imagechannelmonitor.FieldAccountID)
 	}
+	if m.addproxy_id != nil {
+		fields = append(fields, imagechannelmonitor.FieldProxyID)
+	}
 	if m.addn != nil {
 		fields = append(fields, imagechannelmonitor.FieldN)
 	}
@@ -22317,6 +22470,8 @@ func (m *ImageChannelMonitorMutation) AddedField(name string) (ent.Value, bool) 
 	switch name {
 	case imagechannelmonitor.FieldAccountID:
 		return m.AddedAccountID()
+	case imagechannelmonitor.FieldProxyID:
+		return m.AddedProxyID()
 	case imagechannelmonitor.FieldN:
 		return m.AddedN()
 	case imagechannelmonitor.FieldIntervalSeconds:
@@ -22340,6 +22495,13 @@ func (m *ImageChannelMonitorMutation) AddField(name string, value ent.Value) err
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddAccountID(v)
+		return nil
+	case imagechannelmonitor.FieldProxyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddProxyID(v)
 		return nil
 	case imagechannelmonitor.FieldN:
 		v, ok := value.(int)
@@ -22389,6 +22551,12 @@ func (m *ImageChannelMonitorMutation) ClearedFields() []string {
 	if m.FieldCleared(imagechannelmonitor.FieldAccountName) {
 		fields = append(fields, imagechannelmonitor.FieldAccountName)
 	}
+	if m.FieldCleared(imagechannelmonitor.FieldProxyID) {
+		fields = append(fields, imagechannelmonitor.FieldProxyID)
+	}
+	if m.FieldCleared(imagechannelmonitor.FieldProxyName) {
+		fields = append(fields, imagechannelmonitor.FieldProxyName)
+	}
 	if m.FieldCleared(imagechannelmonitor.FieldSize) {
 		fields = append(fields, imagechannelmonitor.FieldSize)
 	}
@@ -22424,6 +22592,12 @@ func (m *ImageChannelMonitorMutation) ClearField(name string) error {
 	case imagechannelmonitor.FieldAccountName:
 		m.ClearAccountName()
 		return nil
+	case imagechannelmonitor.FieldProxyID:
+		m.ClearProxyID()
+		return nil
+	case imagechannelmonitor.FieldProxyName:
+		m.ClearProxyName()
+		return nil
 	case imagechannelmonitor.FieldSize:
 		m.ClearSize()
 		return nil
@@ -22458,6 +22632,12 @@ func (m *ImageChannelMonitorMutation) ResetField(name string) error {
 		return nil
 	case imagechannelmonitor.FieldAccountName:
 		m.ResetAccountName()
+		return nil
+	case imagechannelmonitor.FieldProxyID:
+		m.ResetProxyID()
+		return nil
+	case imagechannelmonitor.FieldProxyName:
+		m.ResetProxyName()
 		return nil
 	case imagechannelmonitor.FieldModel:
 		m.ResetModel()

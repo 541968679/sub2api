@@ -29,6 +29,10 @@ type ImageChannelMonitor struct {
 	AccountID *int64 `json:"account_id,omitempty"`
 	// AccountName holds the value of the "account_name" field.
 	AccountName string `json:"account_name,omitempty"`
+	// ProxyID holds the value of the "proxy_id" field.
+	ProxyID *int64 `json:"proxy_id,omitempty"`
+	// ProxyName holds the value of the "proxy_name" field.
+	ProxyName string `json:"proxy_name,omitempty"`
 	// Model holds the value of the "model" field.
 	Model string `json:"model,omitempty"`
 	// Prompt holds the value of the "prompt" field.
@@ -86,9 +90,9 @@ func (*ImageChannelMonitor) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case imagechannelmonitor.FieldDownloadImage, imagechannelmonitor.FieldEnabled:
 			values[i] = new(sql.NullBool)
-		case imagechannelmonitor.FieldID, imagechannelmonitor.FieldAccountID, imagechannelmonitor.FieldN, imagechannelmonitor.FieldIntervalSeconds, imagechannelmonitor.FieldTimeoutSeconds, imagechannelmonitor.FieldCreatedBy:
+		case imagechannelmonitor.FieldID, imagechannelmonitor.FieldAccountID, imagechannelmonitor.FieldProxyID, imagechannelmonitor.FieldN, imagechannelmonitor.FieldIntervalSeconds, imagechannelmonitor.FieldTimeoutSeconds, imagechannelmonitor.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
-		case imagechannelmonitor.FieldName, imagechannelmonitor.FieldSourceType, imagechannelmonitor.FieldEndpoint, imagechannelmonitor.FieldAPIKeyEncrypted, imagechannelmonitor.FieldAccountName, imagechannelmonitor.FieldModel, imagechannelmonitor.FieldPrompt, imagechannelmonitor.FieldSize, imagechannelmonitor.FieldQuality:
+		case imagechannelmonitor.FieldName, imagechannelmonitor.FieldSourceType, imagechannelmonitor.FieldEndpoint, imagechannelmonitor.FieldAPIKeyEncrypted, imagechannelmonitor.FieldAccountName, imagechannelmonitor.FieldProxyName, imagechannelmonitor.FieldModel, imagechannelmonitor.FieldPrompt, imagechannelmonitor.FieldSize, imagechannelmonitor.FieldQuality:
 			values[i] = new(sql.NullString)
 		case imagechannelmonitor.FieldLastCheckedAt, imagechannelmonitor.FieldCreatedAt, imagechannelmonitor.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -149,6 +153,19 @@ func (_m *ImageChannelMonitor) assignValues(columns []string, values []any) erro
 				return fmt.Errorf("unexpected type %T for field account_name", values[i])
 			} else if value.Valid {
 				_m.AccountName = value.String
+			}
+		case imagechannelmonitor.FieldProxyID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field proxy_id", values[i])
+			} else if value.Valid {
+				_m.ProxyID = new(int64)
+				*_m.ProxyID = value.Int64
+			}
+		case imagechannelmonitor.FieldProxyName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field proxy_name", values[i])
+			} else if value.Valid {
+				_m.ProxyName = value.String
 			}
 		case imagechannelmonitor.FieldModel:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -288,6 +305,14 @@ func (_m *ImageChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("account_name=")
 	builder.WriteString(_m.AccountName)
+	builder.WriteString(", ")
+	if v := _m.ProxyID; v != nil {
+		builder.WriteString("proxy_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("proxy_name=")
+	builder.WriteString(_m.ProxyName)
 	builder.WriteString(", ")
 	builder.WriteString("model=")
 	builder.WriteString(_m.Model)
