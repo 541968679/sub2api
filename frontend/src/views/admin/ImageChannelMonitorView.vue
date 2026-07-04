@@ -3,18 +3,8 @@
     <TablePageLayout scroll-mode="fixed" :bare-table="activePanel === 'manual'">
       <template #filters>
         <div class="space-y-4">
-          <!-- Panel switcher: compact header + segmented tabs (A) -->
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="min-w-0">
-              <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ t('admin.imageChannelMonitor.title') }}
-              </h1>
-              <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
-                {{ activePanel === 'manual'
-                  ? t('admin.imageChannelMonitor.panels.manualDesc')
-                  : t('admin.imageChannelMonitor.panels.monitorsDesc') }}
-              </p>
-            </div>
+          <!-- Panel switcher: segmented tabs (page title comes from AppHeader) -->
+          <div class="flex flex-wrap items-center gap-3">
             <div
               class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1 dark:border-dark-700 dark:bg-dark-800"
               role="tablist"
