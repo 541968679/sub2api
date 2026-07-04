@@ -66,6 +66,38 @@
       <template #table>
         <div v-if="activePanel === 'manual'" class="space-y-4">
           <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <div class="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(180px,260px)_auto] lg:items-end">
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.preset') }}</span>
+                <select v-model="manualPresetSelectedId" class="input" @change="handleManualPresetSelect">
+                  <option value="">{{ t('admin.imageChannelMonitor.manual.selectPreset') }}</option>
+                  <option v-for="preset in manualPresets" :key="preset.id" :value="preset.id">
+                    {{ preset.name }}
+                  </option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.presetName') }}</span>
+                <input
+                  v-model.trim="manualPresetName"
+                  class="input"
+                  :placeholder="t('admin.imageChannelMonitor.manual.presetNamePlaceholder')"
+                />
+              </label>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" class="btn btn-secondary btn-sm" @click="saveManualPreset">
+                  {{ manualPresetSelectedId ? t('admin.imageChannelMonitor.manual.updatePreset') : t('admin.imageChannelMonitor.manual.savePreset') }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  :disabled="!manualPresetSelectedId"
+                  @click="deleteManualPreset"
+                >
+                  {{ t('admin.imageChannelMonitor.manual.deletePreset') }}
+                </button>
+              </div>
+            </div>
             <div class="grid gap-4 md:grid-cols-4">
               <label class="block">
                 <span class="input-label">{{ t('admin.imageChannelMonitor.manual.mode') }}</span>
@@ -627,6 +659,27 @@ type ManualResultItem = {
   run?: ImageChannelManualRunResponse
 }
 
+type ManualPresetSettings = {
+  mode: 'generate' | 'edit'
+  model: string
+  prompt: string
+  size_mode: ImageSizeMode
+  size: string
+  custom_size: string
+  quality: string
+  n: number
+  download_image: boolean
+  timeout_seconds: number
+}
+
+type ManualPreset = {
+  id: string
+  name: string
+  settings: ManualPresetSettings
+  created_at: string
+  updated_at: string
+}
+
 const monitors = ref<ImageChannelMonitor[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -654,6 +707,9 @@ const manualTargetsLoading = ref(false)
 const manualSelectedIds = ref<number[]>([])
 const manualRunning = ref(false)
 const manualResults = ref<Record<number, ManualResultItem>>({})
+const manualPresets = ref<ManualPreset[]>([])
+const manualPresetSelectedId = ref('')
+const manualPresetName = ref('')
 const manualInputImage = ref<{
   data: string
   type: string
@@ -666,6 +722,7 @@ let statusPollTimer: number | null = null
 let clockTimer: number | null = null
 let manualRunSeq = 0
 
+const manualPresetStorageKey = 'sub2api:image-channel-monitor:manual-presets:v1'
 const defaultStandardSize = '1024x1024'
 
 const standardSizeOptions = [
@@ -728,6 +785,147 @@ const lastRunPreview = computed(() => {
 const manualResultList = computed(() =>
   Object.values(manualResults.value).sort((a, b) => a.monitor.id - b.monitor.id)
 )
+
+function loadManualPresets() {
+  try {
+    const raw = window.localStorage.getItem(manualPresetStorageKey)
+    const parsed = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(parsed)) {
+      manualPresets.value = []
+      return
+    }
+    manualPresets.value = parsed
+      .map(normalizeManualPreset)
+      .filter((preset): preset is ManualPreset => Boolean(preset))
+      .slice(0, 50)
+  } catch {
+    manualPresets.value = []
+  }
+}
+
+function persistManualPresets() {
+  window.localStorage.setItem(manualPresetStorageKey, JSON.stringify(manualPresets.value))
+}
+
+function normalizeManualPreset(raw: unknown): ManualPreset | null {
+  if (!raw || typeof raw !== 'object') return null
+  const source = raw as Partial<ManualPreset>
+  const id = String(source.id || '').trim()
+  const name = String(source.name || '').trim()
+  if (!id || !name) return null
+  const now = new Date().toISOString()
+  return {
+    id,
+    name,
+    settings: normalizeManualPresetSettings(source.settings),
+    created_at: typeof source.created_at === 'string' && source.created_at ? source.created_at : now,
+    updated_at: typeof source.updated_at === 'string' && source.updated_at ? source.updated_at : now,
+  }
+}
+
+function normalizeManualPresetSettings(
+  raw?: Partial<ManualPresetSettings>
+): ManualPresetSettings {
+  const sizeMode = normalizeImageSizeMode(raw?.size_mode)
+  return {
+    mode: raw?.mode === 'edit' ? 'edit' : 'generate',
+    model: String(raw?.model || 'gpt-image-1').trim() || 'gpt-image-1',
+    prompt:
+      String(raw?.prompt || 'Generate a simple health-check image with a clean geometric shape.').trim() ||
+      'Generate a simple health-check image with a clean geometric shape.',
+    size_mode: sizeMode,
+    size: String(raw?.size || defaultStandardSize).trim() || defaultStandardSize,
+    custom_size: String(raw?.custom_size || '').trim(),
+    quality: String(raw?.quality || 'auto').trim() || 'auto',
+    n: clampInt(raw?.n, 1, 1, 10),
+    download_image: raw?.download_image !== false,
+    timeout_seconds: clampInt(raw?.timeout_seconds, 300, 30, 600),
+  }
+}
+
+function normalizeImageSizeMode(value: unknown): ImageSizeMode {
+  if (value === 'auto' || value === 'preset' || value === 'custom') {
+    return value
+  }
+  return 'omit'
+}
+
+function clampInt(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, Math.trunc(parsed)))
+}
+
+function currentManualPresetSettings(): ManualPresetSettings {
+  return normalizeManualPresetSettings({
+    mode: manualForm.mode,
+    model: manualForm.model,
+    prompt: manualForm.prompt,
+    size_mode: manualForm.size_mode,
+    size: manualForm.size,
+    custom_size: manualForm.custom_size,
+    quality: manualForm.quality,
+    n: manualForm.n,
+    download_image: manualForm.download_image,
+    timeout_seconds: manualForm.timeout_seconds,
+  })
+}
+
+function applyManualPresetSettings(settings: ManualPresetSettings) {
+  Object.assign(manualForm, normalizeManualPresetSettings(settings))
+}
+
+function handleManualPresetSelect() {
+  const preset = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
+  if (!preset) {
+    manualPresetName.value = ''
+    return
+  }
+  manualPresetName.value = preset.name
+  applyManualPresetSettings(preset.settings)
+}
+
+function saveManualPreset() {
+  const name = manualPresetName.value.trim()
+  if (!name) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.presetNameRequired'))
+    return
+  }
+  const now = new Date().toISOString()
+  const existing = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
+  const saved: ManualPreset = {
+    id: existing?.id || newManualPresetID(),
+    name,
+    settings: currentManualPresetSettings(),
+    created_at: existing?.created_at || now,
+    updated_at: now,
+  }
+  manualPresets.value = [
+    saved,
+    ...manualPresets.value.filter((item) => item.id !== saved.id),
+  ].slice(0, 50)
+  manualPresetSelectedId.value = saved.id
+  manualPresetName.value = saved.name
+  persistManualPresets()
+  appStore.showSuccess(t('admin.imageChannelMonitor.manual.presetSaved'))
+}
+
+function deleteManualPreset() {
+  const id = manualPresetSelectedId.value
+  if (!id) return
+  manualPresets.value = manualPresets.value.filter((item) => item.id !== id)
+  manualPresetSelectedId.value = ''
+  manualPresetName.value = ''
+  persistManualPresets()
+  appStore.showSuccess(t('admin.imageChannelMonitor.manual.presetDeleted'))
+}
+
+function newManualPresetID() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
 
 async function reload() {
   if (abortController) abortController.abort()
@@ -1349,6 +1547,7 @@ function formatDate(value: string | null) {
 }
 
 onMounted(() => {
+  loadManualPresets()
   reload()
   clockTimer = window.setInterval(() => {
     nowMs.value = Date.now()

@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: add manual image test presets
+
+**Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: frontend-only fork-local UX enhancement for the dedicated image monitor manual testing panel. It stores presets in browser localStorage and does not change backend schemas or APIs.
+**Change details**:
+- Added a manual-test preset toolbar that can save the current mode/model/prompt/size/quality/n/download/timeout settings, apply a selected preset, update it, or delete it.
+- Persisted presets under `sub2api:image-channel-monitor:manual-presets:v1`; uploaded image files are intentionally not stored.
+- Updated Chinese and English i18n strings plus the image monitor module documentation.
+- Verified: `pnpm run typecheck`; `git diff --check`.
+
 ## [2026-07-04] fix: restrict production service ports to loopback
 
 **Affected files**: deploy/docker-compose.yml, deploy/.env.example

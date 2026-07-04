@@ -59,6 +59,7 @@
 - Manual tests also request `response_format=url`, but if an upstream returns `b64_json`, the response is treated as a previewable image result instead of a URL-delivery monitor failure.
 - `download_image=false` still verifies image API generation and URL return. `download_image=true` adds a second-stage GET probe for the returned image URL.
 - The admin UI supports four size modes: omit the `size` request field, send `auto`, send OpenAI standard presets (`1024x1024`, `1536x1024`, `1024x1536`), or pass through a custom `WIDTHxHEIGHT` value for upstreams/models that support custom dimensions.
+- The manual testing panel stores parameter presets in browser localStorage (`sub2api:image-channel-monitor:manual-presets:v1`). Presets include mode, model, prompt, size mode/value, quality, `n`, download toggle, and timeout; uploaded image files are intentionally not persisted.
 - Each row shows a runtime status bar with current stage plus next-check countdown.
 - The runner is independent from `ChannelMonitorRunner`, so chat/responses monitor upstream syncs should not affect image monitor scheduling.
 
