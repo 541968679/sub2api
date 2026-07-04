@@ -355,6 +355,7 @@ export const useAppStore = defineStore('app', () => {
         home_content: '',
         hide_ccs_import_button: false,
         ccs_import_codex_model: '',
+        ccs_import_anthropic_codex_model: '',
         payment_enabled: false,
         payment_cny_per_usd: 0,
         table_default_page_size: 20,

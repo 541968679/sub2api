@@ -4114,6 +4114,28 @@
                   {{ t("admin.settings.site.ccsImportCodexModelHint") }}
                 </p>
               </div>
+
+              <!-- CCS Import Codex Model (anthropic platform) -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label
+                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  {{ t("admin.settings.site.ccsImportAnthropicCodexModel") }}
+                </label>
+                <input
+                  v-model="form.ccs_import_anthropic_codex_model"
+                  type="text"
+                  class="input font-mono text-sm"
+                  :placeholder="
+                    t(
+                      'admin.settings.site.ccsImportAnthropicCodexModelPlaceholder',
+                    )
+                  "
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.ccsImportAnthropicCodexModelHint") }}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -5982,6 +6004,7 @@ const form = reactive<SettingsForm>({
   backend_mode_enabled: false,
   hide_ccs_import_button: false,
   ccs_import_codex_model: "gpt-5-codex",
+  ccs_import_anthropic_codex_model: "",
   payment_enabled: false,
   payment_min_amount: 1,
   payment_max_amount: 10000,
@@ -6989,6 +7012,7 @@ async function saveSettings() {
       backend_mode_enabled: form.backend_mode_enabled,
       hide_ccs_import_button: form.hide_ccs_import_button,
       ccs_import_codex_model: form.ccs_import_codex_model,
+      ccs_import_anthropic_codex_model: form.ccs_import_anthropic_codex_model,
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
       custom_menu_items: form.custom_menu_items,

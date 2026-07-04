@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: 导入 CCS 客户端选择扩展——anthropic 密钥支持 Codex 客户端
+
+**影响范围**: backend/internal/{service/{domain_constants.go, setting_service.go, settings_view.go}, handler/{setting_handler.go, dto/settings.go, admin/setting_handler.go}, server/api_contract_test.go}, frontend/src/{views/user/KeysView.vue, views/admin/SettingsView.vue, api/admin/settings.ts, stores/app.ts, types/index.ts, i18n/locales/{zh,en}.ts}
+**上游兼容性**: 低风险。新增 Settings KV `ccs_import_anthropic_codex_model`（镜像 `ccs_import_codex_model` 全链，默认空）；KeysView 导入弹窗逻辑重写为数据驱动。若上游后续也改 CCS 导入需人工比对。
+**变更详情**:
+- 客户端选择弹窗从"仅 antigravity"扩展到 anthropic + antigravity 平台：anthropic 密钥可选 Claude Code / Codex（Codex 走根路径 `/responses` Responses→Anthropic 桥，deeplink `app=codex`）；antigravity 保持 Claude Code / Gemini CLI（按产品决策不提供 Codex，`/antigravity/*` 下无 /responses 路由）；openai/gemini 平台仍无弹窗直接映射。
+- 调研结论（cc-switch v3.16.5 源码）：deeplink `app` 白名单为 claude/codex/gemini/opencode/openclaw/hermes，**不支持 claude-desktop**（UI 有该页签但 parser 拒绝）；Claude Code CLI 与桌面版共用 ~/.claude/settings.json，`app=claude` 一个入口覆盖两者，弹窗文案已注明。
+- 新增管理端设置"CCS 导入默认模型（Anthropic 密钥 → Codex 客户端）"：anthropic 密钥选 Codex 导入时写入 deeplink `model` 参数，应填本站可调度的 Claude 模型或已配置渠道映射的模型名；留空则 cc-switch 回落 gpt-5-codex。
+- 顺带修复两处存量测试损坏（被 unit-tag 编译错误掩盖）：`NewUsageHandler` 签名漂移致 api_contract_test 编译失败；redeem/history fixture 缺 `batch_redeem_limit_per_user` 字段。
+- 验证：go test -tags=unit ./... 全过；前端 typecheck/lint/SettingsView+app spec 全过；本地浏览器 E2E 实测四种平台密钥的弹窗选项与 deeplink 参数（含管理端设置保存→公开设置下发→deeplink model 参数全链）。
+
 ## [2026-07-04] feat: 模型配置页所有行可删除——直通行删除=持久化隐藏(可恢复)
 
 **影响范围**: backend/internal/{domain/constants.go, service/{domain_constants.go, setting_service.go, wire.go, global_model_pricing_service.go(+test), setting_service_model_mapping_test.go, model_pricing_resolver.go}, handler/admin/model_pricing_handler.go, server/routes/admin.go}, backend/cmd/server/wire_gen.go(手工对齐), frontend/src/{api/admin/modelPricing.ts, components/admin/model-pricing/ModelPricingTab.vue, i18n/locales/{zh,en}.ts}, docs/dev/codebase/model-mapping.md

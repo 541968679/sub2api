@@ -943,7 +943,7 @@
       @close="closeUseKeyModal"
     />
 
-    <!-- CCS Client Selection Dialog for Antigravity -->
+    <!-- CCS Client Selection Dialog (anthropic / antigravity keys) -->
     <BaseDialog
       :show="showCcsClientSelect"
       :title="t('keys.ccsClientSelect.title')"
@@ -953,34 +953,22 @@
       <div class="space-y-4">
         <p class="text-sm text-gray-600 dark:text-gray-400">
           {{ t('keys.ccsClientSelect.description') }}
-	        </p>
-	        <div class="grid grid-cols-2 gap-3">
-	          <button
-	            @click="handleCcsClientSelect('claude')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-	          >
-	            <Icon name="terminal" size="xl" class="text-gray-600 dark:text-gray-400" />
-	            <span class="font-medium text-gray-900 dark:text-white">{{
-	              t('keys.ccsClientSelect.claudeCode')
-	            }}</span>
-	            <span class="text-xs text-gray-500 dark:text-gray-400">{{
-	              t('keys.ccsClientSelect.claudeCodeDesc')
-	            }}</span>
-	          </button>
-	          <button
-	            @click="handleCcsClientSelect('gemini')"
-	            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
-	          >
-	            <Icon name="sparkles" size="xl" class="text-gray-600 dark:text-gray-400" />
-	            <span class="font-medium text-gray-900 dark:text-white">{{
-	              t('keys.ccsClientSelect.geminiCli')
-	            }}</span>
-	            <span class="text-xs text-gray-500 dark:text-gray-400">{{
-	              t('keys.ccsClientSelect.geminiCliDesc')
-	            }}</span>
-	          </button>
-	        </div>
-	      </div>
+        </p>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            v-for="option in ccsClientOptions"
+            :key="option.key"
+            @click="handleCcsClientSelect(option.key)"
+            class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 dark:border-dark-600 hover:border-primary-500 dark:hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all"
+          >
+            <Icon :name="option.icon" size="xl" class="text-gray-600 dark:text-gray-400" />
+            <span class="font-medium text-gray-900 dark:text-white">{{ option.label }}</span>
+            <span class="text-xs text-center text-gray-500 dark:text-gray-400">{{
+              option.desc
+            }}</span>
+          </button>
+        </div>
+      </div>
       <template #footer>
         <div class="flex justify-end">
           <button @click="closeCcsClientSelect" class="btn btn-secondary">
@@ -1172,6 +1160,50 @@ const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
+
+// CC Switch deeplink app types offered per platform. The deeplink accepts
+// claude/codex/gemini (plus opencode/openclaw/hermes); claude-desktop is not
+// importable via deeplink, and "claude" covers both Claude Code CLI and its
+// desktop app since they share ~/.claude/settings.json.
+type CcsClientType = 'claude' | 'gemini' | 'codex'
+
+interface CcsClientOption {
+  key: CcsClientType
+  icon: 'terminal' | 'sparkles' | 'cpu'
+  label: string
+  desc: string
+}
+
+const ccsClientOptions = computed<CcsClientOption[]>(() => {
+  const platform = pendingCcsRow.value?.group?.platform || 'anthropic'
+  const claudeCode: CcsClientOption = {
+    key: 'claude',
+    icon: 'terminal',
+    label: t('keys.ccsClientSelect.claudeCode'),
+    desc: t('keys.ccsClientSelect.claudeCodeDesc')
+  }
+  if (platform === 'antigravity') {
+    return [
+      claudeCode,
+      {
+        key: 'gemini',
+        icon: 'sparkles',
+        label: t('keys.ccsClientSelect.geminiCli'),
+        desc: t('keys.ccsClientSelect.geminiCliDesc')
+      }
+    ]
+  }
+  // anthropic: Codex reaches Claude models through the root /responses bridge
+  return [
+    claudeCode,
+    {
+      key: 'codex',
+      icon: 'cpu',
+      label: t('keys.ccsClientSelect.codex'),
+      desc: t('keys.ccsClientSelect.codexDesc')
+    }
+  ]
+})
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
@@ -1728,44 +1760,25 @@ const resetRateLimitUsage = async () => {
 const importToCcswitch = (row: ApiKey) => {
   const platform = row.group?.platform || 'anthropic'
 
-  // For antigravity platform, show client selection dialog
-  if (platform === 'antigravity') {
+  // anthropic/antigravity keys serve more than one client type; ask the user
+  if (platform === 'anthropic' || platform === 'antigravity') {
     pendingCcsRow.value = row
     showCcsClientSelect.value = true
     return
   }
 
-  // For other platforms, execute directly
-  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
+  // openai/gemini map to exactly one client; execute directly
+  executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'codex')
 }
 
-const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
+const executeCcsImport = (row: ApiKey, clientType: CcsClientType) => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
 
-  // Determine app name and endpoint based on platform and client type
-  let app: string
-  let endpoint: string
-
-  if (platform === 'antigravity') {
-    // Antigravity always uses /antigravity suffix
-    app = clientType === 'gemini' ? 'gemini' : 'claude'
-    endpoint = `${baseUrl}/antigravity`
-  } else {
-    switch (platform) {
-      case 'openai':
-        app = 'codex'
-        endpoint = baseUrl
-        break
-      case 'gemini':
-        app = 'gemini'
-        endpoint = baseUrl
-        break
-      default: // anthropic
-        app = 'claude'
-        endpoint = baseUrl
-    }
-  }
+  const app: string = clientType
+  // Antigravity keys are served from the dedicated /antigravity surface;
+  // all other platforms (incl. Codex hitting the root /responses alias) use the base URL.
+  const endpoint = platform === 'antigravity' ? `${baseUrl}/antigravity` : baseUrl
 
   const usageScript = `({
     request: {
@@ -1798,11 +1811,17 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     usageAutoInterval: '30'
   })
 
-  // For openai/codex, write the admin-configured default model into the
-  // imported CC Switch provider. cc-switch falls back to gpt-5-codex when the
-  // `model` param is omitted, so an empty setting keeps the legacy behavior.
-  if (platform === 'openai') {
-    const codexModel = publicSettings.value?.ccs_import_codex_model?.trim()
+  // For Codex imports, write the admin-configured default model into the
+  // imported CC Switch provider: openai keys use ccs_import_codex_model,
+  // anthropic keys use ccs_import_anthropic_codex_model (a Claude model the
+  // /responses bridge can schedule). cc-switch falls back to gpt-5-codex when
+  // the `model` param is omitted, so an empty setting keeps that behavior.
+  if (clientType === 'codex') {
+    const codexModel = (
+      platform === 'openai'
+        ? publicSettings.value?.ccs_import_codex_model
+        : publicSettings.value?.ccs_import_anthropic_codex_model
+    )?.trim()
     if (codexModel) {
       params.set('model', codexModel)
     }
@@ -1825,7 +1844,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   }
 }
 
-const handleCcsClientSelect = (clientType: 'claude' | 'gemini') => {
+const handleCcsClientSelect = (clientType: CcsClientType) => {
   if (pendingCcsRow.value) {
     executeCcsImport(pendingCcsRow.value, clientType)
   }

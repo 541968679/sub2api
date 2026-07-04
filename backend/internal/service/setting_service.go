@@ -466,6 +466,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyHomeContent,
 		SettingKeyHideCcsImportButton,
 		SettingKeyCcsImportCodexModel,
+		SettingKeyCcsImportAnthropicCodexModel,
 		SettingKeyPurchaseSubscriptionEnabled,
 		SettingKeyPurchaseSubscriptionURL,
 		SettingKeyTableDefaultPageSize,
@@ -577,6 +578,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		CcsImportCodexModel:              s.getStringOrDefault(settings, SettingKeyCcsImportCodexModel, "gpt-5-codex"),
+		CcsImportAnthropicCodexModel:     strings.TrimSpace(settings[SettingKeyCcsImportAnthropicCodexModel]),
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		TableDefaultPageSize:             tableDefaultPageSize,
@@ -756,6 +758,7 @@ type PublicSettingsInjectionPayload struct {
 	HomeContent                      string            `json:"home_content"`
 	HideCcsImportButton              bool              `json:"hide_ccs_import_button"`
 	CcsImportCodexModel              string            `json:"ccs_import_codex_model"`
+	CcsImportAnthropicCodexModel     string            `json:"ccs_import_anthropic_codex_model"`
 	PurchaseSubscriptionEnabled      bool              `json:"purchase_subscription_enabled"`
 	PurchaseSubscriptionURL          string            `json:"purchase_subscription_url"`
 	TableDefaultPageSize             int               `json:"table_default_page_size"`
@@ -819,6 +822,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		HomeContent:                      settings.HomeContent,
 		HideCcsImportButton:              settings.HideCcsImportButton,
 		CcsImportCodexModel:              settings.CcsImportCodexModel,
+		CcsImportAnthropicCodexModel:     settings.CcsImportAnthropicCodexModel,
 		PurchaseSubscriptionEnabled:      settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:             settings.TableDefaultPageSize,
@@ -1269,6 +1273,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyHideCcsImportButton] = strconv.FormatBool(settings.HideCcsImportButton)
 	updates[SettingKeyCcsImportCodexModel] = strings.TrimSpace(settings.CcsImportCodexModel)
+	updates[SettingKeyCcsImportAnthropicCodexModel] = strings.TrimSpace(settings.CcsImportAnthropicCodexModel)
 	updates[SettingKeyPurchaseSubscriptionEnabled] = strconv.FormatBool(settings.PurchaseSubscriptionEnabled)
 	updates[SettingKeyPurchaseSubscriptionURL] = strings.TrimSpace(settings.PurchaseSubscriptionURL)
 	tableDefaultPageSize, tablePageSizeOptions := normalizeTablePreferences(
@@ -2114,6 +2119,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		HomeContent:                      settings[SettingKeyHomeContent],
 		HideCcsImportButton:              settings[SettingKeyHideCcsImportButton] == "true",
 		CcsImportCodexModel:              s.getStringOrDefault(settings, SettingKeyCcsImportCodexModel, "gpt-5-codex"),
+		CcsImportAnthropicCodexModel:     strings.TrimSpace(settings[SettingKeyCcsImportAnthropicCodexModel]),
 		PurchaseSubscriptionEnabled:      settings[SettingKeyPurchaseSubscriptionEnabled] == "true",
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],

@@ -363,6 +363,7 @@ export interface SystemSettings {
   home_content: string;
   hide_ccs_import_button: boolean;
   ccs_import_codex_model: string;
+  ccs_import_anthropic_codex_model: string;
   table_default_page_size: number;
   table_page_size_options: number[];
   backend_mode_enabled: boolean;
@@ -565,6 +566,7 @@ export interface UpdateSettingsRequest {
   home_content?: string;
   hide_ccs_import_button?: boolean;
   ccs_import_codex_model?: string;
+  ccs_import_anthropic_codex_model?: string;
   table_default_page_size?: number;
   table_page_size_options?: number[];
   backend_mode_enabled?: boolean;
@@ -748,6 +750,7 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     home_content: s.home_content,
     hide_ccs_import_button: s.hide_ccs_import_button,
     ccs_import_codex_model: s.ccs_import_codex_model,
+    ccs_import_anthropic_codex_model: s.ccs_import_anthropic_codex_model,
     table_default_page_size: s.table_default_page_size,
     table_page_size_options: s.table_page_size_options,
     backend_mode_enabled: s.backend_mode_enabled,

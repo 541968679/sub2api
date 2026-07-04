@@ -916,9 +916,11 @@ const zhBase = {
       title: '选择客户端',
       description: '请选择您要导入到 CC-Switch 的客户端类型：',
       claudeCode: 'Claude Code',
-      claudeCodeDesc: '导入为 Claude Code 配置',
+      claudeCodeDesc: '导入为 Claude Code 配置（命令行与桌面版通用）',
       geminiCli: 'Gemini CLI',
-      geminiCliDesc: '导入为 Gemini CLI 配置'
+      geminiCliDesc: '导入为 Gemini CLI 配置',
+      codex: 'Codex',
+      codexDesc: '导入为 Codex 配置（OpenAI 协议接入）'
     },
     // 配额和有效期
     quotaLimit: '额度限制',
@@ -5897,7 +5899,11 @@ const zhBase = {
         ccsImportCodexModel: 'CCS 导入默认模型（OpenAI/Codex）',
         ccsImportCodexModelHint:
           '"导入到 CC Switch" 时为 OpenAI/Codex 平台写入的默认模型；留空则使用 CC Switch 内置默认（gpt-5-codex）',
-        ccsImportCodexModelPlaceholder: 'gpt-5-codex'
+        ccsImportCodexModelPlaceholder: 'gpt-5-codex',
+        ccsImportAnthropicCodexModel: 'CCS 导入默认模型（Anthropic 密钥 → Codex 客户端）',
+        ccsImportAnthropicCodexModelHint:
+          'Anthropic 平台密钥选择"Codex"客户端导入 CC Switch 时写入的模型，应填本站可调度的 Claude 模型或已配置映射的模型名；留空则 CC Switch 回落到 gpt-5-codex，需自行配置模型映射',
+        ccsImportAnthropicCodexModelPlaceholder: 'claude-sonnet-4-5'
       },
       purchase: {
         title: '充值/订阅页面',

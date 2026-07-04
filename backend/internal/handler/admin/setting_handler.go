@@ -181,6 +181,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		HomeContent:                            settings.HomeContent,
 		HideCcsImportButton:                    settings.HideCcsImportButton,
 		CcsImportCodexModel:                    settings.CcsImportCodexModel,
+		CcsImportAnthropicCodexModel:           settings.CcsImportAnthropicCodexModel,
 		PurchaseSubscriptionEnabled:            settings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                   settings.TableDefaultPageSize,
@@ -426,22 +427,23 @@ type UpdateSettingsRequest struct {
 	OIDCConnectUserInfoUsernamePath string `json:"oidc_connect_userinfo_username_path"`
 
 	// OEM设置
-	SiteName                    string                `json:"site_name"`
-	SiteLogo                    string                `json:"site_logo"`
-	SiteSubtitle                string                `json:"site_subtitle"`
-	APIBaseURL                  string                `json:"api_base_url"`
-	ContactInfo                 string                `json:"contact_info"`
-	DocURL                      string                `json:"doc_url"`
-	TutorialURL                 string                `json:"tutorial_url"`
-	HomeContent                 string                `json:"home_content"`
-	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
-	CcsImportCodexModel         string                `json:"ccs_import_codex_model"`
-	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int                   `json:"table_default_page_size"`
-	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
-	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
+	SiteName                     string                `json:"site_name"`
+	SiteLogo                     string                `json:"site_logo"`
+	SiteSubtitle                 string                `json:"site_subtitle"`
+	APIBaseURL                   string                `json:"api_base_url"`
+	ContactInfo                  string                `json:"contact_info"`
+	DocURL                       string                `json:"doc_url"`
+	TutorialURL                  string                `json:"tutorial_url"`
+	HomeContent                  string                `json:"home_content"`
+	HideCcsImportButton          bool                  `json:"hide_ccs_import_button"`
+	CcsImportCodexModel          string                `json:"ccs_import_codex_model"`
+	CcsImportAnthropicCodexModel string                `json:"ccs_import_anthropic_codex_model"`
+	PurchaseSubscriptionEnabled  *bool                 `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL      *string               `json:"purchase_subscription_url"`
+	TableDefaultPageSize         int                   `json:"table_default_page_size"`
+	TablePageSizeOptions         []int                 `json:"table_page_size_options"`
+	CustomMenuItems              *[]dto.CustomMenuItem `json:"custom_menu_items"`
+	CustomEndpoints              *[]dto.CustomEndpoint `json:"custom_endpoints"`
 
 	// 默认配置
 	DefaultConcurrency                       int                               `json:"default_concurrency"`
@@ -1286,6 +1288,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HomeContent:                      req.HomeContent,
 		HideCcsImportButton:              req.HideCcsImportButton,
 		CcsImportCodexModel:              req.CcsImportCodexModel,
+		CcsImportAnthropicCodexModel:     req.CcsImportAnthropicCodexModel,
 		PurchaseSubscriptionEnabled:      purchaseEnabled,
 		PurchaseSubscriptionURL:          purchaseURL,
 		TableDefaultPageSize:             req.TableDefaultPageSize,
@@ -1645,6 +1648,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		HomeContent:                            updatedSettings.HomeContent,
 		HideCcsImportButton:                    updatedSettings.HideCcsImportButton,
 		CcsImportCodexModel:                    updatedSettings.CcsImportCodexModel,
+		CcsImportAnthropicCodexModel:           updatedSettings.CcsImportAnthropicCodexModel,
 		PurchaseSubscriptionEnabled:            updatedSettings.PurchaseSubscriptionEnabled,
 		PurchaseSubscriptionURL:                updatedSettings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:                   updatedSettings.TableDefaultPageSize,
@@ -1984,6 +1988,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.CcsImportCodexModel != after.CcsImportCodexModel {
 		changed = append(changed, "ccs_import_codex_model")
+	}
+	if before.CcsImportAnthropicCodexModel != after.CcsImportAnthropicCodexModel {
+		changed = append(changed, "ccs_import_anthropic_codex_model")
 	}
 	if before.DefaultConcurrency != after.DefaultConcurrency {
 		changed = append(changed, "default_concurrency")

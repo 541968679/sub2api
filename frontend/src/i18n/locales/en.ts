@@ -915,9 +915,11 @@ const enBase = {
       title: 'Select Client',
       description: 'Please select the client type to import to CC-Switch:',
       claudeCode: 'Claude Code',
-      claudeCodeDesc: 'Import as Claude Code configuration',
+      claudeCodeDesc: 'Import as Claude Code configuration (CLI & desktop app)',
       geminiCli: 'Gemini CLI',
       geminiCliDesc: 'Import as Gemini CLI configuration',
+      codex: 'Codex',
+      codexDesc: 'Import as Codex configuration (OpenAI protocol)',
     },
     // Getting started guide
     guide: {
@@ -6204,7 +6206,11 @@ const enBase = {
         ccsImportCodexModel: 'CCS Import Default Model (OpenAI/Codex)',
         ccsImportCodexModelHint:
           'Model written into the OpenAI/Codex provider when using "Import to CC Switch". Leave empty to use CC Switch\'s built-in default (gpt-5-codex).',
-        ccsImportCodexModelPlaceholder: 'gpt-5-codex'
+        ccsImportCodexModelPlaceholder: 'gpt-5-codex',
+        ccsImportAnthropicCodexModel: 'CCS Import Default Model (Anthropic key → Codex client)',
+        ccsImportAnthropicCodexModelHint:
+          'Model written into the Codex provider when an Anthropic-platform key is imported to CC Switch as a Codex client. Use a Claude model this site can schedule, or a model name covered by your channel model mapping. Leave empty and CC Switch falls back to gpt-5-codex, which then requires a model mapping.',
+        ccsImportAnthropicCodexModelPlaceholder: 'claude-sonnet-4-5'
       },
       purchase: {
         title: 'Recharge / Subscription Page',

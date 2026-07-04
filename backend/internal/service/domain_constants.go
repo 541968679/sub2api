@@ -183,22 +183,23 @@ const (
 	SettingKeyOIDCConnectUserInfoUsernamePath = "oidc_connect_userinfo_username_path"
 
 	// OEM设置
-	SettingKeySiteName                    = "site_name"                     // 网站名称
-	SettingKeySiteLogo                    = "site_logo"                     // 网站Logo (base64)
-	SettingKeySiteSubtitle                = "site_subtitle"                 // 网站副标题
-	SettingKeyAPIBaseURL                  = "api_base_url"                  // API端点地址（用于客户端配置和导入）
-	SettingKeyContactInfo                 = "contact_info"                  // 客服联系方式
-	SettingKeyDocURL                      = "doc_url"                       // 文档链接
-	SettingKeyTutorialURL                 = "tutorial_url"                  // 外部教程链接（飞书教程文档），配置后教程入口跳转此链接
-	SettingKeyHomeContent                 = "home_content"                  // 首页内容（支持 Markdown/HTML，或 URL 作为 iframe src）
-	SettingKeyHideCcsImportButton         = "hide_ccs_import_button"        // 是否隐藏 API Keys 页面的导入 CCS 按钮
-	SettingKeyCcsImportCodexModel         = "ccs_import_codex_model"        // 导入到 CC Switch 时 codex(openai) 平台写入的默认模型
-	SettingKeyPurchaseSubscriptionEnabled = "purchase_subscription_enabled" // 是否展示"购买订阅"页面入口
-	SettingKeyPurchaseSubscriptionURL     = "purchase_subscription_url"     // "购买订阅"页面 URL（作为 iframe src）
-	SettingKeyTableDefaultPageSize        = "table_default_page_size"       // 表格默认每页条数
-	SettingKeyTablePageSizeOptions        = "table_page_size_options"       // 表格可选每页条数（JSON 数组）
-	SettingKeyCustomMenuItems             = "custom_menu_items"             // 自定义菜单项（JSON 数组）
-	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
+	SettingKeySiteName                     = "site_name"                        // 网站名称
+	SettingKeySiteLogo                     = "site_logo"                        // 网站Logo (base64)
+	SettingKeySiteSubtitle                 = "site_subtitle"                    // 网站副标题
+	SettingKeyAPIBaseURL                   = "api_base_url"                     // API端点地址（用于客户端配置和导入）
+	SettingKeyContactInfo                  = "contact_info"                     // 客服联系方式
+	SettingKeyDocURL                       = "doc_url"                          // 文档链接
+	SettingKeyTutorialURL                  = "tutorial_url"                     // 外部教程链接（飞书教程文档），配置后教程入口跳转此链接
+	SettingKeyHomeContent                  = "home_content"                     // 首页内容（支持 Markdown/HTML，或 URL 作为 iframe src）
+	SettingKeyHideCcsImportButton          = "hide_ccs_import_button"           // 是否隐藏 API Keys 页面的导入 CCS 按钮
+	SettingKeyCcsImportCodexModel          = "ccs_import_codex_model"           // 导入到 CC Switch 时 codex(openai) 平台写入的默认模型
+	SettingKeyCcsImportAnthropicCodexModel = "ccs_import_anthropic_codex_model" // 导入到 CC Switch 时 anthropic 平台 Codex 客户端写入的模型（空则不写，cc-switch 回落 gpt-5-codex）
+	SettingKeyPurchaseSubscriptionEnabled  = "purchase_subscription_enabled"    // 是否展示"购买订阅"页面入口
+	SettingKeyPurchaseSubscriptionURL      = "purchase_subscription_url"        // "购买订阅"页面 URL（作为 iframe src）
+	SettingKeyTableDefaultPageSize         = "table_default_page_size"          // 表格默认每页条数
+	SettingKeyTablePageSizeOptions         = "table_page_size_options"          // 表格可选每页条数（JSON 数组）
+	SettingKeyCustomMenuItems              = "custom_menu_items"                // 自定义菜单项（JSON 数组）
+	SettingKeyCustomEndpoints              = "custom_endpoints"                 // 自定义端点列表（JSON 数组）
 
 	// 登录页文案（覆盖 i18n auth.login.* 的那几段）。空值时前端回落到 i18n 原文。
 	SettingKeyLoginPageBadge                = "login_page.badge"                  // 左栏顶部徽章
