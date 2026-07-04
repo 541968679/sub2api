@@ -15,7 +15,7 @@
       <div v-if="$slots.scrollHeader" class="layout-scroll-header">
         <slot name="scrollHeader" />
       </div>
-      <div class="card table-scroll-container">
+      <div class="card table-scroll-container" :class="{ 'is-bare': bareTable }">
         <slot name="table" />
       </div>
     </div>
@@ -32,8 +32,15 @@ import { ref, onMounted, onUnmounted } from 'vue'
 
 withDefaults(defineProps<{
   scrollMode?: 'fixed' | 'page'
+  /**
+   * When true, strips the DataTable-oriented card chrome and deep table styling
+   * from the table slot so callers can render fully custom fixed-height content
+   * (e.g. a split-pane console) while still reusing the viewport height management.
+   */
+  bareTable?: boolean
 }>(), {
-  scrollMode: 'fixed'
+  scrollMode: 'fixed',
+  bareTable: false
 })
 
 const isMobile = ref(false)
@@ -96,31 +103,36 @@ onUnmounted(() => {
   @apply flex flex-1 min-h-0 flex-col overflow-hidden bg-white dark:bg-dark-800 rounded-2xl border border-gray-200 dark:border-dark-700 shadow-sm;
 }
 
-.table-scroll-container :deep(.table-wrapper) {
+/* Bare 模式：容器仅保留 flex/高度约束，交由调用方渲染自定义内容 */
+.table-scroll-container.is-bare {
+  @apply bg-transparent border-none shadow-none rounded-none;
+}
+
+.table-scroll-container:not(.is-bare) :deep(.table-wrapper) {
   @apply flex-1 overflow-x-auto overflow-y-auto;
   /* 确保横向滚动条显示在最底部 */
   scrollbar-gutter: stable;
 }
 
-.table-scroll-container :deep(table) {
+.table-scroll-container:not(.is-bare) :deep(table) {
   @apply w-full;
   min-width: max-content; /* 关键：确保表格宽度根据内容撑开，从而触发横向滚动 */
   display: table; /* 使用标准 table 布局以支持 sticky 列 */
 }
 
-.table-scroll-container :deep(thead) {
+.table-scroll-container:not(.is-bare) :deep(thead) {
   @apply bg-gray-50/80 dark:bg-dark-800/80 backdrop-blur-sm;
 }
 
-.table-scroll-container :deep(tbody) {
+.table-scroll-container:not(.is-bare) :deep(tbody) {
   /* 保持默认 table-row-group 显示，不使用 block */
 }
 
-.table-scroll-container :deep(th) {
+.table-scroll-container:not(.is-bare) :deep(th) {
   @apply px-5 py-4 text-left text-sm font-medium text-gray-600 dark:text-dark-300 border-b border-gray-200 dark:border-dark-700;
 }
 
-.table-scroll-container :deep(td) {
+.table-scroll-container:not(.is-bare) :deep(td) {
   @apply px-5 py-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-dark-800;
 }
 

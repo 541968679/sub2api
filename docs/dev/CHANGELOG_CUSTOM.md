@@ -19,6 +19,22 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: redesign manual image test into a fixed-viewport split console
+
+**Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/components/layout/TablePageLayout.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: frontend-only fork-local layout rework. It does not change backend APIs, schemas, scheduling, manual history storage, browser-local storage keys, or polling/cancel logic. `TablePageLayout` gains an additive `bareTable` prop (default `false`) guarded by `:not(.is-bare)`, so all other consumers are unaffected.
+**Change details**:
+- Reworked the manual-test panel into a fixed-viewport split console (`bareTable` slot): left column stacks Parameters (collapsible) → Channels (internal scroll) → a persistent Start-test CTA bar; right column is the records table with an internal scroll area and a sticky header. The whole panel fits one viewport — scrolling happens only inside the channel list and the table, never the page.
+- Panel switcher moved from two large cards to a compact header + segmented tabs (A), reclaiming ~90px of vertical space.
+- Parameters: two-column grid, prompt spans full width, and the separate size-mode + size selects were merged into one dropdown (with a "custom…" entry) backed by a `manualSizeChoice` get/set computed over the unchanged `size_mode`/`size`/`custom_size` trio. Collapsing the card shows a one-line summary of chips.
+- Presets condensed to dropdown + save/delete at the card foot; naming moved into a save dialog.
+- Channels: row list with selected-count pill, select-all/clear, and a channel search filter (`manualFilteredTargets`); internal scroll keeps the page height bounded regardless of channel count.
+- Results: running/completion banner (progress x/y, ok/fail counts, cancel) driven by new `manualBatchStats`/`manualBatchProgress` computeds derived from `manualResults` — zero API changes. Default columns trimmed (mode/model/size hidden by default via the existing field-visibility state); numeric columns right-aligned with `tabular-nums`; compact text actions.
+- Detail dialog: added a latency waterfall over the existing `api_header_ms` (start→headers) / `api_body_ms` (headers→body phase) / `image_download_ms` (download phase) — confirmed sequential non-overlapping phase durations in `image_channel_monitor_service.go`, so they stack correctly; dropped the now-redundant raw timing metrics.
+- Added the field-popover outside-click-to-close handler.
+- New i18n keys (zh/en in sync): config, collapse/expand, selectAll/clearSelection, searchTargets, selectedOfTotal, noTargets, startWithCount, testingProgress, ctaHint, batchRunning/batchComplete, resultOk/resultFail, waterfall, savePresetTitle.
+- Verified: `pnpm run typecheck`; `pnpm run lint:check`; Vite dev-server transform of all four changed modules returns HTTP 200 with the new markup and no compile errors. Live authenticated screenshot not captured (no local admin credentials on hand); layout mechanics validated in a standalone prototype using the same flex/overflow approach.
+
 ## [2026-07-04] fix: keep manual image channel selection reachable
 
 **Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md

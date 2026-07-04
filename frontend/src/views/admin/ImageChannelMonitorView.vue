@@ -1,31 +1,50 @@
 <template>
   <AppLayout>
-    <TablePageLayout :scroll-mode="activePanel === 'manual' ? 'page' : 'fixed'">
+    <TablePageLayout scroll-mode="fixed" :bare-table="activePanel === 'manual'">
       <template #filters>
         <div class="space-y-4">
-          <div class="grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              class="rounded-lg border p-4 text-left transition"
-              :class="activePanel === 'monitors'
-                ? 'border-primary-500 bg-primary-50 text-primary-900 dark:border-primary-500 dark:bg-primary-900/20 dark:text-primary-100'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200'"
-              @click="activePanel = 'monitors'"
+          <!-- Panel switcher: compact header + segmented tabs (A) -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t('admin.imageChannelMonitor.title') }}
+              </h1>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-dark-400">
+                {{ activePanel === 'manual'
+                  ? t('admin.imageChannelMonitor.panels.manualDesc')
+                  : t('admin.imageChannelMonitor.panels.monitorsDesc') }}
+              </p>
+            </div>
+            <div
+              class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-1 dark:border-dark-700 dark:bg-dark-800"
+              role="tablist"
+              :aria-label="t('admin.imageChannelMonitor.title')"
             >
-              <div class="text-sm font-semibold">{{ t('admin.imageChannelMonitor.panels.monitors') }}</div>
-              <div class="mt-1 text-xs opacity-80">{{ t('admin.imageChannelMonitor.panels.monitorsDesc') }}</div>
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border p-4 text-left transition"
-              :class="activePanel === 'manual'
-                ? 'border-primary-500 bg-primary-50 text-primary-900 dark:border-primary-500 dark:bg-primary-900/20 dark:text-primary-100'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200'"
-              @click="switchPanel('manual')"
-            >
-              <div class="text-sm font-semibold">{{ t('admin.imageChannelMonitor.panels.manual') }}</div>
-              <div class="mt-1 text-xs opacity-80">{{ t('admin.imageChannelMonitor.panels.manualDesc') }}</div>
-            </button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="activePanel === 'monitors'"
+                class="rounded-md px-4 py-1.5 text-sm font-medium transition"
+                :class="activePanel === 'monitors'
+                  ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-900 dark:text-primary-200'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
+                @click="activePanel = 'monitors'"
+              >
+                {{ t('admin.imageChannelMonitor.panels.monitors') }}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                :aria-selected="activePanel === 'manual'"
+                class="rounded-md px-4 py-1.5 text-sm font-medium transition"
+                :class="activePanel === 'manual'
+                  ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-900 dark:text-primary-200'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
+                @click="switchPanel('manual')"
+              >
+                {{ t('admin.imageChannelMonitor.panels.manual') }}
+              </button>
+            </div>
           </div>
 
           <div
@@ -64,205 +83,304 @@
       </template>
 
       <template #table>
+        <!-- Manual test console: fixed viewport, internal scroll only -->
         <div
           v-if="activePanel === 'manual'"
-          class="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]"
+          class="flex h-full min-h-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-900 max-lg:h-auto max-lg:flex-col max-lg:overflow-visible"
         >
-          <aside class="space-y-4 xl:self-start">
-          <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
-            <div class="mb-4 grid gap-3">
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.preset') }}</span>
-                <select v-model="manualPresetSelectedId" class="input" @change="handleManualPresetSelect">
-                  <option value="">{{ t('admin.imageChannelMonitor.manual.selectPreset') }}</option>
-                  <option v-for="preset in manualPresets" :key="preset.id" :value="preset.id">
-                    {{ preset.name }}
-                  </option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.presetName') }}</span>
-                <input
-                  v-model.trim="manualPresetName"
-                  class="input"
-                  :placeholder="t('admin.imageChannelMonitor.manual.presetNamePlaceholder')"
-                />
-              </label>
-              <div class="flex flex-wrap gap-2">
-                <button type="button" class="btn btn-secondary btn-sm" @click="saveManualPreset">
-                  {{ manualPresetSelectedId ? t('admin.imageChannelMonitor.manual.updatePreset') : t('admin.imageChannelMonitor.manual.savePreset') }}
-                </button>
+          <!-- LEFT: config -> channels -> persistent CTA -->
+          <div class="flex w-[340px] min-h-0 flex-none flex-col border-r border-gray-200 dark:border-dark-700 max-lg:w-full max-lg:border-b max-lg:border-r-0 2xl:w-[380px]">
+
+            <!-- B: parameters (collapsible) -->
+            <section class="flex-none border-b border-gray-200 dark:border-dark-700">
+              <div class="flex items-center gap-2 px-4 py-2.5">
+                <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ t('admin.imageChannelMonitor.manual.config') }}
+                </span>
+                <div v-if="manualConfigCollapsed" class="flex min-w-0 flex-wrap items-center gap-1">
+                  <span
+                    v-for="chip in manualConfigSummary"
+                    :key="chip"
+                    class="truncate rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600 dark:bg-dark-800 dark:text-dark-300"
+                  >{{ chip }}</span>
+                </div>
                 <button
                   type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="!manualPresetSelectedId"
-                  @click="deleteManualPreset"
+                  class="ml-auto text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300"
+                  :aria-expanded="!manualConfigCollapsed"
+                  @click="manualConfigCollapsed = !manualConfigCollapsed"
                 >
-                  {{ t('admin.imageChannelMonitor.manual.deletePreset') }}
+                  {{ manualConfigCollapsed ? t('admin.imageChannelMonitor.manual.expand') : t('admin.imageChannelMonitor.manual.collapse') }}
                 </button>
               </div>
-            </div>
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.mode') }}</span>
-                <select v-model="manualForm.mode" class="input">
-                  <option value="generate">{{ t('admin.imageChannelMonitor.manual.generate') }}</option>
-                  <option value="edit">{{ t('admin.imageChannelMonitor.manual.edit') }}</option>
-                </select>
-              </label>
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.form.model') }}</span>
-                <input v-model.trim="manualForm.model" class="input" placeholder="gpt-image-1" />
-              </label>
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.form.sizeMode') }}</span>
-                <select v-model="manualForm.size_mode" class="input">
-                  <option value="omit">{{ t('admin.imageChannelMonitor.form.sizeModeOmit') }}</option>
-                  <option value="auto">{{ t('admin.imageChannelMonitor.form.sizeModeAuto') }}</option>
-                  <option value="preset">{{ t('admin.imageChannelMonitor.form.sizeModePreset') }}</option>
-                  <option value="custom">{{ t('admin.imageChannelMonitor.form.sizeModeCustom') }}</option>
-                </select>
-              </label>
-              <label v-if="manualForm.size_mode === 'preset'" class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.form.size') }}</span>
-                <select v-model="manualForm.size" class="input">
-                  <option v-for="option in standardSizeOptions" :key="option.value" :value="option.value">
-                    {{ t(option.labelKey) }}
-                  </option>
-                </select>
-              </label>
-              <label v-else-if="manualForm.size_mode === 'custom'" class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.form.customSize') }}</span>
-                <input
-                  v-model.trim="manualForm.custom_size"
-                  class="input"
-                  :placeholder="t('admin.imageChannelMonitor.form.customSizePlaceholder')"
-                />
-              </label>
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.form.quality') }}</span>
-                <input v-model.trim="manualForm.quality" class="input" placeholder="auto" />
-              </label>
-              <label class="block">
-                <span class="input-label">n</span>
-                <input v-model.number="manualForm.n" type="number" min="1" max="10" class="input" />
-              </label>
-              <label class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.form.timeoutSeconds') }}</span>
-                <input v-model.number="manualForm.timeout_seconds" type="number" min="30" max="600" class="input" />
-              </label>
-            </div>
-            <label class="mt-4 block">
-              <span class="input-label">{{ t('admin.imageChannelMonitor.form.prompt') }}</span>
-              <textarea v-model.trim="manualForm.prompt" class="input min-h-[96px]" />
-            </label>
-            <div class="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px] md:items-end xl:grid-cols-1">
-              <label v-if="manualForm.mode === 'edit'" class="block">
-                <span class="input-label">{{ t('admin.imageChannelMonitor.manual.inputImage') }}</span>
-                <input class="input" type="file" accept="image/*" @change="handleManualImageChange" />
-                <div
-                  v-if="manualInputImage"
-                  class="mt-2 flex items-center gap-3 rounded-md border border-gray-200 p-2 text-xs dark:border-dark-700"
-                >
-                  <img :src="manualInputImage.data" class="h-12 w-12 rounded object-cover" alt="" />
-                  <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-dark-300">
-                    {{ manualInputImage.name }}
-                  </span>
-                  <button type="button" class="btn btn-secondary btn-sm" @click="clearManualInputImage">
-                    {{ t('common.clear') }}
+              <div v-show="!manualConfigCollapsed" class="space-y-3 px-4 pb-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-dark-700 dark:bg-dark-800" role="tablist">
+                    <button
+                      v-for="opt in [{ v: 'generate', l: t('admin.imageChannelMonitor.manual.generate') }, { v: 'edit', l: t('admin.imageChannelMonitor.manual.edit') }]"
+                      :key="opt.v"
+                      type="button"
+                      role="tab"
+                      :aria-selected="manualForm.mode === opt.v"
+                      class="rounded-md px-3 py-1 text-xs font-medium transition"
+                      :class="manualForm.mode === opt.v
+                        ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-900 dark:text-primary-200'
+                        : 'text-gray-600 hover:text-gray-900 dark:text-dark-300'"
+                      @click="manualForm.mode = opt.v as 'generate' | 'edit'"
+                    >
+                      {{ opt.l }}
+                    </button>
+                  </div>
+                  <label class="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-dark-300">
+                    <input
+                      v-model="manualForm.download_image"
+                      type="checkbox"
+                      class="h-3.5 w-3.5 rounded border-gray-300 text-primary-600"
+                    />
+                    {{ t('admin.imageChannelMonitor.form.downloadImage') }}
+                  </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5">
+                  <label class="block">
+                    <span class="input-label">{{ t('admin.imageChannelMonitor.form.model') }}</span>
+                    <input v-model.trim="manualForm.model" class="input" placeholder="gpt-image-1" />
+                  </label>
+                  <label class="block">
+                    <span class="input-label">{{ t('admin.imageChannelMonitor.form.size') }}</span>
+                    <select v-model="manualSizeChoice" class="input">
+                      <option value="omit">{{ t('admin.imageChannelMonitor.form.sizeModeOmit') }}</option>
+                      <option value="auto">{{ t('admin.imageChannelMonitor.form.sizeModeAuto') }}</option>
+                      <option v-for="option in standardSizeOptions" :key="option.value" :value="option.value">
+                        {{ t(option.labelKey) }}
+                      </option>
+                      <option value="custom">{{ t('admin.imageChannelMonitor.form.sizeModeCustom') }}</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label v-if="manualForm.size_mode === 'custom'" class="block">
+                  <span class="input-label">{{ t('admin.imageChannelMonitor.form.customSize') }}</span>
+                  <input
+                    v-model.trim="manualForm.custom_size"
+                    class="input"
+                    :placeholder="t('admin.imageChannelMonitor.form.customSizePlaceholder')"
+                  />
+                </label>
+
+                <div class="grid grid-cols-3 gap-2.5">
+                  <label class="block">
+                    <span class="input-label">{{ t('admin.imageChannelMonitor.form.quality') }}</span>
+                    <input v-model.trim="manualForm.quality" class="input" placeholder="auto" />
+                  </label>
+                  <label class="block">
+                    <span class="input-label">n</span>
+                    <input v-model.number="manualForm.n" type="number" min="1" max="10" class="input" />
+                  </label>
+                  <label class="block">
+                    <span class="input-label">{{ t('admin.imageChannelMonitor.form.timeoutSeconds') }}</span>
+                    <input v-model.number="manualForm.timeout_seconds" type="number" min="30" max="600" class="input" />
+                  </label>
+                </div>
+
+                <label class="block">
+                  <span class="input-label">{{ t('admin.imageChannelMonitor.form.prompt') }}</span>
+                  <textarea v-model.trim="manualForm.prompt" rows="2" class="input min-h-[52px]" />
+                </label>
+
+                <div v-if="manualForm.mode === 'edit'" class="space-y-2">
+                  <span class="input-label">{{ t('admin.imageChannelMonitor.manual.inputImage') }}</span>
+                  <input class="input" type="file" accept="image/*" @change="handleManualImageChange" />
+                  <div
+                    v-if="manualInputImage"
+                    class="flex items-center gap-2 rounded-md border border-gray-200 p-1.5 text-xs dark:border-dark-700"
+                  >
+                    <img :src="manualInputImage.data" class="h-9 w-9 rounded object-cover" alt="" />
+                    <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-dark-300">{{ manualInputImage.name }}</span>
+                    <button type="button" class="btn btn-secondary btn-sm" @click="clearManualInputImage">
+                      {{ t('common.clear') }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-2 border-t border-gray-100 pt-3 dark:border-dark-800">
+                  <select v-model="manualPresetSelectedId" class="input flex-1" @change="handleManualPresetSelect">
+                    <option value="">{{ t('admin.imageChannelMonitor.manual.selectPreset') }}</option>
+                    <option v-for="preset in manualPresets" :key="preset.id" :value="preset.id">
+                      {{ preset.name }}
+                    </option>
+                  </select>
+                  <button type="button" class="btn btn-secondary btn-sm" @click="openManualPresetSaveDialog">
+                    {{ t('common.save') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="!manualPresetSelectedId"
+                    @click="deleteManualPreset"
+                  >
+                    {{ t('admin.imageChannelMonitor.manual.deletePreset') }}
                   </button>
                 </div>
-              </label>
-              <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-dark-200">
-                <input
-                  v-model="manualForm.download_image"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600"
-                />
-                {{ t('admin.imageChannelMonitor.form.downloadImage') }}
-              </label>
-            </div>
-          </section>
+              </div>
+            </section>
 
-          <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
-                {{ t('admin.imageChannelMonitor.manual.targets') }}
-              </h2>
-              <div class="flex items-center gap-2">
-                <button type="button" class="btn btn-secondary btn-sm" :disabled="manualTargetsLoading" @click="loadManualTargets">
-                  {{ manualTargetsLoading ? t('common.loading') : t('common.refresh') }}
+            <!-- C: channels (internal scroll) -->
+            <section class="flex min-h-0 flex-1 flex-col">
+              <div class="flex flex-wrap items-center gap-2 px-4 pb-2 pt-3">
+                <span class="text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ t('admin.imageChannelMonitor.manual.targets') }}
+                </span>
+                <span class="rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-700 dark:border-primary-500/40 dark:bg-primary-900/20 dark:text-primary-200">
+                  {{ t('admin.imageChannelMonitor.manual.selectedOfTotal', { selected: manualSelectedIds.length, total: manualTargets.length }) }}
+                </span>
+                <div class="ml-auto flex items-center gap-1">
+                  <button type="button" class="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300" @click="selectAllManualTargets">
+                    {{ t('admin.imageChannelMonitor.manual.selectAll') }}
+                  </button>
+                  <span class="text-gray-300 dark:text-dark-600">·</span>
+                  <button type="button" class="text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-dark-400" @click="clearManualTargets">
+                    {{ t('admin.imageChannelMonitor.manual.clearSelection') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="ml-1 text-xs font-medium text-gray-500 hover:text-gray-700 disabled:opacity-50 dark:text-dark-400"
+                    :disabled="manualTargetsLoading"
+                    @click="loadManualTargets"
+                  >
+                    {{ manualTargetsLoading ? t('common.loading') : t('common.refresh') }}
+                  </button>
+                </div>
+              </div>
+              <div class="px-4 pb-2">
+                <input
+                  v-model.trim="manualTargetSearch"
+                  type="search"
+                  class="input w-full"
+                  :placeholder="t('admin.imageChannelMonitor.manual.searchTargets')"
+                />
+              </div>
+              <div class="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 pb-3 max-lg:max-h-[300px]">
+                <label
+                  v-for="target in manualFilteredTargets"
+                  :key="target.id"
+                  class="flex cursor-pointer items-center gap-2.5 rounded-lg border p-2 transition"
+                  :class="manualSelectedIds.includes(target.id)
+                    ? 'border-primary-400 bg-primary-50 dark:border-primary-500/60 dark:bg-primary-900/20'
+                    : 'border-gray-200 hover:border-gray-300 dark:border-dark-700 dark:hover:border-dark-600'"
+                >
+                  <input
+                    v-model="manualSelectedIds"
+                    type="checkbox"
+                    class="h-4 w-4 flex-none rounded border-gray-300 text-primary-600"
+                    :value="target.id"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] font-medium text-gray-900 dark:text-white">{{ target.name }}</span>
+                    <span class="flex items-center gap-1.5 truncate text-[11px] text-gray-500 dark:text-dark-400">
+                      <span class="rounded px-1 py-0.5 text-[10px] font-medium" :class="sourceBadgeClass(target.source_type)">
+                        {{ sourceLabel(target.source_type) }}
+                      </span>
+                      <span class="truncate">{{ target.model }}</span>
+                    </span>
+                  </span>
+                </label>
+                <p v-if="manualFilteredTargets.length === 0" class="py-8 text-center text-xs text-gray-400 dark:text-dark-500">
+                  {{ manualTargetsLoading ? t('common.loading') : t('admin.imageChannelMonitor.manual.noTargets') }}
+                </p>
+              </div>
+            </section>
+
+            <!-- Persistent CTA -->
+            <section class="flex-none border-t border-gray-200 p-3 dark:border-dark-700">
+              <template v-if="!manualRunning">
+                <button
+                  type="button"
+                  class="btn btn-primary w-full justify-center py-2.5 text-sm font-semibold"
+                  :disabled="manualSelectedIds.length === 0"
+                  @click="startManualTests"
+                >
+                  {{ t('admin.imageChannelMonitor.manual.startWithCount', { count: manualSelectedIds.length }) }}
                 </button>
-                <button v-if="manualRunning" type="button" class="btn btn-secondary btn-sm" @click="cancelRunningManualTests">
+                <p class="mt-2 text-center text-[11px] text-gray-400 dark:text-dark-500">
+                  {{ t('admin.imageChannelMonitor.manual.ctaHint') }}
+                </p>
+              </template>
+              <template v-else>
+                <div class="mb-2 flex items-center justify-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-300">
+                  <span class="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600 dark:border-blue-900 dark:border-t-blue-300"></span>
+                  {{ t('admin.imageChannelMonitor.manual.testingProgress', { done: manualBatchStats.done, total: manualBatchStats.total }) }}
+                </div>
+                <button type="button" class="btn btn-danger w-full justify-center py-2.5 text-sm font-semibold" @click="cancelRunningManualTests">
                   {{ t('admin.imageChannelMonitor.manual.cancelAll') }}
                 </button>
-                <button type="button" class="btn btn-primary btn-sm" :disabled="manualRunning" @click="startManualTests">
-                  {{ manualRunning ? t('common.loading') : t('admin.imageChannelMonitor.manual.start') }}
-                </button>
-              </div>
-            </div>
-            <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-              <label
-                v-for="target in manualTargets"
-                :key="target.id"
-                class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm dark:border-dark-700"
+              </template>
+            </section>
+          </div>
+
+          <!-- RIGHT: results (D) -->
+          <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+            <!-- Running / completion banner -->
+            <div
+              v-if="manualShowBatchBanner"
+              class="flex flex-wrap items-center gap-3 border-b px-4 py-2.5"
+              :class="manualRunning
+                ? 'border-blue-100 bg-blue-50 dark:border-blue-900/40 dark:bg-blue-900/20'
+                : 'border-green-100 bg-green-50 dark:border-green-900/40 dark:bg-green-900/20'"
+              role="status"
+            >
+              <span class="text-sm font-semibold" :class="manualRunning ? 'text-blue-700 dark:text-blue-200' : 'text-green-700 dark:text-green-200'">
+                {{ manualRunning
+                  ? t('admin.imageChannelMonitor.manual.batchRunning', { total: manualBatchStats.total, done: manualBatchStats.done })
+                  : t('admin.imageChannelMonitor.manual.batchComplete', { done: manualBatchStats.done, total: manualBatchStats.total }) }}
+              </span>
+              <span class="h-1.5 min-w-[100px] flex-1 overflow-hidden rounded-full bg-white/70 dark:bg-dark-800">
+                <span
+                  class="block h-full rounded-full transition-[width] duration-500"
+                  :class="manualRunning ? 'bg-blue-500' : 'bg-green-500'"
+                  :style="{ width: `${Math.max(4, manualBatchProgress)}%` }"
+                ></span>
+              </span>
+              <span class="text-xs tabular-nums text-gray-600 dark:text-dark-300">
+                {{ t('admin.imageChannelMonitor.manual.resultOk') }} <b class="text-green-600 dark:text-green-300">{{ manualBatchStats.ok }}</b>
+                · {{ t('admin.imageChannelMonitor.manual.resultFail') }} <b class="text-red-600 dark:text-red-300">{{ manualBatchStats.failed }}</b>
+              </span>
+              <button
+                v-if="manualRunning"
+                type="button"
+                class="btn btn-danger btn-sm"
+                @click="cancelRunningManualTests"
               >
-                <input
-                  v-model="manualSelectedIds"
-                  type="checkbox"
-                  class="mt-1 h-4 w-4 rounded border-gray-300 text-primary-600"
-                  :value="target.id"
-                />
-                <span class="min-w-0">
-                  <span class="block truncate font-medium text-gray-900 dark:text-white">{{ target.name }}</span>
-                  <span class="block truncate text-xs text-gray-500 dark:text-dark-400">
-                    {{ sourceLabel(target.source_type) }} · {{ target.model }} · {{ formatSize(target.size) }}
-                  </span>
-                </span>
-              </label>
+                {{ t('admin.imageChannelMonitor.manual.cancelAll') }}
+              </button>
+              <button
+                v-else
+                type="button"
+                class="text-gray-400 hover:text-gray-600 dark:text-dark-500"
+                :aria-label="t('common.close')"
+                @click="manualBatchDismissed = true"
+              >
+                ✕
+              </button>
             </div>
-          </section>
 
-          </aside>
-
-          <section class="min-w-0 rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <!-- Toolbar -->
+            <div class="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-2.5 dark:border-dark-700">
+              <div class="mr-auto min-w-0">
                 <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
                   {{ t('admin.imageChannelMonitor.manual.records') }}
                 </h2>
-                <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                <p class="text-[11px] tabular-nums text-gray-500 dark:text-dark-400">
                   {{ t('admin.imageChannelMonitor.manual.recordsSummary', { shown: filteredManualTableEntries.length, total: manualTableEntries.length }) }}
                 </p>
               </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <button
-                  v-if="manualRunning"
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  @click="cancelRunningManualTests"
-                >
-                  {{ t('admin.imageChannelMonitor.manual.cancelAll') }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="manualHistory.length === 0"
-                  @click="clearManualHistory"
-                >
-                  {{ t('admin.imageChannelMonitor.manual.clearHistory') }}
-                </button>
-              </div>
-            </div>
-
-            <div class="mt-4 grid gap-2 lg:grid-cols-[minmax(180px,1fr)_140px_150px_180px_140px_auto]">
               <input
                 v-model.trim="manualRecordSearch"
                 type="search"
-                class="input"
+                class="input w-40"
                 :placeholder="t('admin.imageChannelMonitor.manual.recordSearchPlaceholder')"
               />
-              <select v-model="manualRecordStatusFilter" class="input">
+              <select v-model="manualRecordStatusFilter" class="input w-auto">
                 <option value="">{{ t('admin.imageChannelMonitor.manual.allStatuses') }}</option>
                 <option value="running">{{ t('admin.imageChannelMonitor.manual.running') }}</option>
                 <option value="operational">{{ t('admin.imageChannelMonitor.status.operational') }}</option>
@@ -271,22 +389,22 @@
                 <option value="error">{{ t('admin.imageChannelMonitor.status.error') }}</option>
                 <option value="canceled">{{ t('admin.imageChannelMonitor.manual.canceled') }}</option>
               </select>
-              <select v-model="manualRecordModeFilter" class="input">
+              <select v-model="manualRecordModeFilter" class="input w-auto">
                 <option value="">{{ t('admin.imageChannelMonitor.manual.allModes') }}</option>
                 <option value="generate">{{ t('admin.imageChannelMonitor.manual.generate') }}</option>
                 <option value="edit">{{ t('admin.imageChannelMonitor.manual.edit') }}</option>
               </select>
-              <select v-model="manualRecordMonitorFilter" class="input">
+              <select v-model="manualRecordMonitorFilter" class="input w-auto">
                 <option value="">{{ t('admin.imageChannelMonitor.manual.allChannels') }}</option>
                 <option v-for="option in manualRecordMonitorOptions" :key="option.id" :value="option.id">
                   {{ option.name }}
                 </option>
               </select>
-              <select v-model="manualRecordSort" class="input">
+              <select v-model="manualRecordSort" class="input w-auto">
                 <option value="newest">{{ t('admin.imageChannelMonitor.manual.sortNewest') }}</option>
                 <option value="oldest">{{ t('admin.imageChannelMonitor.manual.sortOldest') }}</option>
               </select>
-              <details class="relative">
+              <details ref="fieldsDetails" class="relative">
                 <summary class="btn btn-secondary btn-sm cursor-pointer select-none">
                   {{ t('admin.imageChannelMonitor.manual.visibleFields') }}
                 </summary>
@@ -306,125 +424,136 @@
                   </label>
                 </div>
               </details>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                :disabled="manualHistory.length === 0"
+                @click="clearManualHistory"
+              >
+                {{ t('admin.imageChannelMonitor.manual.clearHistory') }}
+              </button>
             </div>
 
-            <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200 dark:border-dark-700">
-              <table class="w-full min-w-[1180px] divide-y divide-gray-200 text-sm dark:divide-dark-700">
-                <thead class="bg-gray-50 dark:bg-dark-800">
-                  <tr class="text-left text-xs uppercase text-gray-500 dark:text-dark-400">
-                    <th v-if="manualColumnVisible('started_at')" class="px-3 py-2">
+            <!-- Results table (internal scroll, sticky header) -->
+            <div class="min-h-0 flex-1 overflow-auto">
+              <table class="mtbl w-full text-[13px]">
+                <thead>
+                  <tr>
+                    <th v-if="manualColumnVisible('started_at')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.startedAt') }}
                     </th>
-                    <th v-if="manualColumnVisible('monitor')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('monitor')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.monitor') }}
                     </th>
-                    <th v-if="manualColumnVisible('status')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('status')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.status') }}
                     </th>
-                    <th v-if="manualColumnVisible('mode')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('mode')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.mode') }}
                     </th>
-                    <th v-if="manualColumnVisible('model')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('model')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.model') }}
                     </th>
-                    <th v-if="manualColumnVisible('size')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('size')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.size') }}
                     </th>
-                    <th v-if="manualColumnVisible('elapsed')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('elapsed')" class="mtbl-th mtbl-th-num">
                       {{ t('admin.imageChannelMonitor.manual.columns.elapsed') }}
                     </th>
-                    <th v-if="manualColumnVisible('api_total')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('api_total')" class="mtbl-th mtbl-th-num">
                       {{ t('admin.imageChannelMonitor.manual.columns.apiTotal') }}
                     </th>
-                    <th v-if="manualColumnVisible('image_download')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('image_download')" class="mtbl-th mtbl-th-num">
                       {{ t('admin.imageChannelMonitor.manual.columns.imageDownload') }}
                     </th>
-                    <th v-if="manualColumnVisible('exit_ip')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('exit_ip')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.exitIp') }}
                     </th>
-                    <th v-if="manualColumnVisible('output')" class="px-3 py-2">
+                    <th v-if="manualColumnVisible('output')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.output') }}
                     </th>
-                    <th class="px-3 py-2">
+                    <th class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.actions') }}
                     </th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-100 dark:divide-dark-800">
+                <tbody>
                   <tr
                     v-for="entry in filteredManualTableEntries"
                     :key="entry.id"
-                    class="align-top hover:bg-gray-50 dark:hover:bg-dark-800/60"
+                    class="hover:bg-gray-50 dark:hover:bg-dark-800/60"
                   >
-                    <td v-if="manualColumnVisible('started_at')" class="px-3 py-3 text-gray-600 dark:text-dark-300">
+                    <td v-if="manualColumnVisible('started_at')" class="mtbl-td whitespace-nowrap tabular-nums text-gray-600 dark:text-dark-300">
                       {{ formatDate(entry.started_at) }}
                     </td>
-                    <td v-if="manualColumnVisible('monitor')" class="px-3 py-3">
-                      <div class="max-w-[220px] truncate font-medium text-gray-900 dark:text-white" :title="entry.monitor_name">
+                    <td v-if="manualColumnVisible('monitor')" class="mtbl-td">
+                      <div class="max-w-[150px] truncate font-medium text-gray-900 dark:text-white" :title="entry.monitor_name">
                         {{ entry.monitor_name }}
                       </div>
-                      <div class="mt-1 text-xs text-gray-500 dark:text-dark-400">
-                        #{{ entry.monitor_id }}
-                      </div>
+                      <div class="text-[11px] tabular-nums text-gray-500 dark:text-dark-400">#{{ entry.monitor_id }}</div>
                     </td>
-                    <td v-if="manualColumnVisible('status')" class="px-3 py-3">
-                      <span class="rounded-md px-2 py-0.5 text-xs font-medium" :class="manualRecordBadgeClass(entry)">
+                    <td v-if="manualColumnVisible('status')" class="mtbl-td">
+                      <span class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium" :class="manualRecordBadgeClass(entry)">
                         {{ manualRecordStatusText(entry) }}
                       </span>
-                      <div class="mt-1 max-w-[180px] truncate text-xs text-gray-500 dark:text-dark-400" :title="manualRecordStageText(entry)">
+                      <div v-if="manualRecordStageText(entry)" class="mt-0.5 max-w-[120px] truncate text-[11px] text-gray-500 dark:text-dark-400" :title="manualRecordStageText(entry)">
                         {{ manualRecordStageText(entry) }}
                       </div>
                     </td>
-                    <td v-if="manualColumnVisible('mode')" class="px-3 py-3 text-gray-700 dark:text-dark-200">
+                    <td v-if="manualColumnVisible('mode')" class="mtbl-td whitespace-nowrap text-gray-700 dark:text-dark-200">
                       {{ entry.mode === 'edit' ? t('admin.imageChannelMonitor.manual.edit') : t('admin.imageChannelMonitor.manual.generate') }}
                     </td>
-                    <td v-if="manualColumnVisible('model')" class="px-3 py-3">
-                      <div class="max-w-[180px] truncate text-gray-700 dark:text-dark-200" :title="entry.model">
+                    <td v-if="manualColumnVisible('model')" class="mtbl-td">
+                      <div class="max-w-[140px] truncate text-gray-700 dark:text-dark-200" :title="entry.model">
                         {{ entry.model || '-' }}
                       </div>
                     </td>
-                    <td v-if="manualColumnVisible('size')" class="px-3 py-3 text-gray-700 dark:text-dark-200">
+                    <td v-if="manualColumnVisible('size')" class="mtbl-td whitespace-nowrap tabular-nums text-gray-700 dark:text-dark-200">
                       {{ formatSize(entry.size) }}
                     </td>
-                    <td v-if="manualColumnVisible('elapsed')" class="px-3 py-3 text-gray-700 dark:text-dark-200">
+                    <td v-if="manualColumnVisible('elapsed')" class="mtbl-td mtbl-td-num text-gray-700 dark:text-dark-200">
                       {{ formatDuration(entry.elapsed_ms) }}
                     </td>
-                    <td v-if="manualColumnVisible('api_total')" class="px-3 py-3 text-gray-700 dark:text-dark-200">
-                      {{ formatMs(entry.result?.api_total_ms ?? null) }}
+                    <td v-if="manualColumnVisible('api_total')" class="mtbl-td mtbl-td-num text-gray-700 dark:text-dark-200">
+                      {{ formatMsGrouped(entry.result?.api_total_ms ?? null) }}
                     </td>
-                    <td v-if="manualColumnVisible('image_download')" class="px-3 py-3 text-gray-700 dark:text-dark-200">
-                      {{ formatMs(entry.result?.image_download_ms ?? null) }}
+                    <td v-if="manualColumnVisible('image_download')" class="mtbl-td mtbl-td-num text-gray-700 dark:text-dark-200">
+                      {{ formatMsGrouped(entry.result?.image_download_ms ?? null) }}
                     </td>
-                    <td v-if="manualColumnVisible('exit_ip')" class="px-3 py-3">
-                      <span class="block max-w-[160px] truncate text-gray-700 dark:text-dark-200" :title="entry.result?.exit_ip || '-'">
+                    <td v-if="manualColumnVisible('exit_ip')" class="mtbl-td">
+                      <span class="block max-w-[140px] truncate font-mono text-[12px] text-gray-700 dark:text-dark-200" :title="entry.result?.exit_ip || '-'">
                         {{ entry.result?.exit_ip || '-' }}
                       </span>
                     </td>
-                    <td v-if="manualColumnVisible('output')" class="px-3 py-3">
+                    <td v-if="manualColumnVisible('output')" class="mtbl-td">
                       <div
                         v-if="manualRecordOutputPreview(entry)"
-                        class="h-14 w-14 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800"
+                        class="h-10 w-10 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800"
                       >
                         <img :src="manualRecordOutputPreview(entry)" class="h-full w-full object-cover" alt="" />
                       </div>
-                      <span v-else class="text-xs text-gray-500 dark:text-dark-400">-</span>
+                      <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
                     </td>
-                    <td class="px-3 py-3">
-                      <div class="flex flex-wrap gap-2">
+                    <td class="mtbl-td">
+                      <div class="flex items-center gap-1">
                         <button
                           v-if="entry.liveItem?.state === 'running'"
                           type="button"
-                          class="btn btn-secondary btn-sm"
+                          class="rounded px-1.5 py-1 text-[12px] font-medium text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/30"
                           @click="cancelManualRun(entry.liveItem)"
                         >
                           {{ t('admin.imageChannelMonitor.manual.cancel') }}
                         </button>
-                        <button type="button" class="btn btn-secondary btn-sm" @click="openManualRecordDetail(entry)">
+                        <button
+                          type="button"
+                          class="rounded px-1.5 py-1 text-[12px] font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-900/20"
+                          @click="openManualRecordDetail(entry)"
+                        >
                           {{ t('admin.imageChannelMonitor.manual.viewDetail') }}
                         </button>
                         <a
                           v-if="manualRecordOutputHref(entry)"
-                          class="btn btn-secondary btn-sm"
+                          class="rounded px-1.5 py-1 text-[12px] font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-300 dark:hover:bg-primary-900/20"
                           :href="manualRecordOutputHref(entry)"
                           :download="manualRecordDownloadName(entry)"
                           target="_blank"
@@ -436,15 +565,14 @@
                     </td>
                   </tr>
                   <tr v-if="filteredManualTableEntries.length === 0">
-                    <td class="px-3 py-10 text-center text-sm text-gray-500 dark:text-dark-400" :colspan="manualVisibleColumnCount">
+                    <td class="px-3 py-12 text-center text-sm text-gray-500 dark:text-dark-400" :colspan="manualVisibleColumnCount">
                       {{ t('admin.imageChannelMonitor.manual.noRecords') }}
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-          </section>
-
+          </div>
         </div>
 
         <DataTable v-else :columns="columns" :data="monitors" :loading="loading">
@@ -819,17 +947,40 @@
           </div>
         </div>
 
-        <dl class="mt-4 grid gap-3 text-sm md:grid-cols-4">
+        <!-- Latency waterfall: header -> body -> image download -->
+        <div v-if="selectedRecordWaterfall.length" class="mt-4">
+          <div class="mb-1.5 text-xs font-medium text-gray-500 dark:text-dark-400">
+            {{ t('admin.imageChannelMonitor.manual.waterfall') }}
+          </div>
+          <div class="flex h-6 overflow-hidden rounded-md border border-gray-200 dark:border-dark-700">
+            <span
+              v-for="seg in selectedRecordWaterfall"
+              :key="seg.key"
+              class="h-full"
+              :class="waterfallSegmentClass[seg.key]"
+              :style="{ width: `${seg.pct}%` }"
+              :title="`${seg.label} ${seg.ms.toLocaleString()} ms`"
+            ></span>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-dark-300">
+            <span v-for="seg in selectedRecordWaterfall" :key="`legend-${seg.key}`" class="inline-flex items-center gap-1.5">
+              <span class="h-2.5 w-2.5 rounded-sm" :class="waterfallSegmentClass[seg.key]"></span>
+              {{ seg.label }} <b class="tabular-nums">{{ seg.ms.toLocaleString() }} ms</b>
+            </span>
+            <span class="ml-auto font-medium text-gray-700 dark:text-dark-200">
+              {{ t('admin.imageChannelMonitor.metrics.apiTotal') }}
+              <b class="tabular-nums">{{ formatMsGrouped(selectedManualRecord.result?.api_total_ms ?? null) }}</b>
+            </span>
+          </div>
+        </div>
+
+        <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-3 md:grid-cols-6">
           <MetricItem :label="t('admin.imageChannelMonitor.manual.mode')" :value="selectedManualRecord.mode === 'edit' ? t('admin.imageChannelMonitor.manual.edit') : t('admin.imageChannelMonitor.manual.generate')" />
           <MetricItem :label="t('admin.imageChannelMonitor.form.model')" :value="selectedManualRecord.model || '-'" />
           <MetricItem :label="t('admin.imageChannelMonitor.form.size')" :value="formatSize(selectedManualRecord.size)" />
           <MetricItem :label="t('admin.imageChannelMonitor.form.quality')" :value="selectedManualRecord.quality || '-'" />
           <MetricItem :label="'n'" :value="String(selectedManualRecord.n)" />
           <MetricItem :label="t('admin.imageChannelMonitor.form.downloadImage')" :value="selectedManualRecord.download_image ? t('common.yes') : t('common.no')" />
-          <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiHeader')" :value="formatMs(selectedManualRecord.result?.api_header_ms ?? null)" />
-          <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiBody')" :value="formatMs(selectedManualRecord.result?.api_body_ms ?? null)" />
-          <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiTotal')" :value="formatMs(selectedManualRecord.result?.api_total_ms ?? null)" />
-          <MetricItem :label="t('admin.imageChannelMonitor.metrics.imageDownload')" :value="formatMs(selectedManualRecord.result?.image_download_ms ?? null)" />
         </dl>
 
         <div class="mt-4 rounded-md bg-gray-50 p-3 text-sm text-gray-700 dark:bg-dark-800 dark:text-dark-200">
@@ -920,6 +1071,30 @@
         </a>
         <button type="button" class="btn btn-primary" @click="selectedManualRecord = null">
           {{ t('common.close') }}
+        </button>
+      </template>
+    </BaseDialog>
+
+    <BaseDialog
+      :show="showManualPresetSaveDialog"
+      :title="t('admin.imageChannelMonitor.manual.savePresetTitle')"
+      @close="showManualPresetSaveDialog = false"
+    >
+      <label class="block">
+        <span class="input-label">{{ t('admin.imageChannelMonitor.manual.presetName') }}</span>
+        <input
+          v-model.trim="manualPresetName"
+          class="input"
+          :placeholder="t('admin.imageChannelMonitor.manual.presetNamePlaceholder')"
+          @keyup.enter="saveManualPreset"
+        />
+      </label>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" @click="showManualPresetSaveDialog = false">
+          {{ t('common.cancel') }}
+        </button>
+        <button type="button" class="btn btn-primary" @click="saveManualPreset">
+          {{ t('common.save') }}
         </button>
       </template>
     </BaseDialog>
@@ -1054,6 +1229,13 @@ type NetworkInfoItem = {
   href?: string
 }
 
+type WaterfallSegment = {
+  key: string
+  label: string
+  ms: number
+  pct: number
+}
+
 type ManualRecordStatus = ImageMonitorStatus | 'running' | 'canceled'
 type ManualRecordSource = 'live' | 'history'
 
@@ -1136,6 +1318,11 @@ const manualPresets = ref<ManualPreset[]>([])
 const manualPresetSelectedId = ref('')
 const manualPresetName = ref('')
 const manualInputImage = ref<ManualInputImage | null>(null)
+const manualConfigCollapsed = ref(false)
+const manualTargetSearch = ref('')
+const manualBatchDismissed = ref(false)
+const showManualPresetSaveDialog = ref(false)
+const fieldsDetails = ref<HTMLDetailsElement | null>(null)
 const selectedManualRecord = ref<ManualRecordEntry | null>(null)
 const manualRecordSearch = ref('')
 const manualRecordStatusFilter = ref<ManualRecordStatus | ''>('')
@@ -1146,9 +1333,6 @@ const manualVisibleColumns = ref<ManualRecordColumnKey[]>([
   'started_at',
   'monitor',
   'status',
-  'mode',
-  'model',
-  'size',
   'elapsed',
   'api_total',
   'image_download',
@@ -1229,6 +1413,102 @@ const lastRunPreview = computed(() => {
 const manualResultList = computed(() =>
   Object.values(manualResults.value).sort((a, b) => a.monitor.id - b.monitor.id)
 )
+
+const manualFilteredTargets = computed(() => {
+  const query = manualTargetSearch.value.trim().toLowerCase()
+  if (!query) return manualTargets.value
+  return manualTargets.value.filter((target) => {
+    const haystack = [
+      target.name,
+      target.model,
+      target.endpoint,
+      target.account_name,
+      `#${target.id}`,
+    ]
+    return haystack.some((value) => String(value || '').toLowerCase().includes(query))
+  })
+})
+
+// Merged size dropdown: single control backing the size_mode/size/custom_size trio.
+const manualSizeChoice = computed<string>({
+  get() {
+    switch (manualForm.size_mode) {
+      case 'auto':
+        return 'auto'
+      case 'custom':
+        return 'custom'
+      case 'preset':
+        return manualForm.size
+      default:
+        return 'omit'
+    }
+  },
+  set(value: string) {
+    if (value === 'omit' || value === 'auto' || value === 'custom') {
+      manualForm.size_mode = value as ImageSizeMode
+      return
+    }
+    manualForm.size_mode = 'preset'
+    manualForm.size = value
+  },
+})
+
+const manualResolvedSizeLabel = computed(() =>
+  formatSize(resolvedManualSizeFromSettings(currentManualPresetSettings()))
+)
+
+const manualConfigSummary = computed(() => [
+  manualForm.mode === 'edit'
+    ? t('admin.imageChannelMonitor.manual.edit')
+    : t('admin.imageChannelMonitor.manual.generate'),
+  manualForm.model || '-',
+  manualResolvedSizeLabel.value,
+  `n=${manualForm.n}`,
+])
+
+const manualBatchStats = computed(() => {
+  let running = 0
+  let ok = 0
+  let failed = 0
+  let canceled = 0
+  for (const item of manualResultList.value) {
+    if (item.state === 'running') {
+      running += 1
+      continue
+    }
+    if (item.state === 'canceled') {
+      canceled += 1
+      continue
+    }
+    const status = manualRunResult(item)?.status
+    if (item.state === 'done' && (status === 'operational' || status === 'degraded')) {
+      ok += 1
+    } else {
+      failed += 1
+    }
+  }
+  const total = manualResultList.value.length
+  return { total, running, done: total - running, ok, failed, canceled }
+})
+
+const manualShowBatchBanner = computed(
+  () => !manualBatchDismissed.value && manualBatchStats.value.total > 0
+)
+
+const manualBatchProgress = computed(() => {
+  const { total, done } = manualBatchStats.value
+  return total > 0 ? Math.round((done / total) * 100) : 0
+})
+
+const selectedRecordWaterfall = computed(() =>
+  manualWaterfallSegments(selectedManualRecord.value?.result)
+)
+
+const waterfallSegmentClass: Record<string, string> = {
+  apiHeader: 'bg-primary-300 dark:bg-primary-400',
+  apiBody: 'bg-primary-500 dark:bg-primary-500',
+  imageDownload: 'bg-accent-400 dark:bg-accent-500',
+}
 
 const manualRecordColumns = computed<ManualRecordColumn[]>(() => [
   { key: 'started_at', label: t('admin.imageChannelMonitor.manual.columns.startedAt') },
@@ -1562,6 +1842,12 @@ async function handleManualPresetSelect() {
   }
 }
 
+function openManualPresetSaveDialog() {
+  const existing = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
+  manualPresetName.value = existing?.name || manualPresetName.value
+  showManualPresetSaveDialog.value = true
+}
+
 async function saveManualPreset() {
   const name = manualPresetName.value.trim()
   if (!name) {
@@ -1600,6 +1886,7 @@ async function saveManualPreset() {
     manualPresetSelectedId.value = saved.id
     manualPresetName.value = saved.name
     persistManualPresets()
+    showManualPresetSaveDialog.value = false
     appStore.showSuccess(t('admin.imageChannelMonitor.manual.presetSaved'))
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.presetSaveFailed')))
@@ -1961,6 +2248,16 @@ async function loadManualTargets() {
   }
 }
 
+function selectAllManualTargets() {
+  const merged = new Set(manualSelectedIds.value)
+  manualFilteredTargets.value.forEach((target) => merged.add(target.id))
+  manualSelectedIds.value = Array.from(merged)
+}
+
+function clearManualTargets() {
+  manualSelectedIds.value = []
+}
+
 function handleSearch() {
   if (searchTimeout) clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
@@ -2197,6 +2494,7 @@ async function startManualTests() {
       : null
   const manualStartedAt = new Date().toISOString()
   manualRunning.value = true
+  manualBatchDismissed.value = false
   manualResults.value = Object.fromEntries(
     selectedTargets.map((target) => [
       target.id,
@@ -2531,6 +2829,22 @@ function manualHistoryOutputPreview(entry: ManualHistoryItem) {
   )
 }
 
+// APIHeaderMs (start→headers), APIBodyMs (headers→body, phase), ImageDownloadMs
+// (download, phase) are sequential non-overlapping durations, so they stack cleanly.
+function manualWaterfallSegments(result?: ImageChannelMonitorResult): WaterfallSegment[] {
+  if (!result) return []
+  const raw = [
+    { key: 'apiHeader', label: t('admin.imageChannelMonitor.metrics.apiHeader'), ms: result.api_header_ms },
+    { key: 'apiBody', label: t('admin.imageChannelMonitor.metrics.apiBody'), ms: result.api_body_ms },
+    { key: 'imageDownload', label: t('admin.imageChannelMonitor.metrics.imageDownload'), ms: result.image_download_ms },
+  ].filter((seg): seg is { key: string; label: string; ms: number } =>
+    typeof seg.ms === 'number' && seg.ms > 0
+  )
+  const total = raw.reduce((sum, seg) => sum + seg.ms, 0)
+  if (total <= 0) return []
+  return raw.map((seg) => ({ ...seg, pct: (seg.ms / total) * 100 }))
+}
+
 function networkInfoItems(result?: ImageChannelMonitorResult): NetworkInfoItem[] {
   if (!result) return []
   const items: NetworkInfoItem[] = []
@@ -2586,6 +2900,11 @@ function formatMs(value: number | null) {
   return typeof value === 'number' ? `${value} ms` : '-'
 }
 
+// Grouped digits for dense numeric columns / waterfall legend (e.g. 19,482 ms).
+function formatMsGrouped(value: number | null | undefined) {
+  return typeof value === 'number' ? `${value.toLocaleString()} ms` : '-'
+}
+
 function elapsedMs(start: string, end: string) {
   const startMs = new Date(start).getTime()
   const endMs = new Date(end).getTime()
@@ -2614,10 +2933,18 @@ function formatDate(value: string | null) {
   return new Date(value).toLocaleString()
 }
 
+function handleFieldsOutsideClick(event: MouseEvent) {
+  const el = fieldsDetails.value
+  if (el?.open && !el.contains(event.target as Node)) {
+    el.removeAttribute('open')
+  }
+}
+
 onMounted(() => {
   loadManualPresets()
   loadManualHistory()
   reload()
+  document.addEventListener('click', handleFieldsOutsideClick)
   clockTimer = window.setInterval(() => {
     nowMs.value = Date.now()
   }, 1000)
@@ -2632,5 +2959,37 @@ onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
   if (statusPollTimer) clearInterval(statusPollTimer)
   if (clockTimer) clearInterval(clockTimer)
+  document.removeEventListener('click', handleFieldsOutsideClick)
 })
 </script>
+
+<style scoped>
+/* Manual-test results table: sticky header + compact cells.
+   Rendered inside TablePageLayout's bare-table slot, so it owns all cell styling. */
+.mtbl {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 700px;
+}
+
+.mtbl-th {
+  @apply sticky top-0 z-10 whitespace-nowrap bg-gray-50 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:bg-dark-800 dark:text-dark-400;
+  box-shadow: inset 0 -1px 0 rgb(229 231 235);
+}
+
+:global(.dark) .mtbl-th {
+  box-shadow: inset 0 -1px 0 rgb(51 65 85);
+}
+
+.mtbl-th-num {
+  @apply text-right;
+}
+
+.mtbl-td {
+  @apply border-b border-gray-100 px-3 py-2 align-middle text-gray-700 dark:border-dark-800 dark:text-dark-200;
+}
+
+.mtbl-td-num {
+  @apply whitespace-nowrap text-right font-mono tabular-nums;
+}
+</style>
