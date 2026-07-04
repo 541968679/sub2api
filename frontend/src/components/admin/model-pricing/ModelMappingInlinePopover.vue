@@ -56,6 +56,7 @@
             {{ t('admin.modelPricing.upstreamModelName') }}
           </label>
           <input
+            ref="toRef"
             v-model="form.to"
             type="text"
             class="input w-full font-mono text-sm"
@@ -120,6 +121,10 @@ const props = defineProps<{
   originalTo?: string
   /** 当前映射所属平台 */
   platform?: string
+  /** add 模式可选：预填请求名（从直通行"添加映射"进入时为模型名） */
+  initialFrom?: string
+  /** add 模式可选：预填上游名 */
+  initialTo?: string
 }>()
 
 const emit = defineEmits<{
@@ -129,6 +134,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const fromRef = ref<HTMLInputElement | null>(null)
+const toRef = ref<HTMLInputElement | null>(null)
 const saving = ref(false)
 const error = ref('')
 
@@ -205,8 +211,8 @@ function resetForm() {
     form.from = props.originalFrom ?? ''
     form.to = props.originalTo ?? ''
   } else {
-    form.from = ''
-    form.to = ''
+    form.from = props.initialFrom ?? ''
+    form.to = props.initialTo ?? ''
   }
   error.value = ''
 }
@@ -218,16 +224,16 @@ watch(
       resetForm()
       await nextTick()
       updatePosition()
-      // add 模式聚焦 from，edit 模式聚焦 to（更常见的修改对象）
-      const targetRef = fromRef.value
-      if (targetRef) {
-        if (props.mode === 'edit') {
-          // 选中已有值便于覆盖
-          targetRef.focus({ preventScroll: true })
-          targetRef.select()
-        } else {
-          targetRef.focus({ preventScroll: true })
+      // 预填了请求名（直通行"添加映射"）或 edit 模式时聚焦上游名；
+      // 空白新增聚焦请求名。
+      if (props.mode === 'edit' || form.from) {
+        const target = toRef.value
+        if (target) {
+          target.focus({ preventScroll: true })
+          target.select()
         }
+      } else {
+        fromRef.value?.focus({ preventScroll: true })
       }
     }
   }

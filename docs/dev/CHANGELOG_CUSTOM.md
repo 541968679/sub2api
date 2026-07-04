@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] fix: 模型配置页映射表彻底重构（角色不再坍缩）+ 测试连接模型列表并入平台映射
+
+**影响范围**: backend/internal/service/global_model_pricing_service.go(+test), backend/internal/handler/admin/account_handler.go(+test), backend/internal/pkg/antigravity/claude_types.go, backend/migrations/177_add_fable5_to_default_model_mapping.sql, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue, ModelMappingInlinePopover.vue, modelPricingRows.ts(新), __tests__/modelPricingRows.spec.ts(新)}, frontend/src/api/admin/modelPricing.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/model-mapping.md
+**上游兼容性**: 中风险。`billing_basis_hint` 新增 `mapping_target`/`mapped_from` 字段并新增复数 `billing_basis_hints`，单数字段保留兼容；`GET /admin/accounts/:id/models` 各分支并入平台级默认映射键；迁移 177 为二开自有编号。合并上游时若上游也改了模型配置页需人工比对。
+**变更详情**:
+- 修复映射角色坍缩：旧实现按 same_name > upstream_only > requested_only 收敛单一角色，模型"既是映射键又是别人的映射目标"时（如 claude-sonnet-4-5 -> claude-fable-5 且 claude-sonnet-4-5-20250929 -> claude-sonnet-4-5）自身映射从列表消失，前端把上游名画回请求名（"添加映射后映射目标被改回原名"的根因）。现在 hint 同时携带 mapping_target 与 mapped_from，且"全部"视图按平台各发一条 hint。
+- 前端行推导重写（modelPricingRows.ts）：映射行只由映射键自己的条目产生，不再从目标条目反向展开+去重互踩；纯映射目标模型保留自己的直通行（修复"claude-fable-5 可请求但映射表里没有该请求模型"）；所有直通行提供"添加映射"入口，弹窗预填 from=to=模型名（修复"大量行无法编辑/删除"——真实条目才有删除，直通行编辑即建条目）。
+- 保存映射的平台与当前供应商 tab 不同时自动切 tab，避免"添加成功但看不到"。
+- 测试连接模型列表（账号管理）：Antigravity 非透传账号改为按生效映射表请求键生成（含 [1m]/[2m] 变体），Claude/Gemini/OpenAI 账号并入对应平台默认映射键（修复"新添加映射的请求模型在测试连接列表看不到"）。
+- 迁移 177：为保存过的 antigravity_default_model_mapping 设置及账号级 model_mapping 回填 claude-fable-5 同名映射（保存表整体替换内置表，早于 fable-5 的存量表缺该条导致 Antigravity 漏调度）。
+
 ## [2026-07-04] feat: redesign manual image test into a fixed-viewport split console
 
 **Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/components/layout/TablePageLayout.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

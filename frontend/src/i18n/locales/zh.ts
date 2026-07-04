@@ -7799,6 +7799,7 @@ const v117ZhPatch = {
       billingModeRequestEqualsUpstream: '请求模型 = 映射后模型',
       mappedFromMultiple: '+{count}',
       mappedFromMultipleTooltip: '还有 {count} 个请求名映射到该上游：{list}',
+      mappedFromTooltip: '以下请求名映射到该模型：{models}',
       addMapping: '添加映射',
       editMapping: '编辑映射',
       deleteMapping: '删除映射',

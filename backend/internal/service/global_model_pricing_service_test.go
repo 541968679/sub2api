@@ -253,20 +253,102 @@ func TestGlobalModelPricingListMarksRuntimeDefaultMappingEditable(t *testing.T) 
 	require.NotNil(t, upstreamItem.BillingBasisHint)
 	require.Equal(t, BillingHintUpstreamOnly, upstreamItem.BillingBasisHint.Type)
 	require.Equal(t, "zz-openai-runtime-alt", upstreamItem.BillingBasisHint.MappingKey)
+	require.Empty(t, upstreamItem.BillingBasisHint.MappingTarget)
 	require.Equal(t, []string{"zz-openai-runtime-alt", "zz-openai-runtime-default"}, upstreamItem.BillingBasisHint.RelatedModels)
+	require.Equal(t, []string{"zz-openai-runtime-alt", "zz-openai-runtime-default"}, upstreamItem.BillingBasisHint.MappedFrom)
 	require.Equal(t, domain.MappingBillingObjectMapped, upstreamItem.BillingBasisHint.MappingBillingObjects["zz-openai-runtime-alt"])
-	require.True(t, upstreamItem.BillingBasisHint.BillingObjectEditable)
-	require.True(t, upstreamItem.BillingBasisHint.MappingEditable)
+	// 纯映射目标没有自己的映射条目，编辑/删除由各映射键的行负责
+	require.False(t, upstreamItem.BillingBasisHint.BillingObjectEditable)
+	require.False(t, upstreamItem.BillingBasisHint.MappingEditable)
 
 	selfItem := findModelPricingListItem(result.Items, "zz-openai-self")
 	require.NotNil(t, selfItem)
 	require.NotNil(t, selfItem.BillingBasisHint)
 	require.Equal(t, BillingHintRequestedEqualsUpstream, selfItem.BillingBasisHint.Type)
 	require.Equal(t, "zz-openai-self", selfItem.BillingBasisHint.MappingKey)
+	require.Equal(t, "zz-openai-self", selfItem.BillingBasisHint.MappingTarget)
 	require.Equal(t, []string{"zz-openai-self-alias"}, selfItem.BillingBasisHint.RelatedModels)
+	require.Equal(t, []string{"zz-openai-self-alias"}, selfItem.BillingBasisHint.MappedFrom)
 	require.Equal(t, domain.MappingBillingObjectMapped, selfItem.BillingBasisHint.MappingBillingObjects["zz-openai-self-alias"])
 	require.True(t, selfItem.BillingBasisHint.BillingObjectEditable)
 	require.True(t, selfItem.BillingBasisHint.MappingEditable)
+}
+
+// TestGlobalModelPricingListKeepsMappingTargetForChainedKey 回归测试：
+// 模型既是映射键又是其他键的映射目标时（a -> b 且 b -> c），b 的 hint 必须
+// 同时保留自身映射（MappingTarget=c）和来源（MappedFrom=[a]）。早期实现按
+// upstream_only 优先收敛角色，b -> c 会从列表里消失，前端只能把 b 画成
+// "a -> b"，看起来映射目标被改回了请求名。
+func TestGlobalModelPricingListKeepsMappingTargetForChainedKey(t *testing.T) {
+	oldOverride := domain.GetPlatformDefaultMappingOverride
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == PlatformAntigravity {
+			return map[string]string{
+				"zz-chain-a": "zz-chain-b",
+				"zz-chain-b": "zz-chain-c",
+			}
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		domain.GetPlatformDefaultMappingOverride = oldOverride
+	})
+
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	result, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", PlatformAntigravity, "")
+	require.NoError(t, err)
+
+	item := findModelPricingListItem(result.Items, "zz-chain-b")
+	require.NotNil(t, item)
+	require.NotNil(t, item.BillingBasisHint)
+	require.Equal(t, BillingHintRequestedOnly, item.BillingBasisHint.Type)
+	require.Equal(t, "zz-chain-b", item.BillingBasisHint.MappingKey)
+	require.Equal(t, "zz-chain-c", item.BillingBasisHint.MappingTarget)
+	require.Equal(t, []string{"zz-chain-a"}, item.BillingBasisHint.MappedFrom)
+	require.True(t, item.BillingBasisHint.MappingEditable)
+	require.True(t, item.BillingBasisHint.BillingObjectEditable)
+}
+
+// TestGlobalModelPricingListEmitsHintPerPlatform 验证"全部"视图下同一模型在
+// 多个平台各有映射时，billing_basis_hints 每个平台一条。
+func TestGlobalModelPricingListEmitsHintPerPlatform(t *testing.T) {
+	oldOverride := domain.GetPlatformDefaultMappingOverride
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		switch platform {
+		case PlatformAnthropic:
+			return map[string]string{"zz-multi-platform": "zz-anthropic-upstream"}
+		case PlatformAntigravity:
+			return map[string]string{"zz-multi-platform": "zz-antigravity-upstream"}
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		domain.GetPlatformDefaultMappingOverride = oldOverride
+	})
+
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	result, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", "", "")
+	require.NoError(t, err)
+
+	item := findModelPricingListItem(result.Items, "zz-multi-platform")
+	require.NotNil(t, item)
+	require.Len(t, item.BillingBasisHints, 2)
+	byPlatform := map[string]string{}
+	for _, hint := range item.BillingBasisHints {
+		byPlatform[hint.Platform] = hint.MappingTarget
+	}
+	require.Equal(t, "zz-anthropic-upstream", byPlatform[PlatformAnthropic])
+	require.Equal(t, "zz-antigravity-upstream", byPlatform[PlatformAntigravity])
 }
 
 func TestGlobalModelPricingListIncludesAnthropicAliasMapping(t *testing.T) {

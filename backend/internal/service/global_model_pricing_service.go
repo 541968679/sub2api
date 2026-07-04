@@ -41,37 +41,45 @@ func NewGlobalModelPricingService(
 
 // ModelPricingListItem 模型定价列表项（管理后台用）
 type ModelPricingListItem struct {
-	Model                string            `json:"model"`
-	Provider             string            `json:"provider"`
-	LiteLLMPrices        *LiteLLMPrices    `json:"litellm_prices"`
-	GlobalOverride       *GlobalOverride   `json:"global_override"`
-	ChannelOverrideCount int               `json:"channel_override_count"`
-	UserOverrideCount    int               `json:"user_override_count"`
-	EffectiveSource      string            `json:"effective_source"` // "global", "litellm", "fallback"
-	BillingBasisHint     *BillingBasisHint `json:"billing_basis_hint,omitempty"`
+	Model                string          `json:"model"`
+	Provider             string          `json:"provider"`
+	LiteLLMPrices        *LiteLLMPrices  `json:"litellm_prices"`
+	GlobalOverride       *GlobalOverride `json:"global_override"`
+	ChannelOverrideCount int             `json:"channel_override_count"`
+	UserOverrideCount    int             `json:"user_override_count"`
+	EffectiveSource      string          `json:"effective_source"` // "global", "litellm", "fallback"
+	// BillingBasisHint 是主 hint（按 provider 筛选或平台顺序选出的第一个），保留兼容旧消费方。
+	BillingBasisHint *BillingBasisHint `json:"billing_basis_hint,omitempty"`
+	// BillingBasisHints 列出此模型在每个平台默认映射中的完整角色。
+	// provider 筛选时只有该平台一条；"全部"视图下每个命中的平台各一条。
+	BillingBasisHints []*BillingBasisHint `json:"billing_basis_hints,omitempty"`
 }
 
-// BillingBasisHint 说明此模型在平台级模型映射中
-// 扮演的角色。对应"模型名三元组"（客户端请求名 / 上游名 / 计费名）中的前两维。
+// BillingBasisHint 说明此模型在某个平台级模型映射中扮演的角色。
+// 一个模型可以同时是映射键（MappingTarget 非空）和其他键的映射目标（MappedFrom 非空），
+// 两种角色互不覆盖；Type 只是给旧消费方的汇总标签。
 //
 // Type 取值：
 //
-//	requested_equals_upstream —— 请求名 == 上游名（同名映射或普通直通模型；related_models 为空）
-//	upstream_only             —— 只扮演"上游名"角色，客户端不直接请求它；related_models 列出所有映射源请求名
-//	requested_only            —— 只扮演"请求名"角色，被映射到别的名字发给上游；related_models 通常只有一个（映射目标上游名）
-//
-// 对不在 Antigravity 默认映射里的普通 LiteLLM 模型，徽标为 nil，不展示。
-// upstream_only 情况下可能多对一（多个请求名映射到同一个上游名），前端按首个 + "+N" 呈现，
-// tooltip 展开全部 RelatedModels。
+//	requested_equals_upstream —— 自身有同名映射条目（请求名 == 上游名）
+//	requested_only            —— 自身有映射条目且指向别的上游名
+//	upstream_only             —— 自身没有映射条目，只作为其他请求名的映射目标出现
 type BillingBasisHint struct {
-	Platform              string            `json:"platform,omitempty"`
-	Type                  string            `json:"type"`
-	RelatedModels         []string          `json:"related_models,omitempty"`
-	MappingKey            string            `json:"mapping_key,omitempty"`
+	Platform string `json:"platform,omitempty"`
+	Type     string `json:"type"`
+	// RelatedModels 兼容旧字段：requested_only 时为 [映射目标]，其余为 MappedFrom。
+	RelatedModels []string `json:"related_models,omitempty"`
+	MappingKey    string   `json:"mapping_key,omitempty"`
+	// MappingTarget 非空表示此模型自身是映射键，值为其映射目标（可能等于自身，即同名映射）。
+	MappingTarget string `json:"mapping_target,omitempty"`
+	// MappedFrom 列出映射到此模型的其他请求名（不含自身），字典序稳定。
+	MappedFrom            []string          `json:"mapped_from,omitempty"`
 	MappingBillingObjects map[string]string `json:"mapping_billing_objects,omitempty"`
 	BillingObject         string            `json:"billing_object,omitempty"`
-	BillingObjectEditable bool              `json:"billing_object_editable,omitempty"`
-	MappingEditable       bool              `json:"mapping_editable,omitempty"`
+	// BillingObjectEditable / MappingEditable 仅当此模型自身是映射键时为 true；
+	// 作为映射目标的行由映射键自己的行负责编辑。
+	BillingObjectEditable bool `json:"billing_object_editable,omitempty"`
+	MappingEditable       bool `json:"mapping_editable,omitempty"`
 }
 
 const (
@@ -259,80 +267,38 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		}
 	}
 
-	hintPlatform := providerLower
-	if hintPlatform == "" {
-		// 未筛选时保留历史行为：列表优先解释 Antigravity 默认映射。
-		hintPlatform = PlatformAntigravity
-	}
-	hintMapping := defaultMappings[hintPlatform]
-
-	// 基于当前供应商默认映射构造三分法徽标索引。徽标含义是"此模型名在平台级
-	// 模型映射里扮演的角色"，对应用户心智模型中的"客户端请求名 / 上游名"二元组
-	// （计费名由顶部 banner 统一解释）。
-	//
-	// 优先级：same_name > upstream_only > requested_only。
-	// 理由：同名映射表达该模型自洽（既是请求名又是上游名），信息最完整；其次
-	// "仅上游"对管理员更重要（改它会影响映射源请求）；最后才是"仅请求"（这类
-	// 配置其实无效——请求会被映射走）。
-	//
-	// 多对一场景：Antigravity 默认映射里可能有多个请求名映射到同一个上游名
-	// （如 claude-opus-4-5-thinking / claude-opus-4-5-20251101 / claude-opus-4-6
-	// 都映射到 claude-opus-4-6-thinking）。upstream_only 徽标的 RelatedModels
-	// 收集所有映射源请求名，保持字典序稳定。
-	hintIndex := buildBillingHintIndex(hintMapping)
+	// 基于平台默认映射构造徽标索引。徽标含义是"此模型名在平台级模型映射里扮演
+	// 的角色"。一个模型可以同时是映射键和其他键的映射目标（例如已保存表中
+	// claude-opus-4-6 -> claude-opus-4-6-thinking 且 claude-opus-4-7 -> claude-opus-4-6），
+	// 两种角色必须都保留：早期实现按 same_name > upstream_only > requested_only
+	// 收敛成单一角色，导致"既是键又是目标"的映射条目在列表里丢失，前端只能把
+	// 上游名画成请求名（映射看起来被改回原名）。
 	hintIndexes := buildPlatformBillingHintIndexes(defaultMappings)
-	// 稳定排序 upstreamFromList，避免 map 遍历顺序导致前端展示跳动
-	for _, b := range hintIndex {
-		if len(b.upstreamFromList) > 1 {
-			sort.Strings(b.upstreamFromList)
-		}
-	}
+	// 稳定排序 sources，避免 map 遍历顺序导致前端展示跳动
 	for _, index := range hintIndexes {
 		for _, b := range index {
-			if len(b.upstreamFromList) > 1 {
-				sort.Strings(b.upstreamFromList)
+			if len(b.sources) > 1 {
+				sort.Strings(b.sources)
 			}
 		}
 	}
 
+	hintPlatforms := defaultMappingPlatformsForList(providerLower)
 	for i := range items {
-		var b *hintBucket
-		rowHintPlatform := hintPlatform
-		if providerLower != "" {
-			b = hintIndex[strings.ToLower(items[i].Model)]
-		}
-		if b == nil {
-			selectedPlatform, selectedBucket := selectBillingHintForItem(items[i], providerLower, hintIndexes)
-			if selectedBucket == nil {
+		modelLower := strings.ToLower(items[i].Model)
+		var hints []*BillingBasisHint
+		for _, platform := range hintPlatforms {
+			b := hintIndexes[platform][modelLower]
+			if b == nil {
 				continue
 			}
-			rowHintPlatform = selectedPlatform
-			b = selectedBucket
+			hints = append(hints, buildHintFromBucket(platform, b, defaultMappingBillingObjects[platform]))
 		}
-		billingObjects := defaultMappingBillingObjects[rowHintPlatform]
-		switch {
-		case b.sameName:
-			// 同名优先：request == upstream；但若同时有其他请求名映射到它
-			// （真实的 Antigravity 默认映射几乎总是这种情况，例如
-			// `claude-opus-4-6-thinking` 既有同名自映射也是 claude-opus-4-6 的目标），
-			// 用 RelatedModels 额外承载"被哪些请求名映射到"，前端展示 +N 提示。
-			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedEqualsUpstream, b.sameNameKey, billingObjects, true)
-			if len(b.upstreamFromList) > 0 {
-				hint.RelatedModels = b.upstreamFromList
-				addMappingBillingObjects(hint, billingObjects, b.upstreamFromList...)
-			}
-			items[i].BillingBasisHint = hint
-		case len(b.upstreamFromList) > 0:
-			mappingKey := b.upstreamFromList[0]
-			hint := newBillingBasisHint(rowHintPlatform, BillingHintUpstreamOnly, mappingKey, billingObjects, true)
-			hint.RelatedModels = b.upstreamFromList
-			addMappingBillingObjects(hint, billingObjects, b.upstreamFromList...)
-			items[i].BillingBasisHint = hint
-		case b.requestedTargetKey != "":
-			hint := newBillingBasisHint(rowHintPlatform, BillingHintRequestedOnly, b.requestedMappingKey, billingObjects, true)
-			hint.RelatedModels = []string{b.requestedTargetKey}
-			items[i].BillingBasisHint = hint
+		if len(hints) == 0 {
+			continue
 		}
+		items[i].BillingBasisHints = hints
+		items[i].BillingBasisHint = pickPrimaryBillingHint(items[i].Provider, hints)
 	}
 
 	// 5. 筛选
@@ -662,12 +628,13 @@ func (s *GlobalModelPricingService) GetRateMultiplierOverview(ctx context.Contex
 
 // --- 内部辅助方法 ---
 
+// hintBucket 收集一个模型名在单个平台默认映射里的全部角色。
+// selfKey/selfTarget 描述"自身是映射键"（含同名映射）；sources 描述
+// "哪些其他请求名映射到此模型"。两者可同时存在，构造 hint 时都要保留。
 type hintBucket struct {
-	sameName            bool
-	sameNameKey         string
-	upstreamFromList    []string // 若非空：此模型是 value，收集所有来源 key
-	requestedTargetKey  string   // 若非空：此模型是 key，映射到该 value
-	requestedMappingKey string
+	selfKey    string   // 模型自身作为映射键时的原始大小写键名；空表示不是键
+	selfTarget string   // selfKey 对应的映射目标（原始大小写）
+	sources    []string // 映射到此模型的其他请求名（不含同名自映射）
 }
 
 func defaultMappingPlatforms() []string {
@@ -729,18 +696,14 @@ func buildBillingHintIndex(mapping map[string]string) map[string]*hintBucket {
 	for k, v := range mapping {
 		kl := strings.ToLower(k)
 		vl := strings.ToLower(v)
+		kb := getBucket(kl)
+		kb.selfKey = k
+		kb.selfTarget = v
 		if kl == vl {
-			b := getBucket(kl)
-			b.sameName = true
-			b.sameNameKey = k
 			continue
 		}
-		if b := getBucket(kl); b.requestedTargetKey == "" {
-			b.requestedTargetKey = v
-			b.requestedMappingKey = k
-		}
-		b := getBucket(vl)
-		b.upstreamFromList = append(b.upstreamFromList, k)
+		vb := getBucket(vl)
+		vb.sources = append(vb.sources, k)
 	}
 	return hintIndex
 }
@@ -756,21 +719,38 @@ func buildPlatformBillingHintIndexes(mappings map[string]map[string]string) map[
 	return result
 }
 
-func newBillingBasisHint(platform, hintType, mappingKey string, billingObjects map[string]string, editable bool) *BillingBasisHint {
+// buildHintFromBucket 将某平台 bucket 的完整角色转换为 hint。
+// 自身是映射键 → MappingTarget/MappingKey/计费对象可编辑；同时保留 MappedFrom。
+func buildHintFromBucket(platform string, b *hintBucket, billingObjects map[string]string) *BillingBasisHint {
 	hint := &BillingBasisHint{
-		Platform:              platform,
-		Type:                  hintType,
-		BillingObject:         domain.MappingBillingObjectRequested,
-		BillingObjectEditable: editable,
-		MappingEditable:       editable,
+		Platform:      platform,
+		BillingObject: domain.MappingBillingObjectRequested,
 	}
-	if mappingKey != "" {
-		hint.MappingKey = mappingKey
-		if object := domain.NormalizeMappingBillingObject(billingObjects[mappingKey]); object != "" {
+	if b.selfKey != "" {
+		hint.MappingKey = b.selfKey
+		hint.MappingTarget = b.selfTarget
+		hint.MappingEditable = true
+		hint.BillingObjectEditable = true
+		if strings.EqualFold(b.selfKey, b.selfTarget) {
+			hint.Type = BillingHintRequestedEqualsUpstream
+			hint.RelatedModels = b.sources
+		} else {
+			hint.Type = BillingHintRequestedOnly
+			hint.RelatedModels = []string{b.selfTarget}
+		}
+		if object := domain.NormalizeMappingBillingObject(billingObjects[b.selfKey]); object != "" {
 			hint.BillingObject = object
-			hint.MappingBillingObjects = map[string]string{mappingKey: object}
+			hint.MappingBillingObjects = map[string]string{b.selfKey: object}
+		}
+	} else {
+		hint.Type = BillingHintUpstreamOnly
+		hint.RelatedModels = b.sources
+		if len(b.sources) > 0 {
+			hint.MappingKey = b.sources[0]
 		}
 	}
+	hint.MappedFrom = b.sources
+	addMappingBillingObjects(hint, billingObjects, b.sources...)
 	return hint
 }
 
@@ -791,22 +771,20 @@ func addMappingBillingObjects(hint *BillingBasisHint, billingObjects map[string]
 	}
 }
 
-func selectBillingHintForItem(item ModelPricingListItem, provider string, indexes map[string]map[string]*hintBucket) (string, *hintBucket) {
-	modelLower := strings.ToLower(item.Model)
-	if provider != "" {
-		return provider, indexes[provider][modelLower]
+// pickPrimaryBillingHint 为兼容旧 billing_basis_hint 单字段挑主 hint：
+// 优先与条目 provider 归一化后一致的平台，否则取平台顺序里的第一个。
+func pickPrimaryBillingHint(itemProvider string, hints []*BillingBasisHint) *BillingBasisHint {
+	if len(hints) == 0 {
+		return nil
 	}
-	if platform := normalizeProviderForBillingHint(item.Provider); platform != "" {
-		if bucket := indexes[platform][modelLower]; bucket != nil {
-			return platform, bucket
+	if platform := normalizeProviderForBillingHint(itemProvider); platform != "" {
+		for _, hint := range hints {
+			if hint.Platform == platform {
+				return hint
+			}
 		}
 	}
-	for _, platform := range defaultMappingPlatforms() {
-		if bucket := indexes[platform][modelLower]; bucket != nil {
-			return platform, bucket
-		}
-	}
-	return "", nil
+	return hints[0]
 }
 
 func normalizeProviderForBillingHint(provider string) string {

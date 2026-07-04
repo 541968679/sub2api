@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -144,6 +145,101 @@ func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefau
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.NotEmpty(t, resp.Data)
 	require.NotEqual(t, "gpt-5", resp.Data[0].ID)
+}
+
+func availableModelIDs(t *testing.T, rec *httptest.ResponseRecorder) map[string]bool {
+	t.Helper()
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make(map[string]bool, len(resp.Data))
+	for _, model := range resp.Data {
+		ids[model.ID] = true
+	}
+	return ids
+}
+
+// 平台级默认映射的请求模型名必须出现在测试连接模型列表里，
+// 否则模型配置页新增的映射没法在账号管理里选中测试。
+func TestAccountHandlerGetAvailableModels_ClaudeOAuthIncludesPlatformMappingKeys(t *testing.T) {
+	oldOverride := domain.GetPlatformDefaultMappingOverride
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == domain.PlatformAnthropic {
+			return map[string]string{"fable-5-vvip": "claude-fable-5"}
+		}
+		return nil
+	}
+	t.Cleanup(func() { domain.GetPlatformDefaultMappingOverride = oldOverride })
+
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       46,
+			Name:     "claude-oauth",
+			Platform: service.PlatformAnthropic,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/46/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	ids := availableModelIDs(t, rec)
+	require.True(t, ids["fable-5-vvip"], "platform mapping key should be listed")
+	require.True(t, ids["claude-fable-5"], "default models should still be listed")
+}
+
+// Antigravity 非透传账号的可测模型 = 生效映射表的请求模型名（含管理员新增条目），
+// 不再是滞后的静态列表。
+func TestAccountHandlerGetAvailableModels_AntigravityUsesEffectiveMappingKeys(t *testing.T) {
+	oldOverride := domain.GetPlatformDefaultMappingOverride
+	oldAntigravityOverride := domain.GetAntigravityDefaultMappingOverride
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == domain.PlatformAntigravity {
+			return map[string]string{
+				"claude-fable-5":   "claude-fable-5",
+				"zz-admin-added":   "claude-fable-5",
+				"gemini-2.5-flash": "gemini-2.5-flash",
+			}
+		}
+		return nil
+	}
+	domain.GetAntigravityDefaultMappingOverride = nil
+	t.Cleanup(func() {
+		domain.GetPlatformDefaultMappingOverride = oldOverride
+		domain.GetAntigravityDefaultMappingOverride = oldAntigravityOverride
+	})
+
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       47,
+			Name:     "antigravity-oauth",
+			Platform: service.PlatformAntigravity,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/47/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	ids := availableModelIDs(t, rec)
+	require.True(t, ids["claude-fable-5"])
+	require.True(t, ids["zz-admin-added"], "admin-added mapping key should be listed")
+	require.True(t, ids["gemini-2.5-flash"])
+	require.True(t, ids["claude-fable-5[1m]"], "claude models keep context window variants")
+	require.False(t, ids["claude-opus-4-8"], "models absent from the effective mapping are not schedulable")
 }
 
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {

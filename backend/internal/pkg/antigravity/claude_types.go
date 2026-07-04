@@ -1,6 +1,9 @@
 package antigravity
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // Claude 请求/响应类型定义
 
@@ -201,6 +204,39 @@ func DefaultModels() []ClaudeModel {
 	for _, m := range claudeModels {
 		result = append(result, ClaudeModel{ID: m.ID + "[1m]", Type: "model", DisplayName: m.DisplayName + " (1M)", CreatedAt: m.CreatedAt})
 		result = append(result, ClaudeModel{ID: m.ID + "[2m]", Type: "model", DisplayName: m.DisplayName + " (2M)", CreatedAt: m.CreatedAt})
+	}
+	return result
+}
+
+// ModelsForMappingKeys 按模型映射的请求模型名集合构造 Claude API 格式的模型列表。
+// 已知模型沿用静态定义的显示名，未知键用键名本身；Claude 模型追加 [1m]/[2m]
+// 上下文窗口变体，与 DefaultModels 的行为一致。调用方负责传入稳定排序的 keys。
+func ModelsForMappingKeys(keys []string) []ClaudeModel {
+	defs := make(map[string]modelDef, len(claudeModels)+len(geminiModels))
+	for _, m := range claudeModels {
+		defs[m.ID] = m
+	}
+	for _, m := range geminiModels {
+		defs[m.ID] = m
+	}
+	result := make([]ClaudeModel, 0, len(keys)*3)
+	for _, id := range keys {
+		if def, ok := defs[id]; ok {
+			result = append(result, ClaudeModel{ID: def.ID, Type: "model", DisplayName: def.DisplayName, CreatedAt: def.CreatedAt})
+		} else {
+			result = append(result, ClaudeModel{ID: id, Type: "model", DisplayName: id})
+		}
+	}
+	for _, id := range keys {
+		if !strings.HasPrefix(id, "claude-") {
+			continue
+		}
+		display, created := id, ""
+		if def, ok := defs[id]; ok {
+			display, created = def.DisplayName, def.CreatedAt
+		}
+		result = append(result, ClaudeModel{ID: id + "[1m]", Type: "model", DisplayName: display + " (1M)", CreatedAt: created})
+		result = append(result, ClaudeModel{ID: id + "[2m]", Type: "model", DisplayName: display + " (2M)", CreatedAt: created})
 	}
 	return result
 }

@@ -55,15 +55,21 @@ export interface ImageTierRule {
 
 export interface BillingBasisHint {
   /**
-   * 模型名在平台级模型映射里扮演的角色：
-   * - requested_equals_upstream: 同名映射（请求名 == 上游名）
-   * - upstream_only: 只是上游名，related_models 列出所有映射源请求名（可能多对一）
-   * - requested_only: 只是请求名，related_models 单元素为映射目标上游名
+   * 模型名在某个平台级模型映射里扮演的角色。一个模型可以同时是映射键
+   * （mapping_target 非空）和其他键的映射目标（mapped_from 非空）。
+   * type 是给旧展示的汇总标签：
+   * - requested_equals_upstream: 自身有同名映射条目（请求名 == 上游名）
+   * - requested_only: 自身有映射条目且指向别的上游名
+   * - upstream_only: 自身没有映射条目，只作为其他请求名的映射目标出现
    */
   platform?: string
   type: 'requested_equals_upstream' | 'upstream_only' | 'requested_only'
   related_models?: string[]
   mapping_key?: string
+  /** 自身作为映射键时的映射目标（可能等于自身，即同名映射） */
+  mapping_target?: string
+  /** 映射到此模型的其他请求名（不含自身） */
+  mapped_from?: string[]
   mapping_billing_objects?: Record<string, 'requested' | 'mapped'>
   billing_object?: 'requested' | 'mapped'
   billing_object_editable?: boolean
@@ -77,7 +83,10 @@ export interface ModelPricingItem {
   global_override: GlobalOverride | null
   channel_override_count: number
   effective_source: 'channel' | 'global' | 'litellm' | 'fallback'
+  /** 主 hint（provider 匹配或平台顺序第一个），兼容旧逻辑 */
   billing_basis_hint?: BillingBasisHint | null
+  /** 此模型在每个平台默认映射中的完整角色（provider 筛选时只有该平台一条） */
+  billing_basis_hints?: BillingBasisHint[] | null
 }
 
 export interface ModelPricingStats {

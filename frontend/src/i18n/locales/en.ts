@@ -3362,6 +3362,7 @@ const enBase = {
       // Many-to-one mapping tooltip
       mappedFromMultiple: '+{count}',
       mappedFromMultipleTooltip: '{count} more request names mapped to this upstream: {list}',
+      mappedFromTooltip: 'Request names mapped to this model: {models}',
       // Mapping CRUD
       addMapping: 'Add Mapping',
       editMapping: 'Edit Mapping',

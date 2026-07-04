@@ -11,6 +11,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -2003,6 +2004,9 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 
 // GetAvailableModels handles getting available models for an account
 // GET /api/v1/admin/accounts/:id/models
+//
+// 各分支在原有账号级 model_mapping / 默认模型集的基础上，统一并入平台级默认
+// 映射的请求模型名（模型配置页维护），保证新增映射后测试连接能选到这些模型。
 func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -2018,39 +2022,42 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 	// Handle OpenAI accounts
 	if account.IsOpenAI() {
-		// OpenAI 自动透传会绕过常规模型改写，测试/模型列表也应回落到默认模型集。
+		// OpenAI 自动透传会绕过常规模型改写（含平台级默认映射），回落到默认模型集。
 		if account.IsOpenAIPassthroughEnabled() {
 			response.Success(c, openai.DefaultModels)
 			return
 		}
 
+		platformMapping := domain.ResolvePlatformDefaultModelMapping(domain.PlatformOpenAI)
 		mapping := account.GetModelMapping()
-		if len(mapping) == 0 {
-			response.Success(c, openai.DefaultModels)
-			return
-		}
 
-		// Return mapped models + DefaultModels (ensure new default models are always visible)
-		seen := make(map[string]bool, len(mapping)+len(openai.DefaultModels))
+		// Return mapped models + platform mapping keys + DefaultModels
+		// (ensure new default models are always visible)
+		seen := make(map[string]bool, len(mapping)+len(platformMapping)+len(openai.DefaultModels))
 		var models []openai.Model
-		for requestedModel := range mapping {
+		appendKey := func(requestedModel string) {
+			if seen[requestedModel] {
+				return
+			}
 			seen[requestedModel] = true
-			var found bool
 			for _, dm := range openai.DefaultModels {
 				if dm.ID == requestedModel {
 					models = append(models, dm)
-					found = true
-					break
+					return
 				}
 			}
-			if !found {
-				models = append(models, openai.Model{
-					ID:          requestedModel,
-					Object:      "model",
-					Type:        "model",
-					DisplayName: requestedModel,
-				})
-			}
+			models = append(models, openai.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				Type:        "model",
+				DisplayName: requestedModel,
+			})
+		}
+		for _, requestedModel := range sortedMappingKeys(mapping) {
+			appendKey(requestedModel)
+		}
+		for _, requestedModel := range sortedMappingKeys(platformMapping) {
+			appendKey(requestedModel)
 		}
 		for _, dm := range openai.DefaultModels {
 			if !seen[dm.ID] {
@@ -2063,38 +2070,26 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 
 	// Handle Gemini accounts
 	if account.IsGemini() {
-		// For OAuth accounts: return default Gemini models
-		if account.IsOAuth() {
-			response.Success(c, geminicli.DefaultModels)
-			return
-		}
+		platformMapping := domain.ResolvePlatformDefaultModelMapping(domain.PlatformGemini)
 
-		// For API Key accounts: return models based on model_mapping
+		// For OAuth accounts: return default Gemini models + platform mapping keys
 		mapping := account.GetModelMapping()
-		if len(mapping) == 0 {
-			response.Success(c, geminicli.DefaultModels)
+		if account.IsOAuth() || len(mapping) == 0 {
+			models := append([]geminicli.Model(nil), geminicli.DefaultModels...)
+			seen := make(map[string]bool, len(models)+len(platformMapping))
+			for _, dm := range models {
+				seen[dm.ID] = true
+			}
+			models = appendGeminiMappingKeys(models, seen, platformMapping)
+			response.Success(c, models)
 			return
 		}
 
+		// For API Key accounts: return models based on model_mapping + platform mapping keys
 		var models []geminicli.Model
-		for requestedModel := range mapping {
-			var found bool
-			for _, dm := range geminicli.DefaultModels {
-				if dm.ID == requestedModel {
-					models = append(models, dm)
-					found = true
-					break
-				}
-			}
-			if !found {
-				models = append(models, geminicli.Model{
-					ID:          requestedModel,
-					Type:        "model",
-					DisplayName: requestedModel,
-					CreatedAt:   "",
-				})
-			}
-		}
+		seen := make(map[string]bool, len(mapping)+len(platformMapping))
+		models = appendGeminiMappingKeys(models, seen, mapping)
+		models = appendGeminiMappingKeys(models, seen, platformMapping)
 		response.Success(c, models)
 		return
 	}
@@ -2109,51 +2104,65 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 				return
 			}
 			var models []claude.Model
-			for requestedModel := range mapping {
-				var found bool
-				for _, dm := range claude.DefaultModels {
-					if dm.ID == requestedModel {
-						models = append(models, dm)
-						found = true
-						break
-					}
-				}
-				if !found {
-					models = append(models, claude.Model{
-						ID:          requestedModel,
-						Type:        "model",
-						DisplayName: requestedModel,
-						CreatedAt:   "",
-					})
-				}
-			}
+			seen := make(map[string]bool, len(mapping))
+			models = appendClaudeMappingKeys(models, seen, mapping)
 			response.Success(c, models)
 			return
 		}
-		// 直接复用 antigravity.DefaultModels()，与 /v1/models 端点保持同步
-		response.Success(c, antigravity.DefaultModels())
+		// 从生效的模型映射推导可用请求模型，与调度白名单保持一致：账号自定义
+		// credentials.model_mapping 优先，否则用平台级默认映射（管理员在模型
+		// 配置页保存的表或内置表）。静态 DefaultModels() 不感知管理员新增的映射。
+		mapping := account.GetModelMapping()
+		if len(mapping) == 0 {
+			mapping = domain.ResolveAntigravityDefaultMapping()
+		}
+		response.Success(c, antigravity.ModelsForMappingKeys(sortedMappingKeys(mapping)))
 		return
 	}
 
 	// Handle Claude/Anthropic accounts
-	// For OAuth and Setup-Token accounts: return default models
-	if account.IsOAuth() {
-		response.Success(c, claude.DefaultModels)
-		return
-	}
+	platformMapping := domain.ResolvePlatformDefaultModelMapping(domain.PlatformAnthropic)
 
-	// For API Key accounts: return models based on model_mapping
+	// For OAuth and Setup-Token accounts (or API Key without mapping):
+	// default models + platform mapping keys
 	mapping := account.GetModelMapping()
-	if len(mapping) == 0 {
-		// No mapping configured, return default models
-		response.Success(c, claude.DefaultModels)
+	if account.IsOAuth() || len(mapping) == 0 {
+		models := append([]claude.Model(nil), claude.DefaultModels...)
+		seen := make(map[string]bool, len(models)+len(platformMapping))
+		for _, dm := range models {
+			seen[dm.ID] = true
+		}
+		models = appendClaudeMappingKeys(models, seen, platformMapping)
+		response.Success(c, models)
 		return
 	}
 
-	// Return mapped models (keys of the mapping are the available model IDs)
+	// For API Key accounts: models based on model_mapping + platform mapping keys
 	var models []claude.Model
+	seen := make(map[string]bool, len(mapping)+len(platformMapping))
+	models = appendClaudeMappingKeys(models, seen, mapping)
+	models = appendClaudeMappingKeys(models, seen, platformMapping)
+	response.Success(c, models)
+}
+
+// sortedMappingKeys 返回映射表的请求模型名，字典序稳定，避免 map 遍历顺序抖动。
+func sortedMappingKeys(mapping map[string]string) []string {
+	keys := make([]string, 0, len(mapping))
 	for requestedModel := range mapping {
-		// Try to find display info from default models
+		keys = append(keys, requestedModel)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// appendClaudeMappingKeys 将映射表的请求模型名合并进 Claude 模型列表，跳过已存在
+// 的 ID；已知默认模型沿用其显示信息。
+func appendClaudeMappingKeys(models []claude.Model, seen map[string]bool, mapping map[string]string) []claude.Model {
+	for _, requestedModel := range sortedMappingKeys(mapping) {
+		if seen[requestedModel] {
+			continue
+		}
+		seen[requestedModel] = true
 		var found bool
 		for _, dm := range claude.DefaultModels {
 			if dm.ID == requestedModel {
@@ -2162,7 +2171,6 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 				break
 			}
 		}
-		// If not found in defaults, create a basic entry
 		if !found {
 			models = append(models, claude.Model{
 				ID:          requestedModel,
@@ -2172,8 +2180,35 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			})
 		}
 	}
+	return models
+}
 
-	response.Success(c, models)
+// appendGeminiMappingKeys 将映射表的请求模型名合并进 Gemini 模型列表，跳过已存在
+// 的 ID；已知默认模型沿用其显示信息。
+func appendGeminiMappingKeys(models []geminicli.Model, seen map[string]bool, mapping map[string]string) []geminicli.Model {
+	for _, requestedModel := range sortedMappingKeys(mapping) {
+		if seen[requestedModel] {
+			continue
+		}
+		seen[requestedModel] = true
+		var found bool
+		for _, dm := range geminicli.DefaultModels {
+			if dm.ID == requestedModel {
+				models = append(models, dm)
+				found = true
+				break
+			}
+		}
+		if !found {
+			models = append(models, geminicli.Model{
+				ID:          requestedModel,
+				Type:        "model",
+				DisplayName: requestedModel,
+				CreatedAt:   "",
+			})
+		}
+	}
+	return models
 }
 
 // SyncUpstreamModels handles syncing live supported models from an account's upstream.

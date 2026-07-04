@@ -79,31 +79,42 @@ Admin APIs:
 - `GET /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`
 - `PUT /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`
 
-The model-pricing list returns two separate editability flags:
+## Model Config Row Contract (2026-07-04)
 
-- `mapping_key`: the request-model key to edit/delete or use when saving the
-  billing object. Frontend operations must use this value, not the row's pricing
-  model, because `upstream_only` rows are keyed by the mapped target model.
-- `mapping_billing_objects`: optional per-source billing-object overrides for
-  rows whose `related_models` contains multiple mapping keys.
-- `billing_object_editable`: the row represents a mapping key whose billing
-  object can be changed.
-- `mapping_editable`: the row represents an effective platform default mapping
-  key and can be edited or deleted.
+The model-pricing list emits complete per-platform mapping roles; the frontend
+derives rows from them without any cross-item expansion or dedup:
 
-Built-in platform defaults and LiteLLM-discovered rows that represent an
-effective mapping key should expose edit/delete and billing-object controls. If
-the row only has pricing data and no mapping key, it remains a normal pricing
-row.
+- `billing_basis_hints[]`: one hint per platform where the model participates
+  in the default mapping (provider filter → only that platform; "All" view →
+  every matching platform). The singular `billing_basis_hint` stays populated
+  (provider-matched or first) for legacy consumers such as
+  `resolveModelPricingProvider`.
+- Per hint, roles never collapse: `mapping_target` is set when the model itself
+  is a mapping key (including same-name entries), and `mapped_from` lists other
+  request names mapping to it. A model can carry both simultaneously (e.g.
+  `claude-opus-4-7 -> claude-opus-4-6` while `claude-opus-4-6 ->
+  claude-opus-4-6-thinking`). The old implementation collapsed roles by
+  `same_name > upstream_only > requested_only` priority, which silently dropped
+  the model's own mapping and made saved targets render as the request name
+  again.
+- `mapping_editable` / `billing_object_editable` are true only when the model
+  itself is a mapping key; rows for mapping sources are owned by the source
+  models' own items (the list stubs every mapping key, so those items always
+  exist).
 
-The frontend must render one row per effective mapping relationship. Do not hide
-additional mapping sources behind a `+N` aggregate if those hidden sources need
-edit, delete, or billing-object controls.
+Frontend row derivation (`modelPricingRows.ts`):
 
-The request model name is the primary key for the model mapping table. The UI
-must not render two rows with the same request model name; when a pricing row and
-an upstream aggregate both describe the same request model, keep one editable
-row keyed by that request model.
+- A hint with `mapping_target` renders one editable/deletable mapping row per
+  platform, keyed `platform:request-model`.
+- Everything else renders a pass-through row (request = upstream = model). The
+  edit action on pass-through rows opens the add-mapping popover prefilled with
+  `from = to = model`, so any row can be turned into a real mapping entry; no
+  delete button because there is no entry to delete. A `+N` badge with tooltip
+  lists `mapped_from` sources.
+- Mapping rows are derived only from the mapping key's own item — never
+  expanded from the target item — so rows can no longer overwrite each other.
+- Saving a mapping to a platform other than the active provider tab switches
+  the tab to that platform so the new row is immediately visible.
 
 Anthropic includes LiteLLM alias defaults for common old naming schemes, for
 example `claude-4-sonnet-20250514 -> claude-sonnet-4-20250514`, so those aliases
@@ -221,8 +232,27 @@ account.ResolveMappedModel():
 | 模型迁移 | 默认映射中旧模型自动指向新模型（如 opus-4-5 → opus-4-6-thinking） | `domain/constants.go:72-115` |
 | 持久化映射回填 | 新增官方模型时，已有 `credentials.model_mapping` 账号需要 migration 补同名映射，避免严格模式漏调度 | `backend/migrations/146_add_opus48_to_model_mapping.sql` |
 
+## 测试连接模型列表 (2026-07-04)
+
+`GET /api/v1/admin/accounts/:id/models`（账号管理 → 测试连接的模型下拉）在原有
+账号级 `credentials.model_mapping` / 默认模型集的基础上，统一并入平台级默认映射
+的请求模型名，保证模型配置页新增的映射能被选中测试：
+
+- Antigravity 非透传账号：可测模型 = 生效映射表的请求模型名（账号自定义映射
+  优先，否则 `ResolveAntigravityDefaultMapping()`），Claude 模型追加 [1m]/[2m]
+  变体（`antigravity.ModelsForMappingKeys`）。不再使用滞后的静态
+  `antigravity.DefaultModels()`。
+- Claude / Gemini / OpenAI 账号：默认模型集或账号映射键 ∪ 对应平台默认映射键。
+- OpenAI 自动透传与 Kiro 反代透传保持原行为（透传绕过映射改写）。
+
 ## 已知陷阱
 
+- **保存过的平台默认映射会滞后于内置表 (2026-07-04)**：管理员在模型配置页保存
+  过映射表后，保存表整体替换内置表；之后 fork 同步新增的内置模型（如
+  claude-fable-5）不会自动出现，Antigravity 严格白名单会漏调度。补救模式是
+  回填 migration（`177_add_fable5_to_default_model_mapping.sql` 同时回填
+  settings 表和账号级 model_mapping，参照 146 的 opus-4-8 模式）。新增官方模型
+  时检查是否需要同类回填。
 - **Sonnet 5 production-only sync (2026-07-02)**：`claude-sonnet-5` 通过 Claude 默认模型列表和前端白名单预设暴露。Bedrock 默认映射为 `us.anthropic.claude-sonnet-5-v1`，再由 `ResolveBedrockModelID` 按账号 `aws_region` 替换区域前缀。默认 `context-1m-2025-08-07` beta 策略只放行 Sonnet 5 direct/Vertex/Bedrock ID，Sonnet 4.x、Opus、Haiku、legacy Sonnet 仍会过滤该 beta。
 - **Antigravity 默认映射更新滞后**：上游新增模型时，`DefaultAntigravityModelMapping` 可能未及时更新，需手动添加映射
 - **迁移编号分叉**：合并上游模型回填迁移时，先检查本 fork 最新 migration 编号；如上游编号已被二开占用，保留 SQL 逻辑并改用本地下一编号。

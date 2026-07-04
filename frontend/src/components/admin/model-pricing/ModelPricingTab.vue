@@ -155,13 +155,13 @@
             class="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30"
           >
             <td class="px-4 py-2.5">
-              <span class="font-mono text-xs text-gray-900 dark:text-white">{{ row.requestedDisplay.primary }}</span>
+              <span class="font-mono text-xs text-gray-900 dark:text-white">{{ row.mappingFrom }}</span>
               <span
-                v-if="row.requestedDisplay.moreCount > 0"
+                v-if="row.mappedFromCount > 0"
                 class="ml-1 inline-block rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                :title="row.requestedDisplay.moreTooltip"
+                :title="row.mappedFromTooltip"
               >
-                +{{ row.requestedDisplay.moreCount }}
+                +{{ row.mappedFromCount }}
               </span>
             </td>
             <td class="px-4 py-2.5">
@@ -169,7 +169,7 @@
             </td>
             <td class="px-4 py-2.5 text-center">
               <select
-                v-if="row.canEditBillingObject"
+                v-if="row.isMappingEntry"
                 :value="row.billingObject"
                 :disabled="savingMappingBillingObject === mappingOperationKey(row)"
                 class="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"
@@ -185,7 +185,7 @@
             </td>
             <td class="hidden px-4 py-2.5 xl:table-cell">
               <span class="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                {{ row.resolvedProvider || '-' }}
+                {{ row.platform || row.resolvedProvider || '-' }}
               </span>
             </td>
             <td
@@ -226,7 +226,7 @@
             <td class="px-4 py-2.5 text-right">
               <div class="flex justify-end gap-0.5">
                 <button
-                  v-if="row.canEditMapping"
+                  v-if="row.isMappingEntry"
                   @click="openEditMapping($event, row)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-gray-700 dark:hover:text-primary-400"
                   :title="t('admin.modelPricing.editMapping')"
@@ -236,7 +236,17 @@
                   </svg>
                 </button>
                 <button
-                  v-if="row.canEditMapping"
+                  v-else
+                  @click="openCreateMapping($event, row)"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-gray-700 dark:hover:text-primary-400"
+                  :title="t('admin.modelPricing.addMapping')"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                </button>
+                <button
+                  v-if="row.isMappingEntry"
                   @click="deleteMapping(row)"
                   class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   :title="t('admin.modelPricing.deleteMapping')"
@@ -342,6 +352,8 @@
       :platform="mappingPopoverState.platform"
       :original-from="mappingPopoverState.originalFrom"
       :original-to="mappingPopoverState.originalTo"
+      :initial-from="mappingPopoverState.initialFrom"
+      :initial-to="mappingPopoverState.initialTo"
       @close="closeMappingPopover"
       @saved="handleMappingSaved"
     />
@@ -375,6 +387,11 @@ import {
   type ModelPricingBillingMode,
   type ModelPricingProvider,
 } from './modelPricingOptions'
+import {
+  deriveModelNameRows,
+  normalizeMappingBillingObject,
+  type MappingBillingObject,
+} from './modelPricingRows'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -389,8 +406,6 @@ const providerFilter = ref('')
 const sourceFilter = ref('')
 const deletingMappingFrom = ref('')
 const savingMappingBillingObject = ref('')
-
-type MappingBillingObject = 'requested' | 'mapped'
 
 const mappingBillingObjectOptions = computed<Array<{ value: MappingBillingObject; label: string }>>(() => [
   { value: 'requested', label: t('admin.modelPricing.billingObjectRequested') },
@@ -499,6 +514,8 @@ interface MappingPopoverState {
   platform: string
   originalFrom: string
   originalTo: string
+  initialFrom: string
+  initialTo: string
 }
 const mappingPopoverState = reactive<MappingPopoverState>({
   show: false,
@@ -507,6 +524,8 @@ const mappingPopoverState = reactive<MappingPopoverState>({
   platform: 'antigravity',
   originalFrom: '',
   originalTo: '',
+  initialFrom: '',
+  initialTo: '',
 })
 
 function normalizeMappingPlatform(platform?: string): ModelPricingProvider {
@@ -514,7 +533,7 @@ function normalizeMappingPlatform(platform?: string): ModelPricingProvider {
 }
 
 function rowMappingPlatform(row?: RowDisplay): string {
-  return normalizeMappingPlatform(row?.item.billing_basis_hint?.platform || row?.resolvedProvider || providerFilter.value)
+  return normalizeMappingPlatform(row?.platform || row?.resolvedProvider || providerFilter.value)
 }
 
 function mappingOperationKey(row: RowDisplay): string {
@@ -528,6 +547,8 @@ function openAddMapping() {
   mappingPopoverState.platform = normalizeMappingPlatform(providerFilter.value)
   mappingPopoverState.originalFrom = ''
   mappingPopoverState.originalTo = ''
+  mappingPopoverState.initialFrom = ''
+  mappingPopoverState.initialTo = ''
 }
 
 function openEditMapping(event: MouseEvent, row: RowDisplay) {
@@ -539,6 +560,23 @@ function openEditMapping(event: MouseEvent, row: RowDisplay) {
   mappingPopoverState.platform = rowMappingPlatform(row)
   mappingPopoverState.originalFrom = row.mappingFrom
   mappingPopoverState.originalTo = row.upstreamDisplay
+  mappingPopoverState.initialFrom = ''
+  mappingPopoverState.initialTo = ''
+}
+
+// 直通行没有映射条目可编辑；"编辑"打开 add 模式的 popover 并预填
+// 请求名 = 上游名 = 模型本身，管理员改掉上游名保存即就地创建映射条目。
+function openCreateMapping(event: MouseEvent, row: RowDisplay) {
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) return
+  mappingPopoverState.show = true
+  mappingPopoverState.anchor = target
+  mappingPopoverState.mode = 'add'
+  mappingPopoverState.platform = rowMappingPlatform(row)
+  mappingPopoverState.originalFrom = ''
+  mappingPopoverState.originalTo = ''
+  mappingPopoverState.initialFrom = row.mappingFrom
+  mappingPopoverState.initialTo = row.upstreamDisplay
 }
 
 function closeMappingPopover() {
@@ -546,15 +584,23 @@ function closeMappingPopover() {
   mappingPopoverState.anchor = null
 }
 
-function handleMappingSaved(_payload: { mode: 'add' | 'edit' | 'delete'; platform: string; from: string; to?: string }) {
-  // 映射变化会影响所有徽标和 related_models，必须整表 reload
+function handleMappingSaved(payload: { mode: 'add' | 'edit' | 'delete'; platform: string; from: string; to?: string }) {
+  appStore.showSuccess(t('admin.modelConfig.saved'))
+  // 保存到的平台与当前筛选 tab 不同时跟着切过去，否则新映射行在当前 tab 不可见，
+  // 看起来像保存失败。
+  const platform = normalizeModelPricingProvider(payload.platform)
+  if (payload.mode !== 'delete' && platform && providerFilter.value && platform !== providerFilter.value) {
+    providerFilter.value = platform
+    pagination.page = 1
+  }
+  // 映射变化会影响所有行的角色推导，必须整表 reload
   loadData()
 }
 
 async function deleteMapping(row: RowDisplay) {
   const from = row.mappingFrom
   const platform = rowMappingPlatform(row)
-  if (!from || !row.canEditMapping) return
+  if (!from || !row.isMappingEntry) return
   if (!confirm(t('admin.modelPricing.confirmDeleteMapping', { from }))) return
 
   deletingMappingFrom.value = mappingOperationKey(row)
@@ -584,7 +630,7 @@ async function deleteMapping(row: RowDisplay) {
 }
 
 async function updateMappingBillingObject(row: RowDisplay, value: MappingBillingObject) {
-  if (!row.canEditBillingObject || (value !== 'requested' && value !== 'mapped')) {
+  if (!row.isMappingEntry || (value !== 'requested' && value !== 'mapped')) {
     return
   }
   const from = row.mappingFrom
@@ -763,161 +809,62 @@ function isStubRow(item: ModelPricingItem): boolean {
   return !item.litellm_prices && !item.global_override
 }
 
-// 预计算每行四个价格字段的 delta，以及基于 billing_basis_hint 推导的
-// 请求名/上游名双列展示 + 计费模式标签，避免模板内多次计算。
+// 预计算每行四个价格字段的 delta，以及基于 billing_basis_hints 推导的
+// 请求名/上游名双列展示 + 计费对象标签，避免模板内多次计算。
 interface RowDisplay {
   rowKey: string
   item: ModelPricingItem
   stub: boolean
   deltas: Record<PriceField, PriceDelta>
+  // 请求模型名（映射键或模型自身）
   mappingFrom: string
-  // 请求名列展示：可能多对一，primary 是首个，moreCount > 0 时展示 +N 并在 tooltip 里列全
-  requestedDisplay: { primary: string; moreCount: number; moreTooltip: string }
-  // 上游名列展示：单一值
+  // 上游模型名
   upstreamDisplay: string
+  // 真实映射行所属平台（直通行为空）
+  platform: string
+  // 是否为平台默认映射里的真实条目（可编辑 / 删除 / 改计费对象）
+  isMappingEntry: boolean
+  // 映射到此模型的其他请求名（tooltip 提示）
+  mappedFromCount: number
+  mappedFromTooltip: string
   billingModeLabel: string
   billingModeClass: string
   billingObject: MappingBillingObject
   resolvedProvider: ModelPricingProvider
-  // 行操作是否可用
-  canEditMapping: boolean
-  canEditBillingObject: boolean
   canTest: boolean
 }
 
-function normalizeMappingBillingObject(value?: string | null): MappingBillingObject {
-  return value === 'mapped' ? 'mapped' : 'requested'
-}
-
-function mappingBillingObjectLabel(value: MappingBillingObject): string {
-  return value === 'mapped'
-    ? t('admin.modelPricing.billingObjectMapped')
-    : t('admin.modelPricing.billingObjectRequested')
-}
-
-function mappingBillingObjectClass(value: MappingBillingObject): string {
-  return value === 'mapped'
-    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-    : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
-}
-
-interface NameColumns {
-  mappingFrom: string
-  requestedDisplay: RowDisplay['requestedDisplay']
-  upstreamDisplay: string
-  billingModeLabel: string
-  billingModeClass: string
-  billingObject: MappingBillingObject
-}
-
-function billingObjectForMappingKey(item: ModelPricingItem, mappingKey: string): MappingBillingObject {
-  const hint = item.billing_basis_hint
-  if (!hint) return 'requested'
-  const perKey = hint.mapping_billing_objects?.[mappingKey]
-  if (perKey) return normalizeMappingBillingObject(perKey)
-  if (mappingKey === hint.mapping_key) return normalizeMappingBillingObject(hint.billing_object)
-  return 'requested'
-}
-
-function mappingNameColumns(item: ModelPricingItem, mappingFrom: string, upstreamDisplay: string): NameColumns {
-  const billingObject = billingObjectForMappingKey(item, mappingFrom)
-  return {
-    mappingFrom,
-    requestedDisplay: { primary: mappingFrom, moreCount: 0, moreTooltip: '' },
-    upstreamDisplay,
-    billingModeLabel: mappingBillingObjectLabel(billingObject),
-    billingModeClass: mappingBillingObjectClass(billingObject),
-    billingObject,
-  }
-}
-
-function deriveNameColumnRows(item: ModelPricingItem): NameColumns[] {
-  const hint = item.billing_basis_hint
-  const model = item.model
-  // 默认（无徽标或同名映射）：请求 = 上游 = 模型本身
-  if (!hint || hint.type === 'requested_equals_upstream') {
-    // Antigravity 场景下，同名映射的模型常常同时也是其他请求名的映射目标
-    // （如 claude-opus-4-6-thinking 既是同名 key 又被 claude-opus-4-6 指向）。
-    // 此时后端在 related_models 里额外塞入那些映射源请求名；这里展开成独立行。
-    const related = hint?.related_models ?? []
-    const rows: NameColumns[] = []
-    const selfKey = hint?.mapping_key || model
-    const billingObject = billingObjectForMappingKey(item, selfKey)
-    rows.push({
-      mappingFrom: hint?.mapping_key || model,
-      requestedDisplay: { primary: model, moreCount: 0, moreTooltip: '' },
-      upstreamDisplay: model,
-      billingModeLabel: hint?.billing_object_editable
-        ? mappingBillingObjectLabel(billingObject)
-        : t('admin.modelPricing.billingModeRequestEqualsUpstream'),
-      billingModeClass: hint?.billing_object_editable
-        ? mappingBillingObjectClass(billingObject)
-        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
-      billingObject,
-    })
-    for (const from of related) {
-      rows.push(mappingNameColumns(item, from, model))
-    }
-    return rows
-  }
-
-  if (hint.type === 'requested_only') {
-    // 模型是映射 key，上游名 = related_models[0]
-    const upstream = hint.related_models?.[0] ?? model
-    const billingObject = normalizeMappingBillingObject(hint.billing_object)
-    return [{
-      mappingFrom: hint.mapping_key || model,
-      requestedDisplay: { primary: model, moreCount: 0, moreTooltip: '' },
-      upstreamDisplay: upstream,
-      billingModeLabel: mappingBillingObjectLabel(billingObject),
-      billingModeClass: mappingBillingObjectClass(billingObject),
-      billingObject,
-    }]
-  }
-
-  // upstream_only：模型是映射 value，请求名 = 所有 related_models
-  const related = hint.related_models ?? []
-  if (related.length > 0) {
-    return related.map((from) => mappingNameColumns(item, from, model))
-  }
-  return [mappingNameColumns(item, hint.mapping_key || model, model)]
-}
-
 const displayRows = computed<RowDisplay[]>(() =>
-  Array.from(items.value.reduce((rows, item) => {
-    const nameRows = deriveNameColumnRows(item)
-    // 映射编辑/删除由后端按有效默认映射 key 判断。
-    const canEditMapping = Boolean(item.billing_basis_hint?.mapping_editable)
-    const canEditBillingObject = Boolean(item.billing_basis_hint?.billing_object_editable)
+  items.value.flatMap((item) => {
     const resolvedProvider = resolveModelPricingProvider(item, providerFilter.value)
     const canTest = Boolean(resolvedProvider)
-    for (const nameCols of nameRows) {
-      const row: RowDisplay = {
-        rowKey: nameCols.mappingFrom,
-        item,
-        stub: isStubRow(item),
-        deltas: {
-          input: computePriceDelta(item, 'input'),
-          output: computePriceDelta(item, 'output'),
-          cache_write: computePriceDelta(item, 'cache_write'),
-          cache_read: computePriceDelta(item, 'cache_read'),
-        },
-        resolvedProvider,
-        canEditMapping,
-        canEditBillingObject,
-        canTest,
-        ...nameCols,
-      }
-      const key = nameCols.mappingFrom.toLowerCase()
-      const existing = rows.get(key)
-      const rowIsSourceModel = item.model.toLowerCase() === key
-      const existingIsSourceModel = existing?.item.model.toLowerCase() === key
-      if (!existing || (rowIsSourceModel && !existingIsSourceModel)) {
-        rows.set(key, row)
-      }
+    const stub = isStubRow(item)
+    const deltas: RowDisplay['deltas'] = {
+      input: computePriceDelta(item, 'input'),
+      output: computePriceDelta(item, 'output'),
+      cache_write: computePriceDelta(item, 'cache_write'),
+      cache_read: computePriceDelta(item, 'cache_read'),
     }
-    return rows
-  }, new Map<string, RowDisplay>()).values())
+    return deriveModelNameRows(item).map((nameRow) => ({
+      rowKey: nameRow.rowKey,
+      item,
+      stub,
+      deltas,
+      mappingFrom: nameRow.mappingFrom,
+      upstreamDisplay: nameRow.upstreamDisplay,
+      platform: nameRow.platform,
+      isMappingEntry: nameRow.isMappingEntry,
+      mappedFromCount: nameRow.mappedFrom.length,
+      mappedFromTooltip: nameRow.mappedFrom.length
+        ? t('admin.modelPricing.mappedFromTooltip', { models: nameRow.mappedFrom.join(', ') })
+        : '',
+      billingObject: nameRow.billingObject,
+      billingModeLabel: t('admin.modelPricing.billingModeRequestEqualsUpstream'),
+      billingModeClass: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+      resolvedProvider,
+      canTest,
+    }))
+  })
 )
 
 function sourceBadgeClass(source: string): string {
