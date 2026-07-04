@@ -14,6 +14,10 @@ const (
 	PricingSourceUser     = "user"
 )
 
+// PricingSourceFilterHidden 是模型定价列表 source 筛选的特殊值：
+// 只显示管理员删除（隐藏）的模型，用于恢复。不是真实的定价来源。
+const PricingSourceFilterHidden = "hidden"
+
 // ResolvedPricing 统一定价解析结果
 type ResolvedPricing struct {
 	// Mode 计费模式

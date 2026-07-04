@@ -301,8 +301,24 @@ func (s *GlobalModelPricingService) ListAllModels(ctx context.Context, params pa
 		items[i].BillingBasisHint = pickPrimaryBillingHint(items[i].Provider, hints)
 	}
 
+	// 管理员删除（隐藏）的模型只影响列表展示。"已隐藏"视图额外补出目录里已经
+	// 不存在的隐藏名（stub），保证误删/过期条目始终可见可恢复。
+	hiddenModels := domain.ResolveModelPricingHiddenModels()
+	if source == PricingSourceFilterHidden {
+		for hiddenModel := range hiddenModels {
+			if modelSet[hiddenModel] {
+				continue
+			}
+			modelSet[hiddenModel] = true
+			items = append(items, ModelPricingListItem{
+				Model:           hiddenModel,
+				EffectiveSource: PricingSourceFallback,
+			})
+		}
+	}
+
 	// 5. 筛选
-	items = s.filterItems(items, search, provider, source)
+	items = s.filterItems(items, search, provider, source, hiddenModels)
 
 	// 6. 排序
 	sort.Slice(items, func(i, j int) bool {
@@ -803,8 +819,8 @@ func normalizeProviderForBillingHint(provider string) string {
 	}
 }
 
-func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, search, provider, source string) []ModelPricingListItem {
-	if search == "" && provider == "" && source == "" {
+func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, search, provider, source string, hiddenModels map[string]bool) []ModelPricingListItem {
+	if search == "" && provider == "" && source == "" && len(hiddenModels) == 0 {
 		return items
 	}
 
@@ -825,35 +841,54 @@ func (s *GlobalModelPricingService) filterItems(items []ModelPricingListItem, se
 
 	var filtered []ModelPricingListItem
 	for _, item := range items {
-		if searchLower != "" && !strings.Contains(strings.ToLower(item.Model), searchLower) {
+		modelLower := strings.ToLower(item.Model)
+		if source == PricingSourceFilterHidden {
+			// "已隐藏"视图只显示隐藏条目本身
+			if !hiddenModels[modelLower] {
+				continue
+			}
+		} else if hiddenModels[modelLower] && !itemHasMappingEntry(item) {
+			// 隐藏只作用于直通定价行；模型自身是有效映射键时必须保持可见，
+			// 否则真实的映射条目会被展示层吞掉。
+			continue
+		}
+		if searchLower != "" && !strings.Contains(modelLower, searchLower) {
 			continue
 		}
 		if providerLower != "" && !providerMatches(item, providerLower, platformDefaultModelSet) {
 			continue
 		}
-		if source != "" {
-			switch source {
-			case "litellm_only":
-				if item.GlobalOverride != nil {
-					continue
-				}
-			case "has_global_override":
-				if item.GlobalOverride == nil {
-					continue
-				}
-			case "has_channel_override":
-				if item.ChannelOverrideCount == 0 {
-					continue
-				}
-			case "has_user_override":
-				if item.UserOverrideCount == 0 {
-					continue
-				}
+		switch source {
+		case "litellm_only":
+			if item.GlobalOverride != nil {
+				continue
+			}
+		case "has_global_override":
+			if item.GlobalOverride == nil {
+				continue
+			}
+		case "has_channel_override":
+			if item.ChannelOverrideCount == 0 {
+				continue
+			}
+		case "has_user_override":
+			if item.UserOverrideCount == 0 {
+				continue
 			}
 		}
 		filtered = append(filtered, item)
 	}
 	return filtered
+}
+
+// itemHasMappingEntry 判断条目自身是否是任一平台默认映射的键。
+func itemHasMappingEntry(item ModelPricingListItem) bool {
+	for _, hint := range item.BillingBasisHints {
+		if hint != nil && hint.MappingTarget != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // providerMatches 判断单条目是否命中 provider 筛选，处理 LiteLLM 的各种子分类别名。

@@ -264,6 +264,10 @@ const (
 	SettingKeyOpenAIDefaultModelMappingBillingObject      = "openai_default_model_mapping_billing_object"
 	SettingKeyGeminiDefaultModelMappingBillingObject      = "gemini_default_model_mapping_billing_object"
 
+	// 模型配置页删除（隐藏）的模型列表，JSON 数组，元素为小写模型名。
+	// 仅影响模型配置列表展示，不影响计费与请求转发。
+	SettingKeyModelPricingHiddenModels = "model_pricing_hidden_models"
+
 	// Request identity patch (Claude -> Gemini systemInstruction injection)
 	SettingKeyEnableIdentityPatch = "enable_identity_patch"
 	SettingKeyIdentityPatchPrompt = "identity_patch_prompt"

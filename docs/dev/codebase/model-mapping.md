@@ -116,6 +116,19 @@ Frontend row derivation (`modelPricingRows.ts`):
 - Saving a mapping to a platform other than the active provider tab switches
   the tab to that platform so the new row is immediately visible.
 
+Every row is deletable:
+
+- Mapping rows delete the platform default mapping entry (existing behavior).
+- Pass-through rows delete by hiding the model from the config list. The hidden
+  set persists in Settings KV `model_pricing_hidden_models` (JSON array of
+  lowercase model names, admin APIs `GET/PUT
+  /api/v1/admin/model-pricing/hidden-models`). Hiding only affects this list —
+  billing and request forwarding are untouched. The source filter gains a
+  "hidden" view (`source=hidden`) that lists hidden models — including stale
+  names no longer in the catalog — with a restore action. A hidden model that
+  is (or later becomes) an effective mapping key stays visible as its mapping
+  row; hiding never swallows real mapping entries.
+
 Anthropic includes LiteLLM alias defaults for common old naming schemes, for
 example `claude-4-sonnet-20250514 -> claude-sonnet-4-20250514`, so those aliases
 are editable mapping rows rather than plain pricing rows.

@@ -62,6 +62,21 @@ func (s *modelMappingSettingRepoStub) Delete(ctx context.Context, key string) er
 	return nil
 }
 
+func TestSettingServiceModelPricingHiddenModelsRoundTrip(t *testing.T) {
+	repo := &modelMappingSettingRepoStub{values: map[string]string{}}
+	svc := NewSettingService(repo, &config.Config{})
+	ctx := context.Background()
+
+	require.Empty(t, svc.GetModelPricingHiddenModels(ctx))
+
+	require.NoError(t, svc.SetModelPricingHiddenModels(ctx, []string{" Claude-Opus-4-5 ", "gpt-4o", "gpt-4o", ""}))
+	require.Equal(t, []string{"claude-opus-4-5", "gpt-4o"}, svc.GetModelPricingHiddenModels(ctx))
+	require.Equal(t, map[string]bool{"claude-opus-4-5": true, "gpt-4o": true}, svc.GetModelPricingHiddenModelSet(ctx))
+
+	require.NoError(t, svc.SetModelPricingHiddenModels(ctx, nil))
+	require.Empty(t, svc.GetModelPricingHiddenModels(ctx))
+}
+
 func TestSettingServicePlatformDefaultModelMappingPreservesEmptyOverride(t *testing.T) {
 	repo := &modelMappingSettingRepoStub{values: map[string]string{
 		SettingKeyAntigravityDefaultModelMapping: "{}",
@@ -77,10 +92,12 @@ func TestProvideSettingServiceAntigravityDefaultMappingUsesSavedFullTable(t *tes
 	previousDefaultOverride := domain.GetPlatformDefaultMappingOverride
 	previousAntigravityOverride := domain.GetAntigravityDefaultMappingOverride
 	previousBillingObjectOverride := domain.GetPlatformDefaultMappingBillingObjectOverride
+	previousHiddenModelsOverride := domain.GetModelPricingHiddenModelsOverride
 	t.Cleanup(func() {
 		domain.GetPlatformDefaultMappingOverride = previousDefaultOverride
 		domain.GetAntigravityDefaultMappingOverride = previousAntigravityOverride
 		domain.GetPlatformDefaultMappingBillingObjectOverride = previousBillingObjectOverride
+		domain.GetModelPricingHiddenModelsOverride = previousHiddenModelsOverride
 	})
 
 	repo := &modelMappingSettingRepoStub{values: map[string]string{}}

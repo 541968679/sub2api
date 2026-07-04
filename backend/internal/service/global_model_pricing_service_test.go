@@ -381,6 +381,58 @@ func TestGlobalModelPricingListIncludesAnthropicAliasMapping(t *testing.T) {
 	require.True(t, item.BillingBasisHint.BillingObjectEditable)
 }
 
+// TestGlobalModelPricingListHiddenModels 验证管理员删除（隐藏）模型的列表行为：
+// 普通定价行被隐藏；有效映射键即使被隐藏也保持可见；"已隐藏"视图列出隐藏条目
+// 并为目录里已不存在的隐藏名补 stub。
+func TestGlobalModelPricingListHiddenModels(t *testing.T) {
+	oldHiddenOverride := domain.GetModelPricingHiddenModelsOverride
+	oldMappingOverride := domain.GetPlatformDefaultMappingOverride
+	domain.GetModelPricingHiddenModelsOverride = func() map[string]bool {
+		return map[string]bool{
+			"zz-hidden-plain":   true,
+			"zz-hidden-mapped":  true,
+			"zz-hidden-removed": true,
+		}
+	}
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{"zz-hidden-mapped": "zz-upstream"}
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		domain.GetModelPricingHiddenModelsOverride = oldHiddenOverride
+		domain.GetPlatformDefaultMappingOverride = oldMappingOverride
+	})
+
+	ctx := context.Background()
+	repo := &globalPricingServiceRepoStub{}
+	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		"zz-hidden-plain": {LiteLLMProvider: PlatformOpenAI, InputCostPerToken: 1},
+		"zz-visible":      {LiteLLMProvider: PlatformOpenAI, InputCostPerToken: 2},
+	}}
+	channelService := NewChannelService(globalPricingServiceChannelRepoStub{}, nil, nil, nil)
+	svc := NewGlobalModelPricingService(repo, NewGlobalPricingCache(repo), pricingService, channelService, nil, nil)
+
+	// 默认视图：普通隐藏模型消失，映射键保持可见
+	result, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", "", "")
+	require.NoError(t, err)
+	require.Nil(t, findModelPricingListItem(result.Items, "zz-hidden-plain"))
+	require.NotNil(t, findModelPricingListItem(result.Items, "zz-visible"))
+	mappedItem := findModelPricingListItem(result.Items, "zz-hidden-mapped")
+	require.NotNil(t, mappedItem, "mapping keys must stay visible even when hidden")
+	require.NotNil(t, mappedItem.BillingBasisHint)
+	require.Equal(t, "zz-upstream", mappedItem.BillingBasisHint.MappingTarget)
+
+	// "已隐藏"视图：只列隐藏条目，含目录里已不存在的 stub
+	hiddenResult, err := svc.ListAllModels(ctx, pagination.PaginationParams{Page: 1, PageSize: 10000}, "", "", PricingSourceFilterHidden)
+	require.NoError(t, err)
+	require.NotNil(t, findModelPricingListItem(hiddenResult.Items, "zz-hidden-plain"))
+	require.NotNil(t, findModelPricingListItem(hiddenResult.Items, "zz-hidden-mapped"))
+	require.NotNil(t, findModelPricingListItem(hiddenResult.Items, "zz-hidden-removed"), "stale hidden names get stub rows for restore")
+	require.Nil(t, findModelPricingListItem(hiddenResult.Items, "zz-visible"))
+}
+
 func findModelPricingListItem(items []ModelPricingListItem, model string) *ModelPricingListItem {
 	for i := range items {
 		if strings.EqualFold(items[i].Model, model) {

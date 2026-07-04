@@ -87,6 +87,19 @@ var GetPlatformDefaultMappingOverride func(platform string) map[string]string
 // object overrides keyed by mapping source model/pattern.
 var GetPlatformDefaultMappingBillingObjectOverride func(platform string) map[string]string
 
+// GetModelPricingHiddenModelsOverride 可在应用启动时设置，用于从 settings 表读取
+// 管理员在模型配置页删除（隐藏）的模型集合，键为小写模型名。
+// 仅影响模型配置列表展示，不影响计费与请求转发。
+var GetModelPricingHiddenModelsOverride func() map[string]bool
+
+// ResolveModelPricingHiddenModels 返回模型配置页隐藏的模型集合（可能为 nil）。
+func ResolveModelPricingHiddenModels() map[string]bool {
+	if GetModelPricingHiddenModelsOverride == nil {
+		return nil
+	}
+	return GetModelPricingHiddenModelsOverride()
+}
+
 func NormalizeMappingBillingObject(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case MappingBillingObjectRequested:

@@ -3363,6 +3363,12 @@ const enBase = {
       mappedFromMultiple: '+{count}',
       mappedFromMultipleTooltip: '{count} more request names mapped to this upstream: {list}',
       mappedFromTooltip: 'Request names mapped to this model: {models}',
+      hiddenModels: 'Hidden',
+      hideModelTitle: 'Remove from list (restorable under "Hidden")',
+      confirmHideModel: 'Remove "{model}" from the model config list? It will no longer be shown (billing and request forwarding are unaffected) and can be restored under the "Hidden" source filter.',
+      modelHidden: 'Removed from the list. Restore it under "Hidden".',
+      restoreModel: 'Restore',
+      modelRestored: 'Model is visible again',
       // Mapping CRUD
       addMapping: 'Add Mapping',
       editMapping: 'Edit Mapping',

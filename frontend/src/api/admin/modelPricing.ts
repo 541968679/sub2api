@@ -270,6 +270,22 @@ export async function getRateMultiplierOverview(): Promise<RateMultiplierSummary
   return data
 }
 
+/**
+ * 获取模型配置页删除（隐藏）的模型列表（小写模型名）
+ */
+export async function getHiddenModels(): Promise<string[]> {
+  const { data } = await apiClient.get<string[]>('/admin/model-pricing/hidden-models')
+  return data
+}
+
+/**
+ * 覆盖保存隐藏模型列表，返回清洗后的结果
+ */
+export async function updateHiddenModels(models: string[]): Promise<string[]> {
+  const { data } = await apiClient.put<string[]>('/admin/model-pricing/hidden-models', models)
+  return data
+}
+
 const modelPricingAPI = {
   list,
   getDetail,
@@ -278,6 +294,8 @@ const modelPricingAPI = {
   deleteOverride,
   getChannelOverrides,
   getRateMultiplierOverview,
+  getHiddenModels,
+  updateHiddenModels,
 }
 
 export default modelPricingAPI

@@ -3807,6 +3807,55 @@ func (s *SettingService) SetPlatformDefaultModelMappingBillingObjects(ctx contex
 	return s.settingRepo.Set(ctx, key, string(data))
 }
 
+// GetModelPricingHiddenModels 返回模型配置页删除（隐藏）的模型列表，
+// 元素统一小写、去重、字典序稳定。未配置时返回空切片。
+func (s *SettingService) GetModelPricingHiddenModels(ctx context.Context) []string {
+	val, err := s.settingRepo.GetValue(ctx, SettingKeyModelPricingHiddenModels)
+	if err != nil || strings.TrimSpace(val) == "" {
+		return []string{}
+	}
+	var models []string
+	if err := json.Unmarshal([]byte(val), &models); err != nil {
+		return []string{}
+	}
+	return normalizeHiddenModels(models)
+}
+
+// GetModelPricingHiddenModelSet 返回隐藏模型集合（小写模型名 -> true）。
+func (s *SettingService) GetModelPricingHiddenModelSet(ctx context.Context) map[string]bool {
+	models := s.GetModelPricingHiddenModels(ctx)
+	set := make(map[string]bool, len(models))
+	for _, model := range models {
+		set[model] = true
+	}
+	return set
+}
+
+// SetModelPricingHiddenModels 覆盖保存隐藏模型列表。
+func (s *SettingService) SetModelPricingHiddenModels(ctx context.Context, models []string) error {
+	cleaned := normalizeHiddenModels(models)
+	data, err := json.Marshal(cleaned)
+	if err != nil {
+		return fmt.Errorf("marshal model pricing hidden models: %w", err)
+	}
+	return s.settingRepo.Set(ctx, SettingKeyModelPricingHiddenModels, string(data))
+}
+
+func normalizeHiddenModels(models []string) []string {
+	seen := make(map[string]bool, len(models))
+	cleaned := make([]string, 0, len(models))
+	for _, model := range models {
+		model = strings.ToLower(strings.TrimSpace(model))
+		if model == "" || seen[model] {
+			continue
+		}
+		seen[model] = true
+		cleaned = append(cleaned, model)
+	}
+	sort.Strings(cleaned)
+	return cleaned
+}
+
 // GetAntigravityDefaultModelMapping returns the optional global Antigravity model mapping.
 func (s *SettingService) GetAntigravityDefaultModelMapping(ctx context.Context) map[string]string {
 	return s.GetPlatformDefaultModelMapping(ctx, PlatformAntigravity)

@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: 模型配置页所有行可删除——直通行删除=持久化隐藏(可恢复)
+
+**影响范围**: backend/internal/{domain/constants.go, service/{domain_constants.go, setting_service.go, wire.go, global_model_pricing_service.go(+test), setting_service_model_mapping_test.go, model_pricing_resolver.go}, handler/admin/model_pricing_handler.go, server/routes/admin.go}, backend/cmd/server/wire_gen.go(手工对齐), frontend/src/{api/admin/modelPricing.ts, components/admin/model-pricing/ModelPricingTab.vue, i18n/locales/{zh,en}.ts}, docs/dev/codebase/model-mapping.md
+**上游兼容性**: 低风险。新增 Settings KV `model_pricing_hidden_models` 与 `GET/PUT /admin/model-pricing/hidden-models`;`NewModelPricingHandler` 增加 settingService 参数(wire_gen 已手工对齐);列表 source 筛选新增特殊值 `hidden`。不改任何计费/调度行为。
+**变更详情**:
+- 直通行(请求=上游,来自 LiteLLM 目录/覆盖,无映射条目可删)新增"删除"按钮:确认后把模型加入隐藏集合,列表不再显示;仅影响模型配置列表展示,不影响计费与请求转发。
+- 来源筛选新增"已隐藏"视图:列出全部隐藏模型(含目录中已不存在的名字,补 stub 保证可恢复),行内"恢复"一键还原。
+- 隐藏永不吞掉真实映射:模型自身是有效映射键时(即使被隐藏)映射行保持可见。
+- 真实映射条目行为不变(删除映射=从平台默认映射表移除条目)。
+
 ## [2026-07-04] fix: 模型配置页映射表彻底重构（角色不再坍缩）+ 测试连接模型列表并入平台映射
 
 **影响范围**: backend/internal/service/global_model_pricing_service.go(+test), backend/internal/handler/admin/account_handler.go(+test), backend/internal/pkg/antigravity/claude_types.go, backend/migrations/177_add_fable5_to_default_model_mapping.sql, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue, ModelMappingInlinePopover.vue, modelPricingRows.ts(新), __tests__/modelPricingRows.spec.ts(新)}, frontend/src/api/admin/modelPricing.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/model-mapping.md

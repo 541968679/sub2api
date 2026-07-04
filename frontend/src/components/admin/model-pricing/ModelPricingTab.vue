@@ -226,7 +226,23 @@
             <td class="px-4 py-2.5 text-right">
               <div class="flex justify-end gap-0.5">
                 <button
-                  v-if="row.isMappingEntry"
+                  v-if="isHiddenView"
+                  @click="restoreModel(row)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                  :title="t('admin.modelPricing.restoreModel')"
+                  :disabled="hidingModel === row.mappingFrom"
+                >
+                  <span
+                    v-if="hidingModel === row.mappingFrom"
+                    class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  ></span>
+                  <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                  </svg>
+                  <span>{{ t('admin.modelPricing.restoreModel') }}</span>
+                </button>
+                <button
+                  v-if="!isHiddenView && row.isMappingEntry"
                   @click="openEditMapping($event, row)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-gray-700 dark:hover:text-primary-400"
                   :title="t('admin.modelPricing.editMapping')"
@@ -236,7 +252,7 @@
                   </svg>
                 </button>
                 <button
-                  v-else
+                  v-else-if="!isHiddenView"
                   @click="openCreateMapping($event, row)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-gray-700 dark:hover:text-primary-400"
                   :title="t('admin.modelPricing.addMapping')"
@@ -246,7 +262,7 @@
                   </svg>
                 </button>
                 <button
-                  v-if="row.isMappingEntry"
+                  v-if="!isHiddenView && row.isMappingEntry"
                   @click="deleteMapping(row)"
                   class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
                   :title="t('admin.modelPricing.deleteMapping')"
@@ -262,7 +278,23 @@
                   <span>{{ t('admin.modelPricing.deleteMapping') }}</span>
                 </button>
                 <button
-                  v-if="row.canTest"
+                  v-if="!isHiddenView && !row.isMappingEntry"
+                  @click="hideModel(row)"
+                  class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  :title="t('admin.modelPricing.hideModelTitle')"
+                  :disabled="hidingModel === row.mappingFrom"
+                >
+                  <span
+                    v-if="hidingModel === row.mappingFrom"
+                    class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+                  ></span>
+                  <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 7h12m-9 0V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-.7 11.2A2 2 0 0114.3 20H9.7a2 2 0 01-2-1.8L7 7m3 4v5m4-5v5" />
+                  </svg>
+                  <span>{{ t('common.delete') }}</span>
+                </button>
+                <button
+                  v-if="!isHiddenView && row.canTest"
                   @click="openTestDialog(row.item.model, row.resolvedProvider)"
                   class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-gray-700 dark:hover:text-emerald-400"
                   :title="t('admin.modelPricing.testModel')"
@@ -597,6 +629,45 @@ function handleMappingSaved(payload: { mode: 'add' | 'edit' | 'delete'; platform
   loadData()
 }
 
+// 直通行的"删除" = 从模型配置列表隐藏（持久化，可在"已隐藏"视图恢复）。
+// 只影响列表展示，不影响计费与请求转发；真实映射条目走 deleteMapping。
+const hidingModel = ref('')
+
+async function hideModel(row: RowDisplay) {
+  const model = row.mappingFrom
+  if (!model || row.isMappingEntry) return
+  if (!confirm(t('admin.modelPricing.confirmHideModel', { model }))) return
+
+  hidingModel.value = model
+  try {
+    const current = await adminAPI.modelPricing.getHiddenModels()
+    await adminAPI.modelPricing.updateHiddenModels([...current, model])
+    appStore.showSuccess(t('admin.modelPricing.modelHidden'))
+    await loadData()
+  } catch {
+    appStore.showError(t('common.error'))
+  } finally {
+    hidingModel.value = ''
+  }
+}
+
+async function restoreModel(row: RowDisplay) {
+  const model = row.mappingFrom.toLowerCase()
+  if (!model) return
+
+  hidingModel.value = row.mappingFrom
+  try {
+    const current = await adminAPI.modelPricing.getHiddenModels()
+    await adminAPI.modelPricing.updateHiddenModels(current.filter((m) => m !== model))
+    appStore.showSuccess(t('admin.modelPricing.modelRestored'))
+    await loadData()
+  } catch {
+    appStore.showError(t('common.error'))
+  } finally {
+    hidingModel.value = ''
+  }
+}
+
 async function deleteMapping(row: RowDisplay) {
   const from = row.mappingFrom
   const platform = rowMappingPlatform(row)
@@ -688,13 +759,16 @@ const providerTabs = computed(() => [
   ...MODEL_PRICING_PROVIDER_OPTIONS,
 ])
 
-// 顺序按实际计费优先级（高 → 低）：渠道 > 全局 > 仅 LiteLLM
+// 顺序按实际计费优先级（高 → 低）：渠道 > 全局 > 仅 LiteLLM；"已隐藏"放最后用于恢复
 const sourceTabs = computed(() => [
   { value: '', label: t('common.all') },
   { value: 'has_channel_override', label: t('admin.modelPricing.hasChannelOverride') },
   { value: 'has_global_override', label: t('admin.modelPricing.hasGlobalOverride') },
   { value: 'litellm_only', label: t('admin.modelPricing.litellmOnly') },
+  { value: 'hidden', label: t('admin.modelPricing.hiddenModels') },
 ])
+
+const isHiddenView = computed(() => sourceFilter.value === 'hidden')
 
 function setProvider(value: string) {
   if (providerFilter.value === value) return

@@ -15,12 +15,34 @@ import (
 
 // ModelPricingHandler 模型定价管理 HTTP 处理器
 type ModelPricingHandler struct {
-	svc *service.GlobalModelPricingService
+	svc            *service.GlobalModelPricingService
+	settingService *service.SettingService
 }
 
 // NewModelPricingHandler 创建模型定价管理处理器
-func NewModelPricingHandler(svc *service.GlobalModelPricingService) *ModelPricingHandler {
-	return &ModelPricingHandler{svc: svc}
+func NewModelPricingHandler(svc *service.GlobalModelPricingService, settingService *service.SettingService) *ModelPricingHandler {
+	return &ModelPricingHandler{svc: svc, settingService: settingService}
+}
+
+// GetHiddenModels 获取模型配置页删除（隐藏）的模型列表
+// GET /api/v1/admin/model-pricing/hidden-models
+func (h *ModelPricingHandler) GetHiddenModels(c *gin.Context) {
+	response.Success(c, h.settingService.GetModelPricingHiddenModels(c.Request.Context()))
+}
+
+// UpdateHiddenModels 覆盖保存模型配置页删除（隐藏）的模型列表
+// PUT /api/v1/admin/model-pricing/hidden-models
+func (h *ModelPricingHandler) UpdateHiddenModels(c *gin.Context) {
+	var models []string
+	if err := c.ShouldBindJSON(&models); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.settingService.SetModelPricingHiddenModels(c.Request.Context(), models); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, h.settingService.GetModelPricingHiddenModels(c.Request.Context()))
 }
 
 // --- Request types ---

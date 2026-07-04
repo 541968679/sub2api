@@ -634,6 +634,8 @@ func registerModelPricingRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		mp.GET("", h.Admin.ModelPricing.List)
 		mp.GET("/rate-multipliers", h.Admin.ModelPricing.GetRateMultiplierOverview)
+		mp.GET("/hidden-models", h.Admin.ModelPricing.GetHiddenModels)
+		mp.PUT("/hidden-models", h.Admin.ModelPricing.UpdateHiddenModels)
 		mp.GET("/:model", h.Admin.ModelPricing.GetDetail)
 		mp.GET("/:model/channels", h.Admin.ModelPricing.GetChannelOverrides)
 		mp.POST("", h.Admin.ModelPricing.CreateOverride)

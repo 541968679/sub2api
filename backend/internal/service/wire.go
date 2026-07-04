@@ -439,6 +439,9 @@ func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupReposit
 	domain.GetAntigravityDefaultMappingOverride = func() map[string]string {
 		return domain.ResolvePlatformDefaultModelMapping(PlatformAntigravity)
 	}
+	domain.GetModelPricingHiddenModelsOverride = func() map[string]bool {
+		return svc.GetModelPricingHiddenModelSet(context.Background())
+	}
 	return svc
 }
 
