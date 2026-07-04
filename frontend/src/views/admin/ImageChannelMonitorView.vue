@@ -274,6 +274,28 @@
                       {{ t(`admin.imageChannelMonitor.stages.${stage.stage}`, stage.stage) }}
                     </span>
                   </div>
+                  <div
+                    v-if="networkInfoItems(manualRunResult(item)).length"
+                    class="mt-3 grid gap-2 rounded-md bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-800 dark:text-dark-300 sm:grid-cols-2"
+                  >
+                    <div
+                      v-for="info in networkInfoItems(manualRunResult(item))"
+                      :key="`${item.monitor.id}-${info.label}`"
+                      class="min-w-0"
+                    >
+                      <div class="font-medium text-gray-500 dark:text-dark-400">{{ info.label }}</div>
+                      <a
+                        v-if="info.href"
+                        class="block truncate text-primary-600 hover:text-primary-700 dark:text-primary-300"
+                        :href="info.href"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {{ info.value }}
+                      </a>
+                      <div v-else class="truncate" :title="info.value">{{ info.value }}</div>
+                    </div>
+                  </div>
                 </div>
                 <div
                   v-if="manualPreview(item)"
@@ -687,6 +709,29 @@
             <p class="mt-1 whitespace-pre-wrap break-words">{{ entry.prompt || '-' }}</p>
           </div>
 
+          <div
+            v-if="networkInfoItems(entry.result).length"
+            class="mt-4 grid gap-2 rounded-md bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-800 dark:text-dark-300 md:grid-cols-2"
+          >
+            <div
+              v-for="info in networkInfoItems(entry.result)"
+              :key="`${entry.id}-${info.label}`"
+              class="min-w-0"
+            >
+              <div class="font-medium text-gray-500 dark:text-dark-400">{{ info.label }}</div>
+              <a
+                v-if="info.href"
+                class="block truncate text-primary-600 hover:text-primary-700 dark:text-primary-300"
+                :href="info.href"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {{ info.value }}
+              </a>
+              <div v-else class="truncate" :title="info.value">{{ info.value }}</div>
+            </div>
+          </div>
+
           <p v-if="entry.message" class="mt-3 text-sm text-red-600 dark:text-red-300">
             {{ entry.stage ? `${entry.stage}: ` : '' }}{{ entry.message }}
           </p>
@@ -863,6 +908,12 @@ type ManualInputImage = {
 type ManualStoredImage = ManualInputImage & {
   ref: string
   saved_at: string
+}
+
+type NetworkInfoItem = {
+  label: string
+  value: string
+  href?: string
 }
 
 const monitors = ref<ImageChannelMonitor[]>([])
@@ -2115,6 +2166,57 @@ function manualHistoryOutputPreview(entry: ManualHistoryItem) {
     entry.result?.returned_image_data ||
     ''
   )
+}
+
+function networkInfoItems(result?: ImageChannelMonitorResult): NetworkInfoItem[] {
+  if (!result) return []
+  const items: NetworkInfoItem[] = []
+  if (result.exit_ip) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.exitIp'),
+      value: result.exit_ip,
+    })
+  }
+  if (result.request_target_url) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.requestUrl'),
+      value: result.request_target_url,
+      href: result.request_target_url,
+    })
+  }
+  if (result.request_target_host) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.requestHost'),
+      value: result.request_target_host,
+    })
+  }
+  if (result.request_target_ips?.length) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.requestIps'),
+      value: result.request_target_ips.join(', '),
+    })
+  }
+  if (result.image_download_url || result.returned_image_url) {
+    const url = result.image_download_url || result.returned_image_url
+    items.push({
+      label: t('admin.imageChannelMonitor.network.imageUrl'),
+      value: url,
+      href: url,
+    })
+  }
+  if (result.image_download_host) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.imageHost'),
+      value: result.image_download_host,
+    })
+  }
+  if (result.image_download_ips?.length) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.imageIps'),
+      value: result.image_download_ips.join(', '),
+    })
+  }
+  return items
 }
 
 function formatMs(value: number | null) {

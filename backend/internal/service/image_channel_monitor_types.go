@@ -21,6 +21,8 @@ const (
 	imageMonitorMaxResponseBytes       = 2 * 1024 * 1024
 	imageMonitorMaxDownloadBytes       = 32 * 1024 * 1024
 	imageMonitorMaxReturnedImageData   = 16 * 1024 * 1024
+	imageMonitorExitIPProbeURL         = "https://api.ipify.org?format=text"
+	imageMonitorNetworkProbeTimeout    = 5 * time.Second
 	imageMonitorRunnerConcurrency      = 3
 	imageMonitorRunOneBuffer           = 15 * time.Second
 	imageMonitorManualRunRetention     = 30 * time.Minute
@@ -198,6 +200,13 @@ type ImageChannelMonitorResult struct {
 	RevisedPrompt     string
 	ReturnedImageURL  string
 	ReturnedImageData string
+	ExitIP            string
+	RequestTargetURL  string
+	RequestTargetHost string
+	RequestTargetIPs  []string
+	ImageDownloadURL  string
+	ImageDownloadHost string
+	ImageDownloadIPs  []string
 	StageEvents       []ImageChannelMonitorStageEvent
 }
 

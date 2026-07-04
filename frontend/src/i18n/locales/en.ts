@@ -2822,6 +2822,15 @@ const enBase = {
         selectTargetsFirst: 'Select at least one channel',
         selectImageFirst: 'Select an input image first'
       },
+      network: {
+        exitIp: 'Exit IP',
+        requestUrl: 'API request URL',
+        requestHost: 'API target host',
+        requestIps: 'API target IPs',
+        imageUrl: 'Image download URL',
+        imageHost: 'Image host',
+        imageIps: 'Image download IPs'
+      },
       status: {
         operational: 'Operational',
         degraded: 'Degraded',

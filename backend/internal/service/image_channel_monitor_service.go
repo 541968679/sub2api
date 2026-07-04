@@ -15,6 +15,7 @@ import (
 	"io"
 	"log/slog"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/textproto"
 	"net/url"
@@ -950,7 +951,7 @@ func (s *ImageChannelMonitorService) callImageAPI(
 	req.Header.Set("User-Agent", resolved.userAgent)
 	ensureOpenAIImagesAPIKeyUserAgent(req)
 
-	return s.performImageMonitorAPIRequest(ctx, m, resolved, result, req, stage, allowB64JSON)
+	return s.performImageMonitorAPIRequest(ctx, m, resolved, result, req, stage, allowB64JSON, allowB64JSON)
 }
 
 func (s *ImageChannelMonitorService) callImageEditAPI(
@@ -977,7 +978,7 @@ func (s *ImageChannelMonitorService) callImageEditAPI(
 	req.Header.Set("User-Agent", resolved.userAgent)
 	ensureOpenAIImagesAPIKeyUserAgent(req)
 
-	return s.performImageMonitorAPIRequest(ctx, m, resolved, result, req, stage, true)
+	return s.performImageMonitorAPIRequest(ctx, m, resolved, result, req, stage, true, true)
 }
 
 func (s *ImageChannelMonitorService) performImageMonitorAPIRequest(
@@ -988,7 +989,9 @@ func (s *ImageChannelMonitorService) performImageMonitorAPIRequest(
 	req *http.Request,
 	stage imageMonitorStageFunc,
 	allowB64JSON bool,
+	probeExitIP bool,
 ) *ImageChannelMonitorResult {
+	s.captureImageMonitorRequestNetwork(ctx, req, resolved, result, probeExitIP)
 	start := time.Now()
 	stage("api_connect", "waiting for upstream image API headers")
 	resp, err := s.httpUpstream.DoWithTLS(
@@ -1027,6 +1030,102 @@ func (s *ImageChannelMonitorService) performImageMonitorAPIRequest(
 		return failImageMonitorMessage(result, "api_response", msg)
 	}
 	return s.processImageAPIResponse(ctx, m, resolved, rawBody, result, stage, allowB64JSON)
+}
+
+func (s *ImageChannelMonitorService) captureImageMonitorRequestNetwork(
+	ctx context.Context,
+	req *http.Request,
+	resolved *imageMonitorResolvedSource,
+	result *ImageChannelMonitorResult,
+	probeExitIP bool,
+) {
+	if req != nil && req.URL != nil {
+		result.RequestTargetURL = req.URL.String()
+		result.RequestTargetHost, result.RequestTargetIPs = resolveImageMonitorURLIPs(ctx, req.URL.String())
+	}
+	if probeExitIP && result.ExitIP == "" {
+		result.ExitIP = s.probeImageMonitorExitIP(ctx, resolved)
+	}
+}
+
+func resolveImageMonitorURLIPs(ctx context.Context, rawURL string) (string, []string) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed == nil {
+		return "", nil
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return "", nil
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return host, []string{ip.String()}
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, imageMonitorNetworkProbeTimeout)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIPAddr(lookupCtx, host)
+	if err != nil {
+		return host, nil
+	}
+	ips := make([]string, 0, len(addrs))
+	seen := make(map[string]struct{}, len(addrs))
+	for _, addr := range addrs {
+		ip := addr.IP.String()
+		if ip == "" {
+			continue
+		}
+		if _, ok := seen[ip]; ok {
+			continue
+		}
+		seen[ip] = struct{}{}
+		ips = append(ips, ip)
+	}
+	return host, ips
+}
+
+func (s *ImageChannelMonitorService) probeImageMonitorExitIP(
+	ctx context.Context,
+	resolved *imageMonitorResolvedSource,
+) string {
+	if s.httpUpstream == nil {
+		return ""
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, imageMonitorNetworkProbeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, imageMonitorExitIPProbeURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", openAIImagesAPIKeyUserAgent)
+	proxyURL := ""
+	accountID := int64(0)
+	concurrency := 1
+	var tlsProfile *tlsfingerprint.Profile
+	if resolved != nil {
+		proxyURL = resolved.proxyURL
+		accountID = resolved.accountID
+		concurrency = resolved.concurrency
+		tlsProfile = resolved.tlsProfile
+		if concurrency <= 0 {
+			concurrency = 1
+		}
+	}
+	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, accountID, concurrency, tlsProfile)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+	if err != nil {
+		return ""
+	}
+	ip := strings.TrimSpace(string(body))
+	if parsed := net.ParseIP(ip); parsed != nil {
+		return parsed.String()
+	}
+	return ""
 }
 
 func buildImageMonitorPayload(m *ImageChannelMonitor) map[string]any {
@@ -1203,6 +1302,8 @@ func (s *ImageChannelMonitorService) probeImageURL(
 	resolved *imageMonitorResolvedSource,
 	result *ImageChannelMonitorResult,
 ) error {
+	result.ImageDownloadURL = rawURL
+	result.ImageDownloadHost, result.ImageDownloadIPs = resolveImageMonitorURLIPs(ctx, rawURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err

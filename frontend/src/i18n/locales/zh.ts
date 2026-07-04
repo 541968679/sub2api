@@ -2717,6 +2717,15 @@ const zhBase = {
         selectTargetsFirst: '请至少选择一个渠道',
         selectImageFirst: '请先选择输入图片'
       },
+      network: {
+        exitIp: '出口 IP',
+        requestUrl: 'API 请求 URL',
+        requestHost: 'API 目标 Host',
+        requestIps: 'API 目标 IP',
+        imageUrl: '返图下载 URL',
+        imageHost: '返图 Host',
+        imageIps: '返图下载 IP'
+      },
       status: {
         operational: '正常',
         degraded: '降级',

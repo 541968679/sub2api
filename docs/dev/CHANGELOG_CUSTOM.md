@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: record manual image test network metadata
+
+**Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: additive fork-local image monitor manual testing enhancement. It extends manual-run result payloads and browser-local manual history details, without changing image monitor database schemas or scheduled history tables.
+**Change details**:
+- Confirmed canceled manual tests are stored in browser-local manual history with final `canceled` state, elapsed time, prompt, and parameters.
+- Added best-effort manual-test network metadata: exit IP via the same proxy path, API request URL/host/DNS IPs, and returned-image download URL/host/DNS IPs.
+- Displayed the network metadata in current manual test result cards and the manual-history detail dialog.
+- Intentionally deferred IP geolocation; it would require an IP database or external lookup service and a clearer privacy/update policy.
+- Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`; `Invoke-WebRequest http://127.0.0.1:15174/admin/channels/image-monitor`.
+
 ## [2026-07-04] fix: allow manual image monitor panel to page-scroll
 
 **Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md

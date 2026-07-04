@@ -88,6 +88,13 @@ export interface ImageChannelMonitorResult {
   revised_prompt: string
   returned_image_url: string
   returned_image_data: string
+  exit_ip: string
+  request_target_url: string
+  request_target_host: string
+  request_target_ips: string[]
+  image_download_url: string
+  image_download_host: string
+  image_download_ips: string[]
   stages?: ImageChannelMonitorStage[]
 }
 

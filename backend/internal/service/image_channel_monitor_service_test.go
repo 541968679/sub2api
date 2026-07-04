@@ -44,6 +44,7 @@ type imageMonitorHTTPUpstreamRecorder struct {
 	block               <-chan struct{}
 	downloadBody        []byte
 	downloadContentType string
+	exitIPBody          string
 }
 
 func (r *imageMonitorHTTPUpstreamRecorder) Do(
@@ -78,7 +79,9 @@ func (r *imageMonitorHTTPUpstreamRecorder) DoWithTLS(
 	}
 	body := []byte(r.body)
 	header := make(http.Header)
-	if req.Method == http.MethodGet && r.downloadBody != nil {
+	if req.URL != nil && req.URL.Hostname() == "api.ipify.org" && r.exitIPBody != "" {
+		body = []byte(r.exitIPBody)
+	} else if req.Method == http.MethodGet && r.downloadBody != nil {
 		body = r.downloadBody
 		if r.downloadContentType != "" {
 			header.Set("Content-Type", r.downloadContentType)
@@ -377,6 +380,38 @@ func TestImageChannelMonitorManualGenerateCapturesDownloadedURLPreview(t *testin
 	require.Equal(t, MonitorStatusOperational, result.Status)
 	require.Equal(t, "https://cdn.example/generated.png", result.ReturnedImageURL)
 	require.Equal(t, "data:image/png;base64,cG5nLWJ5dGVz", result.ReturnedImageData)
+}
+
+func TestImageChannelMonitorManualGenerateRecordsNetworkInfo(t *testing.T) {
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body:                `{"data":[{"url":"https://127.0.0.1:9443/generated.png","revised_prompt":"ok"}]}`,
+		downloadBody:        []byte("png-bytes"),
+		downloadContentType: "image/png",
+		exitIPBody:          "203.0.113.5",
+	}
+	svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
+
+	result := svc.runManualCheck(context.Background(), &ImageChannelMonitor{
+		ID:             18,
+		SourceType:     ImageChannelMonitorSourceCustom,
+		Endpoint:       "https://127.0.0.1:8443",
+		APIKey:         "custom-key",
+		Model:          "gpt-image-1",
+		Prompt:         "draw",
+		Quality:        "auto",
+		N:              1,
+		DownloadImage:  true,
+		TimeoutSeconds: 300,
+	}, ImageChannelMonitorManualGenerate, ImageChannelMonitorManualTestParams{})
+
+	require.Equal(t, MonitorStatusOperational, result.Status)
+	require.Equal(t, "203.0.113.5", result.ExitIP)
+	require.Equal(t, "https://127.0.0.1:8443/v1/images/generations", result.RequestTargetURL)
+	require.Equal(t, "127.0.0.1", result.RequestTargetHost)
+	require.Equal(t, []string{"127.0.0.1"}, result.RequestTargetIPs)
+	require.Equal(t, "https://127.0.0.1:9443/generated.png", result.ImageDownloadURL)
+	require.Equal(t, "127.0.0.1", result.ImageDownloadHost)
+	require.Equal(t, []string{"127.0.0.1"}, result.ImageDownloadIPs)
 }
 
 func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T) {

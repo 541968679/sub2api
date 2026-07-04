@@ -122,6 +122,13 @@ type imageChannelMonitorResultResponse struct {
 	RevisedPrompt     string                             `json:"revised_prompt"`
 	ReturnedImageURL  string                             `json:"returned_image_url"`
 	ReturnedImageData string                             `json:"returned_image_data"`
+	ExitIP            string                             `json:"exit_ip"`
+	RequestTargetURL  string                             `json:"request_target_url"`
+	RequestTargetHost string                             `json:"request_target_host"`
+	RequestTargetIPs  []string                           `json:"request_target_ips"`
+	ImageDownloadURL  string                             `json:"image_download_url"`
+	ImageDownloadHost string                             `json:"image_download_host"`
+	ImageDownloadIPs  []string                           `json:"image_download_ips"`
 	Stages            []imageChannelMonitorStageResponse `json:"stages"`
 }
 
@@ -295,6 +302,13 @@ func imageMonitorResultToResponse(r *service.ImageChannelMonitorResult) imageCha
 		RevisedPrompt:     r.RevisedPrompt,
 		ReturnedImageURL:  r.ReturnedImageURL,
 		ReturnedImageData: r.ReturnedImageData,
+		ExitIP:            r.ExitIP,
+		RequestTargetURL:  r.RequestTargetURL,
+		RequestTargetHost: r.RequestTargetHost,
+		RequestTargetIPs:  r.RequestTargetIPs,
+		ImageDownloadURL:  r.ImageDownloadURL,
+		ImageDownloadHost: r.ImageDownloadHost,
+		ImageDownloadIPs:  r.ImageDownloadIPs,
 	}
 	if len(r.StageEvents) > 0 {
 		resp.Stages = make([]imageChannelMonitorStageResponse, 0, len(r.StageEvents))
