@@ -69,6 +69,7 @@
 - Manual testing history is also browser-local (`sub2api:image-channel-monitor:manual-history:v1`). It stores the latest 50 completed/canceled manual runs with timing, final status, request settings, prompt, input image reference, generated image reference, and fallback generated-image URL. Image bytes are stored in IndexedDB rather than localStorage.
 - The manual record table supports search, status/mode/channel filters, time-order sorting, and field visibility toggles. Each row opens a detail dialog for the full prompt, parameters, timing metrics, network metadata, input image, generated image, and image download link.
 - The image monitor page uses `TablePageLayout` in fixed mode for the regular DataTable, but switches to `scrollMode=page` for the manual testing panel because that panel is a normal form/workflow surface rather than a table with its own internal scroll wrapper.
+- The left-side manual testing configuration column intentionally does not use sticky positioning. The configuration form plus channel selection can be taller than the viewport; sticky positioning makes the lower channel-selection controls unreachable.
 - Each row shows a runtime status bar with current stage plus next-check countdown.
 - The runner is independent from `ChannelMonitorRunner`, so chat/responses monitor upstream syncs should not affect image monitor scheduling.
 

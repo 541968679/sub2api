@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] fix: keep manual image channel selection reachable
+
+**Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: frontend-only fork-local image monitor layout fix. It does not change backend APIs, schemas, scheduling, manual history storage, or monitor behavior.
+**Change details**:
+- Removed sticky positioning from the left manual-test configuration column so the full page can scroll down to the channel-selection controls.
+- Documented the layout pitfall: the left column can exceed viewport height, and sticky positioning makes lower controls unreachable.
+- Verified: `pnpm run typecheck`; `git diff --check`; `Invoke-WebRequest http://127.0.0.1:15174/admin/channels/image-monitor`.
+
 ## [2026-07-04] feat: reorganize manual image test records
 
 **Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

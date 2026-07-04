@@ -68,7 +68,7 @@
           v-if="activePanel === 'manual'"
           class="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]"
         >
-          <aside class="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <aside class="space-y-4 xl:self-start">
           <section class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
             <div class="mb-4 grid gap-3">
               <label class="block">
