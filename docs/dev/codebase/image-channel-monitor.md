@@ -64,6 +64,7 @@
 - The admin UI supports four size modes: omit the `size` request field, send `auto`, send OpenAI standard presets (`1024x1024`, `1536x1024`, `1024x1536`), or pass through a custom `WIDTHxHEIGHT` value for upstreams/models that support custom dimensions.
 - The manual testing panel stores parameter presets in browser localStorage (`sub2api:image-channel-monitor:manual-presets:v1`). Presets include mode, model, prompt, size mode/value, quality, `n`, download toggle, timeout, and an optional image-to-image input image reference. Uploaded image bytes are stored separately in IndexedDB (`sub2api-image-channel-monitor` / `manual-images`) and restored when the preset is selected.
 - Manual testing history is also browser-local (`sub2api:image-channel-monitor:manual-history:v1`). It stores the latest 50 completed/canceled manual runs with timing, final status, request settings, prompt, input image reference, generated image reference, and fallback generated-image URL. Image bytes are stored in IndexedDB rather than localStorage.
+- The image monitor page uses `TablePageLayout` in fixed mode for the regular DataTable, but switches to `scrollMode=page` for the manual testing panel because that panel is a normal form/workflow surface rather than a table with its own internal scroll wrapper.
 - Each row shows a runtime status bar with current stage plus next-check countdown.
 - The runner is independent from `ChannelMonitorRunner`, so chat/responses monitor upstream syncs should not affect image monitor scheduling.
 
@@ -73,4 +74,5 @@
 - Custom endpoint validation requires a public HTTPS origin with no path/query/fragment, matching the generic channel monitor SSRF boundary.
 - Image download now uses the shared `HTTPUpstream` so configured proxies also apply to returned-image download. Private/local returned image URLs still depend on the global URL allowlist behavior in the upstream HTTP layer.
 - Manual tests must stay asynchronous from the browser's perspective. Keeping the POST synchronous can hit the frontend Axios 30s timeout and surface as the generic `Network error. Please check your connection.` while the backend is still generating/downloading.
+- Manual testing content must not run inside `TablePageLayout` fixed scroll mode. Fixed mode clips non-table content in the `#table` slot; use page-scroll mode for this panel so the channel-selection and result sections remain reachable.
 - `go generate ./cmd/server` may fail in this checkout because of Wire tool dependency or existing provider conflicts. If so, manually reconcile `backend/cmd/server/wire_gen.go`.

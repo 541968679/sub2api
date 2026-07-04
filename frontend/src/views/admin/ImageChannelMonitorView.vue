@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <TablePageLayout :scroll-mode="activePanel === 'manual' ? 'page' : 'fixed'">
       <template #filters>
         <div class="space-y-4">
           <div class="grid gap-3 sm:grid-cols-2">

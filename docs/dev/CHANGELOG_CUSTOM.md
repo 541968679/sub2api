@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] fix: allow manual image monitor panel to page-scroll
+
+**Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: frontend-only fork-local image monitor layout fix. It does not change backend APIs, schemas, monitor scheduling, or manual-test persistence.
+**Change details**:
+- Switched the image monitor page to `TablePageLayout` page-scroll mode only while the manual testing panel is active.
+- Kept the regular monitor list in fixed table-scroll mode so the DataTable behavior is unchanged.
+- Root cause: the manual testing form was rendered inside the table slot of `TablePageLayout`; fixed mode wraps that slot in a fixed-height `overflow-hidden` card, so the channel-selection section was clipped instead of becoming scrollable.
+- Verified: `pnpm run typecheck`; `git diff --check`; `Invoke-WebRequest http://127.0.0.1:15174/admin/channels/image-monitor`.
+
 ## [2026-07-04] feat: add detailed manual image test history
 
 **Affected files**: backend/internal/service/image_channel_monitor_*.go, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
