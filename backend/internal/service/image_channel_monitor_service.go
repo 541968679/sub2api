@@ -1268,6 +1268,18 @@ func (s *ImageChannelMonitorService) probeImageURL(
 		result.ImageWidth = imageMonitorIntPtr(cfg.Width)
 		result.ImageHeight = imageMonitorIntPtr(cfg.Height)
 	}
+	if result.ReturnedImageData == "" && buf.Len() <= imageMonitorMaxReturnedImageData {
+		contentType := result.ImageContentType
+		if contentType == "" {
+			contentType = http.DetectContentType(buf.Bytes())
+		}
+		if idx := strings.Index(contentType, ";"); idx >= 0 {
+			contentType = strings.TrimSpace(contentType[:idx])
+		}
+		if strings.HasPrefix(contentType, "image/") {
+			result.ReturnedImageData = "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+		}
+	}
 	return nil
 }
 

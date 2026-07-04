@@ -20,6 +20,7 @@ const (
 	imageMonitorDefaultTimeoutSeconds  = 300
 	imageMonitorMaxResponseBytes       = 2 * 1024 * 1024
 	imageMonitorMaxDownloadBytes       = 32 * 1024 * 1024
+	imageMonitorMaxReturnedImageData   = 16 * 1024 * 1024
 	imageMonitorRunnerConcurrency      = 3
 	imageMonitorRunOneBuffer           = 15 * time.Second
 	imageMonitorManualRunRetention     = 30 * time.Minute

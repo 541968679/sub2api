@@ -8,7 +8,6 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -35,14 +34,16 @@ func (s *imageMonitorProxyReaderStub) GetByID(context.Context, int64) (*Proxy, e
 }
 
 type imageMonitorHTTPUpstreamRecorder struct {
-	statusCode  int
-	body        string
-	req         *http.Request
-	requestBody []byte
-	proxyURL    string
-	accountID   int64
-	concurrency int
-	block       <-chan struct{}
+	statusCode          int
+	body                string
+	req                 *http.Request
+	requestBody         []byte
+	proxyURL            string
+	accountID           int64
+	concurrency         int
+	block               <-chan struct{}
+	downloadBody        []byte
+	downloadContentType string
 }
 
 func (r *imageMonitorHTTPUpstreamRecorder) Do(
@@ -68,19 +69,29 @@ func (r *imageMonitorHTTPUpstreamRecorder) DoWithTLS(
 	r.proxyURL = proxyURL
 	r.accountID = accountID
 	r.concurrency = accountConcurrency
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
+	if req.Body != nil {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		r.requestBody = body
 	}
-	r.requestBody = body
+	body := []byte(r.body)
+	header := make(http.Header)
+	if req.Method == http.MethodGet && r.downloadBody != nil {
+		body = r.downloadBody
+		if r.downloadContentType != "" {
+			header.Set("Content-Type", r.downloadContentType)
+		}
+	}
 	status := r.statusCode
 	if status == 0 {
 		status = http.StatusOK
 	}
 	return &http.Response{
 		StatusCode: status,
-		Header:     make(http.Header),
-		Body:       io.NopCloser(strings.NewReader(r.body)),
+		Header:     header,
+		Body:       io.NopCloser(bytes.NewReader(body)),
 	}, nil
 }
 
@@ -340,6 +351,32 @@ func TestImageChannelMonitorManualGenerateAcceptsB64JSONPreview(t *testing.T) {
 	require.Equal(t, MonitorStatusOperational, result.Status)
 	require.True(t, result.HasB64JSON)
 	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", result.ReturnedImageData)
+}
+
+func TestImageChannelMonitorManualGenerateCapturesDownloadedURLPreview(t *testing.T) {
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body:                `{"data":[{"url":"https://cdn.example/generated.png","revised_prompt":"ok"}]}`,
+		downloadBody:        []byte("png-bytes"),
+		downloadContentType: "image/png",
+	}
+	svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
+
+	result := svc.runManualCheck(context.Background(), &ImageChannelMonitor{
+		ID:             17,
+		SourceType:     ImageChannelMonitorSourceCustom,
+		Endpoint:       "https://api.example.com",
+		APIKey:         "custom-key",
+		Model:          "gpt-image-1",
+		Prompt:         "draw",
+		Quality:        "auto",
+		N:              1,
+		DownloadImage:  true,
+		TimeoutSeconds: 300,
+	}, ImageChannelMonitorManualGenerate, ImageChannelMonitorManualTestParams{})
+
+	require.Equal(t, MonitorStatusOperational, result.Status)
+	require.Equal(t, "https://cdn.example/generated.png", result.ReturnedImageURL)
+	require.Equal(t, "data:image/png;base64,cG5nLWJ5dGVz", result.ReturnedImageData)
 }
 
 func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T) {

@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: add detailed manual image test history
+
+**Affected files**: backend/internal/service/image_channel_monitor_*.go, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: additive fork-local image monitor manual testing enhancement. It keeps detailed manual history in browser-local storage and IndexedDB, and does not change the image monitor database schema or scheduled monitor history tables.
+**Change details**:
+- Added an explicit manual-history dialog entry in the image monitor manual testing panel.
+- Persisted detailed manual test history with request settings, prompt, elapsed time, stage timings, final status, input image reference, generated image reference, and fallback generated-image URL.
+- Stored manual input/generated image bytes in IndexedDB (`sub2api-image-channel-monitor` / `manual-images`) while keeping only metadata and references in localStorage.
+- Allowed image-to-image presets to save and restore the uploaded input image with the preset settings.
+- Added downloaded-image data URL capture for successful manual URL results up to 16 MiB, so generated images can be viewed from manual history after the upstream URL expires.
+- Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`; `Invoke-WebRequest http://127.0.0.1:15174/admin/channels/image-monitor`.
+
 ## [2026-07-04] feat: add manual image test timing history and cancellation
 
 **Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

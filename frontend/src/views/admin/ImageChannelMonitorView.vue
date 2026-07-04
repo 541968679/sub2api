@@ -156,6 +156,18 @@
               <label v-if="manualForm.mode === 'edit'" class="block">
                 <span class="input-label">{{ t('admin.imageChannelMonitor.manual.inputImage') }}</span>
                 <input class="input" type="file" accept="image/*" @change="handleManualImageChange" />
+                <div
+                  v-if="manualInputImage"
+                  class="mt-2 flex items-center gap-3 rounded-md border border-gray-200 p-2 text-xs dark:border-dark-700"
+                >
+                  <img :src="manualInputImage.data" class="h-12 w-12 rounded object-cover" alt="" />
+                  <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-dark-300">
+                    {{ manualInputImage.name }}
+                  </span>
+                  <button type="button" class="btn btn-secondary btn-sm" @click="clearManualInputImage">
+                    {{ t('common.clear') }}
+                  </button>
+                </div>
               </label>
               <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-dark-200">
                 <input
@@ -174,6 +186,9 @@
                 {{ t('admin.imageChannelMonitor.manual.targets') }}
               </h2>
               <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-secondary btn-sm" @click="showManualHistoryDialog = true">
+                  {{ t('admin.imageChannelMonitor.manual.viewHistory', { count: manualHistory.length }) }}
+                </button>
                 <button type="button" class="btn btn-secondary btn-sm" :disabled="manualTargetsLoading" @click="loadManualTargets">
                   {{ manualTargetsLoading ? t('common.loading') : t('common.refresh') }}
                 </button>
@@ -270,50 +285,6 @@
             </article>
           </section>
 
-          <section
-            v-if="manualHistory.length > 0"
-            class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
-                {{ t('admin.imageChannelMonitor.manual.history') }}
-              </h2>
-              <button type="button" class="btn btn-secondary btn-sm" @click="clearManualHistory">
-                {{ t('admin.imageChannelMonitor.manual.clearHistory') }}
-              </button>
-            </div>
-            <div class="mt-3 space-y-2">
-              <article
-                v-for="entry in manualHistory"
-                :key="entry.id"
-                class="grid gap-3 rounded-md border border-gray-200 p-3 text-sm dark:border-dark-700 lg:grid-cols-[minmax(0,1fr)_120px]"
-              >
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="font-medium text-gray-900 dark:text-white">{{ entry.monitor_name }}</span>
-                    <span class="rounded-md px-2 py-0.5 text-xs font-medium" :class="manualHistoryBadgeClass(entry)">
-                      {{ manualHistoryStatusText(entry) }}
-                    </span>
-                    <span class="text-xs text-gray-500 dark:text-dark-400">
-                      {{ formatDate(entry.completed_at) }} / {{ formatDuration(entry.elapsed_ms) }}
-                    </span>
-                  </div>
-                  <p class="mt-1 truncate text-xs text-gray-500 dark:text-dark-400">
-                    {{ entry.model }} / {{ formatSize(entry.size) }} / {{ entry.quality }}
-                  </p>
-                  <p v-if="entry.message" class="mt-1 text-xs text-gray-600 dark:text-dark-300">
-                    {{ entry.stage ? `${entry.stage}: ` : '' }}{{ entry.message }}
-                  </p>
-                </div>
-                <div
-                  v-if="manualHistoryPreview(entry)"
-                  class="overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800"
-                >
-                  <img :src="manualHistoryPreview(entry)" class="aspect-square w-full object-contain" alt="" />
-                </div>
-              </article>
-            </div>
-          </section>
         </div>
 
         <DataTable v-else :columns="columns" :data="monitors" :loading="loading">
@@ -661,6 +632,117 @@
       </div>
     </BaseDialog>
 
+    <BaseDialog
+      :show="showManualHistoryDialog"
+      :title="t('admin.imageChannelMonitor.manual.history')"
+      width="extra-wide"
+      @close="showManualHistoryDialog = false"
+    >
+      <div v-if="manualHistory.length === 0" class="py-8 text-center text-sm text-gray-500 dark:text-dark-400">
+        {{ t('admin.imageChannelMonitor.manual.noHistory') }}
+      </div>
+      <div v-else class="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+        <article
+          v-for="entry in manualHistory"
+          :key="entry.id"
+          class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ entry.monitor_name }}
+                </h3>
+                <span class="rounded-md px-2 py-0.5 text-xs font-medium" :class="manualHistoryBadgeClass(entry)">
+                  {{ manualHistoryStatusText(entry) }}
+                </span>
+              </div>
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                {{ formatDate(entry.started_at) }} - {{ formatDate(entry.completed_at) }}
+              </p>
+            </div>
+            <div class="text-right text-xs text-gray-500 dark:text-dark-400">
+              <div>{{ t('admin.imageChannelMonitor.manual.elapsed') }} {{ formatDuration(entry.elapsed_ms) }}</div>
+              <div v-if="entry.stage">{{ t(`admin.imageChannelMonitor.stages.${entry.stage}`, entry.stage) }}</div>
+            </div>
+          </div>
+
+          <dl class="mt-4 grid gap-3 text-sm md:grid-cols-4">
+            <MetricItem :label="t('admin.imageChannelMonitor.manual.mode')" :value="entry.mode === 'edit' ? t('admin.imageChannelMonitor.manual.edit') : t('admin.imageChannelMonitor.manual.generate')" />
+            <MetricItem :label="t('admin.imageChannelMonitor.form.model')" :value="entry.model || '-'" />
+            <MetricItem :label="t('admin.imageChannelMonitor.form.size')" :value="formatSize(entry.size)" />
+            <MetricItem :label="t('admin.imageChannelMonitor.form.quality')" :value="entry.quality || '-'" />
+            <MetricItem :label="'n'" :value="String(entry.n)" />
+            <MetricItem :label="t('admin.imageChannelMonitor.form.downloadImage')" :value="entry.download_image ? t('common.yes') : t('common.no')" />
+            <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiHeader')" :value="formatMs(entry.result?.api_header_ms ?? null)" />
+            <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiBody')" :value="formatMs(entry.result?.api_body_ms ?? null)" />
+            <MetricItem :label="t('admin.imageChannelMonitor.metrics.apiTotal')" :value="formatMs(entry.result?.api_total_ms ?? null)" />
+            <MetricItem :label="t('admin.imageChannelMonitor.metrics.imageDownload')" :value="formatMs(entry.result?.image_download_ms ?? null)" />
+          </dl>
+
+          <div class="mt-4 rounded-md bg-gray-50 p-3 text-sm text-gray-700 dark:bg-dark-800 dark:text-dark-200">
+            <div class="text-xs font-medium text-gray-500 dark:text-dark-400">
+              {{ t('admin.imageChannelMonitor.form.prompt') }}
+            </div>
+            <p class="mt-1 whitespace-pre-wrap break-words">{{ entry.prompt || '-' }}</p>
+          </div>
+
+          <p v-if="entry.message" class="mt-3 text-sm text-red-600 dark:text-red-300">
+            {{ entry.stage ? `${entry.stage}: ` : '' }}{{ entry.message }}
+          </p>
+
+          <div class="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <div class="mb-2 text-xs font-medium text-gray-500 dark:text-dark-400">
+                {{ t('admin.imageChannelMonitor.manual.inputImage') }}
+              </div>
+              <div
+                v-if="manualHistoryInputPreview(entry)"
+                class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800"
+              >
+                <img :src="manualHistoryInputPreview(entry)" class="max-h-80 w-full object-contain" alt="" />
+              </div>
+              <div v-else class="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                {{ t('admin.imageChannelMonitor.manual.noImage') }}
+              </div>
+            </div>
+            <div>
+              <div class="mb-2 text-xs font-medium text-gray-500 dark:text-dark-400">
+                {{ t('admin.imageChannelMonitor.manual.outputImage') }}
+              </div>
+              <div
+                v-if="manualHistoryOutputPreview(entry)"
+                class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-800"
+              >
+                <img :src="manualHistoryOutputPreview(entry)" class="max-h-80 w-full object-contain" alt="" />
+              </div>
+              <a
+                v-else-if="entry.output_image_url"
+                class="text-sm text-primary-600 hover:text-primary-700 dark:text-primary-300"
+                :href="entry.output_image_url"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {{ entry.output_image_url }}
+              </a>
+              <div v-else class="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                {{ t('admin.imageChannelMonitor.manual.noImage') }}
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <template #footer>
+        <button type="button" class="btn btn-secondary" :disabled="manualHistory.length === 0" @click="clearManualHistory">
+          {{ t('admin.imageChannelMonitor.manual.clearHistory') }}
+        </button>
+        <button type="button" class="btn btn-primary" @click="showManualHistoryDialog = false">
+          {{ t('common.close') }}
+        </button>
+      </template>
+    </BaseDialog>
+
     <ConfirmDialog
       :show="showDeleteDialog"
       :title="t('common.delete')"
@@ -719,6 +801,7 @@ type ManualResultItem = {
   message: string
   run?: ImageChannelManualRunResponse
   settings?: ManualPresetSettings
+  inputImage?: ManualInputImage | null
 }
 
 type ManualPresetSettings = {
@@ -732,6 +815,9 @@ type ManualPresetSettings = {
   n: number
   download_image: boolean
   timeout_seconds: number
+  input_image_ref?: string
+  input_image_type?: string
+  input_image_name?: string
 }
 
 type ManualPreset = {
@@ -760,7 +846,23 @@ type ManualHistoryItem = {
   quality: string
   n: number
   download_image: boolean
+  input_image_ref?: string
+  input_image_type?: string
+  input_image_name?: string
+  output_image_ref?: string
+  output_image_url?: string
   result?: ImageChannelMonitorResult
+}
+
+type ManualInputImage = {
+  data: string
+  type: string
+  name: string
+}
+
+type ManualStoredImage = ManualInputImage & {
+  ref: string
+  saved_at: string
 }
 
 const monitors = ref<ImageChannelMonitor[]>([])
@@ -777,6 +879,7 @@ const showDeleteDialog = ref(false)
 const deleting = ref<ImageChannelMonitor | null>(null)
 const lastRunResult = ref<ImageChannelMonitorResult | null>(null)
 const showHistoryDialog = ref(false)
+const showManualHistoryDialog = ref(false)
 const historyItems = ref<ImageChannelMonitorHistoryItem[]>([])
 const accountOptions = ref<Account[]>([])
 const accountsLoading = ref(false)
@@ -791,23 +894,24 @@ const manualSelectedIds = ref<number[]>([])
 const manualRunning = ref(false)
 const manualResults = ref<Record<number, ManualResultItem>>({})
 const manualHistory = ref<ManualHistoryItem[]>([])
+const manualHistoryInputPreviews = ref<Record<string, string>>({})
+const manualHistoryOutputPreviews = ref<Record<string, string>>({})
 const manualPresets = ref<ManualPreset[]>([])
 const manualPresetSelectedId = ref('')
 const manualPresetName = ref('')
-const manualInputImage = ref<{
-  data: string
-  type: string
-  name: string
-} | null>(null)
+const manualInputImage = ref<ManualInputImage | null>(null)
 
 let abortController: AbortController | null = null
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 let statusPollTimer: number | null = null
 let clockTimer: number | null = null
 let manualRunSeq = 0
+const manualHistoryPendingRunIDs = new Set<string>()
 
 const manualPresetStorageKey = 'sub2api:image-channel-monitor:manual-presets:v1'
 const manualHistoryStorageKey = 'sub2api:image-channel-monitor:manual-history:v1'
+const manualImageDBName = 'sub2api-image-channel-monitor'
+const manualImageStoreName = 'manual-images'
 const defaultStandardSize = '1024x1024'
 
 const standardSizeOptions = [
@@ -925,6 +1029,9 @@ function normalizeManualPresetSettings(
     n: clampInt(raw?.n, 1, 1, 10),
     download_image: raw?.download_image !== false,
     timeout_seconds: clampInt(raw?.timeout_seconds, 300, 30, 600),
+    input_image_ref: typeof raw?.input_image_ref === 'string' ? raw.input_image_ref : '',
+    input_image_type: typeof raw?.input_image_type === 'string' ? raw.input_image_type : '',
+    input_image_name: typeof raw?.input_image_name === 'string' ? raw.input_image_name : '',
   }
 }
 
@@ -957,47 +1064,97 @@ function currentManualPresetSettings(): ManualPresetSettings {
 }
 
 function applyManualPresetSettings(settings: ManualPresetSettings) {
-  Object.assign(manualForm, normalizeManualPresetSettings(settings))
+  const normalized = normalizeManualPresetSettings(settings)
+  Object.assign(manualForm, {
+    mode: normalized.mode,
+    model: normalized.model,
+    prompt: normalized.prompt,
+    size_mode: normalized.size_mode,
+    size: normalized.size,
+    custom_size: normalized.custom_size,
+    quality: normalized.quality,
+    n: normalized.n,
+    download_image: normalized.download_image,
+    timeout_seconds: normalized.timeout_seconds,
+  })
 }
 
-function handleManualPresetSelect() {
+async function handleManualPresetSelect() {
   const preset = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
   if (!preset) {
     manualPresetName.value = ''
+    manualInputImage.value = null
     return
   }
   manualPresetName.value = preset.name
   applyManualPresetSettings(preset.settings)
+  const selectedID = preset.id
+  if (preset.settings.input_image_ref) {
+    try {
+      const stored = await loadManualStoredImage(preset.settings.input_image_ref)
+      if (manualPresetSelectedId.value !== selectedID) return
+      manualInputImage.value = stored
+        ? { data: stored.data, type: stored.type, name: stored.name }
+        : null
+    } catch {
+      if (manualPresetSelectedId.value === selectedID) {
+        manualInputImage.value = null
+      }
+    }
+  } else {
+    manualInputImage.value = null
+  }
 }
 
-function saveManualPreset() {
+async function saveManualPreset() {
   const name = manualPresetName.value.trim()
   if (!name) {
     appStore.showError(t('admin.imageChannelMonitor.manual.presetNameRequired'))
     return
   }
-  const now = new Date().toISOString()
-  const existing = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
-  const saved: ManualPreset = {
-    id: existing?.id || newManualPresetID(),
-    name,
-    settings: currentManualPresetSettings(),
-    created_at: existing?.created_at || now,
-    updated_at: now,
+  try {
+    const now = new Date().toISOString()
+    const existing = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
+    const settings = currentManualPresetSettings()
+    if (manualForm.mode === 'edit' && manualInputImage.value?.data) {
+      settings.input_image_ref = await saveManualStoredImage(manualInputImage.value, 'preset-input')
+      settings.input_image_type = manualInputImage.value.type
+      settings.input_image_name = manualInputImage.value.name
+    }
+    if (
+      existing?.settings.input_image_ref &&
+      existing.settings.input_image_ref !== settings.input_image_ref
+    ) {
+      void deleteManualStoredImage(existing.settings.input_image_ref).catch(() => {})
+    }
+    const saved: ManualPreset = {
+      id: existing?.id || newManualPresetID(),
+      name,
+      settings,
+      created_at: existing?.created_at || now,
+      updated_at: now,
+    }
+    const nextPresets = [
+      saved,
+      ...manualPresets.value.filter((item) => item.id !== saved.id),
+    ]
+    const droppedPresets = nextPresets.slice(50)
+    manualPresets.value = nextPresets.slice(0, 50)
+    void Promise.allSettled(droppedPresets.map((preset) => deleteManualStoredImage(preset.settings.input_image_ref)))
+    manualPresetSelectedId.value = saved.id
+    manualPresetName.value = saved.name
+    persistManualPresets()
+    appStore.showSuccess(t('admin.imageChannelMonitor.manual.presetSaved'))
+  } catch (err: unknown) {
+    appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.presetSaveFailed')))
   }
-  manualPresets.value = [
-    saved,
-    ...manualPresets.value.filter((item) => item.id !== saved.id),
-  ].slice(0, 50)
-  manualPresetSelectedId.value = saved.id
-  manualPresetName.value = saved.name
-  persistManualPresets()
-  appStore.showSuccess(t('admin.imageChannelMonitor.manual.presetSaved'))
 }
 
-function deleteManualPreset() {
+async function deleteManualPreset() {
   const id = manualPresetSelectedId.value
   if (!id) return
+  const preset = manualPresets.value.find((item) => item.id === id)
+  void deleteManualStoredImage(preset?.settings.input_image_ref).catch(() => {})
   manualPresets.value = manualPresets.value.filter((item) => item.id !== id)
   manualPresetSelectedId.value = ''
   manualPresetName.value = ''
@@ -1012,6 +1169,80 @@ function newManualPresetID() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function openManualImageDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(manualImageDBName, 1)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(manualImageStoreName)) {
+        db.createObjectStore(manualImageStoreName, { keyPath: 'ref' })
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function saveManualStoredImage(
+  image: ManualInputImage,
+  scope: 'preset-input' | 'history-input' | 'history-output'
+) {
+  const db = await openManualImageDB()
+  const ref = `${scope}:${newManualPresetID()}`
+  const stored: ManualStoredImage = {
+    ref,
+    data: image.data,
+    type: image.type,
+    name: image.name,
+    saved_at: new Date().toISOString(),
+  }
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(manualImageStoreName, 'readwrite')
+    tx.objectStore(manualImageStoreName).put(stored)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+  return ref
+}
+
+async function loadManualStoredImage(ref?: string) {
+  if (!ref) return null
+  const db = await openManualImageDB()
+  const stored = await new Promise<ManualStoredImage | null>((resolve, reject) => {
+    const tx = db.transaction(manualImageStoreName, 'readonly')
+    const request = tx.objectStore(manualImageStoreName).get(ref)
+    request.onsuccess = () => resolve((request.result as ManualStoredImage | undefined) || null)
+    request.onerror = () => reject(request.error)
+  })
+  db.close()
+  return stored
+}
+
+async function deleteManualStoredImage(ref?: string) {
+  if (!ref) return
+  const db = await openManualImageDB()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(manualImageStoreName, 'readwrite')
+    tx.objectStore(manualImageStoreName).delete(ref)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function trySaveManualStoredImage(
+  image: ManualInputImage | null | undefined,
+  scope: 'preset-input' | 'history-input' | 'history-output'
+) {
+  if (!image?.data) return ''
+  try {
+    return await saveManualStoredImage(image, scope)
+  } catch {
+    return ''
+  }
+}
+
 function loadManualHistory() {
   try {
     const raw = window.localStorage.getItem(manualHistoryStorageKey)
@@ -1024,6 +1255,7 @@ function loadManualHistory() {
       .map(normalizeManualHistoryItem)
       .filter((item): item is ManualHistoryItem => Boolean(item))
       .slice(0, 50)
+    void hydrateManualHistoryImages()
   } catch {
     manualHistory.value = []
   }
@@ -1060,6 +1292,11 @@ function normalizeManualHistoryItem(raw: unknown): ManualHistoryItem | null {
     quality: String(source.quality || '').trim(),
     n: clampInt(source.n, 1, 1, 10),
     download_image: source.download_image !== false,
+    input_image_ref: typeof source.input_image_ref === 'string' ? source.input_image_ref : '',
+    input_image_type: typeof source.input_image_type === 'string' ? source.input_image_type : '',
+    input_image_name: typeof source.input_image_name === 'string' ? source.input_image_name : '',
+    output_image_ref: typeof source.output_image_ref === 'string' ? source.output_image_ref : '',
+    output_image_url: typeof source.output_image_url === 'string' ? source.output_image_url : '',
     result: compactManualHistoryResult(source.result),
   }
 }
@@ -1077,38 +1314,63 @@ function normalizeManualHistoryStatus(value: unknown): ImageMonitorStatus | 'can
   return 'error'
 }
 
-function appendManualHistoryFromRun(target: ImageChannelMonitor, item: ManualResultItem) {
+async function appendManualHistoryFromRun(target: ImageChannelMonitor, item: ManualResultItem) {
   const run = item.run
   if (!run?.run_id) return
   if (manualHistory.value.some((entry) => entry.run_id === run.run_id)) return
-  const settings = item.settings || currentManualPresetSettings()
-  const completedAt = run.completed_at || new Date().toISOString()
-  const result = compactManualHistoryResult(run.result)
-  const entry: ManualHistoryItem = {
-    id: run.run_id,
-    run_id: run.run_id,
-    monitor_id: run.monitor?.id || target.id,
-    monitor_name: run.monitor?.name || target.name,
-    mode: run.mode,
-    status: run.canceled ? 'canceled' : result?.status || 'error',
-    stage: run.stage || result?.error_stage || '',
-    message: run.message || result?.message || '',
-    elapsed_ms: elapsedMs(run.started_at, completedAt),
-    started_at: run.started_at,
-    completed_at: completedAt,
-    model: settings.model,
-    prompt: settings.prompt,
-    size: resolvedManualSizeFromSettings(settings),
-    quality: settings.quality,
-    n: settings.n,
-    download_image: settings.download_image,
-    result,
+  if (manualHistoryPendingRunIDs.has(run.run_id)) return
+  manualHistoryPendingRunIDs.add(run.run_id)
+  try {
+    const settings = item.settings || currentManualPresetSettings()
+    const completedAt = run.completed_at || new Date().toISOString()
+    const result = compactManualHistoryResult(run.result)
+    const outputImage = run.result?.returned_image_data
+      ? dataURLToManualInputImage(run.result.returned_image_data, 'generated-image')
+      : null
+    const inputImageRef = await trySaveManualStoredImage(item.inputImage, 'history-input')
+    const outputImageRef = await trySaveManualStoredImage(outputImage, 'history-output')
+    const entry: ManualHistoryItem = {
+      id: run.run_id,
+      run_id: run.run_id,
+      monitor_id: run.monitor?.id || target.id,
+      monitor_name: run.monitor?.name || target.name,
+      mode: run.mode,
+      status: run.canceled ? 'canceled' : result?.status || 'error',
+      stage: run.stage || result?.error_stage || '',
+      message: run.message || result?.message || '',
+      elapsed_ms: elapsedMs(run.started_at, completedAt),
+      started_at: run.started_at,
+      completed_at: completedAt,
+      model: settings.model,
+      prompt: settings.prompt,
+      size: resolvedManualSizeFromSettings(settings),
+      quality: settings.quality,
+      n: settings.n,
+      download_image: settings.download_image,
+      input_image_ref: inputImageRef,
+      input_image_type: item.inputImage?.type || '',
+      input_image_name: item.inputImage?.name || '',
+      output_image_ref: outputImageRef,
+      output_image_url: run.result?.returned_image_url || '',
+      result,
+    }
+    const nextHistory = [
+      entry,
+      ...manualHistory.value.filter((history) => history.run_id !== run.run_id),
+    ]
+    const droppedHistory = nextHistory.slice(50)
+    manualHistory.value = nextHistory.slice(0, 50)
+    persistManualHistory()
+    void Promise.allSettled(
+      droppedHistory.flatMap((history) => [
+        deleteManualStoredImage(history.input_image_ref),
+        deleteManualStoredImage(history.output_image_ref),
+      ])
+    )
+    await hydrateManualHistoryImages()
+  } finally {
+    manualHistoryPendingRunIDs.delete(run.run_id)
   }
-  manualHistory.value = [
-    entry,
-    ...manualHistory.value.filter((history) => history.run_id !== run.run_id),
-  ].slice(0, 50)
-  persistManualHistory()
 }
 
 function compactManualHistoryResult(
@@ -1117,15 +1379,53 @@ function compactManualHistoryResult(
   if (!result) return undefined
   return {
     ...result,
-    returned_image_data:
-      result.returned_image_data && result.returned_image_data.length <= 200_000
-        ? result.returned_image_data
-        : '',
+    returned_image_data: '',
   }
 }
 
-function clearManualHistory() {
+async function hydrateManualHistoryImages() {
+  const inputPreviews: Record<string, string> = {}
+  const outputPreviews: Record<string, string> = {}
+  await Promise.allSettled(
+    manualHistory.value.map(async (entry) => {
+      const [input, output] = await Promise.all([
+        loadManualStoredImage(entry.input_image_ref),
+        loadManualStoredImage(entry.output_image_ref),
+      ])
+      if (input?.data) {
+        inputPreviews[entry.id] = input.data
+      }
+      if (output?.data) {
+        outputPreviews[entry.id] = output.data
+      }
+    })
+  )
+  manualHistoryInputPreviews.value = inputPreviews
+  manualHistoryOutputPreviews.value = outputPreviews
+}
+
+function dataURLToManualInputImage(dataURL: string, fallbackName: string): ManualInputImage | null {
+  if (!dataURL.startsWith('data:')) return null
+  const match = /^data:([^;,]+).*?,/.exec(dataURL)
+  const type = match?.[1] || 'image/png'
+  const ext = type.split('/')[1] || 'png'
+  return {
+    data: dataURL,
+    type,
+    name: `${fallbackName}.${ext}`,
+  }
+}
+
+async function clearManualHistory() {
+  await Promise.allSettled(
+    manualHistory.value.flatMap((entry) => [
+      deleteManualStoredImage(entry.input_image_ref),
+      deleteManualStoredImage(entry.output_image_ref),
+    ])
+  )
   manualHistory.value = []
+  manualHistoryInputPreviews.value = {}
+  manualHistoryOutputPreviews.value = {}
   persistManualHistory()
 }
 
@@ -1400,6 +1700,10 @@ async function handleManualImageChange(event: Event) {
   }
 }
 
+function clearManualInputImage() {
+  manualInputImage.value = null
+}
+
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -1428,6 +1732,10 @@ async function startManualTests() {
   if (selectedTargets.length === 0) return
 
   const manualSettings = currentManualPresetSettings()
+  const manualInputImageSnapshot =
+    manualSettings.mode === 'edit' && manualInputImage.value
+      ? { ...manualInputImage.value }
+      : null
   manualRunning.value = true
   manualResults.value = Object.fromEntries(
     selectedTargets.map((target) => [
@@ -1437,6 +1745,7 @@ async function startManualTests() {
         state: 'running',
         message: t('admin.imageChannelMonitor.manual.requesting'),
         settings: manualSettings,
+        inputImage: manualInputImageSnapshot,
       } satisfies ManualResultItem,
     ])
   )
@@ -1450,9 +1759,9 @@ async function startManualTests() {
     n: manualSettings.n,
     download_image: manualSettings.download_image,
     timeout_seconds: manualSettings.timeout_seconds,
-    input_image_data: manualSettings.mode === 'edit' ? manualInputImage.value?.data : undefined,
-    input_image_type: manualSettings.mode === 'edit' ? manualInputImage.value?.type : undefined,
-    input_image_name: manualSettings.mode === 'edit' ? manualInputImage.value?.name : undefined,
+    input_image_data: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.data : undefined,
+    input_image_type: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.type : undefined,
+    input_image_name: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.name : undefined,
   }
 
   try {
@@ -1472,6 +1781,7 @@ async function startManualTests() {
             state: 'error',
             message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
             settings: manualSettings,
+            inputImage: manualInputImageSnapshot,
           })
         }
       })
@@ -1505,6 +1815,7 @@ async function pollManualRun(
         state: 'error',
         message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
         settings: manualResults.value[target.id]?.settings,
+        inputImage: manualResults.value[target.id]?.inputImage,
       })
       return
     }
@@ -1515,6 +1826,7 @@ async function pollManualRun(
     state: 'error',
     message: t('admin.imageChannelMonitor.manual.failed'),
     settings: manualResults.value[target.id]?.settings,
+    inputImage: manualResults.value[target.id]?.inputImage,
   })
 }
 
@@ -1547,12 +1859,13 @@ function setManualResultFromRun(
     message: run.message || run.result?.message || '',
     run,
     settings: settings || existing?.settings,
+    inputImage: existing?.inputImage,
   }
   setManualResult(target.id, {
     ...next,
   })
   if (!run.running) {
-    appendManualHistoryFromRun(target, next)
+    void appendManualHistoryFromRun(target, next)
   }
 }
 
@@ -1791,8 +2104,17 @@ function manualHistoryBadgeClass(entry: ManualHistoryItem) {
   return statusBadgeClass(entry.status)
 }
 
-function manualHistoryPreview(entry: ManualHistoryItem) {
-  return entry.result?.returned_image_url || entry.result?.returned_image_data || ''
+function manualHistoryInputPreview(entry: ManualHistoryItem) {
+  return manualHistoryInputPreviews.value[entry.id] || ''
+}
+
+function manualHistoryOutputPreview(entry: ManualHistoryItem) {
+  return (
+    manualHistoryOutputPreviews.value[entry.id] ||
+    entry.result?.returned_image_url ||
+    entry.result?.returned_image_data ||
+    ''
+  )
 }
 
 function formatMs(value: number | null) {
