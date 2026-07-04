@@ -231,6 +231,7 @@ type ImageChannelMonitorManualRunStatus struct {
 	Monitor     *ImageChannelMonitor
 	Mode        string
 	Running     bool
+	Canceled    bool
 	Stage       string
 	Message     string
 	StartedAt   time.Time

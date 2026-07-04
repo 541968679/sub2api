@@ -135,6 +135,7 @@ export interface ImageChannelManualRunResponse {
   monitor: ImageChannelMonitor
   mode: 'generate' | 'edit'
   running: boolean
+  canceled: boolean
   stage: string
   message: string
   started_at: string
@@ -224,6 +225,16 @@ export async function getManualTestStatus(
   return data
 }
 
+export async function cancelManualTest(
+  id: number,
+  runID: string
+): Promise<ImageChannelManualRunResponse> {
+  const { data } = await apiClient.post<ImageChannelManualRunResponse>(
+    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}/cancel`
+  )
+  return data
+}
+
 export async function listHistory(
   id: number,
   params: { limit?: number } = {}
@@ -245,6 +256,7 @@ export const imageChannelMonitorAPI = {
   getStatus,
   manualTest,
   getManualTestStatus,
+  cancelManualTest,
   listHistory,
 }
 

@@ -392,3 +392,57 @@ func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T
 	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", status.Result.ReturnedImageData)
 	require.NotNil(t, status.CompletedAt)
 }
+
+func TestImageChannelMonitorCancelManualCheckKeepsCanceledStatus(t *testing.T) {
+	release := make(chan struct{})
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body:  `{"data":[{"b64_json":"aGVhbHRoLWNoZWNr","revised_prompt":"ok"}]}`,
+		block: release,
+	}
+	svc := NewImageChannelMonitorService(
+		&imageMonitorRepoStub{monitor: &ImageChannelMonitor{
+			ID:              22,
+			SourceType:      ImageChannelMonitorSourceCustom,
+			Endpoint:        "https://api.example.com",
+			APIKey:          "custom-key",
+			Model:           "gpt-image-1",
+			Prompt:          "draw",
+			Quality:         "auto",
+			N:               1,
+			DownloadImage:   false,
+			IntervalSeconds: 300,
+			TimeoutSeconds:  300,
+		}},
+		nil,
+		nil,
+		imageMonitorPlainEncryptor{},
+		upstream,
+		nil,
+	)
+
+	status, err := svc.StartManualCheck(context.Background(), 22, ImageChannelMonitorManualTestParams{
+		Mode:          ImageChannelMonitorManualGenerate,
+		DownloadImage: false,
+	})
+	require.NoError(t, err)
+	require.True(t, status.Running)
+
+	status, err = svc.CancelManualCheck(context.Background(), status.RunID)
+	require.NoError(t, err)
+	require.False(t, status.Running)
+	require.True(t, status.Canceled)
+	require.Equal(t, "canceled", status.Stage)
+	require.Nil(t, status.Result)
+	require.NotNil(t, status.CompletedAt)
+
+	close(release)
+	require.Eventually(t, func() bool {
+		current, err := svc.GetManualCheckStatus(context.Background(), status.RunID)
+		if err != nil {
+			return false
+		}
+		status = current
+		return status.Canceled && !status.Running && status.Result == nil
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, "canceled", status.Stage)
+}

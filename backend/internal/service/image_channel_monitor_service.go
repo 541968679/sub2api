@@ -40,6 +40,7 @@ type ImageChannelMonitorService struct {
 	runtimeStatus       map[int64]ImageChannelMonitorRuntimeStatus
 	manualMu            sync.RWMutex
 	manualRuns          map[string]ImageChannelMonitorManualRunStatus
+	manualCancels       map[string]context.CancelFunc
 }
 
 func NewImageChannelMonitorService(
@@ -59,6 +60,7 @@ func NewImageChannelMonitorService(
 		tlsFPProfileService: tlsFPProfileService,
 		runtimeStatus:       make(map[int64]ImageChannelMonitorRuntimeStatus),
 		manualRuns:          make(map[string]ImageChannelMonitorManualRunStatus),
+		manualCancels:       make(map[string]context.CancelFunc),
 	}
 }
 
@@ -291,6 +293,7 @@ func (s *ImageChannelMonitorService) StartManualCheck(
 	}
 	runID := newImageMonitorManualRunID()
 	now := time.Now()
+	runCtx, cancel := context.WithCancel(context.Background())
 	status := ImageChannelMonitorManualRunStatus{
 		RunID:     runID,
 		Monitor:   m,
@@ -305,11 +308,15 @@ func (s *ImageChannelMonitorService) StartManualCheck(
 	if s.manualRuns == nil {
 		s.manualRuns = make(map[string]ImageChannelMonitorManualRunStatus)
 	}
+	if s.manualCancels == nil {
+		s.manualCancels = make(map[string]context.CancelFunc)
+	}
 	s.pruneManualRunsLocked(now)
 	s.manualRuns[runID] = status
+	s.manualCancels[runID] = cancel
 	s.manualMu.Unlock()
 
-	go s.runManualCheckDetached(runID, manual, mode, p)
+	go s.runManualCheckDetached(runCtx, runID, manual, mode, p)
 
 	return s.GetManualCheckStatus(ctx, runID)
 }
@@ -327,6 +334,40 @@ func (s *ImageChannelMonitorService) GetManualCheckStatus(
 	s.manualMu.RUnlock()
 	if !ok {
 		return nil, ErrImageChannelMonitorManualRunNotFound
+	}
+	return &status, nil
+}
+
+func (s *ImageChannelMonitorService) CancelManualCheck(
+	_ context.Context,
+	runID string,
+) (*ImageChannelMonitorManualRunStatus, error) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return nil, ErrImageChannelMonitorManualRunNotFound
+	}
+	now := time.Now()
+	s.manualMu.Lock()
+	status, ok := s.manualRuns[runID]
+	if !ok {
+		s.manualMu.Unlock()
+		return nil, ErrImageChannelMonitorManualRunNotFound
+	}
+	if status.Running {
+		status.Running = false
+		status.Canceled = true
+		status.Stage = "canceled"
+		status.Message = "manual image test canceled"
+		status.UpdatedAt = now
+		status.CompletedAt = &now
+		status.Result = nil
+		s.manualRuns[runID] = status
+	}
+	cancel := s.manualCancels[runID]
+	delete(s.manualCancels, runID)
+	s.manualMu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 	return &status, nil
 }
@@ -385,6 +426,7 @@ func (s *ImageChannelMonitorService) runCheckDetached(m *ImageChannelMonitor) {
 }
 
 func (s *ImageChannelMonitorService) runManualCheckDetached(
+	ctx context.Context,
 	runID string,
 	m *ImageChannelMonitor,
 	mode string,
@@ -398,7 +440,7 @@ func (s *ImageChannelMonitorService) runManualCheckDetached(
 				"run_id", runID, "monitor_id", m.ID, "name", m.Name, "panic", rec)
 		}
 	}()
-	result := s.runManualCheckWithStage(context.Background(), m, mode, p, func(stage, message string) {
+	result := s.runManualCheckWithStage(ctx, m, mode, p, func(stage, message string) {
 		s.updateManualRunStatus(runID, stage, message)
 	})
 	s.finishManualRunStatus(runID, finalImageMonitorRuntimeStage(result), result.Message, result)
@@ -412,6 +454,10 @@ func (s *ImageChannelMonitorService) updateManualRunStatus(runID, stage, message
 	}
 	status, ok := s.manualRuns[runID]
 	if !ok {
+		s.manualMu.Unlock()
+		return
+	}
+	if status.Canceled {
 		s.manualMu.Unlock()
 		return
 	}
@@ -438,6 +484,11 @@ func (s *ImageChannelMonitorService) finishManualRunStatus(
 		s.manualMu.Unlock()
 		return
 	}
+	if status.Canceled {
+		delete(s.manualCancels, runID)
+		s.manualMu.Unlock()
+		return
+	}
 	status.Running = false
 	status.Stage = strings.TrimSpace(stage)
 	status.Message = strings.TrimSpace(message)
@@ -445,6 +496,7 @@ func (s *ImageChannelMonitorService) finishManualRunStatus(
 	status.CompletedAt = &now
 	status.Result = result
 	s.manualRuns[runID] = status
+	delete(s.manualCancels, runID)
 	s.manualMu.Unlock()
 }
 
@@ -459,6 +511,7 @@ func (s *ImageChannelMonitorService) pruneManualRunsLocked(now time.Time) {
 		}
 		if status.CompletedAt.Before(cutoff) {
 			delete(s.manualRuns, runID)
+			delete(s.manualCancels, runID)
 		}
 	}
 	for runID, status := range s.manualRuns {
@@ -467,6 +520,7 @@ func (s *ImageChannelMonitorService) pruneManualRunsLocked(now time.Time) {
 		}
 		if !status.Running {
 			delete(s.manualRuns, runID)
+			delete(s.manualCancels, runID)
 		}
 	}
 }

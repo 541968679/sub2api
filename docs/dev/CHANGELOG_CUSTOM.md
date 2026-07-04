@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: add manual image test timing history and cancellation
+
+**Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: additive fork-local image monitor manual testing enhancement. It adds only an in-memory manual-run cancel path plus browser-local manual history; it does not change image monitor schemas or scheduled monitor history tables.
+**Change details**:
+- Added per-manual-run cancellation with `POST /admin/image-channel-monitors/:id/manual-test/:runID/cancel`, backed by a run-scoped `context.CancelFunc`.
+- Added live elapsed-time display for running manual tests and final elapsed time in local manual history.
+- Added browser-local manual test history under `sub2api:image-channel-monitor:manual-history:v1`, keeping the latest 50 completed/canceled runs with compact previews and request settings.
+- Updated the manual testing UI with per-run cancel, cancel-all, history display, and clear-history controls.
+- Verified: `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`; `git diff --check`.
+
 ## [2026-07-04] feat: add manual image test presets
 
 **Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md

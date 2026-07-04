@@ -27,6 +27,7 @@
   - manual ad-hoc routes:
     - `POST /api/v1/admin/image-channel-monitors/:id/manual-test`
     - `GET /api/v1/admin/image-channel-monitors/:id/manual-test/:runID`
+    - `POST /api/v1/admin/image-channel-monitors/:id/manual-test/:runID/cancel`
 - Frontend:
   - `frontend/src/api/admin/imageChannelMonitor.ts`
   - `frontend/src/views/admin/ImageChannelMonitorView.vue`
@@ -42,7 +43,8 @@
 6. The service records API response-header latency, response-body read latency, total API latency, JSON size, URL/b64 result shape, and optional image download metrics.
 7. History is stored independently from the generic channel monitor history/rollup tables.
 8. The manual testing panel calls `POST /admin/image-channel-monitors/:id/manual-test` concurrently for selected image monitors. The POST only starts an in-memory manual run and immediately returns `run_id`, `running`, `stage`, and timestamps.
-9. The frontend polls `GET /admin/image-channel-monitors/:id/manual-test/:runID` until `running=false`. Completed manual runs include the previewable result payload. These ad-hoc tests reuse monitor source credentials/proxy/TLS resolution, support text-to-image (`/v1/images/generations`) and image-to-image (`/v1/images/edits`) probes, but do not update scheduled runtime status or persist history.
+9. The frontend polls `GET /admin/image-channel-monitors/:id/manual-test/:runID` until `running=false`. It can cancel a running manual run via `POST /admin/image-channel-monitors/:id/manual-test/:runID/cancel`.
+10. Completed or canceled manual runs are added to a browser-local manual history list. These ad-hoc tests reuse monitor source credentials/proxy/TLS resolution, support text-to-image (`/v1/images/generations`) and image-to-image (`/v1/images/edits`) probes, but do not update scheduled runtime status or persist backend history.
 
 ## Important Mechanisms
 
@@ -55,11 +57,13 @@
 - Image monitor uses the same `HTTPUpstream.DoWithTLS` path as account testing and OpenAI image gateway requests.
 - Runtime status is in-memory and non-persistent. It exposes `running`, `stage`, `message`, timestamps, and next-check countdown data for UI polling; durable results remain in `image_channel_monitor_histories`.
 - Manual test run status is also in-memory and non-persistent. It is intentionally separate from scheduled runtime status so ad-hoc tests can run without changing row-level countdowns or persisted history.
+- Manual test cancellation uses a per-run `context.CancelFunc` stored alongside the in-memory run status. Canceled runs return `canceled=true`, `stage=canceled`, and are not overwritten by a later background completion.
 - The monitor forces `response_format=url`; `b64_json` responses are recorded with `has_b64_json=true` and status `failed`, because this monitor is specifically checking returned-image URL delivery.
 - Manual tests also request `response_format=url`, but if an upstream returns `b64_json`, the response is treated as a previewable image result instead of a URL-delivery monitor failure.
 - `download_image=false` still verifies image API generation and URL return. `download_image=true` adds a second-stage GET probe for the returned image URL.
 - The admin UI supports four size modes: omit the `size` request field, send `auto`, send OpenAI standard presets (`1024x1024`, `1536x1024`, `1024x1536`), or pass through a custom `WIDTHxHEIGHT` value for upstreams/models that support custom dimensions.
 - The manual testing panel stores parameter presets in browser localStorage (`sub2api:image-channel-monitor:manual-presets:v1`). Presets include mode, model, prompt, size mode/value, quality, `n`, download toggle, and timeout; uploaded image files are intentionally not persisted.
+- Manual testing history is also browser-local (`sub2api:image-channel-monitor:manual-history:v1`). It stores the latest 50 completed/canceled manual runs with timing, final status, request settings, and a compact preview. Large `b64_json` previews are dropped from history to avoid exhausting localStorage.
 - Each row shows a runtime status bar with current stage plus next-check countdown.
 - The runner is independent from `ChannelMonitorRunner`, so chat/responses monitor upstream syncs should not affect image monitor scheduling.
 

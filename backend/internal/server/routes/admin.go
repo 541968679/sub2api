@@ -706,6 +706,7 @@ func registerImageChannelMonitorRoutes(admin *gin.RouterGroup, h *handler.Handle
 		monitors.POST("/:id/run", h.Admin.ImageChannelMonitor.Run)
 		monitors.POST("/:id/manual-test", h.Admin.ImageChannelMonitor.ManualTest)
 		monitors.GET("/:id/manual-test/:runID", h.Admin.ImageChannelMonitor.ManualTestStatus)
+		monitors.POST("/:id/manual-test/:runID/cancel", h.Admin.ImageChannelMonitor.CancelManualTest)
 		monitors.GET("/:id/status", h.Admin.ImageChannelMonitor.Status)
 		monitors.GET("/:id/history", h.Admin.ImageChannelMonitor.History)
 	}

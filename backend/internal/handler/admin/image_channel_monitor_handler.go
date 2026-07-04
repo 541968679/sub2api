@@ -136,6 +136,7 @@ type imageChannelMonitorManualRunResponse struct {
 	Monitor     *imageChannelMonitorResponse       `json:"monitor"`
 	Mode        string                             `json:"mode"`
 	Running     bool                               `json:"running"`
+	Canceled    bool                               `json:"canceled"`
 	Stage       string                             `json:"stage"`
 	Message     string                             `json:"message"`
 	StartedAt   string                             `json:"started_at"`
@@ -253,6 +254,7 @@ func imageMonitorManualRunToResponse(
 		Monitor:   imageMonitorToResponse(s.Monitor),
 		Mode:      s.Mode,
 		Running:   s.Running,
+		Canceled:  s.Canceled,
 		Stage:     s.Stage,
 		Message:   s.Message,
 		StartedAt: s.StartedAt.UTC().Format(time.RFC3339),
@@ -520,6 +522,33 @@ func (h *ImageChannelMonitorHandler) ManualTestStatus(c *gin.Context) {
 	}
 	if status.Monitor != nil && status.Monitor.ID != id {
 		response.ErrorFrom(c, service.ErrImageChannelMonitorManualRunNotFound)
+		return
+	}
+	response.Success(c, imageMonitorManualRunToResponse(status))
+}
+
+func (h *ImageChannelMonitorHandler) CancelManualTest(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	runID := strings.TrimSpace(c.Param("runID"))
+	if runID == "" {
+		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", "runID is required"))
+		return
+	}
+	status, err := h.monitorService.GetManualCheckStatus(c.Request.Context(), runID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if status.Monitor != nil && status.Monitor.ID != id {
+		response.ErrorFrom(c, service.ErrImageChannelMonitorManualRunNotFound)
+		return
+	}
+	status, err = h.monitorService.CancelManualCheck(c.Request.Context(), runID)
+	if err != nil {
+		response.ErrorFrom(c, err)
 		return
 	}
 	response.Success(c, imageMonitorManualRunToResponse(status))
