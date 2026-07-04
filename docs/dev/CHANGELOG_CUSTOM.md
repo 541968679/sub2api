@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-04] feat: reorganize manual image test records
+
+**Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**Upstream compatibility**: frontend-only fork-local image monitor UI enhancement. It does not change backend APIs, schemas, scheduling, or browser-local storage keys.
+**Change details**:
+- Reworked the manual image testing panel into a two-column layout: configuration, prompt, preset, input image, and channel selection stay on the left; manual test records are managed on the right.
+- Replaced the separate manual-history entry point with a unified record table that combines in-flight manual runs and browser-local history.
+- Added table search, status/mode/channel filters, newest/oldest sorting, field visibility toggles, per-row details, and generated-image download actions.
+- Kept manual history storage and IndexedDB image preservation unchanged so existing saved records remain compatible.
+- Verified: `pnpm run typecheck`; `pnpm run build`; `git diff --check`; `Invoke-WebRequest http://127.0.0.1:15174/admin/channels/image-monitor`.
+
 ## [2026-07-04] feat: record manual image test network metadata
 
 **Affected files**: backend/internal/service/image_channel_monitor_*.go, backend/internal/handler/admin/image_channel_monitor_handler.go, frontend/src/api/admin/imageChannelMonitor.ts, frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
