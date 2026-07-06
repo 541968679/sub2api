@@ -456,6 +456,9 @@
                     <th v-if="manualColumnVisible('image_download')" class="mtbl-th mtbl-th-num">
                       {{ t('admin.imageChannelMonitor.manual.columns.imageDownload') }}
                     </th>
+                    <th v-if="manualColumnVisible('image_info')" class="mtbl-th">
+                      {{ t('admin.imageChannelMonitor.manual.columns.imageInfo') }}
+                    </th>
                     <th v-if="manualColumnVisible('exit_ip')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.exitIp') }}
                     </th>
@@ -509,6 +512,26 @@
                     </td>
                     <td v-if="manualColumnVisible('image_download')" class="mtbl-td mtbl-td-num text-gray-700 dark:text-dark-200">
                       {{ formatMsGrouped(entry.result?.image_download_ms ?? null) }}
+                    </td>
+                    <td v-if="manualColumnVisible('image_info')" class="mtbl-td whitespace-nowrap">
+                      <template v-if="manualRecordImageDims(entry) || manualRecordImageBytesText(entry)">
+                        <div
+                          v-if="manualRecordImageDims(entry)"
+                          class="tabular-nums"
+                          :class="manualRecordSizeMismatch(entry)
+                            ? 'font-medium text-amber-600 dark:text-amber-300'
+                            : 'text-gray-700 dark:text-dark-200'"
+                          :title="manualRecordSizeMismatch(entry)
+                            ? t('admin.imageChannelMonitor.manual.sizeMismatch', { size: entry.size })
+                            : undefined"
+                        >
+                          {{ manualRecordImageDims(entry) }}{{ manualRecordSizeMismatch(entry) ? ' ⚠' : '' }}
+                        </div>
+                        <div v-if="manualRecordImageBytesText(entry)" class="text-[11px] tabular-nums text-gray-500 dark:text-dark-400">
+                          {{ manualRecordImageBytesText(entry) }}
+                        </div>
+                      </template>
+                      <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
                     </td>
                     <td v-if="manualColumnVisible('exit_ip')" class="mtbl-td">
                       <span class="block max-w-[140px] truncate font-mono text-[12px] text-gray-700 dark:text-dark-200" :title="entry.result?.exit_ip || '-'">
@@ -897,8 +920,8 @@
               </td>
               <td class="py-3 pr-4">{{ formatMs(item.api_total_ms) }}</td>
               <td class="py-3 pr-4">{{ formatMs(item.image_download_ms) }}</td>
-              <td class="py-3 pr-4">
-                {{ item.image_width && item.image_height ? `${item.image_width}x${item.image_height}` : '-' }}
+              <td class="whitespace-nowrap py-3 pr-4">
+                {{ historyImageInfo(item) }}
               </td>
               <td class="max-w-md py-3 pr-4 text-gray-600 dark:text-dark-300">
                 {{ item.message || item.error_stage || '-' }}
@@ -971,7 +994,26 @@
           <MetricItem :label="t('admin.imageChannelMonitor.form.quality')" :value="selectedManualRecord.quality || '-'" />
           <MetricItem :label="'n'" :value="String(selectedManualRecord.n)" />
           <MetricItem :label="t('admin.imageChannelMonitor.form.downloadImage')" :value="selectedManualRecord.download_image ? t('common.yes') : t('common.no')" />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.actualSize')"
+            :value="manualRecordImageDims(selectedManualRecord) || '-'"
+            :tone="manualRecordSizeMismatch(selectedManualRecord) ? 'warn' : undefined"
+          />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.imageBytes')"
+            :value="manualRecordImageBytesText(selectedManualRecord) || '-'"
+          />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.imageFormat')"
+            :value="selectedManualRecord.result?.image_content_type || '-'"
+          />
         </dl>
+        <p
+          v-if="manualRecordSizeMismatch(selectedManualRecord)"
+          class="mt-2 text-xs font-medium text-amber-600 dark:text-amber-300"
+        >
+          {{ t('admin.imageChannelMonitor.manual.sizeMismatch', { size: selectedManualRecord.size }) }}
+        </p>
 
         <div class="mt-4 rounded-md bg-gray-50 p-3 text-sm text-gray-700 dark:bg-dark-800 dark:text-dark-200">
           <div class="text-xs font-medium text-gray-500 dark:text-dark-400">
@@ -1108,6 +1150,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { formatBytes } from '@/utils/format'
 import type { Account, Proxy } from '@/types'
 import type { Column } from '@/components/common/types'
 import type {
@@ -1129,10 +1172,21 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
-const MetricItem = (_props: { label: string; value: string }) =>
+const MetricItem = (_props: { label: string; value: string; tone?: 'warn' }) =>
   h('div', { class: 'rounded-md bg-gray-50 p-3 dark:bg-dark-800' }, [
     h('dt', { class: 'text-xs text-gray-500 dark:text-dark-400' }, _props.label),
-    h('dd', { class: 'mt-1 font-medium text-gray-900 dark:text-white' }, _props.value),
+    h(
+      'dd',
+      {
+        class: [
+          'mt-1 font-medium',
+          _props.tone === 'warn'
+            ? 'text-amber-600 dark:text-amber-300'
+            : 'text-gray-900 dark:text-white',
+        ],
+      },
+      _props.value
+    ),
   ])
 
 const { t } = useI18n()
@@ -1239,6 +1293,7 @@ type ManualRecordColumnKey =
   | 'elapsed'
   | 'api_total'
   | 'image_download'
+  | 'image_info'
   | 'exit_ip'
   | 'output'
 
@@ -1326,6 +1381,7 @@ const manualVisibleColumns = ref<ManualRecordColumnKey[]>([
   'elapsed',
   'api_total',
   'image_download',
+  'image_info',
   'exit_ip',
   'output',
 ])
@@ -1510,6 +1566,7 @@ const manualRecordColumns = computed<ManualRecordColumn[]>(() => [
   { key: 'elapsed', label: t('admin.imageChannelMonitor.manual.columns.elapsed') },
   { key: 'api_total', label: t('admin.imageChannelMonitor.manual.columns.apiTotal') },
   { key: 'image_download', label: t('admin.imageChannelMonitor.manual.columns.imageDownload') },
+  { key: 'image_info', label: t('admin.imageChannelMonitor.manual.columns.imageInfo') },
   { key: 'exit_ip', label: t('admin.imageChannelMonitor.manual.columns.exitIp') },
   { key: 'output', label: t('admin.imageChannelMonitor.manual.columns.output') },
 ])
@@ -2916,6 +2973,38 @@ function formatSize(size: string) {
   const normalized = size.trim()
   if (!normalized) return t('admin.imageChannelMonitor.sizeOmitted')
   return normalized
+}
+
+function manualRecordImageDims(entry: ManualRecordEntry) {
+  const width = entry.result?.image_width
+  const height = entry.result?.image_height
+  if (!width || !height) return ''
+  return `${width}x${height}`
+}
+
+// Mismatch is only meaningful when the request pinned a concrete WxH size.
+function manualRecordSizeMismatch(entry: ManualRecordEntry) {
+  const dims = manualRecordImageDims(entry)
+  const requested = (entry.size || '').trim().toLowerCase()
+  if (!dims || !/^\d+x\d+$/.test(requested)) return false
+  return dims !== requested
+}
+
+function manualRecordImageBytesText(entry: ManualRecordEntry) {
+  return formatImageBytes(entry.result?.image_bytes)
+}
+
+function formatImageBytes(value: number | null | undefined) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return ''
+  return formatBytes(value, 1)
+}
+
+function historyImageInfo(item: ImageChannelMonitorHistoryItem) {
+  const dims =
+    item.image_width && item.image_height ? `${item.image_width}x${item.image_height}` : ''
+  const bytes = formatImageBytes(item.image_bytes)
+  if (dims && bytes) return `${dims} · ${bytes}`
+  return dims || bytes || '-'
 }
 
 function formatDate(value: string | null) {

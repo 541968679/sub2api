@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"mime"
@@ -354,6 +355,38 @@ func TestImageChannelMonitorManualGenerateAcceptsB64JSONPreview(t *testing.T) {
 	require.Equal(t, MonitorStatusOperational, result.Status)
 	require.True(t, result.HasB64JSON)
 	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", result.ReturnedImageData)
+}
+
+func TestImageChannelMonitorManualGenerateB64JSONRecordsImageInfo(t *testing.T) {
+	const onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+	decoded, err := base64.StdEncoding.DecodeString(onePixelPNG)
+	require.NoError(t, err)
+	upstream := &imageMonitorHTTPUpstreamRecorder{
+		body: `{"data":[{"b64_json":"` + onePixelPNG + `","revised_prompt":"ok"}]}`,
+	}
+	svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
+
+	result := svc.runManualCheck(context.Background(), &ImageChannelMonitor{
+		ID:             18,
+		SourceType:     ImageChannelMonitorSourceCustom,
+		Endpoint:       "https://api.example.com",
+		APIKey:         "custom-key",
+		Model:          "gpt-image-1",
+		Prompt:         "draw",
+		Quality:        "auto",
+		N:              1,
+		DownloadImage:  false,
+		TimeoutSeconds: 300,
+	}, ImageChannelMonitorManualGenerate, ImageChannelMonitorManualTestParams{})
+
+	require.Equal(t, MonitorStatusOperational, result.Status)
+	require.NotNil(t, result.ImageBytes)
+	require.Equal(t, int64(len(decoded)), *result.ImageBytes)
+	require.Equal(t, "image/png", result.ImageContentType)
+	require.NotNil(t, result.ImageWidth)
+	require.NotNil(t, result.ImageHeight)
+	require.Equal(t, 1, *result.ImageWidth)
+	require.Equal(t, 1, *result.ImageHeight)
 }
 
 func TestImageChannelMonitorManualGenerateCapturesDownloadedURLPreview(t *testing.T) {

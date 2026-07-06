@@ -2853,6 +2853,10 @@ const enBase = {
         resultFail: 'Fail',
         waterfall: 'Latency breakdown',
         savePresetTitle: 'Save parameter preset',
+        actualSize: 'Actual size',
+        imageBytes: 'Image size',
+        imageFormat: 'Format',
+        sizeMismatch: 'Differs from requested size {size}',
         columns: {
           startedAt: 'Time',
           monitor: 'Channel',
@@ -2863,6 +2867,7 @@ const enBase = {
           elapsed: 'Elapsed',
           apiTotal: 'API total',
           imageDownload: 'Image download',
+          imageInfo: 'Returned image',
           exitIp: 'Exit IP',
           output: 'Output',
           actions: 'Actions'

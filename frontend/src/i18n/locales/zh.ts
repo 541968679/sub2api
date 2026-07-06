@@ -2748,6 +2748,10 @@ const zhBase = {
         resultFail: '失败',
         waterfall: '耗时分解',
         savePresetTitle: '保存参数预置',
+        actualSize: '实际尺寸',
+        imageBytes: '图片大小',
+        imageFormat: '图片格式',
+        sizeMismatch: '与请求尺寸 {size} 不一致',
         columns: {
           startedAt: '时间',
           monitor: '渠道',
@@ -2758,6 +2762,7 @@ const zhBase = {
           elapsed: '耗时',
           apiTotal: 'API 总耗时',
           imageDownload: '图片下载',
+          imageInfo: '返回图片',
           exitIp: '出口 IP',
           output: '图片',
           actions: '操作'

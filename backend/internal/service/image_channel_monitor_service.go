@@ -1220,6 +1220,7 @@ func (s *ImageChannelMonitorService) processImageAPIResponse(
 	if !result.HasURL {
 		if result.HasB64JSON {
 			result.ReturnedImageData = "data:image/png;base64," + first.B64JSON
+			fillImageMonitorInlineImageInfo(result, first.B64JSON)
 			if allowB64JSON {
 				stage("complete", "image monitor check completed")
 				result.Status = MonitorStatusOperational
@@ -1294,6 +1295,22 @@ func (s *ImageChannelMonitorService) decryptInPlace(m *ImageChannelMonitor) {
 	}
 	m.APIKey = plain
 	m.APIKeyDecryptFailed = false
+}
+
+// fillImageMonitorInlineImageInfo records byte-size/dimension metadata for
+// inline b64_json payloads, which never pass through probeImageURL.
+func fillImageMonitorInlineImageInfo(result *ImageChannelMonitorResult, b64Payload string) {
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(b64Payload))
+	if err != nil || len(decoded) == 0 {
+		return
+	}
+	imageBytes := int64(len(decoded))
+	result.ImageBytes = &imageBytes
+	result.ImageContentType = http.DetectContentType(decoded)
+	if cfg, _, err := image.DecodeConfig(bytes.NewReader(decoded)); err == nil {
+		result.ImageWidth = imageMonitorIntPtr(cfg.Width)
+		result.ImageHeight = imageMonitorIntPtr(cfg.Height)
+	}
 }
 
 func (s *ImageChannelMonitorService) probeImageURL(

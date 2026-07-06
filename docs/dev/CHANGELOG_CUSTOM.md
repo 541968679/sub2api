@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-06] feat: 图片渠道监控补全返回图片尺寸/大小信息
+
+**影响范围**: backend/internal/service/image_channel_monitor_service.go(+test), frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**上游兼容性**: 低风险。后端仅在 b64_json 分支补填 history 已有字段（image_bytes/image_content_type/image_width/image_height），不改状态判定与请求行为；前端手动检测表格新增可选列。
+**变更详情**:
+- 后端：上游返回 b64_json 时（gpt-image-1 常态）原先完全不解析图片元数据，新增 `fillImageMonitorInlineImageInfo` 解码 base64 填充字节数、嗅探 content-type、DecodeConfig 取宽高，定时与手动路径共用；URL+下载路径原有逻辑不变。
+- 手动检测记录表新增"返回图片"列（默认显示，可在字段选择器关闭）：显示实际宽高 + 文件大小；当请求 size 为具体 WxH 且与实际不一致时琥珀色加 ⚠ 警示，tooltip 注明请求尺寸（omit/auto 不比对）。
+- 查看详情弹窗新增"实际尺寸/图片大小/图片格式"三项指标，不一致时实际尺寸标黄并在指标区下方显示整句提示。
+- 定时监控历史弹窗"图片"列由仅宽高改为"宽高 · 大小"。
+- 验证：后端新增单测（1x1 PNG b64 断言宽高/字节/content-type），TestImageChannelMonitor* 全过；前端 typecheck/lint 通过；本地浏览器注入一致/不一致/无图三类记录，实测表格列、警示样式、tooltip、详情弹窗渲染均正确，无控制台报错。
+
 ## [2026-07-04] feat: 导入 CCS 客户端选择扩展——anthropic 密钥支持 Codex 客户端
 
 **影响范围**: backend/internal/{service/{domain_constants.go, setting_service.go, settings_view.go}, handler/{setting_handler.go, dto/settings.go, admin/setting_handler.go}, server/api_contract_test.go}, frontend/src/{views/user/KeysView.vue, views/admin/SettingsView.vue, api/admin/settings.ts, stores/app.ts, types/index.ts, i18n/locales/{zh,en}.ts}
