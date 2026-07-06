@@ -4149,6 +4149,10 @@ watch(
       anthropicPassthroughEnabled.value = false
       webSearchEmulationMode.value = 'default'
     }
+    // 请求头覆写为平台相关配置（模板/常用头集合不同），切换平台时清空，
+    // 避免上一平台的模板行被提交到新平台账号
+    headerOverrideEnabled.value = false
+    headerOverrideRows.value = []
     // Reset OAuth states
     oauth.resetState()
     openaiOAuth.resetState()

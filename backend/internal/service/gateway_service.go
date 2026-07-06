@@ -5297,6 +5297,21 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		targetURL = validatedURL + "/v1/messages?beta=true"
 	}
 
+	// 能力维度 body sanitize：透传路径上 anthropic-beta header 原样透传客户端值，
+	// 依此决定是否保留 body 中的 context_management。避免“客户端 body 带字段但
+	// header 忘记带 beta token”的客户端 bug 在透传场景下让上游 400。
+	clientBeta := ""
+	if c != nil && c.Request != nil {
+		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
+	}
+	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准
+	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
+		clientBeta = beta
+	}
+	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
+		body = sanitized
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -6179,6 +6194,13 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	// 同步 billing header cc_version 与实际发送的 User-Agent 版本
 	if fingerprint != nil {
 		body = syncBillingHeaderVersion(body, fingerprint.UserAgent)
+	}
+	// Header override is applied after normal header construction. Sanitize the
+	// body against that same final beta value before CCH signs the payload.
+	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
+		if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, beta); changed {
+			body = sanitized
+		}
 	}
 	// CCH 签名：将 cch=00000 占位符替换为 xxHash64 签名（需在所有 body 修改之后）
 	if enableCCH {
@@ -9455,6 +9477,20 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		}
 		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
 	}
+	body = sanitizeCountTokensRequestBody(body)
+
+	// 同 buildUpstreamRequestAnthropicAPIKeyPassthrough：能力维度 sanitize。
+	clientBeta := ""
+	if c != nil && c.Request != nil {
+		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
+	}
+	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准
+	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
+		clientBeta = beta
+	}
+	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
+		body = sanitized
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
 	if err != nil {
@@ -9548,6 +9584,11 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 	// 同步 billing header cc_version 与实际发送的 User-Agent 版本
 	if ctFingerprint != nil && ctEnableFP {
 		body = syncBillingHeaderVersion(body, ctFingerprint.UserAgent)
+	}
+	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
+		if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, beta); changed {
+			body = sanitized
+		}
 	}
 	if ctEnableCCH {
 		body = signBillingHeaderCCH(body)
