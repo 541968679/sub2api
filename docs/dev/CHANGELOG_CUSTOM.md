@@ -4056,3 +4056,11 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 **鍙樻洿璇︽儏**:
 - 鏂板 `useEmailAsName` 閫夐」锛屼粎 Antigravity 骞冲彴鍙
 - 鍕鹃€夊悗闅愯棌鍚嶇О杈撳叆妗嗭紝鎵归噺鍜屽崟涓?OAuth 鍒涘缓鍧囦娇鐢ㄩ偖绠变綔涓哄悕绉?
+## [2026-07-06] fix: Preserve explicit OpenAI Images response_format
+
+**Affected files**: `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_test.go`
+**Compatibility**: Low risk. API-key image forwarding still defaults missing `response_format` to `url`, but explicit downstream values such as `b64_json` are no longer overwritten.
+**Details**:
+- JSON image requests now add `response_format=url` only when the downstream request omits `response_format`.
+- Multipart image requests now preserve an explicit `response_format` field and only append `url` when the field is absent.
+- Updated OpenAI Images tests to cover explicit `b64_json` preservation and multipart defaulting behavior.

@@ -764,9 +764,11 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 	if err != nil {
 		return nil, "", fmt.Errorf("rewrite image request model: %w", err)
 	}
-	rewritten, err = sjson.SetBytes(rewritten, "response_format", openAIImagesDefaultURLFormat)
-	if err != nil {
-		return nil, "", fmt.Errorf("force image response format: %w", err)
+	if !gjson.GetBytes(body, "response_format").Exists() {
+		rewritten, err = sjson.SetBytes(rewritten, "response_format", openAIImagesDefaultURLFormat)
+		if err != nil {
+			return nil, "", fmt.Errorf("default image response format: %w", err)
+		}
 	}
 	return rewritten, contentType, nil
 }
@@ -814,13 +816,7 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 			continue
 		}
 		if formName == "response_format" && part.FileName() == "" {
-			if _, err := target.Write([]byte(openAIImagesDefaultURLFormat)); err != nil {
-				_ = part.Close()
-				return nil, "", fmt.Errorf("rewrite multipart response format: %w", err)
-			}
 			responseFormatWritten = true
-			_ = part.Close()
-			continue
 		}
 		if _, err := io.Copy(target, part); err != nil {
 			_ = part.Close()
