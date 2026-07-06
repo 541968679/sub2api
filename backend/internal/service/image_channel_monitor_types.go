@@ -19,16 +19,16 @@ const (
 	imageMonitorDefaultIntervalSeconds = 300
 	imageMonitorDefaultTimeoutSeconds  = 300
 	// b64_json 拿图时整张图内联在 JSON 里(16MB 图 base64 后约 21.4MB),上限需覆盖之。
-	imageMonitorMaxResponseBytes       = 24 * 1024 * 1024
-	imageMonitorMaxDownloadBytes       = 32 * 1024 * 1024
-	imageMonitorMaxReturnedImageData   = 16 * 1024 * 1024
-	imageMonitorExitIPProbeURL         = "https://api.ipify.org?format=text"
-	imageMonitorNetworkProbeTimeout    = 5 * time.Second
-	imageMonitorRunnerConcurrency      = 3
-	imageMonitorRunOneBuffer           = 15 * time.Second
-	imageMonitorManualRunRetention     = 30 * time.Minute
-	imageMonitorManualRunMax           = 200
-	imageMonitorHistoryRetentionDays   = 30
+	imageMonitorMaxResponseBytes     = 24 * 1024 * 1024
+	imageMonitorMaxDownloadBytes     = 32 * 1024 * 1024
+	imageMonitorMaxReturnedImageData = 16 * 1024 * 1024
+	imageMonitorExitIPProbeURL       = "https://api.ipify.org?format=text"
+	imageMonitorNetworkProbeTimeout  = 5 * time.Second
+	imageMonitorRunnerConcurrency    = 3
+	imageMonitorRunOneBuffer         = 15 * time.Second
+	imageMonitorManualRunRetention   = 30 * time.Minute
+	imageMonitorManualRunMax         = 200
+	imageMonitorHistoryRetentionDays = 30
 )
 
 var (
@@ -88,7 +88,7 @@ var (
 	)
 )
 
-// 拿图方式:'url' / 'b64_json' / ''(不传参数,接受任意返回形式)。
+// 拿图方式:'url' / 'b64_json' / ”(不传参数,接受任意返回形式)。
 const (
 	ImageMonitorResponseFormatURL  = "url"
 	ImageMonitorResponseFormatB64  = "b64_json"

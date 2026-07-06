@@ -24,16 +24,16 @@ func NewImageChannelMonitorHandler(
 }
 
 type imageChannelMonitorCreateRequest struct {
-	Name            string `json:"name" binding:"required,max=100"`
-	SourceType      string `json:"source_type" binding:"omitempty,oneof=custom account"`
-	Endpoint        string `json:"endpoint" binding:"omitempty,max=500"`
-	APIKey          string `json:"api_key" binding:"omitempty,max=2000"`
-	AccountID       *int64 `json:"account_id"`
-	ProxyID         *int64 `json:"proxy_id"`
-	Model           string `json:"model" binding:"omitempty,max=200"`
-	Prompt          string `json:"prompt" binding:"omitempty,max=2000"`
-	Size            string `json:"size" binding:"omitempty,max=32"`
-	Quality         string `json:"quality" binding:"omitempty,max=32"`
+	Name            string  `json:"name" binding:"required,max=100"`
+	SourceType      string  `json:"source_type" binding:"omitempty,oneof=custom account"`
+	Endpoint        string  `json:"endpoint" binding:"omitempty,max=500"`
+	APIKey          string  `json:"api_key" binding:"omitempty,max=2000"`
+	AccountID       *int64  `json:"account_id"`
+	ProxyID         *int64  `json:"proxy_id"`
+	Model           string  `json:"model" binding:"omitempty,max=200"`
+	Prompt          string  `json:"prompt" binding:"omitempty,max=2000"`
+	Size            string  `json:"size" binding:"omitempty,max=32"`
+	Quality         string  `json:"quality" binding:"omitempty,max=32"`
 	N               int     `json:"n" binding:"omitempty,min=1,max=10"`
 	DownloadImage   *bool   `json:"download_image"`
 	ResponseFormat  *string `json:"response_format" binding:"omitempty,max=16"`
