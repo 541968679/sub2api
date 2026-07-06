@@ -100,8 +100,9 @@ func (r *imageMonitorHTTPUpstreamRecorder) DoWithTLS(
 }
 
 type imageMonitorRepoStub struct {
-	monitor *ImageChannelMonitor
-	getErr  error
+	monitor             *ImageChannelMonitor
+	getErr              error
+	deleteHistoryBefore time.Time
 }
 
 func (r *imageMonitorRepoStub) Create(context.Context, *ImageChannelMonitor) error { return nil }
@@ -141,7 +142,8 @@ func (r *imageMonitorRepoStub) ListHistory(
 	return nil, nil
 }
 
-func (r *imageMonitorRepoStub) DeleteHistoryBefore(context.Context, time.Time) (int64, error) {
+func (r *imageMonitorRepoStub) DeleteHistoryBefore(_ context.Context, before time.Time) (int64, error) {
+	r.deleteHistoryBefore = before
 	return 0, nil
 }
 
@@ -185,6 +187,16 @@ func TestImageChannelMonitorPublicFieldsCreateAndPartialUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updated.PublicVisible, "partial update must not reset public_visible")
 	require.Equal(t, "通道A", updated.PublicName)
+}
+
+func TestImageChannelMonitorRunDailyMaintenancePrunesOldHistory(t *testing.T) {
+	repo := &imageMonitorRepoStub{}
+	svc := NewImageChannelMonitorService(repo, nil, nil, nil, nil, nil)
+
+	require.NoError(t, svc.RunDailyMaintenance(context.Background()))
+	require.False(t, repo.deleteHistoryBefore.IsZero(), "DeleteHistoryBefore must be called")
+	wantCutoff := time.Now().UTC().AddDate(0, 0, -30)
+	require.WithinDuration(t, wantCutoff, repo.deleteHistoryBefore, time.Minute)
 }
 
 func TestImageChannelMonitorRunCheckUsesOpenAIAPIKeyAccountSource(t *testing.T) {

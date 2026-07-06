@@ -1291,6 +1291,21 @@ func (s *ImageChannelMonitorService) persistResult(
 	}
 }
 
+// RunDailyMaintenance 每日维护:物理删除 imageMonitorHistoryRetentionDays 天前的明细。
+// 由 OpsCleanupService 的每日 cron 触发,与原生渠道监控维护同一调度/领导锁。
+func (s *ImageChannelMonitorService) RunDailyMaintenance(ctx context.Context) error {
+	before := time.Now().UTC().AddDate(0, 0, -imageMonitorHistoryRetentionDays)
+	deleted, err := s.repo.DeleteHistoryBefore(ctx, before)
+	if err != nil {
+		return fmt.Errorf("delete image monitor history before %s: %w", before.Format(time.RFC3339), err)
+	}
+	if deleted > 0 {
+		slog.Info("image_channel_monitor: history cleanup",
+			"deleted_rows", deleted, "before", before.Format(time.RFC3339))
+	}
+	return nil
+}
+
 func (s *ImageChannelMonitorService) decryptInPlace(m *ImageChannelMonitor) {
 	if m == nil || m.SourceType != ImageChannelMonitorSourceCustom || strings.TrimSpace(m.APIKey) == "" {
 		return

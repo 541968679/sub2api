@@ -305,8 +305,9 @@ func ProvideOpsCleanupService(
 	redisClient *redis.Client,
 	cfg *config.Config,
 	channelMonitorSvc *ChannelMonitorService,
+	imageChannelMonitorSvc *ImageChannelMonitorService,
 ) *OpsCleanupService {
-	svc := NewOpsCleanupService(opsRepo, db, redisClient, cfg, channelMonitorSvc)
+	svc := NewOpsCleanupService(opsRepo, db, redisClient, cfg, channelMonitorSvc, imageChannelMonitorSvc)
 	svc.Start()
 	return svc
 }

@@ -27,6 +27,7 @@ const (
 	imageMonitorRunOneBuffer           = 15 * time.Second
 	imageMonitorManualRunRetention     = 30 * time.Minute
 	imageMonitorManualRunMax           = 200
+	imageMonitorHistoryRetentionDays   = 30
 )
 
 var (
