@@ -633,7 +633,7 @@
                 />
                 <div class="mt-1 flex items-center justify-between text-[11px] text-gray-500 dark:text-dark-400">
                   <span>{{ t('admin.imageChannelMonitor.statusStrip.availability7d') }}</span>
-                  <span class="tabular-nums font-medium">{{ formatAvailability(row.availability_7d) }}</span>
+                  <span class="tabular-nums font-medium">{{ formatAvailability(row) }}</span>
                 </div>
               </div>
             </div>
@@ -3043,9 +3043,10 @@ function rowCountdownSeconds(row: ImageChannelMonitor): number {
   return runtimeStatuses.value[row.id]?.seconds_until_next_check ?? 0
 }
 
-function formatAvailability(value: number | undefined): string {
-  if (typeof value !== 'number') return '-'
-  return `${value.toFixed(1)}%`
+// 无任何检查记录时可用率没有意义,显示 '-' 而不是误导性的 0.0%。
+function formatAvailability(row: ImageChannelMonitor): string {
+  if (!row.timeline?.length || typeof row.availability_7d !== 'number') return '-'
+  return `${row.availability_7d.toFixed(1)}%`
 }
 
 function manualRecordImageDims(entry: ManualRecordEntry) {

@@ -19,6 +19,19 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-06] feat: 图片渠道监控状态时间线 + 用户侧公开展示
+
+**影响范围**: backend/{migrations/178, ent/schema/image_channel_monitor.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test), ops_cleanup_service.go, wire.go}, internal/repository/image_channel_monitor_repo.go, internal/handler/{image_channel_monitor_user_handler.go(新+test), handler.go, wire.go, admin/image_channel_monitor_handler.go}, internal/server/routes/{admin.go, user.go}, cmd/server/wire_gen.go(手工对齐)}, frontend/src/{api/{admin/imageChannelMonitor.ts, imageChannelMonitor.ts(新)}, components/{admin/ImageMonitorStatusDialog.vue(新), user/monitor/{ImageMonitorCard.vue(新), ImageMonitorDetailDialog.vue(新), __tests__/ImageMonitorCard.spec.ts(新)}}, views/{admin/ImageChannelMonitorView.vue, user/ChannelStatusView.vue}, i18n/locales/{zh,en}.ts}
+**上游兼容性**: 低风险。新增迁移 178（image_channel_monitors 加 public_visible/public_name 两列）；`NewOpsCleanupService` 签名加 imageChannelMonitorSvc 参数（wire_gen 已手工对齐）；`Handlers` 容器加 ImageChannelMonitorUser；admin List 响应每项追加 timeline/availability_7d 字段（增量，不破坏旧消费方）。设计文档 docs/superpowers/specs/2026-07-06-image-monitor-status-timeline-design.md。
+**变更详情**:
+- 管理端监控列表每行内嵌迷你状态条（复用用户侧 MonitorTimeline 60 根柱）+ 7 天可用率；新增「状态详情」弹窗：24h/7d/30d 窗口切换 + chart.js 混合图（API 总耗时/图片下载两条折线 + 失败次数红色柱，空桶断线）+ 可用率/次数/失败/平均/最大耗时汇总卡。
+- 数据策略：不建 rollup 表，全部对原始历史实时 SQL 聚合（epoch-floor 分桶 24h→10min/7d→2h/30d→1d；批量近 60 次 ROW_NUMBER 消 N+1；三窗口可用率单条 FILTER 聚合）。
+- 历史保留：激活 DeleteHistoryBefore 死代码，RunDailyMaintenance 物理删 30 天前明细，挂进 ops 每日清理（同 cron/领导锁），修复历史表无限增长问题。
+- 每渠道公开配置：public_visible（默认不公开）+ public_name（掩盖内部命名，空回落渠道名），编辑表单新增「用户侧展示」区块。
+- 用户侧 /monitor 渠道状态页新增「生图渠道」分组：卡片（生图耗时/图片下载/窗口可用率/60 根时间线，empty 状态中性徽章）+ 简版详情弹窗（7/15/30d 可用率+平均耗时）；列表一次带回三窗口可用率，窗口切换纯前端；跟随页面 channel_monitor_enabled 门禁与自动刷新。
+- 安全红线：用户侧 DTO 白名单（绝不下发内部名/endpoint/host/IP/错误消息/error_stage/图片 URL/代理账号信息），白名单 JSON key 快照测试兜底。
+- 验证：后端全量 unit 通过（含 9 个新用例）；前端 typecheck/lint/全量 vitest 620 用例通过（含新卡片 spec）；本地注入 3 天含失败/降级数据浏览器实测：行内条/弹窗三窗口/折线失败柱/用户侧掩名卡片/详情弹窗/响应净化抽查全部正确，验证数据已清理。
+
 ## [2026-07-06] feat: 图片渠道监控补全返回图片尺寸/大小信息
 
 **影响范围**: backend/internal/service/image_channel_monitor_service.go(+test), frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
