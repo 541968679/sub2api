@@ -3,6 +3,43 @@ import { apiClient } from '../client'
 export type ImageMonitorSourceType = 'custom' | 'account'
 export type ImageMonitorStatus = 'operational' | 'degraded' | 'failed' | 'error'
 
+export interface ImageMonitorTimelinePoint {
+  status: ImageMonitorStatus
+  latency_ms: number | null
+  image_download_ms: number | null
+  checked_at: string
+}
+
+export type ImageMonitorTimelineWindow = '24h' | '7d' | '30d'
+
+export interface ImageMonitorTimelineBucket {
+  bucket_start: string
+  total: number
+  operational: number
+  degraded: number
+  failed: number
+  error: number
+  avg_api_total_ms: number | null
+  max_api_total_ms: number | null
+  avg_image_download_ms: number | null
+}
+
+export interface ImageMonitorTimelineSummary {
+  total: number
+  ok: number
+  failures: number
+  availability: number
+  avg_api_total_ms: number | null
+  max_api_total_ms: number | null
+  avg_image_download_ms: number | null
+}
+
+export interface ImageMonitorTimelineResponse {
+  window: ImageMonitorTimelineWindow
+  summary: ImageMonitorTimelineSummary
+  buckets: ImageMonitorTimelineBucket[]
+}
+
 export interface ImageChannelMonitor {
   id: number
   name: string
@@ -21,12 +58,16 @@ export interface ImageChannelMonitor {
   n: number
   download_image: boolean
   enabled: boolean
+  public_visible: boolean
+  public_name: string
   interval_seconds: number
   timeout_seconds: number
   last_checked_at: string | null
   created_by: number
   created_at: string
   updated_at: string
+  availability_7d?: number
+  timeline?: ImageMonitorTimelinePoint[]
 }
 
 export interface ImageChannelMonitorListParams {
@@ -59,6 +100,8 @@ export interface ImageChannelMonitorCreateParams {
   n?: number
   download_image?: boolean
   enabled?: boolean
+  public_visible?: boolean
+  public_name?: string
   interval_seconds?: number
   timeout_seconds?: number
 }
@@ -242,6 +285,17 @@ export async function cancelManualTest(
   return data
 }
 
+export async function timeline(
+  id: number,
+  window: ImageMonitorTimelineWindow
+): Promise<ImageMonitorTimelineResponse> {
+  const { data } = await apiClient.get<ImageMonitorTimelineResponse>(
+    `/admin/image-channel-monitors/${id}/timeline`,
+    { params: { window } }
+  )
+  return data
+}
+
 export async function listHistory(
   id: number,
   params: { limit?: number } = {}
@@ -265,6 +319,7 @@ export const imageChannelMonitorAPI = {
   getManualTestStatus,
   cancelManualTest,
   listHistory,
+  timeline,
 }
 
 export default imageChannelMonitorAPI

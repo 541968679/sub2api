@@ -2773,7 +2773,12 @@ const enBase = {
         intervalSeconds: 'Interval (seconds)',
         timeoutSeconds: 'Timeout (seconds)',
         downloadImage: 'Download returned image',
-        enabled: 'Enable monitor'
+        enabled: 'Enable monitor',
+        publicSection: 'User-facing display',
+        publicVisible: 'Show on the user channel status page',
+        publicName: 'Public display name',
+        publicNamePlaceholder: 'Leave empty to use the monitor name',
+        publicHint: "When enabled, this channel's status, latency and availability appear in the image section of the user channel status page. The display name can mask internal channel naming."
       },
       metrics: {
         apiHeader: 'API headers',

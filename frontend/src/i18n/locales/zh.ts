@@ -2668,7 +2668,12 @@ const zhBase = {
         intervalSeconds: '检测间隔（秒）',
         timeoutSeconds: '超时（秒）',
         downloadImage: '下载返图',
-        enabled: '启用监控'
+        enabled: '启用监控',
+        publicSection: '用户侧展示',
+        publicVisible: '在用户侧渠道状态页展示',
+        publicName: '用户侧展示名',
+        publicNamePlaceholder: '留空使用渠道名',
+        publicHint: '开启后该渠道的状态、耗时与可用率会出现在用户「渠道状态」页的生图渠道分组；展示名可掩盖内部渠道命名。'
       },
       metrics: {
         apiHeader: 'API 响应头',

@@ -881,6 +881,30 @@
             </label>
           </div>
         </div>
+
+        <div class="rounded-lg border border-gray-200 p-4 dark:border-dark-700">
+          <div class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.imageChannelMonitor.form.publicSection') }}
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 md:items-end">
+            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-dark-200">
+              <input v-model="form.public_visible" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600" />
+              {{ t('admin.imageChannelMonitor.form.publicVisible') }}
+            </label>
+            <label class="block">
+              <span class="input-label">{{ t('admin.imageChannelMonitor.form.publicName') }}</span>
+              <input
+                v-model.trim="form.public_name"
+                class="input"
+                maxlength="200"
+                :placeholder="t('admin.imageChannelMonitor.form.publicNamePlaceholder')"
+              />
+            </label>
+          </div>
+          <p class="mt-2 text-xs text-gray-500 dark:text-dark-400">
+            {{ t('admin.imageChannelMonitor.form.publicHint') }}
+          </p>
+        </div>
       </form>
 
       <template #footer>
@@ -1421,6 +1445,8 @@ const form = reactive({
   n: 1,
   download_image: true,
   enabled: true,
+  public_visible: false,
+  public_name: '',
   interval_seconds: 300,
   timeout_seconds: 300,
 })
@@ -2330,6 +2356,8 @@ function resetForm() {
     n: 1,
     download_image: true,
     enabled: true,
+    public_visible: false,
+    public_name: '',
     interval_seconds: 300,
     timeout_seconds: 300,
   })
@@ -2357,6 +2385,8 @@ function openEditDialog(row: ImageChannelMonitor) {
     n: row.n,
     download_image: row.download_image,
     enabled: row.enabled,
+    public_visible: row.public_visible,
+    public_name: row.public_name,
     interval_seconds: row.interval_seconds,
     timeout_seconds: row.timeout_seconds,
   })
@@ -2463,6 +2493,8 @@ function buildPayload() {
     n: form.n,
     download_image: form.download_image,
     enabled: form.enabled,
+    public_visible: form.public_visible,
+    public_name: form.public_name,
     interval_seconds: form.interval_seconds,
     timeout_seconds: form.timeout_seconds,
     endpoint: undefined as string | undefined,
