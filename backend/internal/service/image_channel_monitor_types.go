@@ -92,6 +92,49 @@ type ImageChannelMonitorRepository interface {
 	InsertHistory(ctx context.Context, row *ImageChannelMonitorHistoryRow) error
 	ListHistory(ctx context.Context, monitorID int64, limit int) ([]*ImageChannelMonitorHistoryEntry, error)
 	DeleteHistoryBefore(ctx context.Context, before time.Time) (int64, error)
+	AggregateTimeline(ctx context.Context, monitorID int64, bucketSeconds int, since time.Time) ([]*ImageMonitorTimelineBucket, error)
+	ComputeWindowStats(ctx context.Context, monitorID int64, since time.Time) (*ImageMonitorWindowStats, error)
+	ListRecentHistoryForMonitors(ctx context.Context, ids []int64, perMonitorLimit int) (map[int64][]*ImageMonitorTimelinePoint, error)
+	ListPublicVisible(ctx context.Context) ([]*ImageChannelMonitor, error)
+	ComputeAvailabilityForMonitors(ctx context.Context, ids []int64) (map[int64]*ImageMonitorAvailability, error)
+}
+
+// ImageMonitorTimelineBucket 时间桶聚合(管理端折线图数据点)。
+type ImageMonitorTimelineBucket struct {
+	BucketStart        time.Time
+	Total              int
+	Operational        int
+	Degraded           int
+	Failed             int
+	Error              int
+	AvgAPITotalMs      *int
+	MaxAPITotalMs      *int
+	AvgImageDownloadMs *int
+}
+
+// ImageMonitorWindowStats 单窗口汇总统计。
+type ImageMonitorWindowStats struct {
+	Total              int
+	OK                 int
+	Availability       float64
+	AvgAPITotalMs      *int
+	MaxAPITotalMs      *int
+	AvgImageDownloadMs *int
+}
+
+// ImageMonitorTimelinePoint 单次检查的时间线点(状态条数据)。
+type ImageMonitorTimelinePoint struct {
+	Status          string
+	APITotalMs      *int
+	ImageDownloadMs *int
+	CheckedAt       time.Time
+}
+
+// ImageMonitorAvailability 固定三窗口可用率(百分比 0-100)。
+type ImageMonitorAvailability struct {
+	D7  float64
+	D15 float64
+	D30 float64
 }
 
 type imageChannelMonitorAccountReader interface {

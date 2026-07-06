@@ -103,13 +103,30 @@ type imageMonitorRepoStub struct {
 	monitor             *ImageChannelMonitor
 	getErr              error
 	deleteHistoryBefore time.Time
+	monitors            map[int64]*ImageChannelMonitor
+	timelineBuckets     []*ImageMonitorTimelineBucket
+	timelineErr         error
+	windowStats         *ImageMonitorWindowStats
+	windowStatsErr      error
+	recentHistory       map[int64][]*ImageMonitorTimelinePoint
+	publicMonitors      []*ImageChannelMonitor
+	availability        map[int64]*ImageMonitorAvailability
+	lastBucketSeconds   int
+	lastSince           time.Time
 }
 
 func (r *imageMonitorRepoStub) Create(context.Context, *ImageChannelMonitor) error { return nil }
 
-func (r *imageMonitorRepoStub) GetByID(context.Context, int64) (*ImageChannelMonitor, error) {
+func (r *imageMonitorRepoStub) GetByID(_ context.Context, id int64) (*ImageChannelMonitor, error) {
 	if r.getErr != nil {
 		return nil, r.getErr
+	}
+	if r.monitors != nil {
+		m, ok := r.monitors[id]
+		if !ok {
+			return nil, ErrImageChannelMonitorNotFound
+		}
+		return m, nil
 	}
 	return r.monitor, nil
 }
@@ -145,6 +162,32 @@ func (r *imageMonitorRepoStub) ListHistory(
 func (r *imageMonitorRepoStub) DeleteHistoryBefore(_ context.Context, before time.Time) (int64, error) {
 	r.deleteHistoryBefore = before
 	return 0, nil
+}
+
+func (r *imageMonitorRepoStub) AggregateTimeline(_ context.Context, _ int64, bucketSeconds int, since time.Time) ([]*ImageMonitorTimelineBucket, error) {
+	r.lastBucketSeconds = bucketSeconds
+	r.lastSince = since
+	return r.timelineBuckets, r.timelineErr
+}
+
+func (r *imageMonitorRepoStub) ComputeWindowStats(_ context.Context, _ int64, since time.Time) (*ImageMonitorWindowStats, error) {
+	r.lastSince = since
+	if r.windowStats == nil {
+		return &ImageMonitorWindowStats{}, r.windowStatsErr
+	}
+	return r.windowStats, r.windowStatsErr
+}
+
+func (r *imageMonitorRepoStub) ListRecentHistoryForMonitors(context.Context, []int64, int) (map[int64][]*ImageMonitorTimelinePoint, error) {
+	return r.recentHistory, nil
+}
+
+func (r *imageMonitorRepoStub) ListPublicVisible(context.Context) ([]*ImageChannelMonitor, error) {
+	return r.publicMonitors, nil
+}
+
+func (r *imageMonitorRepoStub) ComputeAvailabilityForMonitors(context.Context, []int64) (map[int64]*ImageMonitorAvailability, error) {
+	return r.availability, nil
 }
 
 type imageMonitorPlainEncryptor struct{}
