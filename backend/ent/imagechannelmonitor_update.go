@@ -294,6 +294,26 @@ func (_u *ImageChannelMonitorUpdate) SetNillableDownloadImage(v *bool) *ImageCha
 	return _u
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (_u *ImageChannelMonitorUpdate) SetResponseFormat(v string) *ImageChannelMonitorUpdate {
+	_u.mutation.SetResponseFormat(v)
+	return _u
+}
+
+// SetNillableResponseFormat sets the "response_format" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdate) SetNillableResponseFormat(v *string) *ImageChannelMonitorUpdate {
+	if v != nil {
+		_u.SetResponseFormat(*v)
+	}
+	return _u
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (_u *ImageChannelMonitorUpdate) ClearResponseFormat() *ImageChannelMonitorUpdate {
+	_u.mutation.ClearResponseFormat()
+	return _u
+}
+
 // SetEnabled sets the "enabled" field.
 func (_u *ImageChannelMonitorUpdate) SetEnabled(v bool) *ImageChannelMonitorUpdate {
 	_u.mutation.SetEnabled(v)
@@ -560,6 +580,11 @@ func (_u *ImageChannelMonitorUpdate) check() error {
 			return &ValidationError{Name: "n", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.n": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ResponseFormat(); ok {
+		if err := imagechannelmonitor.ResponseFormatValidator(v); err != nil {
+			return &ValidationError{Name: "response_format", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.response_format": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.PublicName(); ok {
 		if err := imagechannelmonitor.PublicNameValidator(v); err != nil {
 			return &ValidationError{Name: "public_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.public_name": %w`, err)}
@@ -664,6 +689,12 @@ func (_u *ImageChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, er
 	}
 	if value, ok := _u.mutation.DownloadImage(); ok {
 		_spec.SetField(imagechannelmonitor.FieldDownloadImage, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ResponseFormat(); ok {
+		_spec.SetField(imagechannelmonitor.FieldResponseFormat, field.TypeString, value)
+	}
+	if _u.mutation.ResponseFormatCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldResponseFormat, field.TypeString)
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(imagechannelmonitor.FieldEnabled, field.TypeBool, value)
@@ -1034,6 +1065,26 @@ func (_u *ImageChannelMonitorUpdateOne) SetNillableDownloadImage(v *bool) *Image
 	return _u
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (_u *ImageChannelMonitorUpdateOne) SetResponseFormat(v string) *ImageChannelMonitorUpdateOne {
+	_u.mutation.SetResponseFormat(v)
+	return _u
+}
+
+// SetNillableResponseFormat sets the "response_format" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdateOne) SetNillableResponseFormat(v *string) *ImageChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetResponseFormat(*v)
+	}
+	return _u
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (_u *ImageChannelMonitorUpdateOne) ClearResponseFormat() *ImageChannelMonitorUpdateOne {
+	_u.mutation.ClearResponseFormat()
+	return _u
+}
+
 // SetEnabled sets the "enabled" field.
 func (_u *ImageChannelMonitorUpdateOne) SetEnabled(v bool) *ImageChannelMonitorUpdateOne {
 	_u.mutation.SetEnabled(v)
@@ -1313,6 +1364,11 @@ func (_u *ImageChannelMonitorUpdateOne) check() error {
 			return &ValidationError{Name: "n", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.n": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ResponseFormat(); ok {
+		if err := imagechannelmonitor.ResponseFormatValidator(v); err != nil {
+			return &ValidationError{Name: "response_format", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.response_format": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.PublicName(); ok {
 		if err := imagechannelmonitor.PublicNameValidator(v); err != nil {
 			return &ValidationError{Name: "public_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.public_name": %w`, err)}
@@ -1434,6 +1490,12 @@ func (_u *ImageChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *Ima
 	}
 	if value, ok := _u.mutation.DownloadImage(); ok {
 		_spec.SetField(imagechannelmonitor.FieldDownloadImage, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ResponseFormat(); ok {
+		_spec.SetField(imagechannelmonitor.FieldResponseFormat, field.TypeString, value)
+	}
+	if _u.mutation.ResponseFormatCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldResponseFormat, field.TypeString)
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(imagechannelmonitor.FieldEnabled, field.TypeBool, value)

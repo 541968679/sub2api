@@ -45,6 +45,8 @@ type ImageChannelMonitor struct {
 	N int `json:"n,omitempty"`
 	// DownloadImage holds the value of the "download_image" field.
 	DownloadImage bool `json:"download_image,omitempty"`
+	// ResponseFormat holds the value of the "response_format" field.
+	ResponseFormat string `json:"response_format,omitempty"`
 	// Enabled holds the value of the "enabled" field.
 	Enabled bool `json:"enabled,omitempty"`
 	// PublicVisible holds the value of the "public_visible" field.
@@ -96,7 +98,7 @@ func (*ImageChannelMonitor) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case imagechannelmonitor.FieldID, imagechannelmonitor.FieldAccountID, imagechannelmonitor.FieldProxyID, imagechannelmonitor.FieldN, imagechannelmonitor.FieldIntervalSeconds, imagechannelmonitor.FieldTimeoutSeconds, imagechannelmonitor.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
-		case imagechannelmonitor.FieldName, imagechannelmonitor.FieldSourceType, imagechannelmonitor.FieldEndpoint, imagechannelmonitor.FieldAPIKeyEncrypted, imagechannelmonitor.FieldAccountName, imagechannelmonitor.FieldProxyName, imagechannelmonitor.FieldModel, imagechannelmonitor.FieldPrompt, imagechannelmonitor.FieldSize, imagechannelmonitor.FieldQuality, imagechannelmonitor.FieldPublicName:
+		case imagechannelmonitor.FieldName, imagechannelmonitor.FieldSourceType, imagechannelmonitor.FieldEndpoint, imagechannelmonitor.FieldAPIKeyEncrypted, imagechannelmonitor.FieldAccountName, imagechannelmonitor.FieldProxyName, imagechannelmonitor.FieldModel, imagechannelmonitor.FieldPrompt, imagechannelmonitor.FieldSize, imagechannelmonitor.FieldQuality, imagechannelmonitor.FieldResponseFormat, imagechannelmonitor.FieldPublicName:
 			values[i] = new(sql.NullString)
 		case imagechannelmonitor.FieldLastCheckedAt, imagechannelmonitor.FieldCreatedAt, imagechannelmonitor.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -206,6 +208,12 @@ func (_m *ImageChannelMonitor) assignValues(columns []string, values []any) erro
 				return fmt.Errorf("unexpected type %T for field download_image", values[i])
 			} else if value.Valid {
 				_m.DownloadImage = value.Bool
+			}
+		case imagechannelmonitor.FieldResponseFormat:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field response_format", values[i])
+			} else if value.Valid {
+				_m.ResponseFormat = value.String
 			}
 		case imagechannelmonitor.FieldEnabled:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -347,6 +355,9 @@ func (_m *ImageChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("download_image=")
 	builder.WriteString(fmt.Sprintf("%v", _m.DownloadImage))
+	builder.WriteString(", ")
+	builder.WriteString("response_format=")
+	builder.WriteString(_m.ResponseFormat)
 	builder.WriteString(", ")
 	builder.WriteString("enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Enabled))

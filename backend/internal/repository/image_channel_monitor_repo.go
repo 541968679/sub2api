@@ -38,6 +38,7 @@ func (r *imageChannelMonitorRepository) Create(ctx context.Context, m *service.I
 		SetQuality(m.Quality).
 		SetN(m.N).
 		SetDownloadImage(m.DownloadImage).
+		SetResponseFormat(m.ResponseFormat).
 		SetEnabled(m.Enabled).
 		SetPublicVisible(m.PublicVisible).
 		SetPublicName(m.PublicName).
@@ -86,6 +87,7 @@ func (r *imageChannelMonitorRepository) Update(ctx context.Context, m *service.I
 		SetQuality(m.Quality).
 		SetN(m.N).
 		SetDownloadImage(m.DownloadImage).
+		SetResponseFormat(m.ResponseFormat).
 		SetEnabled(m.Enabled).
 		SetPublicVisible(m.PublicVisible).
 		SetPublicName(m.PublicName).
@@ -200,6 +202,7 @@ func (r *imageChannelMonitorRepository) InsertHistory(
 		SetStatus(imagechannelmonitorhistory.Status(row.Status)).
 		SetHasURL(row.HasURL).
 		SetHasB64JSON(row.HasB64JSON).
+		SetResponseFormat(row.ResponseFormat).
 		SetImageURLHost(row.ImageURLHost).
 		SetImageContentType(row.ImageContentType).
 		SetErrorStage(row.ErrorStage).
@@ -503,6 +506,7 @@ func entToServiceImageMonitor(row *dbent.ImageChannelMonitor) *service.ImageChan
 		Quality:         row.Quality,
 		N:               row.N,
 		DownloadImage:   row.DownloadImage,
+		ResponseFormat:  row.ResponseFormat,
 		Enabled:         row.Enabled,
 		PublicVisible:   row.PublicVisible,
 		PublicName:      row.PublicName,
@@ -530,6 +534,7 @@ func entToServiceImageMonitorHistory(row *dbent.ImageChannelMonitorHistory) *ser
 		JSONBytes:        row.JSONBytes,
 		HasURL:           row.HasURL,
 		HasB64JSON:       row.HasB64JSON,
+		ResponseFormat:   row.ResponseFormat,
 		ImageURLHost:     row.ImageURLHost,
 		ImageFirstByteMs: row.ImageFirstByteMs,
 		ImageDownloadMs:  row.ImageDownloadMs,

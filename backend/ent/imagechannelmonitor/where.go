@@ -120,6 +120,11 @@ func DownloadImage(v bool) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldDownloadImage, v))
 }
 
+// ResponseFormat applies equality check predicate on the "response_format" field. It's identical to ResponseFormatEQ.
+func ResponseFormat(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldResponseFormat, v))
+}
+
 // Enabled applies equality check predicate on the "enabled" field. It's identical to EnabledEQ.
 func Enabled(v bool) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldEnabled, v))
@@ -978,6 +983,81 @@ func DownloadImageEQ(v bool) predicate.ImageChannelMonitor {
 // DownloadImageNEQ applies the NEQ predicate on the "download_image" field.
 func DownloadImageNEQ(v bool) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldDownloadImage, v))
+}
+
+// ResponseFormatEQ applies the EQ predicate on the "response_format" field.
+func ResponseFormatEQ(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldResponseFormat, v))
+}
+
+// ResponseFormatNEQ applies the NEQ predicate on the "response_format" field.
+func ResponseFormatNEQ(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldResponseFormat, v))
+}
+
+// ResponseFormatIn applies the In predicate on the "response_format" field.
+func ResponseFormatIn(vs ...string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIn(FieldResponseFormat, vs...))
+}
+
+// ResponseFormatNotIn applies the NotIn predicate on the "response_format" field.
+func ResponseFormatNotIn(vs ...string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotIn(FieldResponseFormat, vs...))
+}
+
+// ResponseFormatGT applies the GT predicate on the "response_format" field.
+func ResponseFormatGT(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGT(FieldResponseFormat, v))
+}
+
+// ResponseFormatGTE applies the GTE predicate on the "response_format" field.
+func ResponseFormatGTE(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGTE(FieldResponseFormat, v))
+}
+
+// ResponseFormatLT applies the LT predicate on the "response_format" field.
+func ResponseFormatLT(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLT(FieldResponseFormat, v))
+}
+
+// ResponseFormatLTE applies the LTE predicate on the "response_format" field.
+func ResponseFormatLTE(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLTE(FieldResponseFormat, v))
+}
+
+// ResponseFormatContains applies the Contains predicate on the "response_format" field.
+func ResponseFormatContains(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldContains(FieldResponseFormat, v))
+}
+
+// ResponseFormatHasPrefix applies the HasPrefix predicate on the "response_format" field.
+func ResponseFormatHasPrefix(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldHasPrefix(FieldResponseFormat, v))
+}
+
+// ResponseFormatHasSuffix applies the HasSuffix predicate on the "response_format" field.
+func ResponseFormatHasSuffix(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldHasSuffix(FieldResponseFormat, v))
+}
+
+// ResponseFormatIsNil applies the IsNil predicate on the "response_format" field.
+func ResponseFormatIsNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIsNull(FieldResponseFormat))
+}
+
+// ResponseFormatNotNil applies the NotNil predicate on the "response_format" field.
+func ResponseFormatNotNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotNull(FieldResponseFormat))
+}
+
+// ResponseFormatEqualFold applies the EqualFold predicate on the "response_format" field.
+func ResponseFormatEqualFold(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEqualFold(FieldResponseFormat, v))
+}
+
+// ResponseFormatContainsFold applies the ContainsFold predicate on the "response_format" field.
+func ResponseFormatContainsFold(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldContainsFold(FieldResponseFormat, v))
 }
 
 // EnabledEQ applies the EQ predicate on the "enabled" field.

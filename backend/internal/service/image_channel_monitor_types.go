@@ -18,7 +18,8 @@ const (
 	imageMonitorDefaultQuality         = "auto"
 	imageMonitorDefaultIntervalSeconds = 300
 	imageMonitorDefaultTimeoutSeconds  = 300
-	imageMonitorMaxResponseBytes       = 2 * 1024 * 1024
+	// b64_json 拿图时整张图内联在 JSON 里(16MB 图 base64 后约 21.4MB),上限需覆盖之。
+	imageMonitorMaxResponseBytes       = 24 * 1024 * 1024
 	imageMonitorMaxDownloadBytes       = 32 * 1024 * 1024
 	imageMonitorMaxReturnedImageData   = 16 * 1024 * 1024
 	imageMonitorExitIPProbeURL         = "https://api.ipify.org?format=text"
@@ -82,6 +83,16 @@ var (
 	ErrImageChannelMonitorInvalidWindow = infraerrors.BadRequest(
 		"IMAGE_CHANNEL_MONITOR_INVALID_WINDOW", "window must be 24h, 7d or 30d",
 	)
+	ErrImageChannelMonitorInvalidResponseFormat = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_INVALID_RESPONSE_FORMAT", "response_format must be url, b64_json or empty",
+	)
+)
+
+// 拿图方式:'url' / 'b64_json' / ''(不传参数,接受任意返回形式)。
+const (
+	ImageMonitorResponseFormatURL  = "url"
+	ImageMonitorResponseFormatB64  = "b64_json"
+	ImageMonitorResponseFormatOmit = ""
 )
 
 type ImageChannelMonitorRepository interface {
@@ -203,6 +214,7 @@ type ImageChannelMonitor struct {
 	Quality             string
 	N                   int
 	DownloadImage       bool
+	ResponseFormat      string
 	Enabled             bool
 	PublicVisible       bool
 	PublicName          string
@@ -236,6 +248,7 @@ type ImageChannelMonitorCreateParams struct {
 	Quality         string
 	N               int
 	DownloadImage   bool
+	ResponseFormat  *string
 	Enabled         bool
 	PublicVisible   bool
 	PublicName      string
@@ -257,6 +270,7 @@ type ImageChannelMonitorUpdateParams struct {
 	Quality         *string
 	N               *int
 	DownloadImage   *bool
+	ResponseFormat  *string
 	Enabled         *bool
 	PublicVisible   *bool
 	PublicName      *string
@@ -274,6 +288,7 @@ type ImageChannelMonitorResult struct {
 	JSONBytes         *int
 	HasURL            bool
 	HasB64JSON        bool
+	ResponseFormat    string
 	ImageURLHost      string
 	ImageFirstByteMs  *int
 	ImageDownloadMs   *int
@@ -311,6 +326,7 @@ type ImageChannelMonitorManualTestParams struct {
 	Quality        string
 	N              int
 	DownloadImage  bool
+	ResponseFormat string
 	TimeoutSeconds int
 	InputImageData string
 	InputImageType string
@@ -359,6 +375,7 @@ type ImageChannelMonitorHistoryRow struct {
 	JSONBytes        *int
 	HasURL           bool
 	HasB64JSON       bool
+	ResponseFormat   string
 	ImageURLHost     string
 	ImageFirstByteMs *int
 	ImageDownloadMs  *int
@@ -382,6 +399,7 @@ type ImageChannelMonitorHistoryEntry struct {
 	JSONBytes        *int
 	HasURL           bool
 	HasB64JSON       bool
+	ResponseFormat   string
 	ImageURLHost     string
 	ImageFirstByteMs *int
 	ImageDownloadMs  *int

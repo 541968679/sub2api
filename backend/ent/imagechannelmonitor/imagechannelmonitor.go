@@ -43,6 +43,8 @@ const (
 	FieldN = "n"
 	// FieldDownloadImage holds the string denoting the download_image field in the database.
 	FieldDownloadImage = "download_image"
+	// FieldResponseFormat holds the string denoting the response_format field in the database.
+	FieldResponseFormat = "response_format"
 	// FieldEnabled holds the string denoting the enabled field in the database.
 	FieldEnabled = "enabled"
 	// FieldPublicVisible holds the string denoting the public_visible field in the database.
@@ -91,6 +93,7 @@ var Columns = []string{
 	FieldQuality,
 	FieldN,
 	FieldDownloadImage,
+	FieldResponseFormat,
 	FieldEnabled,
 	FieldPublicVisible,
 	FieldPublicName,
@@ -147,6 +150,10 @@ var (
 	NValidator func(int) error
 	// DefaultDownloadImage holds the default value on creation for the "download_image" field.
 	DefaultDownloadImage bool
+	// DefaultResponseFormat holds the default value on creation for the "response_format" field.
+	DefaultResponseFormat string
+	// ResponseFormatValidator is a validator for the "response_format" field. It is called by the builders before save.
+	ResponseFormatValidator func(string) error
 	// DefaultEnabled holds the default value on creation for the "enabled" field.
 	DefaultEnabled bool
 	// DefaultPublicVisible holds the default value on creation for the "public_visible" field.
@@ -273,6 +280,11 @@ func ByN(opts ...sql.OrderTermOption) OrderOption {
 // ByDownloadImage orders the results by the download_image field.
 func ByDownloadImage(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDownloadImage, opts...).ToFunc()
+}
+
+// ByResponseFormat orders the results by the response_format field.
+func ByResponseFormat(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResponseFormat, opts...).ToFunc()
 }
 
 // ByEnabled orders the results by the enabled field.

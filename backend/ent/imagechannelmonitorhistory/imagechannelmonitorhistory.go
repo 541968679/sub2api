@@ -33,6 +33,8 @@ const (
 	FieldHasURL = "has_url"
 	// FieldHasB64JSON holds the string denoting the has_b64_json field in the database.
 	FieldHasB64JSON = "has_b64_json"
+	// FieldResponseFormat holds the string denoting the response_format field in the database.
+	FieldResponseFormat = "response_format"
 	// FieldImageURLHost holds the string denoting the image_url_host field in the database.
 	FieldImageURLHost = "image_url_host"
 	// FieldImageFirstByteMs holds the string denoting the image_first_byte_ms field in the database.
@@ -78,6 +80,7 @@ var Columns = []string{
 	FieldJSONBytes,
 	FieldHasURL,
 	FieldHasB64JSON,
+	FieldResponseFormat,
 	FieldImageURLHost,
 	FieldImageFirstByteMs,
 	FieldImageDownloadMs,
@@ -105,6 +108,10 @@ var (
 	DefaultHasURL bool
 	// DefaultHasB64JSON holds the default value on creation for the "has_b64_json" field.
 	DefaultHasB64JSON bool
+	// DefaultResponseFormat holds the default value on creation for the "response_format" field.
+	DefaultResponseFormat string
+	// ResponseFormatValidator is a validator for the "response_format" field. It is called by the builders before save.
+	ResponseFormatValidator func(string) error
 	// DefaultImageURLHost holds the default value on creation for the "image_url_host" field.
 	DefaultImageURLHost string
 	// ImageURLHostValidator is a validator for the "image_url_host" field. It is called by the builders before save.
@@ -204,6 +211,11 @@ func ByHasURL(opts ...sql.OrderTermOption) OrderOption {
 // ByHasB64JSON orders the results by the has_b64_json field.
 func ByHasB64JSON(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldHasB64JSON, opts...).ToFunc()
+}
+
+// ByResponseFormat orders the results by the response_format field.
+func ByResponseFormat(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResponseFormat, opts...).ToFunc()
 }
 
 // ByImageURLHost orders the results by the image_url_host field.

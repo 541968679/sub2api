@@ -855,6 +855,7 @@ var (
 		{Name: "quality", Type: field.TypeString, Nullable: true, Size: 32, Default: "auto"},
 		{Name: "n", Type: field.TypeInt, Default: 1},
 		{Name: "download_image", Type: field.TypeBool, Default: true},
+		{Name: "response_format", Type: field.TypeString, Nullable: true, Size: 16, Default: "url"},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "public_visible", Type: field.TypeBool, Default: false},
 		{Name: "public_name", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
@@ -882,6 +883,7 @@ var (
 		{Name: "json_bytes", Type: field.TypeInt, Nullable: true},
 		{Name: "has_url", Type: field.TypeBool, Default: false},
 		{Name: "has_b64_json", Type: field.TypeBool, Default: false},
+		{Name: "response_format", Type: field.TypeString, Nullable: true, Size: 16, Default: "url"},
 		{Name: "image_url_host", Type: field.TypeString, Nullable: true, Size: 255, Default: ""},
 		{Name: "image_first_byte_ms", Type: field.TypeInt, Nullable: true},
 		{Name: "image_download_ms", Type: field.TypeInt, Nullable: true},
@@ -902,7 +904,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "image_channel_monitor_histories_image_channel_monitors_histories",
-				Columns:    []*schema.Column{ImageChannelMonitorHistoriesColumns[19]},
+				Columns:    []*schema.Column{ImageChannelMonitorHistoriesColumns[20]},
 				RefColumns: []*schema.Column{ImageChannelMonitorsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},

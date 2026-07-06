@@ -360,6 +360,7 @@ func TestImageChannelMonitorRunCheckUsesOpenAIAPIKeyAccountSource(t *testing.T) 
 		Quality:        "auto",
 		N:              1,
 		DownloadImage:  false,
+		ResponseFormat: ImageMonitorResponseFormatURL,
 		TimeoutSeconds: 300,
 	})
 
@@ -394,6 +395,7 @@ func TestImageChannelMonitorRunCheckMarksB64JSONAsFailedForURLMonitor(t *testing
 		Quality:        "auto",
 		N:              1,
 		DownloadImage:  false,
+		ResponseFormat: ImageMonitorResponseFormatURL,
 		TimeoutSeconds: 300,
 	})
 
@@ -402,7 +404,45 @@ func TestImageChannelMonitorRunCheckMarksB64JSONAsFailedForURLMonitor(t *testing
 	require.True(t, result.HasB64JSON)
 	require.Equal(t, "image_url", result.ErrorStage)
 	require.Contains(t, result.Message, "b64_json")
+	require.Equal(t, ImageMonitorResponseFormatURL, result.ResponseFormat)
 	require.Equal(t, "Bearer custom-key", upstream.req.Header.Get("Authorization"))
+}
+
+func TestImageChannelMonitorRunCheckAcceptsB64WhenFormatNotURL(t *testing.T) {
+	const onePixelPNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+	for _, format := range []string{ImageMonitorResponseFormatB64, ImageMonitorResponseFormatOmit} {
+		upstream := &imageMonitorHTTPUpstreamRecorder{
+			body: `{"data":[{"b64_json":"` + onePixelPNG + `","revised_prompt":"ok"}]}`,
+		}
+		svc := NewImageChannelMonitorService(nil, nil, nil, nil, upstream, nil)
+
+		result := svc.runCheck(context.Background(), &ImageChannelMonitor{
+			ID:             21,
+			SourceType:     ImageChannelMonitorSourceCustom,
+			Endpoint:       "https://api.example.com",
+			APIKey:         "custom-key",
+			Model:          "gpt-image-1",
+			Prompt:         "draw",
+			Quality:        "auto",
+			N:              1,
+			DownloadImage:  false,
+			ResponseFormat: format,
+			TimeoutSeconds: 300,
+		})
+
+		require.Equal(t, MonitorStatusOperational, result.Status, "format=%q", format)
+		require.True(t, result.HasB64JSON, "format=%q", format)
+		require.Equal(t, format, result.ResponseFormat, "format=%q", format)
+
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal(upstream.requestBody, &payload))
+		if format == ImageMonitorResponseFormatOmit {
+			_, exists := payload["response_format"]
+			require.False(t, exists, "omit mode must not send response_format")
+		} else {
+			require.Equal(t, format, payload["response_format"])
+		}
+	}
 }
 
 func TestImageChannelMonitorRunCheckUsesCustomProxy(t *testing.T) {
@@ -486,6 +526,7 @@ func TestImageChannelMonitorManualEditUsesEditsEndpointAndMultipart(t *testing.T
 		Quality:        "auto",
 		N:              1,
 		DownloadImage:  false,
+		ResponseFormat: ImageMonitorResponseFormatURL,
 		TimeoutSeconds: 300,
 	}, ImageChannelMonitorManualEdit, ImageChannelMonitorManualTestParams{
 		InputImageData: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",

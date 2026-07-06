@@ -2,6 +2,8 @@ import { apiClient } from '../client'
 
 export type ImageMonitorSourceType = 'custom' | 'account'
 export type ImageMonitorStatus = 'operational' | 'degraded' | 'failed' | 'error'
+// 拿图方式:'url' / 'b64_json' / ''(不传参数,接受任意返回形式)
+export type ImageMonitorResponseFormat = '' | 'url' | 'b64_json'
 
 export interface ImageMonitorTimelinePoint {
   status: ImageMonitorStatus
@@ -57,6 +59,7 @@ export interface ImageChannelMonitor {
   quality: string
   n: number
   download_image: boolean
+  response_format: ImageMonitorResponseFormat
   enabled: boolean
   public_visible: boolean
   public_name: string
@@ -99,6 +102,7 @@ export interface ImageChannelMonitorCreateParams {
   quality?: string
   n?: number
   download_image?: boolean
+  response_format?: ImageMonitorResponseFormat
   enabled?: boolean
   public_visible?: boolean
   public_name?: string
@@ -118,6 +122,7 @@ export interface ImageChannelMonitorResult {
   json_bytes: number | null
   has_url: boolean
   has_b64_json: boolean
+  response_format: ImageMonitorResponseFormat
   image_url_host: string
   image_first_byte_ms: number | null
   image_download_ms: number | null
@@ -174,6 +179,7 @@ export interface ImageChannelManualTestParams {
   quality?: string
   n?: number
   download_image?: boolean
+  response_format?: ImageMonitorResponseFormat
   timeout_seconds?: number
   input_image_data?: string
   input_image_type?: string

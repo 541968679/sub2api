@@ -195,6 +195,20 @@ func (_c *ImageChannelMonitorCreate) SetNillableDownloadImage(v *bool) *ImageCha
 	return _c
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (_c *ImageChannelMonitorCreate) SetResponseFormat(v string) *ImageChannelMonitorCreate {
+	_c.mutation.SetResponseFormat(v)
+	return _c
+}
+
+// SetNillableResponseFormat sets the "response_format" field if the given value is not nil.
+func (_c *ImageChannelMonitorCreate) SetNillableResponseFormat(v *string) *ImageChannelMonitorCreate {
+	if v != nil {
+		_c.SetResponseFormat(*v)
+	}
+	return _c
+}
+
 // SetEnabled sets the "enabled" field.
 func (_c *ImageChannelMonitorCreate) SetEnabled(v bool) *ImageChannelMonitorCreate {
 	_c.mutation.SetEnabled(v)
@@ -399,6 +413,10 @@ func (_c *ImageChannelMonitorCreate) defaults() {
 		v := imagechannelmonitor.DefaultDownloadImage
 		_c.mutation.SetDownloadImage(v)
 	}
+	if _, ok := _c.mutation.ResponseFormat(); !ok {
+		v := imagechannelmonitor.DefaultResponseFormat
+		_c.mutation.SetResponseFormat(v)
+	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		v := imagechannelmonitor.DefaultEnabled
 		_c.mutation.SetEnabled(v)
@@ -498,6 +516,11 @@ func (_c *ImageChannelMonitorCreate) check() error {
 	}
 	if _, ok := _c.mutation.DownloadImage(); !ok {
 		return &ValidationError{Name: "download_image", err: errors.New(`ent: missing required field "ImageChannelMonitor.download_image"`)}
+	}
+	if v, ok := _c.mutation.ResponseFormat(); ok {
+		if err := imagechannelmonitor.ResponseFormatValidator(v); err != nil {
+			return &ValidationError{Name: "response_format", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.response_format": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "ImageChannelMonitor.enabled"`)}
@@ -617,6 +640,10 @@ func (_c *ImageChannelMonitorCreate) createSpec() (*ImageChannelMonitor, *sqlgra
 	if value, ok := _c.mutation.DownloadImage(); ok {
 		_spec.SetField(imagechannelmonitor.FieldDownloadImage, field.TypeBool, value)
 		_node.DownloadImage = value
+	}
+	if value, ok := _c.mutation.ResponseFormat(); ok {
+		_spec.SetField(imagechannelmonitor.FieldResponseFormat, field.TypeString, value)
+		_node.ResponseFormat = value
 	}
 	if value, ok := _c.mutation.Enabled(); ok {
 		_spec.SetField(imagechannelmonitor.FieldEnabled, field.TypeBool, value)
@@ -953,6 +980,24 @@ func (u *ImageChannelMonitorUpsert) SetDownloadImage(v bool) *ImageChannelMonito
 // UpdateDownloadImage sets the "download_image" field to the value that was provided on create.
 func (u *ImageChannelMonitorUpsert) UpdateDownloadImage() *ImageChannelMonitorUpsert {
 	u.SetExcluded(imagechannelmonitor.FieldDownloadImage)
+	return u
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (u *ImageChannelMonitorUpsert) SetResponseFormat(v string) *ImageChannelMonitorUpsert {
+	u.Set(imagechannelmonitor.FieldResponseFormat, v)
+	return u
+}
+
+// UpdateResponseFormat sets the "response_format" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsert) UpdateResponseFormat() *ImageChannelMonitorUpsert {
+	u.SetExcluded(imagechannelmonitor.FieldResponseFormat)
+	return u
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (u *ImageChannelMonitorUpsert) ClearResponseFormat() *ImageChannelMonitorUpsert {
+	u.SetNull(imagechannelmonitor.FieldResponseFormat)
 	return u
 }
 
@@ -1397,6 +1442,27 @@ func (u *ImageChannelMonitorUpsertOne) SetDownloadImage(v bool) *ImageChannelMon
 func (u *ImageChannelMonitorUpsertOne) UpdateDownloadImage() *ImageChannelMonitorUpsertOne {
 	return u.Update(func(s *ImageChannelMonitorUpsert) {
 		s.UpdateDownloadImage()
+	})
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (u *ImageChannelMonitorUpsertOne) SetResponseFormat(v string) *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetResponseFormat(v)
+	})
+}
+
+// UpdateResponseFormat sets the "response_format" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertOne) UpdateResponseFormat() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdateResponseFormat()
+	})
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (u *ImageChannelMonitorUpsertOne) ClearResponseFormat() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearResponseFormat()
 	})
 }
 
@@ -2028,6 +2094,27 @@ func (u *ImageChannelMonitorUpsertBulk) SetDownloadImage(v bool) *ImageChannelMo
 func (u *ImageChannelMonitorUpsertBulk) UpdateDownloadImage() *ImageChannelMonitorUpsertBulk {
 	return u.Update(func(s *ImageChannelMonitorUpsert) {
 		s.UpdateDownloadImage()
+	})
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (u *ImageChannelMonitorUpsertBulk) SetResponseFormat(v string) *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetResponseFormat(v)
+	})
+}
+
+// UpdateResponseFormat sets the "response_format" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertBulk) UpdateResponseFormat() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdateResponseFormat()
+	})
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (u *ImageChannelMonitorUpsertBulk) ClearResponseFormat() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearResponseFormat()
 	})
 }
 

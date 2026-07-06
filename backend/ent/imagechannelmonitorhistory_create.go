@@ -141,6 +141,20 @@ func (_c *ImageChannelMonitorHistoryCreate) SetNillableHasB64JSON(v *bool) *Imag
 	return _c
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (_c *ImageChannelMonitorHistoryCreate) SetResponseFormat(v string) *ImageChannelMonitorHistoryCreate {
+	_c.mutation.SetResponseFormat(v)
+	return _c
+}
+
+// SetNillableResponseFormat sets the "response_format" field if the given value is not nil.
+func (_c *ImageChannelMonitorHistoryCreate) SetNillableResponseFormat(v *string) *ImageChannelMonitorHistoryCreate {
+	if v != nil {
+		_c.SetResponseFormat(*v)
+	}
+	return _c
+}
+
 // SetImageURLHost sets the "image_url_host" field.
 func (_c *ImageChannelMonitorHistoryCreate) SetImageURLHost(v string) *ImageChannelMonitorHistoryCreate {
 	_c.mutation.SetImageURLHost(v)
@@ -333,6 +347,10 @@ func (_c *ImageChannelMonitorHistoryCreate) defaults() {
 		v := imagechannelmonitorhistory.DefaultHasB64JSON
 		_c.mutation.SetHasB64JSON(v)
 	}
+	if _, ok := _c.mutation.ResponseFormat(); !ok {
+		v := imagechannelmonitorhistory.DefaultResponseFormat
+		_c.mutation.SetResponseFormat(v)
+	}
 	if _, ok := _c.mutation.ImageURLHost(); !ok {
 		v := imagechannelmonitorhistory.DefaultImageURLHost
 		_c.mutation.SetImageURLHost(v)
@@ -373,6 +391,11 @@ func (_c *ImageChannelMonitorHistoryCreate) check() error {
 	}
 	if _, ok := _c.mutation.HasB64JSON(); !ok {
 		return &ValidationError{Name: "has_b64_json", err: errors.New(`ent: missing required field "ImageChannelMonitorHistory.has_b64_json"`)}
+	}
+	if v, ok := _c.mutation.ResponseFormat(); ok {
+		if err := imagechannelmonitorhistory.ResponseFormatValidator(v); err != nil {
+			return &ValidationError{Name: "response_format", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.response_format": %w`, err)}
+		}
 	}
 	if v, ok := _c.mutation.ImageURLHost(); ok {
 		if err := imagechannelmonitorhistory.ImageURLHostValidator(v); err != nil {
@@ -458,6 +481,10 @@ func (_c *ImageChannelMonitorHistoryCreate) createSpec() (*ImageChannelMonitorHi
 	if value, ok := _c.mutation.HasB64JSON(); ok {
 		_spec.SetField(imagechannelmonitorhistory.FieldHasB64JSON, field.TypeBool, value)
 		_node.HasB64JSON = value
+	}
+	if value, ok := _c.mutation.ResponseFormat(); ok {
+		_spec.SetField(imagechannelmonitorhistory.FieldResponseFormat, field.TypeString, value)
+		_node.ResponseFormat = value
 	}
 	if value, ok := _c.mutation.ImageURLHost(); ok {
 		_spec.SetField(imagechannelmonitorhistory.FieldImageURLHost, field.TypeString, value)
@@ -733,6 +760,24 @@ func (u *ImageChannelMonitorHistoryUpsert) SetHasB64JSON(v bool) *ImageChannelMo
 // UpdateHasB64JSON sets the "has_b64_json" field to the value that was provided on create.
 func (u *ImageChannelMonitorHistoryUpsert) UpdateHasB64JSON() *ImageChannelMonitorHistoryUpsert {
 	u.SetExcluded(imagechannelmonitorhistory.FieldHasB64JSON)
+	return u
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (u *ImageChannelMonitorHistoryUpsert) SetResponseFormat(v string) *ImageChannelMonitorHistoryUpsert {
+	u.Set(imagechannelmonitorhistory.FieldResponseFormat, v)
+	return u
+}
+
+// UpdateResponseFormat sets the "response_format" field to the value that was provided on create.
+func (u *ImageChannelMonitorHistoryUpsert) UpdateResponseFormat() *ImageChannelMonitorHistoryUpsert {
+	u.SetExcluded(imagechannelmonitorhistory.FieldResponseFormat)
+	return u
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (u *ImageChannelMonitorHistoryUpsert) ClearResponseFormat() *ImageChannelMonitorHistoryUpsert {
+	u.SetNull(imagechannelmonitorhistory.FieldResponseFormat)
 	return u
 }
 
@@ -1173,6 +1218,27 @@ func (u *ImageChannelMonitorHistoryUpsertOne) SetHasB64JSON(v bool) *ImageChanne
 func (u *ImageChannelMonitorHistoryUpsertOne) UpdateHasB64JSON() *ImageChannelMonitorHistoryUpsertOne {
 	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
 		s.UpdateHasB64JSON()
+	})
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (u *ImageChannelMonitorHistoryUpsertOne) SetResponseFormat(v string) *ImageChannelMonitorHistoryUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
+		s.SetResponseFormat(v)
+	})
+}
+
+// UpdateResponseFormat sets the "response_format" field to the value that was provided on create.
+func (u *ImageChannelMonitorHistoryUpsertOne) UpdateResponseFormat() *ImageChannelMonitorHistoryUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
+		s.UpdateResponseFormat()
+	})
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (u *ImageChannelMonitorHistoryUpsertOne) ClearResponseFormat() *ImageChannelMonitorHistoryUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
+		s.ClearResponseFormat()
 	})
 }
 
@@ -1811,6 +1877,27 @@ func (u *ImageChannelMonitorHistoryUpsertBulk) SetHasB64JSON(v bool) *ImageChann
 func (u *ImageChannelMonitorHistoryUpsertBulk) UpdateHasB64JSON() *ImageChannelMonitorHistoryUpsertBulk {
 	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
 		s.UpdateHasB64JSON()
+	})
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (u *ImageChannelMonitorHistoryUpsertBulk) SetResponseFormat(v string) *ImageChannelMonitorHistoryUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
+		s.SetResponseFormat(v)
+	})
+}
+
+// UpdateResponseFormat sets the "response_format" field to the value that was provided on create.
+func (u *ImageChannelMonitorHistoryUpsertBulk) UpdateResponseFormat() *ImageChannelMonitorHistoryUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
+		s.UpdateResponseFormat()
+	})
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (u *ImageChannelMonitorHistoryUpsertBulk) ClearResponseFormat() *ImageChannelMonitorHistoryUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorHistoryUpsert) {
+		s.ClearResponseFormat()
 	})
 }
 

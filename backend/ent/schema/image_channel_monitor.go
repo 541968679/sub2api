@@ -62,6 +62,10 @@ func (ImageChannelMonitor) Fields() []ent.Field {
 			Range(1, 10),
 		field.Bool("download_image").
 			Default(true),
+		field.String("response_format").
+			Optional().
+			Default("url").
+			MaxLen(16),
 		field.Bool("enabled").
 			Default(true),
 		field.Bool("public_visible").

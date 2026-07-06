@@ -20913,6 +20913,7 @@ type ImageChannelMonitorMutation struct {
 	n                   *int
 	addn                *int
 	download_image      *bool
+	response_format     *string
 	enabled             *bool
 	public_visible      *bool
 	public_name         *string
@@ -21702,6 +21703,55 @@ func (m *ImageChannelMonitorMutation) ResetDownloadImage() {
 	m.download_image = nil
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (m *ImageChannelMonitorMutation) SetResponseFormat(s string) {
+	m.response_format = &s
+}
+
+// ResponseFormat returns the value of the "response_format" field in the mutation.
+func (m *ImageChannelMonitorMutation) ResponseFormat() (r string, exists bool) {
+	v := m.response_format
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseFormat returns the old "response_format" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldResponseFormat(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseFormat is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseFormat requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseFormat: %w", err)
+	}
+	return oldValue.ResponseFormat, nil
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (m *ImageChannelMonitorMutation) ClearResponseFormat() {
+	m.response_format = nil
+	m.clearedFields[imagechannelmonitor.FieldResponseFormat] = struct{}{}
+}
+
+// ResponseFormatCleared returns if the "response_format" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) ResponseFormatCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldResponseFormat]
+	return ok
+}
+
+// ResetResponseFormat resets all changes to the "response_format" field.
+func (m *ImageChannelMonitorMutation) ResetResponseFormat() {
+	m.response_format = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldResponseFormat)
+}
+
 // SetEnabled sets the "enabled" field.
 func (m *ImageChannelMonitorMutation) SetEnabled(b bool) {
 	m.enabled = &b
@@ -22200,7 +22250,7 @@ func (m *ImageChannelMonitorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ImageChannelMonitorMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 24)
 	if m.name != nil {
 		fields = append(fields, imagechannelmonitor.FieldName)
 	}
@@ -22242,6 +22292,9 @@ func (m *ImageChannelMonitorMutation) Fields() []string {
 	}
 	if m.download_image != nil {
 		fields = append(fields, imagechannelmonitor.FieldDownloadImage)
+	}
+	if m.response_format != nil {
+		fields = append(fields, imagechannelmonitor.FieldResponseFormat)
 	}
 	if m.enabled != nil {
 		fields = append(fields, imagechannelmonitor.FieldEnabled)
@@ -22306,6 +22359,8 @@ func (m *ImageChannelMonitorMutation) Field(name string) (ent.Value, bool) {
 		return m.N()
 	case imagechannelmonitor.FieldDownloadImage:
 		return m.DownloadImage()
+	case imagechannelmonitor.FieldResponseFormat:
+		return m.ResponseFormat()
 	case imagechannelmonitor.FieldEnabled:
 		return m.Enabled()
 	case imagechannelmonitor.FieldPublicVisible:
@@ -22361,6 +22416,8 @@ func (m *ImageChannelMonitorMutation) OldField(ctx context.Context, name string)
 		return m.OldN(ctx)
 	case imagechannelmonitor.FieldDownloadImage:
 		return m.OldDownloadImage(ctx)
+	case imagechannelmonitor.FieldResponseFormat:
+		return m.OldResponseFormat(ctx)
 	case imagechannelmonitor.FieldEnabled:
 		return m.OldEnabled(ctx)
 	case imagechannelmonitor.FieldPublicVisible:
@@ -22485,6 +22542,13 @@ func (m *ImageChannelMonitorMutation) SetField(name string, value ent.Value) err
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetDownloadImage(v)
+		return nil
+	case imagechannelmonitor.FieldResponseFormat:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseFormat(v)
 		return nil
 	case imagechannelmonitor.FieldEnabled:
 		v, ok := value.(bool)
@@ -22678,6 +22742,9 @@ func (m *ImageChannelMonitorMutation) ClearedFields() []string {
 	if m.FieldCleared(imagechannelmonitor.FieldQuality) {
 		fields = append(fields, imagechannelmonitor.FieldQuality)
 	}
+	if m.FieldCleared(imagechannelmonitor.FieldResponseFormat) {
+		fields = append(fields, imagechannelmonitor.FieldResponseFormat)
+	}
 	if m.FieldCleared(imagechannelmonitor.FieldPublicName) {
 		fields = append(fields, imagechannelmonitor.FieldPublicName)
 	}
@@ -22721,6 +22788,9 @@ func (m *ImageChannelMonitorMutation) ClearField(name string) error {
 		return nil
 	case imagechannelmonitor.FieldQuality:
 		m.ClearQuality()
+		return nil
+	case imagechannelmonitor.FieldResponseFormat:
+		m.ClearResponseFormat()
 		return nil
 	case imagechannelmonitor.FieldPublicName:
 		m.ClearPublicName()
@@ -22777,6 +22847,9 @@ func (m *ImageChannelMonitorMutation) ResetField(name string) error {
 		return nil
 	case imagechannelmonitor.FieldDownloadImage:
 		m.ResetDownloadImage()
+		return nil
+	case imagechannelmonitor.FieldResponseFormat:
+		m.ResetResponseFormat()
 		return nil
 	case imagechannelmonitor.FieldEnabled:
 		m.ResetEnabled()
@@ -22912,6 +22985,7 @@ type ImageChannelMonitorHistoryMutation struct {
 	addjson_bytes          *int
 	has_url                *bool
 	has_b64_json           *bool
+	response_format        *string
 	image_url_host         *string
 	image_first_byte_ms    *int
 	addimage_first_byte_ms *int
@@ -23525,6 +23599,55 @@ func (m *ImageChannelMonitorHistoryMutation) OldHasB64JSON(ctx context.Context) 
 // ResetHasB64JSON resets all changes to the "has_b64_json" field.
 func (m *ImageChannelMonitorHistoryMutation) ResetHasB64JSON() {
 	m.has_b64_json = nil
+}
+
+// SetResponseFormat sets the "response_format" field.
+func (m *ImageChannelMonitorHistoryMutation) SetResponseFormat(s string) {
+	m.response_format = &s
+}
+
+// ResponseFormat returns the value of the "response_format" field in the mutation.
+func (m *ImageChannelMonitorHistoryMutation) ResponseFormat() (r string, exists bool) {
+	v := m.response_format
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldResponseFormat returns the old "response_format" field's value of the ImageChannelMonitorHistory entity.
+// If the ImageChannelMonitorHistory object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorHistoryMutation) OldResponseFormat(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldResponseFormat is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldResponseFormat requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldResponseFormat: %w", err)
+	}
+	return oldValue.ResponseFormat, nil
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (m *ImageChannelMonitorHistoryMutation) ClearResponseFormat() {
+	m.response_format = nil
+	m.clearedFields[imagechannelmonitorhistory.FieldResponseFormat] = struct{}{}
+}
+
+// ResponseFormatCleared returns if the "response_format" field was cleared in this mutation.
+func (m *ImageChannelMonitorHistoryMutation) ResponseFormatCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitorhistory.FieldResponseFormat]
+	return ok
+}
+
+// ResetResponseFormat resets all changes to the "response_format" field.
+func (m *ImageChannelMonitorHistoryMutation) ResetResponseFormat() {
+	m.response_format = nil
+	delete(m.clearedFields, imagechannelmonitorhistory.FieldResponseFormat)
 }
 
 // SetImageURLHost sets the "image_url_host" field.
@@ -24170,7 +24293,7 @@ func (m *ImageChannelMonitorHistoryMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ImageChannelMonitorHistoryMutation) Fields() []string {
-	fields := make([]string, 0, 19)
+	fields := make([]string, 0, 20)
 	if m.monitor != nil {
 		fields = append(fields, imagechannelmonitorhistory.FieldMonitorID)
 	}
@@ -24197,6 +24320,9 @@ func (m *ImageChannelMonitorHistoryMutation) Fields() []string {
 	}
 	if m.has_b64_json != nil {
 		fields = append(fields, imagechannelmonitorhistory.FieldHasB64JSON)
+	}
+	if m.response_format != nil {
+		fields = append(fields, imagechannelmonitorhistory.FieldResponseFormat)
 	}
 	if m.image_url_host != nil {
 		fields = append(fields, imagechannelmonitorhistory.FieldImageURLHost)
@@ -24254,6 +24380,8 @@ func (m *ImageChannelMonitorHistoryMutation) Field(name string) (ent.Value, bool
 		return m.HasURL()
 	case imagechannelmonitorhistory.FieldHasB64JSON:
 		return m.HasB64JSON()
+	case imagechannelmonitorhistory.FieldResponseFormat:
+		return m.ResponseFormat()
 	case imagechannelmonitorhistory.FieldImageURLHost:
 		return m.ImageURLHost()
 	case imagechannelmonitorhistory.FieldImageFirstByteMs:
@@ -24301,6 +24429,8 @@ func (m *ImageChannelMonitorHistoryMutation) OldField(ctx context.Context, name 
 		return m.OldHasURL(ctx)
 	case imagechannelmonitorhistory.FieldHasB64JSON:
 		return m.OldHasB64JSON(ctx)
+	case imagechannelmonitorhistory.FieldResponseFormat:
+		return m.OldResponseFormat(ctx)
 	case imagechannelmonitorhistory.FieldImageURLHost:
 		return m.OldImageURLHost(ctx)
 	case imagechannelmonitorhistory.FieldImageFirstByteMs:
@@ -24392,6 +24522,13 @@ func (m *ImageChannelMonitorHistoryMutation) SetField(name string, value ent.Val
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetHasB64JSON(v)
+		return nil
+	case imagechannelmonitorhistory.FieldResponseFormat:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetResponseFormat(v)
 		return nil
 	case imagechannelmonitorhistory.FieldImageURLHost:
 		v, ok := value.(string)
@@ -24631,6 +24768,9 @@ func (m *ImageChannelMonitorHistoryMutation) ClearedFields() []string {
 	if m.FieldCleared(imagechannelmonitorhistory.FieldJSONBytes) {
 		fields = append(fields, imagechannelmonitorhistory.FieldJSONBytes)
 	}
+	if m.FieldCleared(imagechannelmonitorhistory.FieldResponseFormat) {
+		fields = append(fields, imagechannelmonitorhistory.FieldResponseFormat)
+	}
 	if m.FieldCleared(imagechannelmonitorhistory.FieldImageURLHost) {
 		fields = append(fields, imagechannelmonitorhistory.FieldImageURLHost)
 	}
@@ -24686,6 +24826,9 @@ func (m *ImageChannelMonitorHistoryMutation) ClearField(name string) error {
 		return nil
 	case imagechannelmonitorhistory.FieldJSONBytes:
 		m.ClearJSONBytes()
+		return nil
+	case imagechannelmonitorhistory.FieldResponseFormat:
+		m.ClearResponseFormat()
 		return nil
 	case imagechannelmonitorhistory.FieldImageURLHost:
 		m.ClearImageURLHost()
@@ -24748,6 +24891,9 @@ func (m *ImageChannelMonitorHistoryMutation) ResetField(name string) error {
 		return nil
 	case imagechannelmonitorhistory.FieldHasB64JSON:
 		m.ResetHasB64JSON()
+		return nil
+	case imagechannelmonitorhistory.FieldResponseFormat:
+		m.ResetResponseFormat()
 		return nil
 	case imagechannelmonitorhistory.FieldImageURLHost:
 		m.ResetImageURLHost()

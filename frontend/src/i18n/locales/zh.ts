@@ -2679,6 +2679,8 @@ const zhBase = {
         timeoutSeconds: '超时（秒）',
         downloadImage: '下载返图',
         enabled: '启用监控',
+        responseFormat: '拿图方式',
+        responseFormatOmit: '不传(跟随上游默认)',
         publicSection: '用户侧展示',
         publicVisible: '在用户侧渠道状态页展示',
         publicName: '用户侧展示名',

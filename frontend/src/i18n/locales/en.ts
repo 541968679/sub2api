@@ -2784,6 +2784,8 @@ const enBase = {
         timeoutSeconds: 'Timeout (seconds)',
         downloadImage: 'Download returned image',
         enabled: 'Enable monitor',
+        responseFormat: 'Response format',
+        responseFormatOmit: 'Omit (upstream default)',
         publicSection: 'User-facing display',
         publicVisible: 'Show on the user channel status page',
         publicName: 'Public display name',

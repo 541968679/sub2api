@@ -38,6 +38,10 @@ func (ImageChannelMonitorHistory) Fields() []ent.Field {
 			Default(false),
 		field.Bool("has_b64_json").
 			Default(false),
+		field.String("response_format").
+			Optional().
+			Default("url").
+			MaxLen(16),
 		field.String("image_url_host").
 			Optional().
 			Default("").

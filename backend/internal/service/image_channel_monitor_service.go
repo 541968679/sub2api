@@ -403,6 +403,11 @@ func (s *ImageChannelMonitorService) prepareManualCheck(
 		manual.N = p.N
 	}
 	manual.DownloadImage = p.DownloadImage
+	responseFormat, err := normalizeImageMonitorResponseFormat(p.ResponseFormat)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	manual.ResponseFormat = responseFormat
 	if p.TimeoutSeconds > 0 {
 		manual.TimeoutSeconds = p.TimeoutSeconds
 	}
@@ -608,6 +613,15 @@ func (s *ImageChannelMonitorService) buildCreateMonitor(
 	if p.TimeoutSeconds == 0 {
 		p.TimeoutSeconds = imageMonitorDefaultTimeoutSeconds
 	}
+	// 未传 response_format 字段时保持历史默认 url;显式空串表示不传参数。
+	responseFormat := ImageMonitorResponseFormatURL
+	if p.ResponseFormat != nil {
+		normalized, err := normalizeImageMonitorResponseFormat(*p.ResponseFormat)
+		if err != nil {
+			return nil, "", err
+		}
+		responseFormat = normalized
+	}
 	m := &ImageChannelMonitor{
 		Name:            strings.TrimSpace(p.Name),
 		SourceType:      defaultImageMonitorSource(p.SourceType),
@@ -620,6 +634,7 @@ func (s *ImageChannelMonitorService) buildCreateMonitor(
 		Quality:         defaultString(p.Quality, imageMonitorDefaultQuality),
 		N:               p.N,
 		DownloadImage:   p.DownloadImage,
+		ResponseFormat:  responseFormat,
 		Enabled:         p.Enabled,
 		PublicVisible:   p.PublicVisible,
 		PublicName:      strings.TrimSpace(p.PublicName),
@@ -671,6 +686,13 @@ func (s *ImageChannelMonitorService) applyUpdate(
 	}
 	if p.DownloadImage != nil {
 		m.DownloadImage = *p.DownloadImage
+	}
+	if p.ResponseFormat != nil {
+		normalized, err := normalizeImageMonitorResponseFormat(*p.ResponseFormat)
+		if err != nil {
+			return nil, err
+		}
+		m.ResponseFormat = normalized
 	}
 	if p.Enabled != nil {
 		m.Enabled = *p.Enabled
@@ -895,7 +917,7 @@ func (s *ImageChannelMonitorService) runCheck(
 	if err != nil {
 		return failImageMonitorResult(result, "source", err)
 	}
-	return s.callImageAPI(runCtx, m, resolved, result, stage, false)
+	return s.callImageAPI(runCtx, m, resolved, result, stage, imageMonitorAcceptsB64(m))
 }
 
 func (s *ImageChannelMonitorService) runManualCheck(
@@ -999,6 +1021,7 @@ func (s *ImageChannelMonitorService) performImageMonitorAPIRequest(
 	allowB64JSON bool,
 	probeExitIP bool,
 ) *ImageChannelMonitorResult {
+	result.ResponseFormat = m.ResponseFormat
 	s.captureImageMonitorRequestNetwork(ctx, req, resolved, result, probeExitIP)
 	start := time.Now()
 	stage("api_connect", "waiting for upstream image API headers")
@@ -1136,12 +1159,33 @@ func (s *ImageChannelMonitorService) probeImageMonitorExitIP(
 	return ""
 }
 
+// normalizeImageMonitorResponseFormat 归一拿图方式;非法值返回 error。
+func normalizeImageMonitorResponseFormat(raw string) (string, error) {
+	switch strings.TrimSpace(raw) {
+	case ImageMonitorResponseFormatOmit:
+		return ImageMonitorResponseFormatOmit, nil
+	case ImageMonitorResponseFormatURL:
+		return ImageMonitorResponseFormatURL, nil
+	case ImageMonitorResponseFormatB64:
+		return ImageMonitorResponseFormatB64, nil
+	default:
+		return "", ErrImageChannelMonitorInvalidResponseFormat
+	}
+}
+
+// imageMonitorAcceptsB64 拿图方式为 url 时,b64 返回视为交付失败;其余方式接受 b64。
+func imageMonitorAcceptsB64(m *ImageChannelMonitor) bool {
+	return m.ResponseFormat != ImageMonitorResponseFormatURL
+}
+
 func buildImageMonitorPayload(m *ImageChannelMonitor) map[string]any {
 	payload := map[string]any{
-		"model":           strings.TrimSpace(m.Model),
-		"prompt":          strings.TrimSpace(m.Prompt),
-		"n":               m.N,
-		"response_format": openAIImagesDefaultURLFormat,
+		"model":  strings.TrimSpace(m.Model),
+		"prompt": strings.TrimSpace(m.Prompt),
+		"n":      m.N,
+	}
+	if m.ResponseFormat != ImageMonitorResponseFormatOmit {
+		payload["response_format"] = m.ResponseFormat
 	}
 	if strings.TrimSpace(m.Size) != "" {
 		payload["size"] = strings.TrimSpace(m.Size)
@@ -1163,10 +1207,12 @@ func buildImageMonitorEditPayload(
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	fields := map[string]string{
-		"model":           strings.TrimSpace(m.Model),
-		"prompt":          strings.TrimSpace(m.Prompt),
-		"n":               strconv.Itoa(m.N),
-		"response_format": openAIImagesDefaultURLFormat,
+		"model":  strings.TrimSpace(m.Model),
+		"prompt": strings.TrimSpace(m.Prompt),
+		"n":      strconv.Itoa(m.N),
+	}
+	if m.ResponseFormat != ImageMonitorResponseFormatOmit {
+		fields["response_format"] = m.ResponseFormat
 	}
 	if strings.TrimSpace(m.Size) != "" {
 		fields["size"] = strings.TrimSpace(m.Size)
@@ -1272,6 +1318,7 @@ func (s *ImageChannelMonitorService) persistResult(
 		JSONBytes:        result.JSONBytes,
 		HasURL:           result.HasURL,
 		HasB64JSON:       result.HasB64JSON,
+		ResponseFormat:   result.ResponseFormat,
 		ImageURLHost:     result.ImageURLHost,
 		ImageFirstByteMs: result.ImageFirstByteMs,
 		ImageDownloadMs:  result.ImageDownloadMs,

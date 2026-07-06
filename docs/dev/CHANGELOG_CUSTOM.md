@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-06] feat: 图片渠道监控/手动测试支持 response_format 拿图方式选择
+
+**影响范围**: backend/{migrations/179, ent/schema/{image_channel_monitor,image_channel_monitor_history}.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test)}, internal/repository/image_channel_monitor_repo.go, internal/handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts, views/admin/ImageChannelMonitorView.vue, i18n/locales/{zh,en}.ts}
+**上游兼容性**: 低风险。新增迁移 179（monitors/histories 各加 response_format 列,存量回填 'url' 与旧强制行为一致）;imageMonitorMaxResponseBytes 2MB→24MB(容纳 b64 内联大图);配合 8611221ba(网关透传显式 response_format)。
+**变更详情**:
+- 渠道监控与手动测试均可选拿图方式:URL / Base64 / 不传(跟随上游默认),对应 payload 带 response_format=url / b64_json / 省略参数;JSON 与 multipart(图生图 edits)两条路径同步。
+- 语义:仅 url 模式下 b64 返回视为交付失败(维持旧监控语义);b64_json/不传模式接受 b64 返回为正常,内联图片元数据(尺寸/大小)照常解析。
+- 历史记录:每次检查的拿图方式写入 histories 并在定时历史弹窗新增「拿图方式」列;手动检测记录详情弹窗新增同名指标;手动预置(preset)与本地历史同步保存该字段,旧数据回落 url。
+- 新建渠道/手动测试表单默认 url(行为不变),需要测 base64 或跟随上游时显式切换。
+- 验证:后端新增三态 payload/调度接受性单测,全量 unit 通过;前端 typecheck/lint/相关 vitest 通过;浏览器实测编辑表单回填(库改 b64_json 后正确显示)、手动面板选项、历史列渲染,无控制台报错。
+
 ## [2026-07-06] feat: 图片渠道监控状态时间线 + 用户侧公开展示
 
 **影响范围**: backend/{migrations/178, ent/schema/image_channel_monitor.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test), ops_cleanup_service.go, wire.go}, internal/repository/image_channel_monitor_repo.go, internal/handler/{image_channel_monitor_user_handler.go(新+test), handler.go, wire.go, admin/image_channel_monitor_handler.go}, internal/server/routes/{admin.go, user.go}, cmd/server/wire_gen.go(手工对齐)}, frontend/src/{api/{admin/imageChannelMonitor.ts, imageChannelMonitor.ts(新)}, components/{admin/ImageMonitorStatusDialog.vue(新), user/monitor/{ImageMonitorCard.vue(新), ImageMonitorDetailDialog.vue(新), __tests__/ImageMonitorCard.spec.ts(新)}}, views/{admin/ImageChannelMonitorView.vue, user/ChannelStatusView.vue}, i18n/locales/{zh,en}.ts}

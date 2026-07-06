@@ -34,13 +34,14 @@ type imageChannelMonitorCreateRequest struct {
 	Prompt          string `json:"prompt" binding:"omitempty,max=2000"`
 	Size            string `json:"size" binding:"omitempty,max=32"`
 	Quality         string `json:"quality" binding:"omitempty,max=32"`
-	N               int    `json:"n" binding:"omitempty,min=1,max=10"`
-	DownloadImage   *bool  `json:"download_image"`
-	Enabled         *bool  `json:"enabled"`
-	PublicVisible   *bool  `json:"public_visible"`
-	PublicName      string `json:"public_name" binding:"omitempty,max=200"`
-	IntervalSeconds int    `json:"interval_seconds" binding:"omitempty,min=15,max=3600"`
-	TimeoutSeconds  int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
+	N               int     `json:"n" binding:"omitempty,min=1,max=10"`
+	DownloadImage   *bool   `json:"download_image"`
+	ResponseFormat  *string `json:"response_format" binding:"omitempty,max=16"`
+	Enabled         *bool   `json:"enabled"`
+	PublicVisible   *bool   `json:"public_visible"`
+	PublicName      string  `json:"public_name" binding:"omitempty,max=200"`
+	IntervalSeconds int     `json:"interval_seconds" binding:"omitempty,min=15,max=3600"`
+	TimeoutSeconds  int     `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
 }
 
 type imageChannelMonitorUpdateRequest struct {
@@ -56,6 +57,7 @@ type imageChannelMonitorUpdateRequest struct {
 	Quality         *string `json:"quality" binding:"omitempty,max=32"`
 	N               *int    `json:"n" binding:"omitempty,min=1,max=10"`
 	DownloadImage   *bool   `json:"download_image"`
+	ResponseFormat  *string `json:"response_format" binding:"omitempty,max=16"`
 	Enabled         *bool   `json:"enabled"`
 	PublicVisible   *bool   `json:"public_visible"`
 	PublicName      *string `json:"public_name" binding:"omitempty,max=200"`
@@ -71,6 +73,7 @@ type imageChannelMonitorManualTestRequest struct {
 	Quality        string `json:"quality" binding:"omitempty,max=32"`
 	N              int    `json:"n" binding:"omitempty,min=1,max=10"`
 	DownloadImage  *bool  `json:"download_image"`
+	ResponseFormat string `json:"response_format" binding:"omitempty,max=16"`
 	TimeoutSeconds int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
 	InputImageData string `json:"input_image_data"`
 	InputImageType string `json:"input_image_type" binding:"omitempty,max=100"`
@@ -94,6 +97,7 @@ type imageChannelMonitorResponse struct {
 	Quality             string  `json:"quality"`
 	N                   int     `json:"n"`
 	DownloadImage       bool    `json:"download_image"`
+	ResponseFormat      string  `json:"response_format"`
 	Enabled             bool    `json:"enabled"`
 	PublicVisible       bool    `json:"public_visible"`
 	PublicName          string  `json:"public_name"`
@@ -169,6 +173,7 @@ type imageChannelMonitorResultResponse struct {
 	JSONBytes         *int                               `json:"json_bytes"`
 	HasURL            bool                               `json:"has_url"`
 	HasB64JSON        bool                               `json:"has_b64_json"`
+	ResponseFormat    string                             `json:"response_format"`
 	ImageURLHost      string                             `json:"image_url_host"`
 	ImageFirstByteMs  *int                               `json:"image_first_byte_ms"`
 	ImageDownloadMs   *int                               `json:"image_download_ms"`
@@ -235,6 +240,7 @@ type imageChannelMonitorHistoryItemResponse struct {
 	JSONBytes        *int   `json:"json_bytes"`
 	HasURL           bool   `json:"has_url"`
 	HasB64JSON       bool   `json:"has_b64_json"`
+	ResponseFormat   string `json:"response_format"`
 	ImageURLHost     string `json:"image_url_host"`
 	ImageFirstByteMs *int   `json:"image_first_byte_ms"`
 	ImageDownloadMs  *int   `json:"image_download_ms"`
@@ -267,6 +273,7 @@ func imageMonitorToResponse(m *service.ImageChannelMonitor) *imageChannelMonitor
 		Quality:             m.Quality,
 		N:                   m.N,
 		DownloadImage:       m.DownloadImage,
+		ResponseFormat:      m.ResponseFormat,
 		Enabled:             m.Enabled,
 		PublicVisible:       m.PublicVisible,
 		PublicName:          m.PublicName,
@@ -351,6 +358,7 @@ func imageMonitorResultToResponse(r *service.ImageChannelMonitorResult) imageCha
 		JSONBytes:         r.JSONBytes,
 		HasURL:            r.HasURL,
 		HasB64JSON:        r.HasB64JSON,
+		ResponseFormat:    r.ResponseFormat,
 		ImageURLHost:      r.ImageURLHost,
 		ImageFirstByteMs:  r.ImageFirstByteMs,
 		ImageDownloadMs:   r.ImageDownloadMs,
@@ -399,6 +407,7 @@ func imageMonitorHistoryToResponse(
 		JSONBytes:        e.JSONBytes,
 		HasURL:           e.HasURL,
 		HasB64JSON:       e.HasB64JSON,
+		ResponseFormat:   e.ResponseFormat,
 		ImageURLHost:     e.ImageURLHost,
 		ImageFirstByteMs: e.ImageFirstByteMs,
 		ImageDownloadMs:  e.ImageDownloadMs,
@@ -542,6 +551,7 @@ func (h *ImageChannelMonitorHandler) Create(c *gin.Context) {
 		Quality:         req.Quality,
 		N:               req.N,
 		DownloadImage:   downloadImage,
+		ResponseFormat:  req.ResponseFormat,
 		Enabled:         enabled,
 		PublicVisible:   publicVisible,
 		PublicName:      req.PublicName,
@@ -579,6 +589,7 @@ func (h *ImageChannelMonitorHandler) Update(c *gin.Context) {
 		Quality:         req.Quality,
 		N:               req.N,
 		DownloadImage:   req.DownloadImage,
+		ResponseFormat:  req.ResponseFormat,
 		Enabled:         req.Enabled,
 		PublicVisible:   req.PublicVisible,
 		PublicName:      req.PublicName,
@@ -639,6 +650,7 @@ func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
 		Quality:        req.Quality,
 		N:              req.N,
 		DownloadImage:  downloadImage,
+		ResponseFormat: req.ResponseFormat,
 		TimeoutSeconds: req.TimeoutSeconds,
 		InputImageData: req.InputImageData,
 		InputImageType: req.InputImageType,

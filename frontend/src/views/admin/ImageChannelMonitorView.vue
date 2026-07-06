@@ -174,6 +174,15 @@
                 </div>
 
                 <label class="block">
+                  <span class="input-label">{{ t('admin.imageChannelMonitor.form.responseFormat') }}</span>
+                  <select v-model="manualForm.response_format" class="input">
+                    <option value="url">URL</option>
+                    <option value="b64_json">Base64</option>
+                    <option value="">{{ t('admin.imageChannelMonitor.form.responseFormatOmit') }}</option>
+                  </select>
+                </label>
+
+                <label class="block">
                   <span class="input-label">{{ t('admin.imageChannelMonitor.form.prompt') }}</span>
                   <textarea v-model.trim="manualForm.prompt" rows="2" class="input min-h-[52px]" />
                 </label>
@@ -863,6 +872,14 @@
             <span class="input-label">{{ t('admin.imageChannelMonitor.form.quality') }}</span>
             <input v-model.trim="form.quality" class="input" placeholder="auto" />
           </label>
+          <label class="block">
+            <span class="input-label">{{ t('admin.imageChannelMonitor.form.responseFormat') }}</span>
+            <select v-model="form.response_format" class="input">
+              <option value="url">URL</option>
+              <option value="b64_json">Base64</option>
+              <option value="">{{ t('admin.imageChannelMonitor.form.responseFormatOmit') }}</option>
+            </select>
+          </label>
         </div>
 
         <label class="block">
@@ -941,6 +958,7 @@
           <thead>
             <tr class="text-left text-xs uppercase text-gray-500 dark:text-dark-400">
               <th class="py-2 pr-4">{{ t('admin.imageChannelMonitor.columns.status') }}</th>
+              <th class="py-2 pr-4">{{ t('admin.imageChannelMonitor.form.responseFormat') }}</th>
               <th class="py-2 pr-4">{{ t('admin.imageChannelMonitor.metrics.apiTotal') }}</th>
               <th class="py-2 pr-4">{{ t('admin.imageChannelMonitor.metrics.imageDownload') }}</th>
               <th class="py-2 pr-4">{{ t('admin.imageChannelMonitor.columns.image') }}</th>
@@ -955,6 +973,7 @@
                   {{ statusLabel(item.status) }}
                 </span>
               </td>
+              <td class="py-3 pr-4 whitespace-nowrap">{{ responseFormatLabel(item.response_format) }}</td>
               <td class="py-3 pr-4">{{ formatMs(item.api_total_ms) }}</td>
               <td class="py-3 pr-4">{{ formatMs(item.image_download_ms) }}</td>
               <td class="whitespace-nowrap py-3 pr-4">
@@ -1031,6 +1050,10 @@
           <MetricItem :label="t('admin.imageChannelMonitor.form.quality')" :value="selectedManualRecord.quality || '-'" />
           <MetricItem :label="'n'" :value="String(selectedManualRecord.n)" />
           <MetricItem :label="t('admin.imageChannelMonitor.form.downloadImage')" :value="selectedManualRecord.download_image ? t('common.yes') : t('common.no')" />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.form.responseFormat')"
+            :value="responseFormatLabel(selectedManualRecord.response_format)"
+          />
           <MetricItem
             :label="t('admin.imageChannelMonitor.manual.actualSize')"
             :value="manualRecordImageDims(selectedManualRecord) || '-'"
@@ -1203,6 +1226,7 @@ import type {
   ImageChannelManualRunResponse,
   ImageChannelMonitorResult,
   ImageChannelMonitorRuntimeStatus,
+  ImageMonitorResponseFormat,
   ImageMonitorSourceType,
   ImageMonitorStatus,
 } from '@/api/admin/imageChannelMonitor'
@@ -1262,6 +1286,7 @@ type ManualPresetSettings = {
   quality: string
   n: number
   download_image: boolean
+  response_format: ImageMonitorResponseFormat
   timeout_seconds: number
   input_image_ref?: string
   input_image_type?: string
@@ -1294,6 +1319,7 @@ type ManualHistoryItem = {
   quality: string
   n: number
   download_image: boolean
+  response_format?: ImageMonitorResponseFormat
   input_image_ref?: string
   input_image_type?: string
   input_image_name?: string
@@ -1367,6 +1393,7 @@ type ManualRecordEntry = {
   quality: string
   n: number
   download_image: boolean
+  response_format?: ImageMonitorResponseFormat
   result?: ImageChannelMonitorResult
   liveItem?: ManualResultItem
   historyItem?: ManualHistoryItem
@@ -1467,6 +1494,7 @@ const form = reactive({
   quality: 'auto',
   n: 1,
   download_image: true,
+  response_format: 'url' as ImageMonitorResponseFormat,
   enabled: true,
   public_visible: false,
   public_name: '',
@@ -1484,6 +1512,7 @@ const manualForm = reactive({
   quality: 'auto',
   n: 1,
   download_image: true,
+  response_format: 'url' as ImageMonitorResponseFormat,
   timeout_seconds: 300,
 })
 
@@ -1559,6 +1588,7 @@ const manualConfigSummary = computed(() => [
   manualForm.model || '-',
   manualResolvedSizeLabel.value,
   `n=${manualForm.n}`,
+  responseFormatLabel(manualForm.response_format),
 ])
 
 const manualBatchStats = computed(() => {
@@ -1687,6 +1717,7 @@ function manualRecordFromLive(item: ManualResultItem): ManualRecordEntry {
     quality: settings.quality,
     n: settings.n,
     download_image: settings.download_image,
+    response_format: settings.response_format,
     result,
     liveItem: item,
     inputPreview: item.inputImage?.data || '',
@@ -1715,6 +1746,7 @@ function manualRecordFromHistory(entry: ManualHistoryItem): ManualRecordEntry {
     quality: entry.quality,
     n: entry.n,
     download_image: entry.download_image,
+    response_format: entry.response_format ?? entry.result?.response_format,
     result: entry.result,
     historyItem: entry,
     inputPreview: manualHistoryInputPreview(entry),
@@ -1860,6 +1892,7 @@ function normalizeManualPresetSettings(
     quality: String(raw?.quality || 'auto').trim() || 'auto',
     n: clampInt(raw?.n, 1, 1, 10),
     download_image: raw?.download_image !== false,
+    response_format: normalizeImageResponseFormat(raw?.response_format),
     timeout_seconds: clampInt(raw?.timeout_seconds, 300, 30, 600),
     input_image_ref: typeof raw?.input_image_ref === 'string' ? raw.input_image_ref : '',
     input_image_type: typeof raw?.input_image_type === 'string' ? raw.input_image_type : '',
@@ -1872,6 +1905,19 @@ function normalizeImageSizeMode(value: unknown): ImageSizeMode {
     return value
   }
   return 'omit'
+}
+
+// 旧数据(preset/历史)无该字段时回落 'url',与后端历史默认语义一致。
+function normalizeImageResponseFormat(value: unknown): ImageMonitorResponseFormat {
+  if (value === '' || value === 'b64_json') return value
+  return 'url'
+}
+
+function responseFormatLabel(value: ImageMonitorResponseFormat | undefined): string {
+  if (value === 'url') return 'URL'
+  if (value === 'b64_json') return 'Base64'
+  if (value === '') return t('admin.imageChannelMonitor.form.responseFormatOmit')
+  return '-'
 }
 
 function clampInt(value: unknown, fallback: number, min: number, max: number) {
@@ -1891,6 +1937,7 @@ function currentManualPresetSettings(): ManualPresetSettings {
     quality: manualForm.quality,
     n: manualForm.n,
     download_image: manualForm.download_image,
+    response_format: manualForm.response_format,
     timeout_seconds: manualForm.timeout_seconds,
   })
 }
@@ -1907,6 +1954,7 @@ function applyManualPresetSettings(settings: ManualPresetSettings) {
     quality: normalized.quality,
     n: normalized.n,
     download_image: normalized.download_image,
+    response_format: normalized.response_format,
     timeout_seconds: normalized.timeout_seconds,
   })
 }
@@ -2131,6 +2179,10 @@ function normalizeManualHistoryItem(raw: unknown): ManualHistoryItem | null {
     quality: String(source.quality || '').trim(),
     n: clampInt(source.n, 1, 1, 10),
     download_image: source.download_image !== false,
+    response_format:
+      typeof source.response_format === 'string'
+        ? normalizeImageResponseFormat(source.response_format)
+        : undefined,
     input_image_ref: typeof source.input_image_ref === 'string' ? source.input_image_ref : '',
     input_image_type: typeof source.input_image_type === 'string' ? source.input_image_type : '',
     input_image_name: typeof source.input_image_name === 'string' ? source.input_image_name : '',
@@ -2186,6 +2238,7 @@ async function appendManualHistoryFromRun(target: ImageChannelMonitor, item: Man
       quality: settings.quality,
       n: settings.n,
       download_image: settings.download_image,
+      response_format: settings.response_format,
       input_image_ref: inputImageRef,
       input_image_type: item.inputImage?.type || '',
       input_image_name: item.inputImage?.name || '',
@@ -2378,6 +2431,7 @@ function resetForm() {
     quality: 'auto',
     n: 1,
     download_image: true,
+    response_format: 'url',
     enabled: true,
     public_visible: false,
     public_name: '',
@@ -2407,6 +2461,7 @@ function openEditDialog(row: ImageChannelMonitor) {
     quality: row.quality,
     n: row.n,
     download_image: row.download_image,
+    response_format: normalizeImageResponseFormat(row.response_format),
     enabled: row.enabled,
     public_visible: row.public_visible,
     public_name: row.public_name,
@@ -2515,6 +2570,7 @@ function buildPayload() {
     quality: form.quality,
     n: form.n,
     download_image: form.download_image,
+    response_format: form.response_format,
     enabled: form.enabled,
     public_visible: form.public_visible,
     public_name: form.public_name,
@@ -2619,6 +2675,7 @@ async function startManualTests() {
     quality: manualSettings.quality,
     n: manualSettings.n,
     download_image: manualSettings.download_image,
+    response_format: manualSettings.response_format,
     timeout_seconds: manualSettings.timeout_seconds,
     input_image_data: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.data : undefined,
     input_image_type: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.type : undefined,

@@ -220,6 +220,26 @@ func (_u *ImageChannelMonitorHistoryUpdate) SetNillableHasB64JSON(v *bool) *Imag
 	return _u
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (_u *ImageChannelMonitorHistoryUpdate) SetResponseFormat(v string) *ImageChannelMonitorHistoryUpdate {
+	_u.mutation.SetResponseFormat(v)
+	return _u
+}
+
+// SetNillableResponseFormat sets the "response_format" field if the given value is not nil.
+func (_u *ImageChannelMonitorHistoryUpdate) SetNillableResponseFormat(v *string) *ImageChannelMonitorHistoryUpdate {
+	if v != nil {
+		_u.SetResponseFormat(*v)
+	}
+	return _u
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (_u *ImageChannelMonitorHistoryUpdate) ClearResponseFormat() *ImageChannelMonitorHistoryUpdate {
+	_u.mutation.ClearResponseFormat()
+	return _u
+}
+
 // SetImageURLHost sets the "image_url_host" field.
 func (_u *ImageChannelMonitorHistoryUpdate) SetImageURLHost(v string) *ImageChannelMonitorHistoryUpdate {
 	_u.mutation.SetImageURLHost(v)
@@ -499,6 +519,11 @@ func (_u *ImageChannelMonitorHistoryUpdate) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ResponseFormat(); ok {
+		if err := imagechannelmonitorhistory.ResponseFormatValidator(v); err != nil {
+			return &ValidationError{Name: "response_format", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.response_format": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ImageURLHost(); ok {
 		if err := imagechannelmonitorhistory.ImageURLHostValidator(v); err != nil {
 			return &ValidationError{Name: "image_url_host", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.image_url_host": %w`, err)}
@@ -590,6 +615,12 @@ func (_u *ImageChannelMonitorHistoryUpdate) sqlSave(ctx context.Context) (_node 
 	}
 	if value, ok := _u.mutation.HasB64JSON(); ok {
 		_spec.SetField(imagechannelmonitorhistory.FieldHasB64JSON, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ResponseFormat(); ok {
+		_spec.SetField(imagechannelmonitorhistory.FieldResponseFormat, field.TypeString, value)
+	}
+	if _u.mutation.ResponseFormatCleared() {
+		_spec.ClearField(imagechannelmonitorhistory.FieldResponseFormat, field.TypeString)
 	}
 	if value, ok := _u.mutation.ImageURLHost(); ok {
 		_spec.SetField(imagechannelmonitorhistory.FieldImageURLHost, field.TypeString, value)
@@ -903,6 +934,26 @@ func (_u *ImageChannelMonitorHistoryUpdateOne) SetNillableHasB64JSON(v *bool) *I
 	return _u
 }
 
+// SetResponseFormat sets the "response_format" field.
+func (_u *ImageChannelMonitorHistoryUpdateOne) SetResponseFormat(v string) *ImageChannelMonitorHistoryUpdateOne {
+	_u.mutation.SetResponseFormat(v)
+	return _u
+}
+
+// SetNillableResponseFormat sets the "response_format" field if the given value is not nil.
+func (_u *ImageChannelMonitorHistoryUpdateOne) SetNillableResponseFormat(v *string) *ImageChannelMonitorHistoryUpdateOne {
+	if v != nil {
+		_u.SetResponseFormat(*v)
+	}
+	return _u
+}
+
+// ClearResponseFormat clears the value of the "response_format" field.
+func (_u *ImageChannelMonitorHistoryUpdateOne) ClearResponseFormat() *ImageChannelMonitorHistoryUpdateOne {
+	_u.mutation.ClearResponseFormat()
+	return _u
+}
+
 // SetImageURLHost sets the "image_url_host" field.
 func (_u *ImageChannelMonitorHistoryUpdateOne) SetImageURLHost(v string) *ImageChannelMonitorHistoryUpdateOne {
 	_u.mutation.SetImageURLHost(v)
@@ -1195,6 +1246,11 @@ func (_u *ImageChannelMonitorHistoryUpdateOne) check() error {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.status": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ResponseFormat(); ok {
+		if err := imagechannelmonitorhistory.ResponseFormatValidator(v); err != nil {
+			return &ValidationError{Name: "response_format", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.response_format": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ImageURLHost(); ok {
 		if err := imagechannelmonitorhistory.ImageURLHostValidator(v); err != nil {
 			return &ValidationError{Name: "image_url_host", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitorHistory.image_url_host": %w`, err)}
@@ -1303,6 +1359,12 @@ func (_u *ImageChannelMonitorHistoryUpdateOne) sqlSave(ctx context.Context) (_no
 	}
 	if value, ok := _u.mutation.HasB64JSON(); ok {
 		_spec.SetField(imagechannelmonitorhistory.FieldHasB64JSON, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ResponseFormat(); ok {
+		_spec.SetField(imagechannelmonitorhistory.FieldResponseFormat, field.TypeString, value)
+	}
+	if _u.mutation.ResponseFormatCleared() {
+		_spec.ClearField(imagechannelmonitorhistory.FieldResponseFormat, field.TypeString)
 	}
 	if value, ok := _u.mutation.ImageURLHost(); ok {
 		_spec.SetField(imagechannelmonitorhistory.FieldImageURLHost, field.TypeString, value)

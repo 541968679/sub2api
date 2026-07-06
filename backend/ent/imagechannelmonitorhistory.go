@@ -36,6 +36,8 @@ type ImageChannelMonitorHistory struct {
 	HasURL bool `json:"has_url,omitempty"`
 	// HasB64JSON holds the value of the "has_b64_json" field.
 	HasB64JSON bool `json:"has_b64_json,omitempty"`
+	// ResponseFormat holds the value of the "response_format" field.
+	ResponseFormat string `json:"response_format,omitempty"`
 	// ImageURLHost holds the value of the "image_url_host" field.
 	ImageURLHost string `json:"image_url_host,omitempty"`
 	// ImageFirstByteMs holds the value of the "image_first_byte_ms" field.
@@ -91,7 +93,7 @@ func (*ImageChannelMonitorHistory) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case imagechannelmonitorhistory.FieldID, imagechannelmonitorhistory.FieldMonitorID, imagechannelmonitorhistory.FieldHTTPStatus, imagechannelmonitorhistory.FieldAPIHeaderMs, imagechannelmonitorhistory.FieldAPIBodyMs, imagechannelmonitorhistory.FieldAPITotalMs, imagechannelmonitorhistory.FieldJSONBytes, imagechannelmonitorhistory.FieldImageFirstByteMs, imagechannelmonitorhistory.FieldImageDownloadMs, imagechannelmonitorhistory.FieldImageBytes, imagechannelmonitorhistory.FieldImageWidth, imagechannelmonitorhistory.FieldImageHeight:
 			values[i] = new(sql.NullInt64)
-		case imagechannelmonitorhistory.FieldStatus, imagechannelmonitorhistory.FieldImageURLHost, imagechannelmonitorhistory.FieldImageContentType, imagechannelmonitorhistory.FieldErrorStage, imagechannelmonitorhistory.FieldMessage:
+		case imagechannelmonitorhistory.FieldStatus, imagechannelmonitorhistory.FieldResponseFormat, imagechannelmonitorhistory.FieldImageURLHost, imagechannelmonitorhistory.FieldImageContentType, imagechannelmonitorhistory.FieldErrorStage, imagechannelmonitorhistory.FieldMessage:
 			values[i] = new(sql.NullString)
 		case imagechannelmonitorhistory.FieldCheckedAt:
 			values[i] = new(sql.NullTime)
@@ -174,6 +176,12 @@ func (_m *ImageChannelMonitorHistory) assignValues(columns []string, values []an
 				return fmt.Errorf("unexpected type %T for field has_b64_json", values[i])
 			} else if value.Valid {
 				_m.HasB64JSON = value.Bool
+			}
+		case imagechannelmonitorhistory.FieldResponseFormat:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field response_format", values[i])
+			} else if value.Valid {
+				_m.ResponseFormat = value.String
 			}
 		case imagechannelmonitorhistory.FieldImageURLHost:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -317,6 +325,9 @@ func (_m *ImageChannelMonitorHistory) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("has_b64_json=")
 	builder.WriteString(fmt.Sprintf("%v", _m.HasB64JSON))
+	builder.WriteString(", ")
+	builder.WriteString("response_format=")
+	builder.WriteString(_m.ResponseFormat)
 	builder.WriteString(", ")
 	builder.WriteString("image_url_host=")
 	builder.WriteString(_m.ImageURLHost)
