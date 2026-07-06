@@ -1157,6 +1157,16 @@ const zhBase = {
       '15d': '15 天',
       '30d': '30 天'
     },
+    imageSection: {
+      title: '生图渠道',
+      badge: '生图',
+      apiLatency: '生图耗时',
+      downloadLatency: '图片下载',
+      detailModel: '模型',
+      detailWindow: '窗口',
+      detailAvailability: '可用率',
+      detailAvgLatency: '平均生图耗时'
+    },
     overall: {
       operational: 'OPERATIONAL',
       degraded: 'DEGRADED',

@@ -1222,6 +1222,16 @@ const enBase = {
       '15d': '15 days',
       '30d': '30 days'
     },
+    imageSection: {
+      title: 'Image channels',
+      badge: 'Image',
+      apiLatency: 'Generation',
+      downloadLatency: 'Download',
+      detailModel: 'Model',
+      detailWindow: 'Window',
+      detailAvailability: 'Availability',
+      detailAvgLatency: 'Avg generation latency'
+    },
     overall: {
       operational: 'OPERATIONAL',
       degraded: 'DEGRADED',
