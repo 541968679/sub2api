@@ -626,6 +626,16 @@
                   {{ nextCheckText(row) }}
                 </span>
               </div>
+              <div class="mt-2 rounded-md bg-gray-50 px-2 pb-1.5 dark:bg-dark-800">
+                <MonitorTimeline
+                  :buckets="monitorStripPoints(row)"
+                  :countdown-seconds="rowCountdownSeconds(row)"
+                />
+                <div class="mt-1 flex items-center justify-between text-[11px] text-gray-500 dark:text-dark-400">
+                  <span>{{ t('admin.imageChannelMonitor.statusStrip.availability7d') }}</span>
+                  <span class="tabular-nums font-medium">{{ formatAvailability(row.availability_7d) }}</span>
+                </div>
+              </div>
             </div>
           </template>
 
@@ -688,6 +698,9 @@
                 @click="runNow(row)"
               >
                 {{ runningId === row.id ? t('common.loading') : t('admin.imageChannelMonitor.runNow') }}
+              </button>
+              <button type="button" class="btn btn-secondary btn-sm" @click="statusDialogTarget = row">
+                {{ t('admin.imageChannelMonitor.statusDetail') }}
               </button>
               <button type="button" class="btn btn-secondary btn-sm" @click="openHistory(row)">
                 {{ t('admin.imageChannelMonitor.history') }}
@@ -1155,6 +1168,12 @@
       </template>
     </BaseDialog>
 
+    <ImageMonitorStatusDialog
+      :show="Boolean(statusDialogTarget)"
+      :monitor="statusDialogTarget"
+      @close="statusDialogTarget = null"
+    />
+
     <ConfirmDialog
       :show="showDeleteDialog"
       :title="t('common.delete')"
@@ -1189,6 +1208,9 @@ import type {
 } from '@/api/admin/imageChannelMonitor'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
+import MonitorTimeline from '@/components/user/monitor/MonitorTimeline.vue'
+import ImageMonitorStatusDialog from '@/components/admin/ImageMonitorStatusDialog.vue'
+import type { MonitorTimelinePoint } from '@/api/channelMonitor'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
@@ -1368,6 +1390,7 @@ const deleting = ref<ImageChannelMonitor | null>(null)
 const lastRunResult = ref<ImageChannelMonitorResult | null>(null)
 const showHistoryDialog = ref(false)
 const historyItems = ref<ImageChannelMonitorHistoryItem[]>([])
+const statusDialogTarget = ref<ImageChannelMonitor | null>(null)
 const accountOptions = ref<Account[]>([])
 const accountsLoading = ref(false)
 const proxyOptions = ref<Proxy[]>([])
@@ -3005,6 +3028,24 @@ function formatSize(size: string) {
   const normalized = size.trim()
   if (!normalized) return t('admin.imageChannelMonitor.sizeOmitted')
   return normalized
+}
+
+function monitorStripPoints(row: ImageChannelMonitor): MonitorTimelinePoint[] {
+  return (row.timeline ?? []).map((p) => ({
+    status: p.status,
+    latency_ms: p.latency_ms,
+    ping_latency_ms: null,
+    checked_at: p.checked_at,
+  }))
+}
+
+function rowCountdownSeconds(row: ImageChannelMonitor): number {
+  return runtimeStatuses.value[row.id]?.seconds_until_next_check ?? 0
+}
+
+function formatAvailability(value: number | undefined): string {
+  if (typeof value !== 'number') return '-'
+  return `${value.toFixed(1)}%`
 }
 
 function manualRecordImageDims(entry: ManualRecordEntry) {

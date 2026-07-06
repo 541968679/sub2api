@@ -2681,6 +2681,25 @@ const zhBase = {
         apiTotal: 'API 总耗时',
         imageDownload: '图片下载'
       },
+      statusDetail: '状态详情',
+      statusStrip: {
+        availability7d: '7 天可用率'
+      },
+      statusDialog: {
+        title: '监控状态详情',
+        window: { '24h': '近 24 小时', '7d': '近 7 天', '30d': '近 30 天' },
+        availability: '可用率',
+        checks: '检查次数',
+        failures: '失败次数',
+        avgApi: '平均 API 耗时',
+        maxApi: '最大 API 耗时',
+        avgDownload: '平均下载耗时',
+        chartTitle: '耗时趋势(线)与失败次数(柱)',
+        seriesApi: 'API 总耗时',
+        seriesDownload: '图片下载',
+        seriesFailures: '失败次数',
+        loadError: '加载监控时间线失败'
+      },
       sizes: {
         square: '1024x1024 方图',
         landscape: '1536x1024 横图',

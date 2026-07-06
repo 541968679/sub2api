@@ -2780,6 +2780,25 @@ const enBase = {
         publicNamePlaceholder: 'Leave empty to use the monitor name',
         publicHint: "When enabled, this channel's status, latency and availability appear in the image section of the user channel status page. The display name can mask internal channel naming."
       },
+      statusDetail: 'Status detail',
+      statusStrip: {
+        availability7d: '7d availability'
+      },
+      statusDialog: {
+        title: 'Monitor status detail',
+        window: { '24h': 'Last 24h', '7d': 'Last 7d', '30d': 'Last 30d' },
+        availability: 'Availability',
+        checks: 'Checks',
+        failures: 'Failures',
+        avgApi: 'Avg API latency',
+        maxApi: 'Max API latency',
+        avgDownload: 'Avg download',
+        chartTitle: 'Latency trend (lines) and failures (bars)',
+        seriesApi: 'API total',
+        seriesDownload: 'Image download',
+        seriesFailures: 'Failures',
+        loadError: 'Failed to load monitor timeline'
+      },
       metrics: {
         apiHeader: 'API headers',
         apiBody: 'API body',
