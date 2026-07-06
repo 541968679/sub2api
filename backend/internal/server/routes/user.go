@@ -143,5 +143,11 @@ func RegisterUserRoutes(
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
+		// 图片渠道监控（用户只读，仅 public_visible 渠道）
+		imageMonitors := authenticated.Group("/image-channel-monitors")
+		{
+			imageMonitors.GET("", h.ImageChannelMonitorUser.List)
+			imageMonitors.GET("/:id/status", h.ImageChannelMonitorUser.GetStatus)
+		}
 	}
 }

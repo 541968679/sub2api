@@ -41,25 +41,26 @@ type AdminHandlers struct {
 }
 
 type Handlers struct {
-	Auth             *AuthHandler
-	User             *UserHandler
-	APIKey           *APIKeyHandler
-	Distribution     *DistributionHandler
-	Usage            *UsageHandler
-	Redeem           *RedeemHandler
-	Subscription     *SubscriptionHandler
-	Announcement     *AnnouncementHandler
-	ChannelMonitor   *ChannelMonitorUserHandler
-	Admin            *AdminHandlers
-	Gateway          *GatewayHandler
-	OpenAIGateway    *OpenAIGatewayHandler
-	Setting          *SettingHandler
-	Totp             *TotpHandler
-	Payment          *PaymentHandler
-	PaymentWebhook   *PaymentWebhookHandler
-	PricingPage      *PricingPageHandler
-	TutorialPage     *TutorialPageHandler
-	AvailableChannel *AvailableChannelHandler
+	Auth                    *AuthHandler
+	User                    *UserHandler
+	APIKey                  *APIKeyHandler
+	Distribution            *DistributionHandler
+	Usage                   *UsageHandler
+	Redeem                  *RedeemHandler
+	Subscription            *SubscriptionHandler
+	Announcement            *AnnouncementHandler
+	ChannelMonitor          *ChannelMonitorUserHandler
+	ImageChannelMonitorUser *ImageChannelMonitorUserHandler
+	Admin                   *AdminHandlers
+	Gateway                 *GatewayHandler
+	OpenAIGateway           *OpenAIGatewayHandler
+	Setting                 *SettingHandler
+	Totp                    *TotpHandler
+	Payment                 *PaymentHandler
+	PaymentWebhook          *PaymentWebhookHandler
+	PricingPage             *PricingPageHandler
+	TutorialPage            *TutorialPageHandler
+	AvailableChannel        *AvailableChannelHandler
 }
 
 type BuildInfo struct {
