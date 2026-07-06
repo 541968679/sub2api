@@ -105,6 +105,60 @@ type imageChannelMonitorResponse struct {
 	UpdatedAt           string  `json:"updated_at"`
 }
 
+type imageMonitorTimelinePointResponse struct {
+	Status          string `json:"status"`
+	LatencyMs       *int   `json:"latency_ms"`
+	ImageDownloadMs *int   `json:"image_download_ms"`
+	CheckedAt       string `json:"checked_at"`
+}
+
+type imageMonitorTimelineBucketResponse struct {
+	BucketStart        string `json:"bucket_start"`
+	Total              int    `json:"total"`
+	Operational        int    `json:"operational"`
+	Degraded           int    `json:"degraded"`
+	Failed             int    `json:"failed"`
+	Error              int    `json:"error"`
+	AvgAPITotalMs      *int   `json:"avg_api_total_ms"`
+	MaxAPITotalMs      *int   `json:"max_api_total_ms"`
+	AvgImageDownloadMs *int   `json:"avg_image_download_ms"`
+}
+
+type imageMonitorTimelineSummaryResponse struct {
+	Total              int     `json:"total"`
+	OK                 int     `json:"ok"`
+	Failures           int     `json:"failures"`
+	Availability       float64 `json:"availability"`
+	AvgAPITotalMs      *int    `json:"avg_api_total_ms"`
+	MaxAPITotalMs      *int    `json:"max_api_total_ms"`
+	AvgImageDownloadMs *int    `json:"avg_image_download_ms"`
+}
+
+type imageMonitorTimelineResponse struct {
+	Window  string                               `json:"window"`
+	Summary imageMonitorTimelineSummaryResponse  `json:"summary"`
+	Buckets []imageMonitorTimelineBucketResponse `json:"buckets"`
+}
+
+type imageChannelMonitorListItemResponse struct {
+	*imageChannelMonitorResponse
+	Availability7d float64                             `json:"availability_7d"`
+	Timeline       []imageMonitorTimelinePointResponse `json:"timeline"`
+}
+
+func imageMonitorTimelinePointsToResponse(points []*service.ImageMonitorTimelinePoint) []imageMonitorTimelinePointResponse {
+	out := make([]imageMonitorTimelinePointResponse, 0, len(points))
+	for _, p := range points {
+		out = append(out, imageMonitorTimelinePointResponse{
+			Status:          p.Status,
+			LatencyMs:       p.APITotalMs,
+			ImageDownloadMs: p.ImageDownloadMs,
+			CheckedAt:       p.CheckedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return out
+}
+
 type imageChannelMonitorResultResponse struct {
 	MonitorID         int64                              `json:"monitor_id"`
 	Status            string                             `json:"status"`
@@ -374,11 +428,73 @@ func (h *ImageChannelMonitorHandler) List(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	out := make([]*imageChannelMonitorResponse, 0, len(items))
+	ids := make([]int64, 0, len(items))
 	for _, m := range items {
-		out = append(out, imageMonitorToResponse(m))
+		ids = append(ids, m.ID)
+	}
+	timelines, err := h.monitorService.TimelinesForMonitors(c.Request.Context(), ids)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	availability, err := h.monitorService.AvailabilityForMonitors(c.Request.Context(), ids)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]*imageChannelMonitorListItemResponse, 0, len(items))
+	for _, m := range items {
+		item := &imageChannelMonitorListItemResponse{
+			imageChannelMonitorResponse: imageMonitorToResponse(m),
+			Timeline:                    imageMonitorTimelinePointsToResponse(timelines[m.ID]),
+		}
+		if a := availability[m.ID]; a != nil {
+			item.Availability7d = a.D7
+		}
+		out = append(out, item)
 	}
 	response.Paginated(c, out, total, page, pageSize)
+}
+
+// Timeline GET /admin/image-channel-monitors/:id/timeline?window=24h|7d|30d
+func (h *ImageChannelMonitorHandler) Timeline(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	window := c.DefaultQuery("window", "24h")
+	tl, err := h.monitorService.GetAdminTimeline(c.Request.Context(), id, window)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	buckets := make([]imageMonitorTimelineBucketResponse, 0, len(tl.Buckets))
+	for _, b := range tl.Buckets {
+		buckets = append(buckets, imageMonitorTimelineBucketResponse{
+			BucketStart:        b.BucketStart.UTC().Format(time.RFC3339),
+			Total:              b.Total,
+			Operational:        b.Operational,
+			Degraded:           b.Degraded,
+			Failed:             b.Failed,
+			Error:              b.Error,
+			AvgAPITotalMs:      b.AvgAPITotalMs,
+			MaxAPITotalMs:      b.MaxAPITotalMs,
+			AvgImageDownloadMs: b.AvgImageDownloadMs,
+		})
+	}
+	response.Success(c, imageMonitorTimelineResponse{
+		Window: tl.Window,
+		Summary: imageMonitorTimelineSummaryResponse{
+			Total:              tl.Summary.Total,
+			OK:                 tl.Summary.OK,
+			Failures:           tl.Summary.Total - tl.Summary.OK,
+			Availability:       tl.Summary.Availability,
+			AvgAPITotalMs:      tl.Summary.AvgAPITotalMs,
+			MaxAPITotalMs:      tl.Summary.MaxAPITotalMs,
+			AvgImageDownloadMs: tl.Summary.AvgImageDownloadMs,
+		},
+		Buckets: buckets,
+	})
 }
 
 func (h *ImageChannelMonitorHandler) Get(c *gin.Context) {
