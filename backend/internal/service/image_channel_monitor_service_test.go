@@ -152,6 +152,41 @@ func (e imageMonitorPlainEncryptor) Decrypt(ciphertext string) (string, error) {
 	return ciphertext, nil
 }
 
+func TestImageChannelMonitorPublicFieldsCreateAndPartialUpdate(t *testing.T) {
+	accountID := int64(7)
+	repo := &imageMonitorRepoStub{}
+	accounts := &imageMonitorAccountReaderStub{account: &Account{
+		ID:       accountID,
+		Name:     "openai-image",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "acct-key",
+		},
+	}}
+	svc := NewImageChannelMonitorService(repo, accounts, nil, imageMonitorPlainEncryptor{}, nil, nil)
+
+	created, err := svc.Create(context.Background(), ImageChannelMonitorCreateParams{
+		Name:          "img-a",
+		SourceType:    ImageChannelMonitorSourceAccount,
+		AccountID:     &accountID,
+		PublicVisible: true,
+		PublicName:    "  生图通道A  ",
+	})
+	require.NoError(t, err)
+	require.True(t, created.PublicVisible)
+	require.Equal(t, "生图通道A", created.PublicName)
+
+	repo.monitor = created
+	newName := "通道A"
+	updated, err := svc.Update(context.Background(), created.ID, ImageChannelMonitorUpdateParams{
+		PublicName: &newName,
+	})
+	require.NoError(t, err)
+	require.True(t, updated.PublicVisible, "partial update must not reset public_visible")
+	require.Equal(t, "通道A", updated.PublicName)
+}
+
 func TestImageChannelMonitorRunCheckUsesOpenAIAPIKeyAccountSource(t *testing.T) {
 	accountID := int64(7)
 	account := &Account{

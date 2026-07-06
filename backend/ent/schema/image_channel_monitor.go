@@ -64,6 +64,12 @@ func (ImageChannelMonitor) Fields() []ent.Field {
 			Default(true),
 		field.Bool("enabled").
 			Default(true),
+		field.Bool("public_visible").
+			Default(false),
+		field.String("public_name").
+			Optional().
+			Default("").
+			MaxLen(200),
 		field.Int("interval_seconds").
 			Default(300).
 			Range(15, 3600),

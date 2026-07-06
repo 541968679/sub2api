@@ -37,6 +37,8 @@ type imageChannelMonitorCreateRequest struct {
 	N               int    `json:"n" binding:"omitempty,min=1,max=10"`
 	DownloadImage   *bool  `json:"download_image"`
 	Enabled         *bool  `json:"enabled"`
+	PublicVisible   *bool  `json:"public_visible"`
+	PublicName      string `json:"public_name" binding:"omitempty,max=200"`
 	IntervalSeconds int    `json:"interval_seconds" binding:"omitempty,min=15,max=3600"`
 	TimeoutSeconds  int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
 }
@@ -55,6 +57,8 @@ type imageChannelMonitorUpdateRequest struct {
 	N               *int    `json:"n" binding:"omitempty,min=1,max=10"`
 	DownloadImage   *bool   `json:"download_image"`
 	Enabled         *bool   `json:"enabled"`
+	PublicVisible   *bool   `json:"public_visible"`
+	PublicName      *string `json:"public_name" binding:"omitempty,max=200"`
 	IntervalSeconds *int    `json:"interval_seconds" binding:"omitempty,min=15,max=3600"`
 	TimeoutSeconds  *int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
 }
@@ -91,6 +95,8 @@ type imageChannelMonitorResponse struct {
 	N                   int     `json:"n"`
 	DownloadImage       bool    `json:"download_image"`
 	Enabled             bool    `json:"enabled"`
+	PublicVisible       bool    `json:"public_visible"`
+	PublicName          string  `json:"public_name"`
 	IntervalSeconds     int     `json:"interval_seconds"`
 	TimeoutSeconds      int     `json:"timeout_seconds"`
 	LastCheckedAt       *string `json:"last_checked_at"`
@@ -208,6 +214,8 @@ func imageMonitorToResponse(m *service.ImageChannelMonitor) *imageChannelMonitor
 		N:                   m.N,
 		DownloadImage:       m.DownloadImage,
 		Enabled:             m.Enabled,
+		PublicVisible:       m.PublicVisible,
+		PublicName:          m.PublicName,
 		IntervalSeconds:     m.IntervalSeconds,
 		TimeoutSeconds:      m.TimeoutSeconds,
 		CreatedBy:           m.CreatedBy,
@@ -401,6 +409,10 @@ func (h *ImageChannelMonitorHandler) Create(c *gin.Context) {
 	if req.DownloadImage != nil {
 		downloadImage = *req.DownloadImage
 	}
+	publicVisible := false
+	if req.PublicVisible != nil {
+		publicVisible = *req.PublicVisible
+	}
 	m, err := h.monitorService.Create(c.Request.Context(), service.ImageChannelMonitorCreateParams{
 		Name:            req.Name,
 		SourceType:      req.SourceType,
@@ -415,6 +427,8 @@ func (h *ImageChannelMonitorHandler) Create(c *gin.Context) {
 		N:               req.N,
 		DownloadImage:   downloadImage,
 		Enabled:         enabled,
+		PublicVisible:   publicVisible,
+		PublicName:      req.PublicName,
 		IntervalSeconds: req.IntervalSeconds,
 		TimeoutSeconds:  req.TimeoutSeconds,
 		CreatedBy:       subject.UserID,
@@ -450,6 +464,8 @@ func (h *ImageChannelMonitorHandler) Update(c *gin.Context) {
 		N:               req.N,
 		DownloadImage:   req.DownloadImage,
 		Enabled:         req.Enabled,
+		PublicVisible:   req.PublicVisible,
+		PublicName:      req.PublicName,
 		IntervalSeconds: req.IntervalSeconds,
 		TimeoutSeconds:  req.TimeoutSeconds,
 	})

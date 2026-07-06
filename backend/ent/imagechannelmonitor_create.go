@@ -209,6 +209,34 @@ func (_c *ImageChannelMonitorCreate) SetNillableEnabled(v *bool) *ImageChannelMo
 	return _c
 }
 
+// SetPublicVisible sets the "public_visible" field.
+func (_c *ImageChannelMonitorCreate) SetPublicVisible(v bool) *ImageChannelMonitorCreate {
+	_c.mutation.SetPublicVisible(v)
+	return _c
+}
+
+// SetNillablePublicVisible sets the "public_visible" field if the given value is not nil.
+func (_c *ImageChannelMonitorCreate) SetNillablePublicVisible(v *bool) *ImageChannelMonitorCreate {
+	if v != nil {
+		_c.SetPublicVisible(*v)
+	}
+	return _c
+}
+
+// SetPublicName sets the "public_name" field.
+func (_c *ImageChannelMonitorCreate) SetPublicName(v string) *ImageChannelMonitorCreate {
+	_c.mutation.SetPublicName(v)
+	return _c
+}
+
+// SetNillablePublicName sets the "public_name" field if the given value is not nil.
+func (_c *ImageChannelMonitorCreate) SetNillablePublicName(v *string) *ImageChannelMonitorCreate {
+	if v != nil {
+		_c.SetPublicName(*v)
+	}
+	return _c
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (_c *ImageChannelMonitorCreate) SetIntervalSeconds(v int) *ImageChannelMonitorCreate {
 	_c.mutation.SetIntervalSeconds(v)
@@ -375,6 +403,14 @@ func (_c *ImageChannelMonitorCreate) defaults() {
 		v := imagechannelmonitor.DefaultEnabled
 		_c.mutation.SetEnabled(v)
 	}
+	if _, ok := _c.mutation.PublicVisible(); !ok {
+		v := imagechannelmonitor.DefaultPublicVisible
+		_c.mutation.SetPublicVisible(v)
+	}
+	if _, ok := _c.mutation.PublicName(); !ok {
+		v := imagechannelmonitor.DefaultPublicName
+		_c.mutation.SetPublicName(v)
+	}
 	if _, ok := _c.mutation.IntervalSeconds(); !ok {
 		v := imagechannelmonitor.DefaultIntervalSeconds
 		_c.mutation.SetIntervalSeconds(v)
@@ -465,6 +501,14 @@ func (_c *ImageChannelMonitorCreate) check() error {
 	}
 	if _, ok := _c.mutation.Enabled(); !ok {
 		return &ValidationError{Name: "enabled", err: errors.New(`ent: missing required field "ImageChannelMonitor.enabled"`)}
+	}
+	if _, ok := _c.mutation.PublicVisible(); !ok {
+		return &ValidationError{Name: "public_visible", err: errors.New(`ent: missing required field "ImageChannelMonitor.public_visible"`)}
+	}
+	if v, ok := _c.mutation.PublicName(); ok {
+		if err := imagechannelmonitor.PublicNameValidator(v); err != nil {
+			return &ValidationError{Name: "public_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.public_name": %w`, err)}
+		}
 	}
 	if _, ok := _c.mutation.IntervalSeconds(); !ok {
 		return &ValidationError{Name: "interval_seconds", err: errors.New(`ent: missing required field "ImageChannelMonitor.interval_seconds"`)}
@@ -577,6 +621,14 @@ func (_c *ImageChannelMonitorCreate) createSpec() (*ImageChannelMonitor, *sqlgra
 	if value, ok := _c.mutation.Enabled(); ok {
 		_spec.SetField(imagechannelmonitor.FieldEnabled, field.TypeBool, value)
 		_node.Enabled = value
+	}
+	if value, ok := _c.mutation.PublicVisible(); ok {
+		_spec.SetField(imagechannelmonitor.FieldPublicVisible, field.TypeBool, value)
+		_node.PublicVisible = value
+	}
+	if value, ok := _c.mutation.PublicName(); ok {
+		_spec.SetField(imagechannelmonitor.FieldPublicName, field.TypeString, value)
+		_node.PublicName = value
 	}
 	if value, ok := _c.mutation.IntervalSeconds(); ok {
 		_spec.SetField(imagechannelmonitor.FieldIntervalSeconds, field.TypeInt, value)
@@ -913,6 +965,36 @@ func (u *ImageChannelMonitorUpsert) SetEnabled(v bool) *ImageChannelMonitorUpser
 // UpdateEnabled sets the "enabled" field to the value that was provided on create.
 func (u *ImageChannelMonitorUpsert) UpdateEnabled() *ImageChannelMonitorUpsert {
 	u.SetExcluded(imagechannelmonitor.FieldEnabled)
+	return u
+}
+
+// SetPublicVisible sets the "public_visible" field.
+func (u *ImageChannelMonitorUpsert) SetPublicVisible(v bool) *ImageChannelMonitorUpsert {
+	u.Set(imagechannelmonitor.FieldPublicVisible, v)
+	return u
+}
+
+// UpdatePublicVisible sets the "public_visible" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsert) UpdatePublicVisible() *ImageChannelMonitorUpsert {
+	u.SetExcluded(imagechannelmonitor.FieldPublicVisible)
+	return u
+}
+
+// SetPublicName sets the "public_name" field.
+func (u *ImageChannelMonitorUpsert) SetPublicName(v string) *ImageChannelMonitorUpsert {
+	u.Set(imagechannelmonitor.FieldPublicName, v)
+	return u
+}
+
+// UpdatePublicName sets the "public_name" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsert) UpdatePublicName() *ImageChannelMonitorUpsert {
+	u.SetExcluded(imagechannelmonitor.FieldPublicName)
+	return u
+}
+
+// ClearPublicName clears the value of the "public_name" field.
+func (u *ImageChannelMonitorUpsert) ClearPublicName() *ImageChannelMonitorUpsert {
+	u.SetNull(imagechannelmonitor.FieldPublicName)
 	return u
 }
 
@@ -1329,6 +1411,41 @@ func (u *ImageChannelMonitorUpsertOne) SetEnabled(v bool) *ImageChannelMonitorUp
 func (u *ImageChannelMonitorUpsertOne) UpdateEnabled() *ImageChannelMonitorUpsertOne {
 	return u.Update(func(s *ImageChannelMonitorUpsert) {
 		s.UpdateEnabled()
+	})
+}
+
+// SetPublicVisible sets the "public_visible" field.
+func (u *ImageChannelMonitorUpsertOne) SetPublicVisible(v bool) *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetPublicVisible(v)
+	})
+}
+
+// UpdatePublicVisible sets the "public_visible" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertOne) UpdatePublicVisible() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdatePublicVisible()
+	})
+}
+
+// SetPublicName sets the "public_name" field.
+func (u *ImageChannelMonitorUpsertOne) SetPublicName(v string) *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetPublicName(v)
+	})
+}
+
+// UpdatePublicName sets the "public_name" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertOne) UpdatePublicName() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdatePublicName()
+	})
+}
+
+// ClearPublicName clears the value of the "public_name" field.
+func (u *ImageChannelMonitorUpsertOne) ClearPublicName() *ImageChannelMonitorUpsertOne {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearPublicName()
 	})
 }
 
@@ -1925,6 +2042,41 @@ func (u *ImageChannelMonitorUpsertBulk) SetEnabled(v bool) *ImageChannelMonitorU
 func (u *ImageChannelMonitorUpsertBulk) UpdateEnabled() *ImageChannelMonitorUpsertBulk {
 	return u.Update(func(s *ImageChannelMonitorUpsert) {
 		s.UpdateEnabled()
+	})
+}
+
+// SetPublicVisible sets the "public_visible" field.
+func (u *ImageChannelMonitorUpsertBulk) SetPublicVisible(v bool) *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetPublicVisible(v)
+	})
+}
+
+// UpdatePublicVisible sets the "public_visible" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertBulk) UpdatePublicVisible() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdatePublicVisible()
+	})
+}
+
+// SetPublicName sets the "public_name" field.
+func (u *ImageChannelMonitorUpsertBulk) SetPublicName(v string) *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.SetPublicName(v)
+	})
+}
+
+// UpdatePublicName sets the "public_name" field to the value that was provided on create.
+func (u *ImageChannelMonitorUpsertBulk) UpdatePublicName() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.UpdatePublicName()
+	})
+}
+
+// ClearPublicName clears the value of the "public_name" field.
+func (u *ImageChannelMonitorUpsertBulk) ClearPublicName() *ImageChannelMonitorUpsertBulk {
+	return u.Update(func(s *ImageChannelMonitorUpsert) {
+		s.ClearPublicName()
 	})
 }
 

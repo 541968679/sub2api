@@ -621,6 +621,8 @@ func (s *ImageChannelMonitorService) buildCreateMonitor(
 		N:               p.N,
 		DownloadImage:   p.DownloadImage,
 		Enabled:         p.Enabled,
+		PublicVisible:   p.PublicVisible,
+		PublicName:      strings.TrimSpace(p.PublicName),
 		IntervalSeconds: p.IntervalSeconds,
 		TimeoutSeconds:  p.TimeoutSeconds,
 		CreatedBy:       p.CreatedBy,
@@ -672,6 +674,12 @@ func (s *ImageChannelMonitorService) applyUpdate(
 	}
 	if p.Enabled != nil {
 		m.Enabled = *p.Enabled
+	}
+	if p.PublicVisible != nil {
+		m.PublicVisible = *p.PublicVisible
+	}
+	if p.PublicName != nil {
+		m.PublicName = strings.TrimSpace(*p.PublicName)
 	}
 	if p.IntervalSeconds != nil {
 		m.IntervalSeconds = *p.IntervalSeconds

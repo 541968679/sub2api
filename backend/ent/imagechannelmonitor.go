@@ -47,6 +47,10 @@ type ImageChannelMonitor struct {
 	DownloadImage bool `json:"download_image,omitempty"`
 	// Enabled holds the value of the "enabled" field.
 	Enabled bool `json:"enabled,omitempty"`
+	// PublicVisible holds the value of the "public_visible" field.
+	PublicVisible bool `json:"public_visible,omitempty"`
+	// PublicName holds the value of the "public_name" field.
+	PublicName string `json:"public_name,omitempty"`
 	// IntervalSeconds holds the value of the "interval_seconds" field.
 	IntervalSeconds int `json:"interval_seconds,omitempty"`
 	// TimeoutSeconds holds the value of the "timeout_seconds" field.
@@ -88,11 +92,11 @@ func (*ImageChannelMonitor) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case imagechannelmonitor.FieldDownloadImage, imagechannelmonitor.FieldEnabled:
+		case imagechannelmonitor.FieldDownloadImage, imagechannelmonitor.FieldEnabled, imagechannelmonitor.FieldPublicVisible:
 			values[i] = new(sql.NullBool)
 		case imagechannelmonitor.FieldID, imagechannelmonitor.FieldAccountID, imagechannelmonitor.FieldProxyID, imagechannelmonitor.FieldN, imagechannelmonitor.FieldIntervalSeconds, imagechannelmonitor.FieldTimeoutSeconds, imagechannelmonitor.FieldCreatedBy:
 			values[i] = new(sql.NullInt64)
-		case imagechannelmonitor.FieldName, imagechannelmonitor.FieldSourceType, imagechannelmonitor.FieldEndpoint, imagechannelmonitor.FieldAPIKeyEncrypted, imagechannelmonitor.FieldAccountName, imagechannelmonitor.FieldProxyName, imagechannelmonitor.FieldModel, imagechannelmonitor.FieldPrompt, imagechannelmonitor.FieldSize, imagechannelmonitor.FieldQuality:
+		case imagechannelmonitor.FieldName, imagechannelmonitor.FieldSourceType, imagechannelmonitor.FieldEndpoint, imagechannelmonitor.FieldAPIKeyEncrypted, imagechannelmonitor.FieldAccountName, imagechannelmonitor.FieldProxyName, imagechannelmonitor.FieldModel, imagechannelmonitor.FieldPrompt, imagechannelmonitor.FieldSize, imagechannelmonitor.FieldQuality, imagechannelmonitor.FieldPublicName:
 			values[i] = new(sql.NullString)
 		case imagechannelmonitor.FieldLastCheckedAt, imagechannelmonitor.FieldCreatedAt, imagechannelmonitor.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -208,6 +212,18 @@ func (_m *ImageChannelMonitor) assignValues(columns []string, values []any) erro
 				return fmt.Errorf("unexpected type %T for field enabled", values[i])
 			} else if value.Valid {
 				_m.Enabled = value.Bool
+			}
+		case imagechannelmonitor.FieldPublicVisible:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field public_visible", values[i])
+			} else if value.Valid {
+				_m.PublicVisible = value.Bool
+			}
+		case imagechannelmonitor.FieldPublicName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field public_name", values[i])
+			} else if value.Valid {
+				_m.PublicName = value.String
 			}
 		case imagechannelmonitor.FieldIntervalSeconds:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -334,6 +350,12 @@ func (_m *ImageChannelMonitor) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("enabled=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Enabled))
+	builder.WriteString(", ")
+	builder.WriteString("public_visible=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PublicVisible))
+	builder.WriteString(", ")
+	builder.WriteString("public_name=")
+	builder.WriteString(_m.PublicName)
 	builder.WriteString(", ")
 	builder.WriteString("interval_seconds=")
 	builder.WriteString(fmt.Sprintf("%v", _m.IntervalSeconds))

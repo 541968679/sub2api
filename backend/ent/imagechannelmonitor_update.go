@@ -308,6 +308,40 @@ func (_u *ImageChannelMonitorUpdate) SetNillableEnabled(v *bool) *ImageChannelMo
 	return _u
 }
 
+// SetPublicVisible sets the "public_visible" field.
+func (_u *ImageChannelMonitorUpdate) SetPublicVisible(v bool) *ImageChannelMonitorUpdate {
+	_u.mutation.SetPublicVisible(v)
+	return _u
+}
+
+// SetNillablePublicVisible sets the "public_visible" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdate) SetNillablePublicVisible(v *bool) *ImageChannelMonitorUpdate {
+	if v != nil {
+		_u.SetPublicVisible(*v)
+	}
+	return _u
+}
+
+// SetPublicName sets the "public_name" field.
+func (_u *ImageChannelMonitorUpdate) SetPublicName(v string) *ImageChannelMonitorUpdate {
+	_u.mutation.SetPublicName(v)
+	return _u
+}
+
+// SetNillablePublicName sets the "public_name" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdate) SetNillablePublicName(v *string) *ImageChannelMonitorUpdate {
+	if v != nil {
+		_u.SetPublicName(*v)
+	}
+	return _u
+}
+
+// ClearPublicName clears the value of the "public_name" field.
+func (_u *ImageChannelMonitorUpdate) ClearPublicName() *ImageChannelMonitorUpdate {
+	_u.mutation.ClearPublicName()
+	return _u
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (_u *ImageChannelMonitorUpdate) SetIntervalSeconds(v int) *ImageChannelMonitorUpdate {
 	_u.mutation.ResetIntervalSeconds()
@@ -526,6 +560,11 @@ func (_u *ImageChannelMonitorUpdate) check() error {
 			return &ValidationError{Name: "n", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.n": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PublicName(); ok {
+		if err := imagechannelmonitor.PublicNameValidator(v); err != nil {
+			return &ValidationError{Name: "public_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.public_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.IntervalSeconds(); ok {
 		if err := imagechannelmonitor.IntervalSecondsValidator(v); err != nil {
 			return &ValidationError{Name: "interval_seconds", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.interval_seconds": %w`, err)}
@@ -628,6 +667,15 @@ func (_u *ImageChannelMonitorUpdate) sqlSave(ctx context.Context) (_node int, er
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(imagechannelmonitor.FieldEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PublicVisible(); ok {
+		_spec.SetField(imagechannelmonitor.FieldPublicVisible, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PublicName(); ok {
+		_spec.SetField(imagechannelmonitor.FieldPublicName, field.TypeString, value)
+	}
+	if _u.mutation.PublicNameCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldPublicName, field.TypeString)
 	}
 	if value, ok := _u.mutation.IntervalSeconds(); ok {
 		_spec.SetField(imagechannelmonitor.FieldIntervalSeconds, field.TypeInt, value)
@@ -1000,6 +1048,40 @@ func (_u *ImageChannelMonitorUpdateOne) SetNillableEnabled(v *bool) *ImageChanne
 	return _u
 }
 
+// SetPublicVisible sets the "public_visible" field.
+func (_u *ImageChannelMonitorUpdateOne) SetPublicVisible(v bool) *ImageChannelMonitorUpdateOne {
+	_u.mutation.SetPublicVisible(v)
+	return _u
+}
+
+// SetNillablePublicVisible sets the "public_visible" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdateOne) SetNillablePublicVisible(v *bool) *ImageChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetPublicVisible(*v)
+	}
+	return _u
+}
+
+// SetPublicName sets the "public_name" field.
+func (_u *ImageChannelMonitorUpdateOne) SetPublicName(v string) *ImageChannelMonitorUpdateOne {
+	_u.mutation.SetPublicName(v)
+	return _u
+}
+
+// SetNillablePublicName sets the "public_name" field if the given value is not nil.
+func (_u *ImageChannelMonitorUpdateOne) SetNillablePublicName(v *string) *ImageChannelMonitorUpdateOne {
+	if v != nil {
+		_u.SetPublicName(*v)
+	}
+	return _u
+}
+
+// ClearPublicName clears the value of the "public_name" field.
+func (_u *ImageChannelMonitorUpdateOne) ClearPublicName() *ImageChannelMonitorUpdateOne {
+	_u.mutation.ClearPublicName()
+	return _u
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (_u *ImageChannelMonitorUpdateOne) SetIntervalSeconds(v int) *ImageChannelMonitorUpdateOne {
 	_u.mutation.ResetIntervalSeconds()
@@ -1231,6 +1313,11 @@ func (_u *ImageChannelMonitorUpdateOne) check() error {
 			return &ValidationError{Name: "n", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.n": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PublicName(); ok {
+		if err := imagechannelmonitor.PublicNameValidator(v); err != nil {
+			return &ValidationError{Name: "public_name", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.public_name": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.IntervalSeconds(); ok {
 		if err := imagechannelmonitor.IntervalSecondsValidator(v); err != nil {
 			return &ValidationError{Name: "interval_seconds", err: fmt.Errorf(`ent: validator failed for field "ImageChannelMonitor.interval_seconds": %w`, err)}
@@ -1350,6 +1437,15 @@ func (_u *ImageChannelMonitorUpdateOne) sqlSave(ctx context.Context) (_node *Ima
 	}
 	if value, ok := _u.mutation.Enabled(); ok {
 		_spec.SetField(imagechannelmonitor.FieldEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PublicVisible(); ok {
+		_spec.SetField(imagechannelmonitor.FieldPublicVisible, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PublicName(); ok {
+		_spec.SetField(imagechannelmonitor.FieldPublicName, field.TypeString, value)
+	}
+	if _u.mutation.PublicNameCleared() {
+		_spec.ClearField(imagechannelmonitor.FieldPublicName, field.TypeString)
 	}
 	if value, ok := _u.mutation.IntervalSeconds(); ok {
 		_spec.SetField(imagechannelmonitor.FieldIntervalSeconds, field.TypeInt, value)

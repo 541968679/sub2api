@@ -38,6 +38,8 @@ func (r *imageChannelMonitorRepository) Create(ctx context.Context, m *service.I
 		SetN(m.N).
 		SetDownloadImage(m.DownloadImage).
 		SetEnabled(m.Enabled).
+		SetPublicVisible(m.PublicVisible).
+		SetPublicName(m.PublicName).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetTimeoutSeconds(m.TimeoutSeconds).
 		SetCreatedBy(m.CreatedBy)
@@ -84,6 +86,8 @@ func (r *imageChannelMonitorRepository) Update(ctx context.Context, m *service.I
 		SetN(m.N).
 		SetDownloadImage(m.DownloadImage).
 		SetEnabled(m.Enabled).
+		SetPublicVisible(m.PublicVisible).
+		SetPublicName(m.PublicName).
 		SetIntervalSeconds(m.IntervalSeconds).
 		SetTimeoutSeconds(m.TimeoutSeconds)
 	if m.AccountID != nil {
@@ -289,6 +293,8 @@ func entToServiceImageMonitor(row *dbent.ImageChannelMonitor) *service.ImageChan
 		N:               row.N,
 		DownloadImage:   row.DownloadImage,
 		Enabled:         row.Enabled,
+		PublicVisible:   row.PublicVisible,
+		PublicName:      row.PublicName,
 		IntervalSeconds: row.IntervalSeconds,
 		TimeoutSeconds:  row.TimeoutSeconds,
 		LastCheckedAt:   row.LastCheckedAt,

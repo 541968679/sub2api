@@ -856,6 +856,8 @@ var (
 		{Name: "n", Type: field.TypeInt, Default: 1},
 		{Name: "download_image", Type: field.TypeBool, Default: true},
 		{Name: "enabled", Type: field.TypeBool, Default: true},
+		{Name: "public_visible", Type: field.TypeBool, Default: false},
+		{Name: "public_name", Type: field.TypeString, Nullable: true, Size: 200, Default: ""},
 		{Name: "interval_seconds", Type: field.TypeInt, Default: 300},
 		{Name: "timeout_seconds", Type: field.TypeInt, Default: 300},
 		{Name: "last_checked_at", Type: field.TypeTime, Nullable: true},

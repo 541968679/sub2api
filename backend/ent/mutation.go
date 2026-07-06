@@ -20914,6 +20914,8 @@ type ImageChannelMonitorMutation struct {
 	addn                *int
 	download_image      *bool
 	enabled             *bool
+	public_visible      *bool
+	public_name         *string
 	interval_seconds    *int
 	addinterval_seconds *int
 	timeout_seconds     *int
@@ -21736,6 +21738,91 @@ func (m *ImageChannelMonitorMutation) ResetEnabled() {
 	m.enabled = nil
 }
 
+// SetPublicVisible sets the "public_visible" field.
+func (m *ImageChannelMonitorMutation) SetPublicVisible(b bool) {
+	m.public_visible = &b
+}
+
+// PublicVisible returns the value of the "public_visible" field in the mutation.
+func (m *ImageChannelMonitorMutation) PublicVisible() (r bool, exists bool) {
+	v := m.public_visible
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublicVisible returns the old "public_visible" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldPublicVisible(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublicVisible is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublicVisible requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublicVisible: %w", err)
+	}
+	return oldValue.PublicVisible, nil
+}
+
+// ResetPublicVisible resets all changes to the "public_visible" field.
+func (m *ImageChannelMonitorMutation) ResetPublicVisible() {
+	m.public_visible = nil
+}
+
+// SetPublicName sets the "public_name" field.
+func (m *ImageChannelMonitorMutation) SetPublicName(s string) {
+	m.public_name = &s
+}
+
+// PublicName returns the value of the "public_name" field in the mutation.
+func (m *ImageChannelMonitorMutation) PublicName() (r string, exists bool) {
+	v := m.public_name
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPublicName returns the old "public_name" field's value of the ImageChannelMonitor entity.
+// If the ImageChannelMonitor object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ImageChannelMonitorMutation) OldPublicName(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPublicName is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPublicName requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPublicName: %w", err)
+	}
+	return oldValue.PublicName, nil
+}
+
+// ClearPublicName clears the value of the "public_name" field.
+func (m *ImageChannelMonitorMutation) ClearPublicName() {
+	m.public_name = nil
+	m.clearedFields[imagechannelmonitor.FieldPublicName] = struct{}{}
+}
+
+// PublicNameCleared returns if the "public_name" field was cleared in this mutation.
+func (m *ImageChannelMonitorMutation) PublicNameCleared() bool {
+	_, ok := m.clearedFields[imagechannelmonitor.FieldPublicName]
+	return ok
+}
+
+// ResetPublicName resets all changes to the "public_name" field.
+func (m *ImageChannelMonitorMutation) ResetPublicName() {
+	m.public_name = nil
+	delete(m.clearedFields, imagechannelmonitor.FieldPublicName)
+}
+
 // SetIntervalSeconds sets the "interval_seconds" field.
 func (m *ImageChannelMonitorMutation) SetIntervalSeconds(i int) {
 	m.interval_seconds = &i
@@ -22113,7 +22200,7 @@ func (m *ImageChannelMonitorMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ImageChannelMonitorMutation) Fields() []string {
-	fields := make([]string, 0, 21)
+	fields := make([]string, 0, 23)
 	if m.name != nil {
 		fields = append(fields, imagechannelmonitor.FieldName)
 	}
@@ -22158,6 +22245,12 @@ func (m *ImageChannelMonitorMutation) Fields() []string {
 	}
 	if m.enabled != nil {
 		fields = append(fields, imagechannelmonitor.FieldEnabled)
+	}
+	if m.public_visible != nil {
+		fields = append(fields, imagechannelmonitor.FieldPublicVisible)
+	}
+	if m.public_name != nil {
+		fields = append(fields, imagechannelmonitor.FieldPublicName)
 	}
 	if m.interval_seconds != nil {
 		fields = append(fields, imagechannelmonitor.FieldIntervalSeconds)
@@ -22215,6 +22308,10 @@ func (m *ImageChannelMonitorMutation) Field(name string) (ent.Value, bool) {
 		return m.DownloadImage()
 	case imagechannelmonitor.FieldEnabled:
 		return m.Enabled()
+	case imagechannelmonitor.FieldPublicVisible:
+		return m.PublicVisible()
+	case imagechannelmonitor.FieldPublicName:
+		return m.PublicName()
 	case imagechannelmonitor.FieldIntervalSeconds:
 		return m.IntervalSeconds()
 	case imagechannelmonitor.FieldTimeoutSeconds:
@@ -22266,6 +22363,10 @@ func (m *ImageChannelMonitorMutation) OldField(ctx context.Context, name string)
 		return m.OldDownloadImage(ctx)
 	case imagechannelmonitor.FieldEnabled:
 		return m.OldEnabled(ctx)
+	case imagechannelmonitor.FieldPublicVisible:
+		return m.OldPublicVisible(ctx)
+	case imagechannelmonitor.FieldPublicName:
+		return m.OldPublicName(ctx)
 	case imagechannelmonitor.FieldIntervalSeconds:
 		return m.OldIntervalSeconds(ctx)
 	case imagechannelmonitor.FieldTimeoutSeconds:
@@ -22391,6 +22492,20 @@ func (m *ImageChannelMonitorMutation) SetField(name string, value ent.Value) err
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetEnabled(v)
+		return nil
+	case imagechannelmonitor.FieldPublicVisible:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublicVisible(v)
+		return nil
+	case imagechannelmonitor.FieldPublicName:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPublicName(v)
 		return nil
 	case imagechannelmonitor.FieldIntervalSeconds:
 		v, ok := value.(int)
@@ -22563,6 +22678,9 @@ func (m *ImageChannelMonitorMutation) ClearedFields() []string {
 	if m.FieldCleared(imagechannelmonitor.FieldQuality) {
 		fields = append(fields, imagechannelmonitor.FieldQuality)
 	}
+	if m.FieldCleared(imagechannelmonitor.FieldPublicName) {
+		fields = append(fields, imagechannelmonitor.FieldPublicName)
+	}
 	if m.FieldCleared(imagechannelmonitor.FieldLastCheckedAt) {
 		fields = append(fields, imagechannelmonitor.FieldLastCheckedAt)
 	}
@@ -22603,6 +22721,9 @@ func (m *ImageChannelMonitorMutation) ClearField(name string) error {
 		return nil
 	case imagechannelmonitor.FieldQuality:
 		m.ClearQuality()
+		return nil
+	case imagechannelmonitor.FieldPublicName:
+		m.ClearPublicName()
 		return nil
 	case imagechannelmonitor.FieldLastCheckedAt:
 		m.ClearLastCheckedAt()
@@ -22659,6 +22780,12 @@ func (m *ImageChannelMonitorMutation) ResetField(name string) error {
 		return nil
 	case imagechannelmonitor.FieldEnabled:
 		m.ResetEnabled()
+		return nil
+	case imagechannelmonitor.FieldPublicVisible:
+		m.ResetPublicVisible()
+		return nil
+	case imagechannelmonitor.FieldPublicName:
+		m.ResetPublicName()
 		return nil
 	case imagechannelmonitor.FieldIntervalSeconds:
 		m.ResetIntervalSeconds()

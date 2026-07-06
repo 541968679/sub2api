@@ -1077,24 +1077,34 @@ func init() {
 	imagechannelmonitorDescEnabled := imagechannelmonitorFields[14].Descriptor()
 	// imagechannelmonitor.DefaultEnabled holds the default value on creation for the enabled field.
 	imagechannelmonitor.DefaultEnabled = imagechannelmonitorDescEnabled.Default.(bool)
+	// imagechannelmonitorDescPublicVisible is the schema descriptor for public_visible field.
+	imagechannelmonitorDescPublicVisible := imagechannelmonitorFields[15].Descriptor()
+	// imagechannelmonitor.DefaultPublicVisible holds the default value on creation for the public_visible field.
+	imagechannelmonitor.DefaultPublicVisible = imagechannelmonitorDescPublicVisible.Default.(bool)
+	// imagechannelmonitorDescPublicName is the schema descriptor for public_name field.
+	imagechannelmonitorDescPublicName := imagechannelmonitorFields[16].Descriptor()
+	// imagechannelmonitor.DefaultPublicName holds the default value on creation for the public_name field.
+	imagechannelmonitor.DefaultPublicName = imagechannelmonitorDescPublicName.Default.(string)
+	// imagechannelmonitor.PublicNameValidator is a validator for the "public_name" field. It is called by the builders before save.
+	imagechannelmonitor.PublicNameValidator = imagechannelmonitorDescPublicName.Validators[0].(func(string) error)
 	// imagechannelmonitorDescIntervalSeconds is the schema descriptor for interval_seconds field.
-	imagechannelmonitorDescIntervalSeconds := imagechannelmonitorFields[15].Descriptor()
+	imagechannelmonitorDescIntervalSeconds := imagechannelmonitorFields[17].Descriptor()
 	// imagechannelmonitor.DefaultIntervalSeconds holds the default value on creation for the interval_seconds field.
 	imagechannelmonitor.DefaultIntervalSeconds = imagechannelmonitorDescIntervalSeconds.Default.(int)
 	// imagechannelmonitor.IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
 	imagechannelmonitor.IntervalSecondsValidator = imagechannelmonitorDescIntervalSeconds.Validators[0].(func(int) error)
 	// imagechannelmonitorDescTimeoutSeconds is the schema descriptor for timeout_seconds field.
-	imagechannelmonitorDescTimeoutSeconds := imagechannelmonitorFields[16].Descriptor()
+	imagechannelmonitorDescTimeoutSeconds := imagechannelmonitorFields[18].Descriptor()
 	// imagechannelmonitor.DefaultTimeoutSeconds holds the default value on creation for the timeout_seconds field.
 	imagechannelmonitor.DefaultTimeoutSeconds = imagechannelmonitorDescTimeoutSeconds.Default.(int)
 	// imagechannelmonitor.TimeoutSecondsValidator is a validator for the "timeout_seconds" field. It is called by the builders before save.
 	imagechannelmonitor.TimeoutSecondsValidator = imagechannelmonitorDescTimeoutSeconds.Validators[0].(func(int) error)
 	// imagechannelmonitorDescCreatedAt is the schema descriptor for created_at field.
-	imagechannelmonitorDescCreatedAt := imagechannelmonitorFields[19].Descriptor()
+	imagechannelmonitorDescCreatedAt := imagechannelmonitorFields[21].Descriptor()
 	// imagechannelmonitor.DefaultCreatedAt holds the default value on creation for the created_at field.
 	imagechannelmonitor.DefaultCreatedAt = imagechannelmonitorDescCreatedAt.Default.(func() time.Time)
 	// imagechannelmonitorDescUpdatedAt is the schema descriptor for updated_at field.
-	imagechannelmonitorDescUpdatedAt := imagechannelmonitorFields[20].Descriptor()
+	imagechannelmonitorDescUpdatedAt := imagechannelmonitorFields[22].Descriptor()
 	// imagechannelmonitor.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	imagechannelmonitor.DefaultUpdatedAt = imagechannelmonitorDescUpdatedAt.Default.(func() time.Time)
 	// imagechannelmonitor.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

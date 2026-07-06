@@ -125,6 +125,16 @@ func Enabled(v bool) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldEnabled, v))
 }
 
+// PublicVisible applies equality check predicate on the "public_visible" field. It's identical to PublicVisibleEQ.
+func PublicVisible(v bool) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldPublicVisible, v))
+}
+
+// PublicName applies equality check predicate on the "public_name" field. It's identical to PublicNameEQ.
+func PublicName(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldPublicName, v))
+}
+
 // IntervalSeconds applies equality check predicate on the "interval_seconds" field. It's identical to IntervalSecondsEQ.
 func IntervalSeconds(v int) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldIntervalSeconds, v))
@@ -978,6 +988,91 @@ func EnabledEQ(v bool) predicate.ImageChannelMonitor {
 // EnabledNEQ applies the NEQ predicate on the "enabled" field.
 func EnabledNEQ(v bool) predicate.ImageChannelMonitor {
 	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldEnabled, v))
+}
+
+// PublicVisibleEQ applies the EQ predicate on the "public_visible" field.
+func PublicVisibleEQ(v bool) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldPublicVisible, v))
+}
+
+// PublicVisibleNEQ applies the NEQ predicate on the "public_visible" field.
+func PublicVisibleNEQ(v bool) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldPublicVisible, v))
+}
+
+// PublicNameEQ applies the EQ predicate on the "public_name" field.
+func PublicNameEQ(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEQ(FieldPublicName, v))
+}
+
+// PublicNameNEQ applies the NEQ predicate on the "public_name" field.
+func PublicNameNEQ(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNEQ(FieldPublicName, v))
+}
+
+// PublicNameIn applies the In predicate on the "public_name" field.
+func PublicNameIn(vs ...string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIn(FieldPublicName, vs...))
+}
+
+// PublicNameNotIn applies the NotIn predicate on the "public_name" field.
+func PublicNameNotIn(vs ...string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotIn(FieldPublicName, vs...))
+}
+
+// PublicNameGT applies the GT predicate on the "public_name" field.
+func PublicNameGT(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGT(FieldPublicName, v))
+}
+
+// PublicNameGTE applies the GTE predicate on the "public_name" field.
+func PublicNameGTE(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldGTE(FieldPublicName, v))
+}
+
+// PublicNameLT applies the LT predicate on the "public_name" field.
+func PublicNameLT(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLT(FieldPublicName, v))
+}
+
+// PublicNameLTE applies the LTE predicate on the "public_name" field.
+func PublicNameLTE(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldLTE(FieldPublicName, v))
+}
+
+// PublicNameContains applies the Contains predicate on the "public_name" field.
+func PublicNameContains(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldContains(FieldPublicName, v))
+}
+
+// PublicNameHasPrefix applies the HasPrefix predicate on the "public_name" field.
+func PublicNameHasPrefix(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldHasPrefix(FieldPublicName, v))
+}
+
+// PublicNameHasSuffix applies the HasSuffix predicate on the "public_name" field.
+func PublicNameHasSuffix(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldHasSuffix(FieldPublicName, v))
+}
+
+// PublicNameIsNil applies the IsNil predicate on the "public_name" field.
+func PublicNameIsNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldIsNull(FieldPublicName))
+}
+
+// PublicNameNotNil applies the NotNil predicate on the "public_name" field.
+func PublicNameNotNil() predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldNotNull(FieldPublicName))
+}
+
+// PublicNameEqualFold applies the EqualFold predicate on the "public_name" field.
+func PublicNameEqualFold(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldEqualFold(FieldPublicName, v))
+}
+
+// PublicNameContainsFold applies the ContainsFold predicate on the "public_name" field.
+func PublicNameContainsFold(v string) predicate.ImageChannelMonitor {
+	return predicate.ImageChannelMonitor(sql.FieldContainsFold(FieldPublicName, v))
 }
 
 // IntervalSecondsEQ applies the EQ predicate on the "interval_seconds" field.

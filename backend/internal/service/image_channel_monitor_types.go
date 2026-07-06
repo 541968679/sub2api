@@ -123,6 +123,8 @@ type ImageChannelMonitor struct {
 	N                   int
 	DownloadImage       bool
 	Enabled             bool
+	PublicVisible       bool
+	PublicName          string
 	IntervalSeconds     int
 	TimeoutSeconds      int
 	LastCheckedAt       *time.Time
@@ -154,6 +156,8 @@ type ImageChannelMonitorCreateParams struct {
 	N               int
 	DownloadImage   bool
 	Enabled         bool
+	PublicVisible   bool
+	PublicName      string
 	IntervalSeconds int
 	TimeoutSeconds  int
 	CreatedBy       int64
@@ -173,6 +177,8 @@ type ImageChannelMonitorUpdateParams struct {
 	N               *int
 	DownloadImage   *bool
 	Enabled         *bool
+	PublicVisible   *bool
+	PublicName      *string
 	IntervalSeconds *int
 	TimeoutSeconds  *int
 }

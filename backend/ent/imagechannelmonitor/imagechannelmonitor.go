@@ -45,6 +45,10 @@ const (
 	FieldDownloadImage = "download_image"
 	// FieldEnabled holds the string denoting the enabled field in the database.
 	FieldEnabled = "enabled"
+	// FieldPublicVisible holds the string denoting the public_visible field in the database.
+	FieldPublicVisible = "public_visible"
+	// FieldPublicName holds the string denoting the public_name field in the database.
+	FieldPublicName = "public_name"
 	// FieldIntervalSeconds holds the string denoting the interval_seconds field in the database.
 	FieldIntervalSeconds = "interval_seconds"
 	// FieldTimeoutSeconds holds the string denoting the timeout_seconds field in the database.
@@ -88,6 +92,8 @@ var Columns = []string{
 	FieldN,
 	FieldDownloadImage,
 	FieldEnabled,
+	FieldPublicVisible,
+	FieldPublicName,
 	FieldIntervalSeconds,
 	FieldTimeoutSeconds,
 	FieldLastCheckedAt,
@@ -143,6 +149,12 @@ var (
 	DefaultDownloadImage bool
 	// DefaultEnabled holds the default value on creation for the "enabled" field.
 	DefaultEnabled bool
+	// DefaultPublicVisible holds the default value on creation for the "public_visible" field.
+	DefaultPublicVisible bool
+	// DefaultPublicName holds the default value on creation for the "public_name" field.
+	DefaultPublicName string
+	// PublicNameValidator is a validator for the "public_name" field. It is called by the builders before save.
+	PublicNameValidator func(string) error
 	// DefaultIntervalSeconds holds the default value on creation for the "interval_seconds" field.
 	DefaultIntervalSeconds int
 	// IntervalSecondsValidator is a validator for the "interval_seconds" field. It is called by the builders before save.
@@ -266,6 +278,16 @@ func ByDownloadImage(opts ...sql.OrderTermOption) OrderOption {
 // ByEnabled orders the results by the enabled field.
 func ByEnabled(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldEnabled, opts...).ToFunc()
+}
+
+// ByPublicVisible orders the results by the public_visible field.
+func ByPublicVisible(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPublicVisible, opts...).ToFunc()
+}
+
+// ByPublicName orders the results by the public_name field.
+func ByPublicName(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPublicName, opts...).ToFunc()
 }
 
 // ByIntervalSeconds orders the results by the interval_seconds field.
