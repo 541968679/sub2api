@@ -2561,6 +2561,11 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		proxyID = assignedID
 	}
 
+	// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
+	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
+		return nil, err
+	}
+
 	account := &Account{
 		Name:        input.Name,
 		Notes:       normalizeAccountNotes(input.Notes),
@@ -2659,6 +2664,10 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	if len(input.Credentials) > 0 {
 		account.Credentials = input.Credentials
+		// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
+		if err := NormalizeHeaderOverrideCredentials(account.Credentials); err != nil {
+			return nil, err
+		}
 	}
 	// Extra 使用 map：需要区分“未提供(nil)”与“显式清空({})”。
 	// 关闭配额限制时前端会删除 quota_* 键并提交 extra:{}，此时也必须落库。
@@ -2840,6 +2849,11 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		if *input.RateMultiplier < 0 {
 			return nil, errors.New("rate_multiplier must be >= 0")
 		}
+	}
+
+	// 校验并规范化请求头覆写配置（批量路径为 JSONB 顶层 key 合并，直接校验增量即可）
+	if err := NormalizeHeaderOverrideCredentials(input.Credentials); err != nil {
+		return nil, err
 	}
 
 	// Prepare bulk updates for columns and JSONB fields.
