@@ -242,6 +242,88 @@ func TestImageChannelMonitorRunDailyMaintenancePrunesOldHistory(t *testing.T) {
 	require.WithinDuration(t, wantCutoff, repo.deleteHistoryBefore, time.Minute)
 }
 
+func TestImageChannelMonitorGetAdminTimelineWindows(t *testing.T) {
+	repo := &imageMonitorRepoStub{
+		monitors:    map[int64]*ImageChannelMonitor{7: {ID: 7, Name: "img"}},
+		windowStats: &ImageMonitorWindowStats{Total: 10, OK: 9, Availability: 90},
+	}
+	svc := NewImageChannelMonitorService(repo, nil, nil, nil, nil, nil)
+
+	tl, err := svc.GetAdminTimeline(context.Background(), 7, "24h")
+	require.NoError(t, err)
+	require.Equal(t, "24h", tl.Window)
+	require.Equal(t, 600, repo.lastBucketSeconds)
+	require.WithinDuration(t, time.Now().UTC().Add(-24*time.Hour), repo.lastSince, time.Minute)
+	require.Equal(t, 90.0, tl.Summary.Availability)
+
+	_, err = svc.GetAdminTimeline(context.Background(), 7, "7d")
+	require.NoError(t, err)
+	require.Equal(t, 7200, repo.lastBucketSeconds)
+
+	_, err = svc.GetAdminTimeline(context.Background(), 7, "30d")
+	require.NoError(t, err)
+	require.Equal(t, 86400, repo.lastBucketSeconds)
+
+	_, err = svc.GetAdminTimeline(context.Background(), 7, "90d")
+	require.ErrorIs(t, err, ErrImageChannelMonitorInvalidWindow)
+}
+
+func TestImageChannelMonitorListPublicViewMasksNameAndExtractsLatest(t *testing.T) {
+	api1 := 18000
+	dl1 := 2200
+	repo := &imageMonitorRepoStub{
+		publicMonitors: []*ImageChannelMonitor{
+			{ID: 1, Name: "内部-adobe中转", PublicName: "生图通道A", PublicVisible: true, Model: "gpt-image-1"},
+			{ID: 2, Name: "直连", PublicName: "", PublicVisible: true, Model: "gpt-image-1"},
+		},
+		recentHistory: map[int64][]*ImageMonitorTimelinePoint{
+			1: {{Status: "operational", APITotalMs: &api1, ImageDownloadMs: &dl1, CheckedAt: time.Now()}},
+		},
+		availability: map[int64]*ImageMonitorAvailability{1: {D7: 99.5, D15: 98, D30: 97}},
+	}
+	svc := NewImageChannelMonitorService(repo, nil, nil, nil, nil, nil)
+
+	views, err := svc.ListPublicView(context.Background())
+	require.NoError(t, err)
+	require.Len(t, views, 2)
+	require.Equal(t, "生图通道A", views[0].Name)
+	require.Equal(t, "operational", views[0].LatestStatus)
+	require.Equal(t, 18000, *views[0].LatestAPIMs)
+	require.Equal(t, 2200, *views[0].LatestDownloadMs)
+	require.InDelta(t, 99.5, views[0].Availability.D7, 0.001)
+	require.Equal(t, "直连", views[1].Name, "empty public_name falls back to monitor name")
+	require.Equal(t, "empty", views[1].LatestStatus, "no history -> empty status")
+	require.Zero(t, views[1].Availability.D7)
+}
+
+func TestImageChannelMonitorGetPublicDetailHidesPrivateMonitor(t *testing.T) {
+	repo := &imageMonitorRepoStub{
+		monitors: map[int64]*ImageChannelMonitor{3: {ID: 3, Name: "private", PublicVisible: false}},
+	}
+	svc := NewImageChannelMonitorService(repo, nil, nil, nil, nil, nil)
+	_, err := svc.GetPublicDetail(context.Background(), 3)
+	require.ErrorIs(t, err, ErrImageChannelMonitorNotFound)
+}
+
+func TestImageChannelMonitorGetPublicDetailReturnsThreeWindows(t *testing.T) {
+	avgAPI := 15000
+	repo := &imageMonitorRepoStub{
+		monitors: map[int64]*ImageChannelMonitor{
+			5: {ID: 5, Name: "内部名", PublicName: "对外名", PublicVisible: true, Model: "gpt-image-1"},
+		},
+		windowStats: &ImageMonitorWindowStats{Total: 4, OK: 4, Availability: 100, AvgAPITotalMs: &avgAPI},
+	}
+	svc := NewImageChannelMonitorService(repo, nil, nil, nil, nil, nil)
+
+	detail, err := svc.GetPublicDetail(context.Background(), 5)
+	require.NoError(t, err)
+	require.Equal(t, "对外名", detail.Name)
+	require.Len(t, detail.Windows, 3)
+	require.Equal(t, []int{7, 15, 30}, []int{detail.Windows[0].WindowDays, detail.Windows[1].WindowDays, detail.Windows[2].WindowDays})
+	require.Equal(t, 100.0, detail.Windows[0].Availability)
+	require.Equal(t, 15000, *detail.Windows[0].AvgAPITotalMs)
+}
+
 func TestImageChannelMonitorRunCheckUsesOpenAIAPIKeyAccountSource(t *testing.T) {
 	accountID := int64(7)
 	account := &Account{

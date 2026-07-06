@@ -79,6 +79,9 @@ var (
 	ErrImageChannelMonitorManualRunNotFound = infraerrors.NotFound(
 		"IMAGE_CHANNEL_MONITOR_MANUAL_RUN_NOT_FOUND", "manual image test run not found",
 	)
+	ErrImageChannelMonitorInvalidWindow = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_INVALID_WINDOW", "window must be 24h, 7d or 30d",
+	)
 )
 
 type ImageChannelMonitorRepository interface {
@@ -135,6 +138,40 @@ type ImageMonitorAvailability struct {
 	D7  float64
 	D15 float64
 	D30 float64
+}
+
+// ImageMonitorPublicView 用户侧公开渠道卡片视图。Name 已按 public_name 掩名。
+type ImageMonitorPublicView struct {
+	ID               int64
+	Name             string
+	Model            string
+	LatestStatus     string // 无历史时为 "empty"
+	LatestAPIMs      *int
+	LatestDownloadMs *int
+	Availability     ImageMonitorAvailability
+	Timeline         []*ImageMonitorTimelinePoint
+}
+
+// ImageMonitorPublicWindowStat 用户侧详情弹窗的单窗口统计。
+type ImageMonitorPublicWindowStat struct {
+	WindowDays    int
+	Availability  float64
+	AvgAPITotalMs *int
+}
+
+// ImageMonitorPublicDetail 用户侧公开渠道详情。
+type ImageMonitorPublicDetail struct {
+	ID      int64
+	Name    string
+	Model   string
+	Windows []ImageMonitorPublicWindowStat
+}
+
+// ImageMonitorAdminTimeline 管理端时间线响应(汇总 + 分桶)。
+type ImageMonitorAdminTimeline struct {
+	Window  string
+	Summary *ImageMonitorWindowStats
+	Buckets []*ImageMonitorTimelineBucket
 }
 
 type imageChannelMonitorAccountReader interface {

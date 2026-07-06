@@ -1291,6 +1291,137 @@ func (s *ImageChannelMonitorService) persistResult(
 	}
 }
 
+const imageMonitorTimelinePointLimit = 60
+
+var imageMonitorTimelineWindows = map[string]struct {
+	bucketSeconds int
+	span          time.Duration
+}{
+	"24h": {bucketSeconds: 600, span: 24 * time.Hour},
+	"7d":  {bucketSeconds: 7200, span: 7 * 24 * time.Hour},
+	"30d": {bucketSeconds: 86400, span: 30 * 24 * time.Hour},
+}
+
+// GetAdminTimeline 管理端状态详情:指定窗口的汇总统计 + 分桶时间线。
+func (s *ImageChannelMonitorService) GetAdminTimeline(
+	ctx context.Context,
+	id int64,
+	window string,
+) (*ImageMonitorAdminTimeline, error) {
+	w, ok := imageMonitorTimelineWindows[window]
+	if !ok {
+		return nil, ErrImageChannelMonitorInvalidWindow
+	}
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
+		return nil, err
+	}
+	since := time.Now().UTC().Add(-w.span)
+	summary, err := s.repo.ComputeWindowStats(ctx, id, since)
+	if err != nil {
+		return nil, fmt.Errorf("compute window stats: %w", err)
+	}
+	buckets, err := s.repo.AggregateTimeline(ctx, id, w.bucketSeconds, since)
+	if err != nil {
+		return nil, fmt.Errorf("aggregate timeline: %w", err)
+	}
+	return &ImageMonitorAdminTimeline{Window: window, Summary: summary, Buckets: buckets}, nil
+}
+
+// TimelinesForMonitors 批量取行内状态条数据(最近 60 次,最新在前)。
+func (s *ImageChannelMonitorService) TimelinesForMonitors(
+	ctx context.Context,
+	ids []int64,
+) (map[int64][]*ImageMonitorTimelinePoint, error) {
+	return s.repo.ListRecentHistoryForMonitors(ctx, ids, imageMonitorTimelinePointLimit)
+}
+
+// AvailabilityForMonitors 批量取 7/15/30 天可用率。
+func (s *ImageChannelMonitorService) AvailabilityForMonitors(
+	ctx context.Context,
+	ids []int64,
+) (map[int64]*ImageMonitorAvailability, error) {
+	return s.repo.ComputeAvailabilityForMonitors(ctx, ids)
+}
+
+func imageMonitorPublicName(m *ImageChannelMonitor) string {
+	if name := strings.TrimSpace(m.PublicName); name != "" {
+		return name
+	}
+	return m.Name
+}
+
+// ListPublicView 用户侧公开渠道列表(仅 public_visible=true,已掩名)。
+func (s *ImageChannelMonitorService) ListPublicView(ctx context.Context) ([]*ImageMonitorPublicView, error) {
+	monitors, err := s.repo.ListPublicVisible(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list public image monitors: %w", err)
+	}
+	if len(monitors) == 0 {
+		return []*ImageMonitorPublicView{}, nil
+	}
+	ids := make([]int64, 0, len(monitors))
+	for _, m := range monitors {
+		ids = append(ids, m.ID)
+	}
+	timelines, err := s.repo.ListRecentHistoryForMonitors(ctx, ids, imageMonitorTimelinePointLimit)
+	if err != nil {
+		return nil, fmt.Errorf("load public timelines: %w", err)
+	}
+	availability, err := s.repo.ComputeAvailabilityForMonitors(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load public availability: %w", err)
+	}
+	out := make([]*ImageMonitorPublicView, 0, len(monitors))
+	for _, m := range monitors {
+		view := &ImageMonitorPublicView{
+			ID:           m.ID,
+			Name:         imageMonitorPublicName(m),
+			Model:        m.Model,
+			LatestStatus: "empty",
+			Timeline:     timelines[m.ID],
+		}
+		if points := timelines[m.ID]; len(points) > 0 {
+			view.LatestStatus = points[0].Status
+			view.LatestAPIMs = points[0].APITotalMs
+			view.LatestDownloadMs = points[0].ImageDownloadMs
+		}
+		if a := availability[m.ID]; a != nil {
+			view.Availability = *a
+		}
+		out = append(out, view)
+	}
+	return out, nil
+}
+
+// GetPublicDetail 用户侧公开渠道详情;非公开渠道一律 404,不泄露存在性。
+func (s *ImageChannelMonitorService) GetPublicDetail(ctx context.Context, id int64) (*ImageMonitorPublicDetail, error) {
+	m, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !m.PublicVisible {
+		return nil, ErrImageChannelMonitorNotFound
+	}
+	detail := &ImageMonitorPublicDetail{
+		ID:    m.ID,
+		Name:  imageMonitorPublicName(m),
+		Model: m.Model,
+	}
+	now := time.Now().UTC()
+	for _, days := range []int{7, 15, 30} {
+		stats, err := s.repo.ComputeWindowStats(ctx, id, now.AddDate(0, 0, -days))
+		if err != nil {
+			return nil, fmt.Errorf("compute %dd stats: %w", days, err)
+		}
+		detail.Windows = append(detail.Windows, ImageMonitorPublicWindowStat{
+			WindowDays:    days,
+			Availability:  stats.Availability,
+			AvgAPITotalMs: stats.AvgAPITotalMs,
+		})
+	}
+	return detail, nil
+}
+
 // RunDailyMaintenance 每日维护:物理删除 imageMonitorHistoryRetentionDays 天前的明细。
 // 由 OpsCleanupService 的每日 cron 触发,与原生渠道监控维护同一调度/领导锁。
 func (s *ImageChannelMonitorService) RunDailyMaintenance(ctx context.Context) error {
