@@ -82,8 +82,8 @@
           <div class="flex w-[340px] min-h-0 flex-none flex-col border-r border-gray-200 dark:border-dark-700 max-lg:w-full max-lg:border-b max-lg:border-r-0 2xl:w-[380px]">
 
             <!-- B: parameters (collapsible) -->
-            <section class="flex-none border-b border-gray-200 dark:border-dark-700">
-              <div class="flex items-center gap-2 px-4 py-2.5">
+            <section class="flex max-h-[52vh] min-h-0 flex-none flex-col border-b border-gray-200 dark:border-dark-700 max-lg:max-h-none">
+              <div class="flex flex-none items-center gap-2 px-4 py-2.5">
                 <span class="text-sm font-semibold text-gray-900 dark:text-white">
                   {{ t('admin.imageChannelMonitor.manual.config') }}
                 </span>
@@ -103,7 +103,7 @@
                   {{ manualConfigCollapsed ? t('admin.imageChannelMonitor.manual.expand') : t('admin.imageChannelMonitor.manual.collapse') }}
                 </button>
               </div>
-              <div v-show="!manualConfigCollapsed" class="space-y-3 px-4 pb-4">
+              <div v-show="!manualConfigCollapsed" class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-4 pr-3">
                 <div class="flex items-center justify-between gap-3">
                   <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-dark-700 dark:bg-dark-800" role="tablist">
                     <button

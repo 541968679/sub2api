@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-08] fix: 图片渠道监控手动参数区增加内部下拉滚动
+
+**影响范围**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
+**上游兼容性**: 低风险。仅调整手动检测面板左侧参数配置区域的布局滚动边界，不改接口、检测逻辑或持久化结构。
+**变更详情**:
+- 手动检测左侧参数配置块改为固定标题 + 有高度边界的内部滚动正文，内容过高时可向下滚到预设/模板选择区域。
+- 保持手动面板的固定视口设计：不恢复整页滚动，Channels 列表和底部开始/取消 CTA 仍按原内部滚动布局工作。
+- 更新 image-channel-monitor 模块文档，记录参数正文也是左侧内部滚动区域之一，后续新增控件不能再次隐藏底部控制项。
+
 ## [2026-07-07] feat: 图片渠道监控手动检测支持并发批次
 
 **影响范围**: backend/internal/{service/{image_channel_monitor_types.go,image_channel_monitor_service.go(+test)},handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts,views/admin/ImageChannelMonitorView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/image-channel-monitor.md
