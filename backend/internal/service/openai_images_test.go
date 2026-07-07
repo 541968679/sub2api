@@ -419,14 +419,14 @@ func TestBuildOpenAIImagesRequest_APIKeyUserAgentFallback(t *testing.T) {
 	}
 }
 
-func TestRewriteOpenAIImagesModel_DefaultsURLResponseFormat(t *testing.T) {
+func TestRewriteOpenAIImagesModel_OmitsResponseFormatWhenAbsent(t *testing.T) {
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
 
 	rewritten, contentType, err := rewriteOpenAIImagesModel(body, "application/json", "gpt-image-2-4K")
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
 	require.Equal(t, "gpt-image-2-4K", gjson.GetBytes(rewritten, "model").String())
-	require.Equal(t, "url", gjson.GetBytes(rewritten, "response_format").String())
+	require.False(t, gjson.GetBytes(rewritten, "response_format").Exists())
 	require.Equal(t, "draw a cat", gjson.GetBytes(rewritten, "prompt").String())
 }
 
@@ -463,7 +463,7 @@ func TestRewriteOpenAIImagesModel_MultipartPreservesExplicitResponseFormat(t *te
 	require.Equal(t, []string{"b64_json"}, form.Value["response_format"])
 }
 
-func TestRewriteOpenAIImagesModel_MultipartDefaultsURLResponseFormat(t *testing.T) {
+func TestRewriteOpenAIImagesModel_MultipartOmitsResponseFormatWhenAbsent(t *testing.T) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
@@ -483,7 +483,7 @@ func TestRewriteOpenAIImagesModel_MultipartDefaultsURLResponseFormat(t *testing.
 
 	require.Equal(t, []string{"gpt-image-2-4K"}, form.Value["model"])
 	require.Equal(t, []string{"draw a cat"}, form.Value["prompt"])
-	require.Equal(t, []string{"url"}, form.Value["response_format"])
+	require.Empty(t, form.Value["response_format"])
 }
 
 func TestCopyOpenAIImagesNonStreamingBodyWritesAndBuffers(t *testing.T) {
@@ -973,6 +973,57 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
 	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Equal(t, "b64_json", gjson.GetBytes(upstream.lastBody, "response_format").String())
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationOmitsAbsentResponseFormat(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{
+			resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"application/json"},
+					"X-Request-Id": []string{"req_img_apikey"},
+				},
+				Body: io.NopCloser(strings.NewReader(`{"created":1710000007,"data":[{"b64_json":"aGVsbG8=","revised_prompt":"draw a cat"}]}`)),
+			},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+
+	account := &Account{
+		ID:       6,
+		Name:     "openai-apikey",
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "test-api-key",
+			"base_url": "https://image-upstream.example/v1",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	upstream, ok := svc.httpUpstream.(*httpUpstreamRecorder)
+	require.True(t, ok)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "https://image-upstream.example/v1/images/generations", upstream.lastReq.URL.String())
+	require.Equal(t, "gpt-image-2", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "response_format").Exists())
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
 }

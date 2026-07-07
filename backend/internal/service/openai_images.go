@@ -39,7 +39,6 @@ const (
 	openAIChatGPTFilesURL          = "https://chatgpt.com/backend-api/files"
 	openAIImageBackendUserAgent    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 	openAIImagesAPIKeyUserAgent    = "node"
-	openAIImagesDefaultURLFormat   = "url"
 	openAIImageMaxDownloadBytes    = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
@@ -764,12 +763,6 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 	if err != nil {
 		return nil, "", fmt.Errorf("rewrite image request model: %w", err)
 	}
-	if !gjson.GetBytes(body, "response_format").Exists() {
-		rewritten, err = sjson.SetBytes(rewritten, "response_format", openAIImagesDefaultURLFormat)
-		if err != nil {
-			return nil, "", fmt.Errorf("default image response format: %w", err)
-		}
-	}
 	return rewritten, contentType, nil
 }
 
@@ -787,7 +780,6 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 	var buffer bytes.Buffer
 	writer := multipart.NewWriter(&buffer)
 	modelWritten := false
-	responseFormatWritten := false
 
 	for {
 		part, err := reader.NextPart()
@@ -815,9 +807,6 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 			_ = part.Close()
 			continue
 		}
-		if formName == "response_format" && part.FileName() == "" {
-			responseFormatWritten = true
-		}
 		if _, err := io.Copy(target, part); err != nil {
 			_ = part.Close()
 			return nil, "", fmt.Errorf("copy multipart part: %w", err)
@@ -828,11 +817,6 @@ func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model st
 	if !modelWritten {
 		if err := writer.WriteField("model", model); err != nil {
 			return nil, "", fmt.Errorf("append multipart model field: %w", err)
-		}
-	}
-	if !responseFormatWritten {
-		if err := writer.WriteField("response_format", openAIImagesDefaultURLFormat); err != nil {
-			return nil, "", fmt.Errorf("append multipart response format field: %w", err)
 		}
 	}
 	if err := writer.Close(); err != nil {

@@ -4108,3 +4108,12 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - JSON image requests now add `response_format=url` only when the downstream request omits `response_format`.
 - Multipart image requests now preserve an explicit `response_format` field and only append `url` when the field is absent.
 - Updated OpenAI Images tests to cover explicit `b64_json` preservation and multipart defaulting behavior.
+
+## [2026-07-08] fix: Do not default missing OpenAI Images response_format
+
+**Affected files**: `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_test.go`
+**Compatibility**: Medium risk. Downstream requests that omit `response_format` now follow the upstream default instead of forcing URL responses, reducing compatibility failures with upstreams that reject the parameter.
+**Details**:
+- JSON image requests now rewrite only the model when `response_format` is absent.
+- Multipart image requests now preserve explicit `response_format` fields but no longer append one when absent.
+- Updated OpenAI Images tests to assert omitted `response_format` remains omitted through the API-key forwarding path.
