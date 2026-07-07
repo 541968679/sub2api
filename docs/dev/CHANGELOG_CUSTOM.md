@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-07] feat: 图片渠道监控手动检测支持并发批次
+
+**影响范围**: backend/internal/{service/{image_channel_monitor_types.go,image_channel_monitor_service.go(+test)},handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts,views/admin/ImageChannelMonitorView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/image-channel-monitor.md
+**上游兼容性**: 低风险。手动检测仍是异步内存 run + 前端本地历史，不改 `image_channel_monitor_histories` 定时监控历史表，也不改变 scheduled check 语义。
+**变更详情**:
+- 手动检测参数区新增并发数，点击开始后按 `选中渠道数 × 并发数` 展开独立检测记录；前端限制单渠道并发 1-20、单轮总记录 100 条，避免误操作压垮浏览器或上游。
+- 后端 manual run 请求/响应新增 `batch_id`、`batch_size`、`batch_index`，轮询与取消响应保持同一批次标识；`StartManualCheck` 单测覆盖批次字段保留。
+- 前端 `manualResults` 从按渠道 ID 存储改为按单条 recordId 存储，同一渠道可同时显示多条并发记录；手动记录表新增「批次」列，详情弹窗新增批次/序号/平均耗时指标。
+- 浏览器本地手动历史保存批次字段与 `batch_average_elapsed_ms`；同批记录完成时回填平均耗时，旧历史/预设数据兼容默认值；手动预设同步保存并发数。
+- 验证：`pnpm --dir frontend run typecheck` 通过；`go test -tags=unit ./internal/service -run TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult` 通过。
+
 ## [2026-07-06] feat: 图片渠道监控/手动测试支持 response_format 拿图方式选择
 
 **影响范围**: backend/{migrations/179, ent/schema/{image_channel_monitor,image_channel_monitor_history}.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test)}, internal/repository/image_channel_monitor_repo.go, internal/handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts, views/admin/ImageChannelMonitorView.vue, i18n/locales/{zh,en}.ts}

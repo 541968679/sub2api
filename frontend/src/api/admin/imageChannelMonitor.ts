@@ -184,12 +184,18 @@ export interface ImageChannelManualTestParams {
   input_image_data?: string
   input_image_type?: string
   input_image_name?: string
+  batch_id?: string
+  batch_size?: number
+  batch_index?: number
 }
 
 export interface ImageChannelManualRunResponse {
   run_id: string
   monitor: ImageChannelMonitor
   mode: 'generate' | 'edit'
+  batch_id: string
+  batch_size: number
+  batch_index: number
   running: boolean
   canceled: boolean
   stage: string

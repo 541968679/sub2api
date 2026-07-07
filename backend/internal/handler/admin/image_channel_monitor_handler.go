@@ -78,6 +78,9 @@ type imageChannelMonitorManualTestRequest struct {
 	InputImageData string `json:"input_image_data"`
 	InputImageType string `json:"input_image_type" binding:"omitempty,max=100"`
 	InputImageName string `json:"input_image_name" binding:"omitempty,max=255"`
+	BatchID        string `json:"batch_id" binding:"omitempty,max=80"`
+	BatchSize      int    `json:"batch_size" binding:"omitempty,min=1,max=200"`
+	BatchIndex     int    `json:"batch_index" binding:"omitempty,min=1,max=200"`
 }
 
 type imageChannelMonitorResponse struct {
@@ -207,6 +210,9 @@ type imageChannelMonitorManualRunResponse struct {
 	RunID       string                             `json:"run_id"`
 	Monitor     *imageChannelMonitorResponse       `json:"monitor"`
 	Mode        string                             `json:"mode"`
+	BatchID     string                             `json:"batch_id"`
+	BatchSize   int                                `json:"batch_size"`
+	BatchIndex  int                                `json:"batch_index"`
 	Running     bool                               `json:"running"`
 	Canceled    bool                               `json:"canceled"`
 	Stage       string                             `json:"stage"`
@@ -326,15 +332,18 @@ func imageMonitorManualRunToResponse(
 	s *service.ImageChannelMonitorManualRunStatus,
 ) imageChannelMonitorManualRunResponse {
 	out := imageChannelMonitorManualRunResponse{
-		RunID:     s.RunID,
-		Monitor:   imageMonitorToResponse(s.Monitor),
-		Mode:      s.Mode,
-		Running:   s.Running,
-		Canceled:  s.Canceled,
-		Stage:     s.Stage,
-		Message:   s.Message,
-		StartedAt: s.StartedAt.UTC().Format(time.RFC3339),
-		UpdatedAt: s.UpdatedAt.UTC().Format(time.RFC3339),
+		RunID:      s.RunID,
+		Monitor:    imageMonitorToResponse(s.Monitor),
+		Mode:       s.Mode,
+		BatchID:    s.BatchID,
+		BatchSize:  s.BatchSize,
+		BatchIndex: s.BatchIndex,
+		Running:    s.Running,
+		Canceled:   s.Canceled,
+		Stage:      s.Stage,
+		Message:    s.Message,
+		StartedAt:  s.StartedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:  s.UpdatedAt.UTC().Format(time.RFC3339),
 	}
 	if s.CompletedAt != nil {
 		v := s.CompletedAt.UTC().Format(time.RFC3339)
@@ -655,6 +664,9 @@ func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
 		InputImageData: req.InputImageData,
 		InputImageType: req.InputImageType,
 		InputImageName: req.InputImageName,
+		BatchID:        req.BatchID,
+		BatchSize:      req.BatchSize,
+		BatchIndex:     req.BatchIndex,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)

@@ -690,11 +690,17 @@ func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T
 	status, err := svc.StartManualCheck(context.Background(), 21, ImageChannelMonitorManualTestParams{
 		Mode:          ImageChannelMonitorManualGenerate,
 		DownloadImage: false,
+		BatchID:       "manual-batch-test",
+		BatchSize:     8,
+		BatchIndex:    3,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, status.RunID)
 	require.True(t, status.Running)
 	require.Nil(t, status.Result)
+	require.Equal(t, "manual-batch-test", status.BatchID)
+	require.Equal(t, 8, status.BatchSize)
+	require.Equal(t, 3, status.BatchIndex)
 
 	close(release)
 
@@ -709,6 +715,9 @@ func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T
 	require.Equal(t, MonitorStatusOperational, status.Result.Status)
 	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", status.Result.ReturnedImageData)
 	require.NotNil(t, status.CompletedAt)
+	require.Equal(t, "manual-batch-test", status.BatchID)
+	require.Equal(t, 8, status.BatchSize)
+	require.Equal(t, 3, status.BatchIndex)
 }
 
 func TestImageChannelMonitorCancelManualCheckKeepsCanceledStatus(t *testing.T) {

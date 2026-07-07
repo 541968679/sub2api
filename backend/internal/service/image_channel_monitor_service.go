@@ -295,15 +295,19 @@ func (s *ImageChannelMonitorService) StartManualCheck(
 	runID := newImageMonitorManualRunID()
 	now := time.Now()
 	runCtx, cancel := context.WithCancel(context.Background())
+	batchID, batchSize, batchIndex := normalizeImageMonitorManualBatch(p)
 	status := ImageChannelMonitorManualRunStatus{
-		RunID:     runID,
-		Monitor:   m,
-		Mode:      mode,
-		Running:   true,
-		Stage:     "queued",
-		Message:   "manual image test queued",
-		StartedAt: now,
-		UpdatedAt: now,
+		RunID:      runID,
+		Monitor:    m,
+		Mode:       mode,
+		BatchID:    batchID,
+		BatchSize:  batchSize,
+		BatchIndex: batchIndex,
+		Running:    true,
+		Stage:      "queued",
+		Message:    "manual image test queued",
+		StartedAt:  now,
+		UpdatedAt:  now,
 	}
 	s.manualMu.Lock()
 	if s.manualRuns == nil {
@@ -1684,6 +1688,25 @@ func newImageMonitorManualRunID() string {
 		return hex.EncodeToString(b[:])
 	}
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}
+
+func normalizeImageMonitorManualBatch(p ImageChannelMonitorManualTestParams) (string, int, int) {
+	batchID := strings.TrimSpace(p.BatchID)
+	if batchID == "" {
+		return "", 0, 0
+	}
+	batchSize := p.BatchSize
+	if batchSize < 1 {
+		batchSize = 1
+	}
+	batchIndex := p.BatchIndex
+	if batchIndex < 1 {
+		batchIndex = 1
+	}
+	if batchIndex > batchSize {
+		batchIndex = batchSize
+	}
+	return batchID, batchSize, batchIndex
 }
 
 func finalImageMonitorRuntimeStage(result *ImageChannelMonitorResult) string {

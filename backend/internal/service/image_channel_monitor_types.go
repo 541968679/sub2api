@@ -331,6 +331,9 @@ type ImageChannelMonitorManualTestParams struct {
 	InputImageData string
 	InputImageType string
 	InputImageName string
+	BatchID        string
+	BatchSize      int
+	BatchIndex     int
 }
 
 type ImageChannelMonitorManualTestResult struct {
@@ -343,6 +346,9 @@ type ImageChannelMonitorManualRunStatus struct {
 	RunID       string
 	Monitor     *ImageChannelMonitor
 	Mode        string
+	BatchID     string
+	BatchSize   int
+	BatchIndex  int
 	Running     bool
 	Canceled    bool
 	Stage       string
