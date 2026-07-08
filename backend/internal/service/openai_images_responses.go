@@ -1451,7 +1451,8 @@ func (s *OpenAIGatewayService) doOpenAIImagesOAuthRequestWithRetry(
 			return nil, lastReq, ctx.Err()
 		}
 
-		upstreamReq, err := buildOpenAIImagesOAuthUpstreamRequest(ctx, account, responsesBody, token)
+		attemptCtx := WithHTTPUpstreamNetworkRetryDisabled(ctx)
+		upstreamReq, err := buildOpenAIImagesOAuthUpstreamRequest(attemptCtx, account, responsesBody, token)
 		if err != nil {
 			return nil, nil, err
 		}

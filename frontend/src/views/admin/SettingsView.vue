@@ -3186,6 +3186,31 @@
                 />
               </div>
 
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px] sm:items-center">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.gatewayForwarding.networkRetryMax") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.networkRetryMaxHint",
+                      )
+                    }}
+                  </p>
+                </div>
+                <input
+                  v-model.number="form.gateway_network_retry_max"
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="1"
+                  class="input text-sm"
+                />
+              </div>
+
               <div class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
                 <div class="flex items-center justify-between gap-4">
                   <div>
@@ -6134,6 +6159,7 @@ const form = reactive<SettingsForm>({
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
+  gateway_network_retry_max: 2,
   openai_claude_gpt_bridge_cache_display_settings: {
     enabled: false,
     min_percent: 0,
@@ -7098,6 +7124,10 @@ async function saveSettings() {
       enable_cch_signing: form.enable_cch_signing,
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
+      gateway_network_retry_max: Math.max(
+        0,
+        Math.min(10, Math.floor(Number(form.gateway_network_retry_max) || 0)),
+      ),
       openai_claude_gpt_bridge_cache_display_settings: {
         enabled: bridgeCacheDisplay.enabled,
         min_percent: bridgeCacheMinPercent,

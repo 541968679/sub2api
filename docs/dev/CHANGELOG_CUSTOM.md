@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-08] feat: 网关上游网络错误可配置重试
+
+**影响范围**: backend/internal/{repository/http_upstream.go(+test), service/{http_upstream_port.go,setting_service.go,settings_view.go,domain_constants.go,wire.go,setting_service_update_test.go}, handler/{admin/setting_handler.go,dto/settings.go}, cmd/server/wire_gen.go}, frontend/src/{api/admin/settings.ts,views/admin/SettingsView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/gateway.md
+**上游兼容性**: 中低风险。统一 HTTPUpstream 出站层新增传输错误兜底；仅对未收到 HTTP 响应的连接失败/超时/EOF/DNS 等网络错误生效，不重试上游 4xx/5xx 响应；不可重放 request body 不重试。
+**变更详情**:
+- 新增系统设置 `gateway_network_retry_max`，位于后台「系统设置 - 网关服务 - 请求转发行为」，取值 0-10，默认 2；0 表示关闭重试。
+- `repository.HTTPUpstream` 外层增加网络错误重试：默认最多重试 2 次（总尝试 3 次），短退避；触发时写 `upstream_network_retry` 日志；已有专用重试循环的 OpenAI OAuth 图片 `/responses` 工具路径通过上下文关闭全局重试，避免次数叠加。
+- 设置服务将该字段并入网关转发行为缓存，保存后刷新热路径缓存；admin settings API 支持未传字段沿用旧值并记录审计 diff。
+- 前端补齐类型、默认值、保存 payload 和中英文文案。
+- 验证：`go test -tags=unit ./internal/repository ./internal/service ./internal/handler/admin ./cmd/server` 通过；`pnpm run typecheck` 通过。
+
 ## [2026-07-08] fix: 图片渠道监控手动参数区增加内部下拉滚动
 
 **影响范围**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md

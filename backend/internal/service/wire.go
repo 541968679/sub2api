@@ -514,6 +514,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
+	wire.Bind(new(GatewayNetworkRetrySettingsReader), new(*SettingService)),
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,

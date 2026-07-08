@@ -6152,6 +6152,8 @@ const enBase = {
         cchSigningHint: 'Sign the billing header in forwarded requests with CCH hash. When disabled, the placeholder is preserved.',
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
+        networkRetryMax: 'Maximum upstream network retries',
+        networkRetryMaxHint: 'Retries only connection failures, timeouts, EOF, and similar network errors before any HTTP response is received. Use 0 to disable. Default 2, maximum 10.',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT Bridge Cache Display',
         claudeGPTBridgeCacheDisplayHint: 'For OpenAI-backed Antigravity bridge requests, randomly generate the displayed cache_read tokens from this percentage range. This does not depend on upstream cached_tokens.',
         claudeGPTBridgeCacheMinPercent: 'Minimum cache percentage',

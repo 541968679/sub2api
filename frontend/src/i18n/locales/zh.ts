@@ -5843,6 +5843,8 @@ const zhBase = {
         cchSigningHint: '对转发请求的 billing header 进行 CCH 哈希签名。关闭时保留原始占位符。',
         anthropicCacheTTL1hInjection: 'Anthropic 缓存 TTL 注入',
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
+        networkRetryMax: '上游网络错误最大重试次数',
+        networkRetryMaxHint: '仅在连接失败、超时、EOF 等未收到 HTTP 响应的网络错误时重试；0 表示关闭，默认 2，最大 10。',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT 桥接缓存展示',
         claudeGPTBridgeCacheDisplayHint: '仅对 OpenAI 承载的 Antigravity 桥接请求生效；开启后按该百分比区间随机生成 cache_read 展示值，不依赖上游 cached_tokens。',
         claudeGPTBridgeCacheMinPercent: '最小缓存百分比',

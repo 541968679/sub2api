@@ -34,7 +34,7 @@ func (s *HTTPUpstreamSuite) SetupTest() {
 // newService 创建测试用的 httpUpstreamService 实例
 // 返回具体类型以便访问内部状态进行断言
 func (s *HTTPUpstreamSuite) newService() *httpUpstreamService {
-	up := NewHTTPUpstream(s.cfg)
+	up := NewHTTPUpstream(s.cfg, nil)
 	svc, ok := up.(*httpUpstreamService)
 	require.True(s.T(), ok, "expected *httpUpstreamService")
 	return svc
@@ -105,7 +105,7 @@ func (s *HTTPUpstreamSuite) TestDo_WithoutProxy_GoesDirect() {
 	}))
 	s.T().Cleanup(upstream.Close)
 
-	up := NewHTTPUpstream(s.cfg)
+	up := NewHTTPUpstream(s.cfg, nil)
 
 	req, err := http.NewRequest(http.MethodGet, upstream.URL+"/x", nil)
 	require.NoError(s.T(), err, "NewRequest")
@@ -129,7 +129,7 @@ func (s *HTTPUpstreamSuite) TestDo_WithHTTPProxy_UsesProxy() {
 	s.T().Cleanup(proxySrv.Close)
 
 	s.cfg.Gateway = config.GatewayConfig{ResponseHeaderTimeout: 1}
-	up := NewHTTPUpstream(s.cfg)
+	up := NewHTTPUpstream(s.cfg, nil)
 
 	// 发送请求到外部地址，应通过代理
 	req, err := http.NewRequest(http.MethodGet, "http://example.com/test", nil)
@@ -157,7 +157,7 @@ func (s *HTTPUpstreamSuite) TestDo_EmptyProxy_UsesDirect() {
 	}))
 	s.T().Cleanup(upstream.Close)
 
-	up := NewHTTPUpstream(s.cfg)
+	up := NewHTTPUpstream(s.cfg, nil)
 	req, err := http.NewRequest(http.MethodGet, upstream.URL+"/y", nil)
 	require.NoError(s.T(), err, "NewRequest")
 	resp, err := up.Do(req, "", 1, 1)

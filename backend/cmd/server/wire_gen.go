@@ -146,7 +146,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	geminiTokenCache := repository.NewGeminiTokenCache(redisClient)
 	compositeTokenCacheInvalidator := service.NewCompositeTokenCacheInvalidator(geminiTokenCache)
 	rateLimitService := service.ProvideRateLimitService(accountRepository, usageLogRepository, configConfig, geminiQuotaService, tempUnschedCache, timeoutCounterCache, openAI403CounterCache, settingService, compositeTokenCacheInvalidator)
-	httpUpstream := repository.NewHTTPUpstream(configConfig)
+	httpUpstream := repository.NewHTTPUpstream(configConfig, settingService)
 	claudeUsageFetcher := repository.NewClaudeUsageFetcher(httpUpstream)
 	oAuthRefreshAPI := service.ProvideOAuthRefreshAPI(accountRepository, geminiTokenCache)
 	antigravityTokenProvider := service.ProvideAntigravityTokenProvider(accountRepository, geminiTokenCache, antigravityOAuthService, oAuthRefreshAPI, tempUnschedCache)

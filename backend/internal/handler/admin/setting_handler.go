@@ -215,6 +215,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableMetadataPassthrough:              settings.EnableMetadataPassthrough,
 		EnableCCHSigning:                       settings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:     settings.EnableAnthropicCacheTTL1hInjection,
+		GatewayNetworkRetryMax:                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:       settings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        settings.PaymentVisibleMethodWxpaySource,
@@ -507,6 +508,7 @@ type UpdateSettingsRequest struct {
 	EnableMetadataPassthrough          *bool `json:"enable_metadata_passthrough"`
 	EnableCCHSigning                   *bool `json:"enable_cch_signing"`
 	EnableAnthropicCacheTTL1hInjection *bool `json:"enable_anthropic_cache_ttl_1h_injection"`
+	GatewayNetworkRetryMax             *int  `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
 	PaymentVisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
@@ -1362,6 +1364,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableAnthropicCacheTTL1hInjection
 		}(),
+		GatewayNetworkRetryMax: func() int {
+			if req.GatewayNetworkRetryMax != nil {
+				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
+			}
+			return previousSettings.GatewayNetworkRetryMax
+		}(),
 		PaymentVisibleMethodAlipaySource: func() string {
 			if req.PaymentVisibleMethodAlipaySource != nil {
 				return strings.TrimSpace(*req.PaymentVisibleMethodAlipaySource)
@@ -1682,6 +1690,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableMetadataPassthrough:              updatedSettings.EnableMetadataPassthrough,
 		EnableCCHSigning:                       updatedSettings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:     updatedSettings.EnableAnthropicCacheTTL1hInjection,
+		GatewayNetworkRetryMax:                 updatedSettings.GatewayNetworkRetryMax,
 		PaymentVisibleMethodAlipaySource:       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        updatedSettings.PaymentVisibleMethodWxpaySource,
 		PaymentVisibleMethodAlipayEnabled:      updatedSettings.PaymentVisibleMethodAlipayEnabled,
@@ -2087,6 +2096,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.EnableAnthropicCacheTTL1hInjection != after.EnableAnthropicCacheTTL1hInjection {
 		changed = append(changed, "enable_anthropic_cache_ttl_1h_injection")
+	}
+	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
+		changed = append(changed, "gateway_network_retry_max")
 	}
 	if before.PaymentVisibleMethodAlipaySource != after.PaymentVisibleMethodAlipaySource {
 		changed = append(changed, "payment_visible_method_alipay_source")

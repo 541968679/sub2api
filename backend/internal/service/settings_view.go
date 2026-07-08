@@ -160,6 +160,8 @@ type SystemSettings struct {
 	EnableCCHSigning                   bool // 是否对 billing header cch 进行签名（默认 false）
 	EnableAnthropicCacheTTL1hInjection bool // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
 
+	GatewayNetworkRetryMax int // network transport error retry count (0 disables, default 2)
+
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
 

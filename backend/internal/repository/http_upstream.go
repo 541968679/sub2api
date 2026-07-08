@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/flate"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -93,9 +94,10 @@ type upstreamClientEntry struct {
 // 7. 代理变更时清空旧连接池，避免复用错误代理
 // 8. 账号并发数与连接池上限对应（账号隔离策略下）
 type httpUpstreamService struct {
-	cfg     *config.Config                  // 全局配置
-	mu      sync.RWMutex                    // 保护 clients map 的读写锁
-	clients map[string]*upstreamClientEntry // 客户端缓存池，key 由隔离策略决定
+	cfg           *config.Config // 全局配置
+	retrySettings service.GatewayNetworkRetrySettingsReader
+	mu            sync.RWMutex                    // 保护 clients map 的读写锁
+	clients       map[string]*upstreamClientEntry // 客户端缓存池，key 由隔离策略决定
 }
 
 // NewHTTPUpstream 创建通用 HTTP 上游服务
@@ -106,11 +108,20 @@ type httpUpstreamService struct {
 //
 // 返回:
 //   - service.HTTPUpstream 接口实现
-func NewHTTPUpstream(cfg *config.Config) service.HTTPUpstream {
+func NewHTTPUpstream(cfg *config.Config, retrySettings service.GatewayNetworkRetrySettingsReader) service.HTTPUpstream {
 	return &httpUpstreamService{
-		cfg:     cfg,
-		clients: make(map[string]*upstreamClientEntry),
+		cfg:           cfg,
+		retrySettings: retrySettings,
+		clients:       make(map[string]*upstreamClientEntry),
 	}
+}
+
+func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	return s.doWithNetworkRetry(req, proxyURL, accountID, accountConcurrency, nil)
+}
+
+func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	return s.doWithNetworkRetry(req, proxyURL, accountID, accountConcurrency, profile)
 }
 
 // Do 执行 HTTP 请求
@@ -129,7 +140,7 @@ func NewHTTPUpstream(cfg *config.Config) service.HTTPUpstream {
 // 注意:
 //   - 调用方必须关闭 resp.Body，否则会导致 inFlight 计数泄漏
 //   - inFlight > 0 的客户端不会被淘汰，确保活跃请求不被中断
-func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+func (s *httpUpstreamService) doPlainOnce(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	if err := s.validateRequestHost(req); err != nil {
 		return nil, err
 	}
@@ -166,7 +177,7 @@ func (s *httpUpstreamService) Do(req *http.Request, proxyURL string, accountID i
 //
 // profile 为 nil 时不启用 TLS 指纹，行为与 Do 方法相同。
 // profile 非 nil 时使用指定的 Profile 进行 TLS 指纹伪装。
-func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+func (s *httpUpstreamService) doTLSOnce(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
 	if profile == nil {
 		return s.Do(req, proxyURL, accountID, accountConcurrency)
 	}
@@ -207,6 +218,155 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 	})
 
 	return resp, nil
+}
+
+// doWithNetworkRetry retries transport-level upstream failures when the request body can be replayed.
+func (s *httpUpstreamService) doWithNetworkRetry(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	if err := s.validateRequestHost(req); err != nil {
+		return nil, err
+	}
+	maxRetries := s.gatewayNetworkRetryMax(req)
+	var lastErr error
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		attemptReq := req
+		if attempt > 0 {
+			nextReq, err := cloneRequestForUpstreamRetry(req)
+			if err != nil {
+				slog.Debug("upstream_network_retry_skipped_unreplayable_body", "account_id", accountID, "attempt", attempt+1, "error", err)
+				return nil, lastErr
+			}
+			attemptReq = nextReq
+		}
+
+		var resp *http.Response
+		var err error
+		if profile != nil {
+			resp, err = s.doTLSOnce(attemptReq, proxyURL, accountID, accountConcurrency, profile)
+		} else {
+			resp, err = s.doPlainOnce(attemptReq, proxyURL, accountID, accountConcurrency)
+		}
+		if err == nil || !shouldRetryUpstreamNetworkError(req, err, attempt, maxRetries) {
+			return resp, err
+		}
+		lastErr = err
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		slog.Warn("upstream_network_retry", "account_id", accountID, "attempt", attempt+1, "max_retries", maxRetries, "error", err)
+		retryCtx := context.Background()
+		if req != nil && req.Context() != nil {
+			retryCtx = req.Context()
+		}
+		if err := sleepBeforeUpstreamRetry(retryCtx, attempt); err != nil {
+			return nil, lastErr
+		}
+	}
+	return nil, lastErr
+}
+
+func (s *httpUpstreamService) gatewayNetworkRetryMax(req *http.Request) int {
+	if req != nil && service.HTTPUpstreamNetworkRetryDisabled(req.Context()) {
+		return 0
+	}
+	if s.retrySettings == nil {
+		return service.GatewayNetworkRetryMaxDefault
+	}
+	ctx := context.Background()
+	if req != nil && req.Context() != nil {
+		ctx = req.Context()
+	}
+	return service.ClampGatewayNetworkRetryMax(s.retrySettings.GetGatewayNetworkRetryMax(ctx))
+}
+
+func cloneRequestForUpstreamRetry(req *http.Request) (*http.Request, error) {
+	if req == nil {
+		return nil, errors.New("nil request")
+	}
+	clone := req.Clone(req.Context())
+	if req.Body == nil || req.Body == http.NoBody {
+		clone.Body = req.Body
+		return clone, nil
+	}
+	if req.GetBody == nil {
+		return nil, errors.New("request body is not replayable")
+	}
+	body, err := req.GetBody()
+	if err != nil {
+		return nil, err
+	}
+	clone.Body = body
+	return clone, nil
+}
+
+func shouldRetryUpstreamNetworkError(req *http.Request, err error, attempt, maxRetries int) bool {
+	if attempt >= maxRetries {
+		return false
+	}
+	if req != nil && req.Context() != nil && req.Context().Err() != nil {
+		return false
+	}
+	if !canReplayUpstreamRequest(req) {
+		return false
+	}
+	return isRetriableUpstreamNetworkError(err)
+}
+
+func canReplayUpstreamRequest(req *http.Request) bool {
+	if req == nil {
+		return false
+	}
+	return req.Body == nil || req.Body == http.NoBody || req.GetBody != nil
+}
+
+func isRetriableUpstreamNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, io.EOF) ||
+		errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	for _, fragment := range []string{
+		"network error. please check your connection",
+		"connection reset",
+		"connection refused",
+		"connection aborted",
+		"broken pipe",
+		"no such host",
+		"no route to host",
+		"network is unreachable",
+		"i/o timeout",
+		"tls handshake timeout",
+		"timeout awaiting response headers",
+		"unexpected eof",
+		"server misbehaving",
+	} {
+		if strings.Contains(message, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func sleepBeforeUpstreamRetry(ctx context.Context, attempt int) error {
+	delay := time.Duration(attempt+1) * 150 * time.Millisecond
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // acquireClientWithTLS 获取或创建带 TLS 指纹的客户端

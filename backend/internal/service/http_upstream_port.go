@@ -1,10 +1,48 @@
 package service
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 )
+
+const (
+	GatewayNetworkRetryMaxDefault = 2
+	GatewayNetworkRetryMaxMin     = 0
+	GatewayNetworkRetryMaxMax     = 10
+)
+
+type httpUpstreamNetworkRetryDisabledKey struct{}
+
+type GatewayNetworkRetrySettingsReader interface {
+	GetGatewayNetworkRetryMax(ctx context.Context) int
+}
+
+func ClampGatewayNetworkRetryMax(value int) int {
+	if value < GatewayNetworkRetryMaxMin {
+		return GatewayNetworkRetryMaxMin
+	}
+	if value > GatewayNetworkRetryMaxMax {
+		return GatewayNetworkRetryMaxMax
+	}
+	return value
+}
+
+func WithHTTPUpstreamNetworkRetryDisabled(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, httpUpstreamNetworkRetryDisabledKey{}, true)
+}
+
+func HTTPUpstreamNetworkRetryDisabled(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	disabled, _ := ctx.Value(httpUpstreamNetworkRetryDisabledKey{}).(bool)
+	return disabled
+}
 
 // HTTPUpstream 上游 HTTP 请求接口
 // 用于向上游 API（Claude、OpenAI、Gemini 等）发送请求

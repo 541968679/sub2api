@@ -65,6 +65,25 @@ func (s *defaultSubGroupReaderStub) GetByID(ctx context.Context, id int64) (*Gro
 	return nil, ErrGroupNotFound
 }
 
+func TestParseGatewayNetworkRetryMaxDefaultsAndClamps(t *testing.T) {
+	require.Equal(t, 2, ParseGatewayNetworkRetryMax(""))
+	require.Equal(t, 0, ParseGatewayNetworkRetryMax("-1"))
+	require.Equal(t, 10, ParseGatewayNetworkRetryMax("99"))
+	require.Equal(t, 2, ParseGatewayNetworkRetryMax("invalid"))
+	require.Equal(t, 4, ParseGatewayNetworkRetryMax("4"))
+}
+
+func TestBuildSystemSettingsUpdatesNormalizesGatewayNetworkRetryMax(t *testing.T) {
+	repo := &settingUpdateRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+	settings := &SystemSettings{GatewayNetworkRetryMax: 99}
+
+	updates, err := svc.buildSystemSettingsUpdates(context.Background(), settings)
+	require.NoError(t, err)
+	require.Equal(t, "10", updates[SettingKeyGatewayNetworkRetryMax])
+	require.Equal(t, 10, settings.GatewayNetworkRetryMax)
+}
+
 func TestSettingService_UpdateSettings_DefaultSubscriptions_ValidGroup(t *testing.T) {
 	repo := &settingUpdateRepoStub{}
 	groupReader := &defaultSubGroupReaderStub{
