@@ -128,3 +128,43 @@ func TestFetchCodexModelsManifestRejectsAPIKeyAccount(t *testing.T) {
 	_, err := s.FetchCodexModelsManifest(context.Background(), account, "0.144.1", "")
 	require.Error(t, err)
 }
+
+func TestSelectAccountForCodexModelsSkipsAPIKeyAccounts(t *testing.T) {
+	groupID := int64(1)
+	apiKeyAccount := Account{
+		ID:          1,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Priority:    0,
+	}
+	oauthAccount := *newCodexModelsTestAccount()
+	oauthAccount.ID = 2
+	oauthAccount.Status = StatusActive
+	oauthAccount.Schedulable = true
+	oauthAccount.Priority = 10
+
+	s := &OpenAIGatewayService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{apiKeyAccount, oauthAccount}},
+	}
+	selected, err := s.SelectAccountForCodexModels(context.Background(), &groupID)
+	require.NoError(t, err)
+	require.Equal(t, oauthAccount.ID, selected.ID)
+}
+
+func TestSelectAccountForCodexModelsRejectsAPIKeyOnlyGroup(t *testing.T) {
+	groupID := int64(1)
+	s := &OpenAIGatewayService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:          1,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+		}}},
+	}
+
+	_, err := s.SelectAccountForCodexModels(context.Background(), &groupID)
+	require.Error(t, err)
+}
