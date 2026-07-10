@@ -128,7 +128,7 @@ func TestOpenAIMessagesStreamReplaysTerminalOnlyText(t *testing.T) {
 func TestOpenAIMessagesStreamReplaysTerminalOnlyToolCall(t *testing.T) {
 	result, err, rec := handleMessagesTestStream(t,
 		`{"type":"response.created","response":{"id":"resp_tool","model":"gpt-5.5","status":"in_progress"}}`,
-		`{"type":"response.completed","response":{"id":"resp_tool","status":"completed","output":[{"type":"function_call","call_id":"call_terminal","name":"Read","arguments":"{\\"file_path\\":\\"README.md\\"}"}],"usage":{"input_tokens":69000,"output_tokens":4,"total_tokens":69004}}}`,
+		`{"type":"response.completed","response":{"id":"resp_tool","status":"completed","output":[{"type":"function_call","call_id":"call_terminal","name":"Read","arguments":"{\"file_path\":\"README.md\"}"}],"usage":{"input_tokens":69000,"output_tokens":4,"total_tokens":69004}}}`,
 	)
 
 	require.NoError(t, err)
@@ -142,8 +142,8 @@ func TestOpenAIMessagesStreamNormalIncrementalToolCallRemainsUsable(t *testing.T
 	result, err, rec := handleMessagesTestStream(t,
 		`{"type":"response.created","response":{"id":"resp_tool_delta","model":"gpt-5.5","status":"in_progress"}}`,
 		`{"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","call_id":"call_delta","name":"Read","arguments":""}}`,
-		`{"type":"response.function_call_arguments.delta","output_index":0,"delta":"{\\"file_path\\":\\"README.md\\"}"}`,
-		`{"type":"response.function_call_arguments.done","output_index":0,"arguments":"{\\"file_path\\":\\"README.md\\"}"}`,
+		`{"type":"response.function_call_arguments.delta","output_index":0,"delta":"{\"file_path\":\"README.md\"}"}`,
+		`{"type":"response.function_call_arguments.done","output_index":0,"arguments":"{\"file_path\":\"README.md\"}"}`,
 		`{"type":"response.completed","response":{"id":"resp_tool_delta","status":"completed","output":[],"usage":{"input_tokens":100,"output_tokens":5,"total_tokens":105}}}`,
 	)
 
