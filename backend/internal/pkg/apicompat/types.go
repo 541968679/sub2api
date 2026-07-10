@@ -233,7 +233,9 @@ type ResponsesInputItem struct {
 	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
-	ID        string `json:"id,omitempty"`
+	// type=custom_tool_call (freeform input)
+	Input string `json:"input,omitempty"`
+	ID    string `json:"id,omitempty"`
 
 	// type=function_call_output
 	Output string `json:"output,omitempty"`
@@ -273,6 +275,7 @@ type ResponsesResponse struct {
 
 // ResponsesError describes an error in a failed response.
 type ResponsesError struct {
+	Type    string `json:"type,omitempty"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
@@ -300,6 +303,7 @@ type ResponsesOutput struct {
 	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
+	Input     string `json:"input,omitempty"`
 
 	// type=web_search_call
 	Action *WebSearchAction `json:"action,omitempty"`
@@ -361,8 +365,9 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 
 // ResponsesInputTokensDetails breaks down input token usage.
 type ResponsesInputTokensDetails struct {
-	CachedTokens int `json:"cached_tokens,omitempty"`
-	AudioTokens  int `json:"audio_tokens,omitempty"`
+	CachedTokens     int `json:"cached_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	AudioTokens      int `json:"audio_tokens,omitempty"`
 }
 
 // ResponsesOutputTokensDetails breaks down output token usage.
@@ -401,6 +406,7 @@ type ResponsesStreamEvent struct {
 	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
+	Input     string `json:"input,omitempty"`
 
 	// response.reasoning_summary_text.delta / done
 	// Reuses Text/Delta fields above, SummaryIndex identifies which summary part
