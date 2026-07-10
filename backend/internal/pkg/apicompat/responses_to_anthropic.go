@@ -3,6 +3,7 @@ package apicompat
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -455,16 +456,17 @@ func resToAnthHandleFuncArgsDelta(evt *ResponsesStreamEvent, state *ResponsesEve
 	if evt.Delta == "" {
 		return nil
 	}
-
-	if state.CurrentBlockType == "tool_use" &&
-		(state.CurrentToolName == "Read" || state.CurrentToolType == "custom_tool_call") {
-		state.CurrentToolArgs += evt.Delta
+	if !state.ContentBlockOpen || state.CurrentBlockType != "tool_use" ||
+		!state.CurrentOutputSet || state.CurrentOutputIndex != evt.OutputIndex {
 		return nil
 	}
-	if state.CurrentBlockType == "tool_use" {
-		state.CurrentToolHadDelta = true
-		state.HandledOutputIndexes[evt.OutputIndex] = true
+	state.CurrentToolArgs += evt.Delta
+
+	if state.CurrentToolName == "Read" || state.CurrentToolType == "custom_tool_call" {
+		return nil
 	}
+	state.CurrentToolHadDelta = true
+	state.HandledOutputIndexes[evt.OutputIndex] = true
 
 	blockIdx, ok := state.OutputIndexToBlockIdx[evt.OutputIndex]
 	if !ok {
@@ -501,6 +503,22 @@ func resToAnthHandleFuncArgsDone(evt *ResponsesStreamEvent, state *ResponsesEven
 	}
 	if state.CurrentToolHadDelta {
 		state.HandledOutputIndexes[evt.OutputIndex] = true
+		if raw == "" || raw == state.CurrentToolArgs {
+			return closeCurrentBlock(state)
+		}
+		if strings.HasPrefix(raw, state.CurrentToolArgs) {
+			suffix := strings.TrimPrefix(raw, state.CurrentToolArgs)
+			idx := state.ContentBlockIndex
+			events := make([]AnthropicStreamEvent, 0, 2)
+			if suffix != "" {
+				events = append(events, AnthropicStreamEvent{
+					Type:  "content_block_delta",
+					Index: &idx,
+					Delta: &AnthropicDelta{Type: "input_json_delta", PartialJSON: suffix},
+				})
+			}
+			return append(events, closeCurrentBlock(state)...)
+		}
 		return closeCurrentBlock(state)
 	}
 	if raw == "" {
@@ -709,7 +727,7 @@ func resToAnthCompleteOpenToolFromTerminal(resp *ResponsesResponse, state *Respo
 		return nil
 	}
 	outputIndex := state.CurrentOutputIndex
-	if state.HandledOutputIndexes[outputIndex] || outputIndex < 0 || outputIndex >= len(resp.Output) {
+	if outputIndex < 0 || outputIndex >= len(resp.Output) {
 		return nil
 	}
 	output := resp.Output[outputIndex]
