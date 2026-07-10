@@ -104,6 +104,54 @@
                 </button>
               </div>
               <div v-show="!manualConfigCollapsed" class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 pb-4 pr-3">
+                <div class="space-y-1.5">
+                  <span class="input-label">{{ t('admin.imageChannelMonitor.manual.executionMode') }}</span>
+                  <div class="grid grid-cols-3 rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-dark-700 dark:bg-dark-800" role="tablist">
+                    <button
+                      v-for="option in manualExecutionModeOptions"
+                      :key="option.value"
+                      type="button"
+                      role="tab"
+                      :data-testid="`manual-execution-mode-${option.value.replace(/_/g, '-')}`"
+                      :aria-selected="manualExecutionMode === option.value"
+                      class="min-w-0 rounded-md px-1.5 py-1.5 text-[11px] font-medium transition"
+                      :class="manualExecutionMode === option.value
+                        ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-900 dark:text-primary-200'
+                        : 'text-gray-600 hover:text-gray-900 dark:text-dark-300'"
+                      @click="setManualExecutionMode(option.value)"
+                    >
+                      {{ option.label }}
+                    </button>
+                  </div>
+                  <p
+                    class="text-[11px] leading-4"
+                    :class="manualExecutionMode === 'direct_probe'
+                      ? 'text-amber-600 dark:text-amber-300'
+                      : 'text-gray-500 dark:text-dark-400'"
+                  >
+                    {{ manualExecutionModeHint }}
+                  </p>
+                </div>
+
+                <label v-if="manualExecutionMode !== 'direct_probe'" class="block">
+                  <span class="input-label">{{ t('admin.imageChannelMonitor.manual.apiKey') }}</span>
+                  <select
+                    v-model.number="manualAPIKeyID"
+                    data-testid="manual-api-key"
+                    class="input"
+                    :disabled="manualAPIKeysLoading"
+                  >
+                    <option :value="0">
+                      {{ manualAPIKeysLoading
+                        ? t('common.loading')
+                        : t('admin.imageChannelMonitor.manual.selectApiKey') }}
+                    </option>
+                    <option v-for="key in manualAPIKeys" :key="key.id" :value="key.id">
+                      {{ key.name || `#${key.id}` }} · {{ t('admin.imageChannelMonitor.manual.apiKeyUser', { id: key.user_id }) }}
+                    </option>
+                  </select>
+                </label>
+
                 <div class="flex items-center justify-between gap-3">
                   <div class="inline-flex rounded-lg border border-gray-200 bg-gray-100 p-0.5 dark:border-dark-700 dark:bg-dark-800" role="tablist">
                     <button
@@ -198,18 +246,53 @@
                 </label>
 
                 <div v-if="manualForm.mode === 'edit'" class="space-y-2">
-                  <span class="input-label">{{ t('admin.imageChannelMonitor.manual.inputImage') }}</span>
-                  <input class="input" type="file" accept="image/*" @change="handleManualImageChange" />
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="input-label">{{ t('admin.imageChannelMonitor.manual.inputImages') }}</span>
+                    <span class="text-[11px] tabular-nums text-gray-500 dark:text-dark-400">
+                      {{ t('admin.imageChannelMonitor.manual.inputPoolCount', {
+                        selected: manualInputImages.length,
+                        required: manualRequiredInputImageCount,
+                      }) }}
+                    </span>
+                  </div>
+                  <input
+                    :key="manualImageInputKey"
+                    data-testid="manual-input-images"
+                    class="input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    @change="handleManualImageChange"
+                  />
                   <div
-                    v-if="manualInputImage"
-                    class="flex items-center gap-2 rounded-md border border-gray-200 p-1.5 text-xs dark:border-dark-700"
+                    v-if="manualInputImages.length"
+                    class="grid max-h-32 grid-cols-2 gap-1.5 overflow-y-auto rounded-md border border-gray-200 p-1.5 text-xs dark:border-dark-700"
                   >
-                    <img :src="manualInputImage.data" class="h-9 w-9 rounded object-cover" alt="" />
-                    <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-dark-300">{{ manualInputImage.name }}</span>
-                    <button type="button" class="btn btn-secondary btn-sm" @click="clearManualInputImage">
+                    <div
+                      v-for="(image, index) in manualInputImages"
+                      :key="`${image.name}-${index}`"
+                      class="flex min-w-0 items-center gap-1 rounded bg-gray-50 p-1 dark:bg-dark-800"
+                    >
+                      <img :src="image.data" class="h-8 w-8 flex-none rounded object-cover" alt="" />
+                      <span class="min-w-0 flex-1 truncate text-gray-600 dark:text-dark-300" :title="image.name">
+                        {{ index + 1 }}. {{ image.name }}
+                      </span>
+                      <button
+                        type="button"
+                        class="h-6 w-6 flex-none text-gray-400 hover:text-red-600"
+                        :title="t('admin.imageChannelMonitor.manual.removeInputImage')"
+                        @click="removeManualInputImage(index)"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm col-span-2 justify-center" @click="clearManualInputImage">
                       {{ t('common.clear') }}
                     </button>
                   </div>
+                  <p v-if="manualInputImages.length < manualRequiredInputImageCount" class="text-[11px] text-amber-600 dark:text-amber-300">
+                    {{ t('admin.imageChannelMonitor.manual.inputPoolRequired', { count: manualRequiredInputImageCount }) }}
+                  </p>
                 </div>
 
                 <div class="flex items-center gap-2 border-t border-gray-100 pt-3 dark:border-dark-800">
@@ -241,7 +324,7 @@
                   {{ t('admin.imageChannelMonitor.manual.targets') }}
                 </span>
                 <span class="rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary-700 dark:border-primary-500/40 dark:bg-primary-900/20 dark:text-primary-200">
-                  {{ t('admin.imageChannelMonitor.manual.selectedOfTotal', { selected: manualSelectedIds.length, total: manualTargets.length }) }}
+                  {{ t('admin.imageChannelMonitor.manual.selectedOfTotal', { selected: manualSelectedTargetCount, total: manualSelectableTargets.length }) }}
                 </span>
                 <div class="ml-auto flex items-center gap-1">
                   <button type="button" class="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-300" @click="selectAllManualTargets">
@@ -262,6 +345,11 @@
                 </div>
               </div>
               <div class="px-4 pb-2">
+                <p v-if="manualExecutionMode !== 'direct_probe'" class="mb-2 text-[11px] leading-4 text-gray-500 dark:text-dark-400">
+                  {{ manualExecutionMode === 'gateway_group'
+                    ? t('admin.imageChannelMonitor.manual.gatewayGroupTargetHint')
+                    : t('admin.imageChannelMonitor.manual.gatewayAccountTargetHint') }}
+                </p>
                 <input
                   v-model.trim="manualTargetSearch"
                   type="search"
@@ -279,10 +367,11 @@
                     : 'border-gray-200 hover:border-gray-300 dark:border-dark-700 dark:hover:border-dark-600'"
                 >
                   <input
-                    v-model="manualSelectedIds"
                     type="checkbox"
                     class="h-4 w-4 flex-none rounded border-gray-300 text-primary-600"
                     :value="target.id"
+                    :checked="manualSelectedIds.includes(target.id)"
+                    @change="handleManualTargetToggle(target.id)"
                   />
                   <span class="min-w-0 flex-1">
                     <span class="block truncate text-[13px] font-medium text-gray-900 dark:text-white">{{ target.name }}</span>
@@ -306,13 +395,13 @@
                 <button
                   type="button"
                   class="btn btn-primary w-full justify-center py-2.5 text-sm font-semibold"
-                  :disabled="manualSelectedIds.length === 0"
+                  :disabled="manualStartDisabled"
                   @click="startManualTests"
                 >
                   {{ t('admin.imageChannelMonitor.manual.startWithCount', { count: manualPlannedRunCount }) }}
                 </button>
                 <p class="mt-2 text-center text-[11px] text-gray-400 dark:text-dark-500">
-                  {{ t('admin.imageChannelMonitor.manual.ctaHint', { concurrency: manualNormalizedConcurrency }) }}
+                  {{ manualCTAHint }}
                 </p>
               </template>
               <template v-else>
@@ -353,6 +442,9 @@
               <span class="text-xs tabular-nums text-gray-600 dark:text-dark-300">
                 {{ t('admin.imageChannelMonitor.manual.resultOk') }} <b class="text-green-600 dark:text-green-300">{{ manualBatchStats.ok }}</b>
                 · {{ t('admin.imageChannelMonitor.manual.resultFail') }} <b class="text-red-600 dark:text-red-300">{{ manualBatchStats.failed }}</b>
+                <template v-if="manualBatchStats.observationLost">
+                  &middot; {{ t('admin.imageChannelMonitor.manual.resultObservationLost') }} <b class="text-amber-600 dark:text-amber-300">{{ manualBatchStats.observationLost }}</b>
+                </template>
                 <template v-if="manualCurrentBatchAverageMs !== null">
                   · {{ t('admin.imageChannelMonitor.manual.batchAverage') }} <b>{{ formatDuration(manualCurrentBatchAverageMs) }}</b>
                 </template>
@@ -399,6 +491,7 @@
                 <option value="degraded">{{ t('admin.imageChannelMonitor.status.degraded') }}</option>
                 <option value="failed">{{ t('admin.imageChannelMonitor.status.failed') }}</option>
                 <option value="error">{{ t('admin.imageChannelMonitor.status.error') }}</option>
+                <option value="observation_lost">{{ t('admin.imageChannelMonitor.manual.observationLost') }}</option>
                 <option value="canceled">{{ t('admin.imageChannelMonitor.manual.canceled') }}</option>
               </select>
               <select v-model="manualRecordModeFilter" class="input w-auto">
@@ -481,6 +574,9 @@
                     <th v-if="manualColumnVisible('image_download')" class="mtbl-th mtbl-th-num">
                       {{ t('admin.imageChannelMonitor.manual.columns.imageDownload') }}
                     </th>
+                    <th v-if="manualColumnVisible('actual_response')" class="mtbl-th">
+                      {{ t('admin.imageChannelMonitor.manual.columns.actualResponse') }}
+                    </th>
                     <th v-if="manualColumnVisible('image_info')" class="mtbl-th">
                       {{ t('admin.imageChannelMonitor.manual.columns.imageInfo') }}
                     </th>
@@ -517,6 +613,18 @@
                       <div v-if="manualRecordStageText(entry)" class="mt-0.5 max-w-[120px] truncate text-[11px] text-gray-500 dark:text-dark-400" :title="manualRecordStageText(entry)">
                         {{ manualRecordStageText(entry) }}
                       </div>
+                      <div v-if="entry.gateway_status" class="mt-0.5 max-w-[160px] truncate text-[10px] text-gray-500 dark:text-dark-400">
+                        {{ t('admin.imageChannelMonitor.manual.gatewayStatus') }}: {{ manualStatusValueText(entry.gateway_status) }}
+                      </div>
+                      <div v-if="entry.delivery_status" class="max-w-[160px] truncate text-[10px] text-gray-500 dark:text-dark-400">
+                        {{ t('admin.imageChannelMonitor.manual.deliveryStatus') }}: {{ manualStatusValueText(entry.delivery_status) }}
+                      </div>
+                      <div
+                        v-if="entry.liveItem?.observationWarning || entry.liveItem?.artifactWarning"
+                        class="mt-1 max-w-[180px] text-[10px] leading-4 text-amber-600 dark:text-amber-300"
+                      >
+                        {{ entry.liveItem?.observationWarning || entry.liveItem?.artifactWarning }}
+                      </div>
                     </td>
                     <td v-if="manualColumnVisible('batch')" class="mtbl-td whitespace-nowrap">
                       <template v-if="entry.batch_id">
@@ -548,6 +656,17 @@
                     </td>
                     <td v-if="manualColumnVisible('image_download')" class="mtbl-td mtbl-td-num text-gray-700 dark:text-dark-200">
                       {{ formatMsGrouped(entry.result?.image_download_ms ?? null) }}
+                    </td>
+                    <td v-if="manualColumnVisible('actual_response')" class="mtbl-td whitespace-nowrap">
+                      <span
+                        v-if="manualRecordActualResponseText(entry)"
+                        class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium"
+                        :class="manualRecordActualResponseBadgeClass(entry)"
+                        :title="manualRecordActualResponseTitle(entry)"
+                      >
+                        {{ manualRecordActualResponseText(entry) }}
+                      </span>
+                      <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
                     </td>
                     <td v-if="manualColumnVisible('image_info')" class="mtbl-td whitespace-nowrap">
                       <template v-if="manualRecordImageDims(entry) || manualRecordImageBytesText(entry)">
@@ -592,6 +711,14 @@
                           @click="cancelManualRun(entry.liveItem)"
                         >
                           {{ t('admin.imageChannelMonitor.manual.cancel') }}
+                        </button>
+                        <button
+                          v-if="entry.historyItem?.output_artifact_pending"
+                          type="button"
+                          class="rounded px-1.5 py-1 text-[12px] font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                          @click="retryManualArtifact(entry.run_id)"
+                        >
+                          {{ t('common.retry') }}
                         </button>
                         <button
                           type="button"
@@ -1097,6 +1224,23 @@
             :value="responseFormatLabel(selectedManualRecord.response_format)"
           />
           <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.executionMode')"
+            :value="manualExecutionModeLabel(selectedManualRecord.execution_mode)"
+          />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.gatewayStatus')"
+            :value="manualStatusValueText(selectedManualRecord.gateway_status) || '-'"
+          />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.deliveryStatus')"
+            :value="manualStatusValueText(selectedManualRecord.delivery_status) || '-'"
+          />
+          <MetricItem
+            :label="t('admin.imageChannelMonitor.manual.actualResponse')"
+            :value="manualRecordActualResponseText(selectedManualRecord) || '-'"
+            :tone="manualRecordActualResponseKind(selectedManualRecord).includes('DataUrl') ? 'warn' : undefined"
+          />
+          <MetricItem
             :label="t('admin.imageChannelMonitor.manual.actualSize')"
             :value="manualRecordImageDims(selectedManualRecord) || '-'"
             :tone="manualRecordSizeMismatch(selectedManualRecord) ? 'warn' : undefined"
@@ -1259,13 +1403,24 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatBytes } from '@/utils/format'
+import {
+  buildManualRunRequests,
+  isManualRetryableRequestError,
+  manualArtifactRecoveryExpiresAt,
+  manualRunObservationMaxAttempts,
+  ManualRunObservationError,
+  pollManualRunUntilTerminal,
+  revokeManualObjectURLsForRun,
+} from '@/utils/imageChannelManualTest'
 import type { Account, Proxy } from '@/types'
+import type { SimpleApiKey } from '@/api/admin/usage'
 import type { Column } from '@/components/common/types'
 import type {
   ImageChannelMonitor,
   ImageChannelMonitorHistoryItem,
   ImageChannelMonitorListParams,
   ImageChannelManualRunResponse,
+  ImageChannelManualTestParams,
   ImageChannelMonitorResult,
   ImageChannelMonitorRuntimeStatus,
   ImageMonitorResponseFormat,
@@ -1306,15 +1461,19 @@ const appStore = useAppStore()
 
 type ImageSizeMode = 'omit' | 'auto' | 'preset' | 'custom'
 type ImageMonitorPanel = 'monitors' | 'manual'
+type ManualExecutionMode = 'gateway_account' | 'gateway_group' | 'direct_probe'
 
 type ManualResultItem = {
   recordId: string
   monitor: ImageChannelMonitor
-  state: 'running' | 'done' | 'error' | 'canceled'
+  state: 'running' | 'done' | 'error' | 'canceled' | 'observation_lost'
   message: string
+  observationWarning?: string
+  artifactWarning?: string
   batch_id: string
   batch_size: number
   batch_index: number
+  clientRunID?: string
   run?: ImageChannelManualRunResponse
   settings?: ManualPresetSettings
   inputImage?: ManualInputImage | null
@@ -1323,6 +1482,8 @@ type ManualResultItem = {
 }
 
 type ManualPresetSettings = {
+  execution_mode: ManualExecutionMode
+  api_key_id: number
   mode: 'generate' | 'edit'
   model: string
   prompt: string
@@ -1358,7 +1519,10 @@ type ManualHistoryItem = {
   batch_index: number
   batch_average_elapsed_ms: number
   mode: 'generate' | 'edit'
-  status: ImageMonitorStatus | 'canceled'
+  execution_mode?: ManualExecutionMode
+  gateway_status?: string
+  delivery_status?: string
+  status: ImageMonitorStatus | 'canceled' | 'observation_lost'
   stage: string
   message: string
   elapsed_ms: number
@@ -1376,18 +1540,45 @@ type ManualHistoryItem = {
   input_image_name?: string
   output_image_ref?: string
   output_image_url?: string
+  output_artifact_pending?: boolean
+  output_artifact_index?: number
+  output_artifact_monitor_id?: number
+  output_artifact_timeout_seconds?: number
+  output_artifact_retry_count?: number
+  output_artifact_expires_at?: string
   result?: ImageChannelMonitorResult
 }
 
 type ManualInputImage = {
   data: string
+  blob?: Blob
   type: string
   name: string
 }
 
-type ManualStoredImage = ManualInputImage & {
+type ManualGatewayTestParams = ImageChannelManualTestParams & {
+  execution_mode: ManualExecutionMode
+  api_key_id?: number
+  expected_account_id?: number
+  client_run_id: string
+}
+
+type ManualPersistedImage = {
+  data?: string
+  blob?: Blob
+  type: string
+  name: string
+}
+
+type ManualStoredImage = ManualPersistedImage & {
   ref: string
   saved_at: string
+}
+
+type ManualArtifactLoadResult = {
+  image: ManualPersistedImage | null
+  index: number | null
+  pending: boolean
 }
 
 type NetworkInfoItem = {
@@ -1403,8 +1594,9 @@ type WaterfallSegment = {
   pct: number
 }
 
-type ManualRecordStatus = ImageMonitorStatus | 'running' | 'canceled'
+type ManualRecordStatus = ImageMonitorStatus | 'running' | 'canceled' | 'observation_lost'
 type ManualRecordSource = 'live' | 'history'
+type ManualActualResponseKind = '' | 'url' | 'b64Json' | 'dataUrl' | 'urlAndB64Json' | 'dataUrlAndB64Json'
 
 type ManualRecordColumnKey =
   | 'started_at'
@@ -1417,6 +1609,7 @@ type ManualRecordColumnKey =
   | 'elapsed'
   | 'api_total'
   | 'image_download'
+  | 'actual_response'
   | 'image_info'
   | 'exit_ip'
   | 'output'
@@ -1437,6 +1630,9 @@ type ManualRecordEntry = {
   batch_index: number
   batch_average_elapsed_ms: number
   mode: 'generate' | 'edit'
+  execution_mode: ManualExecutionMode
+  gateway_status: string
+  delivery_status: string
   status: ManualRecordStatus
   stage: string
   message: string
@@ -1492,7 +1688,18 @@ const manualHistoryOutputPreviews = ref<Record<string, string>>({})
 const manualPresets = ref<ManualPreset[]>([])
 const manualPresetSelectedId = ref('')
 const manualPresetName = ref('')
-const manualInputImage = ref<ManualInputImage | null>(null)
+const manualInputImages = ref<ManualInputImage[]>([])
+const manualInputImage = computed<ManualInputImage | null>({
+  get: () => manualInputImages.value[0] || null,
+  set: (value) => {
+    manualInputImages.value = value ? [value] : []
+  },
+})
+const manualImageInputKey = ref(0)
+const manualExecutionMode = ref<ManualExecutionMode>('gateway_account')
+const manualAPIKeyID = ref(0)
+const manualAPIKeys = ref<SimpleApiKey[]>([])
+const manualAPIKeysLoading = ref(false)
 const manualConfigCollapsed = ref(false)
 const manualTargetSearch = ref('')
 const manualBatchDismissed = ref(false)
@@ -1505,6 +1712,7 @@ const manualRecordStatusFilter = ref<ManualRecordStatus | ''>('')
 const manualRecordModeFilter = ref<'' | 'generate' | 'edit'>('')
 const manualRecordMonitorFilter = ref<number | ''>('')
 const manualRecordSort = ref<'newest' | 'oldest'>('newest')
+const manualRunOutputPreviews = ref<Record<string, string>>({})
 const manualVisibleColumns = ref<ManualRecordColumnKey[]>([
   'started_at',
   'monitor',
@@ -1513,6 +1721,7 @@ const manualVisibleColumns = ref<ManualRecordColumnKey[]>([
   'elapsed',
   'api_total',
   'image_download',
+  'actual_response',
   'image_info',
   'exit_ip',
   'output',
@@ -1523,7 +1732,16 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 let statusPollTimer: number | null = null
 let clockTimer: number | null = null
 let manualRunSeq = 0
+let manualViewDisposed = false
+let manualStartRetryAbortController: AbortController | null = null
+const manualCanceledRunSeqs = new Set<number>()
 const manualHistoryPendingRunIDs = new Set<string>()
+const manualArtifactPendingRunIDs = new Set<string>()
+const manualTerminalPendingRunIDs = new Set<string>()
+const manualOutputObjectURLs = new Map<string, string>()
+const manualPendingOutputImages = new Map<string, ManualPersistedImage>()
+const manualInputObjectURLs = new Set<string>()
+const manualArtifactRecoveryTimers = new Map<string, number>()
 
 const manualPresetStorageKey = 'sub2api:image-channel-monitor:manual-presets:v1'
 const manualHistoryStorageKey = 'sub2api:image-channel-monitor:manual-history:v1'
@@ -1539,6 +1757,21 @@ const standardSizeOptions = [
   { labelKey: 'admin.imageChannelMonitor.sizes.landscape', value: '1536x1024' },
   { labelKey: 'admin.imageChannelMonitor.sizes.portrait', value: '1024x1536' },
 ]
+
+const manualExecutionModeOptions = computed(() => [
+  {
+    value: 'gateway_account' as const,
+    label: t('admin.imageChannelMonitor.manual.executionModes.gatewayAccount'),
+  },
+  {
+    value: 'gateway_group' as const,
+    label: t('admin.imageChannelMonitor.manual.executionModes.gatewayGroup'),
+  },
+  {
+    value: 'direct_probe' as const,
+    label: t('admin.imageChannelMonitor.manual.executionModes.directProbe'),
+  },
+])
 
 const form = reactive({
   name: '',
@@ -1606,10 +1839,17 @@ const manualResultList = computed(() =>
   })
 )
 
+const manualSelectableTargets = computed(() => {
+  if (manualExecutionMode.value === 'direct_probe') return manualTargets.value
+  return manualTargets.value.filter(
+    (target) => target.source_type === 'account' && Number(target.account_id) > 0
+  )
+})
+
 const manualFilteredTargets = computed(() => {
   const query = manualTargetSearch.value.trim().toLowerCase()
-  if (!query) return manualTargets.value
-  return manualTargets.value.filter((target) => {
+  if (!query) return manualSelectableTargets.value
+  return manualSelectableTargets.value.filter((target) => {
     const haystack = [
       target.name,
       target.model,
@@ -1654,10 +1894,42 @@ const manualNormalizedConcurrency = computed(() =>
 )
 
 const manualPlannedRunCount = computed(() =>
-  manualSelectedIds.value.length * manualNormalizedConcurrency.value
+  manualSelectedTargetCount.value * manualNormalizedConcurrency.value
+)
+
+const manualSelectedTargetCount = computed(() => {
+  const selectable = new Set(manualSelectableTargets.value.map((target) => target.id))
+  return manualSelectedIds.value.filter((id) => selectable.has(id)).length
+})
+
+const manualRequiredInputImageCount = computed(() =>
+  manualForm.mode === 'edit' ? manualPlannedRunCount.value : 0
+)
+
+const manualStartDisabled = computed(() => {
+  if (manualRunning.value || manualSelectedTargetCount.value === 0) return true
+  if (manualExecutionMode.value !== 'direct_probe' && manualAPIKeyID.value <= 0) return true
+  if (
+    manualForm.mode === 'edit' &&
+    manualInputImages.value.length < manualRequiredInputImageCount.value
+  ) {
+    return true
+  }
+  return false
+})
+
+const manualExecutionModeHint = computed(() =>
+  t(`admin.imageChannelMonitor.manual.executionModeHints.${manualExecutionMode.value}`)
+)
+
+const manualCTAHint = computed(() =>
+  t(`admin.imageChannelMonitor.manual.ctaHints.${manualExecutionMode.value}`, {
+    concurrency: manualNormalizedConcurrency.value,
+  })
 )
 
 const manualConfigSummary = computed(() => [
+  manualExecutionModeLabel(manualExecutionMode.value),
   manualForm.mode === 'edit'
     ? t('admin.imageChannelMonitor.manual.edit')
     : t('admin.imageChannelMonitor.manual.generate'),
@@ -1675,6 +1947,7 @@ const manualBatchStats = computed(() => {
   let ok = 0
   let failed = 0
   let canceled = 0
+  let observationLost = 0
   for (const item of manualResultList.value) {
     if (item.state === 'running') {
       running += 1
@@ -1682,6 +1955,10 @@ const manualBatchStats = computed(() => {
     }
     if (item.state === 'canceled') {
       canceled += 1
+      continue
+    }
+    if (item.state === 'observation_lost') {
+      observationLost += 1
       continue
     }
     const status = manualRunResult(item)?.status
@@ -1692,7 +1969,7 @@ const manualBatchStats = computed(() => {
     }
   }
   const total = manualResultList.value.length
-  return { total, running, done: total - running, ok, failed, canceled }
+  return { total, running, done: total - running, ok, failed, canceled, observationLost }
 })
 
 const manualShowBatchBanner = computed(
@@ -1731,6 +2008,7 @@ const manualRecordColumns = computed<ManualRecordColumn[]>(() => [
   { key: 'elapsed', label: t('admin.imageChannelMonitor.manual.columns.elapsed') },
   { key: 'api_total', label: t('admin.imageChannelMonitor.manual.columns.apiTotal') },
   { key: 'image_download', label: t('admin.imageChannelMonitor.manual.columns.imageDownload') },
+  { key: 'actual_response', label: t('admin.imageChannelMonitor.manual.columns.actualResponse') },
   { key: 'image_info', label: t('admin.imageChannelMonitor.manual.columns.imageInfo') },
   { key: 'exit_ip', label: t('admin.imageChannelMonitor.manual.columns.exitIp') },
   { key: 'output', label: t('admin.imageChannelMonitor.manual.columns.output') },
@@ -1787,17 +2065,24 @@ function manualRecordFromLive(item: ManualResultItem): ManualRecordEntry {
   const batchID = item.run?.batch_id || item.batch_id
   const batchSize = item.run?.batch_size || item.batch_size
   const batchIndex = item.run?.batch_index || item.batch_index
+  const executionMode = manualRunExecutionMode(item.run, settings.execution_mode)
   return {
     id: item.run?.run_id ? `live-${item.run.run_id}` : `live-${item.recordId}`,
     run_id: item.run?.run_id || '',
     source: 'live',
     monitor_id: item.monitor.id,
-    monitor_name: item.monitor.name,
+    monitor_name:
+      executionMode === 'gateway_group'
+        ? t('admin.imageChannelMonitor.manual.gatewayGroupScheduledTarget')
+        : item.monitor.name,
     batch_id: batchID,
     batch_size: batchSize,
     batch_index: batchIndex,
     batch_average_elapsed_ms: manualBatchAverageElapsedMs(batchID),
     mode: settings.mode,
+    execution_mode: executionMode,
+    gateway_status: manualRunStatusField(item.run, 'gateway_status'),
+    delivery_status: manualRunStatusField(item.run, 'delivery_status'),
     status,
     stage,
     message: item.message || result?.message || '',
@@ -1831,6 +2116,9 @@ function manualRecordFromHistory(entry: ManualHistoryItem): ManualRecordEntry {
     batch_index: entry.batch_index,
     batch_average_elapsed_ms: entry.batch_average_elapsed_ms,
     mode: entry.mode,
+    execution_mode: entry.execution_mode || 'direct_probe',
+    gateway_status: entry.gateway_status || '',
+    delivery_status: entry.delivery_status || '',
     status: entry.status,
     stage: entry.stage || entry.result?.error_stage || entry.result?.stages?.at(-1)?.stage || '',
     message: entry.message || entry.result?.message || '',
@@ -1855,8 +2143,48 @@ function manualRecordFromHistory(entry: ManualHistoryItem): ManualRecordEntry {
 function manualRecordStatusFromLive(item: ManualResultItem): ManualRecordStatus {
   if (item.state === 'running') return 'running'
   if (item.state === 'canceled') return 'canceled'
+  if (item.state === 'observation_lost') return 'observation_lost'
   if (item.state === 'error') return 'error'
   return manualRunResult(item)?.status || 'error'
+}
+
+type ManualRunExtendedFields = {
+  execution_mode?: ManualExecutionMode
+  gateway_status?: string
+  delivery_status?: string
+  observation_status?: string
+  artifacts?: Array<{
+    index: number
+    content_type?: string
+    size?: number
+    source?: 'b64_json' | 'url'
+  }>
+}
+
+function manualRunExtendedFields(run?: ImageChannelManualRunResponse): ManualRunExtendedFields {
+  return (run || {}) as ManualRunExtendedFields
+}
+
+function manualRunExecutionMode(
+  run: ImageChannelManualRunResponse | undefined,
+  fallback: ManualExecutionMode = 'gateway_account'
+) {
+  return normalizeManualExecutionMode(manualRunExtendedFields(run).execution_mode, fallback)
+}
+
+function manualRunStatusField(
+  run: ImageChannelManualRunResponse | undefined,
+  field: 'gateway_status' | 'delivery_status' | 'observation_status'
+) {
+  return String(manualRunExtendedFields(run)[field] || '').trim()
+}
+
+function manualStatusValueText(value: string) {
+  const normalized = value.trim()
+  if (!normalized) return ''
+  const key = `admin.imageChannelMonitor.manual.statusValues.${normalized}`
+  const translated = t(key)
+  return translated === key ? normalized : translated
 }
 
 function manualRecordMatchesSearch(entry: ManualRecordEntry, query: string) {
@@ -1872,6 +2200,7 @@ function manualRecordMatchesSearch(entry: ManualRecordEntry, query: string) {
     entry.stage,
     entry.run_id,
     entry.batch_id,
+    manualRecordActualResponseText(entry),
     result?.exit_ip,
     result?.request_target_url,
     result?.request_target_host,
@@ -1895,6 +2224,9 @@ function manualRecordStatusText(entry: ManualRecordEntry | null) {
   if (!entry) return ''
   if (entry.status === 'running') return t('admin.imageChannelMonitor.manual.running')
   if (entry.status === 'canceled') return t('admin.imageChannelMonitor.manual.canceled')
+  if (entry.status === 'observation_lost') {
+    return t('admin.imageChannelMonitor.manual.observationLost')
+  }
   return statusLabel(entry.status)
 }
 
@@ -1905,6 +2237,9 @@ function manualRecordBadgeClass(entry: ManualRecordEntry | null) {
   }
   if (entry.status === 'canceled') {
     return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-200'
+  }
+  if (entry.status === 'observation_lost') {
+    return 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
   }
   return statusBadgeClass(entry.status)
 }
@@ -1925,6 +2260,57 @@ function manualRecordOutputPreview(entry: ManualRecordEntry | null) {
 
 function manualRecordOutputHref(entry: ManualRecordEntry | null) {
   return manualRecordOutputPreview(entry)
+}
+
+function manualRecordActualResponseKind(entry: ManualRecordEntry | null): ManualActualResponseKind {
+  const result = entry?.result
+  if (!result) return ''
+  const returnedURL = String(result.returned_image_url || '').trim()
+  const hasURL = Boolean(result.has_url || returnedURL)
+  const hasB64JSON = Boolean(result.has_b64_json)
+  const dataURL = hasURL && isDataURL(returnedURL)
+  if (dataURL && hasB64JSON) return 'dataUrlAndB64Json'
+  if (hasURL && hasB64JSON) return 'urlAndB64Json'
+  if (dataURL) return 'dataUrl'
+  if (hasURL) return 'url'
+  if (hasB64JSON) return 'b64Json'
+  return ''
+}
+
+function manualRecordActualResponseText(entry: ManualRecordEntry | null) {
+  const kind = manualRecordActualResponseKind(entry)
+  return kind ? t(`admin.imageChannelMonitor.manual.returnModes.${kind}`) : ''
+}
+
+function manualRecordActualResponseTitle(entry: ManualRecordEntry | null) {
+  const result = entry?.result
+  const actual = manualRecordActualResponseText(entry)
+  if (!result || !actual) return ''
+  const parts = [
+    `${t('admin.imageChannelMonitor.manual.actualResponse')}: ${actual}`,
+    `${t('admin.imageChannelMonitor.form.responseFormat')}: ${responseFormatLabel(entry?.response_format)}`,
+  ]
+  if (result.returned_image_url) {
+    parts.push(`${t('admin.imageChannelMonitor.network.imageUrl')}: ${formatReturnedImageURLForDisplay(result.returned_image_url)}`)
+  }
+  if (result.has_b64_json) {
+    parts.push('b64_json: true')
+  }
+  return parts.join('\n')
+}
+
+function manualRecordActualResponseBadgeClass(entry: ManualRecordEntry | null) {
+  const kind = manualRecordActualResponseKind(entry)
+  if (kind.includes('DataUrl')) {
+    return 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-200'
+  }
+  if (kind.includes('B64Json')) {
+    return 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-200'
+  }
+  if (kind === 'url') {
+    return 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200'
+  }
+  return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-dark-200'
 }
 
 function manualRecordDownloadName(entry: ManualRecordEntry | null) {
@@ -1985,6 +2371,8 @@ function normalizeManualPresetSettings(
 ): ManualPresetSettings {
   const sizeMode = normalizeImageSizeMode(raw?.size_mode)
   return {
+    execution_mode: normalizeManualExecutionMode(raw?.execution_mode, 'direct_probe'),
+    api_key_id: clampInt(raw?.api_key_id, 0, 0, Number.MAX_SAFE_INTEGER),
     mode: raw?.mode === 'edit' ? 'edit' : 'generate',
     model: String(raw?.model || 'gpt-image-1').trim() || 'gpt-image-1',
     prompt:
@@ -2003,6 +2391,26 @@ function normalizeManualPresetSettings(
     input_image_type: typeof raw?.input_image_type === 'string' ? raw.input_image_type : '',
     input_image_name: typeof raw?.input_image_name === 'string' ? raw.input_image_name : '',
   }
+}
+
+function normalizeManualExecutionMode(
+  value: unknown,
+  fallback: ManualExecutionMode = 'gateway_account'
+): ManualExecutionMode {
+  if (value === 'gateway_account' || value === 'gateway_group' || value === 'direct_probe') {
+    return value
+  }
+  return fallback
+}
+
+function manualExecutionModeLabel(value: ManualExecutionMode) {
+  const suffix =
+    value === 'gateway_account'
+      ? 'gatewayAccount'
+      : value === 'gateway_group'
+        ? 'gatewayGroup'
+        : 'directProbe'
+  return t(`admin.imageChannelMonitor.manual.executionModes.${suffix}`)
 }
 
 function normalizeImageSizeMode(value: unknown): ImageSizeMode {
@@ -2037,6 +2445,8 @@ function clampManualConcurrency(value: unknown) {
 
 function currentManualPresetSettings(): ManualPresetSettings {
   return normalizeManualPresetSettings({
+    execution_mode: manualExecutionMode.value,
+    api_key_id: manualAPIKeyID.value,
     mode: manualForm.mode,
     model: manualForm.model,
     prompt: manualForm.prompt,
@@ -2054,6 +2464,8 @@ function currentManualPresetSettings(): ManualPresetSettings {
 
 function applyManualPresetSettings(settings: ManualPresetSettings) {
   const normalized = normalizeManualPresetSettings(settings)
+  setManualExecutionMode(normalized.execution_mode)
+  manualAPIKeyID.value = normalized.api_key_id
   Object.assign(manualForm, {
     mode: normalized.mode,
     model: normalized.model,
@@ -2074,6 +2486,7 @@ async function handleManualPresetSelect() {
   const preset = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
   if (!preset) {
     manualPresetName.value = ''
+	revokeManualInputObjectURLs()
     manualInputImage.value = null
     return
   }
@@ -2084,15 +2497,25 @@ async function handleManualPresetSelect() {
     try {
       const stored = await loadManualStoredImage(preset.settings.input_image_ref)
       if (manualPresetSelectedId.value !== selectedID) return
-      manualInputImage.value = stored
-        ? { data: stored.data, type: stored.type, name: stored.name }
+		revokeManualInputObjectURLs()
+		const preview = stored?.data || (stored?.blob?.size ? URL.createObjectURL(stored.blob) : '')
+		if (preview.startsWith('blob:')) manualInputObjectURLs.add(preview)
+      manualInputImage.value = stored?.data || stored?.blob?.size
+        ? {
+			data: preview,
+            blob: stored.blob,
+            type: stored.type,
+            name: stored.name,
+          }
         : null
     } catch {
       if (manualPresetSelectedId.value === selectedID) {
+		revokeManualInputObjectURLs()
         manualInputImage.value = null
       }
     }
   } else {
+	revokeManualInputObjectURLs()
     manualInputImage.value = null
   }
 }
@@ -2113,7 +2536,7 @@ async function saveManualPreset() {
     const now = new Date().toISOString()
     const existing = manualPresets.value.find((item) => item.id === manualPresetSelectedId.value)
     const settings = currentManualPresetSettings()
-    if (manualForm.mode === 'edit' && manualInputImage.value?.data) {
+    if (manualForm.mode === 'edit' && (manualInputImage.value?.data || manualInputImage.value?.blob?.size)) {
       settings.input_image_ref = await saveManualStoredImage(manualInputImage.value, 'preset-input')
       settings.input_image_type = manualInputImage.value.type
       settings.input_image_name = manualInputImage.value.name
@@ -2186,17 +2609,17 @@ function openManualImageDB(): Promise<IDBDatabase> {
 }
 
 async function saveManualStoredImage(
-  image: ManualInputImage,
+  image: ManualPersistedImage,
   scope: 'preset-input' | 'history-input' | 'history-output'
 ) {
   const db = await openManualImageDB()
   const ref = `${scope}:${newManualPresetID()}`
   const stored: ManualStoredImage = {
     ref,
-    data: image.data,
     type: image.type,
     name: image.name,
     saved_at: new Date().toISOString(),
+    ...(image.blob ? { blob: image.blob } : { data: image.data || '' }),
   }
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(manualImageStoreName, 'readwrite')
@@ -2234,10 +2657,10 @@ async function deleteManualStoredImage(ref?: string) {
 }
 
 async function trySaveManualStoredImage(
-  image: ManualInputImage | null | undefined,
+  image: ManualPersistedImage | null | undefined,
   scope: 'preset-input' | 'history-input' | 'history-output'
 ) {
-  if (!image?.data) return ''
+  if (!image || (!image.data && !image.blob?.size)) return ''
   try {
     return await saveManualStoredImage(image, scope)
   } catch {
@@ -2291,6 +2714,9 @@ function normalizeManualHistoryItem(raw: unknown): ManualHistoryItem | null {
       Number.MAX_SAFE_INTEGER
     ),
     mode: source.mode === 'edit' ? 'edit' : 'generate',
+    execution_mode: normalizeManualExecutionMode(source.execution_mode, 'direct_probe'),
+    gateway_status: String(source.gateway_status || '').trim(),
+    delivery_status: String(source.delivery_status || '').trim(),
     status: normalizeManualHistoryStatus(source.status),
     stage: String(source.stage || '').trim(),
     message: String(source.message || '').trim(),
@@ -2312,24 +2738,48 @@ function normalizeManualHistoryItem(raw: unknown): ManualHistoryItem | null {
     input_image_name: typeof source.input_image_name === 'string' ? source.input_image_name : '',
     output_image_ref: typeof source.output_image_ref === 'string' ? source.output_image_ref : '',
     output_image_url: typeof source.output_image_url === 'string' ? source.output_image_url : '',
+    output_artifact_pending: source.output_artifact_pending === true,
+    output_artifact_index: Number.isSafeInteger(source.output_artifact_index)
+      ? Number(source.output_artifact_index)
+      : undefined,
+    output_artifact_monitor_id: Number.isSafeInteger(source.output_artifact_monitor_id)
+      ? Number(source.output_artifact_monitor_id)
+      : undefined,
+    output_artifact_timeout_seconds: Number.isSafeInteger(source.output_artifact_timeout_seconds)
+      ? Number(source.output_artifact_timeout_seconds)
+      : undefined,
+    output_artifact_retry_count: Number.isSafeInteger(source.output_artifact_retry_count)
+      ? Number(source.output_artifact_retry_count)
+      : 0,
+    output_artifact_expires_at:
+      typeof source.output_artifact_expires_at === 'string'
+        ? source.output_artifact_expires_at
+        : manualArtifactRecoveryExpiresAt(completedAt),
     result: compactManualHistoryResult(source.result),
   }
 }
 
-function normalizeManualHistoryStatus(value: unknown): ImageMonitorStatus | 'canceled' {
+function normalizeManualHistoryStatus(
+  value: unknown
+): ImageMonitorStatus | 'canceled' | 'observation_lost' {
   if (
     value === 'operational' ||
     value === 'degraded' ||
     value === 'failed' ||
     value === 'error' ||
-    value === 'canceled'
+    value === 'canceled' ||
+    value === 'observation_lost'
   ) {
     return value
   }
   return 'error'
 }
 
-async function appendManualHistoryFromRun(target: ImageChannelMonitor, item: ManualResultItem) {
+async function appendManualHistoryFromRun(
+  target: ImageChannelMonitor,
+  item: ManualResultItem,
+  artifactLoad?: ManualArtifactLoadResult
+) {
   const run = item.run
   if (!run?.run_id) return
   if (manualHistory.value.some((entry) => entry.run_id === run.run_id)) return
@@ -2337,24 +2787,41 @@ async function appendManualHistoryFromRun(target: ImageChannelMonitor, item: Man
   manualHistoryPendingRunIDs.add(run.run_id)
   try {
     const settings = item.settings || currentManualPresetSettings()
+    const executionMode = manualRunExecutionMode(run, settings.execution_mode)
     const completedAt = run.completed_at || new Date().toISOString()
     const result = compactManualHistoryResult(run.result)
-    const outputImage = run.result?.returned_image_data
-      ? dataURLToManualInputImage(run.result.returned_image_data, 'generated-image')
-      : null
+    const outputImage =
+      artifactLoad?.image ||
+      (run.result?.returned_image_data
+        ? dataURLToManualInputImage(run.result.returned_image_data, 'generated-image')
+        : null)
     const inputImageRef = await trySaveManualStoredImage(item.inputImage, 'history-input')
     const outputImageRef = await trySaveManualStoredImage(outputImage, 'history-output')
+    if (outputImageRef) {
+      manualPendingOutputImages.delete(run.run_id)
+    }
     const entry: ManualHistoryItem = {
       id: run.run_id,
       run_id: run.run_id,
       monitor_id: run.monitor?.id || target.id,
-      monitor_name: run.monitor?.name || target.name,
+      monitor_name:
+        executionMode === 'gateway_group'
+          ? t('admin.imageChannelMonitor.manual.gatewayGroupScheduledTarget')
+          : run.monitor?.name || target.name,
       batch_id: run.batch_id || item.batch_id,
       batch_size: run.batch_size || item.batch_size,
       batch_index: run.batch_index || item.batch_index,
       batch_average_elapsed_ms: 0,
       mode: run.mode,
-      status: run.canceled ? 'canceled' : result?.status || 'error',
+      execution_mode: executionMode,
+      gateway_status: manualRunStatusField(run, 'gateway_status'),
+      delivery_status: manualRunStatusField(run, 'delivery_status'),
+      status:
+        item.state === 'observation_lost'
+          ? 'observation_lost'
+          : run.canceled
+            ? 'canceled'
+            : result?.status || 'error',
       stage: run.stage || result?.error_stage || '',
       message: run.message || result?.message || '',
       elapsed_ms: elapsedMs(run.started_at, completedAt),
@@ -2372,6 +2839,14 @@ async function appendManualHistoryFromRun(target: ImageChannelMonitor, item: Man
       input_image_name: item.inputImage?.name || '',
       output_image_ref: outputImageRef,
       output_image_url: run.result?.returned_image_url || '',
+      output_artifact_pending:
+        !outputImageRef &&
+        (artifactLoad?.pending === true || Boolean(artifactLoad?.image && artifactLoad.index !== null)),
+      output_artifact_index: artifactLoad?.index ?? undefined,
+      output_artifact_monitor_id: run.monitor?.id || target.id,
+      output_artifact_timeout_seconds: settings.timeout_seconds,
+      output_artifact_retry_count: 0,
+      output_artifact_expires_at: manualArtifactRecoveryExpiresAt(completedAt),
       result,
     }
     const nextHistory = [
@@ -2388,7 +2863,14 @@ async function appendManualHistoryFromRun(target: ImageChannelMonitor, item: Man
         deleteManualStoredImage(history.output_image_ref),
       ])
     )
+    droppedHistory.forEach((history) => {
+      cancelManualArtifactRecovery(history.run_id)
+      revokeManualRunObjectURL(history.run_id)
+    })
     await hydrateManualHistoryImages()
+    if (entry.output_artifact_pending) {
+      scheduleManualArtifactRecovery(entry.run_id)
+    }
   } finally {
     manualHistoryPendingRunIDs.delete(run.run_id)
   }
@@ -2471,16 +2953,179 @@ async function hydrateManualHistoryImages() {
         loadManualStoredImage(entry.input_image_ref),
         loadManualStoredImage(entry.output_image_ref),
       ])
-      if (input?.data) {
-        inputPreviews[entry.id] = input.data
+      const inputPreview = manualStoredImagePreview(entry.run_id, 'input', input)
+      const outputPreview = manualStoredImagePreview(entry.run_id, 'output', output)
+      if (inputPreview) {
+        inputPreviews[entry.id] = inputPreview
       }
-      if (output?.data) {
-        outputPreviews[entry.id] = output.data
+      if (outputPreview) {
+        outputPreviews[entry.id] = outputPreview
+      }
+      if (entry.output_artifact_pending) {
+        scheduleManualArtifactRecovery(entry.run_id)
       }
     })
   )
   manualHistoryInputPreviews.value = inputPreviews
   manualHistoryOutputPreviews.value = outputPreviews
+}
+
+function manualStoredImagePreview(
+  runID: string,
+  role: 'input' | 'output',
+  image: ManualStoredImage | null
+) {
+  if (!image) return ''
+  if (image.blob?.size && typeof URL.createObjectURL === 'function') {
+    const key = `${runID}:${role}`
+    const previous = manualOutputObjectURLs.get(key)
+    if (previous) URL.revokeObjectURL(previous)
+    const objectURL = URL.createObjectURL(image.blob)
+    manualOutputObjectURLs.set(key, objectURL)
+    return objectURL
+  }
+  return image.data || ''
+}
+
+function scheduleManualArtifactRecovery(runID: string) {
+  if (manualViewDisposed) return
+  const entry = manualHistory.value.find((history) => history.run_id === runID)
+  if (!entry?.output_artifact_pending || manualArtifactRecoveryTimers.has(runID)) return
+  const remainingMs = manualArtifactRecoveryRemainingMs(entry)
+  if (remainingMs <= 0) {
+    finishManualArtifactRecovery(runID)
+    return
+  }
+  const attempts = entry.output_artifact_retry_count || 0
+  const timer = window.setTimeout(
+    () => {
+      manualArtifactRecoveryTimers.delete(runID)
+      void recoverManualHistoryArtifact(runID)
+    },
+    Math.min(remainingMs, 12_000, 1_500 * 2 ** Math.min(attempts, 10))
+  )
+  manualArtifactRecoveryTimers.set(runID, timer)
+}
+
+function cancelManualArtifactRecovery(runID: string) {
+  const timer = manualArtifactRecoveryTimers.get(runID)
+  if (timer !== undefined) {
+    window.clearTimeout(timer)
+    manualArtifactRecoveryTimers.delete(runID)
+  }
+}
+
+async function recoverManualHistoryArtifact(runID: string) {
+  if (manualViewDisposed) return
+  const entry = manualHistory.value.find((history) => history.run_id === runID)
+  if (!entry?.output_artifact_pending) return
+  if (manualArtifactRecoveryRemainingMs(entry) <= 0) {
+    finishManualArtifactRecovery(runID)
+    return
+  }
+  const artifactIndex = Number(entry.output_artifact_index)
+  const targetID = entry.output_artifact_monitor_id || entry.monitor_id
+  if (!Number.isSafeInteger(artifactIndex) || artifactIndex < 0 || targetID <= 0) {
+    finishManualArtifactRecovery(runID)
+    return
+  }
+
+  const attempt = (entry.output_artifact_retry_count || 0) + 1
+  updateManualArtifactRecovery(runID, { output_artifact_retry_count: attempt })
+  let storedImage = manualPendingOutputImages.get(runID)
+  try {
+    if (!storedImage) {
+      const blob = await adminAPI.imageChannelMonitor.getManualTestImage(
+        targetID,
+        runID,
+        artifactIndex,
+        { timeoutSeconds: entry.output_artifact_timeout_seconds || manualForm.timeout_seconds }
+      )
+      if (manualViewDisposed) return
+      if (!blob.size) throw { status: 0, code: 'EMPTY_ARTIFACT' }
+      storedImage = manualPersistedBlob(blob, `generated-image-${runID}`)
+      manualPendingOutputImages.set(runID, storedImage)
+      setManualRunOutputPreview(runID, storedImage)
+    }
+  } catch (error: unknown) {
+    if (manualViewDisposed) return
+    if (isManualRetryableRequestError(error) && manualArtifactRecoveryRemainingMs(entry) > 0) {
+      scheduleManualArtifactRecovery(runID)
+      return
+    }
+    finishManualArtifactRecovery(runID)
+    return
+  }
+
+  try {
+    const outputImageRef = await saveManualStoredImage(storedImage, 'history-output')
+    manualPendingOutputImages.delete(runID)
+    updateManualArtifactRecovery(runID, {
+      output_image_ref: outputImageRef,
+      output_artifact_pending: false,
+      output_artifact_retry_count: attempt,
+    })
+    const objectURL = manualStoredImagePreview(runID, 'output', {
+      ref: outputImageRef,
+      ...storedImage,
+      saved_at: new Date().toISOString(),
+    })
+    if (objectURL) {
+      manualHistoryOutputPreviews.value = {
+        ...manualHistoryOutputPreviews.value,
+        [runID]: objectURL,
+      }
+      manualRunOutputPreviews.value = {
+        ...manualRunOutputPreviews.value,
+        [runID]: objectURL,
+      }
+    }
+    clearManualArtifactWarning(runID)
+  } catch {
+    if (manualViewDisposed) return
+    if (manualArtifactRecoveryRemainingMs(entry) > 0) {
+      scheduleManualArtifactRecovery(runID)
+      return
+    }
+    finishManualArtifactRecovery(runID)
+  }
+}
+
+function manualArtifactRecoveryRemainingMs(entry: ManualHistoryItem) {
+  const expiresAt =
+    entry.output_artifact_expires_at || manualArtifactRecoveryExpiresAt(entry.completed_at)
+  const expiresAtMs = Date.parse(expiresAt)
+  if (!Number.isFinite(expiresAtMs)) return 0
+  return Math.max(0, expiresAtMs - Date.now())
+}
+
+function updateManualArtifactRecovery(runID: string, patch: Partial<ManualHistoryItem>) {
+  manualHistory.value = manualHistory.value.map((history) =>
+    history.run_id === runID ? { ...history, ...patch } : history
+  )
+  persistManualHistory()
+}
+
+function finishManualArtifactRecovery(runID: string) {
+  manualPendingOutputImages.delete(runID)
+  updateManualArtifactRecovery(runID, { output_artifact_pending: false })
+  cancelManualArtifactRecovery(runID)
+}
+
+function retryManualArtifact(runID: string) {
+  cancelManualArtifactRecovery(runID)
+  updateManualArtifactRecovery(runID, {
+    output_artifact_pending: true,
+    output_artifact_retry_count: 0,
+  })
+  void recoverManualHistoryArtifact(runID)
+}
+
+function clearManualArtifactWarning(runID: string) {
+  const record = Object.entries(manualResults.value).find(([, item]) => item.run?.run_id === runID)
+  if (!record) return
+  const [recordID, item] = record
+  setManualResult(recordID, { ...item, artifactWarning: undefined })
 }
 
 function dataURLToManualInputImage(dataURL: string, fallbackName: string): ManualInputImage | null {
@@ -2503,12 +3148,28 @@ async function clearManualHistory() {
     ])
   )
   manualHistory.value = []
+  manualPendingOutputImages.clear()
+  for (const runID of manualOutputObjectURLs.keys()) {
+    revokeManualRunObjectURL(runID)
+  }
+  for (const runID of manualArtifactRecoveryTimers.keys()) {
+    cancelManualArtifactRecovery(runID)
+  }
   manualHistoryInputPreviews.value = {}
   manualHistoryOutputPreviews.value = {}
   if (selectedManualRecord.value?.source === 'history') {
     selectedManualRecord.value = null
   }
   persistManualHistory()
+}
+
+function revokeManualRunObjectURL(runID: string) {
+  revokeManualObjectURLsForRun(manualOutputObjectURLs, runID)
+  if (manualRunOutputPreviews.value[runID]) {
+    const next = { ...manualRunOutputPreviews.value }
+    delete next[runID]
+    manualRunOutputPreviews.value = next
+  }
 }
 
 async function reload() {
@@ -2564,6 +3225,27 @@ function switchPanel(panel: ImageMonitorPanel) {
   activePanel.value = panel
   if (panel === 'manual') {
     void loadManualTargets()
+    void loadManualAPIKeys()
+  }
+}
+
+async function loadManualAPIKeys() {
+  manualAPIKeysLoading.value = true
+  try {
+    manualAPIKeys.value = await adminAPI.usage.searchApiKeys(undefined, '')
+    if (
+      manualAPIKeyID.value > 0 &&
+      !manualAPIKeys.value.some((key) => key.id === manualAPIKeyID.value)
+    ) {
+      manualAPIKeyID.value = 0
+    }
+  } catch (err: unknown) {
+    manualAPIKeys.value = []
+    appStore.showError(
+      extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.apiKeyLoadFailed'))
+    )
+  } finally {
+    manualAPIKeysLoading.value = false
   }
 }
 
@@ -2575,7 +3257,7 @@ async function loadManualTargets() {
       page_size: 200,
     })
     manualTargets.value = res.items || []
-    const available = new Set(manualTargets.value.map((item) => item.id))
+    const available = new Set(manualSelectableTargets.value.map((item) => item.id))
     manualSelectedIds.value = manualSelectedIds.value.filter((id) => available.has(id))
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.loadError')))
@@ -2585,6 +3267,11 @@ async function loadManualTargets() {
 }
 
 function selectAllManualTargets() {
+  if (manualExecutionMode.value !== 'direct_probe') {
+    const first = manualFilteredTargets.value[0]
+    manualSelectedIds.value = first ? [first.id] : []
+    return
+  }
   const merged = new Set(manualSelectedIds.value)
   manualFilteredTargets.value.forEach((target) => merged.add(target.id))
   manualSelectedIds.value = Array.from(merged)
@@ -2592,6 +3279,31 @@ function selectAllManualTargets() {
 
 function clearManualTargets() {
   manualSelectedIds.value = []
+}
+
+function setManualExecutionMode(mode: ManualExecutionMode) {
+  manualExecutionMode.value = mode
+  const selectable = new Set(
+    (mode === 'direct_probe'
+      ? manualTargets.value
+      : manualTargets.value.filter(
+          (target) => target.source_type === 'account' && Number(target.account_id) > 0
+        )
+    ).map((target) => target.id)
+  )
+  const retained = manualSelectedIds.value.filter((id) => selectable.has(id))
+  manualSelectedIds.value = mode === 'direct_probe' ? retained : retained.slice(0, 1)
+}
+
+function handleManualTargetToggle(targetID: number) {
+  const selected = manualSelectedIds.value.includes(targetID)
+  if (manualExecutionMode.value !== 'direct_probe') {
+    manualSelectedIds.value = selected ? [] : [targetID]
+    return
+  }
+  manualSelectedIds.value = selected
+    ? manualSelectedIds.value.filter((id) => id !== targetID)
+    : [...manualSelectedIds.value, targetID]
 }
 
 function handleSearch() {
@@ -2784,46 +3496,81 @@ function buildPayload() {
 
 async function handleManualImageChange(event: Event) {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) {
-    manualInputImage.value = null
+  const files = Array.from(input.files || [])
+  if (files.length === 0) {
+	revokeManualInputObjectURLs()
+    manualInputImages.value = []
     return
   }
   try {
-    manualInputImage.value = {
-      data: await readFileAsDataURL(file),
+	revokeManualInputObjectURLs()
+    manualInputImages.value = files.map((file) => ({
+		data: createManualInputObjectURL(file),
+      blob: file,
       type: file.type || 'image/png',
       name: file.name,
-    }
+    }))
   } catch {
-    manualInputImage.value = null
+	revokeManualInputObjectURLs()
+    manualInputImages.value = []
     appStore.showError(t('admin.imageChannelMonitor.manual.imageReadError'))
   }
 }
 
 function clearManualInputImage() {
-  manualInputImage.value = null
+	revokeManualInputObjectURLs()
+  manualInputImages.value = []
+  manualImageInputKey.value += 1
 }
 
-function readFileAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
+function removeManualInputImage(index: number) {
+	const removed = manualInputImages.value[index]
+	if (removed?.data.startsWith('blob:')) {
+		URL.revokeObjectURL(removed.data)
+		manualInputObjectURLs.delete(removed.data)
+	}
+  manualInputImages.value = manualInputImages.value.filter((_, itemIndex) => itemIndex !== index)
+  manualImageInputKey.value += 1
+}
+
+function createManualInputObjectURL(blob: Blob) {
+	const objectURL = URL.createObjectURL(blob)
+	manualInputObjectURLs.add(objectURL)
+	return objectURL
+}
+
+function revokeManualInputObjectURLs() {
+	for (const objectURL of manualInputObjectURLs) URL.revokeObjectURL(objectURL)
+	manualInputObjectURLs.clear()
+}
+
+async function manualInputImageBlob(image?: ManualInputImage | null): Promise<Blob | undefined> {
+  if (!image) return undefined
+  if (image.blob?.size) return image.blob
+  if (!image.data) return undefined
+  const response = await fetch(image.data)
+  const blob = await response.blob()
+  return blob.size ? blob : undefined
 }
 
 async function startManualTests() {
   const seq = manualRunSeq + 1
   manualRunSeq = seq
-  const ids = [...manualSelectedIds.value]
+  manualStartRetryAbortController?.abort()
+  const startRetryController = new AbortController()
+  manualStartRetryAbortController = startRetryController
+  const selectableIDs = new Set(manualSelectableTargets.value.map((target) => target.id))
+  const ids = manualSelectedIds.value.filter((id) => selectableIDs.has(id))
   if (ids.length === 0) {
     appStore.showError(t('admin.imageChannelMonitor.manual.selectTargetsFirst'))
     return
   }
-  if (manualForm.mode === 'edit' && !manualInputImage.value?.data) {
-    appStore.showError(t('admin.imageChannelMonitor.manual.selectImageFirst'))
+  if (manualExecutionMode.value !== 'direct_probe' && manualAPIKeyID.value <= 0) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.selectApiKeyFirst'))
+    return
+  }
+  if (manualExecutionMode.value !== 'direct_probe' && ids.length !== 1) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.gatewaySingleTargetRequired'))
     return
   }
   const targetsById = new Map(manualTargets.value.map((item) => [item.id, item]))
@@ -2831,6 +3578,13 @@ async function startManualTests() {
     .map((id) => targetsById.get(id))
     .filter((item): item is ImageChannelMonitor => Boolean(item))
   if (selectedTargets.length === 0) return
+  if (
+    manualExecutionMode.value === 'gateway_account' &&
+    (selectedTargets[0].source_type !== 'account' || Number(selectedTargets[0].account_id) <= 0)
+  ) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.gatewayAccountTargetRequired'))
+    return
+  }
 
   const manualSettings = currentManualPresetSettings()
   const concurrency = clampManualConcurrency(manualSettings.concurrency)
@@ -2847,49 +3601,18 @@ async function startManualTests() {
     )
     return
   }
-  const manualBatchID = newManualBatchID()
-  const runRequests: Array<{
-    recordId: string
-    target: ImageChannelMonitor
-    batchIndex: number
-  }> = []
-  for (const target of selectedTargets) {
-    for (let i = 0; i < concurrency; i += 1) {
-      const batchIndex = runRequests.length + 1
-      runRequests.push({
-        recordId: `${manualBatchID}:${target.id}:${batchIndex}`,
-        target,
-        batchIndex,
-      })
-    }
+  if (manualSettings.mode === 'edit' && manualInputImages.value.length < totalRunCount) {
+    appStore.showError(
+      t('admin.imageChannelMonitor.manual.inputPoolRequired', { count: totalRunCount })
+    )
+    return
   }
-  const manualInputImageSnapshot =
-    manualSettings.mode === 'edit' && manualInputImage.value
-      ? { ...manualInputImage.value }
-      : null
-  const manualStartedAt = new Date().toISOString()
-  manualRunning.value = true
-  manualBatchDismissed.value = false
-  manualActiveBatchID.value = manualBatchID
-  manualResults.value = Object.fromEntries(
-    runRequests.map(({ recordId, target, batchIndex }) => [
-      recordId,
-      {
-        recordId,
-        monitor: target,
-        state: 'running',
-        message: t('admin.imageChannelMonitor.manual.requesting'),
-        batch_id: manualBatchID,
-        batch_size: totalRunCount,
-        batch_index: batchIndex,
-        settings: manualSettings,
-        inputImage: manualInputImageSnapshot,
-        startedAt: manualStartedAt,
-      } satisfies ManualResultItem,
-    ])
-  )
-
-  const basePayload = {
+  const manualBatchID = newManualBatchID()
+  const manualInputImageSnapshots =
+    manualSettings.mode === 'edit'
+      ? manualInputImages.value.slice(0, totalRunCount).map((image) => ({ ...image }))
+      : []
+  const basePayload: ImageChannelManualTestParams = {
     mode: manualSettings.mode,
     model: manualSettings.model,
     prompt: manualSettings.prompt,
@@ -2899,39 +3622,100 @@ async function startManualTests() {
     download_image: manualSettings.download_image,
     response_format: manualSettings.response_format,
     timeout_seconds: manualSettings.timeout_seconds,
-    input_image_data: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.data : undefined,
-    input_image_type: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.type : undefined,
-    input_image_name: manualSettings.mode === 'edit' ? manualInputImageSnapshot?.name : undefined,
   }
+  const runRequests = buildManualRunRequests({
+    targetIds: selectedTargets.map((target) => target.id),
+    concurrency,
+    batchId: manualBatchID,
+    basePayload,
+    inputImages: manualInputImageSnapshots,
+  }).map((request) => {
+    const target = targetsById.get(request.targetId) as ImageChannelMonitor
+    const expectedAccountID =
+      manualExecutionMode.value === 'gateway_account' ? Number(target.account_id) : undefined
+    const payload = {
+      ...request.payload,
+      execution_mode: manualExecutionMode.value,
+      ...(manualExecutionMode.value === 'direct_probe'
+        ? {}
+        : { api_key_id: manualAPIKeyID.value }),
+      ...(expectedAccountID ? { expected_account_id: expectedAccountID } : {}),
+      client_run_id: newManualClientRunID(),
+    } as ManualGatewayTestParams
+    return {
+      ...request,
+      target,
+      payload,
+      inputImage:
+        manualSettings.mode === 'edit'
+          ? manualInputImageSnapshots[request.batchIndex - 1] || null
+          : null,
+    }
+  })
+  const manualStartedAt = new Date().toISOString()
+  manualRunning.value = true
+  manualBatchDismissed.value = false
+  manualActiveBatchID.value = manualBatchID
+  manualResults.value = Object.fromEntries(
+    runRequests.map(({ recordId, target, batchIndex, payload, inputImage }) => [
+      recordId,
+      {
+        recordId,
+        monitor: target,
+        state: 'running',
+        message: t('admin.imageChannelMonitor.manual.requesting'),
+        batch_id: manualBatchID,
+        batch_size: totalRunCount,
+        batch_index: batchIndex,
+        clientRunID: payload.client_run_id,
+        settings: manualSettings,
+        inputImage,
+        startedAt: manualStartedAt,
+      } satisfies ManualResultItem,
+    ])
+  )
 
   try {
     await Promise.allSettled(
-      runRequests.map(async ({ recordId, target, batchIndex }) => {
-        const payload = {
-          ...basePayload,
-          batch_id: manualBatchID,
-          batch_size: totalRunCount,
-          batch_index: batchIndex,
-        }
+      runRequests.map(async ({ recordId, target, batchIndex, payload, inputImage }) => {
         try {
-          const run = await adminAPI.imageChannelMonitor.manualTest(target.id, payload)
+          const run = await startManualRunWithRetry(
+            target.id,
+            payload,
+            await manualInputImageBlob(inputImage),
+            seq,
+            startRetryController.signal
+          )
           if (manualRunSeq !== seq) return
           setManualResultFromRun(recordId, target, run, manualSettings)
           if (run.running) {
-            await pollManualRun(recordId, target, run.run_id, payload.timeout_seconds, seq)
+            await pollManualRun(
+              recordId,
+              target,
+              run.run_id,
+              payload.execution_mode,
+              payload.timeout_seconds || manualSettings.timeout_seconds,
+              seq
+            )
           }
         } catch (err: unknown) {
-          if (manualRunSeq !== seq) return
+          if (manualRunSeq !== seq || err instanceof ManualRunCanceledError) return
+          const controlObservationLost = isManualRetryableRequestError(err)
           setManualResult(recordId, {
             recordId,
             monitor: target,
-            state: 'error',
-            message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
+            state: controlObservationLost ? 'observation_lost' : 'error',
+            message: controlObservationLost
+              ? t('admin.imageChannelMonitor.manual.controlObservationLost')
+              : extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
+            observationWarning: controlObservationLost
+              ? t('admin.imageChannelMonitor.manual.controlObservationLostDetail')
+              : undefined,
             batch_id: manualBatchID,
             batch_size: totalRunCount,
             batch_index: batchIndex,
             settings: manualSettings,
-            inputImage: manualInputImageSnapshot,
+            inputImage,
             startedAt: manualStartedAt,
             completedAt: new Date().toISOString(),
           })
@@ -2939,79 +3723,252 @@ async function startManualTests() {
       })
     )
   } finally {
+    manualCanceledRunSeqs.delete(seq)
+    if (manualStartRetryAbortController === startRetryController) {
+      manualStartRetryAbortController = null
+    }
     if (manualRunSeq === seq) {
       manualRunning.value = false
     }
   }
 }
 
+class ManualRunCanceledError extends Error {}
+
+function newManualClientRunID() {
+  return `mcr-${newManualPresetID()}`
+}
+
+function isManualObservationExpiredError(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  return Number((error as { status?: number }).status) === 410
+}
+
+async function startManualRunWithRetry(
+  targetID: number,
+  payload: ManualGatewayTestParams,
+  inputImage: Blob | undefined,
+  seq: number,
+  signal: AbortSignal
+) {
+  const idempotent = payload.execution_mode !== 'direct_probe'
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const run = await adminAPI.imageChannelMonitor.manualTest(targetID, payload, inputImage)
+      if (manualRunSeq !== seq || signal.aborted) {
+        if (manualCanceledRunSeqs.has(seq) && run.run_id) {
+          try {
+            await adminAPI.imageChannelMonitor.cancelManualTest(targetID, run.run_id)
+          } catch {
+            // The user already canceled locally; a later status fetch can reconcile a failed cancel.
+          }
+        }
+        throw new ManualRunCanceledError()
+      }
+      return run
+    } catch (error: unknown) {
+      if (error instanceof ManualRunCanceledError) throw error
+      if (!idempotent || !isManualRetryableRequestError(error)) throw error
+      await waitForManualStartRetry(
+        Math.min(12_000, manualRetryDelayMs(attempt + 1)),
+        signal
+      )
+      if (manualRunSeq !== seq) throw new ManualRunCanceledError()
+    }
+  }
+}
+
+function waitForManualStartRetry(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new ManualRunCanceledError())
+      return
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      window.clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      reject(new ManualRunCanceledError())
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 async function pollManualRun(
   recordId: string,
   target: ImageChannelMonitor,
   runID: string,
+  executionMode: ManualExecutionMode,
   timeoutSeconds: number,
   seq: number
 ) {
-  const maxPolls = Math.min(720, Math.max(30, timeoutSeconds + 45))
-  for (let i = 0; i < maxPolls; i += 1) {
-    await wait(1000)
+  const maxPolls = manualRunObservationMaxAttempts(executionMode, timeoutSeconds)
+  try {
+    const terminalRun = await pollManualRunUntilTerminal({
+      maxAttempts: maxPolls,
+      maxDurationMs: maxPolls === undefined ? undefined : maxPolls * 1000,
+      fetchStatus: async () => {
+        const run = await adminAPI.imageChannelMonitor.getManualTestStatus(target.id, runID)
+        if (manualRunSeq === seq) {
+          setManualResultFromRun(recordId, target, run)
+        }
+        return run
+      },
+      wait: async () => {
+        await wait(1000)
+        if (manualRunSeq !== seq) throw new ManualRunCanceledError()
+      },
+      retryWait: async (attempt) => {
+        await wait(Math.min(1000, manualRetryDelayMs(attempt)))
+        if (manualRunSeq !== seq) throw new ManualRunCanceledError()
+      },
+      onObservationError: (_error, attempt) => {
+        if (manualRunSeq !== seq) return
+        const existing = manualResults.value[recordId]
+        if (!existing) return
+        setManualResult(recordId, {
+          ...existing,
+          state: 'running',
+          observationWarning: t('admin.imageChannelMonitor.manual.observationWarning', {
+            attempt,
+          }),
+        })
+      },
+    })
     if (manualRunSeq !== seq) return
-    try {
-      const run = await adminAPI.imageChannelMonitor.getManualTestStatus(target.id, runID)
-      if (manualRunSeq !== seq) return
-      setManualResultFromRun(recordId, target, run)
-      if (!run.running) return
-    } catch (err: unknown) {
-      if (manualRunSeq !== seq) return
+    setManualResultFromRun(recordId, target, terminalRun)
+  } catch (error: unknown) {
+    if (manualRunSeq !== seq || error instanceof ManualRunCanceledError) return
+    if (isManualObservationExpiredError(error)) {
       const existing = manualResults.value[recordId]
+      if (!existing) return
       setManualResult(recordId, {
-        recordId,
-        monitor: target,
-        state: 'error',
-        message: extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.failed')),
-        batch_id: existing?.batch_id || '',
-        batch_size: existing?.batch_size || 0,
-        batch_index: existing?.batch_index || 0,
-        settings: existing?.settings,
-        inputImage: existing?.inputImage,
-        startedAt: existing?.startedAt,
+        ...existing,
+        state: 'observation_lost',
+        message: t('admin.imageChannelMonitor.manual.observationLostDetail'),
+        observationWarning: t('admin.imageChannelMonitor.manual.observationLostDetail'),
         completedAt: new Date().toISOString(),
       })
       return
     }
+    if (!(error instanceof ManualRunObservationError)) throw error
+    const existing = manualResults.value[recordId]
+    if (!existing) return
+    setManualResult(recordId, {
+      ...existing,
+      state: 'observation_lost',
+      message: t('admin.imageChannelMonitor.manual.observationLostDetail'),
+      observationWarning: t('admin.imageChannelMonitor.manual.observationLostDetail'),
+      completedAt: new Date().toISOString(),
+    })
   }
-  if (manualRunSeq !== seq) return
-  const existing = manualResults.value[recordId]
-  setManualResult(recordId, {
-    recordId,
-    monitor: target,
-    state: 'error',
-    message: t('admin.imageChannelMonitor.manual.failed'),
-    batch_id: existing?.batch_id || '',
-    batch_size: existing?.batch_size || 0,
-    batch_index: existing?.batch_index || 0,
-    settings: existing?.settings,
-    inputImage: existing?.inputImage,
-    startedAt: existing?.startedAt,
-    completedAt: new Date().toISOString(),
-  })
 }
 
-async function cancelManualRun(item: ManualResultItem) {
+async function cancelManualRun(item: ManualResultItem, seq = manualRunSeq) {
   const runID = item.run?.run_id
   if (!runID || item.state !== 'running') return
   try {
-    const run = await adminAPI.imageChannelMonitor.cancelManualTest(item.monitor.id, runID)
-    setManualResultFromRun(item.recordId, item.monitor, run)
+    const run = await retryManualCancellation(() =>
+      adminAPI.imageChannelMonitor.cancelManualTest(item.monitor.id, runID)
+    )
+    if (manualRunSeq === seq && manualResults.value[item.recordId]) {
+      setManualResultFromRun(item.recordId, item.monitor, run)
+    }
   } catch (err: unknown) {
-    appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.cancelFailed')))
+    if (err instanceof ManualRunCanceledError) return
+    if (manualRunSeq === seq) {
+      appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.cancelFailed')))
+    }
   }
 }
 
-async function cancelRunningManualTests() {
+async function cancelManualRunByClientID(item: ManualResultItem, seq = manualRunSeq) {
+  if (!item.clientRunID || item.state !== 'running') return
+  try {
+    await retryManualCancellation(() =>
+      adminAPI.imageChannelMonitor.cancelManualTestByClientRunID(
+        item.monitor.id,
+        item.clientRunID as string
+      )
+    )
+    if (manualRunSeq === seq && manualResults.value[item.recordId]) {
+      markManualResultCanceled(item)
+    }
+  } catch (err: unknown) {
+    if (err instanceof ManualRunCanceledError) return
+    if (manualRunSeq === seq) {
+      appStore.showError(extractApiErrorMessage(err, t('admin.imageChannelMonitor.manual.cancelFailed')))
+    }
+  }
+}
+
+async function retryManualCancellation(
+  cancel: () => Promise<ImageChannelManualRunResponse>
+): Promise<ImageChannelManualRunResponse> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await cancel()
+    } catch (error: unknown) {
+      if (!isManualRetryableRequestError(error)) throw error
+      await wait(manualRetryDelayMs(attempt + 1))
+      if (manualViewDisposed) throw new ManualRunCanceledError()
+    }
+  }
+}
+
+function markManualResultCanceled(item: ManualResultItem) {
+  const existing = manualResults.value[item.recordId]
+  if (!existing || existing.state !== 'running') return
+  const completedAt = new Date().toISOString()
+  if (existing.run?.run_id) {
+    setManualResultFromRun(
+      item.recordId,
+      item.monitor,
+      {
+        ...existing.run,
+        running: false,
+        canceled: true,
+        stage: 'canceled',
+        message: t('admin.imageChannelMonitor.manual.canceled'),
+        updated_at: completedAt,
+        completed_at: completedAt,
+        gateway_status: 'canceled',
+        delivery_status: 'canceled',
+        observation_status: 'observable',
+        artifacts: [],
+        result: undefined,
+      },
+      existing.settings
+    )
+    return
+  }
+  setManualResult(item.recordId, {
+    ...existing,
+    state: 'canceled',
+    message: t('admin.imageChannelMonitor.manual.canceled'),
+    completedAt,
+  })
+}
+
+function cancelRunningManualTests() {
+  const seq = manualRunSeq
+  manualCanceledRunSeqs.add(seq)
+  manualStartRetryAbortController?.abort()
   const runningItems = manualResultList.value.filter((item) => item.state === 'running')
+  runningItems.forEach(markManualResultCanceled)
+  if (manualRunSeq === seq) {
+    manualRunning.value = false
+  }
   if (runningItems.length === 0) return
-  await Promise.allSettled(runningItems.map((item) => cancelManualRun(item)))
+  void Promise.allSettled(
+    runningItems.map((item) => {
+      if (item.run?.run_id) return cancelManualRun(item, seq)
+      return cancelManualRunByClientID(item, seq)
+    })
+  )
 }
 
 function setManualResultFromRun(
@@ -3021,14 +3978,31 @@ function setManualResultFromRun(
   settings?: ManualPresetSettings
 ) {
   const existing = manualResults.value[recordId]
+  const observationExpired = manualRunStatusField(run, 'observation_status') === 'expired'
   const next: ManualResultItem = {
     recordId,
     monitor: run.monitor || target,
-    state: run.running ? 'running' : run.canceled ? 'canceled' : run.result ? 'done' : 'error',
-    message: run.message || run.result?.message || '',
+    state: observationExpired
+      ? 'observation_lost'
+      : run.running
+        ? 'running'
+        : run.canceled
+          ? 'canceled'
+          : run.result
+            ? 'done'
+            : 'error',
+    message:
+      run.message ||
+      run.result?.message ||
+      (observationExpired ? t('admin.imageChannelMonitor.manual.observationLostDetail') : ''),
+    observationWarning: observationExpired
+      ? t('admin.imageChannelMonitor.manual.observationLostDetail')
+      : undefined,
+    artifactWarning: existing?.artifactWarning,
     batch_id: run.batch_id || existing?.batch_id || '',
     batch_size: run.batch_size || existing?.batch_size || 0,
     batch_index: run.batch_index || existing?.batch_index || 0,
+    clientRunID: run.client_run_id || existing?.clientRunID,
     run,
     settings: settings || existing?.settings,
     inputImage: existing?.inputImage,
@@ -3039,8 +4013,143 @@ function setManualResultFromRun(
     ...next,
   })
   if (!run.running) {
-    void appendManualHistoryFromRun(target, next)
+    void finalizeManualRun(recordId, target, run, next)
   }
+}
+
+async function finalizeManualRun(
+  recordId: string,
+  target: ImageChannelMonitor,
+  run: ImageChannelManualRunResponse,
+  item: ManualResultItem
+) {
+  if (!run.run_id || manualTerminalPendingRunIDs.has(run.run_id)) return
+  if (manualHistory.value.some((history) => history.run_id === run.run_id)) return
+  manualTerminalPendingRunIDs.add(run.run_id)
+  try {
+    const artifactLoad = await loadManualRunArtifact(recordId, target, run)
+    await appendManualHistoryFromRun(target, item, artifactLoad)
+  } finally {
+    manualTerminalPendingRunIDs.delete(run.run_id)
+  }
+}
+
+function manualRunArtifactIndex(run: ImageChannelManualRunResponse): number | null {
+  const artifacts = manualRunExtendedFields(run).artifacts
+  if (Array.isArray(artifacts)) {
+	const indexes = artifacts
+	  .map((artifact) => Number(artifact.index))
+	  .filter((index) => Number.isInteger(index) && index >= 0)
+	return indexes.length > 0 ? Math.min(...indexes) : null
+  }
+  const result = run.result
+	return (
+    result?.returned_image_data ||
+      result?.returned_image_url ||
+      result?.has_b64_json ||
+      result?.has_url
+  )
+	  ? 0
+	  : null
+}
+
+async function loadManualRunArtifact(
+  recordId: string,
+  target: ImageChannelMonitor,
+  run: ImageChannelManualRunResponse
+): Promise<ManualArtifactLoadResult> {
+  const inlineImage = run.result?.returned_image_data
+    ? dataURLToManualInputImage(run.result.returned_image_data, 'generated-image')
+    : null
+	const artifactIndex = manualRunArtifactIndex(run)
+  if (!run.run_id || artifactIndex === null) {
+    return { image: inlineImage, index: artifactIndex, pending: false }
+  }
+  if (manualArtifactPendingRunIDs.has(run.run_id) || manualRunOutputPreviews.value[run.run_id]) {
+    return { image: inlineImage, index: artifactIndex, pending: false }
+  }
+  manualArtifactPendingRunIDs.add(run.run_id)
+  try {
+    const timeoutSeconds =
+      manualResults.value[recordId]?.settings?.timeout_seconds || manualForm.timeout_seconds
+    const blob = await getManualRunArtifactWithRetry(
+      target.id,
+      run.run_id,
+	  artifactIndex,
+      timeoutSeconds
+    )
+    const storedImage = manualPersistedBlob(blob, `generated-image-${run.run_id}`)
+    manualPendingOutputImages.set(run.run_id, storedImage)
+    setManualRunOutputPreview(run.run_id, storedImage)
+    const existing = manualResults.value[recordId]
+    if (existing) {
+      setManualResult(recordId, { ...existing, artifactWarning: undefined })
+    }
+    return { image: storedImage, index: artifactIndex, pending: false }
+  } catch (error: unknown) {
+    const existing = manualResults.value[recordId]
+    if (existing) {
+      setManualResult(recordId, {
+        ...existing,
+        artifactWarning: t('admin.imageChannelMonitor.manual.artifactUnavailable'),
+      })
+    }
+    return {
+      image: inlineImage,
+      index: artifactIndex,
+      pending: !inlineImage && isManualRetryableRequestError(error),
+    }
+  } finally {
+    manualArtifactPendingRunIDs.delete(run.run_id)
+  }
+}
+
+function setManualRunOutputPreview(runID: string, image: ManualPersistedImage) {
+  if (!image.blob?.size || typeof URL.createObjectURL !== 'function') return
+  const objectURL = URL.createObjectURL(image.blob)
+  const previous = manualOutputObjectURLs.get(runID)
+  if (previous) URL.revokeObjectURL(previous)
+  manualOutputObjectURLs.set(runID, objectURL)
+  manualRunOutputPreviews.value = {
+    ...manualRunOutputPreviews.value,
+    [runID]: objectURL,
+  }
+}
+
+async function getManualRunArtifactWithRetry(
+  targetID: number,
+  runID: string,
+	artifactIndex: number,
+  timeoutSeconds: number
+) {
+  const maxRetries = 2
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const blob = await adminAPI.imageChannelMonitor.getManualTestImage(targetID, runID, artifactIndex, {
+        timeoutSeconds,
+      })
+      if (!blob.size) throw { status: 0, code: 'EMPTY_ARTIFACT' }
+      return blob
+    } catch (error: unknown) {
+      if (!isManualRetryableRequestError(error) || attempt === maxRetries) throw error
+      await wait(manualRetryDelayMs(attempt + 1))
+    }
+  }
+  throw new Error('unreachable')
+}
+
+function manualPersistedBlob(blob: Blob, fallbackName: string): ManualPersistedImage {
+  const type = blob.type || 'image/png'
+  const ext = type.split('/')[1]?.split(';')[0] || 'png'
+  return {
+    blob,
+    type,
+    name: `${fallbackName}.${ext}`,
+  }
+}
+
+function manualRetryDelayMs(attempt: number) {
+  return Math.min(2_400, 300 * 2 ** Math.max(0, attempt - 1))
 }
 
 function setManualResult(id: string, item: ManualResultItem) {
@@ -3220,7 +4329,13 @@ function manualRunResult(item: ManualResultItem) {
 
 function manualPreview(item: ManualResultItem) {
   const result = manualRunResult(item)
-  return result?.returned_image_url || result?.returned_image_data || ''
+  const runID = item.run?.run_id || ''
+  return (
+    manualRunOutputPreviews.value[runID] ||
+    result?.returned_image_url ||
+    result?.returned_image_data ||
+    ''
+  )
 }
 
 function manualHistoryInputPreview(entry: ManualHistoryItem) {
@@ -3229,6 +4344,7 @@ function manualHistoryInputPreview(entry: ManualHistoryItem) {
 
 function manualHistoryOutputPreview(entry: ManualHistoryItem) {
   return (
+    manualRunOutputPreviews.value[entry.run_id] ||
     manualHistoryOutputPreviews.value[entry.id] ||
     entry.result?.returned_image_url ||
     entry.result?.returned_image_data ||
@@ -3255,6 +4371,22 @@ function manualWaterfallSegments(result?: ImageChannelMonitorResult): WaterfallS
 function networkInfoItems(result?: ImageChannelMonitorResult): NetworkInfoItem[] {
   if (!result) return []
   const items: NetworkInfoItem[] = []
+  const gatewayResult = result as ImageChannelMonitorResult & {
+    gateway_client_request_id?: string
+    gateway_request_ids?: string[]
+  }
+  if (gatewayResult.gateway_client_request_id) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.gatewayClientRequestId'),
+      value: gatewayResult.gateway_client_request_id,
+    })
+  }
+  if (gatewayResult.gateway_request_ids?.length) {
+    items.push({
+      label: t('admin.imageChannelMonitor.network.gatewayRequestIds'),
+      value: gatewayResult.gateway_request_ids.join(', '),
+    })
+  }
   if (result.exit_ip) {
     items.push({
       label: t('admin.imageChannelMonitor.network.exitIp'),
@@ -3284,8 +4416,8 @@ function networkInfoItems(result?: ImageChannelMonitorResult): NetworkInfoItem[]
     const url = result.image_download_url || result.returned_image_url
     items.push({
       label: t('admin.imageChannelMonitor.network.imageUrl'),
-      value: url,
-      href: url,
+      value: formatReturnedImageURLForDisplay(url),
+      href: isDataURL(url) ? undefined : url,
     })
   }
   if (result.image_download_host) {
@@ -3373,6 +4505,29 @@ function manualRecordImageBytesText(entry: ManualRecordEntry) {
   return formatImageBytes(entry.result?.image_bytes)
 }
 
+function isDataURL(value: string) {
+  return /^data:/i.test(value.trim())
+}
+
+function dataURLPayloadBytes(value: string) {
+  const comma = value.indexOf(',')
+  if (comma < 0) return 0
+  const payload = value.slice(comma + 1).replace(/\s/g, '')
+  if (!payload) return 0
+  const padding = payload.endsWith('==') ? 2 : payload.endsWith('=') ? 1 : 0
+  return Math.max(0, Math.floor((payload.length * 3) / 4) - padding)
+}
+
+function formatReturnedImageURLForDisplay(value: string) {
+  const trimmed = value.trim()
+  if (!isDataURL(trimmed)) return trimmed
+  const mediaType = /^data:([^;,]+)/i.exec(trimmed)?.[1] || 'data'
+  const isBase64 = /^data:[^,]*;base64,/i.test(trimmed)
+  const bytes = isBase64 ? dataURLPayloadBytes(trimmed) : 0
+  const size = bytes > 0 ? ` (${formatBytes(bytes, 1)} inline)` : ''
+  return `data:${mediaType}${isBase64 ? ';base64' : ''},...${size}`
+}
+
 function formatImageBytes(value: number | null | undefined) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return ''
   return formatBytes(value, 1)
@@ -3399,6 +4554,7 @@ function handleFieldsOutsideClick(event: MouseEvent) {
 }
 
 onMounted(() => {
+  manualViewDisposed = false
   loadManualPresets()
   loadManualHistory()
   reload()
@@ -3412,11 +4568,23 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  manualViewDisposed = true
   manualRunSeq += 1
+  manualStartRetryAbortController?.abort()
+  manualStartRetryAbortController = null
   if (abortController) abortController.abort()
   if (searchTimeout) clearTimeout(searchTimeout)
   if (statusPollTimer) clearInterval(statusPollTimer)
   if (clockTimer) clearInterval(clockTimer)
+  for (const runID of manualArtifactRecoveryTimers.keys()) {
+    cancelManualArtifactRecovery(runID)
+  }
+  for (const objectURL of manualOutputObjectURLs.values()) {
+    URL.revokeObjectURL(objectURL)
+  }
+  manualOutputObjectURLs.clear()
+	manualPendingOutputImages.clear()
+	revokeManualInputObjectURLs()
   document.removeEventListener('click', handleFieldsOutsideClick)
 })
 </script>

@@ -332,29 +332,30 @@ var ErrNoAvailableCompactAccounts = errors.New("no available OpenAI accounts sup
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	accountRepo           AccountRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	cache                 GatewayCache
-	cfg                   *config.Config
-	codexDetector         CodexClientRestrictionDetector
-	schedulerSnapshot     *SchedulerSnapshotService
-	concurrencyService    *ConcurrencyService
-	billingService        *BillingService
-	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	userGroupRateResolver *userGroupRateResolver
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	openAITokenProvider   *OpenAITokenProvider
-	toolCorrector         *CodexToolCorrector
-	openaiWSResolver      OpenAIWSProtocolResolver
-	resolver              *ModelPricingResolver
-	channelService        *ChannelService
-	balanceNotifyService  *BalanceNotifyService
-	settingService        *SettingService
+	accountRepo                 AccountRepository
+	usageLogRepo                UsageLogRepository
+	usageBillingRepo            UsageBillingRepository
+	userRepo                    UserRepository
+	userSubRepo                 UserSubscriptionRepository
+	cache                       GatewayCache
+	cfg                         *config.Config
+	codexDetector               CodexClientRestrictionDetector
+	schedulerSnapshot           *SchedulerSnapshotService
+	concurrencyService          *ConcurrencyService
+	billingService              *BillingService
+	rateLimitService            *RateLimitService
+	billingCacheService         *BillingCacheService
+	userGroupRateResolver       *userGroupRateResolver
+	httpUpstream                HTTPUpstream
+	deferredService             *DeferredService
+	openAITokenProvider         *OpenAITokenProvider
+	toolCorrector               *CodexToolCorrector
+	openaiWSResolver            OpenAIWSProtocolResolver
+	resolver                    *ModelPricingResolver
+	channelService              *ChannelService
+	balanceNotifyService        *BalanceNotifyService
+	settingService              *SettingService
+	openAIImagesResponseSpooler func(io.Reader, int64, int64, string) (*openAIImagesResponseSpool, error)
 
 	openaiWSPoolOnce              sync.Once
 	openaiWSStateStoreOnce        sync.Once
@@ -363,6 +364,7 @@ type OpenAIGatewayService struct {
 	openaiWSPool                  *openAIWSConnPool
 	openaiWSStateStore            OpenAIWSStateStore
 	openaiScheduler               OpenAIAccountScheduler
+	openaiSchedulerForTest        OpenAIAccountScheduler
 	openaiWSPassthroughDialer     openAIWSClientDialer
 	openaiAccountStats            *openAIAccountRuntimeStats
 
@@ -372,6 +374,13 @@ type OpenAIGatewayService struct {
 	codexSnapshotThrottle               *accountWriteThrottle
 	openaiCompatSessionResponses        sync.Map
 	openaiCompatAnthropicDigestSessions sync.Map
+}
+
+func (s *OpenAIGatewayService) SetOpenAIAccountSchedulerForTest(scheduler OpenAIAccountScheduler) {
+	if s == nil {
+		return
+	}
+	s.openaiSchedulerForTest = scheduler
 }
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService
@@ -430,6 +439,7 @@ func NewOpenAIGatewayService(
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 	}
+	sweepOpenAIImagesResponseSpoolOrphans("", time.Now())
 	svc.logOpenAIWSModeBootstrap()
 	return svc
 }

@@ -1,6 +1,9 @@
 package admin
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +14,12 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+)
+
+const (
+	imageChannelManualControlImageMaxBytes      int64 = 20 << 20
+	imageChannelManualControlMultipartMemoryMax int64 = 1 << 20
 )
 
 type ImageChannelMonitorHandler struct {
@@ -66,21 +75,25 @@ type imageChannelMonitorUpdateRequest struct {
 }
 
 type imageChannelMonitorManualTestRequest struct {
-	Mode           string `json:"mode" binding:"omitempty,oneof=generate edit"`
-	Model          string `json:"model" binding:"omitempty,max=200"`
-	Prompt         string `json:"prompt" binding:"omitempty,max=2000"`
-	Size           string `json:"size" binding:"omitempty,max=32"`
-	Quality        string `json:"quality" binding:"omitempty,max=32"`
-	N              int    `json:"n" binding:"omitempty,min=1,max=10"`
-	DownloadImage  *bool  `json:"download_image"`
-	ResponseFormat string `json:"response_format" binding:"omitempty,max=16"`
-	TimeoutSeconds int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
-	InputImageData string `json:"input_image_data"`
-	InputImageType string `json:"input_image_type" binding:"omitempty,max=100"`
-	InputImageName string `json:"input_image_name" binding:"omitempty,max=255"`
-	BatchID        string `json:"batch_id" binding:"omitempty,max=80"`
-	BatchSize      int    `json:"batch_size" binding:"omitempty,min=1,max=200"`
-	BatchIndex     int    `json:"batch_index" binding:"omitempty,min=1,max=200"`
+	Mode              string `json:"mode" binding:"omitempty,oneof=generate edit"`
+	ExecutionMode     string `json:"execution_mode" binding:"omitempty,oneof=gateway_group gateway_account direct_probe"`
+	APIKeyID          int64  `json:"api_key_id" binding:"omitempty,min=1"`
+	ExpectedAccountID int64  `json:"expected_account_id" binding:"omitempty,min=1"`
+	ClientRunID       string `json:"client_run_id" binding:"omitempty,max=128"`
+	Model             string `json:"model" binding:"omitempty,max=200"`
+	Prompt            string `json:"prompt" binding:"omitempty,max=2000"`
+	Size              string `json:"size" binding:"omitempty,max=32"`
+	Quality           string `json:"quality" binding:"omitempty,max=32"`
+	N                 int    `json:"n" binding:"omitempty,min=1,max=10"`
+	DownloadImage     *bool  `json:"download_image"`
+	ResponseFormat    string `json:"response_format" binding:"omitempty,max=16"`
+	TimeoutSeconds    int    `json:"timeout_seconds" binding:"omitempty,min=30,max=600"`
+	InputImageData    string `json:"input_image_data"`
+	InputImageType    string `json:"input_image_type" binding:"omitempty,max=100"`
+	InputImageName    string `json:"input_image_name" binding:"omitempty,max=255"`
+	BatchID           string `json:"batch_id" binding:"omitempty,max=80"`
+	BatchSize         int    `json:"batch_size" binding:"omitempty,min=1,max=200"`
+	BatchIndex        int    `json:"batch_index" binding:"omitempty,min=1,max=200"`
 }
 
 type imageChannelMonitorResponse struct {
@@ -167,37 +180,39 @@ func imageMonitorTimelinePointsToResponse(points []*service.ImageMonitorTimeline
 }
 
 type imageChannelMonitorResultResponse struct {
-	MonitorID         int64                              `json:"monitor_id"`
-	Status            string                             `json:"status"`
-	HTTPStatus        *int                               `json:"http_status"`
-	APIHeaderMs       *int                               `json:"api_header_ms"`
-	APIBodyMs         *int                               `json:"api_body_ms"`
-	APITotalMs        *int                               `json:"api_total_ms"`
-	JSONBytes         *int                               `json:"json_bytes"`
-	HasURL            bool                               `json:"has_url"`
-	HasB64JSON        bool                               `json:"has_b64_json"`
-	ResponseFormat    string                             `json:"response_format"`
-	ImageURLHost      string                             `json:"image_url_host"`
-	ImageFirstByteMs  *int                               `json:"image_first_byte_ms"`
-	ImageDownloadMs   *int                               `json:"image_download_ms"`
-	ImageBytes        *int64                             `json:"image_bytes"`
-	ImageContentType  string                             `json:"image_content_type"`
-	ImageWidth        *int                               `json:"image_width"`
-	ImageHeight       *int                               `json:"image_height"`
-	ErrorStage        string                             `json:"error_stage"`
-	Message           string                             `json:"message"`
-	CheckedAt         string                             `json:"checked_at"`
-	RevisedPrompt     string                             `json:"revised_prompt"`
-	ReturnedImageURL  string                             `json:"returned_image_url"`
-	ReturnedImageData string                             `json:"returned_image_data"`
-	ExitIP            string                             `json:"exit_ip"`
-	RequestTargetURL  string                             `json:"request_target_url"`
-	RequestTargetHost string                             `json:"request_target_host"`
-	RequestTargetIPs  []string                           `json:"request_target_ips"`
-	ImageDownloadURL  string                             `json:"image_download_url"`
-	ImageDownloadHost string                             `json:"image_download_host"`
-	ImageDownloadIPs  []string                           `json:"image_download_ips"`
-	Stages            []imageChannelMonitorStageResponse `json:"stages"`
+	MonitorID              int64                              `json:"monitor_id"`
+	Status                 string                             `json:"status"`
+	HTTPStatus             *int                               `json:"http_status"`
+	APIHeaderMs            *int                               `json:"api_header_ms"`
+	APIBodyMs              *int                               `json:"api_body_ms"`
+	APITotalMs             *int                               `json:"api_total_ms"`
+	JSONBytes              *int                               `json:"json_bytes"`
+	HasURL                 bool                               `json:"has_url"`
+	HasB64JSON             bool                               `json:"has_b64_json"`
+	ResponseFormat         string                             `json:"response_format"`
+	ImageURLHost           string                             `json:"image_url_host"`
+	ImageFirstByteMs       *int                               `json:"image_first_byte_ms"`
+	ImageDownloadMs        *int                               `json:"image_download_ms"`
+	ImageBytes             *int64                             `json:"image_bytes"`
+	ImageContentType       string                             `json:"image_content_type"`
+	ImageWidth             *int                               `json:"image_width"`
+	ImageHeight            *int                               `json:"image_height"`
+	ErrorStage             string                             `json:"error_stage"`
+	Message                string                             `json:"message"`
+	CheckedAt              string                             `json:"checked_at"`
+	RevisedPrompt          string                             `json:"revised_prompt"`
+	ReturnedImageURL       string                             `json:"returned_image_url"`
+	ReturnedImageData      string                             `json:"-"`
+	GatewayClientRequestID string                             `json:"gateway_client_request_id"`
+	GatewayRequestIDs      []string                           `json:"gateway_request_ids"`
+	ExitIP                 string                             `json:"exit_ip"`
+	RequestTargetURL       string                             `json:"request_target_url"`
+	RequestTargetHost      string                             `json:"request_target_host"`
+	RequestTargetIPs       []string                           `json:"request_target_ips"`
+	ImageDownloadURL       string                             `json:"image_download_url"`
+	ImageDownloadHost      string                             `json:"image_download_host"`
+	ImageDownloadIPs       []string                           `json:"image_download_ips"`
+	Stages                 []imageChannelMonitorStageResponse `json:"stages"`
 }
 
 type imageChannelMonitorStageResponse struct {
@@ -207,20 +222,35 @@ type imageChannelMonitorStageResponse struct {
 }
 
 type imageChannelMonitorManualRunResponse struct {
-	RunID       string                             `json:"run_id"`
-	Monitor     *imageChannelMonitorResponse       `json:"monitor"`
-	Mode        string                             `json:"mode"`
-	BatchID     string                             `json:"batch_id"`
-	BatchSize   int                                `json:"batch_size"`
-	BatchIndex  int                                `json:"batch_index"`
-	Running     bool                               `json:"running"`
-	Canceled    bool                               `json:"canceled"`
-	Stage       string                             `json:"stage"`
-	Message     string                             `json:"message"`
-	StartedAt   string                             `json:"started_at"`
-	UpdatedAt   string                             `json:"updated_at"`
-	CompletedAt *string                            `json:"completed_at"`
-	Result      *imageChannelMonitorResultResponse `json:"result,omitempty"`
+	RunID             string                                `json:"run_id"`
+	Monitor           *imageChannelMonitorResponse          `json:"monitor"`
+	Mode              string                                `json:"mode"`
+	ExecutionMode     string                                `json:"execution_mode"`
+	APIKeyID          int64                                 `json:"api_key_id"`
+	ExpectedAccountID int64                                 `json:"expected_account_id"`
+	ClientRunID       string                                `json:"client_run_id"`
+	BatchID           string                                `json:"batch_id"`
+	BatchSize         int                                   `json:"batch_size"`
+	BatchIndex        int                                   `json:"batch_index"`
+	GatewayStatus     string                                `json:"gateway_status"`
+	DeliveryStatus    string                                `json:"delivery_status"`
+	ObservationStatus string                                `json:"observation_status"`
+	Artifacts         []imageChannelMonitorArtifactResponse `json:"artifacts"`
+	Running           bool                                  `json:"running"`
+	Canceled          bool                                  `json:"canceled"`
+	Stage             string                                `json:"stage"`
+	Message           string                                `json:"message"`
+	StartedAt         string                                `json:"started_at"`
+	UpdatedAt         string                                `json:"updated_at"`
+	CompletedAt       *string                               `json:"completed_at"`
+	Result            *imageChannelMonitorResultResponse    `json:"result,omitempty"`
+}
+
+type imageChannelMonitorArtifactResponse struct {
+	Index       int    `json:"index"`
+	ContentType string `json:"content_type"`
+	Size        int64  `json:"size"`
+	Source      string `json:"source"`
 }
 
 type imageChannelMonitorRuntimeStatusResponse struct {
@@ -332,18 +362,34 @@ func imageMonitorManualRunToResponse(
 	s *service.ImageChannelMonitorManualRunStatus,
 ) imageChannelMonitorManualRunResponse {
 	out := imageChannelMonitorManualRunResponse{
-		RunID:      s.RunID,
-		Monitor:    imageMonitorToResponse(s.Monitor),
-		Mode:       s.Mode,
-		BatchID:    s.BatchID,
-		BatchSize:  s.BatchSize,
-		BatchIndex: s.BatchIndex,
-		Running:    s.Running,
-		Canceled:   s.Canceled,
-		Stage:      s.Stage,
-		Message:    s.Message,
-		StartedAt:  s.StartedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:  s.UpdatedAt.UTC().Format(time.RFC3339),
+		RunID:             s.RunID,
+		Monitor:           imageMonitorToResponse(s.Monitor),
+		Mode:              s.Mode,
+		ExecutionMode:     s.ExecutionMode,
+		APIKeyID:          s.APIKeyID,
+		ExpectedAccountID: s.ExpectedAccountID,
+		ClientRunID:       s.ClientRunID,
+		BatchID:           s.BatchID,
+		BatchSize:         s.BatchSize,
+		BatchIndex:        s.BatchIndex,
+		GatewayStatus:     s.GatewayStatus,
+		DeliveryStatus:    s.DeliveryStatus,
+		ObservationStatus: s.ObservationStatus,
+		Running:           s.Running,
+		Canceled:          s.Canceled,
+		Stage:             s.Stage,
+		Message:           s.Message,
+		StartedAt:         s.StartedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:         s.UpdatedAt.UTC().Format(time.RFC3339),
+	}
+	out.Artifacts = make([]imageChannelMonitorArtifactResponse, 0, len(s.Artifacts))
+	for _, artifact := range s.Artifacts {
+		out.Artifacts = append(out.Artifacts, imageChannelMonitorArtifactResponse{
+			Index:       artifact.Index,
+			ContentType: artifact.ContentType,
+			Size:        artifact.Size,
+			Source:      artifact.Source,
+		})
 	}
 	if s.CompletedAt != nil {
 		v := s.CompletedAt.UTC().Format(time.RFC3339)
@@ -351,6 +397,10 @@ func imageMonitorManualRunToResponse(
 	}
 	if s.Result != nil {
 		result := imageMonitorResultToResponse(s.Result)
+		result.ReturnedImageData = ""
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(result.ReturnedImageURL)), "data:") {
+			result.ReturnedImageURL = ""
+		}
 		out.Result = &result
 	}
 	return out
@@ -358,36 +408,37 @@ func imageMonitorManualRunToResponse(
 
 func imageMonitorResultToResponse(r *service.ImageChannelMonitorResult) imageChannelMonitorResultResponse {
 	resp := imageChannelMonitorResultResponse{
-		MonitorID:         r.MonitorID,
-		Status:            r.Status,
-		HTTPStatus:        r.HTTPStatus,
-		APIHeaderMs:       r.APIHeaderMs,
-		APIBodyMs:         r.APIBodyMs,
-		APITotalMs:        r.APITotalMs,
-		JSONBytes:         r.JSONBytes,
-		HasURL:            r.HasURL,
-		HasB64JSON:        r.HasB64JSON,
-		ResponseFormat:    r.ResponseFormat,
-		ImageURLHost:      r.ImageURLHost,
-		ImageFirstByteMs:  r.ImageFirstByteMs,
-		ImageDownloadMs:   r.ImageDownloadMs,
-		ImageBytes:        r.ImageBytes,
-		ImageContentType:  r.ImageContentType,
-		ImageWidth:        r.ImageWidth,
-		ImageHeight:       r.ImageHeight,
-		ErrorStage:        r.ErrorStage,
-		Message:           r.Message,
-		CheckedAt:         r.CheckedAt.UTC().Format(time.RFC3339),
-		RevisedPrompt:     r.RevisedPrompt,
-		ReturnedImageURL:  r.ReturnedImageURL,
-		ReturnedImageData: r.ReturnedImageData,
-		ExitIP:            r.ExitIP,
-		RequestTargetURL:  r.RequestTargetURL,
-		RequestTargetHost: r.RequestTargetHost,
-		RequestTargetIPs:  r.RequestTargetIPs,
-		ImageDownloadURL:  r.ImageDownloadURL,
-		ImageDownloadHost: r.ImageDownloadHost,
-		ImageDownloadIPs:  r.ImageDownloadIPs,
+		MonitorID:              r.MonitorID,
+		Status:                 r.Status,
+		HTTPStatus:             r.HTTPStatus,
+		APIHeaderMs:            r.APIHeaderMs,
+		APIBodyMs:              r.APIBodyMs,
+		APITotalMs:             r.APITotalMs,
+		JSONBytes:              r.JSONBytes,
+		HasURL:                 r.HasURL,
+		HasB64JSON:             r.HasB64JSON,
+		ResponseFormat:         r.ResponseFormat,
+		ImageURLHost:           r.ImageURLHost,
+		ImageFirstByteMs:       r.ImageFirstByteMs,
+		ImageDownloadMs:        r.ImageDownloadMs,
+		ImageBytes:             r.ImageBytes,
+		ImageContentType:       r.ImageContentType,
+		ImageWidth:             r.ImageWidth,
+		ImageHeight:            r.ImageHeight,
+		ErrorStage:             r.ErrorStage,
+		Message:                r.Message,
+		CheckedAt:              r.CheckedAt.UTC().Format(time.RFC3339),
+		RevisedPrompt:          r.RevisedPrompt,
+		ReturnedImageURL:       r.ReturnedImageURL,
+		GatewayClientRequestID: r.GatewayClientRequestID,
+		GatewayRequestIDs:      append([]string(nil), r.GatewayRequestIDs...),
+		ExitIP:                 r.ExitIP,
+		RequestTargetURL:       r.RequestTargetURL,
+		RequestTargetHost:      r.RequestTargetHost,
+		RequestTargetIPs:       r.RequestTargetIPs,
+		ImageDownloadURL:       r.ImageDownloadURL,
+		ImageDownloadHost:      r.ImageDownloadHost,
+		ImageDownloadIPs:       r.ImageDownloadIPs,
 	}
 	if len(r.StageEvents) > 0 {
 		resp.Stages = make([]imageChannelMonitorStageResponse, 0, len(r.StageEvents))
@@ -643,7 +694,16 @@ func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
 		return
 	}
 	var req imageChannelMonitorManualTestRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var inputImageBytes []byte
+	contentType := strings.ToLower(strings.TrimSpace(c.GetHeader("Content-Type")))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		var err error
+		req, inputImageBytes, err = parseImageChannelManualMultipartRequest(c)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	} else if err := c.ShouldBindJSON(&req); err != nil {
 		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", err.Error()))
 		return
 	}
@@ -652,27 +712,75 @@ func (h *ImageChannelMonitorHandler) ManualTest(c *gin.Context) {
 		downloadImage = *req.DownloadImage
 	}
 	status, err := h.monitorService.StartManualCheck(c.Request.Context(), id, service.ImageChannelMonitorManualTestParams{
-		Mode:           req.Mode,
-		Model:          req.Model,
-		Prompt:         req.Prompt,
-		Size:           req.Size,
-		Quality:        req.Quality,
-		N:              req.N,
-		DownloadImage:  downloadImage,
-		ResponseFormat: req.ResponseFormat,
-		TimeoutSeconds: req.TimeoutSeconds,
-		InputImageData: req.InputImageData,
-		InputImageType: req.InputImageType,
-		InputImageName: req.InputImageName,
-		BatchID:        req.BatchID,
-		BatchSize:      req.BatchSize,
-		BatchIndex:     req.BatchIndex,
+		Mode:              req.Mode,
+		ExecutionMode:     req.ExecutionMode,
+		APIKeyID:          req.APIKeyID,
+		ExpectedAccountID: req.ExpectedAccountID,
+		ClientRunID:       req.ClientRunID,
+		Model:             req.Model,
+		Prompt:            req.Prompt,
+		Size:              req.Size,
+		Quality:           req.Quality,
+		N:                 req.N,
+		DownloadImage:     downloadImage,
+		ResponseFormat:    req.ResponseFormat,
+		TimeoutSeconds:    req.TimeoutSeconds,
+		InputImageData:    req.InputImageData,
+		InputImageBytes:   inputImageBytes,
+		InputImageType:    req.InputImageType,
+		InputImageName:    req.InputImageName,
+		BatchID:           req.BatchID,
+		BatchSize:         req.BatchSize,
+		BatchIndex:        req.BatchIndex,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 	response.Success(c, imageMonitorManualRunToResponse(status))
+}
+
+func parseImageChannelManualMultipartRequest(c *gin.Context) (imageChannelMonitorManualTestRequest, []byte, error) {
+	var req imageChannelMonitorManualTestRequest
+	if c == nil || c.Request == nil {
+		return req, nil, errors.BadRequest("VALIDATION_ERROR", "request is required")
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, imageChannelManualControlImageMaxBytes+(1<<20))
+	if err := c.Request.ParseMultipartForm(imageChannelManualControlMultipartMemoryMax); err != nil {
+		return req, nil, errors.BadRequest("VALIDATION_ERROR", err.Error())
+	}
+	if c.Request.MultipartForm != nil {
+		defer func() { _ = c.Request.MultipartForm.RemoveAll() }()
+	}
+	metadata := strings.TrimSpace(c.Request.FormValue("metadata"))
+	if metadata == "" {
+		return req, nil, errors.BadRequest("VALIDATION_ERROR", "metadata is required")
+	}
+	if err := json.Unmarshal([]byte(metadata), &req); err != nil {
+		return req, nil, errors.BadRequest("VALIDATION_ERROR", err.Error())
+	}
+	if err := binding.Validator.ValidateStruct(&req); err != nil {
+		return req, nil, errors.BadRequest("VALIDATION_ERROR", err.Error())
+	}
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		return req, nil, service.ErrImageChannelMonitorMissingInputImage
+	}
+	defer func() { _ = file.Close() }()
+	if header.Size <= 0 || header.Size > imageChannelManualControlImageMaxBytes {
+		return req, nil, service.ErrImageChannelMonitorInvalidInputImage
+	}
+	inputImageBytes, err := io.ReadAll(io.LimitReader(file, imageChannelManualControlImageMaxBytes+1))
+	if err != nil || len(inputImageBytes) == 0 || int64(len(inputImageBytes)) > imageChannelManualControlImageMaxBytes {
+		return req, nil, service.ErrImageChannelMonitorInvalidInputImage
+	}
+	if strings.TrimSpace(req.InputImageType) == "" {
+		req.InputImageType = header.Header.Get("Content-Type")
+	}
+	if strings.TrimSpace(req.InputImageName) == "" {
+		req.InputImageName = header.Filename
+	}
+	return req, inputImageBytes, nil
 }
 
 func (h *ImageChannelMonitorHandler) ManualTestStatus(c *gin.Context) {
@@ -722,6 +830,77 @@ func (h *ImageChannelMonitorHandler) CancelManualTest(c *gin.Context) {
 		return
 	}
 	response.Success(c, imageMonitorManualRunToResponse(status))
+}
+
+func (h *ImageChannelMonitorHandler) CancelManualTestByClientRunID(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	clientRunID := strings.TrimSpace(c.Param("clientRunID"))
+	if clientRunID == "" {
+		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", "clientRunID is required"))
+		return
+	}
+	status, err := h.monitorService.CancelManualCheckByClientRunID(
+		c.Request.Context(),
+		id,
+		clientRunID,
+	)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, imageMonitorManualRunToResponse(status))
+}
+
+func (h *ImageChannelMonitorHandler) ManualTestImage(c *gin.Context) {
+	id, ok := ParseChannelMonitorID(c)
+	if !ok {
+		return
+	}
+	runID := strings.TrimSpace(c.Param("runID"))
+	if runID == "" {
+		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", "runID is required"))
+		return
+	}
+	index, err := strconv.Atoi(strings.TrimSpace(c.Param("index")))
+	if err != nil || index < 0 {
+		response.ErrorFrom(c, errors.BadRequest("VALIDATION_ERROR", "image index must be a non-negative integer"))
+		return
+	}
+	status, err := h.monitorService.GetManualCheckStatus(c.Request.Context(), runID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if status.Monitor != nil && status.Monitor.ID != id {
+		response.ErrorFrom(c, service.ErrImageChannelMonitorManualRunNotFound)
+		return
+	}
+	artifact, err := h.monitorService.GetManualCheckImage(runID, index)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	writeImageChannelMonitorArtifact(c, artifact)
+}
+
+func writeImageChannelMonitorArtifact(c *gin.Context, artifact *service.ImageChannelMonitorArtifact) {
+	if c == nil || artifact == nil || artifact.Reader == nil {
+		if c != nil {
+			response.ErrorFrom(c, service.ErrImageChannelMonitorManualImageNotFound)
+		}
+		return
+	}
+	defer func() { _ = artifact.Reader.Close() }()
+	contentType := strings.TrimSpace(artifact.ContentType)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.DataFromReader(http.StatusOK, artifact.Size, contentType, artifact.Reader, nil)
 }
 
 func (h *ImageChannelMonitorHandler) Status(c *gin.Context) {

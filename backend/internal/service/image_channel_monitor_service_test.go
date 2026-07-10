@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -662,8 +663,10 @@ func TestImageChannelMonitorManualGenerateRecordsNetworkInfo(t *testing.T) {
 
 func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T) {
 	release := make(chan struct{})
+	imageBytes, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2l5sAAAAASUVORK5CYII=")
+	require.NoError(t, err)
 	upstream := &imageMonitorHTTPUpstreamRecorder{
-		body:  `{"data":[{"b64_json":"aGVhbHRoLWNoZWNr","revised_prompt":"ok"}]}`,
+		body:  fmt.Sprintf(`{"data":[{"b64_json":%q,"revised_prompt":"ok"}]}`, base64.StdEncoding.EncodeToString(imageBytes)),
 		block: release,
 	}
 	svc := NewImageChannelMonitorService(
@@ -713,7 +716,14 @@ func TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult(t *testing.T
 		return true
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, MonitorStatusOperational, status.Result.Status)
-	require.Equal(t, "data:image/png;base64,aGVhbHRoLWNoZWNr", status.Result.ReturnedImageData)
+	require.Empty(t, status.Result.ReturnedImageData)
+	require.Len(t, status.Artifacts, 1)
+	artifact, err := svc.GetManualCheckImage(status.RunID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = artifact.Reader.Close() })
+	actualImage, err := io.ReadAll(artifact.Reader)
+	require.NoError(t, err)
+	require.Equal(t, imageBytes, actualImage)
 	require.NotNil(t, status.CompletedAt)
 	require.Equal(t, "manual-batch-test", status.BatchID)
 	require.Equal(t, 8, status.BatchSize)

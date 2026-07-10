@@ -1257,6 +1257,10 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountID int64, success bool, firstTokenMs *int) {
+	if s != nil && s.openaiSchedulerForTest != nil {
+		s.openaiSchedulerForTest.ReportResult(accountID, success, firstTokenMs)
+		return
+	}
 	scheduler := s.getOpenAIAccountScheduler(context.Background())
 	if scheduler == nil {
 		return

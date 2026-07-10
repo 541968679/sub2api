@@ -270,6 +270,7 @@ const zhBase = {
     update: '更新',
     confirm: '确认',
     reset: '重置',
+    retry: '重试',
     search: '搜索',
     filter: '筛选',
     clear: '清除',
@@ -2718,6 +2719,54 @@ const zhBase = {
         portrait: '1024x1536 竖图'
       },
       manual: {
+        executionMode: '执行链路',
+        executionModes: {
+          gatewayAccount: '真实账号',
+          gatewayGroup: '真实调度',
+          directProbe: '直连探针'
+        },
+        executionModeHints: {
+          gateway_account: '通过真实 /v1/images/* 网关链路请求，并校验调度命中所选账号。',
+          gateway_group: '通过真实 /v1/images/* 网关链路请求，实际账号由 API Key 所属分组调度决定。',
+          direct_probe: '仅直连所选监控源，不经过真实 API Key、中间件、调度、计费和账号故障转移。'
+        },
+        apiKey: '测试 API Key',
+        selectApiKey: '选择用于真实请求的 API Key',
+        apiKeyUser: '用户 #{id}',
+        apiKeyLoadFailed: '加载 API Key 失败',
+        selectApiKeyFirst: '请先选择测试 API Key',
+        gatewaySingleTargetRequired: '真实网关模式一次只能选择一个请求上下文',
+        gatewayAccountTargetRequired: '真实账号模式必须选择已绑定账号的渠道',
+        gatewayAccountTargetHint: '选择一个账号渠道；并发请求使用同一 API Key，但每条都是独立完整 HTTP 请求。',
+        gatewayGroupTargetHint: '所选渠道仅提供请求上下文，不代表实际命中账号；命中账号由 API Key 分组调度。',
+        gatewayGroupScheduledTarget: 'API Key 分组调度',
+        inputImages: '输入图片池',
+        inputPoolCount: '已选 {selected} / 需要 {required}',
+        inputPoolRequired: '图生图需要至少 {count} 张不同输入图片，每条请求独占一张。',
+        removeInputImage: '移除输入图片',
+        ctaHints: {
+          gateway_account: '每个并发都是独立完整的真实网关请求，并校验所选账号',
+          gateway_group: '每个并发都是独立完整的真实网关请求，实际账号由分组调度',
+          direct_probe: '每个所选渠道并发 {concurrency} 条直连探针；结果不代表真实请求成功率'
+        },
+        observationWarning: '状态观察暂时断开（第 {attempt} 次），图片请求仍在运行，正在继续观察。',
+        observationLost: '观察丢失',
+        observationLostDetail: '状态观察预算已耗尽，无法确认图片请求最终结果；这不计为图片请求失败。',
+        controlObservationLost: '启动结果观察丢失',
+        controlObservationLostDetail: '启动请求连续无响应；同一 client_run_id 已安全重试，无法确认服务端最终状态，不计为图片失败。',
+        resultObservationLost: '观察丢失',
+        artifactUnavailable: '请求已结束，但图片结果暂时无法从结果接口加载。',
+        gatewayStatus: '网关状态',
+        deliveryStatus: '拿图状态',
+        statusValues: {
+          pending: '进行中',
+          succeeded: '成功',
+          failed: '失败',
+          canceled: '已取消',
+          not_requested: '未请求下载',
+          observable: '可观察',
+          expired: '已过期'
+        },
         mode: '检测类型',
         generate: '文生图',
         edit: '图生图',
@@ -2794,6 +2843,14 @@ const zhBase = {
         actualSize: '实际尺寸',
         imageBytes: '图片大小',
         imageFormat: '图片格式',
+        actualResponse: '实际返图方式',
+        returnModes: {
+          url: 'URL',
+          b64Json: 'b64_json',
+          dataUrl: 'Data URL（url 字段内联）',
+          urlAndB64Json: 'URL + b64_json',
+          dataUrlAndB64Json: 'Data URL + b64_json'
+        },
         sizeMismatch: '与请求尺寸 {size} 不一致',
         columns: {
           startedAt: '时间',
@@ -2806,6 +2863,7 @@ const zhBase = {
           elapsed: '耗时',
           apiTotal: 'API 总耗时',
           imageDownload: '图片下载',
+          actualResponse: '实际返图',
           imageInfo: '返回图片',
           exitIp: '出口 IP',
           output: '图片',
@@ -2813,6 +2871,8 @@ const zhBase = {
         }
       },
       network: {
+        gatewayClientRequestId: '网关客户端请求 ID',
+        gatewayRequestIds: '网关请求 ID',
         exitIp: '出口 IP',
         requestUrl: 'API 请求 URL',
         requestHost: 'API 目标 Host',

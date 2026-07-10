@@ -4140,6 +4140,42 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Multipart image requests now preserve explicit `response_format` fields but no longer append one when absent.
 - Updated OpenAI Images tests to assert omitted `response_format` remains omitted through the API-key forwarding path.
 
+## [2026-07-09] fix: Stabilize high-concurrency image monitor manual polling
+
+**Affected files**: `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `backend/internal/handler/admin/image_channel_monitor_handler.go`, `backend/internal/handler/admin/image_channel_monitor_handler_test.go`, `docs/dev/codebase/image-channel-monitor.md`
+**Compatibility**: Low risk. Adds a metadata-only status option and longer manual-test request timeout without changing the default admin UI image preview behavior.
+**Details**:
+- Added `include_image_data=false` support for manual-run status polling so the backend can omit the large `returned_image_data` field while preserving URLs and timing metadata.
+- Manual test launch/status API calls now use a timeout derived from the selected monitor timeout instead of the shared 30s Axios default.
+- Added a handler regression test for omitting inline manual result image data.
+
+## [2026-07-09] fix: Restore manual image previews and show actual return mode
+
+**Affected files**: `frontend/src/views/admin/ImageChannelMonitorView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `docs/dev/codebase/image-channel-monitor.md`
+**Compatibility**: Low risk. The manual-test UI again requests image data for completed records so generated images are visible immediately; request `response_format` remains user-selected and is not forced.
+**Details**:
+- Restored completed manual status polling to include returned image data, fixing high-concurrency batches where `b64_json` or downloaded-image previews had no visible image source.
+- Added an actual-return column and detail metric that distinguishes URL, `b64_json`, mixed URL+`b64_json`, and data URLs carried in the `url` field.
+- Compactly displays `data:` image URLs in network details so an inline URL payload is visible without flooding the dialog with base64 text.
+
+## [2026-07-10] fix: Make manual image tests reproduce independent real gateway requests
+
+**Affected files**: `backend/internal/service/image_channel_monitor_service.go`, `backend/internal/service/image_channel_monitor_types.go`, `backend/internal/service/image_channel_monitor_manual_core.go`, `backend/internal/service/image_channel_manual_gateway.go`, `backend/internal/service/image_channel_manual_b64_stream.go`, `backend/internal/handler/admin/image_channel_monitor_handler.go`, `backend/internal/handler/openai_images.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_response_spool.go`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/client.ts`, `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `deploy/config.example.yaml`, `README_CN.md`, `docs/dev/codebase/image-channel-monitor.md`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Medium risk. Manual tests now exercise one complete real gateway request per run and store generated images as short-lived artifacts. Production image response delivery no longer retries generation on another account after a local delivery failure.
+**Details**:
+- Added `gateway_group`, isolated `gateway_account`, and legacy `direct_probe` execution modes. Concurrent generate/edit runs carry independent request bodies and edit images; `client_run_id` safely deduplicates lost control-response retries within one process.
+- Gateway launch recovery reuses the same payload and `client_run_id` across transient `0/408/425/429/5xx` responses until success or user cancellation. Non-idempotent `direct_probe` launches are not replayed. Cancel-all immediately ends the local batch and unlocks the next run while backend cancellation retries continue in the background; late launch responses are still canceled without leaking an older batch into a newer batch.
+- Split gateway, delivery, and observation status. Metadata-only polling no longer transports large image data; launch/status/cancel calls use a fixed 15-second control-plane timeout, while artifact transfer keeps the operation-derived timeout. Observation uses the run's captured execution mode: direct probes have a wall-clock deadline, while gateway runs remain observable until a backend terminal/expired result because real requests can chain runtime-configured network, OAuth transport retries, pool-mode retries, and account failovers.
+- Stream root `data[]` direct-field `b64_json` and base64 data URLs from the gateway spool into bounded artifact files while preserving real data indexes. HTTP(S) URL delivery uses an isolated SSRF-safe client, safe redirects, context-bounded retry for transport errors/interrupted bodies/408/425/429/5xx, and concurrent per-image downloads.
+- Send each edit run as its own multipart binary upload, with a 20 MiB request limit, 1 MiB memory threshold, and temporary-file cleanup. Browser input/output images remain Blobs in IndexedDB and their object URLs are revoked with the view lifecycle.
+- Preserve successful artifacts when sibling images fail. The result remains degraded with the failing stage while delivery stays succeeded; the UI downloads the first actual artifact index instead of assuming index 0.
+- Retry transient artifact delivery failures with capped exponential backoff until the backend's completion-relative 30-minute retention deadline, including after page refresh; terminal 404/409/410 responses are not retried.
+- Reject diagnostic API keys with IP ACLs because loopback gateway requests cannot reproduce the external caller IP.
+- Classify local image response spool failures and oversized generated responses as local delivery failures: return a clear 500, do not switch accounts or regenerate/rebill, and do not penalize the healthy upstream account. Client-canceled image requests also skip account failure reporting. Genuine upstream body interruption remains failover-eligible before downstream commit.
+- Raised the deployment example response limit from 8 MiB to the code default of 128 MiB and documented the 8 MiB memory-to-disk spool threshold. Added a config regression test to prevent the example from overriding the image-safe default, and clean orphaned spool/artifact files older than their retention window.
+- Added regression coverage for `c20` independent launch orchestration, simultaneous same-`client_run_id` deduplication, immediate local cancel while control retries continue, late launch cancellation, client-cancel account health, IndexedDB recovery, and per-run Blob URL cleanup.
+- Verification: `go test ./... -count=1`, the targeted service `-race` suite, `pnpm run test:run` (109 files / 670 tests), `pnpm run typecheck`, `pnpm run lint:check`, a production Vite build to a temporary output directory, and targeted frontend utility coverage (93.98% lines / 82.22% branches / 100% functions) all passed. The repository-managed local stack reported backend/frontend/PostgreSQL/Redis ready, and both `/health` and `/admin/channels/image-monitor` returned HTTP 200.
+
 ## [2026-07-10] fix: Recover Claude-GPT compact requests from empty replies
 
 **Affected files**: Claude-GPT Messages bridge services, handler, compatibility converter, regression tests, gateway docs, and debug report.

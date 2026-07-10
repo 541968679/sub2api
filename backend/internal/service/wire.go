@@ -622,8 +622,13 @@ func ProvideImageChannelMonitorService(
 	encryptor SecretEncryptor,
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
+	apiKeyService *APIKeyService,
+	groupRepo GroupRepository,
+	cfg *config.Config,
 ) *ImageChannelMonitorService {
-	return NewImageChannelMonitorService(repo, accountRepo, proxyRepo, encryptor, httpUpstream, tlsFPProfileService)
+	svc := NewImageChannelMonitorService(repo, accountRepo, proxyRepo, encryptor, httpUpstream, tlsFPProfileService)
+	svc.ConfigureManualGateway(apiKeyService, groupRepo, cfg)
+	return svc
 }
 
 func ProvideImageChannelMonitorRunner(svc *ImageChannelMonitorService) *ImageChannelMonitorRunner {

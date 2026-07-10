@@ -271,6 +271,7 @@ const enBase = {
     update: 'Update',
     confirm: 'Confirm',
     reset: 'Reset',
+    retry: 'Retry',
     search: 'Search',
     filter: 'Filter',
     clear: 'Clear',
@@ -2823,6 +2824,54 @@ const enBase = {
         portrait: '1024x1536 portrait'
       },
       manual: {
+        executionMode: 'Execution path',
+        executionModes: {
+          gatewayAccount: 'Real account',
+          gatewayGroup: 'Real scheduler',
+          directProbe: 'Direct probe'
+        },
+        executionModeHints: {
+          gateway_account: 'Uses the real /v1/images/* gateway path and verifies the selected account is scheduled.',
+          gateway_group: 'Uses the real /v1/images/* gateway path; the API key group schedules the actual account.',
+          direct_probe: 'Connects directly to the monitor source without real API-key middleware, scheduling, billing, or account failover.'
+        },
+        apiKey: 'Test API key',
+        selectApiKey: 'Select an API key for real requests',
+        apiKeyUser: 'user #{id}',
+        apiKeyLoadFailed: 'Failed to load API keys',
+        selectApiKeyFirst: 'Select a test API key first',
+        gatewaySingleTargetRequired: 'Gateway mode accepts one request context at a time',
+        gatewayAccountTargetRequired: 'Real-account mode requires an account-backed channel',
+        gatewayAccountTargetHint: 'Select one account channel. Concurrency shares the API key, but every run is a separate complete HTTP request.',
+        gatewayGroupTargetHint: 'The selected channel is request context only, not the account that served the request. The API key group schedules the actual account.',
+        gatewayGroupScheduledTarget: 'API key group scheduler',
+        inputImages: 'Input image pool',
+        inputPoolCount: '{selected} selected / {required} required',
+        inputPoolRequired: 'Image edits require at least {count} different input images, one exclusively assigned to each request.',
+        removeInputImage: 'Remove input image',
+        ctaHints: {
+          gateway_account: 'Every concurrent run is a complete real gateway request that verifies the selected account',
+          gateway_group: 'Every concurrent run is a complete real gateway request; the group schedules the account',
+          direct_probe: '{concurrency} direct probe(s) per selected channel; this does not measure real-request success'
+        },
+        observationWarning: 'Status observation disconnected temporarily (attempt {attempt}); the image request is still running and observation will continue.',
+        observationLost: 'Observation lost',
+        observationLostDetail: 'The observation budget was exhausted, so the final image-request outcome is unknown. This is not counted as an image-request failure.',
+        controlObservationLost: 'Start outcome unobserved',
+        controlObservationLostDetail: 'The start request repeatedly returned no response. The same client_run_id was safely retried, but the server outcome is unknown and is not counted as an image failure.',
+        resultObservationLost: 'Observation lost',
+        artifactUnavailable: 'The request finished, but its image artifact could not be loaded from the result endpoint.',
+        gatewayStatus: 'Gateway status',
+        deliveryStatus: 'Delivery status',
+        statusValues: {
+          pending: 'Pending',
+          succeeded: 'Succeeded',
+          failed: 'Failed',
+          canceled: 'Canceled',
+          not_requested: 'Not requested',
+          observable: 'Observable',
+          expired: 'Expired'
+        },
         mode: 'Test type',
         generate: 'Text to image',
         edit: 'Image to image',
@@ -2899,6 +2948,14 @@ const enBase = {
         actualSize: 'Actual size',
         imageBytes: 'Image size',
         imageFormat: 'Format',
+        actualResponse: 'Actual response',
+        returnModes: {
+          url: 'URL',
+          b64Json: 'b64_json',
+          dataUrl: 'Data URL (inline in url field)',
+          urlAndB64Json: 'URL + b64_json',
+          dataUrlAndB64Json: 'Data URL + b64_json'
+        },
         sizeMismatch: 'Differs from requested size {size}',
         columns: {
           startedAt: 'Time',
@@ -2911,6 +2968,7 @@ const enBase = {
           elapsed: 'Elapsed',
           apiTotal: 'API total',
           imageDownload: 'Image download',
+          actualResponse: 'Actual response',
           imageInfo: 'Returned image',
           exitIp: 'Exit IP',
           output: 'Output',
@@ -2918,6 +2976,8 @@ const enBase = {
         }
       },
       network: {
+        gatewayClientRequestId: 'Gateway client request ID',
+        gatewayRequestIds: 'Gateway request IDs',
         exitIp: 'Exit IP',
         requestUrl: 'API request URL',
         requestHost: 'API target host',

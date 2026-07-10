@@ -136,6 +136,8 @@ export interface ImageChannelMonitorResult {
   revised_prompt: string
   returned_image_url: string
   returned_image_data: string
+  gateway_client_request_id: string
+  gateway_request_ids: string[]
   exit_ip: string
   request_target_url: string
   request_target_host: string
@@ -144,6 +146,29 @@ export interface ImageChannelMonitorResult {
   image_download_host: string
   image_download_ips: string[]
   stages?: ImageChannelMonitorStage[]
+}
+
+export type ImageChannelManualExecutionMode =
+  | 'gateway_group'
+  | 'gateway_account'
+  | 'direct_probe'
+
+export type ImageChannelManualGatewayStatus = 'pending' | 'succeeded' | 'failed' | 'canceled'
+
+export type ImageChannelManualDeliveryStatus =
+  | 'pending'
+  | 'succeeded'
+  | 'failed'
+  | 'not_requested'
+  | 'canceled'
+
+export type ImageChannelManualObservationStatus = 'observable' | 'expired'
+
+export interface ImageChannelManualArtifact {
+  index: number
+  content_type: string
+  size: number
+  source: string
 }
 
 export interface ImageChannelMonitorStage {
@@ -173,6 +198,10 @@ export type ImageChannelMonitorHistoryItem = Omit<
 
 export interface ImageChannelManualTestParams {
   mode?: 'generate' | 'edit'
+  execution_mode?: ImageChannelManualExecutionMode
+  api_key_id?: number
+  expected_account_id?: number
+  client_run_id?: string
   model?: string
   prompt?: string
   size?: string
@@ -193,9 +222,17 @@ export interface ImageChannelManualRunResponse {
   run_id: string
   monitor: ImageChannelMonitor
   mode: 'generate' | 'edit'
+  execution_mode: ImageChannelManualExecutionMode
+  api_key_id: number
+  expected_account_id: number
+  client_run_id: string
   batch_id: string
   batch_size: number
   batch_index: number
+  gateway_status: ImageChannelManualGatewayStatus
+  delivery_status: ImageChannelManualDeliveryStatus
+  observation_status: ImageChannelManualObservationStatus
+  artifacts: ImageChannelManualArtifact[]
   running: boolean
   canceled: boolean
   stage: string
@@ -204,6 +241,21 @@ export interface ImageChannelManualRunResponse {
   updated_at: string
   completed_at: string | null
   result?: ImageChannelMonitorResult
+}
+
+export interface ImageChannelManualStatusOptions {
+  /** @deprecated Manual status responses are always metadata-only. */
+  includeImageData?: boolean
+  /** @deprecated Status polling uses a fixed control-plane timeout. */
+  timeoutSeconds?: number
+}
+
+const manualControlRequestTimeoutMs = 15_000
+
+function manualRequestTimeoutMs(timeoutSeconds?: number): number {
+  const parsed = Number(timeoutSeconds)
+  const safeSeconds = Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 300
+  return Math.min(660_000, Math.max(60_000, (safeSeconds + 45) * 1000))
 }
 
 export async function list(
@@ -268,21 +320,53 @@ export async function getStatus(id: number): Promise<ImageChannelMonitorRuntimeS
 
 export async function manualTest(
   id: number,
-  params: ImageChannelManualTestParams
+  params: ImageChannelManualTestParams,
+  inputImage?: Blob
 ): Promise<ImageChannelManualRunResponse> {
+  let body: ImageChannelManualTestParams | FormData = params
+  if (params.mode === 'edit' && inputImage) {
+    const formData = new FormData()
+    formData.append('metadata', JSON.stringify(params))
+    formData.append('image', inputImage, params.input_image_name || 'source.png')
+    body = formData
+  }
   const { data } = await apiClient.post<ImageChannelManualRunResponse>(
     `/admin/image-channel-monitors/${id}/manual-test`,
-    params
+    body,
+    { timeout: manualControlRequestTimeoutMs }
   )
   return data
 }
 
 export async function getManualTestStatus(
   id: number,
-  runID: string
+  runID: string,
+  _options: ImageChannelManualStatusOptions = {}
 ): Promise<ImageChannelManualRunResponse> {
   const { data } = await apiClient.get<ImageChannelManualRunResponse>(
-    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}`
+    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}`,
+    {
+      timeout: manualControlRequestTimeoutMs,
+    }
+  )
+  return data
+}
+
+export async function getManualTestImage(
+  id: number,
+  runID: string,
+  index = 0,
+  options: { timeoutSeconds?: number } = {}
+): Promise<Blob> {
+  if (!Number.isSafeInteger(index) || index < 0) {
+    throw new RangeError('Manual test image index must be a non-negative integer')
+  }
+  const { data } = await apiClient.get<Blob>(
+    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}/images/${index}`,
+    {
+      responseType: 'blob',
+      timeout: manualRequestTimeoutMs(options.timeoutSeconds),
+    }
   )
   return data
 }
@@ -292,7 +376,21 @@ export async function cancelManualTest(
   runID: string
 ): Promise<ImageChannelManualRunResponse> {
   const { data } = await apiClient.post<ImageChannelManualRunResponse>(
-    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}/cancel`
+    `/admin/image-channel-monitors/${id}/manual-test/${encodeURIComponent(runID)}/cancel`,
+    undefined,
+    { timeout: manualControlRequestTimeoutMs }
+  )
+  return data
+}
+
+export async function cancelManualTestByClientRunID(
+  id: number,
+  clientRunID: string
+): Promise<ImageChannelManualRunResponse> {
+  const { data } = await apiClient.post<ImageChannelManualRunResponse>(
+    `/admin/image-channel-monitors/${id}/manual-test/client-runs/${encodeURIComponent(clientRunID)}/cancel`,
+    undefined,
+    { timeout: manualControlRequestTimeoutMs }
   )
   return data
 }
@@ -329,7 +427,9 @@ export const imageChannelMonitorAPI = {
   getStatus,
   manualTest,
   getManualTestStatus,
+  getManualTestImage,
   cancelManualTest,
+  cancelManualTestByClientRunID,
   listHistory,
   timeline,
 }

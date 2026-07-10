@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/textproto"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -26,8 +27,32 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 )
+
+type imageChannelManualAPIKeyReader interface {
+	GetByID(ctx context.Context, id int64) (*APIKey, error)
+}
+
+type imageChannelManualGroupReader interface {
+	GetAccountIDsByGroupIDs(ctx context.Context, groupIDs []int64) ([]int64, error)
+}
+
+type imageChannelMonitorStoredArtifact struct {
+	ImageChannelMonitorArtifactSummary
+	path string
+}
+
+type imageChannelMonitorManualIdempotency struct {
+	runID       string
+	payloadHash string
+}
+
+type imageChannelMonitorManualCancelIntent struct {
+	monitorID  int64
+	canceledAt time.Time
+}
 
 type ImageChannelMonitorService struct {
 	repo                ImageChannelMonitorRepository
@@ -42,6 +67,16 @@ type ImageChannelMonitorService struct {
 	manualMu            sync.RWMutex
 	manualRuns          map[string]ImageChannelMonitorManualRunStatus
 	manualCancels       map[string]context.CancelFunc
+	manualAPIKeyReader  imageChannelManualAPIKeyReader
+	manualGroupReader   imageChannelManualGroupReader
+	manualGateway       imageManualGatewayDoer
+	manualConsumer      *http.Client
+	manualArtifactDir   string
+	manualArtifacts     map[string][]imageChannelMonitorStoredArtifact
+	manualExpired       map[string]time.Time
+	manualIdempotency   map[string]imageChannelMonitorManualIdempotency
+	manualCancelIntents map[string]imageChannelMonitorManualCancelIntent
+	manualLastSweep     time.Time
 }
 
 func NewImageChannelMonitorService(
@@ -62,7 +97,69 @@ func NewImageChannelMonitorService(
 		runtimeStatus:       make(map[int64]ImageChannelMonitorRuntimeStatus),
 		manualRuns:          make(map[string]ImageChannelMonitorManualRunStatus),
 		manualCancels:       make(map[string]context.CancelFunc),
+		manualArtifacts:     make(map[string][]imageChannelMonitorStoredArtifact),
+		manualExpired:       make(map[string]time.Time),
+		manualIdempotency:   make(map[string]imageChannelMonitorManualIdempotency),
+		manualCancelIntents: make(map[string]imageChannelMonitorManualCancelIntent),
 	}
+}
+
+// ConfigureManualGateway attaches the real loopback gateway dependencies while
+// preserving the existing constructor used by scheduled checks and tests.
+func (s *ImageChannelMonitorService) ConfigureManualGateway(
+	apiKeyService *APIKeyService,
+	groupRepo GroupRepository,
+	cfg *config.Config,
+) {
+	if s == nil {
+		return
+	}
+	s.configureManualGatewayForTest(
+		apiKeyService,
+		groupRepo,
+		newImageManualGatewayClient(cfg),
+		newImageChannelManualConsumerClient(),
+		filepath.Join(os.TempDir(), "sub2api-image-channel-manual"),
+	)
+}
+
+func (s *ImageChannelMonitorService) configureManualGatewayForTest(
+	apiKeyReader imageChannelManualAPIKeyReader,
+	groupReader imageChannelManualGroupReader,
+	gateway imageManualGatewayDoer,
+	consumer *http.Client,
+	artifactDir string,
+) {
+	if s == nil {
+		return
+	}
+	s.manualMu.Lock()
+	defer s.manualMu.Unlock()
+	s.manualAPIKeyReader = apiKeyReader
+	s.manualGroupReader = groupReader
+	s.manualGateway = gateway
+	s.manualConsumer = consumer
+	s.manualArtifactDir = strings.TrimSpace(artifactDir)
+	if s.manualArtifactDir == "" {
+		s.manualArtifactDir = os.TempDir()
+	}
+	if s.manualArtifacts == nil {
+		s.manualArtifacts = make(map[string][]imageChannelMonitorStoredArtifact)
+	}
+	if s.manualExpired == nil {
+		s.manualExpired = make(map[string]time.Time)
+	}
+	if s.manualIdempotency == nil {
+		s.manualIdempotency = make(map[string]imageChannelMonitorManualIdempotency)
+	}
+	if s.manualCancelIntents == nil {
+		s.manualCancelIntents = make(map[string]imageChannelMonitorManualCancelIntent)
+	}
+	s.sweepImageChannelManualOrphansLocked(time.Now())
+}
+
+func newImageChannelManualConsumerClient() *http.Client {
+	return newSSRFSafeHTTPClient(imageMonitorDefaultTimeoutSeconds * time.Second)
 }
 
 func (s *ImageChannelMonitorService) SetScheduler(scheduler ImageMonitorScheduler) {
@@ -288,27 +385,79 @@ func (s *ImageChannelMonitorService) StartManualCheck(
 	id int64,
 	p ImageChannelMonitorManualTestParams,
 ) (*ImageChannelMonitorManualRunStatus, error) {
+	executionMode := s.normalizeManualExecutionMode(p.ExecutionMode)
+	if executionMode == "" {
+		return nil, ErrImageChannelMonitorInvalidExecutionMode
+	}
+	p.ExecutionMode = executionMode
+	mode := normalizeImageMonitorManualMode(p.Mode)
+	if mode == "" {
+		return nil, ErrImageChannelMonitorInvalidManualMode
+	}
+	clientRunID := strings.TrimSpace(p.ClientRunID)
+	if isImageChannelManualGatewayMode(executionMode) {
+		if p.APIKeyID <= 0 {
+			return nil, ErrImageChannelMonitorManualAPIKeyRequired
+		}
+		if clientRunID == "" {
+			return nil, ErrImageChannelMonitorManualClientRunIDRequired
+		}
+	}
+	payloadHash, err := imageChannelManualPayloadHash(id, mode, p)
+	if err != nil {
+		return nil, fmt.Errorf("hash manual image request: %w", err)
+	}
+	if clientRunID != "" {
+		if existing, existingErr, ok := s.lookupManualClientRun(
+			id,
+			clientRunID,
+			payloadHash,
+			isImageChannelManualGatewayMode(executionMode),
+			time.Now(),
+		); ok {
+			return existing, existingErr
+		}
+	}
+
 	m, manual, mode, err := s.prepareManualCheck(ctx, id, p)
 	if err != nil {
 		return nil, err
 	}
+	var gatewayAPIKey string
+	if isImageChannelManualGatewayMode(executionMode) {
+		gatewayAPIKey, err = s.prepareManualGatewayRequest(ctx, manual, executionMode, p)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	runID := newImageMonitorManualRunID()
 	now := time.Now()
-	runCtx, cancel := context.WithCancel(context.Background())
 	batchID, batchSize, batchIndex := normalizeImageMonitorManualBatch(p)
 	status := ImageChannelMonitorManualRunStatus{
-		RunID:      runID,
-		Monitor:    m,
-		Mode:       mode,
-		BatchID:    batchID,
-		BatchSize:  batchSize,
-		BatchIndex: batchIndex,
-		Running:    true,
-		Stage:      "queued",
-		Message:    "manual image test queued",
-		StartedAt:  now,
-		UpdatedAt:  now,
+		RunID:             runID,
+		Monitor:           imageChannelManualStatusMonitor(m),
+		ExecutionMode:     executionMode,
+		APIKeyID:          p.APIKeyID,
+		ExpectedAccountID: p.ExpectedAccountID,
+		ClientRunID:       clientRunID,
+		Mode:              mode,
+		BatchID:           batchID,
+		BatchSize:         batchSize,
+		BatchIndex:        batchIndex,
+		Running:           true,
+		Stage:             "queued",
+		Message:           "manual image test queued",
+		StartedAt:         now,
+		UpdatedAt:         now,
+		DeliveryStatus:    ImageChannelMonitorDeliveryPending,
+		ObservationStatus: ImageChannelMonitorObservationObservable,
+		Artifacts:         []ImageChannelMonitorArtifactSummary{},
 	}
+	if isImageChannelManualGatewayMode(executionMode) {
+		status.GatewayStatus = ImageChannelMonitorGatewayPending
+	}
+	runCtx, cancel := context.WithCancel(context.Background())
 	s.manualMu.Lock()
 	if s.manualRuns == nil {
 		s.manualRuns = make(map[string]ImageChannelMonitorManualRunStatus)
@@ -317,13 +466,36 @@ func (s *ImageChannelMonitorService) StartManualCheck(
 		s.manualCancels = make(map[string]context.CancelFunc)
 	}
 	s.pruneManualRunsLocked(now)
+	if clientRunID != "" {
+		if canceled, canceledErr, ok := s.manualCanceledClientRunLocked(id, clientRunID, now); ok {
+			s.manualMu.Unlock()
+			cancel()
+			return canceled, canceledErr
+		}
+		if isImageChannelManualGatewayMode(executionMode) {
+			if existing, existingErr, ok := s.manualIdempotentRunLocked(clientRunID, payloadHash); ok {
+				s.manualMu.Unlock()
+				cancel()
+				return existing, existingErr
+			}
+		}
+		if s.manualIdempotency == nil {
+			s.manualIdempotency = make(map[string]imageChannelMonitorManualIdempotency)
+		}
+		s.manualIdempotency[clientRunID] = imageChannelMonitorManualIdempotency{
+			runID:       runID,
+			payloadHash: payloadHash,
+		}
+	}
 	s.manualRuns[runID] = status
 	s.manualCancels[runID] = cancel
+	s.pruneManualRunsLocked(now)
+	started := cloneImageChannelManualRunStatus(status)
 	s.manualMu.Unlock()
 
-	go s.runManualCheckDetached(runCtx, runID, manual, mode, p)
+	go s.runManualCheckDetached(runCtx, runID, manual, mode, executionMode, gatewayAPIKey, p)
 
-	return s.GetManualCheckStatus(ctx, runID)
+	return started, nil
 }
 
 func (s *ImageChannelMonitorService) GetManualCheckStatus(
@@ -334,13 +506,20 @@ func (s *ImageChannelMonitorService) GetManualCheckStatus(
 	if runID == "" {
 		return nil, ErrImageChannelMonitorManualRunNotFound
 	}
-	s.manualMu.RLock()
+	s.manualMu.Lock()
+	s.pruneManualRunsLocked(time.Now())
 	status, ok := s.manualRuns[runID]
-	s.manualMu.RUnlock()
 	if !ok {
+		_, expired := s.manualExpired[runID]
+		s.manualMu.Unlock()
+		if expired {
+			return nil, ErrImageChannelMonitorManualRunExpired
+		}
 		return nil, ErrImageChannelMonitorManualRunNotFound
 	}
-	return &status, nil
+	result := cloneImageChannelManualRunStatus(status)
+	s.manualMu.Unlock()
+	return result, nil
 }
 
 func (s *ImageChannelMonitorService) CancelManualCheck(
@@ -353,11 +532,17 @@ func (s *ImageChannelMonitorService) CancelManualCheck(
 	}
 	now := time.Now()
 	s.manualMu.Lock()
+	s.pruneManualRunsLocked(now)
 	status, ok := s.manualRuns[runID]
 	if !ok {
+		_, expired := s.manualExpired[runID]
 		s.manualMu.Unlock()
+		if expired {
+			return nil, ErrImageChannelMonitorManualRunExpired
+		}
 		return nil, ErrImageChannelMonitorManualRunNotFound
 	}
+	var artifacts []imageChannelMonitorStoredArtifact
 	if status.Running {
 		status.Running = false
 		status.Canceled = true
@@ -366,15 +551,65 @@ func (s *ImageChannelMonitorService) CancelManualCheck(
 		status.UpdatedAt = now
 		status.CompletedAt = &now
 		status.Result = nil
+		status.GatewayStatus = ImageChannelMonitorGatewayCanceled
+		status.DeliveryStatus = ImageChannelMonitorDeliveryCanceled
+		status.ObservationStatus = ImageChannelMonitorObservationObservable
+		status.Artifacts = []ImageChannelMonitorArtifactSummary{}
 		s.manualRuns[runID] = status
+		artifacts = append(artifacts, s.manualArtifacts[runID]...)
+		delete(s.manualArtifacts, runID)
 	}
 	cancel := s.manualCancels[runID]
 	delete(s.manualCancels, runID)
+	result := cloneImageChannelManualRunStatus(status)
 	s.manualMu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
-	return &status, nil
+	removeImageChannelManualArtifactFiles(artifacts)
+	return result, nil
+}
+
+func (s *ImageChannelMonitorService) CancelManualCheckByClientRunID(
+	_ context.Context,
+	monitorID int64,
+	clientRunID string,
+) (*ImageChannelMonitorManualRunStatus, error) {
+	clientRunID = strings.TrimSpace(clientRunID)
+	if clientRunID == "" {
+		return nil, ErrImageChannelMonitorManualClientRunIDRequired
+	}
+	now := time.Now()
+	s.manualMu.Lock()
+	s.pruneManualRunsLocked(now)
+	if entry, ok := s.manualIdempotency[clientRunID]; ok {
+		status, exists := s.manualRuns[entry.runID]
+		if !exists {
+			s.manualMu.Unlock()
+			return nil, ErrImageChannelMonitorManualRunExpired
+		}
+		if status.Monitor != nil && status.Monitor.ID != monitorID {
+			s.manualMu.Unlock()
+			return nil, ErrImageChannelMonitorManualRunNotFound
+		}
+		runID := entry.runID
+		s.manualMu.Unlock()
+		return s.CancelManualCheck(context.Background(), runID)
+	}
+	if s.manualCancelIntents == nil {
+		s.manualCancelIntents = make(map[string]imageChannelMonitorManualCancelIntent)
+	}
+	if intent, ok := s.manualCancelIntents[clientRunID]; ok && intent.monitorID != monitorID {
+		s.manualMu.Unlock()
+		return nil, ErrImageChannelMonitorManualRunNotFound
+	}
+	s.manualCancelIntents[clientRunID] = imageChannelMonitorManualCancelIntent{
+		monitorID:  monitorID,
+		canceledAt: now,
+	}
+	status := canceledImageChannelManualClientRunStatus(monitorID, clientRunID, now)
+	s.manualMu.Unlock()
+	return status, nil
 }
 
 func (s *ImageChannelMonitorService) prepareManualCheck(
@@ -440,6 +675,8 @@ func (s *ImageChannelMonitorService) runManualCheckDetached(
 	runID string,
 	m *ImageChannelMonitor,
 	mode string,
+	executionMode string,
+	gatewayAPIKey string,
 	p ImageChannelMonitorManualTestParams,
 ) {
 	defer func() {
@@ -450,10 +687,18 @@ func (s *ImageChannelMonitorService) runManualCheckDetached(
 				"run_id", runID, "monitor_id", m.ID, "name", m.Name, "panic", rec)
 		}
 	}()
+	if isImageChannelManualGatewayMode(executionMode) {
+		outcome := s.runManualGatewayCheck(ctx, runID, m, mode, gatewayAPIKey, p, func(stage, message string) {
+			s.updateManualRunStatus(runID, stage, message)
+		})
+		s.finishManualRunOutcome(runID, outcome)
+		return
+	}
 	result := s.runManualCheckWithStage(ctx, m, mode, p, func(stage, message string) {
 		s.updateManualRunStatus(runID, stage, message)
 	})
-	s.finishManualRunStatus(runID, finalImageMonitorRuntimeStage(result), result.Message, result)
+	outcome := s.materializeDirectManualResult(runID, m, result)
+	s.finishManualRunOutcome(runID, outcome)
 }
 
 func (s *ImageChannelMonitorService) updateManualRunStatus(runID, stage, message string) {
@@ -504,34 +749,65 @@ func (s *ImageChannelMonitorService) finishManualRunStatus(
 	status.Message = strings.TrimSpace(message)
 	status.UpdatedAt = now
 	status.CompletedAt = &now
+	if result != nil {
+		result.ReturnedImageData = ""
+	}
 	status.Result = result
+	if status.GatewayStatus == ImageChannelMonitorGatewayPending {
+		status.GatewayStatus = ImageChannelMonitorGatewayFailed
+	}
+	if status.DeliveryStatus == ImageChannelMonitorDeliveryPending {
+		status.DeliveryStatus = ImageChannelMonitorDeliveryFailed
+	}
+	status.ObservationStatus = ImageChannelMonitorObservationObservable
+	status.Artifacts = []ImageChannelMonitorArtifactSummary{}
 	s.manualRuns[runID] = status
 	delete(s.manualCancels, runID)
 	s.manualMu.Unlock()
 }
 
 func (s *ImageChannelMonitorService) pruneManualRunsLocked(now time.Time) {
-	if len(s.manualRuns) == 0 {
-		return
+	s.sweepImageChannelManualOrphansLocked(now)
+	if s.manualExpired == nil {
+		s.manualExpired = make(map[string]time.Time)
 	}
 	cutoff := now.Add(-imageMonitorManualRunRetention)
 	for runID, status := range s.manualRuns {
 		if status.Running || status.CompletedAt == nil {
 			continue
 		}
-		if status.CompletedAt.Before(cutoff) {
-			delete(s.manualRuns, runID)
-			delete(s.manualCancels, runID)
+		if !status.CompletedAt.After(cutoff) {
+			s.expireManualRunLocked(runID, now)
 		}
 	}
-	for runID, status := range s.manualRuns {
-		if len(s.manualRuns) <= imageMonitorManualRunMax {
-			return
+	if len(s.manualRuns) > imageMonitorManualRunMax {
+		completed := make([]ImageChannelMonitorManualRunStatus, 0, len(s.manualRuns))
+		for _, status := range s.manualRuns {
+			if !status.Running && status.CompletedAt != nil {
+				completed = append(completed, status)
+			}
 		}
-		if !status.Running {
-			delete(s.manualRuns, runID)
-			delete(s.manualCancels, runID)
+		sortImageChannelManualRunsOldestFirst(completed)
+		for _, status := range completed {
+			if len(s.manualRuns) <= imageMonitorManualRunMax {
+				break
+			}
+			s.expireManualRunLocked(status.RunID, now)
 		}
+	}
+	tombstoneCutoff := now.Add(-imageMonitorManualRunRetention)
+	for runID, expiredAt := range s.manualExpired {
+		if expiredAt.After(tombstoneCutoff) {
+			continue
+		}
+		delete(s.manualExpired, runID)
+		s.deleteManualIdempotencyForRunLocked(runID)
+	}
+	for clientRunID, intent := range s.manualCancelIntents {
+		if intent.canceledAt.After(tombstoneCutoff) {
+			continue
+		}
+		delete(s.manualCancelIntents, clientRunID)
 	}
 }
 
@@ -1204,7 +1480,14 @@ func buildImageMonitorEditPayload(
 	m *ImageChannelMonitor,
 	p ImageChannelMonitorManualTestParams,
 ) ([]byte, string, error) {
-	imageBytes, contentType, err := decodeImageMonitorInputImage(p.InputImageData, p.InputImageType)
+	imageBytes := append([]byte(nil), p.InputImageBytes...)
+	contentType := strings.TrimSpace(p.InputImageType)
+	var err error
+	if len(imageBytes) == 0 {
+		imageBytes, contentType, err = decodeImageMonitorInputImage(p.InputImageData, p.InputImageType)
+	} else {
+		imageBytes, contentType, err = validateImageMonitorInputBytes(imageBytes, contentType)
+	}
 	if err != nil {
 		return nil, "", err
 	}
@@ -1769,14 +2052,18 @@ func decodeImageMonitorInputImage(raw string, fallbackType string) ([]byte, stri
 			return nil, "", ErrImageChannelMonitorInvalidInputImage
 		}
 	}
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, "", ErrImageChannelMonitorInvalidInputImage
+	}
+	return validateImageMonitorInputBytes(decoded, contentType)
+}
+
+func validateImageMonitorInputBytes(decoded []byte, contentType string) ([]byte, string, error) {
 	if contentType == "" {
 		contentType = "image/png"
 	}
 	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
-		return nil, "", ErrImageChannelMonitorInvalidInputImage
-	}
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
 		return nil, "", ErrImageChannelMonitorInvalidInputImage
 	}
 	if len(decoded) == 0 || len(decoded) > openAIImageMaxUploadPartSize {

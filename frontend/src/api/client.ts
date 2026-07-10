@@ -281,6 +281,8 @@ apiClient.interceptors.response.use(
     // Network error
     return Promise.reject({
       status: 0,
+      code: error.code,
+      reason: error.message,
       message: 'Network error. Please check your connection.'
     })
   }

@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"io"
+	"net/http"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -13,6 +15,27 @@ const (
 	ImageChannelMonitorManualGenerate = "generate"
 	ImageChannelMonitorManualEdit     = "edit"
 
+	ImageChannelMonitorExecutionGatewayGroup   = "gateway_group"
+	ImageChannelMonitorExecutionGatewayAccount = "gateway_account"
+	ImageChannelMonitorExecutionDirectProbe    = "direct_probe"
+
+	ImageChannelMonitorGatewayPending   = "pending"
+	ImageChannelMonitorGatewaySucceeded = "succeeded"
+	ImageChannelMonitorGatewayFailed    = "failed"
+	ImageChannelMonitorGatewayCanceled  = "canceled"
+
+	ImageChannelMonitorDeliveryPending      = "pending"
+	ImageChannelMonitorDeliverySucceeded    = "succeeded"
+	ImageChannelMonitorDeliveryFailed       = "failed"
+	ImageChannelMonitorDeliveryNotRequested = "not_requested"
+	ImageChannelMonitorDeliveryCanceled     = "canceled"
+
+	ImageChannelMonitorObservationObservable = "observable"
+	ImageChannelMonitorObservationExpired    = "expired"
+
+	ImageChannelMonitorArtifactSourceB64JSON = "b64_json"
+	ImageChannelMonitorArtifactSourceURL     = "url"
+
 	imageMonitorDefaultModel           = "gpt-image-1"
 	imageMonitorDefaultPrompt          = "Generate a simple health-check image with a clean geometric shape."
 	imageMonitorDefaultQuality         = "auto"
@@ -20,7 +43,7 @@ const (
 	imageMonitorDefaultTimeoutSeconds  = 300
 	// b64_json 拿图时整张图内联在 JSON 里(16MB 图 base64 后约 21.4MB),上限需覆盖之。
 	imageMonitorMaxResponseBytes     = 24 * 1024 * 1024
-	imageMonitorMaxDownloadBytes     = 32 * 1024 * 1024
+	imageMonitorMaxDownloadBytes     = 128 * 1024 * 1024
 	imageMonitorMaxReturnedImageData = 16 * 1024 * 1024
 	imageMonitorExitIPProbeURL       = "https://api.ipify.org?format=text"
 	imageMonitorNetworkProbeTimeout  = 5 * time.Second
@@ -79,6 +102,36 @@ var (
 	)
 	ErrImageChannelMonitorManualRunNotFound = infraerrors.NotFound(
 		"IMAGE_CHANNEL_MONITOR_MANUAL_RUN_NOT_FOUND", "manual image test run not found",
+	)
+	ErrImageChannelMonitorInvalidExecutionMode = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_INVALID_EXECUTION_MODE", "execution_mode must be gateway_group, gateway_account or direct_probe",
+	)
+	ErrImageChannelMonitorManualAPIKeyRequired = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_API_KEY_REQUIRED", "api_key_id is required for gateway manual tests",
+	)
+	ErrImageChannelMonitorManualClientRunIDRequired = infraerrors.BadRequest(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_CLIENT_RUN_ID_REQUIRED", "client_run_id is required for gateway manual tests",
+	)
+	ErrImageChannelMonitorManualGatewayNotConfigured = infraerrors.ServiceUnavailable(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_GATEWAY_NOT_CONFIGURED", "manual image gateway is not configured",
+	)
+	ErrImageChannelMonitorManualRunConflict = infraerrors.Conflict(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_RUN_CONFLICT", "client_run_id was already used with a different request payload",
+	)
+	ErrImageChannelMonitorManualAccountIsolation = infraerrors.Conflict(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_ACCOUNT_ISOLATION", "gateway_account requires the API key group to contain only the expected account",
+	)
+	ErrImageChannelMonitorManualAPIKeyIPRestricted = infraerrors.Conflict(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_API_KEY_IP_RESTRICTED", "manual gateway tests require a diagnostic API key without IP allowlist or denylist rules because the loopback request cannot reproduce the real client IP",
+	)
+	ErrImageChannelMonitorManualImageRunning = infraerrors.Conflict(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_IMAGE_RUNNING", "manual image test is still running",
+	)
+	ErrImageChannelMonitorManualImageNotFound = infraerrors.NotFound(
+		"IMAGE_CHANNEL_MONITOR_MANUAL_IMAGE_NOT_FOUND", "manual image artifact not found",
+	)
+	ErrImageChannelMonitorManualRunExpired = infraerrors.New(
+		http.StatusGone, "IMAGE_CHANNEL_MONITOR_MANUAL_RUN_EXPIRED", "manual image test run has expired",
 	)
 	ErrImageChannelMonitorInvalidWindow = infraerrors.BadRequest(
 		"IMAGE_CHANNEL_MONITOR_INVALID_WINDOW", "window must be 24h, 7d or 30d",
@@ -310,6 +363,10 @@ type ImageChannelMonitorResult struct {
 	ImageDownloadHost string
 	ImageDownloadIPs  []string
 	StageEvents       []ImageChannelMonitorStageEvent
+	// Gateway request IDs are diagnostic correlation values. They must not be
+	// interpreted as the account selected by the scheduler.
+	GatewayClientRequestID string
+	GatewayRequestIDs      []string
 }
 
 type ImageChannelMonitorStageEvent struct {
@@ -319,21 +376,26 @@ type ImageChannelMonitorStageEvent struct {
 }
 
 type ImageChannelMonitorManualTestParams struct {
-	Mode           string
-	Model          string
-	Prompt         string
-	Size           string
-	Quality        string
-	N              int
-	DownloadImage  bool
-	ResponseFormat string
-	TimeoutSeconds int
-	InputImageData string
-	InputImageType string
-	InputImageName string
-	BatchID        string
-	BatchSize      int
-	BatchIndex     int
+	ExecutionMode     string
+	APIKeyID          int64
+	ExpectedAccountID int64
+	ClientRunID       string
+	Mode              string
+	Model             string
+	Prompt            string
+	Size              string
+	Quality           string
+	N                 int
+	DownloadImage     bool
+	ResponseFormat    string
+	TimeoutSeconds    int
+	InputImageData    string
+	InputImageBytes   []byte
+	InputImageType    string
+	InputImageName    string
+	BatchID           string
+	BatchSize         int
+	BatchIndex        int
 }
 
 type ImageChannelMonitorManualTestResult struct {
@@ -343,20 +405,45 @@ type ImageChannelMonitorManualTestResult struct {
 }
 
 type ImageChannelMonitorManualRunStatus struct {
-	RunID       string
-	Monitor     *ImageChannelMonitor
-	Mode        string
-	BatchID     string
-	BatchSize   int
-	BatchIndex  int
-	Running     bool
-	Canceled    bool
-	Stage       string
-	Message     string
-	StartedAt   time.Time
-	UpdatedAt   time.Time
-	CompletedAt *time.Time
-	Result      *ImageChannelMonitorResult
+	RunID             string
+	Monitor           *ImageChannelMonitor
+	ExecutionMode     string
+	APIKeyID          int64
+	ExpectedAccountID int64
+	ClientRunID       string
+	Mode              string
+	BatchID           string
+	BatchSize         int
+	BatchIndex        int
+	Running           bool
+	Canceled          bool
+	Stage             string
+	Message           string
+	StartedAt         time.Time
+	UpdatedAt         time.Time
+	CompletedAt       *time.Time
+	Result            *ImageChannelMonitorResult
+	GatewayStatus     string
+	DeliveryStatus    string
+	ObservationStatus string
+	Artifacts         []ImageChannelMonitorArtifactSummary
+}
+
+// ImageChannelMonitorArtifactSummary is safe to expose from status endpoints;
+// it never contains image bytes or a filesystem path.
+type ImageChannelMonitorArtifactSummary struct {
+	Index       int
+	ContentType string
+	Size        int64
+	Source      string
+}
+
+// ImageChannelMonitorArtifact is returned only by the binary artifact lookup.
+// The caller owns Reader and must close it.
+type ImageChannelMonitorArtifact struct {
+	ContentType string
+	Size        int64
+	Reader      io.ReadCloser
 }
 
 type ImageChannelMonitorRuntimeStatus struct {

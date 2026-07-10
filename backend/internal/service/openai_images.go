@@ -825,19 +825,37 @@ func cloneMultipartHeader(src textproto.MIMEHeader) textproto.MIMEHeader {
 }
 
 func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context, imageTrace *OpenAIImageTrace) (OpenAIUsage, int, []string, error) {
-	body, err := copyOpenAIImagesNonStreamingBody(resp.Body, nil, resolveUpstreamResponseReadLimit(s.cfg))
+	spooler := spoolOpenAIImagesResponse
+	if s != nil && s.openAIImagesResponseSpooler != nil {
+		spooler = s.openAIImagesResponseSpooler
+	}
+	spool, err := spooler(
+		resp.Body,
+		resolveUpstreamResponseReadLimit(s.cfg),
+		openAIImagesResponseSpoolMemoryThreshold,
+		"",
+	)
 	if err != nil {
-		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
-			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
-		} else {
-			setOpsUpstreamError(c, http.StatusBadGateway, sanitizeUpstreamErrorMessage(err.Error()), "")
+		if errors.Is(err, errOpenAIImagesResponseSpoolStorage) || errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
+			setOpsUpstreamError(c, http.StatusInternalServerError, "local image response storage failed", "")
+			return OpenAIUsage{}, 0, nil, fmt.Errorf("%w: %v", errOpenAIImagesResponseDelivery, err)
 		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return OpenAIUsage{}, 0, nil, err
+		}
+		if c != nil && c.Request != nil {
+			if contextErr := c.Request.Context().Err(); contextErr != nil {
+				return OpenAIUsage{}, 0, nil, contextErr
+			}
+		}
+		setOpsUpstreamError(c, http.StatusBadGateway, sanitizeUpstreamErrorMessage(err.Error()), "")
 		return OpenAIUsage{}, 0, nil, &UpstreamFailoverError{
 			StatusCode:      http.StatusBadGateway,
 			ResponseBody:    openAITransportFailoverBody,
 			ResponseHeaders: resp.Header.Clone(),
 		}
 	}
+	defer func() { _ = spool.Close() }()
 	if imageTrace != nil {
 		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
@@ -854,15 +872,17 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http
 	if imageTrace != nil {
 		imageTrace.Log(c, "downstream_response_built", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
-	if _, err := c.Writer.Write(body); err != nil {
-		return OpenAIUsage{}, 0, nil, err
+	if _, err := spool.WriteTo(c.Writer); err != nil {
+		setOpsUpstreamError(c, http.StatusInternalServerError, "local image response delivery failed", "")
+		return OpenAIUsage{}, 0, nil, fmt.Errorf("%w: %v", errOpenAIImagesResponseDelivery, err)
 	}
 	if imageTrace != nil {
 		imageTrace.Log(c, "downstream_write_done", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
 
-	usage, _ := extractOpenAIUsageFromJSONBytes(body)
-	return usage, extractOpenAIImageCountFromJSONBytes(body), collectOpenAIResponseImageOutputSizesFromJSONBytes(body), nil
+	metadata := spool.MetadataBytes()
+	usage, _ := extractOpenAIUsageFromJSONBytes(metadata)
+	return usage, extractOpenAIImageCountFromJSONBytes(metadata), collectOpenAIResponseImageOutputSizesFromJSONBytes(metadata), nil
 }
 
 func copyOpenAIImagesNonStreamingBody(reader io.Reader, writer gin.ResponseWriter, maxBytes int64) ([]byte, error) {

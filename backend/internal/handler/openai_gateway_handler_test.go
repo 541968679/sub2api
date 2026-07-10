@@ -112,6 +112,54 @@ func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
 	assert.Equal(t, "test error", errorObj["message"])
 }
 
+func TestOpenAIImagesResponseDeliveryErrorReturnsLocal500AndKeepsAccountHealthy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	scheduler := &openAIImagesHandlerSchedulerStub{}
+	gatewayService := &service.OpenAIGatewayService{}
+	gatewayService.SetOpenAIAccountSchedulerForTest(scheduler)
+	h := &OpenAIGatewayHandler{gatewayService: gatewayService}
+	account := &service.Account{ID: 77, Platform: service.PlatformOpenAI}
+
+	handled := h.handleOpenAIImagesResponseDeliveryError(
+		c,
+		nil,
+		account,
+		service.NewOpenAIImagesResponseDeliveryErrorForTest(errors.New("disk full")),
+		false,
+	)
+
+	require.True(t, handled)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, "local_delivery_error", gjson.GetBytes(w.Body.Bytes(), "error.type").String())
+	require.Equal(t, []openAIImagesHandlerSchedulerReport{{accountID: 77, success: true}}, scheduler.reports)
+}
+
+type openAIImagesHandlerSchedulerReport struct {
+	accountID int64
+	success   bool
+}
+
+type openAIImagesHandlerSchedulerStub struct {
+	reports []openAIImagesHandlerSchedulerReport
+}
+
+func (s *openAIImagesHandlerSchedulerStub) Select(context.Context, service.OpenAIAccountScheduleRequest) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+	return nil, service.OpenAIAccountScheduleDecision{}, errors.New("not implemented")
+}
+
+func (s *openAIImagesHandlerSchedulerStub) ReportResult(accountID int64, success bool, _ *int) {
+	s.reports = append(s.reports, openAIImagesHandlerSchedulerReport{accountID: accountID, success: success})
+}
+
+func (s *openAIImagesHandlerSchedulerStub) ReportSwitch() {}
+
+func (s *openAIImagesHandlerSchedulerStub) SnapshotMetrics() service.OpenAIAccountSchedulerMetricsSnapshot {
+	return service.OpenAIAccountSchedulerMetricsSnapshot{}
+}
+
 func TestOpenAIHandleAnthropicFailoverExhaustedPreservesClientError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

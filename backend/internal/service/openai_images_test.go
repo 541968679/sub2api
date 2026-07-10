@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -1124,6 +1125,169 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyNonStreamingReadErrorDoesNotCom
 	var failoverErr *UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr, "a 200 response body read failure before downstream commit must allow account failover")
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+}
+
+func TestOpenAIGatewayServiceForwardImages_APIKeyLocalSpoolStorageErrorDoesNotFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+	localStorageErr := fmt.Errorf("%w: injected disk full", errOpenAIImagesResponseSpoolStorage)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aW1hZ2U="}]}`)),
+		}},
+		openAIImagesResponseSpooler: func(io.Reader, int64, int64, string) (*openAIImagesResponseSpool, error) {
+			return nil, localStorageErr
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{
+		ID:          6,
+		Name:        "openai-apikey",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "test-api-key"},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+
+	require.Nil(t, result)
+	require.ErrorIs(t, err, errOpenAIImagesResponseDelivery)
+	require.NotErrorIs(t, err, errOpenAIImagesResponseSpoolStorage, "storage implementation details stay behind the delivery error boundary")
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr), "local response storage failures must not regenerate and bill another image")
+	require.False(t, c.Writer.Written())
+	require.Empty(t, rec.Body.String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_APIKeyOversizedGeneratedResponseDoesNotFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+	cfg := &config.Config{}
+	cfg.Gateway.UpstreamResponseReadMaxBytes = 8
+	svc := &OpenAIGatewayService{
+		cfg: cfg,
+		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aW1hZ2U="}]}`)),
+		}},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{
+		ID:          6,
+		Name:        "openai-apikey",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "test-api-key"},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+
+	require.Nil(t, result)
+	require.ErrorIs(t, err, errOpenAIImagesResponseDelivery)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr), "an already generated oversized image must not be regenerated on another account")
+	require.False(t, c.Writer.Written())
+}
+
+func TestOpenAIGatewayServiceForwardImages_APIKeyDownstreamWriteErrorDoesNotFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = req
+	c.Writer = &failingGinWriter{ResponseWriter: c.Writer, failAfter: 0}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aW1hZ2U="}]}`)),
+		}},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{ID: 6, Name: "openai-apikey", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-api-key"}}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+
+	require.Nil(t, result)
+	require.ErrorIs(t, err, errOpenAIImagesResponseDelivery)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr), "a downstream client write failure must not regenerate and bill another image")
+}
+
+func TestOpenAIGatewayServiceForwardImages_APIKeyNonStreamingContextReadErrorDoesNotFailover(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "canceled", err: context.Canceled},
+		{name: "deadline exceeded", err: context.DeadlineExceeded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+
+			req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = req
+
+			svc := &OpenAIGatewayService{
+				cfg: &config.Config{},
+				httpUpstream: &httpUpstreamRecorder{
+					resp: &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body: io.NopCloser(io.MultiReader(
+							strings.NewReader(`{"created":1710000007,"data":[`),
+							iotest.ErrReader(tc.err),
+						)),
+					},
+				},
+			}
+			parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+			require.NoError(t, err)
+
+			account := &Account{
+				ID:       6,
+				Name:     "openai-apikey",
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"api_key": "test-api-key",
+				},
+			}
+
+			result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+			require.Nil(t, result)
+			require.ErrorIs(t, err, tc.err)
+			var failoverErr *UpstreamFailoverError
+			require.False(t, errors.As(err, &failoverErr), "client context errors must not trigger account failover")
+			require.False(t, c.Writer.Written())
+			require.Empty(t, rec.Body.String())
+		})
+	}
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyUpstreamHTTPErrorSurfacesRealError(t *testing.T) {

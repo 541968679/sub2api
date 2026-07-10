@@ -501,7 +501,7 @@ gateway:
 
 **网关防御纵深建议（重点）**
 
-- `gateway.upstream_response_read_max_bytes`：限制非流式上游响应读取大小（默认 `8MB`），用于防止异常响应导致内存放大。
+- `gateway.upstream_response_read_max_bytes`：限制非流式上游响应总大小（默认 `128 MiB`）。大型图片 JSON 响应超过 `8 MiB` 后会写入临时文件，避免整包驻留内存；不要将生产配置降回 `8 MiB`，否则较大的 `b64_json` 图片会在上游成功生成后被本地截断。
 - `gateway.proxy_probe_response_read_max_bytes`：限制代理探测响应读取大小（默认 `1MB`）。
 - `gateway.gemini_debug_response_headers`：默认 `false`，仅在排障时短时开启，避免高频请求日志开销。
 - `/auth/register`、`/auth/login`、`/auth/login/2fa`、`/auth/send-verify-code` 已提供服务端兜底限流（Redis 故障时 fail-close）。

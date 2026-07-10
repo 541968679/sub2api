@@ -230,6 +230,13 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
 		if err != nil {
+			if h.handleOpenAIImagesResponseDeliveryError(c, reqLog, account, err, streamStarted) {
+				return
+			}
+			if !openAIImagesShouldPenalizeAccount(c, err) {
+				reqLog.Debug("openai.images.client_request_ended", zap.Error(err))
+				return
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
@@ -350,6 +357,43 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		)
 		return
 	}
+}
+
+func openAIImagesShouldPenalizeAccount(c *gin.Context, err error) bool {
+	if openAIClientRequestCanceled(c) {
+		return false
+	}
+	return !errors.Is(err, context.Canceled)
+}
+
+func (h *OpenAIGatewayHandler) handleOpenAIImagesResponseDeliveryError(
+	c *gin.Context,
+	reqLog *zap.Logger,
+	account *service.Account,
+	err error,
+	streamStarted bool,
+) bool {
+	if !service.IsOpenAIImagesResponseDeliveryError(err) {
+		return false
+	}
+	if h != nil && h.gatewayService != nil && account != nil {
+		h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, nil)
+	}
+	h.handleStreamingAwareError(
+		c,
+		http.StatusInternalServerError,
+		"local_delivery_error",
+		"Image was generated, but the gateway could not deliver the response",
+		streamStarted,
+	)
+	if reqLog != nil {
+		fields := []zap.Field{zap.Error(err)}
+		if account != nil {
+			fields = append(fields, zap.Int64("account_id", account.ID))
+		}
+		reqLog.Error("openai.images.response_delivery_failed", fields...)
+	}
+	return true
 }
 
 func isMultipartImagesContentType(contentType string) bool {
