@@ -39,6 +39,28 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Codex models manifest partial sync
+
+- **Upstream source**: PR `Wei-Shaw/sub2api#3800`, merge commit `b6d2df24d84128962316f007e62c99281d703470` (`feat: Codex client models manifest passthrough`).
+- **Merge strategy**: manual narrow port. The manifest handler, OAuth account selection, upstream fetcher, and route dispatch were adapted to the fork's existing gateway/auth/scheduler structures; unrelated upstream changes were excluded.
+- **Behavior**:
+  - OpenAI-group `GET /v1/models?client_version=...` now returns the live Codex manifest expected by Codex desktop custom providers.
+  - `GET /backend-api/codex/models` exposes the same authenticated proxy path.
+  - Plain `GET /v1/models` remains the fork's curated OpenAI-compatible model list.
+  - The proxy preserves `ETag`/`If-None-Match` and 304 behavior, selected-account proxy routing, and Codex request headers; responses over 8 MiB are rejected.
+- **Fork-local impact**:
+  - Frontend-visible impact is indirect: Codex desktop can populate its model picker from the API provider. No Sub2API frontend, i18n, or route changes were needed.
+  - Curated model lists and their GPT-5.6 compatibility expansion remain unchanged for ordinary `/v1/models` requests.
+  - Billing/display-token accounting, Claude-GPT bridge behavior, OpenAI image generation, default-model fallback, request scheduling/failover, ops logging, public/admin settings, and migrations are unchanged.
+  - Manifest account discovery is intentionally OAuth-only, so a mixed OpenAI group cannot select an API-key account that has no ChatGPT manifest endpoint.
+- **Verification**:
+  - `go test -tags=unit ./internal/service -run '^(TestFetchCodexModelsManifest|TestSelectAccountForCodexModels)' -count=1`
+  - `go test -tags=unit ./internal/server/routes -run '^(TestGatewayRoutesCodexModelsManifestPathsAreRegistered|TestShouldServeCodexModelsManifest)$' -count=1`
+  - `go test -tags=unit ./internal/handler ./internal/server/routes ./internal/pkg/httpclient -count=1`
+  - `go test -tags=unit ./internal/service -count=1`
+  - `CGO_ENABLED=0 go build -trimpath -o <temporary-output> ./cmd/server`
+  - Full `go test -tags=unit ./... -count=1` reached an unrelated existing `internal/server` API-contract snapshot difference for `gateway_network_retry_max`; all manifest-targeted packages passed.
+
 ### 2026-07-02 - integrate staged upstream sync with display billing fixes
 
 - **Branch**: `codex/cache-creation-display-20260702`

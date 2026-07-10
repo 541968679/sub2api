@@ -19,6 +19,20 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Codex models manifest passthrough
+
+**Affected files**: backend/internal/{handler/openai_codex_models_handler.go,service/openai_codex_models_service.go,server/routes/gateway.go}(+tests), docs/dev/{UPSTREAM_SYNC.md,codebase/gateway.md}
+**Upstream compatibility**: Medium-low risk. Manual narrow port of upstream PR `Wei-Shaw/sub2api#3800` / merge commit `b6d2df24`; no broad upstream merge and no replacement of fork-local curated model discovery.
+**Details**:
+- OpenAI-group `GET /v1/models?client_version=...` now returns the live ChatGPT Codex models manifest expected by Codex desktop custom providers; plain `/v1/models` keeps the existing curated OpenAI list.
+- Added the authenticated native compatibility path `GET /backend-api/codex/models`.
+- Manifest requests select schedulable OpenAI OAuth accounts only, preserving group priority/LRU eligibility while skipping API-key accounts in mixed groups.
+- Upstream requests forward Codex client/account headers, `client_version`, `If-None-Match`, and account proxy configuration; downstream responses preserve JSON, ETag, and 304 semantics.
+- Added an 8 MiB response bound that rejects oversized manifests rather than returning truncated JSON.
+- Verified the manifest service, account selection, route registration/dispatch, full handler/routes/httpclient packages, full service package, and a CGO-disabled server build. Full repository unit tests have one unrelated existing API-contract snapshot mismatch for the concurrently added `gateway_network_retry_max` setting.
+
+**Related upstream PR**: `Wei-Shaw/sub2api#3800`
+
 ## [2026-07-10] feat: OpenAI GPT-5.6 sol/terra/luna support
 
 **影响范围**: backend/internal/{pkg/openai/constants.go, service/{openai_model_alias.go,openai_codex_transform.go,models_list_policy.go,pricing_service.go,billing_service.go}(+tests), handler/gateway_models_list_test.go}, backend/resources/model-pricing/model_prices_and_context_window.json, frontend/src/{composables/useModelWhitelist.ts(+test),components/keys/UseKeyModal.vue(+test)}, docs/dev/codebase/{model-mapping.md,billing.md}

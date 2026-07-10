@@ -327,6 +327,42 @@ the mapped upstream model is a distinct GPT/OpenAI model. This keeps bridge-only
 Claude presentation names out of downstream OpenAI key discovery while leaving
 normal OpenAI aliases and Antigravity bridge scheduling unchanged.
 
+### Codex Models Manifest
+
+```
+GET /v1/models?client_version=... with an OpenAI-group API key
+  -> GatewayHandler.Models
+  -> detect the Codex client_version query
+  -> OpenAIGatewayHandler.CodexModels
+
+GET /backend-api/codex/models with an OpenAI-group API key
+  -> existing gateway authentication and group middleware
+  -> OpenAIGatewayHandler.CodexModels
+     -> OpenAIGatewayService.SelectAccountForCodexModels(group)
+        -> select a schedulable OpenAI OAuth account only
+        -> skip OpenAI API-key accounts in mixed groups
+     -> OpenAIGatewayService.FetchCodexModelsManifest(...)
+        -> GET https://chatgpt.com/backend-api/codex/models
+        -> forward client_version, OAuth/account headers, Codex headers,
+           If-None-Match, and the selected account proxy
+        -> pass through the manifest body, ETag, and 304 status
+```
+
+The Codex desktop custom-provider flow requests `{base_url}/models` and uses
+the `client_version` query to distinguish its manifest request. Because the
+documented Sub2API Codex `base_url` ends in `/v1`, the primary compatibility
+route is `/v1/models?client_version=...`; `/backend-api/codex/models` is also
+available for clients that call the native ChatGPT path directly. An ordinary
+`GET /v1/models` without `client_version` continues to return the curated
+OpenAI-compatible list described above.
+
+Manifest discovery reflects the selected OAuth account's live ChatGPT/Codex
+entitlements, so it intentionally bypasses `groups.models_list_config`. It does
+not change model access checks, request routing, billing, or usage recording.
+The proxy rejects bodies larger than 8 MiB rather than returning truncated
+JSON. Fetch failures are returned immediately so the Codex client can use its
+own cached manifest fallback.
+
 ## Important Mechanisms
 
 | Mechanism | Notes |
@@ -343,6 +379,7 @@ normal OpenAI aliases and Antigravity bridge scheduling unchanged.
 | OpenAI endpoint capabilities | `credentials.openai_capabilities` restricts OpenAI API-key endpoint scheduling for chat completions and embeddings. Missing config means default capabilities are allowed. This is independent from Images endpoint opt-out and Codex image-generation bridge settings. |
 | Group custom models list | `groups.models_list_config` only customizes `GET /v1/models` output. For OpenAI and Antigravity it can only narrow the curated discovery lists, except stale full-default OpenAI lists are expanded to include newly curated GPT-5.6 models. It is ignored by scheduling and billing paths; model access continues to use group allow/block lists and account capabilities. |
 | Codex model discovery metadata | OpenAI `/v1/models` response objects include optional Codex client capability fields so custom-provider model pickers can recognize Responses and Chat Completions support. These fields are not authoritative for backend scheduling or billing. |
+| Codex models manifest | OpenAI-group requests to `/v1/models?client_version=...` and `/backend-api/codex/models` proxy the selected OpenAI OAuth account's ChatGPT manifest. API-key accounts are ineligible for this discovery path; ETag/304 and an 8 MiB response limit are preserved. |
 | HTTPUpstream network retry | `repository.HTTPUpstream` retries transport/network failures that happen before an HTTP response is received, such as connection reset, timeout, EOF, DNS failure, and `Network error. Please check your connection.`. Admin settings key `gateway_network_retry_max` controls retries (`0..10`, default `2`). It does not retry upstream HTTP 4xx/5xx responses and only retries requests whose body can be replayed. Paths with their own explicit retry loop, such as the OpenAI OAuth image `/responses` tool path, can disable this global retry through request context to avoid multiplicative retries. |
 | OpenAI Images upstream 400 passthrough | `OpenAIGatewayHandler.Images` binds an Images request context after parsing `/v1/images/*`. `OpenAIGatewayService.handleErrorResponse` uses that context to return upstream 400 user errors, such as invalid image dimensions, as downstream 400 with the upstream `error.message` and `error.type` instead of masking them as generic 502. Keep this scoped to Images requests. |
 | OpenAI OAuth image timeout/retry | The Codex `/responses` image tool path retries fast no-header transport failures up to 3 total attempts with short backoff. It also wraps the full upstream wait/body read in an image-generation timeout: 1K = 180s, 2K = 240s, 4K/unknown = 360s. Timeout errors return `image_generation_timeout` (504) before any non-streaming response is written; no-header retry exhaustion returns `image_generation_upstream_unreachable` (502). |
@@ -350,6 +387,7 @@ normal OpenAI aliases and Antigravity bridge scheduling unchanged.
 
 ## Known Pitfalls
 
+- **Codex manifest URL depends on `/v1`**: for a Codex custom provider, configure `base_url` as the Sub2API origin plus `/v1`. A root-only URL makes the desktop client request `/models`, which this compatibility route does not register. Manifest discovery also requires at least one schedulable OpenAI OAuth account in the key's group; OpenAI API-key accounts cannot provide the ChatGPT manifest.
 - **Bridge cooldown is not a bridge miss**: until the 2026-07-10 strict-routing plan is implemented, `ShouldUseClaudeGPTBridge()` can return false when all configured bridge accounts are rate-limited or temporarily unschedulable. That can turn an OpenAI 429 into native Antigravity 503 on the next Claude Code retry. Do not diagnose the resulting CLI timeout as a universal compact failure; correlate route decision, candidate state, upstream status, and retry timing. See [the investigation and repair design](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md).
 - **Compatibility path selecting Antigravity**: `/v1/chat/completions` is not an Antigravity native entry point. If it selects an Antigravity account, the request can send an Antigravity bearer token to Anthropic upstream and produce `Authentication failed (401): Invalid bearer token`, while the same account remains usable on `/antigravity/v1/messages`.
 - **Antigravity OAuth 401 false positive**: Antigravity OAuth 401 does not always mean the refresh token is invalid. It can be caused by protocol/upstream path mismatch, stale token cache, or a transient upstream state. Use temporary unschedulable plus token refresh instead of permanent `status=error`.
