@@ -87,6 +87,17 @@ GatewayHandler.ChatCompletions
      -> fall back to native Gateway.Messages Antigravity path
 ```
 
+> **Known routing defect, investigated 2026-07-10:** the current boolean
+> preflight treats both “no explicit bridge mapping” and “bridge is configured
+> but every candidate is temporarily unavailable” as `false`. A retry after an
+> upstream 429 can therefore switch from the OpenAI bridge to an empty native
+> Antigravity pool and surface as 503 or a later client timeout. The planned P0
+> fix replaces this boolean with a structured route decision. Native fallback
+> remains valid only when no bridge mapping is configured; rate limit and other
+> dynamic capacity states stay on bridge error semantics. Full evidence and the
+> implementation/test plan are in
+> [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md).
+
 The scheduler metadata cache must retain both
 `credentials.model_mapping` and `extra.openai_claude_gpt_bridge_enabled`.
 Bridge scheduling also performs a DB refresh for stale snapshot candidates
@@ -309,7 +320,7 @@ normal OpenAI aliases and Antigravity bridge scheduling unchanged.
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
 | Chat Completions isolation | `/v1/chat/completions` currently converts only to Anthropic Messages upstream. It must disable Antigravity mixed scheduling, otherwise an Antigravity OAuth token can be sent to Anthropic and return 401 `Invalid bearer token`. |
 | Group model access control | Handlers reject models blocked by the group blacklist or not present in a non-empty whitelist before account selection. Responses payloads also validate `tools[].type == "image_generation"` entries with an explicit `model`, so image tools cannot bypass group restrictions. |
-| OpenAI Claude-GPT bridge | Antigravity `/v1/messages` can preflight OpenAI bridge accounts bound to the same Antigravity group. Eligibility requires `RequireClaudeGPTBridge`, enabled account extra, and a Claude model mapping hit on the OpenAI account. The conversion core follows upstream Messages behavior; local overlay only controls Antigravity dispatch, bridge header stripping, bridge usage/display semantics, and scheduler eligibility. |
+| OpenAI Claude-GPT bridge | Antigravity `/v1/messages` can preflight OpenAI bridge accounts bound to the same Antigravity group. Eligibility requires `RequireClaudeGPTBridge`, enabled account extra, and a Claude model mapping hit on the OpenAI account. Current preflight still conflates configured route intent with instantaneous schedulability; the 2026-07-10 strict-routing plan makes dynamic rate-limit/unavailable states return bridge 429/503 instead of falling back native. The conversion core follows upstream Messages behavior; local overlay owns Antigravity dispatch, bridge header stripping, usage/display semantics, scheduler eligibility, and compact recovery. |
 | Public usage query | `/v1/usage*` uses API key authentication but intentionally skips billing enforcement and group-assignment enforcement so users can inspect exhausted, expired, or ungrouped keys. Public records/stats/trend endpoints must force the authenticated API key ID server-side and must not accept a user-supplied API key ID. |
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
 | Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, cost-window, and group-membership checks. Local response-id account bindings are namespaced by group to avoid cross-group previous-response reuse. |
@@ -324,6 +335,7 @@ normal OpenAI aliases and Antigravity bridge scheduling unchanged.
 
 ## Known Pitfalls
 
+- **Bridge cooldown is not a bridge miss**: until the 2026-07-10 strict-routing plan is implemented, `ShouldUseClaudeGPTBridge()` can return false when all configured bridge accounts are rate-limited or temporarily unschedulable. That can turn an OpenAI 429 into native Antigravity 503 on the next Claude Code retry. Do not diagnose the resulting CLI timeout as a universal compact failure; correlate route decision, candidate state, upstream status, and retry timing. See [the investigation and repair design](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md).
 - **Compatibility path selecting Antigravity**: `/v1/chat/completions` is not an Antigravity native entry point. If it selects an Antigravity account, the request can send an Antigravity bearer token to Anthropic upstream and produce `Authentication failed (401): Invalid bearer token`, while the same account remains usable on `/antigravity/v1/messages`.
 - **Antigravity OAuth 401 false positive**: Antigravity OAuth 401 does not always mean the refresh token is invalid. It can be caused by protocol/upstream path mismatch, stale token cache, or a transient upstream state. Use temporary unschedulable plus token refresh instead of permanent `status=error`.
 - **Image trace is temporary and opt-in**: Keep `OPENAI_IMAGE_TRACE_LOG` disabled by default. It is for targeted local/production timing windows and should be turned off after sampling.

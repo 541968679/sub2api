@@ -36,6 +36,27 @@ The user-facing contract remains Antigravity/Claude:
 - native Antigravity remains the fallback path before any OpenAI upstream call
   is made.
 
+## 2026-07-10 Timeout Investigation Follow-up
+
+This document records the bridge implementation and its original routing
+contract. A later investigation found that the current boolean preflight also
+uses instantaneous scheduler availability to decide whether the bridge exists.
+When every configured bridge account is temporarily rate-limited, that behavior
+can misclassify the request as a bridge miss, route a Claude Code retry to the
+native Antigravity pool, and turn an upstream 429 into an unrelated native 503.
+
+Manual compact verification also refined the earlier diagnosis: a real compact
+completed successfully even while adjacent `count_tokens` requests returned
+503. Compact/empty-output hardening remains necessary, but compression and
+`count_tokens` are not established as the direct cause of every timeout.
+
+The evidence, official upstream comparison, strict-routing state machine,
+bridge-aware `count_tokens` design, test matrix, rollout plan, and acceptance
+criteria are maintained in
+[OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md).
+The strict-routing and count-token changes described there are planned work,
+not behavior already implemented by this document update.
+
 ## Implementation Notes
 
 Account configuration:
@@ -227,8 +248,12 @@ The bridge does not currently change `/v1/models`. Clients may still discover
 models from the native Antigravity path rather than the bridge mapping.
 
 The bridge does not currently change `/antigravity/v1/messages/count_tokens`.
-Claude Code token counting remains native Antigravity-side unless this route is
-explicitly bridged later.
+Claude Code token counting remains native Antigravity-side. Official upstream
+now has an OpenAI-group implementation backed by `/v1/responses/input_tokens`
+plus an OAuth/local-tokenizer fallback, but this fork still needs a bridge-aware
+adaptation that preserves the account bridge flag, Antigravity group binding,
+and explicit Claude-to-GPT model mapping. See the 2026-07-10 timeout
+investigation for the planned P1 implementation.
 
 The downstream Anthropic response conversion still follows the generic
 OpenAI-to-Anthropic compatibility path. If OpenAI upstream reports
@@ -299,5 +324,6 @@ Possible future improvements:
 - `frontend/src/components/common/GroupSelector.vue`
 - `docs/dev/codebase/account.md`
 - `docs/dev/codebase/gateway.md`
+- `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`
 - `docs/dev/codebase/model-mapping.md`
 - `docs/dev/codebase/billing.md`

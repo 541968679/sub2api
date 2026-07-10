@@ -4178,12 +4178,28 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 
 ## [2026-07-10] fix: Recover Claude-GPT compact requests from empty replies
 
-**Affected files**: Claude-GPT Messages bridge services, handler, compatibility converter, regression tests, gateway docs, and debug report.
-**Compatibility**: Medium risk. Anthropic preamble/thinking is delayed until visible output so failed attempts remain eligible for failover; compact recovery can issue bounded summary requests.
+**Affected files**: `backend/internal/service/openai_gateway_messages.go`, `backend/internal/service/openai_gateway_messages_compact.go`, `backend/internal/service/openai_gateway_messages_compact_test.go`, `backend/internal/service/openai_gateway_messages_empty_output_test.go`, `backend/internal/service/account.go`, `backend/internal/service/openai_messages_continuation.go`, `backend/internal/service/openai_model_mapping.go`, `backend/internal/service/openai_gateway_service.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_gateway_handler_test.go`, `backend/internal/pkg/apicompat/responses_to_anthropic.go`, `backend/internal/pkg/apicompat/anthropic_responses_test.go`, `docs/dev/codebase/gateway.md`, `memory/2026-07-10-claude-gpt-empty-replies-debug-report.md`
+**Compatibility**: Medium risk. The change intentionally delays Anthropic SSE preamble/thinking until visible output so failed attempts remain eligible for account failover. Normal successful content is preserved, while compact recovery may issue bounded additional upstream summary requests.
 **Details**:
-- Treat failed, incomplete, missing-terminal, and reasoning-only Responses outcomes as errors instead of normal empty success.
-- Preserve the full transcript and recover compact overflow with bounded chunking, recursive splitting, hierarchical merge, model fallbacks, accumulated usage, stateless headers, and continuation cleanup.
-- Replay text/tool data present only in terminal output, including a complete Anthropic SSE lifecycle.
-- Send idle pings during compact header waits and pre-visible body silence without committing semantic output or blocking failover.
-- Cancel detached compact work when the client disconnects without penalizing account health, and suppress duplicate terminal events after completion.
-- Added regression coverage for overflow, empty output, full-history recovery, retry budgets, continuation state, keepalive failover, cancellation, and terminal replay.
+- Identified and repaired one long-context Claude Code empty-output failure mode: the upstream can return HTTP/SSE context overflow, `response.failed`, incomplete/no-terminal output, or reasoning without visible text. A later manual compact succeeded despite adjacent `count_tokens` 503 responses, so compact is no longer treated as the universal or latest-timeout root cause; see the follow-up investigation entry below.
+- Buffered non-visible Anthropic stream events and stopped converting terminal failures into normal `message_stop/end_turn`, preserving account failover before any visible response is written.
+- Replayed terminal `response.output` text and tool arguments when deltas were absent, while ignoring stale tool-argument deltas from an earlier output index.
+- Preserved the full pre-guard Anthropic transcript for compact recovery, including API-key requests normally limited by the 12-message replay guard.
+- Added bounded chunk summarization, recursive split-on-overflow, hierarchical merge, emergency-summary fallback, complete retry usage accumulation, and stateless recovery headers/continuation handling.
+- Added compact-only model mapping and configurable fallbacks, including a default Spark-to-`gpt-5.4-mini` fallback that can be explicitly disabled with an empty list.
+- Added standard pings during compact header waits and pre-visible Messages body silence, using a resettable idle timer while keeping transport state separate from semantic output; final failures after a ping use Anthropic SSE `event: error`, and client disconnect cancels detached recovery work without penalizing the account.
+- Restored the complete Anthropic SSE lifecycle when visible text exists only in terminal `response.output`, including a synthesized `message_start` before the replayed content.
+- Marked successful/error Anthropic responses terminal so panic and generic error fallbacks cannot append a duplicate event after `message_stop` or a prior error.
+- Added regression coverage for HTTP/SSE overflow, reasoning-only/empty terminal output, full-history preservation, split budgets, merge shrinking, usage accounting, stateless headers, cancellation, pre-visible keepalive failover, terminal text/tool reconstruction, duplicate-terminal suppression, and post-ping SSE errors.
+
+## [2026-07-10] docs: record Claude-GPT intermittent timeout investigation and repair design
+
+**Affected files**: `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`, `docs/dev/codebase/README.md`, `docs/dev/codebase/gateway.md`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Compatibility**: Documentation-only. No runtime route, scheduler, account state, count-token behavior, billing, schema, frontend, deployment, or production state changed in this entry.
+**Details**:
+- Recorded that a manual Claude Code compact completed from `preTokens=256786` to `postTokens=6151` in 98.48 seconds and passed three post-compact canary turns even though adjacent `count_tokens` calls returned 503. This separates the real count-token compatibility gap from the latest timeout root-cause analysis.
+- Documented the highest-confidence latest timeout chain: an OpenAI bridge request returns `usage_limit_reached` 429, the only bridge account enters cooldown, boolean preflight misclassifies temporary unavailability as no bridge, the retry falls into an empty native Antigravity pool, and Claude Code eventually reports a generic operation timeout.
+- Compared the fork against official `upstream/main=e316ebf52838a89d57fc790981cce7520f819ac8` and release `v0.1.151`: official count-token, response.failed, transport failover, missing-terminal, and application-error work is reusable, but official upstream has no Antigravity account-side Claude-GPT bridge and therefore no direct strict-routing fix.
+- Specified a P0 structured bridge route decision (`not_configured`, `ready`, `rate_limited`, `unavailable`, `probe_error`) that separates stable mapping intent from transient scheduler state, removes hidden native fallback after bridge intent is established, and returns consistent Anthropic 429/503 semantics with `Retry-After`.
+- Specified a separate P1 adaptation of official `/v1/responses/input_tokens` and OAuth/local-tokenizer fallback for bridge-aware `count_tokens`, with no usage, billing, concurrency, or native-pool side effects.
+- Added the planned file map, two-request 429 regression, broader test matrix, observability fields, canary rollout, rollback, acceptance criteria, and ordered next-session implementation checklist.
