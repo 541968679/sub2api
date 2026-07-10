@@ -466,6 +466,17 @@ func TestAccountResolveCompactFallbackModels(t *testing.T) {
 			mapped:    "openai/gpt-5.3-codex-spark-high",
 			want:      nil,
 		},
+		{
+			name: "normalized primary-only alias still uses mini fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-spark": []any{"gpt-5.3-codex-spark"},
+				},
+			},
+			requested: "openai/gpt-5.3-codex-spark-high",
+			mapped:    "openai/gpt-5.3-codex-spark-high",
+			want:      []string{"gpt-5.4-mini"},
+		},
 	}
 
 	for _, tt := range tests {
