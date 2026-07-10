@@ -2,7 +2,10 @@ import { flushPromises, shallowMount, type VueWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ImageChannelMonitorView from './ImageChannelMonitorView.vue'
-import type { ImageChannelManualRunResponse } from '@/api/admin/imageChannelMonitor'
+import type {
+  ImageChannelManualRunResponse,
+  ImageChannelManualTestParams,
+} from '@/api/admin/imageChannelMonitor'
 
 const searchApiKeys = vi.fn()
 const listMonitors = vi.fn()
@@ -213,6 +216,50 @@ describe('ImageChannelMonitorView manual gateway mode', () => {
     expect(editTab).toBeDefined()
     await editTab!.trigger('click')
     expect(wrapper.get('[data-testid="manual-input-images"]').attributes()).toHaveProperty('multiple')
+  })
+
+  it('orchestrates c20 as independent gateway launches with distinct client run ids', async () => {
+    manualTest.mockImplementation((_id: number, payload: ImageChannelManualTestParams) =>
+      Promise.resolve(
+        terminalRun({
+          run_id: `run-c20-${payload.batch_index}`,
+          batch_id: payload.batch_id,
+          batch_size: payload.batch_size,
+          batch_index: payload.batch_index,
+          gateway_status: 'succeeded',
+          delivery_status: 'not_requested',
+          observation_status: 'observable',
+          result: { status: 'operational' } as ImageChannelManualRunResponse['result'],
+        } as Partial<ImageChannelManualRunResponse>)
+      )
+    )
+    const wrapper = mountView()
+
+    try {
+      await openManualPanel(wrapper)
+      await selectGatewayRequestContext(wrapper)
+      const concurrencyInput = wrapper
+        .findAll('input[type="number"]')
+        .find((input) => input.attributes('max') === '20')
+      expect(concurrencyInput).toBeDefined()
+      await concurrencyInput!.setValue(20)
+
+      const startButton = wrapper
+        .findAll('button')
+        .find((button) => button.text().includes('admin.imageChannelMonitor.manual.startWithCount'))
+      expect(startButton).toBeDefined()
+      await startButton!.trigger('click')
+
+      await vi.waitFor(() => expect(manualTest).toHaveBeenCalledTimes(20))
+      const payloads = manualTest.mock.calls.map((call) => call[1] as ImageChannelManualTestParams)
+      expect(new Set(payloads.map((payload) => payload.client_run_id)).size).toBe(20)
+      expect(payloads.map((payload) => payload.batch_index)).toEqual(
+        Array.from({ length: 20 }, (_, index) => index + 1)
+      )
+      expect(payloads.every((payload) => payload.batch_size === 20)).toBe(true)
+    } finally {
+      wrapper.unmount()
+    }
   })
 
   it('maps an expired backend observation to observation lost instead of image failure', async () => {
@@ -461,7 +508,8 @@ describe('ImageChannelMonitorView manual gateway mode', () => {
     }
   })
 
-  it('keeps the batch running when canceling an observed backend run fails', async () => {
+  it('ends the local batch while an observed backend cancel retries in the background', async () => {
+    vi.useFakeTimers()
     manualTest.mockResolvedValueOnce(
       terminalRun({
         run_id: 'run-cancel-fails',
@@ -474,7 +522,7 @@ describe('ImageChannelMonitorView manual gateway mode', () => {
       } as Partial<ImageChannelManualRunResponse>)
     )
     getManualTestStatus.mockImplementation(() => new Promise(() => undefined))
-    cancelManualTest.mockRejectedValueOnce({ status: 503, code: 'SERVICE_UNAVAILABLE' })
+    cancelManualTest.mockRejectedValue({ status: 503, code: 'SERVICE_UNAVAILABLE' })
     const wrapper = mountView()
 
     try {
@@ -496,11 +544,16 @@ describe('ImageChannelMonitorView manual gateway mode', () => {
 
       expect(
         wrapper.findAll('button').some((button) =>
-          button.text().includes('admin.imageChannelMonitor.manual.cancelAll')
+          button.text().includes('admin.imageChannelMonitor.manual.startWithCount')
         )
       ).toBe(true)
+      const resultRow = wrapper.findAll('tbody tr').find((row) => row.text().includes('account-channel'))
+      expect(resultRow?.text()).toContain('admin.imageChannelMonitor.manual.canceled')
+      expect(showError).not.toHaveBeenCalled()
     } finally {
       wrapper.unmount()
+      vi.clearAllTimers()
+      vi.useRealTimers()
     }
   })
 
