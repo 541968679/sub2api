@@ -703,7 +703,17 @@ func parseUsageAndAccumulate(
 	if !cachedResult.Exists() {
 		cachedResult = usageResult.Get("prompt_tokens_details.cached_tokens")
 	}
-	cacheCreationTokens := int(usageResult.Get("cache_creation_input_tokens").Int())
+	cacheCreationResult := usageResult.Get("cache_creation_input_tokens")
+	if !cacheCreationResult.Exists() || cacheCreationResult.Int() == 0 {
+		cacheCreationResult = usageResult.Get("cache_write_tokens")
+	}
+	if !cacheCreationResult.Exists() || cacheCreationResult.Int() == 0 {
+		cacheCreationResult = usageResult.Get("input_tokens_details.cache_write_tokens")
+	}
+	if !cacheCreationResult.Exists() || cacheCreationResult.Int() == 0 {
+		cacheCreationResult = usageResult.Get("prompt_tokens_details.cache_write_tokens")
+	}
+	cacheCreationTokens := int(cacheCreationResult.Int())
 	imageTokens := usageResult.Get("output_tokens_details.image_tokens").Int()
 	if imageTokens == 0 {
 		imageTokens = usageResult.Get("completion_tokens_details.image_tokens").Int()

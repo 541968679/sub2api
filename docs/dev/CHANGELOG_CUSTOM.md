@@ -4158,6 +4158,20 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added an actual-return column and detail metric that distinguishes URL, `b64_json`, mixed URL+`b64_json`, and data URLs carried in the `url` field.
 - Compactly displays `data:` image URLs in network details so an inline URL payload is visible without flooding the dialog with base64 text.
 
+## [2026-07-10] fix: Map OpenAI GPT-5.6 cache write usage
+
+**Affected files**: `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_usage_tokens.go`, `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/openai_gateway_messages.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `backend/internal/pkg/apicompat/types.go`, `backend/internal/pkg/apicompat/responses_to_chatcompletions.go`, `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`, `backend/internal/service/openai_embeddings.go`, `backend/internal/service/openai_ws_v2/passthrough_relay.go`, `backend/internal/service/billing_service.go`, `backend/internal/service/pricing_service.go`, `backend/internal/service/openai_codex_transform.go`, `backend/internal/service/openai_model_alias.go`, `backend/resources/model-pricing/model_prices_and_context_window.json`
+**Compatibility**: Low risk. Adds official OpenAI `cache_write_tokens` parsing as a compatibility alias for local cache creation accounting, updates GPT-5.6 cache write pricing to the documented 1.25x input rate, and prevents cache-write tokens from being billed/displayed as ordinary input tokens.
+**Details**:
+- OpenAI HTTP/SSE, embeddings, and WS passthrough usage parsing now maps `cache_write_tokens` from top-level or token-details usage objects into local `cache_creation_tokens`.
+- OpenAI usage recording now treats cache-write tokens as a prompt/input component and subtracts them from ordinary input tokens before billing.
+- Display-token rewriting now scales official `cache_write_tokens` in Responses, Chat Completions, and usage-map shapes, while recomputing displayed `input_tokens`/`total_tokens` from uncached input + cache read + cache write components.
+- Responses-to-Chat and Chat-to-Responses compatibility structs/converters now preserve `cache_write_tokens`, so serialized streaming conversions do not drop cache-write details.
+- GPT-5.6 Sol/Terra/Luna pricing now includes `cache_creation_input_token_cost=6.25e-6`, with fallback policy filling missing dynamic entries from `input_price * 1.25`.
+- Bare `gpt-5.6` now normalizes as its own GPT-5.6 family model for backend billing/fallback logic instead of falling through to the older GPT-5.4 family.
+- Priority service-tier cache-write cost now scales with the priority input-token price instead of staying at the base cache-write rate.
+- Added targeted regression coverage for official cache-write fields, display-token amplification, ordinary input-token deduction, and GPT-5.6 cache creation pricing.
+
 ## [2026-07-10] fix: Make manual image tests reproduce independent real gateway requests
 
 **Affected files**: `backend/internal/service/image_channel_monitor_service.go`, `backend/internal/service/image_channel_monitor_types.go`, `backend/internal/service/image_channel_monitor_manual_core.go`, `backend/internal/service/image_channel_manual_gateway.go`, `backend/internal/service/image_channel_manual_b64_stream.go`, `backend/internal/handler/admin/image_channel_monitor_handler.go`, `backend/internal/handler/openai_images.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_response_spool.go`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/client.ts`, `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `deploy/config.example.yaml`, `README_CN.md`, `docs/dev/codebase/image-channel-monitor.md`, `docs/dev/codebase/gateway.md`

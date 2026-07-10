@@ -9,6 +9,12 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-5.6":                    "gpt-5.6",
+	"gpt-5.6-none":               "gpt-5.6",
+	"gpt-5.6-low":                "gpt-5.6",
+	"gpt-5.6-medium":             "gpt-5.6",
+	"gpt-5.6-high":               "gpt-5.6",
+	"gpt-5.6-xhigh":              "gpt-5.6",
 	"gpt-5.6-sol":                "gpt-5.6-sol",
 	"gpt-5.6-sol-none":           "gpt-5.6-sol",
 	"gpt-5.6-sol-low":            "gpt-5.6-sol",
@@ -92,6 +98,7 @@ var codexVersionModelPrefixes = []struct {
 	{prefix: "gpt-5.6-sol", target: "gpt-5.6-sol"},
 	{prefix: "gpt-5.6-terra", target: "gpt-5.6-terra"},
 	{prefix: "gpt-5.6-luna", target: "gpt-5.6-luna"},
+	{prefix: "gpt-5.6", target: "gpt-5.6"},
 	{prefix: "gpt-5.3-codex-spark", target: "gpt-5.3-codex-spark"},
 	{prefix: "gpt-5.3-codex", target: "gpt-5.3-codex"},
 	{prefix: "gpt-5.5-pro", target: "gpt-5.5-pro"},

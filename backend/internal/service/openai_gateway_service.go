@@ -5039,6 +5039,12 @@ func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsag
 	usage.InputTokens = int(gjson.GetBytes(data, "response.usage.input_tokens").Int())
 	usage.OutputTokens = int(gjson.GetBytes(data, "response.usage.output_tokens").Int())
 	usage.CacheReadInputTokens = int(gjson.GetBytes(data, "response.usage.input_tokens_details.cached_tokens").Int())
+	usage.CacheCreationInputTokens = int(firstNonZeroInt64(
+		gjson.GetBytes(data, "response.usage.cache_creation_input_tokens").Int(),
+		gjson.GetBytes(data, "response.usage.cache_write_tokens").Int(),
+		gjson.GetBytes(data, "response.usage.input_tokens_details.cache_write_tokens").Int(),
+		gjson.GetBytes(data, "response.usage.prompt_tokens_details.cache_write_tokens").Int(),
+	))
 	usage.ImageOutputTokens = int(gjson.GetBytes(data, "response.usage.output_tokens_details.image_tokens").Int())
 }
 
@@ -5064,6 +5070,9 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 		usageRoot+".prompt_tokens_details.cached_tokens",
 		usageRoot+".completion_tokens_details.image_tokens",
 		usageRoot+".cache_creation_input_tokens",
+		usageRoot+".cache_write_tokens",
+		usageRoot+".input_tokens_details.cache_write_tokens",
+		usageRoot+".prompt_tokens_details.cache_write_tokens",
 	)
 	inputTokens := values[0].Int()
 	if inputTokens == 0 {
@@ -5084,10 +5093,19 @@ func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 	return OpenAIUsage{
 		InputTokens:              int(inputTokens),
 		OutputTokens:             int(outputTokens),
-		CacheCreationInputTokens: int(values[8].Int()),
+		CacheCreationInputTokens: int(firstNonZeroInt64(values[8].Int(), values[9].Int(), values[10].Int(), values[11].Int())),
 		CacheReadInputTokens:     int(cacheReadTokens),
 		ImageOutputTokens:        int(imageOutputTokens),
 	}, true
+}
+
+func firstNonZeroInt64(values ...int64) int64 {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func extractOpenAIResponseIDFromJSONBytes(body []byte) string {
@@ -5764,19 +5782,16 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	account := input.Account
 	subscription := input.Subscription
 
-	// 计算实际的新输入token（减去缓存读取的token）
-	// 因为 input_tokens 包含了 cache_read_tokens，而缓存读取的token不应按输入价格计费
+	// OpenAI input_tokens includes cached reads and GPT-5.6 cache writes; bill those through their own components.
 	cacheReadInputTokens := result.Usage.CacheReadInputTokens
-	actualInputTokens := result.Usage.InputTokens - cacheReadInputTokens
-	if actualInputTokens < 0 {
-		actualInputTokens = 0
-	}
+	cacheCreationInputTokens := result.Usage.CacheCreationInputTokens
+	actualInputTokens := computeOpenAIChargeableInputTokens(result.Usage.InputTokens, cacheReadInputTokens, cacheCreationInputTokens)
 
 	// Calculate cost
 	tokens := UsageTokens{
 		InputTokens:         actualInputTokens,
 		OutputTokens:        result.Usage.OutputTokens,
-		CacheCreationTokens: result.Usage.CacheCreationInputTokens,
+		CacheCreationTokens: cacheCreationInputTokens,
 		CacheReadTokens:     cacheReadInputTokens,
 		ImageOutputTokens:   result.Usage.ImageOutputTokens,
 	}
@@ -5848,7 +5863,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			zap.Int("raw_input_tokens", result.Usage.InputTokens),
 			zap.Int("stored_input_tokens", actualInputTokens),
 			zap.Int("output_tokens", result.Usage.OutputTokens),
-			zap.Int("cache_creation_tokens", result.Usage.CacheCreationInputTokens),
+			zap.Int("cache_creation_tokens", cacheCreationInputTokens),
 			zap.Int("cache_read_tokens", cacheReadInputTokens),
 			zap.Bool("stream", result.Stream),
 		)
@@ -5868,7 +5883,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		UpstreamEndpoint:    optionalTrimmedStringPtr(input.UpstreamEndpoint),
 		InputTokens:         actualInputTokens,
 		OutputTokens:        result.Usage.OutputTokens,
-		CacheCreationTokens: result.Usage.CacheCreationInputTokens,
+		CacheCreationTokens: cacheCreationInputTokens,
 		CacheReadTokens:     cacheReadInputTokens,
 		ImageOutputTokens:   result.Usage.ImageOutputTokens,
 		ImageCount:          result.ImageCount,

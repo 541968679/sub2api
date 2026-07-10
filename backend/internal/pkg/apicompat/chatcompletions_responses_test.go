@@ -796,7 +796,8 @@ func TestResponsesToChatCompletions_CachedTokens(t *testing.T) {
 			OutputTokens: 10,
 			TotalTokens:  110,
 			InputTokensDetails: &ResponsesInputTokensDetails{
-				CachedTokens: 80,
+				CachedTokens:     80,
+				CacheWriteTokens: 12,
 			},
 		},
 	}
@@ -805,6 +806,28 @@ func TestResponsesToChatCompletions_CachedTokens(t *testing.T) {
 	require.NotNil(t, chat.Usage)
 	require.NotNil(t, chat.Usage.PromptTokensDetails)
 	assert.Equal(t, 80, chat.Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 12, chat.Usage.PromptTokensDetails.CacheWriteTokens)
+}
+
+func TestChatUsageToResponsesUsage_CacheWriteTokens(t *testing.T) {
+	usage := &ChatUsage{
+		PromptTokens:     100,
+		CompletionTokens: 10,
+		TotalTokens:      110,
+		PromptTokensDetails: &ChatTokenDetails{
+			CachedTokens:     20,
+			CacheWriteTokens: 30,
+			AudioTokens:      4,
+		},
+	}
+
+	responsesUsage := ChatUsageToResponsesUsage(usage)
+
+	require.NotNil(t, responsesUsage)
+	require.NotNil(t, responsesUsage.InputTokensDetails)
+	assert.Equal(t, 20, responsesUsage.InputTokensDetails.CachedTokens)
+	assert.Equal(t, 30, responsesUsage.InputTokensDetails.CacheWriteTokens)
+	assert.Equal(t, 4, responsesUsage.InputTokensDetails.AudioTokens)
 }
 
 func TestResponsesToChatCompletions_ReasoningTokens(t *testing.T) {
@@ -851,8 +874,9 @@ func TestResponsesToChatCompletions_AllTokenDetailsPassThrough(t *testing.T) {
 			OutputTokens: 50,
 			TotalTokens:  150,
 			InputTokensDetails: &ResponsesInputTokensDetails{
-				CachedTokens: 60,
-				AudioTokens:  4,
+				CachedTokens:     60,
+				CacheWriteTokens: 9,
+				AudioTokens:      4,
 			},
 			OutputTokensDetails: &ResponsesOutputTokensDetails{
 				ReasoningTokens:          30,
@@ -867,6 +891,7 @@ func TestResponsesToChatCompletions_AllTokenDetailsPassThrough(t *testing.T) {
 	require.NotNil(t, chat.Usage)
 	require.NotNil(t, chat.Usage.PromptTokensDetails)
 	assert.Equal(t, 60, chat.Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 9, chat.Usage.PromptTokensDetails.CacheWriteTokens)
 	assert.Equal(t, 4, chat.Usage.PromptTokensDetails.AudioTokens)
 
 	require.NotNil(t, chat.Usage.CompletionTokensDetails)
@@ -1057,7 +1082,8 @@ func TestResponsesEventToChatChunks_Completed(t *testing.T) {
 				OutputTokens: 20,
 				TotalTokens:  70,
 				InputTokensDetails: &ResponsesInputTokensDetails{
-					CachedTokens: 30,
+					CachedTokens:     30,
+					CacheWriteTokens: 7,
 				},
 			},
 		},
@@ -1076,6 +1102,7 @@ func TestResponsesEventToChatChunks_Completed(t *testing.T) {
 	assert.Equal(t, 70, chunks[1].Usage.TotalTokens)
 	require.NotNil(t, chunks[1].Usage.PromptTokensDetails)
 	assert.Equal(t, 30, chunks[1].Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 7, chunks[1].Usage.PromptTokensDetails.CacheWriteTokens)
 }
 
 func TestResponsesEventToChatChunks_CompletedWithReasoningTokens(t *testing.T) {

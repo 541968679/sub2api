@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
@@ -2460,25 +2461,72 @@ func TestExtractOpenAISSEDataLine(t *testing.T) {
 
 func TestParseSSEUsage_SelectiveParsing(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	usage := &OpenAIUsage{InputTokens: 9, OutputTokens: 8, CacheReadInputTokens: 7}
+	usage := &OpenAIUsage{InputTokens: 9, OutputTokens: 8, CacheReadInputTokens: 7, CacheCreationInputTokens: 6}
 
 	// 非 completed 事件，不应覆盖 usage
 	svc.parseSSEUsage(`{"type":"response.in_progress","response":{"usage":{"input_tokens":1,"output_tokens":2}}}`, usage)
 	require.Equal(t, 9, usage.InputTokens)
 	require.Equal(t, 8, usage.OutputTokens)
 	require.Equal(t, 7, usage.CacheReadInputTokens)
+	require.Equal(t, 6, usage.CacheCreationInputTokens)
 
 	// completed 事件，应提取 usage
-	svc.parseSSEUsage(`{"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":5,"input_tokens_details":{"cached_tokens":2}}}}`, usage)
+	svc.parseSSEUsage(`{"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":5,"input_tokens_details":{"cached_tokens":2,"cache_write_tokens":4}}}}`, usage)
 	require.Equal(t, 3, usage.InputTokens)
 	require.Equal(t, 5, usage.OutputTokens)
 	require.Equal(t, 2, usage.CacheReadInputTokens)
+	require.Equal(t, 4, usage.CacheCreationInputTokens)
 
 	// done 事件同样可能携带最终 usage
-	svc.parseSSEUsage(`{"type":"response.done","response":{"usage":{"input_tokens":13,"output_tokens":15,"input_tokens_details":{"cached_tokens":4}}}}`, usage)
+	svc.parseSSEUsage(`{"type":"response.done","response":{"usage":{"input_tokens":13,"output_tokens":15,"input_tokens_details":{"cached_tokens":4},"prompt_tokens_details":{"cache_write_tokens":11}}}}`, usage)
 	require.Equal(t, 13, usage.InputTokens)
 	require.Equal(t, 15, usage.OutputTokens)
 	require.Equal(t, 4, usage.CacheReadInputTokens)
+	require.Equal(t, 11, usage.CacheCreationInputTokens)
+}
+
+func TestExtractOpenAIUsageFromJSONBytes_CacheWriteTokens(t *testing.T) {
+	body := []byte(`{"usage":{"input_tokens":100,"output_tokens":20,"input_tokens_details":{"cached_tokens":30,"cache_write_tokens":40}}}`)
+
+	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+
+	require.True(t, ok)
+	require.Equal(t, 100, usage.InputTokens)
+	require.Equal(t, 20, usage.OutputTokens)
+	require.Equal(t, 30, usage.CacheReadInputTokens)
+	require.Equal(t, 40, usage.CacheCreationInputTokens)
+
+	chatBody := []byte(`{"usage":{"prompt_tokens":80,"completion_tokens":10,"prompt_tokens_details":{"cached_tokens":16,"cache_write_tokens":24}}}`)
+	usage, ok = extractOpenAIUsageFromJSONBytes(chatBody)
+
+	require.True(t, ok)
+	require.Equal(t, 80, usage.InputTokens)
+	require.Equal(t, 10, usage.OutputTokens)
+	require.Equal(t, 16, usage.CacheReadInputTokens)
+	require.Equal(t, 24, usage.CacheCreationInputTokens)
+}
+
+func TestComputeOpenAIChargeableInputTokensSubtractsCacheWriteTokens(t *testing.T) {
+	require.Equal(t, 30, computeOpenAIChargeableInputTokens(100, 30, 40))
+	require.Equal(t, 0, computeOpenAIChargeableInputTokens(50, 40, 20))
+	require.Equal(t, 0, computeOpenAIChargeableInputTokens(-1, 10, 10))
+	require.Equal(t, 10, computeOpenAIChargeableInputTokens(10, -5, -5))
+}
+
+func TestCopyOpenAIUsageFromResponsesUsage_CacheWriteTokens(t *testing.T) {
+	usage := copyOpenAIUsageFromResponsesUsage(&apicompat.ResponsesUsage{
+		InputTokens:  100,
+		OutputTokens: 20,
+		InputTokensDetails: &apicompat.ResponsesInputTokensDetails{
+			CachedTokens:     30,
+			CacheWriteTokens: 40,
+		},
+	})
+
+	require.Equal(t, 100, usage.InputTokens)
+	require.Equal(t, 20, usage.OutputTokens)
+	require.Equal(t, 30, usage.CacheReadInputTokens)
+	require.Equal(t, 40, usage.CacheCreationInputTokens)
 }
 
 func TestExtractCodexFinalResponse_SampleReplay(t *testing.T) {
