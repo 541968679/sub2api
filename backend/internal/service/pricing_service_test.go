@@ -131,11 +131,12 @@ func TestGetModelPricing_Gpt56UsesStaticFallbackWhenRemoteMissing(t *testing.T) 
 		},
 	}
 
-	for _, model := range []string{"gpt-5.6-sol", "gpt-5.6-terra-high", "openai/gpt5.6-luna"} {
+	for _, model := range []string{"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra-high", "openai/gpt5.6-luna"} {
 		got := svc.GetModelPricing(model)
 		require.NotNil(t, got, model)
 		require.InDelta(t, 5e-6, got.InputCostPerToken, 1e-12, model)
 		require.InDelta(t, 3e-5, got.OutputCostPerToken, 1e-12, model)
+		require.InDelta(t, 6.25e-6, got.CacheCreationInputTokenCost, 1e-12, model)
 		require.InDelta(t, 5e-7, got.CacheReadInputTokenCost, 1e-12, model)
 		require.Equal(t, 272000, got.LongContextInputTokenThreshold, model)
 		require.InDelta(t, 2.0, got.LongContextInputCostMultiplier, 1e-12, model)

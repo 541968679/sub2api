@@ -48,6 +48,7 @@ var (
 	openAIGPT56FallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:               5e-06, // $5 per MTok
 		OutputCostPerToken:              3e-05, // $30 per MTok
+		CacheCreationInputTokenCost:     6.25e-06,
 		CacheReadInputTokenCost:         5e-07, // $0.50 per MTok
 		LongContextInputTokenThreshold:  272000,
 		LongContextInputCostMultiplier:  2.0,
@@ -819,7 +820,7 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		}
 	}
 
-	for _, prefix := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+	for _, prefix := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6"} {
 		if strings.HasPrefix(model, prefix) {
 			logger.With(zap.String("component", "service.pricing")).
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, prefix+"(static)"))

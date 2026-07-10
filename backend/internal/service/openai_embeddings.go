@@ -212,6 +212,9 @@ func extractOpenAIEmbeddingsUsage(body []byte) OpenAIUsage {
 	cacheCreationTokens := firstPositiveGJSONInt(
 		usage.Get("cache_creation_tokens"),
 		usage.Get("cache_creation_input_tokens"),
+		usage.Get("cache_write_tokens"),
+		usage.Get("prompt_tokens_details.cache_write_tokens"),
+		usage.Get("input_tokens_details.cache_write_tokens"),
 		usage.Get("input_tokens_details.cache_creation_tokens"),
 	)
 	return OpenAIUsage{

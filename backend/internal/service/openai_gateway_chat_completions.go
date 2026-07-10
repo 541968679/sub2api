@@ -600,11 +600,12 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				event.Response.Usage.InputTokens = displayUsage.InputTokens
 				event.Response.Usage.OutputTokens = displayUsage.OutputTokens
 				event.Response.Usage.TotalTokens = displayUsage.InputTokens + displayUsage.OutputTokens
-				if displayUsage.CacheReadInputTokens > 0 || event.Response.Usage.InputTokensDetails != nil {
+				if displayUsage.CacheReadInputTokens > 0 || displayUsage.CacheCreationInputTokens > 0 || event.Response.Usage.InputTokensDetails != nil {
 					if event.Response.Usage.InputTokensDetails == nil {
 						event.Response.Usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{}
 					}
 					event.Response.Usage.InputTokensDetails.CachedTokens = displayUsage.CacheReadInputTokens
+					event.Response.Usage.InputTokensDetails.CacheWriteTokens = displayUsage.CacheCreationInputTokens
 				}
 			}
 		}

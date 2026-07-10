@@ -975,7 +975,8 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	if discoveryModelIDs, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
 		if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
-			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, apiKey.Group.ModelsListConfig.Models)
+			selectedModels := service.ExpandGatewayModelDiscoveryCustomList(platform, apiKey.Group.ModelsListConfig.Models)
+			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, selectedModels)
 		}
 		writeModelsListForPlatform(c, platform, discoveryModelIDs)
 		return
@@ -1052,25 +1053,50 @@ func writeOpenAIModelsList(c *gin.Context, modelIDs []string) {
 		defaultsByID[model.ID] = model
 	}
 
-	models := make([]openai.Model, 0, len(modelIDs))
+	models := make([]openAIModelDiscoveryEntry, 0, len(modelIDs))
 	for _, modelID := range modelIDs {
 		if model, ok := defaultsByID[modelID]; ok {
-			models = append(models, model)
+			models = append(models, newOpenAIModelDiscoveryEntry(model))
 			continue
 		}
-		models = append(models, openai.Model{
+		models = append(models, newOpenAIModelDiscoveryEntry(openai.Model{
 			ID:          modelID,
 			Object:      "model",
 			Created:     1704067200,
 			OwnedBy:     "openai",
 			Type:        "model",
 			DisplayName: modelID,
-		})
+		}))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"object": "list",
 		"data":   models,
 	})
+}
+
+type openAIModelDiscoveryEntry struct {
+	openai.Model
+	SupportedEndpointTypes []string          `json:"supported_endpoint_types,omitempty"`
+	SupportedSessionModes  []string          `json:"supported_session_modes,omitempty"`
+	ActualModelReturned    map[string]string `json:"actual_model_returned,omitempty"`
+	InputModalities        []string          `json:"input_modalities,omitempty"`
+	OutputModalities       []string          `json:"output_modalities,omitempty"`
+	SupportedModalities    []string          `json:"supported_modalities,omitempty"`
+}
+
+func newOpenAIModelDiscoveryEntry(model openai.Model) openAIModelDiscoveryEntry {
+	return openAIModelDiscoveryEntry{
+		Model:                  model,
+		SupportedEndpointTypes: []string{"openai-response", "openai", "openai-response-compact"},
+		SupportedSessionModes:  []string{"chat_completions", "responses"},
+		ActualModelReturned: map[string]string{
+			"chat_completions": model.ID,
+			"responses":        model.ID,
+		},
+		InputModalities:     []string{"text", "image"},
+		OutputModalities:    []string{"text"},
+		SupportedModalities: []string{"text", "image"},
+	}
 }
 
 func writeAntigravityModelsList(c *gin.Context, modelIDs []string) {

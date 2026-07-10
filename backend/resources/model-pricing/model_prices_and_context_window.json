@@ -5141,6 +5141,7 @@
     "supports_web_search": true
   },
   "gpt-5.6-sol": {
+    "cache_creation_input_token_cost": 6.25e-06,
     "cache_read_input_token_cost": 5e-07,
     "cache_read_input_token_cost_above_272k_tokens": 1e-06,
     "cache_read_input_token_cost_flex": 2.5e-07,
@@ -5189,6 +5190,7 @@
     "supports_xhigh_reasoning_effort": true
   },
   "gpt-5.6-terra": {
+    "cache_creation_input_token_cost": 6.25e-06,
     "cache_read_input_token_cost": 5e-07,
     "cache_read_input_token_cost_above_272k_tokens": 1e-06,
     "cache_read_input_token_cost_flex": 2.5e-07,
@@ -5237,6 +5239,7 @@
     "supports_xhigh_reasoning_effort": true
   },
   "gpt-5.6-luna": {
+    "cache_creation_input_token_cost": 6.25e-06,
     "cache_read_input_token_cost": 5e-07,
     "cache_read_input_token_cost_above_272k_tokens": 1e-06,
     "cache_read_input_token_cost_flex": 2.5e-07,

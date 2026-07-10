@@ -492,6 +492,21 @@ func ApplyDisplayMultipliersToUsageMap(m map[string]any, mult *DisplayTokenMulti
 	output, outputOK := usageMapInt(m, "output_tokens")
 	cacheRead, cacheReadOK := usageMapInt(m, "cache_read_input_tokens")
 	cacheCreate, cacheCreateOK := usageMapInt(m, "cache_creation_input_tokens")
+	cacheWrite, cacheWriteOK := usageMapInt(m, "cache_write_tokens")
+	if cacheWriteOK && !cacheCreateOK {
+		displayInput, displayOutput, displayCacheRead, displayCacheWrite := computeOpenAIDisplayUsage(input, output, cacheRead, cacheWrite, mult)
+		if inputOK {
+			m["input_tokens"] = displayInput
+		}
+		if outputOK {
+			m["output_tokens"] = displayOutput
+		}
+		if cacheReadOK {
+			m["cache_read_input_tokens"] = displayCacheRead
+		}
+		m["cache_write_tokens"] = displayCacheWrite
+		return
+	}
 	displayInput, displayOutput, displayCacheRead, displayCacheCreate := computeSeparatedDisplayUsage(input, output, cacheRead, cacheCreate, mult)
 	// 嵌套 5m/1h 明细：按档反算并同步回写，保持 5m+1h==顶层总量。
 	// antigravity 的 usage map 没有嵌套对象，此分支天然不触发。
@@ -516,6 +531,9 @@ func ApplyDisplayMultipliersToUsageMap(m map[string]any, mult *DisplayTokenMulti
 	}
 	if cacheCreateOK {
 		m["cache_creation_input_tokens"] = displayCacheCreate
+	}
+	if cacheWriteOK {
+		m["cache_write_tokens"] = displayCacheCreate
 	}
 }
 
@@ -641,11 +659,18 @@ func rewriteOpenAIResponsesUsageTokens(body []byte, usagePath string, mult *Disp
 	outputPath := usagePath + ".output_tokens"
 	cachedPath := usagePath + ".input_tokens_details.cached_tokens"
 	totalPath := usagePath + ".total_tokens"
+	cacheWritePaths := []string{
+		usagePath + ".cache_creation_input_tokens",
+		usagePath + ".cache_write_tokens",
+		usagePath + ".input_tokens_details.cache_write_tokens",
+		usagePath + ".prompt_tokens_details.cache_write_tokens",
+	}
 
 	input := int(gjson.GetBytes(body, inputPath).Int())
 	output := int(gjson.GetBytes(body, outputPath).Int())
 	cached := int(gjson.GetBytes(body, cachedPath).Int())
-	displayInput, displayOutput, displayCached := computeOpenAIDisplayUsage(input, output, cached, mult)
+	cacheWrite := firstExistingNonZeroJSONInt(body, cacheWritePaths...)
+	displayInput, displayOutput, displayCached, displayCacheWrite := computeOpenAIDisplayUsage(input, output, cached, cacheWrite, mult)
 
 	var err error
 	if gjson.GetBytes(body, inputPath).Exists() {
@@ -665,6 +690,10 @@ func rewriteOpenAIResponsesUsageTokens(body []byte, usagePath string, mult *Disp
 		if err != nil {
 			return body
 		}
+	}
+	body, err = setExistingJSONIntPaths(body, displayCacheWrite, cacheWritePaths...)
+	if err != nil {
+		return body
 	}
 	if gjson.GetBytes(body, totalPath).Exists() {
 		body, err = sjson.SetBytes(body, totalPath, displayInput+displayOutput)
@@ -709,11 +738,18 @@ func rewriteOpenAIChatUsageTokens(body []byte, usagePath string, mult *DisplayTo
 	outputPath := usagePath + ".completion_tokens"
 	cachedPath := usagePath + ".prompt_tokens_details.cached_tokens"
 	totalPath := usagePath + ".total_tokens"
+	cacheWritePaths := []string{
+		usagePath + ".cache_creation_input_tokens",
+		usagePath + ".cache_write_tokens",
+		usagePath + ".prompt_tokens_details.cache_write_tokens",
+		usagePath + ".input_tokens_details.cache_write_tokens",
+	}
 
 	input := int(gjson.GetBytes(body, inputPath).Int())
 	output := int(gjson.GetBytes(body, outputPath).Int())
 	cached := int(gjson.GetBytes(body, cachedPath).Int())
-	displayInput, displayOutput, displayCached := computeOpenAIDisplayUsage(input, output, cached, mult)
+	cacheWrite := firstExistingNonZeroJSONInt(body, cacheWritePaths...)
+	displayInput, displayOutput, displayCached, displayCacheWrite := computeOpenAIDisplayUsage(input, output, cached, cacheWrite, mult)
 
 	var err error
 	if gjson.GetBytes(body, inputPath).Exists() {
@@ -734,6 +770,10 @@ func rewriteOpenAIChatUsageTokens(body []byte, usagePath string, mult *DisplayTo
 			return body
 		}
 	}
+	body, err = setExistingJSONIntPaths(body, displayCacheWrite, cacheWritePaths...)
+	if err != nil {
+		return body
+	}
 	if gjson.GetBytes(body, totalPath).Exists() {
 		body, err = sjson.SetBytes(body, totalPath, displayInput+displayOutput)
 		if err != nil {
@@ -747,9 +787,14 @@ func applyOpenAIResponsesUsageDisplayMultipliers(usage *OpenAIUsage, mult *Displ
 	if usage == nil {
 		return OpenAIUsage{}
 	}
-	displayInput, displayOutput, displayCached := computeOpenAIDisplayUsage(usage.InputTokens, usage.OutputTokens, usage.CacheReadInputTokens, mult)
+	displayInput, displayOutput, displayCached, displayCacheCreate := computeOpenAIDisplayUsage(
+		usage.InputTokens,
+		usage.OutputTokens,
+		usage.CacheReadInputTokens,
+		usage.CacheCreationInputTokens,
+		mult,
+	)
 	// cache creation 与其它字段同规则缩放（claude-gpt 桥接路径该值恒 0，属 no-op）。
-	_, _, _, displayCacheCreate := computeSeparatedDisplayUsage(0, 0, 0, usage.CacheCreationInputTokens, mult)
 	return OpenAIUsage{
 		InputTokens:              displayInput,
 		OutputTokens:             displayOutput,
@@ -759,9 +804,9 @@ func applyOpenAIResponsesUsageDisplayMultipliers(usage *OpenAIUsage, mult *Displ
 	}
 }
 
-func computeOpenAIDisplayUsage(inputTokens int, outputTokens int, cachedTokens int, mult *DisplayTokenMultipliers) (int, int, int) {
+func computeOpenAIDisplayUsage(inputTokens int, outputTokens int, cachedTokens int, cacheWriteTokens int, mult *DisplayTokenMultipliers) (int, int, int, int) {
 	if mult == nil || !mult.IsNonTrivial() {
-		return inputTokens, outputTokens, cachedTokens
+		return inputTokens, outputTokens, cachedTokens, cacheWriteTokens
 	}
 	if inputTokens < 0 {
 		inputTokens = 0
@@ -772,13 +817,47 @@ func computeOpenAIDisplayUsage(inputTokens int, outputTokens int, cachedTokens i
 	if cachedTokens < 0 {
 		cachedTokens = 0
 	}
-	nonCachedInput := inputTokens - cachedTokens
-	if nonCachedInput < 0 {
-		nonCachedInput = 0
+	if cacheWriteTokens < 0 {
+		cacheWriteTokens = 0
 	}
-	displayNonCachedInput, displayOutput, displayCached, _ := computeSeparatedDisplayUsage(nonCachedInput, outputTokens, cachedTokens, 0, mult)
-	displayInput := displayNonCachedInput + displayCached
-	return displayInput, displayOutput, displayCached
+	uncachedInput := computeOpenAIChargeableInputTokens(inputTokens, cachedTokens, cacheWriteTokens)
+	displayUncachedInput, displayOutput, displayCached, displayCacheWrite := computeSeparatedDisplayUsage(uncachedInput, outputTokens, cachedTokens, cacheWriteTokens, mult)
+	displayInput := displayUncachedInput + displayCached + displayCacheWrite
+	return displayInput, displayOutput, displayCached, displayCacheWrite
+}
+
+func firstExistingNonZeroJSONInt(body []byte, paths ...string) int {
+	var fallback int
+	found := false
+	for _, path := range paths {
+		node := gjson.GetBytes(body, path)
+		if !node.Exists() {
+			continue
+		}
+		value := int(node.Int())
+		if !found {
+			fallback = value
+			found = true
+		}
+		if value != 0 {
+			return value
+		}
+	}
+	return fallback
+}
+
+func setExistingJSONIntPaths(body []byte, value int, paths ...string) ([]byte, error) {
+	var err error
+	for _, path := range paths {
+		if !gjson.GetBytes(body, path).Exists() {
+			continue
+		}
+		body, err = sjson.SetBytes(body, path, value)
+		if err != nil {
+			return body, err
+		}
+	}
+	return body, nil
 }
 
 func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTokens int, cacheCreateTokens int, mult *DisplayTokenMultipliers) (int, int, int, int) {

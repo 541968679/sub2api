@@ -4139,3 +4139,34 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - JSON image requests now rewrite only the model when `response_format` is absent.
 - Multipart image requests now preserve explicit `response_format` fields but no longer append one when absent.
 - Updated OpenAI Images tests to assert omitted `response_format` remains omitted through the API-key forwarding path.
+
+## [2026-07-10] fix: Map OpenAI GPT-5.6 cache write usage
+
+**Affected files**: `backend/internal/service/openai_gateway_service.go`, `backend/internal/service/openai_usage_tokens.go`, `backend/internal/service/display_token_rewrite.go`, `backend/internal/service/openai_gateway_messages.go`, `backend/internal/service/openai_gateway_chat_completions.go`, `backend/internal/pkg/apicompat/types.go`, `backend/internal/pkg/apicompat/responses_to_chatcompletions.go`, `backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`, `backend/internal/service/openai_embeddings.go`, `backend/internal/service/openai_ws_v2/passthrough_relay.go`, `backend/internal/service/billing_service.go`, `backend/internal/service/pricing_service.go`, `backend/internal/service/openai_codex_transform.go`, `backend/internal/service/openai_model_alias.go`, `backend/resources/model-pricing/model_prices_and_context_window.json`
+**Compatibility**: Low risk. Adds official OpenAI `cache_write_tokens` parsing as a compatibility alias for local cache creation accounting, updates GPT-5.6 cache write pricing to the documented 1.25x input rate, and prevents cache-write tokens from being billed/displayed as ordinary input tokens.
+**Details**:
+- OpenAI HTTP/SSE, embeddings, and WS passthrough usage parsing now maps `cache_write_tokens` from top-level or token-details usage objects into local `cache_creation_tokens`.
+- OpenAI usage recording now treats cache-write tokens as a prompt/input component and subtracts them from ordinary input tokens before billing.
+- Display-token rewriting now scales official `cache_write_tokens` in Responses, Chat Completions, and usage-map shapes, while recomputing displayed `input_tokens`/`total_tokens` from uncached input + cache read + cache write components.
+- Responses-to-Chat and Chat-to-Responses compatibility structs/converters now preserve `cache_write_tokens`, so serialized streaming conversions do not drop cache-write details.
+- GPT-5.6 Sol/Terra/Luna pricing now includes `cache_creation_input_token_cost=6.25e-6`, with fallback policy filling missing dynamic entries from `input_price * 1.25`.
+- Bare `gpt-5.6` now normalizes as its own GPT-5.6 family model for backend billing/fallback logic instead of falling through to the older GPT-5.4 family.
+- Priority service-tier cache-write cost now scales with the priority input-token price instead of staying at the base cache-write rate.
+
+## [2026-07-10] fix: Preserve new GPT-5.6 models in OpenAI `/v1/models`
+
+**Affected files**: `backend/internal/service/models_list_policy.go`, `backend/internal/service/models_list_policy_test.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_models_list_test.go`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Low risk. OpenAI groups with intentionally narrowed custom `/v1/models` lists remain narrowed; stale full-default OpenAI lists are upgraded at runtime so Codex can discover newly curated GPT-5.6 models.
+**Details**:
+- Added `ExpandGatewayModelDiscoveryCustomList` to recognize the legacy full OpenAI discovery list (`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`) and expand it to the current curated list including `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`.
+- `GatewayHandler.Models` now applies this compatibility expansion before filtering curated OpenAI discovery IDs with a group custom models list.
+- Added regression coverage for the stale full-list upgrade while keeping intentionally narrowed custom lists narrow.
+
+## [2026-07-10] fix: Add Codex metadata to OpenAI `/v1/models`
+
+**Affected files**: `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_models_list_test.go`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Low risk. The OpenAI-compatible list keeps the standard `id/object/created/owned_by` model fields and adds optional Codex client discovery metadata only.
+**Details**:
+- OpenAI `/v1/models` entries now include `supported_endpoint_types`, `supported_session_modes`, `actual_model_returned`, `input_modalities`, `output_modalities`, and `supported_modalities`, matching the metadata shape Codex-style custom provider model pickers use to recognize Responses and Chat Completions support.
+- The metadata is presentation-only and does not affect model routing, account scheduling, model access checks, billing, or usage recording.
+- Added handler regression coverage for the Codex metadata on GPT-5.6 discovery entries.

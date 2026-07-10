@@ -245,6 +245,26 @@ func TestDisplayToken_OpenAIResponsesUsageRewriteBalancesCachePremium(t *testing
 	require.Equal(t, "kept", gjson.GetBytes(rewritten, "custom").String())
 }
 
+func TestDisplayToken_OpenAIResponsesUsageRewriteScalesCacheWriteTokens(t *testing.T) {
+	body := []byte(`{"usage":{"input_tokens":100,"output_tokens":10,"total_tokens":110,"input_tokens_details":{"cached_tokens":20,"cache_write_tokens":30},"output_tokens_details":{"reasoning_tokens":7}}}`)
+	mult := &DisplayTokenMultipliers{
+		InputMult:          2,
+		OutputMult:         3,
+		CacheReadMult:      1,
+		CacheCreateMult:    1.5,
+		CacheReadInputMult: 0,
+	}
+
+	rewritten := rewriteOpenAIResponsesUsageTokens(body, "usage", mult)
+
+	require.Equal(t, int64(165), gjson.GetBytes(rewritten, "usage.input_tokens").Int())
+	require.Equal(t, int64(20), gjson.GetBytes(rewritten, "usage.input_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(45), gjson.GetBytes(rewritten, "usage.input_tokens_details.cache_write_tokens").Int())
+	require.Equal(t, int64(30), gjson.GetBytes(rewritten, "usage.output_tokens").Int())
+	require.Equal(t, int64(195), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
+	require.Equal(t, int64(7), gjson.GetBytes(rewritten, "usage.output_tokens_details.reasoning_tokens").Int())
+}
+
 func TestDisplayToken_OpenAIChatUsageRewriteHandlesMissingCachedTokens(t *testing.T) {
 	body := []byte(`{"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}`)
 	mult := &DisplayTokenMultipliers{
@@ -260,6 +280,25 @@ func TestDisplayToken_OpenAIChatUsageRewriteHandlesMissingCachedTokens(t *testin
 	require.Equal(t, int64(10), gjson.GetBytes(rewritten, "usage.completion_tokens").Int())
 	require.Equal(t, int64(25), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
 	require.False(t, gjson.GetBytes(rewritten, "usage.prompt_tokens_details").Exists())
+}
+
+func TestDisplayToken_OpenAIChatUsageRewriteScalesCacheWriteTokens(t *testing.T) {
+	body := []byte(`{"usage":{"prompt_tokens":120,"completion_tokens":10,"total_tokens":130,"prompt_tokens_details":{"cached_tokens":20,"cache_write_tokens":40}}}`)
+	mult := &DisplayTokenMultipliers{
+		InputMult:          2,
+		OutputMult:         3,
+		CacheReadMult:      1,
+		CacheCreateMult:    1.5,
+		CacheReadInputMult: 0,
+	}
+
+	rewritten := rewriteOpenAIChatUsageTokens(body, "usage", mult)
+
+	require.Equal(t, int64(200), gjson.GetBytes(rewritten, "usage.prompt_tokens").Int())
+	require.Equal(t, int64(20), gjson.GetBytes(rewritten, "usage.prompt_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(60), gjson.GetBytes(rewritten, "usage.prompt_tokens_details.cache_write_tokens").Int())
+	require.Equal(t, int64(30), gjson.GetBytes(rewritten, "usage.completion_tokens").Int())
+	require.Equal(t, int64(230), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
 }
 
 func TestDisplayToken_OpenAIUsageRewriteClampsCachedTokensAboveInput(t *testing.T) {
@@ -318,6 +357,29 @@ func TestDisplayToken_UsageMapRewriteBalancesCachePremium(t *testing.T) {
 	require.Equal(t, 30, usage["output_tokens"])
 	require.Equal(t, 20, usage["cache_read_input_tokens"])
 	require.Equal(t, 5, usage["cache_creation_input_tokens"])
+}
+
+func TestDisplayToken_UsageMapRewriteScalesCacheWriteTokens(t *testing.T) {
+	usage := map[string]any{
+		"input_tokens":            float64(100),
+		"output_tokens":           float64(10),
+		"cache_read_input_tokens": float64(20),
+		"cache_write_tokens":      float64(30),
+	}
+	mult := &DisplayTokenMultipliers{
+		InputMult:          2,
+		OutputMult:         3,
+		CacheReadMult:      1,
+		CacheCreateMult:    1.5,
+		CacheReadInputMult: 0,
+	}
+
+	ApplyDisplayMultipliersToUsageMap(usage, mult)
+
+	require.Equal(t, 165, usage["input_tokens"])
+	require.Equal(t, 30, usage["output_tokens"])
+	require.Equal(t, 20, usage["cache_read_input_tokens"])
+	require.Equal(t, 45, usage["cache_write_tokens"])
 }
 
 func TestDisplayToken_OpenAIUsageRewriteNoopForNilOrTrivialMultiplier(t *testing.T) {
@@ -497,6 +559,7 @@ func TestDisplayToken_OpenAIResponsesUsageScalesCacheCreation(t *testing.T) {
 	out := applyOpenAIResponsesUsageDisplayMultipliers(usage, mult)
 
 	require.Equal(t, 150, out.CacheCreationInputTokens)
+	require.Equal(t, 150, out.InputTokens)
 }
 
 func TestDisplayToken_CacheCreationRealModeNoop(t *testing.T) {

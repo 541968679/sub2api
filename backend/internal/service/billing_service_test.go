@@ -164,7 +164,7 @@ func TestGetModelPricing_OpenAIGPT55ProAliasFallback(t *testing.T) {
 func TestGetModelPricing_OpenAIGPT56AliasFallbacks(t *testing.T) {
 	svc := newTestBillingService()
 
-	for _, model := range []string{"gpt5.6-sol", "openai/gpt5.6-terra", "gpt-5.6-luna-high"} {
+	for _, model := range []string{"gpt-5.6", "gpt5.6-sol", "openai/gpt5.6-terra", "gpt-5.6-luna-high"} {
 		pricing, err := svc.GetModelPricing(model)
 		require.NoError(t, err, model)
 		require.NotNil(t, pricing, model)
@@ -172,6 +172,7 @@ func TestGetModelPricing_OpenAIGPT56AliasFallbacks(t *testing.T) {
 		require.InDelta(t, 10e-6, pricing.InputPricePerTokenPriority, 1e-12, model)
 		require.InDelta(t, 30e-6, pricing.OutputPricePerToken, 1e-12, model)
 		require.InDelta(t, 60e-6, pricing.OutputPricePerTokenPriority, 1e-12, model)
+		require.InDelta(t, 6.25e-6, pricing.CacheCreationPricePerToken, 1e-12, model)
 		require.InDelta(t, 0.5e-6, pricing.CacheReadPricePerToken, 1e-12, model)
 		require.InDelta(t, 1e-6, pricing.CacheReadPricePerTokenPriority, 1e-12, model)
 		require.Equal(t, 272000, pricing.LongContextInputThreshold, model)
@@ -195,6 +196,7 @@ func TestGetModelPricing_OpenAIGPT56DynamicPricingWins(t *testing.T) {
 	require.NoError(t, err)
 	require.InDelta(t, 11e-6, pricing.InputPricePerToken, 1e-12)
 	require.InDelta(t, 22e-6, pricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 13.75e-6, pricing.CacheCreationPricePerToken, 1e-12)
 	require.InDelta(t, 1.1e-6, pricing.CacheReadPricePerToken, 1e-12)
 	require.Equal(t, 272000, pricing.LongContextInputThreshold)
 	require.InDelta(t, 2.0, pricing.LongContextInputMultiplier, 1e-12)
@@ -661,7 +663,7 @@ func TestServiceTierCostMultiplier(t *testing.T) {
 
 func TestCalculateCostWithServiceTier_OpenAIPriorityUsesPriorityPricing(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheReadTokens: 20}
+	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 10, CacheReadTokens: 20}
 
 	baseCost, err := svc.CalculateCost("gpt-5.1-codex", tokens, 1.0)
 	require.NoError(t, err)
@@ -671,6 +673,7 @@ func TestCalculateCostWithServiceTier_OpenAIPriorityUsesPriorityPricing(t *testi
 
 	require.InDelta(t, baseCost.InputCost*2, priorityCost.InputCost, 1e-10)
 	require.InDelta(t, baseCost.OutputCost*2, priorityCost.OutputCost, 1e-10)
+	require.InDelta(t, baseCost.CacheCreationCost*2, priorityCost.CacheCreationCost, 1e-10)
 	require.InDelta(t, baseCost.CacheReadCost*2, priorityCost.CacheReadCost, 1e-10)
 	require.InDelta(t, baseCost.TotalCost*2, priorityCost.TotalCost, 1e-10)
 }
