@@ -399,6 +399,73 @@ func TestAccountResolveCompactFallbackModels(t *testing.T) {
 			mapped:    "gpt-5.3-codex-spark",
 			want:      nil,
 		},
+		{
+			name:      "Spark uses mini fallback when config is absent",
+			requested: "gpt-5.3-codex-spark",
+			mapped:    "gpt-5.3-codex-spark",
+			want:      []string{"gpt-5.4-mini"},
+		},
+		{
+			name: "wildcard empty list disables Spark default fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-*": []any{},
+				},
+			},
+			requested: "gpt-5.3-codex-spark",
+			mapped:    "gpt-5.3-codex-spark",
+			want:      nil,
+		},
+		{
+			name: "blank scalar does not disable Spark default fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-spark": " ",
+				},
+			},
+			requested: "gpt-5.3-codex-spark",
+			mapped:    "gpt-5.3-codex-spark",
+			want:      []string{"gpt-5.4-mini"},
+		},
+		{
+			name: "invalid non-string list does not disable Spark default fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-spark": []any{123},
+				},
+			},
+			requested: "gpt-5.3-codex-spark",
+			mapped:    "gpt-5.3-codex-spark",
+			want:      []string{"gpt-5.4-mini"},
+		},
+		{
+			name: "primary-only list does not disable Spark default fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-spark": []any{"gpt-5.3-codex-spark"},
+				},
+			},
+			requested: "gpt-5.3-codex-spark",
+			mapped:    "gpt-5.3-codex-spark",
+			want:      []string{"gpt-5.4-mini"},
+		},
+		{
+			name:      "namespaced Spark effort alias uses mini fallback",
+			requested: "openai/gpt-5.3-codex-spark-high",
+			mapped:    "openai/gpt-5.3-codex-spark-high",
+			want:      []string{"gpt-5.4-mini"},
+		},
+		{
+			name: "canonical empty list disables namespaced Spark alias fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-spark": []any{},
+				},
+			},
+			requested: "openai/gpt-5.3-codex-spark-high",
+			mapped:    "openai/gpt-5.3-codex-spark-high",
+			want:      nil,
+		},
 	}
 
 	for _, tt := range tests {
