@@ -573,18 +573,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
-		safeErr := sanitizeUpstreamErrorMessage(err.Error())
-		setOpsUpstreamError(c, 0, safeErr, "")
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
-			UpstreamStatusCode: 0,
-			UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
-			Kind:               "request_error",
-			Message:            safeErr,
-		})
-		return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+		return nil, s.handleOpenAIUpstreamTransportError(upstreamCtx, c, account, err, false)
 	}
 	if imageTrace != nil {
 		imageTrace.Log(c, "upstream_headers_received", resp.StatusCode, resp.Header.Get("x-request-id"))
@@ -836,6 +825,23 @@ func cloneMultipartHeader(src textproto.MIMEHeader) textproto.MIMEHeader {
 }
 
 func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http.Response, c *gin.Context, imageTrace *OpenAIImageTrace) (OpenAIUsage, int, []string, error) {
+	body, err := copyOpenAIImagesNonStreamingBody(resp.Body, nil, resolveUpstreamResponseReadLimit(s.cfg))
+	if err != nil {
+		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
+			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
+		} else {
+			setOpsUpstreamError(c, http.StatusBadGateway, sanitizeUpstreamErrorMessage(err.Error()), "")
+		}
+		return OpenAIUsage{}, 0, nil, &UpstreamFailoverError{
+			StatusCode:      http.StatusBadGateway,
+			ResponseBody:    openAITransportFailoverBody,
+			ResponseHeaders: resp.Header.Clone(),
+		}
+	}
+	if imageTrace != nil {
+		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
+	}
+
 	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	contentType := "application/json"
 	if s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled {
@@ -843,20 +849,13 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(resp *http
 			contentType = upstreamType
 		}
 	}
-	c.Status(resp.StatusCode)
 	c.Header("Content-Type", contentType)
+	c.Status(resp.StatusCode)
 	if imageTrace != nil {
 		imageTrace.Log(c, "downstream_response_built", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
-	body, err := copyOpenAIImagesNonStreamingBody(resp.Body, c.Writer, resolveUpstreamResponseReadLimit(s.cfg))
-	if err != nil {
-		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
-			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
-		}
+	if _, err := c.Writer.Write(body); err != nil {
 		return OpenAIUsage{}, 0, nil, err
-	}
-	if imageTrace != nil {
-		imageTrace.Log(c, "upstream_body_read_done", resp.StatusCode, resp.Header.Get("x-request-id"))
 	}
 	if imageTrace != nil {
 		imageTrace.Log(c, "downstream_write_done", resp.StatusCode, resp.Header.Get("x-request-id"))
