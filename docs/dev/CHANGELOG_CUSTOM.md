@@ -4172,6 +4172,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Priority service-tier cache-write cost now scales with the priority input-token price instead of staying at the base cache-write rate.
 - Added targeted regression coverage for official cache-write fields, display-token amplification, ordinary input-token deduction, and GPT-5.6 cache creation pricing.
 
+## [2026-07-10] fix: Preserve new GPT-5.6 models in OpenAI `/v1/models`
+
+**Affected files**: `backend/internal/service/models_list_policy.go`, `backend/internal/service/models_list_policy_test.go`, `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_models_list_test.go`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Low risk. OpenAI groups with intentionally narrowed custom `/v1/models` lists remain narrowed; stale full-default OpenAI lists are upgraded at runtime so Codex can discover newly curated GPT-5.6 models.
+**Details**:
+- Added `ExpandGatewayModelDiscoveryCustomList` to recognize the legacy full OpenAI discovery list (`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`) and expand it to the current curated list including `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`.
+- `GatewayHandler.Models` now applies this compatibility expansion before filtering curated OpenAI discovery IDs with a group custom models list.
+- Added regression coverage for the stale full-list upgrade while keeping intentionally narrowed custom lists narrow.
+
 ## [2026-07-10] fix: Make manual image tests reproduce independent real gateway requests
 
 **Affected files**: `backend/internal/service/image_channel_monitor_service.go`, `backend/internal/service/image_channel_monitor_types.go`, `backend/internal/service/image_channel_monitor_manual_core.go`, `backend/internal/service/image_channel_manual_gateway.go`, `backend/internal/service/image_channel_manual_b64_stream.go`, `backend/internal/handler/admin/image_channel_monitor_handler.go`, `backend/internal/handler/openai_images.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_response_spool.go`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/client.ts`, `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `deploy/config.example.yaml`, `README_CN.md`, `docs/dev/codebase/image-channel-monitor.md`, `docs/dev/codebase/gateway.md`

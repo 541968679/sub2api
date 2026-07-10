@@ -975,7 +975,8 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 
 	if discoveryModelIDs, ok := service.GatewayModelDiscoveryIDsForPlatform(platform); ok {
 		if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
-			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, apiKey.Group.ModelsListConfig.Models)
+			selectedModels := service.ExpandGatewayModelDiscoveryCustomList(platform, apiKey.Group.ModelsListConfig.Models)
+			discoveryModelIDs = filterModelsByCustomList(discoveryModelIDs, nil, selectedModels)
 		}
 		writeModelsListForPlatform(c, platform, discoveryModelIDs)
 		return

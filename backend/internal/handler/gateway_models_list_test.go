@@ -45,6 +45,24 @@ func TestGatewayHandlerModels_OpenAICuratedListCanBeNarrowedByCustomList(t *test
 	require.Equal(t, []string{"gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5"}, ids)
 }
 
+func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels(t *testing.T) {
+	groupID := int64(1)
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformOpenAI,
+			ModelsListConfig: service.GroupModelsListConfig{
+				Enabled: true,
+				Models:  []string{"gpt-5.5", "gpt-5.4", "gpt-5.4-mini"},
+			},
+		},
+	}
+
+	ids := runGatewayModelsForTest(t, apiKey)
+	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}, ids)
+}
+
 func TestGatewayHandlerModels_AntigravityCuratedDiscoveryList(t *testing.T) {
 	groupID := int64(2)
 	apiKey := &service.APIKey{

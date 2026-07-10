@@ -48,3 +48,29 @@ func TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy(t *testing.T) {
 		"claude-sonnet-4-6",
 	}, antigravity)
 }
+
+func TestExpandGatewayModelDiscoveryCustomList_UpgradesLegacyOpenAIFullList(t *testing.T) {
+	expanded := ExpandGatewayModelDiscoveryCustomList(PlatformOpenAI, []string{
+		"gpt-5.5",
+		"gpt-5.4",
+		"gpt-5.4-mini",
+	})
+
+	require.Equal(t, []string{
+		"gpt-5.6-sol",
+		"gpt-5.6-terra",
+		"gpt-5.6-luna",
+		"gpt-5.5",
+		"gpt-5.4",
+		"gpt-5.4-mini",
+	}, expanded)
+}
+
+func TestExpandGatewayModelDiscoveryCustomList_KeepsNarrowedOpenAIList(t *testing.T) {
+	expanded := ExpandGatewayModelDiscoveryCustomList(PlatformOpenAI, []string{
+		"gpt-5.5",
+		"gpt-5.4-mini",
+	})
+
+	require.Equal(t, []string{"gpt-5.5", "gpt-5.4-mini"}, expanded)
+}
