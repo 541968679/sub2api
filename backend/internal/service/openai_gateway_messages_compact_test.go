@@ -88,6 +88,29 @@ func compactJSONError(statusCode int, code, message, requestID string) *http.Res
 	}
 }
 
+func compactJSONErrorWithUsage(statusCode int, code, message, requestID string, inputTokens, outputTokens int) *http.Response {
+	body, _ := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+			"type":    code,
+		},
+		"usage": map[string]any{
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  inputTokens + outputTokens,
+		},
+	})
+	return &http.Response{
+		StatusCode: statusCode,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+			"x-request-id": []string{requestID},
+		},
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+}
+
 func TestIsClaudeCodeCompactAnthropicRequest(t *testing.T) {
 	req := &apicompat.AnthropicRequest{Messages: []apicompat.AnthropicMessage{
 		{Role: "user", Content: json.RawMessage(`"normal earlier message"`)},
@@ -331,5 +354,44 @@ func TestRunAnthropicCompactRecovery_RecursivelySplitsChunkThatStillExceedsConte
 	require.NotContains(t, leftRetry, "RIGHT_HALF_MUST_SURVIVE")
 	require.Contains(t, rightRetry, "RIGHT_HALF_MUST_SURVIVE")
 	require.Equal(t, 12_260, result.Usage.InputTokens)
+	require.Equal(t, 53, result.Usage.OutputTokens)
+}
+
+func TestRunAnthropicCompactRecovery_HTTPContextSplitPreservesFailedAttemptUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	leftTranscript := "HTTP_LEFT_HALF\n" + strings.Repeat("中", 7_000)
+	rightTranscript := "HTTP_RIGHT_HALF\n" + strings.Repeat("文", 7_000)
+	fullReq := &apicompat.AnthropicRequest{Messages: []apicompat.AnthropicMessage{
+		{Role: "user", Content: json.RawMessage(fmt.Sprintf("%q", leftTranscript+"\n"+rightTranscript))},
+		{Role: "user", Content: json.RawMessage(fmt.Sprintf("%q", testClaudeCodeCompactPrompt()))},
+	}}
+
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactJSONErrorWithUsage(
+			http.StatusBadRequest, "context_length_exceeded", "Chunk exceeds the context window.",
+			"rid_http_parent", 8_000, 0,
+		),
+		compactCompletedSSE("resp_http_left", "gpt-5.5", "HTTP left summary", 100, 20),
+		compactCompletedSSE("resp_http_right", "gpt-5.5", "HTTP right summary", 110, 21),
+		compactCompletedSSE("resp_http_merge", "gpt-5.5", "# Compact Capsule\n\nHTTP recursive recovery", 50, 12),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	account := rawChatCompletionsTestAccount()
+
+	result, err := svc.runAnthropicCompactRecovery(
+		context.Background(), c, account, fullReq, "sk-test", false,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+		OpenAIUsage{}, false, "rid_initial",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), "HTTP recursive recovery")
+	require.Len(t, upstream.bodies, 4)
+	require.Equal(t, 8_260, result.Usage.InputTokens)
 	require.Equal(t, 53, result.Usage.OutputTokens)
 }
