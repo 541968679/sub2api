@@ -152,3 +152,19 @@ func TestOpenAIMessagesStreamNormalIncrementalToolCallRemainsUsable(t *testing.T
 	require.Contains(t, rec.Body.String(), `"type":"tool_use"`)
 	require.Contains(t, rec.Body.String(), `"stop_reason":"tool_use"`)
 }
+
+func TestOpenAIMessagesStreamFailureAfterVisibleOutputDoesNotBecomeRetryable(t *testing.T) {
+	result, err, rec := handleMessagesTestStream(t,
+		`{"type":"response.created","response":{"id":"resp_partial","model":"gpt-5.5","status":"in_progress"}}`,
+		`{"type":"response.output_text.delta","output_index":0,"delta":"partial answer"}`,
+		`{"type":"response.failed","response":{"id":"resp_partial","status":"failed","error":{"code":"server_error","message":"processing stopped"},"output":[],"usage":{"input_tokens":100,"output_tokens":3,"total_tokens":103}}}`,
+	)
+
+	require.Error(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.ClientOutputStarted)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr), "partial visible output must not be replayed on another account")
+	require.Contains(t, rec.Body.String(), "partial answer")
+	require.Contains(t, rec.Body.String(), "event: error")
+}
