@@ -69,6 +69,24 @@ func compactCompletedSSE(id, model, text string, inputTokens, outputTokens int) 
 	return compactTestSSE(string(payload))
 }
 
+func compactJSONError(statusCode int, code, message, requestID string) *http.Response {
+	body, _ := json.Marshal(map[string]any{
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+			"type":    code,
+		},
+	})
+	return &http.Response{
+		StatusCode: statusCode,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+			"x-request-id": []string{requestID},
+		},
+		Body: io.NopCloser(bytes.NewReader(body)),
+	}
+}
+
 func TestIsClaudeCodeCompactAnthropicRequest(t *testing.T) {
 	req := &apicompat.AnthropicRequest{Messages: []apicompat.AnthropicMessage{
 		{Role: "user", Content: json.RawMessage(`"normal earlier message"`)},
@@ -113,6 +131,7 @@ func TestForwardAsAnthropic_APIKeyCompactFallbackUsesUntrimmedTranscript(t *test
 		compactTestSSE(failed),
 		compactCompletedSSE("resp_chunk", "gpt-5.4-mini", "chunk summary preserves early state", 1000, 50),
 		compactCompletedSSE("resp_merge", "gpt-5.4-mini", "# Compact Capsule\n\nusable final summary", 200, 30),
+		compactCompletedSSE("resp_next", "gpt-5.5", "continued without invalid recovery binding", 50, 10),
 	}}
 	svc := &OpenAIGatewayService{
 		cfg: &config.Config{Security: config.SecurityConfig{
@@ -146,6 +165,104 @@ func TestForwardAsAnthropic_APIKeyCompactFallbackUsesUntrimmedTranscript(t *test
 	require.Contains(t, string(upstream.bodies[1]), "EARLY_CONTEXT_MUST_SURVIVE",
 		"compact fallback must use the request captured before replay-guard trimming")
 	require.Equal(t, "gpt-5.4-mini", gjson.GetBytes(upstream.bodies[0], "model").String())
+
+	nextBody := []byte(`{"model":"claude-opus-4-8","max_tokens":256,"stream":true,"messages":[{"role":"user","content":"continue the task"}]}`)
+	nextRec := httptest.NewRecorder()
+	nextContext, _ := gin.CreateTestContext(nextRec)
+	nextContext.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(nextBody))
+	nextContext.Request.Header.Set("Content-Type", "application/json")
+	nextContext.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	_, err = svc.ForwardAsAnthropic(context.Background(), nextContext, account, nextBody, "stable-session", "gpt-5.5")
+	require.NoError(t, err)
+	require.Len(t, upstream.bodies, 4)
+	require.False(t, gjson.GetBytes(upstream.bodies[3], "previous_response_id").Exists(),
+		"store=false compact recovery responses must not be attached to the next turn")
+}
+
+func TestForwardAsAnthropic_CompactHTTPContextErrorRecoversWithChunks(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(fmt.Sprintf(`{"model":"claude-opus-4-8","max_tokens":2048,"stream":true,"messages":[{"role":"user","content":"state that must be summarized"},{"role":"user","content":[{"type":"text","text":%q}]}]}`, testClaudeCodeCompactPrompt()))
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactJSONError(http.StatusBadRequest, "context_length_exceeded", "Your input exceeds the context window.", "rid_context"),
+		compactCompletedSSE("resp_chunk", "gpt-5.4-mini", "chunk summary", 100, 20),
+		compactCompletedSSE("resp_merge", "gpt-5.4-mini", "usable summary after HTTP context error", 40, 10),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	account := rawChatCompletionsTestAccount()
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "compact-http-context", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), "usable summary after HTTP context error")
+	require.Len(t, upstream.bodies, 3)
+}
+
+func TestForwardAsAnthropic_CompactConfiguredFallbackModelRecoversFromRateLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(fmt.Sprintf(`{"model":"claude-opus-4-8","max_tokens":2048,"stream":true,"messages":[{"role":"user","content":"active task state"},{"role":"user","content":[{"type":"text","text":%q}]}]}`, testClaudeCodeCompactPrompt()))
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactJSONError(http.StatusTooManyRequests, "rate_limit_error", "The usage limit has been reached for compact-primary.", "rid_primary_limited"),
+		compactCompletedSSE("resp_chunk", "compact-secondary", "fallback chunk summary", 100, 20),
+		compactCompletedSSE("resp_merge", "compact-secondary", "usable summary from configured fallback", 40, 10),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	account := rawChatCompletionsTestAccount()
+	account.Credentials["compact_model_mapping"] = map[string]any{"gpt-5.5": "compact-primary"}
+	account.Credentials["compact_model_fallbacks"] = map[string]any{"compact-primary": []any{"compact-secondary"}}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "compact-model-fallback", "gpt-5.5")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "compact-secondary", result.BillingModel)
+	require.Equal(t, "compact-secondary", result.UpstreamModel)
+	require.Contains(t, rec.Body.String(), "usable summary from configured fallback")
+	require.Len(t, upstream.bodies, 3)
+	require.Equal(t, "compact-primary", gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "compact-secondary", gjson.GetBytes(upstream.bodies[1], "model").String())
+	require.Equal(t, "compact-secondary", gjson.GetBytes(upstream.bodies[2], "model").String())
+}
+
+func TestRunOpenAIAnthropicCompactRecoveryRequest_DropsContinuationHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("session_id", "client-session")
+	c.Request.Header.Set("conversation_id", "client-conversation")
+	c.Request.Header.Set("x-codex-turn-state", "client-turn-state")
+	c.Request.Header.Set("x-codex-turn-metadata", "client-turn-metadata")
+
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactCompletedSSE("resp_recovery", "gpt-5.5", "recovery summary", 10, 5),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	account := rawChatCompletionsTestAccount()
+	account.Type = AccountTypeAPIKey
+	account.Credentials = map[string]any{
+		"api_key":  "sk-test",
+		"base_url": "https://example.com/v1",
+	}
+
+	_, _, _, err := svc.runOpenAIAnthropicCompactRecoveryRequest(
+		context.Background(), c, account, "sk-test", "gpt-5.5", "summarize", "transcript", 1024,
+	)
+	require.NoError(t, err)
+	require.Len(t, upstream.reqs, 1)
+	for _, header := range []string{"session_id", "conversation_id", "x-codex-turn-state", "x-codex-turn-metadata"} {
+		require.Empty(t, upstream.reqs[0].Header.Get(header), "compact recovery must not inherit %s", header)
+	}
 }
 
 func TestForwardAsAnthropic_CompactReasoningOnlyFallsBackToUsableSummary(t *testing.T) {
