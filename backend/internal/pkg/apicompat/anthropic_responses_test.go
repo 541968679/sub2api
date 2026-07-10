@@ -695,6 +695,57 @@ func TestResponsesEventToAnthropicEvents_TerminalFillsArgumentsForStartedTool(t 
 	assert.Equal(t, "message_stop", events[len(events)-1].Type)
 }
 
+func TestResponsesEventToAnthropicEvents_TerminalCompletesPartiallyStreamedToolArguments(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_partial_terminal_args", Model: "gpt-5.5"},
+	}, state)
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item: &ResponsesOutput{
+			Type:   "function_call",
+			CallID: "call_partial_terminal_args",
+			Name:   "Bash",
+		},
+	}, state)
+
+	partial := `{"command":"git`
+	deltaEvents := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.function_call_arguments.delta",
+		OutputIndex: 0,
+		Delta:       partial,
+	}, state)
+	require.Len(t, deltaEvents, 1)
+	require.NotNil(t, deltaEvents[0].Delta)
+	assert.Equal(t, partial, deltaEvents[0].Delta.PartialJSON)
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.completed",
+		Response: &ResponsesResponse{
+			ID:     "resp_partial_terminal_args",
+			Model:  "gpt-5.5",
+			Status: "completed",
+			Output: []ResponsesOutput{{
+				Type:      "function_call",
+				CallID:    "call_partial_terminal_args",
+				Name:      "Bash",
+				Arguments: `{"command":"git status"}`,
+			}},
+		},
+	}, state)
+
+	require.GreaterOrEqual(t, len(events), 4)
+	require.NotNil(t, events[0].Delta)
+	assert.Equal(t, "input_json_delta", events[0].Delta.Type)
+	assert.Equal(t, ` status"}`, events[0].Delta.PartialJSON)
+	assert.JSONEq(t, `{"command":"git status"}`, partial+events[0].Delta.PartialJSON)
+	assert.Equal(t, "content_block_stop", events[1].Type)
+	assert.Equal(t, "tool_use", events[len(events)-2].Delta.StopReason)
+	assert.Equal(t, "message_stop", events[len(events)-1].Type)
+}
+
 func TestResponsesEventToAnthropicEvents_CustomToolDoneEmitsWrappedInput(t *testing.T) {
 	state := NewResponsesEventToAnthropicState()
 	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{

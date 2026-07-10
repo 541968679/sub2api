@@ -356,6 +356,73 @@ func TestAccountResolveCompactMappedModel(t *testing.T) {
 	}
 }
 
+func TestAccountResolveCompactFallbackModels(t *testing.T) {
+	tests := []struct {
+		name        string
+		credentials map[string]any
+		requested   string
+		mapped      string
+		want        []string
+	}{
+		{
+			name: "longest wildcard wins and candidates are deduplicated",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-*":         []any{"generic", "shared"},
+					"gpt-5.4-mini*": []any{"primary", "Shared", "secondary", "secondary"},
+				},
+			},
+			requested: "claude-opus-4-8",
+			mapped:    "gpt-5.4-mini-compact",
+			want:      []string{"primary", "Shared", "secondary"},
+		},
+		{
+			name: "mapped and requested rules retain stable order",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"compact-primary": []any{"compact-primary", "fallback-a", "fallback-b"},
+					"claude-*":        []any{"fallback-b", "fallback-c"},
+				},
+			},
+			requested: "claude-opus-4-8",
+			mapped:    "compact-primary",
+			want:      []string{"fallback-a", "fallback-b", "fallback-c"},
+		},
+		{
+			name: "explicit empty list disables Spark default fallback",
+			credentials: map[string]any{
+				"compact_model_fallbacks": map[string]any{
+					"gpt-5.3-codex-spark": []any{},
+				},
+			},
+			requested: "gpt-5.3-codex-spark",
+			mapped:    "gpt-5.3-codex-spark",
+			want:      nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &Account{Platform: PlatformOpenAI, Credentials: tt.credentials}
+			if got := account.ResolveCompactFallbackModels(tt.requested, tt.mapped); !equalStringSlices(got, tt.want) {
+				t.Fatalf("ResolveCompactFallbackModels(%q, %q) = %#v, want %#v", tt.requested, tt.mapped, got, tt.want)
+			}
+		})
+	}
+}
+
+func equalStringSlices(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func equalStringMap(left, right map[string]string) bool {
 	if len(left) != len(right) {
 		return false

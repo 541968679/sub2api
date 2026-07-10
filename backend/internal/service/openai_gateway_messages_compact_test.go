@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
@@ -286,4 +287,49 @@ func TestForwardAsAnthropic_CompactReasoningOnlyFallsBackToUsableSummary(t *test
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Contains(t, rec.Body.String(), "usable compact after reasoning-only")
+}
+
+func TestRunAnthropicCompactRecovery_RecursivelySplitsChunkThatStillExceedsContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	leftTranscript := "LEFT_HALF_MUST_SURVIVE\n" + strings.Repeat("a", 7_000)
+	rightTranscript := "RIGHT_HALF_MUST_SURVIVE\n" + strings.Repeat("b", 7_000)
+	fullReq := &apicompat.AnthropicRequest{Messages: []apicompat.AnthropicMessage{
+		{Role: "user", Content: json.RawMessage(fmt.Sprintf("%q", leftTranscript+"\n"+rightTranscript))},
+		{Role: "user", Content: json.RawMessage(fmt.Sprintf("%q", testClaudeCodeCompactPrompt()))},
+	}}
+
+	chunkTooLarge := `{"type":"response.failed","response":{"id":"resp_chunk_too_large","status":"failed","error":{"code":"context_length_exceeded","message":"Chunk exceeds the context window."},"output":[],"usage":{"input_tokens":12000,"output_tokens":0,"total_tokens":12000}}}`
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactTestSSE(chunkTooLarge),
+		compactCompletedSSE("resp_left", "gpt-5.5", "left half summary", 100, 20),
+		compactCompletedSSE("resp_right", "gpt-5.5", "right half summary", 110, 21),
+		compactCompletedSSE("resp_merge", "gpt-5.5", "# Compact Capsule\n\nrecursive split recovered the task", 50, 12),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	account := rawChatCompletionsTestAccount()
+
+	result, err := svc.runAnthropicCompactRecovery(
+		context.Background(), c, account, fullReq, "sk-test", false,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+		OpenAIUsage{}, false, "rid_initial",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), "recursive split recovered the task")
+	require.Len(t, upstream.bodies, 4)
+	firstAttempt := gjson.GetBytes(upstream.bodies[0], "input.0.content.0.text").String()
+	leftRetry := gjson.GetBytes(upstream.bodies[1], "input.0.content.0.text").String()
+	rightRetry := gjson.GetBytes(upstream.bodies[2], "input.0.content.0.text").String()
+	require.Contains(t, firstAttempt, "LEFT_HALF_MUST_SURVIVE")
+	require.Contains(t, firstAttempt, "RIGHT_HALF_MUST_SURVIVE")
+	require.Contains(t, leftRetry, "LEFT_HALF_MUST_SURVIVE")
+	require.NotContains(t, leftRetry, "RIGHT_HALF_MUST_SURVIVE")
+	require.Contains(t, rightRetry, "RIGHT_HALF_MUST_SURVIVE")
+	require.Equal(t, 12_260, result.Usage.InputTokens)
+	require.Equal(t, 53, result.Usage.OutputTokens)
 }
