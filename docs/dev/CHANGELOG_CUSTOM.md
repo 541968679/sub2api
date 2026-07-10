@@ -4181,6 +4181,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - `GatewayHandler.Models` now applies this compatibility expansion before filtering curated OpenAI discovery IDs with a group custom models list.
 - Added regression coverage for the stale full-list upgrade while keeping intentionally narrowed custom lists narrow.
 
+## [2026-07-10] fix: Add Codex metadata to OpenAI `/v1/models`
+
+**Affected files**: `backend/internal/handler/gateway_handler.go`, `backend/internal/handler/gateway_models_list_test.go`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Low risk. The OpenAI-compatible list keeps the standard `id/object/created/owned_by` model fields and adds optional Codex client discovery metadata only.
+**Details**:
+- OpenAI `/v1/models` entries now include `supported_endpoint_types`, `supported_session_modes`, `actual_model_returned`, `input_modalities`, `output_modalities`, and `supported_modalities`, matching the metadata shape Codex-style custom provider model pickers use to recognize Responses and Chat Completions support.
+- The metadata is presentation-only and does not affect model routing, account scheduling, model access checks, billing, or usage recording.
+- Added handler regression coverage for the Codex metadata on GPT-5.6 discovery entries.
+
 ## [2026-07-10] fix: Make manual image tests reproduce independent real gateway requests
 
 **Affected files**: `backend/internal/service/image_channel_monitor_service.go`, `backend/internal/service/image_channel_monitor_types.go`, `backend/internal/service/image_channel_monitor_manual_core.go`, `backend/internal/service/image_channel_manual_gateway.go`, `backend/internal/service/image_channel_manual_b64_stream.go`, `backend/internal/handler/admin/image_channel_monitor_handler.go`, `backend/internal/handler/openai_images.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_response_spool.go`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/client.ts`, `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `deploy/config.example.yaml`, `README_CN.md`, `docs/dev/codebase/image-channel-monitor.md`, `docs/dev/codebase/gateway.md`

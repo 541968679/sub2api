@@ -27,6 +27,30 @@ func TestGatewayHandlerModels_OpenAICuratedDiscoveryList(t *testing.T) {
 	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}, ids)
 }
 
+func TestGatewayHandlerModels_OpenAICuratedDiscoveryListIncludesCodexMetadata(t *testing.T) {
+	groupID := int64(1)
+	apiKey := &service.APIKey{
+		GroupID: &groupID,
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformOpenAI,
+		},
+	}
+
+	entries := runGatewayModelEntriesForTest(t, apiKey)
+	require.NotEmpty(t, entries)
+
+	first := entries[0]
+	require.Equal(t, "gpt-5.6-sol", first.ID)
+	require.ElementsMatch(t, []string{"openai-response", "openai", "openai-response-compact"}, first.SupportedEndpointTypes)
+	require.ElementsMatch(t, []string{"chat_completions", "responses"}, first.SupportedSessionModes)
+	require.Equal(t, "gpt-5.6-sol", first.ActualModelReturned["chat_completions"])
+	require.Equal(t, "gpt-5.6-sol", first.ActualModelReturned["responses"])
+	require.ElementsMatch(t, []string{"text", "image"}, first.InputModalities)
+	require.ElementsMatch(t, []string{"text"}, first.OutputModalities)
+	require.ElementsMatch(t, []string{"text", "image"}, first.SupportedModalities)
+}
+
 func TestGatewayHandlerModels_OpenAICuratedListCanBeNarrowedByCustomList(t *testing.T) {
 	groupID := int64(1)
 	apiKey := &service.APIKey{
@@ -104,6 +128,17 @@ func TestGatewayHandlerAntigravityModels_CuratedDiscoveryList(t *testing.T) {
 func runGatewayModelsForTest(t *testing.T, apiKey *service.APIKey) []string {
 	t.Helper()
 
+	entries := runGatewayModelEntriesForTest(t, apiKey)
+	ids := make([]string, 0, len(entries))
+	for _, model := range entries {
+		ids = append(ids, model.ID)
+	}
+	return ids
+}
+
+func runGatewayModelEntriesForTest(t *testing.T, apiKey *service.APIKey) []modelEntryForTest {
+	t.Helper()
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
@@ -113,16 +148,24 @@ func runGatewayModelsForTest(t *testing.T, apiKey *service.APIKey) []string {
 	h.Models(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	return decodeModelIDsForTest(t, recorder.Body.Bytes())
+	return decodeModelEntriesForTest(t, recorder.Body.Bytes())
+}
+
+type modelEntryForTest struct {
+	ID                     string            `json:"id"`
+	SupportedEndpointTypes []string          `json:"supported_endpoint_types"`
+	SupportedSessionModes  []string          `json:"supported_session_modes"`
+	ActualModelReturned    map[string]string `json:"actual_model_returned"`
+	InputModalities        []string          `json:"input_modalities"`
+	OutputModalities       []string          `json:"output_modalities"`
+	SupportedModalities    []string          `json:"supported_modalities"`
 }
 
 func decodeModelIDsForTest(t *testing.T, body []byte) []string {
 	t.Helper()
 
 	var response struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+		Data []modelEntryForTest `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(body, &response))
 	ids := make([]string, 0, len(response.Data))
@@ -130,4 +173,14 @@ func decodeModelIDsForTest(t *testing.T, body []byte) []string {
 		ids = append(ids, model.ID)
 	}
 	return ids
+}
+
+func decodeModelEntriesForTest(t *testing.T, body []byte) []modelEntryForTest {
+	t.Helper()
+
+	var response struct {
+		Data []modelEntryForTest `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(body, &response))
+	return response.Data
 }
