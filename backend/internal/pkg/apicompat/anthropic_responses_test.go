@@ -544,6 +544,68 @@ func TestResponsesEventToAnthropicEvents_TopLevelTerminalUsage(t *testing.T) {
 	assert.Equal(t, "message_stop", events[1].Type)
 }
 
+func TestResponsesEventToAnthropicEvents_TerminalOutputTextOnly(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.completed",
+		Response: &ResponsesResponse{
+			ID:     "resp_terminal_text",
+			Model:  "gpt-5.5",
+			Status: "completed",
+			Output: []ResponsesOutput{{
+				Type: "message",
+				Content: []ResponsesContentPart{{
+					Type: "output_text",
+					Text: "recovered terminal text",
+				}},
+			}},
+			Usage: &ResponsesUsage{InputTokens: 9, OutputTokens: 3},
+		},
+	}, state)
+
+	require.Len(t, events, 6)
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.Equal(t, "content_block_start", events[1].Type)
+	assert.Equal(t, "content_block_delta", events[2].Type)
+	require.NotNil(t, events[2].Delta)
+	assert.Equal(t, "recovered terminal text", events[2].Delta.Text)
+	assert.Equal(t, "content_block_stop", events[3].Type)
+	assert.Equal(t, "message_delta", events[4].Type)
+	assert.Equal(t, "message_stop", events[5].Type)
+}
+
+func TestResponsesEventToAnthropicEvents_TerminalOutputToolOnly(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.completed",
+		Response: &ResponsesResponse{
+			ID:     "resp_terminal_tool",
+			Model:  "gpt-5.5",
+			Status: "completed",
+			Output: []ResponsesOutput{{
+				Type:      "function_call",
+				CallID:    "call_terminal",
+				Name:      "Read",
+				Arguments: `{"file_path":"README.md"}`,
+			}},
+			Usage: &ResponsesUsage{InputTokens: 12, OutputTokens: 4},
+		},
+	}, state)
+
+	require.Len(t, events, 5)
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.Equal(t, "content_block_start", events[1].Type)
+	require.NotNil(t, events[1].ContentBlock)
+	assert.Equal(t, "tool_use", events[1].ContentBlock.Type)
+	assert.Equal(t, "Read", events[1].ContentBlock.Name)
+	assert.JSONEq(t, `{"file_path":"README.md"}`, string(events[1].ContentBlock.Input))
+	assert.Equal(t, "content_block_stop", events[2].Type)
+	assert.Equal(t, "tool_use", events[3].Delta.StopReason)
+	assert.Equal(t, "message_stop", events[4].Type)
+}
+
 func TestResponsesEventToAnthropicEvents_ResponseDoneIncomplete(t *testing.T) {
 	state := NewResponsesEventToAnthropicState()
 	state.Model = "gpt-4o"
