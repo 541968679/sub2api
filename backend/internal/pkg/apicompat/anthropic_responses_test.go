@@ -265,6 +265,28 @@ func TestResponsesToAnthropic_CachedTokensClampInputTokens(t *testing.T) {
 	assert.Equal(t, 5, anth.Usage.OutputTokens)
 }
 
+func TestResponsesToAnthropic_CacheWriteTokensUseAnthropicInputSemantics(t *testing.T) {
+	resp := &ResponsesResponse{
+		ID:     "resp_cache_write",
+		Model:  "gpt-5.6",
+		Status: "completed",
+		Usage: &ResponsesUsage{
+			InputTokens:  100,
+			OutputTokens: 7,
+			InputTokensDetails: &ResponsesInputTokensDetails{
+				CachedTokens:     20,
+				CacheWriteTokens: 30,
+			},
+		},
+	}
+
+	anth := ResponsesToAnthropic(resp, "claude-opus-4-8")
+	assert.Equal(t, 50, anth.Usage.InputTokens)
+	assert.Equal(t, 30, anth.Usage.CacheCreationInputTokens)
+	assert.Equal(t, 20, anth.Usage.CacheReadInputTokens)
+	assert.Equal(t, 7, anth.Usage.OutputTokens)
+}
+
 func TestResponsesToAnthropic_ToolUse(t *testing.T) {
 	resp := &ResponsesResponse{
 		ID:     "resp_456",
@@ -294,6 +316,28 @@ func TestResponsesToAnthropic_ToolUse(t *testing.T) {
 	assert.Equal(t, "call_1", anth.Content[1].ID)
 	assert.Equal(t, "get_weather", anth.Content[1].Name)
 	assert.JSONEq(t, `{"city":"NYC"}`, string(anth.Content[1].Input))
+}
+
+func TestResponsesToAnthropic_CustomToolUsePreservesFreeformInput(t *testing.T) {
+	resp := &ResponsesResponse{
+		ID:     "resp_custom_tool",
+		Model:  "gpt-5.5",
+		Status: "completed",
+		Output: []ResponsesOutput{{
+			Type:   "custom_tool_call",
+			CallID: "call_patch",
+			Name:   "apply_patch",
+			Input:  "*** Begin Patch\n*** End Patch",
+		}},
+	}
+
+	anth := ResponsesToAnthropic(resp, "claude-opus-4-8")
+	require.Len(t, anth.Content, 1)
+	assert.Equal(t, "tool_use", anth.Content[0].Type)
+	assert.Equal(t, "call_patch", anth.Content[0].ID)
+	assert.Equal(t, "apply_patch", anth.Content[0].Name)
+	assert.JSONEq(t, `{"input":"*** Begin Patch\n*** End Patch"}`, string(anth.Content[0].Input))
+	assert.Equal(t, "tool_use", anth.StopReason)
 }
 
 func TestResponsesToAnthropic_ToolUseStopReasonDoesNotDependOnLastBlock(t *testing.T) {
@@ -530,7 +574,8 @@ func TestResponsesEventToAnthropicEvents_TopLevelTerminalUsage(t *testing.T) {
 			InputTokens:  20,
 			OutputTokens: 6,
 			InputTokensDetails: &ResponsesInputTokensDetails{
-				CachedTokens: 5,
+				CachedTokens:     5,
+				CacheWriteTokens: 3,
 			},
 		},
 	}, state)
@@ -538,7 +583,8 @@ func TestResponsesEventToAnthropicEvents_TopLevelTerminalUsage(t *testing.T) {
 	require.Len(t, events, 2)
 	assert.Equal(t, "message_delta", events[0].Type)
 	require.NotNil(t, events[0].Usage)
-	assert.Equal(t, 15, events[0].Usage.InputTokens)
+	assert.Equal(t, 12, events[0].Usage.InputTokens)
+	assert.Equal(t, 3, events[0].Usage.CacheCreationInputTokens)
 	assert.Equal(t, 5, events[0].Usage.CacheReadInputTokens)
 	assert.Equal(t, 6, events[0].Usage.OutputTokens)
 	assert.Equal(t, "message_stop", events[1].Type)
@@ -604,6 +650,78 @@ func TestResponsesEventToAnthropicEvents_TerminalOutputToolOnly(t *testing.T) {
 	assert.Equal(t, "content_block_stop", events[2].Type)
 	assert.Equal(t, "tool_use", events[3].Delta.StopReason)
 	assert.Equal(t, "message_stop", events[4].Type)
+}
+
+func TestResponsesEventToAnthropicEvents_TerminalFillsArgumentsForStartedTool(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_terminal_args", Model: "gpt-5.5"},
+	}, state)
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item: &ResponsesOutput{
+			Type:   "function_call",
+			CallID: "call_terminal_args",
+			Name:   "Bash",
+		},
+	}, state)
+	require.Len(t, events, 1)
+	assert.Equal(t, "content_block_start", events[0].Type)
+
+	events = ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type: "response.completed",
+		Response: &ResponsesResponse{
+			ID:     "resp_terminal_args",
+			Model:  "gpt-5.5",
+			Status: "completed",
+			Output: []ResponsesOutput{{
+				Type:      "function_call",
+				CallID:    "call_terminal_args",
+				Name:      "Bash",
+				Arguments: `{"command":"git status"}`,
+			}},
+		},
+	}, state)
+
+	require.GreaterOrEqual(t, len(events), 4)
+	require.NotNil(t, events[0].Delta)
+	assert.Equal(t, "input_json_delta", events[0].Delta.Type)
+	assert.JSONEq(t, `{"command":"git status"}`, events[0].Delta.PartialJSON)
+	assert.Equal(t, "content_block_stop", events[1].Type)
+	assert.Equal(t, "tool_use", events[len(events)-2].Delta.StopReason)
+	assert.Equal(t, "message_stop", events[len(events)-1].Type)
+}
+
+func TestResponsesEventToAnthropicEvents_CustomToolDoneEmitsWrappedInput(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:     "response.created",
+		Response: &ResponsesResponse{ID: "resp_custom_done", Model: "gpt-5.5"},
+	}, state)
+	ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.output_item.added",
+		OutputIndex: 0,
+		Item: &ResponsesOutput{
+			Type:   "custom_tool_call",
+			CallID: "call_custom_done",
+			Name:   "apply_patch",
+		},
+	}, state)
+
+	events := ResponsesEventToAnthropicEvents(&ResponsesStreamEvent{
+		Type:        "response.custom_tool_call_input.done",
+		OutputIndex: 0,
+		Input:       "*** Begin Patch\n*** End Patch",
+	}, state)
+
+	require.Len(t, events, 2)
+	require.NotNil(t, events[0].Delta)
+	assert.Equal(t, "input_json_delta", events[0].Delta.Type)
+	assert.JSONEq(t, `{"input":"*** Begin Patch\n*** End Patch"}`, events[0].Delta.PartialJSON)
+	assert.Equal(t, "content_block_stop", events[1].Type)
 }
 
 func TestResponsesEventToAnthropicEvents_ResponseDoneIncomplete(t *testing.T) {
