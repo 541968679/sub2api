@@ -456,6 +456,92 @@ func stringMappingFromRaw(raw any) map[string]string {
 	}
 }
 
+func stringSliceFromRaw(raw any) ([]string, bool) {
+	switch value := raw.(type) {
+	case string:
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, false
+		}
+		return []string{value}, true
+	case []string:
+		if len(value) == 0 {
+			return []string{}, true
+		}
+		result := make([]string, 0, len(value))
+		for _, item := range value {
+			if item = strings.TrimSpace(item); item != "" {
+				result = append(result, item)
+			}
+		}
+		return result, len(result) > 0
+	case []any:
+		if len(value) == 0 {
+			return []string{}, true
+		}
+		result := make([]string, 0, len(value))
+		for _, item := range value {
+			if str, ok := item.(string); ok {
+				if str = strings.TrimSpace(str); str != "" {
+					result = append(result, str)
+				}
+			}
+		}
+		return result, len(result) > 0
+	default:
+		return nil, false
+	}
+}
+
+func stringSliceMappingFromRaw(raw any) map[string][]string {
+	switch mapping := raw.(type) {
+	case map[string]any:
+		if len(mapping) == 0 {
+			return nil
+		}
+		result := make(map[string][]string, len(mapping))
+		for key, value := range mapping {
+			if items, ok := stringSliceFromRaw(value); ok {
+				result[key] = items
+			}
+		}
+		if len(result) == 0 {
+			return nil
+		}
+		return result
+	case map[string]string:
+		if len(mapping) == 0 {
+			return nil
+		}
+		result := make(map[string][]string, len(mapping))
+		for key, value := range mapping {
+			if items, ok := stringSliceFromRaw(value); ok {
+				result[key] = items
+			}
+		}
+		if len(result) == 0 {
+			return nil
+		}
+		return result
+	case map[string][]string:
+		if len(mapping) == 0 {
+			return nil
+		}
+		result := make(map[string][]string, len(mapping))
+		for key, value := range mapping {
+			if items, ok := stringSliceFromRaw(value); ok {
+				result[key] = items
+			}
+		}
+		if len(result) == 0 {
+			return nil
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
 func (a *Account) GetModelMapping() map[string]string {
 	credentialsPtr := mapPtr(a.Credentials)
 	rawMapping, _ := a.Credentials["model_mapping"].(map[string]any)
@@ -868,6 +954,66 @@ func (a *Account) ResolveCompactMappedModel(requestedModel string) (mappedModel 
 	return requestedModel, false
 }
 
+// GetCompactModelFallbacks returns compact-only model fallback configuration.
+// An explicitly configured empty list disables the built-in fallback for that key.
+func (a *Account) GetCompactModelFallbacks() map[string][]string {
+	if a == nil || a.Credentials == nil {
+		return nil
+	}
+	return stringSliceMappingFromRaw(a.Credentials["compact_model_fallbacks"])
+}
+
+// ResolveCompactFallbackModels resolves alternate models for Claude Code compact
+// recovery. Spark defaults to mini because its quota is smaller and more volatile.
+func (a *Account) ResolveCompactFallbackModels(requestedModel, mappedModel string) []string {
+	requestedModel = strings.TrimSpace(requestedModel)
+	mappedModel = strings.TrimSpace(mappedModel)
+	mapping := a.GetCompactModelFallbacks()
+
+	explicitlyDisabled := false
+	var candidates []string
+	seenKeys := make(map[string]bool, 4)
+	for _, keys := range [][]string{
+		compactFallbackLookupKeys(mappedModel),
+		compactFallbackLookupKeys(requestedModel),
+	} {
+		for _, key := range keys {
+			lookupKey := strings.ToLower(key)
+			if key == "" || seenKeys[lookupKey] || len(mapping) == 0 {
+				continue
+			}
+			seenKeys[lookupKey] = true
+			models, matched := resolveRequestedModelInSliceMapping(mapping, key)
+			if !matched {
+				continue
+			}
+			if len(models) == 0 {
+				explicitlyDisabled = true
+			} else {
+				candidates = append(candidates, models...)
+			}
+			break
+		}
+	}
+	candidates = compactModelFallbackCandidates(candidates, mappedModel)
+	if len(candidates) == 0 && !explicitlyDisabled && isCodexSparkModel(mappedModel) {
+		candidates = append(candidates, "gpt-5.4-mini")
+	}
+	return candidates
+}
+
+func compactFallbackLookupKeys(model string) []string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return nil
+	}
+	keys := []string{model}
+	if normalized := normalizeCodexModel(model); normalized != "" && !strings.EqualFold(normalized, model) {
+		keys = append(keys, normalized)
+	}
+	return keys
+}
+
 func (a *Account) GetBaseURL() string {
 	if a.Type != AccountTypeAPIKey {
 		return ""
@@ -971,6 +1117,66 @@ func matchWildcardMappingResultWithKey(mapping map[string]string, requestedModel
 	})
 
 	return matches[0].target, matches[0].pattern, true
+}
+
+func resolveRequestedModelInSliceMapping(mapping map[string][]string, requestedModel string) ([]string, bool) {
+	if requestedModel == "" {
+		return nil, false
+	}
+	if mappedModels, exists := mapping[requestedModel]; exists {
+		return append([]string(nil), mappedModels...), true
+	}
+
+	type patternMatch struct {
+		pattern string
+		target  []string
+	}
+	var matches []patternMatch
+	for pattern, target := range mapping {
+		if matchWildcard(pattern, requestedModel) {
+			matches = append(matches, patternMatch{pattern: pattern, target: append([]string(nil), target...)})
+		}
+	}
+	if len(matches) == 0 {
+		return nil, false
+	}
+	sort.Slice(matches, func(i, j int) bool {
+		if len(matches[i].pattern) != len(matches[j].pattern) {
+			return len(matches[i].pattern) > len(matches[j].pattern)
+		}
+		return matches[i].pattern < matches[j].pattern
+	})
+	return matches[0].target, true
+}
+
+func compactModelFallbackCandidates(candidates []string, primaryModel string) []string {
+	primaryModel = strings.TrimSpace(primaryModel)
+	result := make([]string, 0, len(candidates))
+	seen := make(map[string]bool, len(candidates)+1)
+	if primaryModel != "" {
+		seen[compactFallbackModelKey(primaryModel)] = true
+	}
+	for _, candidate := range candidates {
+		trimmed := strings.TrimSpace(candidate)
+		if trimmed == "" {
+			continue
+		}
+		key := compactFallbackModelKey(trimmed)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func compactFallbackModelKey(model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(normalizeCodexModel(model)))
 }
 
 func (a *Account) IsCustomErrorCodesEnabled() bool {

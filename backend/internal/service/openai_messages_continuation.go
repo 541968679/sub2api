@@ -241,6 +241,17 @@ func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseID(_ context.Con
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
+func (s *OpenAIGatewayService) deleteOpenAICompatSessionContinuation(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) {
+	if s == nil {
+		return
+	}
+	key := openAICompatSessionResponseKey(c, account, promptCacheKey)
+	if key == "" {
+		return
+	}
+	s.openaiCompatSessionResponses.Delete(key)
+}
+
 func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) {
 	if s == nil {
 		return

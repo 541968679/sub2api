@@ -4139,3 +4139,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - JSON image requests now rewrite only the model when `response_format` is absent.
 - Multipart image requests now preserve explicit `response_format` fields but no longer append one when absent.
 - Updated OpenAI Images tests to assert omitted `response_format` remains omitted through the API-key forwarding path.
+
+## [2026-07-10] fix: Recover Claude-GPT compact requests from empty replies
+
+**Affected files**: Claude-GPT Messages bridge services, handler, compatibility converter, regression tests, gateway docs, and debug report.
+**Compatibility**: Medium risk. Anthropic preamble/thinking is delayed until visible output so failed attempts remain eligible for failover; compact recovery can issue bounded summary requests.
+**Details**:
+- Treat failed, incomplete, missing-terminal, and reasoning-only Responses outcomes as errors instead of normal empty success.
+- Preserve the full transcript and recover compact overflow with bounded chunking, recursive splitting, hierarchical merge, model fallbacks, accumulated usage, stateless headers, and continuation cleanup.
+- Replay text/tool data present only in terminal output, including a complete Anthropic SSE lifecycle.
+- Send idle pings during compact header waits and pre-visible body silence without committing semantic output or blocking failover.
+- Cancel detached compact work when the client disconnects without penalizing account health, and suppress duplicate terminal events after completion.
+- Added regression coverage for overflow, empty output, full-history recovery, retry budgets, continuation state, keepalive failover, cancellation, and terminal replay.

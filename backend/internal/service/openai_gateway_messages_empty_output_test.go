@@ -168,3 +168,49 @@ func TestOpenAIMessagesStreamFailureAfterVisibleOutputDoesNotBecomeRetryable(t *
 	require.Contains(t, rec.Body.String(), "partial answer")
 	require.Contains(t, rec.Body.String(), "event: error")
 }
+
+func TestOpenAIMessagesStreamPreVisibleKeepaliveDoesNotCommitFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"X-Request-Id": []string{"rid-pre-visible-keepalive"}},
+		Body:       pr,
+	}
+	cfg := rawChatCompletionsTestConfig()
+	cfg.Gateway.StreamKeepaliveInterval = 1
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = fmt.Fprint(pw, messagesResponsesSSE(
+			`{"type":"response.created","response":{"id":"resp_keepalive","model":"gpt-5.5","status":"in_progress"}}`,
+			`{"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","summary":[]}}`,
+		))
+		for range 5 {
+			time.Sleep(300 * time.Millisecond)
+			_, _ = fmt.Fprint(pw, messagesResponsesSSE(
+				`{"type":"response.reasoning_summary_text.delta","output_index":0,"delta":"internal reasoning"}`,
+			))
+		}
+		_, _ = fmt.Fprint(pw, messagesResponsesSSE(
+			`{"type":"response.failed","response":{"id":"resp_keepalive","status":"failed","error":{"code":"rate_limit_error","message":"temporary limit"},"output":[]}}`,
+		))
+	}()
+
+	result, err := svc.handleAnthropicStreamingResponse(
+		resp, c, rawChatCompletionsTestAccount(), true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+	)
+
+	require.NotNil(t, result)
+	require.False(t, result.ClientOutputStarted)
+	require.NotNil(t, requireMessagesFailoverError(t, err))
+	require.True(t, OpenAIAnthropicTransportStreamStarted(c))
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.NotContains(t, rec.Body.String(), "internal reasoning")
+}

@@ -514,6 +514,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
 		if err != nil {
+			if openAIClientRequestCanceled(c) {
+				reqLog.Debug("openai_messages.client_request_ended", zap.Error(c.Request.Context().Err()))
+				return
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
@@ -964,7 +968,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMappingMsg.MappedModel)
 		}
 		h.gatewayService.MaybeSetDisplayTokenMultipliers(c.Request.Context(), c, apiKey, reqModel)
+		writerSizeBeforeForward := c.Writer.Size()
 		result, err := h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
+		streamStarted = streamStarted || service.OpenAIAnthropicTransportStreamStarted(c)
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		if accountReleaseFunc != nil {
@@ -982,6 +988,23 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		if err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
+				writerSizeAfterForward := c.Writer.Size()
+				if writerSizeAfterForward != writerSizeBeforeForward && result != nil && result.ClientOutputStarted {
+					h.handleAnthropicFailoverExhausted(c, failoverErr, true)
+					return
+				}
+				if h.isAnthropicClientFailoverError(failoverErr) {
+					h.handleAnthropicFailoverExhausted(c, failoverErr, streamStarted)
+					return
+				}
+				if writerSizeAfterForward != writerSizeBeforeForward {
+					reqLog.Warn("openai_messages.retrying_after_pre_model_stream_output",
+						zap.Int64("account_id", account.ID),
+						zap.Int("writer_size_before", writerSizeBeforeForward),
+						zap.Int("writer_size_after", writerSizeAfterForward),
+						zap.Bool("client_output_started", result != nil && result.ClientOutputStarted),
+					)
+				}
 				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
 				// 池模式：同账号重试
 				if failoverErr.RetryableOnSameAccount {
@@ -1079,6 +1102,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 
 // anthropicErrorResponse writes an error in Anthropic Messages API format.
 func (h *OpenAIGatewayHandler) anthropicErrorResponse(c *gin.Context, status int, errType, message string) {
+	if service.OpenAIAnthropicResponseTerminated(c) {
+		return
+	}
 	c.JSON(status, gin.H{
 		"type": "error",
 		"error": gin.H{
@@ -1086,11 +1112,16 @@ func (h *OpenAIGatewayHandler) anthropicErrorResponse(c *gin.Context, status int
 			"message": message,
 		},
 	})
+	service.MarkOpenAIAnthropicResponseTerminated(c)
 }
 
 // anthropicStreamingAwareError handles errors that may occur during streaming,
 // using Anthropic SSE error format.
 func (h *OpenAIGatewayHandler) anthropicStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
+	if service.OpenAIAnthropicResponseTerminated(c) {
+		return
+	}
+	streamStarted = streamStarted || service.OpenAIAnthropicTransportStreamStarted(c)
 	if streamStarted {
 		flusher, ok := c.Writer.(http.Flusher)
 		if ok {
@@ -1103,16 +1134,49 @@ func (h *OpenAIGatewayHandler) anthropicStreamingAwareError(c *gin.Context, stat
 			})
 			fmt.Fprintf(c.Writer, "event: error\ndata: %s\n\n", errPayload) //nolint:errcheck
 			flusher.Flush()
+			service.MarkOpenAIAnthropicResponseTerminated(c)
 		}
 		return
 	}
 	h.anthropicErrorResponse(c, status, errType, message)
 }
 
+func openAIClientRequestCanceled(c *gin.Context) bool {
+	return c != nil && c.Request != nil && c.Request.Context().Err() != nil
+}
+
 // handleAnthropicFailoverExhausted maps upstream failover errors to Anthropic format.
 func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, streamStarted bool) {
+	if status, errType, errMsg, ok := h.mapAnthropicFailoverBodyError(failoverErr); ok {
+		h.anthropicStreamingAwareError(c, status, errType, errMsg, streamStarted)
+		return
+	}
 	status, errType, errMsg := h.mapUpstreamError(failoverErr.StatusCode)
 	h.anthropicStreamingAwareError(c, status, errType, errMsg, streamStarted)
+}
+
+func (h *OpenAIGatewayHandler) isAnthropicClientFailoverError(failoverErr *service.UpstreamFailoverError) bool {
+	if failoverErr == nil || failoverErr.StatusCode < 400 || failoverErr.StatusCode >= 500 {
+		return false
+	}
+	errType := strings.TrimSpace(gjson.GetBytes(failoverErr.ResponseBody, "error.type").String())
+	return errType == "invalid_request_error"
+}
+
+func (h *OpenAIGatewayHandler) mapAnthropicFailoverBodyError(failoverErr *service.UpstreamFailoverError) (int, string, string, bool) {
+	if failoverErr == nil || len(failoverErr.ResponseBody) == 0 {
+		return 0, "", "", false
+	}
+	errType := strings.TrimSpace(gjson.GetBytes(failoverErr.ResponseBody, "error.type").String())
+	errMsg := strings.TrimSpace(gjson.GetBytes(failoverErr.ResponseBody, "error.message").String())
+	if errType == "" || errMsg == "" {
+		return 0, "", "", false
+	}
+	status := failoverErr.StatusCode
+	if status < 400 || status >= 500 {
+		status = http.StatusBadGateway
+	}
+	return status, errType, errMsg, true
 }
 
 // ensureAnthropicErrorResponse writes a fallback Anthropic error if no response was written.
@@ -1715,16 +1779,17 @@ func (h *OpenAIGatewayHandler) recoverAnthropicMessagesPanic(c *gin.Context, str
 		return
 	}
 
-	started := streamStarted != nil && *streamStarted
+	started := (streamStarted != nil && *streamStarted) || service.OpenAIAnthropicTransportStreamStarted(c)
 	requestLogger(c, "handler.openai_gateway.messages").Error(
 		"openai.messages_panic_recovered",
 		zap.Bool("stream_started", started),
 		zap.Any("panic", recovered),
 		zap.ByteString("stack", debug.Stack()),
 	)
-	if !started {
-		h.anthropicErrorResponse(c, http.StatusInternalServerError, "api_error", "Internal server error")
+	if service.OpenAIAnthropicResponseTerminated(c) {
+		return
 	}
+	h.anthropicStreamingAwareError(c, http.StatusInternalServerError, "api_error", "Internal server error", started)
 }
 
 func (h *OpenAIGatewayHandler) ensureResponsesDependencies(c *gin.Context, reqLog *zap.Logger) bool {

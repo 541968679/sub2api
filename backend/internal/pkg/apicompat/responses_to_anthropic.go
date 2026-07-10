@@ -198,6 +198,7 @@ type ResponsesEventToAnthropicState struct {
 	CurrentBlockType    string // "text" | "thinking" | "tool_use"
 	CurrentOutputIndex  int
 	CurrentOutputSet    bool
+	CurrentContentIndex int
 	CurrentToolType     string
 	CurrentToolName     string
 	CurrentToolArgs     string
@@ -209,6 +210,7 @@ type ResponsesEventToAnthropicState struct {
 	// HandledOutputIndexes tracks output items that already produced stream
 	// events so terminal response.output replay does not duplicate them.
 	HandledOutputIndexes map[int]bool
+	EmittedText          map[responsesAnthropicTextKey]string
 
 	InputTokens              int
 	OutputTokens             int
@@ -220,11 +222,17 @@ type ResponsesEventToAnthropicState struct {
 	Created    int64
 }
 
+type responsesAnthropicTextKey struct {
+	OutputIndex  int
+	ContentIndex int
+}
+
 // NewResponsesEventToAnthropicState returns an initialised stream state.
 func NewResponsesEventToAnthropicState() *ResponsesEventToAnthropicState {
 	return &ResponsesEventToAnthropicState{
 		OutputIndexToBlockIdx: make(map[int]int),
 		HandledOutputIndexes:  make(map[int]bool),
+		EmittedText:           make(map[responsesAnthropicTextKey]string),
 		Created:               time.Now().Unix(),
 	}
 }
@@ -243,7 +251,7 @@ func ResponsesEventToAnthropicEvents(
 	case "response.output_text.delta":
 		return resToAnthHandleTextDelta(evt, state)
 	case "response.output_text.done":
-		return resToAnthHandleBlockDone(state)
+		return resToAnthHandleTextDone(evt, state)
 	case "response.function_call_arguments.delta",
 		// custom/freeform 工具的输入增量与 function_call 参数增量同形。
 		"response.custom_tool_call_input.delta":
@@ -421,7 +429,9 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	var events []AnthropicStreamEvent
 	state.HandledOutputIndexes[evt.OutputIndex] = true
 
-	if !state.ContentBlockOpen || state.CurrentBlockType != "text" {
+	if !state.ContentBlockOpen || state.CurrentBlockType != "text" ||
+		!state.CurrentOutputSet || state.CurrentOutputIndex != evt.OutputIndex ||
+		state.CurrentContentIndex != evt.ContentIndex {
 		events = append(events, closeCurrentBlock(state)...)
 
 		idx := state.ContentBlockIndex
@@ -429,6 +439,7 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 		state.CurrentBlockType = "text"
 		state.CurrentOutputIndex = evt.OutputIndex
 		state.CurrentOutputSet = true
+		state.CurrentContentIndex = evt.ContentIndex
 
 		events = append(events, AnthropicStreamEvent{
 			Type:  "content_block_start",
@@ -441,6 +452,8 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 	}
 
 	idx := state.ContentBlockIndex
+	key := responsesAnthropicTextKey{OutputIndex: evt.OutputIndex, ContentIndex: evt.ContentIndex}
+	state.EmittedText[key] += evt.Delta
 	events = append(events, AnthropicStreamEvent{
 		Type:  "content_block_delta",
 		Index: &idx,
@@ -449,6 +462,52 @@ func resToAnthHandleTextDelta(evt *ResponsesStreamEvent, state *ResponsesEventTo
 			Text: evt.Delta,
 		},
 	})
+	return events
+}
+
+func resToAnthHandleTextDone(evt *ResponsesStreamEvent, state *ResponsesEventToAnthropicState) []AnthropicStreamEvent {
+	key := responsesAnthropicTextKey{OutputIndex: evt.OutputIndex, ContentIndex: evt.ContentIndex}
+	emitted := state.EmittedText[key]
+	fullText := evt.Text
+	suffix := ""
+	if fullText != "" && strings.HasPrefix(fullText, emitted) {
+		suffix = strings.TrimPrefix(fullText, emitted)
+	}
+
+	var events []AnthropicStreamEvent
+	if suffix != "" {
+		if !state.ContentBlockOpen || state.CurrentBlockType != "text" ||
+			!state.CurrentOutputSet || state.CurrentOutputIndex != evt.OutputIndex ||
+			state.CurrentContentIndex != evt.ContentIndex {
+			events = append(events, closeCurrentBlock(state)...)
+			idx := state.ContentBlockIndex
+			state.ContentBlockOpen = true
+			state.CurrentBlockType = "text"
+			state.CurrentOutputIndex = evt.OutputIndex
+			state.CurrentOutputSet = true
+			state.CurrentContentIndex = evt.ContentIndex
+			events = append(events, AnthropicStreamEvent{
+				Type:         "content_block_start",
+				Index:        &idx,
+				ContentBlock: &AnthropicContentBlock{Type: "text", Text: ""},
+			})
+		}
+		idx := state.ContentBlockIndex
+		events = append(events, AnthropicStreamEvent{
+			Type:  "content_block_delta",
+			Index: &idx,
+			Delta: &AnthropicDelta{Type: "text_delta", Text: suffix},
+		})
+		state.EmittedText[key] = fullText
+	}
+	if emitted != "" || fullText != "" {
+		state.HandledOutputIndexes[evt.OutputIndex] = true
+	}
+	if state.ContentBlockOpen && state.CurrentBlockType == "text" &&
+		state.CurrentOutputSet && state.CurrentOutputIndex == evt.OutputIndex &&
+		state.CurrentContentIndex == evt.ContentIndex {
+		events = append(events, closeCurrentBlock(state)...)
+	}
 	return events
 }
 
@@ -749,6 +808,25 @@ func resToAnthHandleTerminalOutput(resp *ResponsesResponse, state *ResponsesEven
 
 	var events []AnthropicStreamEvent
 	for outputIndex, output := range resp.Output {
+		if output.Type == "message" {
+			for contentIndex, part := range output.Content {
+				if part.Type != "output_text" || part.Text == "" {
+					continue
+				}
+				if !state.MessageStartSent {
+					events = append(events, resToAnthHandleCreated(&ResponsesStreamEvent{}, state)...)
+				}
+				events = append(events, resToAnthHandleTextDone(&ResponsesStreamEvent{
+					Type:         "response.terminal_output_text",
+					OutputIndex:  outputIndex,
+					ContentIndex: contentIndex,
+					Text:         part.Text,
+				}, state)...)
+			}
+			if state.HandledOutputIndexes[outputIndex] {
+				continue
+			}
+		}
 		if state.HandledOutputIndexes[outputIndex] {
 			continue
 		}
@@ -844,6 +922,7 @@ func closeCurrentBlock(state *ResponsesEventToAnthropicState) []AnthropicStreamE
 	state.CurrentBlockType = ""
 	state.CurrentOutputIndex = 0
 	state.CurrentOutputSet = false
+	state.CurrentContentIndex = 0
 	state.CurrentToolType = ""
 	state.CurrentToolName = ""
 	state.CurrentToolArgs = ""

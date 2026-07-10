@@ -106,12 +106,49 @@ tool-use/tool-result pairing, `response.failed` and missing-terminal handling,
 Anthropic digest sessions, `previous_response_id` continuation, replay guard,
 and Claude Code todo guard injection live in
 `backend/internal/service/openai_gateway_messages.go` plus
-`openai_messages_*.go`. The local overlay is intentionally smaller: Antigravity
-bridge preflight/scheduler selection, preserving bridge body
-`prompt_cache_key`, stripping upstream `session_id` and `conversation_id`
-headers after request construction, bridge usage fields, display cache override,
-and display-token downstream rewriting. Non-bridge OpenAI Messages should follow
-upstream prompt-cache/session/continuation behavior.
+`openai_messages_*.go`. The local overlay also owns Antigravity bridge
+preflight/scheduler selection, preserving bridge body `prompt_cache_key`, bridge
+usage fields, display cache override, display-token downstream rewriting, and
+Claude Code compact recovery. Non-bridge OpenAI Messages should otherwise
+follow upstream prompt-cache/session/continuation behavior.
+
+Claude Code emits a hidden compact request after the conversation reaches its
+context threshold. The bridge keeps an untouched transcript snapshot before the
+API-key 12-message replay guard. It buffers `message_start` and thinking until
+visible text or tool output exists, so a failed, incomplete, missing-terminal,
+or reasoning-only attempt can still switch OpenAI accounts instead of becoming
+a successful empty Anthropic response. Standard `ping` events may be sent while
+waiting for compact upstream headers or any silent Messages SSE body. An idle
+timer resets only after bytes are flushed downstream, so the configured interval
+is the actual maximum downstream silence before a ping even while the upstream
+emits non-visible reasoning. Transport output is tracked separately from semantic
+output so those pings do not block model/account failover.
+
+If compact fails because the context is too large or produces no visible
+summary, the bridge recovers from the full snapshot: it summarizes bounded
+chunks, recursively bisects individual chunks that still exceed the context
+window, and hierarchically merges the summaries. HTTP and SSE overflow usage is
+accumulated across attempts. Recovery requests clear conversation/session and
+turn-state headers, and recovered responses skip `previous_response_id`
+binding because they use `store=false`. Accounts may configure
+`compact_model_mapping` and `compact_model_fallbacks`; Spark compact requests
+fall back to `gpt-5.4-mini` by default unless an explicit empty fallback list
+disables that behavior. Recursive depth and split budgets bound upstream work,
+with an emergency local capsule as the final merge fallback. Client cancellation
+is bridged into these otherwise detached recovery requests so abandoned compact
+work releases its upstream response and account concurrency slot.
+
+The compact pre-header keepalive is a standard Anthropic `ping`. It keeps proxy
+and TCP/SSE idle timers alive, but it cannot legally use the empty
+`content_block_delta` watchdog reset introduced for newer Claude Code versions
+until a real content block has started. Do not create a synthetic preamble block
+only to send no-op deltas: doing so would commit semantic stream state and make
+cross-account recovery unsafe.
+
+Successful `message_stop` and downstream `event: error` writes mark the
+Anthropic response terminal. Handler panic/error fallbacks consult that state so
+they cannot append a second terminal event. A canceled downstream request exits
+the Messages handler without reporting the selected account as unhealthy.
 
 ### OpenAI Responses / Chat / WS Current Sync Point
 

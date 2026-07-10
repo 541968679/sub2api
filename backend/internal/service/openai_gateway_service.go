@@ -232,22 +232,26 @@ type OpenAIForwardResult struct {
 	ServiceTier *string
 	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix.
 	// Stored for usage records display; nil means not provided / not applicable.
-	ReasoningEffort    *string
-	Stream             bool
-	OpenAIWSMode       bool
-	ResponseHeaders    http.Header
-	Duration           time.Duration
-	FirstTokenMs       *int
-	ClientDisconnect   bool
-	ImageCount         int
-	ImageSize          string
-	ImageSizeInfo      ImageSizeInfo
-	ImageQuality       string
-	ImageInputSize     string
-	ImageOutputSize    string
-	ImageOutputSizes   []string
-	ImageSizeSource    string
-	ImageSizeBreakdown map[string]int
+	ReasoningEffort     *string
+	Stream              bool
+	OpenAIWSMode        bool
+	ResponseHeaders     http.Header
+	Duration            time.Duration
+	FirstTokenMs        *int
+	ClientDisconnect    bool
+	ClientOutputStarted bool
+	// SkipContinuationBinding is set for locally recovered store=false responses.
+	// Their response IDs are not valid previous_response_id values for later turns.
+	SkipContinuationBinding bool
+	ImageCount              int
+	ImageSize               string
+	ImageSizeInfo           ImageSizeInfo
+	ImageQuality            string
+	ImageInputSize          string
+	ImageOutputSize         string
+	ImageOutputSizes        []string
+	ImageSizeSource         string
+	ImageSizeBreakdown      map[string]int
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
@@ -3572,6 +3576,53 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	})
 	return &UpstreamFailoverError{
 		StatusCode:   http.StatusBadGateway,
+		ResponseBody: body,
+	}
+}
+
+func (s *OpenAIGatewayService) newOpenAIStreamClientError(
+	c *gin.Context,
+	account *Account,
+	upstreamRequestID string,
+	statusCode int,
+	errType string,
+	message string,
+) *UpstreamFailoverError {
+	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	if message == "" {
+		message = "OpenAI request failed"
+	}
+	errType = strings.TrimSpace(errType)
+	if errType == "" {
+		errType = "invalid_request_error"
+	}
+	if statusCode < 400 || statusCode >= 500 {
+		statusCode = http.StatusBadRequest
+	}
+	if c != nil {
+		setOpsUpstreamError(c, statusCode, message, "")
+		event := OpsUpstreamErrorEvent{
+			Platform:           PlatformOpenAI,
+			UpstreamStatusCode: statusCode,
+			UpstreamRequestID:  strings.TrimSpace(upstreamRequestID),
+			Kind:               "client_error",
+			Message:            message,
+		}
+		if account != nil {
+			event.Platform = account.Platform
+			event.AccountID = account.ID
+			event.AccountName = account.Name
+		}
+		appendOpsUpstreamError(c, event)
+	}
+	body, _ := json.Marshal(gin.H{
+		"error": gin.H{
+			"type":    errType,
+			"message": message,
+		},
+	})
+	return &UpstreamFailoverError{
+		StatusCode:   statusCode,
 		ResponseBody: body,
 	}
 }

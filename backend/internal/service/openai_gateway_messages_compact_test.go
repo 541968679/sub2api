@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -669,4 +671,220 @@ func TestMergeAnthropicCompactSummaries_AttemptBudgetCapsAllRecursiveRequests(t 
 	require.Equal(t, openAIAnthropicCompactMergeAttemptBudget, len(upstream.bodies),
 		"all recursive merge branches must share one upstream request budget")
 	require.Contains(t, openAIResponsesOutputText(response), "# Compact Capsule")
+}
+
+func TestReadOpenAICompatBufferedTerminal_CompactKeepaliveMarksTransportStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	terminal := compactCompletedSSE(
+		"resp_keepalive", "gpt-5.5", "summary after keepalive", 100, 20,
+	)
+	terminalBody, err := io.ReadAll(terminal.Body)
+	require.NoError(t, err)
+	require.NoError(t, terminal.Body.Close())
+
+	reader, writer := io.Pipe()
+	pingWritten := make(chan struct{}, 1)
+	go func() {
+		select {
+		case <-pingWritten:
+			_, _ = writer.Write(terminalBody)
+			_ = writer.Close()
+		case <-time.After(time.Second):
+			_ = writer.CloseWithError(errors.New("compact keepalive was not emitted"))
+		}
+	}()
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       reader,
+	}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+	svc.enableOpenAIAnthropicCompactKeepalive(c, true, 5*time.Millisecond)
+	finalResponse, _, _, err := svc.readOpenAICompatBufferedTerminalWithKeepalive(
+		resp,
+		"openai messages compact keepalive test",
+		"rid_keepalive",
+		c,
+		func() {
+			select {
+			case pingWritten <- struct{}{}:
+			default:
+			}
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, finalResponse)
+	require.Equal(t, "resp_keepalive", finalResponse.ID)
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.True(t, OpenAIAnthropicTransportStreamStarted(c))
+}
+
+func TestDoOpenAIAnthropicRequestWithCompactKeepalive_CoversHeaderWait(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	releaseUpstream := make(chan struct{})
+	upstream := &compactBlockingHTTPUpstream{
+		release: releaseUpstream,
+		response: compactCompletedSSE(
+			"resp_header_wait", "gpt-5.5", "summary after header wait", 100, 20,
+		),
+	}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	svc.enableOpenAIAnthropicCompactKeepalive(c, true, 5*time.Millisecond)
+	req := httptest.NewRequest(http.MethodPost, "http://upstream.example/v1/responses", nil)
+
+	resultCh := make(chan openAIAnthropicCompactHTTPResult, 1)
+	go func() {
+		resp, err := svc.doOpenAIAnthropicRequestWithCompactKeepalive(c, req, "", 1, 1)
+		resultCh <- openAIAnthropicCompactHTTPResult{response: resp, err: err}
+	}()
+
+	require.Eventually(t, func() bool {
+		return strings.Contains(rec.Body.String(), "event: ping")
+	}, time.Second, 5*time.Millisecond)
+	close(releaseUpstream)
+
+	select {
+	case result := <-resultCh:
+		require.NoError(t, result.err)
+		require.NotNil(t, result.response)
+		require.NoError(t, result.response.Body.Close())
+	case <-time.After(time.Second):
+		t.Fatal("compact upstream request did not return after releasing header wait")
+	}
+	require.True(t, OpenAIAnthropicTransportStreamStarted(c))
+}
+
+func TestRunAnthropicCompactRecoveryWithModelFallbacks_KeepaliveDoesNotBlockFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	require.NoError(t, writeAnthropicCompactKeepalive(c))
+
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactJSONError(
+			http.StatusTooManyRequests,
+			"rate_limit_error",
+			"The primary compact model is temporarily rate limited.",
+			"rid_keepalive_primary_limited",
+		),
+		compactCompletedSSE(
+			"resp_keepalive_fallback_chunk", "compact-secondary", "fallback chunk summary", 100, 20,
+		),
+		compactCompletedSSE(
+			"resp_keepalive_fallback_merge", "compact-secondary", "# Compact Capsule\n\nusable fallback summary", 40, 10,
+		),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	fullReq := &apicompat.AnthropicRequest{Messages: []apicompat.AnthropicMessage{
+		{Role: "user", Content: json.RawMessage(`"active task state"`)},
+		{Role: "user", Content: json.RawMessage(fmt.Sprintf("%q", testClaudeCodeCompactPrompt()))},
+	}}
+
+	result, err := svc.runAnthropicCompactRecoveryWithModelFallbacks(
+		context.Background(), c, rawChatCompletionsTestAccount(), fullReq, "sk-test", false,
+		"claude-opus-4-8", []string{"compact-primary", "compact-secondary"},
+		time.Now(), OpenAIUsage{}, true, "rid_initial",
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, "compact-secondary", result.UpstreamModel)
+	require.True(t, result.ClientOutputStarted)
+	require.Len(t, upstream.bodies, 3)
+	require.Contains(t, rec.Body.String(), "event: ping")
+	require.Contains(t, rec.Body.String(), "usable fallback summary")
+}
+
+type compactBlockingHTTPUpstream struct {
+	release  <-chan struct{}
+	response *http.Response
+}
+
+func (u *compactBlockingHTTPUpstream) Do(*http.Request, string, int64, int) (*http.Response, error) {
+	<-u.release
+	return u.response, nil
+}
+
+func (u *compactBlockingHTTPUpstream) DoWithTLS(
+	req *http.Request,
+	proxyURL string,
+	accountID int64,
+	accountConcurrency int,
+	_ *tlsfingerprint.Profile,
+) (*http.Response, error) {
+	return u.Do(req, proxyURL, accountID, accountConcurrency)
+}
+
+type compactCancelableHTTPUpstream struct {
+	started  chan struct{}
+	canceled chan struct{}
+}
+
+func (u *compactCancelableHTTPUpstream) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
+	close(u.started)
+	<-req.Context().Done()
+	close(u.canceled)
+	return nil, req.Context().Err()
+}
+
+func (u *compactCancelableHTTPUpstream) DoWithTLS(
+	req *http.Request,
+	proxyURL string,
+	accountID int64,
+	accountConcurrency int,
+	_ *tlsfingerprint.Profile,
+) (*http.Response, error) {
+	return u.Do(req, proxyURL, accountID, accountConcurrency)
+}
+
+func TestDoOpenAIAnthropicRequestWithCompactKeepalive_CancelsDetachedUpstreamOnClientDisconnect(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	clientCtx, cancelClient := context.WithCancel(context.Background())
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil).WithContext(clientCtx)
+
+	upstream := &compactCancelableHTTPUpstream{
+		started:  make(chan struct{}),
+		canceled: make(chan struct{}),
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	req := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
+	req = req.WithContext(context.WithoutCancel(clientCtx))
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := svc.doOpenAIAnthropicRequestWithCompactKeepalive(c, req, "", 1, 1)
+		resultCh <- err
+	}()
+
+	select {
+	case <-upstream.started:
+	case <-time.After(time.Second):
+		t.Fatal("compact upstream request did not start")
+	}
+	cancelClient()
+
+	select {
+	case <-upstream.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("client disconnect did not cancel detached compact upstream request")
+	}
+	select {
+	case err := <-resultCh:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("compact keepalive helper did not return after client disconnect")
+	}
 }

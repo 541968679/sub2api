@@ -142,6 +142,77 @@ func TestOpenAIAnthropicClientFailoverErrorStopsAccountSwitching(t *testing.T) {
 	}))
 }
 
+func TestOpenAIAnthropicStreamingAwareError_UsesSSEAfterCompactKeepalive(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Header("Content-Type", "text/event-stream")
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.WriteString("event: ping\ndata: {\"type\":\"ping\"}\n\n")
+	service.MarkOpenAIAnthropicTransportStreamStarted(c)
+
+	h := &OpenAIGatewayHandler{}
+	h.anthropicStreamingAwareError(
+		c, http.StatusBadGateway, "api_error", "compact recovery exhausted", false,
+	)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "event: ping")
+	require.Contains(t, w.Body.String(), "event: error")
+	require.Contains(t, w.Body.String(), `"type":"error"`)
+	require.Contains(t, w.Body.String(), `"message":"compact recovery exhausted"`)
+}
+
+func TestOpenAIAnthropicStreamingAwareError_DoesNotAppendAfterTerminal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	_, _ = c.Writer.WriteString("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+	service.MarkOpenAIAnthropicTransportStreamStarted(c)
+	service.MarkOpenAIAnthropicResponseTerminated(c)
+
+	h := &OpenAIGatewayHandler{}
+	h.anthropicStreamingAwareError(c, http.StatusInternalServerError, "api_error", "late failure", true)
+
+	require.NotContains(t, w.Body.String(), "event: error")
+	require.Equal(t, 1, strings.Count(w.Body.String(), "event: message_stop"))
+}
+
+func TestOpenAIRecoverAnthropicMessagesPanic_DoesNotAppendAfterTerminal(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	_, _ = c.Writer.WriteString("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n")
+	service.MarkOpenAIAnthropicTransportStreamStarted(c)
+	service.MarkOpenAIAnthropicResponseTerminated(c)
+
+	h := &OpenAIGatewayHandler{}
+	streamStarted := true
+	require.NotPanics(t, func() {
+		func() {
+			defer h.recoverAnthropicMessagesPanic(c, &streamStarted)
+			panic("late test panic")
+		}()
+	})
+
+	require.NotContains(t, w.Body.String(), "event: error")
+	require.Equal(t, 1, strings.Count(w.Body.String(), "event: message_stop"))
+}
+
+func TestOpenAIClientRequestCanceled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, cancel := context.WithCancel(context.Background())
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil).WithContext(ctx)
+
+	require.False(t, openAIClientRequestCanceled(c))
+	cancel()
+	require.True(t, openAIClientRequestCanceled(c))
+}
+
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
 	payload := `{"model":"gpt-5","input":"hello"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(payload))
