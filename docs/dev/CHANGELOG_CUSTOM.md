@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-10] feat: OpenAI GPT-5.6 sol/terra/luna support
+
+**影响范围**: backend/internal/{pkg/openai/constants.go, service/{openai_model_alias.go,openai_codex_transform.go,models_list_policy.go,pricing_service.go,billing_service.go}(+tests), handler/gateway_models_list_test.go}, backend/resources/model-pricing/model_prices_and_context_window.json, frontend/src/{composables/useModelWhitelist.ts(+test),components/keys/UseKeyModal.vue(+test)}, docs/dev/codebase/{model-mapping.md,billing.md}
+**上游兼容性**: 中低风险。按上游 `6cea1c35` 增量接入 `gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`，但不做大范围 upstream merge，不移除本地 GPT-5.5-pro/date、Codex Spark、Claude-GPT bridge、图片通道、展示倍率等二开逻辑。
+**变更详情**:
+- OpenAI 默认模型、`/v1/models` curated discovery、前端 OpenAI 白名单/预设、OpenCode 配置加入 GPT-5.6 三个官方变体。
+- Codex/OpenAI 模型归一支持 `gpt5.6-*`、`openai/gpt5.6-*`、reasoning-effort 后缀、日期后缀和 compact 后缀，避免新模型落入旧的 `gpt-5 -> gpt-5.4` 兼容兜底。
+- LiteLLM 资源文件加入上游 GPT-5.6 pricing/context/service-tier 字段；动态价格仍优先，静态兜底仅在价格资源缺失时启用，且不改变用户/渠道/全局/display rate 解析链。
+- 默认 Claude-GPT bridge 模板保持 `claude-opus-4-8/4-7 -> gpt-5.5`、其他 Claude 4.x -> `gpt-5.4`，只新增可选 OpenAI 预设，不隐式升级默认桥接目标。
+- 验证：`go test -tags=unit ./internal/pkg/openai ./internal/service ./internal/handler` 通过；`node -e "JSON.parse(...model_prices_and_context_window.json...)"` 通过；`pnpm test:run src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts` 通过；`pnpm exec eslint src/composables/useModelWhitelist.ts src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/UseKeyModal.vue src/components/keys/__tests__/UseKeyModal.spec.ts` 通过。
+
 ## [2026-07-08] feat: 网关上游网络错误可配置重试
 
 **影响范围**: backend/internal/{repository/http_upstream.go(+test), service/{http_upstream_port.go,setting_service.go,settings_view.go,domain_constants.go,wire.go,setting_service_update_test.go}, handler/{admin/setting_handler.go,dto/settings.go}, cmd/server/wire_gen.go}, frontend/src/{api/admin/settings.ts,views/admin/SettingsView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/gateway.md

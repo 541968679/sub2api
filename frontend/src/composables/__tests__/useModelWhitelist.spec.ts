@@ -4,12 +4,20 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn()
 }))
 
-import { buildModelMappingObject, getModelsByPlatform } from '../useModelWhitelist'
+import {
+  buildModelMappingObject,
+  getDefaultOpenAIClaudeGPTBridgeTemplate,
+  getModelsByPlatform,
+  getPresetMappingsByPlatform
+} from '../useModelWhitelist'
 
 describe('useModelWhitelist', () => {
   it('openai 模型列表包含 GPT-5.4 官方快照', () => {
     const models = getModelsByPlatform('openai')
 
+    expect(models).toContain('gpt-5.6-sol')
+    expect(models).toContain('gpt-5.6-terra')
+    expect(models).toContain('gpt-5.6-luna')
     expect(models).toContain('gpt-5.4')
     expect(models).toContain('gpt-5.4-mini')
     expect(models).toContain('gpt-5.4-2026-03-05')
@@ -78,5 +86,27 @@ describe('useModelWhitelist', () => {
     expect(mapping).toEqual({
       'gpt-5.4-mini': 'gpt-5.4-mini'
     })
+  })
+
+  it('openai presets include GPT-5.6 without changing default Claude bridge targets', () => {
+    const presets = getPresetMappingsByPlatform('openai')
+    expect(presets.map((preset) => preset.to)).toEqual(expect.arrayContaining([
+      'gpt-5.6-sol',
+      'gpt-5.6-terra',
+      'gpt-5.6-luna'
+    ]))
+
+    const bridgeTemplate = getDefaultOpenAIClaudeGPTBridgeTemplate()
+    expect(bridgeTemplate).toEqual([
+      { from: 'claude-opus-4-8', to: 'gpt-5.5' },
+      { from: 'claude-opus-4-7', to: 'gpt-5.5' },
+      { from: 'claude-opus-4-6', to: 'gpt-5.4' },
+      { from: 'claude-opus-4-5-20251101', to: 'gpt-5.4' },
+      { from: 'claude-sonnet-4-6', to: 'gpt-5.4' },
+      { from: 'claude-sonnet-4-5', to: 'gpt-5.4' },
+      { from: 'claude-sonnet-4-5-20250929', to: 'gpt-5.4' },
+      { from: 'claude-haiku-4-5', to: 'gpt-5.4' },
+      { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.4' }
+    ])
   })
 })

@@ -28,6 +28,21 @@ not edited on Antigravity groups. Whitelist-style self mappings such as
 `"claude-opus-4-8": "claude-opus-4-8"` do not enable the bridge, because they
 would not hide a distinct GPT upstream model.
 
+## OpenAI GPT-5.6 Model Mapping (2026-07-10)
+
+OpenAI model lists and presets include `gpt-5.6-sol`, `gpt-5.6-terra`, and
+`gpt-5.6-luna` as normal OpenAI targets. They can be used in explicit account
+`model_mapping` entries or admin UI presets, but the built-in
+`defaultOpenAIClaudeGPTBridgePresetMappings` stays on the existing
+`gpt-5.5`/`gpt-5.4` targets. Do not silently migrate Claude-GPT bridge defaults
+to GPT-5.6 during upstream sync; that would change production bridge behavior
+and billing expectations without an admin decision.
+
+Backend model normalization treats these as first-class known OpenAI/Codex
+models before the broad legacy `gpt-5 -> gpt-5.4` fallback. This covers compact,
+date-suffixed, `openai/...`, and reasoning-effort variants such as
+`gpt-5.6-terra-high`.
+
 ## Model Config UI Provider Editing (2026-07-03)
 
 The admin model configuration page must treat provider as an editable platform

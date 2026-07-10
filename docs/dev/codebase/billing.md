@@ -61,6 +61,25 @@ Compatibility notes for custom billing/ops features:
   `platform=antigravity, model=gpt-5.5` or leave `platform` empty; a rule written
   as `platform=openai, model=gpt-5.5` will not match that Antigravity group.
 
+## OpenAI GPT-5.6 Pricing (2026-07-10)
+
+`gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` are loaded from the normal
+LiteLLM pricing resource first. The static fallback in `PricingService` and
+`BillingService` exists only to avoid rejecting requests when dynamic pricing is
+missing. It mirrors the upstream GPT-5.6 resource price shape:
+
+- input `$5/MTok`, output `$30/MTok`;
+- priority input `$10/MTok`, priority output `$60/MTok`;
+- cache read `$0.50/MTok`, priority cache read `$1/MTok`;
+- long-context threshold `272000`, input multiplier `2.0`, output multiplier
+  `1.5`.
+
+This does not change display-price resolution or display-rate amplification.
+User-visible prices still come from the configured display chain
+`User -> Channel -> Global -> LiteLLM -> Fallback`, and display transforms must
+not rewrite stored billing, quota deduction, `actual_cost`, or real
+`cache_read_tokens`.
+
 ## 数据模型
 
 | 实体/类型 | 位置 | 说明 |
