@@ -2,6 +2,7 @@ package apicompat
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -808,6 +809,57 @@ func TestResponsesEventToAnthropicEvents_IgnoresStaleToolArgumentDelta(t *testin
 		}
 	}
 	require.Equal(t, []string{`{"current":true}`}, partialJSON)
+}
+
+func TestResponsesEventToAnthropicEvents_TextDoneCompletesPartialDelta(t *testing.T) {
+	state := NewResponsesEventToAnthropicState()
+	var events []AnthropicStreamEvent
+	for _, event := range []*ResponsesStreamEvent{
+		{
+			Type:     "response.created",
+			Response: &ResponsesResponse{ID: "resp_partial_text", Model: "gpt-5.5"},
+		},
+		{
+			Type:         "response.output_text.delta",
+			OutputIndex:  0,
+			ContentIndex: 0,
+			Delta:        "partial ",
+		},
+		{
+			Type:         "response.output_text.done",
+			OutputIndex:  0,
+			ContentIndex: 0,
+			Text:         "partial complete",
+		},
+		{
+			Type: "response.completed",
+			Response: &ResponsesResponse{
+				ID:     "resp_partial_text",
+				Model:  "gpt-5.5",
+				Status: "completed",
+				Output: []ResponsesOutput{{
+					Type:   "message",
+					Role:   "assistant",
+					Status: "completed",
+					Content: []ResponsesContentPart{{
+						Type: "output_text",
+						Text: "partial complete",
+					}},
+				}},
+			},
+		},
+	} {
+		events = append(events, ResponsesEventToAnthropicEvents(event, state)...)
+	}
+
+	var text strings.Builder
+	for _, event := range events {
+		if event.Delta != nil && event.Delta.Type == "text_delta" {
+			text.WriteString(event.Delta.Text)
+		}
+	}
+	require.Equal(t, "partial complete", text.String(),
+		"the complete text from output_text.done/terminal output must fill a missing delta suffix exactly once")
 }
 
 func TestResponsesEventToAnthropicEvents_CustomToolDoneEmitsWrappedInput(t *testing.T) {
