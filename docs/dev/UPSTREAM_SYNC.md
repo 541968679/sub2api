@@ -39,6 +39,13 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Guarded API-key account header overrides
+
+- **Upstream sources**: `ec7b20649` and audit follow-up `31b6e0d94`.
+- Added validated account-level header overrides only for Anthropic/OpenAI API-key accounts and wired them through HTTP, WebSocket, Images, count-tokens, embeddings, model sync, and probe paths.
+- Audit reconciliation blocks authentication/cookie/content framing/session/handshake headers, preserves beta header/body symmetry, and prevents accidental bulk clearing. Current gateway signatures and CCH order remain authoritative; unrelated Spark-shadow and beta-computation refactors were excluded.
+- OAuth/PAT/FedRAMP identity, API-key cache name, Grok/Gemini/Antigravity/Bedrock, Claude-GPT bridge, Images capability and Batch Image settlement, curated/default models, scheduler/failover, Ops, billing/display/cache-read, routes, settings, schemas, and migrations are unchanged.
+
 ### 2026-07-11 - Usage-log persistence under queue pressure
 
 - **Upstream source**: `a1b2b32e0`; `7a11b39d6` audited as not applicable because the prerequisite API-key LastUsedIP query is not present.

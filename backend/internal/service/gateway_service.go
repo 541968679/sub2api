@@ -9477,8 +9477,6 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		}
 		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
 	}
-	body = sanitizeCountTokensRequestBody(body)
-
 	// 同 buildUpstreamRequestAnthropicAPIKeyPassthrough：能力维度 sanitize。
 	clientBeta := ""
 	if c != nil && c.Request != nil {

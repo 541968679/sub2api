@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Add guarded API-key account header overrides
+
+**Affected files**: account header policy/service, Anthropic and OpenAI API-key forwarding/probes/models/WS/Images paths, account create/edit/bulk UI, bilingual locales, and focused tests.
+**Upstream compatibility**: Selective integration of `ec7b20649` plus audit fixes from `31b6e0d94`; adjacent Spark-shadow and later beta-refactor prerequisites were not imported.
+**Details**:
+- Allows explicitly enabled Anthropic/OpenAI API-key accounts to override a validated set of outbound headers across real forwarding and account probes.
+- Blocks authentication, cookies, content framing, connection, WebSocket handshake, and per-request session headers; applies case-insensitive replacement without duplicate wire forms.
+- Uses an overridden `anthropic-beta` value for matching body capability sanitization before existing CCH signing, while OAuth/PAT, Grok, Gemini, Antigravity, Bedrock, FedRAMP identity, bridge/Images gates, billing/display/cache-read, model mapping, and scheduling remain unchanged.
+
 ## [2026-07-11] fix: Prevent billed usage-log loss under queue pressure
 
 **Affected files**: usage-record defaults, usage-log repository batching, gateway usage-log fallback, and focused tests.
