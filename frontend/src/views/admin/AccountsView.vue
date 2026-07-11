@@ -219,7 +219,7 @@
           </template>
           <template #cell-platform_type="{ row }">
             <div class="flex flex-wrap items-center gap-1">
-              <PlatformTypeBadge :platform="row.platform" :type="row.type" :plan-type="row.credentials?.plan_type" :privacy-mode="row.extra?.privacy_mode" :subscription-expires-at="row.credentials?.subscription_expires_at" />
+              <PlatformTypeBadge :platform="row.platform" :type="row.type" :plan-type="row.credentials?.plan_type || row.parent_plan_type" :privacy-mode="row.extra?.privacy_mode || row.parent_privacy_mode" :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at" />
               <span
                 v-if="getOpenAICompactLabel(row)"
                 :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', getOpenAICompactClass(row)]"
@@ -363,7 +363,7 @@
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <CodexSessionImportModal
@@ -386,6 +386,7 @@
     />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog :show="showSparkShadowDialog" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: sparkShadowParent?.name || '' })" :confirm-text="t('common.confirm')" :cancel-text="t('common.cancel')" @confirm="confirmCreateSparkShadow" @cancel="cancelCreateSparkShadow" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <div class="space-y-3 text-sm text-gray-700 dark:text-gray-300">
         <div class="space-y-2">
@@ -517,7 +518,7 @@ const getProxyAccountCount = (proxyId: number | null): number | undefined => {
 }
 const accountTableRef = ref<HTMLElement | null>(null)
 const dataTableRef = ref<InstanceType<typeof DataTable> | null>(null)
-type AccountSelectionMetadata = Pick<Account, 'platform' | 'type'>
+type AccountSelectionMetadata = Pick<Account, 'platform' | 'type' | 'parent_account_id'>
 type AccountBulkEditTarget =
   | {
       mode: 'selected'
@@ -582,6 +583,8 @@ const showTLSFingerprintProfiles = ref(false)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
+const showSparkShadowDialog = ref(false)
+const sparkShadowParent = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const showUpdateRt = ref(false)
 const updateRtAcc = ref<Account | null>(null)
@@ -662,8 +665,8 @@ const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
 const usageManualRefreshToken = ref(0)
 
-function getAccountEmail(row: { extra?: Record<string, unknown>; credentials?: Record<string, unknown> }): string | undefined {
-  const email = row.extra?.email_address || row.credentials?.email
+function getAccountEmail(row: { extra?: Record<string, unknown>; credentials?: Record<string, unknown>; parent_email?: string }): string | undefined {
+  const email = row.extra?.email_address || row.credentials?.email || row.parent_email
   return typeof email === 'string' ? email : undefined
 }
 
@@ -950,7 +953,8 @@ const rememberAccountSelectionMetadata = (rows: Account[]) => {
   for (const account of rows) {
     next.set(account.id, {
       platform: account.platform,
-      type: account.type
+      type: account.type,
+      parent_account_id: account.parent_account_id
     })
   }
   selectedAccountMetadata.value = next
@@ -977,6 +981,8 @@ const toggleAccountSelection = (account: Account) => {
   rememberAccountSelectionMetadata([account])
   toggleSelection(account.id)
 }
+
+const nonShadowSelectedIds = () => selIds.value.filter(id => selectedAccountMetadata.value.get(id)?.parent_account_id == null)
 
 const selectPageAccounts = () => {
   rememberAccountSelectionMetadata(accounts.value)
@@ -1462,9 +1468,11 @@ const handleBulkResetStatus = async () => {
   }
 }
 const handleBulkRefreshToken = async () => {
+  const accountIds = nonShadowSelectedIds()
+  if (accountIds.length === 0) { appStore.showWarning(t('admin.accounts.sparkShadowBulkSkipped', { count: selIds.value.length })); return }
   if (!confirm(t('common.confirm'))) return
   try {
-    const result = await adminAPI.accounts.batchRefresh(selIds.value)
+    const result = await adminAPI.accounts.batchRefresh(accountIds)
     if (result.failed > 0) {
       appStore.showError(t('admin.accounts.bulkActions.partialSuccess', { success: result.success, failed: result.failed }))
     } else {
@@ -1478,9 +1486,11 @@ const handleBulkRefreshToken = async () => {
   }
 }
 const handleBulkAutoAssignProxy = async () => {
-  if (!confirm(t('admin.accounts.bulkActions.autoAssignProxyConfirm', { count: selIds.value.length }))) return
+  const accountIds = nonShadowSelectedIds()
+  if (accountIds.length === 0) { appStore.showWarning(t('admin.accounts.sparkShadowBulkSkipped', { count: selIds.value.length })); return }
+  if (!confirm(t('admin.accounts.bulkActions.autoAssignProxyConfirm', { count: accountIds.length }))) return
   try {
-    const result = await adminAPI.accounts.batchAutoAssignProxy(selIds.value)
+    const result = await adminAPI.accounts.batchAutoAssignProxy(accountIds)
     appStore.showSuccess(t('admin.accounts.bulkActions.autoAssignProxyResult', { assigned: result.assigned, skipped: result.skipped }))
     if (result.assigned > 0) {
       clearSelection()
@@ -1557,7 +1567,8 @@ const normalizeBulkSchedulableResult = (
   }
 }
 const handleBulkToggleSchedulable = async (schedulable: boolean) => {
-  const accountIds = [...selIds.value]
+  const accountIds = nonShadowSelectedIds()
+  if (accountIds.length === 0) { appStore.showWarning(t('admin.accounts.sparkShadowBulkSkipped', { count: selIds.value.length })); return }
   try {
     const result = await adminAPI.accounts.bulkUpdate(accountIds, { schedulable })
     const { successIds, failedIds, successCount, failedCount, hasIds, hasCounts } = normalizeBulkSchedulableResult(result, accountIds)
@@ -1711,9 +1722,11 @@ const collectSelectionMetadata = (rows: Account[]) => {
 }
 
 const openBulkEditSelected = () => {
+  const accountIds = nonShadowSelectedIds()
+  if (accountIds.length === 0) { appStore.showWarning(t('admin.accounts.sparkShadowBulkSkipped', { count: selIds.value.length })); return }
   bulkEditTarget.value = {
     mode: 'selected',
-    accountIds: [...selIds.value],
+    accountIds,
     selectedPlatforms: [...selPlatforms.value],
     selectedTypes: [...selTypes.value]
   }
@@ -2021,6 +2034,26 @@ const handleSetPrivacy = async (a: Account) => {
   } catch (error: any) {
     console.error('Failed to set privacy:', error)
     appStore.showError(error?.response?.data?.message || t('admin.accounts.privacyFailed'))
+  }
+}
+const handleCreateSparkShadow = (account: Account) => {
+  sparkShadowParent.value = account
+  showSparkShadowDialog.value = true
+}
+const cancelCreateSparkShadow = () => {
+  showSparkShadowDialog.value = false
+  sparkShadowParent.value = null
+}
+const confirmCreateSparkShadow = async () => {
+  const parent = sparkShadowParent.value
+  if (!parent) return
+  try {
+    await adminAPI.accounts.createSparkShadow(parent.id, { name: `${parent.name} (Spark)` })
+    appStore.showSuccess(t('admin.accounts.createSparkShadowSuccess'))
+    cancelCreateSparkShadow()
+    reload()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.createSparkShadowFailed'))
   }
 }
 const handleDelete = (a: Account) => { deletingAcc.value = a; showDeleteDialog.value = true }

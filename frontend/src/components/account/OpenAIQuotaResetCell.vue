@@ -160,9 +160,11 @@ const resetCreditExpirations = computed(() =>
 )
 const primaryResetCreditExpiry = computed(() => resetCreditExpirations.value[0] ?? '')
 const hiddenResetCreditCount = computed(() => Math.max(resetCreditExpirations.value.length - 1, 0))
-const canReset = computed(() => availableResetCount.value > 0)
+const isShadow = computed(() => props.account.parent_account_id != null)
+const canReset = computed(() => !isShadow.value && availableResetCount.value > 0)
 
 const resetButtonTitle = computed(() => {
+  if (isShadow.value) return t('admin.accounts.openaiQuotaReset.resetTooltipShadow')
   if (!data.value) return t('admin.accounts.openaiQuotaReset.resetTooltipNeedQuery')
   if (!canReset.value) return t('admin.accounts.openaiQuotaReset.resetTooltipNoCredits')
   return t('admin.accounts.openaiQuotaReset.resetTooltipReady')

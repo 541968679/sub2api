@@ -22,7 +22,7 @@
               <Icon name="clock" size="sm" class="text-orange-500" />
               {{ t('admin.scheduledTests.schedule') }}
             </button>
-            <template v-if="account.type === 'oauth' || account.type === 'setup-token'">
+            <template v-if="!isShadow && (account.type === 'oauth' || account.type === 'setup-token')">
               <button @click="$emit('reauth', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-700">
                 <Icon name="link" size="sm" />
                 {{ t('admin.accounts.reAuthorize') }}
@@ -39,6 +39,10 @@
             <button v-if="supportsPrivacy" @click="$emit('set-privacy', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-emerald-600 hover:bg-gray-100 dark:hover:bg-dark-700">
               <Icon name="shield" size="sm" />
               {{ t('admin.accounts.setPrivacy') }}
+            </button>
+            <button v-if="canCreateSparkShadow" @click="$emit('create-spark-shadow', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-amber-600 hover:bg-gray-100 dark:hover:bg-dark-700">
+              <Icon name="link" size="sm" />
+              {{ t('admin.accounts.createSparkShadow') }}
             </button>
             <button v-if="isOpenAICodexExportCandidate" @click="$emit('export-codex', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-sky-600 hover:bg-gray-100 dark:hover:bg-dark-700">
               <Icon name="download" size="sm" />
@@ -67,7 +71,7 @@ import { Icon } from '@/components/icons'
 import type { Account } from '@/types'
 
 const props = defineProps<{ show: boolean; account: Account | null; position: { top: number; left: number } | null }>()
-const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'reauth', 'refresh-token', 'update-refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'export-codex'])
+const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'reauth', 'refresh-token', 'update-refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'export-codex', 'create-spark-shadow'])
 const { t } = useI18n()
 const isRateLimited = computed(() => {
   if (props.account?.rate_limit_reset_at && new Date(props.account.rate_limit_reset_at) > new Date()) {
@@ -89,12 +93,15 @@ const hasRecoverableState = computed(() => {
 })
 const isAntigravityOAuth = computed(() => props.account?.platform === 'antigravity' && props.account?.type === 'oauth')
 const isOpenAIOAuth = computed(() => props.account?.platform === 'openai' && props.account?.type === 'oauth')
+const isShadow = computed(() => props.account?.parent_account_id != null)
+const canCreateSparkShadow = computed(() => isOpenAIOAuth.value && !isShadow.value)
 const isOpenAICodexExportCandidate = computed(() => {
+  if (isShadow.value) return false
   if (props.account?.platform !== 'openai') return false
   const type = String(props.account?.type ?? '')
   return type === 'oauth' || type === 'official'
 })
-const supportsPrivacy = computed(() => isAntigravityOAuth.value || isOpenAIOAuth.value)
+const supportsPrivacy = computed(() => !isShadow.value && (isAntigravityOAuth.value || isOpenAIOAuth.value))
 const hasQuotaLimit = computed(() => {
   return (props.account?.type === 'apikey' || props.account?.type === 'bedrock') && (
     (props.account?.quota_limit ?? 0) > 0 ||
