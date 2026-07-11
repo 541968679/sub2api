@@ -160,3 +160,13 @@ func (s *OpenAIGatewayService) SetAccountRepoForTest(repo AccountRepository) {
 	}
 	s.accountRepo = repo
 }
+
+// SetHTTPUpstreamForTest injects the HTTP upstream dependency for
+// cross-package unit tests. Production wiring must keep using the Wire
+// constructor.
+func (s *OpenAIGatewayService) SetHTTPUpstreamForTest(upstream HTTPUpstream) {
+	if s == nil {
+		return
+	}
+	s.httpUpstream = upstream
+}
