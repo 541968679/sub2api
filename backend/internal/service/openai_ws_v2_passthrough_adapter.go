@@ -242,6 +242,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	// 可直接 Store/Load 而无需额外封装。
 	var requestServiceTierPtr atomic.Pointer[string]
 	requestServiceTierPtr.Store(extractOpenAIServiceTierFromBody(firstClientMessage))
+	var requestReasoningEffortPtr atomic.Pointer[string]
+	requestReasoningEffortPtr.Store(extractOpenAIReasoningEffortFromBody(firstClientMessage, capturedSessionModel, requestModel))
 	promptCacheKey := strings.TrimSpace(gjson.GetBytes(firstClientMessage, "prompt_cache_key").String())
 
 	wsURL, err := s.buildOpenAIResponsesWSURL(account)
@@ -381,6 +383,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if policyErr == nil && blocked == nil &&
 				strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
 				requestServiceTierPtr.Store(extractOpenAIServiceTierFromBody(out))
+				requestModelForFrame := strings.TrimSpace(gjson.GetBytes(payload, "model").String())
+				requestReasoningEffortPtr.Store(extractOpenAIReasoningEffortFromBody(out, model, requestModelForFrame, requestModel))
 			}
 			return out, blocked, policyErr
 		},
@@ -426,6 +430,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					},
 					Model:           turn.RequestModel,
 					ServiceTier:     requestServiceTierPtr.Load(),
+					ReasoningEffort: requestReasoningEffortPtr.Load(),
 					Stream:          true,
 					OpenAIWSMode:    true,
 					ResponseHeaders: cloneHeader(handshakeHeaders),
@@ -500,6 +505,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		},
 		Model:           relayResult.RequestModel,
 		ServiceTier:     requestServiceTierPtr.Load(),
+		ReasoningEffort: requestReasoningEffortPtr.Load(),
 		Stream:          true,
 		OpenAIWSMode:    true,
 		ResponseHeaders: cloneHeader(handshakeHeaders),

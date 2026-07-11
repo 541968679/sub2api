@@ -39,6 +39,26 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - OpenAI scheduler and Codex WebSocket hardening
+
+- **Upstream source**: scheduler audit `0fd2e9216`, quota-headroom scoring `a2cf297d9`, Windows reset recognition `0a5f34a2`; HTTP-bridge commits `0476b5c97`, `906be3f74`, and `3020652fa` were audited against the existing fork implementation.
+- **Merge strategy**: manual behavior-level port from alignment baseline `8e9127fa3`; whole-commit cherry-picks were rejected after conflicts showed they would overwrite fork-local Settings, account management, platform quota, moderation, and WS hot-path changes.
+- **Behavior**:
+  - Responses WebSocket scheduling receives an explicit `previousResponseCanMove` decision derived from full tool-output `call_id` coverage. Partial coverage keeps hard previous-response affinity; complete in-band coverage may move accounts and strips the stale response ID.
+  - Optional `gateway.openai_ws.scheduler_score_weights.quota_headroom` scores fresh Codex quota snapshots; default `0` preserves existing behavior.
+  - Windows remote-close errors are classified as client disconnects instead of internal proxy failures.
+  - Usage metadata resolves reasoning effort from mapped, billing, and original model candidates; WebSocket passthrough updates it per turn without changing request forwarding or billing.
+  - Existing OpenAI WS HTTP bridge modes already provide the target behavior and were not duplicated. Target `e316ebf5` has no independent Grok WebSocket protocol; Grok remains on HTTP/SSE compatible routes.
+- **Fork-local impact**:
+  - All HTTP, Grok, embeddings, count-tokens, and non-WS capability scheduler calls pass `previousResponseCanMove=false`; Grok platform override remains a separate parameter.
+  - Claude-GPT bridge uses its dedicated eligibility flag and is unchanged. OpenAI Images still uses native/basic capability selection. Stored billing, platform quota deduction, display tokens/prices, real cache-read tokens, Ops context, and model discovery are untouched.
+  - The later sticky-weighted/subscription-priority audit fixes in `0fd2e9216` are not applicable to the fork's current first-generation advanced scheduler because those submodes are not implemented. Importing their full settings/frontend surface remains a separate scheduler-control-plane batch.
+- **Deferred audited items**:
+  - OpenAI PAT auth `32df33a1c`: 26-file authentication/import/token-refresh/frontend flow; depends on PAT service, account credential semantics, quota service, Wire/routes, and bilingual account UI.
+  - Codex engine fingerprint `819fda34d` plus version message `4b321142b`: 41-file security-policy/settings/frontend change; depends on unified fingerprint signals, fail-closed policy fallback, blacklist/whitelist validation, account-level app-server controls, and version-range settings. The message-only fix must not be ported without the detector contract.
+  - OpenAI quota query/reset readiness `b81694929`: depends on `OpenAIQuotaService`, token/provider privacy-client wiring, admin routes/handler methods, reset-credit semantics, and `OpenAIQuotaResetCell.vue`. Grok readiness is already present in the current baseline; the target only changes a shared upstream-status helper name after refactoring.
+- **Verification**: focused scheduler/tool-continuation/WS/config/bridge/Images/platform tests passed; full handler unit package passed. Full server unit tests reached two pre-existing Grok-video API contract snapshot mismatches (`/groups/available`, `/usage`) unrelated to this batch.
+
 ### 2026-07-11 - Grok media and per-second video billing sync
 
 - **Upstream source**: Grok media routing and pricing line through alignment target `e316ebf52838a89d57fc790981cce7520f819ac8`, including final rate-card and video metadata fixes.

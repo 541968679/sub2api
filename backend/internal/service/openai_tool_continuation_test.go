@@ -184,3 +184,26 @@ func TestValidateFunctionCallOutputContextBytesMatchesMapValidation(t *testing.T
 		})
 	}
 }
+
+func TestAnalyzeToolCallOutputContextCoverageBytes(t *testing.T) {
+	cases := []struct {
+		name      string
+		body      string
+		hasOutput bool
+		coversAll bool
+	}{
+		{"no output", `{"input":[{"type":"message"}]}`, false, false},
+		{"all context", `{"input":[{"type":"function_call","call_id":"call_a"},{"type":"function_call_output","call_id":"call_a"}]}`, true, true},
+		{"reference", `{"input":[{"type":"function_call_output","call_id":"call_a"},{"type":"item_reference","id":"call_a"}]}`, true, true},
+		{"partial coverage", `{"input":[{"type":"function_call","call_id":"call_a"},{"type":"function_call_output","call_id":"call_a"},{"type":"function_call_output","call_id":"call_b"}]}`, true, false},
+		{"missing call id", `{"input":[{"type":"function_call_output"}]}`, true, false},
+		{"mixed outputs", `{"input":[{"type":"tool_search_output","call_id":"call_s"},{"type":"tool_search_call","call_id":"call_s"},{"type":"mcp_tool_call_output","call_id":"call_m"},{"type":"mcp_tool_call","call_id":"call_m"}]}`, true, true},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := AnalyzeToolCallOutputContextCoverageBytes([]byte(tt.body))
+			require.Equal(t, tt.hasOutput, got.HasFunctionCallOutput)
+			require.Equal(t, tt.coversAll, got.ContextCoversAllCallIDs)
+		})
+	}
+}

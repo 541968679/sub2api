@@ -1710,7 +1710,7 @@ func TestOpenAICompatibleScheduler_IsolatesGrokAndOpenAIPlatforms(t *testing.T) 
 
 	grokSelection, _, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx, &groupID, "", "", "grok-4.5", nil,
-		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, PlatformGrok,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, false, PlatformGrok,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, grokSelection)
@@ -1718,7 +1718,7 @@ func TestOpenAICompatibleScheduler_IsolatesGrokAndOpenAIPlatforms(t *testing.T) 
 
 	openAISelection, _, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx, &groupID, "", "", "gpt-5.4", nil,
-		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, false,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, openAISelection)
@@ -1742,7 +1742,7 @@ func TestOpenAICompatibleScheduler_SkipsRuntimeBlockedGrokAccount(t *testing.T) 
 
 	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
 		ctx, &groupID, "", "", "grok-4.5", nil,
-		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, PlatformGrok,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, false, PlatformGrok,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
@@ -1751,4 +1751,24 @@ func TestOpenAICompatibleScheduler_SkipsRuntimeBlockedGrokAccount(t *testing.T) 
 
 func int64PtrForTest(v int64) *int64 {
 	return &v
+}
+
+func TestOpenAIQuotaHeadroomFactor(t *testing.T) {
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		extra map[string]any
+		want  float64
+	}{
+		{"missing snapshot is neutral", nil, 0.5},
+		{"stale snapshot is neutral", map[string]any{"codex_usage_updated_at": now.Add(-9 * time.Hour).Format(time.RFC3339), "codex_7d_used_percent": 20}, 0.5},
+		{"healthy primary", map[string]any{"codex_usage_updated_at": now.Add(-time.Hour).Format(time.RFC3339), "codex_7d_used_percent": 20, "codex_5h_used_percent": 30}, 0.8},
+		{"secondary near exhaustion halves factor", map[string]any{"codex_usage_updated_at": now.Add(-time.Hour).Format(time.RFC3339), "codex_7d_used_percent": 20, "codex_5h_used_percent": 95}, 0.4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := openAIQuotaHeadroomFactor(&Account{Extra: tt.extra}, now)
+			require.InDelta(t, tt.want, got, 0.0001)
+		})
+	}
 }

@@ -310,6 +310,8 @@ gateway:
       queue: 0.7
       error_rate: 0.8
       ttft: 0.5
+      # Prefer healthier Codex quota snapshots; 0 keeps the legacy behavior.
+      quota_headroom: 0.0
   # HTTP upstream connection pool settings (HTTP/2 + multi-proxy scenario defaults)
   # HTTP 上游连接池配置（HTTP/2 + 多代理场景默认值）
   # Max idle connections across all hosts
