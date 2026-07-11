@@ -119,6 +119,9 @@
                 <button @click="resetFilters" class="btn btn-secondary">
                   {{ t('common.reset') }}
                 </button>
+                <button data-testid="usage-csv-export" type="button" class="btn btn-secondary" :disabled="exporting" @click="exportToCSV">
+                  {{ t('usage.exportCsv') }}
+                </button>
               </div>
             </div>
           </div>
@@ -301,20 +304,23 @@
             </div>
           </template>
 
-          <template #cell-first_token="{ row }">
-            <span
-              v-if="row.first_token_ms != null"
-              class="text-sm text-gray-600 dark:text-gray-400"
-            >
-              {{ formatDuration(row.first_token_ms) }}
-            </span>
-            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
-          </template>
-
-          <template #cell-duration="{ row }">
-            <span class="text-sm text-gray-600 dark:text-gray-400">{{
-              formatDuration(row.duration_ms)
-            }}</span>
+          <template #cell-latency="{ row }">
+            <div class="flex items-stretch gap-2">
+              <span
+                class="w-1 shrink-0 rounded-full"
+                :class="row.first_token_ms != null
+                  ? ['bg-gradient-to-b from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]]
+                  : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
+                aria-hidden="true"
+              ></span>
+              <div class="grid grid-cols-[max-content_max-content] gap-x-2 text-xs">
+                <span class="text-gray-400">{{ t('usage.latencyFirstToken') }}</span>
+                <span v-if="row.first_token_ms != null" class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.first_token_ms)]">{{ formatDuration(row.first_token_ms) }}</span>
+                <span v-else class="text-gray-400">-</span>
+                <span class="text-gray-400">{{ t('usage.latencyDuration') }}</span>
+                <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
+              </div>
+            </div>
           </template>
 
           <template #cell-created_at="{ value }">
@@ -518,6 +524,7 @@ import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { usageAPI, keysAPI } from '@/api'
+import { saveAs } from 'file-saver'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -545,6 +552,11 @@ import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import { getBillingModeLabel, getBillingModeBadgeClass } from '@/utils/billingMode'
 import { hasImageOutputTokens, textOutputTokens } from '@/utils/imageUsage'
+import { buildUserUsageCsvBytes, type CsvCell } from '@/utils/usageCsv'
+import {
+  LATENCY_BAR_CLASSES, LATENCY_BAR_FROM_CLASSES, LATENCY_BAR_TO_CLASSES,
+  LATENCY_TEXT_CLASSES, durationSeverity, firstTokenSeverity,
+} from '@/utils/latencyHealth'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -594,6 +606,7 @@ const columns = computed<Column[]>(() => [
 const usageLogs = ref<UsageLog[]>([])
 const apiKeys = ref<ApiKey[]>([])
 const loading = ref(false)
+const exporting = ref(false)
 const trendLoading = ref(false)
 
 const apiKeyOptions = computed(() => {
@@ -661,7 +674,10 @@ const sortState = reactive({
 const formatDuration = (ms: number | null | undefined): string => {
   if (ms == null) return '-'
   if (ms < 1000) return `${ms.toFixed(0)}ms`
-  return `${(ms / 1000).toFixed(2)}s`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(2)}s`
+  const totalSeconds = Math.round(ms / 1000)
+  if (totalSeconds < 3600) return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+  return `${Math.floor(totalSeconds / 3600)}h ${Math.floor((totalSeconds % 3600) / 60)}m`
 }
 
 const formatUserAgent = (ua: string): string => {
@@ -722,6 +738,58 @@ const buildUsageQueryParams = (page: number, pageSize: number): UsageTableQueryP
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
+
+const exportToCSV = async () => {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const rows: UsageLog[] = []
+    let page = 1
+    while (true) {
+      const response = await usageAPI.query(buildUsageQueryParams(page, 200), {})
+      rows.push(...response.items)
+      if (response.items.length < 200 || rows.length >= response.total) break
+      page += 1
+    }
+    if (rows.length === 0) {
+      appStore.showError(t('usage.noDataToExport'))
+      return
+    }
+    const headers = [
+      t('usage.time'), t('usage.apiKeyFilter'), t('usage.model'), t('usage.reasoningEffort'),
+      t('usage.endpoint'), t('usage.type'), t('admin.usage.billingMode'),
+      t('admin.usage.inputTokens'), t('admin.usage.outputTokens'), t('admin.usage.imageOutputTokens'),
+      t('admin.usage.cacheCreationTokens'), t('admin.usage.cacheReadTokens'),
+      t('usage.rate'), t('usage.billed'), t('usage.firstToken'), t('usage.duration'),
+    ]
+    const csvRows: CsvCell[][] = rows.map((row) => [
+      row.created_at,
+      row.api_key?.name || '',
+      row.model,
+      formatReasoningEffort(row.reasoning_effort),
+      formatUsageEndpoints(row),
+      getRequestTypeLabel(row),
+      getBillingModeLabel(row.billing_mode, t),
+      row.input_tokens,
+      row.output_tokens,
+      row.image_output_tokens || 0,
+      row.cache_creation_tokens,
+      row.cache_read_tokens,
+      row.rate_multiplier,
+      row.actual_cost.toFixed(8),
+      row.first_token_ms,
+      row.duration_ms,
+    ])
+    const bytes = buildUserUsageCsvBytes(headers, csvRows)
+    saveAs(new Blob([bytes], { type: 'text/csv;charset=utf-8' }), `usage_${startDate.value}_${endDate.value}.csv`)
+    appStore.showSuccess(t('usage.exportSuccess'))
+  } catch (error) {
+    console.error('Failed to export usage CSV:', error)
+    appStore.showError(t('usage.exportFailed'))
+  } finally {
+    exporting.value = false
+  }
+}
 
 const parseLocalDate = (value: string): Date | null => {
   const [year, month, day] = value.split('-').map(Number)
