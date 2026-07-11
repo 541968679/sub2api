@@ -4759,3 +4759,15 @@ route, setting, push, or deployment change.
 - Rejected `7d_oi` windows limit only the Fable family and keep Sonnet/Opus schedulable; the existing 5h/7d whole-account behavior is unchanged.
 - Fable utilization/reset is cached in account extra, returned in `UsageInfo`, and conditionally displayed as `7d F`.
 - Stored billing, quota deduction, `actual_cost`, display prices/tokens, real cache-read quantities, Spark shadow isolation, advanced scheduler/failover, Claude-GPT bridge, Images, curated/default models, Ops, settings, routes, and bilingual locale files are unchanged.
+
+## [2026-07-11] feat: Show stats-only API-key concurrency
+
+**Affected files**: concurrency Redis/service, shared gateway helper, OpenAI Responses WebSocket, API-key service/DTO/Wire, user key table/i18n/types, and focused tests.
+
+**Compatibility**: High-sensitivity selective adaptation of upstream `089a7b7fa`; no schema or migration.
+
+**Details**:
+- Tracks each API key in an independent `concurrency:api_key:*` sorted set after the existing user slot succeeds. This is observation only and never gates admission or changes user/account limits.
+- Shared Claude/OpenAI Chat/Responses/Gemini paths use the existing user-slot helper; Responses WebSocket tracks each active turn explicitly. Release functions remove both user and API-key stats slots on every registered exit path.
+- Redis tracking/count errors fail open and render zero instead of failing requests or key management.
+- API-key list/detail responses and the persisted key table expose current concurrency while retaining latest-use IP, quota/group filters, and existing columns. Billing, display tokens, cache-read quantities, `actual_cost`, scheduler/failover, Images/Batch Image, and routes are unchanged.

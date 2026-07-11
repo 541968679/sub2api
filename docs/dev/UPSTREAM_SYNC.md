@@ -1128,6 +1128,14 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Verification: focused service window/model/session tests, frontend component tests, TypeScript typecheck, ESLint, diff check, and targeted race tests.
 - **Pushed/deployed**: no.
 
+### 2026-07-11 - API-key real-time concurrency stats
+
+- Selectively adapted `089a7b7fa` onto the fork's current gateway helper, Wire graph, API-key latest-IP response, and persisted key columns.
+- Added stats-only API-key Redis slots across shared HTTP gateway paths and per-turn Responses WebSocket acquisition. Redis errors fail open; the metric does not impose a new limit.
+- Preserved user/account concurrency admission, wait queues, scheduler/failover, Claude-GPT, Images/Batch Image, billing/display/cache-read invariants, latest-use IP, and API-key column settings.
+- Verification: focused service/handler/DTO/repository/Wire tests, existing key IP/column tests, frontend typecheck and affected ESLint passed.
+- Pushed/deployed: no.
+
 ### 2026-07-11 - Admin scheduler-score calculation gate
 
 - Selectively adapted `6ae5fc31b` onto the fork's evolved account table.
