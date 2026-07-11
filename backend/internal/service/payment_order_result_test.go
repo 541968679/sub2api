@@ -92,6 +92,21 @@ func TestBuildCreateOrderResponseCopiesJSAPIPayload(t *testing.T) {
 	}
 }
 
+func TestSanitizeCreatePaymentResponseDetailsRemovesNULBytes(t *testing.T) {
+	t.Parallel()
+	resp := &payment.CreatePaymentResponse{TradeNo: "trade\x00-no", PayURL: "https://pay.example.com/\x00checkout", QRCode: "wxp://payment-token\x00", ClientSecret: "secret\x00unchanged"}
+	sanitizeCreatePaymentResponseDetails(resp)
+	if strings.ContainsRune(resp.TradeNo, 0) || strings.ContainsRune(resp.PayURL, 0) || strings.ContainsRune(resp.QRCode, 0) {
+		t.Fatalf("payment response details still contain NUL: %#v", resp)
+	}
+	if resp.TradeNo != "trade-no" || resp.PayURL != "https://pay.example.com/checkout" || resp.QRCode != "wxp://payment-token" {
+		t.Fatalf("unexpected sanitized response: %#v", resp)
+	}
+	if resp.ClientSecret != "secret\x00unchanged" {
+		t.Fatalf("client_secret = %q, should remain untouched", resp.ClientSecret)
+	}
+}
+
 func TestNormalizeCreateOrderRequestForceNativeQRClearsWeChatJSAPIContext(t *testing.T) {
 	t.Parallel()
 
