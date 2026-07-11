@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Sanitize public branding URLs and HTML-escape site settings
+
+**Affected files**: public-settings URL consumers in shared layout/auth/home views, email HTML builders, embedded page title injection, and focused backend/frontend tests.
+**Upstream compatibility**: Selective adaptation of `bfb827b87` and `15c59be78` to the fork's monolithic locales and current page layout. Existing locale keys were retained rather than duplicated.
+**Details**:
+- Routes every current `doc_url` consumer through the existing HTTP(S)-only URL sanitizer and every current `site_logo` consumer through the existing relative/data-image-aware sanitizer.
+- HTML-escapes configured site names in verification, password reset, SMTP test email, and the embedded browser title; password reset links are escaped before entering HTML attributes and fallback text.
+- Does not change Settings KV persistence, public-setting DTOs, authentication routes, billing/display/cache-read behavior, model lists/defaults, Claude-GPT bridge, Images, scheduler/failover, or Ops behavior.
+
 ## [2026-07-11] fix: Harden scheduler outbox deduplication and cleanup
 
 **Affected files**: scheduler outbox repository/interface/service, account outbox payload construction, migration runner, migrations `186/187`, and focused unit/integration tests.

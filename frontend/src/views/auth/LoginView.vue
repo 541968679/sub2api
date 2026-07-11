@@ -399,7 +399,7 @@ const appStore = useAppStore()
 const siteName = computed(() => appStore.siteName || 'ZeroCode')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
-const docUrl = computed(() => appStore.docUrl)
+const docUrl = computed(() => sanitizeUrl(appStore.docUrl || ''))
 const brandInitial = computed(() => (siteName.value || 'Z').trim().charAt(0).toUpperCase())
 
 // ==================== Login Page Content Overrides ====================

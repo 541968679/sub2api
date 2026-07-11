@@ -39,6 +39,14 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Public settings output safety
+
+- **Upstream sources**: `bfb827b87` and `15c59be78`.
+- Adapted the URL and HTML-output safety behavior to the fork's current shared layout, login, and home views. Existing `sanitizeUrl` policy remains authoritative: documentation links accept HTTP(S), while logo sources additionally accept root-relative and `data:image/` values.
+- Configured site names and password-reset links are escaped at HTML-generation boundaries for verification/reset/test emails and the embedded page title. Settings storage and normal display values are unchanged.
+- The English Ops/group keys added by the upstream commits were already present through earlier alignment work, so they were not duplicated. KeyUsage no longer renders public branding links in this fork and therefore required no dead compatibility code.
+- No billing, quota, display-token, real cache-read, model list/default, Claude-GPT bridge, Images, account scheduling/failover, routes, schema, migration, or Ops attribution contract changed.
+
 ### 2026-07-11 - Scheduler outbox deduplication and cleanup
 
 - **Upstream sources**: `34e66ec0a`, `3ef70b045`, `60cf89ae2`, `b3ec6288a`, `cb14935e9`, `31dc8913a`, and `f069c9ae0`.

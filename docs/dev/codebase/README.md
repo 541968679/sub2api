@@ -22,6 +22,7 @@
 | Kiro Gateway 附加项目 | [kiro-gateway.md](kiro-gateway.md) | 独立 sidecar 接入 Kiro 反代 API 到 Sub2API | 2026-05-10 |
 | InvokeAI Canvas PoC | [invokeai-poc.md](invokeai-poc.md) | 独立部署 InvokeAI 画布并接入 Sub2API OpenAI-compatible 图片 API，包含 API-only 多图并行队列 | 2026-05-30 |
 | 认证 | [auth.md](auth.md) | 用户登录、JWT、OAuth SSO、2FA、版本化法律确认 | 2026-06-11 |
+| Public Settings Safety | [settings-security.md](settings-security.md) | Branding URL sanitization and HTML output escaping boundaries | 2026-07-11 |
 | 支付 | [payment.md](payment.md) | Stripe、微信、支付宝集成 | 2026-05-29 |
 | 兑换码 | [redeem.md](redeem.md) | 兑换码生成、兑换、批次限兑、用户历史 | 2026-06-27 |
 
