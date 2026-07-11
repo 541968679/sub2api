@@ -850,6 +850,56 @@ func TestApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias(t *test
 	require.False(t, hasTools)
 }
 
+func TestStripOpenAIImageGenerationTools_StripsNamespaceShapesOnly(t *testing.T) {
+	reqBody := map[string]any{
+		"tools": []any{
+			map[string]any{"type": "custom", "name": "imagegen"},
+			map[string]any{"type": "namespace", "name": "image_gen"},
+			map[string]any{"type": "namespace", "name": "code_tools"},
+		},
+		"input": []any{
+			map[string]any{"type": "message", "role": "user", "content": "hello"},
+			map[string]any{"type": "additional_tools", "tools": []any{
+				map[string]any{"type": "namespace", "name": "image_gen"},
+				map[string]any{"type": "namespace", "name": "browser_tools"},
+			}},
+			map[string]any{"type": "additional_tools", "tools": []any{
+				map[string]any{"type": "namespace", "name": "image_gen"},
+			}},
+		},
+		"tool_choice": map[string]any{"type": "namespace", "name": "image_gen"},
+	}
+
+	require.True(t, stripOpenAIImageGenerationTools(reqBody))
+	require.NotContains(t, reqBody, "tool_choice")
+	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+
+	tools := reqBody["tools"].([]any)
+	require.Len(t, tools, 2)
+	require.Equal(t, "custom", tools[0].(map[string]any)["type"])
+	require.Equal(t, "code_tools", tools[1].(map[string]any)["name"])
+
+	input := reqBody["input"].([]any)
+	require.Len(t, input, 2)
+	additional := input[1].(map[string]any)["tools"].([]any)
+	require.Len(t, additional, 1)
+	require.Equal(t, "browser_tools", additional[0].(map[string]any)["name"])
+	require.False(t, stripOpenAIImageGenerationTools(reqBody), "stripping must be idempotent")
+}
+
+func TestStripOpenAIImageGenerationTools_KeepsCustomToolChoice(t *testing.T) {
+	reqBody := map[string]any{
+		"tools": []any{map[string]any{"type": "custom", "name": "imagegen"}},
+		"tool_choice": map[string]any{
+			"type": "custom",
+			"name": "imagegen",
+		},
+	}
+
+	require.False(t, stripOpenAIImageGenerationTools(reqBody))
+	require.Contains(t, reqBody, "tool_choice")
+}
+
 // Non-spark Codex models support image_generation; the tool must be preserved.
 func TestApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark(t *testing.T) {
 	reqBody := map[string]any{

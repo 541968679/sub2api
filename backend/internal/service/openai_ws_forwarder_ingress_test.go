@@ -168,6 +168,32 @@ func TestStripCodexSparkImageGenerationToolFromRawPayload(t *testing.T) {
 		require.False(t, changed)
 		require.Equal(t, string(payload), string(updated))
 	})
+
+	t.Run("strips image namespace from all declaration locations", func(t *testing.T) {
+		payload := []byte(`{
+			"type":"response.create",
+			"model":"gpt-5.3-codex-spark",
+			"tools":[
+				{"type":"custom","name":"imagegen"},
+				{"type":"namespace","name":"image_gen"},
+				{"type":"namespace","name":"code_tools"}
+			],
+			"input":[
+				{"type":"message","role":"user","content":"hello"},
+				{"type":"additional_tools","tools":[{"type":"namespace","name":"image_gen"}]}
+			],
+			"tool_choice":{"type":"namespace","name":"image_gen"}
+		}`)
+
+		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex-spark")
+		require.NoError(t, err)
+		require.True(t, changed)
+		require.False(t, gjson.GetBytes(updated, `tools.#(name=="image_gen")`).Exists())
+		require.True(t, gjson.GetBytes(updated, `tools.#(type=="custom")`).Exists())
+		require.True(t, gjson.GetBytes(updated, `tools.#(name=="code_tools")`).Exists())
+		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
+		require.Len(t, gjson.GetBytes(updated, "input").Array(), 1)
+	})
 }
 
 func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
