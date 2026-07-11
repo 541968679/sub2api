@@ -1938,6 +1938,14 @@ func (a *Account) IsCodexCLIOnlyEnabled() bool {
 	return ok && enabled
 }
 
+func (a *Account) IsCodexCLIOnlyAppServerAllowed() bool {
+	if !a.IsCodexCLIOnlyEnabled() {
+		return false
+	}
+	enabled, ok := a.Extra["codex_cli_only_allow_app_server"].(bool)
+	return ok && enabled
+}
+
 // GetCodexCLIOnlyAllowedClients returns named extra client presets allowed by codex_cli_only.
 func (a *Account) GetCodexCLIOnlyAllowedClients() []string {
 	if a == nil || !a.IsOpenAIOAuth() || a.Extra == nil {

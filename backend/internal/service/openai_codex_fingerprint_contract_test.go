@@ -26,7 +26,7 @@ func TestCodexFingerprintContract(t *testing.T) {
 	}
 
 	t.Run("official client fails closed without required engine signal", func(t *testing.T) {
-		result := detector.Detect(contextWith("codex_cli_rs/0.41.0", nil), account, CodexRestrictionPolicy{
+		result := detector.DetectWithPolicy(contextWith("codex_cli_rs/0.41.0", nil), account, CodexRestrictionPolicy{
 			EngineFingerprintSignals: openai.DefaultEngineFingerprintSignals,
 		}, nil)
 		require.False(t, result.Matched)
@@ -34,14 +34,14 @@ func TestCodexFingerprintContract(t *testing.T) {
 	})
 
 	t.Run("official client with fingerprint preserves default compatibility", func(t *testing.T) {
-		result := detector.Detect(contextWith("codex_cli_rs/0.41.0", map[string]string{"x-codex-window-id": "window"}), account, CodexRestrictionPolicy{
+		result := detector.DetectWithPolicy(contextWith("codex_cli_rs/0.41.0", map[string]string{"x-codex-window-id": "window"}), account, CodexRestrictionPolicy{
 			EngineFingerprintSignals: openai.DefaultEngineFingerprintSignals,
 		}, nil)
 		require.True(t, result.Matched)
 	})
 
 	t.Run("version rejection carries actionable bounds", func(t *testing.T) {
-		result := detector.Detect(contextWith("codex_cli_rs/0.39.0", nil), account, CodexRestrictionPolicy{MinCodexVersion: "0.42.0"}, nil)
+		result := detector.DetectWithPolicy(contextWith("codex_cli_rs/0.39.0", nil), account, CodexRestrictionPolicy{MinCodexVersion: "0.42.0"}, nil)
 		require.False(t, result.Matched)
 		require.Equal(t, "0.39.0", result.DetectedVersion)
 		require.Equal(t, "0.42.0", result.MinCodexVersion)
@@ -54,7 +54,7 @@ func TestCodexFingerprintContract(t *testing.T) {
 			{Platform: PlatformGrok, Type: AccountTypeOAuth, Extra: map[string]any{"codex_cli_only": true}},
 			{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Extra: map[string]any{"codex_cli_only": true}},
 		} {
-			result := detector.Detect(contextWith("curl/8", nil), candidate, CodexRestrictionPolicy{}, nil)
+			result := detector.DetectWithPolicy(contextWith("curl/8", nil), candidate, CodexRestrictionPolicy{}, nil)
 			require.False(t, result.Enabled)
 		}
 	})

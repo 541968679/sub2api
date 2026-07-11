@@ -16,8 +16,21 @@ const (
 // 整体安全失败（return false）；每一项都必须出现在 User-Agent 中。
 // 这确保双因子匹配不会因缺失 UA 声明而退化为仅凭可伪造的 originator 单因子放行。
 type AllowedClientEntry struct {
-	Originator string
-	UAContains []string
+	Originator            string   `json:"originator"`
+	UAContains            []string `json:"ua_contains"`
+	SkipEngineFingerprint bool     `json:"skip_engine_fingerprint"`
+}
+
+func (e AllowedClientEntry) IsWhitelistable() bool {
+	if normalizeCodexClientHeader(e.Originator) == "" || len(e.UAContains) == 0 {
+		return false
+	}
+	for _, marker := range e.UAContains {
+		if normalizeCodexClientHeader(marker) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // allowedClientRegistry 固化各命名预设的签名规则。
@@ -71,6 +84,42 @@ func MatchAllowedClients(userAgent, originator string, clientIDs []string) bool 
 			continue
 		}
 		if IsAllowedClientMatch(userAgent, originator, entry) {
+			return true
+		}
+	}
+	return false
+}
+
+func MatchClientEntry(userAgent, originator string, entries []AllowedClientEntry) (AllowedClientEntry, bool) {
+	for _, entry := range entries {
+		if IsAllowedClientMatch(userAgent, originator, entry) {
+			return entry, true
+		}
+	}
+	return AllowedClientEntry{}, false
+}
+
+func MatchClientEntries(userAgent, originator string, entries []AllowedClientEntry) bool {
+	_, ok := MatchClientEntry(userAgent, originator, entries)
+	return ok
+}
+
+func IsDeniedClientMatch(userAgent, originator string, entry AllowedClientEntry) bool {
+	if want := normalizeCodexClientHeader(entry.Originator); want != "" && normalizeCodexClientHeader(originator) == want {
+		return true
+	}
+	ua := normalizeCodexClientHeader(userAgent)
+	for _, marker := range entry.UAContains {
+		if marker = normalizeCodexClientHeader(marker); marker != "" && strings.Contains(ua, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func MatchDenyEntries(userAgent, originator string, entries []AllowedClientEntry) bool {
+	for _, entry := range entries {
+		if IsDeniedClientMatch(userAgent, originator, entry) {
 			return true
 		}
 	}

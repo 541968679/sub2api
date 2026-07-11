@@ -1,6 +1,9 @@
 package openai
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // CodexCLIUserAgentPrefixes matches Codex CLI User-Agent patterns
 // Examples: "codex_vscode/1.0.0", "codex_cli_rs/0.1.2"
@@ -70,6 +73,28 @@ func IsCodexOfficialClientRequest(userAgent string) bool {
 		return false
 	}
 	return matchCodexClientHeaderPrefixes(ua, CodexOfficialClientUserAgentPrefixes)
+}
+
+func IsCodexOfficialClientRequestStrict(userAgent string) bool {
+	ua := normalizeCodexClientHeader(userAgent)
+	if ua == "" {
+		return false
+	}
+	for _, prefix := range CodexOfficialClientUserAgentPrefixes {
+		if prefix == "codex " {
+			if strings.HasPrefix(ua, prefix) {
+				return true
+			}
+			continue
+		}
+		if normalized := normalizeCodexClientHeader(prefix); normalized != "" && strings.HasPrefix(ua, normalized) {
+			return true
+		}
+	}
+	if trailer := codexUATrailerName(ua); trailer != "" {
+		return IsCodexOfficialClientOriginator(trailer)
+	}
+	return false
 }
 
 // IsCodexOfficialClientOriginator checks if originator indicates a Codex 官方客户端请求。
@@ -165,4 +190,24 @@ func codexUATrailerName(ua string) string {
 		inner = strings.TrimSpace(inner[:semicolon])
 	}
 	return inner
+}
+
+var codexEngineVersionPattern = regexp.MustCompile(`^(\d+\.\d+\.\d+)`)
+
+func ParseCodexEngineVersion(userAgent string) (string, bool) {
+	userAgent = strings.TrimSpace(userAgent)
+	slash := strings.IndexByte(userAgent, '/')
+	if slash < 0 {
+		return "", false
+	}
+	rest := userAgent[slash+1:]
+	end := len(rest)
+	for i := 0; i < len(rest); i++ {
+		if rest[i] == ' ' || rest[i] == '(' {
+			end = i
+			break
+		}
+	}
+	version := codexEngineVersionPattern.FindString(strings.TrimSpace(rest[:end]))
+	return version, version != ""
 }
