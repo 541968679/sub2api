@@ -8354,7 +8354,15 @@ const phase0LocalePatch = {
       oauth: {
         openai: {
           accessTokenAuth: 'Access token auth',
-          mobileRefreshTokenAuth: 'Mobile refresh token auth'
+          mobileRefreshTokenAuth: 'Mobile refresh token auth',
+          codexPatAuth: 'Codex Personal Access Token',
+          codexPatDesc: 'Validate and add a Codex Personal Access Token (at-*). PAT accounts do not use OAuth refresh tokens.',
+          codexPatInputLabel: 'Personal Access Token',
+          codexPatPlaceholder: 'at-...',
+          codexPatHint: 'The token is validated with OpenAI before the account is created.',
+          codexPatImportAndCreate: 'Validate and create account',
+          codexPatEmpty: 'Please enter a Codex Personal Access Token',
+          codexPatImportFailed: 'Failed to import Codex Personal Access Token'
         },
         grok: {
           failedToGenerateUrl: 'Failed to generate Grok auth URL',

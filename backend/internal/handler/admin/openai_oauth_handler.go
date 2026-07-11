@@ -15,6 +15,7 @@ import (
 // OpenAIOAuthHandler handles OpenAI OAuth-related operations
 type OpenAIOAuthHandler struct {
 	openaiOAuthService *service.OpenAIOAuthService
+	codexPATValidator  openAICodexPATValidator
 	adminService       service.AdminService
 }
 
@@ -26,6 +27,7 @@ func oauthPlatformFromPath(c *gin.Context) string {
 func NewOpenAIOAuthHandler(openaiOAuthService *service.OpenAIOAuthService, adminService service.AdminService) *OpenAIOAuthHandler {
 	return &OpenAIOAuthHandler{
 		openaiOAuthService: openaiOAuthService,
+		codexPATValidator:  openaiOAuthService,
 		adminService:       adminService,
 	}
 }
@@ -185,6 +187,7 @@ func (h *OpenAIOAuthHandler) RefreshAccountToken(c *gin.Context) {
 			newCredentials[k] = v
 		}
 	}
+	newCredentials = service.NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
 
 	updatedAccount, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
 		Credentials: newCredentials,

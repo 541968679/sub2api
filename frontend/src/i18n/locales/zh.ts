@@ -8426,7 +8426,15 @@ const v117ZhPatch = {
       oauth: {
         openai: {
           accessTokenAuth: 'Access Token 认证',
-          mobileRefreshTokenAuth: 'Mobile Refresh Token 认证'
+          mobileRefreshTokenAuth: 'Mobile Refresh Token 认证',
+          codexPatAuth: 'Codex Personal Access Token',
+          codexPatDesc: '验证并添加 Codex Personal Access Token（at-*）。PAT 账号不使用 OAuth Refresh Token。',
+          codexPatInputLabel: 'Personal Access Token',
+          codexPatPlaceholder: 'at-...',
+          codexPatHint: '创建账号前会先向 OpenAI 验证该令牌。',
+          codexPatImportAndCreate: '验证并创建账号',
+          codexPatEmpty: '请输入 Codex Personal Access Token',
+          codexPatImportFailed: '导入 Codex Personal Access Token 失败'
         },
         gemini: {
           refreshTokenAuth: 'Refresh Token 认证',

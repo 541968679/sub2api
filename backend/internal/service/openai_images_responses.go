@@ -1809,9 +1809,7 @@ func buildOpenAIImagesOAuthUpstreamRequest(ctx context.Context, account *Account
 		} else {
 			req.Header.Set("User-Agent", codexCLIUserAgent)
 		}
-		if chatgptAccountID := strings.TrimSpace(account.GetChatGPTAccountID()); chatgptAccountID != "" {
-			req.Header.Set("chatgpt-account-id", chatgptAccountID)
-		}
+		setOpenAIChatGPTAccountHeaders(req.Header, account)
 	} else {
 		req.Header.Set("User-Agent", codexCLIUserAgent)
 	}
