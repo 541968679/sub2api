@@ -40,6 +40,17 @@ func TestCodexFingerprintContract(t *testing.T) {
 		require.True(t, result.Matched)
 	})
 
+	t.Run("empty policy preserves legacy official originator behavior", func(t *testing.T) {
+		result := detector.DetectWithPolicy(contextWith("curl/8", map[string]string{"originator": "codex_cli_rs"}), account, CodexRestrictionPolicy{}, nil)
+		require.True(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonMatchedOriginator, result.Reason)
+	})
+
+	t.Run("empty policy does not require an engine fingerprint", func(t *testing.T) {
+		result := detector.DetectWithPolicy(contextWith("codex_cli_rs/no-semver", nil), account, CodexRestrictionPolicy{}, nil)
+		require.True(t, result.Matched)
+	})
+
 	t.Run("version rejection carries actionable bounds", func(t *testing.T) {
 		result := detector.DetectWithPolicy(contextWith("codex_cli_rs/0.39.0", nil), account, CodexRestrictionPolicy{MinCodexVersion: "0.42.0"}, nil)
 		require.False(t, result.Matched)
