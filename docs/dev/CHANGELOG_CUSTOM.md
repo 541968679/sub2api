@@ -4771,3 +4771,15 @@ route, setting, push, or deployment change.
 - Shared Claude/OpenAI Chat/Responses/Gemini paths use the existing user-slot helper; Responses WebSocket tracks each active turn explicitly. Release functions remove both user and API-key stats slots on every registered exit path.
 - Redis tracking/count errors fail open and render zero instead of failing requests or key management.
 - API-key list/detail responses and the persisted key table expose current concurrency while retaining latest-use IP, quota/group filters, and existing columns. Billing, display tokens, cache-read quantities, `actual_cost`, scheduler/failover, Images/Batch Image, and routes are unchanged.
+
+## [2026-07-11] fix: Align response.failed and committed-stream Ops semantics
+
+**Affected files**: OpenAI gateway native/passthrough/Chat/Messages services, Ops upstream context, gateway handlers, error logger, focused tests, and gateway/Ops module docs.
+
+**Compatibility**: High-risk gateway behavior selectively adapted from `1da3501af`, `8f97953e5`, `7918b1a9c`, and `5aba53d54`. No migration, frontend, route, or setting change.
+
+**Details**:
+- HTTP-200 `response.failed` terminals now apply semantic, platform-scoped passthrough rules across native Responses, passthrough, Chat, and Messages.
+- Context-window failures remain client errors; transient failures fail over only before output; partial output is never replayed on another account.
+- Failed terminals return before successful usage submission. Existing cyber-policy auditing remains intact and display pricing, cache-read quantities, stored billing/`actual_cost`, Images, Batch Image, WebSocket, and scheduler behavior are unchanged.
+- Local errors emitted after SSE committed HTTP 200 are recorded once by Ops only when no upstream context already owns the log; intended status drives severity while stored wire status remains 200.

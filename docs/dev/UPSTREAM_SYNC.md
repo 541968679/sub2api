@@ -1116,6 +1116,16 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Preserved fork-local group platform settings, curated/default models, Batch Image controls, Claude-GPT bridge configuration, rate multipliers, scheduling/failover, and bilingual i18n.
 - Pushed/deployed: no.
 
+### 2026-07-11 - HTTP response.failed and HTTP-200 SSE Ops alignment
+
+- **Branch**: `codex/upstream-response-failed-ops-20260711`
+- **Local baseline**: `06eebdbd65a83572f6ca82c8283d27465e008102`
+- **Upstream points**: passthrough portions of `1da3501af`, `8f97953e5`, `7918b1a9c`, plus `5aba53d54`.
+- Added platform-scoped semantic handling for HTTP-200 `response.failed` across native Responses, passthrough, Chat, and Messages. Transient pre-output failures retain account failover; client errors and partial-output failures do not switch accounts.
+- Ordinary failed terminals do not produce a successful billable result. Kept fork-local cyber usage auditing, display/cache-read invariants, Claude-GPT, Grok forwarding, Images, Batch Image, WebSocket, and scheduler/failover boundaries.
+- Added first-error-wins Ops markers for local errors inside committed HTTP-200 SSE streams; upstream error context remains authoritative to prevent duplicate rows.
+- No migration, generated code, frontend, route, setting, push, or deployment change.
+
 ### 2026-07-11 - Anthropic bounded 429 fallback and Fable window
 
 - **Branch**: `codex/upstream-anthropic-rate-limits-20260711`

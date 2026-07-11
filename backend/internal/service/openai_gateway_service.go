@@ -3590,10 +3590,111 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 	return !openAIStreamEventIsPreamble(eventType)
 }
 
+func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
+	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
+	if code == "" {
+		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
+	}
+	combinedMessage := strings.ToLower(strings.TrimSpace(message + " " + string(payload)))
+	if code == "context_length_exceeded" || (strings.Contains(combinedMessage, "context window") && strings.Contains(combinedMessage, "exceed")) {
+		return http.StatusBadRequest
+	}
+
+	errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.type").String()))
+	if errType == "" {
+		errType = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.type").String()))
+	}
+	combined := strings.TrimSpace(errType + " " + code + " " + strings.ToLower(strings.TrimSpace(message)))
+	switch {
+	case strings.Contains(errType, "invalid_request"):
+		return http.StatusBadRequest
+	case strings.Contains(combined, "rate_limit"):
+		return http.StatusTooManyRequests
+	case strings.Contains(combined, "authentication"), strings.Contains(combined, "unauthorized"), strings.Contains(combined, "invalid_api_key"):
+		return http.StatusUnauthorized
+	case strings.Contains(combined, "permission"), strings.Contains(combined, "forbidden"), strings.Contains(combined, "access denied"):
+		return http.StatusForbidden
+	case code == "server_is_overloaded", code == "slow_down":
+		return http.StatusServiceUnavailable
+	default:
+		return http.StatusBadGateway
+	}
+}
+
+func openAIStreamFailedEventPassthroughBody(payload []byte, failedMessage string) []byte {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return payload
+	}
+	if gjson.GetBytes(payload, "error").Exists() {
+		return payload
+	}
+	responseError := gjson.GetBytes(payload, "response.error")
+	if !responseError.Exists() {
+		if strings.TrimSpace(failedMessage) == "" {
+			return payload
+		}
+		body, err := marshalOpenAIUpstreamJSON(gin.H{"error": gin.H{"message": failedMessage}})
+		if err != nil {
+			return payload
+		}
+		return body
+	}
+
+	errorPayload := gin.H{}
+	if value := strings.TrimSpace(gjson.Get(responseError.Raw, "type").String()); value != "" {
+		errorPayload["type"] = value
+	}
+	if value := strings.TrimSpace(gjson.Get(responseError.Raw, "code").String()); value != "" {
+		errorPayload["code"] = value
+	}
+	if value := strings.TrimSpace(gjson.Get(responseError.Raw, "param").String()); value != "" {
+		errorPayload["param"] = value
+	}
+	message := strings.TrimSpace(gjson.Get(responseError.Raw, "message").String())
+	if message == "" {
+		message = strings.TrimSpace(failedMessage)
+	}
+	if message != "" {
+		errorPayload["message"] = message
+	}
+	if len(errorPayload) == 0 {
+		return payload
+	}
+	body, err := marshalOpenAIUpstreamJSON(gin.H{"error": errorPayload})
+	if err != nil {
+		return payload
+	}
+	return body
+}
+
+// response.failed arrives inside an HTTP 200 SSE response. Infer its semantic
+// status and normalize response.error so ordinary platform-scoped passthrough
+// rules can match it without weakening account failover boundaries.
+func applyOpenAIStreamFailedErrorPassthroughRule(
+	c *gin.Context,
+	platform string,
+	payload []byte,
+	failedMessage string,
+) (status int, errType string, errMsg string, matched bool) {
+	return applyErrorPassthroughRule(
+		c,
+		platform,
+		openAIStreamFailedEventSemanticStatus(payload, failedMessage),
+		openAIStreamFailedEventPassthroughBody(payload, failedMessage),
+		http.StatusBadGateway,
+		"upstream_error",
+		"Upstream request failed",
+	)
+}
+
 func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
 	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
 	if code == "" {
 		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
+	}
+	combinedMessage := strings.ToLower(strings.TrimSpace(message + " " + string(payload)))
+	if code == "context_length_exceeded" || (strings.Contains(combinedMessage, "context window") && strings.Contains(combinedMessage, "exceed")) {
+		return false
 	}
 	errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.type").String()))
 	if errType == "" {
@@ -3728,6 +3829,48 @@ func (s *OpenAIGatewayService) newOpenAIStreamClientError(
 	}
 }
 
+func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
+	c *gin.Context,
+	account *Account,
+	passthrough bool,
+	upstreamRequestID string,
+	kind string,
+	payload []byte,
+	message string,
+) string {
+	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	if message == "" {
+		message = "OpenAI upstream response failed"
+	}
+	detail := ""
+	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+		maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+		if maxBytes <= 0 {
+			maxBytes = 2048
+		}
+		detail = truncateString(string(payload), maxBytes)
+	}
+	if c != nil {
+		setOpsUpstreamError(c, http.StatusBadGateway, message, detail)
+		event := OpsUpstreamErrorEvent{
+			Platform:           PlatformOpenAI,
+			UpstreamStatusCode: http.StatusBadGateway,
+			UpstreamRequestID:  strings.TrimSpace(upstreamRequestID),
+			Passthrough:        passthrough,
+			Kind:               kind,
+			Message:            message,
+			Detail:             detail,
+		}
+		if account != nil {
+			event.Platform = account.Platform
+			event.AccountID = account.ID
+			event.AccountName = account.Name
+		}
+		appendOpsUpstreamError(c, event)
+	}
+	return message
+}
+
 func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	ctx context.Context,
 	resp *http.Response,
@@ -3810,15 +3953,25 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			eventType := strings.TrimSpace(gjson.Get(trimmedData, "type").String())
 			if eventType == "response.failed" {
 				failedMessage = extractOpenAISSEErrorMessage(dataBytes)
+				s.parseSSEUsageBytes(dataBytes, usage)
 				if hit, code, message := detectOpenAICyberPolicy(dataBytes); hit {
-					s.parseSSEUsageBytes(dataBytes, usage)
 					MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(dataBytes), 4096), UpstreamStatus: http.StatusOK, UpstreamInTok: usage.InputTokens, UpstreamOutTok: usage.OutputTokens})
 					forceFlushFailedEvent = true
 					sawFailedEvent = true
 				} else {
-					if !openAIStreamClientOutputStarted(c, clientOutputStarted) && openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
-						return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
-							s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
+					if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
+						if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, dataBytes, failedMessage); matched {
+							s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "http_error", dataBytes, failedMessage)
+							MarkResponseCommitted(c)
+							c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+							c.JSON(status, gin.H{"error": gin.H{"type": errType, "message": errMsg}})
+							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+								fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
+						}
+						if openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
+							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+								s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
+						}
 					}
 					forceFlushFailedEvent = true
 					sawFailedEvent = true
@@ -4607,7 +4760,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	failedMessage := ""
 	clientOutputStarted := false
 	upstreamRequestID := strings.TrimSpace(resp.Header.Get("x-request-id"))
-	var streamFailoverErr error
+	var streamEarlyErr error
 	sendErrorEvent := func(reason string) {
 		if errorEventSent || clientDisconnected {
 			return
@@ -4702,7 +4855,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		return resultWithUsage(), fmt.Errorf("stream read error: %w", scanErr), true
 	}
 	processSSELine := func(line string, queueDrained bool) {
-		if streamFailoverErr != nil {
+		if streamEarlyErr != nil {
 			return
 		}
 		// Extract data from SSE line (supports both "data: " and "data:" formats)
@@ -4718,16 +4871,27 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			forceFlushFailedEvent := false
 			if eventType == "response.failed" {
 				failedMessage = extractOpenAISSEErrorMessage(dataBytes)
+				s.parseSSEUsageBytes(dataBytes, usage)
 				if hit, code, message := detectOpenAICyberPolicy(dataBytes); hit {
-					s.parseSSEUsageBytes(dataBytes, usage)
 					MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(dataBytes), 4096), UpstreamStatus: http.StatusOK, UpstreamInTok: usage.InputTokens, UpstreamOutTok: usage.OutputTokens})
 					forceFlushFailedEvent = true
 					sawFailedEvent = true
 				} else {
-					if !openAIStreamClientOutputStarted(c, clientOutputStarted) && openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
-						sawFailedEvent = true
-						streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, upstreamRequestID, dataBytes, failedMessage)
-						return
+					if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
+						if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, dataBytes, failedMessage); matched {
+							sawFailedEvent = true
+							s.recordOpenAIStreamUpstreamError(c, account, false, upstreamRequestID, "http_error", dataBytes, failedMessage)
+							MarkResponseCommitted(c)
+							c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+							c.JSON(status, gin.H{"error": gin.H{"type": errType, "message": errMsg}})
+							streamEarlyErr = fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
+							return
+						}
+						if openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
+							sawFailedEvent = true
+							streamEarlyErr = s.newOpenAIStreamFailoverError(c, account, false, upstreamRequestID, dataBytes, failedMessage)
+							return
+						}
 					}
 					forceFlushFailedEvent = true
 					sawFailedEvent = true
@@ -4830,8 +4994,8 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		defer putSSEScannerBuf64K(scanBuf)
 		for scanner.Scan() {
 			processSSELine(scanner.Text(), true)
-			if streamFailoverErr != nil {
-				return resultWithUsage(), streamFailoverErr
+			if streamEarlyErr != nil {
+				return resultWithUsage(), streamEarlyErr
 			}
 		}
 		if result, err, done := handleScanErr(scanner.Err()); done {
@@ -4882,8 +5046,8 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				return result, err
 			}
 			processSSELine(ev.line, len(events) == 0)
-			if streamFailoverErr != nil {
-				return resultWithUsage(), streamFailoverErr
+			if streamEarlyErr != nil {
+				return resultWithUsage(), streamEarlyErr
 			}
 
 		case <-intervalCh:

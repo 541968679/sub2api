@@ -843,6 +843,19 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", clientMsg)
 			return nil, fmt.Errorf("openai cyber_policy: %s", msg)
 		}
+		message := extractOpenAISSEErrorMessage(payload)
+		if openAIStreamFailedEventShouldFailover(payload, message) {
+			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, message)
+		}
+		if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, payload, message); matched {
+			message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payload, message)
+			if errMsg == "" {
+				errMsg = message
+			}
+			MarkResponseCommitted(c)
+			writeAnthropicError(c, status, errType, errMsg)
+			return nil, fmt.Errorf("upstream response failed (passthrough): %s", errMsg)
+		}
 		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
 	}
 
@@ -1218,6 +1231,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	var terminalResponse *apicompat.ResponsesResponse
 	var terminalFailureErr *UpstreamFailoverError
 	var terminalStreamErr error
+	var terminalPassthroughErr error
 	streamDiag := newOpenAIMessagesStreamDiagnostic()
 	resetKeepaliveTimer := func() {}
 
@@ -1405,17 +1419,35 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 		if isFailedEvent {
 			payloadBytes := []byte(payload)
+			message := extractOpenAISSEErrorMessage(payloadBytes)
+			if !clientVisibleOutputStarted && openAIStreamFailedEventShouldFailover(payloadBytes, message) {
+				terminalFailureErr = s.newOpenAIStreamFailoverError(c, account, false, requestID, payloadBytes, message)
+				return true
+			}
 			failureErr := s.openAIMessagesTerminalFailureError(c, account, requestID, event.Response, payloadBytes)
+			errStatus := failureErr.StatusCode
+			errType := strings.TrimSpace(gjson.GetBytes(failureErr.ResponseBody, "error.type").String())
+			errMessage := strings.TrimSpace(gjson.GetBytes(failureErr.ResponseBody, "error.message").String())
+			if status, matchedType, matchedMessage, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, payloadBytes, message); matched {
+				// Replace the helper's generic marker with the same single request-local
+				// upstream event; no extra Ops row is created by the middleware.
+				errStatus, errType, errMessage = status, matchedType, matchedMessage
+				if errMessage == "" {
+					errMessage = message
+				}
+				MarkResponseCommitted(c)
+			} else if !clientVisibleOutputStarted {
+				terminalFailureErr = failureErr
+				return true
+			}
+			if errType == "" {
+				errType = "api_error"
+			}
+			if errMessage == "" {
+				errMessage = message
+			}
 			if clientVisibleOutputStarted && !clientDisconnected {
 				writeStreamHeaders()
-				errType := strings.TrimSpace(gjson.GetBytes(failureErr.ResponseBody, "error.type").String())
-				errMessage := strings.TrimSpace(gjson.GetBytes(failureErr.ResponseBody, "error.message").String())
-				if errType == "" {
-					errType = "api_error"
-				}
-				if errMessage == "" {
-					errMessage = "Upstream response failed after partial output"
-				}
 				if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE(errType, errMessage)); err == nil {
 					clientOutputStarted = true
 					c.Writer.Flush()
@@ -1424,7 +1456,8 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				}
 				terminalStreamErr = fmt.Errorf("upstream response failed after partial output: %s", errMessage)
 			} else {
-				terminalFailureErr = failureErr
+				writeAnthropicError(c, errStatus, errType, errMessage)
+				terminalPassthroughErr = fmt.Errorf("upstream response failed: %s", errMessage)
 			}
 		}
 		if wroteClientSSE && !clientDisconnected {
@@ -1441,6 +1474,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		}
 		if terminalStreamErr != nil {
 			return resultWithUsage(), terminalStreamErr
+		}
+		if terminalPassthroughErr != nil {
+			return resultWithUsage(), terminalPassthroughErr
 		}
 		if finalEvents := apicompat.FinalizeResponsesAnthropicStream(state); len(finalEvents) > 0 && !clientDisconnected {
 			wroteClientSSE := false

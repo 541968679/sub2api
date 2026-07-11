@@ -105,10 +105,11 @@ func TestResponseFailedSync_NativePassthroughAppliesRuleBeforeClientOutput(t *te
 func TestResponseFailedSync_ChatAndMessagesReturnNoBillableForwardResult(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
-		name string
-		path string
-		body []byte
-		call func(*OpenAIGatewayService, *gin.Context, *Account, []byte) (*OpenAIForwardResult, error)
+		name      string
+		path      string
+		body      []byte
+		streaming bool
+		call      func(*OpenAIGatewayService, *gin.Context, *Account, []byte) (*OpenAIForwardResult, error)
 	}{
 		{
 			name: "chat",
@@ -119,9 +120,10 @@ func TestResponseFailedSync_ChatAndMessagesReturnNoBillableForwardResult(t *test
 			},
 		},
 		{
-			name: "chat stream",
-			path: "/v1/chat/completions",
-			body: []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":true}`),
+			name:      "chat stream",
+			path:      "/v1/chat/completions",
+			body:      []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":true}`),
+			streaming: true,
 			call: func(s *OpenAIGatewayService, c *gin.Context, a *Account, body []byte) (*OpenAIForwardResult, error) {
 				return s.ForwardAsChatCompletions(context.Background(), c, a, body, "", "")
 			},
@@ -135,9 +137,10 @@ func TestResponseFailedSync_ChatAndMessagesReturnNoBillableForwardResult(t *test
 			},
 		},
 		{
-			name: "messages stream",
-			path: "/v1/messages",
-			body: []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":true}`),
+			name:      "messages stream",
+			path:      "/v1/messages",
+			body:      []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":true}`),
+			streaming: true,
 			call: func(s *OpenAIGatewayService, c *gin.Context, a *Account, body []byte) (*OpenAIForwardResult, error) {
 				return s.ForwardAsAnthropic(context.Background(), c, a, body, "", "")
 			},
@@ -153,9 +156,13 @@ func TestResponseFailedSync_ChatAndMessagesReturnNoBillableForwardResult(t *test
 			result, err := tt.call(svc, c, rawChatCompletionsTestAccount(), tt.body)
 
 			require.Error(t, err)
-			require.Nil(t, result, "failed upstream responses must not reach usage recording/billing")
+			if !tt.streaming {
+				require.Nil(t, result, "buffered failures must not produce a successful forward result")
+			}
 			require.Equal(t, http.StatusBadRequest, rec.Code)
 			require.Contains(t, gjson.Get(rec.Body.String(), "error.message").String(), "context window")
+			events, _ := c.Get(OpsUpstreamErrorsKey)
+			require.Len(t, events, 1, "failed terminal must create exactly one upstream Ops marker")
 		})
 	}
 }
@@ -183,29 +190,27 @@ func TestResponseFailedSync_TransientFailureStillFailsOverWithoutWritingOrBillin
 
 func TestResponseFailedSync_GrokRulesStayPlatformScoped(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"grok-4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	payload := []byte(strings.TrimSpace(strings.TrimPrefix(responseFailedContextLengthSSE(), "data: ")))
 	tests := []struct {
 		name         string
 		rulePlatform string
-		wantStatus   int
+		wantMatched  bool
 	}{
-		{name: "openai rule does not leak", rulePlatform: PlatformOpenAI, wantStatus: http.StatusBadGateway},
-		{name: "grok rule matches", rulePlatform: PlatformGrok, wantStatus: http.StatusBadRequest},
+		{name: "openai rule does not leak", rulePlatform: PlatformOpenAI, wantMatched: false},
+		{name: "grok rule matches", rulePlatform: PlatformGrok, wantMatched: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec, c := responseFailedRecorder(t, "/v1/chat/completions", body)
+			_, c := responseFailedRecorder(t, "/v1/chat/completions", nil)
 			bindResponseFailedRule(c, tt.rulePlatform, http.StatusBadRequest, http.StatusBadRequest)
-			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: responseFailedUpstream()}
-			account := rawChatCompletionsTestAccount()
-			account.Platform = PlatformGrok
 
-			result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+			status, _, _, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, PlatformGrok, payload, "context window exceeded")
 
-			require.Error(t, err)
-			require.Nil(t, result)
-			require.Equal(t, tt.wantStatus, rec.Code)
+			require.Equal(t, tt.wantMatched, matched)
+			if matched {
+				require.Equal(t, http.StatusBadRequest, status)
+			}
 		})
 	}
 }

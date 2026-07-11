@@ -448,6 +448,29 @@ own cached manifest fallback.
 
 ## Important Mechanisms
 
+### HTTP 200 `response.failed` handling
+
+OpenAI Responses, Responses passthrough, Chat Completions conversion, and
+Anthropic Messages conversion treat `response.failed` as a failed terminal
+event even though the upstream HTTP status is 200. Before any client output,
+the gateway normalizes `response.error`, infers a semantic status, and applies
+the configured error-passthrough rules using the selected account's platform.
+An OpenAI rule cannot match a Grok account and vice versa.
+
+Transient capacity failures still return an `UpstreamFailoverError` before
+client output. Context-window and other client errors do not switch accounts;
+Messages preserves its client-error envelope, while a configured passthrough
+rule may override status/message. Once visible output has been emitted, the
+gateway sends an in-band protocol error and must not replay the request through
+another account.
+
+Ordinary failed terminals never become a successful `OpenAIForwardResult`, so
+handlers do not submit successful usage recording or billing. The existing
+`cyber_policy` audit path remains separate and retains its real upstream usage
+snapshot. Display-token rewriting, real cache-read quantities, stored
+`actual_cost`, Claude-GPT bridge cache overrides, Images, Batch Image, WebSocket
+forwarding, and scheduler eligibility are unchanged.
+
 ### Codex image namespace declarations
 
 Codex clients can advertise image generation either as the flat Responses

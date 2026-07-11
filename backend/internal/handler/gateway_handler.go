@@ -1619,6 +1619,7 @@ func (h *GatewayHandler) mapUpstreamError(statusCode int) (int, string, string) 
 // handleStreamingAwareError handles errors that may occur after streaming has started
 func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
 	if streamStarted {
+		service.MarkOpsStreamError(c, errType, message, status)
 		if inboundIsResponses(c) {
 			if writeResponsesFailedSSE(c, errType, message) {
 				return

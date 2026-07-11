@@ -51,6 +51,12 @@ evaluator tick
   writer, so every delegated response-writer method must tolerate a nil inner
   writer in case an outer middleware or late streaming callback retains the
   wrapper past its request lifetime. While acquired, calls delegate unchanged.
+- A local error emitted after an SSE response has already committed HTTP 200 is
+  marked with `OpsStreamError`. The first marker wins, preserving the root
+  cause and intended status for severity classification while storing the wire
+  status as 200. The middleware uses this fallback only when no upstream error
+  context exists, so a `response.failed` event is recorded exactly once through
+  the upstream-attempt path. `skip_monitoring` still suppresses persistence.
 
 ## Known Pitfalls
 
