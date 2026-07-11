@@ -1168,3 +1168,27 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Backend focused unit packages passed for admin handler, admin routes, and service token behavior, including the full imported parser/identity/access-only test set.
  - Frontend Codex dialog and account-page regressions passed (9 tests), followed by full typecheck and lint.
  - `git diff --check` passed. No push or deployment was performed.
+
+ ### 2026-07-11 - Data consistency and OpenAI model-sync URL batch
+
+- **Branch**: `codex/upstream-data-consistency-20260711`
+- **Local baseline**: `76dd18cb39893e3e349e70fb1a0cb9bcdeba5834`
+- **Upstream commits**: `fd004bdd8`, `e236bff1e`, `f881ff7cb`
+- **Strategy**: TDD-first selective adaptation; no wholesale cherry-pick.
+- Cloned the account Ent query before `Count` so interceptor mutation cannot
+  make pagination totals diverge from list items.
+- Reused the canonical requested-model aggregation for user model stats while
+  preserving direct sums of real token and cost columns.
+- Reused the version-aware OpenAI endpoint helper for model synchronization,
+  including non-v1 upstream bases.
+- No schema, migration, generated Ent, frontend, route, setting, push, or
+  deployment change.
+- Preserved display-token/accounting invariants, real cache-read quantities,
+  stored `actual_cost`, curated/default models, Claude-GPT bridge, OpenAI Images,
+  Batch Image, Grok media, scheduling/failover, and public/admin settings.
+- Verification: repository SQL-mock tests and targeted race tests passed; the
+  model URL test passed against all service production files. The baseline's
+  unrelated fingerprint/websearch RED tests and missing integration
+ `cacheRecorder` fixture prevent whole-package default/service and repository
+ integration compilation at this intermediate alignment commit.
+ - **Pushed/deployed**: no.

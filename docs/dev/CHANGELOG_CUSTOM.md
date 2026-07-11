@@ -4688,3 +4688,25 @@ transforms, media frozen-balance settlement, or platform quotas.
 - Access-only OAuth accounts never enter the refresh path. A still-valid token remains usable; an expired token reports the missing refresh token explicitly. Existing Codex PAT accounts retain their separate non-refreshing classification.
  - Added a standalone bilingual account-page dialog that preserves fork proxy/group, concurrency, priority, billing-rate, load-factor, default-group, and update-existing controls without rewriting the existing OAuth/PAT creation flows.
  - Added parser, expiry, identity, access-only, credential-preservation, handler, route, frontend API/UI, account-page regression, typecheck, and lint verification.
+
+ ## [2026-07-11] fix: Align account pagination, user model stats, and OpenAI model sync
+
+**Affected files**: `backend/internal/repository/{account_repo.go,account_repo_integration_test.go,usage_log_repo.go,usage_log_repo_request_type_test.go}`, `backend/internal/service/{upstream_models.go,openai_models_url_test.go}`, `docs/dev/{UPSTREAM_SYNC.md,CHANGELOG_CUSTOM.md}`, `docs/dev/codebase/data-consistency.md`
+
+**Compatibility**: Low-risk selective adaptation of upstream `fd004bdd8`,
+`e236bff1e`, and `f881ff7cb`. No schema, migration, generated Ent, frontend,
+route, setting, push, or deployment change.
+
+**Details**:
+- Clone the mutable Ent account query before `Count`, keeping pagination totals
+  and returned items under the same effective predicates.
+- Aggregate user model summaries by requested model through the existing
+  source-aware query. Preserve direct sums of token fields, `total_cost`,
+  `actual_cost`, and account cost; no display or billing transform changed.
+- Build OpenAI model-discovery URLs through the shared version-aware endpoint
+  helper, so `/v2`, `/v4`, and similar bases retain their version path.
+- Added RED/GREEN regressions for the pagination invariant, requested-model
+  grouping and cost/cache columns, and non-v1 model URLs.
+ - Preserved fork-local pricing/display invariants, curated/default models,
+   Claude-GPT bridge, OpenAI Images, Batch Image, Grok media, platform quotas,
+   scheduler/failover, ops logging, settings, i18n, and routes.

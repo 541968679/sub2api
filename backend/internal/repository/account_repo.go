@@ -566,7 +566,9 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 		}))
 	}
 
-	total, err := q.Count(ctx)
+	// Count and list must not share a mutable Ent query: interceptors append
+	// predicates when a query executes, which would otherwise pollute All().
+	total, err := q.Clone().Count(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
