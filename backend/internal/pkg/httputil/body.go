@@ -16,6 +16,7 @@ import (
 const (
 	requestBodyReadInitCap    = 512
 	requestBodyReadMaxInitCap = 1 << 20
+	jsonUTF8BOMLen            = 3
 	// maxDecompressedBodySize limits the decompressed request body to 64 MB
 	// to prevent decompression bomb attacks.
 	maxDecompressedBodySize = 64 << 20
@@ -62,6 +63,66 @@ func ReadRequestBodyWithPrealloc(req *http.Request) ([]byte, error) {
 	req.ContentLength = int64(len(decoded))
 
 	return decoded, nil
+}
+
+func ReadLenientJSONRequestBodyWithPrealloc(req *http.Request, maxNormalizedBytes int64) ([]byte, error) {
+	body, err := ReadRequestBodyWithPrealloc(req)
+	if err != nil {
+		return nil, err
+	}
+	return NormalizeLenientJSONRequestBody(body, maxNormalizedBytes)
+}
+
+// NormalizeLenientJSONRequestBody escapes raw control bytes inside JSON
+// strings. It does not repair invalid JSON structure.
+func NormalizeLenientJSONRequestBody(body []byte, maxNormalizedBytes int64) ([]byte, error) {
+	if maxNormalizedBytes <= 0 {
+		maxNormalizedBytes = maxDecompressedBodySize
+	}
+	if len(body) >= jsonUTF8BOMLen && body[0] == 0xef && body[1] == 0xbb && body[2] == 0xbf {
+		body = body[jsonUTF8BOMLen:]
+	}
+	if int64(len(body)) > maxNormalizedBytes {
+		return nil, &http.MaxBytesError{Limit: maxNormalizedBytes}
+	}
+
+	var out []byte
+	inString := false
+	escaped := false
+	for i, b := range body {
+		if inString && (b < 0x20 || b == 0x7f) {
+			if out == nil {
+				out = make([]byte, 0, min(len(body)+6, int(maxNormalizedBytes)))
+				out = append(out, body[:i]...)
+			}
+			if int64(len(out)+6) > maxNormalizedBytes {
+				return nil, &http.MaxBytesError{Limit: maxNormalizedBytes}
+			}
+			const hex = "0123456789abcdef"
+			out = append(out, '\\', 'u', '0', '0', hex[b>>4], hex[b&0x0f])
+			escaped = false
+			continue
+		}
+
+		switch {
+		case escaped:
+			escaped = false
+		case inString && b == '\\':
+			escaped = true
+		case b == '"':
+			inString = !inString
+		}
+		if out != nil {
+			if int64(len(out)+1) > maxNormalizedBytes {
+				return nil, &http.MaxBytesError{Limit: maxNormalizedBytes}
+			}
+			out = append(out, b)
+		}
+	}
+	if out != nil {
+		return out, nil
+	}
+	return body, nil
 }
 
 func decompressRequestBody(encoding string, raw []byte) ([]byte, error) {

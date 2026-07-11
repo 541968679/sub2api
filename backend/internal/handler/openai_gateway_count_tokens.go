@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -138,7 +137,7 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 		return false
 	}
 
-	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	body, err := readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
 	resetRequestBody(c.Request, body)
 	if err != nil || len(body) == 0 || !gjson.ValidBytes(body) {
 		// 协议级问题交给 native handler 输出规范错误；此时尚未确立 bridge 意图。
@@ -208,7 +207,7 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 // readCountTokensRequest reads and validates the count_tokens request body,
 // writing the canonical Anthropic error on failure.
 func (h *OpenAIGatewayHandler) readCountTokensRequest(c *gin.Context) (body []byte, reqModel string, ok bool) {
-	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	body, err := readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
 	if err != nil {
 		if maxErr, ok := extractMaxBytesError(err); ok {
 			h.anthropicErrorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", buildBodyTooLargeMessage(maxErr.Limit))

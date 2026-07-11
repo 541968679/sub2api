@@ -4641,3 +4641,15 @@ transforms, media frozen-balance settlement, or platform quotas.
 - Added an independent used-quota column backed by the existing 30-day `total_cost` group summary.
 - The UI does not derive prices from tokens or recalculate billing; stored cost, `actual_cost`, display-token transforms, cache-read quantities, subscription quota, and capacity calculations are unchanged.
 - Added a static regression contract for fixed columns, persisted-key validation, used-quota source, and conditional summary loading.
+## [2026-07-11] fix: Align gateway protocol conversion and bounded request parsing
+
+**Affected files**: `backend/internal/pkg/apicompat/*`, `backend/internal/pkg/httputil/body.go`, gateway handlers, `backend/internal/service/gateway_{request,service,websearch_block_filter}.go`, and focused tests.
+
+**Compatibility**: Medium risk, adapted from `178550987`, `ad8afc8a2`, `867616fca`, `40c563c4a`, and `53a5c45bd` without replacing fork-local gateway, billing, Images, or scheduler paths.
+
+**Details**:
+- Responses-to-Anthropic now combines top-level instructions with system/developer input in order; Chat/Responses fallback preserves explicit `parallel_tool_calls` true and false.
+- Replayed web-search blocks are removed only from the forwarded copy when locally emulated or incompatible with the mapped third-party model; ordinary and genuine official Anthropic history remains byte-identical.
+- Gateway JSON reading tolerates raw control bytes inside strings and a UTF-8 BOM while enforcing the existing normalized body limit. Structurally invalid JSON remains invalid.
+- Parse diagnostics contain only error type, body length, and syntax offset. Unlike upstream, this fork intentionally does not log request body head/tail or user prompt content.
+- Stored billing, `actual_cost`, display/cache-read transforms, Claude-GPT routing, OpenAI Images, Batch Image, Grok media, model selection, and account scheduling are unchanged.

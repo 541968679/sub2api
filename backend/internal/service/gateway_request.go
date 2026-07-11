@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -15,6 +16,20 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+// DescribeInvalidJSON returns structural diagnostics without including request
+// body content, credentials, or user prompts.
+func DescribeInvalidJSON(body []byte) error {
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
+			return fmt.Errorf("invalid json (len=%d, offset=%d): %s", len(body), syntaxErr.Offset, syntaxErr.Error())
+		}
+		return fmt.Errorf("invalid json (len=%d): %w", len(body), err)
+	}
+	return fmt.Errorf("invalid json (len=%d)", len(body))
+}
 
 var (
 	// 这些字节模式用于 fast-path 判断，避免每次 []byte("...") 产生临时分配。

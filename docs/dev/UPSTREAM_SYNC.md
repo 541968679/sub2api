@@ -1115,3 +1115,11 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
   Grok video/media multipliers, Batch Image frozen-balance settlement, bundle
  subscriptions, Claude-GPT bridge, curated models, and scheduler/failover.
  - **Pushed/deployed**: no.
+### 2026-07-11 - Gateway protocol and bounded JSON alignment
+
+- Adapted `178550987`, `ad8afc8a2`, `867616fca`, `40c563c4a`, and `53a5c45bd` with test-first checkpoints.
+- Preserved Responses instructions/developer semantics and explicit parallel-tool-call flags across compatibility bridges.
+- Added structured web-search history filtering for emulated and third-party-incompatible blocks without mutating billing input or genuine official Anthropic history.
+- Added bounded control-byte/BOM normalization to JSON gateway entries. Invalid JSON diagnostics expose only length/offset/type; upstream body snippets were deliberately rejected for user-content safety.
+- No migration, frontend, stored usage, billing/display-token, cache-read, Images, scheduler, route, or public-setting changes.
+- Pushed/deployed: no.
