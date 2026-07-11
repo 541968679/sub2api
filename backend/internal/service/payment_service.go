@@ -30,6 +30,7 @@ const (
 	OrderStatusFailed            = payment.OrderStatusFailed
 	OrderStatusRefundRequested   = payment.OrderStatusRefundRequested
 	OrderStatusRefunding         = payment.OrderStatusRefunding
+	OrderStatusRefundPending     = payment.OrderStatusRefundPending
 	OrderStatusPartiallyRefunded = payment.OrderStatusPartiallyRefunded
 	OrderStatusRefunded          = payment.OrderStatusRefunded
 	OrderStatusRefundFailed      = payment.OrderStatusRefundFailed
@@ -100,6 +101,10 @@ type CreateOrderResponse struct {
 	PayURL       string                          `json:"pay_url,omitempty"`
 	QRCode       string                          `json:"qr_code,omitempty"`
 	ClientSecret string                          `json:"client_secret,omitempty"`
+	IntentID     string                          `json:"intent_id,omitempty"`
+	Currency     string                          `json:"currency,omitempty"`
+	CountryCode  string                          `json:"country_code,omitempty"`
+	PaymentEnv   string                          `json:"payment_env,omitempty"`
 	OAuth        *payment.WechatOAuthInfo        `json:"oauth,omitempty"`
 	JSAPI        *payment.WechatJSAPIPayload     `json:"jsapi,omitempty"`
 	JSAPIPayload *payment.WechatJSAPIPayload     `json:"jsapi_payload,omitempty"`
@@ -189,6 +194,9 @@ type PaymentService struct {
 
 func NewPaymentService(entClient *dbent.Client, registry *payment.Registry, loadBalancer payment.LoadBalancer, redeemService *RedeemService, subscriptionSvc *SubscriptionService, configService *PaymentConfigService, userRepo UserRepository, groupRepo GroupRepository, affiliateService *AffiliateService) *PaymentService {
 	svc := &PaymentService{entClient: entClient, registry: registry, loadBalancer: newVisibleMethodLoadBalancer(loadBalancer, configService), redeemService: redeemService, subscriptionSvc: subscriptionSvc, configService: configService, userRepo: userRepo, groupRepo: groupRepo, affiliateService: affiliateService}
+	if redeemService != nil {
+		redeemService.SetAffiliateService(affiliateService)
+	}
 	svc.resumeService = psNewPaymentResumeService(configService)
 	return svc
 }
@@ -245,7 +253,7 @@ func (s *PaymentService) loadProviders(ctx context.Context) {
 
 func psIsRefundStatus(s string) bool {
 	switch s {
-	case OrderStatusRefundRequested, OrderStatusRefunding, OrderStatusPartiallyRefunded, OrderStatusRefunded, OrderStatusRefundFailed:
+	case OrderStatusRefundRequested, OrderStatusRefunding, OrderStatusRefundPending, OrderStatusPartiallyRefunded, OrderStatusRefunded, OrderStatusRefundFailed:
 		return true
 	}
 	return false

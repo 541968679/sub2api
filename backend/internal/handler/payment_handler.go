@@ -170,6 +170,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		Plans:                     planList,
 		BalanceDisabled:           cfg.BalanceDisabled,
 		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
+		SubscriptionUSDToCNYRate:  cfg.SubscriptionUSDToCNYRate,
 		RechargeFeeRate:           cfg.RechargeFeeRate,
 		HelpText:                  cfg.HelpText,
 		HelpImageURL:              cfg.HelpImageURL,
@@ -190,6 +191,7 @@ type checkoutInfoResponse struct {
 	Plans                     []checkoutPlan                  `json:"plans"`
 	BalanceDisabled           bool                            `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
+	SubscriptionUSDToCNYRate  float64                         `json:"subscription_usd_to_cny_rate"`
 	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
 	HelpText                  string                          `json:"help_text"`
 	HelpImageURL              string                          `json:"help_image_url"`
@@ -521,14 +523,16 @@ func (h *PaymentHandler) VerifyOrder(c *gin.Context) {
 	response.Success(c, sanitizePaymentOrderForResponse(order))
 }
 
-// PublicOrderResult is the limited order info returned by the public verify endpoint.
-// No user details are exposed — only payment status information.
+// PublicOrderResult is returned after a signed resume-token lookup. The token
+// proves possession of the checkout session, so the result keeps the legacy
+// frontend contract needed by payment result pages.
 type PublicOrderResult struct {
 	ID                  int64      `json:"id"`
 	OutTradeNo          string     `json:"out_trade_no"`
 	Amount              float64    `json:"amount"`
 	PayAmount           float64    `json:"pay_amount"`
 	FeeRate             float64    `json:"fee_rate"`
+	Currency            string     `json:"currency"`
 	PaymentType         string     `json:"payment_type"`
 	OrderType           string     `json:"order_type"`
 	Status              string     `json:"status"`
@@ -544,6 +548,18 @@ type PublicOrderResult struct {
 	PlanID              *int64     `json:"plan_id,omitempty"`
 }
 
+// PublicOrderVerifyResult is returned by the legacy anonymous out_trade_no
+// lookup. Keep this intentionally minimal because out_trade_no is not secret.
+type PublicOrderVerifyResult struct {
+	OutTradeNo  string     `json:"out_trade_no"`
+	Status      string     `json:"status"`
+	Paid        bool       `json:"paid"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	PaidAt      *time.Time `json:"paid_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 	return PublicOrderResult{
 		ID:                  order.ID,
@@ -551,6 +567,7 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 		Amount:              order.Amount,
 		PayAmount:           order.PayAmount,
 		FeeRate:             order.FeeRate,
+		Currency:            service.PaymentOrderCurrency(order),
 		PaymentType:         order.PaymentType,
 		OrderType:           order.OrderType,
 		Status:              order.Status,
@@ -564,6 +581,34 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 		RefundRequestedBy:   order.RefundRequestedBy,
 		RefundRequestReason: order.RefundRequestReason,
 		PlanID:              order.PlanID,
+	}
+}
+
+func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyResult {
+	return PublicOrderVerifyResult{
+		OutTradeNo:  order.OutTradeNo,
+		Status:      order.Status,
+		Paid:        publicOrderStatusPaid(order.Status),
+		CreatedAt:   order.CreatedAt,
+		ExpiresAt:   order.ExpiresAt,
+		PaidAt:      order.PaidAt,
+		CompletedAt: order.CompletedAt,
+	}
+}
+
+func publicOrderStatusPaid(status string) bool {
+	switch status {
+	case service.OrderStatusPaid,
+		service.OrderStatusCompleted,
+		service.OrderStatusRefundRequested,
+		service.OrderStatusRefunding,
+		service.OrderStatusRefundPending,
+		service.OrderStatusPartiallyRefunded,
+		service.OrderStatusRefunded,
+		service.OrderStatusRefundFailed:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -582,7 +627,7 @@ func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, buildPublicOrderResult(order))
+	response.Success(c, buildPublicOrderVerifyResult(order))
 }
 
 // ResolveOrderPublicByResumeToken resolves a payment order from a signed resume token.
@@ -624,24 +669,67 @@ func isMobile(c *gin.Context) bool {
 	return false
 }
 
-func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*dbent.PaymentOrder {
-	if len(orders) == 0 {
-		return orders
-	}
-	out := make([]*dbent.PaymentOrder, 0, len(orders))
+type PaymentOrderResult struct {
+	ID                  int64      `json:"id"`
+	UserID              int64      `json:"user_id"`
+	Amount              float64    `json:"amount"`
+	PayAmount           float64    `json:"pay_amount"`
+	FeeRate             float64    `json:"fee_rate"`
+	Currency            string     `json:"currency"`
+	PaymentType         string     `json:"payment_type"`
+	OutTradeNo          string     `json:"out_trade_no"`
+	Status              string     `json:"status"`
+	OrderType           string     `json:"order_type"`
+	CreatedAt           time.Time  `json:"created_at"`
+	ExpiresAt           time.Time  `json:"expires_at"`
+	PaidAt              *time.Time `json:"paid_at,omitempty"`
+	CompletedAt         *time.Time `json:"completed_at,omitempty"`
+	RefundAmount        float64    `json:"refund_amount"`
+	RefundReason        *string    `json:"refund_reason,omitempty"`
+	RefundRequestedAt   *time.Time `json:"refund_requested_at,omitempty"`
+	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
+	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
+	PlanID              *int64     `json:"plan_id,omitempty"`
+	ProviderInstanceID  *string    `json:"provider_instance_id,omitempty"`
+}
+
+func sanitizePaymentOrdersForResponse(orders []*dbent.PaymentOrder) []PaymentOrderResult {
+	out := make([]PaymentOrderResult, 0, len(orders))
 	for _, order := range orders {
-		out = append(out, sanitizePaymentOrderForResponse(order))
+		if item := sanitizePaymentOrderForResponse(order); item != nil {
+			out = append(out, *item)
+		}
 	}
 	return out
 }
 
-func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *dbent.PaymentOrder {
+func sanitizePaymentOrderForResponse(order *dbent.PaymentOrder) *PaymentOrderResult {
 	if order == nil {
 		return nil
 	}
-	cloned := *order
-	cloned.ProviderSnapshot = nil
-	return &cloned
+	return &PaymentOrderResult{
+		ID:                  order.ID,
+		UserID:              order.UserID,
+		Amount:              order.Amount,
+		PayAmount:           order.PayAmount,
+		FeeRate:             order.FeeRate,
+		Currency:            service.PaymentOrderCurrency(order),
+		PaymentType:         order.PaymentType,
+		OutTradeNo:          order.OutTradeNo,
+		Status:              order.Status,
+		OrderType:           order.OrderType,
+		CreatedAt:           order.CreatedAt,
+		ExpiresAt:           order.ExpiresAt,
+		PaidAt:              order.PaidAt,
+		CompletedAt:         order.CompletedAt,
+		RefundAmount:        order.RefundAmount,
+		RefundReason:        order.RefundReason,
+		RefundRequestedAt:   order.RefundRequestedAt,
+		RefundRequestedBy:   order.RefundRequestedBy,
+		RefundRequestReason: order.RefundRequestReason,
+		PlanID:              order.PlanID,
+		ProviderInstanceID:  order.ProviderInstanceID,
+	}
 }
 
 func isWeChatBrowser(c *gin.Context) bool {

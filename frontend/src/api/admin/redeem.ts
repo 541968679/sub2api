@@ -7,6 +7,7 @@ import { apiClient } from '../client'
 import type {
   RedeemCode,
   GenerateRedeemCodesRequest,
+  BatchUpdateRedeemCodeFields,
   RedeemCodeType,
   PaginatedResponse
 } from '@/types'
@@ -69,7 +70,8 @@ export async function generate(
   value: number,
   groupId?: number | null,
   validityDays?: number,
-  batchRedeemLimitPerUser: boolean = false
+  batchRedeemLimitPerUser: boolean = false,
+  expiresAt?: string | null
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
@@ -85,8 +87,14 @@ export async function generate(
       payload.validity_days = validityDays
     }
   }
+  if (expiresAt) payload.expires_at = expiresAt
 
   const { data } = await apiClient.post<RedeemCode[]>('/admin/redeem-codes/generate', payload)
+  return data
+}
+
+export async function batchUpdate(ids: number[], fields: BatchUpdateRedeemCodeFields): Promise<{ updated: number; message: string }> {
+  const { data } = await apiClient.post<{ updated: number; message: string }>('/admin/redeem-codes/batch-update', { ids, fields })
   return data
 }
 
@@ -174,6 +182,7 @@ export const redeemAPI = {
   generate,
   delete: deleteCode,
   batchDelete,
+  batchUpdate,
   expire,
   getStats,
   exportCodes

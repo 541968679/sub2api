@@ -14,6 +14,7 @@
             :payment-type="paymentState.paymentType"
             :pay-url="paymentState.payUrl"
             :order-type="paymentState.orderType"
+            :currency="paymentState.currency || selectedCurrency"
             @done="onPaymentDone"
             @success="onPaymentSuccess"
             @settled="onPaymentSettled"
@@ -157,15 +158,15 @@
                   <div v-if="validAmount > 0" class="space-y-3 text-sm">
                     <div class="flex justify-between gap-4">
                       <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                      <span class="font-medium text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
+                      <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(validAmount) }}</span>
                     </div>
                     <div v-if="feeRate > 0" class="flex justify-between gap-4">
                       <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                      <span class="font-medium text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
+                      <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(feeAmount) }}</span>
                     </div>
                     <div v-if="feeRate > 0" class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
                       <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                      <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
+                      <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
                     </div>
                     <div class="space-y-2 border-t border-gray-200 pt-3 dark:border-dark-600">
                       <div class="flex justify-between gap-4">
@@ -191,7 +192,7 @@
                       <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                       {{ t('common.processing') }}
                     </span>
-                    <span v-else>{{ t('payment.createOrder') }} ¥{{ totalAmount.toFixed(2) }}</span>
+                    <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
                   </button>
                 </div>
               </template>
@@ -274,15 +275,15 @@
                     <div class="space-y-3 text-sm">
                       <div class="flex justify-between gap-4">
                         <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                        <span class="font-medium text-gray-900 dark:text-white">¥{{ selectedPlan.price.toFixed(2) }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(subBaseAmount) }}</span>
                       </div>
                       <div v-if="feeRate > 0 && selectedPlan.price > 0" class="flex justify-between gap-4">
                         <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                        <span class="font-medium text-gray-900 dark:text-white">¥{{ subFeeAmount.toFixed(2) }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(subFeeAmount) }}</span>
                       </div>
                       <div class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
                         <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                        <span class="text-xl font-bold text-primary-600 dark:text-primary-400">¥{{ (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2) }}</span>
+                        <span class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
                       </div>
                     </div>
 
@@ -291,7 +292,7 @@
                         <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                         {{ t('common.processing') }}
                       </span>
-                      <span v-else>{{ t('payment.createOrder') }} ¥{{ (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2) }}</span>
+                      <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
                     </button>
                     <button class="btn btn-secondary mt-3 w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
                   </div>
@@ -398,7 +399,7 @@ import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderTy
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
-import { METHOD_ORDER, getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   buildCreateOrderPayload,
@@ -415,6 +416,7 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import SupportContactBar from '@/components/common/SupportContactBar.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
@@ -478,6 +480,10 @@ function emptyPaymentState(): PaymentRecoverySnapshot {
     payUrl: '',
     outTradeNo: '',
     clientSecret: '',
+    intentId: '',
+    currency: '',
+    countryCode: '',
+    paymentEnv: '',
     payAmount: 0,
     orderType: '',
     paymentMode: '',
@@ -617,7 +623,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, cny_per_usd: 0, bonus_tiers: [], help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, cny_per_usd: 0, bonus_tiers: [], help_text: '', help_image_url: '', stripe_publishable_key: '',
   first_recharge_enabled: false, first_recharge_min_amount: 0, first_recharge_bonus_usd: 0, first_recharge_eligible: false,
 })
 
@@ -635,6 +641,16 @@ const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return multiplier > 0 ? multiplier : 1
 })
+const subscriptionUsdToCnyRate = computed(() => {
+  const rate = checkout.value.subscription_usd_to_cny_rate
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
+})
+
+function subscriptionPaymentAmountForCurrency(value: number, currency: string): number {
+  const rate = subscriptionUsdToCnyRate.value
+  if (rate <= 0 || currency !== 'CNY') return value
+  return Math.round(value * rate * 100) / 100
+}
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -667,12 +683,18 @@ const globalMaxAmount = computed(() => {
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
+const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
+
+function formatSelectedPaymentAmount(value: number): string {
+  return formatPaymentAmount(value, selectedCurrency.value)
+}
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
     return {
       type,
+      display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
     }
@@ -753,29 +775,36 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
   const planPrice = selectedPlan.value?.price ?? 0
   return enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
+    const baseAmount = subscriptionPaymentAmountForCurrency(planPrice, normalizePaymentCurrency(ml?.currency))
+    const fee = (ml?.fee_rate ?? 0) > 0 ? Math.ceil(baseAmount * (ml?.fee_rate ?? 0)) / 100 : 0
     return {
       type,
+      display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(planPrice, type),
+      available: ml?.available !== false && amountFitsMethod(Math.round((baseAmount + fee) * 100) / 100, type),
     }
   })
 })
 
+const subBaseAmount = computed(() =>
+  subscriptionPaymentAmountForCurrency(selectedPlan.value?.price ?? 0, selectedCurrency.value)
+)
+
 const subFeeAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
+  const price = subBaseAmount.value
   if (feeRate.value <= 0 || price <= 0) return 0
   return Math.ceil(((price * feeRate.value) / 100) * 100) / 100
 })
 
 const subTotalAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
+  const price = subBaseAmount.value
   if (feeRate.value <= 0 || price <= 0) return price
   return Math.round((price + subFeeAmount.value) * 100) / 100
 })
 
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
-    && amountFitsMethod(selectedPlan.value.price, selectedMethod.value)
+    && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
 
@@ -790,9 +819,10 @@ watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) 
 const paymentButtonClass = computed(() => {
   const m = selectedMethod.value
   if (!m) return 'btn-primary'
-  if (m.includes('alipay')) return 'btn-alipay'
-  if (m.includes('wxpay')) return 'btn-wxpay'
+  if (isBuiltInAlipayMethod(m)) return 'btn-alipay'
+  if (isBuiltInWxpayMethod(m)) return 'btn-wxpay'
   if (m === 'stripe') return 'btn-stripe'
+  if (m === 'airwallex') return 'btn-airwallex'
   return 'btn-primary'
 })
 
@@ -884,13 +914,23 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     const stripeMethod = visibleMethod === 'stripe'
       ? ''
       : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
-    const stripeRouteUrl = result.client_secret
+    const stripeRouteUrl = result.client_secret && visibleMethod !== 'airwallex'
       ? router.resolve({
         path: '/payment/stripe',
         query: {
           order_id: String(result.order_id),
           client_secret: result.client_secret,
           method: stripeMethod || undefined,
+          resume_token: result.resume_token || undefined,
+        },
+      }).href
+      : ''
+    const airwallexRouteUrl = result.client_secret && result.intent_id
+      ? router.resolve({
+        path: '/payment/airwallex',
+        query: {
+          order_id: String(result.order_id),
+          out_trade_no: result.out_trade_no || undefined,
           resume_token: result.resume_token || undefined,
         },
       }).href
@@ -902,6 +942,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
       stripePopupUrl: stripeRouteUrl,
       stripeRouteUrl,
+      airwallexRouteUrl,
     })
 
     if (decision.kind === 'wechat_oauth' && decision.oauth?.authorize_url) {
@@ -928,6 +969,10 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       return
     }
     if (decision.kind === 'stripe_route') {
+      window.location.href = decision.paymentState.payUrl
+      return
+    }
+    if (decision.kind === 'airwallex_route') {
       window.location.href = decision.paymentState.payUrl
       return
     }
@@ -1202,6 +1247,7 @@ onMounted(async () => {
         paymentState.value = restored
         paymentPhase.value = 'paying'
         const restoredMethod = normalizeVisibleMethod(restored.paymentType)
+          || (visibleMethods.value[restored.paymentType] ? restored.paymentType : '')
         if (restoredMethod) {
           selectedMethod.value = restoredMethod
         }

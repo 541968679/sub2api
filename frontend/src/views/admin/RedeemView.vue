@@ -287,6 +287,11 @@
                 />
               </div>
             </template>
+            <div>
+              <label class="input-label">{{ t('admin.redeem.codeExpiresAt') }}</label>
+              <input v-model="generateForm.expires_at" type="datetime-local" class="input" />
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.redeem.codeExpiresAtHint') }}</p>
+            </div>
             <label
               class="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700/50"
             >
@@ -580,6 +585,7 @@ const generateForm = reactive({
   count: 1,
   group_id: null as number | null,
   validity_days: 30,
+  expires_at: '',
   batch_redeem_limit_per_user: false
 })
 
@@ -685,7 +691,8 @@ const handleGenerateCodes = async () => {
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      generateForm.batch_redeem_limit_per_user
+      generateForm.batch_redeem_limit_per_user,
+      generateForm.expires_at ? new Date(generateForm.expires_at).toISOString() : undefined
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
@@ -694,6 +701,7 @@ const handleGenerateCodes = async () => {
     generateForm.group_id = null
     generateForm.validity_days = 30
     generateForm.batch_redeem_limit_per_user = false
+    generateForm.expires_at = ''
     loadCodes()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToGenerate'))

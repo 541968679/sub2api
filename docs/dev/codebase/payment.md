@@ -75,3 +75,12 @@ PaymentView
 - `payment_mode` 目前主要影响 EasyPay 的二维码/弹窗模式；官方微信的展示模式由 provider 返回的 `qr_code` / `pay_url` / `jsapi` 决定。
 - 服务商配置中的敏感字段在编辑时不回显，空提交表示保留原值。
 - 有未完成订单时，关键支付身份字段受保护，不能直接修改。
+# 2026-07 upstream alignment notes
+
+- Airwallex is a first-class provider with an embedded checkout route. Provider currencies are validated and formatted with currency-specific decimal precision.
+- Checkout confirmation amounts use the selected provider currency; do not reintroduce hard-coded CNY symbols in shared recharge/subscription totals.
+- Refunds may remain `REFUND_PENDING` until Stripe, WeChat Pay, or Airwallex confirms the final state. Local pre-deduction is rolled back while pending and applied exactly once after confirmed success.
+- Fulfillment uses a five-minute ownership lease on the order `updated_at` token. Fresh owners cannot be stolen; stale `recharging` work can be recovered, and an old owner cannot finalize after takeover.
+- EasyPay supports administrator-defined payment methods in addition to exact built-in method names. Provider response sanitization is limited to fields that may contain transport NUL bytes and never mutates secrets.
+- `subscription_usd_to_cny_rate` is an explicit opt-in. The default `0` preserves this fork's existing plan-price-as-charge behavior. When enabled, only CNY gateway charges use `plan price * rate`; stored plan price, bundle membership, subscription quota, distribution subscription-code cost, and balance recharge multiplier are unchanged.
+- Bundle invariants remain protected: `member_group_ids` is snapshotted onto the order, fulfillment writes one `SUBSCRIPTION_SUCCESS:<gid>` audit per member, and only the aggregate success completes the order.

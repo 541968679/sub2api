@@ -92,6 +92,21 @@ func TestBuildCreateOrderResponseCopiesJSAPIPayload(t *testing.T) {
 	}
 }
 
+func TestSanitizeCreatePaymentResponseDetailsRemovesNULBytes(t *testing.T) {
+	t.Parallel()
+	resp := &payment.CreatePaymentResponse{TradeNo: "trade\x00-no", PayURL: "https://pay.example.com/\x00checkout", QRCode: "wxp://payment-token\x00", ClientSecret: "secret\x00unchanged"}
+	sanitizeCreatePaymentResponseDetails(resp)
+	if strings.ContainsRune(resp.TradeNo, 0) || strings.ContainsRune(resp.PayURL, 0) || strings.ContainsRune(resp.QRCode, 0) {
+		t.Fatalf("payment response details still contain NUL: %#v", resp)
+	}
+	if resp.TradeNo != "trade-no" || resp.PayURL != "https://pay.example.com/checkout" || resp.QRCode != "wxp://payment-token" {
+		t.Fatalf("unexpected sanitized response: %#v", resp)
+	}
+	if resp.ClientSecret != "secret\x00unchanged" {
+		t.Fatalf("client_secret = %q, should remain untouched", resp.ClientSecret)
+	}
+}
+
 func TestNormalizeCreateOrderRequestForceNativeQRClearsWeChatJSAPIContext(t *testing.T) {
 	t.Parallel()
 
@@ -151,6 +166,35 @@ func TestClassifyCreatePaymentErrorMapsWxpayJSAPIAppMismatch(t *testing.T) {
 	}
 	if appErr.Metadata["action"] != "check_wxpay_mp_app_id" {
 		t.Fatalf("action metadata = %q", appErr.Metadata["action"])
+	}
+}
+
+func TestValidateSelectedCreateOrderAmountCurrencyRejectsFractionalZeroDecimal(t *testing.T) {
+	t.Parallel()
+
+	err := validateSelectedCreateOrderAmountCurrency("100.50", &payment.InstanceSelection{
+		ProviderKey: payment.TypeStripe,
+		Config:      map[string]string{"currency": "JPY"},
+	})
+	if err == nil {
+		t.Fatal("expected fractional JPY amount to fail")
+	}
+	if appErr := infraerrors.FromError(err); appErr.Reason != "INVALID_AMOUNT" {
+		t.Fatalf("reason = %q, want INVALID_AMOUNT", appErr.Reason)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountUsesCurrencyPrecision(t *testing.T) {
+	t.Parallel()
+
+	amountStr, amount, err := calculateCreateOrderPayAmount(100, 2.5, "JPY")
+	if err != nil || amountStr != "103" || amount != 103 {
+		t.Fatalf("JPY pay amount = (%q, %v, %v), want (103, 103, nil)", amountStr, amount, err)
+	}
+
+	amountStr, amount, err = calculateCreateOrderPayAmount(12.345, 1, "KWD")
+	if err != nil || amountStr != "12.469" || amount != 12.469 {
+		t.Fatalf("KWD pay amount = (%q, %v, %v), want (12.469, 12.469, nil)", amountStr, amount, err)
 	}
 }
 
@@ -335,5 +379,24 @@ func newWeChatPaymentOAuthTestService(values map[string]string) *PaymentService 
 			settingRepo:   &paymentConfigSettingRepoStub{values: values},
 			encryptionKey: []byte("0123456789abcdef0123456789abcdef"),
 		},
+	}
+}
+
+func TestCalculateSubscriptionGatewayBaseAmountIsOptIn(t *testing.T) {
+	if got := calculateSubscriptionGatewayBaseAmount(9.99, 0, "CNY"); got != 9.99 {
+		t.Fatalf("disabled conversion = %v, want 9.99", got)
+	}
+	if got := calculateSubscriptionGatewayBaseAmount(9.99, 7.15, "CNY"); got != 71.43 {
+		t.Fatalf("CNY conversion = %v, want 71.43", got)
+	}
+	if got := calculateSubscriptionGatewayBaseAmount(9.99, 7.15, "USD"); got != 9.99 {
+		t.Fatalf("non-CNY conversion = %v, want 9.99", got)
+	}
+}
+
+func TestCalculateSubscriptionPayAmountAppliesFeeAfterConversion(t *testing.T) {
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 2.5, "CNY", payment.OrderTypeSubscription, 7.15)
+	if err != nil || amountStr != "73.22" || amount != 73.22 {
+		t.Fatalf("subscription pay amount = (%q, %v, %v), want (73.22, 73.22, nil)", amountStr, amount, err)
 	}
 }

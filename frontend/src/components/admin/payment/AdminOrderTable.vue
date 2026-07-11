@@ -204,6 +204,7 @@ const statusFilterOptions = computed(() => [
   { value: 'FAILED', label: t('payment.status.failed') },
   { value: 'REFUNDED', label: t('payment.status.refunded') },
   { value: 'REFUND_REQUESTED', label: t('payment.status.refund_requested') },
+  { value: 'REFUND_PENDING', label: t('payment.status.refund_pending') },
   { value: 'REFUND_FAILED', label: t('payment.status.refund_failed') },
 ])
 
@@ -212,6 +213,7 @@ const paymentTypeFilterOptions = computed(() => [
   { value: 'alipay', label: t('payment.methods.alipay') },
   { value: 'wxpay', label: t('payment.methods.wxpay') },
   { value: 'stripe', label: t('payment.methods.stripe') },
+  { value: 'airwallex', label: t('payment.methods.airwallex') },
 ])
 
 const orderTypeFilterOptions = computed(() => [

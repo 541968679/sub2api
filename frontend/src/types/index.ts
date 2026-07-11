@@ -1517,6 +1517,16 @@ export interface GenerateRedeemCodesRequest {
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
   batch_redeem_limit_per_user?: boolean
+  expires_at?: string | null
+}
+
+export interface BatchUpdateRedeemCodeFields {
+  status?: 'unused' | 'disabled'
+  expires_at?: string | null
+  notes?: string
+  group_id?: number | null
+  type?: RedeemCodeType
+  value?: number
 }
 
 export interface RedeemCodeRequest {
