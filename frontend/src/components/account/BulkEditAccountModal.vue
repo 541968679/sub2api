@@ -79,6 +79,10 @@
               ]"
             />
           </button>
+          <label v-if="codexCLIOnlyEnabled" class="ml-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="codexCLIOnlyAllowAppServer" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            {{ t('admin.accounts.openai.codexCLIOnlyAllowAppServer') }}
+          </label>
         </div>
       </div>
 
@@ -1195,6 +1199,7 @@ const openaiClaudeGPTBridgeEnabled = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
+const codexCLIOnlyAllowAppServer = ref(false)
 const rpmLimitEnabled = ref(false)
 const bulkBaseRpm = ref<number | null>(null)
 const bulkRpmStrategy = ref<'tiered' | 'sticky_exempt'>('tiered')
@@ -1452,6 +1457,11 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   if (enableCodexCLIOnly.value) {
     const extra = ensureExtra()
     extra.codex_cli_only = codexCLIOnlyEnabled.value
+    if (codexCLIOnlyAllowAppServer.value) {
+      extra.codex_cli_only_allow_app_server = true
+    } else if (!codexCLIOnlyEnabled.value) {
+      extra.codex_cli_only_allow_app_server = false
+    }
   }
 
   // RPM limit settings (写入 extra 字段)
@@ -1679,6 +1689,7 @@ watch(
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false
+      codexCLIOnlyAllowAppServer.value = false
       rpmLimitEnabled.value = false
       bulkBaseRpm.value = null
       bulkRpmStrategy.value = 'tiered'

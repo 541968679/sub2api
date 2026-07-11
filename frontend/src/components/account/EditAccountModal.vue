@@ -565,6 +565,10 @@
           />
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
         </div>
+        <label v-if="codexCLIOnlyEnabled" class="mt-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input v-model="codexCLIOnlyAllowAppServer" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+          {{ t('admin.accounts.openai.codexCLIOnlyAllowAppServer') }}
+        </label>
       </div>
 
       <!-- Vertex Service Account -->
@@ -2487,6 +2491,7 @@ const openAIImagesEndpointEnabled = ref(true)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
+const codexCLIOnlyAllowAppServer = ref(false)
 type CodexImageGenerationBridgeMode = 'inherit' | 'enabled' | 'disabled'
 const codexImageGenerationBridgeMode = ref<CodexImageGenerationBridgeMode>('inherit')
 const anthropicPassthroughEnabled = ref(false)
@@ -2806,6 +2811,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     })
     if (newAccount.type === 'oauth') {
       codexCLIOnlyEnabled.value = extra?.codex_cli_only === true
+      codexCLIOnlyAllowAppServer.value = extra?.codex_cli_only_allow_app_server === true
     }
     const credentials = newAccount.credentials as Record<string, unknown> | undefined
     const compactMappings = credentials?.compact_model_mapping as Record<string, string> | undefined
@@ -4057,11 +4063,14 @@ const handleSubmit = async () => {
       if (props.account.type === 'oauth') {
         if (codexCLIOnlyEnabled.value) {
           newExtra.codex_cli_only = true
+          newExtra.codex_cli_only_allow_app_server = codexCLIOnlyAllowAppServer.value
         } else if (hadCodexCLIOnlyEnabled) {
           // 关闭时显式写 false，避免 extra 为空被后端忽略导致旧值无法清除
           newExtra.codex_cli_only = false
+          newExtra.codex_cli_only_allow_app_server = false
         } else {
           delete newExtra.codex_cli_only
+          delete newExtra.codex_cli_only_allow_app_server
         }
       }
 

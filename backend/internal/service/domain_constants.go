@@ -401,7 +401,13 @@ const (
 	SettingKeyMinClaudeCodeVersion = "min_claude_code_version"
 
 	// SettingKeyMaxClaudeCodeVersion 最高 Claude Code 版本号限制 (semver, 如 "3.0.0"，空值=不检查)
-	SettingKeyMaxClaudeCodeVersion = "max_claude_code_version"
+	SettingKeyMaxClaudeCodeVersion                 = "max_claude_code_version"
+	SettingKeyMinCodexVersion                      = "min_codex_version"
+	SettingKeyMaxCodexVersion                      = "max_codex_version"
+	SettingKeyCodexCLIOnlyBlacklist                = "codex_cli_only_blacklist"
+	SettingKeyCodexCLIOnlyWhitelist                = "codex_cli_only_whitelist"
+	SettingKeyCodexCLIOnlyAllowAppServerClients    = "codex_cli_only_allow_app_server_clients"
+	SettingKeyCodexCLIOnlyEngineFingerprintSignals = "codex_cli_only_engine_fingerprint_signals"
 
 	// SettingKeyAllowUngroupedKeyScheduling 允许未分组 API Key 调度（默认 false：未分组 Key 返回 403）
 	SettingKeyAllowUngroupedKeyScheduling = "allow_ungrouped_key_scheduling"

@@ -3161,6 +3161,69 @@
             </div>
           </div>
 
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.codexPolicy.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.codexPolicy.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <label class="text-sm text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.codexPolicy.minVersion") }}
+                  <input v-model="form.min_codex_version" class="input mt-2 font-mono" placeholder="0.42.0" />
+                </label>
+                <label class="text-sm text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.codexPolicy.maxVersion") }}
+                  <input v-model="form.max_codex_version" class="input mt-2 font-mono" placeholder="0.99.0" />
+                </label>
+              </div>
+              <label class="block text-sm text-gray-700 dark:text-gray-300">
+                {{ t("admin.settings.codexPolicy.whitelist") }}
+                <textarea v-model="form.codex_cli_only_whitelist" rows="3" class="input mt-2 font-mono text-xs" placeholder='[{"originator":"opencode","ua_contains":["opencode/"]}]' />
+              </label>
+              <label class="block text-sm text-gray-700 dark:text-gray-300">
+                {{ t("admin.settings.codexPolicy.blacklist") }}
+                <textarea v-model="form.codex_cli_only_blacklist" rows="3" class="input mt-2 font-mono text-xs" placeholder='[{"originator":"blocked-client","ua_contains":[]}]' />
+              </label>
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.settings.codexPolicy.allowAppServer") }}</p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">{{ t("admin.settings.codexPolicy.allowAppServerHint") }}</p>
+                </div>
+                <Toggle v-model="form.codex_cli_only_allow_app_server_clients" />
+              </div>
+              <div>
+                <div class="mb-2 flex items-center justify-between gap-3">
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.settings.codexPolicy.signals") }}</label>
+                  <button type="button" class="btn btn-secondary btn-sm" @click="codexFingerprintRows = defaultFingerprintSignalRows()">
+                    {{ t("admin.settings.codexPolicy.loadPreset") }}
+                  </button>
+                </div>
+                <div v-for="(row, index) in codexFingerprintRows" :key="index" class="mb-2 grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)_auto_auto] sm:items-center">
+                  <select v-model="row.type" class="input text-sm">
+                    <option value="header_exact">header_exact</option>
+                    <option value="header_prefix">header_prefix</option>
+                    <option value="body_path">body_path</option>
+                  </select>
+                  <input v-model="row.match" class="input font-mono text-sm" placeholder="x-codex- / alternative" />
+                  <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    <input v-model="row.required" type="checkbox" />
+                    {{ t("admin.settings.codexPolicy.required") }}
+                  </label>
+                  <button type="button" class="btn btn-secondary btn-sm" @click="codexFingerprintRows.splice(index, 1)">×</button>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" @click="codexFingerprintRows.push({ type: 'header_exact', match: '', required: false })">
+                  {{ t("admin.settings.codexPolicy.addSignal") }}
+                </button>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.settings.codexPolicy.disabledHint") }}</p>
+              </div>
+            </div>
+          </div>
+
           <!-- Gateway Scheduling Settings -->
           <div class="card">
             <div
@@ -6112,6 +6175,12 @@ import {
   parseRegistrationEmailSuffixWhitelistInput,
 } from "@/utils/registrationEmailPolicy";
 import { DEFAULT_LEGAL_CONSENT_SETTINGS } from "@/utils/legalConsent";
+import {
+  defaultFingerprintSignalRows,
+  parseFingerprintSignalsToRows,
+  serializeFingerprintRowsToJSON,
+  type FingerprintSignalRow,
+} from "./codexFingerprintSignals";
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
@@ -6226,6 +6295,7 @@ const openaiFastPolicyForm = reactive({
 // 标记 openai_fast_policy_settings 是否已成功从后端加载，
 // 避免后端 GET 出错或字段缺失时，保存把默认规则覆盖成空数组。
 const openaiFastPolicyLoaded = ref(false);
+const codexFingerprintRows = ref<FingerprintSignalRow[]>([]);
 
 const tablePageSizeMin = 5;
 const tablePageSizeMax = 1000;
@@ -6421,6 +6491,12 @@ const form = reactive<SettingsForm>({
   // Claude Code version check
   min_claude_code_version: "",
   max_claude_code_version: "",
+  min_codex_version: "",
+  max_codex_version: "",
+  codex_cli_only_blacklist: "",
+  codex_cli_only_whitelist: "",
+  codex_cli_only_allow_app_server_clients: false,
+  codex_cli_only_engine_fingerprint_signals: "",
   // 分组隔离
   allow_ungrouped_key_scheduling: false,
   openai_advanced_scheduler_enabled: false,
@@ -7070,6 +7146,9 @@ async function loadSettings() {
       ...DEFAULT_LEGAL_CONSENT_SETTINGS,
       ...(settings.legal_consent || {}),
     };
+    codexFingerprintRows.value = parseFingerprintSignalsToRows(
+      settings.codex_cli_only_engine_fingerprint_signals || "",
+    );
     if (!form.openai_claude_gpt_bridge_cache_display_settings) {
       form.openai_claude_gpt_bridge_cache_display_settings = {
         enabled: false,
@@ -7507,6 +7586,14 @@ async function saveSettings() {
       identity_patch_prompt: form.identity_patch_prompt,
       min_claude_code_version: form.min_claude_code_version,
       max_claude_code_version: form.max_claude_code_version,
+      min_codex_version: form.min_codex_version.trim(),
+      max_codex_version: form.max_codex_version.trim(),
+      codex_cli_only_blacklist: form.codex_cli_only_blacklist.trim(),
+      codex_cli_only_whitelist: form.codex_cli_only_whitelist.trim(),
+      codex_cli_only_allow_app_server_clients:
+        form.codex_cli_only_allow_app_server_clients,
+      codex_cli_only_engine_fingerprint_signals:
+        serializeFingerprintRowsToJSON(codexFingerprintRows.value),
       allow_ungrouped_key_scheduling: form.allow_ungrouped_key_scheduling,
       enable_fingerprint_unification: form.enable_fingerprint_unification,
       enable_metadata_passthrough: form.enable_metadata_passthrough,

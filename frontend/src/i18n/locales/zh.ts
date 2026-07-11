@@ -4077,6 +4077,7 @@ const zhBase = {
         responsesWebsocketsV2PassthroughHint: '当前已开启自动透传：仅影响 HTTP 透传链路，不影响 WS mode。',
         codexCLIOnly: '仅允许 Codex 官方客户端',
         codexCLIOnlyDesc: '仅对 OpenAI OAuth 生效。开启后仅允许 Codex 官方客户端家族访问；关闭后完全绕过并保持原逻辑。',
+        codexCLIOnlyAllowAppServer: '允许此账号使用 Codex app-server 客户端',
         compactMode: 'Compact 模式',
         compactModeDesc:
           '控制本账号在 /responses/compact 调度中的参与方式。Auto 跟随探测结果，Force On 强制允许，Force Off 强制排除。',
@@ -6324,6 +6325,21 @@ const zhBase = {
         description: '控制 API Key 的调度行为',
         allowUngroupedKey: '允许未分组 Key 调度',
         allowUngroupedKeyHint: '关闭后，未分配到任何分组的 API Key 将无法发起请求（返回 403）。建议保持关闭以确保所有 Key 都归属明确的分组。'
+      },
+      codexPolicy: {
+        title: 'Codex 客户端策略',
+        description: '仅对开启“仅允许 Codex 官方客户端”的账号生效。全部留空时保持原有兼容行为。',
+        minVersion: '最低 Codex 版本',
+        maxVersion: '最高 Codex 版本',
+        whitelist: '额外客户端白名单（JSON）',
+        blacklist: '客户端黑名单（JSON）',
+        allowAppServer: '全局允许未列名 app-server 客户端',
+        allowAppServerHint: '这些客户端仍须满足已明确配置的引擎指纹信号。',
+        signals: '引擎指纹信号',
+        loadPreset: '载入建议值',
+        required: '必需',
+        addSignal: '添加信号',
+        disabledHint: '没有信号行表示关闭指纹门。载入建议值后仍需保存设置才会生效。'
       },
       gatewayForwarding: {
         title: '请求转发行为',

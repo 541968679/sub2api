@@ -29,6 +29,7 @@ const (
 )
 
 type CodexRestrictionPolicy struct {
+	Configured               bool
 	Whitelist                []openai.AllowedClientEntry
 	Blacklist                []openai.AllowedClientEntry
 	MinCodexVersion          string
@@ -127,7 +128,8 @@ func (d *OpenAICodexClientRestrictionDetector) detect(c *gin.Context, account *A
 	if reason == "" {
 		return CodexClientRestrictionDetectionResult{Enabled: true, Reason: CodexClientRestrictionReasonNotMatchedUA}
 	}
-	if reason == CodexClientRestrictionReasonMatchedUA || reason == CodexClientRestrictionReasonMatchedOriginator {
+	if (policy.MinCodexVersion != "" || policy.MaxCodexVersion != "") &&
+		(reason == CodexClientRestrictionReasonMatchedUA || reason == CodexClientRestrictionReasonMatchedOriginator) {
 		version, ok := openai.ParseCodexEngineVersion(userAgent)
 		if !ok {
 			return CodexClientRestrictionDetectionResult{Enabled: true, Reason: CodexClientRestrictionReasonVersionUndetectable}

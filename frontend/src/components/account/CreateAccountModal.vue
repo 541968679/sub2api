@@ -35,6 +35,10 @@
             oauthStepTitle
           }}</span>
         </div>
+        <label v-if="codexCLIOnlyEnabled" class="mt-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <input v-model="codexCLIOnlyAllowAppServer" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+          {{ t('admin.accounts.openai.codexCLIOnlyAllowAppServer') }}
+        </label>
       </div>
     </div>
 
@@ -3559,6 +3563,7 @@ const openAIImagesEndpointEnabled = ref(true)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
+const codexCLIOnlyAllowAppServer = ref(false)
 const anthropicPassthroughEnabled = ref(false)
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
@@ -4621,8 +4626,11 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
 
   if (accountCategory.value === 'oauth-based' && codexCLIOnlyEnabled.value) {
     extra.codex_cli_only = true
+    if (codexCLIOnlyAllowAppServer.value) extra.codex_cli_only_allow_app_server = true
+    else delete extra.codex_cli_only_allow_app_server
   } else {
     delete extra.codex_cli_only
+    delete extra.codex_cli_only_allow_app_server
   }
   if (openAICompactMode.value !== 'auto') {
     extra.openai_compact_mode = openAICompactMode.value

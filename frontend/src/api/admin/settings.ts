@@ -515,6 +515,12 @@ export interface SystemSettings {
   // Claude Code version check
   min_claude_code_version: string;
   max_claude_code_version: string;
+  min_codex_version: string;
+  max_codex_version: string;
+  codex_cli_only_blacklist: string;
+  codex_cli_only_whitelist: string;
+  codex_cli_only_allow_app_server_clients: boolean;
+  codex_cli_only_engine_fingerprint_signals: string;
 
   // 分组隔离
   allow_ungrouped_key_scheduling: boolean;
@@ -737,6 +743,12 @@ export interface UpdateSettingsRequest {
   ops_metrics_interval_seconds?: number;
   min_claude_code_version?: string;
   max_claude_code_version?: string;
+  min_codex_version?: string;
+  max_codex_version?: string;
+  codex_cli_only_blacklist?: string;
+  codex_cli_only_whitelist?: string;
+  codex_cli_only_allow_app_server_clients?: boolean;
+  codex_cli_only_engine_fingerprint_signals?: string;
   allow_ungrouped_key_scheduling?: boolean;
   enable_fingerprint_unification?: boolean;
   enable_metadata_passthrough?: boolean;
@@ -921,6 +933,12 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     ops_metrics_interval_seconds: s.ops_metrics_interval_seconds,
     min_claude_code_version: s.min_claude_code_version,
     max_claude_code_version: s.max_claude_code_version,
+    min_codex_version: s.min_codex_version,
+    max_codex_version: s.max_codex_version,
+    codex_cli_only_blacklist: s.codex_cli_only_blacklist,
+    codex_cli_only_whitelist: s.codex_cli_only_whitelist,
+    codex_cli_only_allow_app_server_clients: s.codex_cli_only_allow_app_server_clients,
+    codex_cli_only_engine_fingerprint_signals: s.codex_cli_only_engine_fingerprint_signals,
     allow_ungrouped_key_scheduling: s.allow_ungrouped_key_scheduling,
     enable_fingerprint_unification: s.enable_fingerprint_unification,
     enable_metadata_passthrough: s.enable_metadata_passthrough,

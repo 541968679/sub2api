@@ -148,8 +148,14 @@ type SystemSettings struct {
 	AllowUserViewErrorRequests bool
 
 	// Claude Code version check
-	MinClaudeCodeVersion string
-	MaxClaudeCodeVersion string
+	MinClaudeCodeVersion                 string
+	MaxClaudeCodeVersion                 string
+	MinCodexVersion                      string
+	MaxCodexVersion                      string
+	CodexCLIOnlyBlacklist                string
+	CodexCLIOnlyWhitelist                string
+	CodexCLIOnlyAllowAppServerClients    bool
+	CodexCLIOnlyEngineFingerprintSignals string
 
 	// 分组隔离：允许未分组 Key 调度（默认 false → 403）
 	AllowUngroupedKeyScheduling bool

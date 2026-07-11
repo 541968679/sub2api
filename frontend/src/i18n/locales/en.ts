@@ -4324,6 +4324,7 @@ const enBase = {
         codexCLIOnly: 'Codex official clients only',
         codexCLIOnlyDesc:
           'Only applies to OpenAI OAuth. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
+        codexCLIOnlyAllowAppServer: 'Allow Codex app-server clients for this account',
         compactMode: 'Compact mode',
         compactModeDesc:
           'Controls how this account participates in /responses/compact routing. Auto follows probe results, Force On always allows, Force Off always excludes.',
@@ -6633,6 +6634,21 @@ const enBase = {
         description: 'Control API Key scheduling behavior',
         allowUngroupedKey: 'Allow Ungrouped Key Scheduling',
         allowUngroupedKeyHint: 'When disabled, API Keys not assigned to any group cannot make requests (403 Forbidden). Keep disabled to ensure all Keys belong to a specific group.'
+      },
+      codexPolicy: {
+        title: 'Codex Client Policy',
+        description: 'Optional restrictions for accounts using Codex official clients only. Empty settings preserve legacy behavior.',
+        minVersion: 'Minimum Codex version',
+        maxVersion: 'Maximum Codex version',
+        whitelist: 'Additional client whitelist (JSON)',
+        blacklist: 'Client blacklist (JSON)',
+        allowAppServer: 'Allow unlisted app-server clients globally',
+        allowAppServerHint: 'These clients must still satisfy explicitly configured fingerprint signals.',
+        signals: 'Engine fingerprint signals',
+        loadPreset: 'Load recommended preset',
+        required: 'Required',
+        addSignal: 'Add signal',
+        disabledHint: 'No rows means the fingerprint gate is disabled. Loading the preset does not take effect until settings are saved.'
       },
       gatewayForwarding: {
         title: 'Request Forwarding',

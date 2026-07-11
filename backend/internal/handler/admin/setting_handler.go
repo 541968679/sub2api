@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -24,6 +25,24 @@ var semverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // menuItemIDPattern validates custom menu item IDs: alphanumeric, hyphens, underscores only.
 var menuItemIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+func validateCodexClientEntriesJSON(raw string, whitelist bool) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var entries []openai.AllowedClientEntry
+	if err := json.Unmarshal([]byte(raw), &entries); err != nil {
+		return fmt.Errorf("must be empty or a valid JSON array")
+	}
+	if whitelist {
+		for i, entry := range entries {
+			if !entry.IsWhitelistable() {
+				return fmt.Errorf("entry %d requires a non-empty originator and ua_contains", i)
+			}
+		}
+	}
+	return nil
+}
 
 // generateMenuItemID generates a short random hex ID for a custom menu item.
 func generateMenuItemID() (string, error) {
@@ -213,6 +232,12 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpsMetricsIntervalSeconds:                              settings.OpsMetricsIntervalSeconds,
 		MinClaudeCodeVersion:                                   settings.MinClaudeCodeVersion,
 		MaxClaudeCodeVersion:                                   settings.MaxClaudeCodeVersion,
+		MinCodexVersion:                                        settings.MinCodexVersion,
+		MaxCodexVersion:                                        settings.MaxCodexVersion,
+		CodexCLIOnlyBlacklist:                                  settings.CodexCLIOnlyBlacklist,
+		CodexCLIOnlyWhitelist:                                  settings.CodexCLIOnlyWhitelist,
+		CodexCLIOnlyAllowAppServerClients:                      settings.CodexCLIOnlyAllowAppServerClients,
+		CodexCLIOnlyEngineFingerprintSignals:                   settings.CodexCLIOnlyEngineFingerprintSignals,
 		AllowUngroupedKeyScheduling:                            settings.AllowUngroupedKeyScheduling,
 		BackendModeEnabled:                                     settings.BackendModeEnabled,
 		EnableFingerprintUnification:                           settings.EnableFingerprintUnification,
@@ -526,8 +551,14 @@ type UpdateSettingsRequest struct {
 	OpsQueryModeDefault          *string `json:"ops_query_mode_default"`
 	OpsMetricsIntervalSeconds    *int    `json:"ops_metrics_interval_seconds"`
 
-	MinClaudeCodeVersion string `json:"min_claude_code_version"`
-	MaxClaudeCodeVersion string `json:"max_claude_code_version"`
+	MinClaudeCodeVersion                 string `json:"min_claude_code_version"`
+	MaxClaudeCodeVersion                 string `json:"max_claude_code_version"`
+	MinCodexVersion                      string `json:"min_codex_version"`
+	MaxCodexVersion                      string `json:"max_codex_version"`
+	CodexCLIOnlyBlacklist                string `json:"codex_cli_only_blacklist"`
+	CodexCLIOnlyWhitelist                string `json:"codex_cli_only_whitelist"`
+	CodexCLIOnlyAllowAppServerClients    *bool  `json:"codex_cli_only_allow_app_server_clients"`
+	CodexCLIOnlyEngineFingerprintSignals string `json:"codex_cli_only_engine_fingerprint_signals"`
 
 	// 分组隔离
 	AllowUngroupedKeyScheduling bool `json:"allow_ungrouped_key_scheduling"`
@@ -1280,6 +1311,28 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			return
 		}
 	}
+	for field, value := range map[string]string{"min_codex_version": req.MinCodexVersion, "max_codex_version": req.MaxCodexVersion} {
+		if value != "" && !semverPattern.MatchString(value) {
+			response.Error(c, http.StatusBadRequest, field+" must be empty or a valid semver (e.g. 0.42.0)")
+			return
+		}
+	}
+	if req.MinCodexVersion != "" && req.MaxCodexVersion != "" && service.CompareVersions(req.MaxCodexVersion, req.MinCodexVersion) < 0 {
+		response.Error(c, http.StatusBadRequest, "max_codex_version must be greater than or equal to min_codex_version")
+		return
+	}
+	if err := validateCodexClientEntriesJSON(req.CodexCLIOnlyBlacklist, false); err != nil {
+		response.Error(c, http.StatusBadRequest, "codex_cli_only_blacklist "+err.Error())
+		return
+	}
+	if err := validateCodexClientEntriesJSON(req.CodexCLIOnlyWhitelist, true); err != nil {
+		response.Error(c, http.StatusBadRequest, "codex_cli_only_whitelist "+err.Error())
+		return
+	}
+	if err := openai.ValidateEngineFingerprintSignalsJSON(req.CodexCLIOnlyEngineFingerprintSignals); err != nil {
+		response.Error(c, http.StatusBadRequest, "codex_cli_only_engine_fingerprint_signals "+err.Error())
+		return
+	}
 
 	legalConsent := previousSettings.LegalConsent
 	if req.LegalConsent != nil {
@@ -1384,8 +1437,19 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		IdentityPatchPrompt:              req.IdentityPatchPrompt,
 		MinClaudeCodeVersion:             req.MinClaudeCodeVersion,
 		MaxClaudeCodeVersion:             req.MaxClaudeCodeVersion,
-		AllowUngroupedKeyScheduling:      req.AllowUngroupedKeyScheduling,
-		BackendModeEnabled:               req.BackendModeEnabled,
+		MinCodexVersion:                  req.MinCodexVersion,
+		MaxCodexVersion:                  req.MaxCodexVersion,
+		CodexCLIOnlyBlacklist:            req.CodexCLIOnlyBlacklist,
+		CodexCLIOnlyWhitelist:            req.CodexCLIOnlyWhitelist,
+		CodexCLIOnlyAllowAppServerClients: func() bool {
+			if req.CodexCLIOnlyAllowAppServerClients != nil {
+				return *req.CodexCLIOnlyAllowAppServerClients
+			}
+			return previousSettings.CodexCLIOnlyAllowAppServerClients
+		}(),
+		CodexCLIOnlyEngineFingerprintSignals: req.CodexCLIOnlyEngineFingerprintSignals,
+		AllowUngroupedKeyScheduling:          req.AllowUngroupedKeyScheduling,
+		BackendModeEnabled:                   req.BackendModeEnabled,
 		OpsMonitoringEnabled: func() bool {
 			if req.OpsMonitoringEnabled != nil {
 				return *req.OpsMonitoringEnabled
@@ -1789,6 +1853,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		OpsMetricsIntervalSeconds:                              updatedSettings.OpsMetricsIntervalSeconds,
 		MinClaudeCodeVersion:                                   updatedSettings.MinClaudeCodeVersion,
 		MaxClaudeCodeVersion:                                   updatedSettings.MaxClaudeCodeVersion,
+		MinCodexVersion:                                        updatedSettings.MinCodexVersion,
+		MaxCodexVersion:                                        updatedSettings.MaxCodexVersion,
+		CodexCLIOnlyBlacklist:                                  updatedSettings.CodexCLIOnlyBlacklist,
+		CodexCLIOnlyWhitelist:                                  updatedSettings.CodexCLIOnlyWhitelist,
+		CodexCLIOnlyAllowAppServerClients:                      updatedSettings.CodexCLIOnlyAllowAppServerClients,
+		CodexCLIOnlyEngineFingerprintSignals:                   updatedSettings.CodexCLIOnlyEngineFingerprintSignals,
 		AllowUngroupedKeyScheduling:                            updatedSettings.AllowUngroupedKeyScheduling,
 		BackendModeEnabled:                                     updatedSettings.BackendModeEnabled,
 		EnableFingerprintUnification:                           updatedSettings.EnableFingerprintUnification,
