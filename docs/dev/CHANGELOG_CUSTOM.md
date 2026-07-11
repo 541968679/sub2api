@@ -4876,3 +4876,13 @@ route, setting, push, or deployment change.
 - Recorded the privacy, deployment-provenance, and existing-release-workflow reasons for excluding upstream IP geolocation, online binary rollback, and exact-tag runtime resolution.
 - Corrected the usage-log ledger to reflect that API-key latest-IP row close/iteration handling is present.
 - Marked migration number `183` as a permanent historical gap. New migrations continue from the current maximum and never backfill an already published gap.
+
+## [2026-07-11] chore: Complete the existing Wire CLI checksum set
+
+**Affected files**: backend Go module checksums only.
+
+**Compatibility**: Dependency metadata only; no dependency version or runtime graph changed.
+
+**Details**:
+- Added the missing `github.com/google/subcommands v1.2.0` checksums required by the already pinned Wire `v0.7.0` CLI.
+- Wire now starts and reports the repository's existing handwritten-provider gaps instead of failing before analysis. The checked-in `wire_gen.go` remains unchanged and passes `cmd/server` unit tests and the production-style server build.

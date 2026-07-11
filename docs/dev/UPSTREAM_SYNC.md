@@ -188,6 +188,19 @@ git push origin main
 - No excluded item changes billing/display-token accounting, real cache-read
   quantities, `actual_cost`, curated/default models, Claude-GPT, Images/Batch
   Image, scheduler/failover, Ops/settings, routes, payment, or distribution.
+
+### 2026-07-11 - Wire generator verification boundary
+
+- Added only the missing checksum entries for Wire's already pinned
+  `github.com/google/subcommands v1.2.0` CLI dependency; no module version was
+  changed.
+- `go generate ./cmd/server` now reaches Wire analysis and reports the existing
+  provider-set gaps for platform-quota slices, distribution port binding,
+  model-pricing resolver arguments, and ImageChannelMonitor handler. This is a
+  broader pre-existing handwritten-DI reconciliation task, not a failure in the
+  checked-in generated graph.
+- `wire_gen.go` was not rewritten. `cmd/server` unit tests and the `CGO_ENABLED=0`
+  production-style server build pass with the current graph.
 ### 2026-07-11 - Authentication and frontend reliability alignment
 
 - **Branch/baseline**: `codex/upstream-auth-reliability-20260711` from `f2aa7ac6d`.
