@@ -4,12 +4,14 @@ import { nextTick } from 'vue'
 
 import UsageView from '../UsageView.vue'
 
-const { query, getStatsByDateRange, getDashboardTrend, list, showError } = vi.hoisted(() => ({
+const { query, getStatsByDateRange, getDashboardTrend, list, showError, showSuccess, saveAs } = vi.hoisted(() => ({
   query: vi.fn(),
   getStatsByDateRange: vi.fn(),
   getDashboardTrend: vi.fn(),
   list: vi.fn(),
   showError: vi.fn(),
+  showSuccess: vi.fn(),
+  saveAs: vi.fn(),
 }))
 
 const messages: Record<string, string> = {
@@ -62,8 +64,10 @@ vi.mock('@/api', () => ({
 }))
 
 vi.mock('@/stores/app', () => ({
-  useAppStore: () => ({ showError }),
+  useAppStore: () => ({ showError, showSuccess }),
 }))
+
+vi.mock('file-saver', () => ({ saveAs }))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -87,6 +91,8 @@ describe('user UsageView tooltip', () => {
     getDashboardTrend.mockReset()
     list.mockReset()
     showError.mockReset()
+    showSuccess.mockReset()
+    saveAs.mockReset()
 
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       x: 0,
@@ -381,6 +387,53 @@ describe('user UsageView tooltip', () => {
     const text = wrapper.text()
     expect(text).toContain('- / 1M tokens')
     expect(text).not.toContain('$8.3333 / 1M tokens')
+  })
+
+  it('exports the active user-visible usage range as a BOM CSV', async () => {
+    query.mockResolvedValue({
+      items: [{
+        id: 1,
+        created_at: '2026-07-11T12:00:00Z',
+        model: '模型-测试',
+        reasoning_effort: null,
+        inbound_endpoint: '/v1/messages',
+        request_type: 'sync',
+        stream: false,
+        billing_mode: 'token',
+        input_tokens: 100,
+        output_tokens: 20,
+        image_output_tokens: 0,
+        cache_creation_tokens: 11,
+        cache_read_tokens: 13,
+        rate_multiplier: 1,
+        actual_cost: 0.75,
+        first_token_ms: 12,
+        duration_ms: 345,
+        api_key: { name: 'demo-key' },
+      }],
+      total: 1,
+      pages: 1,
+    })
+    getStatsByDateRange.mockResolvedValue({ total_requests: 1, total_tokens: 144, total_cost: 0.75, avg_duration_ms: 345 })
+    getDashboardTrend.mockResolvedValue({ trend: [], start_date: '2026-07-11', end_date: '2026-07-11', granularity: 'day' })
+    list.mockResolvedValue({ items: [] })
+
+    const wrapper = mount(UsageView, {
+      global: { stubs: {
+        AppLayout: AppLayoutStub, TablePageLayout: TablePageLayoutStub, Pagination: true,
+        EmptyState: true, Select: true, DateRangePicker: true, Icon: true,
+        UsageMetricTrendChart: true, Teleport: true,
+      } },
+    })
+    await flushPromises()
+    query.mockClear()
+
+    await wrapper.find('[data-testid="usage-csv-export"]').trigger('click')
+    await flushPromises()
+
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ page: 1, page_size: 200 }), expect.anything())
+    expect(saveAs).toHaveBeenCalledWith(expect.objectContaining({ type: 'text/csv;charset=utf-8' }), expect.stringMatching(/^usage_.*\.csv$/))
+    expect(showSuccess).toHaveBeenCalled()
   })
 
 })
