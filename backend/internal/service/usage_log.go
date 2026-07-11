@@ -171,10 +171,13 @@ type UsageLog struct {
 	CacheTTLOverridden bool
 
 	// 图片生成字段
-	ImageCount   int
-	ImageSize    *string
-	ImageQuality *string
-	MediaType    *string
+	ImageCount           int
+	ImageSize            *string
+	ImageQuality         *string
+	MediaType            *string
+	VideoCount           int
+	VideoResolution      *string
+	VideoDurationSeconds *int
 
 	CreatedAt time.Time
 

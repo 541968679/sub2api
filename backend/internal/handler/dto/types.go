@@ -104,6 +104,11 @@ type Group struct {
 	AllowImageGeneration bool     `json:"allow_image_generation"`
 	ImageRateIndependent bool     `json:"image_rate_independent"`
 	ImageRateMultiplier  float64  `json:"image_rate_multiplier"`
+	VideoRateIndependent bool     `json:"video_rate_independent"`
+	VideoRateMultiplier  float64  `json:"video_rate_multiplier"`
+	VideoPrice480P       *float64 `json:"video_price_480p"`
+	VideoPrice720P       *float64 `json:"video_price_720p"`
+	VideoPrice1080P      *float64 `json:"video_price_1080p"`
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool   `json:"claude_code_only"`
@@ -418,10 +423,13 @@ type UsageLog struct {
 	FirstTokenMs *int   `json:"first_token_ms"`
 
 	// 图片生成字段
-	ImageCount   int     `json:"image_count"`
-	ImageSize    *string `json:"image_size"`
-	ImageQuality *string `json:"image_quality"`
-	MediaType    *string `json:"media_type"`
+	ImageCount           int     `json:"image_count"`
+	ImageSize            *string `json:"image_size"`
+	ImageQuality         *string `json:"image_quality"`
+	MediaType            *string `json:"media_type"`
+	VideoCount           int     `json:"video_count"`
+	VideoResolution      *string `json:"video_resolution"`
+	VideoDurationSeconds *int    `json:"video_duration_seconds"`
 
 	// User-Agent
 	UserAgent *string `json:"user_agent"`

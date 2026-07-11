@@ -5863,7 +5863,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// 跳过所有 token 均为零的用量记录——上游未返回 usage 时不应写入数据库
 	if result.Usage.InputTokens == 0 && result.Usage.OutputTokens == 0 &&
 		result.Usage.CacheCreationInputTokens == 0 && result.Usage.CacheReadInputTokens == 0 &&
-		result.Usage.ImageOutputTokens == 0 && result.ImageCount == 0 {
+		result.Usage.ImageOutputTokens == 0 && result.ImageCount == 0 && result.VideoCount == 0 {
 		return nil
 	}
 
@@ -5898,6 +5898,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
+	videoMultiplier := resolveVideoRateMultiplier(apiKey, multiplier)
+	costMultiplier := multiplier
+	if result.VideoCount > 0 {
+		costMultiplier = videoMultiplier
+	}
 
 	var cost *CostBreakdown
 	var err error
@@ -5915,7 +5920,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
 	}
-	cost, err = s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, user, billingModel, multiplier, tokens, serviceTier)
+	cost, err = s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, user, billingModel, costMultiplier, tokens, serviceTier)
 	if err != nil {
 		cost = &CostBreakdown{ActualCost: 0}
 	}
@@ -5980,6 +5985,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageSize:           normalizedImageBillingSizePtr(result.ImageCount, result.ImageSize),
 		ImageQuality:        optionalTrimmedStringPtr(result.ImageQuality),
 	}
+	if result.VideoCount > 0 {
+		usageLog.VideoCount = result.VideoCount
+		usageLog.VideoResolution = optionalTrimmedStringPtr(NormalizeVideoBillingResolutionOrDefault(result.VideoResolution))
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
+		usageLog.VideoDurationSeconds = &durationSeconds
+	}
 	if input.CyberBlocked {
 		usageLog.RequestType = RequestTypeCyberBlocked
 	}
@@ -5996,7 +6007,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.LongContextInputMultiplier = cost.LongContextInputMultiplier
 		usageLog.LongContextOutputMultiplier = cost.LongContextOutputMultiplier
 	}
-	usageLog.RateMultiplier = multiplier
+	usageLog.RateMultiplier = costMultiplier
 	usageLog.AccountRateMultiplier = &accountRateMultiplier
 	usageLog.BillingType = billingType
 	usageLog.Stream = result.Stream
@@ -6015,6 +6026,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			billingTier := cost.BillingTier
 			usageLog.BillingTier = &billingTier
 		}
+	} else if result.VideoCount > 0 {
+		billingMode := string(BillingModeVideo)
+		usageLog.BillingMode = &billingMode
 	} else if result.ImageCount > 0 {
 		billingMode := string(BillingModeImage)
 		usageLog.BillingMode = &billingMode
@@ -6087,6 +6101,9 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	tokens UsageTokens,
 	serviceTier string,
 ) (*CostBreakdown, error) {
+	if result != nil && result.VideoCount > 0 {
+		return s.calculateOpenAIVideoCost(billingModel, apiKey, result, multiplier), nil
+	}
 	if result != nil && result.ImageCount > 0 {
 		return s.calculateOpenAIImageCost(ctx, billingModel, apiKey, result, multiplier), nil
 	}
@@ -6108,6 +6125,30 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 		return s.billingService.CalculateCostUnified(input)
 	}
 	return s.billingService.CalculateCostWithServiceTier(billingModel, tokens, multiplier, serviceTier)
+}
+
+func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
+	billingModel string,
+	apiKey *APIKey,
+	result *OpenAIForwardResult,
+	multiplier float64,
+) *CostBreakdown {
+	var groupConfig *VideoPriceConfig
+	if apiKey != nil && apiKey.Group != nil {
+		groupConfig = &VideoPriceConfig{
+			Price480P:  apiKey.Group.VideoPrice480P,
+			Price720P:  apiKey.Group.VideoPrice720P,
+			Price1080P: apiKey.Group.VideoPrice1080P,
+		}
+	}
+	return s.billingService.CalculateVideoCost(
+		billingModel,
+		result.VideoResolution,
+		result.VideoCount,
+		result.VideoDurationSeconds,
+		groupConfig,
+		multiplier,
+	)
 }
 
 func (s *OpenAIGatewayService) calculateOpenAIImageCost(

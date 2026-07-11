@@ -33,12 +33,35 @@
 | Service | `backend/internal/service/openai_images.go` | OpenAI Images API key forwarding, request normalization, and direct image response handling. |
 | Service | `backend/internal/service/openai_images_responses.go` | OpenAI OAuth image forwarding through Codex `/responses` and stream/non-stream transformation. |
 | Service | `backend/internal/service/openai_gateway_grok.go` | Grok Responses and Anthropic Messages compatibility, xAI request/response conversion, failover signals, and quota snapshots. |
-| Service | `backend/internal/service/grok_media.go` | Grok image/video service primitives; HTTP exposure is deferred until moderation and media billing are integrated. |
+| Handler | `backend/internal/handler/grok_media.go` | Grok image/video request validation, moderation, concurrency, Grok-only scheduling, failover, and usage submission. |
+| Service | `backend/internal/service/grok_media.go` | Grok image/video request normalization, xAI forwarding, response metadata, video status binding, and failover signals. |
 | Service | `backend/internal/service/openai_image_trace.go` | Temporary `OPENAI_IMAGE_TRACE_LOG` diagnostics for `gpt-image-2` generations. |
 | Service | `backend/internal/service/antigravity_gateway_service.go` | Antigravity native request/response conversion and forwarding. |
 | Service | `backend/internal/service/ratelimit_service.go` | Maps upstream errors to account state, temporary unschedulable windows, and rate limits. |
 
 ## Core Flow
+
+### Grok Image And Video Media
+
+```
+/v1/images/* or /v1/videos with a Grok group
+  -> parse model/media metadata
+  -> group media permission and content moderation
+  -> user concurrency and platform billing eligibility
+  -> SelectAccountWithSchedulerForCapability(... platform=grok ...)
+  -> account concurrency and ForwardGrokMedia()
+  -> bounded same-account retry / account failover
+  -> bind video request ID for status polling
+  -> RecordUsage()
+     -> image per-request or video per-second pricing
+     -> balance/subscription and user-platform quota accounting
+     -> usage_logs video_count/resolution/duration persistence
+```
+
+OpenAI groups keep using `openai_images.go`; Grok media routing does not bypass
+the local OpenAI Images account capability switch or alter Claude-GPT bridge
+eligibility. Moderation runs before billing and scheduling, so a local block has
+no quota or usage side effect.
 
 ### `/v1/chat/completions` Anthropic Compatibility
 

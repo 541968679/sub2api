@@ -33,6 +33,11 @@ type Group struct {
 	AllowImageGeneration bool
 	ImageRateIndependent bool
 	ImageRateMultiplier  float64
+	VideoRateIndependent bool
+	VideoRateMultiplier  float64
+	VideoPrice480P       *float64
+	VideoPrice720P       *float64
+	VideoPrice1080P      *float64
 
 	ClaudeCodeOnly                  bool
 	FallbackGroupID                 *int64
@@ -122,6 +127,20 @@ func (g *Group) GetImagePrice(imageSize string) *float64 {
 		return g.ImagePrice4K
 	default:
 		return g.ImagePrice2K
+	}
+}
+
+// GetVideoPrice returns the configured per-second price for a billing resolution.
+func (g *Group) GetVideoPrice(resolution string) *float64 {
+	switch NormalizeVideoBillingResolutionOrDefault(resolution) {
+	case VideoBillingResolution480P:
+		return g.VideoPrice480P
+	case VideoBillingResolution720P:
+		return g.VideoPrice720P
+	case VideoBillingResolution1080P:
+		return g.VideoPrice1080P
+	default:
+		return g.VideoPrice480P
 	}
 }
 

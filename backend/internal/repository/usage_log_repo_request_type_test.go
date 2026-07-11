@@ -77,6 +77,9 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.ImageCount,
 			sqlmock.AnyArg(), // image_size
 			sqlmock.AnyArg(), // image_quality
+			log.VideoCount,
+			sqlmock.AnyArg(), // video_resolution
+			sqlmock.AnyArg(), // video_duration_seconds
 			sqlmock.AnyArg(), // service_tier
 			sqlmock.AnyArg(), // reasoning_effort
 			sqlmock.AnyArg(), // inbound_endpoint
@@ -159,6 +162,9 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			log.ImageCount,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			log.VideoCount,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			serviceTier,
@@ -256,10 +262,10 @@ func TestPrepareUsageLogInsert_LongContextSnapshot(t *testing.T) {
 	})
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, true, prepared.args[45])
-	require.Equal(t, 272000, prepared.args[46])
-	require.Equal(t, 2.0, prepared.args[47])
-	require.Equal(t, 1.5, prepared.args[48])
+	require.Equal(t, true, prepared.args[48])
+	require.Equal(t, 272000, prepared.args[49])
+	require.Equal(t, 2.0, prepared.args[50])
+	require.Equal(t, 1.5, prepared.args[51])
 }
 
 func TestCoalesceTrimmedString(t *testing.T) {
@@ -618,6 +624,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0,
 			sql.NullString{},
 			sql.NullString{}, // image_quality
+			0,                // video_count
+			sql.NullString{}, // video_resolution
+			sql.NullInt64{},  // video_duration_seconds
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
 			sql.NullString{},
@@ -671,6 +680,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0,
 			sql.NullString{},
 			sql.NullString{}, // image_quality
+			0,                // video_count
+			sql.NullString{}, // video_resolution
+			sql.NullInt64{},  // video_duration_seconds
 			sql.NullString{Valid: true, String: "flex"},
 			sql.NullString{},
 			sql.NullString{},
@@ -724,6 +736,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0,
 			sql.NullString{},
 			sql.NullString{}, // image_quality
+			0,                // video_count
+			sql.NullString{}, // video_resolution
+			sql.NullInt64{},  // video_duration_seconds
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
 			sql.NullString{},
@@ -787,6 +802,9 @@ func TestScanUsageLogLongContextSnapshot(t *testing.T) {
 		0,
 		sql.NullString{},
 		sql.NullString{},
+		0,
+		sql.NullString{},
+		sql.NullInt64{},
 		sql.NullString{},
 		sql.NullString{},
 		sql.NullString{},

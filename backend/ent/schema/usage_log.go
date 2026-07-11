@@ -166,6 +166,18 @@ func (UsageLog) Fields() []ent.Field {
 			MaxLen(20).
 			Optional().
 			Nillable(),
+		field.Int("video_count").
+			Default(0).
+			Comment("Generated video count; positive values identify video usage"),
+		field.String("video_resolution").
+			MaxLen(10).
+			Optional().
+			Nillable().
+			Comment("Video billing resolution: 480p, 720p, or 1080p"),
+		field.Int("video_duration_seconds").
+			Optional().
+			Nillable().
+			Comment("Billable duration per generated video in seconds"),
 		// Cache TTL Override 标记（管理员强制替换了缓存 TTL 计费）
 		field.Bool("cache_ttl_overridden").
 			Default(false),

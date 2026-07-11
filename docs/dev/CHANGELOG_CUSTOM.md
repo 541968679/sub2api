@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Complete Grok image and video gateway billing loop
+
+**Affected files**: Grok media handler/routes, group and usage Ent schemas/generated code, group/auth-cache/repository mappings, media billing and usage persistence, migration `181_grok_media_billing.sql`, focused tests and gateway documentation
+**Upstream compatibility**: High-risk selective port of the final Grok media behavior through target `e316ebf5`; fork-local gateway and billing implementations were extended instead of replaced.
+**Details**:
+- Exposed Grok-only image generation/edit and video generation/status endpoints with platform-isolated scheduling, sticky video status routing, bounded failover, and usage recording.
+- Reused content moderation before concurrency, billing eligibility, scheduling, and forwarding, so locally blocked Grok media requests do not deduct balance or platform quota.
+- Added group-level independent video rate and 480p/720p/1080p per-second prices, official Grok default image/video rate cards, and persisted video count, resolution, and duration metadata.
+- Added additive migration `181`; historical migrations were not edited. Existing Grok groups are media-enabled and newly created Grok groups default to media-enabled.
+- Preserved stored billing/display-token separation, real cache-read token quantities, `actual_cost` semantics, user/channel/global price resolution for token requests, Claude-GPT bridge routing, curated model lists, OpenAI Images account controls, default-model fallback, Ops capture, and platform quota accounting.
+- Verified Ent generation, media/service/repository/handler/routes tests, upstream-sync guard, and diff checks.
+
 ## [2026-07-11] feat: Grok/xAI OAuth and OpenAI-compatible gateway foundation
 
 **Affected files**: `backend/internal/{pkg/xai,repository/grok_oauth_client.go,service/{grok_*,openai_gateway_grok.go,openai_account_scheduler.go,account.go},handler/admin/grok_oauth_handler.go,server/routes/{admin,gateway}.go,cmd/server/wire_gen.go}` plus focused tests and `frontend/src/{api/admin/grok.ts,composables/useGrokOAuth.ts}`

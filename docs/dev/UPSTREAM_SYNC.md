@@ -39,6 +39,23 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Grok media and per-second video billing sync
+
+- **Upstream source**: Grok media routing and pricing line through alignment target `e316ebf52838a89d57fc790981cce7520f819ac8`, including final rate-card and video metadata fixes.
+- **Merge strategy**: selective handler import plus manual reconciliation of local routes, scheduler signature, billing service, monolithic usage repository, auth cache, Ent schema, and migration numbering.
+- **Behavior**:
+  - Grok groups serve `/v1/images/generations`, `/v1/images/edits`, `POST /v1/videos`, and `GET /v1/videos/:request_id`; OpenAI image requests retain their existing handler.
+  - Generation requests are moderated before user concurrency, eligibility checks, account scheduling, forwarding, and billing.
+  - Video generation is billed per video-second using normalized 480p/720p/1080p tiers; usage rows persist count, resolution, and duration.
+  - Video request IDs bind to the selected Grok account for status polling, while failover remains bounded and Grok-only.
+- **Fork-local impact**:
+  - The change extends `RecordUsage` without modifying display-token transforms, stored `actual_cost`, cache-read token quantities, or the User -> Channel -> Global -> LiteLLM -> fallback display pricing chain.
+  - Claude-GPT bridge eligibility and model mapping are unchanged. Grok routes cannot select OpenAI/Antigravity accounts, and ordinary OpenAI routes cannot select Grok accounts.
+  - OpenAI Images keeps its account-side enable/disable capability and existing billing behavior; Grok media uses the group permission and Grok price card instead.
+  - Migration `181_grok_media_billing.sql` is additive/idempotent and does not rewrite migration history; moderation extension remains migration `182`.
+  - Existing curated model lists, default-model fallback, Ops logging, platform quota, public/admin settings, and bilingual frontend contracts remain intact.
+- **Verification**: Ent generation; focused billing, usage repository, group, Grok, moderation, quota, handler, and route tests; `go run ./tools/upstream-sync-guard`; `git diff --check`.
+
 ### 2026-07-11 - Grok/xAI core partial sync
 
 - **Upstream source**: Grok/xAI feature commits between the fork sync base `48912014` and alignment target `e316ebf5`.
