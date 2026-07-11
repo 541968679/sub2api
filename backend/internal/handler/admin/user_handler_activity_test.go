@@ -66,6 +66,7 @@ func (s *userConcurrencyCacheStub) GetUsersLoadBatch(_ context.Context, users []
 func (s *userConcurrencyCacheStub) CleanupExpiredAccountSlots(context.Context, int64) error {
 	return nil
 }
+func (s *userConcurrencyCacheStub) CleanupExpiredAccountSlotKeys(context.Context) error { return nil }
 func (s *userConcurrencyCacheStub) CleanupStaleProcessSlots(context.Context, string) error {
 	return nil
 }

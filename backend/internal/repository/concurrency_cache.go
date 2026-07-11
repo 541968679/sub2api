@@ -187,6 +187,27 @@ var (
 		return 1
 	`)
 
+	// cleanupExpiredSlotKeysScript cleans the slot sets that actually exist in
+	// Redis. KEYS are account slot keys and ARGV[1] is the slot TTL in seconds.
+	cleanupExpiredSlotKeysScript = redis.NewScript(`
+		redis.replicate_commands()
+		local ttl = tonumber(ARGV[1])
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
+		local expireBefore = now - ttl
+		local removed = 0
+		for i = 1, #KEYS do
+			local key = KEYS[i]
+			removed = removed + redis.call('ZREMRANGEBYSCORE', key, '-inf', expireBefore)
+			if redis.call('ZCARD', key) == 0 then
+				redis.call('DEL', key)
+			else
+				redis.call('EXPIRE', key, ttl)
+			end
+		end
+		return removed
+	`)
+
 	// startupCleanupScript 清理非当前进程前缀的槽位成员。
 	// KEYS 是有序集合键列表，ARGV[1] 是当前进程前缀，ARGV[2] 是槽位 TTL。
 	// 遍历每个 KEYS[i]，移除前缀不匹配的成员，清空后删 key，否则刷新 EXPIRE。
@@ -569,6 +590,10 @@ func (c *concurrencyCache) CleanupExpiredAccountSlots(ctx context.Context, accou
 	return err
 }
 
+func (c *concurrencyCache) CleanupExpiredAccountSlotKeys(ctx context.Context) error {
+	return c.cleanupExpiredSlotKeysByPattern(ctx, accountSlotKeyPrefix+"*")
+}
+
 func (c *concurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error {
 	if activeRequestPrefix == "" {
 		return nil
@@ -591,6 +616,26 @@ func (c *concurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeR
 	}
 
 	return nil
+}
+
+func (c *concurrencyCache) cleanupExpiredSlotKeysByPattern(ctx context.Context, pattern string) error {
+	const scanCount = 200
+	var cursor uint64
+	for {
+		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, scanCount).Result()
+		if err != nil {
+			return fmt.Errorf("scan %s: %w", pattern, err)
+		}
+		if len(keys) > 0 {
+			if _, err := cleanupExpiredSlotKeysScript.Run(ctx, c.rdb, keys, c.slotTTLSeconds).Result(); err != nil {
+				return fmt.Errorf("cleanup expired slots %s: %w", pattern, err)
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			return nil
+		}
+	}
 }
 
 // cleanupSlotsByPattern 扫描匹配 pattern 的有序集合键，批量调用 Lua 脚本清理非当前进程成员。
