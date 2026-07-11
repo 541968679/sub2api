@@ -102,6 +102,9 @@ func anthropicUsageFromResponsesUsage(usage *ResponsesUsage) AnthropicUsage {
 		cachedTokens = usage.InputTokensDetails.CachedTokens
 		cacheWriteTokens = usage.InputTokensDetails.CacheWriteTokens
 	}
+	if usage.CacheCreationInputTokens > 0 {
+		cacheWriteTokens = usage.CacheCreationInputTokens
+	}
 
 	inputTokens := usage.InputTokens - cachedTokens - cacheWriteTokens
 	if inputTokens < 0 {
