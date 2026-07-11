@@ -656,3 +656,90 @@ describe('AccountUsageCell', () => {
 		expect(wrapper.text()).toContain('U $0.00')
   })
 })
+
+describe('AccountUsageCell Grok OAuth usage', () => {
+  beforeEach(() => {
+    getUsage.mockReset()
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn().mockImplementation(() => ({
+        matches: true,
+        media: '(min-width: 768px)',
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    })
+  })
+
+  it('shows backend usage costs, quota windows, and snapshot status', async () => {
+    getUsage.mockResolvedValue({
+      grok_local_usage: {
+        requests: 4,
+        tokens: 1200,
+        cost: 0.12,
+        standard_cost: 0.2,
+        user_cost: 0.34
+      },
+      grok_request_quota: {
+        limit: 10,
+        remaining: -2,
+        reset_at: '2026-07-09T16:00:00Z'
+      },
+      grok_token_quota: {
+        limit: 2000,
+        remaining: 500,
+        reset_at: '2026-07-09T17:00:00Z'
+      },
+      grok_retry_after_seconds: 75,
+      grok_entitlement_status: 'active',
+      grok_quota_snapshot_state: 'observed',
+      grok_last_status_code: 429,
+      grok_last_quota_probe_at: '2026-07-09T15:00:00Z',
+      grok_last_headers_seen_at: '2026-07-09T15:01:00Z'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 3861,
+          platform: 'grok',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(getUsage).toHaveBeenCalledWith(3861, undefined)
+    expect(wrapper.text()).toContain('4 req')
+    expect(wrapper.text()).toContain('1.2K')
+    expect(wrapper.text()).toContain('A $0.12')
+    expect(wrapper.text()).toContain('U $0.34')
+    expect(wrapper.text()).not.toContain('0.20')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokRequests|120|2026-07-09T16:00:00Z')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokTokens|75|2026-07-09T17:00:00Z')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokRetryAfter')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokLastStatus')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokLastProbe')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokLastHeadersSeen')
+
+    const badges = wrapper.findAll('span[title]')
+    expect(badges.some(node => node.attributes('title') === 'usage.accountBilled')).toBe(true)
+    expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
+  })
+})
