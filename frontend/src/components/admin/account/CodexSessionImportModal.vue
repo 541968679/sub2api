@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.codexSessionImport.title')"
-    width="large"
+    width="wide"
     close-on-click-outside
     @close="handleClose"
   >
@@ -159,7 +159,7 @@ const handleImport = async () => {
       ...form,
       content: form.content.trim(),
       name: form.name.trim(),
-      notes: form.notes.trim() || null
+      notes: (form.notes ?? '').trim() || null
     })
     const message = t('admin.accounts.codexSessionImport.summary', result.value)
     if (result.value.failed > 0) appStore.showError(message)
