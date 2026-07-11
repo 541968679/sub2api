@@ -50,6 +50,23 @@ func RegisterGatewayRoutes(
 		h.Gateway.Messages(c)
 	}
 
+	// /v1/messages/count_tokens: OpenAI 分组走官方 input_tokens 计数桥；
+	// Antigravity 分组存在显式 bridge mapping 时走 bridge-aware 计数
+	// （账号全部临时不可用时本地估算），否则保持 native CountTokens。
+	countTokensHandler := func(c *gin.Context) {
+		switch getGroupPlatform(c) {
+		case service.PlatformOpenAI:
+			h.OpenAIGateway.CountTokens(c)
+		case service.PlatformAntigravity:
+			if h.OpenAIGateway.CountTokensClaudeGPTBridge(c) {
+				return
+			}
+			h.Gateway.CountTokens(c)
+		default:
+			h.Gateway.CountTokens(c)
+		}
+	}
+
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
@@ -65,20 +82,7 @@ func RegisterGatewayRoutes(
 	{
 		// /v1/messages: auto-route based on group platform
 		gateway.POST("/messages", anthropicMessagesHandler)
-		// /v1/messages/count_tokens: OpenAI groups get 404
-		gateway.POST("/messages/count_tokens", func(c *gin.Context) {
-			if getGroupPlatform(c) == service.PlatformOpenAI {
-				c.JSON(http.StatusNotFound, gin.H{
-					"type": "error",
-					"error": gin.H{
-						"type":    "not_found_error",
-						"message": "Token counting is not supported for this platform",
-					},
-				})
-				return
-			}
-			h.Gateway.CountTokens(c)
-		})
+		gateway.POST("/messages/count_tokens", countTokensHandler)
 		gateway.GET("/models", func(c *gin.Context) {
 			if shouldServeCodexModelsManifest(c) {
 				h.OpenAIGateway.CodexModels(c)
@@ -243,7 +247,7 @@ func RegisterGatewayRoutes(
 	antigravityV1.Use(requireGroupAnthropic)
 	{
 		antigravityV1.POST("/messages", anthropicMessagesHandler)
-		antigravityV1.POST("/messages/count_tokens", h.Gateway.CountTokens)
+		antigravityV1.POST("/messages/count_tokens", countTokensHandler)
 		antigravityV1.GET("/models", h.Gateway.AntigravityModels)
 		antigravityV1.GET("/usage", h.Gateway.Usage)
 	}
