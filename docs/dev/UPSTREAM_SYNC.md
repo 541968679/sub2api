@@ -39,6 +39,16 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Go and AWS dependency security baseline
+
+- **Upstream sources**: `a4f942d8a` and `25a716960` through target `e316ebf52838`.
+- Upgraded Go to 1.26.5 across `go.mod`, root/backend/deploy build images,
+  backend CI, release, and security-scan checks.
+- Upgraded AWS SDK EventStream/S3 to the target fixed dependency set without
+  changing Batch Image provider, settlement, retry, or billing code.
+- This batch contains no routes, settings, schemas, migrations, frontend,
+  pricing, display-token, bridge, Images, Grok, or scheduler behavior changes.
+
 ### 2026-07-11 - OpenAI Codex personal access token authentication
 
 - **Branch/baseline**: `codex/upstream-openai-pat-20260711` at `19bd42ca5`.

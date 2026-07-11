@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Align Go and AWS security baselines
+
+**Affected files**: `backend/go.mod`, `backend/go.sum`, root/backend/deploy Dockerfiles, backend/release/security workflows, and upstream-sync documentation.
+**Upstream compatibility**: Exact security alignment of upstream `a4f942d8a` and `25a716960`; no runtime product contract or fork-local business logic changed.
+**Details**:
+- Upgraded the Go module, build images, and CI version checks to Go 1.26.5 to include the upstream standard-library TLS security fix.
+- Upgraded AWS SDK core/eventstream/S3 and their coupled internal modules to the target versions that fix the EventStream decoder denial-of-service advisory.
+- Reconciled the older fork-local `backend/Dockerfile` and `deploy/Dockerfile` version pins with the root production build without changing the GHCR deployment workflow.
+- Preserved Batch Image settlement/provider behavior, billing/display/cache invariants, bridge/Images/Grok routing, scheduling, settings, migrations, and frontend contracts.
+
 ## [2026-07-11] fix: Expose real image-output token breakdown in usage views
 
 **Affected files**: usage DTO mapper/contracts, frontend usage types/helpers, admin/user usage tables, and bilingual labels.
