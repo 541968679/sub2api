@@ -1162,6 +1162,9 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(args ...any) 
 	if account == nil {
 		return false
 	}
+	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
+		return false
+	}
 	if account.IsShadow() {
 		if s == nil || s.service == nil {
 			return false
@@ -1506,6 +1509,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	previousResponseCanMove bool,
 	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	platform := PlatformOpenAI
 	if len(platformOverride) > 0 {
 		platform = normalizeOpenAICompatiblePlatform(platformOverride[0])

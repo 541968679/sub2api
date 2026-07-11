@@ -54,6 +54,13 @@ type OpsService struct {
 	geminiCompatService       *GeminiMessagesCompatService
 	antigravityGatewayService *AntigravityGatewayService
 	systemLogSink             *OpsSystemLogSink
+	quotaAutoPauseSink        func(OpsOpenAIAccountQuotaAutoPauseSettings)
+}
+
+func (s *OpsService) SetOpenAIQuotaAutoPauseSettingsSink(sink func(OpsOpenAIAccountQuotaAutoPauseSettings)) {
+	if s != nil {
+		s.quotaAutoPauseSink = sink
+	}
 }
 
 func NewOpsService(

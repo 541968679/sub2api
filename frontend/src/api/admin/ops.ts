@@ -783,6 +783,10 @@ export interface OpsAlertRuntimeSettings {
 export interface OpsAdvancedSettings {
   data_retention: OpsDataRetentionSettings
   aggregation: OpsAggregationSettings
+  openai_account_quota_auto_pause: {
+    default_threshold_5h: number
+    default_threshold_7d: number
+  }
   ignore_count_tokens_errors: boolean
   ignore_context_canceled: boolean
   ignore_no_available_accounts: boolean

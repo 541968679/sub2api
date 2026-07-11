@@ -4081,6 +4081,7 @@ const enBase = {
         expiresAt: 'Expires At',
         actions: 'Actions'
       },
+      usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
       privacyTrainingOff: 'Training data sharing disabled',
@@ -4468,6 +4469,9 @@ const enBase = {
       },
       autoPauseOnExpired: 'Auto Pause On Expired',
       autoPauseOnExpiredDesc: 'When enabled, the account will auto pause scheduling after it expires',
+      autoPause5hThreshold: '5h usage threshold (%)',
+      autoPause7dThreshold: '7d usage threshold (%)',
+      autoPauseThresholdHint: 'Blank or 0 uses the global Ops default. The switch explicitly exempts this account for that window. This only skips scheduling and does not change the manual schedulable state.',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: 'Quota Control',
@@ -6331,6 +6335,10 @@ const enBase = {
         aggregation: 'Pre-aggregation Tasks',
         enableAggregation: 'Enable Pre-aggregation',
         aggregationHint: 'Pre-aggregation improves query performance for long time windows',
+        openaiQuotaAutoPause: 'OpenAI account quota auto-pause',
+        openaiQuotaAutoPauseHint: 'Global defaults for skipping OpenAI parent accounts when upstream 5h or 7d usage reaches the threshold. Set 0 to disable by default.',
+        openaiQuotaAutoPauseDefault5h: 'Default 5h threshold (%)',
+        openaiQuotaAutoPauseDefault7d: 'Default 7d threshold (%)',
         errorFiltering: 'Error Filtering',
         ignoreCountTokensErrors: 'Ignore count_tokens errors',
         ignoreCountTokensErrorsHint: 'When enabled, errors from count_tokens requests will not be written to the error log.',

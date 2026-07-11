@@ -3703,6 +3703,7 @@ const zhBase = {
         expiresAt: '过期时间',
         actions: '操作'
       },
+      usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
       privacyTrainingOff: '已关闭训练数据共享',
@@ -4220,6 +4221,9 @@ const zhBase = {
       },
       autoPauseOnExpired: '过期自动暂停调度',
       autoPauseOnExpiredDesc: '启用后，账号过期将自动暂停调度',
+      autoPause5hThreshold: '5h 用量阈值（%）',
+      autoPause7dThreshold: '7d 用量阈值（%）',
+      autoPauseThresholdHint: '留空或填 0 使用运维设置中的全局默认值；开关可明确豁免该账号的对应窗口。达到阈值仅跳过调度，不修改手动调度状态。',
       // Quota control (Anthropic OAuth/SetupToken only)
       quotaControl: {
         title: '配额控制',
@@ -6023,6 +6027,10 @@ const zhBase = {
         aggregation: '预聚合任务',
         enableAggregation: '启用预聚合任务',
         aggregationHint: '预聚合可提升长时间窗口查询性能',
+        openaiQuotaAutoPause: 'OpenAI 账号配额自动暂停',
+        openaiQuotaAutoPauseHint: 'OpenAI 母账号的全局默认阈值；上游 5h 或 7d 用量达到阈值时跳过调度。填 0 表示默认关闭。',
+        openaiQuotaAutoPauseDefault5h: '默认 5h 阈值（%）',
+        openaiQuotaAutoPauseDefault7d: '默认 7d 阈值（%）',
         errorFiltering: '错误过滤',
         ignoreCountTokensErrors: '忽略 count_tokens 错误',
         ignoreCountTokensErrorsHint: '启用后，count_tokens 请求的错误将不会写入错误日志。',

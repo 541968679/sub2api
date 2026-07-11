@@ -1332,7 +1332,7 @@ func (s *OpenAIGatewayService) SelectAccountForModel(ctx context.Context, groupI
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 // SelectAccountForModelWithExclusions 选择支持指定模型的账号，同时排除指定的账号。
 func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
-	return s.selectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, excludedIDs, false, 0)
+	return s.selectAccountForModelWithExclusions(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, sessionHash, requestedModel, excludedIDs, false, 0)
 }
 
 // noAvailableOpenAISelectionError builds the standard "no account available" error
@@ -1411,6 +1411,147 @@ func isOpenAIAccountEligibleForRequest(account *Account, requestedModel string, 
 		RequestedModel: requestedModel,
 		RequireCompact: requireCompact,
 	})
+}
+
+type openAIAccountQuotaAutoPauseDecision struct {
+	window    string
+	threshold float64
+}
+
+type openAIQuotaAutoPauseCtxKey struct{}
+
+func withOpenAIQuotaAutoPauseSettings(ctx context.Context, settings OpsOpenAIAccountQuotaAutoPauseSettings) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, openAIQuotaAutoPauseCtxKey{}, settings)
+}
+
+func openAIQuotaAutoPauseSettingsFromContext(ctx context.Context) OpsOpenAIAccountQuotaAutoPauseSettings {
+	if ctx == nil {
+		return OpsOpenAIAccountQuotaAutoPauseSettings{}
+	}
+	settings, _ := ctx.Value(openAIQuotaAutoPauseCtxKey{}).(OpsOpenAIAccountQuotaAutoPauseSettings)
+	return settings
+}
+
+func (s *OpenAIGatewayService) withOpenAIQuotaAutoPauseContext(ctx context.Context) context.Context {
+	if s == nil || s.settingService == nil {
+		return ctx
+	}
+	return withOpenAIQuotaAutoPauseSettings(ctx, s.settingService.GetOpenAIQuotaAutoPauseSettings(ctx))
+}
+
+func resolveAccountExtraNumber(extra map[string]any, key string) (float64, bool) {
+	value, ok := extra[key]
+	if !ok || value == nil {
+		return 0, false
+	}
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case json.Number:
+		parsed, err := v.Float64()
+		return parsed, err == nil
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func resolveAccountExtraBool(extra map[string]any, key string) bool {
+	value, ok := extra[key]
+	if !ok || value == nil {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err == nil && parsed
+	default:
+		return false
+	}
+}
+
+func resolveOpenAIQuotaWindowResetAt(extra map[string]any, window string) (time.Time, bool) {
+	key := "codex_" + window + "_reset_at"
+	if raw, ok := extra[key]; ok && raw != nil {
+		switch v := raw.(type) {
+		case string:
+			if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(v)); err == nil {
+				return parsed, true
+			}
+		default:
+			if seconds, ok := resolveAccountExtraNumber(extra, key); ok && seconds > 0 {
+				return time.Unix(int64(seconds), 0), true
+			}
+		}
+	}
+	seconds, ok := resolveAccountExtraNumber(extra, "codex_"+window+"_reset_after_seconds")
+	if !ok || seconds <= 0 {
+		return time.Time{}, false
+	}
+	updatedRaw, ok := extra["codex_usage_updated_at"].(string)
+	if !ok {
+		return time.Time{}, false
+	}
+	updatedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(updatedRaw))
+	if err != nil {
+		return time.Time{}, false
+	}
+	return updatedAt.Add(time.Duration(seconds * float64(time.Second))), true
+}
+
+func resolveOpenAIQuotaAutoPauseThresholds(ctx context.Context, account *Account) (float64, float64) {
+	settings := openAIQuotaAutoPauseSettingsFromContext(ctx)
+	threshold5h := clampOpsQuotaAutoPauseThreshold(settings.DefaultThreshold5h)
+	threshold7d := clampOpsQuotaAutoPauseThreshold(settings.DefaultThreshold7d)
+	if value, ok := resolveAccountExtraNumber(account.Extra, "auto_pause_5h_threshold"); ok && value > 0 {
+		threshold5h = clampOpsQuotaAutoPauseThreshold(value)
+	}
+	if value, ok := resolveAccountExtraNumber(account.Extra, "auto_pause_7d_threshold"); ok && value > 0 {
+		threshold7d = clampOpsQuotaAutoPauseThreshold(value)
+	}
+	if resolveAccountExtraBool(account.Extra, "auto_pause_5h_disabled") {
+		threshold5h = 0
+	}
+	if resolveAccountExtraBool(account.Extra, "auto_pause_7d_disabled") {
+		threshold7d = 0
+	}
+	return threshold5h, threshold7d
+}
+
+func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) (bool, openAIAccountQuotaAutoPauseDecision) {
+	if account == nil || account.Platform != PlatformOpenAI || account.IsShadow() {
+		return false, openAIAccountQuotaAutoPauseDecision{}
+	}
+	threshold5h, threshold7d := resolveOpenAIQuotaAutoPauseThresholds(ctx, account)
+	for _, window := range []struct {
+		name      string
+		threshold float64
+	}{{"5h", threshold5h}, {"7d", threshold7d}} {
+		if window.threshold <= 0 {
+			continue
+		}
+		if resetAt, ok := resolveOpenAIQuotaWindowResetAt(account.Extra, window.name); ok && !time.Now().Before(resetAt) {
+			continue
+		}
+		usedPercent, ok := resolveAccountExtraNumber(account.Extra, "codex_"+window.name+"_used_percent")
+		if ok && usedPercent >= window.threshold*100 {
+			return true, openAIAccountQuotaAutoPauseDecision{window: window.name, threshold: window.threshold}
+		}
+	}
+	return false, openAIAccountQuotaAutoPauseDecision{}
 }
 
 func (s *OpenAIGatewayService) refreshStaleOpenAIScheduleCandidate(ctx context.Context, account *Account, eligibility openAIAccountRequestEligibility) *Account {
@@ -2076,6 +2217,9 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 		if !isOpenAIAccountEligibleForScheduleRequest(account, eligibility) || s.isOpenAIAccountRuntimeBlocked(account) {
 			return nil
 		}
+		if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
+			return nil
+		}
 		return account
 	}
 
@@ -2084,6 +2228,9 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 		return nil
 	}
 	if !isOpenAIAccountEligibleForScheduleRequest(latest, eligibility) || s.isOpenAIAccountRuntimeBlocked(latest) {
+		return nil
+	}
+	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, latest); paused {
 		return nil
 	}
 	return latest

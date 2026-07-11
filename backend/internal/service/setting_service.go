@@ -145,17 +145,94 @@ type DefaultSubscriptionGroupReader interface {
 // proxyURLs maps proxy ID to resolved URL for provider-level proxy support.
 type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[int64]string)
 
+type cachedOpenAIQuotaAutoPauseSettings struct {
+	settings  OpsOpenAIAccountQuotaAutoPauseSettings
+	expiresAt int64
+}
+
+const (
+	openAIQuotaAutoPauseSettingsCacheTTL   = 60 * time.Second
+	openAIQuotaAutoPauseSettingsErrorTTL   = 5 * time.Second
+	openAIQuotaAutoPauseSettingsDBTimeout  = 5 * time.Second
+	openAIQuotaAutoPauseSettingsRefreshKey = "openai_quota_auto_pause_settings"
+)
+
 // SettingService 系统设置服务
 type SettingService struct {
-	settingRepo                   SettingRepository
-	defaultSubGroupReader         DefaultSubscriptionGroupReader
-	proxyRepo                     ProxyRepository // for resolving websearch provider proxy URLs
-	cfg                           *config.Config
-	onUpdate                      func() // Callback when settings are updated (for cache invalidation)
-	version                       string // Application version
-	webSearchManagerBuilder       WebSearchManagerBuilder
-	cyberSessionBlockRuntimeCache atomic.Value
-	cyberSessionBlockRuntimeSF    singleflight.Group
+	settingRepo                       SettingRepository
+	defaultSubGroupReader             DefaultSubscriptionGroupReader
+	proxyRepo                         ProxyRepository // for resolving websearch provider proxy URLs
+	cfg                               *config.Config
+	onUpdate                          func() // Callback when settings are updated (for cache invalidation)
+	version                           string // Application version
+	webSearchManagerBuilder           WebSearchManagerBuilder
+	cyberSessionBlockRuntimeCache     atomic.Value
+	cyberSessionBlockRuntimeSF        singleflight.Group
+	openAIQuotaAutoPauseSettingsCache atomic.Value
+	openAIQuotaAutoPauseSettingsSF    singleflight.Group
+}
+
+func (s *SettingService) GetOpenAIQuotaAutoPauseSettings(ctx context.Context) OpsOpenAIAccountQuotaAutoPauseSettings {
+	if s == nil {
+		return OpsOpenAIAccountQuotaAutoPauseSettings{}
+	}
+	cached, _ := s.openAIQuotaAutoPauseSettingsCache.Load().(*cachedOpenAIQuotaAutoPauseSettings)
+	if cached != nil && time.Now().UnixNano() < cached.expiresAt {
+		return cached.settings
+	}
+	s.openAIQuotaAutoPauseSettingsSF.DoChan(openAIQuotaAutoPauseSettingsRefreshKey, func() (any, error) {
+		s.refreshOpenAIQuotaAutoPauseSettings(context.Background())
+		return nil, nil
+	})
+	if cached != nil {
+		return cached.settings
+	}
+	return OpsOpenAIAccountQuotaAutoPauseSettings{}
+}
+
+func (s *SettingService) WarmOpenAIQuotaAutoPauseSettings(ctx context.Context) OpsOpenAIAccountQuotaAutoPauseSettings {
+	if s == nil {
+		return OpsOpenAIAccountQuotaAutoPauseSettings{}
+	}
+	s.refreshOpenAIQuotaAutoPauseSettings(ctx)
+	cached, _ := s.openAIQuotaAutoPauseSettingsCache.Load().(*cachedOpenAIQuotaAutoPauseSettings)
+	if cached == nil {
+		return OpsOpenAIAccountQuotaAutoPauseSettings{}
+	}
+	return cached.settings
+}
+
+func (s *SettingService) refreshOpenAIQuotaAutoPauseSettings(ctx context.Context) {
+	if s == nil || s.settingRepo == nil {
+		return
+	}
+	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIQuotaAutoPauseSettingsDBTimeout)
+	defer cancel()
+	settings := OpsOpenAIAccountQuotaAutoPauseSettings{}
+	ttl := openAIQuotaAutoPauseSettingsCacheTTL
+	raw, err := s.settingRepo.GetValue(dbCtx, SettingKeyOpsAdvancedSettings)
+	if err == nil {
+		cfg := defaultOpsAdvancedSettings()
+		if strings.TrimSpace(raw) != "" && json.Unmarshal([]byte(raw), cfg) == nil {
+			normalizeOpsAdvancedSettings(cfg)
+		}
+		settings = cfg.OpenAIAccountQuotaAutoPause
+	} else if !errors.Is(err, ErrSettingNotFound) {
+		if prior, _ := s.openAIQuotaAutoPauseSettingsCache.Load().(*cachedOpenAIQuotaAutoPauseSettings); prior != nil {
+			settings = prior.settings
+		}
+		ttl = openAIQuotaAutoPauseSettingsErrorTTL
+	}
+	s.openAIQuotaAutoPauseSettingsCache.Store(&cachedOpenAIQuotaAutoPauseSettings{settings: settings, expiresAt: time.Now().Add(ttl).UnixNano()})
+}
+
+func (s *SettingService) SetOpenAIQuotaAutoPauseSettings(settings OpsOpenAIAccountQuotaAutoPauseSettings) {
+	if s == nil {
+		return
+	}
+	settings.DefaultThreshold5h = clampOpsQuotaAutoPauseThreshold(settings.DefaultThreshold5h)
+	settings.DefaultThreshold7d = clampOpsQuotaAutoPauseThreshold(settings.DefaultThreshold7d)
+	s.openAIQuotaAutoPauseSettingsCache.Store(&cachedOpenAIQuotaAutoPauseSettings{settings: settings, expiresAt: time.Now().Add(openAIQuotaAutoPauseSettingsCacheTTL).UnixNano()})
 }
 
 // DefaultPlatformQuotaSetting describes the daily, weekly, and monthly USD

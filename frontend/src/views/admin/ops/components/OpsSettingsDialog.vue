@@ -50,6 +50,9 @@ async function loadAllSettings() {
     runtimeSettings.value = runtime
     emailConfig.value = email
     advancedSettings.value = advanced
+    if (advancedSettings.value && !advancedSettings.value.openai_account_quota_auto_pause) {
+      advancedSettings.value.openai_account_quota_auto_pause = { default_threshold_5h: 0, default_threshold_7d: 0 }
+    }
     // 如果后端返回了阈值，使用后端的值；否则保持默认值
     if (thresholds && Object.keys(thresholds).length > 0) {
         metricThresholds.value = {
@@ -118,6 +121,30 @@ function removeRecipient(target: 'alert' | 'report', email: string) {
   const idx = list.indexOf(email)
   if (idx >= 0) list.splice(idx, 1)
 }
+
+const quotaAutoPause5hPercent = computed<number | null>({
+  get: () => {
+    const value = advancedSettings.value?.openai_account_quota_auto_pause.default_threshold_5h
+    return value && value > 0 ? Math.round(value * 1000) / 10 : null
+  },
+  set: value => {
+    if (advancedSettings.value) {
+      advancedSettings.value.openai_account_quota_auto_pause.default_threshold_5h = value && value > 0 ? value / 100 : 0
+    }
+  }
+})
+
+const quotaAutoPause7dPercent = computed<number | null>({
+  get: () => {
+    const value = advancedSettings.value?.openai_account_quota_auto_pause.default_threshold_7d
+    return value && value > 0 ? Math.round(value * 1000) / 10 : null
+  },
+  set: value => {
+    if (advancedSettings.value) {
+      advancedSettings.value.openai_account_quota_auto_pause.default_threshold_7d = value && value > 0 ? value / 100 : 0
+    }
+  }
+})
 
 // 验证
 const validation = computed(() => {
@@ -458,6 +485,21 @@ async function saveAllSettings() {
               </div>
             </div>
             <p class="text-xs text-gray-500">{{ t('admin.ops.settings.retentionDaysHint') }}</p>
+          </div>
+
+          <div class="space-y-3">
+            <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.openaiQuotaAutoPause') }}</h5>
+            <p class="text-xs text-gray-500">{{ t('admin.ops.settings.openaiQuotaAutoPauseHint') }}</p>
+            <div class="grid gap-4 md:grid-cols-2">
+              <div>
+                <label class="input-label">{{ t('admin.ops.settings.openaiQuotaAutoPauseDefault5h') }}</label>
+                <input v-model.number="quotaAutoPause5hPercent" data-testid="ops-quota-auto-pause-5h" type="number" min="0" max="100" step="0.1" class="input" />
+              </div>
+              <div>
+                <label class="input-label">{{ t('admin.ops.settings.openaiQuotaAutoPauseDefault7d') }}</label>
+                <input v-model.number="quotaAutoPause7dPercent" data-testid="ops-quota-auto-pause-7d" type="number" min="0" max="100" step="0.1" class="input" />
+              </div>
+            </div>
           </div>
 
           <!-- 预聚合任务 -->
