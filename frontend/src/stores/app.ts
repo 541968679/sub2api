@@ -371,6 +371,8 @@ export const useAppStore = defineStore('app', () => {
         oidc_oauth_provider_name: 'OIDC',
         backend_mode_enabled: false,
         version: siteVersion.value,
+        server_timezone: 'Local',
+        server_utc_offset: '',
         balance_low_notify_enabled: false,
         account_quota_notify_enabled: false,
         balance_low_notify_threshold: 0,

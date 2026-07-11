@@ -364,6 +364,8 @@ export interface PublicSettings {
   oidc_oauth_provider_name: string
   backend_mode_enabled: boolean
   version: string
+	server_timezone: string
+	server_utc_offset: string
 
   /** 登录页文案覆盖。omit 或字段空串时前端回落到 i18n `auth.login.*`。 */
   login_page?: LoginPageContent
@@ -698,6 +700,10 @@ export interface Group {
   description: string | null
   platform: GroupPlatform
   rate_multiplier: number
+	peak_rate_enabled: boolean
+	peak_start: string
+	peak_end: string
+	peak_rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   is_exclusive: boolean
   status: 'active' | 'inactive'

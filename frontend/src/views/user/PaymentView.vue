@@ -228,6 +228,9 @@
                   <p v-if="selectedPlan.description" class="text-sm leading-6 text-gray-500 dark:text-gray-400">
                     {{ selectedPlan.description }}
                   </p>
+                  <p v-if="planHasPeakRate(selectedPlan)" class="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">
+                    {{ t('payment.planCard.peakRate') }}: {{ planPeakRateLabel(selectedPlan) }}
+                  </p>
 
                   <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div v-if="selectedPlan.daily_limit_usd != null" class="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60">
@@ -393,6 +396,7 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
+import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { isMobileDevice } from '@/utils/device'
 import type { UserSubscription } from '@/types'
 import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'

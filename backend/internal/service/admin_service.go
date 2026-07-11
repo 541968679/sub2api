@@ -198,15 +198,19 @@ type AdminBoundAuthIdentityChannel struct {
 }
 
 type CreateGroupInput struct {
-	Name             string
-	Description      string
-	Platform         string
-	RateMultiplier   float64
-	IsExclusive      bool
-	SubscriptionType string   // standard/subscription
-	DailyLimitUSD    *float64 // 日限额 (USD)
-	WeeklyLimitUSD   *float64 // 周限额 (USD)
-	MonthlyLimitUSD  *float64 // 月限额 (USD)
+	Name               string
+	Description        string
+	Platform           string
+	RateMultiplier     float64
+	PeakRateEnabled    bool
+	PeakStart          string
+	PeakEnd            string
+	PeakRateMultiplier *float64
+	IsExclusive        bool
+	SubscriptionType   string   // standard/subscription
+	DailyLimitUSD      *float64 // 日限额 (USD)
+	WeeklyLimitUSD     *float64 // 周限额 (USD)
+	MonthlyLimitUSD    *float64 // 月限额 (USD)
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K                 *float64
 	ImagePrice2K                 *float64
@@ -248,16 +252,20 @@ type CreateGroupInput struct {
 }
 
 type UpdateGroupInput struct {
-	Name             string
-	Description      string
-	Platform         string
-	RateMultiplier   *float64 // 使用指针以支持设置为0
-	IsExclusive      *bool
-	Status           string
-	SubscriptionType string   // standard/subscription
-	DailyLimitUSD    *float64 // 日限额 (USD)
-	WeeklyLimitUSD   *float64 // 周限额 (USD)
-	MonthlyLimitUSD  *float64 // 月限额 (USD)
+	Name               string
+	Description        string
+	Platform           string
+	RateMultiplier     *float64 // 使用指针以支持设置为0
+	PeakRateEnabled    *bool
+	PeakStart          *string
+	PeakEnd            *string
+	PeakRateMultiplier *float64
+	IsExclusive        *bool
+	Status             string
+	SubscriptionType   string   // standard/subscription
+	DailyLimitUSD      *float64 // 日限额 (USD)
+	WeeklyLimitUSD     *float64 // 周限额 (USD)
+	MonthlyLimitUSD    *float64 // 月限额 (USD)
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K                 *float64
 	ImagePrice2K                 *float64
@@ -1738,6 +1746,10 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		Description:                     input.Description,
 		Platform:                        platform,
 		RateMultiplier:                  input.RateMultiplier,
+		PeakRateEnabled:                 peakRateEnabled,
+		PeakStart:                       peakStart,
+		PeakEnd:                         peakEnd,
+		PeakRateMultiplier:              peakRateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		Status:                          StatusActive,
 		SubscriptionType:                subscriptionType,
@@ -1928,6 +1940,32 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.SubscriptionType != "" {
 		group.SubscriptionType = input.SubscriptionType
 	}
+	peakRateEnabled := group.PeakRateEnabled
+	peakStart := group.PeakStart
+	peakEnd := group.PeakEnd
+	peakRateMultiplier := group.PeakRateMultiplier
+	if input.PeakRateEnabled != nil {
+		peakRateEnabled = *input.PeakRateEnabled
+	}
+	if input.PeakStart != nil {
+		peakStart = *input.PeakStart
+	}
+	if input.PeakEnd != nil {
+		peakEnd = *input.PeakEnd
+	}
+	if input.PeakRateMultiplier != nil {
+		peakRateMultiplier = *input.PeakRateMultiplier
+	}
+	peakRateEnabled, peakStart, peakEnd, peakRateMultiplier = NormalizePeakRateConfig(
+		group.SubscriptionType, peakRateEnabled, peakStart, peakEnd, peakRateMultiplier,
+	)
+	if err := ValidatePeakRateConfig(group.SubscriptionType, peakRateEnabled, peakStart, peakEnd, peakRateMultiplier); err != nil {
+		return nil, err
+	}
+	group.PeakRateEnabled = peakRateEnabled
+	group.PeakStart = peakStart
+	group.PeakEnd = peakEnd
+	group.PeakRateMultiplier = peakRateMultiplier
 	// 限额字段：nil/负数 表示"无限制"，0 表示"不允许用量"，正数表示具体限额
 	// 前端始终发送这三个字段，无需 nil 守卫
 	group.DailyLimitUSD = normalizeLimit(input.DailyLimitUSD)

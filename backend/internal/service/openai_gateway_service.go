@@ -25,9 +25,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/cespare/xxhash/v2"
@@ -5914,8 +5914,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		}
 		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 	}
+	tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, timezone.Now())
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, multiplier)
-	costMultiplier := multiplier
+	costMultiplier := tokenMultiplier
 	if result.VideoCount > 0 {
 		costMultiplier = videoMultiplier
 	}
@@ -5936,7 +5937,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
 	}
-	cost, err = s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, user, billingModel, costMultiplier, tokens, serviceTier)
+	imageCostMultiplier := imageMultiplier
+	if result.VideoCount > 0 {
+		imageCostMultiplier = videoMultiplier
+	}
+	cost, err = s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, user, billingModel, costMultiplier, imageCostMultiplier, tokens, serviceTier)
 	if err != nil {
 		cost = &CostBreakdown{ActualCost: 0}
 	}
@@ -6114,14 +6119,17 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	user *User,
 	billingModel string,
 	multiplier float64,
+	imageMultiplier float64,
 	tokens UsageTokens,
 	serviceTier string,
 ) (*CostBreakdown, error) {
 	if result != nil && result.VideoCount > 0 {
-		return s.calculateOpenAIVideoCost(billingModel, apiKey, result, multiplier), nil
+		return s.calculateOpenAIVideoCost(billingModel, apiKey, result, imageMultiplier), nil
 	}
 	if result != nil && result.ImageCount > 0 {
-		return s.calculateOpenAIImageCost(ctx, billingModel, apiKey, result, multiplier), nil
+		if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
+			return s.calculateOpenAIImageCost(ctx, billingModel, apiKey, result, imageMultiplier), nil
+		}
 	}
 	if s.resolver != nil && apiKey.Group != nil {
 		gid := apiKey.Group.ID

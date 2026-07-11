@@ -1425,7 +1425,11 @@ const groupOptions = computed(() =>
     rate: group.rate_multiplier,
     userRate: getUserDisplayRate(group.id),
     subscriptionType: group.subscription_type,
-    platform: group.platform
+    platform: group.platform,
+    peakRateEnabled: group.peak_rate_enabled,
+    peakStart: group.peak_start,
+    peakEnd: group.peak_end,
+    peakRateMultiplier: group.peak_rate_multiplier
   }))
 )
 

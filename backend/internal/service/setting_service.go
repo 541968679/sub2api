@@ -19,6 +19,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/imroc/req/v3"
 	"golang.org/x/sync/singleflight"
 )
@@ -853,6 +854,8 @@ type PublicSettingsInjectionPayload struct {
 	PaymentCNYPerUSD                 float64           `json:"payment_cny_per_usd"`
 	LoginPage                        *LoginPageContent `json:"login_page,omitempty"`
 	Version                          string            `json:"version"`
+	ServerTimezone                   string            `json:"server_timezone"`
+	ServerUTCOffset                  string            `json:"server_utc_offset"`
 	BalanceLowNotifyEnabled          bool              `json:"balance_low_notify_enabled"`
 	AccountQuotaNotifyEnabled        bool              `json:"account_quota_notify_enabled"`
 	BalanceLowNotifyThreshold        float64           `json:"balance_low_notify_threshold"`

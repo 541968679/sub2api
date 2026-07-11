@@ -318,6 +318,8 @@ type PublicSettings struct {
 	PaymentEnabled                   bool                 `json:"payment_enabled"`
 	PaymentCNYPerUSD                 float64              `json:"payment_cny_per_usd"`
 	Version                          string               `json:"version"`
+	ServerTimezone                   string               `json:"server_timezone"`
+	ServerUTCOffset                  string               `json:"server_utc_offset"`
 
 	LoginPage                   *LoginPageContent `json:"login_page,omitempty"`
 	BalanceLowNotifyEnabled     bool              `json:"balance_low_notify_enabled"`

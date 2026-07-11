@@ -142,3 +142,14 @@ func TestMigration185AddsAffiliateLedgerAuditFieldsWithoutJSONCast(t *testing.T)
 	require.Contains(t, sql, "COUNT(*) OVER (PARTITION BY ual.id) AS ledger_match_count")
 	require.NotContains(t, sql, "detail::jsonb")
 }
+
+func TestMigration190AddsPeakRateFieldsIdempotently(t *testing.T) {
+	content, err := FS.ReadFile("190_group_peak_rate.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS peak_rate_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS peak_start VARCHAR(5) NOT NULL DEFAULT ''")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS peak_end VARCHAR(5) NOT NULL DEFAULT ''")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS peak_rate_multiplier DECIMAL(10,4) NOT NULL DEFAULT 1.0")
+}

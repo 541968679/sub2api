@@ -25,7 +25,7 @@ const i18n = createI18n({
   },
 });
 
-const mountPlanCard = (groupPlatform: string) =>
+const mountPlanCard = (groupPlatform: string, peak = false) =>
   mount(SubscriptionPlanCard, {
     props: {
       plan: {
@@ -40,6 +40,10 @@ const mountPlanCard = (groupPlatform: string) =>
         validity_days: 30,
         validity_unit: "day",
         supported_model_scopes: ["claude", "gemini_text", "gemini_image"],
+        peak_rate_enabled: peak,
+        peak_start: peak ? "14:00" : "",
+        peak_end: peak ? "18:00" : "",
+        peak_rate_multiplier: peak ? 3 : 1,
         is_active: true,
       },
     },
@@ -55,11 +59,11 @@ describe("SubscriptionPlanCard", () => {
     expect(text).not.toContain("Imagen");
   });
 
-  it("shows model scopes for Antigravity plans", () => {
-    const text = mountPlanCard("antigravity").text();
+  it("shows the peak-rate window for configured plans", () => {
+    const text = mountPlanCard("antigravity", true).text();
 
-    expect(text).toContain("Claude");
-    expect(text).toContain("Gemini");
-    expect(text).toContain("Imagen");
+    expect(text).toContain("14:00");
+    expect(text).toContain("18:00");
+    expect(text).toContain("×3");
   });
 });

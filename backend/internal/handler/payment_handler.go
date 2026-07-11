@@ -102,7 +102,6 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 	groupInfo := h.configService.GetGroupInfoMap(c.Request.Context(), plans)
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
-		gi := groupInfo[p.GroupID]
 		result = append(result, planWithPlatform{
 			ID: int64(p.ID), GroupID: p.GroupID, GroupPlatform: groupInfo[p.GroupID].Platform,
 			MemberGroupIDs: p.MemberGroupIds, MemberGroups: buildPlanMemberGroups(p, groupInfo),

@@ -85,7 +85,7 @@
                   <Icon name="shield" size="xs" class="h-3 w-3" />
                   {{ t('availableChannels.exclusive') }}
                 </span>
-                <div
+                <GroupBadge
                   v-for="g in exclusiveGroups(section)"
                   :key="`ex-${g.id}`"
                   :name="g.name"
@@ -93,6 +93,10 @@
                   :subscription-type="(g.subscription_type || 'standard') as SubscriptionType"
                   :rate-multiplier="g.rate_multiplier"
                   :user-rate-multiplier="userRateMultiplier(g.id)"
+                  :peak-rate-enabled="g.peak_rate_enabled"
+                  :peak-start="g.peak_start"
+                  :peak-end="g.peak_end"
+                  :peak-rate-multiplier="g.peak_rate_multiplier"
                   always-show-rate
                 />
               </div>
@@ -107,7 +111,7 @@
                   <Icon name="globe" size="xs" class="h-3 w-3" />
                   {{ t('availableChannels.public') }}
                 </span>
-                <div
+                <GroupBadge
                   v-for="g in publicGroups(section)"
                   :key="`pub-${g.id}`"
                   :name="g.name"
@@ -115,6 +119,10 @@
                   :subscription-type="(g.subscription_type || 'standard') as SubscriptionType"
                   :rate-multiplier="g.rate_multiplier"
                   :user-rate-multiplier="userRateMultiplier(g.id)"
+                  :peak-rate-enabled="g.peak_rate_enabled"
+                  :peak-start="g.peak_start"
+                  :peak-end="g.peak_end"
+                  :peak-rate-multiplier="g.peak_rate_multiplier"
                   always-show-rate
                 />
               </div>
@@ -154,8 +162,6 @@ import SupportedModelChip from './SupportedModelChip.vue'
 import type { UserAvailableChannel, UserAvailableGroup, UserChannelPlatformSection } from '@/api/channels'
 import type { GroupPlatform, SubscriptionType, UserGroupRateData } from '@/types'
 import { platformBadgeClass } from '@/utils/platformColors'
-import { useAppStore } from '@/stores/app'
-import { hasPeakRate as groupHasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 
 const props = defineProps<{
   columns: {

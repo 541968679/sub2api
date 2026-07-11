@@ -24,6 +24,7 @@
 
     <!-- Right: rate pill + checkmark (vertically centered to first row) -->
     <div class="flex shrink-0 items-center gap-2 pt-0.5">
+      <div class="flex shrink-0 flex-col items-end gap-1">
       <!-- Rate pill (platform color) -->
       <span v-if="rateMultiplier !== undefined" :class="['inline-flex items-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold', ratePillClass]">
         <template v-if="hasCustomRate">
@@ -34,6 +35,14 @@
           {{ rateMultiplier }}x 倍率
         </template>
       </span>
+      <span
+        v-if="hasPeakRate"
+        class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+        :title="peakRateTitle"
+      >
+        {{ peakRateText }}
+      </span>
+      </div>
       <!-- Checkmark -->
       <svg
         v-if="showCheckmark && selected"
@@ -51,6 +60,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import type { SubscriptionType, GroupPlatform } from '@/types'
 import { useAppStore } from '@/stores/app'
@@ -78,6 +88,7 @@ const props = withDefaults(defineProps<Props>(), {
   userRateMultiplier: null,
   peakRateEnabled: false
 })
+const { t } = useI18n()
 
 // Whether user has a custom rate different from default
 const hasCustomRate = computed(() => {

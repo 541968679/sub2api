@@ -244,15 +244,13 @@ func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputToke
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
-	svc.resolver = newOpenAITokenImageChannelPricingResolverForTest(t, groupID, "gpt-5.1")
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
-			RequestID:  "resp_peak_image_tokens",
-			Usage:      usage,
-			Model:      "gpt-5.1",
-			Duration:   time.Second,
-			ImageCount: 1,
+			RequestID: "resp_peak_image_tokens",
+			Usage:     usage,
+			Model:     "gpt-5.1",
+			Duration:  time.Second,
 		},
 		APIKey: &APIKey{
 			ID:      1004,
@@ -286,7 +284,6 @@ func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputToke
 			ImageOutputTokens: usage.ImageOutputTokens,
 		},
 		RateMultiplier: 1.0,
-		Resolver:       svc.resolver,
 	})
 	require.NoError(t, err)
 	expectedActual := expected.TotalCost * 3.0

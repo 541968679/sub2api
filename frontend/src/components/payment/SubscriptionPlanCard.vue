@@ -44,6 +44,10 @@
 
       <!-- Group quota info (single-group plans) -->
       <div v-else class="mb-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-3 text-xs dark:bg-dark-700/50">
+        <div v-if="hasPeakRate" class="col-span-3 flex items-center justify-between gap-2">
+          <span class="text-[11px] text-gray-400 dark:text-dark-500">{{ t('payment.planCard.peakRate') }}</span>
+          <span class="text-right font-medium text-amber-700 dark:text-amber-300">{{ peakRateDisplay }}</span>
+        </div>
         <div v-if="plan.daily_limit_usd != null" class="space-y-1">
           <span class="block truncate text-[11px] text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
           <p class="truncate font-semibold text-gray-700 dark:text-gray-300">${{ plan.daily_limit_usd }}</p>
@@ -114,6 +118,12 @@ import {
 const props = defineProps<{ plan: SubscriptionPlan; activeSubscriptions?: UserSubscription[] }>()
 const emit = defineEmits<{ select: [plan: SubscriptionPlan] }>()
 const { t } = useI18n()
+const appStore = useAppStore()
+
+const hasPeakRate = computed(() => groupHasPeakRate(props.plan))
+const peakRateDisplay = computed(() =>
+  formatPeakRateWindow(props.plan, serverTimezoneLabel(appStore.cachedPublicSettings?.server_utc_offset))
+)
 
 const platform = computed(() => props.plan.group_platform || '')
 const isRenewal = computed(() =>

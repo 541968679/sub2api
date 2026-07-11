@@ -964,7 +964,7 @@ var (
 			{
 				Name:    "group_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[36]},
+				Columns: []*schema.Column{GroupsColumns[40]},
 			},
 		},
 	}
