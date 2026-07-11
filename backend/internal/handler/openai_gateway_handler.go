@@ -28,10 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	openAIClaudeGPTBridgeContextKey  = "openai_claude_gpt_bridge"
-	openAIClaudeGPTBridgeFallbackKey = "openai_claude_gpt_bridge_fallback"
-)
+const openAIClaudeGPTBridgeContextKey = "openai_claude_gpt_bridge"
 
 // OpenAIGatewayHandler handles OpenAI API gateway requests
 type OpenAIGatewayHandler struct {
@@ -140,84 +137,15 @@ func bridgeUsageFields(reqModel, upstreamModel string) service.ChannelUsageField
 	return fields
 }
 
-func markOpenAIClaudeGPTBridgeFallback(c *gin.Context, body []byte) {
-	if c == nil {
-		return
-	}
-	resetRequestBody(c.Request, body)
-	c.Set(openAIClaudeGPTBridgeFallbackKey, true)
-}
-
+// MessagesClaudeGPTBridge serves an Antigravity /v1/messages request through
+// the OpenAI Claude-GPT bridge. Dispatch is decided beforehand by
+// ClaudeGPTBridgeRoute; once bridge intent is established the request never
+// falls back to the native Antigravity handler.
 func (h *OpenAIGatewayHandler) MessagesClaudeGPTBridge(c *gin.Context) {
 	if c != nil {
 		c.Set(openAIClaudeGPTBridgeContextKey, true)
-		c.Set(openAIClaudeGPTBridgeFallbackKey, false)
 	}
 	h.Messages(c)
-}
-
-func (h *OpenAIGatewayHandler) ClaudeGPTBridgeFallbackRequested(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	raw, ok := c.Get(openAIClaudeGPTBridgeFallbackKey)
-	if !ok {
-		return false
-	}
-	requested, _ := raw.(bool)
-	return requested
-}
-
-// ShouldUseClaudeGPTBridge checks whether an Antigravity /v1/messages request
-// can be served by an OpenAI account-side Claude-GPT bridge. It never sends an
-// upstream request; failures are intentionally treated as "no bridge" so the
-// caller can fall back to the native Antigravity handler.
-func (h *OpenAIGatewayHandler) ShouldUseClaudeGPTBridge(c *gin.Context) bool {
-	if h == nil || h.gatewayService == nil || c == nil {
-		return false
-	}
-	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok || apiKey.GroupID == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformAntigravity {
-		return false
-	}
-	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
-	if err != nil || len(body) == 0 {
-		resetRequestBody(c.Request, body)
-		return false
-	}
-	resetRequestBody(c.Request, body)
-	if !gjson.ValidBytes(body) {
-		return false
-	}
-	modelResult := gjson.GetBytes(body, "model")
-	if !modelResult.Exists() || modelResult.Type != gjson.String || strings.TrimSpace(modelResult.String()) == "" {
-		return false
-	}
-	reqModel := strings.TrimSpace(modelResult.String())
-	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
-	if sessionHash == "" {
-		if userID := strings.TrimSpace(gjson.GetBytes(body, "metadata.user_id").String()); userID != "" {
-			sessionHash = service.DeriveSessionHashFromSeed(reqModel + "-" + userID)
-		}
-	}
-	selection, _, err := h.gatewayService.SelectAccountWithSchedulerForClaudeGPTBridge(
-		c.Request.Context(),
-		apiKey.GroupID,
-		sessionHash,
-		reqModel,
-		nil,
-		service.OpenAIUpstreamTransportAny,
-	)
-	if err != nil || selection == nil || selection.Account == nil {
-		if selection != nil && selection.ReleaseFunc != nil {
-			selection.ReleaseFunc()
-		}
-		return false
-	}
-	if selection.ReleaseFunc != nil {
-		selection.ReleaseFunc()
-	}
-	return true
 }
 
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler
@@ -884,7 +812,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
 			)
 			if bridgeMode && len(failedAccountIDs) == 0 {
-				markOpenAIClaudeGPTBridgeFallback(c, body)
+				// 预检 ready 后真实选号立即失败：重新诊断一次，纯限流返回
+				// 429，其余动态不可用返回 503，绝不回落 native。
+				h.respondClaudeGPTBridgeSelectionRace(c, apiKey.GroupID, reqModel, streamStarted)
 				return
 			}
 			if len(failedAccountIDs) == 0 {
@@ -907,7 +837,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		}
 		if selection == nil || selection.Account == nil {
 			if bridgeMode && len(failedAccountIDs) == 0 {
-				markOpenAIClaudeGPTBridgeFallback(c, body)
+				h.respondClaudeGPTBridgeSelectionRace(c, apiKey.GroupID, reqModel, streamStarted)
 				return
 			}
 			if bridgeMode {
@@ -934,7 +864,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					selection.ReleaseFunc()
 				}
 				if len(failedAccountIDs) == 0 {
-					markOpenAIClaudeGPTBridgeFallback(c, body)
+					// mapping 在选号后被删除也属于 bridge 侧错误，
+					// 不允许半途切换 native。
+					h.respondClaudeGPTBridgeSelectionRace(c, apiKey.GroupID, reqModel, streamStarted)
 				} else if lastFailoverErr != nil {
 					h.handleAnthropicFailoverExhausted(c, lastFailoverErr, streamStarted)
 				} else {
@@ -1147,6 +1079,13 @@ func openAIClientRequestCanceled(c *gin.Context) bool {
 
 // handleAnthropicFailoverExhausted maps upstream failover errors to Anthropic format.
 func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, streamStarted bool) {
+	// bridge 模式所有账号都因 429 用尽时，透传经过校验的上游 Retry-After，
+	// 让客户端按上游节奏重试。
+	if isOpenAIClaudeGPTBridgeRequest(c) && failoverErr != nil && failoverErr.StatusCode == http.StatusTooManyRequests {
+		if secs, ok := validatedUpstreamRetryAfterSeconds(failoverErr.ResponseHeaders); ok {
+			c.Header("Retry-After", strconv.Itoa(secs))
+		}
+	}
 	if status, errType, errMsg, ok := h.mapAnthropicFailoverBodyError(failoverErr); ok {
 		h.anthropicStreamingAwareError(c, status, errType, errMsg, streamStarted)
 		return

@@ -61,6 +61,12 @@ func (s *bridgeRouteSchedulerSpy) Select(context.Context, service.OpenAIAccountS
 
 func (s *bridgeRouteSchedulerSpy) ReportResult(int64, bool, *int) {}
 
+func (s *bridgeRouteSchedulerSpy) ReportSwitch() {}
+
+func (s *bridgeRouteSchedulerSpy) SnapshotMetrics() service.OpenAIAccountSchedulerMetricsSnapshot {
+	return service.OpenAIAccountSchedulerMetricsSnapshot{}
+}
+
 func newBridgeRouteTestAccount(id int64, mutate ...func(*service.Account)) service.Account {
 	account := service.Account{
 		ID:          id,
@@ -317,6 +323,69 @@ func TestRespondClaudeGPTBridgeSelectionRace_MappingDeletedStaysOnBridgeError(t 
 
 	require.Equal(t, http.StatusServiceUnavailable, rec.Code)
 	require.Equal(t, "overloaded_error", gjson.Get(rec.Body.String(), "error.type").String())
+}
+
+// 所有 bridge 账号都因上游 429 用尽时，最终响应保持 429 语义，
+// 并透传经过校验的上游 Retry-After。
+func TestHandleAnthropicFailoverExhausted_BridgeMode429PropagatesRetryAfter(t *testing.T) {
+	h := &OpenAIGatewayHandler{}
+	c, rec := newBridgeRouteTestContext(t, service.PlatformAntigravity, bridgeRouteTestBody)
+	c.Set("openai_claude_gpt_bridge", true)
+
+	failoverErr := &service.UpstreamFailoverError{
+		StatusCode:      http.StatusTooManyRequests,
+		ResponseBody:    []byte(`{"error":{"type":"usage_limit_reached","message":"You have hit your usage limit."}}`),
+		ResponseHeaders: http.Header{"Retry-After": []string{"300"}},
+	}
+	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
+
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	require.Equal(t, "usage_limit_reached", gjson.Get(rec.Body.String(), "error.type").String())
+	require.Equal(t, "300", rec.Header().Get("Retry-After"))
+}
+
+func TestHandleAnthropicFailoverExhausted_NonBridgeModeDoesNotAddRetryAfter(t *testing.T) {
+	h := &OpenAIGatewayHandler{}
+	c, rec := newBridgeRouteTestContext(t, service.PlatformOpenAI, bridgeRouteTestBody)
+
+	failoverErr := &service.UpstreamFailoverError{
+		StatusCode:      http.StatusTooManyRequests,
+		ResponseBody:    []byte(`{"error":{"type":"rate_limit_error","message":"slow down"}}`),
+		ResponseHeaders: http.Header{"Retry-After": []string{"300"}},
+	}
+	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
+
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	require.Empty(t, rec.Header().Get("Retry-After"),
+		"non-bridge behavior must stay unchanged")
+}
+
+func TestValidatedUpstreamRetryAfterSeconds(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers http.Header
+		want    int
+		ok      bool
+	}{
+		{name: "plain seconds", headers: http.Header{"Retry-After": []string{"60"}}, want: 60, ok: true},
+		{name: "lowercase header key", headers: http.Header{"retry-after": []string{"5"}}, want: 5, ok: true},
+		{name: "nil headers", headers: nil, ok: false},
+		{name: "missing header", headers: http.Header{}, ok: false},
+		{name: "zero rejected", headers: http.Header{"Retry-After": []string{"0"}}, ok: false},
+		{name: "negative rejected", headers: http.Header{"Retry-After": []string{"-30"}}, ok: false},
+		{name: "http date rejected", headers: http.Header{"Retry-After": []string{"Fri, 11 Jul 2026 08:00:00 GMT"}}, ok: false},
+		{name: "over one day rejected", headers: http.Header{"Retry-After": []string{"172800"}}, ok: false},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := validatedUpstreamRetryAfterSeconds(tt.headers)
+			require.Equal(t, tt.ok, ok)
+			if tt.ok {
+				require.Equal(t, tt.want, got)
+			}
+		})
+	}
 }
 
 func TestRespondClaudeGPTBridgeSelectionRace_StreamStartedUsesSSEError(t *testing.T) {

@@ -36,12 +36,16 @@ func RegisterGatewayRoutes(
 			h.OpenAIGateway.Messages(c)
 			return
 		}
-		if groupPlatform == service.PlatformAntigravity && h.OpenAIGateway.ShouldUseClaudeGPTBridge(c) {
-			h.OpenAIGateway.MessagesClaudeGPTBridge(c)
-			if h.OpenAIGateway.ClaudeGPTBridgeFallbackRequested(c) {
-				h.Gateway.Messages(c)
+		if groupPlatform == service.PlatformAntigravity {
+			// 严格 bridge 路由：只有 not_configured 允许 native；
+			// rate_limited/unavailable/probe_error 已由 handler 写出 429/503。
+			switch h.OpenAIGateway.ClaudeGPTBridgeRoute(c) {
+			case handler.ClaudeGPTBridgeRouteActionBridge:
+				h.OpenAIGateway.MessagesClaudeGPTBridge(c)
+				return
+			case handler.ClaudeGPTBridgeRouteActionHandled:
+				return
 			}
-			return
 		}
 		h.Gateway.Messages(c)
 	}

@@ -90,9 +90,9 @@ var criticalSignatures = []criticalSignature{
 		Name: "claude-gpt bridge routes",
 		Path: "backend/internal/server/routes/gateway.go",
 		Contains: []string{
-			"ShouldUseClaudeGPTBridge",
+			"ClaudeGPTBridgeRoute",
 			"MessagesClaudeGPTBridge",
-			"ClaudeGPTBridgeFallbackRequested",
+			"ClaudeGPTBridgeRouteActionBridge",
 			"/antigravity/v1",
 		},
 	},
@@ -102,9 +102,27 @@ var criticalSignatures = []criticalSignature{
 		Contains: []string{
 			"openAIClaudeGPTBridgeContextKey",
 			"MessagesClaudeGPTBridge",
-			"ShouldUseClaudeGPTBridge",
+			"respondClaudeGPTBridgeSelectionRace",
 			"SelectAccountWithSchedulerForClaudeGPTBridge",
 			"ResolveClaudeGPTBridgeModel",
+		},
+	},
+	{
+		Name: "claude-gpt bridge strict routing",
+		Path: "backend/internal/handler/openai_claude_gpt_bridge_route.go",
+		Contains: []string{
+			"ClaudeGPTBridgeRouteActionNative",
+			"ClaudeGPTBridgeRouteActionHandled",
+			"setClaudeGPTBridgeRetryAfterHeader",
+		},
+	},
+	{
+		Name: "claude-gpt bridge route diagnosis",
+		Path: "backend/internal/service/openai_claude_gpt_bridge_routing.go",
+		Contains: []string{
+			"ResolveClaudeGPTBridgeRoute",
+			"ClaudeGPTBridgeRouteRateLimited",
+			"ClaudeGPTBridgeRouteNotConfigured",
 		},
 	},
 	{
@@ -224,7 +242,7 @@ var criticalSignatures = []criticalSignature{
 		Contains: []string{
 			"CustomModelsListEnabled",
 			"filterModelsByCustomList",
-			"writeCustomModelsList",
+			"writeModelsListForPlatform",
 		},
 	},
 	{
