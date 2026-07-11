@@ -2,9 +2,9 @@ package payment
 
 import (
 	"fmt"
-	"math"
-	"strconv"
 	"strings"
+
+	"github.com/shopspring/decimal"
 )
 
 const DefaultPaymentCurrency = "CNY"
@@ -14,14 +14,38 @@ type paymentCurrencyAmountUnit struct {
 	maxFractionDigits int
 }
 
+var (
+	zeroDecimalAmountUnit  = paymentCurrencyAmountUnit{apiMinorUnit: 0, maxFractionDigits: 0}
+	twoDecimalAmountUnit   = paymentCurrencyAmountUnit{apiMinorUnit: 2, maxFractionDigits: 2}
+	threeDecimalAmountUnit = paymentCurrencyAmountUnit{apiMinorUnit: 3, maxFractionDigits: 3}
+	stripeLegacyZeroAmount = paymentCurrencyAmountUnit{apiMinorUnit: 2, maxFractionDigits: 0}
+)
+
 var paymentCurrencyAmountUnits = map[string]paymentCurrencyAmountUnit{
-	"BIF": {0, 0}, "CLP": {0, 0}, "DJF": {0, 0}, "GNF": {0, 0},
-	"JPY": {0, 0}, "KMF": {0, 0}, "KRW": {0, 0}, "MGA": {0, 0},
-	"PYG": {0, 0}, "RWF": {0, 0}, "VND": {0, 0}, "VUV": {0, 0},
-	"XAF": {0, 0}, "XOF": {0, 0}, "XPF": {0, 0},
-	"ISK": {2, 0}, "UGX": {2, 0},
-	"BHD": {3, 3}, "IQD": {3, 3}, "JOD": {3, 3}, "KWD": {3, 3},
-	"LYD": {3, 3}, "OMR": {3, 3}, "TND": {3, 3},
+	"BIF": zeroDecimalAmountUnit,
+	"CLP": zeroDecimalAmountUnit,
+	"DJF": zeroDecimalAmountUnit,
+	"GNF": zeroDecimalAmountUnit,
+	"JPY": zeroDecimalAmountUnit,
+	"KMF": zeroDecimalAmountUnit,
+	"KRW": zeroDecimalAmountUnit,
+	"MGA": zeroDecimalAmountUnit,
+	"PYG": zeroDecimalAmountUnit,
+	"RWF": zeroDecimalAmountUnit,
+	"VND": zeroDecimalAmountUnit,
+	"VUV": zeroDecimalAmountUnit,
+	"XAF": zeroDecimalAmountUnit,
+	"XOF": zeroDecimalAmountUnit,
+	"XPF": zeroDecimalAmountUnit,
+	"ISK": stripeLegacyZeroAmount,
+	"UGX": stripeLegacyZeroAmount,
+	"BHD": threeDecimalAmountUnit,
+	"IQD": threeDecimalAmountUnit,
+	"JOD": threeDecimalAmountUnit,
+	"KWD": threeDecimalAmountUnit,
+	"LYD": threeDecimalAmountUnit,
+	"OMR": threeDecimalAmountUnit,
+	"TND": threeDecimalAmountUnit,
 }
 
 func NormalizePaymentCurrency(raw string) (string, error) {
@@ -44,45 +68,51 @@ func CurrencyMinorUnit(currency string) int {
 	return paymentCurrencyAmountUnitFor(currency).apiMinorUnit
 }
 
+// CurrencyMaxFractionDigits 返回支付金额允许展示和输入的小数位数。
 func CurrencyMaxFractionDigits(currency string) int {
 	return paymentCurrencyAmountUnitFor(currency).maxFractionDigits
 }
 
+// FormatAmountForCurrency 按币种允许的小数位格式化支付金额。
 func FormatAmountForCurrency(amount float64, currency string) string {
-	return strconv.FormatFloat(amount, 'f', CurrencyMaxFractionDigits(currency), 64)
+	return decimal.NewFromFloat(amount).StringFixed(int32(CurrencyMaxFractionDigits(currency)))
 }
 
 func paymentCurrencyAmountUnitFor(currency string) paymentCurrencyAmountUnit {
 	normalized, err := NormalizePaymentCurrency(currency)
 	if err != nil {
-		return paymentCurrencyAmountUnit{2, 2}
+		return twoDecimalAmountUnit
 	}
 	if amountUnit, ok := paymentCurrencyAmountUnits[normalized]; ok {
 		return amountUnit
 	}
-	return paymentCurrencyAmountUnit{2, 2}
+	return twoDecimalAmountUnit
 }
 
 func AmountToMinorUnit(amountStr, currency string) (int64, error) {
-	amount, err := strconv.ParseFloat(strings.TrimSpace(amountStr), 64)
-	if err != nil || math.IsNaN(amount) || math.IsInf(amount, 0) {
+	d, err := decimal.NewFromString(strings.TrimSpace(amountStr))
+	if err != nil {
 		return 0, fmt.Errorf("invalid amount: %s", amountStr)
 	}
-	normalized, err := NormalizePaymentCurrency(currency)
+	normalizedCurrency, err := NormalizePaymentCurrency(currency)
 	if err != nil {
 		return 0, err
 	}
-	unit := paymentCurrencyAmountUnitFor(normalized)
-	displayFactor := math.Pow10(unit.maxFractionDigits)
-	if math.Abs(amount*displayFactor-math.Round(amount*displayFactor)) > 1e-8 {
-		if unit.maxFractionDigits == 0 {
-			return 0, fmt.Errorf("payment amount for %s must be a whole number", normalized)
+	amountUnit := paymentCurrencyAmountUnitFor(normalizedCurrency)
+	precisionFactor := decimal.New(1, int32(amountUnit.maxFractionDigits))
+	scaledForPrecision := d.Mul(precisionFactor)
+	if !scaledForPrecision.Equal(scaledForPrecision.Truncate(0)) {
+		if amountUnit.maxFractionDigits == 0 {
+			return 0, fmt.Errorf("payment amount for %s must be a whole number", normalizedCurrency)
 		}
-		return 0, fmt.Errorf("payment amount for %s must not have more than %d decimal places", normalized, unit.maxFractionDigits)
+		return 0, fmt.Errorf("payment amount for %s must not have more than %d decimal places", normalizedCurrency, amountUnit.maxFractionDigits)
 	}
-	return int64(math.Round(amount * math.Pow10(unit.apiMinorUnit))), nil
+	factor := decimal.New(1, int32(amountUnit.apiMinorUnit))
+	minorAmount := d.Mul(factor)
+	return minorAmount.IntPart(), nil
 }
 
 func MinorUnitToAmount(value int64, currency string) float64 {
-	return float64(value) / math.Pow10(CurrencyMinorUnit(currency))
+	factor := decimal.New(1, int32(CurrencyMinorUnit(currency)))
+	return decimal.NewFromInt(value).Div(factor).InexactFloat64()
 }
