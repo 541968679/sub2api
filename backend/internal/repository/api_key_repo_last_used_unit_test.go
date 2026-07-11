@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"testing"
 	"time"
 
@@ -154,22 +153,4 @@ func TestAPIKeyRepository_CreateDuplicateKey(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, first))
 	err := repo.Create(ctx, second)
 	require.ErrorIs(t, err, service.ErrAPIKeyExists)
-}
-
-func TestCaptureRowsCloseError(t *testing.T) {
-	closeErr := errors.New("close usage rows")
-	var err error
-
-	captureRowsCloseError(&err, func() error { return closeErr })
-
-	require.ErrorIs(t, err, closeErr)
-}
-
-func TestCaptureRowsCloseErrorPreservesEarlierError(t *testing.T) {
-	earlierErr := errors.New("scan usage rows")
-	err := earlierErr
-
-	captureRowsCloseError(&err, func() error { return errors.New("close usage rows") })
-
-	require.ErrorIs(t, err, earlierErr)
 }

@@ -3,6 +3,8 @@
 package repository
 
 import (
+	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -64,4 +66,51 @@ func TestBuildUsageLogBatchInsertQuery_UsesConflictDoNothing(t *testing.T) {
 
 	require.Contains(t, query, "ON CONFLICT (request_id, api_key_id) DO NOTHING")
 	require.NotContains(t, strings.ToUpper(query), "DO UPDATE")
+}
+
+func TestUsageLogRepositoryCreateBestEffort_QueueFullWaitsForDrain(t *testing.T) {
+	repo := &usageLogRepository{
+		db:                &sql.DB{},
+		bestEffortBatchCh: make(chan usageLogBestEffortRequest, 1),
+	}
+	repo.bestEffortBatchCh <- usageLogBestEffortRequest{}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		<-repo.bestEffortBatchCh
+		req := <-repo.bestEffortBatchCh
+		req.resultCh <- nil
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := repo.CreateBestEffort(ctx, &service.UsageLog{
+		UserID: 1, APIKeyID: 2, AccountID: 3, Model: "gpt-5", CreatedAt: time.Now().UTC(),
+	})
+
+	require.NoError(t, err)
+}
+
+func TestUsageLogRepositoryCreate_QueueFullWaitsForDrain(t *testing.T) {
+	repo := &usageLogRepository{
+		db:            &sql.DB{},
+		createBatchCh: make(chan usageLogCreateRequest, 1),
+	}
+	repo.createBatchCh <- usageLogCreateRequest{}
+
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		<-repo.createBatchCh
+		req := <-repo.createBatchCh
+		completeUsageLogCreateRequest(req, usageLogCreateResult{inserted: true})
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	inserted, err := repo.Create(ctx, &service.UsageLog{
+		UserID: 1, APIKeyID: 2, AccountID: 3, RequestID: "req-queue-drain", Model: "gpt-5", CreatedAt: time.Now().UTC(),
+	})
+
+	require.NoError(t, err)
+	require.True(t, inserted)
 }
