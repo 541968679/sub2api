@@ -2,6 +2,22 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-07-11 - Spark linked shadow account adaptation from `bdf7ead15`
+
+- **Branch**: `codex/upstream-spark-shadow-20260711`
+- **Local baseline**: `7bd38eef44c95ecc17015f4c39fce836f9eac7d6`
+- **Strategy**: adapted the upstream Spark shadow feature into fork-local
+  account, scheduler, gateway, quota, rate-limit, export, and frontend paths.
+- **Migrations**: added local `188_account_spark_shadow.sql` and
+  `189_account_spark_shadow_indexes_notx.sql`; no historical migration changed.
+- **Preserved contracts**: stored billing/`actual_cost`, display/cache
+  accounting, curated/default models, Claude-GPT bridge, native OpenAI Images,
+  failover, platform quotas, Ops, settings, routes, and unrelated bilingual UI.
+- **Excluded**: Codex session import fix `a5638a4e5` depends on the absent
+  feature introduced by `fda1ed459`; port both as an independently assessed
+  follow-up batch.
+- **Pushed/deployed**: no.
+
 ## 当前状态
 
 | 项目 | 值 |

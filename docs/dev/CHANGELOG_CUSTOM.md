@@ -2,6 +2,27 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-11] feat: Add linked OpenAI Spark shadow accounts
+
+**Affected files**: account Ent schema/generated code, migrations `188`/`189`,
+account admin handler/repository/services, OpenAI scheduler/token/header/quota/
+rate-limit/WebSocket paths, account export, admin frontend, i18n, and tests.
+
+**Compatibility**: Medium risk, constrained to explicitly created shadows.
+Ordinary accounts and fork-local billing/display/cache-read, curated models,
+Claude-GPT bridge, Images, fallback, failover, platform quotas, Ops, settings,
+and unrelated routes retain their contracts.
+
+**Details**:
+- Added one-parent/one-shadow persistence and admin creation. Shadows inherit
+  parent groups/proxy and resolve parent OAuth/FedRAMP credentials at request
+  time without copying tokens.
+- Separated Spark model eligibility, cooldowns, 429 handling, quota query, and
+  `codex_*` snapshots while failing closed on invalid parent credentials.
+- Guarded refresh/privacy/test/reset, credentials, CRS, proxy/type changes,
+  deletion, import/export, and frontend actions against detached shadows.
+- Added focused backend and frontend regression coverage. No push/deploy.
+
 ## 鏍煎紡璇存槑
 
 ```

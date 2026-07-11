@@ -2,6 +2,32 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
 
+## OpenAI Spark Shadow Accounts
+
+Spark shadows are linked OpenAI OAuth scheduling records. They own an explicit
+Spark model mapping and an independent Spark quota/rate-limit dimension, but
+never own authentication credentials. `accounts.parent_account_id` points to
+the real OAuth account and `accounts.quota_dimension` is `spark`; migrations
+`188` and `189` enforce the parent relation and one active Spark shadow per
+parent.
+
+Creation uses `POST /api/v1/admin/accounts/:id/shadow`, inherits the parent's
+proxy and groups (or the OpenAI default group), and seeds only the Spark model
+mapping. Runtime token/header resolution dereferences the parent on every
+request. The shadow retains scheduling identity, concurrency, Spark cooldowns,
+and `codex_*` usage snapshots; parent credential invalidity and auth/transport
+cooldowns still fail closed.
+
+Parent proxy changes propagate to the shadow; direct shadow proxy changes are
+rejected. Parent deletion removes the shadow and invalid parent type changes
+are blocked. Generic/Codex exports skip shadows and report `skipped_shadows`.
+Privacy, token refresh, quota reset, credential persistence, and CRS sync never
+treat a shadow as a standalone OAuth account.
+
+The feature does not alter stored billing, quota deduction, `actual_cost`,
+display-token or cache-read invariants, curated models, Claude-GPT bridge,
+native OpenAI Images, default fallback, Ops attribution, or public settings.
+
 ## OpenAI Codex Personal Access Tokens
 
 OpenAI OAuth-type accounts can be created with a Codex personal access token

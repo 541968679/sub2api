@@ -3,6 +3,21 @@
 > Unified API entry points, account scheduling, upstream protocol conversion,
 > failover, and usage recording.
 
+## Spark Shadow Routing
+
+An OpenAI Spark shadow is selected and accounted as its own scheduling record,
+but `resolveCredentialAccount` dereferences `parent_account_id` before reading
+tokens or building ChatGPT/FedRAMP headers. HTTP and WebSocket paths keep the
+shadow ID for connection ownership, usage snapshots, and Spark rate limits;
+the parent supplies authentication identity and the inherited proxy.
+
+Spark eligibility requires an explicit Spark mapping and rejects default-model
+fallback. Global OAuth quota/429 headers do not consume the Spark lane, while
+Spark 429 state is not written to the parent. Parent invalidity, expiry, and
+auth/transport cooldowns still make the shadow unavailable. This separation
+must not feed into ordinary billing, display/cache-read transforms,
+Claude-GPT bridge routing, native Images, or Ops/public settings.
+
 ## Data Model
 
 | Entity/field | Location | Notes |
