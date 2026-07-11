@@ -78,6 +78,7 @@ PaymentView
 # 2026-07 upstream alignment notes
 
 - Airwallex is a first-class provider with an embedded checkout route. Provider currencies are validated and formatted with currency-specific decimal precision.
+- Checkout confirmation amounts use the selected provider currency; do not reintroduce hard-coded CNY symbols in shared recharge/subscription totals.
 - Refunds may remain `REFUND_PENDING` until Stripe, WeChat Pay, or Airwallex confirms the final state. Local pre-deduction is rolled back while pending and applied exactly once after confirmed success.
 - Fulfillment uses a five-minute ownership lease on the order `updated_at` token. Fresh owners cannot be stolen; stale `recharging` work can be recovered, and an old owner cannot finalize after takeover.
 - EasyPay supports administrator-defined payment methods in addition to exact built-in method names. Provider response sanitization is limited to fields that may contain transport NUL bytes and never mutates secrets.

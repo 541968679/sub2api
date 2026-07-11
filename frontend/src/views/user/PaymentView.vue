@@ -158,15 +158,15 @@
                   <div v-if="validAmount > 0" class="space-y-3 text-sm">
                     <div class="flex justify-between gap-4">
                       <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
-                      <span class="font-medium text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
+                      <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(validAmount) }}</span>
                     </div>
                     <div v-if="feeRate > 0" class="flex justify-between gap-4">
                       <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                      <span class="font-medium text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
+                      <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(feeAmount) }}</span>
                     </div>
                     <div v-if="feeRate > 0" class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
                       <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                      <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
+                      <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
                     </div>
                     <div class="space-y-2 border-t border-gray-200 pt-3 dark:border-dark-600">
                       <div class="flex justify-between gap-4">
@@ -192,7 +192,7 @@
                       <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                       {{ t('common.processing') }}
                     </span>
-                    <span v-else>{{ t('payment.createOrder') }} ¥{{ totalAmount.toFixed(2) }}</span>
+                    <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(totalAmount) }}</span>
                   </button>
                 </div>
               </template>
@@ -275,15 +275,15 @@
                     <div class="space-y-3 text-sm">
                       <div class="flex justify-between gap-4">
                         <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                        <span class="font-medium text-gray-900 dark:text-white">¥{{ subBaseAmount.toFixed(2) }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(subBaseAmount) }}</span>
                       </div>
                       <div v-if="feeRate > 0 && selectedPlan.price > 0" class="flex justify-between gap-4">
                         <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                        <span class="font-medium text-gray-900 dark:text-white">¥{{ subFeeAmount.toFixed(2) }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(subFeeAmount) }}</span>
                       </div>
                       <div class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
                         <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                        <span class="text-xl font-bold text-primary-600 dark:text-primary-400">¥{{ subTotalAmount.toFixed(2) }}</span>
+                        <span class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
                       </div>
                     </div>
 
@@ -292,7 +292,7 @@
                         <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                         {{ t('common.processing') }}
                       </span>
-                      <span v-else>{{ t('payment.createOrder') }} ¥{{ subTotalAmount.toFixed(2) }}</span>
+                      <span v-else>{{ t('payment.createOrder') }} {{ formatSelectedPaymentAmount(subTotalAmount) }}</span>
                     </button>
                     <button class="btn btn-secondary mt-3 w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
                   </div>
@@ -416,7 +416,7 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import SupportContactBar from '@/components/common/SupportContactBar.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { normalizePaymentCurrency } from '@/components/payment/currency'
+import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
@@ -684,6 +684,10 @@ const globalMaxAmount = computed(() => {
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 const selectedCurrency = computed(() => normalizePaymentCurrency(selectedLimit.value?.currency))
+
+function formatSelectedPaymentAmount(value: number): string {
+  return formatPaymentAmount(value, selectedCurrency.value)
+}
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {

@@ -4335,6 +4335,7 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 **Compatibility**: Medium risk, protected by focused backend/frontend tests. Distribution and bundle subscription contracts are intentionally retained.
 **Details**:
 - Added Airwallex, currency-aware amount handling, pending-refund finalization, stale fulfillment lease recovery, provider response hardening, and custom EasyPay methods.
+- Payment and subscription confirmation totals now format with the selected provider currency instead of a hard-coded CNY symbol.
 - Added redeem expiration enforcement, restricted batch update, balance-redeem affiliate accrual, and pre-transaction invitation validation while retaining local batch-per-user rules.
 - Added admin affiliate invite/rebate/transfer records, exact payment-order audit linkage, transfer snapshots, and matured frozen quota in overview. The additive schema change is migration `185`.
 - Added opt-in subscription USD-to-CNY conversion with a default-off compatibility lock and admin plan charge preview.
