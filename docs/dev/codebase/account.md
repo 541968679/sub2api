@@ -507,6 +507,37 @@ AccountsView.vue: handleDeleteExportedAccounts()
 - “删除已导出账号”按钮只作用于当前筛选条件下 `extra.exported_at` 非空的账号，不会忽略页面筛选直接删除全库。
 - 前端账号表提供可切换的“导出时间”列，默认隐藏，必要时从列设置里打开查看。
 
+### Codex 会话账号导入
+
+```
+AccountsView.vue: “导入 Codex 会话”
+  -> CodexSessionImportModal.vue
+     - raw access token / Codex auth JSON / JSON 数组 / 逐行混合输入
+     - 代理、OpenAI 分组、并发、优先级、计费倍率、负载因子
+     - update_existing / skip_default_group_bind
+  -> POST /api/v1/admin/accounts/import/codex-session
+     -> account_codex_import.go: ImportCodexSession()
+        -> parseCodexSessionImportEntries()
+        -> normalizeCodexImportEntry()
+           - JWT exp/email/chatgpt_account_id/chatgpt_user_id/plan/organization
+           - sessionToken 只记录存在性并告警，不写 refresh_token
+           - credential_extras 不能覆盖 OAuth token/identity 保护字段
+        -> buildCodexAccountIndex(existing OpenAI OAuth accounts)
+        -> full session: user id -> token fingerprint -> account id fallback
+        -> access-only: access token SHA-256 fingerprint only
+        -> AdminService.UpdateAccount/CreateAccount()
+        -> update 后失效 token cache
+```
+
+重要机制：
+
+- **完整会话身份优先级**：携带 `refresh_token` 时，`chatgpt_user_id` 是第一身份；共享 `chatgpt_account_id` 只在双方 user id 不冲突时作为兼容回退，支持存量缺失 user id 的账号回填。
+- **access-only 隔离**：不携带 `refresh_token` 时只按 access-token 指纹判断同一项。相同 workspace、user 或 email 不能导致两个短期凭据合并；完全相同 token 的重复导入仍可幂等更新。
+- **凭据保护**：access-only 更新已有完整 OAuth 账号时保留 `refresh_token`、`client_id`、`id_token` 和账号到期/自动暂停设置，避免用短期会话降级可自动续期账号。
+- **到期处理**：新建 access-only 账号必须能从 JWT/JSON 解析 token 到期时间，或由请求显式给出更早的账号到期时间；账号强制开启到期自动暂停。过期 token 被拒绝。
+- **PAT 边界**：Codex PAT 仍由 `/admin/openai/create-from-codex-pat` 与 `IsOpenAIPersonalAccessToken()` 管理。会话导入不会重写 PAT 凭据或刷新策略；普通 access-only OAuth 同样不尝试 refresh，过期后返回明确错误。
+- **无迁移**：身份、导入来源与 token 指纹均写入现有 `credentials`/`extra` JSON；不新增表或列。
+
 ### AI Credits 获取链路
 
 ```

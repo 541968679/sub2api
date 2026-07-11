@@ -4653,3 +4653,17 @@ transforms, media frozen-balance settlement, or platform quotas.
 - Gateway JSON reading tolerates raw control bytes inside strings and a UTF-8 BOM while enforcing the existing normalized body limit. Structurally invalid JSON remains invalid.
 - Parse diagnostics contain only error type, body length, and syntax offset. Unlike upstream, this fork intentionally does not log request body head/tail or user prompt content.
 - Stored billing, `actual_cost`, display/cache-read transforms, Claude-GPT routing, OpenAI Images, Batch Image, Grok media, model selection, and account scheduling are unchanged.
+
+ ## [2026-07-11] feat: Import Codex session accounts without weakening fork account contracts
+
+**Affected files**: `backend/internal/handler/admin/account_codex_import*.go`, `backend/internal/server/routes/{admin.go,admin_codex_session_import_contract_test.go}`, `backend/internal/service/{openai_token_provider.go,token_refresher.go}` and focused tests; `frontend/src/{api/admin/accounts.ts,components/admin/account/CodexSessionImportModal.vue,views/admin/AccountsView.vue,types/index.ts,i18n/locales/{zh,en}.ts,__tests__/integration/codex-session-import.spec.ts}`; `docs/dev/{UPSTREAM_SYNC.md,codebase/account.md}`
+
+**Compatibility**: Medium risk, selectively adapted from upstream `fda1ed459`, `f788e6bdb`, `32df33a1c`, `a5638a4e5`, and `6bd248fd1`. No migration. Existing PAT creation/security, account proxy/group bindings, scheduling/failover, credential persistence, Claude-GPT bridge, OpenAI Images, billing/display/cache-read invariants, public settings, curated models, and unrelated Vertex behavior remain unchanged.
+
+**Details**:
+- Added idempotent admin `POST /api/v1/admin/accounts/import/codex-session` parsing raw access tokens, Codex auth JSON, JSON arrays/streams, and mixed line input.
+- Complete sessions prefer `chatgpt_user_id`, reject cross-user matches inside a shared `chatgpt_account_id`, and retain account-id fallback for legacy rows missing user identity. Access-only sessions use only an access-token SHA-256 fingerprint, so shared workspace/user metadata cannot silently merge separate credentials.
+- Existing refresh/client/id-token fields survive an access-only update; imported credential extras cannot overwrite protected OAuth identity/token fields. Token cache invalidation follows successful account updates.
+- Access-only OAuth accounts never enter the refresh path. A still-valid token remains usable; an expired token reports the missing refresh token explicitly. Existing Codex PAT accounts retain their separate non-refreshing classification.
+ - Added a standalone bilingual account-page dialog that preserves fork proxy/group, concurrency, priority, billing-rate, load-factor, default-group, and update-existing controls without rewriting the existing OAuth/PAT creation flows.
+ - Added parser, expiry, identity, access-only, credential-preservation, handler, route, frontend API/UI, account-page regression, typecheck, and lint verification.

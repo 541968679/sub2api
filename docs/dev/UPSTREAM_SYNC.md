@@ -1123,3 +1123,32 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Added bounded control-byte/BOM normalization to JSON gateway entries. Invalid JSON diagnostics expose only length/offset/type; upstream body snippets were deliberately rejected for user-content safety.
 - No migration, frontend, stored usage, billing/display-token, cache-read, Images, scheduler, route, or public-setting changes.
 - Pushed/deployed: no.
+
+ ### 2026-07-11 - Codex session account import
+
+- **Branch**: `codex/upstream-codex-session-import-20260711`
+- **Local baseline**: `8963e7fb9`
+- **Upstream points**: `fda1ed459`, import-owned part of `f788e6bdb`, import integration from `32df33a1c`, `a5638a4e5`, and `6bd248fd1`.
+- **Strategy**: TDD-first selective port. The upstream commits were not cherry-picked wholesale because their shared frontend/account files would regress current CRS, account-column, bulk-delete, PAT, Grok, Spark, and other fork-local behavior.
+- **Migration handling**: none.
+
+#### Adopted behavior
+
+- Admin Codex session import accepts raw access tokens, Codex auth JSON, arrays/streams, and mixed line input while preserving proxy/group and scheduling metadata.
+- Full refresh-token sessions match `chatgpt_user_id` before shared account id, reject known cross-user matches, and may fall back to account id for legacy rows without a user id.
+- Access-only imports use only the access-token fingerprint. They cannot merge merely because two entries share workspace or user metadata; importing the exact same token remains idempotent.
+- Access-only updates preserve an existing refresh token/client/id token and do not overwrite account expiry/scheduling. Access-only account creation requires a parseable or explicit expiry and forces expiry auto-pause.
+- OpenAI access-only accounts skip refresh; expired tokens fail explicitly. Existing PAT detection remains the first protection boundary.
+
+#### Rejected or preserved behavior
+
+- The unrelated Vertex default-transport change in `f788e6bdb` was not ported.
+- The PAT implementation in `32df33a1c` was not reapplied; the current fork PAT service, handler, headers, account tests, UI, and security behavior remain authoritative.
+- Upstream account-page rewrites/removals were rejected. CRS sync, multi-file account data import/export, bounded bulk deletion, account columns, scheduler scores, Grok/Spark controls, manual RT, and Codex export remain intact.
+- Billing/display transforms, real cache-read quantities, `actual_cost`, Claude-GPT, OpenAI Images, curated/default models, public/admin settings, and account scheduler/failover code were not changed.
+
+#### Verification
+
+- Backend focused unit packages passed for admin handler, admin routes, and service token behavior, including the full imported parser/identity/access-only test set.
+ - Frontend Codex dialog and account-page regressions passed (9 tests), followed by full typecheck and lint.
+ - `git diff --check` passed. No push or deployment was performed.
