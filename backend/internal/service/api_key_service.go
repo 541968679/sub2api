@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,11 +41,19 @@ var (
 )
 
 const (
-	apiKeyMaxErrorsPerHour = 20
-	apiKeyLastUsedMinTouch = 30 * time.Second
+	apiKeyMaxErrorsPerHour       = 20
+	apiKeyLastUsedMinTouch       = 30 * time.Second
+	apiKeySortCurrentConcurrency = "current_concurrency"
+	apiKeyConcurrencySortMaxKeys = 10_000
+	apiKeyConcurrencyBatchSize   = 500
 	// DB 写失败后的短退避，避免请求路径持续同步重试造成写风暴与高延迟。
 	apiKeyLastUsedFailBackoff = 5 * time.Second
 )
+
+type apiKeyConcurrencySortRepository interface {
+	ListAllByUserID(ctx context.Context, userID int64, filters APIKeyListFilters, limit int) ([]APIKey, error)
+	AttachLastUsedIPs(ctx context.Context, keys []APIKey) error
+}
 
 type APIKeyRepository interface {
 	Create(ctx context.Context, key *APIKey) error
@@ -473,12 +482,85 @@ func (s *APIKeyService) CreateForDistribution(ctx context.Context, userID int64,
 
 // List 获取用户的API Key列表
 func (s *APIKeyService) List(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
+	if strings.EqualFold(strings.TrimSpace(params.SortBy), apiKeySortCurrentConcurrency) {
+		return s.listByCurrentConcurrency(ctx, userID, params, filters)
+	}
 	keys, pagination, err := s.apiKeyRepo.ListByUserID(ctx, userID, params, filters)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list api keys: %w", err)
 	}
 	s.fillCurrentConcurrency(ctx, keys)
 	return keys, pagination, nil
+}
+
+func (s *APIKeyService) listByCurrentConcurrency(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
+	repo, ok := s.apiKeyRepo.(apiKeyConcurrencySortRepository)
+	if !ok {
+		return nil, nil, fmt.Errorf("list api keys by current concurrency: repository capability unavailable")
+	}
+	keys, err := repo.ListAllByUserID(ctx, userID, filters, apiKeyConcurrencySortMaxKeys+1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list api keys: %w", err)
+	}
+	if len(keys) > apiKeyConcurrencySortMaxKeys {
+		return nil, nil, infraerrors.BadRequest("API_KEY_CONCURRENCY_SORT_LIMIT_EXCEEDED", "too many api keys to sort by current concurrency")
+	}
+	for start := 0; start < len(keys); start += apiKeyConcurrencyBatchSize {
+		end := start + apiKeyConcurrencyBatchSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+		s.fillCurrentConcurrency(ctx, keys[start:end])
+	}
+	sortAPIKeysByCurrentConcurrency(keys, params.NormalizedSortOrder(pagination.SortOrderDesc))
+	page := paginateAPIKeys(keys, params)
+	if err := repo.AttachLastUsedIPs(ctx, page); err != nil {
+		return nil, nil, fmt.Errorf("attach api key latest usage IP: %w", err)
+	}
+	return page, apiKeyPaginationResult(int64(len(keys)), params), nil
+}
+
+func sortAPIKeysByCurrentConcurrency(keys []APIKey, order string) {
+	desc := order != pagination.SortOrderAsc
+	sort.SliceStable(keys, func(i, j int) bool {
+		if keys[i].CurrentConcurrency == keys[j].CurrentConcurrency {
+			if desc {
+				return keys[i].ID > keys[j].ID
+			}
+			return keys[i].ID < keys[j].ID
+		}
+		if desc {
+			return keys[i].CurrentConcurrency > keys[j].CurrentConcurrency
+		}
+		return keys[i].CurrentConcurrency < keys[j].CurrentConcurrency
+	})
+}
+
+func paginateAPIKeys(keys []APIKey, params pagination.PaginationParams) []APIKey {
+	limit := params.Limit()
+	page := params.Page
+	if page < 1 {
+		page = 1
+	}
+	start := (page - 1) * limit
+	if start >= len(keys) {
+		return []APIKey{}
+	}
+	end := start + limit
+	if end > len(keys) {
+		end = len(keys)
+	}
+	return keys[start:end]
+}
+
+func apiKeyPaginationResult(total int64, params pagination.PaginationParams) *pagination.PaginationResult {
+	limit := params.Limit()
+	page := params.Page
+	if page < 1 {
+		page = 1
+	}
+	pages := int((total + int64(limit) - 1) / int64(limit))
+	return &pagination.PaginationResult{Total: total, Page: page, PageSize: limit, Pages: pages}
 }
 
 func (s *APIKeyService) fillCurrentConcurrency(ctx context.Context, keys []APIKey) {

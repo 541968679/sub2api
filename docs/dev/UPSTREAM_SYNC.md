@@ -1126,6 +1126,14 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Added first-error-wins Ops markers for local errors inside committed HTTP-200 SSE streams; upstream error context remains authoritative to prevent duplicate rows.
 - No migration, generated code, frontend, route, setting, push, or deployment change.
 
+### 2026-07-11 - Bounded API-key current-concurrency sorting
+
+- Adapted `5debe1db3` with an explicit 10,000-key resource ceiling and 500-key Redis batches.
+- Sorting is stable across pages and filters; only the final page is enriched with the fork's latest-use IP query.
+- Ordinary database sorts/pagination, API-key auth/quota behavior, persisted columns, billing/display/cache-read invariants, and concurrency admission remain unchanged.
+- Verification: focused service/repository tests, full API contract, existing latest-IP/column tests, affected ESLint, and frontend typecheck passed.
+- Pushed/deployed: no.
+
 ### 2026-07-11 - Anthropic bounded 429 fallback and Fable window
 
 - **Branch**: `codex/upstream-anthropic-rate-limits-20260711`

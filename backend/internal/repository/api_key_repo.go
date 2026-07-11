@@ -372,7 +372,7 @@ func (r *apiKeyRepository) deleteWithAudit(ctx context.Context, exec *dbent.Clie
 	return nil
 }
 
-func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
+func (r *apiKeyRepository) apiKeyListByUserIDQuery(userID int64, filters service.APIKeyListFilters) *dbent.APIKeyQuery {
 	q := r.activeQuery().Where(apikey.UserIDEQ(userID))
 
 	// Apply filters
@@ -392,8 +392,13 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 			q = q.Where(apikey.GroupIDEQ(*filters.GroupID))
 		}
 	}
+	return q
+}
 
-	total, err := q.Count(ctx)
+func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, params pagination.PaginationParams, filters service.APIKeyListFilters) ([]service.APIKey, *pagination.PaginationResult, error) {
+	q := r.apiKeyListByUserIDQuery(userID, filters)
+
+	total, err := q.Clone().Count(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -420,6 +425,29 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 	}
 
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
+}
+
+func (r *apiKeyRepository) ListAllByUserID(ctx context.Context, userID int64, filters service.APIKeyListFilters, limit int) ([]service.APIKey, error) {
+	if limit <= 0 {
+		return []service.APIKey{}, nil
+	}
+	keys, err := r.apiKeyListByUserIDQuery(userID, filters).
+		WithGroup().
+		Order(dbent.Asc(apikey.FieldID)).
+		Limit(limit).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.APIKey, 0, len(keys))
+	for i := range keys {
+		out = append(out, *apiKeyEntityToService(keys[i]))
+	}
+	return out, nil
+}
+
+func (r *apiKeyRepository) AttachLastUsedIPs(ctx context.Context, keys []service.APIKey) error {
+	return r.attachLastUsedIPs(ctx, keys)
 }
 
 func (r *apiKeyRepository) attachLastUsedIPs(ctx context.Context, keys []service.APIKey) error {

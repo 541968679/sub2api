@@ -4783,3 +4783,15 @@ route, setting, push, or deployment change.
 - Context-window failures remain client errors; transient failures fail over only before output; partial output is never replayed on another account.
 - Failed terminals return before successful usage submission. Existing cyber-policy auditing remains intact and display pricing, cache-read quantities, stored billing/`actual_cost`, Images, Batch Image, WebSocket, and scheduler behavior are unchanged.
 - Local errors emitted after SSE committed HTTP 200 are recorded once by Ops only when no upstream context already owns the log; intended status drives severity while stored wire status remains 200.
+
+## [2026-07-11] feat: Add bounded API-key concurrency sorting
+
+**Affected files**: API-key repository/service, user key table, API contract, and focused tests.
+
+**Compatibility**: Resource-bounded adaptation of upstream `5debe1db3`; ordinary database-backed pagination/sorts remain unchanged.
+
+**Details**:
+- `sort_by=current_concurrency` loads the filtered key set, obtains Redis counts in batches of 500, applies stable concurrency/ID ordering, and then paginates.
+- The expensive sort is capped at 10,000 filtered keys; larger sets receive a typed bad request instead of unbounded Ent/Redis/memory work.
+- Latest-use IP enrichment runs only for the final page after sorting, preserving the fork's IP column without querying usage logs for the whole candidate set.
+- Existing search/status/group filters, column preferences, quotas, auth cache, concurrency admission, billing/display/cache-read behavior, and normal database sorts are unchanged.
