@@ -117,6 +117,27 @@ type openAIOAuthServiceStub struct {
 	refreshCalled int32
 }
 
+func TestOpenAITokenProviderPersonalAccessTokenSkipsRefresh(t *testing.T) {
+	cache := newOpenAITokenCacheStub()
+	account := &Account{
+		ID:       901,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          OpenAIAuthModePersonalAccessToken,
+			"access_token":       "pat-access-token",
+			"chatgpt_account_id": "pat-account",
+		},
+	}
+	provider := NewOpenAITokenProvider(&openAIQuotaAccountRepoStub{account: account}, cache, nil)
+
+	token, err := provider.GetAccessToken(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Equal(t, "pat-access-token", token)
+	require.Zero(t, atomic.LoadInt32(&cache.lockCalled), "PAT must not enter OAuth refresh locking")
+}
+
 func (s *openAIOAuthServiceStub) RefreshAccountToken(ctx context.Context, account *Account) (*OpenAITokenInfo, error) {
 	atomic.AddInt32(&s.refreshCalled, 1)
 	if s.refreshErr != nil {

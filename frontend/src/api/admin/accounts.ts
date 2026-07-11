@@ -881,6 +881,11 @@ export interface OpenAIQuotaResetResult {
   windows_reset: number
 }
 
+export interface OpenAIQuotaResetRequest {
+  confirm: true
+  redeem_request_id: string
+}
+
 /**
  * Query OpenAI/Codex rate-limit usage for an OAuth account.
  */
@@ -892,8 +897,8 @@ export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
 /**
  * Consume one rate-limit-reset credit for an OpenAI/Codex OAuth account.
  */
-export async function resetOpenAIQuota(id: number): Promise<OpenAIQuotaResetResult> {
-  const { data } = await apiClient.post<OpenAIQuotaResetResult>(`/admin/openai/accounts/${id}/reset-quota`)
+export async function resetOpenAIQuota(id: number, request: OpenAIQuotaResetRequest): Promise<OpenAIQuotaResetResult> {
+  const { data } = await apiClient.post<OpenAIQuotaResetResult>(`/admin/openai/accounts/${id}/reset-quota`, request)
   return data
 }
 

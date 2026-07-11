@@ -301,7 +301,15 @@ func (h *OpenAIOAuthHandler) ResetQuota(c *gin.Context) {
 		response.BadRequest(c, "openai quota service is not enabled")
 		return
 	}
-	result, err := h.quotaService.ResetCredit(c.Request.Context(), accountID)
+	var request struct {
+		Confirm         bool   `json:"confirm"`
+		RedeemRequestID string `json:"redeem_request_id"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil || !request.Confirm || !service.IsValidOpenAIQuotaRedeemRequestID(request.RedeemRequestID) {
+		response.BadRequest(c, "confirm=true and a valid redeem_request_id are required")
+		return
+	}
+	result, err := h.quotaService.ResetCredit(c.Request.Context(), accountID, request.RedeemRequestID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

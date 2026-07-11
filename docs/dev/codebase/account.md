@@ -2,6 +2,47 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
 
+## OpenAI Quota Query And Reset
+
+OpenAI OAuth accounts expose an admin-only quota action in the existing account
+usage cell. `GET /api/v1/admin/openai/accounts/:id/quota` reads ChatGPT/Codex
+rate-limit windows and reset-credit metadata. `POST
+/api/v1/admin/openai/accounts/:id/reset-quota` consumes one reset credit only
+after an explicit confirmation payload.
+
+Core flow:
+
+```text
+AccountUsageCell / OpenAIQuotaResetCell
+  -> queryOpenAIQuota(accountID)
+  -> OpenAIOAuthHandler.QueryQuota
+  -> OpenAIQuotaService.QueryUsage
+  -> /backend-api/wham/usage
+  -> optional sanitized credit-expiration detail query
+
+Confirmed reset action
+  -> generate one UUID-v4 redeem_request_id
+  -> POST { confirm: true, redeem_request_id }
+  -> handler and service validate the UUID
+  -> upstream consume receives the same ID unchanged
+```
+
+Important mechanisms and pitfalls:
+
+- The backend rejects every non-OpenAI or non-OAuth account before token or
+  upstream access. Grok keeps its separate probe-only service and UI.
+- The quota service uses the existing OpenAI token provider, account proxy, and
+  privacy client. Personal-access-token auth modes reuse their static access
+  token and skip OAuth refresh locking.
+- Final outbound `User-Agent` and `originator` are paired through
+  `enforceCodexIdentityHeaders`; account custom User-Agent remains authoritative.
+- Reset requires `confirm=true` plus a valid UUID-v4. The frontend reuses one
+  action ID after a failed request, so transport retries cannot mint a new
+  upstream idempotency key and consume another credit.
+- Queries and resets do not write account cooldowns, quota snapshots, scheduler
+  state, usage logs, stored billing, `actual_cost`, display tokens, or cache-read
+  quantities. No public/admin Settings KV or new route page is introduced.
+
 ## Grok Admin Reachability And Media Pricing
 
 Grok accounts are reachable from the existing account and group management

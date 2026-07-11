@@ -116,7 +116,7 @@
       :cancel-text="t('common.cancel')"
       danger
       @confirm="confirmReset"
-      @cancel="showResetConfirm = false"
+      @cancel="cancelReset"
     />
   </div>
 </template>
@@ -149,6 +149,7 @@ const data = ref<OpenAIQuotaUsage | null>(null)
 const resetMessage = ref<string | null>(null)
 const showResetConfirm = ref(false)
 const showResetCreditDetails = ref(false)
+const redeemRequestId = ref<string | null>(null)
 
 const availableResetCount = computed(() => data.value?.rate_limit_reset_credits?.available_count ?? 0)
 const resetCreditExpirations = computed(() =>
@@ -239,7 +240,27 @@ const openResetConfirm = () => {
     error.value = t('admin.accounts.openaiQuotaReset.noCreditsAvailable')
     return
   }
+  if (!redeemRequestId.value) {
+    redeemRequestId.value = generateRedeemRequestId()
+  }
   showResetConfirm.value = true
+}
+
+const cancelReset = () => {
+  showResetConfirm.value = false
+  redeemRequestId.value = null
+}
+
+const generateRedeemRequestId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
 const confirmReset = async () => {
@@ -249,11 +270,15 @@ const confirmReset = async () => {
     error.value = t('admin.accounts.openaiQuotaReset.noCreditsAvailable')
     return
   }
+	if (!redeemRequestId.value) return
   resetting.value = true
   error.value = null
   resetMessage.value = null
   try {
-    const result: OpenAIQuotaResetResult = await resetOpenAIQuota(props.account.id)
+    const result: OpenAIQuotaResetResult = await resetOpenAIQuota(props.account.id, {
+      confirm: true,
+      redeem_request_id: redeemRequestId.value
+    })
     // Refresh the reset-credit count so the badge reflects the consumed credit.
     // handleQuery clears resetMessage on entry, so the success toast is set
     // AFTER it resolves.
@@ -261,6 +286,7 @@ const confirmReset = async () => {
     resetMessage.value = t('admin.accounts.openaiQuotaReset.resetSuccess', {
       windows: result.windows_reset
     })
+    redeemRequestId.value = null
   } catch (e) {
     error.value = extractErrorMessage(e)
   } finally {
@@ -279,6 +305,7 @@ watch(
     resetting.value = false
     showResetConfirm.value = false
     showResetCreditDetails.value = false
+    redeemRequestId.value = null
   }
 )
 </script>

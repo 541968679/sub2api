@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/imroc/req/v3"
@@ -89,12 +91,34 @@ func TestParseOpenAIRateLimitResetCreditDetailsSanitizesPayload(t *testing.T) {
 }
 
 func TestBuildCodexQuotaHeaders(t *testing.T) {
-	headers := buildCodexCommonHeaders("access-token", "chatgpt-account")
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"user_agent": "Codex Desktop/1.2.3",
+		},
+	}
+	headers := buildCodexCommonHeaders("access-token", "chatgpt-account", account)
 
 	require.Equal(t, "Bearer access-token", headers["authorization"])
 	require.Equal(t, "chatgpt-account", headers["chatgpt-account-id"])
 	require.Equal(t, "codex-1", headers["openai-beta"])
 	require.Equal(t, "Codex Desktop", headers["originator"])
+	require.Equal(t, "Codex Desktop/1.2.3", headers["user-agent"])
+}
+
+func TestBuildCodexQuotaHeadersFallsBackToPairedProjectIdentity(t *testing.T) {
+	headers := buildCodexCommonHeaders("access-token", "chatgpt-account", &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+	})
+
+	want := make(http.Header)
+	want.Set("originator", "Codex Desktop")
+	want.Set("user-agent", codexCLIUserAgent)
+	enforceCodexIdentityHeaders(want)
+	require.Equal(t, want.Get("originator"), headers["originator"])
+	require.Equal(t, want.Get("user-agent"), headers["user-agent"])
 }
 
 func TestOpenAIQuotaUpstreamStatusMapping(t *testing.T) {
@@ -103,4 +127,70 @@ func TestOpenAIQuotaUpstreamStatusMapping(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, mapUpstreamStatus(http.StatusTooManyRequests))
 	require.Equal(t, http.StatusBadGateway, mapUpstreamStatus(http.StatusBadRequest))
 	require.Equal(t, http.StatusBadGateway, mapUpstreamStatus(http.StatusServiceUnavailable))
+}
+
+func TestOpenAIQuotaPrepareUpstreamCallSupportsPersonalAccessToken(t *testing.T) {
+	account := &Account{
+		ID:       904,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          OpenAIAuthModePersonalAccessToken,
+			"access_token":       "pat-access-token",
+			"chatgpt_account_id": "pat-account-id",
+		},
+	}
+	repo := &openAIQuotaAccountRepoStub{account: account}
+	service := NewOpenAIQuotaService(repo, nil, NewOpenAITokenProvider(repo, nil, nil), func(string) (*req.Client, error) {
+		return req.C(), nil
+	})
+
+	accessToken, accountID, _, preparedAccount, err := service.prepareUpstreamCall(context.Background(), account.ID)
+
+	require.NoError(t, err)
+	require.Equal(t, "pat-access-token", accessToken)
+	require.Equal(t, "pat-account-id", accountID)
+	require.Same(t, account, preparedAccount)
+}
+
+func TestOpenAIQuotaResetPassesStableRedeemRequestIDUpstream(t *testing.T) {
+	const redeemID = "123e4567-e89b-42d3-a456-426614174000"
+	account := &Account{
+		ID:       905,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"auth_mode":          OpenAIAuthModePersonalAccessToken,
+			"access_token":       "pat-access-token",
+			"chatgpt_account_id": "pat-account-id",
+		},
+	}
+	repo := &openAIQuotaAccountRepoStub{account: account}
+	var upstreamRedeemID string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		var payload map[string]string
+		require.NoError(t, json.NewDecoder(request.Body).Decode(&payload))
+		upstreamRedeemID = payload["redeem_request_id"]
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":"ok","windows_reset":1}`))
+	}))
+	defer server.Close()
+	target, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	factory := func(string) (*req.Client, error) {
+		client := req.C().WrapRoundTripFunc(func(roundTripper req.RoundTripper) req.RoundTripFunc {
+			return func(request *req.Request) (*req.Response, error) {
+				request.URL.Scheme = target.Scheme
+				request.URL.Host = target.Host
+				return roundTripper.RoundTrip(request)
+			}
+		})
+		return client, nil
+	}
+	service := NewOpenAIQuotaService(repo, nil, NewOpenAITokenProvider(repo, nil, nil), factory)
+
+	_, err = service.ResetCredit(context.Background(), account.ID, redeemID)
+
+	require.NoError(t, err)
+	require.Equal(t, redeemID, upstreamRedeemID)
 }

@@ -39,6 +39,21 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - OpenAI quota query/reset alignment
+
+- **Branch/base**: `codex/upstream-openai-quota-20260711` from `19bd42ca5`.
+- **Upstream source**: core `b81694929`, formatting follow-up `b8a482e12`, reset confirmation `30adee43b`, and the quota-only credit-expiration/header portion of `dfb36e45f` through target `e316ebf5`.
+- **Strategy**: test-first manual reconciliation. Provider sets, generated Wire, account API/UI, and monolithic locale files were extended locally; no full commit or shared-file replacement was retained.
+- **Behavior**:
+  - Admins can query OpenAI OAuth `/wham/usage`, view reset-credit count/expiration, and consume one credit after explicit confirmation.
+  - Reset POST requires `{confirm:true, redeem_request_id:<UUID-v4>}`. The same action reuses its ID after failure; handler and service validate it and upstream receives it unchanged.
+  - Quota calls reuse the OpenAI token provider, proxy, privacy client, and final User-Agent/originator pairing helper. PAT auth modes skip refresh and use the stored access token.
+- **Fork-local protection**:
+  - Grok quota remains probe-only under its own service/routes/component; OpenAI quota rejects Grok and API-key accounts before upstream access.
+  - No account cooldown, `model_rate_limits`, scheduler snapshot, user-platform quota, settings, usage-log, billing, display-token, cache-read, bridge, Images, curated-model, or default-model state is changed.
+  - Spark linked shadow accounts (`bdf7ead15`) and the wider PAT creation/import control plane were not imported. Only the token-provider compatibility needed by an already represented PAT credential is present.
+- **Verification**: quota service and admin handler contracts; stable reset-ID passthrough and retry reuse; PAT token-provider path; Grok/user-platform-quota/scheduler/post-billing/display/cache protection tests; cmd/server and server compilation; frontend focused tests, typecheck, lint, and production build. Build completed with existing Browserslist, dynamic/static import, and large-chunk warnings only.
+
 ### 2026-07-11 - OpenAI scheduler and Codex WebSocket hardening
 
 - **Upstream source**: scheduler audit `0fd2e9216`, quota-headroom scoring `a2cf297d9`, Windows reset recognition `0a5f34a2`; HTTP-bridge commits `0476b5c97`, `906be3f74`, and `3020652fa` were audited against the existing fork implementation.

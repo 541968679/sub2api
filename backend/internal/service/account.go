@@ -1392,6 +1392,25 @@ func (a *Account) IsOpenAIOAuth() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeOAuth
 }
 
+const OpenAIAuthModePersonalAccessToken = "personalAccessToken"
+
+func isOpenAIPersonalAccessTokenAuthMode(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "personalaccesstoken", "personal_access_token", "codex_pat":
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *Account) IsOpenAIPersonalAccessToken() bool {
+	if !a.IsOpenAIOAuth() {
+		return false
+	}
+	return isOpenAIPersonalAccessTokenAuthMode(a.GetCredential("auth_mode")) ||
+		isOpenAIPersonalAccessTokenAuthMode(a.GetCredential("openai_auth_mode"))
+}
+
 func (a *Account) IsOpenAIApiKey() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeAPIKey
 }
