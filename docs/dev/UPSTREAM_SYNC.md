@@ -562,6 +562,37 @@ git push origin main
 -->
 # Upstream Sync Notes
 
+## 2026-07-11 - OpenAI/Codex 0.1.151 compatibility batch
+
+- **Branch**: `codex/upstream-openai0151-20260711`
+- **Local baseline**: `bf5825074`
+- **Upstream target**: `upstream/main@e316ebf52838`
+- **Strategy**: contract-test-first manual port; no full merge and no file-level replacement.
+- **Pushed/deployed**: no.
+
+### Upstream commit handling
+
+| Upstream commits | Handling | Result |
+| --- | --- | --- |
+| `75fb3c41c`, `27e29f056`, `794233832`, `f1082bb78`, `a2cdaa641`, `e2b68d1f9`, `90e9d03de` | Ported and reconciled with the fork's GPT-5.6/cache-aware apicompat code | custom tools, tool_search, namespace restore, collision errors, and tool-choice safety |
+| `0d28f7f90`, `83f169e4f` | Partially already covered by nested `cache_write_tokens`; ported only the missing top-level alias | cache creation survives Responses/Anthropic HTTP and streaming conversion without double counting |
+| `8a51119e3` | Ported helper and adapted to the fork's monolithic HTTP/WS forwarding paths | final User-Agent and originator stay paired; no-originator Messages bridge is unchanged |
+| `f2966530c` | Ported user scope and force-priority while preserving the fork-local default rule | trusted API-key owner context drives user-specific Fast/Flex exceptions |
+
+### Preserved fork-local behavior
+
+- Claude-GPT strict route intent, count-token/compact recovery, and no-originator Messages compatibility headers.
+- Real billing, `actual_cost`, display-token rewrite, cache-read token invariants, GPT-5.6 cache pricing, and priority-tier pricing.
+- Curated `/v1/models`, Codex models manifest, OpenAI Images routing/spool/failover, and image-channel monitoring.
+- The fork-local default OpenAI Fast policy continues to filter priority requests; upstream's empty-default-policy change was intentionally not adopted.
+
+### Verification
+
+- Backend focused packages: `internal/pkg/apicompat`, `internal/pkg/openai`, `internal/handler`, `internal/handler/admin`, `internal/handler/dto`, and `internal/server/middleware` passed.
+- Backend service package: `go test ./internal/service -count=1` passed, including HTTP and WebSocket identity, authenticated Fast/Flex, cache usage, billing, bridge, and image-adjacent regressions already resident in the package.
+- Frontend: typecheck and lint passed; Vitest passed 109 files / 670 tests; production build passed with only existing Vite chunk/import and Browserslist freshness warnings.
+- Repository checks: `go run ./tools/upstream-sync-guard` and `git diff --check` passed.
+
 ## 2026-06-07 - Staged OpenAI/Codex sync through Phase 6.5
 
 - **Branch**: `codex/openai-codex-upstream-sync`
