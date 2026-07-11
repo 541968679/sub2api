@@ -228,7 +228,7 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 		})
 		return nil, fmt.Errorf("parse chat completions response: %w", err)
 	}
-	responsesResp := apicompat.ChatCompletionsResponseToResponses(&ccResp, originalModel, customTools, toolSearch)
+	responsesResp := apicompat.ChatCompletionsResponseToResponses(&ccResp, originalModel, customTools, toolSearch, namespaceTools)
 
 	usage := OpenAIUsage{}
 	if parsed, ok := extractOpenAIUsageFromJSONBytes(respBody); ok {
@@ -285,6 +285,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	state := apicompat.NewChatCompletionsToResponsesStreamState(originalModel)
 	state.CustomTools = customTools
 	state.ToolSearchDeclared = toolSearch
+	state.NamespaceTools = namespaceTools
 	var usage OpenAIUsage
 	var firstTokenMs *int
 	clientDisconnected := false

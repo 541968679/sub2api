@@ -323,6 +323,7 @@ type ResponsesOutput struct {
 	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 	Input     string `json:"input,omitempty"`
 
 	// type=custom_tool_call（custom/freeform 工具，input 为自由文本）
