@@ -2938,8 +2938,9 @@ const enBase = {
         gatewayGroupTargetHint: 'The selected channel is request context only, not the account that served the request. The API key group schedules the actual account.',
         gatewayGroupScheduledTarget: 'API key group scheduler',
         inputImages: 'Input image pool',
-        inputPoolCount: '{selected} selected / {required} required',
-        inputPoolRequired: 'Image edits require at least {count} different input images, one exclusively assigned to each request.',
+        inputPoolCount: '{selected} selected / {runs} requests',
+        inputPoolRequired: 'Image edits need at least one input image; the same image can be reused across requests.',
+        inputPoolReuseHint: 'Fewer images than requests: images are assigned to requests in round-robin order.',
         removeInputImage: 'Remove input image',
         ctaHints: {
           gateway_account: 'Every concurrent run is a complete real gateway request that verifies the selected account',

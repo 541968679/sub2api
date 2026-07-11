@@ -139,8 +139,19 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 
 	body, err := readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
 	resetRequestBody(c.Request, body)
-	if err != nil || len(body) == 0 || !gjson.ValidBytes(body) {
-		// 协议级问题交给 native handler 输出规范错误；此时尚未确立 bridge 意图。
+	if err != nil {
+		// 读失败时原始 body 已被消费，交给 native 只会误报“空 body 400”，
+		// 因此在这里输出正确的 413/400。
+		if maxErr, ok := extractMaxBytesError(err); ok {
+			h.anthropicErrorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", buildBodyTooLargeMessage(maxErr.Limit))
+			return true
+		}
+		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		return true
+	}
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		// body 完整保留，协议级问题交给 native handler 输出规范错误；
+		// 此时尚未确立 bridge 意图。
 		return false
 	}
 	modelResult := gjson.GetBytes(body, "model")
@@ -155,7 +166,14 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
 	)
-	logClaudeGPTBridgeRouteDecision(reqLog, decision, reqModel, "count_tokens_preflight", routeStart)
+	countOutcome := claudeGPTBridgeOutcomeCountLocalEstim
+	switch decision.State {
+	case service.ClaudeGPTBridgeRouteNotConfigured:
+		countOutcome = claudeGPTBridgeOutcomeDispatchNative
+	case service.ClaudeGPTBridgeRouteReady:
+		countOutcome = claudeGPTBridgeOutcomeCountBridgeReady
+	}
+	logClaudeGPTBridgeRouteDecision(reqLog, decision, reqModel, "count_tokens_preflight", routeStart, 0, countOutcome)
 	if decision.State == service.ClaudeGPTBridgeRouteNotConfigured {
 		return false
 	}
@@ -167,6 +185,9 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 	if !h.checkCountTokensBillingEligibility(c, apiKey, reqLog) {
 		return true
 	}
+
+	setOpsRequestContext(c, reqModel, false, body)
+	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(false, false)))
 
 	if decision.State == service.ClaudeGPTBridgeRouteReady {
 		sessionHash := h.gatewayService.GenerateSessionHash(c, body)
@@ -184,6 +205,7 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 			if selection.ReleaseFunc != nil {
 				selection.ReleaseFunc()
 			}
+			setOpsSelectedAccount(c, account.ID, account.Platform)
 			if mapped, ok := account.ResolveClaudeGPTBridgeModel(reqModel); ok {
 				if err := h.gatewayService.ForwardCountTokensAsAnthropicClaudeGPTBridge(c.Request.Context(), c, account, body, mapped); err != nil {
 					reqLog.Warn("openai_count_tokens.bridge_forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
@@ -196,9 +218,9 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 	}
 
 	// rate_limited / unavailable / probe_error / 选号竞态：本地估算，
-	// 不调用上游，也不进入 native 池。
-	upstreamModel, _ := h.gatewayService.ResolveClaudeGPTBridgeCountUpstreamModel(c.Request.Context(), apiKey.GroupID, reqModel)
-	if err := h.gatewayService.EstimateCountTokensClaudeGPTBridge(c, body, upstreamModel); err != nil {
+	// 不调用上游，也不进入 native 池。诊断结果已携带映射后的上游模型，
+	// 避免第二次账号扫描。
+	if err := h.gatewayService.EstimateCountTokensClaudeGPTBridge(c, body, decision.MappedUpstreamModel); err != nil {
 		reqLog.Warn("openai_count_tokens.bridge_estimate_failed", zap.Error(err))
 	}
 	return true

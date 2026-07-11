@@ -251,7 +251,7 @@
                     <span class="text-[11px] tabular-nums text-gray-500 dark:text-dark-400">
                       {{ t('admin.imageChannelMonitor.manual.inputPoolCount', {
                         selected: manualInputImages.length,
-                        required: manualRequiredInputImageCount,
+                        runs: manualPlannedRunCount,
                       }) }}
                     </span>
                   </div>
@@ -291,7 +291,13 @@
                     </button>
                   </div>
                   <p v-if="manualInputImages.length < manualRequiredInputImageCount" class="text-[11px] text-amber-600 dark:text-amber-300">
-                    {{ t('admin.imageChannelMonitor.manual.inputPoolRequired', { count: manualRequiredInputImageCount }) }}
+                    {{ t('admin.imageChannelMonitor.manual.inputPoolRequired') }}
+                  </p>
+                  <p
+                    v-else-if="manualInputImages.length < manualPlannedRunCount"
+                    class="text-[11px] text-gray-500 dark:text-dark-400"
+                  >
+                    {{ t('admin.imageChannelMonitor.manual.inputPoolReuseHint') }}
                   </p>
                 </div>
 
@@ -1902,9 +1908,7 @@ const manualSelectedTargetCount = computed(() => {
   return manualSelectedIds.value.filter((id) => selectable.has(id)).length
 })
 
-const manualRequiredInputImageCount = computed(() =>
-  manualForm.mode === 'edit' ? manualPlannedRunCount.value : 0
-)
+const manualRequiredInputImageCount = computed(() => (manualForm.mode === 'edit' ? 1 : 0))
 
 const manualStartDisabled = computed(() => {
   if (manualRunning.value || manualSelectedTargetCount.value === 0) return true
@@ -3601,10 +3605,8 @@ async function startManualTests() {
     )
     return
   }
-  if (manualSettings.mode === 'edit' && manualInputImages.value.length < totalRunCount) {
-    appStore.showError(
-      t('admin.imageChannelMonitor.manual.inputPoolRequired', { count: totalRunCount })
-    )
+  if (manualSettings.mode === 'edit' && manualInputImages.value.length === 0) {
+    appStore.showError(t('admin.imageChannelMonitor.manual.inputPoolRequired'))
     return
   }
   const manualBatchID = newManualBatchID()
@@ -3646,10 +3648,7 @@ async function startManualTests() {
       ...request,
       target,
       payload,
-      inputImage:
-        manualSettings.mode === 'edit'
-          ? manualInputImageSnapshots[request.batchIndex - 1] || null
-          : null,
+      inputImage: request.inputImage || null,
     }
   })
   const manualStartedAt = new Date().toISOString()

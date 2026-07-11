@@ -200,21 +200,69 @@ describe('manual edit request construction', () => {
     expect(requests.map((request) => request.payload.input_image_name)).toEqual(
       images.map((image) => image.name)
     )
+    expect(requests.map((request) => request.inputImage)).toEqual(images)
     expect(new Set(requests.map((request) => request.payload)).size).toBe(3)
     expect(requests.every((request) => request.payload.mode === 'edit')).toBe(true)
   })
 
-  it('rejects edit concurrency when the input pool cannot provide one image per run', () => {
+  it('reuses a smaller input pool across concurrent edit requests in round-robin order', () => {
+    const images = [
+      { data: 'data:image/png;base64,AAAA', type: 'image/png', name: 'one.png' },
+      { data: 'data:image/jpeg;base64,BBBB', type: 'image/jpeg', name: 'two.jpg' },
+    ]
+
+    const requests = buildManualRunRequests({
+      targetIds: [42],
+      concurrency: 5,
+      batchId: 'ui-correlation-only',
+      basePayload: { mode: 'edit', prompt: 'reuse pool' },
+      inputImages: images,
+    })
+
+    expect(requests.map((request) => request.payload.input_image_name)).toEqual([
+      'one.png',
+      'two.jpg',
+      'one.png',
+      'two.jpg',
+      'one.png',
+    ])
+    expect(requests.map((request) => request.inputImage)).toEqual([
+      images[0],
+      images[1],
+      images[0],
+      images[1],
+      images[0],
+    ])
+    expect(new Set(requests.map((request) => request.payload)).size).toBe(5)
+  })
+
+  it('sends the same single image on every concurrent edit request', () => {
+    const image = { data: 'data:image/png;base64,AAAA', type: 'image/png', name: 'only-one.png' }
+
+    const requests = buildManualRunRequests({
+      targetIds: [42],
+      concurrency: 3,
+      batchId: 'ui-correlation-only',
+      basePayload: { mode: 'edit', prompt: 'single image reuse' },
+      inputImages: [image],
+    })
+
+    expect(requests).toHaveLength(3)
+    expect(requests.every((request) => request.inputImage === image)).toBe(true)
+    expect(requests.every((request) => request.payload.input_image_name === 'only-one.png')).toBe(
+      true
+    )
+  })
+
+  it('rejects edit runs when the input pool is empty', () => {
     expect(() =>
       buildManualRunRequests({
         targetIds: [42],
         concurrency: 2,
         batchId: 'ui-correlation-only',
-        basePayload: { mode: 'edit', prompt: 'needs distinct inputs' },
-        inputImages: [
-          { data: 'data:image/png;base64,AAAA', type: 'image/png', name: 'only-one.png' },
-        ],
+        basePayload: { mode: 'edit', prompt: 'needs an input' },
+        inputImages: [],
       })
-    ).toThrow(/one input image per concurrent edit request/i)
+    ).toThrow(/at least one input image/i)
   })
 })

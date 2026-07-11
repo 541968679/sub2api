@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
 // ClaudeGPTBridgeRouteState classifies how an Antigravity /v1/messages request
@@ -34,14 +36,18 @@ const (
 
 // ClaudeGPTBridgeRouteDecision is the structured result of a bridge route
 // diagnosis. Reason is an internal enum-like tag for logs only and must never
-// carry account names, credentials, or quota details.
+// carry account names, credentials, or quota details. MappedUpstreamModel is
+// the mapped GPT model of the first candidate; it lets degraded paths (e.g.
+// count_tokens local estimation) pick the right tokenizer without a second
+// account scan.
 type ClaudeGPTBridgeRouteDecision struct {
-	State            ClaudeGPTBridgeRouteState
-	CandidateCount   int
-	SchedulableCount int
-	RateLimitedCount int
-	RetryAt          *time.Time
-	Reason           string
+	State               ClaudeGPTBridgeRouteState
+	CandidateCount      int
+	SchedulableCount    int
+	RateLimitedCount    int
+	RetryAt             *time.Time
+	Reason              string
+	MappedUpstreamModel string
 }
 
 // ResolveClaudeGPTBridgeRoute diagnoses the bridge route for one request. It
@@ -61,9 +67,17 @@ func (s *OpenAIGatewayService) ResolveClaudeGPTBridgeRoute(ctx context.Context, 
 		return ClaudeGPTBridgeRouteDecision{State: ClaudeGPTBridgeRouteNotConfigured, Reason: "missing_model"}
 	}
 
-	accounts, err := s.accountRepo.ListByGroup(ctx, *groupID)
+	// 与 scheduler 的候选池口径保持一致：simple 模式忽略分组绑定、
+	// 使用平台全量账号；standard 模式使用绑定到当前分组的账号。
+	var accounts []Account
+	var err error
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+		accounts, err = s.accountRepo.ListByPlatform(ctx, PlatformOpenAI)
+	} else {
+		accounts, err = s.accountRepo.ListByGroup(ctx, *groupID)
+	}
 	if err != nil {
-		return ClaudeGPTBridgeRouteDecision{State: ClaudeGPTBridgeRouteProbeError, Reason: "list_by_group_failed"}
+		return ClaudeGPTBridgeRouteDecision{State: ClaudeGPTBridgeRouteProbeError, Reason: "list_candidates_failed"}
 	}
 
 	decision := ClaudeGPTBridgeRouteDecision{}
@@ -73,10 +87,14 @@ func (s *OpenAIGatewayService) ResolveClaudeGPTBridgeRoute(ctx context.Context, 
 		if !account.IsActive() {
 			continue
 		}
-		if _, ok := account.ResolveClaudeGPTBridgeModel(requestedModel); !ok {
+		mapped, ok := account.ResolveClaudeGPTBridgeModel(requestedModel)
+		if !ok {
 			continue
 		}
 		decision.CandidateCount++
+		if decision.MappedUpstreamModel == "" {
+			decision.MappedUpstreamModel = mapped
+		}
 		if account.IsSchedulable() {
 			decision.SchedulableCount++
 			continue
@@ -89,6 +107,12 @@ func (s *OpenAIGatewayService) ResolveClaudeGPTBridgeRoute(ctx context.Context, 
 					decision.RetryAt = &reset
 				}
 			}
+			continue
+		}
+		if account.IsSchedulable() {
+			// 限流恰好在两次判定之间到期：按可调度处理，避免把它
+			// 误分类成"既不可调度也非纯限流"而错误返回 503。
+			decision.SchedulableCount++
 			continue
 		}
 		otherBlockedCount++
@@ -135,4 +159,14 @@ func (s *OpenAIGatewayService) SetAccountRepoForTest(repo AccountRepository) {
 		return
 	}
 	s.accountRepo = repo
+}
+
+// SetHTTPUpstreamForTest injects the HTTP upstream dependency for
+// cross-package unit tests. Production wiring must keep using the Wire
+// constructor.
+func (s *OpenAIGatewayService) SetHTTPUpstreamForTest(upstream HTTPUpstream) {
+	if s == nil {
+		return
+	}
+	s.httpUpstream = upstream
 }

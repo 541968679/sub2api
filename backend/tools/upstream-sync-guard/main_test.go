@@ -43,10 +43,12 @@ func TestBridgeCountTokensSignaturesBecomeMandatoryAfterFeatureCommit(t *testing
 		"backend/internal/handler/openai_gateway_count_tokens.go": {
 			"CountTokensClaudeGPTBridge",
 			"EstimateCountTokensClaudeGPTBridge",
+			"decision.MappedUpstreamModel",
 		},
 		"backend/internal/service/openai_gateway_count_tokens.go": {
 			"ForwardCountTokensAsAnthropicClaudeGPTBridge",
 			"bridge_no_schedulable_account",
+			"openAIInputTokensEstimateMaxBytes",
 		},
 	}
 

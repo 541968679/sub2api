@@ -99,6 +99,17 @@ and unrelated routes retain their contracts.
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] merge: Integrate bridge hardening into upstream alignment
+
+**Affected files**: Claude-GPT bridge routing/count-token handler, service, routes, focused tests and docs; image-channel manual edit test UI/API and focused tests; upstream-sync guard catalog and tests.
+**Compatibility**: High-sensitivity branch integration. Merges `main@e091d99bb` into `codex/upstream-alignment-20260711@e462c04f2` while preserving both the fork-local bridge hardening and the upstream-alignment scheduler, quota-platform, request-body, header-override, Grok route, billing/display, and image contracts.
+**Details**:
+- Reconciled the independently added `count_tokens` implementation around the current scheduler signature, platform quota eligibility, configurable lenient JSON/body limits, account header overrides, bridge route diagnostics, Ops context, ready-path upstream counting, simple-mode platform candidates, and bounded local estimation.
+- Kept Grok `count_tokens` explicitly unsupported, retained bridge mapping intent without native fallback, and replaced the obsolete second account scan with `ClaudeGPTBridgeRouteDecision.MappedUpstreamModel`.
+- Updated upstream-sync protection to require the diagnosis-carried mapped model and the 8 MiB tokenizer bound instead of the removed `ResolveClaudeGPTBridgeCountUpstreamModel` helper.
+- Preserved stored billing, quota deduction, `actual_cost`, display-token transformations, real cache-read token quantities, curated/default models, OpenAI Images/Batch Image, scheduler/failover, Ops settings, routes, and bilingual locale contracts.
+- Verification passed: backend `go test -tags=unit ./...`; frontend 143 files / 841 tests, typecheck, ESLint, and production build; CGO-disabled server build; upstream-sync guard in default and `--base 0e24044d` modes; `git diff --check`.
+
 ## [2026-07-11] feat: Add persisted API-key table column settings
 
 **Affected files**: user API-key table, bilingual locale keys, and focused frontend contract tests.
@@ -361,6 +372,51 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Preserved direct delegation while the writer is acquired, including error-body capture, headers, flushing, hijacking, close notification, HTTP/2 push, status, size, and written state.
 - Added regression coverage for the complete released-writer interface and retained the existing pool reset coverage.
 - No frontend, API route, schema, migration, setting, billing, model discovery, Claude-GPT bridge, OpenAI Images, or scheduling behavior changed.
+## [2026-07-11] fix: Harden bridge candidacy, cancel handling, and route observability after second-round review
+
+**Affected files**: `backend/internal/service/account.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_claude_gpt_bridge_route.go`, `backend/internal/handler/openai_gateway_count_tokens.go`, `backend/internal/service/openai_claude_gpt_bridge_routing.go`, `backend/internal/service/openai_claude_gpt_bridge_routing_test.go`, `backend/internal/service/openai_claude_gpt_bridge_forward_test.go`, `backend/internal/handler/openai_claude_gpt_bridge_route_test.go`, `backend/internal/handler/openai_gateway_count_tokens_test.go`, `backend/internal/server/routes/gateway_bridge_dispatch_test.go`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Low risk. Tightens bridge candidacy to the documented account-level explicit-mapping contract (platform default mappings never create bridge intent), aligns Messages cancel semantics with the Responses path, and completes route_decision observability. No schema, frontend, or wiring changes.
+**Details**:
+- Independent second-round multi-agent review of the P0/P1 delivery (59 agents, 9 confirmed findings) drove this round; full record in the investigation doc status section.
+- `ResolveClaudeGPTBridgeModel` now requires `ModelMappingSourceAccount`: an admin-saved OpenAI platform default mapping (including `claude-*` wildcards) no longer turns every bridge-enabled account into a candidate for every Claude model, which under strict routing would have permanently hijacked native Antigravity requests onto the GPT upstream.
+- Bridge Messages error path gains the same `openAIClientRequestCanceled` early return as Responses: a client cancel records no account failure, no account switch, and never continues failover with a canceled context (previously one cancel could down-rank up to maxAccountSwitches+1 healthy accounts).
+- `route_decision` events add spec-mandated `attempt` and `terminal_outcome` fields; selection-race re-diagnosis measures real `latency_ms` instead of always zero.
+- Coverage backfill for review-confirmed test gaps: real-path two-request 429 regression (upstream 429 through `ForwardAsAnthropic` really persists `RateLimitResetAt`) plus `UpstreamFailoverError.ResponseHeaders` population; routes-level end-to-end tests of the real dispatch switch for `/v1/messages`, `/antigravity/v1/messages`, and `count_tokens` with native-not-called sentinels; bridge count ready-path tests (mapped-model upstream count, 500-to-local-estimate degradation) via a new `SetHTTPUpstreamForTest` injector.
+
+## [2026-07-11] fix: Reuse manual image-edit input pool and restore multipart submission
+
+**Affected files**: `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/utils/imageChannelManualTest.test.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `frontend/src/views/admin/ImageChannelMonitorView.manual.test.ts`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/admin/imageChannelMonitor.image.test.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`
+**Compatibility**: Low risk, admin image-monitor manual tests only. No backend change; the backend already accepted per-request multipart uploads regardless of duplicated pixel content.
+**Details**:
+- Manual image-edit runs no longer require one exclusive input image per concurrent request (c16 previously demanded 16 distinct uploads). The pool now needs at least 1 image and assigns images to runs in round-robin order; the assignment lives in `buildManualRunRequests` and is returned per request, so the uploaded blob can never drift from the payload's `input_image_name`/`input_image_type`.
+- Fixed every manual edit run failing instantly with `api_key_id is required for gateway manual tests` even in direct-probe mode: the client-wide axios `Content-Type: application/json` default made axios 1.x rewrite the edit `FormData` through `formDataToJSON` into a JSON body, so the backend JSON binding saw zero values for every real field (`execution_mode`, `api_key_id`, `client_run_id`, batch fields), and an empty `execution_mode` defaults to `gateway_account` whenever the manual gateway is configured. `manualTest` now posts `FormData` with an explicit `multipart/form-data` override (same idiom as the tutorial-page upload API).
+- Input-pool UI: the counter chip reads "已选 X 张 / N 条请求", the empty-pool warning explains that one image can be reused, and a neutral hint appears when the pool is smaller than the planned run count.
+- Regression coverage: utils round-robin distribution, single-image reuse across all runs, and empty-pool rejection; a view-level launch of 3 concurrent edit runs reusing one uploaded image; API-layer assertions that edit runs post multipart with the explicit override while generate runs stay plain JSON.
+- Verification: targeted vitest suites (utils 24, view 20, API 6 tests), `pnpm run typecheck`, `pnpm run lint:check`, and a live browser run against the local stack — 4 concurrent direct-probe edit requests sharing one input image all reached the backend as multipart `direct_probe` (HTTP 200) and completed with real generated 1536x1024 images via URL delivery.
+
+## [2026-07-11] fix: Claude-GPT bridge strict routing (P0)
+
+**Affected files**: `backend/internal/service/openai_claude_gpt_bridge_routing.go`, `backend/internal/service/openai_claude_gpt_bridge_routing_test.go`, `backend/internal/handler/openai_claude_gpt_bridge_route.go`, `backend/internal/handler/openai_claude_gpt_bridge_route_test.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/server/routes/gateway.go`, `backend/tools/upstream-sync-guard/main.go`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Medium risk, Antigravity bridge groups only. Native-only groups keep identical behavior (`not_configured` is the only native path). Behavior change: a configured bridge whose accounts are all temporarily blocked now returns bridge 429/503 instead of silently retrying through the (possibly empty) native Antigravity pool; admin-paused bridge accounts also stay on bridge 503.
+**Details**:
+- Implemented the 2026-07-10 investigation P0: `ResolveClaudeGPTBridgeRoute` diagnoses `not_configured/ready/rate_limited/unavailable/probe_error` from `AccountRepository.ListByGroup` without acquiring scheduler slots, separating stable mapping intent from instantaneous capacity.
+- `routes/gateway.go` dispatches Antigravity `/v1/messages` by route action; `rate_limited` returns Anthropic 429 `rate_limit_error` with `Retry-After` (earliest future recovery, rounded up, min 1s), `unavailable` returns 503 `overloaded_error`, `probe_error` returns 503 `api_error`, and protocol errors return canonical 400 instead of masquerading as a native miss.
+- Removed `ShouldUseClaudeGPTBridge`, the hidden `markOpenAIClaudeGPTBridgeFallback` native fallback, and its context key. Selection races and mid-request mapping deletion re-diagnose once (`respondClaudeGPTBridgeSelectionRace`): pure rate limit → 429, otherwise → bridge-side 503.
+- Multi-account bridge failover is preserved; when every attempt fails with 429 the final response stays 429 and propagates a validated upstream `Retry-After` (positive integer, ≤86400s).
+- Route decisions emit `openai_claude_gpt_bridge.route_decision` (state, candidate/schedulable/rate-limited counts, retry_at, decision_source, latency) with no account identities.
+- Added the two-request 429 regression (`429 → cooldown → next request must be 429, never native`) plus the section-10 test matrix for diagnosis states, Retry-After bounds, streaming-aware race errors, and body preservation for native fallthrough. Updated upstream-sync-guard signatures (including the stale `writeCustomModelsList` entry).
+- Post-review hardening (multi-agent adversarial review): Messages forward-path `UpstreamFailoverError` now carries `ResponseHeaders` so the exhausted-all-429 Retry-After propagation actually fires in production; group-blocked models return a stable 403 before capacity 429/503; `Retry-After` from `RateLimitResetAt` is capped at 86400s; simple run mode diagnoses candidates platform-wide to match the scheduler pool instead of silently regressing unbound bridge accounts to native; a rate limit expiring between schedulability checks re-classifies as schedulable instead of 503.
+
+## [2026-07-11] feat: Claude-GPT bridge-aware count_tokens (P1)
+
+**Affected files**: `backend/internal/service/openai_gateway_count_tokens.go`, `backend/internal/service/openai_gateway_count_tokens_test.go`, `backend/internal/handler/openai_gateway_count_tokens.go`, `backend/internal/handler/openai_gateway_count_tokens_test.go`, `backend/internal/service/openai_endpoint_url.go`, `backend/internal/server/routes/gateway.go`, `backend/go.mod`, `backend/go.sum`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Medium-low risk. Manual port of official upstream `e316ebf5` count_tokens (PR #3497 + #3635 semantics) with a fork-only bridge adaptation. Groups without a bridge mapping keep the native count path; OpenAI-platform groups gain real token counting instead of a hardcoded 404.
+**Details**:
+- OpenAI-group `/v1/messages/count_tokens` converts the Anthropic request via `AnthropicToResponses` and calls `POST /v1/responses/input_tokens` (API-key `base_url` aware); OAuth 401/403/404 missing-scope/unsupported falls back to a local tiktoken estimate and never rate-limits, temp-unschedules, or errors the account.
+- Antigravity groups with an explicit bridge mapping use `CountTokensClaudeGPTBridge`: `ready` counts upstream with the mapped GPT model (scheduler slot released immediately; bridge-lenient mode answers any upstream failure with a 200 local estimate while keeping `HandleUpstreamError` account bookkeeping), and `rate_limited/unavailable/probe_error` return a 200 local estimate without touching the native pool.
+- count_tokens keeps zero usage/billing/concurrency side effects; group model access and billing eligibility checks match the Messages gates.
+- Added `github.com/tiktoken-go/tokenizer v0.8.0`; local estimation sample expectations match official upstream exactly (o200k_base default, cl100k_base for gpt-3.5/gpt-4-era models). Estimates log `count_tokens_estimated=true` with an `estimate_reason`.
+- Post-review hardening: local estimation is bounded at 8 MiB — larger converted inputs use a bytes/4 approximation instead of feeding the tokenizer (local-compute DoS guard); bridge count preflight returns a proper 413/400 on body-read errors instead of handing native a consumed empty body; the degraded path reuses the diagnosis-carried mapped model instead of a second account scan; the bridge count path records the same ops request/endpoint/selected-account context as the other count paths.
 
 ## [2026-07-11] feat: Codex models manifest passthrough
 

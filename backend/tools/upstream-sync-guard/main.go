@@ -468,6 +468,7 @@ var criticalSignatures = []criticalSignature{
 			"ResolveClaudeGPTBridgeRoute",
 			"EstimateCountTokensClaudeGPTBridge",
 			"SelectAccountWithSchedulerForClaudeGPTBridge",
+			"decision.MappedUpstreamModel",
 		},
 		OptionalBeforeCommit: "b06190970",
 	},
@@ -477,8 +478,8 @@ var criticalSignatures = []criticalSignature{
 		Contains: []string{
 			"ForwardCountTokensAsAnthropicClaudeGPTBridge",
 			"EstimateCountTokensClaudeGPTBridge",
-			"ResolveClaudeGPTBridgeCountUpstreamModel",
 			"bridge_no_schedulable_account",
+			"openAIInputTokensEstimateMaxBytes",
 		},
 		OptionalBeforeCommit: "b06190970",
 	},

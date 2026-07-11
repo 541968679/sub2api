@@ -7,7 +7,7 @@ package service
 // tiktoken 估算，且不得因此把健康账号临时下线或标错。
 //
 // 本 fork 的适配差异：
-//   - 无 account.ApplyHeaderOverrides（fork 未实现账号级请求头覆写）。
+//   - 保留 fork 的 account.ApplyHeaderOverrides 账号级请求头覆写。
 //   - 新增 Claude-GPT bridge 宽松模式：bridge count 属于辅助能力，任何
 //     上游失败（含 429/5xx/传输错误）都回退本地估算返回 200，只保留
 //     HandleUpstreamError 的账号状态记账；绝不把 bridge 容量问题变成
@@ -37,6 +37,11 @@ const (
 	openAIResponsesInputItemTokenOverhead = 3
 	openAIResponsesContentPartOverhead    = 1
 	openAIInputTokensFallbackMinimum      = 1
+
+	// openAIInputTokensEstimateMaxBytes 限制送入本地 tiktoken 的内容规模。
+	// 网关 body 上限默认 256MB，直接对超大请求跑 BPE/回溯正则会构成本地
+	// 计算型 DoS；超过该规模的请求退化为字节数近似（约 4 字节/词元）。
+	openAIInputTokensEstimateMaxBytes = 8 << 20
 )
 
 type openAIInputTokensCountRequest struct {
@@ -240,28 +245,14 @@ func (s *OpenAIGatewayService) EstimateCountTokensClaudeGPTBridge(
 	return nil
 }
 
-// ResolveClaudeGPTBridgeCountUpstreamModel returns the mapped GPT model of any
-// active bridge candidate for the requested Claude model, so the local
-// estimator can pick the right tokenizer even when every candidate is
-// temporarily blocked. The second return reports whether a mapping was found.
-func (s *OpenAIGatewayService) ResolveClaudeGPTBridgeCountUpstreamModel(ctx context.Context, groupID *int64, requestedModel string) (string, bool) {
-	if s == nil || s.accountRepo == nil || groupID == nil {
-		return "", false
+// openAIInputTokensEstimateSizeBytes approximates the serialized size of the
+// content that would be fed to the tokenizer.
+func openAIInputTokensEstimateSizeBytes(req openAIInputTokensCountRequest) int {
+	size := len(req.Instructions) + len(req.Input) + len(req.ToolChoice)
+	for _, tool := range req.Tools {
+		size += len(tool.Name) + len(tool.Description) + len(tool.Parameters)
 	}
-	accounts, err := s.accountRepo.ListByGroup(ctx, *groupID)
-	if err != nil {
-		return "", false
-	}
-	for i := range accounts {
-		account := &accounts[i]
-		if !account.IsActive() {
-			continue
-		}
-		if mapped, ok := account.ResolveClaudeGPTBridgeModel(requestedModel); ok {
-			return mapped, true
-		}
-	}
-	return "", false
+	return size
 }
 
 func prepareOpenAIInputTokensCountRequest(
@@ -465,6 +456,14 @@ func isOpenAIOAuthInputTokensUnsupported(statusCode int, body []byte) bool {
 }
 
 func estimateOpenAIInputTokens(req openAIInputTokensCountRequest) (int, error) {
+	if size := openAIInputTokensEstimateSizeBytes(req); size > openAIInputTokensEstimateMaxBytes {
+		approx := size / 4
+		if approx < openAIInputTokensFallbackMinimum {
+			approx = openAIInputTokensFallbackMinimum
+		}
+		return approx, nil
+	}
+
 	codec, err := openAIInputTokensCodecForModel(req.Model)
 	if err != nil {
 		return 0, err

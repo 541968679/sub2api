@@ -2832,8 +2832,9 @@ const zhBase = {
         gatewayGroupTargetHint: '所选渠道仅提供请求上下文，不代表实际命中账号；命中账号由 API Key 分组调度。',
         gatewayGroupScheduledTarget: 'API Key 分组调度',
         inputImages: '输入图片池',
-        inputPoolCount: '已选 {selected} / 需要 {required}',
-        inputPoolRequired: '图生图需要至少 {count} 张不同输入图片，每条请求独占一张。',
+        inputPoolCount: '已选 {selected} 张 / {runs} 条请求',
+        inputPoolRequired: '图生图需要至少 1 张输入图片，同一张图片可复用于多条并发请求。',
+        inputPoolReuseHint: '已选图片少于请求数，将按顺序循环复用到各条请求。',
         removeInputImage: '移除输入图片',
         ctaHints: {
           gateway_account: '每个并发都是独立完整的真实网关请求，并校验所选账号',

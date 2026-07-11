@@ -330,10 +330,18 @@ export async function manualTest(
     formData.append('image', inputImage, params.input_image_name || 'source.png')
     body = formData
   }
+  // The client default Content-Type is application/json; without an explicit
+  // multipart override axios serializes FormData into JSON and the backend
+  // receives none of the real fields (execution_mode, api_key_id, ...).
   const { data } = await apiClient.post<ImageChannelManualRunResponse>(
     `/admin/image-channel-monitors/${id}/manual-test`,
     body,
-    { timeout: manualControlRequestTimeoutMs }
+    body instanceof FormData
+      ? {
+          timeout: manualControlRequestTimeoutMs,
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
+      : { timeout: manualControlRequestTimeoutMs }
   )
   return data
 }
