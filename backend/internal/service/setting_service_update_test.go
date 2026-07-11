@@ -14,6 +14,7 @@ import (
 
 type settingUpdateRepoStub struct {
 	updates map[string]string
+	values  map[string]string
 }
 
 func (s *settingUpdateRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -41,7 +42,10 @@ func (s *settingUpdateRepoStub) SetMultiple(ctx context.Context, settings map[st
 }
 
 func (s *settingUpdateRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
-	panic("unexpected GetAll call")
+	if s.values == nil {
+		panic("unexpected GetAll call")
+	}
+	return s.values, nil
 }
 
 func (s *settingUpdateRepoStub) Delete(ctx context.Context, key string) error {
@@ -362,7 +366,7 @@ func TestSettingService_GetAllSettings_OpenAIAdvancedSchedulerEffectiveValuesUse
 		PreviousResponse: 9,
 		SessionSticky:    10,
 	}
-	svc := NewSettingService(&settingGetAllRepoStub{values: map[string]string{
+	svc := NewSettingService(&settingUpdateRepoStub{values: map[string]string{
 		SettingKeyOpenAIAdvancedSchedulerLBTopK:              "3",
 		SettingKeyOpenAIAdvancedSchedulerWeightPriority:      "99",
 		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky: "88",
