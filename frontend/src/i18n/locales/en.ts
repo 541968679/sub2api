@@ -863,6 +863,7 @@ const enBase = {
     quota: 'Quota',
     lastUsedAt: 'Last Used',
     lastUsedIP: 'Last Used IP',
+    columnSettings: 'Column settings',
     useKey: 'Use Key',
     useKeyModal: {
       title: 'Use API Key',

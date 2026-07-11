@@ -39,6 +39,13 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - API-key table column preferences
+
+- **Upstream source**: `b244f850e`, reconciled with the later latest-IP column behavior.
+- The user Key table now offers a persistent column menu using the shared icon system. Name/actions stay fixed; rate-limit and last-used columns are default-hidden.
+- Preferences store only validated, toggleable hidden keys. A version-2 migration adds `last_used_ip` to existing users' hidden set without discarding prior choices; invalid local storage falls back to defaults.
+- This is browser-local presentation state only and does not change backend settings, API-key authorization, quotas, billing/display/cache-read, group data, routes, schema, or migrations.
+
 ### 2026-07-11 - API-key latest usage IP
 
 - **Upstream sources**: `e0d149d51` and `7a11b39d6`.

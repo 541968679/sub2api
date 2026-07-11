@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Add persisted API-key table column settings
+
+**Affected files**: user API-key table, bilingual locale keys, and focused frontend contract tests.
+**Upstream compatibility**: Adapts `b244f850e` and its latest-IP column migration to the fork's current Key page and shared icon system.
+**Details**:
+- Keeps name/actions fixed, lets users toggle all other columns, and persists a validated hidden-column list in browser local storage.
+- Hides rate-limit, last-used time, and last-used IP by default. Versioned preference migration hides the newly introduced IP column for existing users without resetting their other choices.
+- Malformed/stale preferences fall back safely; no backend setting, API-key permission, quota/billing value, group display data, or route changes.
+
 ## [2026-07-11] feat: Show each API key's latest usage IP
 
 **Affected files**: API-key repository/service/DTO, user key types/table/i18n, and focused backend/frontend tests.
