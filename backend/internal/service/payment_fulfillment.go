@@ -419,6 +419,9 @@ func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder, lease
 		gidStr := strconv.FormatInt(gid, 10)
 		// Per-group idempotency: skip members already assigned on a prior partial run.
 		if s.hasAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS:"+gidStr) {
+			if err := s.subscriptionSvc.invalidateSubscriptionCaches(o.UserID, gid); err != nil {
+				return fmt.Errorf("invalidate subscription cache for completed group %d: %w", gid, err)
+			}
 			continue
 		}
 		g, err := s.groupRepo.GetByID(ctx, gid)
@@ -437,16 +440,49 @@ func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder, lease
 			})
 			continue
 		}
-		if _, _, err := s.subscriptionSvc.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{UserID: o.UserID, GroupID: gid, ValidityDays: days, AssignedBy: 0, Notes: orderNote}); err != nil {
-			return fmt.Errorf("assign subscription (group %d): %w", gid, err)
+		if err := s.assignPaymentSubscriptionGroup(ctx, o, gid, days, orderNote, gidStr); err != nil {
+			return err
 		}
-		s.writeAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS:"+gidStr, "system", map[string]any{
-			"groupID":      gid,
-			"validityDays": days,
-		})
 	}
 
 	return s.markCompleted(ctx, o, lease, "SUBSCRIPTION_SUCCESS")
+}
+
+func (s *PaymentService) assignPaymentSubscriptionGroup(ctx context.Context, o *dbent.PaymentOrder, groupID int64, days int, orderNote, groupIDString string) error {
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin subscription assignment tx (group %d): %w", groupID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	if _, _, err := s.subscriptionSvc.assignOrExtendSubscription(txCtx, &AssignSubscriptionInput{
+		UserID:       o.UserID,
+		GroupID:      groupID,
+		ValidityDays: days,
+		AssignedBy:   0,
+		Notes:        orderNote,
+	}, true); err != nil {
+		return fmt.Errorf("assign subscription (group %d): %w", groupID, err)
+	}
+
+	detail, _ := json.Marshal(map[string]any{"groupID": groupID, "validityDays": days})
+	if _, err := tx.Client().PaymentAuditLog.Create().
+		SetOrderID(strconv.FormatInt(o.ID, 10)).
+		SetAction("SUBSCRIPTION_SUCCESS:" + groupIDString).
+		SetDetail(string(detail)).
+		SetOperator("system").
+		Save(txCtx); err != nil {
+		return fmt.Errorf("record subscription assignment audit (group %d): %w", groupID, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit subscription assignment tx (group %d): %w", groupID, err)
+	}
+	if err := s.subscriptionSvc.invalidateSubscriptionCaches(o.UserID, groupID); err != nil {
+		return fmt.Errorf("invalidate subscription cache after fulfillment (group %d): %w", groupID, err)
+	}
+	return nil
 }
 
 func (s *PaymentService) hasAuditLog(ctx context.Context, orderID int64, action string) bool {

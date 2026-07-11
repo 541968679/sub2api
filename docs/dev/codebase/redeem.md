@@ -39,6 +39,12 @@
 - Invitation codes still redeem through the auth/register paths that call `RedeemCodeRepository.Use`; the batch limit is intended for normal user redemption through `RedeemService.Redeem`.
 - `POST /api/v1/admin/redeem-codes/batch-update` can change status, expiration, notes, and group assignment. It deliberately cannot change code type or value.
 - Invitation eligibility is validated before the transaction starts so a rejected invitation does not consume the code.
+- Negative balance and concurrency codes use repository-level atomic
+  `GREATEST(current + delta, 0)` updates. Do not restore the old read-clamp-write
+  sequence: two concurrent adjustments could otherwise overwrite each other's
+  floor calculation.
+- Positive subscription redemption assigns inside the redeem transaction, but
+  subscription L1/Redis invalidation is deferred until that transaction commits.
 
 ## Known Pitfalls
 
@@ -46,3 +52,6 @@
 - Do not remove the database unique index and rely only on the service precheck; per-code locks do not serialize two different codes in the same batch.
 - Ent schema changes require `go generate ./ent` and an additive SQL migration.
 - Do not remove the payment fulfillment context marker: doing so credits affiliate quota twice for payment-generated balance codes.
+- Ordinary gateway `DeductBalance` intentionally has separate semantics. The
+  redeem floor helper must not be reused to change stored billing, Batch Image
+  reserve/capture/release, or user-platform quota accounting.

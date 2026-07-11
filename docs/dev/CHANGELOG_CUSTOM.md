@@ -4537,3 +4537,26 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added admin affiliate invite/rebate/transfer records, exact payment-order audit linkage, transfer snapshots, and matured frozen quota in overview. The additive schema change is migration `185`.
 - Added opt-in subscription USD-to-CNY conversion with a default-off compatibility lock and admin plan charge preview.
 - Rejected upstream distribution deletion and retained the fork-local RMB wallet, ledger, assets, API-key lifecycle, routes, UI, and settings. Retained bundle `member_group_ids`, per-group fulfillment idempotency, local `CreditAmount`, first-recharge bonuses, and forced WeChat Native QR fallback.
+
+## [2026-07-11] fix: Harden redeem, subscription-window, and fulfillment concurrency
+
+**Affected files**: `backend/internal/repository/{user_repo,user_subscription_repo}.go`, `backend/internal/service/{redeem_service,subscription_service,user_subscription_port,payment_fulfillment}.go`, API-key middleware and focused tests; `docs/dev/{UPSTREAM_SYNC,CHANGELOG_CUSTOM}.md`, `docs/dev/codebase/{redeem,payment}.md`
+
+**Compatibility**: Targeted manual adaptation of upstream `fc66a30ff`. It does
+not replace fork-local payment bundles, affiliate handling, billing/display
+transforms, media frozen-balance settlement, or platform quotas.
+
+**Details**:
+- Negative balance/concurrency redemption now applies an atomic database floor
+  at zero instead of reading and clamping stale user values in memory.
+- Expired subscription windows use compare-and-set on the observed window start.
+  API-key middleware completes maintenance synchronously, reloads the database
+  snapshot, and rechecks limits before authorizing the request.
+- Payment bundle member assignment and its per-group audit commit in one outer
+  transaction; L1/Redis cache invalidation occurs after commit and is retried
+  for already-audited groups. Subscription redemption uses the same deferred
+  post-commit cache rule.
+- Existing stale fulfillment lease/takeover behavior was audited and left
+  unchanged because it was already present from the earlier alignment batch.
+- Verified focused RED/GREEN regressions, all backend unit tests, and targeted
+  race tests. No frontend, migration, generated Ent, push, or deployment change.

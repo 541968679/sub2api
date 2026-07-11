@@ -992,3 +992,30 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Adopted subscription USD-to-CNY conversion only as a default-off opt-in. Existing local plans and distribution subscription costs retain their current numeric semantics unless an administrator explicitly enables the rate.
 - Rejected upstream distribution deletion. The fork-local distribution wallet/assets/API-key implementation and both admin/user frontends remain authoritative.
 - Preserved local bundle subscriptions, `CreditAmount`, first-recharge rewards, WeChat Native QR override, curated model/billing/display-token behavior, Claude-GPT bridge, image generation, account scheduling/failover, and unrelated settings/routes/i18n.
+
+### 2026-07-11 - Billing concurrency follow-up from `fc66a30ff`
+
+- **Branch**: `codex/upstream-billing-concurrency-20260711`
+- **Local baseline**: `737bc8a85`
+- **Strategy**: TDD-first selective port. The upstream commit was audited field
+  by field and was not cherry-picked or merged wholesale.
+- Ported atomic floor updates for negative balance/concurrency redeem codes,
+  conditional subscription window resets with a fresh database reload and
+  second limit check, and post-commit subscription cache invalidation for
+  payment fulfillment and subscription redemption.
+- Adapted payment handling to the fork-local bundle contract: each member keeps
+  its `SUBSCRIPTION_SUCCESS:<gid>` audit and partial-retry behavior, while its
+  entitlement and audit now commit together before cache invalidation.
+- **Already present / not reapplied**: five-minute stale fulfillment lease,
+  takeover/version checks, and balance replay protection were already merged in
+  the prior payment batch and remain covered by existing tests.
+- **Not applicable**: upstream frontend feature-access changes, broader
+  subscription restore/idempotency rewrites, single-group payment fulfillment,
+  and unrelated auth/payment refactors. These would replace fork-local bundle,
+  routes, settings, or frontend behavior without being required for the three
+  concurrency fixes.
+- Preserved Batch Image and Grok media reservation/capture/release, stored
+  `actual_cost`, display/cache-read invariants, user-platform quota attribution,
+  affiliate single-credit markers, curated model lists, Claude-GPT bridge, and
+  account scheduling/failover.
+- **Pushed/deployed**: no.

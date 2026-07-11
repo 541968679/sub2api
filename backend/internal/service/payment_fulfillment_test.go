@@ -9,8 +9,11 @@ import (
 	"testing"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/dgraph-io/ristretto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type paymentFulfillmentTestProvider struct {
@@ -187,6 +190,38 @@ func TestResolveRedeemAction_IsUsedCanUseConsistency(t *testing.T) {
 	assert.False(t, unusedCode.IsUsed())
 	assert.True(t, unusedCode.CanUse())
 	assert.Equal(t, redeemActionRedeem, resolveRedeemAction(unusedCode, nil))
+}
+
+func TestAssignPaymentSubscriptionGroupCommitsAuditBeforeCacheInvalidation(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	groupRepo := &subscriptionGroupRepoStub{
+		group: &Group{ID: 7, Status: payment.EntityStatusActive, SubscriptionType: SubscriptionTypeSubscription},
+	}
+	subRepo := newSubscriptionUserSubRepoStub()
+	cache, err := ristretto.NewCache(&ristretto.Config{NumCounters: 1_000, MaxCost: 100, BufferItems: 64})
+	require.NoError(t, err)
+	t.Cleanup(cache.Close)
+
+	subscriptionSvc := NewSubscriptionService(groupRepo, subRepo, nil, client, nil)
+	subscriptionSvc.subCacheL1 = cache
+	key := subCacheKey(10, 7)
+	require.True(t, cache.Set(key, &UserSubscription{ID: 99}, 1))
+	cache.Wait()
+
+	svc := &PaymentService{entClient: client, subscriptionSvc: subscriptionSvc}
+	order := &dbent.PaymentOrder{ID: 42, UserID: 10}
+	require.NoError(t, svc.assignPaymentSubscriptionGroup(ctx, order, 7, 30, "payment order 42", "7"))
+
+	_, cached := cache.Get(key)
+	require.False(t, cached)
+	auditCount, err := client.PaymentAuditLog.Query().
+		Where(paymentauditlog.OrderIDEQ("42"), paymentauditlog.ActionEQ("SUBSCRIPTION_SUCCESS:7")).
+		Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, auditCount)
+	_, err = subRepo.GetByUserIDAndGroupID(ctx, 10, 7)
+	require.NoError(t, err)
 }
 
 func TestExpectedNotificationProviderKeyPrefersOrderInstanceProvider(t *testing.T) {

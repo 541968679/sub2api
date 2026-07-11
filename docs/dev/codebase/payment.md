@@ -62,6 +62,7 @@ PaymentView
 - 有效成员集 = `unique(group_id ∪ member_group_ids)`，`group_id` 为主/代表组。helper `service.PlanMemberGroupIDs(plan)`（`payment_config_plans.go`）。
 - 下单：`createOrderInTx`（`payment_order.go`）把成员集快照到订单（冻结，避免下单后改套餐影响履约）。
 - 履约：`doSub`（`payment_fulfillment.go`）逐组扇出，逐组幂等审计 `SUBSCRIPTION_SUCCESS:<gid>`，死的非主成员写 `SUBSCRIPTION_MEMBER_SKIPPED:<gid>` 跳过；全部成员成功后才写无后缀 `SUBSCRIPTION_SUCCESS` 触发 `markCompleted`。复用现有 `SubscriptionService.AssignOrExtendSubscription`（按 `(user,group)` 幂等）。
+- 每个成员组的订阅赋权与 `SUBSCRIPTION_SUCCESS:<gid>` 审计在同一外层事务内提交；订阅 L1/Redis 缓存只在提交成功后同步失效。若失效失败后重试，已审计分组仍会再次执行缓存失效，不会重复续期。
 - 校验：管理端 `CreatePlan/UpdatePlan` 的 `member_group_ids` 经 `normalizeMemberGroupIDs` 规范化（丢 ≤0、去重、移除主组、必须是存在的订阅型分组、上限 10）。
 - 对外展示：`GetPlans`/`GetCheckoutInfo`（`handler/payment_handler.go`）暴露 `member_group_ids` + `member_groups`（每成员的 platform/name/limits/scopes）。前端 `SubscriptionPlanCard.vue` 当 `member_groups.length>1` 渲染"包含"区块，管理端 `PlanEditDialog.vue` 多选附加组。
 - **退款未适配**：`payment_refund.go` 仅回滚主组（本部署未启用退款）。若启用，需对混合单做按组逐个回滚或禁止自助退款。
@@ -84,3 +85,7 @@ PaymentView
 - EasyPay supports administrator-defined payment methods in addition to exact built-in method names. Provider response sanitization is limited to fields that may contain transport NUL bytes and never mutates secrets.
 - `subscription_usd_to_cny_rate` is an explicit opt-in. The default `0` preserves this fork's existing plan-price-as-charge behavior. When enabled, only CNY gateway charges use `plan price * rate`; stored plan price, bundle membership, subscription quota, distribution subscription-code cost, and balance recharge multiplier are unchanged.
 - Bundle invariants remain protected: `member_group_ids` is snapshotted onto the order, fulfillment writes one `SUBSCRIPTION_SUCCESS:<gid>` audit per member, and only the aggregate success completes the order.
+- Subscription usage-window maintenance is synchronous on API-key auth when a
+  reset is due. Automatic resets compare the previously observed window start
+  before clearing usage, then reload and revalidate the committed subscription;
+  a stale CAS loser cannot authorize from a locally zeroed snapshot.

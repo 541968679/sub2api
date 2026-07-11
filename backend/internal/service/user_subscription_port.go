@@ -34,3 +34,9 @@ type UserSubscriptionRepository interface {
 
 	BatchUpdateExpiredStatus(ctx context.Context) (int64, error)
 }
+
+type UserSubscriptionWindowCASRepository interface {
+	ResetDailyUsageCAS(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error
+	ResetWeeklyUsageCAS(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error
+	ResetMonthlyUsageCAS(ctx context.Context, id int64, expectedWindowStart *time.Time, newWindowStart time.Time) error
+}
