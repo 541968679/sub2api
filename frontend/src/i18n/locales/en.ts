@@ -1126,7 +1126,6 @@ const enBase = {
     noDataToExport: 'No data to export',
     exportSuccess: 'Usage data exported successfully',
     exportFailed: 'Failed to export usage data',
-    exportCsv: 'Export CSV',
     exportExcelSuccess: 'Usage data exported successfully (Excel format)',
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',

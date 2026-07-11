@@ -18,12 +18,13 @@ describe('buildUserUsageCsvBytes', () => {
   it('escapes CSV delimiters and spreadsheet formulas', () => {
     const bytes = buildUserUsageCsvBytes(
       ['Model', 'Endpoint'],
-      [['=cmd|test', '/v1/messages,stream']],
+      [['=cmd|test', '/v1/messages,stream'], [-1, 'normal']],
     )
     const csv = new TextDecoder().decode(bytes.slice(3))
 
     expect(csv).toContain("'=cmd|test")
     expect(csv).toContain('"/v1/messages,stream"')
+    expect(csv).toContain('\r\n-1,normal')
     expect(csv).not.toContain('Actual Cost')
     expect(csv).not.toContain('Account Cost')
   })

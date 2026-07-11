@@ -771,7 +771,7 @@ const exportToCSV = async () => {
       getRequestTypeLabel(row),
       getBillingModeLabel(row.billing_mode, t),
       row.input_tokens,
-      row.output_tokens,
+      textOutputTokens(row),
       row.image_output_tokens || 0,
       row.cache_creation_tokens,
       row.cache_read_tokens,

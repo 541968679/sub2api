@@ -2,7 +2,7 @@ export type CsvCell = string | number | boolean | null | undefined
 
 const escapeCsvCell = (value: CsvCell): string => {
   let text = value == null ? '' : String(value)
-  if (/^[=+\-@]/.test(text)) text = `'${text}`
+  if (typeof value === 'string' && /^[\t ]*[=+\-@]/.test(text)) text = `'${text}`
   if (/[",\r\n]/.test(text)) text = `"${text.replace(/"/g, '""')}"`
   return text
 }

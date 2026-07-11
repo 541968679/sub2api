@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
+const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravityStats, getAntigravityCreditCurve } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -14,7 +14,10 @@ const { list, getStats, getSnapshotV2, getById } = vi.hoisted(() => {
     list: vi.fn(),
     getStats: vi.fn(),
     getSnapshotV2: vi.fn(),
+    getModelStats: vi.fn(),
     getById: vi.fn(),
+    getAntigravityStats: vi.fn(),
+    getAntigravityCreditCurve: vi.fn(),
   }
 })
 
@@ -40,6 +43,7 @@ vi.mock('@/api/admin', () => ({
     },
     dashboard: {
       getSnapshotV2,
+      getModelStats,
     },
     users: {
       getById,
@@ -50,6 +54,8 @@ vi.mock('@/api/admin', () => ({
 vi.mock('@/api/admin/usage', () => ({
   adminUsageAPI: {
     list: vi.fn(),
+    getAntigravityStats,
+    getAntigravityCreditCurve,
   },
 }))
 
@@ -116,7 +122,10 @@ describe('admin UsageView distribution metric toggles', () => {
     list.mockReset()
     getStats.mockReset()
     getSnapshotV2.mockReset()
+    getModelStats.mockReset()
     getById.mockReset()
+    getAntigravityStats.mockReset()
+    getAntigravityCreditCurve.mockReset()
 
     list.mockResolvedValue({
       items: [],
@@ -138,6 +147,9 @@ describe('admin UsageView distribution metric toggles', () => {
       models: [],
       groups: [],
     })
+    getModelStats.mockResolvedValue({ models: [] })
+    getAntigravityStats.mockResolvedValue(null)
+    getAntigravityCreditCurve.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -206,6 +218,9 @@ describe('admin UsageView ranking drilldown', () => {
     list.mockReset()
     getStats.mockReset()
     getSnapshotV2.mockReset()
+    getModelStats.mockReset()
+    getAntigravityStats.mockReset()
+    getAntigravityCreditCurve.mockReset()
     list.mockResolvedValue({ items: [], total: 0, pages: 0 })
     getStats.mockResolvedValue({
       total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
@@ -213,6 +228,9 @@ describe('admin UsageView ranking drilldown', () => {
       total_actual_cost: 0, average_duration_ms: 0,
     })
     getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+    getModelStats.mockResolvedValue({ models: [] })
+    getAntigravityStats.mockResolvedValue(null)
+    getAntigravityCreditCurve.mockResolvedValue(null)
   })
 
   afterEach(() => {

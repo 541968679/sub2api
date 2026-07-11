@@ -155,6 +155,19 @@ func TestGetUserBreakdown_ForwardsRankingSort(t *testing.T) {
 	require.Equal(t, "cache_read_tokens", repo.capturedDim.SortBy)
 }
 
+func TestGetUserBreakdown_ForwardsBillingMode(t *testing.T) {
+	repo := &userBreakdownRepoCapture{}
+	router := newUserBreakdownRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet,
+		"/admin/dashboard/user-breakdown?start_date=2026-03-01&end_date=2026-03-16&billing_mode=image", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Equal(t, "image", repo.capturedDim.BillingMode)
+}
+
 func TestGetUserBreakdown_LimitClamped(t *testing.T) {
 	repo := &userBreakdownRepoCapture{}
 	router := newUserBreakdownRouter(repo)

@@ -3717,6 +3717,10 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 		query += fmt.Sprintf(" AND ul.billing_type = $%d", len(args)+1)
 		args = append(args, *dim.BillingType)
 	}
+	if dim.BillingMode != "" {
+		query += fmt.Sprintf(" AND ul.billing_mode = $%d", len(args)+1)
+		args = append(args, dim.BillingMode)
+	}
 
 	orderBy := "actual_cost"
 	switch dim.SortBy {

@@ -56,6 +56,7 @@ export interface TrendParams {
   request_type?: UsageRequestType
   stream?: boolean
   billing_type?: number | null
+  billing_mode?: string
 }
 
 export interface TrendResponse {

@@ -62,3 +62,22 @@ func TestGetUserBreakdownStatsRejectsRawSortExpression(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestGetUserBreakdownStatsFiltersBillingMode(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := newUsageLogRepositoryWithSQL(nil, db)
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery(`(?s)WHERE ul\.created_at >= \$1 AND ul\.created_at < \$2.*AND ul\.billing_mode = \$3.*ORDER BY actual_cost DESC`).
+		WithArgs(start, end, "image").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"user_id", "email", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost", "account_cost",
+		}))
+
+	_, err := repo.GetUserBreakdownStats(context.Background(), start, end, usagestats.UserBreakdownDimension{BillingMode: "image"}, 0)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}

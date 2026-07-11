@@ -223,6 +223,8 @@ const breakdownFilters = computed(() => {
   if (filters.value.group_id) f.group_id = filters.value.group_id
   if (filters.value.request_type != null) f.request_type = filters.value.request_type
   if (filters.value.billing_type != null) f.billing_type = filters.value.billing_type
+  if (filters.value.billing_mode) f.billing_mode = filters.value.billing_mode
+  f.model_source = 'requested'
   return f
 })
 

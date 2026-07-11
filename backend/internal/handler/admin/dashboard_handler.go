@@ -782,6 +782,7 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 			dim.BillingType = &btVal
 		}
 	}
+	dim.BillingMode = strings.TrimSpace(c.Query("billing_mode"))
 	dim.SortBy = strings.TrimSpace(c.Query("sort_by"))
 
 	limit := 50
