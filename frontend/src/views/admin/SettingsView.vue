@@ -4584,6 +4584,47 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.features.riskControl.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.features.riskControl.description') }}
+            </p>
+          </div>
+          <div class="space-y-5 p-6">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.riskControl.enabled') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.riskControl.enabledHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.risk_control_enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.features.riskControl.cyberSessionBlock') }}
+                </label>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.features.riskControl.cyberSessionBlockHint') }}
+                </p>
+              </div>
+              <Toggle v-model="form.cyber_session_block_enabled" />
+            </div>
+            <div v-if="form.cyber_session_block_enabled">
+              <label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t('admin.settings.features.riskControl.cyberSessionBlockTTL') }}
+              </label>
+              <input v-model.number="form.cyber_session_block_ttl_seconds" class="input max-w-xs" type="number" min="1" />
+            </div>
+          </div>
+        </div>
+
         <!-- Affiliate (邀请返利) feature card -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -6300,6 +6341,9 @@ const form = reactive<SettingsForm>({
   // Available Channels feature switch
   available_channels_enabled: false,
   allow_user_view_error_requests: false,
+  risk_control_enabled: false,
+  cyber_session_block_enabled: false,
+  cyber_session_block_ttl_seconds: 3600,
   // Affiliate (邀请返利) feature switch
   affiliate_enabled: false,
 });
@@ -7309,6 +7353,9 @@ async function saveSettings() {
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
       allow_user_view_error_requests: form.allow_user_view_error_requests,
+      risk_control_enabled: form.risk_control_enabled,
+      cyber_session_block_enabled: form.cyber_session_block_enabled,
+      cyber_session_block_ttl_seconds: Number(form.cyber_session_block_ttl_seconds) || 3600,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
     };

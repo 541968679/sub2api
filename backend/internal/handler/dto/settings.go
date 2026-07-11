@@ -212,6 +212,13 @@ type SystemSettings struct {
 	AvailableChannelsEnabled   bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 
+	// 风控中心功能开关
+	RiskControlEnabled bool `json:"risk_control_enabled"`
+
+	// cyber 会话屏蔽开关 + TTL
+	CyberSessionBlockEnabled    bool `json:"cyber_session_block_enabled"`
+	CyberSessionBlockTTLSeconds int  `json:"cyber_session_block_ttl_seconds"`
+
 	// Affiliate (邀请返利) feature switch
 	AffiliateEnabled bool `json:"affiliate_enabled"`
 
@@ -296,6 +303,8 @@ type PublicSettings struct {
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 
 	AffiliateEnabled bool `json:"affiliate_enabled"`
+
+	RiskControlEnabled bool `json:"risk_control_enabled"`
 }
 
 type LoginPageContent struct {

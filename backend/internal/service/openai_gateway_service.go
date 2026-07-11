@@ -3392,6 +3392,15 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 	}
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
+	if hit, code, message := detectOpenAICyberPolicy(body); hit {
+		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		c.Data(resp.StatusCode, contentType, body)
+		return errOpenAICyberPolicyForwarded
+	}
 	if s.rateLimitService != nil {
 		_ = s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
 	}
@@ -3768,12 +3777,19 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			eventType := strings.TrimSpace(gjson.Get(trimmedData, "type").String())
 			if eventType == "response.failed" {
 				failedMessage = extractOpenAISSEErrorMessage(dataBytes)
-				if !openAIStreamClientOutputStarted(c, clientOutputStarted) && openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
-					return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
-						s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
+				if hit, code, message := detectOpenAICyberPolicy(dataBytes); hit {
+					s.parseSSEUsageBytes(dataBytes, usage)
+					MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(dataBytes), 4096), UpstreamStatus: http.StatusOK, UpstreamInTok: usage.InputTokens, UpstreamOutTok: usage.OutputTokens})
+					forceFlushFailedEvent = true
+					sawFailedEvent = true
+				} else {
+					if !openAIStreamClientOutputStarted(c, clientOutputStarted) && openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
+						return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+							s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
+					}
+					forceFlushFailedEvent = true
+					sawFailedEvent = true
 				}
-				forceFlushFailedEvent = true
-				sawFailedEvent = true
 			}
 			if trimmedData == "[DONE]" {
 				sawDone = true
@@ -4165,6 +4181,15 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	}
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
+	if hit, code, message := detectOpenAICyberPolicy(body); hit {
+		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/json"
+		}
+		c.Data(resp.StatusCode, contentType, body)
+		return nil, errOpenAICyberPolicyForwarded
+	}
 
 	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
 		logger.LegacyPrintf("service.openai_gateway",
@@ -4359,6 +4384,11 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		upstreamDetail = truncateString(string(body), maxBytes)
 	}
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
+	if hit, code, message := detectOpenAICyberPolicy(body); hit {
+		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
+		writeError(c, resp.StatusCode, "invalid_request_error", message)
+		return nil, errOpenAICyberPolicyForwarded
+	}
 
 	// Apply error passthrough rules
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
@@ -4654,13 +4684,20 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			forceFlushFailedEvent := false
 			if eventType == "response.failed" {
 				failedMessage = extractOpenAISSEErrorMessage(dataBytes)
-				if !openAIStreamClientOutputStarted(c, clientOutputStarted) && openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
+				if hit, code, message := detectOpenAICyberPolicy(dataBytes); hit {
+					s.parseSSEUsageBytes(dataBytes, usage)
+					MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(dataBytes), 4096), UpstreamStatus: http.StatusOK, UpstreamInTok: usage.InputTokens, UpstreamOutTok: usage.OutputTokens})
+					forceFlushFailedEvent = true
 					sawFailedEvent = true
-					streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, upstreamRequestID, dataBytes, failedMessage)
-					return
+				} else {
+					if !openAIStreamClientOutputStarted(c, clientOutputStarted) && openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
+						sawFailedEvent = true
+						streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, upstreamRequestID, dataBytes, failedMessage)
+						return
+					}
+					forceFlushFailedEvent = true
+					sawFailedEvent = true
 				}
-				forceFlushFailedEvent = true
-				sawFailedEvent = true
 			}
 
 			// Correct Codex tool calls if needed (apply_patch -> edit, etc.)
@@ -5812,6 +5849,7 @@ type OpenAIRecordUsageInput struct {
 	IPAddress          string // 请求的客户端 IP 地址
 	RequestPayloadHash string
 	APIKeyService      APIKeyQuotaUpdater
+	CyberBlocked       bool
 	ChannelUsageFields
 }
 
@@ -5941,6 +5979,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageCount:          result.ImageCount,
 		ImageSize:           normalizedImageBillingSizePtr(result.ImageCount, result.ImageSize),
 		ImageQuality:        optionalTrimmedStringPtr(result.ImageQuality),
+	}
+	if input.CyberBlocked {
+		usageLog.RequestType = RequestTypeCyberBlocked
 	}
 	if cost != nil {
 		usageLog.InputCost = cost.InputCost

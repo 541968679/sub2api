@@ -375,6 +375,7 @@ export interface PublicSettings {
   available_channels_enabled: boolean
   allow_user_view_error_requests: boolean
   affiliate_enabled: boolean
+  risk_control_enabled: boolean
 }
 
 export interface AuthResponse {
@@ -1324,7 +1325,7 @@ export interface AdminDataImportResult {
 // ==================== Usage & Redeem Types ====================
 
 export type RedeemCodeType = 'balance' | 'concurrency' | 'subscription' | 'invitation'
-export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
+export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 
 export interface UsageLog {
   id: number

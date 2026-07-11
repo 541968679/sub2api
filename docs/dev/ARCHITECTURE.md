@@ -115,7 +115,7 @@ repository.* (Ent queries / raw SQL / Redis)
 response.Success / response.ErrorFrom (unified envelope)
 ```
 
-**网关路径** 走特殊流程（不同于普通 CRUD）：`handler/gateway_handler.go` → `service/gateway_service.go` → 账号调度器 + HTTPUpstream → 直接流式返回给客户端。详见 `codebase/gateway.md`（TBD）。
+**网关路径** 走特殊流程（不同于普通 CRUD）：`handler/gateway_handler.go` → 前置内容审核 → `service/gateway_service.go` → 账号调度器 + HTTPUpstream → 直接流式返回给客户端。前置审核必须早于计费资格、并发槽位与账号调度；本地阻断不得扣费。上游 `cyber_policy` 硬阻断不得切换账号重试，只记录真实上游用量并可按会话 TTL 隔离。详见 `codebase/gateway.md` 与 `codebase/risk-control.md`。
 
 ### 3.2 依赖注入（Wire）
 

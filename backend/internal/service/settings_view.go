@@ -111,6 +111,9 @@ type SystemSettings struct {
 
 	DefaultConcurrency           int
 	DefaultBalance               float64
+	RiskControlEnabled           bool
+	CyberSessionBlockEnabled     bool
+	CyberSessionBlockTTLSeconds  int
 	AffiliateEnabled             bool
 	AffiliateRebateRate          float64
 	AffiliateRebateFreezeHours   int
@@ -254,6 +257,9 @@ type PublicSettings struct {
 
 	// Affiliate (邀请返利) feature toggle
 	AffiliateEnabled bool `json:"affiliate_enabled"`
+
+	// 风控中心功能开关
+	RiskControlEnabled bool `json:"risk_control_enabled"`
 }
 
 type LegalConsentSettings struct {

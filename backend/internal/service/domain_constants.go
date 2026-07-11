@@ -149,6 +149,10 @@ const (
 	SettingKeyDistributionRMBPerUSD            = "distribution_rmb_per_usd"            // 分销生成余额兑换码/API Key 时每 1 USD 面值扣除的 RMB
 	SettingKeyDistributionSubscriptionDiscount = "distribution_subscription_discount"  // 分销生成订阅兑换码时按 RMB 面值扣款的折扣比例
 	SettingKeyDistributionAPIKeyGroupIDs       = "distribution_api_key_group_ids"      // 暴露给分销代理生成 API Key 的分组 ID（JSON 数组）
+	SettingKeyRiskControlEnabled               = "risk_control_enabled"                // 是否启用风控中心入口与审计链路
+	SettingKeyContentModerationConfig          = "content_moderation_config"           // 内容审计配置（JSON）
+	SettingKeyCyberSessionBlockEnabled         = "cyber_session_block_enabled"         // cyber 命中后会话级自动屏蔽总开关
+	SettingKeyCyberSessionBlockTTLSeconds      = "cyber_session_block_ttl_seconds"     // cyber 会话级屏蔽 TTL（秒）
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址
