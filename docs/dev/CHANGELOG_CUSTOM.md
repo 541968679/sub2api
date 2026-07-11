@@ -4795,3 +4795,14 @@ route, setting, push, or deployment change.
 - The expensive sort is capped at 10,000 filtered keys; larger sets receive a typed bad request instead of unbounded Ent/Redis/memory work.
 - Latest-use IP enrichment runs only for the final page after sorting, preserving the fork's IP column without querying usage logs for the whole candidate set.
 - Existing search/status/group filters, column preferences, quotas, auth cache, concurrency admission, billing/display/cache-read behavior, and normal database sorts are unchanged.
+
+## [2026-07-11] feat: Improve sidebar home navigation and scroll continuity
+
+**Affected files**: shared app sidebar, app UI store, and focused frontend contract tests.
+
+**Compatibility**: Low-risk adaptation of upstream `20008264f` and `c7e44a83a`; no route definitions or public-setting contracts changed.
+
+**Details**:
+- The sanitized custom/default logo and site name now link admins to `/admin/dashboard` and regular users to `/dashboard`, while preserving mobile menu close behavior.
+- The actual sidebar navigation container saves its in-memory scroll offset before unmount and restores it after remount, without persisting account data or changing public-settings caching.
+- Existing custom SVG colors, sanitized logo URLs, nested menu expansion, feature flags, i18n menu labels, and route guards remain unchanged.

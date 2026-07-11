@@ -1116,6 +1116,14 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Preserved fork-local group platform settings, curated/default models, Batch Image controls, Claude-GPT bridge configuration, rate multipliers, scheduling/failover, and bilingual i18n.
 - Pushed/deployed: no.
 
+### 2026-07-11 - Sidebar home and scroll continuity
+
+- Adapted `20008264f` and `c7e44a83a` onto the fork's feature-flagged, custom-SVG sidebar.
+- Brand links select the role-appropriate existing dashboard; the navigation scroll container restores an in-memory offset after route remounts.
+- Preserved public logo URL sanitization, custom menu icons/colors, route guards, settings cache, and mobile close behavior.
+- Verification: sidebar layout/state and public-setting URL tests passed; affected ESLint and frontend typecheck passed. The broader static i18n coverage test exposed ten pre-existing keys from earlier alignment batches and is tracked separately.
+- Pushed/deployed: no.
+
 ### 2026-07-11 - HTTP response.failed and HTTP-200 SSE Ops alignment
 
 - **Branch**: `codex/upstream-response-failed-ops-20260711`

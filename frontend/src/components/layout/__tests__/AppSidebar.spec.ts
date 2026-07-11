@@ -30,3 +30,16 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar navigation state', () => {
+  it('routes the brand to the role-specific home', () => {
+    expect(componentSource).toContain(':to="homePath"')
+    expect(componentSource).toContain("isAdmin.value ? '/admin/dashboard' : '/dashboard'")
+  })
+
+  it('restores and saves the navigation scroll container', () => {
+    expect(componentSource).toContain('ref="sidebarNavRef"')
+    expect(componentSource).toContain('sidebarNavRef.value.scrollTop = appStore.sidebarScrollTop')
+    expect(componentSource).toContain('appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop')
+  })
+})
