@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Harden Codex WebSocket scheduling and add quota-headroom scoring
+
+**Affected files**: OpenAI account scheduler/config, Responses WebSocket handler, tool-continuation analysis, WebSocket disconnect classification, focused tests, deployment example, and gateway/sync documentation
+**Upstream compatibility**: Selective port from `0fd2e9216`, `a2cf297d9`, and `0a5f34a2`; the fork's existing scheduler, platform isolation, bridge eligibility, Images capability gates, and billing paths were extended instead of replaced.
+**Details**:
+- Made `previousResponseCanMove` an explicit scheduler input and only allows cross-account migration when every tool-output `call_id` is reconstructable from in-band call context or `item_reference` data.
+- Added opt-in `quota_headroom` scheduler weight backed by existing Codex quota snapshots. The default is zero, stale/missing snapshots are neutral, and near-exhausted short windows are penalized.
+- Treats Windows `wsarecv: ... forcibly closed by the remote host` errors as normal client disconnects in both ingress and passthrough relay paths.
+- Preserved Grok/OpenAI platform isolation, Claude-GPT bridge-only eligibility, OpenAI Images native/basic fallback, platform quota accounting, Ops context, stored billing, display-token transforms, and cache-token invariants.
+- Audited but did not fold the independent OpenAI PAT authentication (`32df33a1c`) or Codex engine-fingerprint control plane (`819fda34d`, `4b321142b`) into this scheduler/WS batch; both require separate API/settings/frontend reconciliation.
+
 ## [2026-07-11] feat: Complete Grok image and video gateway billing loop
 
 **Affected files**: Grok media handler/routes, group and usage Ent schemas/generated code, group/auth-cache/repository mappings, media billing and usage persistence, migration `181_grok_media_billing.sql`, focused tests and gateway documentation

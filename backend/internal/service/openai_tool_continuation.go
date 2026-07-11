@@ -24,6 +24,66 @@ type FunctionCallOutputValidation struct {
 	HasItemReferenceForAllCallIDs      bool
 }
 
+// ToolCallOutputContextCoverage describes whether every tool output in a
+// Responses input can be reconstructed without the upstream response chain.
+type ToolCallOutputContextCoverage struct {
+	HasFunctionCallOutput   bool
+	ContextCoversAllCallIDs bool
+}
+
+// AnalyzeToolCallOutputContextCoverageBytes matches each output call_id with
+// either an in-band tool call context item or an item_reference. A partial
+// match is deliberately not movable across accounts.
+func AnalyzeToolCallOutputContextCoverageBytes(body []byte) ToolCallOutputContextCoverage {
+	coverage := ToolCallOutputContextCoverage{}
+	if len(body) == 0 {
+		return coverage
+	}
+	input := gjson.ParseBytes(body).Get("input")
+	if !input.IsArray() {
+		return coverage
+	}
+
+	missingCallID := false
+	outputCallIDs := make(map[string]struct{})
+	contextIDs := make(map[string]struct{})
+	input.ForEach(func(_, item gjson.Result) bool {
+		if !item.IsObject() {
+			return true
+		}
+		itemType := item.Get("type").String()
+		switch {
+		case isCodexToolCallOutputItemType(itemType):
+			coverage.HasFunctionCallOutput = true
+			callID := strings.TrimSpace(item.Get("call_id").String())
+			if callID == "" {
+				missingCallID = true
+				return true
+			}
+			outputCallIDs[callID] = struct{}{}
+		case isCodexToolCallContextItemType(itemType):
+			if callID := strings.TrimSpace(item.Get("call_id").String()); callID != "" {
+				contextIDs[callID] = struct{}{}
+			}
+		case itemType == "item_reference":
+			if id := strings.TrimSpace(item.Get("id").String()); id != "" {
+				contextIDs[id] = struct{}{}
+			}
+		}
+		return true
+	})
+	if !coverage.HasFunctionCallOutput || missingCallID {
+		return coverage
+	}
+	for callID := range outputCallIDs {
+		if _, ok := contextIDs[callID]; !ok {
+			return coverage
+		}
+	}
+	coverage.ContextCoversAllCallIDs = true
+	return coverage
+}
+
 func isCodexToolCallContextItemType(typ string) bool {
 	switch strings.TrimSpace(typ) {
 	case "tool_call",
