@@ -40,6 +40,19 @@
   follow-up batch.
 - **Pushed/deployed**: no.
 
+### 2026-07-11 - Anthropic OAuth client dateline normalization
+
+- **Branch**: `codex/upstream-anthropic-dateline-20260711`
+- **Local baseline**: `7eea3bae5`
+- **Upstream point**: `59e9356c5`
+- **Strategy**: TDD-first selective adaptation into the fork's existing gateway forwarding Settings KV and Anthropic request pipeline.
+- Canonicalizes the supported apostrophe and date-separator variants only in top-level Anthropic system text and tagged `<system-reminder>` text.
+- Applies only to Anthropic OAuth and Setup Token accounts. API-key accounts, non-Anthropic platforms, OpenAI Claude-GPT bridge accounts, user prose, tool payloads, Images, and Batch Image are excluded.
+- `enable_client_dateline_normalization` defaults to true when missing or when the setting service is unavailable; an explicit false disables it. The nil-setting-service behavior is intentional fail-open compatibility, after account/platform gating.
+- The transform runs once after the existing OAuth/system/cache/model rewrites and before Ops captures the replayable request body, so retries reuse the same normalized bytes. Logs contain only account id, hit count, and variant classes, never prompt text.
+- No migration, public setting, route, scheduler, failover, billing, display-token, real cache-read token, `actual_cost`, curated/default model, distribution, payment, or subscription behavior changed.
+- Verification: RED compile checkpoint, focused package tests, admin settings/API contracts, SettingsView/i18n tests, frontend typecheck, and `git diff --check` passed. No push or deployment.
+
 ### 2026-07-11 - Locale reconciliation after upstream batches
 
 - Added the ten runtime locale paths exposed by the merged account, scheduler,

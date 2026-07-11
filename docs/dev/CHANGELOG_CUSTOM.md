@@ -4899,3 +4899,16 @@ route, setting, push, or deployment change.
 **Details**:
 - Added the missing `github.com/google/subcommands v1.2.0` checksums required by the already pinned Wire `v0.7.0` CLI.
 - Wire now starts and reports the repository's existing handwritten-provider gaps instead of failing before analysis. The checked-in `wire_gen.go` remains unchanged and passes `cmd/server` unit tests and the production-style server build.
+
+## [2026-07-11] feat: Normalize Anthropic OAuth client dateline fingerprints
+
+**Affected files**: Anthropic fingerprint helper, gateway request transform, Settings KV/admin DTO and UI, bilingual locales, API contracts, focused tests, and gateway documentation.
+
+**Compatibility**: Selective adaptation of upstream `59e9356c5`. Default-on and explicitly disableable; no schema or migration.
+
+**Details**:
+- Normalizes four apostrophe variants and slash date separators in the specific `Today's date is YYYY-MM-DD.` system sentence.
+- Message content is scanned only inside `<system-reminder>` tags. User prose, tool input/results, invalid JSON, and mixed separators remain byte-identical.
+- Scope is limited to Anthropic OAuth/Setup Token. API Key, non-Anthropic, OpenAI Claude-GPT bridge, Images, Batch Image, scheduler/failover, billing/display-token accounting, real cache-read quantities, and stored `actual_cost` are unchanged.
+- Added a default-true admin Settings KV toggle with bilingual UI. The setting is not public and adds no route.
+- Verified focused Go packages, admin/API settings contracts, 20 frontend settings/i18n tests, typecheck, and `git diff --check`.
