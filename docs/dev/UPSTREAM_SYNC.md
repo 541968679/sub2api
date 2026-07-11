@@ -18,6 +18,14 @@
   follow-up batch.
 - **Pushed/deployed**: no.
 
+### 2026-07-11 - Configurable initial migration timeout
+
+- Adapted `36d5f4e4c` across setup and the repository's four supported Compose variants.
+- `SETUP_MIGRATION_TIMEOUT_SECONDS` defaults safely to 60 seconds and affects only first-install migration execution.
+- No migration SQL, generated Ent, runtime setting, GHCR image selection, push, deployment, or local service startup changed.
+- Verification: full setup unit package, variable presence across env/Compose files, sync guard, and `git diff --check` passed.
+- Pushed/deployed: no.
+
 ## 当前状态
 
 | 项目 | 值 |

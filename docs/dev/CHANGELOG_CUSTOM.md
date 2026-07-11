@@ -4818,3 +4818,14 @@ route, setting, push, or deployment change.
 - Realtime Ops statistics use a group-filtered lightweight account projection; canceled client/database requests end silently instead of writing a second error response.
 - All-group capacity uses one active-ID query, one schedulable account projection, and batched concurrency/session/RPM reads. Empty groups remain visible and shared accounts contribute independently to each bound group.
 - Capacity SQL preserves current soft-delete, active/schedulable, temporary-pause, expiry auto-pause, overload and rate-limit filters. Spark shadow capacity remains eligible; billing/display/cache-read and scheduler score/failover behavior are unchanged.
+
+## [2026-07-11] feat: Make initial migration timeout configurable
+
+**Affected files**: setup configuration/tests, deploy environment example, and four supported Compose variants.
+
+**Compatibility**: Low-risk adaptation of upstream `36d5f4e4c`; no migration content, runtime config schema, image source, or deployment execution changed.
+
+**Details**:
+- `SETUP_MIGRATION_TIMEOUT_SECONDS` controls only the initial `ApplyMigrations` context. Unset, invalid, zero, or negative values keep the 60-second default.
+- The variable is documented and forwarded by dev, local, standalone, and production Compose files, all while retaining the fork's GHCR production image path.
+- Current migrations including Spark `188/189` and peak-rate `190` are unchanged; no service was started, pushed, or deployed.
