@@ -2,6 +2,23 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
 
+## Anthropic API-Key Upstream Authentication
+
+Anthropic API-key accounts may set
+`extra.anthropic_apikey_auth_scheme=authorization_bearer` for compatible
+upstreams that require `Authorization: Bearer <api_key>`. Missing, invalid,
+OAuth, and non-Anthropic values preserve the historical `x-api-key` default.
+The default is omitted from `extra`, so existing accounts remain unchanged.
+
+`anthropic_apikey_auth.go` is the single resolver and header injector. It
+deletes both possible auth headers before writing exactly one. Account tests,
+model sync, normal and passthrough messages, and both count_tokens paths use it.
+OAuth keeps its existing Bearer token and beta/header policy.
+
+This setting does not change model mapping/fallback, scheduler/failover, Ops,
+Claude-GPT, Images, billing, quota deduction, `actual_cost`, display tokens,
+or cache-read values.
+
 ## OpenAI Spark Shadow Accounts
 
 Spark shadows are linked OpenAI OAuth scheduling records. They own an explicit

@@ -13,6 +13,22 @@
 - **Verification**: RED compile failure proved the missing range parameter; GREEN temporary-repository tests cover committed deletion/migration modification, default uncommitted checks, and invalid revisions. Both default and explicit-base guard commands passed on the alignment branch.
 - **Pushed/deployed**: no.
 
+## 2026-07-11 - Anthropic-compatible API-key Bearer authentication
+
+- **Branch**: `codex/upstream-anthropic-bearer-auth-20260711`
+- **Local baseline**: `e79c6f88a`
+- **Upstream source**: `7869b7fe3`
+- **Strategy**: TDD-first behavior adaptation. One strict helper serves account
+  tests, model sync, normal/passthrough messages, and both count_tokens paths.
+- **Frontend**: create/edit default to `x-api-key`, persist only explicit
+  Bearer, and hydrate/reset the saved value; both locales were updated.
+- **Preserved**: OAuth, billing/display/cache-read/`actual_cost`, Claude-GPT,
+  Images, curated/default models, scheduler/failover, Ops, settings, routes, and
+  migrations.
+- **Verification**: focused backend unit tests; 53 frontend tests; typecheck and
+  whitespace checks.
+- **Pushed/deployed**: no.
+
 ## 2026-07-11 - Usage ranking, latency health, and CSV export adaptation
 
 - **Branch**: `codex/upstream-usage-ranking-ui-20260711`

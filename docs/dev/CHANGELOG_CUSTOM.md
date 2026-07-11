@@ -15,6 +15,24 @@
 - Added real temporary-Git-repository tests for committed protected-path deletion, committed historical-migration modification, default uncommitted checks, and invalid base diagnostics.
 - Verified with `go test ./tools/upstream-sync-guard -count=1`, `go test ./tools/upstream-sync-guard -cover`, default guard execution, `go run ./tools/upstream-sync-guard --base e79c6f88a`, and `git diff --check`.
 
+## [2026-07-11] feat: Support Bearer auth for Anthropic-compatible API-key accounts
+
+**Affected files**: account auth helper/test, gateway request builders, model
+sync, create/edit forms, credentials helper/tests, bilingual locales, and docs.
+
+**Upstream compatibility**: Behavior adaptation of `7869b7fe3`; existing
+accounts remain on `x-api-key` unless Bearer is explicitly selected.
+
+**Details**:
+- One strict helper removes both candidate auth headers before writing exactly
+  one across account test, model sync, messages, passthrough, and count_tokens.
+- Create/edit forms omit the default, hydrate Bearer, and delete it on reset.
+- OAuth and fork-local billing/display/cache-read/`actual_cost`, Claude-GPT,
+  Images, fallback, scheduler/failover, Ops, settings, routes, and migrations
+  remain unchanged.
+- Focused backend tests, 53 frontend tests, typecheck, and whitespace checks
+  passed. No push/deployment.
+
 ## [2026-07-11] feat: Align usage ranking, latency health, and BOM CSV export
 
 **Affected files**: admin user-breakdown handler/repository/types; admin and user usage views; ranking/table components; CSV/latency utilities; bilingual i18n; focused tests; usage documentation.
