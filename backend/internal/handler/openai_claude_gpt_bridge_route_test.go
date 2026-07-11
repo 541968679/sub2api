@@ -50,6 +50,12 @@ func (r *bridgeRouteAccountRepoStub) SetRateLimited(_ context.Context, id int64,
 	return nil
 }
 
+func (r *bridgeRouteAccountRepoStub) ListSchedulableByGroupIDAndPlatform(_ context.Context, _ int64, _ string) ([]service.Account, error) {
+	out := make([]service.Account, len(r.accounts))
+	copy(out, r.accounts)
+	return out, nil
+}
+
 type bridgeRouteSchedulerSpy struct {
 	selectCalls int32
 }
@@ -438,4 +444,75 @@ func TestRespondClaudeGPTBridgeSelectionRace_StreamStartedUsesSSEError(t *testin
 	body := rec.Body.String()
 	require.Contains(t, body, "event: error")
 	require.Contains(t, body, "rate_limit_error")
+}
+
+type bridgeCancelScheduleReport struct {
+	accountID int64
+	success   bool
+}
+
+// bridgeCancelSchedulerSpy 只接管 ReportResult 观测（Select 走真实负载感知路径）。
+type bridgeCancelSchedulerSpy struct {
+	reports []bridgeCancelScheduleReport
+}
+
+func (s *bridgeCancelSchedulerSpy) Select(context.Context, service.OpenAIAccountScheduleRequest) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error) {
+	return nil, service.OpenAIAccountScheduleDecision{}, errors.New("test scheduler select is not used")
+}
+
+func (s *bridgeCancelSchedulerSpy) ReportResult(accountID int64, success bool, _ *int) {
+	s.reports = append(s.reports, bridgeCancelScheduleReport{accountID: accountID, success: success})
+}
+
+func (s *bridgeCancelSchedulerSpy) ReportSwitch() {}
+
+func (s *bridgeCancelSchedulerSpy) SnapshotMetrics() service.OpenAIAccountSchedulerMetricsSnapshot {
+	return service.OpenAIAccountSchedulerMetricsSnapshot{}
+}
+
+// 客户端取消不得给 bridge 账号记失败：一次取消会把最多 maxAccountSwitches+1 个
+// 健康账号的调度评分拉低（规格 6.4 第 7 条）。
+func TestMessagesClaudeGPTBridge_ClientCancelDoesNotRecordAccountFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	repo := &bridgeRouteAccountRepoStub{accounts: []service.Account{newBridgeRouteTestAccount(77)}}
+	scheduler := &bridgeCancelSchedulerSpy{}
+	svc := &service.OpenAIGatewayService{}
+	svc.SetAccountRepoForTest(repo)
+	svc.SetOpenAIAccountSchedulerForTest(scheduler)
+
+	h := &OpenAIGatewayHandler{
+		gatewayService:      svc,
+		billingCacheService: service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}),
+		apiKeyService:       &service.APIKeyService{},
+		concurrencyHelper:   &ConcurrencyHelper{concurrencyService: &service.ConcurrencyService{}},
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	// messages 字段类型故意错误：ForwardAsAnthropic 在触达任何上游依赖前就会
+	// 解析失败，模拟转发中途出错；配合已取消的请求 context 复现客户端断开。
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-opus-4-8","messages":"boom"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.Request = c.Request.WithContext(ctx)
+	c.Set(openAIClaudeGPTBridgeContextKey, true)
+
+	groupID := int64(7)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		ID:      11,
+		GroupID: &groupID,
+		User:    &service.User{ID: 20},
+		Group:   &service.Group{ID: groupID, Platform: service.PlatformAntigravity},
+	})
+	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 20, Concurrency: 0})
+
+	require.NotPanics(t, func() { h.Messages(c) })
+
+	for _, report := range scheduler.reports {
+		require.True(t, report.success,
+			"client cancellation must not record account failure, got failure report for account %d", report.accountID)
+	}
 }

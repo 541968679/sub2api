@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 
 	"github.com/stretchr/testify/require"
 )
@@ -253,6 +254,60 @@ func TestResolveClaudeGPTBridgeRoute_NotConfiguredOnMissingGroupOrModel(t *testi
 // 要求的关键两请求回归：唯一 bridge 账号上游 429 usage_limit_reached 写入限流状态后，
 // 限流窗口内的下一次相同路由请求必须得到 rate_limited 决策（429 语义），
 // 绝不允许被误判为 not_configured 而回落 native Antigravity 池。
+func TestResolveClaudeGPTBridgeRoute_PlatformDefaultMappingIsNotBridgeIntent(t *testing.T) {
+	previous := domain.GetPlatformDefaultMappingOverride
+	t.Cleanup(func() { domain.GetPlatformDefaultMappingOverride = previous })
+	// 管理员为 OpenAI 平台配置的默认映射（含通配符）面向 OpenAI 分组的模型
+	// 兼容层；它不是账号级 bridge 意图，绝不能把 Antigravity 请求拉进 bridge。
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{"claude-*": "gpt-5.5"}
+		}
+		return nil
+	}
+
+	t.Run("bridge account without any account mapping", func(t *testing.T) {
+		repo := &claudeGPTBridgeRouteRepoStub{accounts: []Account{newClaudeGPTBridgeRouteAccount(1, func(a *Account) {
+			a.Credentials = map[string]any{}
+		})}}
+		decision := resolveClaudeGPTBridgeRouteForTest(repo, "claude-opus-4-8")
+		require.Equal(t, ClaudeGPTBridgeRouteNotConfigured, decision.State,
+			"platform default mapping must not create bridge intent")
+		require.Zero(t, decision.CandidateCount)
+	})
+
+	t.Run("account maps a different model only", func(t *testing.T) {
+		repo := &claudeGPTBridgeRouteRepoStub{accounts: []Account{newClaudeGPTBridgeRouteAccount(1)}}
+		decision := resolveClaudeGPTBridgeRouteForTest(repo, "claude-haiku-4-5")
+		require.Equal(t, ClaudeGPTBridgeRouteNotConfigured, decision.State,
+			"unmapped models must stay native even when a platform default wildcard matches")
+		require.Zero(t, decision.CandidateCount)
+	})
+}
+
+func TestResolveClaudeGPTBridgeModel_RequiresAccountLevelMapping(t *testing.T) {
+	previous := domain.GetPlatformDefaultMappingOverride
+	t.Cleanup(func() { domain.GetPlatformDefaultMappingOverride = previous })
+	domain.GetPlatformDefaultMappingOverride = func(platform string) map[string]string {
+		if platform == PlatformOpenAI {
+			return map[string]string{"claude-opus-4-8": "gpt-5.5"}
+		}
+		return nil
+	}
+
+	withoutMapping := newClaudeGPTBridgeRouteAccount(1, func(a *Account) {
+		a.Credentials = map[string]any{}
+	})
+	mapped, ok := withoutMapping.ResolveClaudeGPTBridgeModel("claude-opus-4-8")
+	require.False(t, ok, "platform default mapping must not satisfy the explicit account mapping predicate")
+	require.Empty(t, mapped)
+
+	withMapping := newClaudeGPTBridgeRouteAccount(2)
+	mapped, ok = withMapping.ResolveClaudeGPTBridgeModel("claude-opus-4-8")
+	require.True(t, ok, "explicit account-level mapping keeps working")
+	require.Equal(t, "gpt-5.5", mapped)
+}
+
 func TestClaudeGPTBridgeTwoRequestRateLimitRegression(t *testing.T) {
 	repo := &claudeGPTBridgeRouteRepoStub{accounts: []Account{newClaudeGPTBridgeRouteAccount(1)}}
 	rateLimitSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
