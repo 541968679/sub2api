@@ -31,8 +31,11 @@ type Group struct {
 	ImagePrice4K *float64
 
 	AllowImageGeneration bool
+	AllowBatchImageGeneration bool
 	ImageRateIndependent bool
 	ImageRateMultiplier  float64
+	BatchImageDiscountMultiplier float64
+	BatchImageHoldMultiplier float64
 
 	ClaudeCodeOnly                  bool
 	FallbackGroupID                 *int64

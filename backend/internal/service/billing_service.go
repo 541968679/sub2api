@@ -103,6 +103,7 @@ type ModelPricing struct {
 	LongContextInputMultiplier     float64 // 长上下文整次会话输入倍率
 	LongContextOutputMultiplier    float64 // 长上下文整次会话输出倍率
 	ImageOutputPricePerToken       float64 // 图片输出 token 价格 (USD)
+	ImageOutputPriceExplicit       bool    // true when an image price was explicitly configured, including zero
 }
 
 const (
@@ -506,6 +507,7 @@ func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing
 	}
 	if channelPricing.ImageOutputPrice != nil {
 		pricing.ImageOutputPricePerToken = *channelPricing.ImageOutputPrice
+		pricing.ImageOutputPriceExplicit = true
 	}
 	return pricing, nil
 }

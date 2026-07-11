@@ -73,6 +73,9 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_image_generation").
 			Default(false).
 			Comment("Whether this group can use image generation"),
+		field.Bool("allow_batch_image_generation").
+			Default(false).
+			Comment("Whether this group can use batch image generation"),
 		field.Bool("image_rate_independent").
 			Default(false).
 			Comment("Whether image generation uses an independent rate multiplier"),
@@ -93,6 +96,12 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Float("batch_image_discount_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Default(0.5),
+		field.Float("batch_image_hold_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Default(0.6),
 
 		field.Bool("claude_code_only").
 			Default(false).
