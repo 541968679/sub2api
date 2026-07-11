@@ -306,6 +306,9 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	} else {
 		result, handleErr = s.handleChatBufferedStreamingResponse(resp, c, originalModel, billingModel, upstreamModel, startTime)
 	}
+	if GetOpsCyberPolicy(c) != nil {
+		return nil, errOpenAICyberPolicyForwarded
+	}
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
 	if handleErr == nil && result != nil {
@@ -472,6 +475,17 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 		writeChatCompletionsError(c, http.StatusBadGateway, "api_error", "Upstream stream ended without a terminal response event")
 		return nil, fmt.Errorf("upstream stream ended without terminal event")
 	}
+	if strings.TrimSpace(finalResponse.Status) == "failed" {
+		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
+		if hit, code, msg := detectOpenAICyberPolicy(payload); hit {
+			MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: msg, Body: truncateString(string(payload), 4096), UpstreamStatus: http.StatusOK, UpstreamInTok: usage.InputTokens, UpstreamOutTok: usage.OutputTokens})
+			if msg == "" {
+				msg = "Request blocked by upstream cyber-security policy"
+			}
+			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", msg)
+			return nil, errOpenAICyberPolicyForwarded
+		}
+	}
 
 	// When the terminal event has an empty output array, reconstruct from
 	// accumulated delta events so the client receives the full content.
@@ -607,6 +621,19 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 					event.Response.Usage.InputTokensDetails.CachedTokens = displayUsage.CacheReadInputTokens
 					event.Response.Usage.InputTokensDetails.CacheWriteTokens = displayUsage.CacheCreationInputTokens
 				}
+			}
+		}
+		if strings.TrimSpace(event.Type) == "response.failed" {
+			payloadBytes := []byte(payload)
+			if hit, code, msg := detectOpenAICyberPolicy(payloadBytes); hit {
+				MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: msg, Body: truncateString(payload, 4096), UpstreamStatus: http.StatusOK, UpstreamInTok: usage.InputTokens, UpstreamOutTok: usage.OutputTokens})
+				if msg == "" {
+					msg = "Request blocked by upstream cyber-security policy"
+				}
+				body, _ := json.Marshal(gin.H{"error": gin.H{"type": "invalid_request_error", "code": code, "message": msg}})
+				fmt.Fprintf(c.Writer, "data: %s\n\ndata: [DONE]\n\n", body) //nolint:errcheck
+				c.Writer.Flush()
+				return true
 			}
 		}
 

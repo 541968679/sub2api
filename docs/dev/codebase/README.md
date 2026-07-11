@@ -10,6 +10,7 @@
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符、Claude-GPT 账号级映射 | 2026-06-03 |
 | 计费系统 | [billing.md](billing.md) | 五级定价链、费用计算、展示变换、费率乘数、缓存命中计费、Claude-GPT bridge 缓存展示 | 2026-06-03 |
 | API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式、Antigravity Claude-GPT bridge preflight；bridge timeout 调查与 strict-routing 方案见 [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md) | 2026-07-10 |
+| Risk Control | [risk-control.md](risk-control.md) | Content moderation, keyword/hash pre-blocking, cyber session isolation, audit records, and fork-local billing invariants | 2026-07-11 |
 | OpenAI Image URL Relay Diagnostics | [../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md](../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md) | Production `gpt-image-2` URL-response behavior, native 4K channel tests, and image URL download timing splits | 2026-06-30 |
 | Channel Monitor | [channel-monitor.md](channel-monitor.md) | Admin monitor CRUD, OpenAI chat/responses api_mode, request templates, checks, and rollups | 2026-06-07 |
 | Image Channel Monitor | [image-channel-monitor.md](image-channel-monitor.md) | Dedicated OpenAI-compatible image generation monitor with custom API and OpenAI API-key account sources | 2026-07-10 |

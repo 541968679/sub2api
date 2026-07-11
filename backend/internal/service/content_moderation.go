@@ -319,7 +319,7 @@ func (in *ContentModerationInput) Normalize() {
 		return
 	}
 	in.Text = trimRunes(normalizeContentModerationText(in.Text), maxModerationInputRunes)
-	in.Images = limitContentModerationImages(normalizeModerationImages(in.Images))
+	in.Images = normalizeModerationImages(in.Images)
 }
 
 func (in ContentModerationInput) IsEmpty() bool {
@@ -2733,30 +2733,13 @@ func (s *ContentModerationService) RecordCyberPolicyEvent(ctx context.Context, i
 
 func (s *ContentModerationService) sendCyberPolicyEmail(ctx context.Context, log *ContentModerationLog) error {
 	siteName := s.siteName(ctx)
-	if s.emailService.notificationEmailService != nil {
-		variables := map[string]string{
-			"triggered_at":     log.CreatedAt.UTC().Format(time.RFC3339),
-			"model":            defaultContentModerationString(log.Model, "-"),
-			"group_name":       defaultContentModerationString(log.GroupName, "-"),
-			"upstream_message": defaultContentModerationString(log.Error, "-"),
-		}
-		err := s.emailService.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-			Event:          NotificationEmailEventCyberPolicyNotice,
-			RecipientEmail: log.UserEmail,
-			RecipientName:  emailRecipientName(log.UserEmail),
-			UserID:         contentModerationEmailUserID(log),
-			SourceType:     "content_moderation",
-			SourceID:       contentModerationEmailSourceID(log),
-			Variables:      variables,
-		})
-		if err == nil {
-			return nil
-		}
-		if !shouldFallbackNotificationEmail(err) {
-			return err
-		}
-		slog.Warn("template cyber policy email failed; falling back", "err", err.Error())
-	}
 	subject := fmt.Sprintf("[%s] 网络安全策略拦截 / Cyber Policy Notice", sanitizeEmailHeader(siteName))
 	return s.emailService.SendEmail(ctx, log.UserEmail, subject, buildCyberPolicyNoticeEmailBody(siteName, log))
+}
+
+func contentModerationEmailUserID(log *ContentModerationLog) int64 {
+	if log == nil || log.UserID == nil {
+		return 0
+	}
+	return *log.UserID
 }

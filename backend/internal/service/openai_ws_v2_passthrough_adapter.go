@@ -336,7 +336,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				if turnNo < 2 {
 					turnNo = 2
 				}
-				requestModel := usageMeta.requestModelForFrame(payload)
+				requestModel := openAIWSPassthroughPolicyModelForFrame(account, payload)
 				if requestModel == "" {
 					requestModel = capturedSessionModel
 				}

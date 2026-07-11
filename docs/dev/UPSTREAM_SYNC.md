@@ -39,6 +39,18 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Risk control and content moderation staged sync
+
+- **Upstream source**: `fff4a300c`, `0eca600ff`, `91da81599`, `0d5c6f7cc`, `23f3d426c`, `1b2d8873b`, `c40a74d98`, `b62b573f7`, and `815bc6c9b`.
+- **Merge strategy**: sequential cherry-picks in an isolated worktree followed by manual reconciliation of gateway hot paths, Settings KV, Wire DI, email notifications, migrations, and monolithic fork locales.
+- **Behavior**: adds configurable moderation/audit, keyword and hash pre-blocking, per-group/model scope, thresholds, matched-keyword records, admin auto-ban exemption, upstream cyber hard-block handling, and optional session-local cyber blocking.
+- **Fork-local impact**:
+  - Local preflight blocks occur before billing and upstream forwarding; they cannot alter quota, stored billing, `actual_cost`, display-token accounting, or real cache-read token quantities.
+  - Upstream cyber blocks do not fail over to another account. Only real upstream usage is recorded with request type `cyber`.
+  - Curated models, Claude-GPT bridge, OpenAI Images behavior, default-model fallback, scheduler rules, Ops logging, public/admin Settings KV, frontend routes, and bilingual i18n were reconciled rather than overwritten.
+  - Existing base migration `153_content_moderation.sql` remains authoritative; extension migration `182_content_moderation_extensions.sql` avoids upstream numbering conflicts.
+- **Verification**: backend content-moderation/cyber tests, handler/server compile tests, frontend risk-control tests, frontend typecheck, and upstream-sync guard.
+
 ### 2026-07-11 - Ops capture writer lifecycle hardening
 
 - **Upstream source**: commits `89a551b964076f2e61b71c0b8fa34f9464100cb0` and `bc3cb290276922074213c5bc8ebc404bc6d083a8`.

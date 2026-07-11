@@ -728,10 +728,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// cyber_policy：标记已设、error 已按 Anthropic 格式发给客户端。丢弃 result、返回哨兵，
 	// 使 handler 落入 tokens=0 免费用量行（对齐 /v1/responses），不计费、不 failover。
 	if GetOpsCyberPolicy(c) != nil {
-		if handleErr == nil {
-			handleErr = errOpenAICyberPolicyForwarded
-		}
-		return nil, handleErr
+		return nil, errOpenAICyberPolicyForwarded
 	}
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
@@ -823,11 +820,6 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 		usage = copyOpenAIUsageFromResponsesUsage(finalResponse.Usage)
 	}
 
-	if strings.TrimSpace(finalResponse.Status) == "failed" {
-		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
-		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
-	}
-
 	// cyber_policy：上游硬阻断（response.failed）。anthropic buffered 原对 failed 无特殊分支，
 	// 此处仅为 cyber 增加：以 Anthropic 错误格式回写，标记供 handler 事后写风控/邮件/tokens=0 用量行。
 	if strings.TrimSpace(finalResponse.Status) == "failed" {
@@ -848,6 +840,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", clientMsg)
 			return nil, fmt.Errorf("openai cyber_policy: %s", msg)
 		}
+		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
 	}
 
 	// When the terminal event has an empty output array, reconstruct from
@@ -1845,20 +1838,6 @@ func writeAnthropicError(c *gin.Context, statusCode int, errType, message string
 		},
 	})
 	MarkOpenAIAnthropicResponseTerminated(c)
-}
-
-func buildAnthropicStreamErrorSSE(errType, message string) string {
-	payload, err := json.Marshal(gin.H{
-		"type": "error",
-		"error": gin.H{
-			"type":    errType,
-			"message": message,
-		},
-	})
-	if err != nil {
-		return "event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"message\":\"upstream error\"}}\n\n"
-	}
-	return "event: error\ndata: " + string(payload) + "\n\n"
 }
 
 // buildAnthropicStreamErrorSSE builds one Anthropic SSE `error` event so a

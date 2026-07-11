@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Integrate upstream risk control without replacing fork-local gateway behavior
+
+**Affected files**: backend moderation repository/service/admin API and protocol gateway integrations, Settings KV, Ops/cyber usage paths, migration `182_content_moderation_extensions.sql`; frontend risk-control view/API/router/sidebar/settings/i18n; `docs/dev/codebase/risk-control.md`
+**Upstream compatibility**: Medium-high risk, manually reconciled. Upstream commits `fff4a300c`, `0eca600ff`, `91da81599`, `0d5c6f7cc`, `23f3d426c`, `1b2d8873b`, `c40a74d98`, `b62b573f7`, and `815bc6c9b` were staged in sequence and then adapted to the fork.
+**Details**:
+- Added admin-managed moderation config, logs, keyword/hash blocking, group/model scopes, thresholds, API-key health, retention, notification, and auto-ban controls.
+- Added preflight moderation to Anthropic Messages, OpenAI Responses/Chat/WebSocket/Images, and Gemini before billing, concurrency, scheduling, and forwarding, so locally blocked requests do not deduct quota.
+- Added upstream `cyber_policy` passthrough, audit/Ops recording, request type `cyber`, and optional session-only Redis blocking without account failover.
+- Preserved fork-local display billing/cache-token invariants, curated model lists, Claude-GPT bridge, OpenAI image generation controls, default-model fallback, scheduler/failover, Ops settings, and existing `EmailService`.
+- Reused existing local migration `153` for the base table and assigned new extension migration `182`; upstream migration numbers `135` and `156` were removed to avoid history collisions.
+
 ## [2026-07-11] fix: Harden released Ops capture writers
 
 **Affected files**: `backend/internal/handler/{ops_error_logger.go,ops_capture_writer_nil_test.go}`, `docs/dev/{UPSTREAM_SYNC.md,codebase/ops.md,CHANGELOG_CUSTOM.md`
