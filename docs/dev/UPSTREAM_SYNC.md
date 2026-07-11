@@ -52,6 +52,30 @@ git push origin main
 - Added validated account-level header overrides only for Anthropic/OpenAI API-key accounts and wired them through HTTP, WebSocket, Images, count-tokens, embeddings, model sync, and probe paths.
 - Audit reconciliation blocks authentication/cookie/content framing/session/handshake headers, preserves beta header/body symmetry, and prevents accidental bulk clearing. Current gateway signatures and CCH order remain authoritative; unrelated Spark-shadow and beta-computation refactors were excluded.
 - OAuth/PAT/FedRAMP identity, API-key cache name, Grok/Gemini/Antigravity/Bedrock, Claude-GPT bridge, Images capability and Batch Image settlement, curated/default models, scheduler/failover, Ops, billing/display/cache-read, routes, settings, schemas, and migrations are unchanged.
+### 2026-07-11 - Codex protocol compatibility audit and image namespace strip
+
+- **Branch/base**: `codex/upstream-protocol-compat-20260711` from alignment
+  baseline `3b46ec873`.
+- **Already present**: the `e316ebf52` custom/tool_search/namespace Chat
+  fallback bridge is represented by the fork's 0.1.151 compatibility layer;
+  the `151b9265f` pooled Ops capture writer nil guards and regression test are
+  already in branch history.
+- **Ported**: the relevant `d3a1835ed` image declaration behavior. Image intent
+  and Spark strip now cover top-level tools, Responses Lite additional tools,
+  and namespace tool choices while preserving ordinary custom tools and every
+  non-image namespace.
+- **Excluded**: the wider upstream account-level explicit-tool-policy control
+  plane was not introduced because this fork does not currently expose that
+  prerequisite. Existing Codex image bridge controls remain authoritative.
+- **Equivalent enhanced local behavior**: `c67c1ff7e` compact failure recovery
+  is already covered by the fork's larger Claude-GPT bridge recovery path,
+  including recursive chunk splitting, bounded attempts, fallback models,
+  usage merging, keepalive stream state, and stale continuation cleanup. The
+  upstream commit was not overlaid onto those hot paths.
+- Claude-GPT bridge eligibility, OpenAI Images native/basic paths, Batch Image,
+  stored billing, display/cache-read transforms, default-model fallback,
+  scheduler selection, and Ops attribution are unchanged.
+- TDD checkpoints: RED `d29899034`, GREEN `c854f6304`.
 
 ### 2026-07-11 - Usage-log persistence under queue pressure
 

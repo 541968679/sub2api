@@ -36,6 +36,25 @@
 - Allows explicitly enabled Anthropic/OpenAI API-key accounts to override a validated set of outbound headers across real forwarding and account probes.
 - Blocks authentication, cookies, content framing, connection, WebSocket handshake, and per-request session headers; applies case-insensitive replacement without duplicate wire forms.
 - Uses an overridden `anthropic-beta` value for matching body capability sanitization before existing CCH signing, while OAuth/PAT, Grok, Gemini, Antigravity, Bedrock, FedRAMP identity, bridge/Images gates, billing/display/cache-read, model mapping, and scheduling remain unchanged.
+## [2026-07-11] fix: Strip Codex image namespace declarations safely
+
+**Affected files**: image-generation intent helpers, Codex request transforms,
+Spark HTTP/WS raw-payload stripping, focused tests, and gateway/upstream-sync
+documentation.
+**Upstream compatibility**: Selective TDD port of `d3a1835ed`. Upstream tool
+bridge `e316ebf52`, Ops capture fix `151b9265f`, and compact recovery
+`c67c1ff7e` were audited as already present or equivalently enhanced locally.
+**Details**:
+- Recognizes the exact `image_gen` namespace in top-level tools, Responses Lite
+  `additional_tools`, and namespace-shaped `tool_choice` values.
+- Extends the existing Spark strip across those locations and drops empty
+  additional-tool carriers, while preserving custom `imagegen` tools,
+  `tool_search`, and all non-image namespaces.
+- Does not import the absent account explicit-tool-policy control plane or
+  replace the fork's 0.1.151 tool bridge and Claude compact recovery code.
+- Preserves Claude-GPT bridge eligibility, native/basic OpenAI Images, Batch
+  Image settlement, stored billing, display/cache-read transforms, default
+  model fallback, scheduler/failover, and Ops attribution.
 
 ## [2026-07-11] fix: Prevent billed usage-log loss under queue pressure
 

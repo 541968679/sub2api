@@ -433,6 +433,25 @@ own cached manifest fallback.
 
 ## Important Mechanisms
 
+### Codex image namespace declarations
+
+Codex clients can advertise image generation either as the flat Responses
+`image_generation` tool or as an `image_gen` namespace. The namespace can
+appear in top-level `tools`, in a Responses Lite `input[].additional_tools`
+carrier, or in `tool_choice`.
+
+- Image-intent checks recognize all three locations.
+- The existing Spark compatibility strip removes only flat image tools and the
+  exact `image_gen` namespace declarations. Empty `additional_tools` carriers
+  and an image-only `tool_choice` are removed with them.
+- Ordinary custom tools named `imagegen`, `tool_search`, and every other
+  namespace remain unchanged. This preserves the fork's Codex 0.1.151
+  custom/tool-search/namespace Chat fallback bridge.
+- The strip is protocol normalization only. It does not route requests through
+  native/basic OpenAI Images, change Batch Image, recalculate billing, rewrite
+  display/cache-read usage, or alter Claude-GPT bridge eligibility, model
+  fallback, account scheduling, or Ops attribution.
+
 | Mechanism | Notes |
 |-----------|-------|
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
