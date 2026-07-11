@@ -1264,3 +1264,21 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Did not reapply the unrelated response-failed portions of `7918b1a9c`; those remain isolated in their own gateway batch.
 - No migration, public registration, billing/display-token, cache-read, subscription, quota, or routing behavior changed.
 - Pushed/deployed: no.
+### 2026-07-11 - Ops and capacity performance alignment
+
+- **Branch**: `codex/upstream-ops-performance-20260711`
+- **Local baseline**: `3b9717a23`
+- **Upstream points**: `f3a3a0869`, `3f2ef6046`, `72ccd1b11`
+- **Strategy**: TDD-first selective adaptation; shared repository/service files
+  were reconciled against the fork instead of cherry-picked wholesale.
+- Adopted Redis-key-driven account slot cleanup, lightweight filtered Ops account
+  projections with cancellation handling, and batched all-group capacity.
+- Preserved the fork's schedulable/temp-pause/expiry/overload/rate-limit filters,
+  Spark shadow capacity, scheduler/failover behavior, Ops persistence, billing
+  and display/cache-read invariants, curated/default models, Claude-GPT bridge,
+  OpenAI Images, Batch Image, settings, migrations, i18n, and routes.
+- Focused unit tests passed for service, repository, and admin handler packages.
+  The new Redis integration case is present, but the repository integration
+  package remains blocked by the baseline's unrelated missing `cacheRecorder`
+  test fixture.
+- **Pushed/deployed**: no.

@@ -17,7 +17,7 @@
 | Image Channel Monitor | [image-channel-monitor.md](image-channel-monitor.md) | Dedicated OpenAI-compatible image generation monitor with custom API and OpenAI API-key account sources | 2026-07-10 |
 | Batch Image | [batch-image.md](batch-image.md) | Gemini/Vertex asynchronous image batches, frozen-balance settlement, owner-scoped downloads, and fork-local preservation boundaries | 2026-07-11 |
 | Subscription management | [subscription.md](subscription.md) | Soft-delete revoke/restore, admin history visibility, uniqueness, and cache invalidation boundaries | 2026-07-11 |
-| Ops | [ops.md](ops.md) | Admin operations dashboard, alert rule metrics, account availability, and temporary-unschedulable alerting | 2026-06-09 |
+| Ops | [ops.md](ops.md) | Admin operations dashboard, lightweight realtime projections, batched group capacity, Redis slot cleanup, and availability alerting | 2026-07-11 |
 | Announcements | [announcements.md](announcements.md) | Admin-authored announcements, popup scheduling, dashboard banners, and API key usage rules | 2026-06-05 |
 | OpenAI Claude-GPT Bridge | [../OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md](../OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md) | OpenAI account-side Claude-GPT bridge for Antigravity groups, including routing, billing, usage, cache-display override, deployment status, and context-window notes | 2026-06-03 |
 | Claude-GPT Bridge Timeout Investigation | [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md) | Intermittent empty-reply/timeout evidence, official upstream comparison, 429-to-native-503 root cause, strict-routing design, count_tokens adaptation, tests, rollout, and acceptance criteria | 2026-07-10 |

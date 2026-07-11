@@ -4806,3 +4806,15 @@ route, setting, push, or deployment change.
 - The sanitized custom/default logo and site name now link admins to `/admin/dashboard` and regular users to `/dashboard`, while preserving mobile menu close behavior.
 - The actual sidebar navigation container saves its in-memory scroll offset before unmount and restores it after remount, without persisting account data or changing public-settings caching.
 - Existing custom SVG colors, sanitized logo URLs, nested menu expansion, feature flags, i18n menu labels, and route guards remain unchanged.
+
+## [2026-07-11] fix: Batch Ops statistics, group capacity, and Redis slot cleanup
+
+**Affected files**: backend repository/service/admin handler Ops, group-capacity and concurrency-cache files, focused tests, and Ops documentation.
+
+**Compatibility**: Selectively adapted upstream `f3a3a0869`, `3f2ef6046`, and `72ccd1b11` without schema, migration, frontend, route, or setting changes.
+
+**Details**:
+- Periodic account-slot cleanup scans existing `concurrency:account:*` sorted sets instead of loading every schedulable database account; user slots and wait counters are outside the pattern.
+- Realtime Ops statistics use a group-filtered lightweight account projection; canceled client/database requests end silently instead of writing a second error response.
+- All-group capacity uses one active-ID query, one schedulable account projection, and batched concurrency/session/RPM reads. Empty groups remain visible and shared accounts contribute independently to each bound group.
+- Capacity SQL preserves current soft-delete, active/schedulable, temporary-pause, expiry auto-pause, overload and rate-limit filters. Spark shadow capacity remains eligible; billing/display/cache-read and scheduler score/failover behavior are unchanged.

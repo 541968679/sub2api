@@ -19,6 +19,10 @@
 | Handler | `backend/internal/handler/admin/ops_alerts_handler.go` | Validates alert metric types and CRUD payloads. |
 | Service | `backend/internal/service/ops_alert_evaluator_service.go` | Computes rule metric values. |
 | Service | `backend/internal/service/ops_account_availability.go` | Builds account availability snapshots used by alert metrics. |
+| Service | `backend/internal/service/ops_concurrency.go` | Uses a lightweight, group-filtered account projection and batched Redis reads for realtime statistics. |
+| Service | `backend/internal/service/group_capacity_service.go` | Aggregates active-group capacity from one account projection plus batched concurrency/session/RPM reads. |
+| Repository | `backend/internal/repository/account_repo.go` | Provides statistics-only account projections and schedulable group-capacity rows. |
+| Repository | `backend/internal/repository/concurrency_cache.go` | Scans existing account slot keys for periodic expired-member cleanup. |
 | Frontend API | `frontend/src/api/admin/ops.ts` | Metric type union and admin API calls. |
 | Frontend UI | `frontend/src/views/admin/ops/components/OpsAlertRulesCard.vue` | Metric picker definitions and recommended thresholds. |
 
@@ -33,6 +37,17 @@ evaluator tick
   -> ops_alert_evaluator_service.go: computeRuleMetric()
   -> OpsService.GetAccountAvailability(platform, group_id)
   -> count accounts matching the selected metric condition
+
+realtime Ops request
+  -> lightweight account projection filtered by platform/group in SQL
+  -> batched Redis concurrency reads
+  -> silently stop when the client cancels the request
+
+group capacity refresh
+  -> list active group IDs only
+  -> fetch schedulable group/account capacity rows once
+  -> deduplicate account IDs for Redis pipelines
+  -> aggregate shared accounts separately into each bound group
 ```
 
 ## Important Mechanisms
@@ -57,6 +72,12 @@ evaluator tick
   status as 200. The middleware uses this fallback only when no upstream error
   context exists, so a `response.failed` event is recorded exactly once through
   the upstream-attempt path. `skip_monitoring` still suppresses persistence.
+- Realtime statistics select only identity, capacity, availability and cooldown
+  fields; they do not load credentials, proxies, pricing, billing or usage logs.
+- Capacity projections retain scheduler eligibility predicates and treat a
+  schedulable Spark shadow as its own capacity row.
+- Slot cleanup scans only existing `concurrency:account:*` sets and never
+  touches user slots or wait counters.
 
 ## Known Pitfalls
 
@@ -67,3 +88,7 @@ evaluator tick
 - Do not add a new method to `opsCaptureWriter` by relying only on the embedded
   `gin.ResponseWriter`; an embedded call after pool release can panic. Add an
   explicit nil-guarded delegate and extend `ops_capture_writer_nil_test.go`.
+- Keep capacity SQL synchronized with `ListSchedulableByGroupID` or Ops can
+  report capacity the scheduler cannot actually select.
+- Client cancellation and PostgreSQL canceled-statement errors are not new Ops
+  failures and must not be converted into a second HTTP response.
