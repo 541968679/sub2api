@@ -2,6 +2,19 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-11] feat: Align usage ranking, latency health, and BOM CSV export
+
+**Affected files**: admin user-breakdown handler/repository/types; admin and user usage views; ranking/table components; CSV/latency utilities; bilingual i18n; focused tests; usage documentation.
+
+**Upstream compatibility**: Behavior-level adaptation of `b062b3664`, `1a3cc2a78`, and `aee9a7ba9`. The fork's single-file locale structure, requested-model analytics, user-view display transformation, user comparison drawer, and existing usage layout remain authoritative.
+
+**Details**:
+- Added an allowlisted per-user ranking query with independent input/output/cache-creation/cache-read totals. Stored `actual_cost`, account cost, and token quantities are read-only aggregates; real cache-read quantities are not rewritten.
+- Added a lazy admin ranking view and drilldown back to filtered usage details. Existing chart metrics, user comparison drawer, routes, and browser column preferences are retained; legacy first-token/duration hidden keys migrate to the combined latency column.
+- Added shared latency health thresholds and compact long-duration formatting to admin and user usage tables. This is presentation-only and does not change Ops error details, persistence, scheduling, or billing.
+- Intentionally restored user CSV export after the earlier UI removal. It pages through the user-owned `/usage` contract, exports only user-visible fields, uses display-transformed token/cost values already returned by that endpoint, escapes spreadsheet formulas, and writes UTF-8 BOM bytes for Chinese Excel compatibility. No admin account cost or internal account/user columns are exported.
+- Verified focused Go repository/handler tests, Vitest ranking/latency/CSV/admin/user view suites, frontend typecheck/build, sync guard, and whitespace checks. The repository lint command is blocked in this isolated install because `vue-eslint-parser` is only transitive and is not linked for `.eslintrc.cjs`; no dependency metadata was changed in this sync batch. No push/deploy.
+
 ## [2026-07-11] feat: Add linked OpenAI Spark shadow accounts
 
 **Affected files**: account Ent schema/generated code, migrations `188`/`189`,

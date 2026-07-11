@@ -2,6 +2,17 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-07-11 - Usage ranking, latency health, and CSV export adaptation
+
+- **Branch**: `codex/upstream-usage-ranking-ui-20260711`
+- **Local baseline**: `8043239a154230c1573f53495fbdef54c8d88ceb`
+- **Upstream sources**: `b062b3664`, `1a3cc2a78`, `aee9a7ba9`.
+- **Strategy**: ported behavior into the current fork instead of applying the upstream locale split or replacing the heavily customized usage pages. Admin usage gains a lazy user-ranking tab and combined latency-health column; user usage gains the same latency presentation and a restored BOM-safe CSV export.
+- **Preserved contracts**: requested-model filtering remains the default; cache creation and cache read are independent real quantities; `total_tokens`, standard cost, stored `actual_cost`, and account cost remain repository aggregates; user endpoints continue applying the fork display transform. Existing user-view compare, chart metrics, Ops details, IP/geography paths, routes, Images/Batch Image, Claude-GPT bridge, model fallback, scheduler/failover, and settings are unchanged.
+- **Intentional divergence**: the fork does not embed the Ops error table into admin usage because its current error-detail flow remains in Ops. User CSV includes only user-visible fields and labels charged cost without exporting admin cost fields.
+- **Schema/migrations**: none.
+- **Pushed/deployed**: no.
+
 ## 2026-07-11 - Spark linked shadow account adaptation from `bdf7ead15`
 
 - **Branch**: `codex/upstream-spark-shadow-20260711`

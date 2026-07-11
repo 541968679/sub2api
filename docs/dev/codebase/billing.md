@@ -655,3 +655,22 @@ Important invariants:
 - Peak fields cross Ent/schema, group repository/DTOs, API-key auth snapshots,
   normal/OpenAI gateways, available channels, payment/subscription DTOs, and
   the admin/user frontend. Migration ownership is `190_group_peak_rate.sql`.
+
+### Usage ranking and export presentation (2026-07 upstream alignment)
+
+Data model: `UserBreakdownItem` is a read-only aggregate over `usage_logs`. It exposes requests, input/output tokens, cache-creation tokens, cache-read tokens, total tokens, standard cost, stored `actual_cost`, and derived account cost as independent columns. `sort_by` is mapped through a repository allowlist; raw SQL fragments are never accepted.
+
+Key files:
+
+- `backend/internal/handler/admin/dashboard_handler.go`: parses filters, requested/upstream/mapping model source, limit, and ranking sort.
+- `backend/internal/repository/usage_log_repo.go`: applies the existing requested-model expression and aggregates each token/cost field without display rewriting.
+- `frontend/src/components/admin/usage/UserTokenRanking.vue`: lazy ranking table and user drilldown.
+- `frontend/src/utils/latencyHealth.ts`: shared first-token/total-duration presentation thresholds and legacy column preference migration.
+- `frontend/src/utils/usageCsv.ts` and `frontend/src/views/user/UsageView.vue`: BOM-safe, formula-escaped export of user-visible usage DTO fields.
+
+Important invariants:
+
+- Ranking is an admin reporting view. It must not derive prices from cost/token ratios, mutate usage rows, or rewrite real cache-read quantities. Cache creation/read stay separate so audits remain explainable.
+- Admin ranking may display stored `actual_cost` and account cost; user CSV must not export admin-only account/user fields or account cost. It serializes the already display-transformed user usage response, including the real cache-read quantity required by the display contract.
+- The combined latency column and severity colors are presentation-only. They do not feed Ops health, scheduler scoring, failover, billing, or persistence.
+- Legacy hidden-column preferences containing `first_token` or `duration` migrate to `latency` without discarding unrelated preferences.
