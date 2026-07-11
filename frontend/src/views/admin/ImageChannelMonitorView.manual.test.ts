@@ -262,6 +262,83 @@ describe('ImageChannelMonitorView manual gateway mode', () => {
     }
   })
 
+  it('launches concurrent edit runs that reuse a single input image', async () => {
+    const createObjectURLDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    const revokeObjectURLDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:manual-input'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    manualTest.mockImplementation((_id: number, payload: ImageChannelManualTestParams) =>
+      Promise.resolve(
+        terminalRun({
+          run_id: `run-edit-${payload.batch_index}`,
+          mode: 'edit',
+          batch_id: payload.batch_id,
+          batch_size: payload.batch_size,
+          batch_index: payload.batch_index,
+          gateway_status: 'succeeded',
+          delivery_status: 'not_requested',
+          observation_status: 'observable',
+          result: { status: 'operational' } as ImageChannelManualRunResponse['result'],
+        } as Partial<ImageChannelManualRunResponse>)
+      )
+    )
+    const wrapper = mountView()
+
+    try {
+      await openManualPanel(wrapper)
+      await selectGatewayRequestContext(wrapper)
+
+      const editTab = wrapper
+        .findAll('button[role="tab"]')
+        .find((tab) => tab.text().includes('admin.imageChannelMonitor.manual.edit'))
+      expect(editTab).toBeDefined()
+      await editTab!.trigger('click')
+
+      const fileInput = wrapper.get('[data-testid="manual-input-images"]')
+      const file = new File(['input-image'], 'reused.png', { type: 'image/png' })
+      Object.defineProperty(fileInput.element, 'files', { configurable: true, value: [file] })
+      await fileInput.trigger('change')
+
+      const concurrencyInput = wrapper
+        .findAll('input[type="number"]')
+        .find((input) => input.attributes('max') === '20')
+      expect(concurrencyInput).toBeDefined()
+      await concurrencyInput!.setValue(3)
+
+      const startButton = wrapper
+        .findAll('button')
+        .find((button) => button.text().includes('admin.imageChannelMonitor.manual.startWithCount'))
+      expect(startButton).toBeDefined()
+      expect(startButton!.attributes('disabled')).toBeUndefined()
+      await startButton!.trigger('click')
+
+      await vi.waitFor(() => expect(manualTest).toHaveBeenCalledTimes(3))
+      const payloads = manualTest.mock.calls.map((call) => call[1] as ImageChannelManualTestParams)
+      expect(payloads.every((payload) => payload.mode === 'edit')).toBe(true)
+      expect(payloads.every((payload) => payload.input_image_name === 'reused.png')).toBe(true)
+      expect(manualTest.mock.calls.every((call) => call[2] === file)).toBe(true)
+      expect(showError).not.toHaveBeenCalled()
+    } finally {
+      wrapper.unmount()
+      if (createObjectURLDescriptor) {
+        Object.defineProperty(URL, 'createObjectURL', createObjectURLDescriptor)
+      } else {
+        delete (URL as { createObjectURL?: unknown }).createObjectURL
+      }
+      if (revokeObjectURLDescriptor) {
+        Object.defineProperty(URL, 'revokeObjectURL', revokeObjectURLDescriptor)
+      } else {
+        delete (URL as { revokeObjectURL?: unknown }).revokeObjectURL
+      }
+    }
+  })
+
   it('maps an expired backend observation to observation lost instead of image failure', async () => {
     manualTest.mockResolvedValueOnce(
       terminalRun({

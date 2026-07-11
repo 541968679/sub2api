@@ -38,7 +38,24 @@ describe('manual image test result API', () => {
     expect(body).toBeInstanceOf(FormData)
     expect((body as FormData).get('image')).toBeInstanceOf(Blob)
     expect(JSON.parse(String((body as FormData).get('metadata')))).toEqual(params)
-    expect(postMock.mock.calls[0]?.[2]).toEqual(expect.objectContaining({ timeout: 15_000 }))
+    expect(postMock.mock.calls[0]?.[2]).toEqual(
+      expect.objectContaining({
+        timeout: 15_000,
+        // Without this override the client-wide application/json default makes
+        // axios rewrite FormData into a JSON body that drops every real field.
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    )
+  })
+
+  it('keeps generate runs as plain JSON payloads without a multipart override', async () => {
+    postMock.mockResolvedValueOnce({ data: { run_id: 'generate-run-1' } })
+    const params = { mode: 'generate' as const, client_run_id: 'client-generate-1' }
+
+    await manualTest(42, params)
+
+    expect(postMock.mock.calls[0]?.[1]).toBe(params)
+    expect(postMock.mock.calls[0]?.[2]).toEqual({ timeout: 15_000 })
   })
 
   it('records cancellation intent by client run id without replaying the launch', async () => {

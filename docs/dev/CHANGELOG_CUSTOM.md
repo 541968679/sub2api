@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Reuse manual image-edit input pool and restore multipart submission
+
+**Affected files**: `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/utils/imageChannelManualTest.test.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `frontend/src/views/admin/ImageChannelMonitorView.manual.test.ts`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/admin/imageChannelMonitor.image.test.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`
+**Compatibility**: Low risk, admin image-monitor manual tests only. No backend change; the backend already accepted per-request multipart uploads regardless of duplicated pixel content.
+**Details**:
+- Manual image-edit runs no longer require one exclusive input image per concurrent request (c16 previously demanded 16 distinct uploads). The pool now needs at least 1 image and assigns images to runs in round-robin order; the assignment lives in `buildManualRunRequests` and is returned per request, so the uploaded blob can never drift from the payload's `input_image_name`/`input_image_type`.
+- Fixed every manual edit run failing instantly with `api_key_id is required for gateway manual tests` even in direct-probe mode: the client-wide axios `Content-Type: application/json` default made axios 1.x rewrite the edit `FormData` through `formDataToJSON` into a JSON body, so the backend JSON binding saw zero values for every real field (`execution_mode`, `api_key_id`, `client_run_id`, batch fields), and an empty `execution_mode` defaults to `gateway_account` whenever the manual gateway is configured. `manualTest` now posts `FormData` with an explicit `multipart/form-data` override (same idiom as the tutorial-page upload API).
+- Input-pool UI: the counter chip reads "已选 X 张 / N 条请求", the empty-pool warning explains that one image can be reused, and a neutral hint appears when the pool is smaller than the planned run count.
+- Regression coverage: utils round-robin distribution, single-image reuse across all runs, and empty-pool rejection; a view-level launch of 3 concurrent edit runs reusing one uploaded image; API-layer assertions that edit runs post multipart with the explicit override while generate runs stay plain JSON.
+- Verification: targeted vitest suites (utils 24, view 20, API 6 tests), `pnpm run typecheck`, `pnpm run lint:check`, and a live browser run against the local stack — 4 concurrent direct-probe edit requests sharing one input image all reached the backend as multipart `direct_probe` (HTTP 200) and completed with real generated 1536x1024 images via URL delivery.
+
 ## [2026-07-11] fix: Claude-GPT bridge strict routing (P0)
 
 **Affected files**: `backend/internal/service/openai_claude_gpt_bridge_routing.go`, `backend/internal/service/openai_claude_gpt_bridge_routing_test.go`, `backend/internal/handler/openai_claude_gpt_bridge_route.go`, `backend/internal/handler/openai_claude_gpt_bridge_route_test.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/server/routes/gateway.go`, `backend/tools/upstream-sync-guard/main.go`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`, `docs/dev/codebase/gateway.md`

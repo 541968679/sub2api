@@ -59,6 +59,7 @@ export interface ManualRunRequest {
   targetId: number
   batchIndex: number
   payload: ImageChannelManualTestParams
+  inputImage?: ManualRunInputImage
 }
 
 export function buildManualRunRequests({
@@ -73,15 +74,18 @@ export function buildManualRunRequests({
   }
 
   const totalRuns = targetIds.length * concurrency
-  if (basePayload.mode === 'edit' && inputImages.length < totalRuns) {
-    throw new Error('Manual edit tests require one input image per concurrent edit request')
+  if (basePayload.mode === 'edit' && inputImages.length === 0) {
+    throw new Error('Manual edit tests require at least one input image')
   }
 
   const requests: ManualRunRequest[] = []
   for (const targetId of targetIds) {
     for (let targetIndex = 0; targetIndex < concurrency; targetIndex += 1) {
       const batchIndex = requests.length + 1
-      const image = basePayload.mode === 'edit' ? inputImages[batchIndex - 1] : undefined
+      const image =
+        basePayload.mode === 'edit'
+          ? inputImages[(batchIndex - 1) % inputImages.length]
+          : undefined
       const payload: ImageChannelManualTestParams = {
         ...basePayload,
         batch_id: batchId,
@@ -95,6 +99,7 @@ export function buildManualRunRequests({
         targetId,
         batchIndex,
         payload,
+        ...(image ? { inputImage: image } : {}),
       })
     }
   }
