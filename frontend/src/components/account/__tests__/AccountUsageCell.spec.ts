@@ -23,6 +23,29 @@ vi.mock('vue-i18n', async () => {
       t: (key: string) => key
     })
   }
+  it('Anthropic OAuth renders Fable usage without replacing regular windows', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: { utilization: 41, resets_at: '2026-07-03T10:00:00Z', remaining_seconds: 3600 },
+      seven_day: { utilization: 56, resets_at: '2026-07-06T22:00:00Z', remaining_seconds: 300000 },
+      seven_day_sonnet: { utilization: 30, resets_at: '2026-07-06T22:00:00Z', remaining_seconds: 300000 },
+      seven_day_fable: { utilization: 100, resets_at: '2026-07-06T22:00:00Z', remaining_seconds: 300000 }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: { account: makeAccount({ id: 5001, platform: 'anthropic', type: 'oauth', extra: {} }) },
+      global: { stubs: {
+        UsageProgressBar: { props: ['label', 'utilization'], template: '<div>{{ label }}|{{ utilization }}</div>' },
+        AccountQuotaInfo: true,
+        GrokQuotaProbeCell: true
+      } }
+    })
+
+    await flushPromises()
+    expect(wrapper.text()).toContain('5h|41')
+    expect(wrapper.text()).toContain('7d|56')
+    expect(wrapper.text()).toContain('7d S|30')
+    expect(wrapper.text()).toContain('7d F|100')
+  })
 })
 
 function makeAccount(overrides: Partial<Account>): Account {
