@@ -300,7 +300,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			return nil, decision, err
 		}
 		if selection != nil && selection.Account != nil {
-			if !s.isAccountTransportCompatible(selection.Account, req.RequiredTransport) || !s.isAccountRequestCompatible(selection.Account, req) {
+			if !s.isAccountTransportCompatible(selection.Account, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, selection.Account, req) {
 				if selection.ReleaseFunc != nil {
 					selection.ReleaseFunc()
 				}
@@ -390,7 +390,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
-	if !s.isAccountRequestCompatible(account, req) {
+	if !s.isAccountRequestCompatible(ctx, account, req) {
 		return nil, false, nil
 	}
 	if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
@@ -729,7 +729,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			continue
 		}
 		candidate := account
-		if !s.isAccountCandidatePoolCompatible(candidate, req) {
+		if !s.isAccountCandidatePoolCompatible(ctx, candidate, req) {
 			candidate = s.service.refreshStaleOpenAIScheduleCandidate(ctx, account, openAIAccountRequestEligibility{
 				Platform:               req.Platform,
 				RequestedModel:         req.RequestedModel,
@@ -1017,11 +1017,11 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 		}
 		fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, candidate.account, eligibility)
-		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(fresh, req) {
+		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
 		fresh = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, eligibility)
-		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(fresh, req) {
+		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
@@ -1068,7 +1068,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				RequireCompact:         req.RequireCompact,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 			})
-			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(fresh, req) {
+			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
 			}
 			fresh = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, openAIAccountRequestEligibility{
@@ -1077,7 +1077,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				RequireCompact:         req.RequireCompact,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 			})
-			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(fresh, req) {
+			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
 			}
 			result, acquireErr := s.service.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
@@ -1107,11 +1107,11 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 		}
 		fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, candidate.account, eligibility)
-		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(fresh, req) {
+		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
 		fresh = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, eligibility)
-		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(fresh, req) {
+		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
@@ -1195,8 +1195,11 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(args ...any) 
 	return accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability)
 }
 
-func (s *defaultOpenAIAccountScheduler) isAccountCandidatePoolCompatible(account *Account, req OpenAIAccountScheduleRequest) bool {
+func (s *defaultOpenAIAccountScheduler) isAccountCandidatePoolCompatible(ctx context.Context, account *Account, req OpenAIAccountScheduleRequest) bool {
 	if account == nil {
+		return false
+	}
+	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
 		return false
 	}
 	eligibility := openAIAccountRequestEligibility{
