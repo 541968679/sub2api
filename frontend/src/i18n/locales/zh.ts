@@ -3894,7 +3894,11 @@ const zhBase = {
         grokNoHeaders: '尚未观测到 xAI 配额响应头',
         grokRequests: '请求',
         grokTokens: 'Token',
+        grokUnknown: 'Grok 配额需等待上游响应返回 xAI rate-limit 头后显示。',
         grokRetryAfter: '{time} 后重试',
+        grokLastStatus: '状态 {status}',
+        grokLastProbe: '探测 {time}',
+        grokLastHeadersSeen: '响应头 {time}',
         statsTitle: '5小时窗口用量统计',
         statsTitleDaily: '每日用量统计',
         geminiProDaily: 'Pro',
@@ -4554,7 +4558,13 @@ const zhBase = {
           validating: '验证中...',
           validateAndCreate: '验证并创建',
           errors: {
-            GROK_OAUTH_INVALID_STATE: 'Grok OAuth state 与当前会话不匹配，请使用本页面生成的授权链接对应的回调 URL。'
+            GROK_OAUTH_SESSION_NOT_FOUND: 'Grok OAuth 会话不存在或已过期。请重新生成授权链接，并粘贴最新的回调 URL。',
+            GROK_OAUTH_INVALID_STATE: 'Grok OAuth state 与当前会话不匹配。请粘贴同一次生成的授权链接返回的回调 URL。',
+            GROK_OAUTH_STATE_REQUIRED: '回调链接缺少 OAuth state。请粘贴完整 callback URL，不要只粘贴 code。',
+            GROK_OAUTH_CODE_REQUIRED: '缺少 Grok 授权码。请粘贴完整 callback URL、查询字符串或 code 值。',
+            GROK_OAUTH_NO_REFRESH_TOKEN: 'Grok 响应未返回 refresh token。请重新生成授权链接，并再次确认 offline access 授权。',
+            GROK_OAUTH_PROXY_NOT_AVAILABLE: '无法查询 Grok OAuth 代理配置。请检查选择的代理后重试。',
+            GROK_OAUTH_PROXY_NOT_FOUND: '找不到所选代理。请选择可用代理后重试。'
           }
         }
       },

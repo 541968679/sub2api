@@ -4828,7 +4828,13 @@ const enBase = {
           validating: 'Validating...',
           validateAndCreate: 'Validate & Create',
           errors: {
-            GROK_OAUTH_INVALID_STATE: 'The Grok OAuth state does not match this session. Use the callback URL from the authorization link generated here.'
+            GROK_OAUTH_SESSION_NOT_FOUND: 'The Grok OAuth session is missing or expired. Generate a new authorization URL and paste its latest callback URL.',
+            GROK_OAUTH_INVALID_STATE: 'The Grok OAuth state does not match this session. Use the callback URL from the authorization link generated here.',
+            GROK_OAUTH_STATE_REQUIRED: 'The callback URL is missing the OAuth state. Paste the complete callback URL instead of only the code.',
+            GROK_OAUTH_CODE_REQUIRED: 'The Grok authorization code is missing. Paste the complete callback URL, query string, or code value.',
+            GROK_OAUTH_NO_REFRESH_TOKEN: 'Grok did not return a refresh token. Generate a new authorization URL and approve offline access again.',
+            GROK_OAUTH_PROXY_NOT_AVAILABLE: 'The Grok OAuth proxy configuration is unavailable. Check the selected proxy and retry.',
+            GROK_OAUTH_PROXY_NOT_FOUND: 'The selected proxy could not be found. Choose an available proxy and retry.'
           }
         }
                 },      // Gemini specific (platform-wide)
@@ -5052,7 +5058,11 @@ const enBase = {
         grokNoHeaders: 'No xAI quota headers observed',
         grokRequests: 'Req',
         grokTokens: 'Tok',
+        grokUnknown: 'Grok quota is unknown until an upstream response includes xAI rate-limit headers.',
         grokRetryAfter: 'Retry after {time}',
+        grokLastStatus: 'Status {status}',
+        grokLastProbe: 'Probe {time}',
+        grokLastHeadersSeen: 'Headers {time}',
         statsTitle: '5-Hour Window Usage Statistics',
         statsTitleDaily: 'Daily Usage Statistics',
         geminiProDaily: 'Pro',
