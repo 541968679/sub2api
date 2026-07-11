@@ -140,6 +140,8 @@ type CreateUserInput struct {
 	Password                 string
 	Username                 string
 	Notes                    string
+	Role                     string
+	ActorAdminID             int64
 	Balance                  float64
 	Concurrency              int
 	RPMLimit                 int
@@ -152,6 +154,8 @@ type UpdateUserInput struct {
 	Password                 string
 	Username                 *string
 	Notes                    *string
+	Role                     string
+	ActorAdminID             int64
 	Balance                  *float64 // 使用指针区分"未提供"和"设置为0"
 	Concurrency              *int     // 使用指针区分"未提供"和"设置为0"
 	RPMLimit                 *int     // 使用指针区分"未提供"和"设置为0"
@@ -164,6 +168,17 @@ type UpdateUserInput struct {
 	// GroupRatesFull 用户专属分组倍率配置（含展示倍率）
 	// 当提供此字段时优先于 GroupRates
 	GroupRatesFull map[int64]*UserGroupRateData
+}
+
+func normalizeUserRole(role, fallback string) (string, error) {
+	role = strings.TrimSpace(role)
+	if role == "" {
+		return fallback, nil
+	}
+	if role != RoleAdmin && role != RoleUser {
+		return "", infraerrors.BadRequest("INVALID_USER_ROLE", "role must be one of admin or user")
+	}
+	return role, nil
 }
 
 type AdminBindAuthIdentityInput struct {
@@ -746,11 +761,15 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 		return nil, infraerrors.BadRequest("INVALID_DOWNSTREAM_USAGE_TOKEN_MODE", "downstream_usage_token_mode must be one of real or display")
 	}
 
+	role, err := normalizeUserRole(input.Role, RoleUser)
+	if err != nil {
+		return nil, err
+	}
 	user := &User{
 		Email:                    input.Email,
 		Username:                 input.Username,
 		Notes:                    input.Notes,
-		Role:                     RoleUser, // Always create as regular user, never admin
+		Role:                     role,
 		Balance:                  input.Balance,
 		Concurrency:              input.Concurrency,
 		RPMLimit:                 input.RPMLimit,
@@ -763,6 +782,9 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, err
+	}
+	if user.Role == RoleAdmin {
+		logger.LegacyPrintf("service.admin", "audit: admin user created actor_admin_id=%d target_user_id=%d", input.ActorAdminID, user.ID)
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
 	return user, nil
@@ -810,6 +832,29 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	if user.Role == "admin" && input.Status != "" && input.Status != StatusActive {
 		return nil, errors.New("cannot disable admin user")
 	}
+	newRole := user.Role
+	if input.Role != "" {
+		role, err := normalizeUserRole(input.Role, newRole)
+		if err != nil {
+			return nil, err
+		}
+		if user.Role == RoleAdmin && role == RoleUser {
+			if input.ActorAdminID == id {
+				return nil, infraerrors.BadRequest("ADMIN_SELF_DEMOTION_FORBIDDEN", "cannot demote yourself from admin")
+			}
+			noSubscriptions := false
+			_, result, listErr := s.userRepo.ListWithFilters(ctx, pagination.PaginationParams{Page: 1, PageSize: 1}, UserListFilters{
+				Role: RoleAdmin, IncludeSubscriptions: &noSubscriptions,
+			})
+			if listErr != nil {
+				return nil, fmt.Errorf("count admin users: %w", listErr)
+			}
+			if result == nil || result.Total <= 1 {
+				return nil, infraerrors.BadRequest("LAST_ADMIN_DEMOTION_FORBIDDEN", "cannot demote the last admin user")
+			}
+		}
+		newRole = role
+	}
 
 	oldConcurrency := user.Concurrency
 	oldStatus := user.Status
@@ -817,6 +862,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	oldRPMLimit := user.RPMLimit
 	oldDownstreamUsageTokenMode := NormalizeDownstreamUsageTokenMode(user.DownstreamUsageTokenMode)
 	oldAllowedGroups := append([]int64(nil), user.AllowedGroups...)
+	user.Role = newRole
 
 	if input.Email != "" {
 		user.Email = input.Email
@@ -856,6 +902,9 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 
 	if err := s.userRepo.Update(ctx, user); err != nil {
 		return nil, err
+	}
+	if user.Role != oldRole {
+		logger.LegacyPrintf("service.admin", "audit: user role changed actor_admin_id=%d target_user_id=%d old_role=%s new_role=%s", input.ActorAdminID, user.ID, oldRole, user.Role)
 	}
 
 	// 同步用户专属分组倍率

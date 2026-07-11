@@ -1192,3 +1192,10 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
  `cacheRecorder` fixture prevent whole-package default/service and repository
  integration compilation at this intermediate alignment commit.
  - **Pushed/deployed**: no.
+### 2026-07-11 - Guarded administrator role management
+
+- Selectively adapted the role-management portions of `64fdc11ec` and `7918b1a9c` into the fork's consolidated admin service.
+- Added backend role allowlisting, default-user behavior, service-level self/last-admin demotion guards, actor audit metadata, auth-cache invalidation, and bilingual create/edit controls.
+- Did not reapply the unrelated response-failed portions of `7918b1a9c`; those remain isolated in their own gateway batch.
+- No migration, public registration, billing/display-token, cache-read, subscription, quota, or routing behavior changed.
+- Pushed/deployed: no.

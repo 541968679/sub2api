@@ -115,6 +115,7 @@ export async function getById(id: number): Promise<AdminUser> {
 export async function create(userData: {
   email: string
   password: string
+	role?: 'admin' | 'user'
   balance?: number
   concurrency?: number
   downstream_usage_token_mode?: DownstreamUsageTokenMode

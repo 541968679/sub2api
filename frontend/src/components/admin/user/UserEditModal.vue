@@ -38,6 +38,13 @@
         </select>
       </div>
       <div>
+        <label class="input-label">{{ t('admin.users.form.roleLabel') }}</label>
+        <select v-model="form.role" class="input">
+          <option value="user">{{ t('admin.users.roles.user') }}</option>
+          <option value="admin">{{ t('admin.users.roles.admin') }}</option>
+        </select>
+      </div>
+      <div>
         <label class="input-label">{{ t('admin.users.notes') }}</label>
         <textarea v-model="form.notes" rows="3" class="input"></textarea>
       </div>
@@ -99,6 +106,7 @@ const form = reactive({
   password: '',
   username: '',
   status: 'active' as UserStatus,
+	role: 'user' as 'admin' | 'user',
   notes: '',
   concurrency: 1,
   rpm_limit: 0,
@@ -113,6 +121,7 @@ watch(() => props.user, (u) => {
       password: '',
       username: u.username || '',
       status: u.status,
+		role: u.role,
       notes: u.notes || '',
       concurrency: u.concurrency,
       rpm_limit: u.rpm_limit ?? 0,
@@ -149,6 +158,7 @@ const handleUpdateUser = async () => {
       email: form.email,
       username: form.username,
       status: form.status,
+		role: form.role,
       notes: form.notes,
       concurrency: form.concurrency,
       rpm_limit: form.rpm_limit,

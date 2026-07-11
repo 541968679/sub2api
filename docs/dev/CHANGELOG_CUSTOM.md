@@ -4710,3 +4710,14 @@ route, setting, push, or deployment change.
  - Preserved fork-local pricing/display invariants, curated/default models,
    Claude-GPT bridge, OpenAI Images, Batch Image, Grok media, platform quotas,
    scheduler/failover, ops logging, settings, i18n, and routes.
+## [2026-07-11] feat: Add guarded admin user role management
+
+**Affected files**: admin user handler/service contracts and tests, admin user create/edit API/UI, bilingual role labels, and focused frontend tests.
+
+**Compatibility**: High-sensitivity permission change selectively adapted from the role-owned parts of `64fdc11ec` and `7918b1a9c`. No migration or public registration change.
+
+**Details**:
+- Admin-created users may explicitly be `user` or `admin`; omitted roles still default to `user`, and all other values return a typed bad request.
+- Service-level guards reject self-demotion and demoting the last remaining administrator, so bypassing the UI/handler cannot remove all admin access.
+- Role changes reuse the existing auth-cache invalidation path and emit actor/target/old/new role audit metadata without logging personal data.
+- Existing user group rates, platform quotas, default subscriptions, balances, concurrency, billing/display-token behavior, and public registration remain unchanged.
