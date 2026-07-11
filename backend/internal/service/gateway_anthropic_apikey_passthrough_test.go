@@ -266,6 +266,105 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardCountTokensPreservesBo
 	require.Empty(t, rec.Header().Get("Set-Cookie"))
 }
 
+func TestGatewayService_AnthropicAPIKeyBearerAuth_AllRequestBuildersReplaceInboundAuth(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("Authorization", "Bearer inbound-token")
+	c.Request.Header.Set("X-Api-Key", "inbound-api-key")
+	c.Request.Header.Set("Cookie", "secret=1")
+
+	svc := &GatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+			},
+		},
+	}
+	account := &Account{
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "upstream-key",
+			"base_url": "https://compatible.example.com",
+		},
+		Extra: map[string]any{
+			"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+		},
+	}
+	body := []byte(`{"model":"claude-compatible","messages":[]}`)
+
+	requests := map[string]func() (*http.Request, error){
+		"standard messages": func() (*http.Request, error) {
+			return svc.buildUpstreamRequest(context.Background(), c, account, body, "upstream-key", "apikey", "claude-compatible", false, false)
+		},
+		"passthrough messages": func() (*http.Request, error) {
+			return svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, body, "upstream-key")
+		},
+		"standard count tokens": func() (*http.Request, error) {
+			return svc.buildCountTokensRequest(context.Background(), c, account, body, "upstream-key", "apikey", "claude-compatible", false)
+		},
+		"passthrough count tokens": func() (*http.Request, error) {
+			return svc.buildCountTokensRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, body, "upstream-key")
+		},
+	}
+
+	for name, build := range requests {
+		t.Run(name, func(t *testing.T) {
+			req, err := build()
+			require.NoError(t, err)
+			require.Equal(t, "Bearer upstream-key", getHeaderRaw(req.Header, "authorization"))
+			require.Empty(t, getHeaderRaw(req.Header, "x-api-key"))
+			require.Empty(t, getHeaderRaw(req.Header, "cookie"))
+		})
+	}
+}
+
+func TestGatewayService_AnthropicAPIKeyDefaultAuth_AllRequestBuildersRemainXAPIKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("Authorization", "Bearer inbound-token")
+	c.Request.Header.Set("X-Api-Key", "inbound-api-key")
+
+	svc := &GatewayService{cfg: &config.Config{
+		Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}},
+	}}
+	account := &Account{
+		Platform: PlatformAnthropic,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "upstream-key",
+			"base_url": "https://compatible.example.com",
+		},
+	}
+	body := []byte(`{"model":"claude-compatible","messages":[]}`)
+
+	for name, build := range map[string]func() (*http.Request, error){
+		"standard messages": func() (*http.Request, error) {
+			return svc.buildUpstreamRequest(context.Background(), c, account, body, "upstream-key", "apikey", "claude-compatible", false, false)
+		},
+		"passthrough messages": func() (*http.Request, error) {
+			return svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, body, "upstream-key")
+		},
+		"standard count tokens": func() (*http.Request, error) {
+			return svc.buildCountTokensRequest(context.Background(), c, account, body, "upstream-key", "apikey", "claude-compatible", false)
+		},
+		"passthrough count tokens": func() (*http.Request, error) {
+			return svc.buildCountTokensRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, body, "upstream-key")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req, err := build()
+			require.NoError(t, err)
+			require.Equal(t, "upstream-key", getHeaderRaw(req.Header, "x-api-key"))
+			require.Empty(t, getHeaderRaw(req.Header, "authorization"))
+		})
+	}
+}
+
 // TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases 覆盖透传模式下模型映射的各种边界情况
 func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *testing.T) {
 	gin.SetMode(gin.TestMode)

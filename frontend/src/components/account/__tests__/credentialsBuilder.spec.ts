@@ -2,14 +2,47 @@ import { describe, it, expect } from 'vitest'
 import {
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
+  applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
   applyInterceptWarmup,
   buildHeaderOverridesObject,
   getHeaderOverrideTemplate,
   isHeaderOverridePlatform,
+  resolveAnthropicAPIKeyAuthScheme,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows
 } from '../credentialsBuilder'
+
+describe('Anthropic API key auth scheme', () => {
+  it('defaults missing and invalid values to x-api-key', () => {
+    expect(resolveAnthropicAPIKeyAuthScheme()).toBe('x_api_key')
+    expect(resolveAnthropicAPIKeyAuthScheme({ anthropic_apikey_auth_scheme: 'bearer' })).toBe('x_api_key')
+  })
+
+  it('hydrates the explicit bearer scheme', () => {
+    expect(resolveAnthropicAPIKeyAuthScheme({
+      anthropic_apikey_auth_scheme: 'authorization_bearer'
+    })).toBe('authorization_bearer')
+  })
+
+  it('persists only the non-default bearer scheme without changing sibling extras', () => {
+    const extra: Record<string, unknown> = { anthropic_passthrough: true }
+    applyAnthropicAPIKeyAuthScheme(extra, 'authorization_bearer')
+    expect(extra).toEqual({
+      anthropic_passthrough: true,
+      anthropic_apikey_auth_scheme: 'authorization_bearer'
+    })
+  })
+
+  it('removes the field when reset to x-api-key', () => {
+    const extra: Record<string, unknown> = {
+      anthropic_passthrough: true,
+      anthropic_apikey_auth_scheme: 'authorization_bearer'
+    }
+    applyAnthropicAPIKeyAuthScheme(extra, 'x_api_key')
+    expect(extra).toEqual({ anthropic_passthrough: true })
+  })
+})
 
 describe('applyInterceptWarmup', () => {
   it('create + enabled=true: should set intercept_warmup_requests to true', () => {

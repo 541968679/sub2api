@@ -71,3 +71,70 @@ func TestAccount_IsAnthropicAPIKeyPassthroughEnabled(t *testing.T) {
 		require.False(t, openai.IsAnthropicAPIKeyPassthroughEnabled())
 	})
 }
+
+func TestAccount_GetAnthropicAPIKeyAuthScheme(t *testing.T) {
+	tests := []struct {
+		name    string
+		account *Account
+		want    string
+	}{
+		{
+			name: "missing extra defaults to x-api-key",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+		{
+			name: "explicit bearer",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+		},
+		{
+			name: "invalid value defaults to x-api-key",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": "bearer",
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+		{
+			name: "oauth cannot opt into API key bearer scheme",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeOAuth,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+		{
+			name: "non Anthropic API key defaults to x-api-key",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeAPIKey,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.account.GetAnthropicAPIKeyAuthScheme())
+		})
+	}
+}
