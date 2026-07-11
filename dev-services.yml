@@ -11,48 +11,23 @@ network:
     new_api: 13200
 
 services:
-  dev-stack:
-    label: Managed Dev Stack
-    role: managed
-    cwd: .
-    command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
-    ports: [${ports.backend}, ${ports.frontend}, ${ports.aiclient2api}, ${ports.aiclient2api_master}, ${ports.new_api}]
-    health: http://${network.host}:${ports.backend}/health
-    open_url: http://${network.host}:${ports.frontend}
-    pid_file: .run/dev-stack.pid
-    log_file: .run/logs/dev-stack.log
-    reload: false
-    variants:
-      restart:
-        label: Restart main stack
-        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
-      full:
-        label: Full Stack
-        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart
-      sub2api-only:
-        label: Restart Sub2API only
-        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -SkipAIClient
-      with-new-api:
-        label: Restart with new-api
-        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -IncludeNewAPI
-      stop:
-        label: Stop Stack
-        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 stop
-      status:
-        label: Print status
-        command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 status
-
   backend:
     label: Backend API
-    role: monitor
+    role: managed
+    cwd: .
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component backend -SkipAIClient
+    env:
+      GIN_MODE: release
     ports: [${ports.backend}]
     health: http://${network.host}:${ports.backend}/health
     open_url: http://${network.host}:${ports.backend}/health
-    reload: false
+    reload: true
 
   frontend:
     label: Frontend
-    role: monitor
+    role: managed
+    cwd: .
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component frontend -SkipAIClient
     ports: [${ports.frontend}]
     health: http://${network.host}:${ports.frontend}
     open_url: http://${network.host}:${ports.frontend}
@@ -75,7 +50,7 @@ services:
 groups:
   core:
     label: Core
-    services: [dev-stack, backend, frontend]
+    services: [backend, frontend]
   optional:
     label: Optional Sidecars
     services: [aiclient2api, new-api]

@@ -341,6 +341,22 @@ golangci-lint run ./...
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -IncludeNewAPI
 ```
 
+### dev control 独立启停
+
+仓库根目录的 `dev-services.yml` 将 Sub2API 后端和前端注册为两个独立的
+managed service。dev control 可以分别启动、停止和重启它们；项目级启动/停止
+会同时操作这两个核心服务。
+
+两个注册项都通过仓库统一入口以前台模式运行，供 dev control 跟踪完整进程树：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component backend -SkipAIClient
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component frontend -SkipAIClient
+```
+
+`run` 是 dev control 托管模式，不替代日常整栈命令；命令行正常启停仍使用
+`start`、`restart`、`stop` 和 `status`。
+
 ### 关联子项目约定
 
 `E:\cursor project\new-api` 是本仓库本地工具管理的可选兄弟子项目，关系与

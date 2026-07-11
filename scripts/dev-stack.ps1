@@ -1,6 +1,9 @@
 param(
-    [ValidateSet("start", "restart", "stop", "status")]
+    [ValidateSet("start", "restart", "stop", "status", "run")]
     [string]$Action = "restart",
+
+    [ValidateSet("backend", "frontend")]
+    [string]$Component,
 
     [string]$AIClientPath = "",
 
@@ -206,6 +209,35 @@ function Start-ServiceProcess {
         Stdout = $stdout
         Stderr = $stderr
         StartedAt = (Get-Date).ToString("s")
+    }
+}
+
+function Invoke-ServiceForeground {
+    param([object]$Service)
+
+    if ($Service.Kind -eq "compose") {
+        throw "Foreground mode does not support compose service $($Service.Name)."
+    }
+    if (-not (Test-Path $Service.WorkingDirectory)) {
+        throw "$($Service.Name) working directory does not exist: $($Service.WorkingDirectory)"
+    }
+
+    foreach ($port in $Service.Ports) {
+        if (Test-PortOpen -HostName "127.0.0.1" -Port ([int]$port)) {
+            throw "$($Service.Name) cannot start because 127.0.0.1:$port is already listening."
+        }
+    }
+
+    Write-Step "Running $($Service.Name) in the foreground on port $($Service.Port)"
+    Push-Location -LiteralPath $Service.WorkingDirectory
+    try {
+        & ([scriptblock]::Create($Service.Command))
+        if ($LASTEXITCODE -is [int] -and $LASTEXITCODE -ne 0) {
+            throw "$($Service.Name) exited with code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
     }
 }
 
@@ -447,6 +479,29 @@ if ($IncludeNewAPI) {
         Port = $NewAPIPort
         Ports = @($NewAPIPort)
     }
+}
+
+if ($Action -eq "run") {
+    if ([string]::IsNullOrWhiteSpace($Component)) {
+        throw "-Component backend or -Component frontend is required with the run action."
+    }
+
+    $selectedService = $services | Where-Object { $_.Name -eq $Component } | Select-Object -First 1
+    if ($null -eq $selectedService) {
+        throw "Unknown foreground component: $Component"
+    }
+
+    foreach ($dependency in @(
+        [pscustomobject]@{ Name = "PostgreSQL"; Port = 5432 },
+        [pscustomobject]@{ Name = "Redis"; Port = 6379 }
+    )) {
+        if (-not (Test-PortOpen -HostName "127.0.0.1" -Port $dependency.Port)) {
+            Write-Warning "$($dependency.Name) is not reachable on 127.0.0.1:$($dependency.Port). Start Docker Desktop/dev containers first if this service is required."
+        }
+    }
+
+    Invoke-ServiceForeground -Service $selectedService
+    exit 0
 }
 
 switch ($Action) {
