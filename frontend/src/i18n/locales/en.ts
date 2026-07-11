@@ -7889,6 +7889,13 @@ function mergeLocale<T extends Record<string, unknown>>(base: T, patch: Record<s
 }
 
 const phase0LocalePatch = {
+  batchImageGuide: {
+    title: 'Batch Image Generation',
+    description: 'Submit multiple prompts in one job and download the generated images when complete'
+  },
+  nav: {
+    batchImage: 'Batch Images'
+  },
   common: {
     required: 'Required',
     tryAgain: 'Please try again',
@@ -7945,7 +7952,14 @@ const phase0LocalePatch = {
     },
     groups: {
       accountsUnit: 'accounts',
-      failedToSave: 'Failed to save'
+      failedToSave: 'Failed to save',
+	  batchImage: {
+		allowImage: 'Enable image generation',
+		allowBatch: 'Enable batch image generation',
+		discount: 'Batch price multiplier',
+		hold: 'Balance hold multiplier',
+		holdInvariant: 'The balance hold multiplier must be greater than or equal to the batch price multiplier.'
+	  }
     },
     ops: {
       result: 'Result',

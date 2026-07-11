@@ -95,6 +95,12 @@ type CreateGroupRequest struct {
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
+	AllowImageGeneration            bool     `json:"allow_image_generation"`
+	AllowBatchImageGeneration       bool     `json:"allow_batch_image_generation"`
+	ImageRateIndependent            bool     `json:"image_rate_independent"`
+	ImageRateMultiplier             *float64 `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier    *float64 `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier        *float64 `json:"batch_image_hold_multiplier"`
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
@@ -135,6 +141,12 @@ type UpdateGroupRequest struct {
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
 	ImagePrice4K                    *float64 `json:"image_price_4k"`
+	AllowImageGeneration            *bool    `json:"allow_image_generation"`
+	AllowBatchImageGeneration       *bool    `json:"allow_batch_image_generation"`
+	ImageRateIndependent            *bool    `json:"image_rate_independent"`
+	ImageRateMultiplier             *float64 `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier    *float64 `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier        *float64 `json:"batch_image_hold_multiplier"`
 	ClaudeCodeOnly                  *bool    `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
@@ -281,6 +293,12 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
+		AllowImageGeneration:            req.AllowImageGeneration,
+		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
+		ImageRateIndependent:            req.ImageRateIndependent,
+		ImageRateMultiplier:             req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        req.BatchImageHoldMultiplier,
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
@@ -336,6 +354,12 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
+		AllowImageGeneration:            req.AllowImageGeneration,
+		AllowBatchImageGeneration:       req.AllowBatchImageGeneration,
+		ImageRateIndependent:            req.ImageRateIndependent,
+		ImageRateMultiplier:             req.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    req.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        req.BatchImageHoldMultiplier,
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,

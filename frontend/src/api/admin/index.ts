@@ -33,6 +33,7 @@ import imageChannelMonitorAPI from './imageChannelMonitor'
 import adminPaymentAPI from './payment'
 import affiliatesAPI from './affiliates'
 import distributionAdminAPI from './distribution'
+import grokAPI from './grok'
 
 /**
  * Unified admin API object for convenient access
@@ -67,7 +68,8 @@ export const adminAPI = {
   imageChannelMonitor: imageChannelMonitorAPI,
   payment: adminPaymentAPI,
   affiliates: affiliatesAPI,
-  distribution: distributionAdminAPI
+  distribution: distributionAdminAPI,
+  grok: grokAPI
 }
 
 export {

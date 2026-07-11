@@ -11,6 +11,12 @@ import { getLocale } from '@/i18n'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
+export function buildGatewayUrl(path: string): string {
+  const base = String(API_BASE_URL).replace(/\/$/, '').replace(/\/api\/v1$/, '')
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  return `${base}${normalized}` || normalized
+}
+
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,

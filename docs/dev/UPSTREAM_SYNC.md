@@ -770,3 +770,35 @@ signatures are intentionally conditional: absent files do not fail Phase 0,
 but once `b06190970` becomes an ancestor of the alignment branch the guard permanently requires
 `CountTokensClaudeGPTBridge`, strict bridge route diagnosis, bridge account
 selection, upstream count forwarding, and local-estimate fallback signatures.
+
+## 2026-07-11 - Batch Image feature batch through upstream 0.1.151
+
+- **Branch**: `codex/upstream-batch-image-20260711`
+- **Local baseline**: `cc8280167`
+- **Upstream target**: `upstream/main@e316ebf52838`
+- **Upstream chain**: `a994fbd77`, `8fab63699`, `d8e96f0f9`, `80a229bce`, and `616cf17d9`
+- **Strategy**: contract-test-first manual port; Batch Image-owned files were
+  adapted while shared group, auth cache, billing, routes, Wire, and frontend
+  files were reconciled field by field.
+- **Migration handling**: upstream incremental migrations were consolidated as
+  the new local additive migration `184_batch_image_workflow.sql`; historical
+  local migrations were not changed.
+- **Pushed/deployed**: no.
+
+### Preserved fork-local behavior
+
+- OpenAI Images generation/edit feature gates, response spool, failover,
+  ImageChannelMonitor, and diagnostic artifacts.
+- Ordinary stored billing, quota deduction, `actual_cost`, display-token
+  transforms, cache-read token/cost invariants, and platform quota attribution.
+- Claude-GPT bridge routing/count-token behavior, curated model lists/default
+  mapping, Grok support, account scheduling/failover, and ops/public settings.
+
+### Batch Image handling
+
+- Added separate Gemini API/Vertex asynchronous providers, Redis queue/worker,
+  owner-scoped job/item/event persistence, result downloads and retention.
+- Added group/global gates and immutable pricing snapshots with isolated
+  frozen-balance reserve/capture/release settlement.
+- Both feature and queue defaults are disabled, and Vertex requires explicit
+  project/bucket configuration.

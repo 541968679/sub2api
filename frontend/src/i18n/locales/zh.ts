@@ -7360,6 +7360,10 @@ const zhBase = {
 }
 
 const v117ZhPatch = {
+  batchImageGuide: {
+    title: '图片批量生成',
+    description: '一次提交多条提示词，任务完成后可统一下载图片结果'
+  },
   common: {
     login: '登录',
     done: '已完成',
@@ -7370,6 +7374,7 @@ const v117ZhPatch = {
     apply: '应用'
   },
   nav: {
+    batchImage: '批量生图',
     distribution: '成为代理',
     distributionManagement: '分销管理'
   },
@@ -7665,6 +7670,15 @@ const v117ZhPatch = {
     verifyAndCreate: '验证并提交申请'
   },
   admin: {
+    groups: {
+      batchImage: {
+        allowImage: '开启图片生成',
+        allowBatch: '开启批量生图',
+        discount: '批量价格倍率',
+        hold: '余额冻结倍率',
+        holdInvariant: '余额冻结倍率必须大于或等于批量价格倍率。'
+      }
+    },
     distribution: {
       title: '分销管理',
       description: '审核分销代理申请并管理第一阶段准入。',

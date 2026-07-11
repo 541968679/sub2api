@@ -35,6 +35,7 @@ export {
 } from './pricingPage'
 export { loginPageAPI, type LoginPageContent } from './loginPage'
 export { channelMonitorUserAPI } from './channelMonitor'
+export * as batchImageAPI from './batchImage'
 
 // Admin APIs
 export { adminAPI } from './admin'

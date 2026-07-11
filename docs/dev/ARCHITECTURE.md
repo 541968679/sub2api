@@ -117,6 +117,13 @@ response.Success / response.ErrorFrom (unified envelope)
 
 **网关路径** 走特殊流程（不同于普通 CRUD）：`handler/gateway_handler.go` → `service/gateway_service.go` → 账号调度器 + HTTPUpstream → 直接流式返回给客户端。详见 `codebase/gateway.md`（TBD）。
 
+**Batch Image path** is a separate asynchronous workflow:
+`handler/batch_image_handler.go` -> `service/batch_image_public.go` -> Redis
+queue/worker -> Gemini API or Vertex provider -> settlement/download/cleanup.
+It uses owner-scoped job tables and a frozen-balance ledger and must not be
+folded into the OpenAI Images gateway, image response spool, ImageChannelMonitor,
+or ordinary display-token billing. See `codebase/batch-image.md`.
+
 ### 3.2 依赖注入（Wire）
 
 所有服务/仓储/handler 在启动时由 Wire 组装，**不是运行时反射**。
@@ -412,6 +419,7 @@ export default keysAPI
 | 账号管理 | [codebase/account.md](codebase/account.md) | 账号 CRUD、多 provider OAuth、AI Credits、批量导入 |
 | 计费系统 | [codebase/billing.md](codebase/billing.md) | 四级定价链、费用计算、费率乘数、缓存命中计费 |
 | 模型映射 | [codebase/model-mapping.md](codebase/model-mapping.md) | 模型白名单 / 映射、默认映射、网关解析、通配符 |
+| Batch Image | [codebase/batch-image.md](codebase/batch-image.md) | Gemini/Vertex async batches, owner scope, frozen-balance settlement, and preservation boundaries |
 | 图片耗时诊断进度 | [OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md](OPENAI_IMAGE_TIMING_DIAGNOSTICS_2026-05-19.md) | `gpt-image-2` 本地 trace 验证、耗时拆分、生产测试边界 |
 | 图片超时修复复测 | [OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md](OPENAI_IMAGE_TIMEOUT_RETEST_2026-05-30.md) | `gpt-image-2` 快速失败重试、长等待超时、36 请求并发复测结果 |
 | OpenAI image URL relay 4K diagnostics | [OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md](OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md) | Production URL-response shape, native 4K channel quality/concurrency results, and image URL download timing plan |
