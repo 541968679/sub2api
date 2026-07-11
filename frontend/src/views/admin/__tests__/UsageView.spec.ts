@@ -105,6 +105,11 @@ const GroupDistributionChartStub = {
   `,
 }
 
+const UserTokenRankingStub = {
+  emits: ['select-user'],
+  template: '<div data-test="ranking"><button class="pick-user" @click="$emit(\'select-user\', 5, \'rank@test.com\')">pick</button></div>',
+}
+
 describe('admin UsageView distribution metric toggles', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -192,5 +197,56 @@ describe('admin UsageView distribution metric toggles', () => {
     expect(modelChart.find('.metric').text()).toBe('actual_cost')
     expect(groupChart.find('.metric').text()).toBe('actual_cost')
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('admin UsageView ranking drilldown', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    list.mockReset()
+    getStats.mockReset()
+    getSnapshotV2.mockReset()
+    list.mockResolvedValue({ items: [], total: 0, pages: 0 })
+    getStats.mockResolvedValue({
+      total_requests: 0, total_input_tokens: 0, total_output_tokens: 0,
+      total_cache_tokens: 0, total_tokens: 0, total_cost: 0,
+      total_actual_cost: 0, average_duration_ms: 0,
+    })
+    getSnapshotV2.mockResolvedValue({ trend: [], models: [], groups: [] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('mounts the ranking lazily and returns to usage details after drilldown', async () => {
+    const wrapper = mount(UsageView, {
+      global: { stubs: {
+        AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
+        UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
+        UserBalanceHistoryModal: true, UserViewCompareDrawer: true, Pagination: true,
+        Select: true, DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        ModelDistributionChart: true, GroupDistributionChart: true,
+        EndpointDistributionChart: true, AntigravityRatioCard: true,
+        AntigravityUsageCurveChart: true, UserTokenRanking: UserTokenRankingStub,
+      } },
+    })
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="ranking"]').exists()).toBe(false)
+    const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
+    expect(tabs).toHaveLength(2)
+
+    await tabs[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="ranking"]').exists()).toBe(true)
+
+    list.mockClear()
+    await wrapper.find('.pick-user').trigger('click')
+    await flushPromises()
+    expect((wrapper.vm as any).activeTab).toBe('usage')
+    expect((wrapper.vm as any).filters.user_id).toBe(5)
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: 5 }), expect.anything())
   })
 })
