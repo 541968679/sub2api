@@ -19,6 +19,18 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Grok/xAI OAuth and OpenAI-compatible gateway foundation
+
+**Affected files**: `backend/internal/{pkg/xai,repository/grok_oauth_client.go,service/{grok_*,openai_gateway_grok.go,openai_account_scheduler.go,account.go},handler/admin/grok_oauth_handler.go,server/routes/{admin,gateway}.go,cmd/server/wire_gen.go}` plus focused tests and `frontend/src/{api/admin/grok.ts,composables/useGrokOAuth.ts}`
+**Upstream compatibility**: High-risk hot-path adaptation. Grok support was ported manually from the upstream alignment target instead of replacing the fork's OpenAI gateway, scheduler, billing, or route files.
+**Details**:
+- Added xAI OAuth exchange/refresh, token provider, quota probing, quota snapshot persistence, and admin OAuth endpoints.
+- Added Grok Responses, Chat Completions, and Anthropic Messages conversion/forwarding through the existing OpenAI-compatible gateway service.
+- Platformized OpenAI-compatible scheduling so Grok requests only select Grok accounts and ordinary OpenAI requests cannot select Grok accounts; runtime-blocked Grok accounts are excluded from both legacy and advanced scheduler paths.
+- Preserved the fork-local Claude-GPT bridge eligibility contract, curated OpenAI model discovery, OpenAI Images feature gate, default-model fallback, usage/display accounting fields, and Ops response-commit tracking.
+- Grok `count_tokens` and WebSocket Responses are explicitly unsupported at this checkpoint. Grok media service primitives are present but are not exposed through HTTP until content moderation and media billing persistence are integrated.
+- Added focused regression coverage for OAuth, quota, protocol conversion, platform-isolated scheduling, runtime blocking, admin routes, and DI construction.
+
 ## [2026-07-11] fix: Harden released Ops capture writers
 
 **Affected files**: `backend/internal/handler/{ops_error_logger.go,ops_capture_writer_nil_test.go}`, `docs/dev/{UPSTREAM_SYNC.md,codebase/ops.md,CHANGELOG_CUSTOM.md`

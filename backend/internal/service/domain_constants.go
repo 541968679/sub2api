@@ -38,7 +38,32 @@ const (
 	PlatformOpenAI      = domain.PlatformOpenAI
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
+	PlatformGrok        = domain.PlatformGrok
 )
+
+var AllowedQuotaPlatforms = []string{
+	PlatformAnthropic,
+	PlatformOpenAI,
+	PlatformGemini,
+	PlatformAntigravity,
+	PlatformGrok,
+}
+
+func IsAllowedQuotaPlatform(platform string) bool {
+	for _, allowed := range AllowedQuotaPlatforms {
+		if platform == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeOpenAICompatiblePlatform(platform string) string {
+	if platform == PlatformGrok {
+		return PlatformGrok
+	}
+	return PlatformOpenAI
+}
 
 // Account type constants
 const (

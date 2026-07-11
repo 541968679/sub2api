@@ -32,6 +32,8 @@
 | Service | `backend/internal/service/openai_embeddings.go` | OpenAI API-key embeddings forwarding, model mapping, upstream response passthrough, and embeddings usage extraction. |
 | Service | `backend/internal/service/openai_images.go` | OpenAI Images API key forwarding, request normalization, and direct image response handling. |
 | Service | `backend/internal/service/openai_images_responses.go` | OpenAI OAuth image forwarding through Codex `/responses` and stream/non-stream transformation. |
+| Service | `backend/internal/service/openai_gateway_grok.go` | Grok Responses and Anthropic Messages compatibility, xAI request/response conversion, failover signals, and quota snapshots. |
+| Service | `backend/internal/service/grok_media.go` | Grok image/video service primitives; HTTP exposure is deferred until moderation and media billing are integrated. |
 | Service | `backend/internal/service/openai_image_trace.go` | Temporary `OPENAI_IMAGE_TRACE_LOG` diagnostics for `gpt-image-2` generations. |
 | Service | `backend/internal/service/antigravity_gateway_service.go` | Antigravity native request/response conversion and forwarding. |
 | Service | `backend/internal/service/ratelimit_service.go` | Maps upstream errors to account state, temporary unschedulable windows, and rate limits. |
@@ -160,6 +162,21 @@ Successful `message_stop` and downstream `event: error` writes mark the
 Anthropic response terminal. Handler panic/error fallbacks consult that state so
 they cannot append a second terminal event. A canceled downstream request exits
 the Messages handler without reporting the selected account as unhealthy.
+
+### Grok OpenAI-Compatible HTTP Flow
+
+`platform=grok` groups enter the OpenAI-compatible handler for HTTP Responses,
+Chat Completions, and Messages. The handler passes an explicit Grok platform to
+the scheduler; candidate listing, sticky rechecks, DB rechecks, model capability
+checks, and runtime blocking all preserve that platform boundary. The selected
+account then uses the xAI OAuth/API-key token provider and Grok-specific forward
+adapter.
+
+The fork's Claude-GPT bridge remains a separate Antigravity-group path with
+`RequireClaudeGPTBridge=true`; Grok routing does not participate in that bridge.
+Grok `count_tokens` and WebSocket Responses fail explicitly instead of falling
+through to another platform. Media service code is not registered as an HTTP
+handler until the risk-control and billing persistence batches are complete.
 
 ### OpenAI Responses / Chat / WS Current Sync Point
 

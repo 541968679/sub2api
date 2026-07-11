@@ -39,6 +39,27 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Grok/xAI core partial sync
+
+- **Upstream source**: Grok/xAI feature commits between the fork sync base `48912014` and alignment target `e316ebf5`.
+- **Merge strategy**: manual subsystem port. New xAI/OAuth/quota/protocol files were imported selectively; fork-local gateway, scheduler, routes, Wire graph, and account/model logic were reconciled by hand.
+- **Behavior**:
+  - Admins can perform Grok OAuth exchange/refresh and probe persisted xAI quota snapshots.
+  - Grok groups route HTTP Responses, Chat Completions, and Anthropic Messages through Grok accounts only.
+  - xAI default model aliases and curated discovery IDs are available without replacing the fork's curated OpenAI/Antigravity lists.
+  - Runtime-blocked or temporarily unschedulable Grok accounts are skipped during selection and failover.
+- **Fork-local impact**:
+  - Claude-GPT bridge dispatch remains restricted to its explicit Antigravity-group/account mapping contract; Grok platformization does not broaden bridge eligibility.
+  - Billing/display-token fields remain unchanged in this core checkpoint. Grok video/image billing persistence and HTTP media routes are intentionally deferred until moderation and schema integration land together.
+  - OpenAI Images remains controlled by the existing account-side feature switch. Grok media does not reuse or bypass that switch.
+  - Default-model fallback, mixed subscription member groups, account scheduling/failover, Ops logging/response-commit detection, public/admin settings, migrations, frontend i18n, and routes were reviewed for collisions.
+  - Grok `count_tokens` and WebSocket Responses return explicit unsupported responses rather than falling through to OpenAI or native gateway accounts.
+- **Verification**:
+  - Focused xAI OAuth/quota repository/service/admin handler tests.
+  - Grok Responses/Chat/Messages protocol tests.
+  - OpenAI-compatible scheduler platform-isolation and runtime-block tests.
+  - Handler/routes/Wire compile tests, `go run ./tools/upstream-sync-guard`, and `git diff --check`.
+
 ### 2026-07-11 - Ops capture writer lifecycle hardening
 
 - **Upstream source**: commits `89a551b964076f2e61b71c0b8fa34f9464100cb0` and `bc3cb290276922074213c5bc8ebc404bc6d083a8`.

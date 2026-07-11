@@ -443,6 +443,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if err != nil {
 		return nil, fmt.Errorf("marshal responses request: %w", err)
 	}
+	if account.Platform == PlatformGrok {
+		return s.forwardGrokResponses(ctx, c, account, responsesBody, originalModel, clientStream, startTime)
+	}
 
 	if account.Type == AccountTypeOAuth {
 		var reqBody map[string]any

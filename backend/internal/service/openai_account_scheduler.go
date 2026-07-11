@@ -38,6 +38,7 @@ var openAIAdvancedSchedulerSettingSF singleflight.Group
 
 type OpenAIAccountScheduleRequest struct {
 	GroupID                 *int64
+	Platform                string
 	SessionHash             string
 	StickyAccountID         int64
 	PreviousResponseID      string
@@ -252,8 +253,9 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		s.metrics.recordSelect(decision)
 	}()
 
+	req.Platform = normalizeOpenAICompatiblePlatform(req.Platform)
 	previousResponseID := strings.TrimSpace(req.PreviousResponseID)
-	if previousResponseID != "" {
+	if previousResponseID != "" && req.Platform == PlatformOpenAI {
 		selection, err := s.service.SelectAccountByPreviousResponseID(
 			ctx,
 			req.GroupID,
@@ -343,7 +345,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, nil
 	}
-	if shouldClearStickySession(account, req.RequestedModel) || !account.IsOpenAI() || !account.IsSchedulable() {
+	if shouldClearStickySession(account, req.RequestedModel) || !account.IsOpenAICompatible() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || !account.IsSchedulable() || s.service.isOpenAIAccountRuntimeBlocked(account) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, nil
 	}
@@ -355,6 +357,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return nil, nil
 	}
 	account = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, account, openAIAccountRequestEligibility{
+		Platform:               req.Platform,
 		RequestedModel:         req.RequestedModel,
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
@@ -615,7 +618,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, int, int, float64, error) {
-	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID)
+	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID, req.Platform)
 	if err != nil {
 		return nil, 0, 0, 0, err
 	}
@@ -638,7 +641,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				continue
 			}
 		}
-		if !account.IsSchedulable() || !account.IsOpenAI() {
+		if !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || s.service.isOpenAIAccountRuntimeBlocked(account) {
 			continue
 		}
 		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
@@ -650,6 +653,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		candidate := account
 		if !s.isAccountCandidatePoolCompatible(candidate, req) {
 			candidate = s.service.refreshStaleOpenAIScheduleCandidate(ctx, account, openAIAccountRequestEligibility{
+				Platform:               req.Platform,
 				RequestedModel:         req.RequestedModel,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
 			})
@@ -855,6 +859,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	for i := 0; i < len(selectionOrder); i++ {
 		candidate := selectionOrder[i]
 		eligibility := openAIAccountRequestEligibility{
+			Platform:               req.Platform,
 			RequestedModel:         req.RequestedModel,
 			RequireCompact:         req.RequireCompact,
 			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
@@ -891,6 +896,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	// WaitPlan.MaxConcurrency 使用 Concurrency（非 EffectiveLoadFactor），因为 WaitPlan 控制的是 Redis 实际并发槽位等待。
 	for _, candidate := range selectionOrder {
 		eligibility := openAIAccountRequestEligibility{
+			Platform:               req.Platform,
 			RequestedModel:         req.RequestedModel,
 			RequireCompact:         req.RequireCompact,
 			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
@@ -936,6 +942,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(account *Acco
 		return false
 	}
 	if !isOpenAIAccountEligibleForScheduleRequest(account, openAIAccountRequestEligibility{
+		Platform:               req.Platform,
 		RequestedModel:         req.RequestedModel,
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
@@ -950,6 +957,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountCandidatePoolCompatible(account
 		return false
 	}
 	eligibility := openAIAccountRequestEligibility{
+		Platform:               req.Platform,
 		RequestedModel:         req.RequestedModel,
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
@@ -1094,8 +1102,9 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForCapability(
 	requiredTransport OpenAIUpstreamTransport,
 	requiredCapability OpenAIEndpointCapability,
 	requireCompact bool,
+	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, "", requireCompact, false)
+	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, "", requireCompact, false, platformOverride...)
 }
 
 func (s *OpenAIGatewayService) SelectAccountWithSchedulerForClaudeGPTBridge(
@@ -1140,7 +1149,12 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	requiredImageCapability OpenAIImagesCapability,
 	requireCompact bool,
 	requireClaudeGPTBridge bool,
+	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	platform := PlatformOpenAI
+	if len(platformOverride) > 0 {
+		platform = normalizeOpenAICompatiblePlatform(platformOverride[0])
+	}
 	decision := OpenAIAccountScheduleDecision{}
 	scheduler := s.getOpenAIAccountScheduler(ctx)
 	if scheduler == nil {
@@ -1149,6 +1163,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 			effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
 			for {
 				selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, sessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
+					Platform:               platform,
 					RequestedModel:         requestedModel,
 					RequireCompact:         requireCompact,
 					RequireClaudeGPTBridge: requireClaudeGPTBridge,
@@ -1178,6 +1193,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
 		for {
 			selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, sessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
+				Platform:               platform,
 				RequestedModel:         requestedModel,
 				RequireCompact:         requireCompact,
 				RequireClaudeGPTBridge: requireClaudeGPTBridge,
@@ -1214,6 +1230,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 
 	return scheduler.Select(ctx, OpenAIAccountScheduleRequest{
 		GroupID:                 groupID,
+		Platform:                platform,
 		SessionHash:             sessionHash,
 		StickyAccountID:         stickyAccountID,
 		PreviousResponseID:      previousResponseID,

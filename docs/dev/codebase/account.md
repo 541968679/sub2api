@@ -2,6 +2,25 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini），包括 OAuth 导入、批量创建、状态监控、AI Credits 追踪。
 
+## Grok/xAI OAuth And Quota
+
+Grok accounts use `platform=grok` with either OAuth credentials or an API key.
+OAuth exchange/refresh is implemented by `internal/pkg/xai`,
+`repository/grok_oauth_client.go`, `service/grok_oauth_service.go`, and
+`service/grok_token_provider.go`. Admin endpoints are registered under
+`/api/v1/admin/grok-oauth`.
+
+Quota probes flow from `GrokQuotaService` through `GrokQuotaFetcher` to the xAI
+quota endpoint and persist normalized request/token windows in `Account.Extra`.
+Scheduling treats stale snapshots as informational, while active retry-after or
+runtime block state excludes the account. The scheduler platform is explicit:
+Grok requests cannot select OpenAI accounts and OpenAI requests cannot select
+Grok accounts.
+
+Known boundaries: Grok `count_tokens` is unsupported; WebSocket Responses is not
+enabled until the HTTP/SSE bridge is reconciled; media HTTP routes wait for the
+content-moderation and media-billing batch.
+
 ## OpenAI Claude-GPT Bridge For Antigravity Groups
 
 OpenAI accounts can opt into an account-side Claude-GPT bridge with

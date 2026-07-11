@@ -207,6 +207,7 @@ func (s *OpenAICodexUsageSnapshot) Normalize() *NormalizedCodexLimits {
 // OpenAIUsage represents OpenAI API response usage
 type OpenAIUsage struct {
 	InputTokens              int `json:"input_tokens"`
+	ImageInputTokens         int `json:"image_input_tokens,omitempty"`
 	OutputTokens             int `json:"output_tokens"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
@@ -252,6 +253,9 @@ type OpenAIForwardResult struct {
 	ImageOutputSizes        []string
 	ImageSizeSource         string
 	ImageSizeBreakdown      map[string]int
+	VideoCount              int
+	VideoResolution         string
+	VideoDurationSeconds    int
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
@@ -349,6 +353,7 @@ type OpenAIGatewayService struct {
 	httpUpstream                HTTPUpstream
 	deferredService             *DeferredService
 	openAITokenProvider         *OpenAITokenProvider
+	grokTokenProvider           *GrokTokenProvider
 	toolCorrector               *CodexToolCorrector
 	openaiWSResolver            OpenAIWSProtocolResolver
 	resolver                    *ModelPricingResolver
@@ -357,16 +362,17 @@ type OpenAIGatewayService struct {
 	settingService              *SettingService
 	openAIImagesResponseSpooler func(io.Reader, int64, int64, string) (*openAIImagesResponseSpool, error)
 
-	openaiWSPoolOnce              sync.Once
-	openaiWSStateStoreOnce        sync.Once
-	openaiSchedulerOnce           sync.Once
-	openaiWSPassthroughDialerOnce sync.Once
-	openaiWSPool                  *openAIWSConnPool
-	openaiWSStateStore            OpenAIWSStateStore
-	openaiScheduler               OpenAIAccountScheduler
-	openaiSchedulerForTest        OpenAIAccountScheduler
-	openaiWSPassthroughDialer     openAIWSClientDialer
-	openaiAccountStats            *openAIAccountRuntimeStats
+	openaiWSPoolOnce               sync.Once
+	openaiWSStateStoreOnce         sync.Once
+	openaiSchedulerOnce            sync.Once
+	openaiWSPassthroughDialerOnce  sync.Once
+	openaiWSPool                   *openAIWSConnPool
+	openaiWSStateStore             OpenAIWSStateStore
+	openaiScheduler                OpenAIAccountScheduler
+	openaiSchedulerForTest         OpenAIAccountScheduler
+	openaiWSPassthroughDialer      openAIWSClientDialer
+	openaiAccountStats             *openAIAccountRuntimeStats
+	openaiAccountRuntimeBlockUntil sync.Map
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
 	openaiWSRetryMetrics                openAIWSRetryMetrics
@@ -401,6 +407,7 @@ func NewOpenAIGatewayService(
 	httpUpstream HTTPUpstream,
 	deferredService *DeferredService,
 	openAITokenProvider *OpenAITokenProvider,
+	grokTokenProvider *GrokTokenProvider,
 	resolver *ModelPricingResolver,
 	channelService *ChannelService,
 	balanceNotifyService *BalanceNotifyService,
@@ -430,6 +437,7 @@ func NewOpenAIGatewayService(
 		httpUpstream:          httpUpstream,
 		deferredService:       deferredService,
 		openAITokenProvider:   openAITokenProvider,
+		grokTokenProvider:     grokTokenProvider,
 		toolCorrector:         NewCodexToolCorrector(),
 		openaiWSResolver:      NewOpenAIWSProtocolResolver(cfg),
 		resolver:              resolver,
@@ -1339,6 +1347,7 @@ func openAICompactSupportTier(account *Account) int {
 }
 
 type openAIAccountRequestEligibility struct {
+	Platform               string
 	RequestedModel         string
 	RequireCompact         bool
 	RequireClaudeGPTBridge bool
@@ -1352,7 +1361,8 @@ func openAIAccountCandidatePoolEligibility(req openAIAccountRequestEligibility) 
 // isOpenAIAccountEligibleForScheduleRequest centralises the schedulable / OpenAI /
 // model / compact / bridge checks used during account selection.
 func isOpenAIAccountEligibleForScheduleRequest(account *Account, req openAIAccountRequestEligibility) bool {
-	if account == nil || !account.IsSchedulable() || !account.IsOpenAI() {
+	platform := normalizeOpenAICompatiblePlatform(req.Platform)
+	if account == nil || !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != platform {
 		return false
 	}
 	if req.RequireClaudeGPTBridge {
@@ -1460,7 +1470,7 @@ func (s *OpenAIGatewayService) selectAccountForScheduleWithExclusions(ctx contex
 
 	// 2. 获取可调度的 OpenAI 账号
 	// Get schedulable OpenAI accounts
-	accounts, err := s.listSchedulableAccounts(ctx, groupID)
+	accounts, err := s.listSchedulableAccounts(ctx, groupID, eligibility.Platform)
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
 	}
@@ -1728,7 +1738,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		})
 	}
 
-	accounts, err := s.listSchedulableAccounts(ctx, groupID)
+	accounts, err := s.listSchedulableAccounts(ctx, groupID, eligibility.Platform)
 	if err != nil {
 		return nil, err
 	}
@@ -1962,19 +1972,23 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 	return nil, ErrNoAvailableAccounts
 }
 
-func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64) ([]Account, error) {
+func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platformOverride ...string) ([]Account, error) {
+	platform := PlatformOpenAI
+	if len(platformOverride) > 0 {
+		platform = normalizeOpenAICompatiblePlatform(platformOverride[0])
+	}
 	if s.schedulerSnapshot != nil {
-		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, PlatformOpenAI, false)
+		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
 		return accounts, err
 	}
 	var accounts []Account
 	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, platform)
 	} else if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, platform)
 	} else {
-		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, PlatformOpenAI)
+		accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, platform)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("query accounts failed: %w", err)
@@ -2001,6 +2015,9 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccountForSchedule(c
 	if account == nil {
 		return nil
 	}
+	if s.isOpenAIAccountRuntimeBlocked(account) {
+		return nil
+	}
 
 	fresh := account
 	if s.schedulerSnapshot != nil {
@@ -2013,6 +2030,9 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccountForSchedule(c
 
 	if !isOpenAIAccountEligibleForScheduleRequest(fresh, eligibility) {
 		return s.refreshStaleOpenAIScheduleCandidate(ctx, account, eligibility)
+	}
+	if s.isOpenAIAccountRuntimeBlocked(fresh) {
+		return nil
 	}
 	return fresh
 }
@@ -2029,7 +2049,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 		return nil
 	}
 	if s.schedulerSnapshot == nil || s.accountRepo == nil {
-		if !isOpenAIAccountEligibleForScheduleRequest(account, eligibility) {
+		if !isOpenAIAccountEligibleForScheduleRequest(account, eligibility) || s.isOpenAIAccountRuntimeBlocked(account) {
 			return nil
 		}
 		return account
@@ -2039,7 +2059,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 	if err != nil || latest == nil {
 		return nil
 	}
-	if !isOpenAIAccountEligibleForScheduleRequest(latest, eligibility) {
+	if !isOpenAIAccountEligibleForScheduleRequest(latest, eligibility) || s.isOpenAIAccountRuntimeBlocked(latest) {
 		return nil
 	}
 	return latest
@@ -2106,6 +2126,20 @@ func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
 	switch account.Type {
 	case AccountTypeOAuth:
+		if account.Platform == PlatformGrok {
+			if s.grokTokenProvider != nil {
+				accessToken, err := s.grokTokenProvider.GetAccessToken(ctx, account)
+				if err != nil {
+					return "", "", err
+				}
+				return accessToken, "oauth", nil
+			}
+			accessToken := account.GetGrokAccessToken()
+			if accessToken == "" {
+				return "", "", errors.New("access_token not found in credentials")
+			}
+			return accessToken, "oauth", nil
+		}
 		// 使用 TokenProvider 获取缓存的 token
 		if s.openAITokenProvider != nil {
 			accessToken, err := s.openAITokenProvider.GetAccessToken(ctx, account)
@@ -2121,6 +2155,13 @@ func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Acco
 		}
 		return accessToken, "oauth", nil
 	case AccountTypeAPIKey:
+		if account.Platform == PlatformGrok {
+			apiKey := strings.TrimSpace(account.GetCredential("api_key"))
+			if apiKey == "" {
+				return "", "", errors.New("api_key not found in credentials")
+			}
+			return apiKey, "apikey", nil
+		}
 		apiKey := account.GetOpenAIApiKey()
 		if apiKey == "" {
 			return "", "", errors.New("api_key not found in credentials")
@@ -2208,6 +2249,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	originalBody := body
 	reqModel, reqStream, promptCacheKey := extractOpenAIRequestMetaFromBody(body)
 	originalModel := reqModel
+	if account.Platform == PlatformGrok {
+		return s.forwardGrokResponses(ctx, c, account, body, reqModel, reqStream, startTime)
+	}
 	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
 	}

@@ -1,6 +1,10 @@
 package service
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+)
 
 var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
 	PlatformOpenAI: {
@@ -18,6 +22,7 @@ var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
 		"claude-haiku-4-5",
 		"claude-sonnet-4-6",
 	},
+	PlatformGrok: xai.DefaultModelIDs(),
 }
 
 var gatewayModelDiscoveryLegacyFullCustomListsByPlatform = map[string][]string{
