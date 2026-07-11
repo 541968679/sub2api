@@ -951,6 +951,47 @@ This entry supersedes the next entry's statement that sticky-weighted and subscr
   includes the requested embedding model, and whose upstream base URL exposes an
   OpenAI-compatible embeddings endpoint.
 
+## 2026-07-11 - Subscription revoke/restore alignment
+
+- **Branch**: `codex/upstream-subscription-restore-20260711`
+- **Baseline**: `codex/upstream-alignment-20260711@5c0d08ca8`
+- **Upstream points**: `03727ac36`, `b26dcc3da`, `2d2b6f032`
+- **Strategy**: port only revoke/restore behavior and reconcile shared files
+  with the fork-local subscription quota-adjustment UI and billing cache.
+- **Schema handling**: no new migration. Existing soft-delete columns and the
+  partial unique index from migration `016` already provide the required data
+  contract.
+
+### Preserved fork-local behavior
+
+- User-visible and billing subscription lookups still exclude soft-deleted rows.
+- Distribution, bundle `member_group_ids`, payment fulfillment, display-token
+  accounting, real cache-read quantities, Claude-GPT bridge, OpenAI Images,
+  account scheduling/failover, settings, and unrelated routes are unchanged.
+- The fork-local admin quota adjustment action and i18n remain alongside restore.
+- Existing expired-assignment reactivation from upstream `5790ed879` was not
+  reapplied.
+
+### Adopted behavior
+
+- Admin all-status and revoked filters expose soft-deleted history with
+  `status=revoked` and `revoked_at`; admin detail can read revoked rows.
+- Revoke uses an explicit POST action while retaining the old DELETE route.
+- Restore rejects non-revoked rows and user/group conflicts, maps an expired
+  formerly-active row to expired, performs an atomic conditional restore, and
+  relies on the existing partial unique index for concurrent conflict safety.
+- Revoke and restore synchronously invalidate local and Redis subscription
+  caches and publish cross-instance L1 invalidations. Subscriber lifetime is
+  bound to `SubscriptionService.Stop()`.
+
+### Verification
+
+- Focused service, repository, handler, server, middleware, route-contract,
+  frontend API, typecheck, and race tests passed.
+- The PostgreSQL repository integration package could not compile because the
+  baseline integration-only `account_repo_integration_test.go` references an
+  undefined `cacheRecorder`; this is outside the subscription diff.
+
 ## 2026-07-11 - Upstream alignment Phase 0 fork-local protection
 
 - **Branch**: `codex/upstream-guard-20260711`

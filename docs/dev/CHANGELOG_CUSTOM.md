@@ -4494,6 +4494,20 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Specified a P0 structured bridge route decision (`not_configured`, `ready`, `rate_limited`, `unavailable`, `probe_error`) that separates stable mapping intent from transient scheduler state, removes hidden native fallback after bridge intent is established, and returns consistent Anthropic 429/503 semantics with `Retry-After`.
 - Specified a separate P1 adaptation of official `/v1/responses/input_tokens` and OAuth/local-tokenizer fallback for bridge-aware `count_tokens`, with no usage, billing, concurrency, or native-pool side effects.
 - Added the planned file map, two-request 429 regression, broader test matrix, observability fields, canary rollout, rollback, acceptance criteria, and ordered next-session implementation checklist.
+## [2026-07-11] feat: Restore revoked subscriptions without widening billing queries
+
+**Affected files**: `backend/internal/{repository/user_subscription_repo.go,repository/billing_cache.go,service/{subscription_service,user_subscription,user_subscription_port,billing_cache_service}.go,handler/admin/subscription_handler.go,handler/dto/{types,mappers}.go,server/routes/admin.go}`, focused backend tests, `frontend/src/{api/admin/subscriptions.ts,views/admin/SubscriptionsView.vue,types/index.ts,i18n/locales/{zh,en}.ts}`, and subscription/upstream-sync docs.
+
+**Compatibility**: Medium risk, constrained to administrator subscription management. User subscription APIs and billing/quota eligibility retain the normal soft-delete scope. No schema, migration, stored billing, `actual_cost`, display token/cost, cache-read token, distribution, bundle, payment, bridge, Images, scheduler, or deployment behavior changed.
+
+**Details**:
+
+- Fixed revoke to produce admin-visible soft-deleted history and added explicit POST revoke plus restore endpoints while retaining DELETE revoke compatibility.
+- Added revoked timestamps/status mapping, administrator all-status/revoked filtering and detail visibility, bilingual restore UI, and API route tests.
+- Added fresh-read/conflict checks and an atomic conditional restore; expired formerly-active subscriptions restore as expired, and migration `016` remains the final concurrent uniqueness guard.
+- Made local L1 and Redis billing-cache invalidation synchronous after revoke/restore, added cross-instance invalidation, and bound its Redis subscriber to service shutdown.
+- Preserved the fork-local subscription quota adjustment UI and the already-integrated expired-assignment reactivation path.
+
 ## [2026-07-11] feat: Add Grok admin frontend and media pricing reachability
 
 **Affected files**: `frontend/src/{api/admin/{grok,index}.ts,composables/useGrokOAuth.ts,components/account/{CreateAccountModal,EditAccountModal,OAuthAuthorizationFlow,AccountUsageCell,GrokQuotaProbeCell}.vue,components/admin/account/{AccountTableFilters,ReAuthAccountModal}.vue,components/common/{PlatformIcon,PlatformTypeBadge,GroupBadge}.vue,views/admin/{GroupsView.vue,groupsMediaPricing.ts},types/index.ts,utils/platformColors.ts,i18n/locales/{zh,en}.ts}` and focused frontend tests; `docs/dev/codebase/account.md`
