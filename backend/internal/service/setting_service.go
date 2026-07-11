@@ -866,6 +866,7 @@ type PublicSettingsInjectionPayload struct {
 	AvailableChannelsEnabled             bool `json:"available_channels_enabled"`
 	AllowUserViewErrorRequests           bool `json:"allow_user_view_error_requests"`
 	AffiliateEnabled                     bool `json:"affiliate_enabled"`
+	RiskControlEnabled                   bool `json:"risk_control_enabled"`
 
 	LegalConsent LegalConsentSettings `json:"legal_consent"`
 }
@@ -927,6 +928,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AvailableChannelsEnabled:             settings.AvailableChannelsEnabled,
 		AllowUserViewErrorRequests:           settings.AllowUserViewErrorRequests,
 		AffiliateEnabled:                     settings.AffiliateEnabled,
+		RiskControlEnabled:                   settings.RiskControlEnabled,
 		LegalConsent:                         settings.LegalConsent,
 	}, nil
 }
