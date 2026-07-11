@@ -17,9 +17,10 @@ type checkFailure struct {
 }
 
 type criticalSignature struct {
-	Name     string
-	Path     string
-	Contains []string
+	Name                 string
+	Path                 string
+	Contains             []string
+	OptionalBeforeCommit string
 }
 
 var protectedPathNeedles = []string{
@@ -42,6 +43,14 @@ var protectedPathNeedles = []string{
 	"frontend/src/api/announcements.ts",
 	"frontend/src/api/admin/announcements.ts",
 	"frontend/src/views/admin/AnnouncementsView.vue",
+	"frontend/src/api/imageChannelMonitor.ts",
+	"frontend/src/api/admin/imageChannelMonitor",
+	"frontend/src/utils/imageChannelManualTest",
+	"frontend/src/views/admin/ImageChannelMonitorView",
+	"frontend/src/components/admin/ImageMonitor",
+	"frontend/src/views/admin/orders/PlanEditDialog.vue",
+	"frontend/src/types/payment.ts",
+	"frontend/src/components/admin/model-pricing/",
 	"backend/internal/handler/distribution_handler.go",
 	"backend/internal/service/distribution.go",
 	"backend/internal/repository/distribution_repo.go",
@@ -56,6 +65,24 @@ var protectedPathNeedles = []string{
 	"backend/internal/repository/credit_snapshot",
 	"backend/ent/schema/ai_credit_snapshot.go",
 	"backend/internal/service/openai_image_trace.go",
+	"backend/internal/handler/image_channel_monitor_user_handler.go",
+	"backend/internal/handler/admin/image_channel_monitor_handler.go",
+	"backend/internal/service/image_channel_monitor",
+	"backend/internal/repository/image_channel_monitor_repo.go",
+	"backend/ent/schema/image_channel_monitor",
+	"backend/internal/service/payment_config_plans.go",
+	"backend/internal/service/payment_config_plans_member_test.go",
+	"backend/ent/schema/subscription_plan.go",
+	"backend/ent/schema/payment_order.go",
+	"backend/internal/service/codex_image_generation_bridge.go",
+	"backend/internal/service/openai_gateway_count_tokens.go",
+	"backend/internal/handler/openai_gateway_count_tokens.go",
+	"backend/ent/schema/usage_log.go",
+	"backend/internal/repository/usage_log_repo.go",
+	"backend/internal/service/global_model_pricing.go",
+	"backend/internal/service/user_model_pricing.go",
+	"backend/internal/service/global_model_pricing_service.go",
+	"backend/internal/service/setting_service_model_mapping_test.go",
 	"backend/internal/handler/announcement_handler.go",
 	"backend/internal/handler/admin/announcement_handler.go",
 	"backend/internal/service/announcement",
@@ -68,6 +95,16 @@ var protectedPathNeedles = []string{
 	"backend/migrations/139_distribution_agents.sql",
 	"backend/migrations/140_add_distribution_assets.sql",
 	"backend/migrations/148_extend_announcements_surfaces.sql",
+	"backend/migrations/167_usage_log_long_context_snapshot.sql",
+	"backend/migrations/168_subscription_plan_member_groups.sql",
+	"backend/migrations/171_add_display_cache_creation_price.sql",
+	"backend/migrations/172_add_cache_write_1h_price.sql",
+	"backend/migrations/173_add_cache_tier_pricing_fields.sql",
+	"backend/migrations/174_image_channel_monitors.sql",
+	"backend/migrations/175_image_channel_monitor_proxy.sql",
+	"backend/migrations/176_image_channel_monitor_size_default.sql",
+	"backend/migrations/178_image_channel_monitor_public.sql",
+	"backend/migrations/179_image_channel_monitor_response_format.sql",
 }
 
 var protectedPathCaseInsensitiveNeedles = []string{
@@ -83,6 +120,10 @@ var protectedPathCaseInsensitiveNeedles = []string{
 	"ai_credit",
 	"credit_snapshot",
 	"announcement",
+	"image_channel_monitor",
+	"image-channel-monitor",
+	"member_group_ids",
+	"modelpricingrows",
 }
 
 var criticalSignatures = []criticalSignature{
@@ -286,6 +327,252 @@ var criticalSignatures = []criticalSignature{
 			"OPENAI_IMAGE_TRACE_LOG",
 			"OpenAIImageTrace",
 			"elapsed_ms",
+		},
+	},
+	{
+		Name: "image channel monitor schema",
+		Path: "backend/ent/schema/image_channel_monitor.go",
+		Contains: []string{
+			"type ImageChannelMonitor struct",
+			`field.Enum("source_type")`,
+			`field.Bool("public_visible")`,
+			`field.String("response_format")`,
+		},
+	},
+	{
+		Name: "image channel monitor admin routes",
+		Path: "backend/internal/server/routes/admin.go",
+		Contains: []string{
+			`admin.Group("/image-channel-monitors")`,
+			`monitors.POST("/:id/manual-test"`,
+			`manual-test/client-runs/:clientRunID/cancel`,
+			`monitors.GET("/:id/timeline"`,
+		},
+	},
+	{
+		Name: "image channel monitor user routes",
+		Path: "backend/internal/server/routes/user.go",
+		Contains: []string{
+			`authenticated.Group("/image-channel-monitors")`,
+			"h.ImageChannelMonitorUser.List",
+			"h.ImageChannelMonitorUser.GetStatus",
+		},
+	},
+	{
+		Name: "image channel monitor dependency injection",
+		Path: "backend/internal/handler/wire.go",
+		Contains: []string{
+			"imageChannelMonitorHandler *admin.ImageChannelMonitorHandler",
+			"imageChannelMonitorUserHandler *ImageChannelMonitorUserHandler",
+			"NewImageChannelMonitorUserHandler",
+		},
+	},
+	{
+		Name: "image channel monitor service lifecycle",
+		Path: "backend/internal/service/image_channel_monitor_service.go",
+		Contains: []string{
+			"StartManualCheck",
+			"CancelManualCheckByClientRunID",
+			"GetAdminTimeline",
+			"ListPublicView",
+			"RunDailyMaintenance",
+		},
+	},
+	{
+		Name: "image channel monitor manual artifacts",
+		Path: "backend/internal/service/image_channel_monitor_manual_core.go",
+		Contains: []string{
+			"GetManualCheckImage",
+			"manualCanceledClientRunLocked",
+			"manualIdempotentRunLocked",
+			"persistImageManualArtifact",
+		},
+	},
+	{
+		Name: "image channel monitor frontend workflow",
+		Path: "frontend/src/views/admin/ImageChannelMonitorView.vue",
+		Contains: []string{
+			"gateway_account",
+			"gateway_group",
+			"window.indexedDB.open",
+			"cancelRunningManualTests",
+			"manualArtifactRecoveryExpiresAt",
+		},
+	},
+	{
+		Name: "image channel monitor frontend api",
+		Path: "frontend/src/api/admin/imageChannelMonitor.ts",
+		Contains: []string{
+			"manualTest",
+			"cancelManualTestByClientRunID",
+			"getManualTestImage",
+			"timeline",
+		},
+	},
+	{
+		Name: "subscription bundle schema",
+		Path: "backend/ent/schema/subscription_plan.go",
+		Contains: []string{
+			`field.JSON("member_group_ids", []int64{})`,
+			"Additional bundled subscription group IDs",
+		},
+	},
+	{
+		Name: "subscription bundle order snapshot",
+		Path: "backend/ent/schema/payment_order.go",
+		Contains: []string{
+			`field.JSON("member_group_ids", []int64{})`,
+			"Snapshot of bundled subscription group IDs at order creation",
+		},
+	},
+	{
+		Name: "subscription bundle fulfillment",
+		Path: "backend/internal/service/payment_config_plans.go",
+		Contains: []string{
+			"PlanMemberGroupIDs",
+			"normalizeMemberGroupIDs",
+			"SetMemberGroupIds",
+			"maxPlanMemberGroups",
+		},
+	},
+	{
+		Name: "subscription bundle order creation",
+		Path: "backend/internal/service/payment_order.go",
+		Contains: []string{
+			"SetMemberGroupIds(PlanMemberGroupIDs(plan))",
+		},
+	},
+	{
+		Name: "subscription bundle migration",
+		Path: "backend/migrations/168_subscription_plan_member_groups.sql",
+		Contains: []string{
+			"ALTER TABLE subscription_plans",
+			"ALTER TABLE payment_orders",
+			"member_group_ids JSONB NOT NULL DEFAULT '[]'::jsonb",
+		},
+	},
+	{
+		Name: "count tokens route contract",
+		Path: "backend/internal/server/routes/gateway.go",
+		Contains: []string{
+			`gateway.POST("/messages/count_tokens"`,
+			"h.Gateway.CountTokens(c)",
+		},
+	},
+	{
+		Name: "claude-gpt bridge count tokens handler",
+		Path: "backend/internal/handler/openai_gateway_count_tokens.go",
+		Contains: []string{
+			"CountTokensClaudeGPTBridge",
+			"ResolveClaudeGPTBridgeRoute",
+			"EstimateCountTokensClaudeGPTBridge",
+			"SelectAccountWithSchedulerForClaudeGPTBridge",
+		},
+		OptionalBeforeCommit: "b06190970",
+	},
+	{
+		Name: "claude-gpt bridge count tokens service",
+		Path: "backend/internal/service/openai_gateway_count_tokens.go",
+		Contains: []string{
+			"ForwardCountTokensAsAnthropicClaudeGPTBridge",
+			"EstimateCountTokensClaudeGPTBridge",
+			"ResolveClaudeGPTBridgeCountUpstreamModel",
+			"bridge_no_schedulable_account",
+		},
+		OptionalBeforeCommit: "b06190970",
+	},
+	{
+		Name: "openai images endpoint toggle",
+		Path: "backend/internal/service/codex_image_generation_bridge.go",
+		Contains: []string{
+			`"openai_images_endpoint_enabled"`,
+			"OpenAIImagesEndpointEnabled",
+			"CodexImageGenerationBridgeOverride",
+		},
+	},
+	{
+		Name: "usage long context schema",
+		Path: "backend/ent/schema/usage_log.go",
+		Contains: []string{
+			`field.Bool("long_context_applied")`,
+			`field.Int("long_context_input_threshold")`,
+			`field.Float("long_context_input_multiplier")`,
+			`field.Float("long_context_output_multiplier")`,
+		},
+	},
+	{
+		Name: "usage long context persistence",
+		Path: "backend/internal/repository/usage_log_repo.go",
+		Contains: []string{
+			"long_context_applied",
+			"long_context_input_threshold",
+			"long_context_input_multiplier",
+			"long_context_output_multiplier",
+		},
+	},
+	{
+		Name: "usage long context migration",
+		Path: "backend/migrations/167_usage_log_long_context_snapshot.sql",
+		Contains: []string{
+			"long_context_applied",
+			"long_context_input_threshold",
+			"long_context_input_multiplier",
+			"long_context_output_multiplier",
+		},
+	},
+	{
+		Name: "cache tier global pricing",
+		Path: "backend/internal/service/global_model_pricing.go",
+		Contains: []string{
+			"CacheWrite1hPrice",
+			"DisplayCacheCreationPrice",
+			"DisplayCacheCreation1hPrice",
+		},
+	},
+	{
+		Name: "cache tier user pricing",
+		Path: "backend/internal/service/user_model_pricing.go",
+		Contains: []string{
+			"CacheWrite1hPrice",
+			"DisplayCacheCreationPrice",
+			"DisplayCacheCreation1hPrice",
+		},
+	},
+	{
+		Name: "cache tier pricing migration",
+		Path: "backend/migrations/173_add_cache_tier_pricing_fields.sql",
+		Contains: []string{
+			"user_model_pricing_overrides.cache_write_1h_price",
+			"global_model_pricing.display_cache_creation_1h_price",
+			"user_model_pricing_overrides.display_cache_creation_1h_price",
+		},
+	},
+	{
+		Name: "model pricing provider and billing object contract",
+		Path: "backend/internal/service/global_model_pricing_service.go",
+		Contains: []string{
+			"MappingBillingObjects",
+			"BillingObjectEditable",
+			"platformDefaultMappingBillingObjects",
+			"ResolveModelPricingHiddenModels",
+		},
+	},
+	{
+		Name: "model pricing hidden model settings",
+		Path: "backend/internal/service/domain_constants.go",
+		Contains: []string{
+			"SettingKeyOpenAIDefaultModelMappingBillingObject",
+			"SettingKeyModelPricingHiddenModels",
+		},
+	},
+	{
+		Name: "model pricing row identity",
+		Path: "frontend/src/components/admin/model-pricing/modelPricingRows.ts",
+		Contains: []string{
+			"MappingBillingObject",
+			"rowKey: `${h.platform || ''}:${from.toLowerCase()}`",
+			"isMappingEntry",
+			"billingObjectForKey",
 		},
 	},
 	{
@@ -494,6 +781,9 @@ func checkCriticalSignatures(root string) []checkFailure {
 		path := filepath.Join(root, filepath.FromSlash(sig.Path))
 		data, err := os.ReadFile(path)
 		if err != nil {
+			if sig.OptionalBeforeCommit != "" && os.IsNotExist(err) && !gitIsAncestor(root, sig.OptionalBeforeCommit) {
+				continue
+			}
 			failures = append(failures, checkFailure{Check: "critical signature", Detail: fmt.Sprintf("%s missing: %v", sig.Path, err)})
 			continue
 		}
@@ -505,6 +795,11 @@ func checkCriticalSignatures(root string) []checkFailure {
 		}
 	}
 	return failures
+}
+
+func gitIsAncestor(root, commit string) bool {
+	cmd := exec.Command("git", "-C", root, "merge-base", "--is-ancestor", commit, "HEAD")
+	return cmd.Run() == nil
 }
 
 func isProtectedPath(path string) bool {

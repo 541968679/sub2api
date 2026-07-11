@@ -659,3 +659,36 @@ git push origin main
 - Embeddings smoke requires an OpenAI API-key account whose model mapping
   includes the requested embedding model, and whose upstream base URL exposes an
   OpenAI-compatible embeddings endpoint.
+
+## 2026-07-11 - Upstream alignment Phase 0 fork-local protection
+
+- **Branch**: `codex/upstream-guard-20260711`
+- **Local baseline**: `bf5825074` (`fix: harden ops capture writer lifecycle`)
+- **Upstream audit target**: `upstream/main@e316ebf52838`
+- **Strategy**: protection/test-only batch before capability ports; no upstream
+  merge, product implementation, push, or deployment.
+
+### Protected Contracts
+
+- ImageChannelMonitor schema, admin/user routes, manual execution/cancellation,
+  short-lived artifacts, public views, timeline/retention, and frontend
+  IndexedDB recovery workflow.
+- Bundle subscription `member_group_ids` on plans and payment-order snapshots,
+  including normalization and order-creation fulfillment wiring.
+- Existing `/v1/messages/count_tokens` routing plus conditional enforcement of
+  the later bridge-aware OpenAI input-token/local-estimate implementation.
+- Independent OpenAI Images endpoint toggle and Codex image-generation bridge.
+- Long-context usage-log schema and repository persistence snapshots.
+- Model configuration provider-aware row identity, editable billing object,
+  hidden-model settings, and default mapping billing-object settings.
+- Global/user real cache-write 1h pricing and display cache-creation 5m/1h
+  pricing fields and migrations.
+
+### Baseline Note
+
+The requested alignment baseline predates `b06190970`, so the dedicated
+`openai_gateway_count_tokens.go` files are not present on this branch. Their
+signatures are intentionally conditional: absent files do not fail Phase 0,
+but once `b06190970` becomes an ancestor of the alignment branch the guard permanently requires
+`CountTokensClaudeGPTBridge`, strict bridge route diagnosis, bridge account
+selection, upstream count forwarding, and local-estimate fallback signatures.

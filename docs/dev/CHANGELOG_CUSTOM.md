@@ -4260,6 +4260,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Specified a separate P1 adaptation of official `/v1/responses/input_tokens` and OAuth/local-tokenizer fallback for bridge-aware `count_tokens`, with no usage, billing, concurrency, or native-pool side effects.
 - Added the planned file map, two-request 429 regression, broader test matrix, observability fields, canary rollout, rollback, acceptance criteria, and ordered next-session implementation checklist.
 
+## [2026-07-11] test: expand upstream-sync protection for fork-local contracts
+
+**Affected files**: `backend/tools/upstream-sync-guard/main.go`, `backend/tools/upstream-sync-guard/main_test.go`, `docs/dev/CHANGELOG_CUSTOM.md`, `docs/dev/UPSTREAM_SYNC.md`
+**Compatibility**: Guard/test-only. No product implementation, runtime route, schema, migration, billing, frontend behavior, push, or deployment changed.
+**Details**:
+- Expanded protected-path coverage for ImageChannelMonitor, bundle subscription `member_group_ids`, OpenAI Images endpoint controls, long-context usage snapshots, model-pricing row/provider/billing-object/hidden-model configuration, and 5m/1h cache pricing.
+- Added critical signatures for the ImageChannelMonitor schema/routes/manual lifecycle/browser artifact recovery, subscription-plan and payment-order group snapshots, usage-log persistence, model-pricing contracts, and real/display cache-tier fields.
+- Added conditional signatures for bridge-aware `count_tokens`: the guard accepts the `bf5825074` baseline where the dedicated files do not exist, then permanently enforces their bridge routing, local-estimate fallback, and no-native-fallback signatures once the later `b06190970` implementation becomes an ancestor of the alignment branch.
+- Added guard self-tests that verify representative fork-local paths remain protected and every currently applicable signature matches the checkout.
+
 ## [2026-07-11] fix: Allow independent Sub2API frontend/backend control in dev control
 
 **Affected files**: `dev-services.yml`, `scripts/dev-stack.ps1`, `DEV_GUIDE.md`
