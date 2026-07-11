@@ -26,4 +26,12 @@ func TestSettingServiceCodexRestrictionPolicyContract(t *testing.T) {
 		require.Len(t, policy.EngineFingerprintSignals, 1)
 		require.True(t, policy.EngineFingerprintSignals[0].Required)
 	})
+
+	t.Run("malformed persisted JSON is not partially applied", func(t *testing.T) {
+		repo := newMockSettingRepo()
+		repo.data[SettingKeyCodexCLIOnlyWhitelist] = `{bad`
+		svc := NewSettingService(repo, nil)
+		_, err := svc.GetCodexRestrictionPolicy(context.Background())
+		require.Error(t, err)
+	})
 }

@@ -105,6 +105,21 @@ git push origin main
 
 This entry supersedes the next entry's statement that sticky-weighted and subscription-priority remained deferred.
 
+### 2026-07-11 - Codex engine fingerprint and version policy
+
+- **Branch/baseline**: `codex/upstream-codex-fingerprint-20260711` from
+  `codex/upstream-alignment-20260711@7bf5fd15c`, including PAT.
+- **Upstream source**: `819fda34d` and `4b321142b`.
+- **Strategy**: contract-first manual port; no migration, push, or deployment.
+- Added black/whitelists, version bounds, app-server switches, signal evaluation,
+  and version-specific 403 messages.
+- Compatibility adjustment: unconfigured settings use legacy detection; empty
+  bounds do not require a version; empty signals disable fingerprint checks.
+  Suggested signals are an explicit UI preset only.
+- Preserved PAT, API-key cache `Name`, platform isolation, curated/default
+  models, bridge, Images, Grok, quota, scheduler/failover, billing/display and
+  cache-read invariants, Ops, public settings, routes, and bilingual locales.
+
 ### 2026-07-11 - OpenAI scheduler and Codex WebSocket hardening
 
 - **Upstream source**: scheduler audit `0fd2e9216`, quota-headroom scoring `a2cf297d9`, Windows reset recognition `0a5f34a2`; HTTP-bridge commits `0476b5c97`, `906be3f74`, and `3020652fa` were audited against the existing fork implementation.

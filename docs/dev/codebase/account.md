@@ -67,6 +67,28 @@ Important mechanisms and pitfalls:
   state, usage logs, stored billing, `actual_cost`, display tokens, or cache-read
   quantities. No public/admin Settings KV or new route page is introduced.
 
+## Codex Client And Engine Fingerprint Policy
+
+OpenAI OAuth accounts with `extra.codex_cli_only=true` can optionally apply a
+global client policy after account selection and before upstream forwarding.
+It supports strict official-client recognition, min/max engine versions, a
+deny-first blacklist, two-factor whitelist, app-server admission, and engine
+signals.
+
+Key files are `pkg/openai/{allowed_client,engine_fingerprint_signal,request}.go`,
+`service/openai_client_restriction_detector.go`, and
+`service/setting_service_codex_policy.go`. Responses and Chat Completions use
+the same policy. Account create/edit/bulk-edit store the account app-server
+opt-in as `extra.codex_cli_only_allow_app_server`.
+
+An unconfigured policy uses legacy detection: existing accounts do not suddenly
+require a version or `x-codex-*` header. Version parsing is required only when
+min/max is configured. Empty signals disable the fingerprint gate; the UI seed
+is an explicit preset, never a runtime default. Required signals are ANDed and
+variants within one signal are ORed. Detection is OpenAI-OAuth-only and occurs
+before forwarding/billing. Billing, quota, display/cache-read transforms,
+Images, bridge, curated/default models, scheduling, platform quota, and Ops are
+unchanged.
 ## Grok Admin Reachability And Media Pricing
 
 Grok accounts are reachable from the existing account and group management

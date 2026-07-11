@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -37,10 +38,20 @@ func (s *SettingService) GetCodexRestrictionPolicy(ctx context.Context) (CodexRe
 			break
 		}
 	}
-	_ = json.Unmarshal([]byte(values[SettingKeyCodexCLIOnlyBlacklist]), &policy.Blacklist)
-	_ = json.Unmarshal([]byte(values[SettingKeyCodexCLIOnlyWhitelist]), &policy.Whitelist)
+	if raw := strings.TrimSpace(values[SettingKeyCodexCLIOnlyBlacklist]); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &policy.Blacklist); err != nil {
+			return CodexRestrictionPolicy{}, fmt.Errorf("parse Codex client blacklist: %w", err)
+		}
+	}
+	if raw := strings.TrimSpace(values[SettingKeyCodexCLIOnlyWhitelist]); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &policy.Whitelist); err != nil {
+			return CodexRestrictionPolicy{}, fmt.Errorf("parse Codex client whitelist: %w", err)
+		}
+	}
 	if signals, ok := openai.ParseEngineFingerprintSignals(values[SettingKeyCodexCLIOnlyEngineFingerprintSignals]); ok {
 		policy.EngineFingerprintSignals = signals
+	} else {
+		return CodexRestrictionPolicy{}, fmt.Errorf("parse Codex engine fingerprint signals")
 	}
 	return policy, nil
 }

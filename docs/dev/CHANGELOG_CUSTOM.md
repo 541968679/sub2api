@@ -88,6 +88,21 @@ alignment baseline `19bd42ca5`; fork-local hot paths were reconciled, not replac
 - Did not change billing, platform quota deduction, display-price/token transforms, cache-read token quantities, `actual_cost`, curated models, default fallback, Ops behavior, migrations, routes, or public settings.
 - Verified affected backend packages, explicit scheduler protection tests, frontend typecheck/lint/build and focused tests, upstream-sync guard, and diff checks.
 
+## [2026-07-11] feat: Add compatible Codex engine fingerprint controls
+
+**Affected files**: OpenAI identity/fingerprint package, codex-only detector and
+gateway entries, Settings/admin API, OpenAI OAuth account UI, bilingual locales,
+tests, and account/sync docs.
+**Upstream compatibility**: Manual TDD port of `819fda34d` and `4b321142b` from
+integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
+**Details**:
+- Added deny-first blacklists, strict allowlists, optional engine versions,
+  app-server controls, structured signals, and actionable version messages.
+- Preserved legacy behavior while policy is unconfigured. Version/fingerprint
+  gates activate only after explicit admin configuration; presets are UI-only.
+- No migration. API-key cache/name, PAT, billing/display/cache-read,
+  curated/default models, bridge, Images, Grok, quota, scheduler and Ops remain.
+
 ## [2026-07-11] fix: Reconcile merged public contracts and auth-cache identity
 
 **Affected files**: `backend/internal/service/{setting_service.go,api_key_auth_cache_impl.go}`, `backend/internal/server/api_contract_test.go`
