@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Support drag-and-drop multi-file account imports
+
+**Affected files**: account data import modal and its frontend integration test.
+**Upstream compatibility**: Low-risk UI adaptation of `728bb1bc9`; the existing backend import contract and fork-local auto-proxy option remain authoritative.
+**Details**:
+- Accepts multiple selected or dropped JSON exports and merges accounts/proxies in file order before one existing import API call.
+- Preserves the first valid export type/version and accumulates `skipped_shadows`; any parse error aborts the whole frontend submission before the API call.
+- Does not rewrite, deduplicate, or validate account credentials/models/groups in the browser, and does not change account headers, scheduling, failover, billing/display/cache-read, or migration behavior.
+
 ## [2026-07-11] fix: Sanitize public branding URLs and HTML-escape site settings
 
 **Affected files**: public-settings URL consumers in shared layout/auth/home views, email HTML builders, embedded page title injection, and focused backend/frontend tests.

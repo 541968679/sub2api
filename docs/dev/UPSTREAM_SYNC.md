@@ -39,6 +39,13 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Multi-file account data import
+
+- **Upstream source**: `728bb1bc9`.
+- The existing account data import modal now accepts drag-and-drop or multiple JSON files, merges their proxy/account arrays in order, and submits once through the unchanged backend import API.
+- The fork-local `auto_assign_proxy` option is retained. `skipped_shadows` is accumulated for compatibility with Spark-shadow-aware exports, while malformed files prevent any partial submission.
+- No backend credential validation, group binding, model mapping, account header, scheduler/failover, billing/display/cache-read, schema, migration, or route contract changed.
+
 ### 2026-07-11 - Public settings output safety
 
 - **Upstream sources**: `bfb827b87` and `15c59be78`.
