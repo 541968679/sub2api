@@ -46,6 +46,24 @@
 - Preserves the first valid export type/version and accumulates `skipped_shadows`; any parse error aborts the whole frontend submission before the API call.
 - Does not rewrite, deduplicate, or validate account credentials/models/groups in the browser, and does not change account headers, scheduling, failover, billing/display/cache-read, or migration behavior.
 
+ ## [2026-07-11] feat: Complete subscription peak-rate billing alignment
+
+**Affected files**: group Ent/schema/repository/DTO/auth snapshots, normal and
+OpenAI gateway billing, available-channel/payment/subscription APIs, admin/user
+frontend, public timezone settings, migration `190`, and focused tests/docs.
+**Upstream compatibility**: Adapted `915c60b15`, `1034f576d`, and `11a3da65c`
+onto the fork-local billing, media, Batch Image, payment bundle, and settings
+contracts instead of replacing shared files wholesale.
+**Details**:
+- Adds subscription-only same-day peak windows, permits a `0x` peak factor,
+  clears peak state when switching to standard, and labels windows with server
+  timezone metadata from the existing public-settings injection path.
+- Applies peak only to token billing after normal user/group rate resolution;
+  image-output tokens follow token billing, while per-image, Grok video/media,
+  and Batch Image settlement remain independent.
+ - Keeps actual cache-read quantities and display-billing explainability intact;
+   API-key snapshots carry the full peak configuration to cached request paths.
+
 ## [2026-07-11] fix: Sanitize public branding URLs and HTML-escape site settings
 
 **Affected files**: public-settings URL consumers in shared layout/auth/home views, email HTML builders, embedded page title injection, and focused backend/frontend tests.

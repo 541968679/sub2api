@@ -101,6 +101,25 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		require.InDelta(t, 0.25, *job.HoldAmount, 1e-12)
 	})
 
+	t.Run("peak token window does not affect batch image pricing snapshot", func(t *testing.T) {
+		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
+		groupID := int64(7)
+		svc.GroupRepo = &publicBatchImageGroupRepo{groups: map[int64]*Group{
+			groupID: {
+				ID: groupID, Platform: PlatformGemini, SubscriptionType: SubscriptionTypeSubscription,
+				RateMultiplier: 2, PeakRateEnabled: true, PeakStart: "00:00", PeakEnd: "23:59", PeakRateMultiplier: 9,
+				AllowImageGeneration: true, AllowBatchImageGeneration: true,
+				BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
+			},
+		}}
+
+		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID}, validBatchImageSubmitRequest(), "")
+		require.NoError(t, err)
+		job := repo.jobs[got.ID]
+		require.InDelta(t, 2, job.GroupRateMultiplier, 1e-12)
+		require.InDelta(t, 0.25, job.BillableUnitPrice, 1e-12)
+	})
+
 	t.Run("uses configured group 1k image price for batch image base price", func(t *testing.T) {
 		svc, repo, _, _, _ := newTestBatchImagePublicService(true)
 		groupID := int64(7)

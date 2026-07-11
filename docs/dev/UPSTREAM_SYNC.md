@@ -1099,3 +1099,19 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Usage and capacity summary requests are skipped when no visible column consumes them.
 - Preserved fork-local group platform settings, curated/default models, Batch Image controls, Claude-GPT bridge configuration, rate multipliers, scheduling/failover, and bilingual i18n.
 - Pushed/deployed: no.
+
+### 2026-07-11 - Subscription group peak-rate alignment
+
+- **Branch**: `codex/upstream-peak-rate-20260711`
+- **Local baseline**: `7bd38eef44c95ecc17015f4c39fce836f9eac7d6`
+- **Upstream chain**: `915c60b15`, `1034f576d`, `11a3da65c`
+- Added subscription-only, same-day peak windows in server timezone, including
+  group CRUD/Ent, auth snapshots, normal/OpenAI token billing, channel/payment
+  DTOs, frontend display, bilingual labels, and public timezone metadata.
+- Reassigned the upstream migration to local `190_group_peak_rate.sql`; no
+  historical local migration was modified.
+- Preserved the five-level pricing chain, user display transforms, real
+  cache-read tokens, image-output token accounting, independent per-image and
+  Grok video/media multipliers, Batch Image frozen-balance settlement, bundle
+ subscriptions, Claude-GPT bridge, curated models, and scheduler/failover.
+ - **Pushed/deployed**: no.

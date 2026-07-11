@@ -637,3 +637,21 @@ Important invariants:
 - A missing quota record is cached only with the short sentinel TTL. Do not extend a sentinel to the normal quota TTL or across a window boundary.
 - Window reset and admin updates must invalidate the Redis entry. Flusher snapshots must remain idempotent and must not decrement usage.
 - Platform lists must stay aligned across the migration constraint, Ent validation, service validation, API types, settings matrices, admin modal, and i18n. Current list: `anthropic`, `openai`, `gemini`, `antigravity`, `grok`.
+# Peak-rate token billing (2026-07 upstream alignment)
+
+- Only subscription groups can enable `peak_rate_enabled`; windows are
+  same-day, left-closed/right-open, and evaluated in the server timezone.
+- The effective token multiplier is `(system/group/user rate) * peak factor`.
+  A peak factor of `0` is valid and represents free token billing in the window.
+- Long-context, service-tier, cache creation/read, output, and image-output
+  token components use the same final token multiplier. Real cache-read token
+  counts are never rewritten.
+- Per-image pricing uses the pre-peak image multiplier. Independent Grok video
+  multipliers and Batch Image frozen-balance snapshots do not consume the peak
+  factor.
+- Display pricing and display-rate transforms remain downstream presentation
+  logic: stored `actual_cost` is computed from the effective token multiplier,
+  while the displayed bill remains explainable using configured unit prices.
+- Peak fields cross Ent/schema, group repository/DTOs, API-key auth snapshots,
+  normal/OpenAI gateways, available channels, payment/subscription DTOs, and
+  the admin/user frontend. Migration ownership is `190_group_peak_rate.sql`.

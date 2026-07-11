@@ -235,9 +235,10 @@ func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputToke
 	groupID := int64(14)
 	groupRate := 1.0
 	usage := OpenAIUsage{
-		InputTokens:       1000,
-		OutputTokens:      600,
-		ImageOutputTokens: 100,
+		InputTokens:          1200,
+		OutputTokens:         600,
+		CacheReadInputTokens: 200,
+		ImageOutputTokens:    100,
 	}
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
@@ -273,14 +274,16 @@ func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputToke
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 3.0, usageRepo.lastLog.RateMultiplier)
 	require.Equal(t, usage.ImageOutputTokens, usageRepo.lastLog.ImageOutputTokens)
+	require.Equal(t, usage.CacheReadInputTokens, usageRepo.lastLog.CacheReadTokens)
 
 	expected, err := svc.billingService.CalculateCostUnified(CostInput{
 		Ctx:     context.Background(),
 		Model:   "gpt-5.1",
 		GroupID: i64p(groupID),
 		Tokens: UsageTokens{
-			InputTokens:       usage.InputTokens,
+			InputTokens:       usage.InputTokens - usage.CacheReadInputTokens,
 			OutputTokens:      usage.OutputTokens,
+			CacheReadTokens:   usage.CacheReadInputTokens,
 			ImageOutputTokens: usage.ImageOutputTokens,
 		},
 		RateMultiplier: 1.0,

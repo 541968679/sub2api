@@ -205,6 +205,13 @@ into input display tokens/cost; and the final displayed bill must remain
 explainable as displayed tokens * displayed unit prices * displayed rate, with
 only small integer-token rounding tolerance.
 
+Subscription groups may additionally define a same-day peak-rate window. The
+peak factor is evaluated in the configured server timezone and multiplies only
+token billing after the normal system/group/user rate is resolved. It therefore
+applies to image output tokens billed as tokens, but not to per-image pricing,
+Grok per-second video/media pricing, or the separate Batch Image settlement
+workflow. API-key auth snapshots must carry all four peak-rate fields.
+
 ---
 
 ## 4. 前端关键路径

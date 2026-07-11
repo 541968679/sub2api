@@ -89,3 +89,7 @@ PaymentView
   reset is due. Automatic resets compare the previously observed window start
   before clearing usage, then reload and revalidate the committed subscription;
   a stale CAS loser cannot authorize from a locally zeroed snapshot.
+- Subscription plan, checkout, and member-group DTOs expose group peak-rate
+  metadata. The frontend labels the same-day window with the public server UTC
+  offset; this is descriptive only and does not change plan price, currency,
+  bundle membership, fulfillment, refund, or subscription quota semantics.
