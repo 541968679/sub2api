@@ -60,6 +60,32 @@
                 :class="loading ? 'animate-spin' : ''"
               />
             </button>
+            <div class="relative" ref="columnDropdownRef">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                :title="t('admin.groups.columnSettings')"
+                @click="showColumnDropdown = !showColumnDropdown"
+              >
+                <Icon name="grid" size="md" class="mr-2" />
+                <span class="hidden md:inline">{{ t("admin.groups.columnSettings") }}</span>
+              </button>
+              <div
+                v-if="showColumnDropdown"
+                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-52 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+              >
+                <button
+                  v-for="col in toggleableColumns"
+                  :key="col.key"
+                  type="button"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  @click="toggleColumn(col.key)"
+                >
+                  <span>{{ col.label }}</span>
+                  <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" :stroke-width="2" />
+                </button>
+              </div>
+            </div>
             <button
               @click="openSortModal"
               class="btn btn-secondary"
@@ -279,6 +305,13 @@
                 >
               </div>
             </div>
+          </template>
+
+          <template #cell-used_quota="{ row }">
+            <span v-if="usageLoading" class="text-xs text-gray-400">-</span>
+            <span v-else class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              ${{ formatCost(usageMap.get(row.id)?.total_cost ?? 0) }}
+            </span>
           </template>
 
           <template #cell-status="{ value }">
@@ -3047,7 +3080,10 @@ const { t } = useI18n();
 const appStore = useAppStore();
 const onboardingStore = useOnboardingStore();
 
-const columns = computed<Column[]>(() => [
+const ALWAYS_VISIBLE_COLUMNS = new Set(["name", "actions"]);
+const HIDDEN_COLUMNS_KEY = "group-hidden-columns";
+
+const allColumns = computed<Column[]>(() => [
   { key: "name", label: t("admin.groups.columns.name"), sortable: true },
   {
     key: "platform",
@@ -3080,9 +3116,67 @@ const columns = computed<Column[]>(() => [
     sortable: false,
   },
   { key: "usage", label: t("admin.groups.columns.usage"), sortable: false },
+  { key: "used_quota", label: t("admin.groups.columns.usedQuota"), sortable: false },
   { key: "status", label: t("admin.groups.columns.status"), sortable: true },
   { key: "actions", label: t("admin.groups.columns.actions"), sortable: false },
 ]);
+
+const toggleableColumns = computed(() =>
+  allColumns.value.filter((column) => !ALWAYS_VISIBLE_COLUMNS.has(column.key)),
+);
+const hiddenColumns = reactive<Set<string>>(new Set());
+const showColumnDropdown = ref(false);
+const columnDropdownRef = ref<HTMLElement | null>(null);
+
+const validHiddenColumnKeys = () => new Set(toggleableColumns.value.map((column) => column.key));
+
+const loadSavedColumns = () => {
+  hiddenColumns.clear();
+  try {
+    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY);
+    if (!saved) return;
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return;
+    const validKeys = validHiddenColumnKeys();
+    parsed
+      .filter((key): key is string => typeof key === "string" && validKeys.has(key))
+      .forEach((key) => hiddenColumns.add(key));
+  } catch (error) {
+    console.error("Failed to load group column settings:", error);
+  }
+};
+
+const saveColumnsToStorage = () => {
+  try {
+    const validKeys = validHiddenColumnKeys();
+    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns].filter((key) => validKeys.has(key))));
+  } catch (error) {
+    console.error("Failed to save group column settings:", error);
+  }
+};
+
+const isColumnVisible = (key: string) => !hiddenColumns.has(key);
+const hasVisibleUsageSummaryConsumer = computed(() =>
+  isColumnVisible("usage") || isColumnVisible("used_quota"),
+);
+const hasVisibleCapacityColumn = computed(() => isColumnVisible("capacity"));
+
+const toggleColumn = (key: string) => {
+  if (!validHiddenColumnKeys().has(key)) return;
+  const wasHidden = hiddenColumns.has(key);
+  if (wasHidden) hiddenColumns.delete(key);
+  else hiddenColumns.add(key);
+  saveColumnsToStorage();
+
+  if (wasHidden && (key === "usage" || key === "used_quota")) loadUsageSummary();
+  if (wasHidden && key === "capacity") loadCapacitySummary();
+};
+
+const columns = computed<Column[]>(() =>
+  allColumns.value.filter((column) => ALWAYS_VISIBLE_COLUMNS.has(column.key) || !hiddenColumns.has(column.key)),
+);
+
+if (typeof window !== "undefined") loadSavedColumns();
 
 // Filter options
 const statusOptions = computed(() => [
@@ -3726,8 +3820,9 @@ const loadGroups = async () => {
     groups.value = response.items;
     pagination.total = response.total;
     pagination.pages = response.pages;
-    loadUsageSummary();
-    loadCapacitySummary();
+    if (hasVisibleUsageSummaryConsumer.value) loadUsageSummary();
+    else usageLoading.value = false;
+    if (hasVisibleCapacityColumn.value) loadCapacitySummary();
   } catch (error: any) {
     if (
       signal.aborted ||
@@ -3752,6 +3847,10 @@ const formatCost = (cost: number): string => {
 };
 
 const loadUsageSummary = async () => {
+  if (!hasVisibleUsageSummaryConsumer.value) {
+    usageLoading.value = false;
+    return;
+  }
   usageLoading.value = true;
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -3772,6 +3871,7 @@ const loadUsageSummary = async () => {
 };
 
 const loadCapacitySummary = async () => {
+  if (!hasVisibleCapacityColumn.value) return;
   try {
     const data = await adminAPI.groups.getCapacitySummary();
     const map = new Map<
@@ -4263,6 +4363,9 @@ const handleClickOutside = (event: MouseEvent) => {
     Object.keys(showAccountDropdown.value).forEach((key) => {
       showAccountDropdown.value[key] = false;
     });
+  }
+  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
+    showColumnDropdown.value = false;
   }
 };
 

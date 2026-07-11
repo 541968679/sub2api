@@ -4612,3 +4612,14 @@ transforms, media frozen-balance settlement, or platform quotas.
   unchanged because it was already present from the earlier alignment batch.
 - Verified focused RED/GREEN regressions, all backend unit tests, and targeted
   race tests. No frontend, migration, generated Ent, push, or deployment change.
+## [2026-07-11] feat: Add persistent group table column preferences and used quota
+
+**Affected files**: `frontend/src/views/admin/GroupsView.vue`, `frontend/src/views/admin/GroupsView.columnSettings.spec.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/i18n/locales/zh.ts`
+
+**Compatibility**: Low risk, frontend-only. Name and actions remain fixed, persisted hidden keys are validated, and hiding all consumers suppresses the corresponding summary request.
+
+**Details**:
+- Added per-browser group table column visibility preferences with a compact column menu.
+- Added an independent used-quota column backed by the existing 30-day `total_cost` group summary.
+- The UI does not derive prices from tokens or recalculate billing; stored cost, `actual_cost`, display-token transforms, cache-read quantities, subscription quota, and capacity calculations are unchanged.
+- Added a static regression contract for fixed columns, persisted-key validation, used-quota source, and conditional summary loading.

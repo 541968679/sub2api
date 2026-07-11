@@ -1091,3 +1091,11 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
   affiliate single-credit markers, curated model lists, Claude-GPT bridge, and
   account scheduling/failover.
 - **Pushed/deployed**: no.
+### 2026-07-11 - Group table column preferences and used quota
+
+- Adapted upstream `5436d0bf1` and `54859022a` to the fork-local admin group table.
+- Added localStorage-backed column visibility while keeping name/actions fixed and validating stale persisted keys.
+- Added `used_quota` from the existing 30-day group usage summary `total_cost`; no frontend cost/token derivation was introduced.
+- Usage and capacity summary requests are skipped when no visible column consumes them.
+- Preserved fork-local group platform settings, curated/default models, Batch Image controls, Claude-GPT bridge configuration, rate multipliers, scheduling/failover, and bilingual i18n.
+- Pushed/deployed: no.
