@@ -187,9 +187,9 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	}
 
 	if clientStream {
-		return s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		return s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
-	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 }
 
 func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
@@ -198,6 +198,7 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 	originalModel string,
 	customTools map[string]bool,
 	toolSearch bool,
+	namespaceTools map[string]apicompat.NamespacedToolName,
 	billingModel string,
 	upstreamModel string,
 	reasoningEffort *string,
@@ -259,6 +260,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	originalModel string,
 	customTools map[string]bool,
 	toolSearch bool,
+	namespaceTools map[string]apicompat.NamespacedToolName,
 	billingModel string,
 	upstreamModel string,
 	reasoningEffort *string,
