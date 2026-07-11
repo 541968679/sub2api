@@ -84,7 +84,7 @@ func TestGetAllGroupCapacity_UsesBatchProjectionAndKeepsGroupSemantics(t *testin
 	require.Equal(t, 1, groups.calls)
 	require.Equal(t, []int64{5, 10, 20}, accounts.requested)
 	require.ElementsMatch(t, []int64{1, 2}, cc.requested)
-	require.Equal(t, []int64{1}, sc.requested)
+	require.ElementsMatch(t, []int64{1, 2}, sc.requested)
 	require.Equal(t, 7*time.Minute, sc.timeouts[1])
 	require.ElementsMatch(t, []int64{1, 2}, rc.requested)
 	require.Equal(t, []GroupCapacitySummary{

@@ -441,6 +441,22 @@ func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, erro
 	return outGroups, nil
 }
 
+func (r *groupRepository) ListActiveIDs(ctx context.Context) ([]int64, error) {
+	groups, err := r.client.Group.Query().
+		Where(group.StatusEQ(service.StatusActive)).
+		Select(group.FieldID).
+		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(groups))
+	for i := range groups {
+		ids = append(ids, groups[i].ID)
+	}
+	return ids, nil
+}
+
 func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform string) ([]service.Group, error) {
 	groups, err := r.client.Group.Query().
 		Where(group.StatusEQ(service.StatusActive), group.PlatformEQ(platform)).
