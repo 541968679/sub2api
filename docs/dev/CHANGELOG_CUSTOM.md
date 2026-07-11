@@ -45,6 +45,18 @@ alignment baseline `19bd42ca5`; fork-local hot paths were reconciled, not replac
   controls, billing/display/cache invariants, Ops, curated models, and scheduling.
 - No migration, push, or deployment.
 
+## [2026-07-11] feat: Add guarded OpenAI quota query and reset controls
+
+**Affected files**: OpenAI quota service/token provider/account helpers, admin OAuth handler/routes/Wire, account API/usage component, bilingual i18n, focused tests, and account documentation
+**Upstream compatibility**: Manual port of `b81694929` plus the confirmation and credit-expiration follow-ups from `30adee43b` and `dfb36e45f`; shared account, Wire, locale, and usage files were reconciled instead of replaced.
+**Details**:
+- Added admin-only OpenAI OAuth quota query and reset-credit consumption through the account usage cell, including sanitized credit expiration details.
+- Required explicit reset confirmation and a validated UUID-v4 `redeem_request_id`; the frontend keeps one stable ID across retry of the same action and the backend forwards it unchanged.
+- Reused final Codex identity pairing so upstream quota requests always carry a matched account/fallback User-Agent and originator.
+- Added minimal PAT token-provider compatibility: `personalAccessToken`, `personal_access_token`, and `codex_pat` OAuth-shaped accounts use the stored access token without entering refresh locking.
+- Preserved the independent Grok quota probe, OpenAI/Grok platform isolation, account scheduling/cooldowns, user-platform quota, public/admin settings, i18n/routes outside the added endpoints, billing/display-token/cache-read invariants, bridge, Images, and curated/default model behavior.
+- Explicitly excluded the later Spark linked-shadow-account schema, scheduling, and usage feature from this batch.
+
 ## [2026-07-11] fix: Reconcile merged public contracts and auth-cache identity
 
 **Affected files**: `backend/internal/service/{setting_service.go,api_key_auth_cache_impl.go}`, `backend/internal/server/api_contract_test.go`

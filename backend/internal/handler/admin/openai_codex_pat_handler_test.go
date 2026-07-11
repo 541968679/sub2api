@@ -27,7 +27,7 @@ func TestOpenAIOAuthHandler_CreateAccountFromCodexPAT(t *testing.T) {
 		adminSvc := newStubAdminService()
 		oauthSvc := service.NewOpenAIOAuthService(nil, nil)
 		defer oauthSvc.Stop()
-		h := NewOpenAIOAuthHandler(oauthSvc, adminSvc)
+		h := NewOpenAIOAuthHandler(oauthSvc, adminSvc, nil)
 
 		gin.SetMode(gin.TestMode)
 		router := gin.New()
@@ -54,7 +54,7 @@ func TestOpenAIOAuthHandler_CreateAccountFromCodexPAT(t *testing.T) {
 		adminSvc := newStubAdminService()
 		oauthSvc := service.NewOpenAIOAuthService(nil, nil)
 		defer oauthSvc.Stop()
-		h := NewOpenAIOAuthHandler(oauthSvc, adminSvc)
+		h := NewOpenAIOAuthHandler(oauthSvc, adminSvc, nil)
 		h.codexPATValidator = stubOpenAICodexPATValidator{info: &service.OpenAITokenInfo{
 			AccessToken:           token,
 			AuthMode:              service.OpenAIAuthModePersonalAccessToken,
