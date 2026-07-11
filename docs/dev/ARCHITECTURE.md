@@ -167,7 +167,7 @@ or ordinary display-token billing. See `codebase/batch-image.md`.
 ### 3.4 数据库迁移
 
 - 位置：`backend/migrations/NNN_*.sql`
-- 编号：三位数字前缀，**严格递增**，别跳号
+- 编号：三位数字前缀，新增迁移应从当前最大编号**严格递增**，不要主动跳号；已经进入共享历史的空位不得事后回填，否则不同环境可能以不同时间线执行同一低编号迁移。当前 `183` 是已保留空位，后续从现有最大编号继续递增。
 - embed：`migrations.go` 用 `//go:embed *.sql` 打包，启动时按序执行（幂等：都用 `IF NOT EXISTS`）
 - 原则：**additive 优先**（加列、加索引）、避免 `DROP`；删除字段要两步走（先停止写 → 再 drop）
 - **不要**用 Ent 的 auto-migrate；它不跑。所有 schema 变更必须写 SQL 迁移。

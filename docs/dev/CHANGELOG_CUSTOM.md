@@ -4865,3 +4865,14 @@ route, setting, push, or deployment change.
 - Restored final runtime paths for multi-file account selection, scheduler-score help, ungrouped scores, used quota, and peak-rate settings.
 - Kept the keys in the final recursive locale patches so duplicate historical locale sections cannot hide them.
 - Verified sidebar, public URL sanitization, and global runtime locale coverage (8 tests).
+
+## [2026-07-11] docs: Record upstream exclusions and permanent migration gap
+
+**Affected files**: upstream-sync ledger and architecture migration rules.
+
+**Compatibility**: Documentation-only; no runtime behavior changed.
+
+**Details**:
+- Recorded the privacy, deployment-provenance, and existing-release-workflow reasons for excluding upstream IP geolocation, online binary rollback, and exact-tag runtime resolution.
+- Corrected the usage-log ledger to reflect that API-key latest-IP row close/iteration handling is present.
+- Marked migration number `183` as a permanent historical gap. New migrations continue from the current maximum and never backfill an already published gap.

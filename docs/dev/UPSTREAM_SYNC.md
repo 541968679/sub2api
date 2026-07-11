@@ -164,9 +164,30 @@ git push origin main
 
 ### 2026-07-11 - Usage-log persistence under queue pressure
 
-- **Upstream source**: `a1b2b32e0`; `7a11b39d6` audited as not applicable because the prerequisite API-key LastUsedIP query is not present.
+- **Upstream source**: `a1b2b32e0`; the later API-key LastUsedIP query and its `7a11b39d6` rows close/iteration error handling are also present in this alignment branch.
 - Changed the default worker overflow policy from sampling to synchronous execution, made repository batch queues context-bounded instead of immediate-drop, and added a synchronous repository fallback after best-effort errors.
 - The fallback runs only after an error, so successful async persistence is not duplicated. Billing failure still prevents log creation, and no cost, quota, display-token, cache-read, Images, Grok media, scheduler, settings, route, schema, or migration contract changes.
+
+### 2026-07-11 - Explicit upstream exclusions and migration numbering
+
+- `0ff93aca7` browser-side IP geolocation is intentionally excluded. It would
+  disclose observed IP addresses to a third-party GeoJS service and requires a
+  separate privacy, retention, and provider-availability decision.
+- `1c2e6503c` online historical-binary rollback is intentionally excluded. The
+  fork's production contract is GitHub Actions-built, explicitly tagged GHCR
+  images pulled through Docker Compose; runtime binary replacement would bypass
+  that provenance and rollback boundary.
+- `de64b0261` exact-tag runtime resolution is not needed. The release workflow
+  already creates the VERSION artifact from the tag and keeps the VERSION file
+  in sync; Docker/GHCR builds do not depend on resolving git tags at runtime.
+- Migrations `180` through `190` added by this alignment have no duplicate
+  filenames or modified historical SQL. `183` was already left unused before
+  `184_batch_image_workflow.sql` entered shared history and is now a permanent
+  reserved gap; it must not be backfilled. New migrations continue from the
+  current maximum number.
+- No excluded item changes billing/display-token accounting, real cache-read
+  quantities, `actual_cost`, curated/default models, Claude-GPT, Images/Batch
+  Image, scheduler/failover, Ops/settings, routes, payment, or distribution.
 ### 2026-07-11 - Authentication and frontend reliability alignment
 
 - **Branch/baseline**: `codex/upstream-auth-reliability-20260711` from `f2aa7ac6d`.
