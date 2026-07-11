@@ -19,6 +19,17 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Harden bridge candidacy, cancel handling, and route observability after second-round review
+
+**Affected files**: `backend/internal/service/account.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/handler/openai_claude_gpt_bridge_route.go`, `backend/internal/handler/openai_gateway_count_tokens.go`, `backend/internal/service/openai_claude_gpt_bridge_routing.go`, `backend/internal/service/openai_claude_gpt_bridge_routing_test.go`, `backend/internal/service/openai_claude_gpt_bridge_forward_test.go`, `backend/internal/handler/openai_claude_gpt_bridge_route_test.go`, `backend/internal/handler/openai_gateway_count_tokens_test.go`, `backend/internal/server/routes/gateway_bridge_dispatch_test.go`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Low risk. Tightens bridge candidacy to the documented account-level explicit-mapping contract (platform default mappings never create bridge intent), aligns Messages cancel semantics with the Responses path, and completes route_decision observability. No schema, frontend, or wiring changes.
+**Details**:
+- Independent second-round multi-agent review of the P0/P1 delivery (59 agents, 9 confirmed findings) drove this round; full record in the investigation doc status section.
+- `ResolveClaudeGPTBridgeModel` now requires `ModelMappingSourceAccount`: an admin-saved OpenAI platform default mapping (including `claude-*` wildcards) no longer turns every bridge-enabled account into a candidate for every Claude model, which under strict routing would have permanently hijacked native Antigravity requests onto the GPT upstream.
+- Bridge Messages error path gains the same `openAIClientRequestCanceled` early return as Responses: a client cancel records no account failure, no account switch, and never continues failover with a canceled context (previously one cancel could down-rank up to maxAccountSwitches+1 healthy accounts).
+- `route_decision` events add spec-mandated `attempt` and `terminal_outcome` fields; selection-race re-diagnosis measures real `latency_ms` instead of always zero.
+- Coverage backfill for review-confirmed test gaps: real-path two-request 429 regression (upstream 429 through `ForwardAsAnthropic` really persists `RateLimitResetAt`) plus `UpstreamFailoverError.ResponseHeaders` population; routes-level end-to-end tests of the real dispatch switch for `/v1/messages`, `/antigravity/v1/messages`, and `count_tokens` with native-not-called sentinels; bridge count ready-path tests (mapped-model upstream count, 500-to-local-estimate degradation) via a new `SetHTTPUpstreamForTest` injector.
+
 ## [2026-07-11] fix: Reuse manual image-edit input pool and restore multipart submission
 
 **Affected files**: `frontend/src/utils/imageChannelManualTest.ts`, `frontend/src/utils/imageChannelManualTest.test.ts`, `frontend/src/views/admin/ImageChannelMonitorView.vue`, `frontend/src/views/admin/ImageChannelMonitorView.manual.test.ts`, `frontend/src/api/admin/imageChannelMonitor.ts`, `frontend/src/api/admin/imageChannelMonitor.image.test.ts`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`

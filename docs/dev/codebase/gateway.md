@@ -100,8 +100,19 @@ stays 429 and propagates a validated (positive integer, <= 86400s) upstream
 [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md).
 Route decisions emit the structured log event
 `openai_claude_gpt_bridge.route_decision` with state/candidate counts,
-`decision_source=preflight|selection_race|count_tokens_preflight`, and no
-account identities.
+`decision_source=preflight|selection_race|count_tokens_preflight`,
+`attempt`, `terminal_outcome` (the route-layer terminal action, e.g.
+`dispatch_native`, `dispatch_bridge`, `rate_limited_429`), and no account
+identities.
+
+Bridge candidacy requires the mapping hit to come from account-level
+`credentials.model_mapping` (`ModelMappingSourceAccount`). Admin-configured
+platform default mappings (`openai_default_model_mapping`, including
+wildcards) never create bridge intent — they serve OpenAI-platform model
+compatibility only. Client cancellation during a bridge Messages forward
+returns early without recording an account failure, without an account
+switch, and without continuing failover on the canceled context (same guard
+as the Responses path).
 
 ### `/v1/messages/count_tokens` dispatch
 

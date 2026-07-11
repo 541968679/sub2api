@@ -41,6 +41,43 @@
   返回规范 413/400；诊断结果携带映射模型消除降级路径二次扫描；bridge
   count 路径补齐 ops 观测上下文。
 
+2026-07-11 第二轮独立多代理审查（59 agent，9 项确认发现）后修复记录：
+
+- **候选判定收紧（6.2 显式映射契约）**：`ResolveClaudeGPTBridgeModel` 此前经
+  `ResolveMappedModel` 会落到管理员可配置的 OpenAI 平台级默认映射
+  （`openai_default_model_mapping`，含通配符）。配置 `claude-*` 类平台默认映射
+  会让所有开桥账号对所有 Claude 模型变成 bridge 候选，把原生请求整体劫走。
+  现要求映射来源必须为 `ModelMappingSourceAccount`，平台默认映射不再构成
+  bridge 意图（诊断与 scheduler 资格同源收紧）。
+- **客户端取消不再惩罚账号（6.4 第 7 条）**：Messages 错误路径补上与 Responses
+  一致的 `openAIClientRequestCanceled` 早退守卫；取消不再产生
+  `ReportOpenAIAccountScheduleResult(false)`、不再计切号、不再带已取消
+  context 继续 failover（此前一次取消最多拖累 `maxAccountSwitches+1` 个账号评分）。
+- **观测补齐（第 11 节）**：`route_decision` 事件补 `attempt` 与
+  `terminal_outcome` 字段（取值 `dispatch_native/dispatch_bridge/
+  group_model_blocked_403/rate_limited_429/unavailable_503/probe_error_503/
+  count_bridge_ready/count_local_estimate`，含义为路由层终局动作）；
+  selection_race 二次诊断的 `latency_ms` 计时起点移到诊断之前，不再恒为 0。
+- **测试覆盖缺口回填（第 10 节矩阵）**：
+  - `openai_claude_gpt_bridge_forward_test.go`（service）：真实链路两请求回归
+    （mock 上游 429 → `ForwardAsAnthropic` → `handleOpenAIAccountUpstreamError`
+    → `SetRateLimited` 真实落库 → 二次诊断 rate_limited），以及
+    `UpstreamFailoverError.ResponseHeaders` 在真实转发路径的填充断言；
+  - `gateway_bridge_dispatch_test.go`（routes）：真实注册路由 + 真实分发
+    switch 的端到端覆盖（`/v1/messages` 与 `/antigravity/v1/messages` 限流 429
+    且 native 哨兵未触发、not_configured 落 native 且 body 完好、count_tokens
+    限流本地估算/无桥落 native），关闭第 9 节计划中缺失的 route 层测试；
+  - `openai_gateway_count_tokens_test.go`（handler）+ 新增
+    `SetHTTPUpstreamForTest` 注入器：bridge count ready 路径首次获得覆盖
+    （真实选号 → 上游 `/v1/responses/input_tokens` 收到映射后模型 →
+    200 计数；上游 500 降级 200 本地估算），矩阵第 18 行无副作用不变量以
+    nil usage/billing 依赖结构性锁定。
+- 审查中被驳回（非缺陷）的主要议题备查：count 对 API-key 账号真实上游错误保留
+  `HandleUpstreamError` 记账（OAuth 缺 scope/404 分流在前，符合官方语义）；
+  OpenAI 平台 count 短暂持有账号槽（规格第 7.2 节仅约束 bridge 路径）；
+  channel pricing/隐私门等 scheduler 专属闸门不进诊断池（ready 后由真实
+  选号裁决，语义一致）。
+
 范围：Antigravity 分组通过 OpenAI 账号执行 Claude-GPT bridge 的
 `/v1/messages`、`/antigravity/v1/messages` 和 `count_tokens` 兼容路径
 
