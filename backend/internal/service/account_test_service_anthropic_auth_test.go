@@ -71,8 +71,8 @@ func TestAccountTestService_AnthropicAPIKeyAuthScheme(t *testing.T) {
 			err := svc.testClaudeAccountConnection(c, account, "claude-compatible")
 			require.NoError(t, err)
 			require.NotNil(t, upstream.lastReq)
-			require.Equal(t, tt.wantAuthorization, upstream.lastReq.Header.Get("Authorization"))
-			require.Equal(t, tt.wantXAPIKey, upstream.lastReq.Header.Get("x-api-key"))
+			require.Equal(t, tt.wantAuthorization, getHeaderRaw(upstream.lastReq.Header, "authorization"))
+			require.Equal(t, tt.wantXAPIKey, getHeaderRaw(upstream.lastReq.Header, "x-api-key"))
 		})
 	}
 }

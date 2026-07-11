@@ -163,6 +163,37 @@ function mountModal(account = buildAccount()) {
 }
 
 describe('EditAccountModal', () => {
+  it('hydrates and can reset Anthropic API key bearer auth', async () => {
+    const account = buildAccount()
+    account.name = 'Anthropic Compatible'
+    account.platform = 'anthropic'
+    account.credentials = {
+      api_key: 'anthropic-test',
+      base_url: 'https://compatible.example.com'
+    }
+    account.extra = {
+      anthropic_apikey_auth_scheme: 'authorization_bearer',
+      anthropic_passthrough: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const authScheme = wrapper.get<HTMLSelectElement>(
+      '[data-testid="edit-anthropic-api-key-auth-scheme"]'
+    )
+    expect(authScheme.element.value).toBe('authorization_bearer')
+
+    await authScheme.setValue('x_api_key')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.anthropic_apikey_auth_scheme).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.anthropic_passthrough).toBe(true)
+  })
+
   it('reopening the same account rehydrates the OpenAI whitelist from props', async () => {
     const account = buildAccount()
     updateAccountMock.mockReset()

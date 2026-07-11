@@ -169,6 +169,36 @@ async function mountGrokAPIKeyModal() {
   return wrapper
 }
 
+async function mountAnthropicAPIKeyModal() {
+  createAccountMock.mockReset()
+  checkMixedChannelRiskMock.mockReset()
+  checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+  createAccountMock.mockResolvedValue({})
+
+  const wrapper = mount(CreateAccountModal, {
+    props: { show: true, proxies: [], groups: [] },
+    global: {
+      stubs: {
+        BaseDialog: BaseDialogStub,
+        ConfirmDialog: BaseDialogStub,
+        Icon: true,
+        PlatformIcon: true,
+        ProxySelector: true,
+        GroupSelector: true,
+        ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        OAuthAuthorizationFlow: true,
+        Select: true
+      }
+    }
+  })
+  await wrapper.findAll('button').find((button) => button.text().includes('Anthropic'))!.trigger('click')
+  await wrapper.findAll('button')
+    .find((button) => button.text().includes('admin.accounts.claudeConsole'))!
+    .trigger('click')
+  await wrapper.get('input[type="password"]').setValue('anthropic-test')
+  return wrapper
+}
+
 describe('CreateAccountModal', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -181,6 +211,30 @@ describe('CreateAccountModal', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_images_endpoint_enabled).toBeUndefined()
+  })
+
+  it('keeps Anthropic API key auth on x-api-key without persisting the default', async () => {
+    const wrapper = await mountAnthropicAPIKeyModal()
+
+    expect(wrapper.get<HTMLSelectElement>(
+      '[data-testid="create-anthropic-api-key-auth-scheme"]'
+    ).element.value).toBe('x_api_key')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.anthropic_apikey_auth_scheme).toBeUndefined()
+  })
+
+  it('submits Anthropic-compatible Authorization Bearer auth', async () => {
+    const wrapper = await mountAnthropicAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-anthropic-api-key-auth-scheme"]')
+      .setValue('authorization_bearer')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.anthropic_apikey_auth_scheme)
+      .toBe('authorization_bearer')
   })
 
   it('creates a Grok API key account with the official xAI base URL', async () => {

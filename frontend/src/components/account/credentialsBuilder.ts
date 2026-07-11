@@ -9,6 +9,27 @@ export function applyInterceptWarmup(
     delete credentials.intercept_warmup_requests
   }
 }
+
+export type AnthropicAPIKeyAuthScheme = 'x_api_key' | 'authorization_bearer'
+
+export function resolveAnthropicAPIKeyAuthScheme(
+  extra?: Record<string, unknown> | null
+): AnthropicAPIKeyAuthScheme {
+  return extra?.anthropic_apikey_auth_scheme === 'authorization_bearer'
+    ? 'authorization_bearer'
+    : 'x_api_key'
+}
+
+export function applyAnthropicAPIKeyAuthScheme(
+  extra: Record<string, unknown>,
+  scheme: AnthropicAPIKeyAuthScheme
+): void {
+  if (scheme === 'authorization_bearer') {
+    extra.anthropic_apikey_auth_scheme = scheme
+  } else {
+    delete extra.anthropic_apikey_auth_scheme
+  }
+}
 // ========== 请求头覆写（仅 anthropic/openai 平台的 api_key 账号） ==========
 
 export const HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY = 'header_override_enabled'

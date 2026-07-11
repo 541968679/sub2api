@@ -2847,6 +2847,28 @@
         </div>
       </div>
 
+      <div
+        v-if="form.platform === 'anthropic' && accountCategory === 'apikey'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.anthropic.apiKeyAuthScheme') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.anthropic.apiKeyAuthSchemeDesc') }}
+            </p>
+          </div>
+          <select
+            v-model="anthropicAPIKeyAuthScheme"
+            data-testid="create-anthropic-api-key-auth-scheme"
+            class="input w-52 text-sm"
+          >
+            <option value="x_api_key">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeXApiKey') }}</option>
+            <option value="authorization_bearer">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeBearer') }}</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Anthropic/Antigravity API Key 自动透传开关 -->
       <div
         v-if="(form.platform === 'anthropic' && accountCategory === 'apikey') || (form.platform === 'antigravity' && antigravityAccountType === 'upstream')"
@@ -3494,11 +3516,13 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
+  applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
   applyInterceptWarmup,
   getHeaderOverrideTemplate,
   isHeaderOverridePlatform,
   validateHeaderOverrideRows,
+  type AnthropicAPIKeyAuthScheme,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
@@ -3700,6 +3724,7 @@ const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OF
 const codexCLIOnlyEnabled = ref(false)
 const codexCLIOnlyAllowAppServer = ref(false)
 const anthropicPassthroughEnabled = ref(false)
+const anthropicAPIKeyAuthScheme = ref<AnthropicAPIKeyAuthScheme>('x_api_key')
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
 const {
@@ -4149,6 +4174,9 @@ watch(
       anthropicPassthroughEnabled.value = false
       webSearchEmulationMode.value = 'default'
     }
+    if (newPlatform !== 'anthropic') {
+      anthropicAPIKeyAuthScheme.value = 'x_api_key'
+    }
     // 请求头覆写为平台相关配置（模板/常用头集合不同），切换平台时清空，
     // 避免上一平台的模板行被提交到新平台账号
     headerOverrideEnabled.value = false
@@ -4182,6 +4210,7 @@ watch(
     }
     if (platform !== 'anthropic' || category !== 'apikey') {
       anthropicPassthroughEnabled.value = false
+      anthropicAPIKeyAuthScheme.value = 'x_api_key'
       webSearchEmulationMode.value = 'default'
     }
   }
@@ -4685,6 +4714,7 @@ const resetForm = () => {
   codexCLIOnlyEnabled.value = false
 	codexCLIOnlyAllowAppServer.value = false
   anthropicPassthroughEnabled.value = false
+  anthropicAPIKeyAuthScheme.value = 'x_api_key'
   webSearchEmulationMode.value = 'default'
   // Reset quota control state
   windowCostEnabled.value = false
@@ -4798,6 +4828,11 @@ const buildAnthropicExtra = (base?: Record<string, unknown>): Record<string, unk
     extra.anthropic_passthrough = true
   } else {
     delete extra.anthropic_passthrough
+  }
+  if (isAnthropicApikey) {
+    applyAnthropicAPIKeyAuthScheme(extra, anthropicAPIKeyAuthScheme.value)
+  } else {
+    delete extra.anthropic_apikey_auth_scheme
   }
   if (webSearchEmulationMode.value === 'default') {
     delete extra.web_search_emulation

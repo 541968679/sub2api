@@ -1658,6 +1658,28 @@
         <p class="input-hint">{{ t('admin.accounts.openai.endpointCapabilitiesDesc') }}</p>
       </div>
 
+      <div
+        v-if="account?.platform === 'anthropic' && account?.type === 'apikey'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.anthropic.apiKeyAuthScheme') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.anthropic.apiKeyAuthSchemeDesc') }}
+            </p>
+          </div>
+          <select
+            v-model="anthropicAPIKeyAuthScheme"
+            data-testid="edit-anthropic-api-key-auth-scheme"
+            class="input w-52 text-sm"
+          >
+            <option value="x_api_key">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeXApiKey') }}</option>
+            <option value="authorization_bearer">{{ t('admin.accounts.anthropic.apiKeyAuthSchemeBearer') }}</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Anthropic/Antigravity API Key 自动透传开关 -->
       <div
         v-if="(account?.platform === 'anthropic' || account?.platform === 'antigravity') && account?.type === 'apikey'"
@@ -2501,14 +2523,17 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
+  applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
   applyInterceptWarmup,
   getHeaderOverrideTemplate,
   isHeaderOverridePlatform,
+  resolveAnthropicAPIKeyAuthScheme,
   splitHeaderOverridesObject,
   validateHeaderOverrideRows,
   HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY,
   HEADER_OVERRIDES_CREDENTIAL_KEY,
+  type AnthropicAPIKeyAuthScheme,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
@@ -2699,6 +2724,7 @@ const codexCLIOnlyAllowAppServer = ref(false)
 type CodexImageGenerationBridgeMode = 'inherit' | 'enabled' | 'disabled'
 const codexImageGenerationBridgeMode = ref<CodexImageGenerationBridgeMode>('inherit')
 const anthropicPassthroughEnabled = ref(false)
+const anthropicAPIKeyAuthScheme = ref<AnthropicAPIKeyAuthScheme>('x_api_key')
 const webSearchEmulationMode = ref('default')
 const webSearchGlobalEnabled = ref(false)
 const {
@@ -2987,6 +3013,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 	codexCLIOnlyAllowAppServer.value = false
   codexImageGenerationBridgeMode.value = 'inherit'
   anthropicPassthroughEnabled.value = false
+  anthropicAPIKeyAuthScheme.value = 'x_api_key'
   webSearchEmulationMode.value = 'default'
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
@@ -3030,6 +3057,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   }
   if ((newAccount.platform === 'anthropic' || newAccount.platform === 'antigravity') && newAccount.type === 'apikey') {
     anthropicPassthroughEnabled.value = extra?.anthropic_passthrough === true
+    if (newAccount.platform === 'anthropic') {
+      anthropicAPIKeyAuthScheme.value = resolveAnthropicAPIKeyAuthScheme(extra)
+    }
     // 三态：string "default"/"enabled"/"disabled"，向后兼容旧 bool
     const wsVal = extra?.web_search_emulation
     if (wsVal === 'enabled' || wsVal === 'disabled') {
@@ -4242,6 +4272,11 @@ const handleSubmit = async () => {
         newExtra.anthropic_passthrough = true
       } else {
         delete newExtra.anthropic_passthrough
+      }
+      if (props.account.platform === 'anthropic') {
+        applyAnthropicAPIKeyAuthScheme(newExtra, anthropicAPIKeyAuthScheme.value)
+      } else {
+        delete newExtra.anthropic_apikey_auth_scheme
       }
       if (webSearchEmulationMode.value === 'default') {
         delete newExtra.web_search_emulation
