@@ -36,12 +36,10 @@ func (r *ClaudeTokenRefresher) CacheKey(account *Account) string {
 	return ClaudeTokenCacheKey(account)
 }
 
-// CanRefresh 检查是否能处理此账号
-// 只处理 anthropic 平台的 oauth 类型账号
-// setup-token 虽然也是OAuth，但有效期1年，不需要频繁刷新
+// CanRefresh handles Anthropic OAuth and setup-token accounts. Both carry
+// short-lived access tokens; NeedsRefresh remains the expiry gate.
 func (r *ClaudeTokenRefresher) CanRefresh(account *Account) bool {
-	return account.Platform == PlatformAnthropic &&
-		account.Type == AccountTypeOAuth
+	return account.Platform == PlatformAnthropic && account.IsOAuth()
 }
 
 // NeedsRefresh 检查token是否需要刷新

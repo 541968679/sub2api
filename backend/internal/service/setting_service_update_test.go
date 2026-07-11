@@ -17,6 +17,15 @@ type settingUpdateRepoStub struct {
 	values  map[string]string
 }
 
+type settingGetAllRepoStub struct {
+	SettingRepository
+	values map[string]string
+}
+
+func (s *settingGetAllRepoStub) GetAll(context.Context) (map[string]string, error) {
+	return s.values, nil
+}
+
 func (s *settingUpdateRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
 	panic("unexpected Get call")
 }

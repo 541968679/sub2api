@@ -221,6 +221,14 @@ Important mechanisms:
 - `backend/internal/service/admin_service.go:UpdateUser` invalidates API-key
   auth cache when `allowed_groups` changes, so permission removals do not wait
   for cache TTL expiry.
+- `backend/internal/server/middleware/api_key_auth_google.go` must enforce the
+  same IP ACL, exclusive-group, runtime expiry, and quota gates before the
+  simple-mode billing bypass. Google response formatting differs, but simple
+  mode is not an authorization bypass.
+- Background Anthropic refresh accepts both OAuth and setup-token account types
+  through `Account.IsOAuth()`. The refresh service lists active accounts first,
+  and `NeedsRefresh` remains the expiry gate; do not add a second stale
+  repository candidate query.
 
 ## OpenAI Images Endpoint Scheduling
 

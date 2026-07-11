@@ -165,6 +165,19 @@ describe('useAuthStore', () => {
       expect(localStorage.getItem('refresh_token')).toBeNull()
       expect(localStorage.getItem('token_expires_at')).toBeNull()
     })
+
+    it('clears local auth even when server-side token revocation fails', async () => {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      mockLogout.mockRejectedValue(new Error('network unavailable'))
+      const store = useAuthStore()
+
+      await store.login({ email: 'test@example.com', password: '123456' })
+      await expect(store.logout()).resolves.toBeUndefined()
+
+      expect(store.isAuthenticated).toBe(false)
+      expect(localStorage.getItem('auth_token')).toBeNull()
+      expect(localStorage.getItem('refresh_token')).toBeNull()
+    })
   })
 
   // --- checkAuth ---

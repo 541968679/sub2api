@@ -241,21 +241,28 @@ async function renderQR() {
   })
 }
 
+let pollInFlight = false
 async function pollStatus() {
   if (!props.orderId || outcome.value) return
-  const order = await paymentStore.pollOrderStatus(props.orderId)
-  if (!order) return
-  if (isSuccessStatus(order.status)) {
-    cleanup()
-    paidOrder.value = order
-    setOutcome('success')
-    emit('success')
-  } else if (order.status === 'CANCELLED') {
-    cleanup()
-    setOutcome('cancelled')
-  } else if (order.status === 'EXPIRED' || order.status === 'FAILED') {
-    cleanup()
-    setOutcome('expired')
+  if (pollInFlight) return
+  pollInFlight = true
+  try {
+    const order = await paymentStore.pollOrderStatus(props.orderId)
+    if (!order || outcome.value) return
+    if (isSuccessStatus(order.status)) {
+      cleanup()
+      paidOrder.value = order
+      setOutcome('success')
+      emit('success')
+    } else if (order.status === 'CANCELLED') {
+      cleanup()
+      setOutcome('cancelled')
+    } else if (order.status === 'EXPIRED' || order.status === 'FAILED') {
+      cleanup()
+      setOutcome('expired')
+    }
+  } finally {
+    pollInFlight = false
   }
 }
 

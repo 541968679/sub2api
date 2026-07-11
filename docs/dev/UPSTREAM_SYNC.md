@@ -90,6 +90,16 @@ git push origin main
 - **Upstream source**: `a1b2b32e0`; `7a11b39d6` audited as not applicable because the prerequisite API-key LastUsedIP query is not present.
 - Changed the default worker overflow policy from sampling to synchronous execution, made repository batch queues context-bounded instead of immediate-drop, and added a synchronous repository fallback after best-effort errors.
 - The fallback runs only after an error, so successful async persistence is not duplicated. Billing failure still prevents log creation, and no cost, quota, display-token, cache-read, Images, Grok media, scheduler, settings, route, schema, or migration contract changes.
+### 2026-07-11 - Authentication and frontend reliability alignment
+
+- **Branch/baseline**: `codex/upstream-auth-reliability-20260711` from `f2aa7ac6d`.
+- **Upstream sources**: `29a5fcd25` and the setup-token background-refresh behavior from `99da30819`.
+- **Strategy**: test-first manual reconciliation in an isolated worktree; no whole-commit replacement, push, deployment, or migration.
+- Google-compatible API-key auth now applies the main middleware's IP ACL, exclusive-group, expiry, and quota gates before simple-mode billing bypass. It uses the fork's trusted client-IP helper; the separate upstream dynamic forwarded-IP setting is outside this baseline and was not imported.
+- Anthropic setup-token accounts are eligible for background refresh through `Account.IsOAuth()`. The old upstream repository query is not applicable because this fork's refresh service already starts from `ListActive`; PAT accounts remain excluded by their platform/refresher contracts.
+- Anthropic forwarding guards optional Gin-context access. Sticky scheduler snapshot hydration and client-disconnect SSE usage draining were already present from local `29ecfbb8e` and remain covered, so they were not duplicated. The older upstream error-body helper was replaced by the fork's bounded response-body architecture and is not applicable.
+- Frontend refresh requests have a finite timeout; logout always clears local state; payment/risk-control guards load public settings before deciding; payment/QR/Stripe polls reject overlap; Stripe initialization cleanup and `auth_token` lookup are corrected.
+- Verification covers Google bypass, setup-token refresh, nil-context compilation, PAT, OpenAI/Grok platform isolation, Claude-GPT bridge, Images gates, curated/default models, scheduling/failover, billing/display/cache invariants, frontend route/auth/payment/client tests, typecheck, lint, and diff checks.
 
 ### 2026-07-11 - Gateway selection and stream-drain reliability
 

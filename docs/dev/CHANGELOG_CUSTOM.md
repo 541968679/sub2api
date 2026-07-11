@@ -73,6 +73,17 @@ bridge `e316ebf52`, Ops capture fix `151b9265f`, and compact recovery
 - Makes synchronous overflow handling the default and applies request-context backpressure instead of silently dropping a full batch queue.
 - Falls back to synchronous persistence when best-effort creation reports any failure, using a detached bounded context if the original billing context has already expired.
 - Successful async writes are never duplicated; billing failures still skip usage-log creation. Stored billing, display transformations, real cache-read tokens, Batch Image, and Grok media settlement are unchanged.
+## [2026-07-11] fix: Align Google gateway authentication and frontend session reliability
+
+**Affected files**: Google API-key middleware and tests; Anthropic token refresher and gateway forwarder; frontend API client, auth store, router, payment polling views, focused tests; account/gateway/sync documentation.
+**Upstream compatibility**: Behavior-level reconciliation of `29a5fcd25` and the setup-token refresh portion of `99da30819`; shared fork-local gateway, scheduler, frontend routes, and stores were extended rather than replaced.
+**Details**:
+- Enforces IP ACLs, exclusive-group authorization, explicit expiry, and quota limits on the Google-compatible API-key middleware, including simple-mode authorization parity.
+- Allows Anthropic setup-token accounts through the background refresher while retaining `NeedsRefresh` as the expiry gate; the current `ListActive` refresh architecture already includes setup-token accounts.
+- Makes the Anthropic forwarder tolerate a nil Gin context in optional metadata/tool-rewrite paths.
+- Bounds token refresh requests, clears local auth after logout API failure, loads public settings before payment/risk-control guards, and prevents overlapping payment polls. Stripe popup initialization now clears its fallback timeout and reads `auth_token`.
+- Preserves PAT static-token behavior, OpenAI/Grok isolation, Claude-GPT bridge, Images gates, curated/default models, scheduling/failover, Ops/settings, routes/i18n, stored billing, `actual_cost`, display-token transforms, and real cache-read quantities.
+- No schema, migration, push, or deployment.
 
 ## [2026-07-11] fix: Preserve credentials and usage on gateway edge paths
 

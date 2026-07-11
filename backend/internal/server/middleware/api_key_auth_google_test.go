@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -256,6 +257,61 @@ func TestApiKeyAuthWithSubscriptionGoogle_QueryApiKeyRejected(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, resp.Error.Code)
 	require.Equal(t, "Query parameter api_key is deprecated. Use Authorization header or key instead.", resp.Error.Message)
 	require.Equal(t, "INVALID_ARGUMENT", resp.Error.Status)
+}
+
+func runGoogleAPIKeyAuthTest(t *testing.T, apiKey *service.APIKey, cfg *config.Config) *httptest.ResponseRecorder {
+	t.Helper()
+	apiKeyService := newTestAPIKeyService(fakeAPIKeyRepo{getByKey: func(context.Context, string) (*service.APIKey, error) {
+		clone := *apiKey
+		return &clone, nil
+	}})
+	r := gin.New()
+	r.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg))
+	r.GET("/v1beta/test", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+	req.RemoteAddr = "203.0.113.10:12345"
+	req.Header.Set("x-goog-api-key", apiKey.Key)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestApiKeyAuthWithSubscriptionGoogle_EnforcesIPACLInSimpleMode(t *testing.T) {
+	user := &service.User{ID: 1, Status: service.StatusActive}
+	key := &service.APIKey{ID: 1, Key: "google-ip-acl", Status: service.StatusActive, User: user, IPWhitelist: []string{"198.51.100.1"}}
+	key.CompiledIPWhitelist = ip.CompileIPRules(key.IPWhitelist)
+
+	rec := runGoogleAPIKeyAuthTest(t, key, &config.Config{RunMode: config.RunModeSimple})
+	require.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestApiKeyAuthWithSubscriptionGoogle_EnforcesExclusiveGroupInSimpleMode(t *testing.T) {
+	groupID := int64(77)
+	user := &service.User{ID: 1, Status: service.StatusActive, AllowedGroups: nil}
+	group := &service.Group{ID: groupID, Status: service.StatusActive, IsExclusive: true}
+	key := &service.APIKey{ID: 1, Key: "google-exclusive", Status: service.StatusActive, User: user, GroupID: &groupID, Group: group}
+
+	rec := runGoogleAPIKeyAuthTest(t, key, &config.Config{RunMode: config.RunModeSimple})
+	require.Equal(t, http.StatusForbidden, rec.Code)
+}
+
+func TestApiKeyAuthWithSubscriptionGoogle_EnforcesRuntimeExpiryAndQuota(t *testing.T) {
+	past := time.Now().Add(-time.Hour)
+	user := &service.User{ID: 1, Status: service.StatusActive, Balance: 10}
+	tests := []struct {
+		name string
+		key  *service.APIKey
+		want int
+	}{
+		{"expired", &service.APIKey{ID: 1, Key: "google-expired", Status: service.StatusActive, User: user, ExpiresAt: &past}, http.StatusForbidden},
+		{"quota", &service.APIKey{ID: 2, Key: "google-quota", Status: service.StatusActive, User: user, Quota: 1, QuotaUsed: 1}, http.StatusTooManyRequests},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := runGoogleAPIKeyAuthTest(t, tt.key, &config.Config{RunMode: config.RunModeStandard})
+			require.Equal(t, tt.want, rec.Code)
+		})
+	}
 }
 
 func TestApiKeyAuthWithSubscriptionGoogleSetsGroupContext(t *testing.T) {

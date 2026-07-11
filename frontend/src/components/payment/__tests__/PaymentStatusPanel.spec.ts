@@ -97,6 +97,23 @@ describe('PaymentStatusPanel', () => {
     expect(wrapper.emitted('success')).toHaveLength(1)
   })
 
+  it('does not overlap status polls when a previous poll is still in flight', async () => {
+    let resolvePoll!: (value: ReturnType<typeof orderFactory>) => void
+    pollOrderStatus.mockImplementation(() => new Promise(resolve => { resolvePoll = resolve }))
+    mount(PaymentStatusPanel, {
+      props: { orderId: 42, qrCode: 'https://pay.example.com/qr/42', expiresAt: '2099-01-01T12:30:00Z', paymentType: 'alipay', orderType: 'balance' },
+      global: { stubs: { Icon: true } },
+    })
+
+    await vi.advanceTimersByTimeAsync(9000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(1)
+
+    resolvePoll(orderFactory('PENDING'))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(pollOrderStatus).toHaveBeenCalledTimes(2)
+  })
+
   it('shows reopen button in QR mode when payUrl is also available', async () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window)
 

@@ -4431,7 +4431,11 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	// 最低缓存门槛，导致系统级缓存失效）。
 	//
 	// 对于非 Claude Code 的第三方客户端（opencode 等），仍然走完整 mimicry。
-	isClaudeCode := IsClaudeCodeClient(ctx) || isClaudeCodeClient(c.GetHeader("User-Agent"), parsed.MetadataUserID)
+	var clientUserAgent string
+	if c != nil {
+		clientUserAgent = c.GetHeader("User-Agent")
+	}
+	isClaudeCode := IsClaudeCodeClient(ctx) || isClaudeCodeClient(clientUserAgent, parsed.MetadataUserID)
 	shouldMimicClaudeCode := account.IsOAuth() && !isClaudeCode
 
 	if shouldMimicClaudeCode {
@@ -4450,7 +4454,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		// 未重写时（haiku / 已含 CC 前缀）剥离客户端 cache_control，与原有行为一致。
 		// 两种情况下 enforceCacheControlLimit 都会兜底处理上限。
 		normalizeOpts := claudeOAuthNormalizeOptions{stripSystemCacheControl: !systemRewritten}
-		if s.identityService != nil {
+		if s.identityService != nil && c != nil {
 			fp, err := s.identityService.GetOrCreateFingerprint(ctx, account.ID, c.Request.Header)
 			if err == nil && fp != nil {
 				// metadata 透传开启时跳过 metadata 注入
@@ -4473,7 +4477,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		body = addMessageCacheBreakpoints(body)
 		if rw := buildToolNameRewriteFromBody(body); rw != nil {
 			body = applyToolNameRewriteToBody(body, rw)
-			c.Set(toolNameRewriteKey, rw)
+			if c != nil {
+				c.Set(toolNameRewriteKey, rw)
+			}
 		} else {
 			body = applyToolsLastCacheBreakpoint(body)
 		}

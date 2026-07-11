@@ -221,4 +221,43 @@ describe('API Client', () => {
       ).rejects.toBeDefined()
     })
   })
+
+  describe('token refresh timeout', () => {
+    it('uses a finite timeout for the refresh request', async () => {
+      localStorage.setItem('auth_token', 'expired-token')
+      localStorage.setItem('refresh_token', 'refresh-token')
+
+      const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+        data: {
+          code: 0,
+          data: {
+            access_token: 'new-token',
+            refresh_token: 'new-refresh-token',
+            expires_in: 3600,
+          },
+        },
+      })
+      const adapter = vi.fn()
+        .mockRejectedValueOnce({
+          response: { status: 401, data: { code: 'TOKEN_EXPIRED' } },
+          config: { url: '/test', headers: { Authorization: 'Bearer expired-token' } },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { code: 0, data: {} },
+          headers: {},
+          config: {},
+          statusText: 'OK',
+        })
+      apiClient.defaults.adapter = adapter
+
+      await apiClient.get('/test')
+
+      expect(postSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/refresh'),
+        { refresh_token: 'refresh-token' },
+        expect.objectContaining({ timeout: 30000 })
+      )
+    })
+  })
 })
