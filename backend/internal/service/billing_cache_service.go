@@ -123,6 +123,8 @@ type BillingCacheService struct {
 	cacheWriteDropClosedLastLog int64
 }
 
+var userPlatformQuotaSentinelSetCacheErrorTotal atomic.Uint64
+
 // NewBillingCacheService 创建计费缓存服务
 func NewBillingCacheService(
 	cache BillingCache,
@@ -132,8 +134,12 @@ func NewBillingCacheService(
 	userRPMCache UserRPMCache,
 	userGroupRateRepo UserGroupRateRepository,
 	cfg *config.Config,
-	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	quotaRepos ...UserPlatformQuotaRepository,
 ) *BillingCacheService {
+	var userPlatformQuotaRepo UserPlatformQuotaRepository
+	if len(quotaRepos) > 0 {
+		userPlatformQuotaRepo = quotaRepos[0]
+	}
 	svc := &BillingCacheService{
 		cache:                 cache,
 		userRepo:              userRepo,
@@ -1097,7 +1103,8 @@ func (s *BillingCacheService) checkUserPlatformQuotaEligibility(
 		// 超时 50ms:覆盖正常路径与可接受抖动;Redis 异常时 hot path 不阻塞超过此值。
 		// 用 context.Background()+短超时,避免请求 ctx 取消导致刷新丢失。
 		// 显式 setCancel()(而非 defer):缩短 context 生命周期,避免 defer 延迟到函数返回。
-		if windowExpired && s.cache != nil {
+		isSentinel := entry.DailyLimitUSD == nil && entry.WeeklyLimitUSD == nil && entry.MonthlyLimitUSD == nil
+		if windowExpired && s.cache != nil && !isSentinel {
 			refreshed := &UserPlatformQuotaCacheEntry{
 				DailyUsageUSD:      dailyUsage,
 				WeeklyUsageUSD:     weeklyUsage,
@@ -1160,6 +1167,27 @@ func (s *BillingCacheService) checkUserPlatformQuotaEligibility(
 	}
 	rec, _ := v.(*UserPlatformQuotaRecord)
 	if rec == nil {
+		if s.cache != nil && cacheErr == nil {
+			now := time.Now()
+			daily := timezone.StartOfDay(now)
+			weekly := timezone.StartOfWeek(now)
+			sentinel := &UserPlatformQuotaCacheEntry{
+				SchemaVersion:      UserPlatformQuotaCacheSchemaV1,
+				DailyWindowStart:   &daily,
+				WeeklyWindowStart:  &weekly,
+				MonthlyWindowStart: &now,
+			}
+			ttl := time.Duration(s.cfg.Billing.UserPlatformQuotaSentinelTTLSeconds) * time.Second
+			if ttl <= 0 {
+				ttl = time.Hour
+			}
+			setCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			if err := s.cache.SetUserPlatformQuotaCache(setCtx, userID, platform, sentinel, ttl); err != nil {
+				userPlatformQuotaSentinelSetCacheErrorTotal.Add(1)
+				logger.LegacyPrintf("service.billing_cache", "Warning: set sentinel quota cache failed user=%d platform=%s: %v", userID, platform, err)
+			}
+			cancel()
+		}
 		return nil
 	}
 

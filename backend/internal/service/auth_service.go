@@ -103,8 +103,12 @@ func NewAuthService(
 	promoService *PromoService,
 	defaultSubAssigner DefaultSubscriptionAssigner,
 	affiliateService *AffiliateService,
-	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	quotaRepos ...UserPlatformQuotaRepository,
 ) *AuthService {
+	var userPlatformQuotaRepo UserPlatformQuotaRepository
+	if len(quotaRepos) > 0 {
+		userPlatformQuotaRepo = quotaRepos[0]
+	}
 	return &AuthService{
 		entClient:             entClient,
 		userRepo:              userRepo,

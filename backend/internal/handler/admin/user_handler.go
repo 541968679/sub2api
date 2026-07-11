@@ -32,7 +32,15 @@ type UserHandler struct {
 }
 
 // NewUserHandler creates a new admin user handler
-func NewUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService, userPlatformQuotaRepo service.UserPlatformQuotaRepository, billingCache service.BillingCache) *UserHandler {
+func NewUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService, quotaDeps ...any) *UserHandler {
+	var userPlatformQuotaRepo service.UserPlatformQuotaRepository
+	var billingCache service.BillingCache
+	if len(quotaDeps) > 0 {
+		userPlatformQuotaRepo, _ = quotaDeps[0].(service.UserPlatformQuotaRepository)
+	}
+	if len(quotaDeps) > 1 {
+		billingCache, _ = quotaDeps[1].(service.BillingCache)
+	}
 	return &UserHandler{
 		adminService:          adminService,
 		concurrencyService:    concurrencyService,

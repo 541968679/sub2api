@@ -31,8 +31,12 @@ func NewUserHandler(
 	emailService *service.EmailService,
 	emailCache service.EmailCache,
 	affiliateService *service.AffiliateService,
-	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
+	quotaRepos ...service.UserPlatformQuotaRepository,
 ) *UserHandler {
+	var userPlatformQuotaRepo service.UserPlatformQuotaRepository
+	if len(quotaRepos) > 0 {
+		userPlatformQuotaRepo = quotaRepos[0]
+	}
 	return &UserHandler{
 		userService:           userService,
 		authService:           authService,

@@ -131,4 +131,3 @@ func TestNextWeeklyResetTime_FollowsServerTimezone(t *testing.T) {
 		t.Errorf("nextWeeklyResetTime = %v, want %v", got, want)
 	}
 }
-

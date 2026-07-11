@@ -509,4 +509,3 @@ func TestScenario_NinetyPercentCompany(t *testing.T) {
 		t.Errorf("90%% company: Readd should not be called, got %d calls", len(cache.readdCalled))
 	}
 }
-

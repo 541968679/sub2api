@@ -92,4 +92,3 @@ func TestGenericAdapter_ResetExpiredWindow_PropagatesError(t *testing.T) {
 		t.Errorf("expected %v, got %v", wantErr, err)
 	}
 }
-

@@ -15,6 +15,7 @@ const allNullQuotas: DefaultPlatformQuotasMap = {
   openai:    { daily: null, weekly: null, monthly: null },
   gemini:    { daily: null, weekly: null, monthly: null },
   antigravity: { daily: null, weekly: null, monthly: null },
+  grok: { daily: null, weekly: null, monthly: null },
 }
 
 describe("admin settings auth source defaults helpers", () => {
@@ -134,30 +135,6 @@ describe("admin settings auth source defaults helpers", () => {
         grant_on_first_bind: false,
         platform_quotas: {},
       },
-      github: {
-        balance: 0,
-        concurrency: 5,
-        subscriptions: [],
-        grant_on_signup: false,
-        grant_on_first_bind: false,
-        platform_quotas: {},
-      },
-      google: {
-        balance: 0,
-        concurrency: 5,
-        subscriptions: [],
-        grant_on_signup: false,
-        grant_on_first_bind: false,
-        platform_quotas: {},
-      },
-      dingtalk: {
-        balance: 0,
-        concurrency: 5,
-        subscriptions: [],
-        grant_on_signup: false,
-        grant_on_first_bind: false,
-        platform_quotas: {},
-      },
     });
 
     expect(payload).toMatchObject({
@@ -191,9 +168,6 @@ describe("admin settings auth source defaults helpers", () => {
       auth_source_default_linuxdo_platform_quotas: allNullQuotas,
       auth_source_default_oidc_platform_quotas: allNullQuotas,
       auth_source_default_wechat_platform_quotas: allNullQuotas,
-      auth_source_default_github_platform_quotas: allNullQuotas,
-      auth_source_default_google_platform_quotas: allNullQuotas,
-      auth_source_default_dingtalk_platform_quotas: allNullQuotas,
     });
   });
 
@@ -214,9 +188,6 @@ describe("admin settings auth source defaults helpers", () => {
       linuxdo: { balance: 0, concurrency: 5, subscriptions: [], grant_on_signup: false, grant_on_first_bind: false, platform_quotas: {} },
       oidc:    { balance: 0, concurrency: 5, subscriptions: [], grant_on_signup: false, grant_on_first_bind: false, platform_quotas: {} },
       wechat:  { balance: 0, concurrency: 5, subscriptions: [], grant_on_signup: false, grant_on_first_bind: false, platform_quotas: {} },
-      github:  { balance: 0, concurrency: 5, subscriptions: [], grant_on_signup: false, grant_on_first_bind: false, platform_quotas: {} },
-      google:  { balance: 0, concurrency: 5, subscriptions: [], grant_on_signup: false, grant_on_first_bind: false, platform_quotas: {} },
-      dingtalk: { balance: 0, concurrency: 5, subscriptions: [], grant_on_signup: false, grant_on_first_bind: false, platform_quotas: {} },
     });
 
     const emailQuotas = (payload as Record<string, unknown>)["auth_source_default_email_platform_quotas"] as DefaultPlatformQuotasMap;
@@ -240,7 +211,7 @@ describe("normalizePlatformQuotasMap", () => {
 
   it("无参数时返回全 4 平台全 null", () => {
     const result = normalizePlatformQuotasMap();
-    expect(Object.keys(result)).toHaveLength(4);
+    expect(Object.keys(result)).toHaveLength(5);
     for (const v of Object.values(result)) {
       expect(v).toEqual({ daily: null, weekly: null, monthly: null });
     }
@@ -288,7 +259,7 @@ describe("sanitizePlatformQuotasMap", () => {
 
   it("缺失平台填充为全 null", () => {
     const result = sanitizePlatformQuotasMap({});
-    expect(Object.keys(result)).toHaveLength(4);
+    expect(Object.keys(result)).toHaveLength(5);
     for (const v of Object.values(result)) {
       expect(v).toEqual({ daily: null, weekly: null, monthly: null });
     }

@@ -11,6 +11,58 @@ export interface DefaultSubscriptionSetting {
   validity_days: number;
 }
 
+export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok";
+
+export interface PlatformQuotaLimits {
+  daily: number | null;
+  weekly: number | null;
+  monthly: number | null;
+}
+
+export type DefaultPlatformQuotasMap = Partial<Record<PlatformType, PlatformQuotaLimits>>;
+
+export const PLATFORM_QUOTA_PLATFORMS: PlatformType[] = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "antigravity",
+  "grok",
+];
+
+export function normalizePlatformQuotasMap(
+  input?: DefaultPlatformQuotasMap | null,
+): DefaultPlatformQuotasMap {
+  const result: DefaultPlatformQuotasMap = {};
+  for (const platform of PLATFORM_QUOTA_PLATFORMS) {
+    const source = input?.[platform];
+    result[platform] = {
+      daily: typeof source?.daily === "number" ? source.daily : null,
+      weekly: typeof source?.weekly === "number" ? source.weekly : null,
+      monthly: typeof source?.monthly === "number" ? source.monthly : null,
+    };
+  }
+  return result;
+}
+
+export function sanitizePlatformQuotasMap(
+  input?: DefaultPlatformQuotasMap | null,
+): DefaultPlatformQuotasMap {
+  const clean = (value: unknown): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? value
+      : null;
+  const result: DefaultPlatformQuotasMap = {};
+  for (const platform of PLATFORM_QUOTA_PLATFORMS) {
+    const source = input?.[platform];
+    result[platform] = {
+      daily: clean(source?.daily),
+      weekly: clean(source?.weekly),
+      monthly: clean(source?.monthly),
+    };
+  }
+  return result;
+}
+
 export interface OpenAIClaudeGPTBridgeCacheDisplaySettings {
   enabled: boolean;
   min_percent: number;
@@ -33,6 +85,7 @@ export interface AuthSourceDefaultsValue {
   subscriptions: DefaultSubscriptionSetting[];
   grant_on_signup: boolean;
   grant_on_first_bind: boolean;
+  platform_quotas: DefaultPlatformQuotasMap;
 }
 
 export type AuthSourceDefaultsState = Record<
@@ -192,6 +245,11 @@ export function buildAuthSourceDefaultsState(
         raw[`auth_source_default_${source}_grant_on_signup`] === true,
       grant_on_first_bind:
         raw[`auth_source_default_${source}_grant_on_first_bind`] === true,
+      platform_quotas: normalizePlatformQuotasMap(
+        raw[`auth_source_default_${source}_platform_quotas`] as
+          | DefaultPlatformQuotasMap
+          | undefined,
+      ),
     };
     return acc;
   }, {} as AuthSourceDefaultsState);
@@ -219,6 +277,8 @@ export function appendAuthSourceDefaultsToUpdateRequest(
       current.grant_on_signup;
     target[`auth_source_default_${source}_grant_on_first_bind`] =
       current.grant_on_first_bind;
+    target[`auth_source_default_${source}_platform_quotas`] =
+      sanitizePlatformQuotasMap(current.platform_quotas);
   }
 
   return payload;
@@ -331,26 +391,31 @@ export interface SystemSettings {
   default_concurrency: number;
   default_user_rpm_limit: number;
   default_subscriptions: DefaultSubscriptionSetting[];
+  default_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_email_balance?: number;
   auth_source_default_email_concurrency?: number;
   auth_source_default_email_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_email_grant_on_signup?: boolean;
   auth_source_default_email_grant_on_first_bind?: boolean;
+  auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_linuxdo_balance?: number;
   auth_source_default_linuxdo_concurrency?: number;
   auth_source_default_linuxdo_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_linuxdo_grant_on_signup?: boolean;
   auth_source_default_linuxdo_grant_on_first_bind?: boolean;
+  auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_oidc_balance?: number;
   auth_source_default_oidc_concurrency?: number;
   auth_source_default_oidc_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_oidc_grant_on_signup?: boolean;
   auth_source_default_oidc_grant_on_first_bind?: boolean;
+  auth_source_default_oidc_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_wechat_balance?: number;
   auth_source_default_wechat_concurrency?: number;
   auth_source_default_wechat_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_wechat_grant_on_signup?: boolean;
   auth_source_default_wechat_grant_on_first_bind?: boolean;
+  auth_source_default_wechat_platform_quotas?: DefaultPlatformQuotasMap;
   force_email_on_third_party_signup?: boolean;
   // OEM settings
   site_name: string;
@@ -536,26 +601,31 @@ export interface UpdateSettingsRequest {
   default_concurrency?: number;
   default_user_rpm_limit?: number;
   default_subscriptions?: DefaultSubscriptionSetting[];
+  default_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_email_balance?: number;
   auth_source_default_email_concurrency?: number;
   auth_source_default_email_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_email_grant_on_signup?: boolean;
   auth_source_default_email_grant_on_first_bind?: boolean;
+  auth_source_default_email_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_linuxdo_balance?: number;
   auth_source_default_linuxdo_concurrency?: number;
   auth_source_default_linuxdo_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_linuxdo_grant_on_signup?: boolean;
   auth_source_default_linuxdo_grant_on_first_bind?: boolean;
+  auth_source_default_linuxdo_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_oidc_balance?: number;
   auth_source_default_oidc_concurrency?: number;
   auth_source_default_oidc_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_oidc_grant_on_signup?: boolean;
   auth_source_default_oidc_grant_on_first_bind?: boolean;
+  auth_source_default_oidc_platform_quotas?: DefaultPlatformQuotasMap;
   auth_source_default_wechat_balance?: number;
   auth_source_default_wechat_concurrency?: number;
   auth_source_default_wechat_subscriptions?: DefaultSubscriptionSetting[];
   auth_source_default_wechat_grant_on_signup?: boolean;
   auth_source_default_wechat_grant_on_first_bind?: boolean;
+  auth_source_default_wechat_platform_quotas?: DefaultPlatformQuotasMap;
   force_email_on_third_party_signup?: boolean;
   site_name?: string;
   site_logo?: string;

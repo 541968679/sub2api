@@ -742,6 +742,7 @@ const enBase = {
     hour: 'Hour',
     modelDistribution: 'Model Distribution',
     groupDistribution: 'Group Usage Distribution',
+    platformQuota: { title: 'Platform Quota Usage' },
     tokenUsageTrend: 'Token Usage Trend',
     noDataAvailable: 'No data available',
     model: 'Model',
@@ -2304,6 +2305,29 @@ const enBase = {
         failedToReorder: 'Failed to update order',
         keyExists: 'Attribute key already exists',
         dragToReorder: 'Drag to reorder'
+      },
+      platformQuota: {
+        menuItem: 'Platform Quotas',
+        title: 'Platform Quotas',
+        subtitle: 'Configure daily, weekly, and monthly USD limits for {email}.',
+        columns: { platform: 'Platform', daily: 'Daily (USD)', weekly: 'Weekly (USD)', monthly: 'Monthly (USD, rolling 30 days)', usage: 'Current Usage' },
+        placeholder: 'Unlimited',
+        save: 'Save',
+        saving: 'Saving...',
+        cancel: 'Cancel',
+        clearAll: 'Clear all limits',
+        clearAllConfirm: 'Clear all platform quota limits for this user?',
+        hint: 'Leave blank for no limit. Set 0 to block that window.',
+        loadFailed: 'Failed to load platform quotas',
+        invalidNumber: 'Fix invalid quota values: {fields}',
+        updateSuccess: 'Platform quotas updated',
+        updateFailed: 'Failed to update platform quotas',
+        subscriptionWarning: 'This user has an active subscription. Platform quotas apply only to balance-mode requests.',
+        windowDaily: 'daily',
+        windowWeekly: 'weekly',
+        windowMonthly: 'monthly',
+        cellNotConfigured: 'Not configured',
+        reset: { button: 'Reset window', confirm: 'Reset the {window} usage for {platform}?', success: 'Quota usage reset', failed: 'Failed to reset quota usage' }
       }
     },
 
@@ -6180,6 +6204,9 @@ const enBase = {
         defaultSubscriptionsEmpty: 'No default subscriptions configured.',
         defaultSubscriptionsDuplicate:
           'Duplicate subscription group: {groupId}. Each group can only appear once.',
+        defaultPlatformQuotas: 'Default Platform Quotas',
+        defaultPlatformQuotasHint: 'Assigned to new users at registration. Existing users are unchanged.',
+        platformQuotaNotice: 'Monthly limits use a rolling 30-day window.',
         subscriptionGroup: 'Subscription Group',
         subscriptionValidityDays: 'Validity (days)'
       },
@@ -6854,8 +6881,11 @@ const enBase = {
         grantOnFirstBindHint: 'Grant default entitlements when an existing user first binds this source.',
         defaultSubscriptionsLabel: 'Default subscriptions',
         defaultSubscriptionsHint: 'Applies only to this auth source. Leave empty to skip source-specific subscriptions.',
-        noSourceSubscriptions: 'No source-specific default subscriptions configured.'
+        noSourceSubscriptions: 'No source-specific default subscriptions configured.',
+        platformQuotasOverride: 'Platform Quota Overrides',
+        platformQuotasOverrideHint: 'Blank fields inherit the system default. Set 0 to block that window.'
       },
+      platformQuota: { platform: 'Platform', daily: 'Daily (USD)', weekly: 'Weekly (USD)', monthly: 'Monthly (USD, rolling 30 days)', placeholder: 'Unlimited' },
       paymentVisibleMethods: {
         methodLabel: '{title} visible method',
         methodHint: 'Controls whether checkout shows this method and which source key it exposes.',

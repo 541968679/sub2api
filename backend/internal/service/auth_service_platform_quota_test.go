@@ -126,7 +126,7 @@ func TestResolveSignupGrantPlan_GlobalQuotaLoadedBeforeAuthSource(t *testing.T) 
 			"antigravity": {"daily": 5,  "weekly": 25, "monthly": 100}
 		}`,
 	}
-	svc := newAuthService(nil, settings, nil, nil)
+	svc := newAuthService(nil, settings, nil)
 	plan := svc.resolveSignupGrantPlan(context.Background(), "email")
 	if plan.PlatformQuotas == nil {
 		t.Fatal("expected PlatformQuotas to be non-nil after loading global quota KVs")
@@ -148,7 +148,7 @@ func TestResolveSignupGrantPlan_DisabledAuthSourceStillCarriesGlobalQuota(t *tes
 		// auth source 不配置（=> !enabled 路径）
 		SettingKeyDefaultPlatformQuotas: `{"anthropic": {"daily": 10, "weekly": 50, "monthly": 200}}`,
 	}
-	svc := newAuthService(nil, settings, nil, nil)
+	svc := newAuthService(nil, settings, nil)
 	plan := svc.resolveSignupGrantPlan(context.Background(), "email")
 	// !enabled 路径：plan.PlatformQuotas 应已含全局层（不是 nil）
 	if plan.PlatformQuotas == nil {

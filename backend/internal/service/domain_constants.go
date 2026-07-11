@@ -52,6 +52,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformOpenAI,
 	PlatformGemini,
 	PlatformAntigravity,
+	"grok",
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。

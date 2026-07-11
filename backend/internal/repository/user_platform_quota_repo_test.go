@@ -101,4 +101,3 @@ func TestUpdateLimitsRowQuery_HasDeletedAtGuard(t *testing.T) {
 		t.Errorf("updateLimitsRow SQL must contain %q to prevent bulk reactivation of soft-deleted rows (I-NEW-1)", guard)
 	}
 }
-
