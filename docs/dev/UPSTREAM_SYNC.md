@@ -34,6 +34,7 @@
 - Added default-off global/per-account thresholds, per-window exemptions, non-blocking settings caching, snapshot fields, TopK/sticky/previous-response enforcement, stale-window release, bilingual controls, and usage help.
 - Spark shadows retain independent quota/parent-health behavior. Manual schedulable, 429 cooldown, overload/temp-unsched, advanced scheduler, failover, Claude-GPT, Images/Batch Image, curated/default models, billing/display/cache-read invariants, routes and migrations are preserved.
 - `eba204632` OAuth refresh/privacy enrichment was assessed but not adopted because it overlaps newer fork-local PAT/Codex session import behavior.
+- Source branch verification passed complete service/repository unit packages, focused race tests, server/admin-handler/cmd-server packages, 13 frontend tests, typecheck, affected ESLint, sync guard, diff check, and a `CGO_ENABLED=0` server build. Wire generation remained blocked by the existing missing Wire CLI checksum; the reconciled generated graph built successfully.
 - Pushed/deployed: no.
 
 ## 当前状态
