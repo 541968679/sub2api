@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Reconcile merged public contracts and auth-cache identity
+
+**Affected files**: `backend/internal/service/{setting_service.go,api_key_auth_cache_impl.go}`, `backend/internal/server/api_contract_test.go`
+**Upstream compatibility**: Merge-integration correction only; no upstream subsystem was replaced.
+**Details**:
+- Added `risk_control_enabled` to the HTML-injected public settings payload so first paint and fetched public settings expose the same feature flags.
+- Updated public group and usage API contract snapshots for the new Grok video pricing and usage metadata fields.
+- Preserved the API key display name across auth-cache snapshot round trips; the JSON field already existed, so old cache entries remain backward compatible.
+- Verified the public-settings schema guard, server API contracts, and API-key cache round-trip tests.
+
 ## [2026-07-11] feat: Complete Grok image and video gateway billing loop
 
 **Affected files**: Grok media handler/routes, group and usage Ent schemas/generated code, group/auth-cache/repository mappings, media billing and usage persistence, migration `181_grok_media_billing.sql`, focused tests and gateway documentation
