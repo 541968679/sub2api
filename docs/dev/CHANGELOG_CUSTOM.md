@@ -50,7 +50,7 @@
 - Added Grok Responses, Chat Completions, and Anthropic Messages conversion/forwarding through the existing OpenAI-compatible gateway service.
 - Platformized OpenAI-compatible scheduling so Grok requests only select Grok accounts and ordinary OpenAI requests cannot select Grok accounts; runtime-blocked Grok accounts are excluded from both legacy and advanced scheduler paths.
 - Preserved the fork-local Claude-GPT bridge eligibility contract, curated OpenAI model discovery, OpenAI Images feature gate, default-model fallback, usage/display accounting fields, and Ops response-commit tracking.
-- Grok `count_tokens` and WebSocket Responses are explicitly unsupported at this checkpoint. Grok media service primitives are present but are not exposed through HTTP until content moderation and media billing persistence are integrated.
+- At this core checkpoint Grok `count_tokens` and WebSocket Responses were explicitly unsupported and media HTTP exposure was deferred. The later Grok media billing entry supersedes the media portion; the target upstream still has no independent Grok WebSocket implementation.
 - Added focused regression coverage for OAuth, quota, protocol conversion, platform-isolated scheduling, runtime blocking, admin routes, and DI construction.
 
 ## [2026-07-11] feat: Integrate upstream risk control without replacing fork-local gateway behavior

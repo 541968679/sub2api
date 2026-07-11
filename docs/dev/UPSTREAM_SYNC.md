@@ -67,7 +67,7 @@ git push origin main
   - Runtime-blocked or temporarily unschedulable Grok accounts are skipped during selection and failover.
 - **Fork-local impact**:
   - Claude-GPT bridge dispatch remains restricted to its explicit Antigravity-group/account mapping contract; Grok platformization does not broaden bridge eligibility.
-  - Billing/display-token fields remain unchanged in this core checkpoint. Grok video/image billing persistence and HTTP media routes are intentionally deferred until moderation and schema integration land together.
+  - This core checkpoint originally deferred Grok video/image billing and HTTP media routes; the later `Grok media and per-second video billing sync` entry supersedes that deferral.
   - OpenAI Images remains controlled by the existing account-side feature switch. Grok media does not reuse or bypass that switch.
   - Default-model fallback, mixed subscription member groups, account scheduling/failover, Ops logging/response-commit detection, public/admin settings, migrations, frontend i18n, and routes were reviewed for collisions.
   - Grok `count_tokens` and WebSocket Responses return explicit unsupported responses rather than falling through to OpenAI or native gateway accounts.
@@ -167,9 +167,9 @@ git push origin main
   - `2c14efea` - `/v1/images/*` OAuth-to-Responses image tool request now forwards `n` for supported image models, while preserving the `dall-e-3` exception.
   - `da30c599` / `381d1d6d` - retryable OpenAI Images upstream errors embedded in Responses SSE bodies now become `UpstreamFailoverError` before any downstream response is written, preserving real upstream error bodies and headers for failover/ops handling.
 - **Deferred / unchanged**:
-  - `36721d35` image capability cooldown remains deferred because it touches account scheduling/rate-limit policy beyond this image-route patch.
-  - `1e2e8b1d` billing channel pricing override remains deferred for the pricing/accounting batch.
-  - `ef5ad0fb` frontend image-output token display remains deferred for a separate frontend-visible batch.
+  - `36721d35` image capability cooldown is now equivalently covered by `image_generation_intent.go`, `model_rate_limit.go`, and `ratelimit_service.go` with focused tests.
+  - `1e2e8b1d` channel image-output pricing override is now equivalently covered by `ModelPricingResolver` and unified billing tests.
+  - `ef5ad0fb` frontend image-output token display remains the only open item from this historical deferred list and is tracked for the final usage-display batch.
   - Previously verified image moderation/incomplete/overloaded behavior from batch 10 was left intact.
 - **Fork-local secondary-development impact**:
   - Frontend-visible impact: none. No frontend files, routes, i18n, or admin/user UI changed.
