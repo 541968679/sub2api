@@ -39,6 +39,21 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Ops capture writer lifecycle hardening
+
+- **Upstream source**: commits `89a551b964076f2e61b71c0b8fa34f9464100cb0` and `bc3cb290276922074213c5bc8ebc404bc6d083a8`.
+- **Merge strategy**: manual narrow port. Only the released-writer guards and their regression coverage were adapted; no broader upstream handler or Ops refactor was imported.
+- **Behavior**:
+  - A pooled `opsCaptureWriter` whose inner `gin.ResponseWriter` has already been released no longer panics when a late caller reaches its delegated response-writer methods.
+  - Normal acquired writers still delegate status, headers, streaming, hijacking, push, and writes to the original Gin writer without changing response capture semantics.
+- **Fork-local impact**:
+  - This hardens the fork-local Ops error-capture middleware used around gateway and SSE responses.
+  - Billing/display-token accounting, curated model lists, Claude-GPT bridge routing, OpenAI image generation, default-model fallback, account scheduling/failover policy, settings, migrations, frontend i18n, and routes are unchanged.
+- **Verification**:
+  - `go test -tags=unit ./internal/handler -run '^(TestOpsCaptureWriterReleasedWriterDoesNotPanic|TestOpsCaptureWriterPool_ResetOnRelease)$' -count=1`
+  - `go test -tags=unit ./internal/handler -count=1`
+  - `go run ./tools/upstream-sync-guard`
+
 ### 2026-07-11 - Codex models manifest partial sync
 
 - **Upstream source**: PR `Wei-Shaw/sub2api#3800`, merge commit `b6d2df24d84128962316f007e62c99281d703470` (`feat: Codex client models manifest passthrough`).

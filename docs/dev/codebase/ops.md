@@ -15,6 +15,7 @@
 
 | Layer | File | Role |
 |------|------|------|
+| Middleware | `backend/internal/handler/ops_error_logger.go` | Captures HTTP error bodies and upstream-attempt context for asynchronous Ops persistence. |
 | Handler | `backend/internal/handler/admin/ops_alerts_handler.go` | Validates alert metric types and CRUD payloads. |
 | Service | `backend/internal/service/ops_alert_evaluator_service.go` | Computes rule metric values. |
 | Service | `backend/internal/service/ops_account_availability.go` | Builds account availability snapshots used by alert metrics. |
@@ -46,6 +47,10 @@ evaluator tick
 - Frontend metric definitions and backend handler allow-list must stay in sync;
   otherwise an admin can select a metric that the API rejects, or the API can
   accept a metric that is not discoverable in the UI.
+- `opsCaptureWriter` instances are pooled. Release clears the embedded Gin
+  writer, so every delegated response-writer method must tolerate a nil inner
+  writer in case an outer middleware or late streaming callback retains the
+  wrapper past its request lifetime. While acquired, calls delegate unchanged.
 
 ## Known Pitfalls
 
@@ -53,3 +58,6 @@ evaluator tick
   `TempUnschedulableUntil` against `time.Now().UTC()`.
 - `SetTempUnschedulable` does not change `account.status`; availability and
   alerting code must inspect the temp-unschedulable field explicitly.
+- Do not add a new method to `opsCaptureWriter` by relying only on the embedded
+  `gin.ResponseWriter`; an embedded call after pool release can panic. Add an
+  explicit nil-guarded delegate and extend `ops_capture_writer_nil_test.go`.

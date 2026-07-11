@@ -19,6 +19,16 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Harden released Ops capture writers
+
+**Affected files**: `backend/internal/handler/{ops_error_logger.go,ops_capture_writer_nil_test.go}`, `docs/dev/{UPSTREAM_SYNC.md,codebase/ops.md,CHANGELOG_CUSTOM.md`
+**Upstream compatibility**: Low risk. Manual narrow port of upstream commits `89a551b96` and `bc3cb2902`; local Ops middleware and logging behavior remain in place.
+**Details**:
+- Added explicit guards for every `gin.ResponseWriter` method delegated by `opsCaptureWriter` so late access after pool release cannot dereference a nil embedded writer.
+- Preserved direct delegation while the writer is acquired, including error-body capture, headers, flushing, hijacking, close notification, HTTP/2 push, status, size, and written state.
+- Added regression coverage for the complete released-writer interface and retained the existing pool reset coverage.
+- No frontend, API route, schema, migration, setting, billing, model discovery, Claude-GPT bridge, OpenAI Images, or scheduling behavior changed.
+
 ## [2026-07-11] feat: Codex models manifest passthrough
 
 **Affected files**: backend/internal/{handler/openai_codex_models_handler.go,service/openai_codex_models_service.go,server/routes/gateway.go}(+tests), docs/dev/{UPSTREAM_SYNC.md,codebase/gateway.md}
