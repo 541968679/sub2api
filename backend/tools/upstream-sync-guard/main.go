@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -640,6 +641,13 @@ var historicDuplicateMigrations = map[string][]string{
 }
 
 func main() {
+	baseRevision := flag.String("base", "", "compare committed upstream-sync changes in BASE..HEAD instead of uncommitted changes")
+	flag.Parse()
+	if flag.NArg() != 0 {
+		fmt.Fprintf(os.Stderr, "upstream-sync-guard: unexpected arguments: %s\n", strings.Join(flag.Args(), " "))
+		os.Exit(2)
+	}
+
 	root, err := repoRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "upstream-sync-guard: %v\n", err)
@@ -647,8 +655,8 @@ func main() {
 	}
 
 	var failures []checkFailure
-	failures = append(failures, checkProtectedPathDeletion(root)...)
-	failures = append(failures, checkHistoricalMigrationDiff(root)...)
+	failures = append(failures, checkProtectedPathDeletion(root, *baseRevision)...)
+	failures = append(failures, checkHistoricalMigrationDiff(root, *baseRevision)...)
 	failures = append(failures, checkMigrationNumbers(root)...)
 	failures = append(failures, checkCriticalSignatures(root)...)
 
@@ -680,8 +688,8 @@ func repoRoot() (string, error) {
 	}
 }
 
-func checkProtectedPathDeletion(root string) []checkFailure {
-	out, err := git(root, "diff", "--name-status", "--find-renames", "HEAD", "--")
+func checkProtectedPathDeletion(root, baseRevision string) []checkFailure {
+	out, err := git(root, diffNameStatusArgs(baseRevision)...)
 	if err != nil {
 		return []checkFailure{{Check: "git diff", Detail: err.Error()}}
 	}
@@ -704,8 +712,8 @@ func checkProtectedPathDeletion(root string) []checkFailure {
 	return failures
 }
 
-func checkHistoricalMigrationDiff(root string) []checkFailure {
-	out, err := git(root, "diff", "--name-status", "--find-renames", "HEAD", "--", "backend/migrations")
+func checkHistoricalMigrationDiff(root, baseRevision string) []checkFailure {
+	out, err := git(root, diffNameStatusArgs(baseRevision, "backend/migrations")...)
 	if err != nil {
 		return []checkFailure{{Check: "migration diff", Detail: err.Error()}}
 	}
@@ -732,6 +740,17 @@ func checkHistoricalMigrationDiff(root string) []checkFailure {
 		}
 	}
 	return failures
+}
+
+func diffNameStatusArgs(baseRevision string, paths ...string) []string {
+	args := []string{"diff", "--name-status", "--find-renames"}
+	if baseRevision == "" {
+		args = append(args, "HEAD")
+	} else {
+		args = append(args, "--end-of-options", baseRevision+"..HEAD")
+	}
+	args = append(args, "--")
+	return append(args, paths...)
 }
 
 func checkMigrationNumbers(root string) []checkFailure {
