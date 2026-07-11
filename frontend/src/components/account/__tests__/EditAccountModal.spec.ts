@@ -190,6 +190,32 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('preserves Grok OAuth credentials and model mapping when edited', async () => {
+    const account = buildAccount()
+    account.name = 'Grok OAuth'
+    account.platform = 'grok'
+    account.type = 'oauth'
+    account.credentials = {
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      base_url: 'https://api.x.ai/v1',
+      model_mapping: { 'grok-4': 'grok-4-fast' }
+    }
+    updateAccountMock.mockReset()
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      access_token: 'access-token',
+      refresh_token: 'refresh-token',
+      base_url: 'https://api.x.ai/v1',
+      model_mapping: { 'grok-4': 'grok-4-fast' }
+    })
+  })
+
   it('submits OpenAI compact mode and compact-only model mapping', async () => {
     const account = buildAccount()
     account.extra = {

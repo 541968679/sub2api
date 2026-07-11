@@ -2490,7 +2490,14 @@ const enBase = {
       },
       imagePricing: {
         title: 'Image Generation Pricing',
-        description: 'Configure pricing for image generation models. Leave empty to use default prices.'
+        description: 'Configure image generation base prices. Leave empty to use defaults; Grok defaults to $0.02 per image.'
+      },
+      videoPricing: {
+        title: 'Video Generation Pricing',
+        description: 'Configure Grok video prices in USD per second. Blank values use the default per-second rates: $0.05 at 480p, $0.07 at 720p, and $0.25 at 1080p.',
+        independentMultiplier: 'Use independent video multiplier',
+        videoMultiplier: 'Video multiplier',
+        modeHint: 'Videos are billed per second. The group multiplier applies by default; independent mode uses the video multiplier instead.'
       },
       claudeCode: {
         title: 'Claude Code Client Restriction',
@@ -3936,6 +3943,8 @@ const enBase = {
         antigravity: 'Antigravity',
       },
       types: {
+        grokOauth: 'xAI subscription via OAuth',
+        grokApiKey: 'Official or compatible xAI API key',
         oauth: 'OAuth',
         chatgptOauth: 'ChatGPT OAuth',
         responsesApi: 'Responses API',
@@ -4685,7 +4694,36 @@ const enBase = {
                     validateAndCreate: 'Validate & Create',
                     pleaseEnterRefreshToken: 'Please enter Refresh Token',
                     failedToValidateRT: 'Failed to validate Refresh Token'
-                  }
+                  },
+        grok: {
+          title: 'Grok Account Authorization',
+          followSteps: 'Authorize your xAI/Grok account, then paste the callback URL or code.',
+          step1GenerateUrl: 'Generate the xAI authorization URL',
+          generateAuthUrl: 'Generate Auth URL',
+          generating: 'Generating...',
+          regenerate: 'Regenerate',
+          step2OpenUrl: 'Open the URL and authorize your xAI account',
+          openUrlDesc: 'Complete authorization in a new browser tab.',
+          importantNotice: 'When authorization redirects to localhost, copy the full callback URL and paste it below.',
+          step3EnterCode: 'Enter callback URL or authorization code',
+          authCodeDesc: 'Paste the callback URL or authorization code returned by xAI.',
+          authCode: 'Callback URL or Code',
+          authCodePlaceholder: 'http://localhost/.../?code=...&state=...',
+          authCodeHint: 'The callback state must match the current authorization session.',
+          failedToGenerateUrl: 'Failed to generate Grok authorization URL',
+          failedToExchangeCode: 'Failed to exchange Grok authorization code',
+          missingExchangeParams: 'The Grok OAuth session, state, or code is missing.',
+          refreshTokenAuth: 'Refresh Token',
+          refreshTokenDesc: 'Validate and import one or more Grok refresh tokens.',
+          refreshTokenPlaceholder: 'One Grok refresh token per line',
+          pleaseEnterRefreshToken: 'Please enter a refresh token',
+          failedToValidateRT: 'Failed to validate Grok refresh token',
+          validating: 'Validating...',
+          validateAndCreate: 'Validate & Create',
+          errors: {
+            GROK_OAUTH_INVALID_STATE: 'The Grok OAuth state does not match this session. Use the callback URL from the authorization link generated here.'
+          }
+        }
                 },      // Gemini specific (platform-wide)
       gemini: {
         helpButton: 'Help',
@@ -4821,8 +4859,13 @@ const enBase = {
           unlimited: 'Unlimited',
           limited: 'Rate limited {time}',
           now: 'now'
-        }
+        },
       },
+      grok: {
+        baseUrlHint: 'Leave default for the official xAI API.',
+        apiKeyHint: 'Your xAI API key.'
+      },
+      grokAccount: 'Grok Account',
       // Re-Auth Modal
       reAuthorizeAccount: 'Re-Authorize Account',
       claudeCodeAccount: 'Claude Code Account',
@@ -4895,6 +4938,14 @@ const enBase = {
         noData: 'No usage data available for this account'
       },
       usageWindow: {
+        grokProbe: 'Probe',
+        grokProbeTooltip: 'Send a minimal request to observe xAI rate-limit headers.',
+        grokResetUnsupported: 'Reset unavailable',
+        grokResetUnsupportedTooltip: 'xAI does not expose a quota reset endpoint.',
+        grokNoHeaders: 'No xAI quota headers observed',
+        grokRequests: 'Req',
+        grokTokens: 'Tok',
+        grokRetryAfter: 'Retry after {time}',
         statsTitle: '5-Hour Window Usage Statistics',
         statsTitleDaily: 'Daily Usage Statistics',
         geminiProDaily: 'Pro',

@@ -68,6 +68,10 @@ vi.mock('@/composables/useAntigravityOAuth', () => ({
   useAntigravityOAuth: () => mockOAuthComposable(),
 }))
 
+vi.mock('@/composables/useGrokOAuth', () => ({
+  useGrokOAuth: () => mockOAuthComposable(),
+}))
+
 import CreateAccountModal from '../CreateAccountModal.vue'
 
 const BaseDialogStub = defineComponent({
@@ -142,6 +146,29 @@ async function mountOpenAIAPIKeyModal() {
   return wrapper
 }
 
+async function mountGrokAPIKeyModal() {
+  const wrapper = mount(CreateAccountModal, {
+    props: { show: true, proxies: [], groups: [] },
+    global: {
+      stubs: {
+        BaseDialog: BaseDialogStub,
+        ConfirmDialog: BaseDialogStub,
+        Icon: true,
+        PlatformIcon: true,
+        ProxySelector: true,
+        GroupSelector: true,
+        ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        OAuthAuthorizationFlow: true,
+        Select: true
+      }
+    }
+  })
+  await wrapper.findAll('button').find((button) => button.text().includes('Grok'))!.trigger('click')
+  await wrapper.findAll('button').find((button) => button.text().includes('API Key'))!.trigger('click')
+  await wrapper.get('input[type="password"]').setValue('xai-test')
+  return wrapper
+}
+
 describe('CreateAccountModal', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -154,6 +181,24 @@ describe('CreateAccountModal', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_images_endpoint_enabled).toBeUndefined()
+  })
+
+  it('creates a Grok API key account with the official xAI base URL', async () => {
+    createAccountMock.mockReset()
+    createAccountMock.mockResolvedValue({})
+    const wrapper = await mountGrokAPIKeyModal()
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+      platform: 'grok',
+      type: 'apikey',
+      credentials: {
+        base_url: 'https://api.x.ai/v1',
+        api_key: 'xai-test'
+      }
+    })
   })
 
   it('submits disabled OpenAI images endpoint scheduling', async () => {

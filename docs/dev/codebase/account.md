@@ -1,6 +1,63 @@
 # 账号管理 (Account)
 
-> 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini），包括 OAuth 导入、批量创建、状态监控、AI Credits 追踪。
+> 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
+
+## Grok Admin Reachability And Media Pricing
+
+Grok accounts are reachable from the existing account and group management
+surfaces without replacing the fork-local forms or monolithic locale files.
+
+Data model:
+
+- `AccountPlatform` and `GroupPlatform` include `grok`; Grok accounts use the
+  existing OAuth or API-key account types and account credential/extra JSON.
+- Grok groups expose image prices plus independent video multiplier controls:
+  `video_rate_independent`, `video_rate_multiplier`, and per-second
+  `video_price_480p`, `video_price_720p`, `video_price_1080p` prices.
+- Blank Grok image prices display the current `$0.02` per-image fallback.
+  Blank video prices display `$0.05/s`, `$0.07/s`, and `$0.25/s` for 480p,
+  720p, and 1080p respectively.
+
+Key files:
+
+- `frontend/src/api/admin/grok.ts` and
+  `frontend/src/composables/useGrokOAuth.ts`: OAuth and quota admin clients.
+- `frontend/src/components/account/{CreateAccountModal,EditAccountModal,OAuthAuthorizationFlow}.vue`:
+  API-key/OAuth creation and editing.
+- `frontend/src/components/admin/account/ReAuthAccountModal.vue`: Grok OAuth
+  reauthorization using the shared authorization flow.
+- `frontend/src/components/account/GrokQuotaProbeCell.vue`: explicit quota
+  probe for OAuth accounts; xAI does not expose a quota-reset operation.
+- `frontend/src/views/admin/GroupsView.vue` and `groupsMediaPricing.ts`: Grok
+  group selection and media pricing controls/default hints.
+
+Core flow:
+
+```text
+Create/Reauthorize Grok OAuth account
+  -> POST /api/v1/admin/grok-oauth/auth-url
+  -> browser authorization callback code/state
+  -> POST /api/v1/admin/grok-oauth/exchange-code
+  -> persist credentials through the existing account create/update API
+
+Probe Grok quota
+  -> POST /api/v1/admin/grok-oauth/accounts/:id/quota/query
+  -> render observed request/token rate-limit windows
+```
+
+Important mechanisms and pitfalls:
+
+- API-key creation defaults to `https://api.x.ai/v1`; OAuth creation and edit
+  preserve model mappings in the existing credentials object.
+- Empty media-price inputs must be normalized before submission. Create sends
+  `null`; edit sends the backend clear sentinel for an explicitly cleared
+  price instead of an empty string that would fail JSON decoding.
+- Grok media pricing is display/configuration reachability only. This frontend
+  change does not alter stored billing, quota deduction, `actual_cost`, display
+  token transforms, or the fork's price-resolution chain.
+- Keep the fork-local curated model list, OpenAI Images endpoint control,
+  Claude-GPT bridge controls, account scheduling/failover, and monolithic
+  `zh.ts`/`en.ts` locale structure when syncing later upstream UI changes.
 
 ## Grok/xAI OAuth And Quota
 

@@ -285,6 +285,10 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
+    <template v-else-if="account.platform === 'grok'">
+      <GrokQuotaProbeCell :account="account" />
+    </template>
+
     <!-- Gemini platform: show quota + local usage window -->
     <template v-else-if="account.platform === 'gemini'">
       <!-- Auth Type + Tier Badge (first line) -->
@@ -479,6 +483,7 @@ import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber } from '@/utils/format'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
+import GrokQuotaProbeCell from './GrokQuotaProbeCell.vue'
 
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
@@ -537,6 +542,7 @@ const shouldFetchUsage = computed(() => {
   if (props.account.platform === 'antigravity') {
     return props.account.type === 'oauth'
   }
+  if (props.account.platform === 'grok') return false
   if (props.account.platform === 'openai') {
     return props.account.type === 'oauth'
   }

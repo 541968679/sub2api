@@ -81,7 +81,7 @@ export async function generateAuthUrl(
   payload: GrokAuthUrlRequest
 ): Promise<GrokAuthUrlResponse> {
   const { data } = await apiClient.post<GrokAuthUrlResponse>(
-    '/admin/grok/oauth/auth-url',
+		'/admin/grok-oauth/auth-url',
     payload
   )
   return data
@@ -89,7 +89,7 @@ export async function generateAuthUrl(
 
 export async function exchangeCode(payload: GrokExchangeCodeRequest): Promise<GrokTokenInfo> {
   const { data } = await apiClient.post<GrokTokenInfo>(
-    '/admin/grok/oauth/exchange-code',
+		'/admin/grok-oauth/exchange-code',
     payload
   )
   return data
@@ -103,19 +103,19 @@ export async function refreshGrokToken(
   if (proxyId) payload.proxy_id = proxyId
 
   const { data } = await apiClient.post<GrokTokenInfo>(
-    '/admin/grok/oauth/refresh-token',
+		'/admin/grok-oauth/refresh-token',
     payload
   )
   return data
 }
 
 export async function queryQuota(id: number): Promise<GrokQuotaProbeResult> {
-  const { data } = await apiClient.get<GrokQuotaProbeResult>(`/admin/grok/accounts/${id}/quota`)
+	const { data } = await apiClient.post<GrokQuotaProbeResult>(`/admin/grok-oauth/accounts/${id}/quota/query`)
   return data
 }
 
 export async function resetQuota(id: number): Promise<GrokQuotaResetResult> {
-  const { data } = await apiClient.post<GrokQuotaResetResult>(`/admin/grok/accounts/${id}/reset-quota`)
+	const { data } = await apiClient.post<GrokQuotaResetResult>(`/admin/grok-oauth/accounts/${id}/quota/reset`)
   return data
 }
 

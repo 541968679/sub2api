@@ -2391,7 +2391,14 @@ const zhBase = {
       },
       imagePricing: {
         title: '图片生成计费',
-        description: '配置图片生成模型的图片生成价格，留空则使用默认价格'
+        description: '配置图片生成基础单价；留空使用默认价格，Grok 默认每张 $0.02。'
+      },
+      videoPricing: {
+        title: '视频生成计费',
+        description: '配置 Grok 视频生成的每秒单价；留空使用默认每秒价：480p $0.05、720p $0.07、1080p $0.25。',
+        independentMultiplier: '使用独立视频倍率',
+        videoMultiplier: '视频倍率',
+        modeHint: '视频按秒计费。默认使用分组倍率；开启独立倍率后改用视频倍率。'
       },
       claudeCode: {
         title: 'Claude Code 客户端限制',
@@ -3720,6 +3727,8 @@ const zhBase = {
         antigravity: 'Antigravity',
       },
       types: {
+        grokOauth: '通过 OAuth 接入 xAI 订阅',
+        grokApiKey: '官方或兼容的 xAI API Key',
         oauth: 'OAuth',
         chatgptOauth: 'ChatGPT OAuth',
         responsesApi: 'Responses API',
@@ -3797,6 +3806,14 @@ const zhBase = {
         }
       },
       usageWindow: {
+        grokProbe: '探测',
+        grokProbeTooltip: '发送最小请求以观测 xAI 限额响应头。',
+        grokResetUnsupported: '不支持重置',
+        grokResetUnsupportedTooltip: 'xAI 未提供配额重置接口。',
+        grokNoHeaders: '尚未观测到 xAI 配额响应头',
+        grokRequests: '请求',
+        grokTokens: 'Token',
+        grokRetryAfter: '{time} 后重试',
         statsTitle: '5小时窗口用量统计',
         statsTitleDaily: '每日用量统计',
         geminiProDaily: 'Pro',
@@ -4389,8 +4406,42 @@ const zhBase = {
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
           failedToValidateRT: '验证 Refresh Token 失败'
+        },
+        grok: {
+          title: 'Grok 账号授权',
+          followSteps: '授权 xAI/Grok 账号后，粘贴回调 URL 或授权码。',
+          step1GenerateUrl: '生成 xAI 授权链接',
+          generateAuthUrl: '生成授权链接',
+          generating: '生成中...',
+          regenerate: '重新生成',
+          step2OpenUrl: '打开链接并授权 xAI 账号',
+          openUrlDesc: '在新标签页完成授权。',
+          importantNotice: '授权跳转到 localhost 后，请复制完整回调 URL 并粘贴到下方。',
+          step3EnterCode: '输入回调 URL 或授权码',
+          authCodeDesc: '粘贴 xAI 返回的回调 URL 或授权码。',
+          authCode: '回调 URL 或授权码',
+          authCodePlaceholder: 'http://localhost/.../?code=...&state=...',
+          authCodeHint: '回调 state 必须与当前授权会话一致。',
+          failedToGenerateUrl: '生成 Grok 授权链接失败',
+          failedToExchangeCode: '兑换 Grok 授权码失败',
+          missingExchangeParams: 'Grok OAuth 会话、state 或授权码缺失。',
+          refreshTokenAuth: 'Refresh Token',
+          refreshTokenDesc: '验证并导入一个或多个 Grok Refresh Token。',
+          refreshTokenPlaceholder: '每行一个 Grok Refresh Token',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToValidateRT: '验证 Grok Refresh Token 失败',
+          validating: '验证中...',
+          validateAndCreate: '验证并创建',
+          errors: {
+            GROK_OAUTH_INVALID_STATE: 'Grok OAuth state 与当前会话不匹配，请使用本页面生成的授权链接对应的回调 URL。'
+          }
         }
       },
+      grok: {
+        baseUrlHint: '留空使用官方 xAI API。',
+        apiKeyHint: '您的 xAI API Key。'
+      },
+      grokAccount: 'Grok 账号',
       // Gemini specific (platform-wide)
       gemini: {
         helpButton: '使用帮助',

@@ -4294,6 +4294,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Specified a P0 structured bridge route decision (`not_configured`, `ready`, `rate_limited`, `unavailable`, `probe_error`) that separates stable mapping intent from transient scheduler state, removes hidden native fallback after bridge intent is established, and returns consistent Anthropic 429/503 semantics with `Retry-After`.
 - Specified a separate P1 adaptation of official `/v1/responses/input_tokens` and OAuth/local-tokenizer fallback for bridge-aware `count_tokens`, with no usage, billing, concurrency, or native-pool side effects.
 - Added the planned file map, two-request 429 regression, broader test matrix, observability fields, canary rollout, rollback, acceptance criteria, and ordered next-session implementation checklist.
+## [2026-07-11] feat: Add Grok admin frontend and media pricing reachability
+
+**Affected files**: `frontend/src/{api/admin/{grok,index}.ts,composables/useGrokOAuth.ts,components/account/{CreateAccountModal,EditAccountModal,OAuthAuthorizationFlow,AccountUsageCell,GrokQuotaProbeCell}.vue,components/admin/account/{AccountTableFilters,ReAuthAccountModal}.vue,components/common/{PlatformIcon,PlatformTypeBadge,GroupBadge}.vue,views/admin/{GroupsView.vue,groupsMediaPricing.ts},types/index.ts,utils/platformColors.ts,i18n/locales/{zh,en}.ts}` and focused frontend tests; `docs/dev/codebase/account.md`
+**Upstream compatibility**: Medium risk. Manually reconciles Grok management reachability and the latest media rate-card semantics with the fork-local account/group forms; it does not replace the fork's monolithic locales or curated-model and billing/display customizations.
+**Details**:
+- Added Grok OAuth/API-key create and edit flows, OAuth reauthorization, admin account filtering/presentation, and an explicit OAuth quota probe using the current `/api/v1/admin/grok-oauth/*` route contract.
+- Added Grok group selection plus image default-price hints and independent per-second video pricing controls (`video_rate_independent`, `video_rate_multiplier`, `video_price_480p`, `video_price_720p`, `video_price_1080p`). Current default hints are `$0.02` per image and `$0.05/s`, `$0.07/s`, `$0.25/s` for 480p/720p/1080p video.
+- Preserved the existing OpenAI Images endpoint toggle, Claude-GPT bridge controls, curated model-list behavior, account scheduling/failover surfaces, and single-file Chinese/English locale layout.
+- Added focused regression tests for Grok management reachability, OAuth error handling, account credential/mapping persistence, fork-local controls, and media pricing defaults.
+
 ## [2026-07-11] test: expand upstream-sync protection for fork-local contracts
 
 **Affected files**: `backend/tools/upstream-sync-guard/main.go`, `backend/tools/upstream-sync-guard/main_test.go`, `docs/dev/CHANGELOG_CUSTOM.md`, `docs/dev/UPSTREAM_SYNC.md`

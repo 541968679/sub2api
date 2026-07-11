@@ -86,6 +86,7 @@ const pOpts = computed(() => [
   { value: 'openai', label: 'OpenAI' },
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
+  { value: 'grok', label: 'Grok' },
 ])
 const tOpts = computed(() => [
   { value: '', label: t('admin.accounts.allTypes') },
