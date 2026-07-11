@@ -4735,3 +4735,15 @@ route, setting, push, or deployment change.
 - Service-level guards reject self-demotion and demoting the last remaining administrator, so bypassing the UI/handler cannot remove all admin access.
 - Role changes reuse the existing auth-cache invalidation path and emit actor/target/old/new role audit metadata without logging personal data.
 - Existing user group rates, platform quotas, default subscriptions, balances, concurrency, billing/display-token behavior, and public registration remain unchanged.
+
+## [2026-07-11] fix: Gate admin scheduler-score calculation by column visibility
+
+**Affected files**: admin account-list handler/API, account-table column persistence, and focused backend/frontend tests.
+
+**Compatibility**: Low-risk performance adaptation of upstream `6ae5fc31b`; scheduler scoring and account selection are unchanged.
+
+**Details**:
+- Account-list responses omit scheduler scores by default and enter the expensive OpenAI candidate-pool scoring path only when `include_scheduler_score=1` is explicit.
+- The scheduler-score column is hidden by default, including a one-time migration for existing saved layouts; explicitly showing it reloads the current list with score inclusion enabled.
+- Preserved fork-local account columns such as `exported_at`, Codex/Spark controls, filters, sorting, selection, and auto-refresh parameter synchronization.
+- Added backend default-off and frontend visibility/persistence regressions. Focused Go, five Vitest cases, affected ESLint, and `git diff --check` passed.

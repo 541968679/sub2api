@@ -1116,6 +1116,14 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Preserved fork-local group platform settings, curated/default models, Batch Image controls, Claude-GPT bridge configuration, rate multipliers, scheduling/failover, and bilingual i18n.
 - Pushed/deployed: no.
 
+### 2026-07-11 - Admin scheduler-score calculation gate
+
+- Selectively adapted `6ae5fc31b` onto the fork's evolved account table.
+- Scheduler scores are now calculated only when the persisted column layout makes that column visible; default and migrated layouts keep it hidden.
+- Kept the fork's existing account columns, Codex/Spark actions, filtering, sorting, selection, and auto-refresh behavior. No scheduler algorithm, failover, quota, billing/display-token, route, or setting behavior changed.
+- Verification: focused admin handler unit test, five frontend scheduler-score tests, affected ESLint, and `git diff --check` passed.
+- Pushed/deployed: no.
+
 ### 2026-07-11 - Subscription group peak-rate alignment
 
 - **Branch**: `codex/upstream-peak-rate-20260711`
