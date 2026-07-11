@@ -625,33 +625,62 @@ func isCodexSparkModel(model string) bool {
 }
 
 func hasOpenAIImageGenerationTool(reqBody map[string]any) bool {
-	rawTools, ok := reqBody["tools"]
-	if !ok || rawTools == nil {
-		return false
+	if toolsContainOpenAIImageGeneration(reqBody["tools"]) {
+		return true
 	}
-	tools, ok := rawTools.([]any)
+	input, ok := reqBody["input"].([]any)
 	if !ok {
 		return false
 	}
-	for _, rawTool := range tools {
-		toolMap, ok := rawTool.(map[string]any)
-		if !ok {
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
 			continue
 		}
-		if strings.TrimSpace(firstNonEmptyString(toolMap["type"])) == "image_generation" {
+		if toolsContainOpenAIImageGeneration(item["tools"]) {
 			return true
 		}
 	}
 	return false
 }
 
-// stripCodexSparkImageGenerationTools removes image_generation tool entries from
-// reqBody["tools"]. gpt-5.3-codex-spark rejects that tool upstream with HTTP 400
-// (invalid_request_error, param=tools), and Codex CLI advertises it by default, so
-// it must be dropped for spark. When the tools list becomes empty the key is removed.
-// Returns true when the body was modified.
-func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
-	rawTools, ok := reqBody["tools"]
+func toolsContainOpenAIImageGeneration(rawTools any) bool {
+	tools, ok := rawTools.([]any)
+	if !ok {
+		return false
+	}
+	for _, rawTool := range tools {
+		tool, ok := rawTool.(map[string]any)
+		if ok && isOpenAIImageGenerationToolMap(tool) {
+			return true
+		}
+	}
+	return false
+}
+
+func isOpenAIImageGenerationToolMap(tool map[string]any) bool {
+	typeName := strings.TrimSpace(firstNonEmptyString(tool["type"]))
+	return isOpenAIImageGenerationType(typeName) ||
+		(typeName == "namespace" && isOpenAIImageGenNamespaceName(firstNonEmptyString(tool["name"])))
+}
+
+func stripOpenAIImageGenerationTools(reqBody map[string]any) bool {
+	if reqBody == nil {
+		return false
+	}
+	modified := stripOpenAIImageGenerationToolList(reqBody, "tools")
+	if stripOpenAIImageGenerationToolsFromInput(reqBody) {
+		modified = true
+	}
+	if openAIAnyToolChoiceSelectsImageGeneration(reqBody["tool_choice"]) {
+		delete(reqBody, "tool_choice")
+		modified = true
+	}
+	return modified
+}
+
+func stripOpenAIImageGenerationToolList(container map[string]any, key string) bool {
+	rawTools, ok := container[key]
 	if !ok || rawTools == nil {
 		return false
 	}
@@ -662,8 +691,7 @@ func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
 	filtered := make([]any, 0, len(tools))
 	removed := false
 	for _, rawTool := range tools {
-		if toolMap, ok := rawTool.(map[string]any); ok &&
-			strings.TrimSpace(firstNonEmptyString(toolMap["type"])) == "image_generation" {
+		if toolMap, ok := rawTool.(map[string]any); ok && isOpenAIImageGenerationToolMap(toolMap) {
 			removed = true
 			continue
 		}
@@ -673,11 +701,44 @@ func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
 		return false
 	}
 	if len(filtered) == 0 {
-		delete(reqBody, "tools")
+		delete(container, key)
 	} else {
-		reqBody["tools"] = filtered
+		container[key] = filtered
 	}
 	return true
+}
+
+func stripOpenAIImageGenerationToolsFromInput(reqBody map[string]any) bool {
+	input, ok := reqBody["input"].([]any)
+	if !ok {
+		return false
+	}
+	filtered := make([]any, 0, len(input))
+	modified := false
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+			filtered = append(filtered, rawItem)
+			continue
+		}
+		if !stripOpenAIImageGenerationToolList(item, "tools") {
+			filtered = append(filtered, rawItem)
+			continue
+		}
+		modified = true
+		if _, hasTools := item["tools"]; hasTools {
+			filtered = append(filtered, rawItem)
+		}
+	}
+	if modified {
+		reqBody["input"] = filtered
+	}
+	return modified
+}
+
+// stripCodexSparkImageGenerationTools removes all image tool declarations and choices.
+func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
+	return stripOpenAIImageGenerationTools(reqBody)
 }
 
 func hasOpenAIInputImage(reqBody map[string]any) bool {

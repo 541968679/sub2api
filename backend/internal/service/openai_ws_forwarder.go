@@ -2442,11 +2442,15 @@ func stripCodexSparkImageGenerationToolFromRawPayload(payload []byte, model stri
 	if !isCodexSparkModel(model) || !openAIRequestBodyHasImageGenerationTool(payload) {
 		return payload, false, nil
 	}
+	return stripOpenAIImageGenerationToolsFromRawPayload(payload)
+}
+
+func stripOpenAIImageGenerationToolsFromRawPayload(payload []byte) ([]byte, bool, error) {
 	payloadMap := make(map[string]any)
 	if err := json.Unmarshal(payload, &payloadMap); err != nil {
 		return payload, false, err
 	}
-	if !stripCodexSparkImageGenerationTools(payloadMap) {
+	if !stripOpenAIImageGenerationTools(payloadMap) {
 		return payload, false, nil
 	}
 	rebuilt, err := json.Marshal(payloadMap)
