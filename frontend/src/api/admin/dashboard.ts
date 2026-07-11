@@ -212,6 +212,7 @@ export interface UserBreakdownParams {
   endpoint?: string
   endpoint_type?: 'inbound' | 'upstream' | 'path'
   limit?: number
+  sort_by?: 'requests' | 'input_tokens' | 'output_tokens' | 'cache_creation_tokens' | 'cache_read_tokens' | 'total_tokens' | 'cost' | 'actual_cost' | 'account_cost'
   // Additional filter conditions
   user_id?: number
   api_key_id?: number

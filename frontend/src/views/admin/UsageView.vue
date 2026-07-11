@@ -66,9 +66,12 @@
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
       </div>
+      <div class="flex gap-1 border-b border-gray-200 dark:border-dark-700">
+        <button v-for="tab in detailTabs" :key="tab.key" type="button" data-testid="usage-detail-tab" class="border-b-2 px-4 py-3 text-sm font-medium" :class="activeTab === tab.key ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500'" @click="switchTab(tab.key)">{{ tab.label }}</button>
+      </div>
       <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
         <template #after-reset>
-          <div class="relative" ref="columnDropdownRef">
+          <div v-if="activeTab === 'usage'" class="relative" ref="columnDropdownRef">
             <button
               @click="showColumnDropdown = !showColumnDropdown"
               class="btn btn-secondary px-2 md:px-3"
@@ -102,7 +105,7 @@
           </div>
         </template>
       </UsageFilters>
-      <UsageTable
+      <UsageTable v-show="activeTab === 'usage'"
         :data="usageLogs"
         :loading="loading"
         :columns="visibleColumns"
@@ -113,7 +116,8 @@
         @userClick="handleUserClick"
         @userViewClick="handleUserViewClick"
       />
-      <Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
+      <Pagination v-if="activeTab === 'usage' && pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
+      <UserTokenRanking v-if="rankingMounted" v-show="activeTab === 'ranking'" ref="rankingRef" :start-date="startDate" :end-date="endDate" :filters="breakdownFilters" :model="filters.model" @select-user="handleRankingSelectUser" />
     </div>
   </AppLayout>
   <UsageExportProgress :show="exportProgress.show" :progress="exportProgress.progress" :current="exportProgress.current" :total="exportProgress.total" :estimated-time="exportProgress.estimatedTime" @cancel="cancelExport" />
@@ -155,10 +159,12 @@ import AntigravityUsageCurveChart from '@/components/admin/usage/AntigravityUsag
 import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageExportProgress from '@/components/admin/usage/UsageExportProgress.vue'
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawer.vue'
+import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { migrateLatencyHiddenColumns } from '@/utils/latencyHealth'
 import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams, AntigravityUsageRatio, AntigravityCreditCurve } from '@/api/admin/usage'
 
 const { t } = useI18n()
@@ -228,6 +234,24 @@ const handleUserClick = async (userId: number) => {
   } catch {
     appStore.showError(t('admin.usage.failedToLoadUser'))
   }
+}
+
+type DetailTab = 'usage' | 'ranking'
+const activeTab = ref<DetailTab>('usage')
+const rankingMounted = ref(false)
+const rankingRef = ref<InstanceType<typeof UserTokenRanking> | null>(null)
+const detailTabs = computed(() => [
+  { key: 'usage' as const, label: t('usage.tabs.usage') },
+  { key: 'ranking' as const, label: t('usage.tabs.ranking') },
+])
+const switchTab = (tab: DetailTab) => {
+  activeTab.value = tab
+  if (tab === 'ranking') rankingMounted.value = true
+}
+const handleRankingSelectUser = (userId: number) => {
+  filters.value = { ...filters.value, user_id: userId }
+  activeTab.value = 'usage'
+  applyFilters()
 }
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
@@ -519,6 +543,7 @@ const refreshData = () => {
   loadStats()
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
+  if (rankingMounted.value) void rankingRef.value?.reload()
 }
 const resetFilters = () => {
   const range = getLast24HoursRangeDates()
@@ -620,8 +645,7 @@ const allColumns = computed(() => [
   { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
-  { key: 'first_token', label: t('usage.firstToken'), sortable: false },
-  { key: 'duration', label: t('usage.duration'), sortable: false },
+  { key: 'latency', label: t('usage.latency'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
   { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false },
@@ -659,7 +683,7 @@ const loadSavedColumns = () => {
   try {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
     if (saved) {
-      (JSON.parse(saved) as string[]).forEach((key) => {
+      migrateLatencyHiddenColumns(JSON.parse(saved) as string[]).forEach((key) => {
         hiddenColumns.add(key)
       })
     } else {

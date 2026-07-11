@@ -216,13 +216,17 @@ type UserSpendingRankingResponse struct {
 
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
-	UserID      int64   `json:"user_id"`
-	Email       string  `json:"email"`
-	Requests    int64   `json:"requests"`
-	TotalTokens int64   `json:"total_tokens"`
-	Cost        float64 `json:"cost"`         // 标准计费
-	ActualCost  float64 `json:"actual_cost"`  // 实际扣除
-	AccountCost float64 `json:"account_cost"` // 账号成本
+	UserID              int64   `json:"user_id"`
+	Email               string  `json:"email"`
+	Requests            int64   `json:"requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	OutputTokens        int64   `json:"output_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	TotalTokens         int64   `json:"total_tokens"`
+	Cost                float64 `json:"cost"`         // 标准计费
+	ActualCost          float64 `json:"actual_cost"`  // 实际扣除
+	AccountCost         float64 `json:"account_cost"` // 账号成本
 }
 
 // UserBreakdownDimension specifies the dimension to filter for user breakdown.
@@ -239,6 +243,7 @@ type UserBreakdownDimension struct {
 	RequestType *int16 // filter by request_type (non-nil to enable)
 	Stream      *bool  // filter by stream flag (non-nil to enable)
 	BillingType *int8  // filter by billing_type (non-nil to enable)
+	SortBy      string // allowlisted ranking column; empty defaults to actual_cost
 }
 
 // APIKeyUsageTrendPoint represents API key usage trend data point

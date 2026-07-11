@@ -1096,6 +1096,9 @@ const enBase = {
     cost: 'Cost',
     firstToken: 'First Token',
     duration: 'Duration',
+    latency: 'Latency',
+    latencyFirstToken: 'First token',
+    latencyDuration: 'Total',
     time: 'Time',
     ws: 'WS',
     stream: 'Stream',
@@ -1131,7 +1134,8 @@ const enBase = {
     userAgent: 'User-Agent',
     tabs: {
       usage: 'Usage',
-      errors: 'Error Requests'
+      errors: 'Error Requests',
+      ranking: 'User Ranking'
     },
     errors: {
       time: 'Time',
@@ -5585,6 +5589,19 @@ const enBase = {
       ipAddress: 'IP',
       clickToViewBalance: 'Click to view balance history',
       failedToLoadUser: 'Failed to load user info',
+      tokenRanking: {
+        subtitle: 'Aggregated from the active filters. Select a row to inspect that user.',
+        columns: {
+          user: 'User',
+          requests: 'Requests',
+          inputTokens: 'Input',
+          outputTokens: 'Output',
+          cacheCreationTokens: 'Cache write',
+          cacheReadTokens: 'Cache read',
+          totalTokens: 'Total tokens',
+          actualCost: 'Actual cost'
+        }
+      },
       cleanup: {
         button: 'Cleanup',
         title: 'Cleanup Usage Records',

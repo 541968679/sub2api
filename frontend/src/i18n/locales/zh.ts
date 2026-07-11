@@ -1051,6 +1051,9 @@ const zhBase = {
     cost: '费用',
     firstToken: '首 Token',
     duration: '耗时',
+    latency: '延迟',
+    latencyFirstToken: '首字',
+    latencyDuration: '总耗时',
     time: '时间',
     ws: 'WS',
     stream: '流式',
@@ -1086,7 +1089,8 @@ const zhBase = {
     userAgent: 'User-Agent',
     tabs: {
       usage: '使用记录',
-      errors: '错误请求'
+      errors: '错误请求',
+      ranking: '用户排行'
     },
     errors: {
       time: '时间',
@@ -5305,6 +5309,19 @@ const zhBase = {
       ipAddress: 'IP',
       clickToViewBalance: '点击查看充值记录',
       failedToLoadUser: '加载用户信息失败',
+      tokenRanking: {
+        subtitle: '按当前筛选条件聚合，点击用户可下钻查看明细。',
+        columns: {
+          user: '用户',
+          requests: '请求数',
+          inputTokens: '输入',
+          outputTokens: '输出',
+          cacheCreationTokens: '缓存写入',
+          cacheReadTokens: '缓存读取',
+          totalTokens: '总 Token',
+          actualCost: '实际费用'
+        }
+      },
       cleanup: {
         button: '清理',
         title: '清理使用记录',
