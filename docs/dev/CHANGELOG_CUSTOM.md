@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] feat: Show each API key's latest usage IP
+
+**Affected files**: API-key repository/service/DTO, user key types/table/i18n, and focused backend/frontend tests.
+**Upstream compatibility**: Behavior-level port of `e0d149d51` plus the query resource fix `7a11b39d6`.
+**Details**:
+- Enriches one user-owned API-key page with a single batched window query over usage logs, choosing the latest non-empty IP by `created_at` then log ID.
+- Supports PostgreSQL and the SQLite repository test dialect, and propagates query scan, iteration, and close errors instead of returning partial data as success.
+- The value is response-only: it is not persisted on API keys or added to auth caches, and it does not change usage-log writes, billing, quota deduction, Ops attribution, or public key-usage routes.
+
 ## [2026-07-11] feat: Support drag-and-drop multi-file account imports
 
 **Affected files**: account data import modal and its frontend integration test.

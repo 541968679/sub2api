@@ -862,6 +862,7 @@ const enBase = {
     total: 'Last 30d',
     quota: 'Quota',
     lastUsedAt: 'Last Used',
+    lastUsedIP: 'Last Used IP',
     useKey: 'Use Key',
     useKeyModal: {
       title: 'Use API Key',

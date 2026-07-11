@@ -107,6 +107,7 @@ export interface AdminUser extends User {
   // 管理员备注（普通用户接口不返回）
   notes: string
   last_used_at?: string | null
+  last_used_ip?: string | null
   downstream_usage_token_mode?: DownstreamUsageTokenMode
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>

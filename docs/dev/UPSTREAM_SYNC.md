@@ -39,6 +39,13 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - API-key latest usage IP
+
+- **Upstream sources**: `e0d149d51` and `7a11b39d6`.
+- User API-key listings now attach the latest non-empty usage-log IP for each key with one page-bounded window query and expose it through the service/DTO/frontend contracts.
+- Query ordering uses timestamp plus log ID for stable ties. Scan, iteration, and close failures fail the list request rather than silently returning incomplete IP data.
+- This is a read-only enrichment and does not alter API-key auth caches, IP ACL evaluation, usage-log persistence, billing/display/cache-read, Ops, schema, migration, or anonymous usage-query behavior.
+
 ### 2026-07-11 - Multi-file account data import
 
 - **Upstream source**: `728bb1bc9`.
