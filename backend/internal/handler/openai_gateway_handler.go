@@ -918,6 +918,12 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
 		if err != nil {
+			// 客户端取消不是账号故障：不记失败评分、不触发切号，也不再带着
+			// 已取消的 context 继续 failover（与 Responses 路径同一守卫）。
+			if openAIClientRequestCanceled(c) {
+				reqLog.Debug("openai_messages.client_request_ended", zap.Error(c.Request.Context().Err()))
+				return
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				writerSizeAfterForward := c.Writer.Size()

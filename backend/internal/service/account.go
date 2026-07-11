@@ -876,7 +876,10 @@ func (a *Account) IsOpenAIClaudeGPTBridgeEnabled() bool {
 
 // ResolveClaudeGPTBridgeModel resolves the OpenAI upstream model for a Claude
 // request. It requires an explicit account-level mapping so normal OpenAI model
-// passthrough or default model fallbacks cannot accidentally opt in.
+// passthrough, platform default mappings, or default model fallbacks cannot
+// accidentally opt in: bridge candidacy is a per-account routing intent, and an
+// admin-configured platform-wide default (including wildcards) must not pull
+// Antigravity requests away from the native pool.
 func (a *Account) ResolveClaudeGPTBridgeModel(requestedModel string) (string, bool) {
 	if !a.IsOpenAIClaudeGPTBridgeEnabled() {
 		return "", false
@@ -885,9 +888,9 @@ func (a *Account) ResolveClaudeGPTBridgeModel(requestedModel string) (string, bo
 	if requestedModel == "" {
 		return "", false
 	}
-	mappedModel, matched := a.ResolveMappedModel(requestedModel)
-	mappedModel = strings.TrimSpace(mappedModel)
-	if !matched || mappedModel == "" || mappedModel == requestedModel {
+	result := a.ResolveMappedModelDetailed(requestedModel)
+	mappedModel := strings.TrimSpace(result.MappedModel)
+	if !result.Matched || result.Source != ModelMappingSourceAccount || mappedModel == "" || mappedModel == requestedModel {
 		return "", false
 	}
 	return mappedModel, true

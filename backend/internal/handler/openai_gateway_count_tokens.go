@@ -166,7 +166,14 @@ func (h *OpenAIGatewayHandler) CountTokensClaudeGPTBridge(c *gin.Context) bool {
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
 	)
-	logClaudeGPTBridgeRouteDecision(reqLog, decision, reqModel, "count_tokens_preflight", routeStart)
+	countOutcome := claudeGPTBridgeOutcomeCountLocalEstim
+	switch decision.State {
+	case service.ClaudeGPTBridgeRouteNotConfigured:
+		countOutcome = claudeGPTBridgeOutcomeDispatchNative
+	case service.ClaudeGPTBridgeRouteReady:
+		countOutcome = claudeGPTBridgeOutcomeCountBridgeReady
+	}
+	logClaudeGPTBridgeRouteDecision(reqLog, decision, reqModel, "count_tokens_preflight", routeStart, 0, countOutcome)
 	if decision.State == service.ClaudeGPTBridgeRouteNotConfigured {
 		return false
 	}
