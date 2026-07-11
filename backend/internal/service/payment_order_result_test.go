@@ -381,3 +381,22 @@ func newWeChatPaymentOAuthTestService(values map[string]string) *PaymentService 
 		},
 	}
 }
+
+func TestCalculateSubscriptionGatewayBaseAmountIsOptIn(t *testing.T) {
+	if got := calculateSubscriptionGatewayBaseAmount(9.99, 0, "CNY"); got != 9.99 {
+		t.Fatalf("disabled conversion = %v, want 9.99", got)
+	}
+	if got := calculateSubscriptionGatewayBaseAmount(9.99, 7.15, "CNY"); got != 71.43 {
+		t.Fatalf("CNY conversion = %v, want 71.43", got)
+	}
+	if got := calculateSubscriptionGatewayBaseAmount(9.99, 7.15, "USD"); got != 9.99 {
+		t.Fatalf("non-CNY conversion = %v, want 9.99", got)
+	}
+}
+
+func TestCalculateSubscriptionPayAmountAppliesFeeAfterConversion(t *testing.T) {
+	amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, 2.5, "CNY", payment.OrderTypeSubscription, 7.15)
+	if err != nil || amountStr != "73.22" || amount != 73.22 {
+		t.Fatalf("subscription pay amount = (%q, %v, %v), want (73.22, 73.22, nil)", amountStr, amount, err)
+	}
+}

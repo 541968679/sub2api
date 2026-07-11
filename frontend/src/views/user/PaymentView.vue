@@ -275,7 +275,7 @@
                     <div class="space-y-3 text-sm">
                       <div class="flex justify-between gap-4">
                         <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                        <span class="font-medium text-gray-900 dark:text-white">¥{{ selectedPlan.price.toFixed(2) }}</span>
+                        <span class="font-medium text-gray-900 dark:text-white">¥{{ subBaseAmount.toFixed(2) }}</span>
                       </div>
                       <div v-if="feeRate > 0 && selectedPlan.price > 0" class="flex justify-between gap-4">
                         <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
@@ -283,7 +283,7 @@
                       </div>
                       <div class="flex justify-between gap-4 border-t border-gray-200 pt-3 dark:border-dark-600">
                         <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
-                        <span class="text-xl font-bold text-primary-600 dark:text-primary-400">¥{{ (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2) }}</span>
+                        <span class="text-xl font-bold text-primary-600 dark:text-primary-400">¥{{ subTotalAmount.toFixed(2) }}</span>
                       </div>
                     </div>
 
@@ -292,7 +292,7 @@
                         <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                         {{ t('common.processing') }}
                       </span>
-                      <span v-else>{{ t('payment.createOrder') }} ¥{{ (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2) }}</span>
+                      <span v-else>{{ t('payment.createOrder') }} ¥{{ subTotalAmount.toFixed(2) }}</span>
                     </button>
                     <button class="btn btn-secondary mt-3 w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
                   </div>
@@ -623,7 +623,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, cny_per_usd: 0, bonus_tiers: [], help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, cny_per_usd: 0, bonus_tiers: [], help_text: '', help_image_url: '', stripe_publishable_key: '',
   first_recharge_enabled: false, first_recharge_min_amount: 0, first_recharge_bonus_usd: 0, first_recharge_eligible: false,
 })
 
@@ -641,6 +641,16 @@ const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return multiplier > 0 ? multiplier : 1
 })
+const subscriptionUsdToCnyRate = computed(() => {
+  const rate = checkout.value.subscription_usd_to_cny_rate
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
+})
+
+function subscriptionPaymentAmountForCurrency(value: number, currency: string): number {
+  const rate = subscriptionUsdToCnyRate.value
+  if (rate <= 0 || currency !== 'CNY') return value
+  return Math.round(value * rate * 100) / 100
+}
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -761,30 +771,36 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
   const planPrice = selectedPlan.value?.price ?? 0
   return enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
+    const baseAmount = subscriptionPaymentAmountForCurrency(planPrice, normalizePaymentCurrency(ml?.currency))
+    const fee = (ml?.fee_rate ?? 0) > 0 ? Math.ceil(baseAmount * (ml?.fee_rate ?? 0)) / 100 : 0
     return {
       type,
       display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(planPrice, type),
+      available: ml?.available !== false && amountFitsMethod(Math.round((baseAmount + fee) * 100) / 100, type),
     }
   })
 })
 
+const subBaseAmount = computed(() =>
+  subscriptionPaymentAmountForCurrency(selectedPlan.value?.price ?? 0, selectedCurrency.value)
+)
+
 const subFeeAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
+  const price = subBaseAmount.value
   if (feeRate.value <= 0 || price <= 0) return 0
   return Math.ceil(((price * feeRate.value) / 100) * 100) / 100
 })
 
 const subTotalAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
+  const price = subBaseAmount.value
   if (feeRate.value <= 0 || price <= 0) return price
   return Math.round((price + subFeeAmount.value) * 100) / 100
 })
 
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
-    && amountFitsMethod(selectedPlan.value.price, selectedMethod.value)
+    && amountFitsMethod(subTotalAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
 
