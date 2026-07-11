@@ -57,6 +57,11 @@ type geminiUsageTotalsBatchProvider interface {
 const geminiPrecheckCacheTTL = time.Minute
 
 const (
+	defaultRateLimit429FallbackCooldown = 5 * time.Second
+	maxRateLimit429FallbackCooldown     = 5 * time.Second
+)
+
+const (
 	openAIImageRateLimitDefaultCooldown = time.Minute
 	openAI403CooldownMinutesDefault     = 10
 	openAI403DisableThreshold           = 3
@@ -265,7 +270,11 @@ func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Acc
 	// otherwise a broad "rate limit" keyword rule can shorten a multi-hour
 	// cooldown to a local temporary pause.
 	if statusCode == http.StatusTooManyRequests && account.Platform == PlatformAnthropic {
+		fableLimited := s.persistAnthropicFableWindowLimit(ctx, account, headers)
 		if s.persistAnthropicExhaustedWindowLimit(ctx, account, headers) {
+			return false
+		}
+		if fableLimited {
 			return false
 		}
 	}
@@ -1012,10 +1021,11 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 		// Anthropic 平台：没有限流重置时间的 429 可能是非真实限流（如 Extra usage required），
 		// 不标记账号限流状态，直接透传错误给客户端
 		if account.Platform == PlatformAnthropic {
-			slog.Warn("rate_limit_429_no_reset_time_skipped",
+			slog.Warn("rate_limit_429_no_reset_time",
 				"account_id", account.ID,
 				"platform", account.Platform,
-				"reason", "no rate limit reset time in headers, likely not a real rate limit")
+				"reason", "no rate limit reset time in headers, applying bounded fallback cooldown")
+			s.apply429FallbackRateLimit(ctx, account)
 			return
 		}
 
@@ -1055,6 +1065,16 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 	}
 
 	slog.Info("account_rate_limited", "account_id", account.ID, "reset_at", resetAt)
+}
+
+func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, account *Account) {
+	if s == nil || s.accountRepo == nil || account == nil {
+		return
+	}
+	resetAt := time.Now().Add(defaultRateLimit429FallbackCooldown)
+	if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
+		slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
+	}
 }
 
 func parseOpenAIRateLimitPlanType(body []byte) string {
@@ -1173,7 +1193,11 @@ func selectAnthropicExhaustedWindow(headers http.Header, now time.Time) *anthrop
 }
 
 func isAnthropic5hRejected(headers http.Header) bool {
-	return strings.EqualFold(strings.TrimSpace(headers.Get("anthropic-ratelimit-unified-5h-status")), "rejected")
+	return isAnthropicWindowRejected(headers, "5h")
+}
+
+func isAnthropicWindowRejected(headers http.Header, window string) bool {
+	return strings.EqualFold(strings.TrimSpace(headers.Get("anthropic-ratelimit-unified-"+window+"-status")), "rejected")
 }
 
 func parseAnthropicWindowReset(headers http.Header, window string, now time.Time) (time.Time, bool) {
@@ -1248,6 +1272,80 @@ func (s *RateLimitService) persistAnthropicExhaustedWindowLimit(ctx context.Cont
 		"reset_at", limit.resetAt,
 		"reset_in", time.Until(limit.resetAt).Truncate(time.Second))
 	return true
+}
+
+func selectAnthropicFableWindowLimit(headers http.Header, now time.Time) *anthropicWindowLimit {
+	if !isAnthropicWindowRejected(headers, "7d_oi") && !isAnthropicWindowExceeded(headers, "7d_oi") {
+		return nil
+	}
+	resetAt, ok := parseAnthropicWindowReset(headers, "7d_oi", now)
+	if !ok {
+		resetAt, ok = parseAnthropicResetTimestamp(headers.Get("anthropic-ratelimit-unified-reset"), now, 8*24*time.Hour)
+	}
+	if !ok {
+		return nil
+	}
+	return &anthropicWindowLimit{window: "7d_oi", resetAt: resetAt, reason: "anthropic_7d_oi_window_exhausted"}
+}
+
+func parseAnthropicResetTimestamp(raw string, now time.Time, maxAge time.Duration) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	ts, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	if ts > 1e11 {
+		ts /= 1000
+	}
+	resetAt := time.Unix(ts, 0)
+	if !resetAt.After(now) || resetAt.After(now.Add(maxAge)) {
+		return time.Time{}, false
+	}
+	return resetAt, true
+}
+
+func (s *RateLimitService) persistAnthropicFableWindowLimit(ctx context.Context, account *Account, headers http.Header) bool {
+	if s == nil || s.accountRepo == nil || account == nil {
+		return false
+	}
+	limit := selectAnthropicFableWindowLimit(headers, time.Now())
+	if limit == nil {
+		return false
+	}
+	s.sampleAnthropicFableUsageFromHeaders(ctx, account, headers)
+	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, anthropicFableRateLimitKey, limit.resetAt); err != nil {
+		slog.Warn("anthropic_fable_window_rate_limit_set_failed", "account_id", account.ID, "reset_at", limit.resetAt, "error", err)
+		return true
+	}
+	slog.Info("anthropic_fable_window_model_rate_limited", "account_id", account.ID, "reset_at", limit.resetAt)
+	return true
+}
+
+func (s *RateLimitService) sampleAnthropicFableUsageFromHeaders(ctx context.Context, account *Account, headers http.Header) {
+	updates := make(map[string]any, 3)
+	if utilStr := headers.Get("anthropic-ratelimit-unified-7d_oi-utilization"); utilStr != "" {
+		if util, err := strconv.ParseFloat(utilStr, 64); err == nil {
+			updates["passive_usage_7d_oi_utilization"] = util
+		}
+	}
+	if resetStr := headers.Get("anthropic-ratelimit-unified-7d_oi-reset"); resetStr != "" {
+		if ts, err := strconv.ParseInt(resetStr, 10, 64); err == nil {
+			if ts > 1e11 {
+				ts /= 1000
+			}
+			updates["passive_usage_7d_oi_reset"] = ts
+		}
+	}
+	if len(updates) == 0 {
+		return
+	}
+	updates["passive_usage_sampled_at"] = time.Now().UTC().Format(time.RFC3339)
+	if err := s.accountRepo.UpdateExtra(ctx, account.ID, updates); err != nil {
+		slog.Warn("passive_fable_usage_update_failed", "account_id", account.ID, "error", err)
+	}
 }
 
 // calculateAnthropic429ResetTime parses Anthropic's per-window rate-limit headers
@@ -1515,10 +1613,12 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 	// 窗口重置时清除旧的 utilization 和被动采样数据，避免残留上个窗口的数据
 	if windowEnd != nil && needInitWindow {
 		_ = s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
-			"session_window_utilization":   nil,
-			"passive_usage_7d_utilization": nil,
-			"passive_usage_7d_reset":       nil,
-			"passive_usage_sampled_at":     nil,
+			"session_window_utilization":      nil,
+			"passive_usage_7d_utilization":    nil,
+			"passive_usage_7d_reset":          nil,
+			"passive_usage_7d_oi_utilization": nil,
+			"passive_usage_7d_oi_reset":       nil,
+			"passive_usage_sampled_at":        nil,
 		})
 	}
 
@@ -1527,7 +1627,7 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 	}
 
 	// 被动采样：从响应头收集 5h + 7d utilization，合并为一次 DB 写入
-	extraUpdates := make(map[string]any, 4)
+	extraUpdates := make(map[string]any, 6)
 	// 5h utilization（0-1 小数），供 estimateSetupTokenUsage 使用
 	if utilStr := headers.Get("anthropic-ratelimit-unified-5h-utilization"); utilStr != "" {
 		if util, err := strconv.ParseFloat(utilStr, 64); err == nil {
@@ -1547,6 +1647,19 @@ func (s *RateLimitService) UpdateSessionWindow(ctx context.Context, account *Acc
 				ts = ts / 1000
 			}
 			extraUpdates["passive_usage_7d_reset"] = ts
+		}
+	}
+	if utilStr := headers.Get("anthropic-ratelimit-unified-7d_oi-utilization"); utilStr != "" {
+		if util, err := strconv.ParseFloat(utilStr, 64); err == nil {
+			extraUpdates["passive_usage_7d_oi_utilization"] = util
+		}
+	}
+	if resetStr := headers.Get("anthropic-ratelimit-unified-7d_oi-reset"); resetStr != "" {
+		if ts, err := strconv.ParseInt(resetStr, 10, 64); err == nil {
+			if ts > 1e11 {
+				ts /= 1000
+			}
+			extraUpdates["passive_usage_7d_oi_reset"] = ts
 		}
 	}
 	if len(extraUpdates) > 0 {

@@ -4747,3 +4747,15 @@ route, setting, push, or deployment change.
 - The scheduler-score column is hidden by default, including a one-time migration for existing saved layouts; explicitly showing it reloads the current list with score inclusion enabled.
 - Preserved fork-local account columns such as `exported_at`, Codex/Spark controls, filters, sorting, selection, and auto-refresh parameter synchronization.
 - Added backend default-off and frontend visibility/persistence regressions. Focused Go, five Vitest cases, affected ESLint, and `git diff --check` passed.
+
+## [2026-07-11] feat: Isolate Anthropic Fable limits and bound reset-less 429s
+
+**Affected files**: `backend/internal/service/{ratelimit_service,model_rate_limit,account_usage_service,anthropic_rate_limit_alignment_test}.go`, `frontend/src/components/account/{AccountUsageCell.vue,__tests__/AccountUsageCell.spec.ts}`, `frontend/src/types/index.ts`, and account/upstream-sync documentation.
+
+**Compatibility**: Selectively adapts upstream `3866da508` and `b3f796972` without adding a migration or reviving the removed 429 admin setting.
+
+**Details**:
+- Reset-less Anthropic 429s use a fixed five-second account cooldown.
+- Rejected `7d_oi` windows limit only the Fable family and keep Sonnet/Opus schedulable; the existing 5h/7d whole-account behavior is unchanged.
+- Fable utilization/reset is cached in account extra, returned in `UsageInfo`, and conditionally displayed as `7d F`.
+- Stored billing, quota deduction, `actual_cost`, display prices/tokens, real cache-read quantities, Spark shadow isolation, advanced scheduler/failover, Claude-GPT bridge, Images, curated/default models, Ops, settings, routes, and bilingual locale files are unchanged.

@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
-const modelRateLimitsKey = "model_rate_limits"
+const (
+	modelRateLimitsKey         = "model_rate_limits"
+	anthropicFableRateLimitKey = "claude-fable-5"
+)
 
 // isRateLimitActiveForKey 检查指定 key 的限流是否生效
 func (a *Account) isRateLimitActiveForKey(key string) bool {
@@ -81,10 +84,23 @@ func modelRateLimitKeysForContext(ctx context.Context, account *Account, request
 		return nil
 	}
 	keys := []string{modelKey}
-	if account != nil && account.Platform == PlatformOpenAI && openAIImageGenerationRateLimitApplies(ctx, requestedModel, modelKey) && modelKey != openAIImageGenerationRateLimitKey {
-		keys = append(keys, openAIImageGenerationRateLimitKey)
+	if account != nil {
+		switch account.Platform {
+		case PlatformOpenAI:
+			if openAIImageGenerationRateLimitApplies(ctx, requestedModel, modelKey) && modelKey != openAIImageGenerationRateLimitKey {
+				keys = append(keys, openAIImageGenerationRateLimitKey)
+			}
+		case PlatformAnthropic:
+			if isAnthropicFableModel(modelKey) && modelKey != anthropicFableRateLimitKey {
+				keys = append(keys, anthropicFableRateLimitKey)
+			}
+		}
 	}
 	return keys
+}
+
+func isAnthropicFableModel(model string) bool {
+	return strings.Contains(strings.ToLower(model), "fable")
 }
 
 func openAIImageGenerationRateLimitApplies(ctx context.Context, requestedModel, modelKey string) bool {

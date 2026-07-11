@@ -28,6 +28,25 @@ The feature does not alter stored billing, quota deduction, `actual_cost`,
 display-token or cache-read invariants, curated models, Claude-GPT bridge,
 native OpenAI Images, default fallback, Ops attribution, or public settings.
 
+## Anthropic Fable Rate-Limit Window
+
+Anthropic OAuth responses can expose a `7d_oi` window for the Fable model
+family. Its utilization/reset snapshot is stored in the existing account
+`extra` map and returned as `seven_day_fable`; the account usage cell renders it
+as `7d F` beside, rather than instead of, the existing 5h, 7d, and Sonnet
+windows.
+
+When `7d_oi` is rejected, only the `claude-fable-5` model family scope is added
+to `extra.model_rate_limits`. Sonnet, Opus, and other models remain schedulable.
+The ordinary Anthropic 5h/7d windows continue to use the account-level cooldown
+and session-window path. A 429 with no usable reset header gets a fixed five
+second fallback cooldown so account selection can fail over without repeatedly
+selecting the same failing account.
+
+This is scheduling metadata only. It does not alter real token/cache quantities,
+quota deduction, stored billing, `actual_cost`, display pricing/transforms,
+Spark shadow dimensions, Claude-GPT bridge rules, or advanced scheduler scores.
+
 ## OpenAI Codex Personal Access Tokens
 
 OpenAI OAuth-type accounts can be created with a Codex personal access token

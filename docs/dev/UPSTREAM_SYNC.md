@@ -1116,6 +1116,18 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
 - Preserved fork-local group platform settings, curated/default models, Batch Image controls, Claude-GPT bridge configuration, rate multipliers, scheduling/failover, and bilingual i18n.
 - Pushed/deployed: no.
 
+### 2026-07-11 - Anthropic bounded 429 fallback and Fable window
+
+- **Branch**: `codex/upstream-anthropic-rate-limits-20260711`
+- **Local baseline**: `06eebdbd6`
+- **Upstream points**: `3866da508`, `b3f796972`
+- **Strategy**: test-first selective adaptation; no wholesale cherry-pick and no migration.
+- Anthropic 429 responses without a usable reset header now receive a fixed, bounded five-second account cooldown. The removed upstream admin setting was intentionally not resurrected.
+- `7d_oi` rejection writes only the existing `claude-fable-5` model-rate-limit scope, samples its utilization/reset into account extra, and exposes the window as `seven_day_fable` / `7d F` in the existing usage UI.
+- Existing Anthropic 5h/7d account cooldown and session windows, OpenAI image model scopes, Antigravity model scopes, Spark shadow dimensions, advanced scheduling/failover, platform quotas, stored billing, real cache tokens, `actual_cost`, and display transforms remain unchanged.
+- Verification: focused service window/model/session tests, frontend component tests, TypeScript typecheck, ESLint, diff check, and targeted race tests.
+- **Pushed/deployed**: no.
+
 ### 2026-07-11 - Admin scheduler-score calculation gate
 
 - Selectively adapted `6ae5fc31b` onto the fork's evolved account table.
