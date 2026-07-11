@@ -201,7 +201,7 @@ func TestEstimateCountTokensClaudeGPTBridge_WritesLocalEstimate(t *testing.T) {
 	require.GreaterOrEqual(t, int(gjson.Get(rec.Body.String(), "input_tokens").Int()), 1)
 }
 
-func TestResolveClaudeGPTBridgeCountUpstreamModel_UsesBlockedCandidates(t *testing.T) {
+func TestResolveClaudeGPTBridgeRoute_CarriesMappedModelFromBlockedCandidates(t *testing.T) {
 	resetAt := time.Now().Add(10 * time.Minute)
 	repo := &claudeGPTBridgeRouteRepoStub{accounts: []Account{newClaudeGPTBridgeRouteAccount(1, func(a *Account) {
 		a.RateLimitResetAt = &resetAt
@@ -209,10 +209,46 @@ func TestResolveClaudeGPTBridgeCountUpstreamModel_UsesBlockedCandidates(t *testi
 	svc := &OpenAIGatewayService{accountRepo: repo}
 	groupID := int64(7)
 
-	mapped, ok := svc.ResolveClaudeGPTBridgeCountUpstreamModel(context.Background(), &groupID, "claude-opus-4-8")
+	decision := svc.ResolveClaudeGPTBridgeRoute(context.Background(), &groupID, "claude-opus-4-8")
 
-	require.True(t, ok, "a rate-limited candidate must still resolve the mapping for local estimation")
-	require.Equal(t, "gpt-5.5", mapped)
+	require.Equal(t, ClaudeGPTBridgeRouteRateLimited, decision.State)
+	require.Equal(t, "gpt-5.5", decision.MappedUpstreamModel,
+		"a rate-limited candidate must still resolve the mapping for local estimation")
+}
+
+// simple 模式下 scheduler 候选池忽略分组绑定，诊断口径必须保持一致，
+// 否则未绑定分组的 bridge 账号会被误判为 not_configured 而回落 native。
+func TestResolveClaudeGPTBridgeRoute_SimpleModeUsesPlatformWideCandidates(t *testing.T) {
+	repo := &claudeGPTBridgeRouteRepoStub{platformAccounts: []Account{newClaudeGPTBridgeRouteAccount(1)}}
+	svc := &OpenAIGatewayService{accountRepo: repo, cfg: &config.Config{RunMode: config.RunModeSimple}}
+	groupID := int64(7)
+
+	decision := svc.ResolveClaudeGPTBridgeRoute(context.Background(), &groupID, "claude-opus-4-8")
+
+	require.Equal(t, ClaudeGPTBridgeRouteReady, decision.State)
+	require.Equal(t, 1, repo.listByPlatformCalls)
+	require.Zero(t, repo.listCalls)
+}
+
+// 超大请求不进入 tiktoken，退化为字节数近似，防止本地计算型 DoS。
+func TestEstimateOpenAIInputTokens_OversizedInputUsesByteApproximation(t *testing.T) {
+	huge := make([]byte, openAIInputTokensEstimateMaxBytes+1024)
+	for i := range huge {
+		huge[i] = 'a'
+	}
+	quoted, err := json.Marshal(string(huge))
+	require.NoError(t, err)
+
+	start := time.Now()
+	got, err := estimateOpenAIInputTokens(openAIInputTokensCountRequest{
+		Model: "gpt-5.5",
+		Input: json.RawMessage(quoted),
+	})
+	require.NoError(t, err)
+	require.Greater(t, got, openAIInputTokensEstimateMaxBytes/8,
+		"approximation should scale with the input size")
+	require.Less(t, time.Since(start), 2*time.Second,
+		"oversized input must bypass the tokenizer")
 }
 
 func TestEstimateOpenAIInputTokens_RequestSamples(t *testing.T) {

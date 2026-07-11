@@ -94,6 +94,16 @@ func (h *OpenAIGatewayHandler) ClaudeGPTBridgeRoute(c *gin.Context) ClaudeGPTBri
 		return ClaudeGPTBridgeRouteActionNative
 	case service.ClaudeGPTBridgeRouteReady:
 		return ClaudeGPTBridgeRouteActionBridge
+	}
+
+	// 分组禁用的模型必须稳定返回 403，不随 bridge 容量状态在 429/503 间摆动。
+	// ready 路径的同一检查由 MessagesClaudeGPTBridge 内部完成。
+	if !isGroupModelAllowed(apiKey.Group, reqModel) {
+		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error", groupModelAccessDeniedMessage)
+		return ClaudeGPTBridgeRouteActionHandled
+	}
+
+	switch decision.State {
 	case service.ClaudeGPTBridgeRouteRateLimited:
 		setClaudeGPTBridgeRetryAfterHeader(c, decision.RetryAt)
 		h.anthropicErrorResponse(c, http.StatusTooManyRequests, "rate_limit_error", claudeGPTBridgeRateLimitedMessage)
@@ -130,9 +140,10 @@ func (h *OpenAIGatewayHandler) respondClaudeGPTBridgeSelectionRace(c *gin.Contex
 }
 
 // setClaudeGPTBridgeRetryAfterHeader writes Retry-After from the earliest
-// future recovery time: seconds are rounded up with a minimum of 1, and past
-// times never produce a header with zero or negative values. The response
-// must not expose account identities or quota details.
+// future recovery time: seconds are rounded up with a minimum of 1 and capped
+// at 24h (RateLimitResetAt ultimately comes from upstream-controlled values),
+// and past times never produce a header with zero or negative values. The
+// response must not expose account identities or quota details.
 func setClaudeGPTBridgeRetryAfterHeader(c *gin.Context, retryAt *time.Time) {
 	if c == nil || retryAt == nil {
 		return
@@ -141,8 +152,13 @@ func setClaudeGPTBridgeRetryAfterHeader(c *gin.Context, retryAt *time.Time) {
 	if seconds < 1 {
 		seconds = 1
 	}
+	if seconds > claudeGPTBridgeRetryAfterMaxSeconds {
+		seconds = claudeGPTBridgeRetryAfterMaxSeconds
+	}
 	c.Header("Retry-After", strconv.Itoa(seconds))
 }
+
+const claudeGPTBridgeRetryAfterMaxSeconds = 86400
 
 // validatedUpstreamRetryAfterSeconds accepts only a plain positive integer
 // Retry-After within 24h; anything else is dropped instead of being forwarded
@@ -162,7 +178,7 @@ func validatedUpstreamRetryAfterSeconds(headers map[string][]string) (int, bool)
 		return 0, false
 	}
 	secs, err := strconv.Atoi(raw)
-	if err != nil || secs < 1 || secs > 86400 {
+	if err != nil || secs < 1 || secs > claudeGPTBridgeRetryAfterMaxSeconds {
 		return 0, false
 	}
 	return secs, true

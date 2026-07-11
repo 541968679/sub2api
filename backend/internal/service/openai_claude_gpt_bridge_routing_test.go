@@ -18,8 +18,10 @@ import (
 type claudeGPTBridgeRouteRepoStub struct {
 	AccountRepository
 	accounts            []Account
+	platformAccounts    []Account
 	listErr             error
 	listCalls           int
+	listByPlatformCalls int
 	setRateLimitedCalls int
 }
 
@@ -30,6 +32,16 @@ func (r *claudeGPTBridgeRouteRepoStub) ListByGroup(_ context.Context, _ int64) (
 	}
 	out := make([]Account, len(r.accounts))
 	copy(out, r.accounts)
+	return out, nil
+}
+
+func (r *claudeGPTBridgeRouteRepoStub) ListByPlatform(_ context.Context, _ string) ([]Account, error) {
+	r.listByPlatformCalls++
+	if r.listErr != nil {
+		return nil, r.listErr
+	}
+	out := make([]Account, len(r.platformAccounts))
+	copy(out, r.platformAccounts)
 	return out, nil
 }
 

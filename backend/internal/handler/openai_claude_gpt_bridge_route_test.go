@@ -139,6 +139,42 @@ func TestClaudeGPTBridgeRoute_RateLimitedReturns429WithRetryAfter(t *testing.T) 
 	require.Equal(t, 1, repo.listCalls)
 }
 
+// 分组禁用的模型必须稳定返回 403，不随 bridge 容量状态在 403/429/503 间摆动。
+func TestClaudeGPTBridgeRoute_GroupBlockedModelReturns403EvenWhenRateLimited(t *testing.T) {
+	resetAt := time.Now().Add(90 * time.Second)
+	repo := &bridgeRouteAccountRepoStub{accounts: []service.Account{newBridgeRouteTestAccount(1, func(a *service.Account) {
+		a.RateLimitResetAt = &resetAt
+	})}}
+	h := newBridgeRouteTestHandler(repo, nil)
+	c, rec := newBridgeRouteTestContext(t, service.PlatformAntigravity, bridgeRouteTestBody)
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	require.True(t, ok)
+	apiKey.Group.BlockedModels = []string{"claude-opus-4-8"}
+
+	action := h.ClaudeGPTBridgeRoute(c)
+
+	require.Equal(t, ClaudeGPTBridgeRouteActionHandled, action)
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Equal(t, "permission_error", gjson.Get(rec.Body.String(), "error.type").String())
+	require.Empty(t, rec.Header().Get("Retry-After"))
+}
+
+// Retry-After 以 24h 为上限，防止上游控制的 resets_at 注入荒谬的等待时间。
+func TestClaudeGPTBridgeRoute_RetryAfterIsCappedAtOneDay(t *testing.T) {
+	resetAt := time.Now().Add(72 * time.Hour)
+	repo := &bridgeRouteAccountRepoStub{accounts: []service.Account{newBridgeRouteTestAccount(1, func(a *service.Account) {
+		a.RateLimitResetAt = &resetAt
+	})}}
+	h := newBridgeRouteTestHandler(repo, nil)
+	c, rec := newBridgeRouteTestContext(t, service.PlatformAntigravity, bridgeRouteTestBody)
+
+	action := h.ClaudeGPTBridgeRoute(c)
+
+	require.Equal(t, ClaudeGPTBridgeRouteActionHandled, action)
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	require.Equal(t, "86400", rec.Header().Get("Retry-After"))
+}
+
 func TestClaudeGPTBridgeRoute_UnavailableReturns503(t *testing.T) {
 	tempUntil := time.Now().Add(10 * time.Minute)
 	repo := &bridgeRouteAccountRepoStub{accounts: []service.Account{newBridgeRouteTestAccount(1, func(a *service.Account) {

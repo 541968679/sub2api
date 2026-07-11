@@ -88,6 +88,21 @@ func TestCountTokensClaudeGPTBridge_InvalidBodyFallsToNative(t *testing.T) {
 	}
 }
 
+// 超限 body 的读错误必须在 bridge 预检就返回 413，
+// 不能把被消费的空 body 交给 native 误报 400。
+func TestCountTokensClaudeGPTBridge_OversizedBodyReturns413(t *testing.T) {
+	repo := &bridgeRouteAccountRepoStub{accounts: []service.Account{newBridgeRouteTestAccount(1)}}
+	h := newBridgeRouteTestHandler(repo, nil)
+	c, rec := newBridgeRouteTestContext(t, service.PlatformAntigravity, bridgeCountTokensTestBody)
+	c.Request.Body = http.MaxBytesReader(nil, c.Request.Body, 8)
+
+	handled := h.CountTokensClaudeGPTBridge(c)
+
+	require.True(t, handled)
+	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+	require.Equal(t, "invalid_request_error", gjson.Get(rec.Body.String(), "error.type").String())
+}
+
 func TestCountTokensClaudeGPTBridge_NonAntigravityPlatformFallsToNative(t *testing.T) {
 	repo := &bridgeRouteAccountRepoStub{accounts: []service.Account{newBridgeRouteTestAccount(1)}}
 	h := newBridgeRouteTestHandler(repo, nil)
