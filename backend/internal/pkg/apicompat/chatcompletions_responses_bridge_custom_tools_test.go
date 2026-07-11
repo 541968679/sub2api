@@ -33,7 +33,6 @@ func TestResponsesToChatCompletionsRequest_CustomToolBecomesFunctionTool(t *test
 
 	assert.Equal(t, "wait", out.Tools[1].Function.Name)
 }
-
 func TestResponsesToChatCompletionsRequest_DropsToolChoiceWhenNoConvertibleTools(t *testing.T) {
 	req := &ResponsesRequest{
 		Model: "glm-5.2",
@@ -876,4 +875,3 @@ func TestChatCompletionsChunkToResponsesEvents_FunctionToolStreamUnaffected(t *t
 	}
 	assert.True(t, sawArgsDelta, "function 工具应保持原有参数增量事件")
 }
-

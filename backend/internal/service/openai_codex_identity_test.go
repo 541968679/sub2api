@@ -101,7 +101,6 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 		})
 	}
 }
-
 // compat messages bridge 故意不带 originator：收口必须保持 no-op，不得注入身份头。
 func TestEnforceCodexIdentityHeaders_NoOriginatorIsNoop(t *testing.T) {
 	h := make(http.Header)
@@ -112,4 +111,3 @@ func TestEnforceCodexIdentityHeaders_NoOriginatorIsNoop(t *testing.T) {
 	require.Empty(t, h.Get("originator"))
 	require.Equal(t, "luna/1.0.0", h.Get("user-agent"))
 }
-

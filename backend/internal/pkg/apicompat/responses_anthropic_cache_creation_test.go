@@ -24,7 +24,6 @@ func TestAnthropicUsageFromResponsesUsage_CacheCreation(t *testing.T) {
 	assert.Equal(t, 4, got.CacheReadInputTokens)
 	assert.Equal(t, 6, got.CacheCreationInputTokens, "cache creation must be preserved")
 }
-
 func TestAnthropicUsageFromResponsesUsage_NoCacheCreation(t *testing.T) {
 	usage := &ResponsesUsage{
 		InputTokens:  10,
@@ -97,4 +96,3 @@ func TestAnthropicToResponsesResponse_CacheCreation(t *testing.T) {
 	assert.Equal(t, 20, out.Usage.InputTokens, "total = input(10) + cache_read(4) + cache_creation(6)")
 	assert.Equal(t, 6, out.Usage.CacheCreationInputTokens, "cache creation must round-trip")
 }
-
