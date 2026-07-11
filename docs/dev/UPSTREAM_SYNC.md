@@ -108,9 +108,45 @@
 | 最后同步日期 | 2026-05-03 |
 | 上游版本标签 | v0.1.121 |
 
+| 本次选择性对齐目标 | `e316ebf52838a89d57fc790981cce7520f819ac8` |
+| 本次隔离分支 | `codex/upstream-alignment-20260711` |
+| 本次状态 | 功能级对齐完成；受控排除项见本文件记录 |
+
 > Note: the table above tracks the last completed full upstream sync. The
 > 2026-06-27 entries below are staged safety-fix batches against upstream, not a
 > declaration that the fork has fully caught up with upstream.
+
+> The legacy row above records the last verbatim/tag-by-tag upstream merge.
+> The 2026-07-11 work is a completed behavior-level selective alignment to
+> `e316ebf5`: fork-local implementations remain authoritative, and explicitly
+> assessed exclusions are recorded rather than silently imported.
+
+## 2026-07-11 - Final alignment verification
+
+- **Target**: upstream `e316ebf52838a89d57fc790981cce7520f819ac8`.
+- **Isolation**: all changes are committed on
+  `codex/upstream-alignment-20260711`; the original `main` checkout remains at
+  `470435b0` with only its pre-existing untracked `.run/` directory.
+- **Secondary-development audit**: no source deletion or historical migration
+  SQL modification exists in `0e24044d..HEAD`. The committed-range sync guard
+  passes and protects billing/display-token accounting, real cache-read tokens,
+  `actual_cost`, curated/default models, Claude-GPT, Images/Batch Image,
+  scheduler/failover, Ops/settings, i18n/routes, distribution/payment/bundles,
+  migrations, and deployment tooling.
+- **Backend**: full `go test -tags=unit ./...` passed; Ent generation is clean;
+  `CGO_ENABLED=0` production-style server build passed; sync-guard normal/race
+  tests and default/explicit-base executions passed.
+- **Frontend**: 143 files / 837 tests passed; typecheck, ESLint, and production
+  build passed. Build output contains only the existing mixed-import and large
+  chunk warnings.
+- **Known verification boundaries**: integration-tag compilation remains
+  blocked by the pre-existing missing `cacheRecorder` and `newMockSettingRepo`
+  test fixtures. Wire CLI analysis now starts after checksum repair, but the
+  repository's existing handwritten provider-set gaps still prevent automatic
+  regeneration; checked-in `wire_gen.go`, cmd/server unit tests, and the server
+  build pass.
+- **Deployment**: no push, pull request, service start, or deployment was
+  performed.
 
 ## 同步操作步骤
 

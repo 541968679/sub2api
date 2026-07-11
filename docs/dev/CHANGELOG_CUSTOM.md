@@ -2,6 +2,21 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-11] sync: Complete selective alignment through upstream e316ebf5
+
+**Affected files**: consolidated upstream-alignment branch and verification ledger.
+
+**Upstream compatibility**: Behavior-level selective alignment through
+`e316ebf52838a89d57fc790981cce7520f819ac8`; fork-local contracts remain
+authoritative and assessed exclusions are documented.
+
+**Details**:
+- Completed the final usage ranking/CSV, Anthropic dateline, Anthropic API-key Bearer, and committed-range guard gaps found by the closing audit.
+- Verified all backend unit packages, Ent stability, production-style server build, 837 frontend tests, typecheck, lint, frontend build, and both sync-guard modes.
+- Confirmed no source deletion or historical migration SQL modification relative to the isolated-worktree baseline; the original main checkout was not modified.
+- Integration-tag compilation remains blocked by existing missing test fixtures (`cacheRecorder`, `newMockSettingRepo`); Wire regeneration remains blocked by existing handwritten provider-set gaps. Checked-in generated code builds and tests successfully.
+- No push, pull request, local service start, or deployment was performed.
+
 ## [2026-07-11] fix: Check committed upstream-sync ranges in the fork guard
 
 **Affected files**: `backend/tools/upstream-sync-guard/main.go`, `backend/tools/upstream-sync-guard/main_test.go`, `docs/dev/CHANGELOG_CUSTOM.md`, `docs/dev/UPSTREAM_SYNC.md`
