@@ -39,6 +39,12 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Usage-log persistence under queue pressure
+
+- **Upstream source**: `a1b2b32e0`; `7a11b39d6` audited as not applicable because the prerequisite API-key LastUsedIP query is not present.
+- Changed the default worker overflow policy from sampling to synchronous execution, made repository batch queues context-bounded instead of immediate-drop, and added a synchronous repository fallback after best-effort errors.
+- The fallback runs only after an error, so successful async persistence is not duplicated. Billing failure still prevents log creation, and no cost, quota, display-token, cache-read, Images, Grok media, scheduler, settings, route, schema, or migration contract changes.
+
 ### 2026-07-11 - Gateway selection and stream-drain reliability
 
 - **Upstream source**: relevant gateway fixes from `29a5fcd25` through target `e316ebf52838`.

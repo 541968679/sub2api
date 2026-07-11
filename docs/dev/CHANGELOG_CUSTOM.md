@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Prevent billed usage-log loss under queue pressure
+
+**Affected files**: usage-record defaults, usage-log repository batching, gateway usage-log fallback, and focused tests.
+**Upstream compatibility**: Selective reliability port of `a1b2b32e0`; the later API-key LastUsedIP rows-close fix `7a11b39d6` is not applicable because that query feature is absent from this baseline.
+**Details**:
+- Makes synchronous overflow handling the default and applies request-context backpressure instead of silently dropping a full batch queue.
+- Falls back to synchronous persistence when best-effort creation reports any failure, using a detached bounded context if the original billing context has already expired.
+- Successful async writes are never duplicated; billing failures still skip usage-log creation. Stored billing, display transformations, real cache-read tokens, Batch Image, and Grok media settlement are unchanged.
+
 ## [2026-07-11] fix: Preserve credentials and usage on gateway edge paths
 
 **Affected files**: `backend/internal/service/gateway_service.go`, focused scheduler-snapshot and streaming regression tests, and upstream-sync documentation.
