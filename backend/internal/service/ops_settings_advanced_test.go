@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
 )
 
 func TestGetOpsAdvancedSettings_DefaultHidesOpenAITokenStats(t *testing.T) {
@@ -93,5 +96,31 @@ func TestGetOpsAdvancedSettings_BackfillsNewDisplayFlagsFromDefaults(t *testing.
 	}
 	if !cfg.DisplayAlertEvents {
 		t.Fatalf("DisplayAlertEvents = false, want true default backfill")
+	}
+}
+
+func TestOpenAIQuotaAutoPauseSettings_DefaultAndCacheContract(t *testing.T) {
+	repo := newRuntimeSettingRepoStub()
+	repo.values[SettingKeyOpsAdvancedSettings] = `{"openai_account_quota_auto_pause":{"default_threshold_5h":0.95,"default_threshold_7d":0.9}}`
+	svc := NewSettingService(repo, &config.Config{})
+
+	start := time.Now()
+	cold := svc.GetOpenAIQuotaAutoPauseSettings(context.Background())
+	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
+		t.Fatalf("cold-cache Get blocked for %v", elapsed)
+	}
+	if cold.DefaultThreshold5h != 0 || cold.DefaultThreshold7d != 0 {
+		t.Fatalf("cold-cache defaults = %+v, want disabled", cold)
+	}
+
+	warm := svc.WarmOpenAIQuotaAutoPauseSettings(context.Background())
+	if warm.DefaultThreshold5h != 0.95 || warm.DefaultThreshold7d != 0.9 {
+		t.Fatalf("warm settings = %+v, want {0.95, 0.9}", warm)
+	}
+
+	svc.SetOpenAIQuotaAutoPauseSettings(OpsOpenAIAccountQuotaAutoPauseSettings{DefaultThreshold5h: 0.88, DefaultThreshold7d: 0.77})
+	immediate := svc.GetOpenAIQuotaAutoPauseSettings(context.Background())
+	if immediate.DefaultThreshold5h != 0.88 || immediate.DefaultThreshold7d != 0.77 {
+		t.Fatalf("immediate settings = %+v, want {0.88, 0.77}", immediate)
 	}
 }

@@ -4829,3 +4829,15 @@ route, setting, push, or deployment change.
 - `SETUP_MIGRATION_TIMEOUT_SECONDS` controls only the initial `ApplyMigrations` context. Unset, invalid, zero, or negative values keep the 60-second default.
 - The variable is documented and forwarded by dev, local, standalone, and production Compose files, all while retaining the fork's GHCR production image path.
 - Current migrations including Spark `188/189` and peak-rate `190` are unchanged; no service was started, pushed, or deployed.
+
+## [2026-07-11] feat: Add guarded OpenAI quota auto-pause thresholds
+
+**Affected files**: OpenAI scheduler/sticky/snapshot filtering, Ops settings/cache/Wire, account/Ops admin UI, usage-window help text, bilingual i18n, and focused tests.
+
+**Compatibility**: Medium-risk selective adaptation of upstream `ead471d64`, `8b7a82270`, `c9caadb37`, and tooltip portion of `c256a5441`; no schema or migration.
+
+**Details**:
+- OpenAI parent accounts can be skipped when persisted upstream 5h/7d usage reaches an account or global threshold. Global defaults are disabled at zero; each account can override or explicitly exempt either window.
+- Checks run before TopK and at sticky, previous-response, and fresh DB rechecks. Expired windows fail open so traffic can refresh stale usage, while bindings remain available for later resumption.
+- Spark shadows are explicitly excluded and keep their independent quota dimension. The policy does not mutate `schedulable`, fabricate cooldown timestamps, alter billing/display/cache-read data, or change Images/Batch Image and Claude-GPT behavior.
+- Ops settings reuse existing JSON KV with non-blocking stale-while-revalidate caching; account overrides reuse `extra`. Unrelated `eba204632` OAuth/privacy changes were intentionally not adopted.

@@ -26,6 +26,16 @@
 - Verification: full setup unit package, variable presence across env/Compose files, sync guard, and `git diff --check` passed.
 - Pushed/deployed: no.
 
+### 2026-07-11 - OpenAI 5h/7d quota auto-pause
+
+- **Branch**: `codex/upstream-openai-auto-pause-20260711`
+- **Local baseline**: `27fe45de1072fe0b41682f8cee890b429a82f58a`
+- **Upstream chain**: `ead471d64`, `8b7a82270`, `c9caadb37`; selected tooltip from `c256a5441`.
+- Added default-off global/per-account thresholds, per-window exemptions, non-blocking settings caching, snapshot fields, TopK/sticky/previous-response enforcement, stale-window release, bilingual controls, and usage help.
+- Spark shadows retain independent quota/parent-health behavior. Manual schedulable, 429 cooldown, overload/temp-unsched, advanced scheduler, failover, Claude-GPT, Images/Batch Image, curated/default models, billing/display/cache-read invariants, routes and migrations are preserved.
+- `eba204632` OAuth refresh/privacy enrichment was assessed but not adopted because it overlaps newer fork-local PAT/Codex session import behavior.
+- Pushed/deployed: no.
+
 ## 当前状态
 
 | 项目 | 值 |
