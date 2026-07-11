@@ -274,6 +274,33 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([12])
   })
 
+  it('submits OpenAI quota auto-pause thresholds and per-window disable flags', async () => {
+    const account = buildAccount()
+    account.extra = {
+      auto_pause_5h_threshold: 0.9,
+      auto_pause_7d_threshold: 0.8,
+      openai_claude_gpt_bridge_enabled: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('[data-testid="auto-pause-5h-threshold"]').setValue('95')
+    await wrapper.get('[data-testid="auto-pause-7d-disabled"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      auto_pause_5h_threshold: 0.95,
+      auto_pause_7d_threshold: 0.8,
+      auto_pause_7d_disabled: true,
+      openai_claude_gpt_bridge_enabled: true
+    })
+  })
+
   it('applies the OpenAI Claude-GPT bridge mapping template without overwriting existing mappings', async () => {
     const account = buildAccount()
     account.credentials = {

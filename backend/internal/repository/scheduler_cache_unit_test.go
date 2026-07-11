@@ -57,6 +57,35 @@ func TestBuildSchedulerMetadataAccount_KeepsOpenAIClaudeGPTBridgeFields(t *testi
 	require.Nil(t, got.Extra["unused_large_field"])
 }
 
+func TestBuildSchedulerMetadataAccount_KeepsOpenAIQuotaAutoPauseFields(t *testing.T) {
+	account := service.Account{
+		ID:       88,
+		Platform: service.PlatformOpenAI,
+		Type:     service.AccountTypeOAuth,
+		Extra: map[string]any{
+			"codex_5h_used_percent":            95.0,
+			"codex_7d_used_percent":            81.0,
+			"codex_5h_reset_at":                "2026-07-11T12:00:00Z",
+			"codex_7d_reset_after_seconds":     600,
+			"codex_usage_updated_at":           "2026-07-11T11:00:00Z",
+			"auto_pause_5h_threshold":          0.95,
+			"auto_pause_7d_disabled":           true,
+			"openai_claude_gpt_bridge_enabled": true,
+		},
+	}
+
+	got := buildSchedulerMetadataAccount(account)
+
+	require.Equal(t, 95.0, got.Extra["codex_5h_used_percent"])
+	require.Equal(t, 81.0, got.Extra["codex_7d_used_percent"])
+	require.Equal(t, "2026-07-11T12:00:00Z", got.Extra["codex_5h_reset_at"])
+	require.Equal(t, 600, got.Extra["codex_7d_reset_after_seconds"])
+	require.Equal(t, "2026-07-11T11:00:00Z", got.Extra["codex_usage_updated_at"])
+	require.Equal(t, 0.95, got.Extra["auto_pause_5h_threshold"])
+	require.Equal(t, true, got.Extra["auto_pause_7d_disabled"])
+	require.Equal(t, true, got.Extra["openai_claude_gpt_bridge_enabled"])
+}
+
 func TestBuildSchedulerMetadataAccount_KeepsSlimGroupMembership(t *testing.T) {
 	account := service.Account{
 		ID:       42,
