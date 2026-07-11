@@ -50,12 +50,15 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetNillableDailyLimitUsd(groupIn.DailyLimitUSD).
 		SetNillableWeeklyLimitUsd(groupIn.WeeklyLimitUSD).
 		SetNillableMonthlyLimitUsd(groupIn.MonthlyLimitUSD).
+		SetAllowImageGeneration(groupIn.AllowImageGeneration).
+		SetAllowBatchImageGeneration(groupIn.AllowBatchImageGeneration).
+		SetImageRateIndependent(groupIn.ImageRateIndependent).
+		SetImageRateMultiplier(groupIn.ImageRateMultiplier).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
 		SetNillableImagePrice4k(groupIn.ImagePrice4K).
-		SetAllowImageGeneration(groupIn.AllowImageGeneration).
-		SetImageRateIndependent(groupIn.ImageRateIndependent).
-		SetImageRateMultiplier(groupIn.ImageRateMultiplier).
+		SetBatchImageDiscountMultiplier(groupIn.BatchImageDiscountMultiplier).
+		SetBatchImageHoldMultiplier(groupIn.BatchImageHoldMultiplier).
 		SetVideoRateIndependent(groupIn.VideoRateIndependent).
 		SetVideoRateMultiplier(groupIn.VideoRateMultiplier).
 		SetNillableVideoPrice480p(groupIn.VideoPrice480P).
@@ -132,12 +135,15 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetNillableDailyLimitUsd(groupIn.DailyLimitUSD).
 		SetNillableWeeklyLimitUsd(groupIn.WeeklyLimitUSD).
 		SetNillableMonthlyLimitUsd(groupIn.MonthlyLimitUSD).
+		SetAllowImageGeneration(groupIn.AllowImageGeneration).
+		SetAllowBatchImageGeneration(groupIn.AllowBatchImageGeneration).
+		SetImageRateIndependent(groupIn.ImageRateIndependent).
+		SetImageRateMultiplier(groupIn.ImageRateMultiplier).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
 		SetNillableImagePrice4k(groupIn.ImagePrice4K).
-		SetAllowImageGeneration(groupIn.AllowImageGeneration).
-		SetImageRateIndependent(groupIn.ImageRateIndependent).
-		SetImageRateMultiplier(groupIn.ImageRateMultiplier).
+		SetBatchImageDiscountMultiplier(groupIn.BatchImageDiscountMultiplier).
+		SetBatchImageHoldMultiplier(groupIn.BatchImageHoldMultiplier).
 		SetVideoRateIndependent(groupIn.VideoRateIndependent).
 		SetVideoRateMultiplier(groupIn.VideoRateMultiplier).
 		SetNillableVideoPrice480p(groupIn.VideoPrice480P).
@@ -187,21 +193,6 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		builder = builder.SetImagePrice4k(*groupIn.ImagePrice4K)
 	} else {
 		builder = builder.ClearImagePrice4k()
-	}
-	if groupIn.VideoPrice480P != nil {
-		builder = builder.SetVideoPrice480p(*groupIn.VideoPrice480P)
-	} else {
-		builder = builder.ClearVideoPrice480p()
-	}
-	if groupIn.VideoPrice720P != nil {
-		builder = builder.SetVideoPrice720p(*groupIn.VideoPrice720P)
-	} else {
-		builder = builder.ClearVideoPrice720p()
-	}
-	if groupIn.VideoPrice1080P != nil {
-		builder = builder.SetVideoPrice1080p(*groupIn.VideoPrice1080P)
-	} else {
-		builder = builder.ClearVideoPrice1080p()
 	}
 
 	// 处理 FallbackGroupID：nil 时清除，否则设置

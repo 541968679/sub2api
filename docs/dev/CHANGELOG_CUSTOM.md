@@ -4361,3 +4361,16 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added top-level `cache_creation_input_tokens` compatibility while preserving the existing nested `cache_write_tokens` representation. Conversion selects one cache-creation value rather than summing aliases, so real billing and display-token accounting remain unchanged.
 - Added RED/GREEN contract coverage for custom/tool-search/namespace conversion, paired Codex identity, authenticated user-scoped Fast/Flex forwarding, and cache-creation streaming/non-streaming round trips.
 - Verified the focused backend packages and the complete `internal/service` package, then passed frontend typecheck, lint, all 109 Vitest files (670 tests), and the production build. `upstream-sync-guard` and `git diff --check` also passed.
+
+## [2026-07-11] feat: Add upstream Batch Image workflow without replacing fork image or billing paths
+
+**Affected files**: `backend/ent/schema/batch_image_*.go`, `backend/migrations/184_batch_image_workflow.sql`, `backend/internal/{handler,repository,service}/batch_image*`, `backend/internal/server/routes/gateway.go`, `backend/internal/service/{group,admin_service,usage_billing}.go`, `frontend/src/{api,composables,views}/**/*BatchImage*`, `frontend/src/views/admin/GroupsView.vue`, `docs/BATCH_IMAGE_MVP.md`, `docs/dev/codebase/batch-image.md`
+
+**Compatibility**: Medium risk, disabled by default. The feature requires both global and queue configuration plus an eligible Gemini group. Existing OpenAI Images, ImageChannelMonitor, ordinary billing/display-token accounting, Claude-GPT bridge, Grok routing, curated models, account scheduling, and platform quotas remain on their existing paths.
+
+**Details**:
+- Manually adapted the upstream Batch Image chain through `upstream/main@e316ebf52838` instead of cherry-picking over fork hot paths. Added Gemini API and optional Vertex providers, an idempotent Redis worker, result indexing/download/cleanup, bounded failure recovery, and user/admin UI.
+- Added one additive migration at local sequence `184` for jobs/items/events, group gates/multipliers, and `users.frozen_balance`; no historical migration was modified.
+- Added immutable per-job pricing snapshots and idempotent reserve/capture/release operations. Only successful images are captured, failed or cancelled work releases unused holds, and ordinary usage billing keeps its original deduction semantics.
+- Added authenticated, owner-scoped routes under `/v1/images/batches`, route reachability coverage, group/global permission tests, end-to-end provider/settlement/download smoke coverage, settlement failure/recovery tests, and frontend access-gate tests.
+- Documented the preservation boundary and rollout defaults in `docs/dev/codebase/batch-image.md`.

@@ -7700,6 +7700,10 @@ const zhBase = {
 }
 
 const v117ZhPatch = {
+  batchImageGuide: {
+    title: '图片批量生成',
+    description: '一次提交多条提示词，任务完成后可统一下载图片结果'
+  },
   common: {
     login: '登录',
     done: '已完成',
@@ -7710,6 +7714,7 @@ const v117ZhPatch = {
     apply: '应用'
   },
   nav: {
+    batchImage: '批量生图',
     distribution: '成为代理',
     distributionManagement: '分销管理'
   },
@@ -8343,6 +8348,13 @@ const v117ZhPatch = {
           validateAndCreate: '验证并创建',
           validating: '验证中...',
           failedToValidateRT: '验证 Refresh Token 失败'
+        },
+        grok: {
+          failedToGenerateUrl: '生成 Grok 授权链接失败',
+          missingExchangeParams: '缺少 code / session_id / state',
+          failedToExchangeCode: 'Grok 授权码兑换失败',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToValidateRT: '验证 Refresh Token 失败'
         }
       },
       openai: {
@@ -8357,6 +8369,13 @@ const v117ZhPatch = {
       }
     },
     groups: {
+      batchImage: {
+        allowImage: '开启图片生成',
+        allowBatch: '开启批量生图',
+        discount: '批量价格倍率',
+        hold: '余额冻结倍率',
+        holdInvariant: '余额冻结倍率必须大于或等于批量价格倍率。'
+      },
       claudeMaxSimulation: {
         title: 'Claude Max 模拟',
         hint: '为该分组启用 Claude Max 风格的额度与限制模拟。',

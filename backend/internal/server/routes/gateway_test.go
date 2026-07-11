@@ -24,6 +24,7 @@ func newGatewayRoutesTestRouter() *gin.Engine {
 		&handler.Handlers{
 			Gateway:       &handler.GatewayHandler{},
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			BatchImage:    &handler.BatchImageHandler{},
 			Usage:         &handler.UsageHandler{},
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
@@ -51,8 +52,9 @@ func newGatewayUsageRoutesTestRouter() *gin.Engine {
 	RegisterGatewayRoutes(
 		router,
 		&handler.Handlers{
-			Gateway: &handler.GatewayHandler{},
-			Usage:   &handler.UsageHandler{},
+			Gateway:    &handler.GatewayHandler{},
+			BatchImage: &handler.BatchImageHandler{},
+			Usage:      &handler.UsageHandler{},
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
@@ -111,6 +113,27 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit OpenAI images handler", path)
 	}
+}
+
+func TestGatewayRoutesBatchImagePathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	want := map[string]string{
+		http.MethodPost + " /v1/images/batches":                             "",
+		http.MethodGet + " /v1/images/batches":                              "",
+		http.MethodGet + " /v1/images/batches/models":                       "",
+		http.MethodGet + " /v1/images/batches/:id":                          "",
+		http.MethodGet + " /v1/images/batches/:id/items":                    "",
+		http.MethodGet + " /v1/images/batches/:id/items/:custom_id/content": "",
+		http.MethodGet + " /v1/images/batches/:id/download":                 "",
+		http.MethodPost + " /v1/images/batches/:id/cancel":                  "",
+		http.MethodDelete + " /v1/images/batches/:id/outputs":               "",
+		http.MethodDelete + " /v1/images/batches/:id":                       "",
+	}
+
+	for _, route := range router.Routes() {
+		delete(want, route.Method+" "+route.Path)
+	}
+	require.Empty(t, want, "all batch image API routes must be reachable through the authenticated gateway")
 }
 
 func TestGatewayUsageRouteAllowsUngroupedKey(t *testing.T) {

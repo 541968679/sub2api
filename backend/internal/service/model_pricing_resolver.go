@@ -268,6 +268,7 @@ func applyGlobalPricingOverride(pricing *ModelPricing, gp *GlobalModelPricing) {
 	}
 	if gp.ImageOutputPrice != nil {
 		pricing.ImageOutputPricePerToken = *gp.ImageOutputPrice
+		pricing.ImageOutputPriceExplicit = true
 	}
 }
 
@@ -327,6 +328,7 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	}
 	if chPricing.ImageOutputPrice != nil {
 		resolved.BasePricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
+		resolved.BasePricing.ImageOutputPriceExplicit = true
 	}
 }
 

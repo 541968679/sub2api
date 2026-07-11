@@ -187,6 +187,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/batch-image',
+    name: 'BatchImageGuide',
+    alias: '/docs/batch-image',
+    component: () => import('@/views/user/BatchImageGuideView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Batch Image',
+      titleKey: 'batchImageGuide.title',
+      descriptionKey: 'batchImageGuide.description'
+    }
+  },
+  {
     path: '/pricing',
     name: 'Pricing',
     component: () => import('@/views/user/PricingView.vue'),

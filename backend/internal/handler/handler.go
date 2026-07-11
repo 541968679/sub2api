@@ -63,6 +63,7 @@ type Handlers struct {
 	PricingPage             *PricingPageHandler
 	TutorialPage            *TutorialPageHandler
 	AvailableChannel        *AvailableChannelHandler
+	BatchImage              *BatchImageHandler
 }
 
 type BuildInfo struct {

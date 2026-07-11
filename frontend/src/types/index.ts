@@ -708,6 +708,12 @@ export interface Group {
   image_price_1k: number | null
   image_price_2k: number | null
   image_price_4k: number | null
+	allow_image_generation: boolean
+	allow_batch_image_generation: boolean
+	image_rate_independent: boolean
+	image_rate_multiplier: number
+	batch_image_discount_multiplier: number
+	batch_image_hold_multiplier: number
   video_rate_independent: boolean
   video_rate_multiplier: number
   video_price_480p: number | null
@@ -826,6 +832,12 @@ export interface CreateGroupRequest {
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
+	allow_image_generation?: boolean
+	allow_batch_image_generation?: boolean
+	image_rate_independent?: boolean
+	image_rate_multiplier?: number
+	batch_image_discount_multiplier?: number
+	batch_image_hold_multiplier?: number
   video_rate_independent?: boolean
   video_rate_multiplier?: number
   video_price_480p?: number | null
@@ -859,6 +871,12 @@ export interface UpdateGroupRequest {
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
+	allow_image_generation?: boolean
+	allow_batch_image_generation?: boolean
+	image_rate_independent?: boolean
+	image_rate_multiplier?: number
+	batch_image_discount_multiplier?: number
+	batch_image_hold_multiplier?: number
   video_rate_independent?: boolean
   video_rate_multiplier?: number
   video_price_480p?: number | null

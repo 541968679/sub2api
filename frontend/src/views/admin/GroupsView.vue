@@ -714,6 +714,20 @@
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {{ t("admin.groups.imagePricing.description") }}
           </p>
+          <div class="mb-3 flex flex-wrap gap-4">
+            <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input v-model="createForm.allow_image_generation" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+              {{ t("admin.groups.batchImage.allowImage") }}
+            </label>
+            <label v-if="createForm.platform === 'gemini'" class="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input v-model="createForm.allow_batch_image_generation" :disabled="!createForm.allow_image_generation" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50" />
+              {{ t("admin.groups.batchImage.allowBatch") }}
+            </label>
+          </div>
+          <div v-if="createForm.platform === 'gemini' && createForm.allow_batch_image_generation" class="mb-3 grid grid-cols-2 gap-3">
+            <div><label class="input-label">{{ t("admin.groups.batchImage.discount") }}</label><input v-model.number="createForm.batch_image_discount_multiplier" type="number" min="0" step="0.05" class="input" /></div>
+            <div><label class="input-label">{{ t("admin.groups.batchImage.hold") }}</label><input v-model.number="createForm.batch_image_hold_multiplier" type="number" min="0" step="0.05" class="input" /></div>
+          </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">1K ($)</label>
@@ -1964,6 +1978,20 @@
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {{ t("admin.groups.imagePricing.description") }}
           </p>
+          <div class="mb-3 flex flex-wrap gap-4">
+            <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input v-model="editForm.allow_image_generation" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+              {{ t("admin.groups.batchImage.allowImage") }}
+            </label>
+            <label v-if="editForm.platform === 'gemini'" class="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input v-model="editForm.allow_batch_image_generation" :disabled="!editForm.allow_image_generation" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50" />
+              {{ t("admin.groups.batchImage.allowBatch") }}
+            </label>
+          </div>
+          <div v-if="editForm.platform === 'gemini' && editForm.allow_batch_image_generation" class="mb-3 grid grid-cols-2 gap-3">
+            <div><label class="input-label">{{ t("admin.groups.batchImage.discount") }}</label><input v-model.number="editForm.batch_image_discount_multiplier" type="number" min="0" step="0.05" class="input" /></div>
+            <div><label class="input-label">{{ t("admin.groups.batchImage.hold") }}</label><input v-model.number="editForm.batch_image_hold_multiplier" type="number" min="0" step="0.05" class="input" /></div>
+          </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">1K ($)</label>
@@ -3270,6 +3298,10 @@ const createForm = reactive({
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
   image_price_4k: null as number | null,
+  allow_image_generation: false,
+  allow_batch_image_generation: false,
+  batch_image_discount_multiplier: 0.5,
+  batch_image_hold_multiplier: 0.6,
   video_rate_independent: false,
   video_rate_multiplier: 1,
   video_price_480p: null as number | null,
@@ -3616,6 +3648,10 @@ const editForm = reactive({
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
   image_price_4k: null as number | null,
+  allow_image_generation: false,
+  allow_batch_image_generation: false,
+  batch_image_discount_multiplier: 0.5,
+  batch_image_hold_multiplier: 0.6,
   video_rate_independent: false,
   video_rate_multiplier: 1,
   video_price_480p: null as number | null,
@@ -3815,6 +3851,10 @@ const closeCreateModal = () => {
   createForm.image_price_1k = null;
   createForm.image_price_2k = null;
   createForm.image_price_4k = null;
+  createForm.allow_image_generation = false;
+  createForm.allow_batch_image_generation = false;
+  createForm.batch_image_discount_multiplier = 0.5;
+  createForm.batch_image_hold_multiplier = 0.6;
   createForm.video_rate_independent = false;
   createForm.video_rate_multiplier = 1;
   createForm.video_price_480p = null;
@@ -3862,6 +3902,10 @@ const normalizeRateMultiplier = (value: number | string | null | undefined): num
 const handleCreateGroup = async () => {
   if (!createForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
+    return;
+  }
+  if (createForm.batch_image_hold_multiplier < createForm.batch_image_discount_multiplier) {
+    appStore.showError(t("admin.groups.batchImage.holdInvariant"));
     return;
   }
   submitting.value = true;
@@ -3943,6 +3987,10 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.image_price_1k = group.image_price_1k;
   editForm.image_price_2k = group.image_price_2k;
   editForm.image_price_4k = group.image_price_4k;
+  editForm.allow_image_generation = group.allow_image_generation ?? false;
+  editForm.allow_batch_image_generation = group.allow_batch_image_generation ?? false;
+  editForm.batch_image_discount_multiplier = group.batch_image_discount_multiplier ?? 0.5;
+  editForm.batch_image_hold_multiplier = group.batch_image_hold_multiplier ?? 0.6;
   editForm.video_rate_independent = group.video_rate_independent ?? false;
   editForm.video_rate_multiplier = group.video_rate_multiplier ?? 1;
   editForm.video_price_480p = group.video_price_480p;
@@ -4008,6 +4056,10 @@ const handleUpdateGroup = async () => {
   if (!editingGroup.value) return;
   if (!editForm.name.trim()) {
     appStore.showError(t("admin.groups.nameRequired"));
+    return;
+  }
+  if (editForm.batch_image_hold_multiplier < editForm.batch_image_discount_multiplier) {
+    appStore.showError(t("admin.groups.batchImage.holdInvariant"));
     return;
   }
 
