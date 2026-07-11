@@ -2,6 +2,30 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
 
+## OpenAI Codex Personal Access Tokens
+
+OpenAI OAuth-type accounts can be created with a Codex personal access token
+(`at-...`) without changing API-key accounts or normal OAuth authorization.
+PAT accounts remain `platform=openai` and `type=oauth`; `auth_mode` identifies
+the credential mode, background refresh is skipped, and explicit refresh
+revalidates the token while removing stale OAuth-only fields.
+
+Key files are `service/openai_codex_pat_service.go`,
+`service/openai_chatgpt_headers.go`,
+`handler/admin/openai_codex_pat_handler.go`, and the account creation UI.
+The admin flow validates Codex `whoami`, preserves model/compact mappings and
+fork-local account controls, stores the token only in account credentials, and
+returns an account DTO with credentials removed. Request extras cannot duplicate
+token material; `account.extra` stores only `access_token_sha256`.
+
+FedRAMP identity is forwarded on existing OpenAI ChatGPT HTTP, WebSocket,
+Images, account-test, usage-probe, and model-manifest requests. PAT detection is
+restricted to OpenAI OAuth accounts and cannot affect Grok or OpenAI API-key
+auth-cache identity/name snapshots. Billing, quota deduction, `actual_cost`,
+display tokens/prices, cache-read invariants, Ops, migrations, curated models,
+default-model fallback, Images gates, bridge eligibility, and scheduling remain
+unchanged.
+
 ## Grok Admin Reachability And Media Pricing
 
 Grok accounts are reachable from the existing account and group management

@@ -39,6 +39,24 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - OpenAI Codex personal access token authentication
+
+- **Branch/baseline**: `codex/upstream-openai-pat-20260711` at `19bd42ca5`.
+- **Upstream source**: `32df33a1c`.
+- **Strategy**: contract-test-first manual port in an isolated worktree; no
+  cherry-pick, migration, push, or deployment.
+- Added secure PAT account creation, PAT-aware refresh semantics, and FedRAMP
+  headers across existing OpenAI HTTP/WS/Images/probe paths.
+- The creation response has no credentials or raw PAT; `extra` contains only a
+  SHA-256 fingerprint, and validation errors do not include upstream bodies.
+- API-key cache `Name`, Grok/OpenAI isolation, Claude-GPT bridge, Images gates,
+  curated/default models, scheduling/failover, billing/display/cache invariants,
+  platform quota, Ops, settings, routes, and bilingual locale structure remain
+  authoritative.
+- Verification included PAT service/handler security contracts, focused
+  OpenAI/Codex gateway/account/refresh tests, frontend PAT/locale tests and
+  typecheck, plus `git diff --check`.
+
 ### 2026-07-11 - OpenAI scheduler and Codex WebSocket hardening
 
 - **Upstream source**: scheduler audit `0fd2e9216`, quota-headroom scoring `a2cf297d9`, Windows reset recognition `0a5f34a2`; HTTP-bridge commits `0476b5c97`, `906be3f74`, and `3020652fa` were audited against the existing fork implementation.

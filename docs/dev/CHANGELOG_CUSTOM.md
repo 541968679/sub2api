@@ -28,6 +28,23 @@
 - Split displayed output into text-output and image-output quantities without deriving a unit price from cost or rewriting either stored token count.
 - Added helper regression coverage for mixed and defensive token breakdowns.
 
+## [2026-07-11] feat: Add secure OpenAI Codex PAT account authentication
+
+**Affected files**: OpenAI account/OAuth/token services, ChatGPT request headers,
+admin PAT handler/route, refresh/sync paths, HTTP/WS/Images probes, account UI,
+bilingual locales, tests, and account/sync documentation.
+**Upstream compatibility**: Manual contract-first port of `32df33a1c` from
+alignment baseline `19bd42ca5`; fork-local hot paths were reconciled, not replaced.
+**Details**:
+- Added Codex `at-` validation, PAT credential mode, explicit revalidation,
+  stale OAuth-field cleanup, background-refresh exclusion, and FedRAMP headers.
+- Added secure account creation whose response omits credentials/raw PAT values;
+  extras retain only a SHA-256 fingerprint and validation errors do not echo
+  upstream bodies.
+- Preserved API-key auth-cache names, platform isolation, bridge and Images
+  controls, billing/display/cache invariants, Ops, curated models, and scheduling.
+- No migration, push, or deployment.
+
 ## [2026-07-11] fix: Reconcile merged public contracts and auth-cache identity
 
 **Affected files**: `backend/internal/service/{setting_service.go,api_key_auth_cache_impl.go}`, `backend/internal/server/api_contract_test.go`
