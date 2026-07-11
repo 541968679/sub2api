@@ -224,7 +224,6 @@ export interface DistributionAsset {
   group_id?: number | null
   group_name?: string
   validity_days?: number
-  expires_at?: string | null
   quota_usd?: number
   api_key_name?: string
   api_key_status?: string
