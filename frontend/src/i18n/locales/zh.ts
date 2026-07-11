@@ -4879,6 +4879,8 @@ const zhBase = {
       selectGroup: '选择分组',
       selectGroupPlaceholder: '选择订阅分组',
       validityDays: '有效天数',
+      codeExpiresAt: '兑换码过期时间',
+      codeExpiresAtHint: '可选，留空表示兑换码永不过期。',
       groupRequired: '请选择订阅分组',
       days: '天',
       status: {

@@ -413,6 +413,7 @@ type GenerateRedeemCodesInput struct {
 	GroupID                 *int64 // 订阅类型专用：关联的分组ID
 	ValidityDays            int    // 订阅类型专用：有效天数
 	BatchRedeemLimitPerUser bool
+	ExpiresAt               *time.Time
 }
 
 type ProxyBatchDeleteResult struct {
@@ -3187,6 +3188,7 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			Status:                  StatusUnused,
 			BatchID:                 batchID,
 			BatchRedeemLimitPerUser: input.BatchRedeemLimitPerUser,
+			ExpiresAt:               input.ExpiresAt,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {

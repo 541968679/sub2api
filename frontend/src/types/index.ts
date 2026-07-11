@@ -224,6 +224,7 @@ export interface DistributionAsset {
   group_id?: number | null
   group_name?: string
   validity_days?: number
+  expires_at?: string | null
   quota_usd?: number
   api_key_name?: string
   api_key_status?: string
@@ -1484,6 +1485,16 @@ export interface GenerateRedeemCodesRequest {
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
   batch_redeem_limit_per_user?: boolean
+  expires_at?: string | null
+}
+
+export interface BatchUpdateRedeemCodeFields {
+  status?: 'unused' | 'disabled'
+  expires_at?: string | null
+  notes?: string
+  group_id?: number | null
+  type?: RedeemCodeType
+  value?: number
 }
 
 export interface RedeemCodeRequest {

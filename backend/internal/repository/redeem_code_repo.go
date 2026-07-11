@@ -36,6 +36,7 @@ func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemC
 		SetBatchRedeemLimitPerUser(code.BatchRedeemLimitPerUser).
 		SetNillableUsedBy(code.UsedBy).
 		SetNillableUsedAt(code.UsedAt).
+		SetNillableExpiresAt(code.ExpiresAt).
 		SetNillableBatchID(code.BatchID).
 		SetNillableGroupID(code.GroupID).
 		Save(ctx)
@@ -65,6 +66,7 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 			SetBatchRedeemLimitPerUser(c.BatchRedeemLimitPerUser).
 			SetNillableUsedBy(c.UsedBy).
 			SetNillableUsedAt(c.UsedAt).
+			SetNillableExpiresAt(c.ExpiresAt).
 			SetNillableBatchID(c.BatchID).
 			SetNillableGroupID(c.GroupID)
 		builders = append(builders, b)
@@ -203,6 +205,11 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 	} else {
 		up.ClearBatchID()
 	}
+	if code.ExpiresAt != nil {
+		up.SetExpiresAt(*code.ExpiresAt)
+	} else {
+		up.ClearExpiresAt()
+	}
 	if code.GroupID != nil {
 		up.SetGroupID(*code.GroupID)
 	} else {
@@ -218,6 +225,64 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 	}
 	code.CreatedAt = updated.CreatedAt
 	return nil
+}
+
+func (r *redeemCodeRepository) BatchUpdate(ctx context.Context, ids []int64, fields service.RedeemCodeBatchUpdateFields) (int64, error) {
+	unique := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			unique = append(unique, id)
+		}
+	}
+	if len(unique) == 0 {
+		return 0, nil
+	}
+	client := clientFromContext(ctx, r.client)
+	existing, err := client.RedeemCode.Query().Where(redeemcode.IDIn(unique...)).All(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(existing) != len(unique) {
+		return 0, service.ErrRedeemCodeNotFound
+	}
+	if fields.TouchesUsedSensitiveFields() {
+		for _, code := range existing {
+			if code.Status == service.StatusUsed {
+				return 0, service.ErrRedeemCodeUsed
+			}
+		}
+	}
+	up := client.RedeemCode.Update().Where(redeemcode.IDIn(unique...))
+	if fields.Status != nil {
+		up.SetStatus(*fields.Status)
+	}
+	if fields.Notes != nil {
+		up.SetNotes(*fields.Notes)
+	}
+	if fields.ExpiresAt.Set {
+		if fields.ExpiresAt.Value != nil {
+			up.SetExpiresAt(*fields.ExpiresAt.Value)
+		} else {
+			up.ClearExpiresAt()
+		}
+	}
+	if fields.GroupID.Set {
+		if fields.GroupID.Value != nil {
+			up.SetGroupID(*fields.GroupID.Value)
+		} else {
+			up.ClearGroupID()
+		}
+	}
+	affected, err := up.Save(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if affected != len(unique) {
+		return 0, service.ErrRedeemCodeNotFound
+	}
+	return int64(affected), nil
 }
 
 func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error {
@@ -324,6 +389,7 @@ func redeemCodeEntityToService(m *dbent.RedeemCode) *service.RedeemCode {
 		UsedAt:                  m.UsedAt,
 		Notes:                   derefString(m.Notes),
 		CreatedAt:               m.CreatedAt,
+		ExpiresAt:               m.ExpiresAt,
 		BatchID:                 m.BatchID,
 		BatchRedeemLimitPerUser: m.BatchRedeemLimitPerUser,
 		GroupID:                 m.GroupID,

@@ -5195,6 +5195,8 @@ const enBase = {
       selectGroup: 'Select Group',
       selectGroupPlaceholder: 'Choose a subscription group',
       validityDays: 'Validity Days',
+      codeExpiresAt: 'Code expires at',
+      codeExpiresAtHint: 'Optional. Leave blank for codes that never expire.',
       groupRequired: 'Please select a subscription group',
       days: ' days',
       status: {

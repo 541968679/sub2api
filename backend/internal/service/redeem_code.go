@@ -16,6 +16,7 @@ type RedeemCode struct {
 	UsedAt    *time.Time
 	Notes     string
 	CreatedAt time.Time
+	ExpiresAt *time.Time
 
 	BatchID                 *string
 	BatchRedeemLimitPerUser bool
@@ -31,7 +32,18 @@ func (r *RedeemCode) IsUsed() bool {
 }
 
 func (r *RedeemCode) CanUse() bool {
-	return r.Status == StatusUnused
+	return r.Status == StatusUnused && !r.IsExpired()
+}
+
+func (r *RedeemCode) IsExpired() bool {
+	return r.IsExpiredAt(time.Now())
+}
+
+func (r *RedeemCode) IsExpiredAt(now time.Time) bool {
+	if r == nil || r.Status == StatusUsed {
+		return false
+	}
+	return r.Status == StatusExpired || (r.ExpiresAt != nil && !r.ExpiresAt.After(now))
 }
 
 func GenerateRedeemCode() (string, error) {

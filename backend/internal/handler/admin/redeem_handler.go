@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -33,12 +34,13 @@ func NewRedeemHandler(adminService service.AdminService, redeemService *service.
 
 // GenerateRedeemCodesRequest represents generate redeem codes request
 type GenerateRedeemCodesRequest struct {
-	Count                   int     `json:"count" binding:"required,min=1,max=100"`
-	Type                    string  `json:"type" binding:"required,oneof=balance concurrency subscription invitation"`
-	Value                   float64 `json:"value"`
-	GroupID                 *int64  `json:"group_id"`      // 订阅类型必填
-	ValidityDays            int     `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
-	BatchRedeemLimitPerUser bool    `json:"batch_redeem_limit_per_user"`
+	Count                   int        `json:"count" binding:"required,min=1,max=100"`
+	Type                    string     `json:"type" binding:"required,oneof=balance concurrency subscription invitation"`
+	Value                   float64    `json:"value"`
+	GroupID                 *int64     `json:"group_id"`      // 订阅类型必填
+	ValidityDays            int        `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
+	BatchRedeemLimitPerUser bool       `json:"batch_redeem_limit_per_user"`
+	ExpiresAt               *time.Time `json:"expires_at"`
 }
 
 // CreateAndRedeemCodeRequest represents creating a fixed code and redeeming it for a target user.
@@ -116,6 +118,7 @@ func (h *RedeemHandler) Generate(c *gin.Context) {
 			GroupID:                 req.GroupID,
 			ValidityDays:            req.ValidityDays,
 			BatchRedeemLimitPerUser: req.BatchRedeemLimitPerUser,
+			ExpiresAt:               req.ExpiresAt,
 		})
 		if execErr != nil {
 			return nil, execErr
@@ -127,6 +130,24 @@ func (h *RedeemHandler) Generate(c *gin.Context) {
 		}
 		return out, nil
 	})
+}
+
+func (h *RedeemHandler) BatchUpdate(c *gin.Context) {
+	var req dto.BatchUpdateRedeemCodesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result, err := h.redeemService.BatchUpdate(c.Request.Context(), &service.RedeemCodeBatchUpdateInput{IDs: req.IDs, Fields: redeemBatchUpdateFieldsFromDTO(req.Fields)})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"updated": result.Updated, "message": "Redeem codes updated successfully"})
+}
+
+func redeemBatchUpdateFieldsFromDTO(in dto.BatchUpdateRedeemCodeFields) service.RedeemCodeBatchUpdateFields {
+	return service.RedeemCodeBatchUpdateFields{Status: in.Status, ExpiresAt: service.NullableTimeUpdate{Set: in.ExpiresAt.Set, Value: in.ExpiresAt.Value}, Notes: in.Notes, GroupID: service.NullableInt64Update{Set: in.GroupID.Set, Value: in.GroupID.Value}, Type: in.Type, Value: in.Value}
 }
 
 // CreateAndRedeem creates a fixed redeem code and redeems it for a target user in one step.
