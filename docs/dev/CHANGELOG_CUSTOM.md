@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Expose real image-output token breakdown in usage views
+
+**Affected files**: usage DTO mapper/contracts, frontend usage types/helpers, admin/user usage tables, and bilingual labels.
+**Upstream compatibility**: Low-risk display-only alignment of `ef5ad0fb1`; stored billing, quota deduction, `actual_cost`, display-token rewrites, and cache-read quantities are unchanged.
+**Details**:
+- Exposed the already persisted `image_output_tokens` value through user/admin usage DTOs.
+- Split displayed output into text-output and image-output quantities without deriving a unit price from cost or rewriting either stored token count.
+- Added helper regression coverage for mixed and defensive token breakdowns.
+
 ## [2026-07-11] fix: Reconcile merged public contracts and auth-cache identity
 
 **Affected files**: `backend/internal/service/{setting_service.go,api_key_auth_cache_impl.go}`, `backend/internal/server/api_contract_test.go`

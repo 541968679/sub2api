@@ -1408,6 +1408,8 @@ export interface UsageLog {
   image_count: number
   image_size: string | null
   image_quality: string | null
+  image_output_tokens: number
+  image_output_cost: number
 
   // User-Agent
   user_agent: string | null

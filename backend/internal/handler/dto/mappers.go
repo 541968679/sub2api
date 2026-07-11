@@ -605,6 +605,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		InputCost:                   l.InputCost,
 		OutputCost:                  l.OutputCost,
 		ImageOutputCost:             l.ImageOutputCost,
+		ImageOutputTokens:           l.ImageOutputTokens,
 		CacheCreationCost:           l.CacheCreationCost,
 		CacheReadCost:               l.CacheReadCost,
 		TotalCost:                   l.TotalCost,

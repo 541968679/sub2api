@@ -141,6 +141,7 @@ const enBase = {
     requests: 'Requests',
     inputTokens: 'Input Tokens',
     outputTokens: 'Output Tokens',
+    imageOutputTokens: 'Image Output Tokens',
     cacheReadTokens: 'Cache Read',
     totalTokens: 'Total Tokens',
     cost: 'Cost',

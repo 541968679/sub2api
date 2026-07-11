@@ -995,7 +995,8 @@ const zhBase = {
         totalTokens: '总 Token',
         requests: '请求数',
         inputTokens: '输入 Token',
-        outputTokens: '输出 Token',
+    outputTokens: '输出 Token',
+    imageOutputTokens: '图片输出 Token',
         cacheReadTokens: '缓存读取',
         standardCost: '标准费用'
       }

@@ -110,7 +110,11 @@
                 </div>
                 <div class="inline-flex items-center gap-1">
                   <Icon name="arrowUp" size="sm" class="h-3.5 w-3.5 text-violet-500" />
-                  <span class="font-medium text-gray-900 dark:text-white">{{ row.output_tokens?.toLocaleString() || 0 }}</span>
+                  <span class="font-medium text-gray-900 dark:text-white">{{ textOutputTokens(row).toLocaleString() }}</span>
+                </div>
+                <div v-if="hasImageOutputTokens(row)" class="inline-flex items-center gap-1">
+                  <Icon name="sparkles" size="sm" class="h-3.5 w-3.5 text-fuchsia-500" />
+                  <span class="font-medium text-fuchsia-600 dark:text-fuchsia-400">{{ row.image_output_tokens.toLocaleString() }}</span>
                 </div>
               </div>
               <div v-if="row.cache_read_tokens > 0 || row.cache_creation_tokens > 0" class="flex items-center gap-2">
@@ -217,9 +221,13 @@
               <span class="text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
               <span class="font-medium text-white">{{ tokenTooltipData.input_tokens.toLocaleString() }}</span>
             </div>
-            <div v-if="tokenTooltipData && tokenTooltipData.output_tokens > 0" class="flex items-center justify-between gap-4">
+            <div v-if="tokenTooltipData && textOutputTokens(tokenTooltipData) > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
-              <span class="font-medium text-white">{{ tokenTooltipData.output_tokens.toLocaleString() }}</span>
+              <span class="font-medium text-white">{{ textOutputTokens(tokenTooltipData).toLocaleString() }}</span>
+            </div>
+            <div v-if="hasImageOutputTokens(tokenTooltipData)" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.imageOutputTokens') }}</span>
+              <span class="font-medium text-fuchsia-300">{{ tokenTooltipData!.image_output_tokens.toLocaleString() }}</span>
             </div>
             <div v-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
               <!-- 有 5m/1h 明细时，展开显示 -->
@@ -409,6 +417,7 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { AdminUsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
+import { hasImageOutputTokens, textOutputTokens } from '@/utils/imageUsage'
 
 interface Props {
   data: AdminUsageLog[]

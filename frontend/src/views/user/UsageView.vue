@@ -230,8 +230,12 @@
                   <div class="inline-flex items-center gap-1">
                     <Icon name="arrowUp" size="sm" class="text-violet-500" />
                     <span class="font-medium text-gray-900 dark:text-white">{{
-                      row.output_tokens.toLocaleString()
+                      textOutputTokens(row).toLocaleString()
                     }}</span>
+                  </div>
+                  <div v-if="hasImageOutputTokens(row)" class="inline-flex items-center gap-1">
+                    <Icon name="sparkles" size="sm" class="text-fuchsia-500" />
+                    <span class="font-medium text-fuchsia-600 dark:text-fuchsia-400">{{ row.image_output_tokens.toLocaleString() }}</span>
                   </div>
                 </div>
                 <!-- Cache Tokens (read + creation) -->
@@ -379,9 +383,13 @@
               <span class="text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
               <span class="font-medium text-white">{{ tokenTooltipData.input_tokens.toLocaleString() }}</span>
             </div>
-            <div v-if="tokenTooltipData && tokenTooltipData.output_tokens > 0" class="flex items-center justify-between gap-4">
+            <div v-if="tokenTooltipData && textOutputTokens(tokenTooltipData) > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
-              <span class="font-medium text-white">{{ tokenTooltipData.output_tokens.toLocaleString() }}</span>
+              <span class="font-medium text-white">{{ textOutputTokens(tokenTooltipData).toLocaleString() }}</span>
+            </div>
+            <div v-if="hasImageOutputTokens(tokenTooltipData)" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.imageOutputTokens') }}</span>
+              <span class="font-medium text-fuchsia-300">{{ tokenTooltipData!.image_output_tokens.toLocaleString() }}</span>
             </div>
             <div v-if="tokenTooltipData && tokenTooltipData.cache_creation_tokens > 0">
               <template v-if="tokenTooltipData.cache_creation_5m_tokens > 0 || tokenTooltipData.cache_creation_1h_tokens > 0">
@@ -536,6 +544,7 @@ import { formatDisplayTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import { getBillingModeLabel, getBillingModeBadgeClass } from '@/utils/billingMode'
+import { hasImageOutputTokens, textOutputTokens } from '@/utils/imageUsage'
 
 const { t } = useI18n()
 const appStore = useAppStore()

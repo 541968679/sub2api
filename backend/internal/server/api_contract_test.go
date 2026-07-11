@@ -563,6 +563,7 @@ func TestAPIContracts(t *testing.T) {
 							"first_token_ms": 50,
 							"image_count": 0,
 							"image_output_cost": 0,
+							"image_output_tokens": 0,
 							"image_quality": null,
 							"image_size": null,
 							"media_type": null,
