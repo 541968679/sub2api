@@ -3012,6 +3012,7 @@
         :show-mobile-refresh-token-option="form.platform === 'openai'"
         :show-session-token-option="false"
         :show-access-token-option="false"
+        :show-codex-pat-option="form.platform === 'openai'"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
         @generate-url="handleGenerateUrl"
@@ -3019,6 +3020,7 @@
         @validate-refresh-token="handleValidateRefreshToken"
         @validate-mobile-refresh-token="handleOpenAIValidateMobileRT"
         @validate-session-token="handleValidateSessionToken"
+        @import-codex-pat="handleOpenAIImportCodexPAT"
       />
 
     </div>
@@ -3406,6 +3408,7 @@ interface OAuthFlowExposed {
   sessionKey: string
   refreshToken: string
   sessionToken: string
+  codexPAT: string
   inputMethod: AuthInputMethod
   reset: () => void
 }
@@ -5360,6 +5363,51 @@ const handleOpenAIValidateRT = (rt: string) => handleOpenAIBatchRT(rt)
 
 // 手动输入 Mobile RT
 const handleOpenAIValidateMobileRT = (rt: string) => handleOpenAIBatchRT(rt, OPENAI_MOBILE_RT_CLIENT_ID)
+
+const handleOpenAIImportCodexPAT = async (accessToken: string) => {
+  const token = accessToken.trim()
+  if (!token) {
+    openaiOAuth.error.value = t('admin.accounts.oauth.openai.codexPatEmpty')
+    return
+  }
+
+  openaiOAuth.loading.value = true
+  openaiOAuth.error.value = ''
+  try {
+    const credentialExtras: Record<string, unknown> = {}
+    if (!isOpenAIModelRestrictionDisabled.value) {
+      const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
+      if (modelMapping) credentialExtras.model_mapping = modelMapping
+    }
+    const compactModelMapping = buildOpenAICompactModelMapping()
+    if (compactModelMapping) credentialExtras.compact_model_mapping = compactModelMapping
+    if (!applyTempUnschedConfig(credentialExtras)) return
+
+    await adminAPI.accounts.createOpenAICodexPAT({
+      access_token: token,
+      name: form.name,
+      notes: form.notes,
+      group_ids: form.group_ids,
+      proxy_id: form.proxy_id,
+      concurrency: form.concurrency,
+      load_factor: form.load_factor ?? undefined,
+      priority: form.priority,
+      rate_multiplier: form.rate_multiplier,
+      expires_at: form.expires_at,
+      auto_pause_on_expired: autoPauseOnExpired.value,
+      credential_extras: credentialExtras,
+      extra: buildOpenAIExtra()
+    })
+    appStore.showSuccess(t('admin.accounts.accountCreated'))
+    emit('created')
+    handleClose()
+  } catch (error: any) {
+    openaiOAuth.error.value = error.response?.data?.message || error.response?.data?.detail || error.message || t('admin.accounts.oauth.openai.codexPatImportFailed')
+    appStore.showError(openaiOAuth.error.value)
+  } finally {
+    openaiOAuth.loading.value = false
+  }
+}
 
 // Antigravity 手动 RT 批量验证和创建
 const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
