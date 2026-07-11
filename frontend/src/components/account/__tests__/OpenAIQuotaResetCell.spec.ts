@@ -94,7 +94,7 @@ describe('OpenAIQuotaResetCell', () => {
     await wrapper.get('[data-testid="query-openai-quota"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('2')
-    expect(wrapper.text()).toContain('2026')
+    expect(wrapper.find('[title*="2026"]').exists()).toBe(true)
 
     await wrapper.get('[data-testid="reset-openai-quota"]').trigger('click')
     expect(resetOpenAIQuota).not.toHaveBeenCalled()
