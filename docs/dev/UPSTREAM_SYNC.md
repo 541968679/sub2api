@@ -782,3 +782,11 @@ signatures are intentionally conditional: absent files do not fail Phase 0,
 but once `b06190970` becomes an ancestor of the alignment branch the guard permanently requires
 `CountTokensClaudeGPTBridge`, strict bridge route diagnosis, bridge account
 selection, upstream count forwarding, and local-estimate fallback signatures.
+### 2026-07-11 - Payment/redeem/affiliate alignment through `e316ebf52838`
+
+- Adopted Airwallex and multi-currency payment contracts, payment correctness/refund fixes, stale fulfillment recovery, provider hardening, and custom EasyPay methods.
+- Adopted redeem expiration, constrained batch update, affiliate accrual, and invitation validation while preserving local batch metadata and one-per-user database enforcement.
+- Adopted affiliate admin audit records and later audit-source/matured-quota corrections. Renumbered the upstream migration to local migration `185`.
+- Adopted subscription USD-to-CNY conversion only as a default-off opt-in. Existing local plans and distribution subscription costs retain their current numeric semantics unless an administrator explicitly enables the rate.
+- Rejected upstream distribution deletion. The fork-local distribution wallet/assets/API-key implementation and both admin/user frontends remain authoritative.
+- Preserved local bundle subscriptions, `CreditAmount`, first-recharge rewards, WeChat Native QR override, curated model/billing/display-token behavior, Claude-GPT bridge, image generation, account scheduling/failover, and unrelated settings/routes/i18n.

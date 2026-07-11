@@ -24,7 +24,8 @@
 | 支付 | [payment.md](payment.md) | Stripe、微信、支付宝集成 | 2026-05-29 |
 | 兑换码 | [redeem.md](redeem.md) | 兑换码生成、兑换、批次限兑、用户历史 | 2026-06-27 |
 
-| Distribution | [distribution.md](distribution.md) | Distribution agent application, review, wallet, and ledger | 2026-05-14 |
+| Affiliate | [affiliate.md](affiliate.md) | Invitation relationships, rebate accrual, transfer snapshots, and admin audit records | 2026-07-11 |
+| Distribution | [distribution.md](distribution.md) | Distribution agent application, review, wallet, and ledger | 2026-07-11 |
 
 ## 使用说明
 

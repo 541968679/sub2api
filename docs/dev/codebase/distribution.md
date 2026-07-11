@@ -100,3 +100,5 @@ The distribution wallet is intentionally separate from the normal user balance.
 - Refund amount is based on remaining quota and the tracked asset cost/quota, not current global or agent ratio recalculation.
 - The generated API key still belongs to the distributor account; the customer receives the string, not a separate customer-owned key record.
 - Empty `distribution_api_key_group_ids` means no groups are exposed to agents for API key generation.
+- Upstream removed its older distribution implementation during the 2026-07 sync window. That deletion must not be applied here: this fork's independent RMB wallet, ledger, asset lifecycle, API-key operations, admin/user routes, frontend pages, settings, and migrations are active second-development contracts.
+- Payment/redeem syncs may extend the shared redeem schema and service behavior, but must preserve distribution transaction boundaries and must not redirect distribution spend/refunds through normal user balance.

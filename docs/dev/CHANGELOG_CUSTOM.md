@@ -4329,3 +4329,13 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added top-level `cache_creation_input_tokens` compatibility while preserving the existing nested `cache_write_tokens` representation. Conversion selects one cache-creation value rather than summing aliases, so real billing and display-token accounting remain unchanged.
 - Added RED/GREEN contract coverage for custom/tool-search/namespace conversion, paired Codex identity, authenticated user-scoped Fast/Flex forwarding, and cache-creation streaming/non-streaming round trips.
 - Verified the focused backend packages and the complete `internal/service` package, then passed frontend typecheck, lint, all 109 Vitest files (670 tests), and the production build. `upstream-sync-guard` and `git diff --check` also passed.
+## [2026-07-11] feat: Align payment, redeem, and affiliate behavior without removing distribution
+
+**Affected files**: payment providers/services/handlers/frontend, redeem services/admin UI, affiliate repository/admin UI, migration `185`, and payment/redeem/distribution/affiliate module docs.
+**Compatibility**: Medium risk, protected by focused backend/frontend tests. Distribution and bundle subscription contracts are intentionally retained.
+**Details**:
+- Added Airwallex, currency-aware amount handling, pending-refund finalization, stale fulfillment lease recovery, provider response hardening, and custom EasyPay methods.
+- Added redeem expiration enforcement, restricted batch update, balance-redeem affiliate accrual, and pre-transaction invitation validation while retaining local batch-per-user rules.
+- Added admin affiliate invite/rebate/transfer records, exact payment-order audit linkage, transfer snapshots, and matured frozen quota in overview. The additive schema change is migration `185`.
+- Added opt-in subscription USD-to-CNY conversion with a default-off compatibility lock and admin plan charge preview.
+- Rejected upstream distribution deletion and retained the fork-local RMB wallet, ledger, assets, API-key lifecycle, routes, UI, and settings. Retained bundle `member_group_ids`, per-group fulfillment idempotency, local `CreditAmount`, first-recharge bonuses, and forced WeChat Native QR fallback.

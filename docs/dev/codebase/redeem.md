@@ -5,6 +5,7 @@
 - `redeem_codes`: one row per redeem code. Codes are hard-deleted when removed.
 - `redeem_codes.batch_id`: optional generated batch identifier shared by codes created in the same limited batch.
 - `redeem_codes.batch_redeem_limit_per_user`: when true, each user may redeem at most one used code with the same `batch_id`.
+- `redeem_codes.expires_at`: optional expiration timestamp; expired codes are rejected even if their stored status is still active.
 
 ## Key Files
 
@@ -28,6 +29,7 @@
 4. Users redeem through `POST /api/v1/redeem`.
 5. `RedeemService.Redeem` checks rate limits, locks the individual code, loads the code, and rejects the redemption if the user already used another code in the same limited batch.
 6. The service marks the code as used and grants balance, concurrency, subscription access, or invitation usage in a transaction.
+7. A successful positive balance redemption accrues the normal affiliate rebate after the redeem transaction commits. Payment-internal redeem fulfillment sets a context marker so the payment order's own affiliate path remains the single rebate source.
 
 ## Important Mechanisms
 
@@ -35,9 +37,12 @@
 - A partial unique index on `(batch_id, used_by)` applies only when `batch_id IS NOT NULL`, `used_by IS NOT NULL`, `status='used'`, and `batch_redeem_limit_per_user=true`. This is the concurrency fallback for simultaneous redemption of two different codes from the same batch by one user.
 - The user-facing DTO must not expose admin-only notes. Batch metadata is safe to return and is used by admin-generated result/list responses.
 - Invitation codes still redeem through the auth/register paths that call `RedeemCodeRepository.Use`; the batch limit is intended for normal user redemption through `RedeemService.Redeem`.
+- `POST /api/v1/admin/redeem-codes/batch-update` can change status, expiration, notes, and group assignment. It deliberately cannot change code type or value.
+- Invitation eligibility is validated before the transaction starts so a rejected invitation does not consume the code.
 
 ## Known Pitfalls
 
 - Do not implement this as a global per-type limit. The constraint is per generated batch only.
 - Do not remove the database unique index and rely only on the service precheck; per-code locks do not serialize two different codes in the same batch.
 - Ent schema changes require `go generate ./ent` and an additive SQL migration.
+- Do not remove the payment fulfillment context marker: doing so credits affiliate quota twice for payment-generated balance codes.
