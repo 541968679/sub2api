@@ -4306,3 +4306,15 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Added user/admin APIs, admin per-user editing and window reset, dashboard usage display, system registration defaults, and per-auth-source overrides for the four locally supported auth sources.
  - Added Grok to the platform constraint through migration `180`; historical migration `162` remains unchanged.
  - Verification: focused Go package tests, tagged quota unit tests, Ent generation, frontend typecheck, 46 focused Vitest tests, and production frontend build passed.
+
+## [2026-07-11] feat: Align OpenAI/Codex compatibility through upstream 0.1.151
+
+**Affected files**: `backend/internal/pkg/apicompat/*`, `backend/internal/pkg/openai/request.go`, `backend/internal/pkg/ctxkey/ctxkey.go`, `backend/internal/service/openai_*`, `backend/internal/service/{account_test_service,account_usage_service,setting_service,settings_view}.go`, `backend/internal/server/middleware/api_key_auth.go`, `backend/internal/handler/{dto/settings.go,admin/admin_helpers_test.go}`, `frontend/src/{api/admin/settings.ts,views/admin/SettingsView.vue,i18n/locales/en.ts,i18n/locales/zh.ts}`
+**Compatibility**: Medium risk. Manually ports the OpenAI/Codex protocol deltas from `upstream/main@e316ebf52838` without replacing fork-local gateway, billing, model discovery, Images, or Claude-GPT bridge code.
+**Details**:
+- Preserved custom/freeform tools through Responses-to-Chat fallback and added client-executed `tool_search`, namespace child flatten/restore, collision rejection, and valid `tool_choice` filtering.
+- Paired outbound OAuth Codex `originator` with the final User-Agent across HTTP, passthrough, WebSocket, quota probes, and account tests; raised the fallback identity to the upstream minimum `0.144.0`. The Messages compatibility bridge remains a no-originator path.
+- Added user-scoped Fast/Flex rules sourced only from the authenticated API-key owner context. User-specific rules precede global rules while the fork-local default priority-filter rule remains unchanged. Added explicit `force_priority`, validation, DTO, and admin UI support.
+- Added top-level `cache_creation_input_tokens` compatibility while preserving the existing nested `cache_write_tokens` representation. Conversion selects one cache-creation value rather than summing aliases, so real billing and display-token accounting remain unchanged.
+- Added RED/GREEN contract coverage for custom/tool-search/namespace conversion, paired Codex identity, authenticated user-scoped Fast/Flex forwarding, and cache-creation streaming/non-streaming round trips.
+- Verified the focused backend packages and the complete `internal/service` package, then passed frontend typecheck, lint, all 109 Vitest files (670 tests), and the production build. `upstream-sync-guard` and `git diff --check` also passed.

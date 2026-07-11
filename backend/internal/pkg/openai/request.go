@@ -30,6 +30,18 @@ var CodexOfficialClientOriginatorPrefixes = []string{
 	"codex ",
 }
 
+var canonicalCodexOriginators = map[string]string{
+	"codex_cli_rs":          "codex_cli_rs",
+	"codex-tui":             "codex-tui",
+	"codex_vscode":          "codex_vscode",
+	"codex_vscode_copilot":  "codex_vscode_copilot",
+	"codex_app":             "codex_app",
+	"codex_chatgpt_desktop": "codex_chatgpt_desktop",
+	"codex_atlas":           "codex_atlas",
+	"codex_exec":            "codex_exec",
+	"codex_sdk_ts":          "codex_sdk_ts",
+}
+
 // IsBrowserUserAgent 判断 User-Agent 是否来自浏览器（Chrome/Firefox/Safari/Edge/Opera 等）。
 // 所有现代浏览器的 UA 均以 "Mozilla/" 作为前缀，CLI 工具（codex/claude/curl/postman/python-requests 等）不会。
 // 该判定用于避免 Cloudflare 对浏览器型 UA 在 OpenAI 上游接口上触发 JS 质询。
@@ -91,4 +103,66 @@ func matchCodexClientHeaderPrefixes(value string, prefixes []string) bool {
 		}
 	}
 	return false
+}
+
+// PairCodexClientIdentity derives an official originator from the final
+// outbound User-Agent and normalizes its leading client name when necessary.
+func PairCodexClientIdentity(userAgent string) (originator string, pairedUA string, ok bool) {
+	ua := strings.TrimSpace(userAgent)
+	slash := strings.IndexByte(ua, '/')
+	if slash <= 0 {
+		return "", "", false
+	}
+	if leading := strings.TrimSpace(ua[:slash]); isSaneCodexOriginator(leading) {
+		if canonical, found := canonicalCodexOriginator(leading); found {
+			return canonical, canonical + ua[slash:], true
+		}
+	}
+	if trailer := codexUATrailerName(ua); trailer != "" && !strings.ContainsRune(trailer, '/') && isSaneCodexOriginator(trailer) {
+		if canonical, found := canonicalCodexOriginator(trailer); found {
+			return canonical, canonical + ua[slash:], true
+		}
+	}
+	return "", "", false
+}
+
+const codexOriginatorMaxLen = 64
+
+func isSaneCodexOriginator(name string) bool {
+	if name == "" || len(name) > codexOriginatorMaxLen {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		if name[i] < 0x20 || name[i] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
+func canonicalCodexOriginator(name string) (string, bool) {
+	if canonical, ok := canonicalCodexOriginators[normalizeCodexClientHeader(name)]; ok {
+		return canonical, true
+	}
+	if strings.HasPrefix(name, "Codex ") {
+		return name, true
+	}
+	return "", false
+}
+
+func codexUATrailerName(ua string) string {
+	last := strings.LastIndex(ua, "(")
+	if last < 0 {
+		return ""
+	}
+	rest := ua[last+1:]
+	closeIndex := strings.Index(rest, ")")
+	if closeIndex < 0 {
+		return ""
+	}
+	inner := strings.TrimSpace(rest[:closeIndex])
+	if semicolon := strings.Index(inner, ";"); semicolon >= 0 {
+		inner = strings.TrimSpace(inner[:semicolon])
+	}
+	return inner
 }

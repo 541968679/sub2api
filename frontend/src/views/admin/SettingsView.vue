@@ -1038,7 +1038,7 @@
                     <Select
                       :modelValue="rule.action"
                       @update:modelValue="
-                        rule.action = $event as 'pass' | 'filter' | 'block'
+                        rule.action = $event as 'pass' | 'filter' | 'block' | 'force_priority'
                       "
                       :options="openaiFastPolicyActionOptions"
                     />
@@ -1063,6 +1063,44 @@
                       :options="openaiFastPolicyScopeOptions"
                     />
                   </div>
+                </div>
+
+                <div class="mt-3">
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                    {{ t("admin.settings.openaiFastPolicy.userIds") }}
+                  </label>
+                  <p class="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                    {{ t("admin.settings.openaiFastPolicy.userIdsHint") }}
+                  </p>
+                  <div
+                    v-for="(_, userIDIndex) in rule.user_ids || []"
+                    :key="userIDIndex"
+                    class="mb-1.5 flex items-center gap-2"
+                  >
+                    <input
+                      v-model.number="rule.user_ids![userIDIndex]"
+                      type="number"
+                      min="1"
+                      step="1"
+                      class="input input-sm flex-1"
+                      :placeholder="t('admin.settings.openaiFastPolicy.userIdPlaceholder')"
+                    />
+                    <button
+                      type="button"
+                      @click="removeOpenAIFastPolicyUserID(rule, userIDIndex)"
+                      class="shrink-0 rounded p-1 text-red-400 hover:text-red-600"
+                      :title="t('admin.settings.openaiFastPolicy.removeUserId')"
+                    >
+                      <span aria-hidden="true">&times;</span>
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    @click="addOpenAIFastPolicyUserID(rule)"
+                    class="mb-2 text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                  >
+                    {{ t("admin.settings.openaiFastPolicy.addUserId") }}
+                  </button>
                 </div>
 
                 <!-- Error Message (only when action=block) -->
@@ -6869,6 +6907,7 @@ async function loadSettings() {
       openaiFastPolicyForm.rules =
         settings.openai_fast_policy_settings.rules.map((rule) => ({
           ...rule,
+          user_ids: rule.user_ids ? [...rule.user_ids] : [],
           model_whitelist: rule.model_whitelist
             ? [...rule.model_whitelist]
             : [],
@@ -7287,6 +7326,10 @@ async function saveSettings() {
             service_tier: rule.service_tier,
             action: rule.action,
             scope: rule.scope,
+            user_ids:
+              rule.user_ids && rule.user_ids.length > 0
+                ? [...rule.user_ids]
+                : undefined,
             error_message:
               rule.action === "block" ? rule.error_message : undefined,
             model_whitelist: hasWhitelist ? whitelist : undefined,
@@ -7721,6 +7764,10 @@ const openaiFastPolicyActionOptions = computed(() => [
   { value: "pass", label: t("admin.settings.openaiFastPolicy.actionPass") },
   { value: "filter", label: t("admin.settings.openaiFastPolicy.actionFilter") },
   { value: "block", label: t("admin.settings.openaiFastPolicy.actionBlock") },
+  {
+    value: "force_priority",
+    label: t("admin.settings.openaiFastPolicy.actionForcePriority"),
+  },
 ]);
 
 const openaiFastPolicyScopeOptions = computed(() => [
@@ -7738,6 +7785,7 @@ function addOpenAIFastPolicyRule() {
     service_tier: "priority",
     action: "filter",
     scope: "all",
+    user_ids: [],
     error_message: "",
     model_whitelist: [],
     fallback_action: "pass",
@@ -7747,6 +7795,15 @@ function addOpenAIFastPolicyRule() {
 
 function removeOpenAIFastPolicyRule(index: number) {
   openaiFastPolicyForm.rules.splice(index, 1);
+}
+
+function addOpenAIFastPolicyUserID(rule: OpenAIFastPolicyRule) {
+  if (!rule.user_ids) rule.user_ids = [];
+  rule.user_ids.push(1);
+}
+
+function removeOpenAIFastPolicyUserID(rule: OpenAIFastPolicyRule, index: number) {
+  rule.user_ids?.splice(index, 1);
 }
 
 function addOpenAIFastPolicyModelPattern(rule: OpenAIFastPolicyRule) {
