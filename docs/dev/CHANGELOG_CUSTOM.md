@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Preserve credentials and usage on gateway edge paths
+
+**Affected files**: `backend/internal/service/gateway_service.go`, focused scheduler-snapshot and streaming regression tests, and upstream-sync documentation.
+**Upstream compatibility**: Narrow reliability alignment from upstream `29a5fcd25`; selection eligibility, billing formulas, and response transforms are unchanged.
+**Details**:
+- Hydrates the model-routing sticky wait-plan account before returning it, so compact scheduler snapshots cannot reach forwarding without the full credential record.
+- Continues processing the current and subsequent upstream SSE events after a client write failure, preserving input, output, and real cache-read usage for billing and Ops records.
+- Preserves sticky bindings, wait limits, account capability checks, stored billing, `actual_cost`, display-token transforms, and cache-read token quantities.
+
 ## [2026-07-11] fix: Align Go and AWS security baselines
 
 **Affected files**: `backend/go.mod`, `backend/go.sum`, root/backend/deploy Dockerfiles, backend/release/security workflows, and upstream-sync documentation.

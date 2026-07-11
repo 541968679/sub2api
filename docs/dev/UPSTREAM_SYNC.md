@@ -39,6 +39,13 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Gateway selection and stream-drain reliability
+
+- **Upstream source**: relevant gateway fixes from `29a5fcd25` through target `e316ebf52838`.
+- Reconciled two behavior-level defects against the fork instead of importing the wider commit: sticky model-routing wait plans now use the existing scheduler-snapshot hydration boundary, and a client write failure no longer skips usage carried by the same SSE event.
+- No account eligibility, routing weights, sticky binding, wait-limit, billing, pricing, display-token, cache-read, bridge, Images, Grok, settings, route, schema, or migration contract changed.
+- Focused tests reproduce the former missing-credential and missing-usage behavior and verify complete input/output/cache-read accounting after the fix.
+
 ### 2026-07-11 - Go and AWS dependency security baseline
 
 - **Upstream sources**: `a4f942d8a` and `25a716960` through target `e316ebf52838`.

@@ -6,6 +6,9 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/stretchr/testify/require"
 )
 
 type snapshotHydrationCache struct {
@@ -160,4 +163,84 @@ func TestGatewaySelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedu
 	if got := result.Account.GetCredential("api_key"); got != "anthropic-live-key" {
 		t.Fatalf("expected hydrated api key, got %q", got)
 	}
+}
+
+func TestGatewaySelectAccountWithLoadAwareness_HydratesStickyWaitAccountFromSchedulerSnapshot(t *testing.T) {
+	const (
+		accountID = int64(9)
+	)
+	groupID := int64(20)
+	cache := &snapshotHydrationCache{
+		snapshot: []*Account{
+			{
+				ID:          accountID,
+				Platform:    PlatformAnthropic,
+				Type:        AccountTypeAPIKey,
+				Status:      StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    1,
+			},
+		},
+		accounts: map[int64]*Account{
+			accountID: {
+				ID:          accountID,
+				Platform:    PlatformAnthropic,
+				Type:        AccountTypeAPIKey,
+				Status:      StatusActive,
+				Schedulable: true,
+				Concurrency: 1,
+				Priority:    1,
+				Credentials: map[string]any{"api_key": "anthropic-live-key"},
+			},
+		},
+	}
+
+	schedulerSnapshot := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
+	gatewayCache := &mockGatewayCacheForPlatform{
+		sessionBindings: map[string]int64{"sticky-session": accountID},
+	}
+	groupRepo := &mockGroupRepoForGateway{
+		groups: map[int64]*Group{
+			groupID: {
+				ID:                  groupID,
+				Platform:            PlatformAnthropic,
+				Status:              StatusActive,
+				Hydrated:            true,
+				ModelRoutingEnabled: true,
+				ModelRouting: map[string][]int64{
+					"claude-3-5-sonnet-20241022": {accountID},
+				},
+			},
+		},
+	}
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	cfg.Gateway.Scheduling.StickySessionMaxWaiting = 1
+
+	svc := &GatewayService{
+		schedulerSnapshot: schedulerSnapshot,
+		groupRepo:         groupRepo,
+		cache:             gatewayCache,
+		cfg:               cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{
+			acquireResults: map[int64]bool{accountID: false},
+			waitCounts:     map[int64]int{accountID: 0},
+		}),
+	}
+
+	result, err := svc.SelectAccountWithLoadAwareness(
+		context.Background(),
+		&groupID,
+		"sticky-session",
+		"claude-3-5-sonnet-20241022",
+		nil,
+		"",
+		0,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.WaitPlan)
+	require.Equal(t, accountID, result.Account.ID)
+	require.Equal(t, "anthropic-live-key", result.Account.GetCredential("api_key"))
 }
