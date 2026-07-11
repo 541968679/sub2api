@@ -1142,9 +1142,44 @@ func (s *defaultOpenAIAccountScheduler) isAccountTransportCompatible(account *Ac
 	return s.service.isOpenAIAccountTransportCompatible(account, requiredTransport)
 }
 
-func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(account *Account, req OpenAIAccountScheduleRequest) bool {
+func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(args ...any) bool {
+	ctx := context.Background()
+	var account *Account
+	var req OpenAIAccountScheduleRequest
+	switch len(args) {
+	case 2:
+		account, _ = args[0].(*Account)
+		req, _ = args[1].(OpenAIAccountScheduleRequest)
+	case 3:
+		if candidate, ok := args[0].(context.Context); ok {
+			ctx = candidate
+		}
+		account, _ = args[1].(*Account)
+		req, _ = args[2].(OpenAIAccountScheduleRequest)
+	default:
+		return false
+	}
 	if account == nil {
 		return false
+	}
+	if account.IsShadow() {
+		if s == nil || s.service == nil {
+			return false
+		}
+		if !parentHealthyForShadow(account, func(parentID int64) *Account {
+			if s.service.schedulerSnapshot != nil {
+				if parent, err := s.service.schedulerSnapshot.GetAccount(ctx, parentID); err == nil && parent != nil {
+					return parent
+				}
+			}
+			if s.service.accountRepo != nil {
+				parent, _ := s.service.accountRepo.GetByID(ctx, parentID)
+				return parent
+			}
+			return nil
+		}) {
+			return false
+		}
 	}
 	if !isOpenAIAccountEligibleForScheduleRequest(account, openAIAccountRequestEligibility{
 		Platform:               req.Platform,

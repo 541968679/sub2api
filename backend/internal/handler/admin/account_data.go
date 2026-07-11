@@ -38,11 +38,12 @@ const (
 )
 
 type DataPayload struct {
-	Type       string        `json:"type,omitempty"`
-	Version    int           `json:"version,omitempty"`
-	ExportedAt string        `json:"exported_at"`
-	Proxies    []DataProxy   `json:"proxies"`
-	Accounts   []DataAccount `json:"accounts"`
+	Type           string        `json:"type,omitempty"`
+	Version        int           `json:"version,omitempty"`
+	ExportedAt     string        `json:"exported_at"`
+	Proxies        []DataProxy   `json:"proxies"`
+	Accounts       []DataAccount `json:"accounts"`
+	SkippedShadows int           `json:"skipped_shadows,omitempty"`
 }
 
 type DataProxy struct {
@@ -137,6 +138,7 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	accounts, skippedShadows := excludeShadowAccountsFromExport(accounts)
 
 	if exportFormat == accountExportFormatCodex {
 		payload, includedAccountIDs := buildCodexAuthPayloads(accounts)
@@ -218,9 +220,10 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 
 	exportedAt := time.Now().UTC()
 	payload := DataPayload{
-		ExportedAt: exportedAt.Format(time.RFC3339),
-		Proxies:    dataProxies,
-		Accounts:   dataAccounts,
+		ExportedAt:     exportedAt.Format(time.RFC3339),
+		Proxies:        dataProxies,
+		Accounts:       dataAccounts,
+		SkippedShadows: skippedShadows,
 	}
 
 	if exportOptions.MarkExported && len(accounts) > 0 {
@@ -237,6 +240,19 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 	response.Success(c, payload)
 }
 
+func excludeShadowAccountsFromExport(accounts []service.Account) ([]service.Account, int) {
+	filtered := make([]service.Account, 0, len(accounts))
+	skipped := 0
+	for i := range accounts {
+		if accounts[i].IsShadow() {
+			skipped++
+			continue
+		}
+		filtered = append(filtered, accounts[i])
+	}
+	return filtered, skipped
+}
+
 func buildCodexAuthPayloads(accounts []service.Account) ([]CodexAuthPayload, []int64) {
 	payloads := make([]CodexAuthPayload, 0, len(accounts))
 	accountIDs := make([]int64, 0, len(accounts))
@@ -250,7 +266,7 @@ func buildCodexAuthPayloads(accounts []service.Account) ([]CodexAuthPayload, []i
 }
 
 func buildCodexAuthPayload(account service.Account) (CodexAuthPayload, bool) {
-	if account.Platform != service.PlatformOpenAI || account.Type != service.AccountTypeOAuth {
+	if account.IsShadow() || account.Platform != service.PlatformOpenAI || account.Type != service.AccountTypeOAuth {
 		return CodexAuthPayload{}, false
 	}
 	idToken := strings.TrimSpace(account.GetCredential("id_token"))

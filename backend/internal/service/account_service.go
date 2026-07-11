@@ -80,6 +80,18 @@ type AccountRepository interface {
 	ResetQuotaUsed(ctx context.Context, id int64) error
 }
 
+type accountShadowRepository interface {
+	ListShadowsByParent(context.Context, int64) ([]*Account, error)
+}
+
+func listAccountShadows(ctx context.Context, repo AccountRepository, parentID int64) ([]*Account, error) {
+	r, ok := repo.(accountShadowRepository)
+	if !ok {
+		return nil, nil
+	}
+	return r.ListShadowsByParent(ctx, parentID)
+}
+
 // AccountBulkUpdate describes the fields that can be updated in a bulk operation.
 // Nil pointers mean "do not change".
 type AccountBulkUpdate struct {

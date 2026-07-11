@@ -281,6 +281,7 @@ type AccountUsageService struct {
 	cache                   *UsageCache
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
+	openAIQuotaService      *OpenAIQuotaService
 }
 
 // NewAccountUsageService 创建AccountUsageService实例
@@ -304,6 +305,10 @@ func NewAccountUsageService(
 		identityCache:           identityCache,
 		tlsFPProfileService:     tlsFPProfileService,
 	}
+}
+
+func (s *AccountUsageService) SetOpenAIQuotaService(quota *OpenAIQuotaService) {
+	s.openAIQuotaService = quota
 }
 
 // GetUsage 获取账号使用量
@@ -513,7 +518,7 @@ func (s *AccountUsageService) syncActiveToPassive(ctx context.Context, accountID
 	}
 }
 
-func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
+func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account, force ...bool) (*UsageInfo, error) {
 	now := time.Now()
 	usage := &UsageInfo{UpdatedAt: &now}
 
@@ -528,8 +533,21 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 		usage.SevenDay = progress
 	}
 
-	if shouldRefreshOpenAICodexSnapshot(account, usage, now) && s.shouldProbeOpenAICodexSnapshot(account.ID, now) {
-		if updates, err := s.probeOpenAICodexSnapshot(ctx, account); err == nil && len(updates) > 0 {
+	forceProbe := len(force) > 0 && force[0]
+	if (forceProbe || shouldRefreshOpenAICodexSnapshot(account, usage, now)) && s.shouldProbeOpenAICodexSnapshot(account.ID, now) {
+		if account.IsShadow() && s.openAIQuotaService != nil {
+			if snapshot, err := s.openAIQuotaService.QueryUsage(ctx, account.ID); err == nil {
+				updates := buildCodexSparkWindowExtraUpdates(snapshot, now)
+				mergeAccountExtra(account, updates)
+				s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+				if progress := buildCodexUsageProgressFromExtra(account.Extra, "5h", now); progress != nil {
+					usage.FiveHour = progress
+				}
+				if progress := buildCodexUsageProgressFromExtra(account.Extra, "7d", now); progress != nil {
+					usage.SevenDay = progress
+				}
+			}
+		} else if updates, err := s.probeOpenAICodexSnapshot(ctx, account); err == nil && len(updates) > 0 {
 			mergeAccountExtra(account, updates)
 			if usage.UpdatedAt == nil {
 				usage.UpdatedAt = &now
@@ -581,7 +599,7 @@ func shouldRefreshOpenAICodexSnapshot(account *Account, usage *UsageInfo, now ti
 }
 
 func isOpenAICodexSnapshotStale(account *Account, now time.Time) bool {
-	if account == nil || !account.IsOpenAIOAuth() || !account.IsOpenAIResponsesWebSocketV2Enabled() {
+	if account == nil || !account.IsOpenAIOAuth() || (!account.IsShadow() && !account.IsOpenAIResponsesWebSocketV2Enabled()) {
 		return false
 	}
 	if account.Extra == nil {
@@ -596,6 +614,38 @@ func isOpenAICodexSnapshotStale(account *Account, now time.Time) bool {
 		return true
 	}
 	return now.Sub(ts) >= openAIProbeCacheTTL
+}
+
+func buildCodexSparkWindowExtraUpdates(usage *OpenAIQuotaUsage, now time.Time) map[string]any {
+	if usage == nil {
+		return nil
+	}
+	for _, item := range usage.AdditionalRateLimits {
+		if item.MeteredFeature != "codex_bengalfox" || item.RateLimit == nil {
+			continue
+		}
+		updates := map[string]any{"codex_usage_updated_at": now.UTC().Format(time.RFC3339)}
+		windows := []*OpenAIRateLimitWindow{item.RateLimit.PrimaryWindow, item.RateLimit.SecondaryWindow}
+		for _, w := range windows {
+			if w == nil {
+				continue
+			}
+			name := "5h"
+			if w.LimitWindowSeconds > 24*60*60 {
+				name = "7d"
+			}
+			updates["codex_"+name+"_used_percent"] = w.UsedPercent
+			updates["codex_"+name+"_reset_after_seconds"] = w.ResetAfterSeconds
+			updates["codex_"+name+"_window_seconds"] = w.LimitWindowSeconds
+			if w.ResetAt > 0 {
+				updates["codex_"+name+"_reset_at"] = time.Unix(w.ResetAt, 0).UTC().Format(time.RFC3339)
+			} else if w.ResetAfterSeconds > 0 {
+				updates["codex_"+name+"_reset_at"] = now.Add(time.Duration(w.ResetAfterSeconds) * time.Second).UTC().Format(time.RFC3339)
+			}
+		}
+		return updates
+	}
+	return nil
 }
 
 func (s *AccountUsageService) shouldProbeOpenAICodexSnapshot(accountID int64, now time.Time) bool {

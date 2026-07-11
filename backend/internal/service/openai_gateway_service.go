@@ -1386,8 +1386,15 @@ func isOpenAIAccountEligibleForScheduleRequest(account *Account, req openAIAccou
 		if _, ok := account.ResolveClaudeGPTBridgeModel(req.RequestedModel); !ok {
 			return false
 		}
-	} else if req.RequestedModel != "" && !account.IsModelSupported(req.RequestedModel) {
-		return false
+	} else if req.RequestedModel != "" {
+		if isCodexSparkModel(req.RequestedModel) {
+			mapping := account.GetModelMapping()
+			if !account.IsShadow() && !mappingSupportsRequestedModel(mapping, req.RequestedModel) {
+				return false
+			}
+		} else if !account.IsModelSupported(req.RequestedModel) {
+			return false
+		}
 	}
 	if req.RequireCompact && openAICompactSupportTier(account) == 0 {
 		return false
@@ -2141,6 +2148,13 @@ func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig
 
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
+	if account != nil && account.IsShadow() {
+		resolved, err := resolveCredentialAccount(ctx, s.accountRepo, account)
+		if err != nil {
+			return "", "", err
+		}
+		account = resolved
+	}
 	switch account.Type {
 	case AccountTypeOAuth:
 		if account.Platform == PlatformGrok {
@@ -3319,7 +3333,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	if account.Type == AccountTypeOAuth {
 		promptCacheKey := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
 		req.Host = "chatgpt.com"
-		setOpenAIChatGPTAccountHeaders(req.Header, account)
+		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
+			return nil, err
+		}
 		apiKeyID := getAPIKeyIDFromContext(c)
 		// 先保存客户端原始值，再做 compact 补充，避免后续统一隔离时读到已处理的值。
 		clientSessionID := strings.TrimSpace(req.Header.Get("session_id"))
@@ -4113,7 +4129,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	if account.Type == AccountTypeOAuth {
 		// Required: set Host for ChatGPT API (must use req.Host, not Header.Set)
 		req.Host = "chatgpt.com"
-		setOpenAIChatGPTAccountHeaders(req.Header, account)
+		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
+			return nil, err
+		}
 	}
 
 	// Whitelist passthrough headers

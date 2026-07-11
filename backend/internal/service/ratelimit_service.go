@@ -233,6 +233,14 @@ func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Accoun
 // HandleUpstreamError 处理上游错误响应，标记账号状态
 // 返回是否应该停止该账号的调度
 func (s *RateLimitService) HandleUpstreamError(ctx context.Context, account *Account, statusCode int, headers http.Header, responseBody []byte) (shouldDisable bool) {
+	if statusCode == http.StatusUnauthorized && account != nil && account.IsShadow() {
+		credentialAccount, err := resolveCredentialAccount(ctx, s.accountRepo, account)
+		if err != nil {
+			slog.Warn("spark_shadow_401_parent_unavailable", "account_id", account.ID, "error", err)
+			return true
+		}
+		account = credentialAccount
+	}
 	if s.HandleOpenAIImageRateLimit(ctx, account, statusCode, headers, responseBody) {
 		return false
 	}
@@ -933,8 +941,12 @@ func (s *RateLimitService) handleCustomErrorCode(ctx context.Context, account *A
 // handle429 处理429限流错误
 // 解析响应头获取重置时间，标记账号为限流状态
 func (s *RateLimitService) handle429(ctx context.Context, account *Account, headers http.Header, responseBody []byte) {
+	if account != nil && account.IsShadow() {
+		return
+	}
 	// 1. OpenAI 平台：优先尝试解析 x-codex-* 响应头（用于 rate_limit_exceeded）
 	if account.Platform == PlatformOpenAI {
+		persistOpenAI429PlanType(ctx, s.accountRepo, account, responseBody)
 		s.persistOpenAICodexSnapshot(ctx, account, headers)
 		if resetAt := s.calculateOpenAI429ResetTime(headers); resetAt != nil {
 			if err := s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt); err != nil {
@@ -1043,6 +1055,33 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 	}
 
 	slog.Info("account_rate_limited", "account_id", account.ID, "reset_at", resetAt)
+}
+
+func parseOpenAIRateLimitPlanType(body []byte) string {
+	var payload map[string]any
+	if json.Unmarshal(body, &payload) != nil {
+		return ""
+	}
+	errObj, _ := payload["error"].(map[string]any)
+	planType, _ := errObj["plan_type"].(string)
+	return strings.ToLower(strings.TrimSpace(planType))
+}
+
+func persistOpenAI429PlanType(ctx context.Context, repo AccountRepository, account *Account, body []byte) {
+	if repo == nil || account == nil || account.Platform != PlatformOpenAI || account.IsShadow() {
+		return
+	}
+	planType := parseOpenAIRateLimitPlanType(body)
+	if planType == "" || strings.EqualFold(account.GetCredential("plan_type"), planType) {
+		return
+	}
+	if _, err := repo.BulkUpdate(ctx, []int64{account.ID}, AccountBulkUpdate{Credentials: map[string]any{"plan_type": planType}}); err != nil {
+		return
+	}
+	if account.Credentials == nil {
+		account.Credentials = map[string]any{}
+	}
+	account.Credentials["plan_type"] = planType
 }
 
 // calculateOpenAI429ResetTime 从 OpenAI 429 响应头计算正确的重置时间
@@ -1312,6 +1351,9 @@ func pickSooner(a, b *time.Time) *time.Time {
 }
 
 func (s *RateLimitService) persistOpenAICodexSnapshot(ctx context.Context, account *Account, headers http.Header) {
+	if account == nil || account.IsShadow() {
+		return
+	}
 	if s == nil || s.accountRepo == nil || account == nil || headers == nil {
 		return
 	}

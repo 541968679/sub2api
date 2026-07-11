@@ -127,6 +127,13 @@ type AdminService interface {
 	BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error)
 }
 
+type ShadowOptions struct {
+	Name        string
+	Priority    int
+	Concurrency int
+	GroupIDs    []int64
+}
+
 // CreateUserInput represents input for creating a new user via admin operations.
 type CreateUserInput struct {
 	Email                    string
@@ -2699,6 +2706,10 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSparkShadowAccountUpdate(ctx, s.accountRepo, account, input); err != nil {
+		return nil, err
+	}
+	originalProxyID := account.ProxyID
 	wasOveragesEnabled := account.IsOveragesEnabled()
 
 	if input.Name != "" {
@@ -2710,7 +2721,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.Notes != nil {
 		account.Notes = normalizeAccountNotes(input.Notes)
 	}
-	if len(input.Credentials) > 0 {
+	if account.IsShadow() && input.Credentials != nil {
+		account.Credentials = sanitizeSparkShadowCredentials(input.Credentials)
+	} else if len(input.Credentials) > 0 {
 		account.Credentials = input.Credentials
 		// 校验并规范化请求头覆写配置（header 名小写化、格式检查）
 		if err := NormalizeHeaderOverrideCredentials(account.Credentials); err != nil {
@@ -2753,6 +2766,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		}
 		account.Proxy = nil // 清除关联对象，防止 GORM Save 时根据 Proxy.ID 覆盖 ProxyID
 	}
+	if account.IsShadow() {
+		account.ProxyID = originalProxyID
+	}
 	// 只在指针非 nil 时更新 Concurrency（支持设置为 0）
 	if input.Concurrency != nil {
 		account.Concurrency = *input.Concurrency
@@ -2793,12 +2809,18 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 
 	// 先验证分组是否存在（在任何写操作之前）
 	if input.GroupIDs != nil {
-		if err := s.validateAccountGroupBindings(ctx, account.Platform, account.Extra, *input.GroupIDs); err != nil {
-			return nil, err
+		var groupValidationErr error
+		if account.IsShadow() {
+			groupValidationErr = s.validateGroupIDsExist(ctx, *input.GroupIDs)
+		} else {
+			groupValidationErr = s.validateAccountGroupBindings(ctx, account.Platform, account.Extra, *input.GroupIDs)
+		}
+		if groupValidationErr != nil {
+			return nil, groupValidationErr
 		}
 
 		// 检查混合渠道风险（除非用户已确认）
-		if !input.SkipMixedChannelCheck {
+		if !account.IsShadow() && !input.SkipMixedChannelCheck {
 			if err := s.checkMixedChannelRisk(ctx, account.ID, account.Platform, *input.GroupIDs); err != nil {
 				return nil, err
 			}
@@ -2807,6 +2829,11 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 
 	if err := s.accountRepo.Update(ctx, account); err != nil {
 		return nil, err
+	}
+	if input.ProxyID != nil && !account.IsShadow() {
+		if err := propagateAccountProxyToShadows(ctx, s.accountRepo, account.ID, account.ProxyID); err != nil {
+			return nil, err
+		}
 	}
 
 	// 绑定分组
@@ -2843,6 +2870,22 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	if len(input.AccountIDs) == 0 {
 		return result, nil
+	}
+	var loadedAccounts []*Account
+	if len(input.Credentials) > 0 || input.ProxyID != nil {
+		var err error
+		loadedAccounts, err = s.accountRepo.GetByIDs(ctx, input.AccountIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, account := range loadedAccounts {
+			if account != nil && account.IsShadow() && !isAllowedSparkShadowCredentialsUpdate(input.Credentials) {
+				return nil, infraerrors.BadRequest("SPARK_SHADOW_CREDENTIALS_FORBIDDEN", "bulk update cannot write authentication credentials to spark shadows")
+			}
+			if account != nil && account.IsShadow() && input.ProxyID != nil {
+				return nil, infraerrors.BadRequest("SPARK_SHADOW_PROXY_FORBIDDEN", "spark shadow proxy is inherited from its parent account")
+			}
+		}
 	}
 	if input.GroupIDs != nil {
 		if err := s.validateGroupIDsExist(ctx, *input.GroupIDs); err != nil {
@@ -2944,6 +2987,15 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	if _, err := s.accountRepo.BulkUpdate(ctx, input.AccountIDs, repoUpdates); err != nil {
 		return nil, err
 	}
+	if input.ProxyID != nil {
+		for _, account := range loadedAccounts {
+			if account != nil && !account.IsShadow() {
+				if err := propagateAccountProxyToShadows(ctx, s.accountRepo, account.ID, input.ProxyID); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
 
 	// Handle group bindings per account (requires individual operations).
 	for _, accountID := range input.AccountIDs {
@@ -3019,7 +3071,7 @@ func (s *adminServiceImpl) resolveBulkUpdateTargetIDs(ctx context.Context, filte
 }
 
 func (s *adminServiceImpl) DeleteAccount(ctx context.Context, id int64) error {
-	if err := s.accountRepo.Delete(ctx, id); err != nil {
+	if err := deleteAccountWithShadows(ctx, s.accountRepo, id); err != nil {
 		return err
 	}
 	return nil
@@ -3991,13 +4043,20 @@ func (e *MixedChannelError) Error() string {
 }
 
 func (s *adminServiceImpl) ResetAccountQuota(ctx context.Context, id int64) error {
+	account, err := s.accountRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if account.IsShadow() {
+		return infraerrors.BadRequest("SPARK_SHADOW_QUOTA_RESET_FORBIDDEN", "spark shadow quota is managed by its Spark quota dimension")
+	}
 	return s.accountRepo.ResetQuotaUsed(ctx, id)
 }
 
 // EnsureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，
 // 未设置则调用 disableOpenAITraining 并持久化到 Extra，返回设置的 mode 值。
 func (s *adminServiceImpl) EnsureOpenAIPrivacy(ctx context.Context, account *Account) string {
-	if account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
+	if account == nil || account.IsCredentialShadow() || account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
 		return ""
 	}
 	if s.privacyClientFactory == nil {
@@ -4030,7 +4089,7 @@ func (s *adminServiceImpl) EnsureOpenAIPrivacy(ctx context.Context, account *Acc
 
 // ForceOpenAIPrivacy 强制重新设置 OpenAI OAuth 账号隐私，无论当前状态。
 func (s *adminServiceImpl) ForceOpenAIPrivacy(ctx context.Context, account *Account) string {
-	if account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
+	if account == nil || account.IsCredentialShadow() || account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
 		return ""
 	}
 	if s.privacyClientFactory == nil {

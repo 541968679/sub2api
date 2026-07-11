@@ -1150,7 +1150,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	}
 
 	if account != nil && account.Type == AccountTypeOAuth {
-		setOpenAIChatGPTAccountHeaders(headers, account)
+		_ = resolveAndSetOpenAIChatGPTAccountHeaders(context.Background(), s.accountRepo, headers, account)
 		headers.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI))
 	}
 
@@ -1162,7 +1162,10 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 
 	customUA := ""
 	if account != nil {
-		customUA = account.GetOpenAIUserAgent()
+		credentialAccount, err := resolveCredentialAccount(context.Background(), s.accountRepo, account)
+		if err == nil && credentialAccount != nil {
+			customUA = credentialAccount.GetOpenAIUserAgent()
+		}
 	}
 	if strings.TrimSpace(customUA) != "" {
 		headers.Set("user-agent", customUA)

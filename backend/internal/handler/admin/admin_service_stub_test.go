@@ -30,6 +30,7 @@ type stubAdminService struct {
 	markedExportedIDs                   []int64
 	markedExportedAt                    time.Time
 	createAccountErr                    error
+	createSparkShadowErr                error
 	updateAccountErr                    error
 	bulkUpdateAccountErr                error
 	checkMixedErr                       error
@@ -75,6 +76,14 @@ type stubAdminService struct {
 	}
 	lastGenerateRedeemCodes *service.GenerateRedeemCodesInput
 	mu                      sync.Mutex
+}
+
+func (s *stubAdminService) CreateShadow(_ context.Context, parentID int64, opts service.ShadowOptions) (*service.Account, error) {
+	if s.createSparkShadowErr != nil {
+		return nil, s.createSparkShadowErr
+	}
+	return &service.Account{ID: 1, Name: opts.Name, Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth,
+		Status: service.StatusActive, ParentAccountID: &parentID, QuotaDimension: service.QuotaDimensionSpark}, nil
 }
 
 func newStubAdminService() *stubAdminService {

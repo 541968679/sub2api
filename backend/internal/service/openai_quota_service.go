@@ -14,6 +14,8 @@ import (
 	"github.com/imroc/req/v3"
 )
 
+var ErrSparkShadowResetNotSupported = infraerrors.New(http.StatusConflict, "SPARK_SHADOW_RESET_NOT_SUPPORTED", "spark shadow account does not support credit reset; reset the parent account")
+
 var openAIQuotaRedeemRequestIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`)
 
 func IsValidOpenAIQuotaRedeemRequestID(value string) bool {
@@ -199,6 +201,15 @@ func (s *OpenAIQuotaService) queryResetCreditDetails(ctx context.Context, client
 // The redeem_request_id is auto-generated (uuid-like) — upstream uses it for
 // idempotency. Returns the consumed credit metadata so the UI can refresh.
 func (s *OpenAIQuotaService) ResetCredit(ctx context.Context, accountID int64, redeemRequestID string) (*OpenAIQuotaResetResult, error) {
+	if s != nil && s.accountRepo != nil {
+		account, err := s.accountRepo.GetByID(ctx, accountID)
+		if err != nil {
+			return nil, infraerrors.Newf(http.StatusNotFound, "OPENAI_QUOTA_ACCOUNT_NOT_FOUND", "account not found: %v", err)
+		}
+		if account != nil && account.IsShadow() {
+			return nil, ErrSparkShadowResetNotSupported
+		}
+	}
 	if !IsValidOpenAIQuotaRedeemRequestID(redeemRequestID) {
 		return nil, infraerrors.New(http.StatusBadRequest, "OPENAI_QUOTA_INVALID_REDEEM_REQUEST_ID", "a valid redeem_request_id is required")
 	}
@@ -251,20 +262,24 @@ func (s *OpenAIQuotaService) prepareUpstreamCall(ctx context.Context, accountID 
 		return "", "", "", nil, infraerrors.New(http.StatusInternalServerError, "OPENAI_QUOTA_NOT_CONFIGURED", "openai quota service is not configured")
 	}
 
-	account, err = s.accountRepo.GetByID(ctx, accountID)
+	requested, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return "", "", "", nil, infraerrors.Newf(http.StatusNotFound, "OPENAI_QUOTA_ACCOUNT_NOT_FOUND", "account not found: %v", err)
 	}
-	if account == nil {
+	if requested == nil {
 		return "", "", "", nil, infraerrors.New(http.StatusNotFound, "OPENAI_QUOTA_ACCOUNT_NOT_FOUND", "account not found")
 	}
-	if account.Platform != PlatformOpenAI {
+	if requested.Platform != PlatformOpenAI {
 		return "", "", "", nil, infraerrors.New(http.StatusBadRequest, "OPENAI_QUOTA_INVALID_PLATFORM", "account is not an OpenAI account")
 	}
-	if account.Type != AccountTypeOAuth {
+	if requested.Type != AccountTypeOAuth {
 		return "", "", "", nil, infraerrors.New(http.StatusBadRequest, "OPENAI_QUOTA_INVALID_TYPE", "account is not an OAuth account")
 	}
 
+	account, err = resolveCredentialAccount(ctx, s.accountRepo, requested)
+	if err != nil {
+		return "", "", "", nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_QUOTA_PARENT_UNAVAILABLE", "%v", err)
+	}
 	chatGPTAccountID = strings.TrimSpace(account.GetCredential("chatgpt_account_id"))
 	if chatGPTAccountID == "" {
 		// Fall back to organization_id — some legacy accounts only persisted poid.

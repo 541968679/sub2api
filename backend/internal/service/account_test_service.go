@@ -178,6 +178,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Account not found")
 	}
+	account, err = resolveCredentialAccount(ctx, s.accountRepo, account)
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
 
 	// Route to platform-specific test method
 	if account.IsOpenAI() {
