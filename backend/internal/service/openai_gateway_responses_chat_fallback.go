@@ -58,6 +58,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	// tool_search_call 项。
 	customTools := apicompat.CustomToolNames(responsesReq.Tools)
 	toolSearch := apicompat.HasToolSearchTool(responsesReq.Tools)
+	namespaceTools := apicompat.NamespaceToolNames(responsesReq.Tools)
 
 	chatReq, err := apicompat.ResponsesToChatCompletionsRequest(&responsesReq)
 	if err != nil {
