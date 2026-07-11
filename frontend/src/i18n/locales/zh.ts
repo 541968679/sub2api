@@ -7670,15 +7670,6 @@ const v117ZhPatch = {
     verifyAndCreate: '验证并提交申请'
   },
   admin: {
-    groups: {
-      batchImage: {
-        allowImage: '开启图片生成',
-        allowBatch: '开启批量生图',
-        discount: '批量价格倍率',
-        hold: '余额冻结倍率',
-        holdInvariant: '余额冻结倍率必须大于或等于批量价格倍率。'
-      }
-    },
     distribution: {
       title: '分销管理',
       description: '审核分销代理申请并管理第一阶段准入。',
@@ -8017,6 +8008,13 @@ const v117ZhPatch = {
           validateAndCreate: '验证并创建',
           validating: '验证中...',
           failedToValidateRT: '验证 Refresh Token 失败'
+        },
+        grok: {
+          failedToGenerateUrl: '生成 Grok 授权链接失败',
+          missingExchangeParams: '缺少 code / session_id / state',
+          failedToExchangeCode: 'Grok 授权码兑换失败',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToValidateRT: '验证 Refresh Token 失败'
         }
       },
       openai: {
@@ -8031,6 +8029,13 @@ const v117ZhPatch = {
       }
     },
     groups: {
+      batchImage: {
+        allowImage: '开启图片生成',
+        allowBatch: '开启批量生图',
+        discount: '批量价格倍率',
+        hold: '余额冻结倍率',
+        holdInvariant: '余额冻结倍率必须大于或等于批量价格倍率。'
+      },
       claudeMaxSimulation: {
         title: 'Claude Max 模拟',
         hint: '为该分组启用 Claude Max 风格的额度与限制模拟。',

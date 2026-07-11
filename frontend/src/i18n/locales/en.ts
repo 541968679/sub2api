@@ -7927,6 +7927,13 @@ const phase0LocalePatch = {
         openai: {
           accessTokenAuth: 'Access token auth',
           mobileRefreshTokenAuth: 'Mobile refresh token auth'
+        },
+        grok: {
+          failedToGenerateUrl: 'Failed to generate Grok auth URL',
+          missingExchangeParams: 'Missing auth code, session ID, or state',
+          failedToExchangeCode: 'Failed to exchange Grok auth code',
+          pleaseEnterRefreshToken: 'Please enter a refresh token',
+          failedToValidateRT: 'Failed to validate refresh token'
         }
       },
       openai: {
@@ -7953,13 +7960,13 @@ const phase0LocalePatch = {
     groups: {
       accountsUnit: 'accounts',
       failedToSave: 'Failed to save',
-	  batchImage: {
-		allowImage: 'Enable image generation',
-		allowBatch: 'Enable batch image generation',
-		discount: 'Batch price multiplier',
-		hold: 'Balance hold multiplier',
-		holdInvariant: 'The balance hold multiplier must be greater than or equal to the batch price multiplier.'
-	  }
+      batchImage: {
+        allowImage: 'Enable image generation',
+        allowBatch: 'Enable batch image generation',
+        discount: 'Batch price multiplier',
+        hold: 'Balance hold multiplier',
+        holdInvariant: 'The balance hold multiplier must be greater than or equal to the batch price multiplier.'
+      }
     },
     ops: {
       result: 'Result',
