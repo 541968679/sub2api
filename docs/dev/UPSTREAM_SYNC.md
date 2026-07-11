@@ -1131,6 +1131,17 @@ selection, upstream count forwarding, and local-estimate fallback signatures.
   Grok video/media multipliers, Batch Image frozen-balance settlement, bundle
  subscriptions, Claude-GPT bridge, curated models, and scheduler/failover.
  - **Pushed/deployed**: no.
+
+### 2026-07-11 - Grok image and usage completion from `b480545c1`
+
+- **Branch**: `codex/upstream-grok-completion-20260711`
+- **Local baseline**: `06eebdbd65a83572f6ca82c8283d27465e008102`
+- **Strategy**: TDD-first selective adaptation. Shared Grok and account files were reconciled against current fork behavior rather than cherry-picked wholesale.
+- **Adopted**: `grok-imagine*` image-model recognition; Grok OAuth local usage and request/token quota display; retry/entitlement/status/probe/header metadata; complete structured OAuth error guidance in both locales.
+- **Already present / not reapplied**: Grok local usage aggregation and backend DTO fields, response-size sanitization, fixed quota probe behavior, composer model aliasing, the shared API error parser, quota observation persistence, and Grok media response/billing fixes.
+- **Secondary-development boundary**: the frontend displays backend `cost` and `user_cost` verbatim and never derives unit prices from tokens. Stored billing, `actual_cost`, cache-read quantities, display transforms, image/video multipliers, scheduler/failover, Claude-GPT bridge, curated/default models, Batch Image, public/admin settings, migrations, and routes were not changed.
+- **Verification**: RED reproduced parser rejection for four Grok image models and zero usage API calls for Grok OAuth. GREEN passed focused Go parser tests, 16 focused Vitest tests, frontend typecheck, affected-file ESLint, and `git diff --check`. The Go linker required `GOTMPDIR=E:\tmp` because the C drive was nearly full; no cache deletion was performed.
+- **Pushed/deployed**: no.
 ### 2026-07-11 - Gateway protocol and bounded JSON alignment
 
 - Adapted `178550987`, `ad8afc8a2`, `867616fca`, `40c563c4a`, and `53a5c45bd` with test-first checkpoints.

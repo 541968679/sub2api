@@ -4710,6 +4710,20 @@ route, setting, push, or deployment change.
  - Preserved fork-local pricing/display invariants, curated/default models,
    Claude-GPT bridge, OpenAI Images, Batch Image, Grok media, platform quotas,
    scheduler/failover, ops logging, settings, i18n, and routes.
+
+## [2026-07-11] fix: Complete Grok image-model and account-usage surfaces
+
+**Affected files**: `backend/internal/service/openai_images*.go`, `frontend/src/components/account/AccountUsageCell.vue`, `frontend/src/components/account/__tests__/AccountUsageCell.spec.ts`, `frontend/src/composables/__tests__/useGrokOAuth.spec.ts`, `frontend/src/types/index.ts`, `frontend/src/i18n/locales/{en,zh}.ts`
+
+**Compatibility**: Low-risk selective adaptation of the still-missing parts of upstream `b480545c1`. Existing Grok quota collection, local usage aggregation, media billing, size sanitization, fixed quota probing, and composer alias handling remain authoritative.
+
+**Details**:
+- The OpenAI Images request parser now recognizes `grok-imagine`, `grok-imagine-edit`, and the `grok-imagine-image*` family as native image models while continuing to reject ordinary text models.
+- Grok OAuth account cells now consume the existing backend usage DTO and show local requests/tokens, account cost, user cost, request/token quota windows, retry delay, entitlement, status, last probe, and last observed-header time.
+- Account and user costs are displayed directly from backend `cost` and `user_cost`; the frontend does not derive prices from token counts or change stored billing, `actual_cost`, quota deductions, cache-read quantities, Grok media multipliers, or scheduling.
+- Completed bilingual recovery guidance for every structured Grok OAuth error code emitted by the current backend. The composable already used the shared structured-error extractor, so no duplicate error parser was introduced.
+- Added RED/GREEN regressions for image parsing, Grok usage rendering, direct cost fields, over-limit quota percentages, and OAuth structured errors. Focused Go tests, 16 frontend tests, typecheck, affected-file ESLint, and `git diff --check` passed.
+
 ## [2026-07-11] feat: Add guarded admin user role management
 
 **Affected files**: admin user handler/service contracts and tests, admin user create/edit API/UI, bilingual role labels, and focused frontend tests.
