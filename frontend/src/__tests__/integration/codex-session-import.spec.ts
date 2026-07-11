@@ -17,6 +17,10 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({ showSuccess, showError })
 }))
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key })
+}))
+
 const BaseDialogStub = {
   props: ['show', 'title'],
   template: '<section v-if="show"><h2>{{ title }}</h2><slot/><slot name="footer"/></section>'
@@ -37,12 +41,7 @@ const mountModal = () => mount(CodexSessionImportModal, {
     mocks: {
       $t: (key: string) => key
     },
-    plugins: [{
-      install(app: any) {
-        app.config.globalProperties.$t = (key: string) => key
-        app.provide('i18n', { t: (key: string) => key })
-      }
-    }]
+    plugins: []
   }
 })
 

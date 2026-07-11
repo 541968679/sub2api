@@ -18,6 +18,8 @@ import type {
   AdminDataImportResult,
   CodexAuthPayload,
   OpenAICodexPATCreateRequest,
+  CodexSessionImportRequest,
+  CodexSessionImportResult,
   CheckMixedChannelRequest,
   CheckMixedChannelResponse
 } from '@/types'
@@ -667,6 +669,11 @@ export async function createOpenAICodexPAT(payload: OpenAICodexPATCreateRequest)
   return data
 }
 
+export async function importCodexSession(payload: CodexSessionImportRequest): Promise<CodexSessionImportResult> {
+  const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload)
+  return data
+}
+
 /**
  * Get default model mapping for a platform from backend
  * @returns Default model mapping (from -> to)
@@ -945,6 +952,7 @@ export const accountsAPI = {
   exportData,
   exportCodexAuth,
   importData,
+  importCodexSession,
   createOpenAICodexPAT,
   getPlatformDefaultModelMapping,
   updatePlatformDefaultModelMapping,
