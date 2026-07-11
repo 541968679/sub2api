@@ -19,6 +19,30 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Claude-GPT bridge strict routing (P0)
+
+**Affected files**: `backend/internal/service/openai_claude_gpt_bridge_routing.go`, `backend/internal/service/openai_claude_gpt_bridge_routing_test.go`, `backend/internal/handler/openai_claude_gpt_bridge_route.go`, `backend/internal/handler/openai_claude_gpt_bridge_route_test.go`, `backend/internal/handler/openai_gateway_handler.go`, `backend/internal/server/routes/gateway.go`, `backend/tools/upstream-sync-guard/main.go`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md`, `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Medium risk, Antigravity bridge groups only. Native-only groups keep identical behavior (`not_configured` is the only native path). Behavior change: a configured bridge whose accounts are all temporarily blocked now returns bridge 429/503 instead of silently retrying through the (possibly empty) native Antigravity pool; admin-paused bridge accounts also stay on bridge 503.
+**Details**:
+- Implemented the 2026-07-10 investigation P0: `ResolveClaudeGPTBridgeRoute` diagnoses `not_configured/ready/rate_limited/unavailable/probe_error` from `AccountRepository.ListByGroup` without acquiring scheduler slots, separating stable mapping intent from instantaneous capacity.
+- `routes/gateway.go` dispatches Antigravity `/v1/messages` by route action; `rate_limited` returns Anthropic 429 `rate_limit_error` with `Retry-After` (earliest future recovery, rounded up, min 1s), `unavailable` returns 503 `overloaded_error`, `probe_error` returns 503 `api_error`, and protocol errors return canonical 400 instead of masquerading as a native miss.
+- Removed `ShouldUseClaudeGPTBridge`, the hidden `markOpenAIClaudeGPTBridgeFallback` native fallback, and its context key. Selection races and mid-request mapping deletion re-diagnose once (`respondClaudeGPTBridgeSelectionRace`): pure rate limit → 429, otherwise → bridge-side 503.
+- Multi-account bridge failover is preserved; when every attempt fails with 429 the final response stays 429 and propagates a validated upstream `Retry-After` (positive integer, ≤86400s).
+- Route decisions emit `openai_claude_gpt_bridge.route_decision` (state, candidate/schedulable/rate-limited counts, retry_at, decision_source, latency) with no account identities.
+- Added the two-request 429 regression (`429 → cooldown → next request must be 429, never native`) plus the section-10 test matrix for diagnosis states, Retry-After bounds, streaming-aware race errors, and body preservation for native fallthrough. Updated upstream-sync-guard signatures (including the stale `writeCustomModelsList` entry).
+- Post-review hardening (multi-agent adversarial review): Messages forward-path `UpstreamFailoverError` now carries `ResponseHeaders` so the exhausted-all-429 Retry-After propagation actually fires in production; group-blocked models return a stable 403 before capacity 429/503; `Retry-After` from `RateLimitResetAt` is capped at 86400s; simple run mode diagnoses candidates platform-wide to match the scheduler pool instead of silently regressing unbound bridge accounts to native; a rate limit expiring between schedulability checks re-classifies as schedulable instead of 503.
+
+## [2026-07-11] feat: Claude-GPT bridge-aware count_tokens (P1)
+
+**Affected files**: `backend/internal/service/openai_gateway_count_tokens.go`, `backend/internal/service/openai_gateway_count_tokens_test.go`, `backend/internal/handler/openai_gateway_count_tokens.go`, `backend/internal/handler/openai_gateway_count_tokens_test.go`, `backend/internal/service/openai_endpoint_url.go`, `backend/internal/server/routes/gateway.go`, `backend/go.mod`, `backend/go.sum`, `docs/dev/codebase/gateway.md`
+**Compatibility**: Medium-low risk. Manual port of official upstream `e316ebf5` count_tokens (PR #3497 + #3635 semantics) with a fork-only bridge adaptation. Groups without a bridge mapping keep the native count path; OpenAI-platform groups gain real token counting instead of a hardcoded 404.
+**Details**:
+- OpenAI-group `/v1/messages/count_tokens` converts the Anthropic request via `AnthropicToResponses` and calls `POST /v1/responses/input_tokens` (API-key `base_url` aware); OAuth 401/403/404 missing-scope/unsupported falls back to a local tiktoken estimate and never rate-limits, temp-unschedules, or errors the account.
+- Antigravity groups with an explicit bridge mapping use `CountTokensClaudeGPTBridge`: `ready` counts upstream with the mapped GPT model (scheduler slot released immediately; bridge-lenient mode answers any upstream failure with a 200 local estimate while keeping `HandleUpstreamError` account bookkeeping), and `rate_limited/unavailable/probe_error` return a 200 local estimate without touching the native pool.
+- count_tokens keeps zero usage/billing/concurrency side effects; group model access and billing eligibility checks match the Messages gates.
+- Added `github.com/tiktoken-go/tokenizer v0.8.0`; local estimation sample expectations match official upstream exactly (o200k_base default, cl100k_base for gpt-3.5/gpt-4-era models). Estimates log `count_tokens_estimated=true` with an `estimate_reason`.
+- Post-review hardening: local estimation is bounded at 8 MiB — larger converted inputs use a bytes/4 approximation instead of feeding the tokenizer (local-compute DoS guard); bridge count preflight returns a proper 413/400 on body-read errors instead of handing native a consumed empty body; the degraded path reuses the diagnosis-carried mapped model instead of a second account scan; the bridge count path records the same ops request/endpoint/selected-account context as the other count paths.
+
 ## [2026-07-11] feat: Codex models manifest passthrough
 
 **Affected files**: backend/internal/{handler/openai_codex_models_handler.go,service/openai_codex_models_service.go,server/routes/gateway.go}(+tests), docs/dev/{UPSTREAM_SYNC.md,codebase/gateway.md}

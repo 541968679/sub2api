@@ -54,8 +54,14 @@ The evidence, official upstream comparison, strict-routing state machine,
 bridge-aware `count_tokens` design, test matrix, rollout plan, and acceptance
 criteria are maintained in
 [OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md).
-The strict-routing and count-token changes described there are planned work,
-not behavior already implemented by this document update.
+
+Update 2026-07-11: both fixes are implemented locally. The boolean preflight
+is replaced by a strict route decision (`not_configured`/`ready`/
+`rate_limited`/`unavailable`/`probe_error`): only `not_configured` reaches
+native Antigravity, all-candidates-rate-limited returns Anthropic 429 with
+`Retry-After`, and other dynamic blockers return 503. `count_tokens` is
+bridge-aware with an OpenAI `/v1/responses/input_tokens` upstream count and a
+local tiktoken estimate fallback. Production deployment is pending release.
 
 ## Implementation Notes
 
@@ -247,13 +253,14 @@ display value from that range over upstream input tokens.
 The bridge does not currently change `/v1/models`. Clients may still discover
 models from the native Antigravity path rather than the bridge mapping.
 
-The bridge does not currently change `/antigravity/v1/messages/count_tokens`.
-Claude Code token counting remains native Antigravity-side. Official upstream
-now has an OpenAI-group implementation backed by `/v1/responses/input_tokens`
-plus an OAuth/local-tokenizer fallback, but this fork still needs a bridge-aware
-adaptation that preserves the account bridge flag, Antigravity group binding,
-and explicit Claude-to-GPT model mapping. See the 2026-07-10 timeout
-investigation for the planned P1 implementation.
+Resolved 2026-07-11: `/v1/messages/count_tokens` and
+`/antigravity/v1/messages/count_tokens` are now bridge-aware. Groups with an
+explicit bridge mapping count through the mapped GPT model on
+`/v1/responses/input_tokens`; when every bridge account is temporarily
+blocked the server returns a 200 local tiktoken estimate instead of touching
+the native pool. OpenAI-platform groups get the official upstream count
+implementation instead of a hardcoded 404. Groups without a bridge mapping
+keep the native Antigravity count path.
 
 The downstream Anthropic response conversion still follows the generic
 OpenAI-to-Anthropic compatibility path. If OpenAI upstream reports
@@ -301,7 +308,6 @@ Possible future improvements:
   and upstream context window.
 - Bridge or override `/models` for Antigravity groups when a bridge account is
   intentionally preferred.
-- Add a bridge-aware `/messages/count_tokens` path.
 - Add an early request-size guard that rejects or warns before sending an
   obviously oversized request to the GPT upstream.
 - Consider a future platform-native implementation where OpenAI credentials can
