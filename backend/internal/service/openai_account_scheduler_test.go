@@ -1419,6 +1419,35 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceTopKFallback
 	}
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_TopKHonorsGlobalQuotaAutoPause(t *testing.T) {
+	ctx := withOpenAIQuotaAutoPauseSettings(context.Background(), OpsOpenAIAccountQuotaAutoPauseSettings{DefaultThreshold5h: 0.9})
+	groupID := int64(111)
+	paused := Account{
+		ID: 38001, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0,
+		Extra: map[string]any{
+			"codex_5h_used_percent": 95.0,
+			"codex_5h_reset_at":     time.Now().Add(time.Hour).Format(time.RFC3339),
+		},
+	}
+	healthy := Account{ID: 38002, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 10}
+	cfg := newSchedulerTestSubscriptionPriorityConfig()
+	cfg.Gateway.OpenAIWS.LBTopK = 1
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{paused, healthy}},
+		cache:       &schedulerTestGatewayCache{}, cfg: cfg,
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{healthy.ID: true}}),
+	}
+
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, healthy.ID, selection.Account.ID)
+	require.Equal(t, 1, decision.CandidateCount)
+}
+
 func TestOpenAIGatewayService_OpenAIAccountSchedulerMetrics(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(12)
