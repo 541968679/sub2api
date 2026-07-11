@@ -47,6 +47,7 @@ git push origin main
   - Responses WebSocket scheduling receives an explicit `previousResponseCanMove` decision derived from full tool-output `call_id` coverage. Partial coverage keeps hard previous-response affinity; complete in-band coverage may move accounts and strips the stale response ID.
   - Optional `gateway.openai_ws.scheduler_score_weights.quota_headroom` scores fresh Codex quota snapshots; default `0` preserves existing behavior.
   - Windows remote-close errors are classified as client disconnects instead of internal proxy failures.
+  - Usage metadata resolves reasoning effort from mapped, billing, and original model candidates; WebSocket passthrough updates it per turn without changing request forwarding or billing.
   - Existing OpenAI WS HTTP bridge modes already provide the target behavior and were not duplicated. Target `e316ebf5` has no independent Grok WebSocket protocol; Grok remains on HTTP/SSE compatible routes.
 - **Fork-local impact**:
   - All HTTP, Grok, embeddings, count-tokens, and non-WS capability scheduler calls pass `previousResponseCanMove=false`; Grok platform override remains a separate parameter.
@@ -55,6 +56,7 @@ git push origin main
 - **Deferred audited items**:
   - OpenAI PAT auth `32df33a1c`: 26-file authentication/import/token-refresh/frontend flow; depends on PAT service, account credential semantics, quota service, Wire/routes, and bilingual account UI.
   - Codex engine fingerprint `819fda34d` plus version message `4b321142b`: 41-file security-policy/settings/frontend change; depends on unified fingerprint signals, fail-closed policy fallback, blacklist/whitelist validation, account-level app-server controls, and version-range settings. The message-only fix must not be ported without the detector contract.
+  - OpenAI quota query/reset readiness `b81694929`: depends on `OpenAIQuotaService`, token/provider privacy-client wiring, admin routes/handler methods, reset-credit semantics, and `OpenAIQuotaResetCell.vue`. Grok readiness is already present in the current baseline; the target only changes a shared upstream-status helper name after refactoring.
 - **Verification**: focused scheduler/tool-continuation/WS/config/bridge/Images/platform tests passed; full handler unit package passed. Full server unit tests reached two pre-existing Grok-video API contract snapshot mismatches (`/groups/available`, `/usage`) unrelated to this batch.
 
 ### 2026-07-11 - Grok media and per-second video billing sync
