@@ -2,6 +2,19 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-11] fix: Check committed upstream-sync ranges in the fork guard
+
+**Affected files**: `backend/tools/upstream-sync-guard/main.go`, `backend/tools/upstream-sync-guard/main_test.go`, `docs/dev/CHANGELOG_CUSTOM.md`, `docs/dev/UPSTREAM_SYNC.md`
+
+**Upstream compatibility**: Guard/test/documentation only. No product source, schema, migration content, billing, gateway, scheduler, frontend behavior, push, or deployment changed.
+
+**Details**:
+- Added `--base <revision>` to compare `BASE..HEAD`, so a completed upstream-sync batch cannot hide a committed deletion or outward rename of a protected fork-local path.
+- The same committed range now rejects modifications, deletions, or renames of historical migrations below `150`. Invalid revisions report the exact attempted range and Git error.
+- Kept the no-argument behavior unchanged: `go run ./tools/upstream-sync-guard` still checks `HEAD` against the current working tree.
+- Added real temporary-Git-repository tests for committed protected-path deletion, committed historical-migration modification, default uncommitted checks, and invalid base diagnostics.
+- Verified with `go test ./tools/upstream-sync-guard -count=1`, `go test ./tools/upstream-sync-guard -cover`, default guard execution, `go run ./tools/upstream-sync-guard --base e79c6f88a`, and `git diff --check`.
+
 ## [2026-07-11] feat: Align usage ranking, latency health, and BOM CSV export
 
 **Affected files**: admin user-breakdown handler/repository/types; admin and user usage views; ranking/table components; CSV/latency utilities; bilingual i18n; focused tests; usage documentation.

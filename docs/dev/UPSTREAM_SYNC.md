@@ -2,6 +2,17 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-07-11 - Upstream-sync guard committed-range hardening
+
+- **Branch**: `codex/upstream-sync-guard-base-rev-20260711`
+- **Local baseline**: `e79c6f88af825ed98fe6722b7a46a27fc9f18a22`
+- **Strategy**: guard-only TDD fix. No upstream business commit was imported and no product source was changed.
+- **New batch gate**: after an upstream-sync batch is committed, run `go run ./tools/upstream-sync-guard --base <pre-sync-revision>` from `backend`. This checks the committed `BASE..HEAD` range for protected fork-local path deletion/rename and historical migration changes.
+- **Preserved default**: running `go run ./tools/upstream-sync-guard` without `--base` continues to check only `HEAD` against the current working tree.
+- **Secondary-development boundary**: the protected catalog and critical signatures remain authoritative for billing/display-token accounting, real cache-read quantities, stored `actual_cost`, curated/default models, Claude-GPT bridge, OpenAI Images/Batch Image, scheduling/failover, Ops/settings, migrations, frontend i18n/routes, distribution, subscription bundles, and deployment tooling.
+- **Verification**: RED compile failure proved the missing range parameter; GREEN temporary-repository tests cover committed deletion/migration modification, default uncommitted checks, and invalid revisions. Both default and explicit-base guard commands passed on the alignment branch.
+- **Pushed/deployed**: no.
+
 ## 2026-07-11 - Usage ranking, latency health, and CSV export adaptation
 
 - **Branch**: `codex/upstream-usage-ranking-ui-20260711`
