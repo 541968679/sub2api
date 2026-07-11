@@ -347,6 +347,33 @@ func TestUsageLogRepositoryGetModelStatsWithFiltersRequestTypePriority(t *testin
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestUsageLogRepositoryGetUserModelStatsUsesRequestedModel(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+
+	mock.ExpectQuery("(?s)SELECT\\s+COALESCE\\(NULLIF\\(TRIM\\(requested_model\\), ''\\), model\\) as model,.*COALESCE\\(SUM\\(total_cost\\), 0\\) as cost,.*COALESCE\\(SUM\\(actual_cost\\), 0\\) as actual_cost,.*COALESCE\\(SUM\\(COALESCE\\(account_stats_cost, total_cost\\) \\* COALESCE\\(account_rate_multiplier, 1\\)\\), 0\\) as account_cost.*WHERE created_at >= \\$1 AND created_at < \\$2\\s+AND user_id = \\$3.*GROUP BY COALESCE\\(NULLIF\\(TRIM\\(requested_model\\), ''\\), model\\) ORDER BY total_tokens DESC").
+		WithArgs(start, end, int64(7)).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"model", "requests", "input_tokens", "output_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cost", "actual_cost", "account_cost",
+		}).AddRow("gpt-5.5", int64(2), int64(10), int64(20), int64(3), int64(4), int64(37), 0.1, 0.08, 0.07))
+
+	stats, err := repo.GetUserModelStats(context.Background(), 7, start, end)
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	require.Equal(t, "gpt-5.5", stats[0].Model)
+	require.Equal(t, int64(3), stats[0].CacheCreationTokens)
+	require.Equal(t, int64(4), stats[0].CacheReadTokens)
+	require.Equal(t, 0.1, stats[0].Cost)
+	require.Equal(t, 0.08, stats[0].ActualCost)
+	require.Equal(t, 0.07, stats[0].AccountCost)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}
