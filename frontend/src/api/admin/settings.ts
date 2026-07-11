@@ -530,6 +530,7 @@ export interface SystemSettings {
   enable_metadata_passthrough: boolean;
   enable_cch_signing: boolean;
   enable_anthropic_cache_ttl_1h_injection: boolean;
+  enable_client_dateline_normalization: boolean;
   gateway_network_retry_max: number;
   web_search_emulation_enabled?: boolean;
 
@@ -754,6 +755,7 @@ export interface UpdateSettingsRequest {
   enable_metadata_passthrough?: boolean;
   enable_cch_signing?: boolean;
   enable_anthropic_cache_ttl_1h_injection?: boolean;
+  enable_client_dateline_normalization?: boolean;
   gateway_network_retry_max?: number;
   // Payment configuration
   payment_enabled?: boolean;
@@ -945,6 +947,8 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     enable_cch_signing: s.enable_cch_signing,
     enable_anthropic_cache_ttl_1h_injection:
       s.enable_anthropic_cache_ttl_1h_injection,
+    enable_client_dateline_normalization:
+      s.enable_client_dateline_normalization,
     gateway_network_retry_max: s.gateway_network_retry_max,
     openai_claude_gpt_bridge_cache_display_settings:
       s.openai_claude_gpt_bridge_cache_display_settings,

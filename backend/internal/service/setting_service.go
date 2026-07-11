@@ -125,6 +125,7 @@ type cachedGatewayForwardingSettings struct {
 	metadataPassthrough          bool
 	cchSigning                   bool
 	anthropicCacheTTL1hInjection bool
+	clientDatelineNormalization  bool
 	networkRetryMax              int
 	expiresAt                    int64 // unix nano
 }
@@ -1541,6 +1542,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableMetadataPassthrough] = strconv.FormatBool(settings.EnableMetadataPassthrough)
 	updates[SettingKeyEnableCCHSigning] = strconv.FormatBool(settings.EnableCCHSigning)
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
+	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	settings.GatewayNetworkRetryMax = ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax)
 	updates[SettingKeyGatewayNetworkRetryMax] = strconv.Itoa(settings.GatewayNetworkRetryMax)
 	bridgeCacheDisplay, err := normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(settings.OpenAIClaudeGPTBridgeCacheDisplaySettings)
@@ -1668,6 +1670,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		metadataPassthrough:          settings.EnableMetadataPassthrough,
 		cchSigning:                   settings.EnableCCHSigning,
 		anthropicCacheTTL1hInjection: settings.EnableAnthropicCacheTTL1hInjection,
+		clientDatelineNormalization:  settings.EnableClientDatelineNormalization,
 		networkRetryMax:              ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax),
 		expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 	})
@@ -1800,19 +1803,20 @@ func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
 }
 
 type gatewayForwardingSettingsResult struct {
-	fp, mp, cch, cacheTTL1h bool
-	networkRetryMax         int
+	fp, mp, cch, cacheTTL1h, normalizeDateline bool
+	networkRetryMax                            int
 }
 
 func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context) gatewayForwardingSettingsResult {
 	if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
 		if time.Now().UnixNano() < cached.expiresAt {
 			return gatewayForwardingSettingsResult{
-				fp:              cached.fingerprintUnification,
-				mp:              cached.metadataPassthrough,
-				cch:             cached.cchSigning,
-				cacheTTL1h:      cached.anthropicCacheTTL1hInjection,
-				networkRetryMax: cached.networkRetryMax,
+				fp:                cached.fingerprintUnification,
+				mp:                cached.metadataPassthrough,
+				cch:               cached.cchSigning,
+				cacheTTL1h:        cached.anthropicCacheTTL1hInjection,
+				normalizeDateline: cached.clientDatelineNormalization,
+				networkRetryMax:   cached.networkRetryMax,
 			}
 		}
 	}
@@ -1820,11 +1824,12 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
 			if time.Now().UnixNano() < cached.expiresAt {
 				return gatewayForwardingSettingsResult{
-					fp:              cached.fingerprintUnification,
-					mp:              cached.metadataPassthrough,
-					cch:             cached.cchSigning,
-					cacheTTL1h:      cached.anthropicCacheTTL1hInjection,
-					networkRetryMax: cached.networkRetryMax,
+					fp:                cached.fingerprintUnification,
+					mp:                cached.metadataPassthrough,
+					cch:               cached.cchSigning,
+					cacheTTL1h:        cached.anthropicCacheTTL1hInjection,
+					normalizeDateline: cached.clientDatelineNormalization,
+					networkRetryMax:   cached.networkRetryMax,
 				}, nil
 			}
 		}
@@ -1835,6 +1840,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			SettingKeyEnableMetadataPassthrough,
 			SettingKeyEnableCCHSigning,
 			SettingKeyEnableAnthropicCacheTTL1hInjection,
+			SettingKeyEnableClientDatelineNormalization,
 			SettingKeyGatewayNetworkRetryMax,
 		})
 		if err != nil {
@@ -1844,10 +1850,11 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 				metadataPassthrough:          false,
 				cchSigning:                   false,
 				anthropicCacheTTL1hInjection: false,
+				clientDatelineNormalization:  true,
 				networkRetryMax:              GatewayNetworkRetryMaxDefault,
 				expiresAt:                    time.Now().Add(gatewayForwardingErrorTTL).UnixNano(),
 			})
-			return gatewayForwardingSettingsResult{fp: true, networkRetryMax: GatewayNetworkRetryMaxDefault}, nil
+			return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, networkRetryMax: GatewayNetworkRetryMaxDefault}, nil
 		}
 		fp := true
 		if v, ok := values[SettingKeyEnableFingerprintUnification]; ok && v != "" {
@@ -1856,21 +1863,23 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		mp := values[SettingKeyEnableMetadataPassthrough] == "true"
 		cch := values[SettingKeyEnableCCHSigning] == "true"
 		cacheTTL1h := values[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
+		normalizeDateline := values[SettingKeyEnableClientDatelineNormalization] != "false"
 		networkRetryMax := ParseGatewayNetworkRetryMax(values[SettingKeyGatewayNetworkRetryMax])
 		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
 			fingerprintUnification:       fp,
 			metadataPassthrough:          mp,
 			cchSigning:                   cch,
 			anthropicCacheTTL1hInjection: cacheTTL1h,
+			clientDatelineNormalization:  normalizeDateline,
 			networkRetryMax:              networkRetryMax,
 			expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 		})
-		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, networkRetryMax: networkRetryMax}, nil
+		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, networkRetryMax: networkRetryMax}, nil
 	})
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
 		return r
 	}
-	return gatewayForwardingSettingsResult{fp: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
+	return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
 }
 
 // GetGatewayForwardingSettings returns cached gateway forwarding settings.
@@ -1884,6 +1893,10 @@ func (s *SettingService) GetGatewayForwardingSettings(ctx context.Context) (fing
 // IsAnthropicCacheTTL1hInjectionEnabled 检查是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl。
 func (s *SettingService) IsAnthropicCacheTTL1hInjectionEnabled(ctx context.Context) bool {
 	return s.getGatewayForwardingSettingsCached(ctx).cacheTTL1h
+}
+
+func (s *SettingService) IsClientDatelineNormalizationEnabled(ctx context.Context) bool {
+	return s.getGatewayForwardingSettingsCached(ctx).normalizeDateline
 }
 
 func (s *SettingService) GetGatewayNetworkRetryMax(ctx context.Context) int {
@@ -2337,6 +2350,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		// 分组隔离（默认不允许未分组 Key 调度）
 		SettingKeyAllowUngroupedKeyScheduling:               "false",
 		SettingKeyEnableAnthropicCacheTTL1hInjection:        "false",
+		SettingKeyEnableClientDatelineNormalization:         "true",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
@@ -2705,6 +2719,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableMetadataPassthrough = settings[SettingKeyEnableMetadataPassthrough] == "true"
 	result.EnableCCHSigning = settings[SettingKeyEnableCCHSigning] == "true"
 	result.EnableAnthropicCacheTTL1hInjection = settings[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
+	result.EnableClientDatelineNormalization = settings[SettingKeyEnableClientDatelineNormalization] != "false"
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.OpenAIClaudeGPTBridgeCacheDisplaySettings = parseOpenAIClaudeGPTBridgeCacheDisplaySettings(settings[SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings])
 

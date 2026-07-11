@@ -19,6 +19,7 @@ func TestGatewayClientDatelineNormalizationScope(t *testing.T) {
 	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: PlatformAnthropic, Type: AccountTypeAPIKey}))
 	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}), "Claude-GPT bridge uses OpenAI accounts and must stay outside this transform")
 	require.False(t, svc.shouldNormalizeClientDateline(ctx, nil))
+	require.True(t, (&GatewayService{}).shouldNormalizeClientDateline(ctx, &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}), "nil setting service intentionally uses the default-on policy")
 
 	repo.data[SettingKeyEnableClientDatelineNormalization] = "false"
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})

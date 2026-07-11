@@ -6756,6 +6756,8 @@ const enBase = {
         cchSigningHint: 'Sign the billing header in forwarded requests with CCH hash. When disabled, the placeholder is preserved.',
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
+        clientDatelineNormalization: 'Anthropic Client Dateline Normalization',
+        clientDatelineNormalizationHint: 'Canonicalizes only system datelines in Anthropic OAuth/Setup Token requests to remove client steganographic variants. API keys, user prose, and the Claude-GPT bridge are unaffected.',
         networkRetryMax: 'Maximum upstream network retries',
         networkRetryMaxHint: 'Retries only connection failures, timeouts, EOF, and similar network errors before any HTTP response is received. Use 0 to disable. Default 2, maximum 10.',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT Bridge Cache Display',

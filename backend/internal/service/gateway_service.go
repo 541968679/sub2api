@@ -26,6 +26,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/anthropicfp"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -1224,6 +1225,32 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *ParsedRequest, account
 	}
 	accountUUID := strings.TrimSpace(account.GetExtraString("account_uuid"))
 	return FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
+}
+
+func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, account *Account) bool {
+	if account == nil || account.Platform != PlatformAnthropic {
+		return false
+	}
+	if account.Type != AccountTypeOAuth && account.Type != AccountTypeSetupToken {
+		return false
+	}
+	return s.settingService == nil || s.settingService.IsClientDatelineNormalizationEnabled(ctx)
+}
+
+func (s *GatewayService) normalizeClientDatelineIfEnabled(ctx context.Context, account *Account, body []byte) ([]byte, bool) {
+	if !s.shouldNormalizeClientDateline(ctx, account) {
+		return nil, false
+	}
+	normalized, hits, changed := anthropicfp.NormalizeDateline(body)
+	if !changed {
+		return nil, false
+	}
+	variantCounts := make(map[string]int)
+	for _, hit := range hits {
+		variantCounts[hit.ApostropheVariant+hit.DateSeparator]++
+	}
+	slog.Debug("anthropic client dateline normalized", "account_id", account.ID, "hits", len(hits), "variants", variantCounts)
+	return normalized, true
 }
 
 // applyClaudeCodeOAuthMimicryToBody 将"非 Claude Code 客户端 + Claude OAuth 账号"
@@ -4559,6 +4586,9 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 	// Pre-filter: strip empty text blocks (including nested in tool_result) to prevent upstream 400.
 	body = StripEmptyTextBlocks(body)
 	body = FilterWebSearchHistoryBlocks(body, reqModel)
+	if normalized, changed := s.normalizeClientDatelineIfEnabled(ctx, account, body); changed {
+		body = normalized
+	}
 
 	// 重试间复用同一请求体，避免每次 string(body) 产生额外分配。
 	setOpsUpstreamRequestBody(c, body)

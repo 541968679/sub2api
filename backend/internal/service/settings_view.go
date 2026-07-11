@@ -168,6 +168,7 @@ type SystemSettings struct {
 	EnableMetadataPassthrough          bool // 是否透传客户端原始 metadata（默认 false）
 	EnableCCHSigning                   bool // 是否对 billing header cch 进行签名（默认 false）
 	EnableAnthropicCacheTTL1hInjection bool // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
+	EnableClientDatelineNormalization  bool // 是否归一化 Anthropic OAuth/SetupToken 请求中的客户端 dateline 指纹（默认 true）
 
 	GatewayNetworkRetryMax int // network transport error retry count (0 disables, default 2)
 

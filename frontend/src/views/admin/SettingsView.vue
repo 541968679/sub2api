@@ -3441,6 +3441,19 @@
                 />
               </div>
 
+              <!-- Anthropic client dateline normalization -->
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.gatewayForwarding.clientDatelineNormalization") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.clientDatelineNormalizationHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.enable_client_dateline_normalization" />
+              </div>
+
               <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px] sm:items-center">
                 <div>
                   <label
@@ -6517,6 +6530,7 @@ const form = reactive<SettingsForm>({
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
+  enable_client_dateline_normalization: true,
   gateway_network_retry_max: 2,
   openai_claude_gpt_bridge_cache_display_settings: {
     enabled: false,
@@ -7600,6 +7614,8 @@ async function saveSettings() {
       enable_cch_signing: form.enable_cch_signing,
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
+      enable_client_dateline_normalization:
+        form.enable_client_dateline_normalization,
       gateway_network_retry_max: Math.max(
         0,
         Math.min(10, Math.floor(Number(form.gateway_network_retry_max) || 0)),

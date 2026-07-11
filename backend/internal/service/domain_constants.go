@@ -440,6 +440,7 @@ const (
 	SettingKeyEnableCCHSigning = "enable_cch_signing"
 	// SettingKeyEnableAnthropicCacheTTL1hInjection 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
 	SettingKeyEnableAnthropicCacheTTL1hInjection = "enable_anthropic_cache_ttl_1h_injection"
+	SettingKeyEnableClientDatelineNormalization  = "enable_client_dateline_normalization"
 	// SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings stores optional display-only cache generation settings for OpenAI Claude-GPT bridge requests.
 	SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings = "openai_claude_gpt_bridge_cache_display_settings"
 	// SettingKeyGatewayNetworkRetryMax controls retry count for upstream transport/network errors.

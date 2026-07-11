@@ -6445,6 +6445,8 @@ const zhBase = {
         cchSigningHint: '对转发请求的 billing header 进行 CCH 哈希签名。关闭时保留原始占位符。',
         anthropicCacheTTL1hInjection: 'Anthropic 缓存 TTL 注入',
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
+        clientDatelineNormalization: 'Anthropic 客户端日期指纹归一化',
+        clientDatelineNormalizationHint: '仅规范化 Anthropic OAuth/Setup Token 请求中的系统日期行，移除客户端隐写差异；API Key、用户正文与 Claude-GPT 桥接不受影响。',
         networkRetryMax: '上游网络错误最大重试次数',
         networkRetryMaxHint: '仅在连接失败、超时、EOF 等未收到 HTTP 响应的网络错误时重试；0 表示关闭，默认 2，最大 10。',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT 桥接缓存展示',

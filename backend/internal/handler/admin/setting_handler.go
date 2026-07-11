@@ -245,6 +245,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableMetadataPassthrough:                              settings.EnableMetadataPassthrough,
 		EnableCCHSigning:                                       settings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:                     settings.EnableAnthropicCacheTTL1hInjection,
+		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:                       settings.PaymentVisibleMethodAlipaySource,
@@ -572,6 +573,7 @@ type UpdateSettingsRequest struct {
 	EnableMetadataPassthrough          *bool `json:"enable_metadata_passthrough"`
 	EnableCCHSigning                   *bool `json:"enable_cch_signing"`
 	EnableAnthropicCacheTTL1hInjection *bool `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClientDatelineNormalization  *bool `json:"enable_client_dateline_normalization"`
 	GatewayNetworkRetryMax             *int  `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
@@ -1499,6 +1501,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableAnthropicCacheTTL1hInjection
 		}(),
+		EnableClientDatelineNormalization: func() bool {
+			if req.EnableClientDatelineNormalization != nil {
+				return *req.EnableClientDatelineNormalization
+			}
+			return previousSettings.EnableClientDatelineNormalization
+		}(),
 		GatewayNetworkRetryMax: func() int {
 			if req.GatewayNetworkRetryMax != nil {
 				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
@@ -1866,6 +1874,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableMetadataPassthrough:                              updatedSettings.EnableMetadataPassthrough,
 		EnableCCHSigning:                                       updatedSettings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
+		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		PaymentVisibleMethodAlipaySource:                       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:                        updatedSettings.PaymentVisibleMethodWxpaySource,
@@ -2299,6 +2308,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.EnableAnthropicCacheTTL1hInjection != after.EnableAnthropicCacheTTL1hInjection {
 		changed = append(changed, "enable_anthropic_cache_ttl_1h_injection")
+	}
+	if before.EnableClientDatelineNormalization != after.EnableClientDatelineNormalization {
+		changed = append(changed, "enable_client_dateline_normalization")
 	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")
