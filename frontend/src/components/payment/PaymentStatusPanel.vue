@@ -128,7 +128,7 @@ import { usePaymentStore } from '@/stores/payment'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
@@ -176,8 +176,8 @@ const outcome = ref<PaymentOutcome | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
-const isAlipay = computed(() => props.paymentType.includes('alipay'))
-const isWxpay = computed(() => props.paymentType.includes('wxpay'))
+const isAlipay = computed(() => isBuiltInAlipayMethod(props.paymentType))
+const isWxpay = computed(() => isBuiltInWxpayMethod(props.paymentType))
 
 const qrBorderClass = computed(() => {
   if (isAlipay.value) return 'border-[#00AEEF] bg-blue-50 dark:border-[#00AEEF]/70 dark:bg-blue-950/20'
