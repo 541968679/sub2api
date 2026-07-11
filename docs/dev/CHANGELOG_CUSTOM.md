@@ -4249,3 +4249,14 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Specified a P0 structured bridge route decision (`not_configured`, `ready`, `rate_limited`, `unavailable`, `probe_error`) that separates stable mapping intent from transient scheduler state, removes hidden native fallback after bridge intent is established, and returns consistent Anthropic 429/503 semantics with `Retry-After`.
 - Specified a separate P1 adaptation of official `/v1/responses/input_tokens` and OAuth/local-tokenizer fallback for bridge-aware `count_tokens`, with no usage, billing, concurrency, or native-pool side effects.
 - Added the planned file map, two-request 429 regression, broader test matrix, observability fields, canary rollout, rollback, acceptance criteria, and ordered next-session implementation checklist.
+
+## [2026-07-11] fix: Allow independent Sub2API frontend/backend control in dev control
+
+**Affected files**: `dev-services.yml`, `scripts/dev-stack.ps1`, `DEV_GUIDE.md`
+**Compatibility**: Low risk. Existing command-line whole-stack actions are unchanged; the new foreground component action is used by dev control only.
+**Details**:
+- Registered the Sub2API backend and frontend as separate managed services instead of monitor-only entries, so each now has start, stop, and restart controls.
+- Added `dev-stack.ps1 run -Component backend|frontend` to keep each process tree attached to the dev control runner while continuing to enforce repository startup and port rules.
+- Run the dev-control-managed backend with `GIN_MODE=release` so route-table debug output does not delay runner process tracking during startup; Air hot reload remains enabled.
+- Removed the duplicate aggregate managed service from the manifest; dev control project-level actions still operate the backend and frontend together without competing for the same ports.
+- Documented the dev control-specific foreground commands and retained the existing whole-stack CLI workflow.
