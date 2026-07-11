@@ -39,6 +39,13 @@ git push origin main
 
 ## 同步记录
 
+### 2026-07-11 - Scheduler outbox deduplication and cleanup
+
+- **Upstream sources**: `34e66ec0a`, `3ef70b045`, `60cf89ae2`, `b3ec6288a`, `cb14935e9`, `31dc8913a`, and `f069c9ae0`.
+- Added stable database dedup keys, claim-time release, invalid-index recovery, watermark-gated cleanup, a multi-instance cleanup lease, and a ten-second slow-commit grace period.
+- Upstream migration numbers `152/153` conflicted with released fork migrations, so the additive column/index migrations are recorded as `186_scheduler_outbox_dedup_key.sql` and `187_scheduler_outbox_pending_dedup_key_index_notx.sql`.
+- Existing scheduler lag rebuild, Grok buckets, advanced OpenAI scoring/sticky controls, RequiredCapability/Images, bridge eligibility, runtime account blocks, billing/display/cache-read, Ops, routes, settings, and frontend behavior remain authoritative.
+
 ### 2026-07-11 - Guarded API-key account header overrides
 
 - **Upstream sources**: `ec7b20649` and audit follow-up `31b6e0d94`.

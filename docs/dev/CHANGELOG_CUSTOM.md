@@ -19,6 +19,15 @@
 
 ## 鍙樻洿璁板綍
 
+## [2026-07-11] fix: Harden scheduler outbox deduplication and cleanup
+
+**Affected files**: scheduler outbox repository/interface/service, account outbox payload construction, migration runner, migrations `186/187`, and focused unit/integration tests.
+**Upstream compatibility**: Behavior-level port of the outbox chain from `34e66ec0a` through `f069c9ae0`; upstream migration numbers were reassigned to the fork's next free sequence.
+**Details**:
+- Replaces timing-window deduplication with a stable partial unique key, releases that key when events are claimed, and repairs invalid concurrent indexes before migration retry.
+- Cleans consumed rows only after the watermark is committed, under a PostgreSQL advisory lock and with a ten-second grace period for sequence-allocation/commit races.
+- Normalizes typed-nil group payloads so logically identical events share the same key. Candidate eligibility, Grok buckets, advanced scheduler weights/sticky behavior, bridge/Images capability metadata, billing, settings, and frontend contracts are unchanged.
+
 ## [2026-07-11] feat: Add guarded API-key account header overrides
 
 **Affected files**: account header policy/service, Anthropic and OpenAI API-key forwarding/probes/models/WS/Images paths, account create/edit/bulk UI, bilingual locales, and focused tests.
