@@ -4841,3 +4841,14 @@ route, setting, push, or deployment change.
 - Checks run before TopK and at sticky, previous-response, and fresh DB rechecks. Expired windows fail open so traffic can refresh stale usage, while bindings remain available for later resumption.
 - Spark shadows are explicitly excluded and keep their independent quota dimension. The policy does not mutate `schedulable`, fabricate cooldown timestamps, alter billing/display/cache-read data, or change Images/Batch Image and Claude-GPT behavior.
 - Ops settings reuse existing JSON KV with non-blocking stale-while-revalidate caching; account overrides reuse `extra`. Unrelated `eba204632` OAuth/privacy changes were intentionally not adopted.
+
+## [2026-07-11] fix: Reconcile merged locale patch coverage
+
+**Affected files**: final Chinese and English locale patch objects.
+
+**Compatibility**: UI-only; no runtime billing or scheduling behavior changed.
+
+**Details**:
+- Restored final runtime paths for multi-file account selection, scheduler-score help, ungrouped scores, used quota, and peak-rate settings.
+- Kept the keys in the final recursive locale patches so duplicate historical locale sections cannot hide them.
+- Verified sidebar, public URL sanitization, and global runtime locale coverage (8 tests).

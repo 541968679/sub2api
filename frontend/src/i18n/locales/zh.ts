@@ -8538,9 +8538,14 @@ const v117ZhPatch = {
       applySuggested: '应用建议值'
     },
     accounts: {
+      selectedCount: '已选择 {count} 个账户',
       fromModel: '请求模型',
       toModel: '上游模型',
       deleteMapping: '删除映射',
+      schedulerScore: {
+        hint: '展示账户在各分组中的实时调度评分；未分组评分单独列出。',
+        ungrouped: '未分组'
+      },
       useEmailAsName: '使用邮箱作为名称',
       autoAssignProxy: '自动分配代理',
       autoAssignProxyHint: '创建或导入账号时，从可用代理池中自动分配代理。',
@@ -8591,6 +8596,16 @@ const v117ZhPatch = {
       }
     },
     groups: {
+      columns: {
+        usedQuota: '已用额度'
+      },
+      peakRate: {
+        enable: '启用高峰倍率',
+        peakStart: '高峰开始时间',
+        peakEnd: '高峰结束时间',
+        peakMultiplier: '高峰倍率',
+        multiplierHint: '在设定的高峰时段内应用此计费倍率。'
+      },
       batchImage: {
         allowImage: '开启图片生成',
         allowBatch: '开启批量生图',

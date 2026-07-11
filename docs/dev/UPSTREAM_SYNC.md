@@ -18,6 +18,16 @@
   follow-up batch.
 - **Pushed/deployed**: no.
 
+### 2026-07-11 - Locale reconciliation after upstream batches
+
+- Added the ten runtime locale paths exposed by the merged account, scheduler,
+  group quota, and peak-rate features to both final locale patch objects.
+- This is a frontend-text reconciliation only. Billing/display transforms,
+  cache-read quantities, `actual_cost`, scheduler/failover decisions, settings,
+  migrations, and routes are unchanged.
+- Sidebar, public-setting URL sanitization, and global locale coverage passed
+  (8 tests). No push or deployment was performed.
+
 ### 2026-07-11 - Configurable initial migration timeout
 
 - Adapted `36d5f4e4c` across setup and the repository's four supported Compose variants.

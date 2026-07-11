@@ -8476,9 +8476,14 @@ const phase0LocalePatch = {
   },
   admin: {
     accounts: {
+      selectedCount: '{count} accounts selected',
       fromModel: 'Requested model',
       toModel: 'Upstream model',
       deleteMapping: 'Delete mapping',
+      schedulerScore: {
+        hint: 'Shows the account\'s live scheduling score in each group, with ungrouped scoring listed separately.',
+        ungrouped: 'Ungrouped'
+      },
       oauth: {
         openai: {
           accessTokenAuth: 'Access token auth',
@@ -8524,6 +8529,16 @@ const phase0LocalePatch = {
     groups: {
       accountsUnit: 'accounts',
       failedToSave: 'Failed to save',
+      columns: {
+        usedQuota: 'Used quota'
+      },
+      peakRate: {
+        enable: 'Enable peak multiplier',
+        peakStart: 'Peak start time',
+        peakEnd: 'Peak end time',
+        peakMultiplier: 'Peak multiplier',
+        multiplierHint: 'Apply this billing multiplier during the configured peak period.'
+      },
       batchImage: {
         allowImage: 'Enable image generation',
         allowBatch: 'Enable batch image generation',
