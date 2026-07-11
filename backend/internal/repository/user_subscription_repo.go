@@ -141,6 +141,27 @@ func (r *userSubscriptionRepository) Delete(ctx context.Context, id int64) error
 	return err
 }
 
+func (r *userSubscriptionRepository) Restore(ctx context.Context, subscriptionID int64, restoredStatus string) (*service.UserSubscription, error) {
+	client := clientFromContext(ctx, r.client)
+	queryCtx := mixins.SkipSoftDelete(ctx)
+	updated, err := client.UserSubscription.Update().
+		Where(usersubscription.IDEQ(subscriptionID), usersubscription.DeletedAtNotNil()).
+		SetStatus(restoredStatus).
+		ClearDeletedAt().
+		SetUpdatedAt(time.Now()).
+		Save(queryCtx)
+	if err != nil {
+		return nil, translatePersistenceError(err, nil, service.ErrSubscriptionRestoreConflict)
+	}
+	if updated == 0 {
+		if _, err := r.GetByIDIncludeDeleted(ctx, subscriptionID); err != nil {
+			return nil, err
+		}
+		return nil, service.ErrSubscriptionNotRevoked
+	}
+	return r.GetByID(ctx, subscriptionID)
+}
+
 func (r *userSubscriptionRepository) ListByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
 	client := clientFromContext(ctx, r.client)
 	subs, err := client.UserSubscription.Query().

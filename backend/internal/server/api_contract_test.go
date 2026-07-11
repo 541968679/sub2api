@@ -187,6 +187,20 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
+			name:       "POST /api/v1/admin/subscriptions/:id/revoke route",
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/subscriptions/not-a-number/revoke",
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   `{"code":400,"message":"Invalid subscription ID"}`,
+		},
+		{
+			name:       "POST /api/v1/admin/subscriptions/:id/restore route",
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/subscriptions/not-a-number/restore",
+			wantStatus: http.StatusBadRequest,
+			wantJSON:   `{"code":400,"message":"Invalid subscription ID"}`,
+		},
+		{
 			name:   "POST /api/v1/keys",
 			method: http.MethodPost,
 			path:   "/api/v1/keys",
@@ -1283,6 +1297,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil, nil, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminSubscriptionHandler := adminhandler.NewSubscriptionHandler(subscriptionService)
 
 	jwtAuth := func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
@@ -1332,6 +1347,8 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
+	v1Admin.POST("/subscriptions/:id/revoke", adminSubscriptionHandler.Revoke)
+	v1Admin.POST("/subscriptions/:id/restore", adminSubscriptionHandler.Restore)
 
 	return &contractDeps{
 		now:         now,

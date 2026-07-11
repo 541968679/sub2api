@@ -263,37 +263,31 @@ func (c *billingCache) PublishSubscriptionCacheInvalidation(ctx context.Context,
 
 func (c *billingCache) SubscribeSubscriptionCacheInvalidation(ctx context.Context, handler func(cacheKey string)) error {
 	pubsub := c.rdb.Subscribe(ctx, subCacheInvalidateChannel)
-
-	_, err := pubsub.Receive(ctx)
-	if err != nil {
-		_ = pubsub.Close()
-		return fmt.Errorf("subscribe to subscription cache invalidation: %w", err)
-	}
-
-	go func() {
-		defer func() {
-			if err := pubsub.Close(); err != nil {
-				log.Printf("Warning: failed to close subscription cache invalidation pubsub: %v", err)
-			}
-		}()
-
-		ch := pubsub.Channel()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case msg, ok := <-ch:
-				if !ok {
-					return
-				}
-				if msg != nil {
-					handler(msg.Payload)
-				}
-			}
+	defer func() {
+		if err := pubsub.Close(); err != nil {
+			log.Printf("Warning: failed to close subscription cache invalidation pubsub: %v", err)
 		}
 	}()
 
-	return nil
+	_, err := pubsub.Receive(ctx)
+	if err != nil {
+		return fmt.Errorf("subscribe to subscription cache invalidation: %w", err)
+	}
+
+	ch := pubsub.Channel()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case msg, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			if msg != nil {
+				handler(msg.Payload)
+			}
+		}
+	}
 }
 
 func (c *billingCache) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*service.APIKeyRateLimitCacheData, error) {

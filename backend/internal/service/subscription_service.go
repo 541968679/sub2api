@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -50,10 +51,13 @@ type SubscriptionService struct {
 	entClient           *dbent.Client
 
 	// L1 缓存：加速中间件热路径的订阅查询
-	subCacheL1     *ristretto.Cache
-	subCacheGroup  singleflight.Group
-	subCacheTTL    time.Duration
-	subCacheJitter int // 抖动百分比
+	subCacheL1                 *ristretto.Cache
+	subCacheGroup              singleflight.Group
+	subCacheInvalidationCancel context.CancelFunc
+	subCacheInvalidationWG     sync.WaitGroup
+	stopOnce                   sync.Once
+	subCacheTTL                time.Duration
+	subCacheJitter             int // 抖动百分比
 
 	maintenanceQueue *SubscriptionMaintenanceQueue
 }
@@ -68,7 +72,7 @@ func NewSubscriptionService(groupRepo GroupRepository, userSubRepo UserSubscript
 	}
 	svc.initSubCache(cfg)
 	svc.initMaintenanceQueue(cfg)
-	svc.StartSubCacheInvalidationSubscriber(context.Background())
+	svc.startSubCacheInvalidationSubscriber()
 	return svc
 }
 
@@ -88,9 +92,15 @@ func (s *SubscriptionService) Stop() {
 	if s == nil {
 		return
 	}
-	if s.maintenanceQueue != nil {
-		s.maintenanceQueue.Stop()
-	}
+	s.stopOnce.Do(func() {
+		if s.subCacheInvalidationCancel != nil {
+			s.subCacheInvalidationCancel()
+		}
+		s.subCacheInvalidationWG.Wait()
+		if s.maintenanceQueue != nil {
+			s.maintenanceQueue.Stop()
+		}
+	})
 }
 
 // initSubCache 初始化订阅 L1 缓存
@@ -159,16 +169,22 @@ func (s *SubscriptionService) invalidateSubCacheKeySync(key string) {
 	s.subCacheL1.Wait()
 }
 
-// StartSubCacheInvalidationSubscriber 启动跨实例订阅 L1 缓存失效订阅。
-func (s *SubscriptionService) StartSubCacheInvalidationSubscriber(ctx context.Context) {
+// startSubCacheInvalidationSubscriber starts cross-instance L1 invalidation.
+func (s *SubscriptionService) startSubCacheInvalidationSubscriber() {
 	if s.billingCacheService == nil || s.subCacheL1 == nil {
 		return
 	}
-	if err := s.billingCacheService.SubscribeSubscriptionCacheInvalidation(ctx, func(cacheKey string) {
-		s.invalidateSubCacheKeySync(cacheKey)
-	}); err != nil {
-		log.Printf("Warning: failed to start subscription cache invalidation subscriber: %v", err)
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.subCacheInvalidationCancel = cancel
+	s.subCacheInvalidationWG.Add(1)
+	go func() {
+		defer s.subCacheInvalidationWG.Done()
+		if err := s.billingCacheService.SubscribeSubscriptionCacheInvalidation(ctx, func(cacheKey string) {
+			s.invalidateSubCacheKeySync(cacheKey)
+		}); err != nil && ctx.Err() == nil {
+			log.Printf("Warning: subscription cache invalidation subscriber stopped: %v", err)
+		}
+	}()
 }
 
 func (s *SubscriptionService) invalidateSubscriptionCaches(userID, groupID int64) error {
@@ -717,7 +733,7 @@ func (s *SubscriptionService) ExtendSubscription(ctx context.Context, subscripti
 
 // GetByID 根据ID获取订阅
 func (s *SubscriptionService) GetByID(ctx context.Context, id int64) (*UserSubscription, error) {
-	return s.userSubRepo.GetByID(ctx, id)
+	return s.userSubRepo.GetByIDIncludeDeleted(ctx, id)
 }
 
 // GetActiveSubscription 获取用户对特定分组的有效订阅
