@@ -583,6 +583,21 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 	return outAccounts, paginationResultFromTotal(int64(total), params), nil
 }
 
+func (r *accountRepository) ListAllWithFilters(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, error) {
+	const pageSize = 1000
+	all := make([]service.Account, 0)
+	for page := 1; ; page++ {
+		accounts, result, err := r.ListWithFilters(ctx, pagination.PaginationParams{Page: page, PageSize: pageSize}, platform, accountType, status, search, groupID, privacyMode)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, accounts...)
+		if result == nil || int64(len(all)) >= result.Total || len(accounts) == 0 {
+			return all, nil
+		}
+	}
+}
+
 func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderAsc)

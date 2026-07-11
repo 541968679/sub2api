@@ -310,8 +310,21 @@ gateway:
       queue: 0.7
       error_rate: 0.8
       ttft: 0.5
+      # Prefer accounts whose session window resets sooner; 0 disables this factor.
+      reset: 0.0
       # Prefer healthier Codex quota snapshots; 0 keeps the legacy behavior.
       quota_headroom: 0.0
+      # Weighted sticky preferences used only when advanced sticky weighting is enabled.
+      previous_response: 5.0
+      session_sticky: 3.0
+  # OpenAI session sticky escape policy.
+  openai_scheduler:
+    # Set false explicitly to keep waiting on a busy sticky account.
+    sticky_escape_enabled: true
+    # Escape when TTFT EWMA exceeds this threshold in milliseconds.
+    sticky_escape_ttft_ms: 15000
+    # Escape when error-rate EWMA exceeds this value.
+    sticky_escape_error_rate: 0.5
   # HTTP upstream connection pool settings (HTTP/2 + multi-proxy scenario defaults)
   # HTTP 上游连接池配置（HTTP/2 + 多代理场景默认值）
   # Max idle connections across all hosts

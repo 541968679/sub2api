@@ -665,6 +665,8 @@ type GatewayConfig struct {
 	OpenAIPassthroughAllowTimeoutHeaders bool `mapstructure:"openai_passthrough_allow_timeout_headers"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
+	// OpenAIScheduler: OpenAI account scheduler behavior controls.
+	OpenAIScheduler GatewayOpenAISchedulerConfig `mapstructure:"openai_scheduler"`
 
 	// HTTP 上游连接池配置（性能优化：支持高并发场景调优）
 	// MaxIdleConns: 所有主机的最大空闲连接总数
@@ -881,9 +883,20 @@ type GatewayOpenAIWSSchedulerScoreWeights struct {
 	Queue     float64 `mapstructure:"queue"`
 	ErrorRate float64 `mapstructure:"error_rate"`
 	TTFT      float64 `mapstructure:"ttft"`
+	Reset     float64 `mapstructure:"reset"`
 	// QuotaHeadroom prefers accounts with healthier Codex quota snapshots.
 	// Zero disables this factor and preserves the previous scheduling behavior.
 	QuotaHeadroom float64 `mapstructure:"quota_headroom"`
+	// PreviousResponse/SessionSticky 仅在开启 OpenAI 高级调度的粘性加权时生效。
+	PreviousResponse float64 `mapstructure:"previous_response"`
+	SessionSticky    float64 `mapstructure:"session_sticky"`
+}
+
+// GatewayOpenAISchedulerConfig controls session sticky escape behavior.
+type GatewayOpenAISchedulerConfig struct {
+	StickyEscapeEnabled   bool    `mapstructure:"sticky_escape_enabled"`
+	StickyEscapeTTFTMs    int     `mapstructure:"sticky_escape_ttft_ms"`
+	StickyEscapeErrorRate float64 `mapstructure:"sticky_escape_error_rate"`
 }
 
 // GatewayUsageRecordConfig 使用量记录异步队列配置
@@ -1312,6 +1325,15 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config error: %w", err)
+	}
+	if cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs == 0 {
+		cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 15000
+	}
+	if cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate == 0 {
+		cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate = 0.5
+	}
+	if !cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled && !viper.IsSet("gateway.openai_scheduler.sticky_escape_enabled") {
+		cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled = true
 	}
 
 	cfg.RunMode = NormalizeRunMode(cfg.RunMode)
@@ -1822,7 +1844,10 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.queue", 0.7)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.error_rate", 0.8)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 0.5)
+	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.reset", 0.0)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.quota_headroom", 0.0)
+	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.previous_response", 5.0)
+	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.session_sticky", 3.0)
 	viper.SetDefault("gateway.antigravity_fallback_cooldown_minutes", 1)
 	viper.SetDefault("gateway.antigravity_extra_retries", 10)
 	viper.SetDefault("gateway.max_body_size", int64(256*1024*1024))
@@ -2596,7 +2621,10 @@ func (c *Config) Validate() error {
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.Queue < 0 ||
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate < 0 ||
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT < 0 ||
-		c.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom < 0 {
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.Reset < 0 ||
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom < 0 ||
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.PreviousResponse < 0 ||
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.SessionSticky < 0 {
 		return fmt.Errorf("gateway.openai_ws.scheduler_score_weights.* must be non-negative")
 	}
 	weightSum := c.Gateway.OpenAIWS.SchedulerScoreWeights.Priority +
@@ -2607,6 +2635,12 @@ func (c *Config) Validate() error {
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom
 	if weightSum <= 0 {
 		return fmt.Errorf("gateway.openai_ws.scheduler_score_weights must not all be zero")
+	}
+	if c.Gateway.OpenAIScheduler.StickyEscapeTTFTMs <= 0 {
+		return fmt.Errorf("gateway.openai_scheduler.sticky_escape_ttft_ms must be positive")
+	}
+	if c.Gateway.OpenAIScheduler.StickyEscapeErrorRate < 0 || c.Gateway.OpenAIScheduler.StickyEscapeErrorRate > 1 {
+		return fmt.Errorf("gateway.openai_scheduler.sticky_escape_error_rate must be between 0 and 1")
 	}
 	if c.Gateway.MaxLineSize < 0 {
 		return fmt.Errorf("gateway.max_line_size must be non-negative")

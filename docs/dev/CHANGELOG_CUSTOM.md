@@ -75,6 +75,18 @@ alignment baseline `19bd42ca5`; fork-local hot paths were reconciled, not replac
 - Added minimal PAT token-provider compatibility: `personalAccessToken`, `personal_access_token`, and `codex_pat` OAuth-shaped accounts use the stored access token without entering refresh locking.
 - Preserved the independent Grok quota probe, OpenAI/Grok platform isolation, account scheduling/cooldowns, user-platform quota, public/admin settings, i18n/routes outside the added endpoints, billing/display-token/cache-read invariants, bridge, Images, and curated/default model behavior.
 - Explicitly excluded the later Spark linked-shadow-account schema, scheduling, and usage feature from this batch.
+## [2026-07-11] feat: Add the OpenAI advanced scheduler control plane
+
+**Affected files**: OpenAI scheduler/config and scheduler snapshot metadata; Settings KV/service/admin DTOs and handler; admin account score response/repository query; Settings and Accounts Vue views, types, API contracts, bilingual i18n, focused tests; deployment, gateway, sync, and changelog documentation
+**Upstream compatibility**: Manual behavior-level port from `f26ca5661` and audit `0fd2e9216` on baseline `19bd42ca5`; fork-local gateway and WS hot paths were preserved instead of replaced.
+**Details**:
+- Added total-gated sticky-weighted and paid-subscription-priority controls, DB TopK and nine scheduler weight overrides, effective-value reporting, audit field tracking, and bilingual admin controls.
+- Added TTFT/error/concurrency-full sticky escape with explicit config defaults; escaped requests keep the original sticky binding and still use the fork's filtered candidate pool.
+- Added base and per-group scheduler score observability to the admin account list using a single union load batch and effective scheduler weights.
+- Kept non-secret OpenAI OAuth `plan_type` in scheduler snapshots while continuing to strip access and refresh tokens.
+- Preserved RequiredCapability/Images, Claude-GPT bridge eligibility, WS v2 transport selection, OpenAI/Grok isolation, group/model/compact/runtime filtering, local account blocking, and previous-response mobility rules.
+- Did not change billing, platform quota deduction, display-price/token transforms, cache-read token quantities, `actual_cost`, curated models, default fallback, Ops behavior, migrations, routes, or public settings.
+- Verified affected backend packages, explicit scheduler protection tests, frontend typecheck/lint/build and focused tests, upstream-sync guard, and diff checks.
 
 ## [2026-07-11] fix: Reconcile merged public contracts and auth-cache identity
 

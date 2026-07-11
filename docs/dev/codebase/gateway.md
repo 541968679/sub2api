@@ -203,6 +203,34 @@ handler until the risk-control and billing persistence batches are complete.
 
 ### OpenAI Responses / Chat / WS Current Sync Point
 
+#### Advanced scheduler control plane
+
+The Settings KV `openai_advanced_scheduler_enabled` is the total gate. When it
+is false, sticky weighting, subscription priority, DB `TopK`, and DB weight
+overrides are ignored. Enabling it allows independent sticky-weighted and paid
+ChatGPT subscription-priority modes plus overrides for `TopK` and nine score
+weights. The settings API returns effective values, and the account list shows
+base and per-group score snapshots computed from the effective weights.
+
+All advanced candidates still pass fork-local platform, group, runtime, model,
+compact, transport, endpoint/Images capability, and `RequireClaudeGPTBridge`
+checks before ranking. Hard previous-response affinity also revalidates the
+requested endpoint and Images capability. Weighted sticky fallback can use
+only the filtered pool; stale out-of-group session bindings are deleted.
+
+Subscription priority uses the non-secret scheduler metadata field
+`credentials.plan_type`. Scheduler snapshots retain that field while still
+removing access and refresh tokens. The scheduler tries subscription accounts
+first and then regular accounts; if neither acquires a slot, it prefers a
+regular wait plan and falls back to a busy subscription wait plan only when the
+regular pool cannot serve the request.
+
+`gateway.openai_scheduler` controls sticky escape independently of the Settings
+KV total gate. It defaults to enabled with TTFT EWMA `15000ms` and error-rate
+EWMA `0.5`; a full sticky slot also escapes. Escape selects a healthy fallback
+without overwriting the original session binding. Setting
+`sticky_escape_enabled: false` restores legacy sticky waiting.
+
 The staged sync through Phase 8B intentionally keeps OpenAI/Codex hot paths
 close to `upstream/main@be017445` while retaining local overlays. The currently
 synced behavior includes:
@@ -416,6 +444,8 @@ own cached manifest fallback.
 | Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, cost-window, and group-membership checks. Local response-id account bindings are namespaced by group to avoid cross-group previous-response reuse. |
 | Codex WS continuation mobility | A Responses WebSocket request may move away from its `previous_response_id` account only when every tool-output `call_id` is covered by an in-band tool-call context item or matching `item_reference`. Partial coverage keeps hard affinity so upstream can resolve the missing call from the response chain. |
 | Scheduler quota headroom | `gateway.openai_ws.scheduler_score_weights.quota_headroom` is opt-in (`0` by default). Fresh Codex 7d/5h snapshots influence advanced-scheduler scores; missing or older-than-8h snapshots are neutral, and a 5h window below 10% remaining reduces the factor. This changes account selection only, never billing or quota deduction. |
+| Advanced scheduler rollback | `openai_advanced_scheduler_enabled=false` disables both submodes and all DB TopK/weight overrides. It does not disable the base scheduler configured under `gateway.openai_ws`. |
+| Sticky escape | `gateway.openai_scheduler.sticky_escape_*` is a config-level safety policy. Escape keeps the old session binding intact and never bypasses group, platform, capability, bridge, or runtime eligibility. |
 | OpenAI effort metadata candidates | Usage recording checks mapped/upstream model first and then billing/original model names. This preserves GPT-5.6 `max` and suffix-derived effort when OAuth normalization removes the suffix; it does not rewrite requests or alter price calculation. |
 | OpenAI image trace logs | `OPENAI_IMAGE_TRACE_LOG=true` emits structured `openai.images.trace` events for `/v1/images/generations` with `model=gpt-image-2` only. Fields are limited to safe timing/correlation data (`request_id`, `client_request_id`, `trace_id`, `account_id`, model, size, quality, stream, status, timestamps, upstream request id); prompts, image bytes/base64, auth headers, cookies, API keys, and full bodies must not be logged. |
 | OpenAI Images account opt-out | `extra.openai_images_endpoint_enabled=false` excludes an OpenAI OAuth/API-key account from independent `/v1/images/*` scheduling only. It must not disable OpenAI chat/responses/embeddings, Claude-GPT bridge, or Codex `/v1/responses` image tool injection. |

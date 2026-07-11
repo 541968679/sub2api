@@ -88,6 +88,22 @@ git push origin main
   - No account cooldown, `model_rate_limits`, scheduler snapshot, user-platform quota, settings, usage-log, billing, display-token, cache-read, bridge, Images, curated-model, or default-model state is changed.
   - Spark linked shadow accounts (`bdf7ead15`) and the wider PAT creation/import control plane were not imported. Only the token-provider compatibility needed by an already represented PAT credential is present.
 - **Verification**: quota service and admin handler contracts; stable reset-ID passthrough and retry reuse; PAT token-provider path; Grok/user-platform-quota/scheduler/post-billing/display/cache protection tests; cmd/server and server compilation; frontend focused tests, typecheck, lint, and production build. Build completed with existing Browserslist, dynamic/static import, and large-chunk warnings only.
+### 2026-07-11 - OpenAI advanced scheduler control plane
+
+- **Upstream source**: feature point `f26ca5661` plus scheduler audit `0fd2e9216`, applied on isolated alignment baseline `19bd42ca5`.
+- **Merge strategy**: manual layered port. The upstream scheduler and WS forwarder were not taken wholesale; settings/API/UI, scoring, subscription metadata, admin score observability, and sticky escape were reconciled onto the fork-local scheduler skeleton.
+- **Behavior**:
+  - Adds sticky-weighted and paid ChatGPT subscription-priority submodes, DB TopK plus nine weight overrides, effective-value reporting, and a total runtime rollback gate.
+  - Adds config-level sticky escape for TTFT/error/concurrency-full states while preserving the original session binding.
+  - Adds admin account base/per-group scheduler scores and the bilingual Settings control surface.
+  - Retains non-secret `plan_type` in scheduler snapshots so subscription priority works with cached accounts; access/refresh tokens remain excluded.
+- **Fork-local impact**:
+  - Required endpoint/Images capability, Claude-GPT bridge eligibility, OpenAI/Grok isolation, model/compact/group/runtime checks, WS v2 transport eligibility, and local `BlockAccountScheduling` behavior remain in every candidate path.
+  - Account scores use effective weights and reset/quota factors but are observational only.
+  - Stored billing, `actual_cost`, platform quota deduction, display-token transforms, configured display prices, real cache-read token quantities, curated model discovery, default-model fallback, Ops capture/logging, migrations, routes, and public settings are unchanged.
+- **Verification**: affected backend packages; explicit capability/Images/Bridge/WS/platform/sticky/subscription tests; repository snapshot tests; frontend typecheck/lint/build and focused UI tests; upstream-sync guard and diff checks.
+
+This entry supersedes the next entry's statement that sticky-weighted and subscription-priority remained deferred.
 
 ### 2026-07-11 - OpenAI scheduler and Codex WebSocket hardening
 

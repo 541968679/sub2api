@@ -1415,6 +1415,21 @@ func (a *Account) IsOpenAIPersonalAccessToken() bool {
 		isOpenAIPersonalAccessTokenAuthMode(a.GetCredential(openAIAuthModeLegacyCredentialKey))
 }
 
+// IsOpenAIChatGPTSubscription reports whether an OpenAI OAuth account carries
+// a paid ChatGPT plan. Missing, free, and abnormal plan metadata stay in the
+// regular scheduler pool.
+func (a *Account) IsOpenAIChatGPTSubscription() bool {
+	if !a.IsOpenAIOAuth() {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(a.GetCredential("plan_type"))) {
+	case "", "free", "abnormal":
+		return false
+	default:
+		return true
+	}
+}
+
 func (a *Account) IsOpenAIApiKey() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeAPIKey
 }
