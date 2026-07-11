@@ -4271,7 +4271,6 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Specified a P0 structured bridge route decision (`not_configured`, `ready`, `rate_limited`, `unavailable`, `probe_error`) that separates stable mapping intent from transient scheduler state, removes hidden native fallback after bridge intent is established, and returns consistent Anthropic 429/503 semantics with `Retry-After`.
 - Specified a separate P1 adaptation of official `/v1/responses/input_tokens` and OAuth/local-tokenizer fallback for bridge-aware `count_tokens`, with no usage, billing, concurrency, or native-pool side effects.
 - Added the planned file map, two-request 429 regression, broader test matrix, observability fields, canary rollout, rollback, acceptance criteria, and ordered next-session implementation checklist.
-
 ## [2026-07-11] test: expand upstream-sync protection for fork-local contracts
 
 **Affected files**: `backend/tools/upstream-sync-guard/main.go`, `backend/tools/upstream-sync-guard/main_test.go`, `docs/dev/CHANGELOG_CUSTOM.md`, `docs/dev/UPSTREAM_SYNC.md`
@@ -4292,3 +4291,18 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - Run the dev-control-managed backend with `GIN_MODE=release` so route-table debug output does not delay runner process tracking during startup; Air hot reload remains enabled.
 - Removed the duplicate aggregate managed service from the manifest; dev control project-level actions still operate the backend and frontend together without competing for the same ports.
 - Documented the dev control-specific foreground commands and retained the existing whole-stack CLI workflow.
+
+ ## [2026-07-11] feat: Add user platform USD quotas without changing billing semantics
+
+**Affected files**: `backend/ent/schema/user_platform_quota.go`, `backend/migrations/162_user_platform_quotas.sql`, `backend/migrations/180_allow_grok_user_platform_quota.sql`, `backend/internal/repository/user_platform_quota_repo.go`, `backend/internal/repository/billing_cache.go`, `backend/internal/service/user_platform_quota_port.go`, `backend/internal/service/billing_cache_service.go`, `backend/internal/service/user_platform_quota_flusher.go`, `backend/internal/service/auth_service.go`, `backend/internal/service/setting_service.go`, `backend/internal/handler/user_platform_quota.go`, `backend/internal/handler/admin/user_platform_quota.go`, `frontend/src/components/admin/user/UserPlatformQuotaModal.vue`, `frontend/src/components/user/UserPlatformQuotaCell.vue`, `frontend/src/views/admin/UsersView.vue`, `frontend/src/views/admin/SettingsView.vue`, `frontend/src/views/user/DashboardView.vue`
+
+**Compatibility**: Medium risk, isolated behind per-user configured limits. Existing users have no quota records unless configured. Subscription-mode requests remain outside this balance-mode quota. Stored billing, quota deduction, `actual_cost`, display-token transforms, user/channel/global pricing, curated model lists, account scheduling, and Claude-GPT bridge routing are unchanged.
+
+**Details**:
+- Added daily, weekly, and rolling-30-day USD limits per user and platform for Anthropic, OpenAI, Gemini, Antigravity, and Grok, with additive migrations and an Ent schema.
+- Added Redis eligibility caching, short-lived no-record sentinels, atomic usage accumulation, dirty-key persistence, and a database flusher. Database lookup remains the fallback when Redis is unavailable.
+- Enforced limits before standard balance-mode requests and accumulated the final charged cost after billing. The quota path consumes billing output; it does not recalculate model prices or rewrite usage/display tokens.
+- Preserved forced-platform attribution for bridge and compatibility routes so Claude-GPT and OpenAI image requests are charged to the selected platform rather than inferred from model text.
+- Added user/admin APIs, admin per-user editing and window reset, dashboard usage display, system registration defaults, and per-auth-source overrides for the four locally supported auth sources.
+ - Added Grok to the platform constraint through migration `180`; historical migration `162` remains unchanged.
+ - Verification: focused Go package tests, tagged quota unit tests, Ent generation, frontend typecheck, 46 focused Vitest tests, and production frontend build passed.

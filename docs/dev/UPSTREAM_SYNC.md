@@ -583,6 +583,33 @@ git push origin main
 -->
 # Upstream Sync Notes
 
+## 2026-07-11 - User platform quota batch
+
+- **Branch**: `codex/upstream-quota-20260711`
+- **Base**: `bf5825074`
+- **Upstream feature points**: `6b39b344d` (quota model/API/UI) plus the later aggregated persistence/flusher follow-up.
+- **Strategy**: manual port in an isolated worktree. The upstream historical migration was not imported; local migration `162_user_platform_quotas.sql` remains authoritative and additive migration `180_allow_grok_user_platform_quota.sql` extends its platform constraint.
+- **Pushed/deployed**: no.
+
+### Preserved fork behavior
+
+- Quota eligibility is limited to standard balance-mode billing. Existing subscription selection and entitlement behavior are unchanged.
+- Quota usage increments from the completed billing result and never changes stored `actual_cost`, balance deduction, pricing resolution, display-rate multiplication, or display-token rewriting.
+- Cache-read tokens remain real quantities; the quota feature does not fabricate or rescale token components.
+- `ctxkey.ForcePlatform` takes precedence when attributing usage, preserving Claude-GPT bridge and OpenAI-compatible route intent.
+- Existing curated model discovery/fallback, image generation routing, account scheduling/failover, ops logging, settings, i18n, and routes were extended locally rather than replaced with upstream page/module versions.
+- Auth-source defaults cover only the locally supported email, LinuxDo, OIDC, and WeChat sources. Grok is included because this fork already supports it as a platform.
+
+### Verification
+
+- `go generate ./ent`
+- focused no-tag tests for server/handler/repository/service quota contracts
+- tagged quota unit tests for service/admin/repository
+- `pnpm run typecheck`
+- focused Vitest suite: 4 files, 46 tests
+- `pnpm run build`
+
+
 ## 2026-06-07 - Staged OpenAI/Codex sync through Phase 6.5
 
 - **Branch**: `codex/openai-codex-upstream-sync`

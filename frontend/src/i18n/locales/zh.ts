@@ -738,6 +738,7 @@ const zhBase = {
     hour: '按小时',
     modelDistribution: '模型分布',
     groupDistribution: '分组使用分布',
+    platformQuota: { title: '平台限额用量' },
     tokenUsageTrend: 'Token 使用趋势',
     noDataAvailable: '暂无数据',
     model: '模型',
@@ -2175,6 +2176,29 @@ const zhBase = {
         failedToReorder: '更新排序失败',
         keyExists: '属性键已存在',
         dragToReorder: '拖拽排序'
+      },
+      platformQuota: {
+        menuItem: '平台限额',
+        title: '平台限额',
+        subtitle: '为用户 {email} 配置各平台的日、周、月 USD 用量上限。',
+        columns: { platform: '平台', daily: '日限额 (USD)', weekly: '周限额 (USD)', monthly: '月限额 (USD，滚动 30 天)', usage: '当前用量' },
+        placeholder: '不限',
+        save: '保存',
+        saving: '保存中...',
+        cancel: '取消',
+        clearAll: '清空全部限额',
+        clearAllConfirm: '确认清空该用户的全部平台限额？',
+        hint: '留空表示不限，填 0 表示禁止该窗口使用。',
+        loadFailed: '加载平台限额失败',
+        invalidNumber: '请修正不合法的限额：{fields}',
+        updateSuccess: '平台限额已更新',
+        updateFailed: '更新平台限额失败',
+        subscriptionWarning: '此用户有活跃订阅。平台限额仅对余额模式请求生效。',
+        windowDaily: '日',
+        windowWeekly: '周',
+        windowMonthly: '月',
+        cellNotConfigured: '未配置',
+        reset: { button: '重置窗口', confirm: '确认重置 {platform} 的 {window} 用量？', success: '限额用量已重置', failed: '重置限额用量失败' }
       }
     },
 
@@ -5873,6 +5897,9 @@ const zhBase = {
         addDefaultSubscription: '添加默认订阅',
         defaultSubscriptionsEmpty: '未配置默认订阅。新用户不会自动获得订阅套餐。',
         defaultSubscriptionsDuplicate: '默认订阅存在重复分组：{groupId}。每个分组只能出现一次。',
+        defaultPlatformQuotas: '默认平台限额',
+        defaultPlatformQuotasHint: '注册时分配给新用户，已有用户不受影响。',
+        platformQuotaNotice: '月限额采用滚动 30 天窗口。',
         subscriptionGroup: '订阅分组',
         subscriptionValidityDays: '有效期（天）'
       },
@@ -6544,8 +6571,11 @@ const zhBase = {
         grantOnFirstBindHint: '已有账号首次绑定该来源时发放默认权益。',
         defaultSubscriptionsLabel: '默认订阅',
         defaultSubscriptionsHint: '仅对当前认证来源生效，未配置时不追加来源专属订阅。',
-        noSourceSubscriptions: '当前来源未配置专属默认订阅。'
+        noSourceSubscriptions: '当前来源未配置专属默认订阅。',
+        platformQuotasOverride: '平台限额覆盖',
+        platformQuotasOverrideHint: '留空继承系统默认值，填 0 表示禁止该窗口使用。'
       },
+      platformQuota: { platform: '平台', daily: '日限额 (USD)', weekly: '周限额 (USD)', monthly: '月限额 (USD，滚动 30 天)', placeholder: '不限' },
       paymentVisibleMethods: {
         methodLabel: '{title} 可见方式',
         methodHint: '控制前台结算页是否展示该方式，以及展示时使用的来源键。',

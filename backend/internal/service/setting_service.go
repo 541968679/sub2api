@@ -155,12 +155,73 @@ type SettingService struct {
 	webSearchManagerBuilder WebSearchManagerBuilder
 }
 
+// DefaultPlatformQuotaSetting describes the daily, weekly, and monthly USD
+// limits for one platform. Nil means unlimited, zero explicitly disables it.
+type DefaultPlatformQuotaSetting struct {
+	DailyLimitUSD   *float64 `json:"daily"`
+	WeeklyLimitUSD  *float64 `json:"weekly"`
+	MonthlyLimitUSD *float64 `json:"monthly"`
+}
+
 type ProviderDefaultGrantSettings struct {
 	Balance          float64
 	Concurrency      int
 	Subscriptions    []DefaultSubscriptionSetting
 	GrantOnSignup    bool
 	GrantOnFirstBind bool
+	PlatformQuotas   map[string]*DefaultPlatformQuotaSetting
+}
+
+// GetDefaultPlatformQuotas returns a complete platform map. Invalid or missing
+// settings fail open so registration is never blocked by malformed defaults.
+func (s *SettingService) GetDefaultPlatformQuotas(ctx context.Context) (map[string]*DefaultPlatformQuotaSetting, error) {
+	out := make(map[string]*DefaultPlatformQuotaSetting, len(AllowedQuotaPlatforms))
+	for _, platform := range AllowedQuotaPlatforms {
+		out[platform] = &DefaultPlatformQuotaSetting{}
+	}
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultPlatformQuotas)
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return out, nil
+	}
+	var parsed map[string]*DefaultPlatformQuotaSetting
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		slog.Warn("[Setting] invalid default platform quotas; failing open", "error", err)
+		return out, nil
+	}
+	for _, platform := range AllowedQuotaPlatforms {
+		if quota := parsed[platform]; quota != nil {
+			out[platform] = quota
+		}
+	}
+	return out, nil
+}
+
+func (s *SettingService) GetAuthSourcePlatformQuotas(ctx context.Context, source string) map[string]*DefaultPlatformQuotaSetting {
+	var out map[string]*DefaultPlatformQuotaSetting
+	raw, err := s.settingRepo.GetValue(ctx, SettingKeyAuthSourcePlatformQuotas(source))
+	if err != nil || strings.TrimSpace(raw) == "" {
+		return map[string]*DefaultPlatformQuotaSetting{}
+	}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		slog.Warn("[Setting] invalid auth-source platform quotas; failing open", "source", source, "error", err)
+		return map[string]*DefaultPlatformQuotaSetting{}
+	}
+	return out
+}
+
+func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
+	if dst == nil || src == nil {
+		return
+	}
+	if src.DailyLimitUSD != nil {
+		dst.DailyLimitUSD = src.DailyLimitUSD
+	}
+	if src.WeeklyLimitUSD != nil {
+		dst.WeeklyLimitUSD = src.WeeklyLimitUSD
+	}
+	if src.MonthlyLimitUSD != nil {
+		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
+	}
 }
 
 type AuthSourceDefaultSettings struct {
@@ -172,41 +233,51 @@ type AuthSourceDefaultSettings struct {
 }
 
 type authSourceDefaultKeySet struct {
+	source           string
 	balance          string
 	concurrency      string
 	subscriptions    string
 	grantOnSignup    string
 	grantOnFirstBind string
+	platformQuotas   string
 }
 
 var (
 	emailAuthSourceDefaultKeys = authSourceDefaultKeySet{
+		source:           "email",
 		balance:          SettingKeyAuthSourceDefaultEmailBalance,
 		concurrency:      SettingKeyAuthSourceDefaultEmailConcurrency,
 		subscriptions:    SettingKeyAuthSourceDefaultEmailSubscriptions,
 		grantOnSignup:    SettingKeyAuthSourceDefaultEmailGrantOnSignup,
 		grantOnFirstBind: SettingKeyAuthSourceDefaultEmailGrantOnFirstBind,
+		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("email"),
 	}
 	linuxDoAuthSourceDefaultKeys = authSourceDefaultKeySet{
+		source:           "linuxdo",
 		balance:          SettingKeyAuthSourceDefaultLinuxDoBalance,
 		concurrency:      SettingKeyAuthSourceDefaultLinuxDoConcurrency,
 		subscriptions:    SettingKeyAuthSourceDefaultLinuxDoSubscriptions,
 		grantOnSignup:    SettingKeyAuthSourceDefaultLinuxDoGrantOnSignup,
 		grantOnFirstBind: SettingKeyAuthSourceDefaultLinuxDoGrantOnFirstBind,
+		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("linuxdo"),
 	}
 	oidcAuthSourceDefaultKeys = authSourceDefaultKeySet{
+		source:           "oidc",
 		balance:          SettingKeyAuthSourceDefaultOIDCBalance,
 		concurrency:      SettingKeyAuthSourceDefaultOIDCConcurrency,
 		subscriptions:    SettingKeyAuthSourceDefaultOIDCSubscriptions,
 		grantOnSignup:    SettingKeyAuthSourceDefaultOIDCGrantOnSignup,
 		grantOnFirstBind: SettingKeyAuthSourceDefaultOIDCGrantOnFirstBind,
+		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("oidc"),
 	}
 	weChatAuthSourceDefaultKeys = authSourceDefaultKeySet{
+		source:           "wechat",
 		balance:          SettingKeyAuthSourceDefaultWeChatBalance,
 		concurrency:      SettingKeyAuthSourceDefaultWeChatConcurrency,
 		subscriptions:    SettingKeyAuthSourceDefaultWeChatSubscriptions,
 		grantOnSignup:    SettingKeyAuthSourceDefaultWeChatGrantOnSignup,
 		grantOnFirstBind: SettingKeyAuthSourceDefaultWeChatGrantOnFirstBind,
+		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("wechat"),
 	}
 )
 
@@ -1391,6 +1462,16 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyBalanceLowNotifyRechargeURL] = settings.BalanceLowNotifyRechargeURL
 	updates[SettingKeyAccountQuotaNotifyEnabled] = strconv.FormatBool(settings.AccountQuotaNotifyEnabled)
 	updates[SettingKeyAccountQuotaNotifyEmails] = MarshalNotifyEmails(settings.AccountQuotaNotifyEmails)
+	if settings.DefaultPlatformQuotas != nil {
+		if err := validateDefaultPlatformQuotaMap(settings.DefaultPlatformQuotas); err != nil {
+			return nil, err
+		}
+		blob, err := json.Marshal(settings.DefaultPlatformQuotas)
+		if err != nil {
+			return nil, fmt.Errorf("marshal default platform quotas: %w", err)
+		}
+		updates[SettingKeyDefaultPlatformQuotas] = string(blob)
+	}
 
 	return updates, nil
 }
@@ -1410,6 +1491,18 @@ func (s *SettingService) buildAuthSourceDefaultUpdates(ctx context.Context, sett
 			return nil, err
 		}
 	}
+	for _, quotas := range []map[string]*DefaultPlatformQuotaSetting{
+		settings.Email.PlatformQuotas,
+		settings.LinuxDo.PlatformQuotas,
+		settings.OIDC.PlatformQuotas,
+		settings.WeChat.PlatformQuotas,
+	} {
+		if quotas != nil {
+			if err := validateDefaultPlatformQuotaMap(quotas); err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	updates := make(map[string]string, 21)
 	writeProviderDefaultGrantUpdates(updates, emailAuthSourceDefaultKeys, settings.Email)
@@ -1418,6 +1511,23 @@ func (s *SettingService) buildAuthSourceDefaultUpdates(ctx context.Context, sett
 	writeProviderDefaultGrantUpdates(updates, weChatAuthSourceDefaultKeys, settings.WeChat)
 	updates[SettingKeyForceEmailOnThirdPartySignup] = strconv.FormatBool(settings.ForceEmailOnThirdPartySignup)
 	return updates, nil
+}
+
+func validateDefaultPlatformQuotaMap(quotas map[string]*DefaultPlatformQuotaSetting) error {
+	for platform, quota := range quotas {
+		if !IsAllowedQuotaPlatform(platform) {
+			return infraerrors.BadRequest("INVALID_DEFAULT_PLATFORM_QUOTA", fmt.Sprintf("unknown platform %q", platform))
+		}
+		if quota == nil {
+			continue
+		}
+		for _, limit := range []*float64{quota.DailyLimitUSD, quota.WeeklyLimitUSD, quota.MonthlyLimitUSD} {
+			if limit != nil && (*limit < 0 || math.IsNaN(*limit) || math.IsInf(*limit, 0)) {
+				return infraerrors.BadRequest("INVALID_DEFAULT_PLATFORM_QUOTA", "platform quota limit must be a finite non-negative number")
+			}
+		}
+	}
+	return nil
 }
 
 func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
@@ -1864,6 +1974,10 @@ func (s *SettingService) GetAuthSourceDefaultSettings(ctx context.Context) (*Aut
 		SettingKeyAuthSourceDefaultWeChatSubscriptions,
 		SettingKeyAuthSourceDefaultWeChatGrantOnSignup,
 		SettingKeyAuthSourceDefaultWeChatGrantOnFirstBind,
+		SettingKeyAuthSourcePlatformQuotas("email"),
+		SettingKeyAuthSourcePlatformQuotas("linuxdo"),
+		SettingKeyAuthSourcePlatformQuotas("oidc"),
+		SettingKeyAuthSourcePlatformQuotas("wechat"),
 		SettingKeyForceEmailOnThirdPartySignup,
 	}
 
@@ -2476,6 +2590,20 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	if result.AccountQuotaNotifyEmails == nil {
 		result.AccountQuotaNotifyEmails = []NotifyEmailEntry{}
 	}
+	result.DefaultPlatformQuotas = make(map[string]*DefaultPlatformQuotaSetting, len(AllowedQuotaPlatforms))
+	for _, platform := range AllowedQuotaPlatforms {
+		result.DefaultPlatformQuotas[platform] = &DefaultPlatformQuotaSetting{}
+	}
+	if raw := strings.TrimSpace(settings[SettingKeyDefaultPlatformQuotas]); raw != "" {
+		var quotas map[string]*DefaultPlatformQuotaSetting
+		if err := json.Unmarshal([]byte(raw), &quotas); err == nil {
+			for _, platform := range AllowedQuotaPlatforms {
+				if quota := quotas[platform]; quota != nil {
+					result.DefaultPlatformQuotas[platform] = quota
+				}
+			}
+		}
+	}
 
 	return result
 }
@@ -2633,6 +2761,12 @@ func parseProviderDefaultGrantSettings(settings map[string]string, keys authSour
 	if raw, ok := settings[keys.grantOnFirstBind]; ok {
 		result.GrantOnFirstBind = raw == "true"
 	}
+	if raw := settings[keys.platformQuotas]; strings.TrimSpace(raw) != "" {
+		var quotas map[string]*DefaultPlatformQuotaSetting
+		if err := json.Unmarshal([]byte(raw), &quotas); err == nil {
+			result.PlatformQuotas = quotas
+		}
+	}
 
 	return result
 }
@@ -2652,6 +2786,12 @@ func writeProviderDefaultGrantUpdates(updates map[string]string, keys authSource
 	updates[keys.subscriptions] = string(raw)
 	updates[keys.grantOnSignup] = strconv.FormatBool(settings.GrantOnSignup)
 	updates[keys.grantOnFirstBind] = strconv.FormatBool(settings.GrantOnFirstBind)
+	if settings.PlatformQuotas != nil {
+		raw, err := json.Marshal(settings.PlatformQuotas)
+		if err == nil {
+			updates[keys.platformQuotas] = string(raw)
+		}
+	}
 }
 
 func mergeProviderDefaultGrantSettings(globalDefaults ProviderDefaultGrantSettings, providerDefaults ProviderDefaultGrantSettings) ProviderDefaultGrantSettings {
@@ -2661,6 +2801,23 @@ func mergeProviderDefaultGrantSettings(globalDefaults ProviderDefaultGrantSettin
 		Subscriptions:    append([]DefaultSubscriptionSetting(nil), globalDefaults.Subscriptions...),
 		GrantOnSignup:    providerDefaults.GrantOnSignup,
 		GrantOnFirstBind: providerDefaults.GrantOnFirstBind,
+		PlatformQuotas:   make(map[string]*DefaultPlatformQuotaSetting),
+	}
+	for platform, quota := range globalDefaults.PlatformQuotas {
+		if quota == nil {
+			result.PlatformQuotas[platform] = &DefaultPlatformQuotaSetting{}
+			continue
+		}
+		copy := *quota
+		result.PlatformQuotas[platform] = &copy
+	}
+	for platform, quota := range providerDefaults.PlatformQuotas {
+		if existing := result.PlatformQuotas[platform]; existing != nil {
+			mergePlatformQuotaDefaults(existing, quota)
+		} else if quota != nil {
+			copy := *quota
+			result.PlatformQuotas[platform] = &copy
+		}
 	}
 
 	if providerDefaults.Balance != defaultAuthSourceBalance {

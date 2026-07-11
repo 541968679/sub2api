@@ -614,3 +614,26 @@ Not yet converted: `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` â†
 `buildUsageData`/`GetAPIKeyModelStats`) still returns raw tokens even though its
 siblings `/v1/usage/stats|trend|records` are display values â€” `GatewayHandler` lacks
 the pricing/display services (would need Wire DI or service-layer display aggregation).
+### User x Platform USD Quotas (2026-07-11)
+
+Data model: `user_platform_quotas` stores nullable daily/weekly/monthly USD limits and window usage for `(user_id, platform)`. Migration `162_user_platform_quotas.sql` owns the table; migration `180_allow_grok_user_platform_quota.sql` additively extends the platform CHECK to `grok`.
+
+Key files:
+
+- `internal/service/user_platform_quota_port.go`: service-facing records and repository contract.
+- `internal/repository/user_platform_quota_repo.go`: Ent adapter, window resets, snapshots, and initial grants.
+- `internal/repository/billing_cache.go`: Redis quota hashes, atomic increments, and dirty-key set.
+- `internal/service/billing_cache_service.go`: preflight eligibility and post-billing usage accumulation.
+- `internal/service/user_platform_quota_flusher.go`: batched Redis-to-PostgreSQL snapshots.
+- `internal/handler/user_platform_quota.go` and `internal/handler/admin/user_platform_quota.go`: user read and admin management APIs.
+
+Core flow: standard balance-mode preflight resolves the request platform, loads the cached quota (database fallback), rolls expired windows, and rejects exhausted windows with `Retry-After`. Successful billing then adds the final charged USD cost to the same platform cache. The flusher persists dirty snapshots; Redis failure remains fail-open so an infrastructure outage does not incorrectly block all traffic.
+
+Important invariants:
+
+- Quotas consume the final billing cost but do not calculate or mutate billing. Never use this feature to change balance deduction, stored `actual_cost`, pricing precedence, display rates, or display token/component costs.
+- Subscription-mode requests are not subject to these balance-mode platform quotas.
+- Resolve attribution with `ctxkey.ForcePlatform` before API-key/model inference. This preserves Claude-GPT bridge, OpenAI image, and compatibility-route platform intent.
+- A missing quota record is cached only with the short sentinel TTL. Do not extend a sentinel to the normal quota TTL or across a window boundary.
+- Window reset and admin updates must invalidate the Redis entry. Flusher snapshots must remain idempotent and must not decrement usage.
+- Platform lists must stay aligned across the migration constraint, Ent validation, service validation, API types, settings matrices, admin modal, and i18n. Current list: `anthropic`, `openai`, `gemini`, `antigravity`, `grok`.
