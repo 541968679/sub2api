@@ -604,7 +604,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		safeErr := sanitizeUpstreamErrorMessage(err.Error())
 		if anthropicCompactRequest {
 			return nil, s.newOpenAIStreamFailoverError(
-				c, account, false, "", nil, "OpenAI compact upstream request failed: "+safeErr,
+				c, account, false, "", nil, "Upstream compact request failed: "+safeErr,
 			)
 		}
 		setOpsUpstreamError(c, 0, safeErr, "")
@@ -809,7 +809,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 
 	if finalResponse == nil {
 		return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
-			"OpenAI messages stream ended without a terminal response event")
+			"Upstream messages stream ended without a terminal response event")
 	}
 
 	accountID := int64(0)
@@ -883,10 +883,10 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			strings.TrimSpace(finalResponse.IncompleteDetails.Reason) == "max_output_tokens" {
 			return result, s.newOpenAIStreamClientError(c, account, requestID, http.StatusBadRequest,
 				"invalid_request_error",
-				"OpenAI response reached max_output_tokens before producing assistant content; reduce the conversation context or output budget and try again.")
+				"Upstream response reached the maximum output length before producing assistant content; reduce the conversation context or output budget and try again.")
 		}
 		return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
-			"OpenAI messages response completed without assistant content or tool output")
+			"Upstream messages response completed without assistant content or tool output")
 	}
 	if bridgeMode {
 		logClaudeGPTBridgeConvertedUsage("buffered_response", requestID, accountID, originalModel, billingModel, upstreamModel, anthropicResp.Usage, false)
@@ -918,7 +918,7 @@ func (s *OpenAIGatewayService) openAIMessagesTerminalFailureError(
 ) *UpstreamFailoverError {
 	message := extractOpenAISSEErrorMessage(payload)
 	if message == "" {
-		message = "OpenAI response failed before producing assistant content"
+		message = "Upstream response failed before producing assistant content"
 	}
 	code := ""
 	errType := ""
@@ -1536,10 +1536,10 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				strings.TrimSpace(terminalResponse.IncompleteDetails.Reason) == "max_output_tokens" {
 				return result, s.newOpenAIStreamClientError(c, account, requestID, http.StatusBadRequest,
 					"invalid_request_error",
-					"OpenAI response reached max_output_tokens before producing assistant content; reduce the conversation context or output budget and try again.")
+					"Upstream response reached the maximum output length before producing assistant content; reduce the conversation context or output budget and try again.")
 			}
 			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
-				"OpenAI messages stream completed without assistant content or tool output")
+				"Upstream messages stream completed without assistant content or tool output")
 		}
 		flushPendingClientSSE()
 		MarkOpenAIAnthropicResponseTerminated(c)
@@ -1560,7 +1560,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 		if clientDisconnected {
 			return result, fmt.Errorf("stream usage incomplete: missing terminal event")
 		}
-		message := "OpenAI messages stream ended before a terminal event"
+		message := "Upstream messages stream ended before a terminal event"
 		if !clientVisibleOutputStarted {
 			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil, message)
 		}

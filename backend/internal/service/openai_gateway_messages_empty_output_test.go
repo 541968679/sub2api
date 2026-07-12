@@ -94,7 +94,8 @@ func TestOpenAIMessagesStreamIncompleteWithoutVisibleOutputIsClientError(t *test
 	failoverErr := requireMessagesFailoverError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, http.StatusBadRequest, failoverErr.StatusCode)
-	require.Contains(t, string(failoverErr.ResponseBody), "max_output_tokens")
+	// 客户端文案已中立化，不再点名 OpenAI 专有参数 max_output_tokens。
+	require.Contains(t, string(failoverErr.ResponseBody), "maximum output length")
 	require.False(t, rec.Result().StatusCode == http.StatusOK && strings.Contains(rec.Body.String(), "message_stop"))
 }
 

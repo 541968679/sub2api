@@ -3889,7 +3889,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 ) *UpstreamFailoverError {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
 	if message == "" {
-		message = "OpenAI stream disconnected before completion"
+		message = "Upstream stream disconnected before completion"
 	}
 	detail := ""
 	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -3939,7 +3939,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamClientError(
 ) *UpstreamFailoverError {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
 	if message == "" {
-		message = "OpenAI request failed"
+		message = "Upstream request failed"
 	}
 	errType = strings.TrimSpace(errType)
 	if errType == "" {
