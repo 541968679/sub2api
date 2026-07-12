@@ -87,5 +87,58 @@ func TestBridgeCompactContextLengthErrorIsProviderNeutral(t *testing.T) {
 	requireNoProviderBrand(t, "compact context-length sentinel", errOpenAICompactContextLengthExceeded.Error())
 }
 
+// ---- 上游文本透传通道：原始 OpenAI 错误文本经消毒器中立化 ----
+
+// 真实形态：上游 429 body 里点名 OpenAI + gpt-5.5，构造器必须消毒后再入
+// ResponseBody（该 body 会被 handler mapAnthropicFailoverBodyError 逐字回放）。
+func TestBridgeConstructorScrubsUpstreamProviderText(t *testing.T) {
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+	_, c, _, _, account := messagesTestStream(t)
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+	SetBridgeScrubModel(c, "claude-opus-4-8")
+
+	raw := "Your OpenAI account rate limit for gpt-5.5 was reached; see https://platform.openai.com/account."
+	failoverErr := svc.newOpenAIStreamFailoverError(c, account, false, "rid", nil, raw)
+	body := string(failoverErr.ResponseBody)
+	requireNoProviderBrand(t, "failover body from raw upstream text", body)
+	require.NotContains(t, body, "gpt-5.5")
+	require.NotContains(t, body, "openai.com")
+	require.Contains(t, body, "claude-opus-4-8", "gpt model must be rewritten to the requested Claude model")
+
+	clientErr := svc.newOpenAIStreamClientError(c, account, "rid", 400, "invalid_request_error",
+		"The model `gpt-5.5` from OpenAI is not available")
+	requireNoProviderBrand(t, "client-error body from raw upstream text", string(clientErr.ResponseBody))
+	require.NotContains(t, string(clientErr.ResponseBody), "gpt-5.5")
+}
+
+// 非 bridge 模式（未设 context key）：OpenAI 原生分组保留原文，消毒器不介入。
+func TestNonBridgeConstructorKeepsProviderText(t *testing.T) {
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+	_, c, _, _, account := messagesTestStream(t)
+	// 不设 bridge context key。
+	raw := "Your OpenAI account rate limit was reached"
+	failoverErr := svc.newOpenAIStreamFailoverError(c, account, false, "rid", nil, raw)
+	require.Contains(t, string(failoverErr.ResponseBody), "OpenAI",
+		"OpenAI-platform native path must keep provider wording")
+}
+
+// 流式 failed-event 在已有可见输出后写 SSE error：上游 message 必须消毒。
+func TestBridgeStreamFailedEventScrubsUpstreamMessageAfterVisibleOutput(t *testing.T) {
+	svc, c, rec, resp, account := messagesTestStream(t,
+		`{"type":"response.created","response":{"id":"resp_v","model":"gpt-5.5","status":"in_progress"}}`,
+		`{"type":"response.output_text.delta","output_index":0,"delta":"partial"}`,
+		`{"type":"response.failed","response":{"id":"resp_v","status":"failed","error":{"code":"server_error","message":"OpenAI gpt-5.5 backend crashed, see https://chatgpt.com/status"},"output":[]}}`,
+	)
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+	SetBridgeScrubModel(c, "claude-opus-4-8")
+
+	_, _ = svc.handleAnthropicStreamingResponse(resp, c, account, true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now())
+
+	requireNoProviderBrand(t, "mid-stream SSE error from upstream message", rec.Body.String())
+	require.NotContains(t, rec.Body.String(), "gpt-5.5")
+	require.NotContains(t, rec.Body.String(), "chatgpt.com")
+}
+
 var _ = time.Now
 var _ = strings.Contains

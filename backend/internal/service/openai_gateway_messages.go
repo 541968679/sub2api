@@ -305,6 +305,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// may trim the forwarding copy to the latest 12 messages below.
 	anthropicCompactReq := cloneAnthropicRequestForDigest(&anthropicReq)
 	originalModel := anthropicReq.Model
+	if bridgeMode {
+		// 登记客户端请求的 Claude 模型：出口消毒器用它替换上游错误文本里
+		// 泄漏的 gpt-* 模型名。
+		SetBridgeScrubModel(c, originalModel)
+	}
 	applyOpenAICompatModelNormalization(&anthropicReq)
 	normalizedModel := anthropicReq.Model
 	clientStream := anthropicReq.Stream // client's original stream preference
@@ -535,7 +540,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	if policyErr != nil {
 		var blocked *OpenAIFastBlockedError
 		if errors.As(policyErr, &blocked) {
-			writeAnthropicError(c, http.StatusForbidden, "forbidden_error", blocked.Message)
+			writeAnthropicError(c, http.StatusForbidden, "forbidden_error", scrubBridgeClientText(c, blocked.Message))
 		}
 		return nil, policyErr
 	}
@@ -839,7 +844,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 				UpstreamInTok:  usage.InputTokens,
 				UpstreamOutTok: usage.OutputTokens,
 			})
-			clientMsg := msg
+			clientMsg := scrubBridgeClientText(c, msg)
 			if clientMsg == "" {
 				clientMsg = "Request blocked by upstream cyber-security policy"
 			}
@@ -856,7 +861,11 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 				errMsg = message
 			}
 			MarkResponseCommitted(c)
-			writeAnthropicError(c, status, errType, errMsg)
+			errType = scrubBridgeClientText(c, errType)
+			if strings.TrimSpace(errType) == "" {
+				errType = "api_error"
+			}
+			writeAnthropicError(c, status, errType, scrubBridgeClientText(c, errMsg))
 			return nil, fmt.Errorf("upstream response failed (passthrough): %s", errMsg)
 		}
 		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
@@ -1356,7 +1365,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					})
 					if !clientDisconnected {
 						writeStreamHeaders()
-						clientMsg := msg
+						clientMsg := scrubBridgeClientText(c, msg)
 						if clientMsg == "" {
 							clientMsg = "Request blocked by upstream cyber-security policy"
 						}
@@ -1449,6 +1458,12 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			if errMessage == "" {
 				errMessage = message
 			}
+			// bridge 出口消毒：上游 error.type/message 可能带 OpenAI/gpt-* 指纹。
+			errType = scrubBridgeClientText(c, errType)
+			if errType == "" {
+				errType = "api_error"
+			}
+			errMessage = scrubBridgeClientText(c, errMessage)
 			if clientVisibleOutputStarted && !clientDisconnected {
 				writeStreamHeaders()
 				if _, err := fmt.Fprint(c.Writer, buildAnthropicStreamErrorSSE(errType, errMessage)); err == nil {

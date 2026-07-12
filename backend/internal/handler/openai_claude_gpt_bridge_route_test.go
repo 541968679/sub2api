@@ -386,6 +386,39 @@ func TestHandleAnthropicFailoverExhausted_BridgeMode429PropagatesRetryAfter(t *t
 	require.Equal(t, "300", rec.Header().Get("Retry-After"))
 }
 
+// 失败回放会把原始上游 error.type/message 逐字转发；bridge 模式必须消毒掉
+// 其中的 OpenAI/gpt-* 品牌指纹，而 OpenAI 原生分组保留原文。
+func TestHandleAnthropicFailoverExhausted_BridgeModeScrubsUpstreamBrand(t *testing.T) {
+	h := &OpenAIGatewayHandler{}
+	c, rec := newBridgeRouteTestContext(t, service.PlatformAntigravity, bridgeRouteTestBody)
+	c.Set("openai_claude_gpt_bridge", true)
+	service.SetBridgeScrubModel(c, "claude-opus-4-8")
+
+	failoverErr := &service.UpstreamFailoverError{
+		StatusCode:   http.StatusBadRequest,
+		ResponseBody: []byte(`{"error":{"type":"invalid_request_error","message":"The model gpt-5.5 from OpenAI is unavailable, see https://platform.openai.com/docs"}}`),
+	}
+	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
+
+	body := rec.Body.String()
+	for _, token := range []string{"OpenAI", "openai", "gpt-5.5", "openai.com"} {
+		require.NotContainsf(t, body, token, "failover replay must scrub %q; got: %s", token, body)
+	}
+	require.Contains(t, body, "claude-opus-4-8")
+}
+
+func TestHandleAnthropicFailoverExhausted_NonBridgeModeKeepsUpstreamBrand(t *testing.T) {
+	h := &OpenAIGatewayHandler{}
+	c, rec := newBridgeRouteTestContext(t, service.PlatformOpenAI, bridgeRouteTestBody)
+
+	failoverErr := &service.UpstreamFailoverError{
+		StatusCode:   http.StatusBadRequest,
+		ResponseBody: []byte(`{"error":{"type":"invalid_request_error","message":"The model gpt-5.5 from OpenAI is unavailable"}}`),
+	}
+	h.handleAnthropicFailoverExhausted(c, failoverErr, false)
+	require.Contains(t, rec.Body.String(), "OpenAI", "OpenAI-platform native path keeps provider wording")
+}
+
 func TestHandleAnthropicFailoverExhausted_NonBridgeModeDoesNotAddRetryAfter(t *testing.T) {
 	h := &OpenAIGatewayHandler{}
 	c, rec := newBridgeRouteTestContext(t, service.PlatformOpenAI, bridgeRouteTestBody)

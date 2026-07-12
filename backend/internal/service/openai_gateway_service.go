@@ -3888,6 +3888,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	message string,
 ) *UpstreamFailoverError {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	message = scrubBridgeClientText(c, message)
 	if message == "" {
 		message = "Upstream stream disconnected before completion"
 	}
@@ -3938,10 +3939,12 @@ func (s *OpenAIGatewayService) newOpenAIStreamClientError(
 	message string,
 ) *UpstreamFailoverError {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	message = scrubBridgeClientText(c, message)
 	if message == "" {
 		message = "Upstream request failed"
 	}
 	errType = strings.TrimSpace(errType)
+	errType = scrubBridgeClientText(c, errType)
 	if errType == "" {
 		errType = "invalid_request_error"
 	}
@@ -3986,8 +3989,9 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	message string,
 ) string {
 	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	message = scrubBridgeClientText(c, message)
 	if message == "" {
-		message = "OpenAI upstream response failed"
+		message = "Upstream response failed"
 	}
 	detail := ""
 	if len(payload) > 0 && s != nil && s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -4708,6 +4712,8 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		upstreamMsg = fmt.Sprintf("Upstream error: %d", resp.StatusCode)
 	}
 	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	// bridge 出口消毒：上游 error.message 常带 OpenAI/gpt-*/openai.com 指纹。
+	upstreamMsg = scrubBridgeClientText(c, upstreamMsg)
 
 	upstreamDetail := ""
 	if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -4720,7 +4726,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	if hit, code, message := detectOpenAICyberPolicy(body); hit {
 		MarkOpsCyberPolicy(c, CyberPolicyMark{Code: code, Message: message, Body: truncateString(string(body), 4096), UpstreamStatus: resp.StatusCode})
-		writeError(c, resp.StatusCode, "invalid_request_error", message)
+		writeError(c, resp.StatusCode, "invalid_request_error", scrubBridgeClientText(c, message))
 		return nil, errOpenAICyberPolicyForwarded
 	}
 
@@ -4729,7 +4735,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		c, account.Platform, resp.StatusCode, body,
 		http.StatusBadGateway, "api_error", "Upstream request failed",
 	); matched {
-		writeError(c, status, errType, errMsg)
+		writeError(c, status, scrubBridgeClientText(c, errType), scrubBridgeClientText(c, errMsg))
 		if upstreamMsg == "" {
 			upstreamMsg = errMsg
 		}
@@ -7113,7 +7119,7 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, 
 	case BetaPolicyActionBlock:
 		msg := errMsg
 		if msg == "" {
-			msg = fmt.Sprintf("openai service_tier=%s is not allowed for model %s", normTier, model)
+			msg = fmt.Sprintf("service_tier=%s is not allowed for this model", normTier)
 		}
 		return body, &OpenAIFastBlockedError{Message: msg}
 	case BetaPolicyActionFilter:
