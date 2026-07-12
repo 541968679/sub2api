@@ -2,6 +2,16 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-12] feat: Move error-request viewing from user usage to admin usage
+
+**Affected files**: `frontend/src/views/user/UsageView.vue`, `frontend/src/views/admin/UsageView.vue`, `frontend/src/views/admin/__tests__/UsageView.spec.ts`, `docs/dev/CHANGELOG_CUSTOM.md`
+**Compatibility**: Frontend only. Makes error-request viewing admin-only. The user-side `allow_user_view_error_requests` setting and `/usage/errors` API are retained but the user tab no longer renders.
+**Details**:
+- User usage view (`/usage`): the error-request tab is hidden unconditionally (`errorViewEnabled` forced false). The tab bar disappears and only the usage records section renders; the setting/API are kept dormant for future re-enablement.
+- Admin usage view (`/admin/usage`): added an "错误请求 / Error Requests" tab alongside "使用记录" and "用户排行", lazily mounted like the ranking tab. It reuses the existing Ops error infrastructure — `opsAPI.listErrorLogs` (`/admin/ops/errors`, `view=errors`), `OpsErrorLogTable` (self-paginating), and `OpsErrorDetailModal` (`error-type="request"`) — scoped to the page's date range plus group/account filters (converted to RFC3339 full-day bounds).
+- Errors reload on filter apply/refresh when the tab is active; i18n `usage.tabs.errors` already existed in zh/en.
+- Verified: typecheck + lint clean; admin UsageView spec updated (3 tabs, new lazy-load-and-fetch test) and user/admin specs green; live check confirmed the admin tab fires `GET /admin/ops/errors?...view=errors` (200) with the correct date bounds and the user view shows no error tab.
+
 ## [2026-07-11] sync: Complete selective alignment through upstream e316ebf5
 
 **Affected files**: consolidated upstream-alignment branch and verification ledger.

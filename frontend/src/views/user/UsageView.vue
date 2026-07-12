@@ -998,9 +998,10 @@ const hideTokenTooltip = () => {
 }
 
 const activeTab = ref<'usage' | 'errors'>('usage')
-const errorViewEnabled = computed(
-  () => appStore.cachedPublicSettings?.allow_user_view_error_requests ?? false
-)
+// 错误请求视图已迁移到管理员侧「使用记录 → 错误请求」，用户侧不再展示该栏。
+// allow_user_view_error_requests 设置与 /usage/errors 接口保留（暂无效果），
+// 便于后续需要时重新启用用户侧入口。
+const errorViewEnabled = computed(() => false)
 
 const errorRows = ref<UserErrorRequest[]>([])
 const errorLoading = ref(false)

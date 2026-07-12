@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravityStats, getAntigravityCreditCurve } = vi.hoisted(() => {
+const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravityStats, getAntigravityCreditCurve, listErrorLogs } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -18,6 +18,7 @@ const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravitySta
     getById: vi.fn(),
     getAntigravityStats: vi.fn(),
     getAntigravityCreditCurve: vi.fn(),
+    listErrorLogs: vi.fn(),
   }
 })
 
@@ -57,6 +58,10 @@ vi.mock('@/api/admin/usage', () => ({
     getAntigravityStats,
     getAntigravityCreditCurve,
   },
+}))
+
+vi.mock('@/api/admin/ops', () => ({
+  opsAPI: { listErrorLogs },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -247,6 +252,7 @@ describe('admin UsageView ranking drilldown', () => {
         ModelDistributionChart: true, GroupDistributionChart: true,
         EndpointDistributionChart: true, AntigravityRatioCard: true,
         AntigravityUsageCurveChart: true, UserTokenRanking: UserTokenRankingStub,
+        OpsErrorLogTable: true, OpsErrorDetailModal: true,
       } },
     })
     vi.advanceTimersByTime(120)
@@ -254,7 +260,7 @@ describe('admin UsageView ranking drilldown', () => {
 
     expect(wrapper.find('[data-test="ranking"]').exists()).toBe(false)
     const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
-    expect(tabs).toHaveLength(2)
+    expect(tabs).toHaveLength(3)
 
     await tabs[1].trigger('click')
     await flushPromises()
@@ -266,5 +272,35 @@ describe('admin UsageView ranking drilldown', () => {
     expect((wrapper.vm as any).activeTab).toBe('usage')
     expect((wrapper.vm as any).filters.user_id).toBe(5)
     expect(list).toHaveBeenCalledWith(expect.objectContaining({ user_id: 5 }), expect.anything())
+  })
+
+  it('lazily loads the error requests tab from the ops error log endpoint', async () => {
+    listErrorLogs.mockResolvedValue({ items: [{ id: 42 }], total: 1 })
+    const wrapper = mount(UsageView, {
+      global: { stubs: {
+        AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
+        UsageTable: true, UsageExportProgress: true, UsageCleanupDialog: true,
+        UserBalanceHistoryModal: true, UserViewCompareDrawer: true, Pagination: true,
+        Select: true, DateRangePicker: true, Icon: true, TokenUsageTrend: true,
+        ModelDistributionChart: true, GroupDistributionChart: true,
+        EndpointDistributionChart: true, AntigravityRatioCard: true,
+        AntigravityUsageCurveChart: true, UserTokenRanking: UserTokenRankingStub,
+        OpsErrorLogTable: true, OpsErrorDetailModal: true,
+      } },
+    })
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    // 未激活前不应加载错误日志
+    expect(listErrorLogs).not.toHaveBeenCalled()
+
+    const tabs = wrapper.findAll('[data-testid="usage-detail-tab"]')
+    await tabs[2].trigger('click')
+    await flushPromises()
+
+    expect((wrapper.vm as any).activeTab).toBe('errors')
+    expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({ view: 'errors', page: 1 }))
+    expect((wrapper.vm as any).errorLogs).toEqual([{ id: 42 }])
+    expect((wrapper.vm as any).errorTotal).toBe(1)
   })
 })

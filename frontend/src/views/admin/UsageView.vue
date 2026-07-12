@@ -118,6 +118,17 @@
       />
       <Pagination v-if="activeTab === 'usage' && pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
       <UserTokenRanking v-if="rankingMounted" v-show="activeTab === 'ranking'" ref="rankingRef" :start-date="startDate" :end-date="endDate" :filters="breakdownFilters" :model="filters.model" @select-user="handleRankingSelectUser" />
+      <!-- 错误请求 tab：表格自带分页 -->
+      <OpsErrorLogTable v-if="errorsMounted" v-show="activeTab === 'errors'"
+        :rows="errorLogs"
+        :total="errorTotal"
+        :loading="errorLoading"
+        :page="errorPage"
+        :page-size="errorPageSize"
+        @openErrorDetail="openErrorDetail"
+        @update:page="handleErrorPageChange"
+        @update:pageSize="handleErrorPageSizeChange"
+      />
     </div>
   </AppLayout>
   <UsageExportProgress :show="exportProgress.show" :progress="exportProgress.progress" :current="exportProgress.current" :total="exportProgress.total" :estimated-time="exportProgress.estimatedTime" @cancel="cancelExport" />
@@ -141,6 +152,8 @@
     :open="userViewOpen"
     @close="closeUserViewDrawer"
   />
+  <!-- Error request detail (reused from ops monitoring) -->
+  <OpsErrorDetailModal v-model:show="showErrorDetailModal" :error-id="selectedErrorId" :error-type="'request'" />
 </template>
 
 <script setup lang="ts">
@@ -160,6 +173,9 @@ import UsageTable from '@/components/admin/usage/UsageTable.vue'; import UsageEx
 import UsageCleanupDialog from '@/components/admin/usage/UsageCleanupDialog.vue'
 import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawer.vue'
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
+import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
+import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
+import { opsAPI, type OpsErrorLog } from '@/api/admin/ops'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
@@ -238,18 +254,66 @@ const handleUserClick = async (userId: number) => {
   }
 }
 
-type DetailTab = 'usage' | 'ranking'
+type DetailTab = 'usage' | 'ranking' | 'errors'
 const activeTab = ref<DetailTab>('usage')
 const rankingMounted = ref(false)
 const rankingRef = ref<InstanceType<typeof UserTokenRanking> | null>(null)
 const detailTabs = computed(() => [
   { key: 'usage' as const, label: t('usage.tabs.usage') },
   { key: 'ranking' as const, label: t('usage.tabs.ranking') },
+  { key: 'errors' as const, label: t('usage.tabs.errors') },
 ])
 const switchTab = (tab: DetailTab) => {
   activeTab.value = tab
   if (tab === 'ranking') rankingMounted.value = true
+  if (tab === 'errors') {
+    errorsMounted.value = true
+    if (errorLogs.value.length === 0 && !errorLoading.value) loadErrorLogs()
+  }
 }
+
+// 错误请求 tab：复用运维监控的 /admin/ops/errors 全量错误日志，
+// 接入当前使用记录页的日期范围与分组/账号筛选。
+const errorsMounted = ref(false)
+const errorLogs = ref<OpsErrorLog[]>([])
+const errorTotal = ref(0)
+const errorLoading = ref(false)
+const errorPage = ref(1)
+const errorPageSize = ref(getPersistedPageSize())
+const showErrorDetailModal = ref(false)
+const selectedErrorId = ref<number | null>(null)
+
+const toDayStartISO = (d: string) => new Date(`${d}T00:00:00`).toISOString()
+const toDayEndISO = (d: string) => new Date(`${d}T23:59:59.999`).toISOString()
+
+const loadErrorLogs = async () => {
+  errorLoading.value = true
+  try {
+    const params: Record<string, any> = {
+      page: errorPage.value,
+      page_size: errorPageSize.value,
+      start_time: toDayStartISO(startDate.value),
+      end_time: toDayEndISO(endDate.value),
+      view: 'errors',
+    }
+    const bf = breakdownFilters.value
+    if (bf.group_id) params.group_id = bf.group_id
+    if (bf.account_id) params.account_id = bf.account_id
+    const res = await opsAPI.listErrorLogs(params)
+    errorLogs.value = res.items || []
+    errorTotal.value = res.total || 0
+  } catch (error) {
+    console.error('Failed to load error logs:', error)
+    errorLogs.value = []
+    errorTotal.value = 0
+    appStore.showError(t('usage.errors.failedToLoad'))
+  } finally {
+    errorLoading.value = false
+  }
+}
+const handleErrorPageChange = (p: number) => { errorPage.value = p; loadErrorLogs() }
+const handleErrorPageSizeChange = (s: number) => { errorPageSize.value = s; errorPage.value = 1; loadErrorLogs() }
+const openErrorDetail = (id: number) => { selectedErrorId.value = id; showErrorDetailModal.value = true }
 const handleRankingSelectUser = (userId: number) => {
   filters.value = { ...filters.value, user_id: userId }
   activeTab.value = 'usage'
@@ -533,11 +597,13 @@ const onGranularityChange = () => {
 }
 const applyFilters = () => {
   pagination.page = 1
+  errorPage.value = 1
   resetModelStatsCache()
   loadLogs()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
+  if (errorsMounted.value) loadErrorLogs()
 }
 const refreshData = () => {
   resetModelStatsCache()
@@ -546,6 +612,7 @@ const refreshData = () => {
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
   if (rankingMounted.value) void rankingRef.value?.reload()
+  if (errorsMounted.value) loadErrorLogs()
 }
 const resetFilters = () => {
   const range = getLast24HoursRangeDates()
