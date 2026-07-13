@@ -230,6 +230,8 @@ type OpenAIForwardResult struct {
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.
 	// Empty when no mapping was applied (requested model was used as-is).
 	UpstreamModel string
+	// UpstreamEndpoint is the actual upstream API path used for this request.
+	UpstreamEndpoint string
 	// ServiceTier records the OpenAI Responses API service tier, e.g. "priority" / "flex".
 	// Nil means the request did not specify a recognized tier.
 	ServiceTier *string
@@ -262,6 +264,27 @@ type OpenAIForwardResult struct {
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
+}
+
+func SetActualOpenAIUpstreamEndpoint(c *gin.Context, endpoint string) {
+	if c == nil {
+		return
+	}
+	if endpoint = strings.TrimSpace(endpoint); endpoint != "" {
+		c.Set("openai_actual_upstream_endpoint", endpoint)
+	}
+}
+
+func GetActualOpenAIUpstreamEndpoint(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	value, exists := c.Get("openai_actual_upstream_endpoint")
+	if !exists {
+		return ""
+	}
+	endpoint, _ := value.(string)
+	return strings.TrimSpace(endpoint)
 }
 
 type OpenAIWSRetryMetricsSnapshot struct {
@@ -1210,20 +1233,14 @@ func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
 // Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
 func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
-	if c == nil {
-		return ""
-	}
-	sessionID := strings.TrimSpace(c.GetHeader("session_id"))
-	if sessionID == "" {
-		sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
-	}
-	if sessionID == "" && len(body) > 0 {
-		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
-	}
-	return sessionID
+	return explicitOpenAIRequestSessionID(c, body)
 }
 
 func explicitOpenAISessionID(c *gin.Context, body []byte) string {
+	return explicitOpenAIRequestSessionID(c, body)
+}
+
+func explicitOpenAIRequestSessionID(c *gin.Context, body []byte) string {
 	if c == nil {
 		return ""
 	}
@@ -1231,6 +1248,9 @@ func explicitOpenAISessionID(c *gin.Context, body []byte) string {
 	sessionID := strings.TrimSpace(c.GetHeader("session_id"))
 	if sessionID == "" {
 		sessionID = strings.TrimSpace(c.GetHeader("conversation_id"))
+	}
+	if sessionID == "" && isGrokRequestContext(c) {
+		sessionID = strings.TrimSpace(c.GetHeader(grokConversationIDHeader))
 	}
 	if sessionID == "" && len(body) > 0 {
 		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())

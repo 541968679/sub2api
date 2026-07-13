@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
@@ -306,7 +307,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
+		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account, result)
 
 		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -343,7 +344,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 // resolveOpenAIUpstreamEndpoint returns the actual upstream endpoint for OpenAI
 // usage records. API-key accounts that bypass Responses are sent to raw Chat
 // Completions even when the inbound path is normalized to Responses.
-func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account) string {
+func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account, result *service.OpenAIForwardResult) string {
+	if result != nil {
+		if endpoint := strings.TrimSpace(result.UpstreamEndpoint); endpoint != "" {
+			return endpoint
+		}
+	}
+	if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
+		return endpoint
+	}
 	if account != nil && account.Type == service.AccountTypeAPIKey &&
 		!openai_compat.ShouldUseResponsesAPI(account.Extra) {
 		return "/v1/chat/completions"

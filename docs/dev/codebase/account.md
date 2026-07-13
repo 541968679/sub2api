@@ -51,6 +51,20 @@ xAI-incompatible fields without changing the caller-owned request. Grok 4.3,
 4.5, Build, and Composer fallback pricing includes cached-input prices so
 missing dynamic pricing fails closed rather than billing at zero.
 
+Prompt caching uses a tenant-isolated UUID derived from the downstream API-key
+ID, mapped model, and the stable conversation seed. The raw `session_id`,
+`conversation_id`, `X-Grok-Conv-Id`, or `prompt_cache_key` is never forwarded
+as the upstream cache key. The Grok-native conversation header participates in
+scheduling only when the authenticated group platform is Grok.
+
+For OAuth Chat Completions, a strict compatibility gate may route simple
+plain-text `grok-4.5` requests through Responses to obtain cached-input usage.
+Any request shape whose semantics could change—tools/functions, structured
+image content, developer/tool roles, stop/reasoning parameters, unknown fields,
+small token limits, or non-4.5 mappings—stays on raw Chat Completions. The
+forward result records the actual endpoint so Ops and usage rows do not infer
+the wrong upstream path.
+
 ## Anthropic API-Key Upstream Authentication
 
 Anthropic API-key accounts may set

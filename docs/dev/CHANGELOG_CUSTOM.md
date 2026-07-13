@@ -2,6 +2,40 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-13] feat: Add isolated Grok prompt caching and safe Chat bridging
+
+**Affected files**: Grok cache identity and Chat bridge services, Grok
+Responses/raw Chat forwarding, OpenAI-compatible endpoint attribution,
+scheduling session extraction, focused tests, account module documentation,
+and this changelog.
+
+**Upstream compatibility**: Selective behavior-level alignment of upstream
+`0478fd366` and `7050070aa`.
+
+**Details**:
+- Derives a stable Grok prompt-cache UUID from downstream API-key ID, mapped
+  model, and explicit/content-derived conversation seed. Raw tenant/session
+  identifiers are never sent upstream, and identical seeds remain isolated
+  across API keys and model mappings.
+- Grok OAuth Responses requests receive the isolated `prompt_cache_key` and
+  conversation header. Tool-free requests may receive native search tools with
+  `tool_choice=none` to select the cache-capable free OAuth route; any explicit
+  client tool intent prevents this augmentation.
+- Plain-text Grok OAuth Chat Completions requests use Responses only when a
+  strict shape check, cache identity, and `grok-4.5` mapped-model gate all pass.
+  Tools, images, developer/tool roles, stop/reasoning parameters, small token
+  caps, unknown fields, API-key accounts, and other mapped models stay on raw
+  `/v1/chat/completions`.
+- Usage/Ops records now take the actual forwarding endpoint from the result or
+  request context, so dynamically bridged and raw Grok Chat requests are not
+  misattributed.
+- Cached input remains the upstream-reported real quantity and flows through
+  existing billing/display logic unchanged; the bridge does not fabricate
+  cache tokens or alter stored `actual_cost`.
+- Verified all Grok-focused service tests, endpoint attribution handler tests,
+  and `cmd/server` compilation. No migration, frontend, service start, push, or
+  deployment occurred in this batch.
+
 ## [2026-07-13] sync: Align Grok CLI routing and quota safety from v0.1.152
 
 **Affected files**: Grok account URL/OAuth credentials, shared upstream
