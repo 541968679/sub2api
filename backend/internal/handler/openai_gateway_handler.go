@@ -243,18 +243,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 
 	setOpsRequestContext(c, "", false, body)
 	sessionHashBody := body
-	if service.IsOpenAIResponsesCompactPathForTest(c) {
-		if compactSeed := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()); compactSeed != "" {
-			c.Set(service.OpenAICompactSessionSeedKeyForTest(), compactSeed)
-		}
-		normalizedCompactBody, normalizedCompact, compactErr := service.NormalizeOpenAICompactRequestBodyForTest(body)
-		if compactErr != nil {
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to normalize compact request body")
-			return
-		}
-		if normalizedCompact {
-			body = normalizedCompactBody
-		}
+	body, ok = h.normalizeOpenAIResponsesCompactRequest(c, reqLog, body)
+	if !ok {
+		return
 	}
 
 	// 校验请求体 JSON 合法性
@@ -584,6 +575,60 @@ func isOpenAIRemoteCompactPath(c *gin.Context) bool {
 	}
 	normalizedPath := strings.TrimRight(strings.TrimSpace(c.Request.URL.Path), "/")
 	return strings.HasSuffix(normalizedPath, "/responses/compact")
+}
+
+func isBareOpenAIResponsesPath(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	normalizedPath := strings.TrimRight(strings.TrimSpace(c.Request.URL.Path), "/")
+	return strings.HasSuffix(normalizedPath, "/responses")
+}
+
+func isOpenAIRemoteCompactionV2Request(c *gin.Context, body []byte) bool {
+	stream, valid := parseOpenAICompatibleStream(body)
+	if !valid || !stream || c == nil || c.Request == nil {
+		return false
+	}
+	for _, header := range c.Request.Header.Values("x-codex-beta-features") {
+		for _, feature := range strings.Split(header, ",") {
+			if strings.TrimSpace(feature) == "remote_compaction_v2" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// normalizeOpenAIResponsesCompactRequest keeps native remote_compaction_v2
+// traffic on the streaming /responses wire. Explicit /responses/compact
+// requests retain the fork's existing unary normalization behavior.
+func (h *OpenAIGatewayHandler) normalizeOpenAIResponsesCompactRequest(c *gin.Context, reqLog *zap.Logger, body []byte) ([]byte, bool) {
+	isCompactRequest := service.IsOpenAIResponsesCompactPathForTest(c)
+	if !isCompactRequest &&
+		isBareOpenAIResponsesPath(c) &&
+		service.HasCompactionTriggerInInput(body) &&
+		isOpenAIRemoteCompactionV2Request(c, body) {
+		return body, true
+	}
+	if !isCompactRequest {
+		return body, true
+	}
+	if compactSeed := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()); compactSeed != "" {
+		c.Set(service.OpenAICompactSessionSeedKeyForTest(), compactSeed)
+	}
+	normalizedCompactBody, normalizedCompact, compactErr := service.NormalizeOpenAICompactRequestBodyForTest(body)
+	if compactErr != nil {
+		if reqLog != nil {
+			reqLog.Warn("openai.compact_body_normalization_failed", zap.Error(compactErr))
+		}
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to normalize compact request body")
+		return nil, false
+	}
+	if normalizedCompact {
+		body = normalizedCompactBody
+	}
+	return body, true
 }
 
 func (h *OpenAIGatewayHandler) logOpenAIRemoteCompactOutcome(c *gin.Context, startedAt time.Time) {

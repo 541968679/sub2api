@@ -1314,6 +1314,15 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 		if !opts.PreserveReferences {
 			ensureCopy()
 			delete(newItem, "id")
+		} else if typ == "message" {
+			// Message item IDs are validated by the OAuth upstream and must use
+			// the native msg* namespace. Client-replayed item_* IDs do not
+			// identify a real upstream message, so drop them instead of
+			// fabricating a msg_* replacement.
+			if id, ok := m["id"].(string); ok && id != "" && !strings.HasPrefix(id, "msg") {
+				ensureCopy()
+				delete(newItem, "id")
+			}
 		}
 
 		filtered = append(filtered, newItem)

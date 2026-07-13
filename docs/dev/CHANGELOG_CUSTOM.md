@@ -2,6 +2,29 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-13] sync: Align v0.1.152 protocol compatibility fixes
+
+**Affected files**: OpenAI Responses compatibility types/tests, Codex input
+filter/tests, Responses compact request normalization/tests, and this changelog.
+
+**Upstream compatibility**: Selective behavior-level alignment of upstream
+`5015b7a1c`, `4d4ba64bf`, and the native `remote_compaction_v2` routing portion
+of `84bb7d070`.
+
+**Details**:
+- Accept `tool_search_call.arguments` as an object during Responses output,
+  response, and stream-event decoding while retaining the existing internal
+  raw-JSON string representation and object-shaped wire output.
+- Strip client-replayed non-`msg*` IDs from `type=message` items when Codex
+  continuation references are preserved, without mutating caller-owned input.
+- Keep `remote_compaction_v2` requests with `stream:true` on the native
+  `/responses` route; explicit `/responses/compact` requests retain the fork's
+  existing unary normalization and scheduler capability requirement.
+- Verified focused apicompat, service (`unit` tag), and handler regression
+  suites plus `git diff --check`. Billing/display-token accounting, curated
+  models, Claude-GPT bridge, image generation, fallback, scheduling/failover,
+  Ops settings, migrations, frontend routes, and i18n were not changed.
+
 ## [2026-07-12] feat: Move error-request viewing from user usage to admin usage
 
 **Affected files**: `frontend/src/views/user/UsageView.vue`, `frontend/src/views/admin/UsageView.vue`, `frontend/src/views/admin/__tests__/UsageView.spec.ts`, `docs/dev/CHANGELOG_CUSTOM.md`
