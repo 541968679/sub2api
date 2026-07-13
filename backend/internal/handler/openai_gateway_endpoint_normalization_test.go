@@ -102,7 +102,7 @@ func TestResolveOpenAIUpstreamEndpoint_APIKeyChatOnly(t *testing.T) {
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 
-			got := resolveOpenAIUpstreamEndpoint(c, tt.account)
+			got := resolveOpenAIUpstreamEndpoint(c, tt.account, nil)
 			require.Equal(t, tt.want, got)
 		})
 	}
