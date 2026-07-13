@@ -51,6 +51,12 @@ describe('UseKeyModal Grok setup', () => {
     expect(grokConfig).toContain('api_key = "sk-grok-test"')
     expect(grokConfig).toContain('api_backend = "responses"')
 
+    const windowsTab = wrapper.findAll('button').find((button) => button.text().includes('Windows'))
+    expect(windowsTab).toBeDefined()
+    await windowsTab!.trigger('click')
+    await nextTick()
+    expect(wrapper.find('span.font-mono').text()).toBe('%userprofile%\\.grok/config.toml')
+
     const opencodeTab = wrapper.findAll('button').find((button) =>
       button.text().includes('keys.useKeyModal.cliTabs.opencode')
     )
@@ -59,7 +65,7 @@ describe('UseKeyModal Grok setup', () => {
     await nextTick()
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
-    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai-compatible')
+    expect(parsed.provider.grok.npm).toBe('@ai-sdk/openai')
     expect(parsed.provider.grok.options).toEqual({
       baseURL: 'https://example.com/v1',
       apiKey: 'sk-grok-test'
