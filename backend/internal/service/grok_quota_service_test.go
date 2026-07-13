@@ -19,10 +19,16 @@ import (
 type grokQuotaAccountRepo struct {
 	*mockAccountRepoForPlatform
 	updates               map[int64]map[string]any
+	rateLimitCalls        []time.Time
 	tempUnschedCalls      int
 	lastTempUnschedID     int64
 	lastTempUnschedUntil  time.Time
 	lastTempUnschedReason string
+}
+
+func (r *grokQuotaAccountRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
+	r.rateLimitCalls = append(r.rateLimitCalls, resetAt)
+	return nil
 }
 
 func (r *grokQuotaAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {
