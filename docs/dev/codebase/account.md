@@ -65,6 +65,20 @@ small token limits, or non-4.5 mappings—stays on raw Chat Completions. The
 forward result records the actual endpoint so Ops and usage rows do not infer
 the wrong upstream path.
 
+Admin account UI supports both Grok OAuth and API-key creation. API-key forms
+default to `https://api.x.ai/v1`; the user key modal generates Grok Build
+`config.toml` and OpenCode provider examples without exposing account
+credentials. Grok request/token quota bars display remaining capacity rather
+than consumed percentage. The remaining-capacity mode is opt-in on the shared
+progress bar, so Anthropic, OpenAI, Gemini, and Antigravity usage displays keep
+their historical used-percentage behavior.
+
+Fast/Flex rules keep storing `user_ids`, but the settings UI resolves them
+through administrator email search. `GET /admin/users/:id?include_deleted=true`
+is an explicit read-only history path used to label previously selected deleted
+users; the default endpoint continues to hide soft-deleted users. Failed
+hydration leaves the numeric ID visible instead of dropping the saved rule.
+
 ## Anthropic API-Key Upstream Authentication
 
 Anthropic API-key accounts may set

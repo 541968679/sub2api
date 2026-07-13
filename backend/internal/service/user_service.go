@@ -74,6 +74,8 @@ type UserListFilters struct {
 	// For large datasets this can be expensive; admin list pages should enable it on demand.
 	// nil means not specified (default: load subscriptions for backward compatibility).
 	IncludeSubscriptions *bool
+	// IncludeDeleted is reserved for explicit administrator history lookups.
+	IncludeDeleted bool
 }
 
 type UserRepository interface {

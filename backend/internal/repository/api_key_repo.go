@@ -875,6 +875,7 @@ func userEntityToService(u *dbent.User) *service.User {
 		DownstreamUsageTokenMode:   service.NormalizeDownstreamUsageTokenMode(u.DownstreamUsageTokenMode),
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
+		DeletedAt:                  u.DeletedAt,
 	}
 	// Parse extra emails JSON (supports both old []string and new []NotifyEmailEntry format)
 	if u.BalanceNotifyExtraEmails != "" && u.BalanceNotifyExtraEmails != "[]" {

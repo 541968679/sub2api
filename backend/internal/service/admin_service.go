@@ -33,6 +33,7 @@ type AdminService interface {
 	// User management
 	ListUsers(ctx context.Context, page, pageSize int, filters UserListFilters, sortBy, sortOrder string) ([]User, int64, error)
 	GetUser(ctx context.Context, id int64) (*User, error)
+	GetUserIncludeDeleted(ctx context.Context, id int64) (*User, error)
 	CreateUser(ctx context.Context, input *CreateUserInput) (*User, error)
 	UpdateUser(ctx context.Context, id int64, input *UpdateUserInput) (*User, error)
 	DeleteUser(ctx context.Context, id int64) error
@@ -734,6 +735,16 @@ func (s *adminServiceImpl) GetUser(ctx context.Context, id int64) (*User, error)
 		}
 	}
 	return user, nil
+}
+
+func (s *adminServiceImpl) GetUserIncludeDeleted(ctx context.Context, id int64) (*User, error) {
+	repo, ok := s.userRepo.(interface {
+		GetByIDIncludeDeleted(context.Context, int64) (*User, error)
+	})
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	return repo.GetByIDIncludeDeleted(ctx, id)
 }
 
 func splitGroupRates(fullRates map[int64]UserGroupRateData, user *User) {

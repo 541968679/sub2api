@@ -16,6 +16,7 @@ import (
 	dbgroup "github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 	dbuser "github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/ent/userallowedgroup"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
@@ -120,6 +121,26 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, error) {
 	client := clientFromContext(ctx, r.client)
 	m, err := client.User.Query().Where(dbuser.IDEQ(id)).Only(ctx)
+	if err != nil {
+		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+
+	out := userEntityToService(m)
+	groups, err := r.loadAllowedGroups(ctx, []int64{id})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := groups[id]; ok {
+		out.AllowedGroups = v
+	}
+	return out, nil
+}
+
+func (r *userRepository) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+	client := clientFromContext(ctx, r.client)
+	m, err := client.User.Query().
+		Where(dbuser.IDEQ(id)).
+		Only(mixins.SkipSoftDelete(ctx))
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
@@ -407,6 +428,10 @@ func (r *userRepository) List(ctx context.Context, params pagination.PaginationP
 }
 
 func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters service.UserListFilters) ([]service.User, *pagination.PaginationResult, error) {
+	userQueryCtx := ctx
+	if filters.IncludeDeleted {
+		userQueryCtx = mixins.SkipSoftDelete(ctx)
+	}
 	q := r.client.User.Query()
 
 	if filters.Status != "" {
@@ -447,7 +472,7 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 		q = q.Where(dbuser.IDIn(allowedUserIDs...))
 	}
 
-	total, err := q.Clone().Count(ctx)
+	total, err := q.Clone().Count(userQueryCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -459,7 +484,7 @@ func (r *userRepository) ListWithFilters(ctx context.Context, params pagination.
 		usersQuery = usersQuery.Order(order)
 	}
 
-	users, err := usersQuery.All(ctx)
+	users, err := usersQuery.All(userQueryCtx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -966,6 +991,7 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.DownstreamUsageTokenMode = service.NormalizeDownstreamUsageTokenMode(src.DownstreamUsageTokenMode)
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+	dst.DeletedAt = src.DeletedAt
 }
 
 func userSignupSourceOrDefault(signupSource string) string {

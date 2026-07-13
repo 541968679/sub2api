@@ -377,6 +377,7 @@
           </button>
           <button
             type="button"
+            data-testid="grok-account-type-api-key"
             @click="accountCategory = 'apikey'"
             :class="[
               'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
@@ -1090,7 +1091,9 @@
                 ? 'https://api.openai.com'
                 : form.platform === 'gemini'
                   ? 'https://generativelanguage.googleapis.com'
-                  : 'https://api.anthropic.com'
+                  : form.platform === 'grok'
+                    ? 'https://api.x.ai/v1'
+                    : 'https://api.anthropic.com'
             "
           />
           <p class="input-hint">{{ baseUrlHint }}</p>
@@ -1107,7 +1110,9 @@
                 ? 'sk-proj-...'
                 : form.platform === 'gemini'
                   ? 'AIza...'
-                  : 'sk-ant-...'
+                  : form.platform === 'grok'
+                    ? 'xai-...'
+                    : 'sk-ant-...'
             "
           />
           <p class="input-hint">{{ apiKeyHint }}</p>

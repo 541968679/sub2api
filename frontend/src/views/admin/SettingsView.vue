@@ -1072,35 +1072,10 @@
                   <p class="mb-2 text-xs text-gray-400 dark:text-gray-500">
                     {{ t("admin.settings.openaiFastPolicy.userIdsHint") }}
                   </p>
-                  <div
-                    v-for="(_, userIDIndex) in rule.user_ids || []"
-                    :key="userIDIndex"
-                    class="mb-1.5 flex items-center gap-2"
-                  >
-                    <input
-                      v-model.number="rule.user_ids![userIDIndex]"
-                      type="number"
-                      min="1"
-                      step="1"
-                      class="input input-sm flex-1"
-                      :placeholder="t('admin.settings.openaiFastPolicy.userIdPlaceholder')"
-                    />
-                    <button
-                      type="button"
-                      @click="removeOpenAIFastPolicyUserID(rule, userIDIndex)"
-                      class="shrink-0 rounded p-1 text-red-400 hover:text-red-600"
-                      :title="t('admin.settings.openaiFastPolicy.removeUserId')"
-                    >
-                      <span aria-hidden="true">&times;</span>
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    @click="addOpenAIFastPolicyUserID(rule)"
-                    class="mb-2 text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
-                  >
-                    {{ t("admin.settings.openaiFastPolicy.addUserId") }}
-                  </button>
+                  <OpenAIFastPolicyUserSelector
+                    :model-value="rule.user_ids || []"
+                    @update:model-value="rule.user_ids = $event"
+                  />
                 </div>
 
                 <!-- Error Message (only when action=block) -->
@@ -6175,6 +6150,7 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
+import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolicyUserSelector.vue";
 import { useClipboard } from "@/composables/useClipboard";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
@@ -8162,15 +8138,6 @@ function addOpenAIFastPolicyRule() {
 
 function removeOpenAIFastPolicyRule(index: number) {
   openaiFastPolicyForm.rules.splice(index, 1);
-}
-
-function addOpenAIFastPolicyUserID(rule: OpenAIFastPolicyRule) {
-  if (!rule.user_ids) rule.user_ids = [];
-  rule.user_ids.push(1);
-}
-
-function removeOpenAIFastPolicyUserID(rule: OpenAIFastPolicyRule, index: number) {
-  rule.user_ids?.splice(index, 1);
 }
 
 function addOpenAIFastPolicyModelPattern(rule: OpenAIFastPolicyRule) {

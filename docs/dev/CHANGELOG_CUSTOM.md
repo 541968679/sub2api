@@ -2,6 +2,37 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-14] sync: Align v0.1.152 admin selection and Grok onboarding UI
+
+**Affected files**: Admin user lookup service/repository/DTO/API, Fast/Flex
+settings UI, Grok quota presentation, Grok account forms, API-key use modal,
+frontend types/i18n/tests, focused backend tests, account module documentation,
+and this changelog.
+
+**Upstream compatibility**: Selective behavior-level alignment of upstream
+`0464856c4`, `cbddb57de`, the frontend portion of `d9e466ad3`, and the Grok
+onboarding portion of `038b25c0b`.
+
+**Details**:
+- Replaces manual Fast/Flex numeric user-ID rows with debounced email search,
+  selected-user tags, duplicate filtering, and non-destructive hydration of
+  saved IDs. Historical unresolved IDs stay visible and removable.
+- Adds an explicit administrator-only `include_deleted=true` user lookup and
+  includes deleted users in the existing admin usage search response. Ordinary
+  user reads still apply the soft-delete filter.
+- Displays Grok quota bars as remaining capacity: full quota is a full green
+  bar, low/exhausted capacity shrinks and changes color. Other platform usage
+  bars keep their existing used-percentage semantics.
+- Completes Grok API-key account form defaults/placeholders and adds Grok
+  Build plus OpenCode configuration examples to the user API-key modal.
+- Preserves the fork's existing Grok OAuth/API-key forwarding, scheduling,
+  billing/display-token accounting, curated model lists, Claude-GPT bridge,
+  OpenAI Images, default-model fallback, Ops logging, public/admin settings,
+  migrations, and routes.
+- Verified focused backend unit tests, `cmd/server` compilation, 52 frontend
+  regression tests, frontend type checking, and frontend lint checking. No
+  service start, migration, push, or deployment occurred in this batch.
+
 ## [2026-07-13] feat: Add isolated Grok prompt caching and safe Chat bridging
 
 **Affected files**: Grok cache identity and Chat bridge services, Grok
