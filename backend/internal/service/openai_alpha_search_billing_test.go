@@ -27,6 +27,38 @@ func TestCalculateWebSearchCostDefaultAndOverride(t *testing.T) {
 	require.Zero(t, cost.ActualCost)
 }
 
+func TestCalculateOpenAIRecordUsageCostWebSearchUsesBaseMultiplier(t *testing.T) {
+	svc := &OpenAIGatewayService{billingService: &BillingService{}}
+	groupID := int64(11)
+	apiKey := &APIKey{
+		ID:      1,
+		GroupID: &groupID,
+		Group:   &Group{ID: groupID, Platform: PlatformOpenAI},
+	}
+	result := &OpenAIForwardResult{
+		Model:          "gpt-5.6-sol",
+		UpstreamModel:  "gpt-5.6-sol",
+		WebSearchCalls: 1,
+	}
+
+	cost, err := svc.calculateOpenAIRecordUsageCost(
+		context.Background(),
+		result,
+		apiKey,
+		&User{ID: 1},
+		"gpt-5.6-sol",
+		3,
+		1,
+		2,
+		UsageTokens{},
+		"",
+	)
+	require.NoError(t, err)
+	require.InDelta(t, 0.01, cost.TotalCost, 1e-12)
+	require.InDelta(t, 0.02, cost.ActualCost, 1e-12)
+	require.Equal(t, string(BillingModePerRequest), cost.BillingMode)
+}
+
 func TestAPIKeyServiceSnapshotRoundTripPreservesWebSearchPricePerCall(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
 	groupID := int64(9)
