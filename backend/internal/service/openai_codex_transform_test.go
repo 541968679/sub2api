@@ -1529,3 +1529,59 @@ func TestFilterCodexInput_DropsReasoningItemsRegardlessOfPreserveReferences(t *t
 		})
 	}
 }
+
+func TestFilterCodexInput_StripsInvalidMessageItemIDWhenReferencesPreserved(t *testing.T) {
+	input := []any{
+		map[string]any{
+			"type":    "message",
+			"id":      "item_123",
+			"role":    "user",
+			"content": "hello",
+		},
+	}
+
+	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{
+		PreserveReferences: true,
+	})
+
+	require.Len(t, filtered, 1)
+	item, ok := filtered[0].(map[string]any)
+	require.True(t, ok)
+	require.NotContains(t, item, "id")
+}
+
+func TestFilterCodexInput_KeepsNativeMessageIDWhenReferencesPreserved(t *testing.T) {
+	input := []any{
+		map[string]any{
+			"type":    "message",
+			"id":      "msg_123",
+			"role":    "user",
+			"content": "hello",
+		},
+	}
+
+	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{
+		PreserveReferences: true,
+	})
+
+	require.Len(t, filtered, 1)
+	item, ok := filtered[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "msg_123", item["id"])
+}
+
+func TestFilterCodexInput_InvalidMessageIDStripDoesNotMutateInput(t *testing.T) {
+	original := map[string]any{
+		"type":    "message",
+		"id":      "item_123",
+		"role":    "user",
+		"content": "hello",
+	}
+
+	filtered := filterCodexInputWithOptions([]any{original}, codexInputFilterOptions{
+		PreserveReferences: true,
+	})
+
+	require.Len(t, filtered, 1)
+	require.Equal(t, "item_123", original["id"])
+}
