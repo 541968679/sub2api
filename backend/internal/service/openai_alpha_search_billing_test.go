@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -85,4 +86,49 @@ func TestAPIKeyServiceSnapshotRoundTripPreservesWebSearchPricePerCall(t *testing
 
 	require.NotNil(t, roundTrip.Group.WebSearchPricePerCall)
 	require.InDelta(t, 0.008, *roundTrip.Group.WebSearchPricePerCall, 1e-12)
+}
+
+func TestRecordUsageWebSearchStoresBaseMultiplier(t *testing.T) {
+	groupID := int64(9)
+	price := 0.02
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	rate := 2.0
+	svc := newOpenAIRecordUsageServiceForTest(
+		usageRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+		&openAIUserGroupRateRepoStub{rate: &rate},
+	)
+	apiKey := &APIKey{
+		ID:      1,
+		GroupID: &groupID,
+		Group: &Group{
+			ID:                    groupID,
+			Platform:              PlatformOpenAI,
+			RateMultiplier:        2,
+			SubscriptionType:      SubscriptionTypeStandard,
+			WebSearchPricePerCall: &price,
+		},
+	}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:      "req_search",
+			Model:          "gpt-5.6-sol",
+			WebSearchCalls: 1,
+			Duration:       time.Second,
+		},
+		APIKey:  apiKey,
+		User:    &User{ID: 1},
+		Account: &Account{ID: 2},
+	})
+	require.NoError(t, err)
+
+	log := usageRepo.lastLog
+	require.NotNil(t, log)
+	require.InDelta(t, 0.02, log.TotalCost, 1e-12)
+	require.InDelta(t, 0.04, log.ActualCost, 1e-12)
+	require.InDelta(t, 2, log.RateMultiplier, 1e-12)
+	require.NotNil(t, log.BillingMode)
+	require.Equal(t, string(BillingModePerRequest), *log.BillingMode)
 }

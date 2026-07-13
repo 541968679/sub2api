@@ -97,6 +97,20 @@ func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesOpenAIAlphaSearchPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	want := map[string]struct{}{
+		http.MethodPost + " /v1/alpha/search":                {},
+		http.MethodPost + " /alpha/search":                   {},
+		http.MethodPost + " /backend-api/codex/alpha/search": {},
+	}
+
+	for _, route := range router.Routes() {
+		delete(want, route.Method+" "+route.Path)
+	}
+	require.Empty(t, want, "all Codex alpha search route aliases must be registered")
+}
+
 func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 

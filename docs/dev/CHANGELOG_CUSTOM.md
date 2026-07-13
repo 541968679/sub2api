@@ -25,6 +25,37 @@ of `84bb7d070`.
   models, Claude-GPT bridge, image generation, fallback, scheduling/failover,
   Ops settings, migrations, frontend routes, and i18n were not changed.
 
+## [2026-07-13] feat: Add Codex alpha search with per-call billing
+
+**Affected files**: OpenAI alpha-search handler/service/routes, endpoint
+normalization, embedded-frontend bypass, group schema/Ent/repository/admin DTOs,
+API-key auth snapshots, billing/usage recording, migration `191`, admin group
+form/types/i18n, tests, and this changelog.
+
+**Upstream compatibility**: Selective behavior-level alignment of upstream
+`52071d391`, `7cbb36f27`, `64a2a3172`, `e5af699d0`, and `b0fa2b352`.
+
+**Details**:
+- Added authenticated `POST /v1/alpha/search`, `/alpha/search`, and
+  `/backend-api/codex/alpha/search` routes for OpenAI groups. The evolving
+  request/response JSON is passed through without schema narrowing; model
+  mapping, account scheduling, concurrency, failover, response headers, and
+  Ops endpoint attribution reuse the existing OpenAI gateway stack.
+- A successful 2xx upstream search creates exactly one per-request billing
+  unit. Non-2xx responses are passed through without billing. The default price
+  is `$0.01` per call, while groups may override it or set zero for free calls.
+- Per-call search cost uses the resolved base user/group multiplier and does not
+  inherit subscription peak-rate factors. Stored `billing_mode`,
+  `rate_multiplier`, `total_cost`, and `actual_cost` remain mutually
+  explainable; token and cache-read quantities remain zero and unchanged.
+- Added nullable `groups.web_search_price_per_call` through idempotent migration
+  `191`, Ent generation, repositories, DTOs, auth-cache snapshot version `11`,
+  and bilingual admin create/edit controls. The bare `/alpha/search` alias now
+  bypasses the embedded SPA middleware.
+- Verified focused service/handler/repository/route tests, embedded frontend
+  tests, Ent package compilation, frontend typecheck/lint, sync guard, and
+  whitespace checks. No push, deployment, or local service restart occurred.
+
 ## [2026-07-12] feat: Move error-request viewing from user usage to admin usage
 
 **Affected files**: `frontend/src/views/user/UsageView.vue`, `frontend/src/views/admin/UsageView.vue`, `frontend/src/views/admin/__tests__/UsageView.spec.ts`, `docs/dev/CHANGELOG_CUSTOM.md`

@@ -2558,6 +2558,11 @@ const enBase = {
         videoMultiplier: 'Video multiplier',
         modeHint: 'Videos are billed per second. The group multiplier applies by default; independent mode uses the video multiplier instead.'
       },
+      webSearchPricing: {
+        title: 'Codex Web Search Pricing',
+        pricePerCall: 'Price per search call (USD)',
+        pricePerCallHint: 'Leave empty to use $0.01 per call ($10 per 1,000 calls); 0 means free. The group rate multiplier is applied.'
+      },
       claudeCode: {
         title: 'Claude Code Client Restriction',
         tooltip: 'When enabled, this group only allows official Claude Code clients. Non-Claude Code requests will be rejected or fallback to the specified group.',

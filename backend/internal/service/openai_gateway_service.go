@@ -258,6 +258,7 @@ type OpenAIForwardResult struct {
 	VideoCount              int
 	VideoResolution         string
 	VideoDurationSeconds    int
+	WebSearchCalls          int
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
@@ -6212,7 +6213,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	// 跳过所有 token 均为零的用量记录——上游未返回 usage 时不应写入数据库
-	if result.Usage.InputTokens == 0 && result.Usage.OutputTokens == 0 &&
+	if result.WebSearchCalls == 0 &&
+		result.Usage.InputTokens == 0 && result.Usage.OutputTokens == 0 &&
 		result.Usage.CacheCreationInputTokens == 0 && result.Usage.CacheReadInputTokens == 0 &&
 		result.Usage.ImageOutputTokens == 0 && result.ImageCount == 0 && result.VideoCount == 0 {
 		return nil
@@ -6254,6 +6256,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	costMultiplier := tokenMultiplier
 	if result.VideoCount > 0 {
 		costMultiplier = videoMultiplier
+	} else if result.WebSearchCalls > 0 {
+		costMultiplier = multiplier
 	}
 
 	var cost *CostBreakdown
@@ -6276,7 +6280,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if result.VideoCount > 0 {
 		imageCostMultiplier = videoMultiplier
 	}
-	cost, err = s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, user, billingModel, costMultiplier, imageCostMultiplier, tokens, serviceTier)
+	cost, err = s.calculateOpenAIRecordUsageCost(ctx, result, apiKey, user, billingModel, costMultiplier, imageCostMultiplier, multiplier, tokens, serviceTier)
 	if err != nil {
 		cost = &CostBreakdown{ActualCost: 0}
 	}
@@ -6455,9 +6459,17 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	billingModel string,
 	multiplier float64,
 	imageMultiplier float64,
+	webSearchMultiplier float64,
 	tokens UsageTokens,
 	serviceTier string,
 ) (*CostBreakdown, error) {
+	if result != nil && result.WebSearchCalls > 0 {
+		return s.billingService.CalculateWebSearchCost(
+			result.WebSearchCalls,
+			webSearchPricePerCallFromAPIKey(apiKey),
+			webSearchMultiplier,
+		), nil
+	}
 	if result != nil && result.VideoCount > 0 {
 		return s.calculateOpenAIVideoCost(billingModel, apiKey, result, imageMultiplier), nil
 	}
@@ -6484,6 +6496,13 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 		return s.billingService.CalculateCostUnified(input)
 	}
 	return s.billingService.CalculateCostWithServiceTier(billingModel, tokens, multiplier, serviceTier)
+}
+
+func webSearchPricePerCallFromAPIKey(apiKey *APIKey) *float64 {
+	if apiKey == nil || apiKey.Group == nil {
+		return nil
+	}
+	return apiKey.Group.WebSearchPricePerCall
 }
 
 func (s *OpenAIGatewayService) calculateOpenAIVideoCost(

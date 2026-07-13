@@ -2458,6 +2458,11 @@ const zhBase = {
         videoMultiplier: '视频倍率',
         modeHint: '视频按秒计费。默认使用分组倍率；开启独立倍率后改用视频倍率。'
       },
+      webSearchPricing: {
+        title: 'Codex 网页搜索计费',
+        pricePerCall: '搜索单次价格（USD/次）',
+        pricePerCallHint: '留空使用默认价 $0.01/次（$10/1000 次）；填 0 表示免费，实际扣费叠加分组费率倍数。'
+      },
       claudeCode: {
         title: 'Claude Code 客户端限制',
         tooltip:
