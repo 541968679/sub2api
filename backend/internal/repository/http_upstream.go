@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -26,6 +27,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"golang.org/x/mod/semver"
 )
 
 // 默认配置常量
@@ -52,6 +54,9 @@ const (
 	defaultMaxUpstreamClients = 5000
 	// defaultClientIdleTTLSeconds: 默认客户端空闲回收阈值（15分钟）
 	defaultClientIdleTTLSeconds = 900
+	grokCLIProxyHost            = "cli-chat-proxy.grok.com"
+	grokCLIStableVersion        = "0.2.93"
+	grokCLIVersionOverride      = "XAI_GROK_CLI_VERSION"
 )
 
 var errUpstreamClientLimitReached = errors.New("upstream client cache limit reached")
@@ -222,6 +227,7 @@ func (s *httpUpstreamService) doTLSOnce(req *http.Request, proxyURL string, acco
 
 // doWithNetworkRetry retries transport-level upstream failures when the request body can be replayed.
 func (s *httpUpstreamService) doWithNetworkRetry(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	applyGrokCLIProxyHeaders(req)
 	if err := s.validateRequestHost(req); err != nil {
 		return nil, err
 	}
@@ -262,6 +268,33 @@ func (s *httpUpstreamService) doWithNetworkRetry(req *http.Request, proxyURL str
 		}
 	}
 	return nil, lastErr
+}
+
+// applyGrokCLIProxyHeaders applies the official Grok Build client identity at
+// the final shared transport boundary. Exact-host matching keeps api.x.ai and
+// custom Grok endpoints unchanged while covering all CLI-proxy request types.
+func applyGrokCLIProxyHeaders(req *http.Request) {
+	if req == nil || req.URL == nil || !strings.EqualFold(strings.TrimSpace(req.URL.Hostname()), grokCLIProxyHost) {
+		return
+	}
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	version := strings.TrimSpace(os.Getenv(grokCLIVersionOverride))
+	if !isSupportedGrokCLIVersion(version) {
+		version = grokCLIStableVersion
+	}
+	req.Header.Set("X-XAI-Token-Auth", "xai-grok-cli")
+	req.Header.Set("x-grok-client-version", version)
+	req.Header.Set("User-Agent", "xai-grok-workspace/"+version)
+}
+
+func isSupportedGrokCLIVersion(version string) bool {
+	canonical := "v" + version
+	minimum := "v" + grokCLIStableVersion
+	return semver.IsValid(canonical) &&
+		semver.Canonical(canonical) == canonical &&
+		semver.Compare(canonical, minimum) >= 0
 }
 
 func (s *httpUpstreamService) gatewayNetworkRetryMax(req *http.Request) int {

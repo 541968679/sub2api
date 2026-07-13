@@ -1054,7 +1054,7 @@ func TestForwardAsAnthropicForGrokUsesXAIResponses(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), "ok")
 }
 
-func TestHandleGrokAccountUpstreamErrorTempUnschedulesReadinessStates(t *testing.T) {
+func TestHandleGrokAccountUpstreamErrorTempUnschedulesNonRateLimitStates(t *testing.T) {
 	tests := []struct {
 		name            string
 		status          int
@@ -1066,24 +1066,23 @@ func TestHandleGrokAccountUpstreamErrorTempUnschedulesReadinessStates(t *testing
 		{
 			name:            "unauthorized reauth",
 			status:          http.StatusUnauthorized,
-			wantReason:      "grok oauth token unauthorized",
+			wantReason:      "grok credentials unauthorized",
 			wantMinCooldown: 10*time.Minute - time.Second,
 			wantMaxCooldown: 10*time.Minute + time.Second,
 		},
 		{
 			name:            "forbidden entitlement",
 			status:          http.StatusForbidden,
-			wantReason:      "grok entitlement or subscription tier denied",
+			wantReason:      "grok access or entitlement denied",
 			wantMinCooldown: 30*time.Minute - time.Second,
 			wantMaxCooldown: 30*time.Minute + time.Second,
 		},
 		{
-			name:            "rate limited retry after",
-			status:          http.StatusTooManyRequests,
-			headers:         http.Header{"Retry-After": []string{"45"}},
-			wantReason:      "grok rate limited",
-			wantMinCooldown: 44 * time.Second,
-			wantMaxCooldown: 46 * time.Second,
+			name:            "upstream temporary error",
+			status:          http.StatusInternalServerError,
+			wantReason:      "grok upstream temporary error",
+			wantMinCooldown: 2*time.Minute - time.Second,
+			wantMaxCooldown: 2*time.Minute + time.Second,
 		},
 	}
 
@@ -1098,6 +1097,7 @@ func TestHandleGrokAccountUpstreamErrorTempUnschedulesReadinessStates(t *testing
 
 			require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
 			require.Equal(t, 1, repo.tempUnschedCalls)
+			require.Empty(t, repo.rateLimitCalls)
 			require.Equal(t, account.ID, repo.lastTempUnschedID)
 			require.Equal(t, tt.wantReason, repo.lastTempUnschedReason)
 			require.True(t, repo.lastTempUnschedUntil.After(before.Add(tt.wantMinCooldown)))
@@ -1106,7 +1106,7 @@ func TestHandleGrokAccountUpstreamErrorTempUnschedulesReadinessStates(t *testing
 	}
 }
 
-func TestHandleGrokAccountUpstreamErrorDoesNotShortenExistingPause(t *testing.T) {
+func TestHandleGrokAccountUpstreamError429DoesNotShortenExistingPause(t *testing.T) {
 	existingUntil := time.Now().Add(15 * time.Minute)
 	account := &Account{
 		ID:                      62,
@@ -1120,8 +1120,9 @@ func TestHandleGrokAccountUpstreamErrorDoesNotShortenExistingPause(t *testing.T)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, http.Header{"Retry-After": []string{"45"}}, nil)
 
-	require.Equal(t, 1, repo.tempUnschedCalls)
-	require.WithinDuration(t, existingUntil, repo.lastTempUnschedUntil, time.Second)
+	require.Len(t, repo.rateLimitCalls, 1)
+	require.WithinDuration(t, time.Now().Add(45*time.Second), repo.rateLimitCalls[0], time.Second)
+	require.Zero(t, repo.tempUnschedCalls)
 	value, ok := svc.openaiAccountRuntimeBlockUntil.Load(account.ID)
 	require.True(t, ok)
 	runtimeUntil, ok := value.(time.Time)

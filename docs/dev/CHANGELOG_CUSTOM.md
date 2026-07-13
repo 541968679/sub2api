@@ -2,6 +2,42 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-13] sync: Align Grok CLI routing and quota safety from v0.1.152
+
+**Affected files**: Grok account URL/OAuth credentials, shared upstream
+transport, Responses/Chat/Messages/media/WebSocket bridge forwarding, account
+connection tests, quota persistence/repository, OpenAI-compatible diagnostics,
+billing fallback, Wire wiring, unit tests, account module documentation, and
+this changelog.
+
+**Upstream compatibility**: Selective behavior-level alignment of upstream
+`3375b4ed2`, `f187f08ae`, `038b25c0b`, `aeb34d200`, `d9e466ad3`,
+`1dedb2097`, and `8a22dc734`.
+
+**Details**:
+- New and legacy Grok OAuth accounts use the official CLI proxy when their
+  base URL is blank or the canonical `api.x.ai` URL. Custom URLs remain
+  untouched; API-key accounts continue to default to the public xAI API.
+- Exact CLI-proxy requests receive the stable Grok Build identity at the final
+  shared transport boundary. The optional version override accepts only
+  canonical semver values at or above `0.2.93`.
+- Grok Responses forwarding and account tests now support both OAuth and xAI
+  API-key credentials. Composer reasoning fields and Codex-only
+  `additional_tools` input carriers are removed before xAI forwarding.
+- Quota exhaustion observed on either success or error responses is persisted
+  as an account rate limit, with monotonic reset extension and an immediate
+  in-memory scheduling block. Retry-After, request-window, and token-window
+  reset boundaries are respected; no-reset exhaustion uses a bounded fallback.
+- OpenAI-compatible Responses, Chat, Messages, count_tokens, and logs diagnose
+  Grok groups against the Grok platform rather than reporting OpenAI-account
+  availability.
+- Added fail-closed Grok 4.3/4.5/Build/Composer fallback prices including real
+  cached-input rates. Stored billing, quota deduction, `actual_cost`, display
+  transforms, and real cache-read token quantities are otherwise unchanged.
+- Verified focused repository/service/handler/admin unit tests and `cmd/server`
+  compilation. No migration, frontend route/i18n change, service start, push,
+  or deployment occurred in this batch.
+
 ## [2026-07-13] sync: Align v0.1.152 protocol compatibility fixes
 
 **Affected files**: OpenAI Responses compatibility types/tests, Codex input

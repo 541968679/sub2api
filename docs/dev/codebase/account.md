@@ -2,6 +2,55 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
 
+## Grok account routing and quota state
+
+Grok has two credential modes with different default upstreams:
+
+```
+OAuth account
+  -> Account.GetGrokBaseURL()
+     -> blank/canonical api.x.ai URL => cli-chat-proxy.grok.com
+     -> explicit custom URL => preserve exactly
+  -> GrokTokenProvider refreshes OAuth access token
+  -> HTTPUpstream final boundary injects stable Grok CLI identity
+
+API-key account
+  -> Account.GetGrokBaseURL()
+     -> blank => api.x.ai/v1
+  -> credential api_key is used as Bearer token
+```
+
+The final transport injects CLI headers only when `URL.Hostname()` exactly
+matches `cli-chat-proxy.grok.com`. This intentionally excludes the public xAI
+API and custom-compatible upstreams. `XAI_GROK_CLI_VERSION` is accepted only
+when it is canonical semver and not older than the bundled stable version.
+
+Responses, raw Chat Completions, Anthropic Messages conversion, media,
+account tests, quota probes, and the HTTP WebSocket bridge all feed xAI quota
+headers into the same snapshot/rate-limit reconciliation:
+
+```
+xAI headers/status
+  -> parseGrokQuotaSnapshot()
+  -> UpdateExtra(grok_usage_snapshot)
+  -> grokRateLimitResetAt()
+  -> runtime scheduling block
+  -> SetRateLimitedIfLater()
+  -> scheduler snapshot/outbox refresh
+```
+
+Successful responses can consume the last request or token, so `remaining=0`
+is treated as a real rate limit even on HTTP 200. Concurrent observations may
+only extend the persisted reset boundary; an older response must never shorten
+it. A temporary unschedulable boundary can still keep the runtime block longer
+than the persisted quota reset.
+
+Grok request sanitization removes unsupported Composer reasoning parameters,
+Codex-only `additional_tools` input items, unsupported tool types, and existing
+xAI-incompatible fields without changing the caller-owned request. Grok 4.3,
+4.5, Build, and Composer fallback pricing includes cached-input prices so
+missing dynamic pricing fails closed rather than billing at zero.
+
 ## Anthropic API-Key Upstream Authentication
 
 Anthropic API-key accounts may set
