@@ -37,6 +37,21 @@ schema, migration, frontend, or route behavior changed.
 - The omission was found by the final `go test -tags=unit ./...` gate; all
   other backend packages had passed.
 
+## [2026-07-14] chore: Complete Ent generator dependency checksums
+
+**Affected files**: backend Go module checksums and this changelog.
+
+**Compatibility**: Dependency metadata only. No module version, generated Ent
+source, runtime graph, schema, migration, billing, gateway, frontend, or
+deployment behavior changed.
+
+**Details**:
+- `go generate ./ent` completed without changing generated source and added the
+  missing CLI transitive checksums. The table/rendering checksums match official
+  v0.1.152; the additional `mousetrap` checksum is required by the Windows Go
+  toolchain when resolving Cobra.
+- Re-running Ent generation is stable after the checksum completion.
+
 ## [2026-07-14] fix: Restore OAuth Messages identity and Grok OpenCode adapter
 
 **Affected files**: OpenAI Codex identity helper, Anthropic Messages forwarding,
