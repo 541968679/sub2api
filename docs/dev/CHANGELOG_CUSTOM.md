@@ -2,6 +2,26 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-14] docs: Close the selective v0.1.152 sync ledger
+
+**Affected files**: public README, upstream-sync ledger, and this changelog.
+
+**Compatibility**: Documentation-only closeout of the selective official
+v0.1.152 alignment. No runtime, schema, generated code, dependency, route,
+setting, billing, scheduling, or deployment behavior changed.
+
+**Details**:
+- Records the six implementation batches, prior behavior already present,
+  migration renumbering, fork-local protection boundaries, and the exact
+  upstream tag target.
+- Documents the deliberate exclusion of the upstream-only Responses compact
+  writer wrapper and Grok WebSocket cache/pool changes because the owning
+  protocols are not enabled in this fork.
+- Keeps `backend/cmd/server/VERSION` at local `0.1.164` instead of downgrading
+  to the official tag's older VERSION artifact.
+- Adds public Grok OAuth/API-key, Grok Build, and OpenCode setup guidance that
+  matches the fork's HTTP/SSE capability boundary.
+
 ## [2026-07-14] fix: Restore OAuth Messages identity and Grok OpenCode adapter
 
 **Affected files**: OpenAI Codex identity helper, Anthropic Messages forwarding,

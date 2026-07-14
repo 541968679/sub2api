@@ -2,6 +2,74 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-07-14 - Selective alignment to upstream v0.1.152
+
+- **Branch**: `codex/upstream-v0152-sync-20260713`
+- **Upstream range**: `v0.1.151..v0.1.152` (56 commits, tag target
+  `b73d8c3ef`).
+- **Strategy**: TDD-first behavior alignment. Shared gateway, billing,
+  account, generated Ent, and frontend files were reconciled with the fork
+  instead of merged or cherry-picked wholesale.
+- **Protocol batch**: accepted object-shaped `tool_search_call.arguments`,
+  removed invalid replayed message IDs, and kept native
+  `remote_compaction_v2` streaming on `/responses`.
+- **Search/billing batch**: added the three Codex alpha-search aliases,
+  model-aware scheduling/failover, and one successful-call billing unit. The
+  upstream migration was renumbered to local migration
+  `191_group_web_search_price_per_call.sql`; base group/user rates apply while
+  subscription peak factors do not.
+- **Grok routing/quota batch**: added OAuth CLI-proxy normalization, final
+  transport identity, xAI API-key accounts, request sanitation, platform-aware
+  diagnostics, fail-closed pricing, and monotonic persisted quota exhaustion.
+- **Grok cache/Chat batch**: added tenant/model-isolated cache identity,
+  cache-capable OAuth Responses, strict cacheable Chat-to-Responses bridging,
+  and actual-endpoint usage/Ops attribution.
+- **Admin/frontend batch**: added searchable Fast/Flex user selection with
+  soft-deleted-user hydration, remaining-capacity Grok quota bars, Grok account
+  defaults, Grok Build setup, and OpenCode's `@ai-sdk/openai` Responses adapter.
+- **OAuth Messages batch**: restored a complete paired Codex identity immediately
+  before OpenAI OAuth Messages dispatch while keeping the Grok transport
+  identity isolated.
+
+### Already present and not reapplied
+
+- The v0.1.152 ancestry's Responses/Chat custom tools, namespace restoration
+  and collision rejection, `tool_search` proxy/tool-choice behavior,
+  `cache_creation_input_tokens` conversion, and `opsCaptureWriter` nil guards
+  were already present from the earlier behavior-level alignment through
+  `e316ebf5`.
+- Merge-only commits, issue-link metadata, contract-fixture-only changes, and
+  duplicate test refinements were represented by the focused fork regressions
+  rather than replayed as source changes.
+- `golang.org/x/mod` was already a direct dependency in this fork.
+
+### Intentional boundaries
+
+- Upstream commits `6e2bb3128` and `06af8115f` harden the upstream
+  body-signal compact SSE writer wrapper. That wrapper is not part of the
+  fork's current Responses route: native `remote_compaction_v2` stays on its
+  streaming wire, explicit `/responses/compact` keeps the fork's unary
+  normalization, and Anthropic Messages compact uses a separate guarded
+  keepalive/recovery implementation. Importing only the wrapper fixes without
+  its owning bridge would add dead/competing response-writer state, so they
+  were not copied.
+- Upstream Grok WebSocket cache/pool changes were not imported because this
+  fork explicitly rejects Grok Responses WebSocket at ingress. HTTP Responses,
+  Chat, Messages, media, cache, quota, and billing paths are covered.
+- The upstream split locale layout was adapted to the fork's bilingual locale
+  files and existing final locale patches.
+- Fork-local billing/display-token invariants, real cache-read quantities,
+  stored `actual_cost`, curated/default models, Claude-GPT bridge, OpenAI
+  Images/Batch Image, scheduler/failover, Ops/settings, routes, distribution,
+  subscription bundles, and GHCR deployment policy remain authoritative.
+
+### Version and delivery
+
+- `backend/cmd/server/VERSION` remains `0.1.164`. The official tag contains an
+  older `0.1.151` VERSION artifact, so behavior alignment must not downgrade
+  the fork's release line.
+- No service was started, no push or deployment was performed.
+
 ## 2026-07-11 - Upstream-sync guard committed-range hardening
 
 - **Branch**: `codex/upstream-sync-guard-base-rev-20260711`

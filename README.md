@@ -578,6 +578,50 @@ In Claude Code, Plan Mode cannot exit automatically. (Normally when using the na
 
 ---
 
+## Grok / xAI Support
+
+Sub2API supports both Grok subscription accounts through xAI OAuth and
+standard xAI API-key accounts. Grok groups expose OpenAI-compatible Responses,
+Chat Completions, and Anthropic Messages endpoints, plus the existing Grok
+image/video routes.
+
+- OAuth accounts use the Grok CLI subscription proxy by default.
+- API-key accounts use `https://api.x.ai/v1` by default.
+- Custom account base URLs remain unchanged.
+- Grok account scheduling, failover, quota snapshots, and prompt-cache identity
+  stay isolated from OpenAI accounts.
+
+Administrators can create either credential type from the account page. After
+binding the account to a Grok group and creating a Sub2API API key, the user
+API-key page's **Use Key** dialog generates Grok Build and OpenCode
+configurations. OpenCode uses the `@ai-sdk/openai` Responses adapter.
+
+Manual Grok Build example (`~/.grok/config.toml`, or
+`%USERPROFILE%\.grok\config.toml` on Windows):
+
+```toml
+[models]
+default = "sub2api-grok"
+web_search = "sub2api-grok"
+
+[model."sub2api-grok"]
+model = "grok-4.5"
+base_url = "https://your-sub2api.example.com/v1"
+name = "Grok 4.5 via Sub2API"
+description = "Grok 4.5 through a Sub2API Grok group"
+api_key = "sk-your-sub2api-key"
+api_backend = "responses"
+context_window = 1000000
+supports_backend_search = true
+```
+
+The `base_url` is the public Sub2API URL ending in `/v1`, not the internal xAI
+OAuth proxy. Keep the generated file private because it contains a Sub2API API
+key. Grok Responses WebSocket remains intentionally unsupported in this fork;
+use the HTTP/SSE endpoints above.
+
+---
+
 ## Project Structure
 
 ```
