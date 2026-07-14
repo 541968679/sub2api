@@ -21,6 +21,10 @@ setting, billing, scheduling, or deployment behavior changed.
   to the official tag's older VERSION artifact.
 - Adds public Grok OAuth/API-key, Grok Build, and OpenCode setup guidance that
   matches the fork's HTTP/SSE capability boundary.
+- Final verification passed all backend unit packages, 151 frontend test files
+  / 855 tests, typecheck, lint, Ent stability, production frontend/server
+  builds, and both sync-guard modes. Integration/Wire checks reproduced only
+  the documented pre-existing missing fixtures/providers.
 
 ## [2026-07-14] test: Complete alpha-search public group contract
 

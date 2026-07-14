@@ -68,6 +68,23 @@
 - `backend/cmd/server/VERSION` remains `0.1.164`. The official tag contains an
   older `0.1.151` VERSION artifact, so behavior alignment must not downgrade
   the fork's release line.
+- **Backend verification**: `go test -tags=unit ./... -count=1` passed after
+  the public group contract fixture was completed. `go generate ./ent` is
+  source-stable, and a `CGO_ENABLED=0`, `-tags=embed`, trimmed server build
+  completed successfully.
+- **Frontend verification**: all 151 Vitest files / 855 tests passed; Vue
+  typecheck, ESLint, and the production Vite build passed. The build emitted
+  only the existing Browserslist age, mixed static/dynamic import, and large
+  chunk warnings.
+- **Fork protection**: both the working-tree sync guard and
+  `--base de2a9d94a` committed-range guard passed. Only additive migration
+  `191_group_web_search_price_per_call.sql` exists in this batch.
+- **Known baseline limits**: integration-tag compilation is still blocked by
+  the pre-existing missing `cacheRecorder` and `newMockSettingRepo` test
+  fixtures. Wire analysis still reports existing missing providers for user
+  platform quota repositories, distribution, model pricing, and the image
+  channel monitor. Checked-in `wire_gen.go`, `cmd/server`, all unit packages,
+  and the production-style build pass.
 - No service was started, no push or deployment was performed.
 
 ## 2026-07-11 - Upstream-sync guard committed-range hardening
