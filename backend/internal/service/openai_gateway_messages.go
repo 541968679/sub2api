@@ -554,6 +554,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 
 	// 6. Build upstream request
+	if account.Type == AccountTypeOAuth && account.Platform != PlatformGrok {
+		// Preserve the Messages bridge body/session behavior while restoring
+		// the required Codex identity immediately before the request is sent.
+		setOpenAICompatMessagesBridgeContext(c, true)
+	}
 	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, isStream)
 	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false)
 	releaseUpstreamCtx()
@@ -570,13 +575,16 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			upstreamReq.Header.Set("conversation_id", isolatedSessionID)
 		}
 	}
-	if account.Type == AccountTypeOAuth {
-		// Anthropic Messages compatibility uses the ChatGPT Codex SSE endpoint.
-		// Match airgate-openai's request shape: the SSE endpoint does not need
-		// the Responses experimental beta header, and forcing originator can make
-		// ChatGPT select a different internal continuation path.
-		upstreamReq.Header.Del("OpenAI-Beta")
-		upstreamReq.Header.Del("originator")
+	if account.Type == AccountTypeOAuth && account.Platform != PlatformGrok {
+		// ChatGPT's Codex endpoint rejects Messages bridge requests when the
+		// final identity is missing or internally inconsistent.
+		ensureCodexIdentityHeaders(upstreamReq.Header)
+		enforceCodexIdentityHeaders(upstreamReq.Header)
+		logger.L().Debug("openai messages: upstream identity restored",
+			zap.Int64("account_id", account.ID),
+			zap.String("upstream_model", upstreamModel),
+			zap.Bool("compat_identity_restored", true),
+		)
 	}
 	if account.Type == AccountTypeOAuth && promptCacheKey != "" && strings.TrimSpace(c.GetHeader("conversation_id")) == "" {
 		upstreamReq.Header.Del("conversation_id")

@@ -67,8 +67,9 @@ the wrong upstream path.
 
 Admin account UI supports both Grok OAuth and API-key creation. API-key forms
 default to `https://api.x.ai/v1`; the user key modal generates Grok Build
-`config.toml` and OpenCode provider examples without exposing account
-credentials. Grok request/token quota bars display remaining capacity rather
+`config.toml` and an OpenCode `@ai-sdk/openai` Responses-provider example
+without exposing account credentials. Grok request/token quota bars display
+remaining capacity rather
 than consumed percentage. The remaining-capacity mode is opt-in on the shared
 progress bar, so Anthropic, OpenAI, Gemini, and Antigravity usage displays keep
 their historical used-percentage behavior.

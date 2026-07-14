@@ -2,6 +2,35 @@
 
 > 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
 
+## [2026-07-14] fix: Restore OAuth Messages identity and Grok OpenCode adapter
+
+**Affected files**: OpenAI Codex identity helper, Anthropic Messages forwarding,
+OpenAI Responses request construction, Grok forwarding regressions, API-key use
+modal, focused tests, gateway/account module documentation, and this changelog.
+
+**Upstream compatibility**: Selective behavior-level alignment of upstream
+`d5b47c214` and `ad18ee7c4`.
+
+**Details**:
+- OpenAI OAuth requests translated from Anthropic Messages retain the existing
+  bridge-specific body and session/conversation behavior, then restore a
+  complete, internally paired Codex `User-Agent`, `originator`, `version`, and
+  `OpenAI-Beta` identity immediately before sending to ChatGPT.
+- Official Codex user agents and valid versions remain intact; missing identity
+  falls back to the bundled Codex CLI values, and third-party user agents are
+  normalized by the existing final identity pairing rule.
+- Grok Messages forwarding remains isolated on its xAI adapter: it keeps the
+  Grok transport user agent, never receives Codex `originator` or `version`,
+  and only passes an explicitly supplied `OpenAI-Beta` value.
+- Grok OpenCode examples now use `@ai-sdk/openai`, whose Responses adapter
+  matches the configured Sub2API Grok endpoint. Grok Build configuration paths
+  remain correct on Unix and Windows.
+- Verified focused and extended OpenAI Messages/Grok service tests,
+  `cmd/server` compilation, and both API-key modal test suites. Billing,
+  display-token accounting, real cache-read quantities, curated/default
+  models, Claude-GPT bridge routing, OpenAI Images, scheduling/failover, Ops,
+  settings, migrations, routes, and i18n remain unchanged.
+
 ## [2026-07-14] sync: Align v0.1.152 admin selection and Grok onboarding UI
 
 **Affected files**: Admin user lookup service/repository/DTO/API, Fast/Flex

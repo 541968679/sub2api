@@ -209,6 +209,15 @@ usage fields, display cache override, display-token downstream rewriting, and
 Claude Code compact recovery. Non-bridge OpenAI Messages should otherwise
 follow upstream prompt-cache/session/continuation behavior.
 
+For OpenAI OAuth, the Messages bridge marks request construction as
+compatibility mode so it can preserve the bridge-specific body and
+session/conversation rules. Immediately before dispatch, it restores the full
+Codex identity tuple (`User-Agent`, `originator`, `version`, and
+`OpenAI-Beta: responses=experimental`) and runs the final official-client
+pairing check. This restoration is explicitly excluded from `platform=grok`;
+Grok Messages continue through `buildGrokResponsesRequest` with the xAI
+transport identity and no Codex `originator` or `version` leakage.
+
 Claude Code emits a hidden compact request after the conversation reaches its
 context threshold. The bridge keeps an untouched transcript snapshot before the
 API-key 12-message replay guard. It buffers `message_start` and thinking until
