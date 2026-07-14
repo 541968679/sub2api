@@ -22,6 +22,21 @@ setting, billing, scheduling, or deployment behavior changed.
 - Adds public Grok OAuth/API-key, Grok Build, and OpenCode setup guidance that
   matches the fork's HTTP/SSE capability boundary.
 
+## [2026-07-14] test: Complete alpha-search public group contract
+
+**Affected files**: public API contract fixture and this changelog.
+
+**Compatibility**: Contract-test-only completion of upstream `e5af699d0`.
+Runtime responses already exposed the nullable field; no handler, DTO, billing,
+schema, migration, frontend, or route behavior changed.
+
+**Details**:
+- Adds `web_search_price_per_call: null` to the `/api/v1/groups/available`
+  snapshot so the fixture matches the public DTO introduced by the alpha-search
+  billing batch.
+- The omission was found by the final `go test -tags=unit ./...` gate; all
+  other backend packages had passed.
+
 ## [2026-07-14] fix: Restore OAuth Messages identity and Grok OpenCode adapter
 
 **Affected files**: OpenAI Codex identity helper, Anthropic Messages forwarding,
