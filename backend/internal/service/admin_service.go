@@ -1630,6 +1630,11 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 	}
 
 	if candidates, ok := GatewayModelDiscoveryIDsForPlatform(platform); ok {
+		// OpenAI groups may pin Grok text models in custom lists (at least
+		// canonical grok-4.5, plus other Grok text IDs for operators).
+		if platform == PlatformOpenAI {
+			candidates = MergeModelIDsPreferFirst(candidates, GrokTextModelIDsForOpenAIGroupAccess())
+		}
 		return normalizeModelsListCandidates(candidates), nil
 	}
 
@@ -3959,6 +3964,28 @@ func (s *adminServiceImpl) validateAccountGroupBindings(ctx context.Context, acc
 	}
 	if err := s.validateGroupIDsExist(ctx, groupIDs); err != nil {
 		return err
+	}
+
+	// Grok accounts may bind OpenAI groups only when OpenAI-group access is enabled.
+	if accountPlatform == PlatformGrok {
+		accessEnabled := accountExtraBool(accountExtra, AccountExtraGrokOpenAIGroupAccessEnabled)
+		for _, groupID := range groupIDs {
+			group, err := s.groupRepo.GetByID(ctx, groupID)
+			if err != nil {
+				return fmt.Errorf("get group: %w", err)
+			}
+			if group.Platform == PlatformGrok {
+				continue
+			}
+			if accessEnabled && group.Platform == PlatformOpenAI {
+				continue
+			}
+			if accessEnabled {
+				return infraerrors.BadRequest("INVALID_ACCOUNT_GROUP_PLATFORM", "Grok OpenAI-group access accounts may only bind Grok or OpenAI groups")
+			}
+			return infraerrors.BadRequest("INVALID_ACCOUNT_GROUP_PLATFORM", "Grok accounts can only bind Grok groups unless OpenAI-group access is enabled")
+		}
+		return nil
 	}
 
 	// Only OpenAI accounts get stricter cross-platform binding rules here.

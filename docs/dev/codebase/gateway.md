@@ -78,6 +78,14 @@ the local OpenAI Images account capability switch or alter Claude-GPT bridge
 eligibility. Moderation runs before billing and scheduling, so a local block has
 no quota or usage side effect.
 
+### Grok + Codex multi-turn and OpenAI-key cross-platform Grok
+
+Research (not yet implemented): [../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md](../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md).
+
+- **Requirement A (implemented 2026-07-15)**: Grok-group keys accept Codex Responses WebSocket ingress and force the HTTP/SSE bridge (`requiredTransport=http_sse`, platform stays `grok`). Multi-turn/tool continuation no longer 501. Full upstream Grok WS cache/pool is still not imported.
+- **Requirement B**: OpenAI-group keys do not list or schedule `grok-4.5` under platform isolation; independent of the WS bridge work.
+- Platform for OpenAI-compatible routing is derived from `API Key -> Group.Platform`, not from the request `model` field.
+
 ### `/v1/chat/completions` Anthropic Compatibility
 
 ```

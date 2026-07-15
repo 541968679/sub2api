@@ -75,12 +75,185 @@ func TestOpenAIWSHTTPBridgeDecisionKeepsSmallFramesOnWS(t *testing.T) {
 		},
 	}
 
-	require.False(t, svc.shouldBridgeOpenAIWSHTTP(99, ""))
-	require.True(t, svc.shouldBridgeOpenAIWSHTTP(100, ""))
-	require.False(t, svc.shouldBridgeOpenAIWSHTTP(1000, "resp_existing"))
+	require.False(t, svc.shouldBridgeOpenAIWSHTTP(nil, 99, ""))
+	require.True(t, svc.shouldBridgeOpenAIWSHTTP(nil, 100, ""))
+	require.False(t, svc.shouldBridgeOpenAIWSHTTP(nil, 1000, "resp_existing"))
+	// OpenAI account follows threshold/previous_response rules only.
+	require.False(t, svc.shouldBridgeOpenAIWSHTTP(&Account{Platform: PlatformOpenAI}, 99, ""))
+	require.False(t, svc.shouldBridgeOpenAIWSHTTP(&Account{Platform: PlatformOpenAI}, 1000, "resp_existing"))
 
 	svc.cfg.Gateway.OpenAIWS.HTTPBridgeEnabled = false
-	require.False(t, svc.shouldBridgeOpenAIWSHTTP(1000, ""))
+	require.False(t, svc.shouldBridgeOpenAIWSHTTP(nil, 1000, ""))
+}
+
+func TestOpenAIWSHTTPBridgeDecisionForcesGrokAlways(t *testing.T) {
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Gateway: config.GatewayConfig{
+				OpenAIWS: config.GatewayOpenAIWSConfig{
+					HTTPBridgeEnabled:        false,
+					HTTPBridgeThresholdBytes: 100,
+				},
+			},
+		},
+	}
+	grok := &Account{Platform: PlatformGrok, Type: AccountTypeOAuth}
+	// Grok always bridges: even when global HTTP bridge is off, payload is small,
+	// or previous_response_id is present (Codex multi-turn / tool continuation).
+	require.True(t, svc.shouldBridgeOpenAIWSHTTP(grok, 1, ""))
+	require.True(t, svc.shouldBridgeOpenAIWSHTTP(grok, 1, "resp_existing"))
+	require.True(t, svc.shouldBridgeOpenAIWSHTTP(grok, 1000, "resp_existing"))
+}
+
+func TestProxyResponsesWebSocketFromClient_GrokForcesHTTPBridgeMultiTurn(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	makeSSE := func(responseID string) string {
+		return strings.Join([]string{
+			`data: {"type":"response.created","response":{"id":"` + responseID + `","model":"grok-4.5"}}`,
+			"",
+			`data: {"type":"response.output_text.delta","response":{"id":"` + responseID + `"},"delta":"ok"}`,
+			"",
+			`data: {"type":"response.completed","response":{"id":"` + responseID + `","model":"grok-4.5","usage":{"input_tokens":2,"output_tokens":1}}}`,
+			"",
+		}, "\n")
+	}
+	upstream := &openAIWSHTTPBridgeTestUpstream{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"text/event-stream"},
+					"x-request-id": []string{"rid_grok_1"},
+				},
+				Body: io.NopCloser(strings.NewReader(makeSSE("resp_grok_1"))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"text/event-stream"},
+					"x-request-id": []string{"rid_grok_2"},
+				},
+				Body: io.NopCloser(strings.NewReader(makeSSE("resp_grok_2"))),
+			},
+		},
+	}
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			MaxLineSize: defaultMaxLineSize,
+			OpenAIWS: config.GatewayOpenAIWSConfig{
+				// Bridge disabled globally: Grok must still force HTTP bridge.
+				HTTPBridgeEnabled:        false,
+				HTTPBridgeThresholdBytes: 15 * 1024 * 1024,
+				Enabled:                  true,
+				ResponsesWebsocketsV2:    true,
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg:              cfg,
+		httpUpstream:     upstream,
+		toolCorrector:    NewCodexToolCorrector(),
+		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
+	}
+	account := &Account{
+		ID:          42,
+		Name:        "grok-oauth",
+		Platform:    PlatformGrok,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Status:      StatusActive,
+		Credentials: map[string]any{"access_token": "tok-grok"},
+	}
+
+	errCh := make(chan error, 1)
+	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := coderws.Accept(w, r, &coderws.AcceptOptions{CompressionMode: coderws.CompressionContextTakeover})
+		if err != nil {
+			errCh <- err
+			return
+		}
+		defer func() { _ = conn.CloseNow() }()
+
+		readCtx, cancelRead := context.WithTimeout(r.Context(), 3*time.Second)
+		msgType, firstMessage, err := conn.Read(readCtx)
+		cancelRead()
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if msgType != coderws.MessageText && msgType != coderws.MessageBinary {
+			errCh <- NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "unexpected client websocket message type", nil)
+			return
+		}
+
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+		req := r.Clone(r.Context())
+		req.Header = req.Header.Clone()
+		req.Header.Set("User-Agent", "codex_cli_rs/0.144.1")
+		ginCtx.Request = req
+
+		proxyCtx, cancelProxy := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancelProxy()
+		errCh <- svc.ProxyResponsesWebSocketFromClient(proxyCtx, ginCtx, conn, account, "tok-grok", firstMessage, nil)
+	}))
+	defer wsServer.Close()
+
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
+	clientConn, _, err := coderws.Dial(dialCtx, "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+	cancelDial()
+	require.NoError(t, err)
+	defer func() { _ = clientConn.CloseNow() }()
+
+	writeClient := func(payload string) {
+		t.Helper()
+		writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancelWrite()
+		require.NoError(t, clientConn.Write(writeCtx, coderws.MessageText, []byte(payload)))
+	}
+	readEvent := func() []byte {
+		t.Helper()
+		readCtx, cancelRead := context.WithTimeout(context.Background(), 3*time.Second)
+		msgType, event, readErr := clientConn.Read(readCtx)
+		cancelRead()
+		require.NoError(t, readErr)
+		require.Equal(t, coderws.MessageText, msgType)
+		return event
+	}
+
+	// Turn 1: first Codex response.create over WS.
+	writeClient(`{"type":"response.create","model":"grok-4.5","stream":true,"input":[{"type":"input_text","text":"hello"}]}`)
+	require.Equal(t, "response.created", gjson.GetBytes(readEvent(), "type").String())
+	require.Equal(t, "response.output_text.delta", gjson.GetBytes(readEvent(), "type").String())
+	completed1 := readEvent()
+	require.Equal(t, "response.completed", gjson.GetBytes(completed1, "type").String())
+	require.Equal(t, "resp_grok_1", gjson.GetBytes(completed1, "response.id").String())
+
+	// Turn 2: multi-turn with previous_response_id — must stay on HTTP bridge, not fail ws_v2 gate.
+	writeClient(`{"type":"response.create","model":"grok-4.5","stream":true,"previous_response_id":"resp_grok_1","input":[{"type":"input_text","text":"continue"}]}`)
+	require.Equal(t, "response.created", gjson.GetBytes(readEvent(), "type").String())
+	require.Equal(t, "response.output_text.delta", gjson.GetBytes(readEvent(), "type").String())
+	completed2 := readEvent()
+	require.Equal(t, "response.completed", gjson.GetBytes(completed2, "type").String())
+	require.Equal(t, "resp_grok_2", gjson.GetBytes(completed2, "response.id").String())
+
+	_ = clientConn.Close(coderws.StatusNormalClosure, "done")
+	select {
+	case proxyErr := <-errCh:
+		require.NoError(t, proxyErr)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for grok websocket proxy to finish")
+	}
+
+	require.Len(t, upstream.bodies, 2)
+	// Bridge strips WS-only fields and forces stream=true for both turns.
+	for _, body := range upstream.bodies {
+		require.False(t, gjson.GetBytes(body, "type").Exists())
+		require.False(t, gjson.GetBytes(body, "previous_response_id").Exists())
+		require.True(t, gjson.GetBytes(body, "stream").Bool())
+		require.Equal(t, "grok-4.5", gjson.GetBytes(body, "model").String())
+	}
 }
 
 func TestOpenAIWSHTTPBridgeRelaysSSEFramesAsWebSocketMessages(t *testing.T) {

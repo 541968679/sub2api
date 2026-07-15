@@ -28,7 +28,8 @@ const (
 // creditBalanceFetcher 抽象"根据账号 ID 获取 UsageInfo（含 AICredits）"的行为，
 // 在测试中便于替换。生产实现是 *AccountUsageService.GetUsage。
 type creditBalanceFetcher interface {
-	GetUsage(ctx context.Context, accountID int64) (*UsageInfo, error)
+	// Matches AccountUsageService.GetUsage (optional force refresh).
+	GetUsage(ctx context.Context, accountID int64, force ...bool) (*UsageInfo, error)
 }
 
 // CreditSnapshotService 定时采样 Antigravity AI Credits 余额并提供聚合查询。

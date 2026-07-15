@@ -24,7 +24,7 @@ func TestGatewayHandlerModels_OpenAICuratedDiscoveryList(t *testing.T) {
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}, ids)
+	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "grok-4.5"}, ids)
 }
 
 func TestGatewayHandlerModels_OpenAICuratedDiscoveryListIncludesCodexMetadata(t *testing.T) {
@@ -66,7 +66,8 @@ func TestGatewayHandlerModels_OpenAICuratedListCanBeNarrowedByCustomList(t *test
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	require.Equal(t, []string{"gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5"}, ids)
+	// Custom subset is preserved, but canonical grok-4.5 is always appended for OpenAI groups.
+	require.Equal(t, []string{"gpt-5.6-terra", "gpt-5.4-mini", "gpt-5.5", "grok-4.5"}, ids)
 }
 
 func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels(t *testing.T) {
@@ -84,7 +85,7 @@ func TestGatewayHandlerModels_OpenAILegacyFullCustomListIncludesNewCuratedModels
 	}
 
 	ids := runGatewayModelsForTest(t, apiKey)
-	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}, ids)
+	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "grok-4.5"}, ids)
 }
 
 func TestGatewayHandlerModels_AntigravityCuratedDiscoveryList(t *testing.T) {

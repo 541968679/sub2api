@@ -9776,6 +9776,30 @@ func (s *GatewayService) validateUpstreamBaseURL(raw string) (string, error) {
 	return normalized, nil
 }
 
+// ListGrokOpenAIGroupAccessModelIDs returns Grok text model IDs that an OpenAI
+// group may expose because at least one bound Grok account has opt-in enabled.
+// Returns nil when no access candidates exist. Does not consult custom models lists.
+func (s *GatewayService) ListGrokOpenAIGroupAccessModelIDs(ctx context.Context, groupID *int64) []string {
+	if s == nil || s.accountRepo == nil || groupID == nil {
+		return nil
+	}
+	accounts, err := s.accountRepo.ListSchedulableByGroupIDAndPlatform(ctx, *groupID, PlatformGrok)
+	if err != nil || len(accounts) == 0 {
+		return nil
+	}
+	return CollectGrokOpenAIGroupAccessModelIDs(accounts)
+}
+
+// MergeOpenAIDiscoveryWithGrokAccess appends Grok text models for OpenAI-group
+// discovery when bound opt-in Grok accounts exist. Custom lists must not call this.
+func (s *GatewayService) MergeOpenAIDiscoveryWithGrokAccess(ctx context.Context, groupID *int64, base []string) []string {
+	extra := s.ListGrokOpenAIGroupAccessModelIDs(ctx, groupID)
+	if len(extra) == 0 {
+		return base
+	}
+	return MergeModelIDsPreferFirst(base, extra)
+}
+
 // GetAvailableModels returns the list of models available for a group
 // It aggregates model_mapping keys from all schedulable accounts in the group
 func shouldExposeModelInModelsList(account Account, platform, model string) bool {

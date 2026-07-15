@@ -547,6 +547,9 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"openai_ws_enabled",
 		"openai_ws_force_http",
 		"openai_claude_gpt_bridge_enabled",
+		// Grok accounts bound to OpenAI groups need this flag in the scheduler
+		// snapshot; without it OpenAI-group keys cannot select Grok capacity.
+		"grok_openai_group_access_enabled",
 		"codex_5h_used_percent",
 		"codex_7d_used_percent",
 		"codex_5h_reset_at",

@@ -802,6 +802,35 @@ func TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid(t *testi
 	require.Equal(t, service.OpenAIClientTransportWS, service.GetOpenAIClientTransport(c))
 }
 
+func TestOpenAIResponsesWebSocket_GrokPlatformDoesNotHardReject(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/openai/v1/responses", nil)
+	c.Request.Header.Set("Upgrade", "websocket")
+	c.Request.Header.Set("Connection", "Upgrade")
+
+	groupID := int64(9)
+	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+		ID:      501,
+		GroupID: &groupID,
+		Group:   &service.Group{ID: groupID, Platform: service.PlatformGrok},
+		User:    &service.User{ID: 1},
+	})
+	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1, Concurrency: 1})
+
+	// Incomplete handler: should fail on missing dependencies after the platform
+	// gate, not with the old Grok-only 501 not_supported local feature gate.
+	h := &OpenAIGatewayHandler{}
+	h.ResponsesWebSocket(c)
+
+	require.NotEqual(t, http.StatusNotImplemented, w.Code)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	require.NotContains(t, w.Body.String(), "WebSocket responses are not supported for this platform")
+	require.Equal(t, service.OpenAIClientTransportWS, service.GetOpenAIClientTransport(c))
+}
+
 func TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

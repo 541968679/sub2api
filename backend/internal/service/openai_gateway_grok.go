@@ -21,6 +21,9 @@ import (
 const (
 	grokComposerImageBridgeVisionModel     = "grok-build-0.1"
 	grokComposerImageBridgeMaxOutputTokens = 512
+	grokUpstreamUserAgent                  = "sub2api-grok/1.0"
+	grokCLIVersion                         = "0.2.93"
+	grokDefaultResponsesModel              = "grok-4.5"
 	grokRateLimitFallbackCooldown          = 2 * time.Minute
 )
 
@@ -39,7 +42,7 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 
 	upstreamModel := account.GetMappedModel(originalModel)
 	if strings.TrimSpace(upstreamModel) == "" {
-		upstreamModel = "grok-4.3"
+		upstreamModel = grokDefaultResponsesModel
 	}
 	cacheIdentity := resolveGrokCacheIdentity(c, body, "", upstreamModel)
 	patchedBody, err := patchGrokResponsesBody(body, upstreamModel)
@@ -49,6 +52,12 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	patchedBody, err = applyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, account.IsGrokOAuth())
 	if err != nil {
 		return nil, fmt.Errorf("apply grok prompt cache identity: %w", err)
+	}
+	// Cache-identity injection may leave tool_choice without tools (or skip
+	// re-injection when the original payload had unsupported tools). Reconcile.
+	patchedBody, err = sanitizeGrokResponsesTools(patchedBody)
+	if err != nil {
+		return nil, err
 	}
 
 	token, _, err := s.GetAccessToken(ctx, account)
@@ -190,22 +199,69 @@ func patchGrokResponsesBody(body []byte, upstreamModel string) ([]byte, error) {
 }
 
 func sanitizeGrokResponsesModelCapabilities(body []byte, upstreamModel string) ([]byte, error) {
-	if !grokModelRejectsReasoningEffort(upstreamModel) {
-		return body, nil
+	// Composer rejects reasoning controls entirely.
+	if grokModelRejectsReasoningEffort(upstreamModel) {
+		out := body
+		for _, field := range []string{"reasoning", "reasoning_effort", "reasoningEffort"} {
+			if !gjson.GetBytes(out, field).Exists() {
+				continue
+			}
+			var err error
+			out, err = sjson.DeleteBytes(out, field)
+			if err != nil {
+				return nil, fmt.Errorf("remove unsupported Grok Composer %s: %w", field, err)
+			}
+		}
+		return out, nil
 	}
 
+	// Main Grok models accept low/medium/high only. Codex catalogs may still
+	// offer xhigh (OpenAI-style); clamp to high so xAI does not 400.
+	return clampGrokReasoningEffortFields(body)
+}
+
+func clampGrokReasoningEffortFields(body []byte) ([]byte, error) {
 	out := body
-	for _, field := range []string{"reasoning", "reasoning_effort", "reasoningEffort"} {
-		if !gjson.GetBytes(out, field).Exists() {
+	paths := []string{"reasoning.effort", "reasoning_effort", "reasoningEffort"}
+	for _, path := range paths {
+		raw := strings.TrimSpace(gjson.GetBytes(out, path).String())
+		if raw == "" {
+			continue
+		}
+		clamped := clampGrokReasoningEffortValue(raw)
+		if clamped == "" || clamped == raw {
 			continue
 		}
 		var err error
-		out, err = sjson.DeleteBytes(out, field)
+		out, err = sjson.SetBytes(out, path, clamped)
 		if err != nil {
-			return nil, fmt.Errorf("remove unsupported Grok Composer %s: %w", field, err)
+			return nil, fmt.Errorf("clamp Grok %s: %w", path, err)
 		}
 	}
 	return out, nil
+}
+
+// clampGrokReasoningEffortValue maps Codex/OpenAI-style effort labels onto the
+// set xAI Grok Responses accepts: low | medium | high.
+func clampGrokReasoningEffortValue(raw string) string {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return ""
+	}
+	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
+	switch value {
+	case "low", "minimal", "min":
+		return "low"
+	case "medium", "med", "default":
+		return "medium"
+	case "high":
+		return "high"
+	case "xhigh", "extrahigh", "extra", "max", "ultra", "ultracode":
+		return "high"
+	default:
+		// Unknown labels: prefer high over passthrough to avoid upstream 400s.
+		return "high"
+	}
 }
 
 func grokModelRejectsReasoningEffort(model string) bool {
@@ -315,36 +371,62 @@ var grokResponsesSupportedToolTypes = map[string]struct{}{
 
 func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
 	tools := gjson.GetBytes(body, "tools")
-	if !tools.Exists() || !tools.IsArray() {
-		return body, nil
-	}
-
-	rawTools := tools.Array()
-	filteredTools := make([]json.RawMessage, 0, len(rawTools))
-	for _, tool := range rawTools {
-		toolType := strings.TrimSpace(tool.Get("type").String())
-		if _, ok := grokResponsesSupportedToolTypes[toolType]; ok {
-			filteredTools = append(filteredTools, json.RawMessage(tool.Raw))
-		}
-	}
-
+	filteredTools := make([]json.RawMessage, 0)
 	var err error
-	if len(filteredTools) != len(rawTools) {
-		if len(filteredTools) == 0 {
-			body, err = sjson.DeleteBytes(body, "tools")
-		} else {
-			var encoded []byte
-			encoded, err = json.Marshal(filteredTools)
-			if err != nil {
-				return nil, err
-			}
-			body, err = sjson.SetRawBytes(body, "tools", encoded)
-		}
+
+	switch {
+	case !tools.Exists():
+		// no tools field
+	case !tools.IsArray():
+		// null/object/string tools are invalid for xAI; drop them
+		body, err = sjson.DeleteBytes(body, "tools")
 		if err != nil {
 			return nil, err
 		}
+	default:
+		rawTools := tools.Array()
+		filteredTools = make([]json.RawMessage, 0, len(rawTools))
+		for _, tool := range rawTools {
+			toolType := strings.TrimSpace(tool.Get("type").String())
+			if _, ok := grokResponsesSupportedToolTypes[toolType]; ok {
+				filteredTools = append(filteredTools, json.RawMessage(tool.Raw))
+			}
+		}
+		if len(filteredTools) != len(rawTools) {
+			if len(filteredTools) == 0 {
+				body, err = sjson.DeleteBytes(body, "tools")
+			} else {
+				var encoded []byte
+				encoded, err = json.Marshal(filteredTools)
+				if err != nil {
+					return nil, err
+				}
+				body, err = sjson.SetRawBytes(body, "tools", encoded)
+			}
+			if err != nil {
+				return nil, err
+			}
+		} else if len(filteredTools) == 0 {
+			// tools: [] is treated as "no tools" by xAI; drop empty array + tool_choice
+			body, err = sjson.DeleteBytes(body, "tools")
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
+	// xAI 400: "A tool_choice was set on the request but no tools were specified."
+	// Always reconcile tool_choice against remaining tools (including missing tools field).
+	// Final absolute guard: if no tools remain in the body, tool_choice must not exist.
+	if !grokResponsesBodyHasTools(body) {
+		if gjson.GetBytes(body, "tool_choice").Exists() {
+			body, err = sjson.DeleteBytes(body, "tool_choice")
+			if err != nil {
+				return nil, err
+			}
+		}
+		return body, nil
+	}
 	toolChoice := gjson.GetBytes(body, "tool_choice")
 	if !toolChoice.Exists() {
 		return body, nil
@@ -356,6 +438,11 @@ func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
 		}
 	}
 	return body, nil
+}
+
+func grokResponsesBodyHasTools(body []byte) bool {
+	tools := gjson.GetBytes(body, "tools")
+	return tools.Exists() && tools.IsArray() && len(tools.Array()) > 0
 }
 
 func shouldDropGrokToolChoice(toolChoice gjson.Result, tools []json.RawMessage) bool {
@@ -736,7 +823,7 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("User-Agent", "sub2api-grok/1.0")
+	applyGrokCLIHeaders(req.Header)
 	applyGrokCacheHeaders(req.Header, cacheIdentity)
 	if c != nil {
 		if v := c.GetHeader("OpenAI-Beta"); strings.TrimSpace(v) != "" {
@@ -744,6 +831,16 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 		}
 	}
 	return req, nil
+}
+
+// applyGrokCLIHeaders identifies subscription traffic as a supported Grok CLI
+// version. The CLI gateway rejects otherwise valid OAuth requests without it.
+func applyGrokCLIHeaders(headers http.Header) {
+	if headers == nil {
+		return
+	}
+	headers.Set("User-Agent", grokUpstreamUserAgent)
+	headers.Set("X-Grok-Client-Version", grokCLIVersion)
 }
 
 func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, account *Account, snapshot *xai.QuotaSnapshot) {

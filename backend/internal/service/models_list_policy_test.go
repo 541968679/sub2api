@@ -10,7 +10,7 @@ import (
 func TestGatewayModelDiscoveryIDsForPlatform(t *testing.T) {
 	openAI, ok := GatewayModelDiscoveryIDsForPlatform(PlatformOpenAI)
 	require.True(t, ok)
-	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}, openAI)
+	require.Equal(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "grok-4.5"}, openAI)
 
 	antigravity, ok := GatewayModelDiscoveryIDsForPlatform(PlatformAntigravity)
 	require.True(t, ok)
@@ -36,7 +36,10 @@ func TestGetGroupModelsListCandidates_UsesGatewayDiscoveryPolicy(t *testing.T) {
 
 	openAI, err := svc.GetGroupModelsListCandidates(context.Background(), 0, PlatformOpenAI)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini"}, openAI)
+	// OpenAI candidates include curated GPT models + Grok text models for custom lists.
+	require.Contains(t, openAI, "gpt-5.6-sol")
+	require.Contains(t, openAI, "grok-4.5")
+	require.Contains(t, openAI, "grok-4.3")
 
 	antigravity, err := svc.GetGroupModelsListCandidates(context.Background(), 0, PlatformAntigravity)
 	require.NoError(t, err)
@@ -63,6 +66,7 @@ func TestExpandGatewayModelDiscoveryCustomList_UpgradesLegacyOpenAIFullList(t *t
 		"gpt-5.5",
 		"gpt-5.4",
 		"gpt-5.4-mini",
+		"grok-4.5",
 	}, expanded)
 }
 

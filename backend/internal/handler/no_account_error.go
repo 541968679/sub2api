@@ -115,6 +115,8 @@ func classifyOpenAICompatibleNoAccountErrorFromGin(
 	routingModel string,
 	displayModel string,
 ) noAccountErrorClassification {
+	// Pass key platform + routing model so diagnosis can resolve OpenAI→Grok
+	// access scheduling the same way account selection does.
 	return classifyNoAccountErrorFromGin(
 		c,
 		diag,

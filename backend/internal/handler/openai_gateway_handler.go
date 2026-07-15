@@ -97,22 +97,34 @@ func wrapUsageRecordTaskContext(parent context.Context, task service.UsageRecord
 // across all turns, so without a per-turn suffix every turn after the first
 // collides on the usage_billing_dedup / usage_logs (request_id, api_key_id)
 // keys and is silently dropped from billing and usage history.
+//
+// Compact suffix is required: usage_logs.request_id is varchar(64), and
+// resolveUsageBillingRequestID prefixes "local:" / "client:". Appending a full
+// upstream UUID via ":turn:<uuid>" overflows (≈83 chars) and drops the row.
 func turnUsageRecordContext(parent context.Context, turn int, turnRequestID string) context.Context {
 	if parent == nil {
 		return nil
 	}
-	suffix := strings.TrimSpace(turnRequestID)
-	if suffix == "" {
-		suffix = strconv.Itoa(turn)
-	}
+	suffix := compactTurnUsageSuffix(turn, turnRequestID)
 	derived := parent
 	if clientRequestID, _ := parent.Value(ctxkey.ClientRequestID).(string); strings.TrimSpace(clientRequestID) != "" {
-		derived = context.WithValue(derived, ctxkey.ClientRequestID, strings.TrimSpace(clientRequestID)+":turn:"+suffix)
+		derived = context.WithValue(derived, ctxkey.ClientRequestID, strings.TrimSpace(clientRequestID)+":t:"+suffix)
 	}
 	if requestID, _ := parent.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
-		derived = context.WithValue(derived, ctxkey.RequestID, strings.TrimSpace(requestID)+":turn:"+suffix)
+		derived = context.WithValue(derived, ctxkey.RequestID, strings.TrimSpace(requestID)+":t:"+suffix)
 	}
 	return derived
+}
+
+func compactTurnUsageSuffix(turn int, turnRequestID string) string {
+	suffix := strconv.Itoa(turn)
+	if rid := strings.TrimSpace(turnRequestID); rid != "" {
+		if len(rid) > 8 {
+			rid = rid[len(rid)-8:]
+		}
+		suffix = suffix + "-" + rid
+	}
+	return suffix
 }
 
 func isOpenAIClaudeGPTBridgeRequest(c *gin.Context) bool {
@@ -360,7 +372,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	for {
 		// Select account supporting the requested model
 		reqLog.Debug("openai.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
+		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForOpenAICompatibleRequest(
 			c.Request.Context(),
 			apiKey.GroupID,
 			previousResponseID,
@@ -870,7 +882,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				service.OpenAIUpstreamTransportAny,
 			)
 		} else {
-			selection, scheduleDecision, err = h.gatewayService.SelectAccountWithSchedulerForCapability(
+			selection, scheduleDecision, err = h.gatewayService.SelectAccountWithSchedulerForOpenAICompatibleRequest(
 				c.Request.Context(),
 				apiKey.GroupID,
 				"", // no previous_response_id
@@ -1416,12 +1428,16 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return
 	}
+	// Grok groups (and OpenAI-group keys routing Grok text models) accept
+	// Codex-style Responses WebSocket ingress and bridge to upstream HTTP/SSE.
+	// Pure OpenAI groups keep WS v2 unless a later account force-HTTP applies.
 	requestPlatform := openAICompatibleRequestPlatform(apiKey)
+	requiredTransport := service.OpenAIUpstreamTransportResponsesWebsocketV2
 	if requestPlatform == service.PlatformGrok {
-		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
-		h.errorResponse(c, http.StatusNotImplemented, "not_supported_error", "WebSocket responses are not supported for this platform")
-		return
+		requiredTransport = service.OpenAIUpstreamTransportHTTPSSE
 	}
+	// Note: for OpenAI-group + grok model, transport is finalized after we know
+	// reqModel from the first WS message (see selection loop below).
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
@@ -1599,18 +1615,23 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	switchCount := 0
 	failedAccountIDs := make(map[int64]struct{})
 	var lastFailoverErr *service.UpstreamFailoverError
+	// OpenAI-group keys requesting Grok text models must bridge WS→HTTP/SSE.
+	if _, requireGrokAccess := service.ResolveOpenAICompatibleSchedulePlatform(requestPlatform, reqModel); requireGrokAccess {
+		requiredTransport = service.OpenAIUpstreamTransportHTTPSSE
+	}
 	for {
-		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
+		selection, scheduleDecision, err := h.gatewayService.SelectAccountWithSchedulerForOpenAICompatibleRequest(
 			ctx,
 			apiKey.GroupID,
 			previousResponseID,
 			sessionHash,
 			reqModel,
 			failedAccountIDs,
-			service.OpenAIUpstreamTransportResponsesWebsocketV2,
+			requiredTransport,
 			service.OpenAIEndpointCapabilityChatCompletions,
 			false,
 			previousResponseCanMove,
+			requestPlatform,
 		)
 		if err != nil {
 			reqLog.Warn("openai.websocket_account_select_failed",

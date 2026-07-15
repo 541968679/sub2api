@@ -1,6 +1,281 @@
-﻿# Sub2API 浜屽紑鍙樻洿鏃ュ織
+﻿# Sub2API 二次开发变更日志
 
-> 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩寮€鍙樻洿蹇呴』鍦ㄦ璁板綍锛屼究浜庡悎骞朵笂娓告洿鏂版椂杩借釜宸紓銆?
+> 记录所有相对于上游 (Wei-Shaw/sub2api) 的自定义修改。每次二次开发变更必须在此记录，便于合并上游更新时追踪差异。
+
+## [2026-07-15] fix: Grok account usage query (billing probe + free 24h estimate)
+
+**Upstream sources** (ported, not full merge):
+- `c896cacf6` / PR #4188 — free quota probing and billing display
+- `30d4301be` / PR #4231 — rolling 24h free quota estimate
+
+**Root cause**:
+1. `AccountUsageService.GetUsage` never branched on `PlatformGrok`, so Grok OAuth
+   accounts fell through `CanGetUsage()` into the Anthropic usage path and failed.
+2. `GrokQuotaFetcher` was not wired into `AccountUsageService`.
+3. Manual probe only hit Responses with rate-limit headers; Free accounts often
+   have no authoritative usage percent, so the UI stayed empty/unknown.
+4. Probe default model was still `grok-4.3` while the gateway default is `grok-4.5`.
+
+**What changed**:
+- Add xAI billing client (`internal/pkg/xai/billing.go`) and hybrid
+  `GrokQuotaService.QueryQuota` (billing first, active probe for Free).
+- Wire `GrokQuotaFetcher` + `GrokQuotaService` into usage service; list/detail
+  usage probes billing without consuming model quota when possible.
+- Free tier shows rolling 24h local token estimate (2M); paid shows billing %.
+- Admin probe button uses `QueryQuota`; frontend `AccountUsageCell` shows
+  weekly/24h bars; i18n keys `grokWeeklyUsage` / `grokFreeQuota24hHint`.
+- Default probe/test model aligned to `grok-4.5` (`grokDefaultResponsesModel`).
+
+**Affected files** (main):
+- Backend: `pkg/xai/billing*.go`, `service/grok_quota_*.go`,
+  `service/account_usage_service.go`, `service/wire.go`, `cmd/server/wire_gen.go`,
+  `handler/admin/grok_oauth_handler.go`, `repository/account_repo.go`
+- Frontend: `api/admin/grok.ts`, `AccountUsageCell.vue`, `GrokQuotaProbeCell.vue`,
+  `types/index.ts`, `i18n` zh/en
+
+**Tests**:
+- `go test -tags=unit ./internal/pkg/xai/ ./internal/service/ -run 'TestGrokQuota|TestAccountTestService_.*Grok'`
+- `go test -tags=unit ./internal/handler/admin/ -run GrokOAuthHandler`
+- `vitest` AccountUsageCell + GrokQuotaProbeCell
+
+**Frontend follow-up (same day)**:
+- Restored local API paths (`/admin/grok-oauth/...` POST query/reset) after upstream
+  port accidentally switched to non-existent `/admin/grok/...` routes.
+- Fixed `AccountUsageCell` typecheck: add `subscription_tier` fields; drop unsupported
+  `getUsage(..., force)` third argument for this fork.
+
+## [2026-07-15] fix: Grok reasoning effort clamps xhigh→high; Codex catalog drops xhigh
+
+**Affected files**: `openai_gateway_grok.go`, `openai_codex_models_grok_inject.go`,
+`frontend/src/utils/codexGrokCatalog.ts`, tests, this changelog.
+
+**Why**: Codex could select Extra High (`xhigh`) for Grok because our catalog
+advertised it, but xAI Grok only accepts low/medium/high. Passthrough caused
+upstream failures.
+
+**What changed**:
+- Forward path clamps `reasoning.effort` / `reasoning_effort` values above high
+  (xhigh/max/ultra/…) to `high` for non-composer Grok models.
+- Composer models still strip reasoning fields entirely.
+- Codex inject + local catalog helpers only list low/medium/high.
+
+## [2026-07-15] fix: scheduler cache keeps Grok OpenAI-group access flag
+
+**Affected files**: `repository/scheduler_cache.go`,
+`service/openai_gateway_service.go` (stale Extra refresh),
+`service/openai_gateway_model_availability.go`, tests, this changelog.
+
+**Why**: OpenAI-group keys selecting `grok-4.5` returned 404 "not supported by
+any configured account" even when a bound Grok account had
+`grok_openai_group_access_enabled=true`. The scheduler snapshot Extra whitelist
+kept `openai_claude_gpt_bridge_enabled` but stripped the Grok access flag, so
+eligibility always failed.
+
+**What changed**: Whitelist `grok_openai_group_access_enabled` in scheduler
+Extra filtering; reload from DB when Grok-access eligibility fails; diagnose
+availability against the Grok schedule pool for OpenAI→Grok requests.
+
+## [2026-07-15] feat: OpenAI /v1/models always surfaces grok-4.5
+
+**Affected files**: `models_list_policy.go`, `gateway_handler.go`,
+`openai_codex_models_handler.go`, `admin_service.go` (models-list candidates),
+tests, this changelog.
+
+**Why**: Per-group custom models lists only offered a fixed OpenAI curated
+subset (no Grok). Forcing every OpenAI group to be re-edited for production is
+risky. Operators want a simple default: OpenAI-group keys see `grok-4.5` in
+`/v1/models` (and Codex manifest) without per-group ops.
+
+**What changed**:
+- Curated OpenAI discovery includes `grok-4.5`.
+- After custom-list filtering, still ensure `grok-4.5` is present.
+- Codex manifest always injects at least `grok-4.5` (+ extra access models).
+- Admin group models-list candidates for OpenAI include Grok text models.
+- Scheduling is unchanged: still requires Grok account opt-in + group bind.
+
+## [2026-07-15] fix: Codex manifest injects Grok models for OpenAI-group access
+
+**Affected files**: `backend/internal/service/openai_codex_models_grok_inject.go`,
+`handler/openai_codex_models_handler.go`, tests, this changelog.
+
+**Why**: Codex CLI/Desktop calls `GET /v1/models?client_version=...`, which is
+routed to the ChatGPT Codex manifest proxy — **not** the ordinary
+`Gateway.Models` discovery path that merges Grok text models. After enabling
+Grok OpenAI-group access, Codex still only saw gpt-* slugs.
+
+**What changed**: After fetching the upstream Codex manifest, inject ModelInfo
+entries for bound opt-in Grok text models; drop upstream ETag when body is
+modified so clients do not cache the pre-injection document.
+
+## [2026-07-15] feat: OpenAI groups can access bound Grok accounts (per-account opt-in)
+
+**Affected files**:
+- Backend: `service/account.go`, `service/admin_service.go`, `service/grok_openai_group_access.go`,
+  `service/openai_gateway_service.go`, `service/openai_account_scheduler.go`,
+  `service/gateway_service.go`, `handler/gateway_handler.go`, `handler/openai_gateway_handler.go`,
+  `handler/openai_chat_completions.go`, tests
+- Frontend: `CreateAccountModal.vue`, `EditAccountModal.vue`, `zh.ts`/`en.ts`,
+  `GrokManagementReachability.spec.ts`
+- Docs: this changelog
+
+**Why**: OpenAI-group API keys could not see or schedule Grok models/accounts
+(platform isolation). Operators need controlled sharing of Grok capacity into
+specific OpenAI groups without requiring a second Grok-group key.
+
+**Product rules (frozen)**:
+1. Each Grok account (OAuth and API-key) has `extra.grok_openai_group_access_enabled`
+   (default off). Only when enabled may it bind **specific OpenAI groups**.
+2. Billing is unchanged for the OpenAI-group key (group rate / subscription /
+   platform-quota identity stay on the OpenAI group). Requests with a Grok model
+   still price that model via the normal Grok model pricing path.
+3. Custom models lists never auto-append Grok models; only explicitly listed IDs appear.
+
+**What changed**:
+- Bind validation: opt-out Grok → Grok groups only; opt-in Grok → Grok + OpenAI groups.
+- OpenAI-compatible schedule resolves Grok text models to the Grok pool with
+  access eligibility; gpt models stay on the OpenAI pool.
+- `/v1/models` merges Grok text models for non-custom OpenAI discovery when
+  bound opt-in Grok accounts exist.
+- WS/responses/chat use the access-aware selector; previous_response sticky is
+  not reused across OpenAI↔Grok access routing.
+- Admin UI toggle + i18n for the opt-in control.
+
+## [2026-07-15] fix: Grok strips orphan tool_choice (Codex 400 hang)
+
+**Affected files**: `backend/internal/service/openai_gateway_grok.go`,
+`openai_ws_http_bridge.go`, tests, this changelog.
+
+**Why**: Codex sends `tool_choice` with tools that Grok does not support (or empty
+tools). After filtering tools away, `tool_choice` could remain → xAI 400
+`A tool_choice was set on the request but no tools were specified.` Streaming
+clients then appear to hang and may surface a truncated `{` error body.
+
+**What changed**: Always reconcile `tool_choice` when no valid tools remain;
+re-run sanitize after free-tier cache identity injection (HTTP + WS bridge).
+
+## [2026-07-15] fix: WS multi-turn usage_logs.request_id overflow (varchar 64)
+
+**Affected files**: `backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/turn_usage_record_context_test.go`, this changelog.
+
+**Why**: Per-turn billing context appended `:turn:<full-upstream-uuid>` to the
+connection request id. With the `local:` prefix this exceeded `usage_logs.request_id`
+varchar(64), so WS Grok turns completed but usage insert failed
+(`pq: value too long for type character varying(64)`).
+
+**What changed**: Compact suffix `:t:<turn>-<last8>` so stored request ids stay ≤64.
+
+## [2026-07-15] fix: Grok Responses WS HTTP bridge must call xAI, not ChatGPT Codex
+
+**Affected files**: `backend/internal/service/openai_ws_http_bridge.go`, this changelog.
+
+**Why**: After opening Grok WS ingress, multi-turn still failed: the shared WS→HTTP
+bridge built upstream requests via OpenAI passthrough (`chatgpt.com/.../codex/responses`)
+with a Grok OAuth token → upstream 401 “Could not parse your authentication token”.
+No successful usage was recorded; repeated failures temp-unschedulable the only Grok account.
+
+**What changed**: For `account.IsGrok()`, the bridge now reuses
+`patchGrokResponsesBody` + `buildGrokResponsesRequest` (CLI proxy / api.x.ai path).
+
+**Local ops note (this machine)**: Grok OAuth account `3004` must use an outbound
+proxy that can reach `cli-chat-proxy.grok.com` (bound to proxy id 18 = `127.0.0.1:10808`).
+Without it, requests hang ~21s then 502 and produce no usage rows.
+
+## [2026-07-15] fix: Grok Codex model catalog includes required ModelInfo fields
+
+**Affected files**: `frontend/src/utils/codexGrokCatalog.ts`, tests, this changelog.
+
+**Why**: Codex CLI rejects incomplete `model_catalog_json` entries with
+`missing field supports_reasoning_summaries` (strict serde ModelInfo).
+
+**What changed**: Catalog template now includes the required capability flags
+(`supports_reasoning_summaries`, `apply_patch_tool_type`, `tool_mode`, etc.)
+aligned with a real Codex ModelInfo shape, not a sparse subset.
+
+## [2026-07-15] fix: silence Codex “Model metadata for grok-4.5 not found” after Grok import
+
+**Affected files**:
+- `frontend/src/utils/codexGrokCatalog.ts` (+ unit tests)
+- `frontend/src/components/keys/UseKeyModal.vue` (+ tests)
+- `frontend/src/views/user/KeysView.vue` (CCS import tip)
+- `frontend/src/i18n/locales/{zh,en}.ts`
+- this changelog
+
+**Why**: CCS one-click import for Grok correctly sets `model = "grok-4.5"` but CC Switch’s
+Codex deeplink template does **not** write `model_context_window` / `model_catalog_json`.
+Codex then warns that Grok metadata is missing and uses fallback ModelInfo.
+
+**What changed**:
+- Ship a portable `model-catalog-grok.json` + Codex `config.toml` template with 1M context
+  and relative catalog pointer (Use Key → Codex CLI / WebSocket for Grok groups).
+- After CCS import of a Grok key, show a warning tip explaining the catalog gap.
+- Local ops note: patch `~/.codex/config.toml` + write catalog when verifying.
+
+## [2026-07-15] fix: Grok-group CCS import uses model grok-4.5 (not Claude)
+
+**Affected files**:
+- `frontend/src/utils/ccswitchImport.ts` (new, upstream-aligned resolver)
+- `frontend/src/utils/__tests__/ccswitchImport.spec.ts`
+- `frontend/src/views/user/KeysView.vue`
+- this changelog
+
+**Why**: Grok-group API keys imported via 「导入到 CCS」 wrote
+`model = "claude-sonnet-4-5"` because Codex model selection only had
+openai vs non-openai buckets, and Grok fell into
+`ccs_import_anthropic_codex_model`.
+
+**What changed** (minimal, upstream-style):
+- Extract `resolveCcSwitchImportConfig` / `buildCcSwitchImportDeeplink` like
+  upstream `ccswitchImport`.
+- Explicit `platform=grok` → `app=codex`, `model=grok-4.5` (matches UseKeyModal).
+- OpenAI still uses admin `ccs_import_codex_model`; Anthropic→Codex still uses
+  `ccs_import_anthropic_codex_model`. Grok no longer reuses the Anthropic setting.
+
+**Note**: Upstream maps unknown platforms to Claude without a model; Grok is
+OpenAI-compatible Responses, so we intentionally set Codex + `grok-4.5` rather
+than copying that fallthrough.
+
+## [2026-07-15] fix: Grok Responses WebSocket ingress → HTTP/SSE bridge (Codex multi-turn)
+
+**Affected files**:
+- `backend/internal/handler/openai_gateway_handler.go`
+- `backend/internal/service/openai_ws_forwarder.go`
+- `backend/internal/service/openai_ws_http_bridge.go`
+- `backend/internal/handler/openai_gateway_handler_test.go`
+- `backend/internal/service/openai_ws_http_bridge_test.go`
+- `README.md`
+- this changelog
+
+**Why**: Codex (`wire_api=responses`) multi-turn / tool continuation for Grok-group
+keys failed: first HTTP turn worked, then client preferred Responses WebSocket
+ingress (501 hard reject) or HTTP `previous_response_id` (400 WS-v2 only).
+
+**What changed** (requirement A, minimal patch — not full upstream WS cache/pool):
+- Remove Grok-only 501 gate on `ResponsesWebSocket`.
+- Schedule Grok WS ingress with `requiredTransport=http_sse` and
+  `requestPlatform=grok` so only Grok accounts are selected.
+- Force Grok accounts onto the existing client-WS → upstream HTTP/SSE bridge
+  (including multi-turn with `previous_response_id` via bridge replay).
+- OpenAI WS path unchanged (still requires ws_v2 when not forced to bridge).
+
+**Compatibility**: OpenAI/Grok platform isolation preserved. OpenAI-key cross-platform
+Grok routing (requirement B) is **not** included.
+
+**Tests**: handler regression (Grok no longer 501); bridge decision forces Grok;
+end-to-end multi-turn Grok WS→HTTP bridge unit test.
+
+## [2026-07-15] docs: Grok Codex multi-turn and OpenAI-key cross-platform research
+
+**Affected files**: `docs/dev/GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md`, `docs/dev/codebase/README.md`, `docs/dev/codebase/gateway.md`, this changelog.
+
+**Compatibility**: Documentation only. No runtime, schema, route, billing, scheduler, or deployment behavior changed.
+
+**Details**:
+- Records two independent requirements after ZeroCode + Codex investigation:
+  - **A**: Grok-group API keys fail Codex multi-turn because this fork rejects Grok Responses WebSocket ingress while HTTP `previous_response_id` requires WS v2; upstream bridges client WS to HTTP/SSE for Grok.
+  - **B**: OpenAI-group keys cannot see or schedule `grok-4.5` under current platform isolation; not delivered by upstream Grok WS work.
+- Documents why Grok WS was intentionally left unsupported (platform isolation, HTTP/SSE capability boundary, avoid half-importing upstream WS cache/pool), empirical probes, risk boundaries, and implementation options (minimal A patch vs separate B PRD).
+- Indexes the research doc from `docs/dev/codebase/README.md` (module table + gateway row).
 
 ## [2026-07-14] docs: Close the selective v0.1.152 sync ledger
 

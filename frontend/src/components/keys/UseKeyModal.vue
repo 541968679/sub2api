@@ -140,6 +140,11 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import type { GroupPlatform } from '@/types'
+import {
+  GROK_CODEX_CATALOG_FILENAME,
+  buildGrokCodexConfigToml,
+  buildGrokCodexModelCatalogJson
+} from '@/utils/codexGrokCatalog'
 
 interface Props {
   show: boolean
@@ -182,7 +187,8 @@ const defaultClientTab = computed(() => {
     case 'openai':
       return 'codex'
     case 'grok':
-      return 'grok'
+      // Codex is the CCS import path; Grok CLI remains available as a secondary tab.
+      return 'codex'
     case 'gemini':
       return 'gemini'
     case 'antigravity':
@@ -292,6 +298,8 @@ const clientTabs = computed((): TabConfig[] => {
       ]
     case 'grok':
       return [
+        { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
+        { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
         { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
@@ -338,6 +346,9 @@ const platformDescription = computed(() => {
     case 'antigravity':
       return t('keys.useKeyModal.antigravity.description')
     case 'grok':
+      if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws') {
+        return t('keys.useKeyModal.grok.codexDescription')
+      }
       return t('keys.useKeyModal.grok.description')
     default:
       return t('keys.useKeyModal.description')
@@ -360,6 +371,11 @@ const platformNote = computed(() => {
         ? t('keys.useKeyModal.antigravity.claudeNote')
         : t('keys.useKeyModal.antigravity.geminiNote')
     case 'grok':
+      if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws') {
+        return activeTab.value === 'windows'
+          ? t('keys.useKeyModal.grok.codexNoteWindows')
+          : t('keys.useKeyModal.grok.codexNote')
+      }
       return activeTab.value === 'windows'
         ? t('keys.useKeyModal.grok.noteWindows')
         : t('keys.useKeyModal.grok.note')
@@ -444,6 +460,12 @@ const currentFiles = computed((): FileConfig[] => {
       }
       return generateAnthropicFiles(`${baseUrl}/antigravity`, apiKey)
     case 'grok':
+      if (activeClientTab.value === 'codex-ws') {
+        return generateGrokCodexFiles(apiBase, apiKey, true)
+      }
+      if (activeClientTab.value === 'codex') {
+        return generateGrokCodexFiles(apiBase, apiKey, false)
+      }
       return generateGrokFiles(apiBase, apiKey)
     default:
       return generateAnthropicFiles(baseUrl, apiKey)
@@ -606,6 +628,38 @@ supports_backend_search = true`
     content: configContent,
     hint: t('keys.useKeyModal.grok.configTomlHint')
   }]
+}
+
+/** Codex CLI files for Grok-group keys (includes model catalog to silence metadata fallback). */
+function generateGrokCodexFiles(baseUrl: string, apiKey: string, supportsWebsockets: boolean): FileConfig[] {
+  const isWindows = activeTab.value === 'windows'
+  const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
+  const configContent = buildGrokCodexConfigToml({
+    baseUrl,
+    supportsWebsockets,
+    providerName: 'Sub2API'
+  })
+  const authContent = `{
+  "OPENAI_API_KEY": "${apiKey}"
+}`
+  const catalogContent = buildGrokCodexModelCatalogJson()
+
+  return [
+    {
+      path: `${configDir}/config.toml`,
+      content: configContent,
+      hint: t('keys.useKeyModal.grok.codexConfigTomlHint')
+    },
+    {
+      path: `${configDir}/${GROK_CODEX_CATALOG_FILENAME}`,
+      content: catalogContent,
+      hint: t('keys.useKeyModal.grok.codexCatalogHint')
+    },
+    {
+      path: `${configDir}/auth.json`,
+      content: authContent
+    }
+  ]
 }
 
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {

@@ -70,9 +70,10 @@ type OpenAIAccountScheduleRequest struct {
 	RequiredTransport       OpenAIUpstreamTransport
 	RequiredCapability      OpenAIEndpointCapability
 	RequiredImageCapability OpenAIImagesCapability
-	RequireCompact          bool
-	RequireClaudeGPTBridge  bool
-	ExcludedIDs             map[int64]struct{}
+	RequireCompact               bool
+	RequireClaudeGPTBridge       bool
+	RequireGrokOpenAIGroupAccess bool
+	ExcludedIDs                  map[int64]struct{}
 }
 
 type OpenAIAccountScheduleDecision struct {
@@ -402,6 +403,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		RequestedModel:         req.RequestedModel,
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 	})
 	if account == nil || !openAIStickyAccountMatchesGroup(account, req.GroupID) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
@@ -734,6 +736,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				Platform:               req.Platform,
 				RequestedModel:         req.RequestedModel,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 			})
 			if candidate == nil {
 				continue
@@ -1015,6 +1018,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			RequestedModel:         req.RequestedModel,
 			RequireCompact:         req.RequireCompact,
 			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 		}
 		fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, candidate.account, eligibility)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
@@ -1067,6 +1071,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				RequestedModel:         req.RequestedModel,
 				RequireCompact:         req.RequireCompact,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 			})
 			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
@@ -1076,6 +1081,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				RequestedModel:         req.RequestedModel,
 				RequireCompact:         req.RequireCompact,
 				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 			})
 			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
@@ -1105,6 +1111,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			RequestedModel:         req.RequestedModel,
 			RequireCompact:         req.RequireCompact,
 			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 		}
 		fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, candidate.account, eligibility)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
@@ -1189,6 +1196,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(args ...any) 
 		RequestedModel:         req.RequestedModel,
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 	}) {
 		return false
 	}
@@ -1207,6 +1215,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountCandidatePoolCompatible(ctx con
 		RequestedModel:         req.RequestedModel,
 		RequireCompact:         req.RequireCompact,
 		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 	}
 	eligibility = openAIAccountCandidatePoolEligibility(eligibility)
 	if !isOpenAIAccountEligibleForScheduleRequest(account, eligibility) {
@@ -1425,7 +1434,7 @@ func (s *OpenAIGatewayService) SelectAccountWithScheduler(
 	requiredTransport OpenAIUpstreamTransport,
 	requireCompact bool,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, "", "", requireCompact, false, false)
+	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, "", "", requireCompact, false, false, false)
 }
 
 func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
@@ -1464,7 +1473,36 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForCapability(
 	previousResponseCanMove bool,
 	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, "", requireCompact, false, previousResponseCanMove, platformOverride...)
+	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, "", requireCompact, false, false, previousResponseCanMove, platformOverride...)
+}
+
+// SelectAccountWithSchedulerForOpenAICompatibleRequest schedules for OpenAI-compatible
+// gateway keys. When keyPlatform is OpenAI and requestedModel is a Grok text model,
+// it selects only Grok accounts that opted into OpenAI-group access (and are bound
+// to the key's group via standard group listing).
+func (s *OpenAIGatewayService) SelectAccountWithSchedulerForOpenAICompatibleRequest(
+	ctx context.Context,
+	groupID *int64,
+	previousResponseID string,
+	sessionHash string,
+	requestedModel string,
+	excludedIDs map[int64]struct{},
+	requiredTransport OpenAIUpstreamTransport,
+	requiredCapability OpenAIEndpointCapability,
+	requireCompact bool,
+	previousResponseCanMove bool,
+	keyPlatform string,
+) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	schedulePlatform, requireGrokAccess := ResolveOpenAICompatibleSchedulePlatform(keyPlatform, requestedModel)
+	// Cross-platform isolation: previous_response sticky is OpenAI-pool only.
+	// Drop previous_response binding when routing into the Grok access pool.
+	prevID := previousResponseID
+	canMove := previousResponseCanMove
+	if requireGrokAccess {
+		prevID = ""
+		canMove = false
+	}
+	return s.selectAccountWithScheduler(ctx, groupID, prevID, sessionHash, requestedModel, excludedIDs, requiredTransport, requiredCapability, "", requireCompact, false, requireGrokAccess, canMove, schedulePlatform)
 }
 
 func (s *OpenAIGatewayService) SelectAccountWithSchedulerForClaudeGPTBridge(
@@ -1475,7 +1513,7 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForClaudeGPTBridge(
 	excludedIDs map[int64]struct{},
 	requiredTransport OpenAIUpstreamTransport,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	return s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, requiredTransport, "", "", false, true, false)
+	return s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, requiredTransport, "", "", false, true, false, false)
 }
 
 func (s *OpenAIGatewayService) SelectAccountWithSchedulerForImages(
@@ -1486,13 +1524,13 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForImages(
 	excludedIDs map[int64]struct{},
 	requiredCapability OpenAIImagesCapability,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	selection, decision, err := s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, OpenAIUpstreamTransportHTTPSSE, "", requiredCapability, false, false, false)
+	selection, decision, err := s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, OpenAIUpstreamTransportHTTPSSE, "", requiredCapability, false, false, false, false)
 	if err == nil && selection != nil && selection.Account != nil {
 		return selection, decision, nil
 	}
 	// 如果要求 native 能力（如指定了模型）但没有可用的 APIKey 账号，回退到 basic（OAuth 账号）
 	if requiredCapability == OpenAIImagesCapabilityNative {
-		return s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, OpenAIUpstreamTransportHTTPSSE, "", OpenAIImagesCapabilityBasic, false, false, false)
+		return s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, OpenAIUpstreamTransportHTTPSSE, "", OpenAIImagesCapabilityBasic, false, false, false, false)
 	}
 	return selection, decision, err
 }
@@ -1509,6 +1547,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	requiredImageCapability OpenAIImagesCapability,
 	requireCompact bool,
 	requireClaudeGPTBridge bool,
+	requireGrokOpenAIGroupAccess bool,
 	previousResponseCanMove bool,
 	platformOverride ...string,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
@@ -1525,10 +1564,11 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 			effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
 			for {
 				selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, sessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
-					Platform:               platform,
-					RequestedModel:         requestedModel,
-					RequireCompact:         requireCompact,
-					RequireClaudeGPTBridge: requireClaudeGPTBridge,
+					Platform:                     platform,
+					RequestedModel:               requestedModel,
+					RequireCompact:               requireCompact,
+					RequireClaudeGPTBridge:       requireClaudeGPTBridge,
+					RequireGrokOpenAIGroupAccess: requireGrokOpenAIGroupAccess,
 				})
 				if err != nil {
 					return nil, decision, err
@@ -1555,10 +1595,11 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		effectiveExcludedIDs := cloneExcludedAccountIDs(excludedIDs)
 		for {
 			selection, err := s.selectAccountWithLoadAwarenessForSchedule(ctx, groupID, sessionHash, requestedModel, effectiveExcludedIDs, openAIAccountRequestEligibility{
-				Platform:               platform,
-				RequestedModel:         requestedModel,
-				RequireCompact:         requireCompact,
-				RequireClaudeGPTBridge: requireClaudeGPTBridge,
+				Platform:                     platform,
+				RequestedModel:               requestedModel,
+				RequireCompact:               requireCompact,
+				RequireClaudeGPTBridge:       requireClaudeGPTBridge,
+				RequireGrokOpenAIGroupAccess: requireGrokOpenAIGroupAccess,
 			})
 			if err != nil {
 				return nil, decision, err
@@ -1592,7 +1633,8 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	stickyWeighted := s.isOpenAIAdvancedSchedulerStickyWeightedEnabled(ctx)
 	subscriptionPriority := s.isOpenAIAdvancedSchedulerSubscriptionPriorityEnabled(ctx)
 	stickyPreviousAccountID := int64(0)
-	if stickyWeighted && previousResponseCanMove && strings.TrimSpace(previousResponseID) != "" && platform == PlatformOpenAI {
+	// previous_response sticky stays on OpenAI pool only; Grok access path must not reuse it.
+	if stickyWeighted && previousResponseCanMove && strings.TrimSpace(previousResponseID) != "" && platform == PlatformOpenAI && !requireGrokOpenAIGroupAccess {
 		if stickySelection, stickyErr := s.selectAccountByPreviousResponseIDForCapability(ctx, groupID, previousResponseID, requestedModel, excludedIDs, requiredCapability, requiredImageCapability, requireCompact); stickyErr == nil && stickySelection != nil && stickySelection.Account != nil {
 			stickyPreviousAccountID = stickySelection.Account.ID
 			if stickySelection.ReleaseFunc != nil {
@@ -1602,22 +1644,23 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	}
 
 	return scheduler.Select(ctx, OpenAIAccountScheduleRequest{
-		GroupID:                 groupID,
-		Platform:                platform,
-		SessionHash:             sessionHash,
-		StickyAccountID:         stickyAccountID,
-		StickyPreviousAccountID: stickyPreviousAccountID,
-		StickyWeighted:          stickyWeighted,
-		SubscriptionPriority:    subscriptionPriority,
-		PreviousResponseID:      previousResponseID,
-		PreviousResponseCanMove: previousResponseCanMove,
-		RequestedModel:          requestedModel,
-		RequiredTransport:       requiredTransport,
-		RequiredCapability:      requiredCapability,
-		RequiredImageCapability: requiredImageCapability,
-		RequireCompact:          requireCompact,
-		RequireClaudeGPTBridge:  requireClaudeGPTBridge,
-		ExcludedIDs:             excludedIDs,
+		GroupID:                      groupID,
+		Platform:                     platform,
+		SessionHash:                  sessionHash,
+		StickyAccountID:              stickyAccountID,
+		StickyPreviousAccountID:      stickyPreviousAccountID,
+		StickyWeighted:               stickyWeighted,
+		SubscriptionPriority:         subscriptionPriority,
+		PreviousResponseID:           previousResponseID,
+		PreviousResponseCanMove:      previousResponseCanMove,
+		RequestedModel:               requestedModel,
+		RequiredTransport:            requiredTransport,
+		RequiredCapability:           requiredCapability,
+		RequiredImageCapability:      requiredImageCapability,
+		RequireCompact:               requireCompact,
+		RequireClaudeGPTBridge:       requireClaudeGPTBridge,
+		RequireGrokOpenAIGroupAccess: requireGrokOpenAIGroupAccess,
+		ExcludedIDs:                  excludedIDs,
 	})
 }
 

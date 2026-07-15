@@ -6,6 +6,13 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
+// OpenAIDiscoveryCanonicalGrokModels are always presented on OpenAI-group
+// /v1/models-style discovery (including custom lists and Codex manifests).
+// Presentation only — scheduling still requires Grok OpenAI-group access + bind.
+var OpenAIDiscoveryCanonicalGrokModels = []string{
+	"grok-4.5",
+}
+
 var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
 	PlatformOpenAI: {
 		"gpt-5.6-sol",
@@ -14,6 +21,8 @@ var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
 		"gpt-5.5",
 		"gpt-5.4",
 		"gpt-5.4-mini",
+		// Canonical Grok surface for all OpenAI groups (no per-group config).
+		"grok-4.5",
 	},
 	PlatformAntigravity: {
 		"claude-opus-4-8",
@@ -23,6 +32,12 @@ var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
 		"claude-sonnet-4-6",
 	},
 	PlatformGrok: xai.DefaultModelIDs(),
+}
+
+// EnsureOpenAICanonicalGrokModels appends the fixed OpenAI-group Grok surface
+// (currently grok-4.5) without removing existing IDs.
+func EnsureOpenAICanonicalGrokModels(modelIDs []string) []string {
+	return MergeModelIDsPreferFirst(modelIDs, OpenAIDiscoveryCanonicalGrokModels)
 }
 
 var gatewayModelDiscoveryLegacyFullCustomListsByPlatform = map[string][]string{

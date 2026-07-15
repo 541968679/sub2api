@@ -1014,6 +1014,17 @@ func (a *Account) IsOpenAIClaudeGPTBridgeEnabled() bool {
 	return a != nil && a.IsOpenAI() && a.getExtraBool("openai_claude_gpt_bridge_enabled")
 }
 
+// AccountExtraGrokOpenAIGroupAccessEnabled is the accounts.extra key that opts a
+// Grok account into OpenAI-group discovery and scheduling. Default is off.
+const AccountExtraGrokOpenAIGroupAccessEnabled = "grok_openai_group_access_enabled"
+
+// IsGrokOpenAIGroupAccessEnabled reports whether a Grok account may be bound to
+// OpenAI groups and selected when an OpenAI-group key requests a Grok text model.
+// Applies to all Grok account types (OAuth, API key, etc.).
+func (a *Account) IsGrokOpenAIGroupAccessEnabled() bool {
+	return a != nil && a.IsGrok() && a.getExtraBool(AccountExtraGrokOpenAIGroupAccessEnabled)
+}
+
 // ResolveClaudeGPTBridgeModel resolves the OpenAI upstream model for a Claude
 // request. It requires an explicit account-level mapping so normal OpenAI model
 // passthrough, platform default mappings, or default model fallbacks cannot

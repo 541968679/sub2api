@@ -908,7 +908,17 @@ const zhBase = {
         description: '配置 Grok Build 或 OpenCode，让 Responses API 请求通过当前 Sub2API Grok 分组发送。',
         configTomlHint: '如已有 config.toml，请先备份再合并此模型配置。保存后运行 grok inspect 验证生效配置。',
         note: '保存为 ~/.grok/config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。',
-        noteWindows: '保存为 %USERPROFILE%\\.grok\\config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。'
+        noteWindows: '保存为 %USERPROFILE%\\.grok\\config.toml，然后运行 grok inspect，并在 /model 中选择 sub2api-grok。',
+        codexDescription:
+          '将以下 Codex 配置写入 ~/.codex。含 model_context_window 与 model-catalog-grok.json，避免 “Model metadata for grok-4.5 not found”。',
+        codexConfigTomlHint:
+          '请放在 config.toml 顶部；model_catalog_json 使用相对文件名，Codex 会从 ~/.codex 目录解析。',
+        codexCatalogHint:
+          '与 config.toml 同目录保存。CCS 一键导入不会写入 catalog，若从 CCS 导入后仍有 metadata 警告，请补上此文件并重启 Codex。',
+        codexNote:
+          '保存后完全退出并重启 Codex。CCS 导入仅写 model=grok-4.5，不会自动生成 catalog，请以本面板文件为准补齐元数据。',
+        codexNoteWindows:
+          '按 Win+R 打开 %userprofile%\\.codex，写入三份文件后完全退出并重启 Codex。'
       },
       opencode: {
         title: 'OpenCode 配置示例',
@@ -932,6 +942,8 @@ const zhBase = {
     ipRestrictionEnabled: '已配置 IP 限制',
     ccSwitchNotInstalled:
       'CC-Switch 未安装或协议处理程序未注册。请先安装 CC-Switch 或手动复制 API 密钥。',
+    ccsGrokCodexMetadataHint:
+      'Grok 已导入为 Codex（model=grok-4.5）。CCS 不会写入 model catalog；若出现 “Model metadata for grok-4.5 not found”，请打开「使用密钥 → Codex CLI」复制 model-catalog-grok.json 与 config.toml 中的 context 字段，然后重启 Codex。',
     ccsClientSelect: {
       title: '选择客户端',
       description: '请选择您要导入到 CC-Switch 的客户端类型：',
@@ -3914,6 +3926,8 @@ const zhBase = {
         grokRequests: '请求',
         grokTokens: 'Token',
         grokUnknown: 'Grok 配额需等待上游响应返回 xAI rate-limit 头后显示。',
+        grokWeeklyUsage: '周额度已用 {percent}%',
+        grokFreeQuota24hHint: '按 sub2api 近 24 小时本地 Token 用量估算（上限 2M）',
         grokRetryAfter: '{time} 后重试',
         grokLastStatus: '状态 {status}',
         grokLastProbe: '探测 {time}',
@@ -8620,7 +8634,10 @@ const v117ZhPatch = {
           missingExchangeParams: '缺少 code / session_id / state',
           failedToExchangeCode: 'Grok 授权码兑换失败',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
-          failedToValidateRT: '验证 Refresh Token 失败'
+          failedToValidateRT: '验证 Refresh Token 失败',
+          openaiGroupAccess: '允许 OpenAI 分组访问',
+          openaiGroupAccessDesc:
+            '开启后可将该 Grok 账号（OAuth / API Key）绑定到指定 OpenAI 分组；仅绑定的 OpenAI 分组 Key 在请求 Grok 文本模型时才能调度此账号。默认关闭。'
         }
       },
       openai: {

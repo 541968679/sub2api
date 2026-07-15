@@ -6,9 +6,9 @@ import (
 )
 
 // DiagnoseModelAvailabilityForPlatform reports whether the requested model
-// is configured to be served by any OpenAI account in the group. The
-// platform argument is accepted to satisfy ModelAvailabilityDiagnoser but
-// is ignored — OpenAIGatewayService only scans OpenAI accounts.
+// is configured to be served by any account in the group for the given
+// schedule platform. OpenAI-group keys requesting Grok text models must
+// diagnose against the Grok pool (with OpenAI-group access eligibility).
 //
 // Safe to call on the error path: returns {true,true} on any internal
 // failure or when the inputs preclude meaningful diagnosis (empty model,
@@ -17,7 +17,7 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 	ctx context.Context,
 	groupID *int64,
 	requestedModel string,
-	_ string,
+	platform string,
 ) ModelAvailabilityDiagnosis {
 	if s == nil {
 		return ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
@@ -27,7 +27,8 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 		return ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
 	}
 
-	accounts, err := s.listSchedulableAccounts(ctx, groupID)
+	schedulePlatform, requireGrokAccess := ResolveOpenAICompatibleSchedulePlatform(platform, requestedModel)
+	accounts, err := s.listSchedulableAccounts(ctx, groupID, schedulePlatform)
 	if err != nil {
 		// Conservative fallback so the caller keeps returning 503; we do not
 		// want a transient lookup failure to flip into 404 model_not_found.
@@ -40,7 +41,11 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 		// Mirrors the per-candidate filter used during account selection
 		// (openai_account_scheduler.isAccountRequestCompatible): empty
 		// model_mapping accepts everything; otherwise the explicit / wildcard
-		// mapping must match.
+		// mapping must match. Grok access from OpenAI groups additionally
+		// requires the per-account opt-in flag.
+		if requireGrokAccess && !accounts[i].IsGrokOpenAIGroupAccessEnabled() {
+			continue
+		}
 		if accounts[i].IsModelSupported(requestedModel) {
 			diag.HasModelSupport = true
 			return diag

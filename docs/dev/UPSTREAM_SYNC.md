@@ -54,7 +54,9 @@
   its owning bridge would add dead/competing response-writer state, so they
   were not copied.
 - Upstream Grok WebSocket cache/pool changes were not imported because this
-  fork explicitly rejects Grok Responses WebSocket at ingress. HTTP Responses,
+  fork previously rejected Grok Responses WebSocket at ingress; as of 2026-07-15
+  Grok WS ingress is accepted and bridged to HTTP/SSE only (no upstream WS cache/pool
+  import). HTTP Responses,
   Chat, Messages, media, cache, quota, and billing paths are covered.
 - The upstream split locale layout was adapted to the fork's bilingual locale
   files and existing final locale patches.

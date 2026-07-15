@@ -6,10 +6,11 @@
 
 | 模块 | 文件 | 说明 | 最后更新 |
 |------|------|------|---------|
+| Grok Codex + 跨平台调研 | [../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md](../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md) | 需求 A：Grok Key + Codex 多轮（WS→HTTP/SSE）；需求 B：OpenAI Key 直用 Grok；与上游差异、故意不合并原因、方案选项 | 2026-07-15 |
 | 账号管理 | [account.md](account.md) | 账号 CRUD、Antigravity/Gemini OAuth、AI Credits、批量导入、OpenAI Claude-GPT bridge 账号绑定 | 2026-06-09 |
 | 模型映射 | [model-mapping.md](model-mapping.md) | 模型白名单/映射配置、默认映射、网关解析、通配符、Claude-GPT 账号级映射 | 2026-06-03 |
 | 计费系统 | [billing.md](billing.md) | 五级定价链、费用计算、展示变换、费率乘数、缓存命中计费、Claude-GPT bridge 缓存展示 | 2026-06-03 |
-| API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式、Antigravity Claude-GPT bridge preflight；bridge timeout 调查与 strict-routing 方案见 [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md) | 2026-07-10 |
+| API 网关 | [gateway.md](gateway.md) | 请求转发、负载均衡、熔断、SSE 流式、Antigravity Claude-GPT bridge preflight；bridge timeout 调查见 [../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md](../OPENAI_CLAUDE_GPT_BRIDGE_TIMEOUT_INVESTIGATION_2026-07-10.md)；Grok/Codex 多轮与 OpenAI Key 跨平台 Grok 见 [../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md](../GROK_CODEX_AND_CROSS_PLATFORM_RESEARCH_2026-07-15.md) | 2026-07-15 |
 | Risk Control | [risk-control.md](risk-control.md) | Content moderation, keyword/hash pre-blocking, cyber session isolation, audit records, and fork-local billing invariants | 2026-07-11 |
 | Data consistency | [data-consistency.md](data-consistency.md) | Account pagination query isolation, requested-model usage aggregation, and version-aware OpenAI model-sync URLs | 2026-07-11 |
 | OpenAI Image URL Relay Diagnostics | [../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md](../OPENAI_IMAGE_URL_RELAY_4K_DIAGNOSTICS_2026-06-30.md) | Production `gpt-image-2` URL-response behavior, native 4K channel tests, and image URL download timing splits | 2026-06-30 |

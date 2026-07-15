@@ -216,7 +216,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 
 	testModelID := strings.TrimSpace(modelID)
 	if testModelID == "" {
-		testModelID = "grok-4.3"
+		testModelID = grokDefaultResponsesModel
 	}
 	if mapped := strings.TrimSpace(account.GetMappedModel(testModelID)); mapped != "" {
 		testModelID = mapped
@@ -270,6 +270,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+authToken)
+	applyGrokCLIHeaders(req.Header)
 	account.ApplyHeaderOverrides(req.Header)
 
 	proxyURL := ""

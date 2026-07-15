@@ -41,6 +41,35 @@ func TestPatchGrokResponsesBodySetsMappedModelAndDropsUnsupportedFields(t *testi
 	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning.effort").String())
 }
 
+func TestPatchGrokResponsesBodyClampsXHighReasoningEffortToHigh(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"model": "grok-4.5",
+		"input": "hello",
+		"reasoning": {"effort": "xhigh", "summary": "auto"},
+		"reasoning_effort": "extra_high"
+	}`)
+
+	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	require.NoError(t, err)
+	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning.effort").String())
+	require.Equal(t, "high", gjson.GetBytes(patched, "reasoning_effort").String())
+	// summary is left alone; only effort is clamped.
+	require.Equal(t, "auto", gjson.GetBytes(patched, "reasoning.summary").String())
+}
+
+func TestClampGrokReasoningEffortValue(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "low", clampGrokReasoningEffortValue("low"))
+	require.Equal(t, "medium", clampGrokReasoningEffortValue("medium"))
+	require.Equal(t, "high", clampGrokReasoningEffortValue("high"))
+	require.Equal(t, "high", clampGrokReasoningEffortValue("xhigh"))
+	require.Equal(t, "high", clampGrokReasoningEffortValue("extra-high"))
+	require.Equal(t, "high", clampGrokReasoningEffortValue("max"))
+	require.Equal(t, "high", clampGrokReasoningEffortValue("ultra"))
+}
+
 func TestPatchGrokResponsesBodySanitizesComposerReasoningParameters(t *testing.T) {
 	t.Parallel()
 
@@ -203,6 +232,54 @@ func TestPatchGrokResponsesBodyDropsToolChoiceWhenNoSupportedToolsRemain(t *test
 	require.True(t, json.Valid(patched))
 	require.False(t, gjson.GetBytes(patched, "tools").Exists())
 	require.False(t, gjson.GetBytes(patched, "tool_choice").Exists())
+}
+
+func TestSanitizeGrokResponsesToolsDropsToolChoiceWithoutTools(t *testing.T) {
+	t.Parallel()
+
+	// Codex sometimes sends tool_choice with empty/missing tools after local filtering.
+	// xAI returns 400: "A tool_choice was set on the request but no tools were specified."
+	cases := [][]byte{
+		[]byte(`{"model":"grok-4.5","tool_choice":"auto","input":"hi"}`),
+		[]byte(`{"model":"grok-4.5","tools":[],"tool_choice":"required","input":"hi"}`),
+		[]byte(`{"model":"grok-4.5","tools":null,"tool_choice":{"type":"function","name":"x"},"input":"hi"}`),
+		[]byte(`{"model":"grok-4.5","tools":[{"type":"image_generation"}],"tool_choice":"auto","input":"hi"}`),
+	}
+	for _, body := range cases {
+		patched, err := sanitizeGrokResponsesTools(body)
+		require.NoError(t, err, string(body))
+		require.False(t, gjson.GetBytes(patched, "tool_choice").Exists(), string(patched))
+		// empty/null/unsupported tools must not remain as a false-positive tools field
+		if tools := gjson.GetBytes(patched, "tools"); tools.Exists() {
+			require.True(t, tools.IsArray())
+			require.NotEmpty(t, tools.Array())
+		}
+	}
+}
+
+func TestApplyGrokCacheIdentityThenSanitizeDoesNotLeaveOrphanToolChoice(t *testing.T) {
+	t.Parallel()
+
+	// Original Codex-like body: unsupported tools get stripped; free-tier OAuth
+	// cache injection should re-add supported tools rather than leave bare tool_choice.
+	original := []byte(`{
+		"model":"grok-4.5",
+		"tools":[{"type":"local_shell"},{"type":"image_generation"}],
+		"tool_choice":"auto",
+		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]
+	}`)
+	patched, err := patchGrokResponsesBody(original, "grok-4.5")
+	require.NoError(t, err)
+	patched, err = applyGrokResponsesCacheIdentity(patched, original, "cache-id", true)
+	require.NoError(t, err)
+	patched, err = sanitizeGrokResponsesTools(patched)
+	require.NoError(t, err)
+	// Free-tier injection adds web_search/x_search with tool_choice=none when no
+	// supported tools remain from Codex.
+	require.True(t, gjson.GetBytes(patched, "tools").IsArray(), string(patched))
+	require.NotEmpty(t, gjson.GetBytes(patched, "tools").Array(), string(patched))
+	require.Equal(t, "none", gjson.GetBytes(patched, "tool_choice").String(), string(patched))
+	require.False(t, gjson.GetBytes(patched, "tool_choice").String() == "auto" && !gjson.GetBytes(patched, "tools").Exists())
 }
 
 func TestBuildGrokResponsesRequestUsesAccountBaseURLAndBearerToken(t *testing.T) {

@@ -1902,6 +1902,105 @@ func TestOpenAICompatibleScheduler_IsolatesGrokAndOpenAIPlatforms(t *testing.T) 
 	require.Equal(t, int64(88021), openAISelection.Account.ID)
 }
 
+func TestSelectAccountWithSchedulerForOpenAICompatibleRequest_GrokAccessMatrix(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	ctx := context.Background()
+	groupID := int64(9901)
+
+	openAIAcc := Account{
+		ID: 99011, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+	}
+	optInGrok := Account{
+		ID: 99012, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Extra: map[string]any{AccountExtraGrokOpenAIGroupAccessEnabled: true},
+	}
+	optOutGrok := Account{
+		ID: 99013, Platform: PlatformGrok, Type: AccountTypeAPIKey,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{openAIAcc, optInGrok, optOutGrok}},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         &config.Config{},
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+
+	// OpenAI key + grok model → only opt-in Grok account.
+	sel, _, err := svc.SelectAccountWithSchedulerForOpenAICompatibleRequest(
+		ctx, &groupID, "resp_from_openai_pool", "", "grok-4.5", nil,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, true, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, sel)
+	require.NotNil(t, sel.Account)
+	require.Equal(t, PlatformGrok, sel.Account.Platform)
+	require.Equal(t, int64(99012), sel.Account.ID)
+	require.True(t, sel.Account.IsGrokOpenAIGroupAccessEnabled())
+
+	// OpenAI key + gpt model → OpenAI account only (never Grok).
+	sel, _, err = svc.SelectAccountWithSchedulerForOpenAICompatibleRequest(
+		ctx, &groupID, "", "", "gpt-5.4", nil,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, false, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, sel)
+	require.Equal(t, PlatformOpenAI, sel.Account.Platform)
+	require.Equal(t, int64(99011), sel.Account.ID)
+
+	// Only opt-out Grok present → OpenAI key + grok model fails selection.
+	svc.accountRepo = schedulerTestOpenAIAccountRepo{accounts: []Account{openAIAcc, optOutGrok}}
+	_, _, err = svc.SelectAccountWithSchedulerForOpenAICompatibleRequest(
+		ctx, &groupID, "", "", "grok-4.5", nil,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, false, PlatformOpenAI,
+	)
+	require.Error(t, err)
+
+	// Native Grok key path still selects opt-out Grok accounts.
+	svc.accountRepo = schedulerTestOpenAIAccountRepo{accounts: []Account{optOutGrok}}
+	sel, _, err = svc.SelectAccountWithSchedulerForOpenAICompatibleRequest(
+		ctx, &groupID, "", "", "grok-4.5", nil,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, false, PlatformGrok,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, sel)
+	require.Equal(t, int64(99013), sel.Account.ID)
+}
+
+func TestSelectAccountWithSchedulerForOpenAICompatibleRequest_DropsPreviousResponseOnGrokAccess(t *testing.T) {
+	resetOpenAIAdvancedSchedulerSettingCacheForTest()
+	ctx := context.Background()
+	groupID := int64(9902)
+	openAIAcc := Account{
+		ID: 99021, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+	}
+	optInGrok := Account{
+		ID: 99022, Platform: PlatformGrok, Type: AccountTypeAPIKey,
+		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		Extra: map[string]any{AccountExtraGrokOpenAIGroupAccessEnabled: true},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{openAIAcc, optInGrok}},
+		cache:              &schedulerTestGatewayCache{},
+		cfg:                &config.Config{},
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+
+	// previous_response_id would pin OpenAI pool; Grok-access path must drop it
+	// and select the opt-in Grok account instead.
+	sel, decision, err := svc.SelectAccountWithSchedulerForOpenAICompatibleRequest(
+		ctx, &groupID, "resp_cross_platform", "session_hash", "grok-4.5", nil,
+		OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityChatCompletions, false, true, PlatformOpenAI,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, sel)
+	require.Equal(t, int64(99022), sel.Account.ID)
+	require.Equal(t, PlatformGrok, sel.Account.Platform)
+	require.False(t, decision.StickyPreviousHit)
+}
+
 func TestOpenAICompatibleScheduler_SkipsRuntimeBlockedGrokAccount(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 

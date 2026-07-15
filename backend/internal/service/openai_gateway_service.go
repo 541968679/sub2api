@@ -1385,10 +1385,11 @@ func openAICompactSupportTier(account *Account) int {
 }
 
 type openAIAccountRequestEligibility struct {
-	Platform               string
-	RequestedModel         string
-	RequireCompact         bool
-	RequireClaudeGPTBridge bool
+	Platform                     string
+	RequestedModel               string
+	RequireCompact               bool
+	RequireClaudeGPTBridge       bool
+	RequireGrokOpenAIGroupAccess bool
 }
 
 func openAIAccountCandidatePoolEligibility(req openAIAccountRequestEligibility) openAIAccountRequestEligibility {
@@ -1402,6 +1403,12 @@ func isOpenAIAccountEligibleForScheduleRequest(account *Account, req openAIAccou
 	platform := normalizeOpenAICompatiblePlatform(req.Platform)
 	if account == nil || !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != platform {
 		return false
+	}
+	if req.RequireGrokOpenAIGroupAccess {
+		// OpenAI-group keys may only reach Grok accounts that explicitly opt in.
+		if !account.IsGrokOpenAIGroupAccessEnabled() {
+			return false
+		}
 	}
 	if req.RequireClaudeGPTBridge {
 		if _, ok := account.ResolveClaudeGPTBridgeModel(req.RequestedModel); !ok {
@@ -1576,7 +1583,15 @@ func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) 
 }
 
 func (s *OpenAIGatewayService) refreshStaleOpenAIScheduleCandidate(ctx context.Context, account *Account, eligibility openAIAccountRequestEligibility) *Account {
-	if account == nil || !eligibility.RequireClaudeGPTBridge || s == nil || s.schedulerSnapshot == nil || s.accountRepo == nil {
+	// Reload from DB when eligibility depends on Extra flags that may be stripped
+	// from the scheduler cache snapshot (Claude-GPT bridge / Grok OpenAI-group access).
+	if account == nil || s == nil || s.accountRepo == nil {
+		return nil
+	}
+	if !eligibility.RequireClaudeGPTBridge && !eligibility.RequireGrokOpenAIGroupAccess {
+		return nil
+	}
+	if s.schedulerSnapshot == nil && !eligibility.RequireGrokOpenAIGroupAccess {
 		return nil
 	}
 	latest, err := s.accountRepo.GetByID(ctx, account.ID)

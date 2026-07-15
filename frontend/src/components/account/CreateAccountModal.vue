@@ -2719,6 +2719,36 @@
       </div>
 
       <div
+        v-if="form.platform === 'grok'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.grok.openaiGroupAccess') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grok.openaiGroupAccessDesc') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="create-grok-openai-group-access-toggle"
+            @click="grokOpenAIGroupAccessEnabled = !grokOpenAIGroupAccessEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              grokOpenAIGroupAccessEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                grokOpenAIGroupAccessEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
+      <div
         v-if="form.platform === 'openai'"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
@@ -3122,7 +3152,7 @@
           :groups="groups"
           :platform="form.platform"
           :mixed-scheduling="mixedScheduling"
-          :extra-platforms="openAIClaudeGPTBridgeGroupPlatforms"
+          :extra-platforms="extraGroupPlatforms"
           show-toggle-all
           data-tour="account-form-groups"
         />
@@ -3721,6 +3751,7 @@ const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
+const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openAIImagesEndpointEnabled = ref(true)
@@ -3931,6 +3962,17 @@ const openAIClaudeGPTBridgeGroupPlatforms = computed<GroupPlatform[]>(() =>
   form.platform === 'openai' && openaiClaudeGPTBridgeEnabled.value ? ['antigravity' as const] : []
 )
 
+const grokOpenAIGroupAccessPlatforms = computed<GroupPlatform[]>(() =>
+  form.platform === 'grok' && grokOpenAIGroupAccessEnabled.value ? ['openai' as const] : []
+)
+
+const extraGroupPlatforms = computed<GroupPlatform[]>(() => {
+  if (openAIClaudeGPTBridgeGroupPlatforms.value.length > 0) {
+    return openAIClaudeGPTBridgeGroupPlatforms.value
+  }
+  return grokOpenAIGroupAccessPlatforms.value
+})
+
 const removeAntigravityGroupSelections = () => {
   const antigravityGroupIds = new Set(
     props.groups.filter((group) => group.platform === 'antigravity').map((group) => group.id)
@@ -3939,6 +3981,16 @@ const removeAntigravityGroupSelections = () => {
     return
   }
   form.group_ids = form.group_ids.filter((groupId) => !antigravityGroupIds.has(groupId))
+}
+
+const removeOpenAIGroupSelections = () => {
+  const openAIGroupIds = new Set(
+    props.groups.filter((group) => group.platform === 'openai').map((group) => group.id)
+  )
+  if (openAIGroupIds.size === 0) {
+    return
+  }
+  form.group_ids = form.group_ids.filter((groupId) => !openAIGroupIds.has(groupId))
 }
 
 const mixedChannelWarningMessageText = computed(() => {
@@ -4175,6 +4227,10 @@ watch(
 	  codexCLIOnlyAllowAppServer.value = false
       removeAntigravityGroupSelections()
     }
+    if (newPlatform !== 'grok') {
+      grokOpenAIGroupAccessEnabled.value = false
+      removeOpenAIGroupSelections()
+    }
     if (newPlatform !== 'anthropic' && newPlatform !== 'antigravity') {
       anthropicPassthroughEnabled.value = false
       webSearchEmulationMode.value = 'default'
@@ -4201,6 +4257,15 @@ watch(
   ([platform, bridgeEnabled]) => {
     if (platform !== 'openai' || !bridgeEnabled) {
       removeAntigravityGroupSelections()
+    }
+  }
+)
+
+watch(
+  [() => form.platform, grokOpenAIGroupAccessEnabled],
+  ([platform, accessEnabled]) => {
+    if (platform !== 'grok' || !accessEnabled) {
+      removeOpenAIGroupSelections()
     }
   }
 )
@@ -4771,6 +4836,21 @@ const handleClose = () => {
   emit('close')
 }
 
+// Grok-only account extra (OAuth RT/exchange + API key create). Must not live
+// inside buildOpenAIExtra — that function early-returns for non-openai platforms.
+const buildGrokExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
+  if (form.platform !== 'grok') {
+    return base
+  }
+  const extra: Record<string, unknown> = { ...(base || {}) }
+  if (grokOpenAIGroupAccessEnabled.value) {
+    extra.grok_openai_group_access_enabled = true
+  } else {
+    delete extra.grok_openai_group_access_enabled
+  }
+  return Object.keys(extra).length > 0 ? extra : undefined
+}
+
 const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
   if (form.platform !== 'openai') {
     return base
@@ -5147,7 +5227,7 @@ const handleSubmit = async () => {
   }
 
   form.credentials = credentials
-  const extra = buildAnthropicExtra(buildOpenAIExtra())
+  const extra = buildGrokExtra(buildAnthropicExtra(buildOpenAIExtra()))
 
   await doCreateAccount({
     ...form,
@@ -5323,7 +5403,7 @@ const handleGrokValidateRT = async (refreshTokenInput: string) => {
         platform: 'grok',
         type: 'oauth',
         credentials: buildGrokCredentials(tokenInfo),
-        extra: grokOAuth.buildExtraInfo(tokenInfo),
+        extra: buildGrokExtra(grokOAuth.buildExtraInfo(tokenInfo)),
         proxy_id: form.proxy_id,
         auto_assign_proxy: form.auto_assign_proxy,
         concurrency: form.concurrency,
@@ -5362,7 +5442,7 @@ const handleGrokExchange = async (authCode: string) => {
     'grok',
     'oauth',
     buildGrokCredentials(tokenInfo),
-    grokOAuth.buildExtraInfo(tokenInfo)
+    buildGrokExtra(grokOAuth.buildExtraInfo(tokenInfo))
   )
 }
 

@@ -11,6 +11,11 @@ import (
 
 // CodexModels serves the versioned Codex manifest used by CLI and desktop
 // model pickers while leaving the ordinary OpenAI models list unchanged.
+//
+// When the OpenAI group has bound Grok accounts with OpenAI-group access
+// enabled, Grok text models are injected into the manifest so Codex /model
+// picker can see them. Plain GET /v1/models (no client_version) uses a
+// separate discovery path in Gateway.Models.
 func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey.Group == nil {
@@ -33,12 +38,34 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 		return
 	}
 
-	if manifest.ETag != "" {
-		c.Header("ETag", manifest.ETag)
-	}
+	// 304 responses have no body to inject into; clients revalidate via ETag.
+	// When we inject Grok models we must not pass through the upstream ETag,
+	// otherwise Codex may cache a pre-injection body forever.
 	if manifest.NotModified {
+		if manifest.ETag != "" {
+			c.Header("ETag", manifest.ETag)
+		}
 		c.Status(http.StatusNotModified)
 		return
 	}
-	c.Data(http.StatusOK, "application/json", manifest.Body)
+
+	body := manifest.Body
+	// Always inject canonical grok-4.5 for OpenAI groups; also inject any extra
+	// Grok text models from bound opt-in accounts.
+	grokIDs := service.EnsureOpenAICanonicalGrokModels(
+		h.gatewayService.ListGrokOpenAIGroupAccessModelIDs(c.Request.Context(), apiKey.GroupID),
+	)
+	if len(grokIDs) > 0 {
+		if injected, injectErr := service.InjectGrokModelsIntoCodexManifest(body, grokIDs); injectErr == nil {
+			body = injected
+			// Body changed relative to upstream; drop ETag so clients do not
+			// treat the injected document as identical to OpenAI's original.
+			manifest.ETag = ""
+		}
+	}
+
+	if manifest.ETag != "" {
+		c.Header("ETag", manifest.ETag)
+	}
+	c.Data(http.StatusOK, "application/json", body)
 }

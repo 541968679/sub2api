@@ -83,7 +83,10 @@ func applyGrokResponsesCacheIdentity(body, intentSourceBody []byte, identity str
 	if !injectFreeTierTools {
 		return out, nil
 	}
-	if gjson.GetBytes(intentSourceBody, "tools").Exists() || gjson.GetBytes(intentSourceBody, "tool_choice").Exists() {
+	// Decide from the *patched* body, not the original Codex payload. Codex often
+	// sends unsupported tools that we strip; the original still "has tools" and
+	// used to skip free-tier injection while leaving a bare tool_choice.
+	if grokResponsesBodyHasTools(out) {
 		return out, nil
 	}
 	out, err = sjson.SetRawBytes(out, "tools", []byte(grokFreeCacheNativeToolsJSON))

@@ -1132,6 +1132,10 @@ import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import {
+  buildCcSwitchImportDeeplink,
+  type CcSwitchClientType
+} from '@/utils/ccswitchImport'
 
 // Helper to format date for datetime-local input
 const formatDateTimeLocal = (isoDate: string): string => {
@@ -1290,14 +1294,12 @@ const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 
-// CC Switch deeplink app types offered per platform. The deeplink accepts
+// CC Switch deeplink app types (see utils/ccswitchImport). The deeplink accepts
 // claude/codex/gemini (plus opencode/openclaw/hermes); claude-desktop is not
 // importable via deeplink, and "claude" covers both Claude Code CLI and its
 // desktop app since they share ~/.claude/settings.json.
-type CcsClientType = 'claude' | 'gemini' | 'codex'
-
 interface CcsClientOption {
-  key: CcsClientType
+  key: CcSwitchClientType
   icon: 'terminal' | 'sparkles' | 'cpu'
   label: string
   desc: string
@@ -1904,18 +1906,13 @@ const importToCcswitch = (row: ApiKey) => {
     return
   }
 
-  // openai/gemini map to exactly one client; execute directly
+  // openai/grok → Codex; gemini → Gemini (see resolveCcSwitchImportConfig)
   executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'codex')
 }
 
-const executeCcsImport = (row: ApiKey, clientType: CcsClientType) => {
+const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
-
-  const app: string = clientType
-  // Antigravity keys are served from the dedicated /antigravity surface;
-  // all other platforms (incl. Codex hitting the root /responses alias) use the base URL.
-  const endpoint = platform === 'antigravity' ? `${baseUrl}/antigravity` : baseUrl
 
   const usageScript = `({
     request: {
@@ -1934,40 +1931,27 @@ const executeCcsImport = (row: ApiKey, clientType: CcsClientType) => {
     }
   })`
   const providerName = (publicSettings.value?.site_name || 'sub2api').trim() || 'sub2api'
-
-  const params = new URLSearchParams({
-    resource: 'provider',
-    app: app,
-    name: providerName,
-    homepage: baseUrl,
-    endpoint: endpoint,
+  const deeplink = buildCcSwitchImportDeeplink({
+    baseUrl,
+    platform,
+    clientType,
+    providerName,
     apiKey: row.key,
-    configFormat: 'json',
-    usageEnabled: 'true',
-    usageScript: btoa(usageScript),
-    usageAutoInterval: '30'
-  })
-
-  // For Codex imports, write the admin-configured default model into the
-  // imported CC Switch provider: openai keys use ccs_import_codex_model,
-  // anthropic keys use ccs_import_anthropic_codex_model (a Claude model the
-  // /responses bridge can schedule). cc-switch falls back to gpt-5-codex when
-  // the `model` param is omitted, so an empty setting keeps that behavior.
-  if (clientType === 'codex') {
-    const codexModel = (
-      platform === 'openai'
-        ? publicSettings.value?.ccs_import_codex_model
-        : publicSettings.value?.ccs_import_anthropic_codex_model
-    )?.trim()
-    if (codexModel) {
-      params.set('model', codexModel)
+    usageScript,
+    modelOptions: {
+      openaiCodexModel: publicSettings.value?.ccs_import_codex_model,
+      anthropicCodexModel: publicSettings.value?.ccs_import_anthropic_codex_model
     }
-  }
-
-  const deeplink = `ccswitch://v1/import?${params.toString()}`
+  })
 
   try {
     window.open(deeplink, '_self')
+
+    // CCS Codex template only sets model=...; it does not emit model_catalog_json.
+    // Grok is not in Codex's built-in catalog, so prompt users how to complete metadata.
+    if (platform === 'grok' && clientType === 'codex') {
+      appStore.showWarning(t('keys.ccsGrokCodexMetadataHint'))
+    }
 
     // Check if the protocol handler worked by detecting if we're still focused
     setTimeout(() => {
@@ -1981,7 +1965,7 @@ const executeCcsImport = (row: ApiKey, clientType: CcsClientType) => {
   }
 }
 
-const handleCcsClientSelect = (clientType: CcsClientType) => {
+const handleCcsClientSelect = (clientType: CcSwitchClientType) => {
   if (pendingCcsRow.value) {
     executeCcsImport(pendingCcsRow.value, clientType)
   }

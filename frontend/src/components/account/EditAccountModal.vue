@@ -1505,6 +1505,36 @@
       </div>
 
       <div
+        v-if="account?.platform === 'grok'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.grok.openaiGroupAccess') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.grok.openaiGroupAccessDesc') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="edit-grok-openai-group-access-toggle"
+            @click="grokOpenAIGroupAccessEnabled = !grokOpenAIGroupAccessEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              grokOpenAIGroupAccessEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                grokOpenAIGroupAccessEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
+      <div
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
@@ -2444,7 +2474,7 @@
         :groups="groups"
         :platform="account?.platform"
         :mixed-scheduling="mixedScheduling"
-        :extra-platforms="openAIClaudeGPTBridgeGroupPlatforms"
+        :extra-platforms="extraGroupPlatforms"
         show-toggle-all
         data-tour="account-form-groups"
       />
@@ -2718,6 +2748,7 @@ const customBaseUrl = ref('')
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
+const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openAIImagesEndpointEnabled = ref(true)
@@ -2847,6 +2878,27 @@ const isOpenAIModelRestrictionDisabled = computed(() =>
 const openAIClaudeGPTBridgeGroupPlatforms = computed<GroupPlatform[]>(() =>
   props.account?.platform === 'openai' && openaiClaudeGPTBridgeEnabled.value ? ['antigravity' as const] : []
 )
+
+const grokOpenAIGroupAccessPlatforms = computed<GroupPlatform[]>(() =>
+  props.account?.platform === 'grok' && grokOpenAIGroupAccessEnabled.value ? ['openai' as const] : []
+)
+
+const extraGroupPlatforms = computed<GroupPlatform[]>(() => {
+  if (openAIClaudeGPTBridgeGroupPlatforms.value.length > 0) {
+    return openAIClaudeGPTBridgeGroupPlatforms.value
+  }
+  return grokOpenAIGroupAccessPlatforms.value
+})
+
+const removeOpenAIGroupSelections = () => {
+  const openAIGroupIds = new Set(
+    props.groups.filter((group) => group.platform === 'openai').map((group) => group.id)
+  )
+  if (openAIGroupIds.size === 0) {
+    return
+  }
+  form.group_ids = form.group_ids.filter((groupId) => !openAIGroupIds.has(groupId))
+}
 const removeAntigravityGroupSelections = () => {
   const antigravityGroupIds = new Set(
     props.groups.filter((group) => group.platform === 'antigravity').map((group) => group.id)
@@ -3007,6 +3059,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Load OpenAI passthrough toggle (OpenAI OAuth/API Key)
   openaiPassthroughEnabled.value = false
   openaiClaudeGPTBridgeEnabled.value = false
+  grokOpenAIGroupAccessEnabled.value = false
   openAICompactMode.value = 'auto'
   openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
   openAIImagesEndpointEnabled.value = true
@@ -3019,6 +3072,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   anthropicPassthroughEnabled.value = false
   anthropicAPIKeyAuthScheme.value = 'x_api_key'
   webSearchEmulationMode.value = 'default'
+  if (newAccount.platform === 'grok') {
+    grokOpenAIGroupAccessEnabled.value = extra?.grok_openai_group_access_enabled === true
+  }
   if (newAccount.platform === 'openai' && (newAccount.type === 'oauth' || newAccount.type === 'apikey')) {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
     openaiClaudeGPTBridgeEnabled.value = extra?.openai_claude_gpt_bridge_enabled === true
@@ -3352,6 +3408,15 @@ watch(
   ([platform, bridgeEnabled]) => {
     if (platform !== 'openai' || !bridgeEnabled) {
       removeAntigravityGroupSelections()
+    }
+  }
+)
+
+watch(
+  [() => props.account?.platform, grokOpenAIGroupAccessEnabled],
+  ([platform, accessEnabled]) => {
+    if (platform !== 'grok' || !accessEnabled) {
+      removeOpenAIGroupSelections()
     }
   }
 )
@@ -4286,6 +4351,21 @@ const handleSubmit = async () => {
         delete newExtra.web_search_emulation
       } else {
         newExtra.web_search_emulation = webSearchEmulationMode.value
+      }
+      updatePayload.extra = newExtra
+    }
+
+    // Grok accounts: OpenAI-group access opt-in (OAuth + API key)
+    if (props.account.platform === 'grok') {
+      const currentExtra =
+        (updatePayload.extra as Record<string, unknown>) ||
+        (props.account.extra as Record<string, unknown>) ||
+        {}
+      const newExtra: Record<string, unknown> = { ...currentExtra }
+      if (grokOpenAIGroupAccessEnabled.value) {
+        newExtra.grok_openai_group_access_enabled = true
+      } else {
+        delete newExtra.grok_openai_group_access_enabled
       }
       updatePayload.extra = newExtra
     }

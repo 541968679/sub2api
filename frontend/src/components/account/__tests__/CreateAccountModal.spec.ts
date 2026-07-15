@@ -253,6 +253,23 @@ describe('CreateAccountModal', () => {
         api_key: 'xai-test'
       }
     })
+    // Default off: access flag must not be persisted when toggle is untouched.
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.grok_openai_group_access_enabled).toBeUndefined()
+  })
+
+  it('persists grok_openai_group_access_enabled on Grok API key create when toggle is on', async () => {
+    createAccountMock.mockReset()
+    createAccountMock.mockResolvedValue({})
+    const wrapper = await mountGrokAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-grok-openai-group-access-toggle"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload?.platform).toBe('grok')
+    expect(payload?.type).toBe('apikey')
+    expect(payload?.extra?.grok_openai_group_access_enabled).toBe(true)
   })
 
   it('submits disabled OpenAI images endpoint scheduling', async () => {

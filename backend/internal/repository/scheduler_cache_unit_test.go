@@ -57,6 +57,24 @@ func TestBuildSchedulerMetadataAccount_KeepsOpenAIClaudeGPTBridgeFields(t *testi
 	require.Nil(t, got.Extra["unused_large_field"])
 }
 
+func TestBuildSchedulerMetadataAccount_KeepsGrokOpenAIGroupAccessFlag(t *testing.T) {
+	account := service.Account{
+		ID:       3004,
+		Platform: service.PlatformGrok,
+		Type:     service.AccountTypeOAuth,
+		Extra: map[string]any{
+			"grok_openai_group_access_enabled": true,
+			"email":                           "drop-me@example.com",
+		},
+	}
+
+	got := buildSchedulerMetadataAccount(account)
+
+	require.Equal(t, true, got.Extra["grok_openai_group_access_enabled"])
+	require.Nil(t, got.Extra["email"])
+	require.True(t, got.IsGrokOpenAIGroupAccessEnabled())
+}
+
 func TestBuildSchedulerMetadataAccount_KeepsOpenAIQuotaAutoPauseFields(t *testing.T) {
 	account := service.Account{
 		ID:       88,

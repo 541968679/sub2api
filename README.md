@@ -617,8 +617,13 @@ supports_backend_search = true
 
 The `base_url` is the public Sub2API URL ending in `/v1`, not the internal xAI
 OAuth proxy. Keep the generated file private because it contains a Sub2API API
-key. Grok Responses WebSocket remains intentionally unsupported in this fork;
-use the HTTP/SSE endpoints above.
+key.
+
+**Codex / Responses WebSocket:** Grok group keys accept Codex-style Responses
+WebSocket ingress (`wire_api=responses`). The gateway bridges client WS to xAI
+HTTP/SSE (xAI has no Responses WS). Multi-turn and tool continuation use the
+same HTTP bridge with client-side context replay. OpenAI/Grok account isolation
+is unchanged — Grok keys only schedule Grok accounts.
 
 ---
 

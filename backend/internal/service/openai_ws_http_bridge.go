@@ -41,7 +41,14 @@ func (s *OpenAIGatewayService) openAIWSHTTPBridgeThresholdBytes() int64 {
 	return s.cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes
 }
 
-func (s *OpenAIGatewayService) shouldBridgeOpenAIWSHTTP(payloadBytes int, previousResponseID string) bool {
+// shouldBridgeOpenAIWSHTTP decides whether client Responses WS ingress should
+// talk to upstream over HTTP/SSE instead of OpenAI Responses WebSocket v2.
+// Grok accounts always bridge: xAI has no Responses WS, and multi-turn
+// previous_response_id is reconstructed client-side via the bridge replay path.
+func (s *OpenAIGatewayService) shouldBridgeOpenAIWSHTTP(account *Account, payloadBytes int, previousResponseID string) bool {
+	if account != nil && account.Platform == PlatformGrok {
+		return true
+	}
 	if !s.openAIWSHTTPBridgeEnabled() {
 		return false
 	}
@@ -175,7 +182,37 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	}
 
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	upstreamReq, err := s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token)
+	var upstreamReq *http.Request
+	if account.IsGrok() {
+		// Grok has no Responses WS; bridge must hit xAI (CLI proxy / API), not ChatGPT Codex.
+		upstreamModel := account.GetMappedModel(originalModel)
+		if strings.TrimSpace(upstreamModel) == "" {
+			upstreamModel = strings.TrimSpace(gjson.GetBytes(body, "model").String())
+		}
+		if strings.TrimSpace(upstreamModel) == "" {
+			upstreamModel = grokDefaultResponsesModel
+		}
+		patchedBody, patchErr := patchGrokResponsesBody(body, upstreamModel)
+		if patchErr != nil {
+			releaseUpstreamCtx()
+			return nil, fmt.Errorf("prepare grok websocket http bridge body: %w", patchErr)
+		}
+		cacheIdentity := resolveGrokCacheIdentity(c, payload, "", upstreamModel)
+		patchedBody, patchErr = applyGrokResponsesCacheIdentity(patchedBody, payload, cacheIdentity, account.IsGrokOAuth())
+		if patchErr != nil {
+			releaseUpstreamCtx()
+			return nil, fmt.Errorf("apply grok websocket http bridge cache identity: %w", patchErr)
+		}
+		patchedBody, patchErr = sanitizeGrokResponsesTools(patchedBody)
+		if patchErr != nil {
+			releaseUpstreamCtx()
+			return nil, fmt.Errorf("sanitize grok websocket http bridge tools: %w", patchErr)
+		}
+		body = patchedBody
+		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, body, token, cacheIdentity)
+	} else {
+		upstreamReq, err = s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token)
+	}
 	releaseUpstreamCtx()
 	if err != nil {
 		return nil, err

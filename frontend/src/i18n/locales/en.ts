@@ -909,6 +909,16 @@ const enBase = {
         configTomlHint: 'Back up an existing config.toml before merging this model entry. Run grok inspect after saving to verify the effective configuration.',
         note: 'Save the file as ~/.grok/config.toml, then run grok inspect and select sub2api-grok from /model.',
         noteWindows: 'Save the file as %USERPROFILE%\\.grok\\config.toml, then run grok inspect and select sub2api-grok from /model.',
+        codexDescription:
+          'Write the following Codex files under ~/.codex. They include model_context_window and model-catalog-grok.json so Codex does not warn “Model metadata for grok-4.5 not found”.',
+        codexConfigTomlHint:
+          'Place this at the top of config.toml. model_catalog_json uses a relative filename that Codex resolves from ~/.codex.',
+        codexCatalogHint:
+          'Save next to config.toml. CCS one-click import does not write a catalog; if you still see a metadata warning after CCS import, add this file and restart Codex.',
+        codexNote:
+          'Fully quit and restart Codex after saving. CCS import only sets model=grok-4.5 and does not generate a catalog—use these files to complete metadata.',
+        codexNoteWindows:
+          'Press Win+R, open %userprofile%\\.codex, write all three files, then fully quit and restart Codex.'
       },
       opencode: {
         title: 'OpenCode Example',
@@ -931,6 +941,8 @@ const enBase = {
     ipBlacklistHint: 'One IP or CIDR per line. These IPs will be blocked from using this key.',
     ipRestrictionEnabled: 'IP restriction enabled',
     ccSwitchNotInstalled: 'CC-Switch is not installed or the protocol handler is not registered. Please install CC-Switch first or manually copy the API key.',
+    ccsGrokCodexMetadataHint:
+      'Grok was imported as Codex (model=grok-4.5). CCS does not write a model catalog; if you see “Model metadata for grok-4.5 not found”, open Use Key → Codex CLI, copy model-catalog-grok.json and the context fields in config.toml, then restart Codex.',
     ccsClientSelect: {
       title: 'Select Client',
       description: 'Please select the client type to import to CC-Switch:',
@@ -5086,6 +5098,8 @@ const enBase = {
         grokRequests: 'Req',
         grokTokens: 'Tok',
         grokUnknown: 'Grok quota is unknown until an upstream response includes xAI rate-limit headers.',
+        grokWeeklyUsage: 'Weekly {percent}%',
+        grokFreeQuota24hHint: 'Estimated from local token usage over the rolling 24-hour window (2M limit)',
         grokRetryAfter: 'Retry after {time}',
         grokLastStatus: 'Status {status}',
         grokLastProbe: 'Probe {time}',
@@ -8541,7 +8555,10 @@ const phase0LocalePatch = {
           missingExchangeParams: 'Missing auth code, session ID, or state',
           failedToExchangeCode: 'Failed to exchange Grok auth code',
           pleaseEnterRefreshToken: 'Please enter a refresh token',
-          failedToValidateRT: 'Failed to validate refresh token'
+          failedToValidateRT: 'Failed to validate refresh token',
+          openaiGroupAccess: 'Allow OpenAI group access',
+          openaiGroupAccessDesc:
+            'When enabled, this Grok account (OAuth / API key) can be bound to specific OpenAI groups. Only keys in those bound OpenAI groups can schedule this account for Grok text models. Off by default.'
         }
       },
       openai: {

@@ -55,12 +55,22 @@ describe('Grok management reachability', () => {
     expect(groupsView).toContain('createForm.video_price_1080p')
     expect(createModal).toContain('openai_images_endpoint_enabled')
     expect(createModal).toContain('openai_claude_gpt_bridge_enabled')
+    expect(createModal).toContain('grok_openai_group_access_enabled')
+    expect(createModal).toContain('create-grok-openai-group-access-toggle')
+    // buildGrokExtra must be a real create-path helper (not dead code under buildOpenAIExtra).
+    expect(createModal).toMatch(/const buildGrokExtra\s*=/)
+    expect(createModal).toContain('buildGrokExtra(buildAnthropicExtra(buildOpenAIExtra())')
+    expect(createModal).toContain('buildGrokExtra(grokOAuth.buildExtraInfo(tokenInfo))')
     expect(editModal).toContain('openai_images_endpoint_enabled')
     expect(editModal).toContain('openai_claude_gpt_bridge_enabled')
+    expect(editModal).toContain('grok_openai_group_access_enabled')
+    expect(editModal).toContain('edit-grok-openai-group-access-toggle')
   })
 
   it('keeps Grok copy in both monolithic locale files', () => {
     expect(source('i18n/locales/zh.ts')).toContain('grok:')
     expect(source('i18n/locales/en.ts')).toContain('grok:')
+    expect(source('i18n/locales/zh.ts')).toContain('openaiGroupAccess')
+    expect(source('i18n/locales/en.ts')).toContain('openaiGroupAccess')
   })
 })
