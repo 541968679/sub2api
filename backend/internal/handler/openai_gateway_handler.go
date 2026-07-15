@@ -24,6 +24,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
@@ -48,6 +49,17 @@ func openAICompatibleRequestPlatform(apiKey *service.APIKey) string {
 		return service.PlatformGrok
 	}
 	return service.PlatformOpenAI
+}
+
+// allowsGrokHTTPPreviousResponseStrip reports whether HTTP Responses may strip
+// previous_response_id instead of rejecting it. Grok groups always qualify;
+// OpenAI groups qualify when the requested model is a Grok text model that can
+// be scheduled via OpenAI-group Grok access.
+func allowsGrokHTTPPreviousResponseStrip(apiKey *service.APIKey, model string) bool {
+	if apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGrok {
+		return true
+	}
+	return service.IsGrokTextModel(model)
 }
 
 func resolveOpenAIForwardDefaultMappedModel(apiKey *service.APIKey, fallbackModel string) string {
@@ -305,11 +317,33 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id must be a response.id (resp_*), not a message id")
 			return
 		}
-		reqLog.Warn("openai.request_validation_failed",
-			zap.String("reason", "previous_response_id_requires_wsv2"),
-		)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id is only supported on Responses WebSocket v2")
-		return
+		// Grok has no Responses WS v2 and no server-side previous_response store on
+		// the HTTP path. Codex Desktop multi-turn still sends previous_response_id
+		// over plain POST /v1/responses; rejecting it makes turn 2 fail with a
+		// truncated `{...` style client error. Match the WS→HTTP bridge: strip the
+		// field and continue with the client-provided input items.
+		if allowsGrokHTTPPreviousResponseStrip(apiKey, reqModel) {
+			stripped, stripErr := sjson.DeleteBytes(body, "previous_response_id")
+			if stripErr != nil {
+				reqLog.Warn("openai.request_validation_failed",
+					zap.String("reason", "previous_response_id_strip_failed"),
+					zap.Error(stripErr),
+				)
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to normalize previous_response_id for Grok")
+				return
+			}
+			body = stripped
+			reqLog.Info("openai.grok_http_previous_response_id_stripped",
+				zap.String("reason", "grok_http_bridge_parity"),
+				zap.String("previous_response_id_kind", previousResponseIDKind),
+			)
+		} else {
+			reqLog.Warn("openai.request_validation_failed",
+				zap.String("reason", "previous_response_id_requires_wsv2"),
+			)
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "previous_response_id is only supported on Responses WebSocket v2")
+			return
+		}
 	}
 
 	setOpsRequestContext(c, reqModel, reqStream, body)

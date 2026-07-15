@@ -192,21 +192,30 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 		if strings.TrimSpace(upstreamModel) == "" {
 			upstreamModel = grokDefaultResponsesModel
 		}
+		preserveCompaction := hasGrokCompactionContext(body) || hasGrokCompactionContext(payload)
 		patchedBody, patchErr := patchGrokResponsesBody(body, upstreamModel)
 		if patchErr != nil {
 			releaseUpstreamCtx()
 			return nil, fmt.Errorf("prepare grok websocket http bridge body: %w", patchErr)
 		}
-		cacheIdentity := resolveGrokCacheIdentity(c, payload, "", upstreamModel)
-		patchedBody, patchErr = applyGrokResponsesCacheIdentity(patchedBody, payload, cacheIdentity, account.IsGrokOAuth())
-		if patchErr != nil {
-			releaseUpstreamCtx()
-			return nil, fmt.Errorf("apply grok websocket http bridge cache identity: %w", patchErr)
+		cacheIdentity := ""
+		if !preserveCompaction {
+			cacheIdentity = resolveGrokCacheIdentity(c, payload, "", upstreamModel)
+			patchedBody, patchErr = applyGrokResponsesCacheIdentity(patchedBody, payload, cacheIdentity, account.IsGrokOAuth())
+			if patchErr != nil {
+				releaseUpstreamCtx()
+				return nil, fmt.Errorf("apply grok websocket http bridge cache identity: %w", patchErr)
+			}
+			patchedBody, patchErr = sanitizeGrokResponsesTools(patchedBody)
+			if patchErr != nil {
+				releaseUpstreamCtx()
+				return nil, fmt.Errorf("sanitize grok websocket http bridge tools: %w", patchErr)
+			}
 		}
-		patchedBody, patchErr = sanitizeGrokResponsesTools(patchedBody)
+		patchedBody, patchErr = ensureGrokReasoningEncryptedSummary(patchedBody)
 		if patchErr != nil {
 			releaseUpstreamCtx()
-			return nil, fmt.Errorf("sanitize grok websocket http bridge tools: %w", patchErr)
+			return nil, fmt.Errorf("ensure grok reasoning summary on websocket http bridge: %w", patchErr)
 		}
 		body = patchedBody
 		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, body, token, cacheIdentity)
@@ -239,11 +248,15 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, openAIWSHTTPBridgeErrorBodyLimitBytes))
 		if account.Platform == PlatformGrok {
+			respBody = normalizeGrokUpstreamErrorBody(respBody)
 			s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 		}
 		upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
 		if upstreamMsg == "" {
 			upstreamMsg = http.StatusText(resp.StatusCode)
+		}
+		if upstreamMsg == "" {
+			upstreamMsg = "Upstream request failed"
 		}
 		_ = writeClientMessage(buildOpenAIWSHTTPBridgeErrorEvent(resp.StatusCode, upstreamMsg))
 		return nil, fmt.Errorf("upstream http bridge error: status=%d message=%s", resp.StatusCode, upstreamMsg)

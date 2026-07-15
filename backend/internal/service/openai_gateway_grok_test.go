@@ -282,6 +282,213 @@ func TestApplyGrokCacheIdentityThenSanitizeDoesNotLeaveOrphanToolChoice(t *testi
 	require.False(t, gjson.GetBytes(patched, "tool_choice").String() == "auto" && !gjson.GetBytes(patched, "tools").Exists())
 }
 
+func TestPatchGrokResponsesBodyDropsCodexAdditionalToolsInputItems(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"model": "grok",
+		"input": [
+			{
+				"type": "additional_tools",
+				"role": "developer",
+				"tools": [
+					{"type": "namespace", "name": "image_gen"},
+					{"type": "function", "name": "wait"}
+				]
+			},
+			{
+				"type": "message",
+				"role": "developer",
+				"content": [{"type": "input_text", "text": "system prompt"}]
+			},
+			{
+				"type": "message",
+				"role": "user",
+				"content": [{"type": "input_text", "text": "hello"}]
+			}
+		]
+	}`)
+
+	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	require.NoError(t, err)
+	require.True(t, json.Valid(patched))
+	require.Equal(t, "grok-4.5", gjson.GetBytes(patched, "model").String())
+	require.Equal(t, 2, len(gjson.GetBytes(patched, "input").Array()))
+	require.False(t, gjson.GetBytes(patched, `input.#(type=="additional_tools")`).Exists())
+	require.Equal(t, "developer", gjson.GetBytes(patched, "input.0.role").String())
+	require.Equal(t, "system prompt", gjson.GetBytes(patched, "input.0.content.0.text").String())
+	require.Equal(t, "user", gjson.GetBytes(patched, "input.1.role").String())
+	require.Equal(t, "hello", gjson.GetBytes(patched, "input.1.content.0.text").String())
+}
+
+// Upstream PR #4242 / ff639ba7: content:null on reasoning → xAI 422 ModelInput.
+func TestPatchGrokResponsesBody_StripsReasoningContentNull(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"model": "grok-latest",
+		"input": [
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]},
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"thinking..."}],"content":null,"encrypted_content":null},
+			{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello!"}]}
+		]
+	}`)
+
+	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	require.NoError(t, err)
+	require.True(t, json.Valid(patched))
+
+	input := gjson.GetBytes(patched, "input")
+	require.True(t, input.IsArray())
+
+	items := input.Array()
+	require.Len(t, items, 3)
+
+	reasoning := items[1]
+	require.Equal(t, "reasoning", reasoning.Get("type").String())
+	require.True(t, reasoning.Get("summary").Exists(), "summary should be preserved")
+	require.False(t, reasoning.Get("content").Exists(), "content: null should be stripped")
+}
+
+func TestPatchGrokResponsesBody_KeepsReasoningContentNonNull(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"model": "grok-latest",
+		"input": [
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"ok"}],"content":"real content"}
+		]
+	}`)
+
+	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	require.NoError(t, err)
+
+	reasoning := gjson.GetBytes(patched, "input.0")
+	require.Equal(t, "real content", reasoning.Get("content").String(), "non-null content must not be stripped")
+}
+
+func TestPatchGrokResponsesBody_MultipleReasoningContentNull(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"model": "grok-latest",
+		"input": [
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"r1"}],"content":null},
+			{"type":"message","role":"user","content":"hi"},
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"r2"}],"content":null}
+		]
+	}`)
+
+	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	require.NoError(t, err)
+
+	items := gjson.GetBytes(patched, "input").Array()
+	require.Len(t, items, 3)
+
+	require.False(t, items[0].Get("content").Exists())
+	require.False(t, items[2].Get("content").Exists())
+}
+
+func TestEnsureGrokReasoningEncryptedSummaryAddsEmptySummary(t *testing.T) {
+	t.Parallel()
+
+	// Missing summary (the Desktop turn-2 shape) must become [].
+	body := []byte(`{
+		"model":"grok-4.5",
+		"input":[
+			{"type":"reasoning","encrypted_content":"BT5GVVyBopaque"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}
+		]
+	}`)
+	out, err := ensureGrokReasoningEncryptedSummary(body)
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(out, "input.0.summary").IsArray())
+	require.Equal(t, 0, len(gjson.GetBytes(out, "input.0.summary").Array()))
+	require.Equal(t, "BT5GVVyBopaque", gjson.GetBytes(out, "input.0.encrypted_content").String())
+
+	// JSON null summary also gets replaced.
+	bodyNull := []byte(`{"input":[{"type":"reasoning","encrypted_content":"abc","summary":null}]}`)
+	outNull, err := ensureGrokReasoningEncryptedSummary(bodyNull)
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(outNull, "input.0.summary").IsArray())
+
+	// Existing summary left alone.
+	bodyKeep := []byte(`{"input":[{"type":"reasoning","encrypted_content":"abc","summary":[{"type":"summary_text","text":"x"}]}]}`)
+	outKeep, err := ensureGrokReasoningEncryptedSummary(bodyKeep)
+	require.NoError(t, err)
+	require.Equal(t, "x", gjson.GetBytes(outKeep, "input.0.summary.0.text").String())
+}
+
+func TestIsGrokEncryptedReasoningUpstreamError(t *testing.T) {
+	t.Parallel()
+	require.True(t, isGrokEncryptedReasoningUpstreamError("Could not decode the compaction blob. Ensure it is unmodified from the compact response."))
+	require.True(t, isGrokEncryptedReasoningUpstreamError("Could not decrypt the provided encrypted_content."))
+	require.False(t, isGrokEncryptedReasoningUpstreamError("model not found"))
+}
+
+func TestNormalizeGrokUpstreamErrorBodyRewritesStringError(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{"code":"invalid-argument","error":"Could not decode the compaction blob. Ensure it is unmodified from the compact response."}`)
+	normalized := normalizeGrokUpstreamErrorBody(raw)
+	require.Equal(t, "Could not decode the compaction blob. Ensure it is unmodified from the compact response.", gjson.GetBytes(normalized, "error.message").String())
+	require.Equal(t, "invalid_request_error", gjson.GetBytes(normalized, "error.type").String())
+	require.Equal(t, "invalid-argument", gjson.GetBytes(normalized, "error.code").String())
+	// extract path used by ops + clients must pick up the string form too.
+	require.Equal(t,
+		"Could not decode the compaction blob. Ensure it is unmodified from the compact response.",
+		extractUpstreamErrorMessage(raw),
+	)
+	require.Equal(t,
+		"Could not decode the compaction blob. Ensure it is unmodified from the compact response.",
+		extractUpstreamErrorMessage(normalized),
+	)
+}
+
+func TestPatchGrokResponsesBodyPreservesCompactionBlobAndTools(t *testing.T) {
+	t.Parallel()
+
+	// Opaque blob must survive model rewrite / not be re-encoded, and tools must
+	// not be filtered when a compaction item is present (xAI integrity check).
+	blob := "gAAAAB+LCAAAAAAAAAMN" // deliberate non-base64-ish opaque marker with + /
+	body := []byte(`{
+		"model":"grok",
+		"previous_response_id":"resp_prev",
+		"prompt_cache_retention":"24h",
+		"tools":[{"type":"local_shell"},{"type":"web_search"}],
+		"tool_choice":"auto",
+		"reasoning":{"effort":"xhigh"},
+		"input":[
+			{"type":"compaction","encrypted_content":"` + blob + `"},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"continue"}]}
+		]
+	}`)
+	require.True(t, hasGrokCompactionContext(body))
+
+	patched, err := patchGrokResponsesBody(body, "grok-4.5")
+	require.NoError(t, err)
+	require.Equal(t, "grok-4.5", gjson.GetBytes(patched, "model").String())
+	// Compaction item and opaque payload untouched.
+	require.Equal(t, "compaction", gjson.GetBytes(patched, "input.0.type").String())
+	require.Equal(t, blob, gjson.GetBytes(patched, "input.0.encrypted_content").String())
+	// Unsupported tools kept (normal path would drop local_shell).
+	require.Equal(t, 2, len(gjson.GetBytes(patched, "tools").Array()))
+	require.Equal(t, "local_shell", gjson.GetBytes(patched, "tools.0.type").String())
+	require.Equal(t, "auto", gjson.GetBytes(patched, "tool_choice").String())
+	// Top-level always-unsupported fields still stripped via sjson only.
+	require.False(t, gjson.GetBytes(patched, "previous_response_id").Exists())
+	require.False(t, gjson.GetBytes(patched, "prompt_cache_retention").Exists())
+	// Reasoning left as-is on compaction path (no clamp/rebuild).
+	require.Equal(t, "xhigh", gjson.GetBytes(patched, "reasoning.effort").String())
+
+	// Cache identity + free-tier injection must no-op on compaction bodies.
+	withCache, err := applyGrokResponsesCacheIdentity(patched, body, "isolated-id", true)
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(withCache, "prompt_cache_key").Exists())
+	require.Equal(t, blob, gjson.GetBytes(withCache, "input.0.encrypted_content").String())
+	require.Equal(t, 2, len(gjson.GetBytes(withCache, "tools").Array()))
+}
+
 func TestBuildGrokResponsesRequestUsesAccountBaseURLAndBearerToken(t *testing.T) {
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
 

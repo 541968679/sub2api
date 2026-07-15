@@ -7107,7 +7107,7 @@ func ExtractUpstreamErrorMessage(body []byte) string {
 }
 
 func extractUpstreamErrorMessage(body []byte) string {
-	// Claude 风格：{"type":"error","error":{"type":"...","message":"..."}}
+	// Claude / OpenAI 风格：{"error":{"type":"...","message":"..."}}
 	if m := gjson.GetBytes(body, "error.message").String(); strings.TrimSpace(m) != "" {
 		inner := strings.TrimSpace(m)
 		// 有些上游会把完整 JSON 作为字符串塞进 message
@@ -7115,8 +7115,23 @@ func extractUpstreamErrorMessage(body []byte) string {
 			if innerMsg := gjson.Get(inner, "error.message").String(); strings.TrimSpace(innerMsg) != "" {
 				return innerMsg
 			}
+			// xAI nested: {"error":"{\"error\":\"...\"}"} rare, also try string error
+			if innerErr := gjson.Get(inner, "error"); innerErr.Exists() && innerErr.Type == gjson.String {
+				if s := strings.TrimSpace(innerErr.String()); s != "" {
+					return s
+				}
+			}
 		}
 		return m
+	}
+
+	// xAI Responses 风格：{"code":"invalid-argument","error":"plain string message"}
+	// 注意：这里的 error 是字符串，不是对象；旧逻辑只读 error.message 会得到空串，
+	// Codex Desktop 流式客户端只能看到半截 `{`。
+	if errField := gjson.GetBytes(body, "error"); errField.Exists() && errField.Type == gjson.String {
+		if s := strings.TrimSpace(errField.String()); s != "" {
+			return s
+		}
 	}
 
 	// ChatGPT 内部 API 风格：{"detail":"..."}

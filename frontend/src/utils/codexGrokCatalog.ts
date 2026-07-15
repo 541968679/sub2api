@@ -23,12 +23,41 @@ export function buildGrokCodexModelCatalogJson(
         slug: model,
         display_name: 'Grok 4.5',
         description: 'xAI Grok 4.5 via Sub2API (OpenAI-compatible Responses).',
-        // xAI Grok accepts low/medium/high only (no xhigh/extra-high).
+        // Advertise xhigh so Desktop/CLI pickers stay visible when the user has
+        // model_reasoning_effort=xhigh. Sub2API clamps xhigh→high for xAI.
         default_reasoning_level: 'high',
         supported_reasoning_levels: [
           { effort: 'low', description: 'Faster responses' },
           { effort: 'medium', description: 'Balanced' },
-          { effort: 'high', description: 'Deeper reasoning' }
+          { effort: 'high', description: 'Deeper reasoning' },
+          { effort: 'xhigh', description: 'Extra high (mapped to high on Grok)' }
+        ],
+        additional_speed_tiers: ['fast'],
+        service_tiers: [
+          { id: 'priority', name: 'Fast', description: '1.5x speed, increased usage' }
+        ],
+        available_in_plans: [
+          'business',
+          'edu',
+          'edu_plus',
+          'edu_pro',
+          'education',
+          'enterprise',
+          'enterprise_cbp_automation',
+          'enterprise_cbp_usage_based',
+          'finserv',
+          'free',
+          'free_workspace',
+          'go',
+          'hc',
+          'k12',
+          'plus',
+          'pro',
+          'prolite',
+          'quorum',
+          'sci',
+          'self_serve_business_usage_based',
+          'team'
         ],
         shell_type: 'shell_command',
         visibility: 'list',
@@ -50,12 +79,12 @@ export function buildGrokCodexModelCatalogJson(
         support_verbosity: true,
         default_verbosity: 'low',
         apply_patch_tool_type: 'freeform',
-        tool_mode: 'code_mode_only',
+        tool_mode: null,
         truncation_policy: { mode: 'tokens', limit: 10000 },
         supports_search_tool: true,
         web_search_tool_type: 'text_and_image',
         supports_image_detail_original: true,
-        use_responses_lite: true,
+        use_responses_lite: false,
         include_skills_usage_instructions: false,
         experimental_supported_tools: [] as string[],
         upgrade: null,

@@ -1,4 +1,210 @@
-﻿# Sub2API 二次开发变更日志
+﻿## 2026-07-15 - fix: Desktop Grok missing when ChatGPT models catalog times out
+
+### Root cause (not xhigh filtering)
+Codex Desktop uses headers that force Sub2API onto the Codex **manifest** path
+(`GET /v1/models` → proxy `chatgpt.com/backend-api/codex/models`). When that
+upstream request times out (observed on this machine), the handler returned
+502/`upstream_error` and **never reached Grok injection**. Desktop then only
+shows its local GPT-oriented catalog and Grok cannot be selected — even though
+the OpenAI-list path already had `grok-4.5`.
+
+Also aligned Grok ModelInfo with GPT rows: `tool_mode=null`,
+`use_responses_lite=false` (was `code_mode_only` / lite=true).
+
+### Fix
+- On OAuth missing or ChatGPT catalog fetch failure: return empty Codex catalog
+  shell + inject Grok (always 200 with grok-4.5 when access enabled)
+- Inject entry: advertise xhigh (picker), clamp on wire; tool_mode null; lite false
+- Local `~/.codex` catalogs refreshed to match
+
+### Files
+- `backend/internal/handler/openai_codex_models_handler.go`
+- `backend/internal/service/openai_codex_models_grok_inject.go` (+tests)
+- `frontend/src/utils/codexGrokCatalog.ts`
+
+---
+## 2026-07-15 - fix: Codex Desktop hides Grok when effort=xhigh
+
+### What
+OpenAI-group keys already returned `grok-4.5` on Desktop `/v1/models`, but Codex
+Desktop still did not list Grok in the model picker.
+
+### Why
+User `config.toml` has `model_reasoning_effort = "xhigh"` (and plan mode xhigh).
+GPT catalog entries include effort `xhigh`; Grok catalog only listed
+low/medium/high. Desktop filters the picker by the currently selected effort,
+so Grok was hidden.
+
+### Fix
+- Advertise `xhigh` in Codex Grok ModelInfo (`/v1/models` inject + frontend
+  `model-catalog-grok` template); gateway still clamps xhigh→high for xAI.
+- Refresh local `~/.codex` catalogs with xhigh + Fast tier metadata.
+
+### Files
+- `backend/internal/service/openai_codex_models_grok_inject.go` (+tests)
+- `frontend/src/utils/codexGrokCatalog.ts`
+- local `~/.codex/model-catalog-*.json`, `models_cache.json` (not committed)
+
+### Verify
+- Live OpenAI key Desktop headers: manifest includes grok-4.5
+- Local catalog efforts: low/medium/high/xhigh
+- Unit inject tests pass
+
+---
+## 2026-07-15 - align Grok Codex multi-turn fixes with upstream
+
+### Context
+User ModelInput 422 matches known upstream issues. Upstream already fixed:
+- PR #3982: drop Codex `additional_tools` (ModelInput deserialize)
+- PR #4242 / ff639ba7: strip reasoning `content:null` (xAI 422)
+- Issue #4223 still open: compaction blob wording with Grok+Codex
+
+### What we ported / tightened
+- Always run `sanitizeGrokResponsesInput` + `sanitizeGrokReasoningNullContent`
+  (including compact-preserve path — previously skipped additional_tools)
+- Also drop `encrypted_content:null`
+- Keep local turn-2 fixes: empty `summary` for encrypted reasoning, decrypt recovery
+
+### Files
+- `backend/internal/service/openai_gateway_grok.go`
+- `backend/internal/service/openai_gateway_grok_test.go`
+
+---
+## 2026-07-15 - fix: Grok turn-2 "compaction blob" is incomplete reasoning.encrypted_content
+
+### What
+Second Desktop message failed with xAI:
+`Could not decode the compaction blob. Ensure it is unmodified from the compact response.`
+This is **not** real remote compaction (turn 2 is far too early).
+
+### Root cause
+Codex multi-turn echoes `reasoning.encrypted_content` from turn 1. If `summary`
+is missing or JSON null, xAI rejects it with that misleading "compaction blob"
+message. Repro: `encrypted_content` alone → 400; same blob + `summary:[]` → 200.
+
+### Fix
+- Proactive: `ensureGrokReasoningEncryptedSummary` sets missing/null summary to `[]`
+- Reactive: on compaction-blob / encrypted_content decrypt 400, drop encrypted
+  reasoning once and retry (OpenAI-style invalid_encrypted_content recovery)
+- Applied on HTTP Grok forward + WS→HTTP bridge
+
+### Files
+- `backend/internal/service/openai_gateway_grok.go`
+- `backend/internal/service/openai_ws_http_bridge.go`
+- `backend/internal/service/openai_gateway_grok_test.go`
+
+### Verify
+- Unit: `TestEnsureGrokReasoningEncryptedSummaryAddsEmptySummary`
+- Live: T2 with `{type:reasoning, encrypted_content:...}` only → 200
+
+---
+## 2026-07-15 - fix: Grok/xAI errors show full message (not bare `{`)
+
+### What
+Codex Desktop multi-turn failures only showed a truncated `{` instead of the real
+xAI message (e.g. compaction blob decode errors).
+
+### Why
+xAI returns `{"code":"...","error":"<string>"}` while we only parsed
+`error.message`. Empty message + stream JSON body left Desktop unable to render
+the error.
+
+### Fix
+- `extractUpstreamErrorMessage` understands string-form `error`
+- Grok 400 bodies normalized to OpenAI `{error:{message,type,code}}`
+- Stream requests get SSE error events with full message
+- HTTP 400 surfaces real upstream message (not generic 502)
+
+### Files
+- `backend/internal/service/gateway_service.go`
+- `backend/internal/service/openai_gateway_service.go`
+- `backend/internal/service/openai_gateway_grok.go`
+- `backend/internal/service/openai_ws_http_bridge.go`
+- `backend/internal/service/openai_gateway_grok_test.go`
+
+---
+## 2026-07-15 - fix: Grok compaction blob integrity (Codex multi-turn)
+
+### What
+xAI 400: `Could not decode the compaction blob. Ensure it is unmodified from the compact response.`
+when Codex Desktop continued a long Grok thread after remote compaction.
+
+### Why
+Normal Grok request patching rewrote tools / free-tier cache identity / input rebuild
+around the opaque compaction item. The blob is integrity-bound to the compact response.
+
+### Fix
+When body has compaction context (`type=compaction` / `compaction_trigger` / compact path):
+- only sjson-set model + drop always-unsupported top-level fields
+- skip tool filter, free-tier tool injection, prompt_cache_key rewrite, full JSON remashal
+- same for HTTP forward and WS→HTTP bridge
+
+### Files
+- `backend/internal/service/openai_gateway_grok.go`
+- `backend/internal/service/openai_ws_http_bridge.go`
+- `backend/internal/service/openai_gateway_grok_cache.go`
+- `backend/internal/service/openai_gateway_grok_test.go`
+
+### Verify
+- Unit: `TestPatchGrokResponsesBodyPreservesCompactionBlobAndTools`
+- Local stack restarted via `scripts/dev-stack.ps1 restart -SkipAIClient`
+
+---
+## 2026-07-15 - fix: Grok HTTP multi-turn previous_response_id hard 400
+
+### What
+Codex Desktop multi-turn on Grok keys failed on turn 2: HTTP `POST /v1/responses`
+with `previous_response_id` was hard-rejected (`only supported on Responses
+WebSocket v2`). Client often only showed a truncated `{` error body.
+
+### Why
+Grok has no Responses WS v2. Desktop still multi-turns over plain HTTP (not only
+WS). The WS→HTTP bridge already strips `previous_response_id`; HTTP handler did not.
+
+### Fix
+- Grok platform groups and Grok text models: strip `previous_response_id` on HTTP
+  and continue (same parity as WS bridge).
+- OpenAI non-Grok models: still reject with the WS v2 message.
+- Compaction-safe cache identity: do not rewrite `prompt_cache_key` / inject free-tier
+  tools when the body carries compaction context (avoids xAI
+  "Could not decode the compaction blob").
+- Preserve explicit client `tools:[]` when applying free-tier cache defaults.
+
+### Files
+- `backend/internal/handler/openai_gateway_handler.go`
+- `backend/internal/handler/openai_gateway_handler_test.go`
+- `backend/internal/service/openai_gateway_grok_cache.go`
+
+### Verify
+- Unit: `TestOpenAIResponses_GrokHTTPStripsPreviousResponseID*`
+- Live: Grok key turn1 + turn2 with `previous_response_id` → 200 (no WS-v2 400)
+
+### Note
+Stripping `previous_response_id` without a server-side response store means pure
+delta-only second turns may lack prior context unless the client resends history
+or uses the WS bridge replay path for tool calls. Hard failure is fixed first.
+
+---
+## 2026-07-15 - Codex Desktop Grok model visibility (service_tier)
+
+### What
+Codex Desktop still hid `grok-4.5` even though CLI saw it and `/v1/responses` worked. Root cause was incomplete Codex ModelInfo injection: missing `additional_speed_tiers` / `service_tiers` while local `config.toml` uses `service_tier = "fast"`, plus incomplete `available_in_plans` on stale client cache entries. Inject now clones a GPT manifest template, always upgrades existing Grok rows, and guarantees plan + Fast tier metadata.
+
+### Why
+Desktop filters the model picker by plan membership and selected service tier. API key / base URL were fine (local Sub2API).
+
+### Files
+- `backend/internal/service/openai_codex_models_grok_inject.go`
+- `backend/internal/service/openai_codex_models_grok_inject_test.go`
+- Local client caches refreshed: `~/.codex/models_cache.json`, `model-catalog-505k.json` (not committed)
+
+### Verify
+- Unit: `go test -tags=unit ./internal/service -run TestInjectGrokModelsIntoCodexManifest`
+- Live Desktop headers: `GET /v1/models` includes `grok-4.5` with `additional_speed_tiers=["fast"]` and non-empty `available_in_plans`
+- Restart Codex Desktop after cache refresh
+
+---
+# Sub2API 二次开发变更日志
 
 > 记录所有相对于上游 (Wei-Shaw/sub2api) 的自定义修改。每次二次开发变更必须在此记录，便于合并上游更新时追踪差异。
 
@@ -5538,3 +5744,11 @@ route, setting, push, or deployment change.
 - Scope is limited to Anthropic OAuth/Setup Token. API Key, non-Anthropic, OpenAI Claude-GPT bridge, Images, Batch Image, scheduler/failover, billing/display-token accounting, real cache-read quantities, and stored `actual_cost` are unchanged.
 - Added a default-true admin Settings KV toggle with bilingual UI. The setting is not public and adds no route.
 - Verified focused Go packages, admin/API settings contracts, 20 frontend settings/i18n tests, typecheck, and `git diff --check`.
+
+
+
+
+
+
+
+

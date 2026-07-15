@@ -4677,7 +4677,10 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	var statusCode int
 
 	switch {
-	case resp.StatusCode == 400 && IsOpenAIImagesRequest(c):
+	case resp.StatusCode == 400:
+		// Include Grok/xAI 400s (e.g. compaction blob / tool_choice). Previously only
+		// image requests surfaced the real message; others became generic 502 and
+		// streaming clients often displayed a bare "{".
 		statusCode = http.StatusBadRequest
 		errType = openAIUpstreamErrorType(body, "invalid_request_error")
 		if upstreamMsg != "" {
@@ -4704,7 +4707,11 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	default:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
-		errMsg = "Upstream request failed"
+		if upstreamMsg != "" {
+			errMsg = upstreamMsg
+		} else {
+			errMsg = "Upstream request failed"
+		}
 	}
 
 	if imageTrace := OpenAIImageTraceFromGin(c); imageTrace != nil {

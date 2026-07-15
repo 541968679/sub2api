@@ -8,6 +8,7 @@ import (
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 // CodexModels serves the versioned Codex manifest used by CLI and desktop
@@ -17,6 +18,10 @@ import (
 // enabled, Grok text models are injected into the manifest so Codex /model
 // picker can see them. Non-Codex clients without client_version still use
 // Gateway.Models (OpenAI list shape).
+//
+// If ChatGPT's upstream catalog is unreachable (common on local Windows when
+// chatgpt.com times out), we still return a Codex-shaped body with injected
+// Grok models so Desktop does not fall back to a GPT-only local catalog.
 func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey.Group == nil {
@@ -28,34 +33,54 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 		return
 	}
 
-	account, err := h.gatewayService.SelectAccountForCodexModels(c.Request.Context(), apiKey.GroupID)
-	if err != nil {
-		h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available OpenAI accounts")
-		return
-	}
 	// CLI uses ?client_version=; Desktop often only sends Version header.
 	clientVersion := strings.TrimSpace(c.Query("client_version"))
 	if clientVersion == "" {
 		clientVersion = strings.TrimSpace(c.GetHeader("Version"))
 	}
-	manifest, err := h.gatewayService.FetchCodexModelsManifest(c.Request.Context(), account, clientVersion, c.GetHeader("If-None-Match"))
+
+	var (
+		body []byte
+		etag string
+	)
+
+	account, err := h.gatewayService.SelectAccountForCodexModels(c.Request.Context(), apiKey.GroupID)
 	if err != nil {
-		h.errorResponse(c, infraerrors.Code(err), "upstream_error", infraerrors.Message(err))
-		return
-	}
-
-	// 304 responses have no body to inject into; clients revalidate via ETag.
-	// When we inject Grok models we must not pass through the upstream ETag,
-	// otherwise Codex may cache a pre-injection body forever.
-	if manifest.NotModified {
-		if manifest.ETag != "" {
-			c.Header("ETag", manifest.ETag)
+		// No OAuth account to proxy ChatGPT catalog — still serve Grok inject.
+		reqLog := requestLogger(c, "handler.openai_gateway.codex_models")
+		reqLog.Warn("openai.codex_models.fallback_no_oauth_account", zap.Error(err))
+		body = service.EmptyCodexModelsManifestBody(clientVersion)
+	} else {
+		manifest, fetchErr := h.gatewayService.FetchCodexModelsManifest(
+			c.Request.Context(), account, clientVersion, c.GetHeader("If-None-Match"),
+		)
+		if fetchErr != nil {
+			// chatgpt.com timeout/errors previously 502'd Desktop and left the
+			// picker without injected Grok. Fall back to a local empty catalog
+			// shell and inject Grok so the model remains selectable.
+			reqLog := requestLogger(c, "handler.openai_gateway.codex_models")
+			reqLog.Warn("openai.codex_models.fallback_upstream_failed",
+				zap.Error(fetchErr),
+				zap.Int("upstream_code", infraerrors.Code(fetchErr)),
+				zap.String("upstream_message", infraerrors.Message(fetchErr)),
+			)
+			body = service.EmptyCodexModelsManifestBody(clientVersion)
+		} else {
+			// 304 responses have no body to inject into; clients revalidate via ETag.
+			// When we inject Grok models we must not pass through the upstream ETag,
+			// otherwise Codex may cache a pre-injection body forever.
+			if manifest.NotModified {
+				if manifest.ETag != "" {
+					c.Header("ETag", manifest.ETag)
+				}
+				c.Status(http.StatusNotModified)
+				return
+			}
+			body = manifest.Body
+			etag = manifest.ETag
 		}
-		c.Status(http.StatusNotModified)
-		return
 	}
 
-	body := manifest.Body
 	// Always inject canonical grok-4.5 for OpenAI groups; also inject any extra
 	// Grok text models from bound opt-in accounts.
 	grokIDs := service.EnsureOpenAICanonicalGrokModels(
@@ -66,12 +91,12 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 			body = injected
 			// Body changed relative to upstream; drop ETag so clients do not
 			// treat the injected document as identical to OpenAI's original.
-			manifest.ETag = ""
+			etag = ""
 		}
 	}
 
-	if manifest.ETag != "" {
-		c.Header("ETag", manifest.ETag)
+	if etag != "" {
+		c.Header("ETag", etag)
 	}
 	c.Data(http.StatusOK, "application/json", body)
 }

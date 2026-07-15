@@ -44,18 +44,34 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	if strings.TrimSpace(upstreamModel) == "" {
 		upstreamModel = grokDefaultResponsesModel
 	}
-	cacheIdentity := resolveGrokCacheIdentity(c, body, "", upstreamModel)
+	// Compaction-looking errors on turn 2 are usually incomplete
+	// reasoning.encrypted_content items (missing summary), not real compact.
+	// Still avoid heavy rewrites when a true compact item is present.
+	preserveCompaction := hasGrokCompactionContext(body) || isOpenAIResponsesCompactPath(c)
+	cacheIdentity := ""
+	if !preserveCompaction {
+		cacheIdentity = resolveGrokCacheIdentity(c, body, "", upstreamModel)
+	}
 	patchedBody, err := patchGrokResponsesBody(body, upstreamModel)
 	if err != nil {
 		return nil, err
 	}
-	patchedBody, err = applyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, account.IsGrokOAuth())
-	if err != nil {
-		return nil, fmt.Errorf("apply grok prompt cache identity: %w", err)
+	if !preserveCompaction {
+		patchedBody, err = applyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, account.IsGrokOAuth())
+		if err != nil {
+			return nil, fmt.Errorf("apply grok prompt cache identity: %w", err)
+		}
+		// Cache-identity injection may leave tool_choice without tools (or skip
+		// re-injection when the original payload had unsupported tools). Reconcile.
+		patchedBody, err = sanitizeGrokResponsesTools(patchedBody)
+		if err != nil {
+			return nil, err
+		}
 	}
-	// Cache-identity injection may leave tool_choice without tools (or skip
-	// re-injection when the original payload had unsupported tools). Reconcile.
-	patchedBody, err = sanitizeGrokResponsesTools(patchedBody)
+	// Codex multi-turn often echoes reasoning.encrypted_content without summary.
+	// xAI then returns: "Could not decode the compaction blob..." even when no
+	// compact ever ran. Ensure summary is present (empty list is accepted).
+	patchedBody, err = ensureGrokReasoningEncryptedSummary(patchedBody)
 	if err != nil {
 		return nil, err
 	}
@@ -65,97 +81,281 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 		return nil, err
 	}
 
-	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	defer releaseUpstreamCtx()
-	upstreamReq, err := buildGrokResponsesRequest(upstreamCtx, c, account, patchedBody, token, cacheIdentity)
-	if err != nil {
-		return nil, err
-	}
-
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 
-	upstreamStart := time.Now()
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 {
-		respBody := s.readUpstreamErrorBody(resp)
-		resp.Body = io.NopCloser(bytes.NewReader(respBody))
-		upstreamMsg := sanitizeUpstreamErrorMessage(extractUpstreamErrorMessage(respBody))
-		if upstreamMsg == "" {
-			upstreamMsg = fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode)
+	// One automatic recovery: if xAI still rejects encrypted reasoning payload
+	// (compaction-blob mislabel or decrypt failure), drop encrypted_content and
+	// retry once — same strategy as OpenAI invalid_encrypted_content recovery.
+	encryptedRetryTried := false
+	for {
+		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
+		upstreamReq, buildErr := buildGrokResponsesRequest(upstreamCtx, c, account, patchedBody, token, cacheIdentity)
+		releaseUpstreamCtx()
+		if buildErr != nil {
+			return nil, buildErr
 		}
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
-			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
-			Kind:               "failover",
-			Message:            upstreamMsg,
-		})
-		s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
-		if s.shouldFailoverUpstreamError(resp.StatusCode) {
-			return nil, &UpstreamFailoverError{
-				StatusCode:             resp.StatusCode,
-				ResponseBody:           respBody,
-				RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+
+		upstreamStart := time.Now()
+		resp, doErr := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+		if doErr != nil {
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, doErr, false)
+		}
+
+		if resp.StatusCode >= 400 {
+			respBody := s.readUpstreamErrorBody(resp)
+			_ = resp.Body.Close()
+			// Rewrite xAI string-error bodies into OpenAI {error:{message}} so
+			// extractUpstreamErrorMessage / Desktop clients can render them.
+			respBody = normalizeGrokUpstreamErrorBody(respBody)
+			upstreamMsg := sanitizeUpstreamErrorMessage(extractUpstreamErrorMessage(respBody))
+			if upstreamMsg == "" {
+				upstreamMsg = fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode)
+			}
+
+			if !encryptedRetryTried &&
+				resp.StatusCode == http.StatusBadRequest &&
+				isGrokEncryptedReasoningUpstreamError(upstreamMsg) {
+				if dropped, dropErr := dropGrokEncryptedReasoningFromBody(patchedBody); dropErr == nil && dropped != nil {
+					patchedBody = dropped
+					encryptedRetryTried = true
+					slog.Info("grok encrypted reasoning recovery retry",
+						"account_id", account.ID,
+						"message", truncateString(upstreamMsg, 200),
+					)
+					continue
+				}
+			}
+
+			resp.Body = io.NopCloser(bytes.NewReader(respBody))
+			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				Platform:           account.Platform,
+				AccountID:          account.ID,
+				AccountName:        account.Name,
+				UpstreamStatusCode: resp.StatusCode,
+				UpstreamRequestID:  firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
+				Kind:               "failover",
+				Message:            upstreamMsg,
+			})
+			s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+			if s.shouldFailoverUpstreamError(resp.StatusCode) {
+				return nil, &UpstreamFailoverError{
+					StatusCode:             resp.StatusCode,
+					ResponseBody:           respBody,
+					RetryableOnSameAccount: account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+				}
+			}
+			// Stream clients expect SSE error events, not a bare JSON body.
+			if reqStream && c != nil && c.Writer != nil && !c.Writer.Written() {
+				writeGrokResponsesStreamError(c, resp.StatusCode, upstreamMsg)
+				return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
+			}
+			return s.handleErrorResponse(ctx, resp, c, account, patchedBody)
+		}
+
+		// success path continues below with resp
+		defer func() { _ = resp.Body.Close() }()
+
+		s.updateGrokUsageSnapshot(ctx, account, xai.ParseQuotaHeaders(resp.Header, resp.StatusCode))
+
+		var usage *OpenAIUsage
+		var firstTokenMs *int
+		responseID := ""
+		if reqStream {
+			streamResult, streamErr := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
+			if streamErr != nil {
+				return nil, streamErr
+			}
+			usage = streamResult.usage
+			firstTokenMs = streamResult.firstTokenMs
+			responseID = strings.TrimSpace(streamResult.responseID)
+		} else {
+			nonStreamResult, nonStreamErr := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
+			if nonStreamErr != nil {
+				return nil, nonStreamErr
+			}
+			usage = nonStreamResult.usage
+			responseID = strings.TrimSpace(nonStreamResult.responseID)
+		}
+
+		if usage == nil {
+			usage = &OpenAIUsage{}
+		}
+		reasoningEffort := extractOpenAIReasoningEffortFromBody(patchedBody, originalModel)
+		return &OpenAIForwardResult{
+			RequestID:       firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
+			ResponseID:      responseID,
+			Usage:           *usage,
+			Model:           originalModel,
+			UpstreamModel:   upstreamModel,
+			ReasoningEffort: reasoningEffort,
+			Stream:          reqStream,
+			OpenAIWSMode:    false,
+			ResponseHeaders: resp.Header.Clone(),
+			Duration:        time.Since(startTime),
+			FirstTokenMs:    firstTokenMs,
+		}, nil
+	}
+}
+
+// ensureGrokReasoningEncryptedSummary guarantees every reasoning item that
+// carries encrypted_content also has a non-null summary array.
+//
+// Repro: second-turn Codex requests often echo encrypted_content without
+// summary; xAI returns the misleading error:
+// "Could not decode the compaction blob. Ensure it is unmodified from the compact response."
+// even though no compact ran. An empty summary list is accepted.
+func ensureGrokReasoningEncryptedSummary(body []byte) ([]byte, error) {
+	input := gjson.GetBytes(body, "input")
+	if !input.IsArray() {
+		return body, nil
+	}
+	out := body
+	var err error
+	for i, item := range input.Array() {
+		if strings.TrimSpace(item.Get("type").String()) != "reasoning" {
+			continue
+		}
+		enc := item.Get("encrypted_content")
+		// Only real (non-null) encrypted payloads need a summary companion.
+		if !enc.Exists() || enc.Type == gjson.Null || strings.TrimSpace(enc.String()) == "" {
+			continue
+		}
+		summary := item.Get("summary")
+		// Missing or JSON null → set []
+		if !summary.Exists() || summary.Type == gjson.Null {
+			path := fmt.Sprintf("input.%d.summary", i)
+			out, err = sjson.SetBytes(out, path, []any{})
+			if err != nil {
+				return nil, fmt.Errorf("ensure grok reasoning summary: %w", err)
 			}
 		}
-		return s.handleErrorResponse(ctx, resp, c, account, patchedBody)
 	}
+	return out, nil
+}
 
-	s.updateGrokUsageSnapshot(ctx, account, xai.ParseQuotaHeaders(resp.Header, resp.StatusCode))
-
-	var usage *OpenAIUsage
-	var firstTokenMs *int
-	responseID := ""
-	if reqStream {
-		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
-		if err != nil {
-			return nil, err
-		}
-		usage = streamResult.usage
-		firstTokenMs = streamResult.firstTokenMs
-		responseID = strings.TrimSpace(streamResult.responseID)
-	} else {
-		nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
-		if err != nil {
-			return nil, err
-		}
-		usage = nonStreamResult.usage
-		responseID = strings.TrimSpace(nonStreamResult.responseID)
+func isGrokEncryptedReasoningUpstreamError(message string) bool {
+	msg := strings.ToLower(strings.TrimSpace(message))
+	if msg == "" {
+		return false
 	}
-
-	if usage == nil {
-		usage = &OpenAIUsage{}
+	if strings.Contains(msg, "compaction blob") {
+		return true
 	}
-	reasoningEffort := extractOpenAIReasoningEffortFromBody(patchedBody, originalModel)
-	return &OpenAIForwardResult{
-		RequestID:       firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
-		ResponseID:      responseID,
-		Usage:           *usage,
-		Model:           originalModel,
-		UpstreamModel:   upstreamModel,
-		ReasoningEffort: reasoningEffort,
-		Stream:          reqStream,
-		OpenAIWSMode:    false,
-		ResponseHeaders: resp.Header.Clone(),
-		Duration:        time.Since(startTime),
-		FirstTokenMs:    firstTokenMs,
-	}, nil
+	if strings.Contains(msg, "encrypted_content") || strings.Contains(msg, "encrypted content") {
+		return true
+	}
+	if strings.Contains(msg, "invalid_encrypted_content") {
+		return true
+	}
+	return false
+}
+
+// dropGrokEncryptedReasoningFromBody removes encrypted_content from reasoning
+// input items. Returns nil when nothing changed.
+func dropGrokEncryptedReasoningFromBody(body []byte) ([]byte, error) {
+	var reqBody map[string]any
+	if err := json.Unmarshal(body, &reqBody); err != nil {
+		return nil, err
+	}
+	if !trimOpenAIEncryptedReasoningItems(reqBody) {
+		return nil, nil
+	}
+	return json.Marshal(reqBody)
+}
+
+// normalizeGrokUpstreamErrorBody rewrites xAI's string-form error payload into
+// the OpenAI-compatible shape clients (Codex Desktop) understand.
+//
+// xAI:    {"code":"invalid-argument","error":"Could not decode the compaction blob..."}
+// OpenAI: {"error":{"type":"invalid_request_error","message":"...","code":"invalid-argument"}}
+func normalizeGrokUpstreamErrorBody(body []byte) []byte {
+	if len(body) == 0 || !json.Valid(body) {
+		return body
+	}
+	// Already OpenAI-shaped.
+	if msg := strings.TrimSpace(gjson.GetBytes(body, "error.message").String()); msg != "" {
+		return body
+	}
+	errField := gjson.GetBytes(body, "error")
+	if !errField.Exists() || errField.Type != gjson.String {
+		return body
+	}
+	msg := strings.TrimSpace(errField.String())
+	if msg == "" {
+		return body
+	}
+	code := strings.TrimSpace(gjson.GetBytes(body, "code").String())
+	errType := "invalid_request_error"
+	if code == "" {
+		code = "upstream_error"
+		errType = "upstream_error"
+	}
+	payload := map[string]any{
+		"error": map[string]any{
+			"type":    errType,
+			"message": msg,
+			"code":    code,
+		},
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return body
+	}
+	return encoded
+}
+
+// writeGrokResponsesStreamError emits a single Responses SSE error event so
+// Codex Desktop can render the full message instead of a bare "{".
+func writeGrokResponsesStreamError(c *gin.Context, statusCode int, message string) {
+	if c == nil || c.Writer == nil {
+		return
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		message = http.StatusText(statusCode)
+	}
+	if message == "" {
+		message = "Upstream request failed"
+	}
+	errType := "invalid_request_error"
+	if statusCode >= 500 {
+		errType = "upstream_error"
+	}
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Status(statusCode)
+	payload, err := json.Marshal(map[string]any{
+		"type":            "error",
+		"sequence_number": 0,
+		"error": map[string]any{
+			"type":    errType,
+			"message": message,
+			"code":    errType,
+		},
+	})
+	if err != nil {
+		payload = []byte(`{"type":"error","error":{"type":"upstream_error","message":"Upstream request failed"}}`)
+	}
+	_, _ = c.Writer.Write([]byte("data: " + string(payload) + "\n\n"))
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func patchGrokResponsesBody(body []byte, upstreamModel string) ([]byte, error) {
 	if !json.Valid(body) {
 		return nil, fmt.Errorf("invalid json request body")
+	}
+	// Compaction-safe path: avoid full-document remashal / tool rewrite that can
+	// damage opaque blobs, but still drop Codex private input carriers that xAI
+	// cannot deserialize (ModelInput).
+	if hasGrokCompactionContext(body) {
+		return patchGrokResponsesBodyPreserveCompaction(body, upstreamModel)
 	}
 	out, err := sjson.SetBytes(body, "model", upstreamModel)
 	if err != nil {
@@ -191,7 +391,48 @@ func patchGrokResponsesBody(body []byte, upstreamModel string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Upstream ff639ba7 / PR #4242: Codex multi-turn can leave content:null on
+	// reasoning items; xAI rejects with 422 ModelInput deserialize failure.
+	out, err = sanitizeGrokReasoningNullContent(out)
+	if err != nil {
+		return nil, err
+	}
 	out, err = sanitizeGrokResponsesTools(out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// patchGrokResponsesBodyPreserveCompaction keeps opaque items mostly intact.
+// Still strips Codex-only additional_tools and reasoning content:null — those
+// are not part of the compact blob and cause independent xAI ModelInput 422s.
+func patchGrokResponsesBodyPreserveCompaction(body []byte, upstreamModel string) ([]byte, error) {
+	out := body
+	var err error
+	if strings.TrimSpace(gjson.GetBytes(out, "model").String()) != strings.TrimSpace(upstreamModel) {
+		out, err = sjson.SetBytes(out, "model", upstreamModel)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, unsupportedField := range []string{
+		"prompt_cache_retention",
+		"safety_identifier",
+		"previous_response_id",
+	} {
+		if gjson.GetBytes(out, unsupportedField).Exists() {
+			out, err = sjson.DeleteBytes(out, unsupportedField)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	out, err = sanitizeGrokResponsesInput(out)
+	if err != nil {
+		return nil, err
+	}
+	out, err = sanitizeGrokReasoningNullContent(out)
 	if err != nil {
 		return nil, err
 	}
@@ -330,6 +571,8 @@ func deleteJSONFields(value any, fields map[string]struct{}) bool {
 // rejects this carrier before inference with a ModelInput deserialization
 // error. Top-level supported tools remain available through the separate
 // sanitizeGrokResponsesTools path.
+//
+// Upstream: PR #3982 fix(grok): drop Codex additional_tools from Responses input.
 func sanitizeGrokResponsesInput(body []byte) ([]byte, error) {
 	if !bytes.Contains(body, []byte(`"additional_tools"`)) {
 		return body, nil
@@ -355,6 +598,39 @@ func sanitizeGrokResponsesInput(body []byte) ([]byte, error) {
 		return nil, err
 	}
 	return sjson.SetRawBytes(body, "input", encoded)
+}
+
+// sanitizeGrokReasoningNullContent removes explicit null fields from reasoning
+// history items. Codex multi-turn often emits content:null; xAI rejects it with
+// 422 ModelInput deserialize failure, while the same item is accepted when the
+// null field is omitted.
+//
+// Upstream: ff639ba7 / PR #4242 fix(grok): sanitize null reasoning content.
+// Also drop encrypted_content:null (Desktop can echo that after stream assembly).
+func sanitizeGrokReasoningNullContent(body []byte) ([]byte, error) {
+	input := gjson.GetBytes(body, "input")
+	if !input.Exists() || !input.IsArray() {
+		return body, nil
+	}
+
+	items := input.Array()
+	for i := len(items) - 1; i >= 0; i-- {
+		item := items[i]
+		if strings.TrimSpace(item.Get("type").String()) != "reasoning" {
+			continue
+		}
+		for _, field := range []string{"content", "encrypted_content"} {
+			fieldResult := item.Get(field)
+			if fieldResult.Exists() && fieldResult.Type == gjson.Null {
+				var err error
+				body, err = sjson.DeleteBytes(body, fmt.Sprintf("input.%d.%s", i, field))
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return body, nil
 }
 
 var grokResponsesSupportedToolTypes = map[string]struct{}{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -739,6 +740,63 @@ func TestOpenAIResponses_RejectsHTTPContinuationPreviousResponseID(t *testing.T)
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	require.Contains(t, w.Body.String(), "Responses WebSocket v2")
 	require.Contains(t, w.Body.String(), "previous_response_id")
+}
+
+func TestOpenAIResponses_GrokHTTPStripsPreviousResponseIDInsteadOfRejecting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name    string
+		model   string
+		group   *service.Group
+		wantNot string
+	}{
+		{
+			name:    "grok platform group",
+			model:   "grok-4.5",
+			group:   &service.Group{ID: 15, Platform: service.PlatformGrok},
+			wantNot: "Responses WebSocket v2",
+		},
+		{
+			name:    "openai group with grok model",
+			model:   "grok-4.5",
+			group:   &service.Group{ID: 3, Platform: service.PlatformOpenAI},
+			wantNot: "Responses WebSocket v2",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			body := fmt.Sprintf(
+				`{"model":%q,"stream":false,"previous_response_id":"resp_123456","input":[{"type":"input_text","text":"hello"}]}`,
+				tc.model,
+			)
+			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+
+			groupID := tc.group.ID
+			c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+				ID:      101,
+				GroupID: &groupID,
+				Group:   tc.group,
+				User:    &service.User{ID: 1},
+			})
+			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
+				UserID:      1,
+				Concurrency: 1,
+			})
+
+			h := newOpenAIHandlerForPreviousResponseIDValidation(t, nil)
+			h.Responses(c)
+
+			// Incomplete gateway service: request may fail later on account selection /
+			// billing, but must not die on the old HTTP previous_response_id gate.
+			require.NotContains(t, w.Body.String(), tc.wantNot)
+			require.NotEqual(t, http.StatusBadRequest, w.Code,
+				"Grok HTTP multi-turn must strip previous_response_id instead of 400; body=%s", w.Body.String())
+		})
+	}
 }
 
 func TestOpenAIResponses_FunctionCallOutputHTTPGuidanceDoesNotSuggestPreviousResponseReuse(t *testing.T) {
