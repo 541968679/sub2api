@@ -118,6 +118,7 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
+| 2026-07-15 | `v0.1.168` | `f38c7f0d5ffb8d4f4af21317a144de45f220ba28` | `ghcr.io/541968679/sub2api:latest` | `0.1.168` | running, healthy, `/health` OK |
 | 2026-07-15 | `v0.1.165` | `cddca2a7cf70e43d8b5bc0c4fa68aa43ad4cfbc8` | `ghcr.io/541968679/sub2api:latest` | `0.1.165` | running, healthy, `/health` OK |
 | 2026-06-03 | `v0.1.137` | `e385b9ac7d7e840658cbcb4f7f9f8f11b1954b81` | `ghcr.io/541968679/sub2api:latest` | `0.1.137` | running, healthy, `/health` OK |
 

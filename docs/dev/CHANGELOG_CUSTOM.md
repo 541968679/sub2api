@@ -1,4 +1,21 @@
-﻿## 2026-07-15 - fix: Desktop Grok missing when ChatGPT models catalog times out
+﻿## 2026-07-15 - deploy: production Sub2API `v0.1.168`
+
+### What
+Deployed Grok Codex multi-turn / models-fallback release to production via GHCR pull/up (no server-side docker build).
+
+### Verify
+- Image: `ghcr.io/541968679/sub2api:latest`
+- Version label: `0.1.168`
+- Revision: `f38c7f0d5ffb8d4f4af21317a144de45f220ba28`
+- Container: running, healthy
+- `GET /health`: `{"status":"ok"}`
+
+### Notes
+- Tag `v0.1.168` Release Actions succeeded before deploy.
+- Desktop picker still may hide custom Grok under Statsig whitelist; runtime with `model=grok-4.5` (UI 自定义) was verified locally before ship.
+
+---
+## 2026-07-15 - fix: Desktop Grok missing when ChatGPT models catalog times out
 
 ### Root cause (not xhigh filtering)
 Codex Desktop uses headers that force Sub2API onto the Codex **manifest** path
