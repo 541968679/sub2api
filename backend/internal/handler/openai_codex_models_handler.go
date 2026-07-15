@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -14,8 +15,8 @@ import (
 //
 // When the OpenAI group has bound Grok accounts with OpenAI-group access
 // enabled, Grok text models are injected into the manifest so Codex /model
-// picker can see them. Plain GET /v1/models (no client_version) uses a
-// separate discovery path in Gateway.Models.
+// picker can see them. Non-Codex clients without client_version still use
+// Gateway.Models (OpenAI list shape).
 func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey.Group == nil {
@@ -32,7 +33,12 @@ func (h *OpenAIGatewayHandler) CodexModels(c *gin.Context) {
 		h.errorResponse(c, http.StatusServiceUnavailable, "upstream_error", "No available OpenAI accounts")
 		return
 	}
-	manifest, err := h.gatewayService.FetchCodexModelsManifest(c.Request.Context(), account, c.Query("client_version"), c.GetHeader("If-None-Match"))
+	// CLI uses ?client_version=; Desktop often only sends Version header.
+	clientVersion := strings.TrimSpace(c.Query("client_version"))
+	if clientVersion == "" {
+		clientVersion = strings.TrimSpace(c.GetHeader("Version"))
+	}
+	manifest, err := h.gatewayService.FetchCodexModelsManifest(c.Request.Context(), account, clientVersion, c.GetHeader("If-None-Match"))
 	if err != nil {
 		h.errorResponse(c, infraerrors.Code(err), "upstream_error", infraerrors.Message(err))
 		return

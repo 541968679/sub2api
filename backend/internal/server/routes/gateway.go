@@ -2,9 +2,11 @@ package routes
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -338,8 +340,27 @@ func RegisterGatewayRoutes(
 
 }
 
+// shouldServeCodexModelsManifest decides whether GET /v1/models must return the
+// Codex catalog shape ({"models":[{"slug":...}]}) instead of the OpenAI list
+// shape ({"object":"list","data":[{"id":...}]}).
+//
+// CLI historically sends ?client_version=... . Desktop / VS Code / App often
+// omit that query param but still send Codex User-Agent / Originator headers;
+// without this branch they only get the OpenAI list and hide custom Grok slugs.
 func shouldServeCodexModelsManifest(c *gin.Context) bool {
-	return getGroupPlatform(c) == service.PlatformOpenAI && c.Query("client_version") != ""
+	if getGroupPlatform(c) != service.PlatformOpenAI {
+		return false
+	}
+	if strings.TrimSpace(c.Query("client_version")) != "" {
+		return true
+	}
+	if c == nil || c.Request == nil {
+		return false
+	}
+	return openai.IsCodexOfficialClientByHeaders(
+		c.GetHeader("User-Agent"),
+		c.GetHeader("Originator"),
+	)
 }
 
 // getGroupPlatform extracts the group platform from the API Key stored in context.

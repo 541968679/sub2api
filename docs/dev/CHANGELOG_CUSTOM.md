@@ -44,6 +44,20 @@
 - Fixed `AccountUsageCell` typecheck: add `subscription_tier` fields; drop unsupported
   `getUsage(..., force)` third argument for this fork.
 
+## [2026-07-15] fix: Codex Desktop gets Grok models via manifest routing
+
+**Affected files**: `server/routes/gateway.go`, `openai_codex_models_handler.go`,
+tests, this changelog.
+
+**Why**: CLI sees Grok because it calls `GET /v1/models?client_version=...`
+(Codex manifest + inject). Desktop often omits `client_version` and only sends
+Codex UA/Originator, so it hit the plain OpenAI list shape and never showed
+Grok slugs in the Desktop picker.
+
+**What changed**: Serve Codex manifest when OpenAI-group request is identified
+as an official Codex client (UA/Originator), not only when `client_version` is
+set; fall back to `Version` header for upstream catalog version.
+
 ## [2026-07-15] fix: Grok reasoning effort clamps xhigh→high; Codex catalog drops xhigh
 
 **Affected files**: `openai_gateway_grok.go`, `openai_codex_models_grok_inject.go`,
