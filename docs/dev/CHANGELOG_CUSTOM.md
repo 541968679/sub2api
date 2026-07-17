@@ -37,6 +37,27 @@ to the Anthropic model list.
   `TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails`.
 
 ---
+## 2026-07-17 - deploy: production Sub2API `v0.1.169`
+
+### What
+Deployed the Grok-compatible API-key upstream fix to production via GHCR pull/up
+(no server-side docker build).
+
+### Verify
+- Release workflow: `29588643287` succeeded for tag `v0.1.169`.
+- GHCR manifests: `ghcr.io/541968679/sub2api:0.1.169` and `:latest` exist.
+- Production Compose: `sub2api.image` resolves to `ghcr.io/541968679/sub2api:latest`.
+- Image: `ghcr.io/541968679/sub2api:latest`
+- Version label: `0.1.169`
+- Revision: `e9f6938331283c2c0d5ea07f82bc46bb9025f0c7`
+- Container: running, healthy
+- `GET /health`: `{"status":"ok"}`
+
+### Notes
+- Restarted only the `sub2api` service with `docker compose up -d --no-deps sub2api`.
+- The compose run reported an existing orphan `a2-proxy` container; no cleanup was performed.
+
+---
 ## 2026-07-15 - deploy: production Sub2API `v0.1.168`
 
 ### What
