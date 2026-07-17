@@ -151,6 +151,18 @@ func TestValidateXAIURLsRejectArbitraryHostsByDefault(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidateCompatibleBaseURLAllowsPublicCompatibleHosts(t *testing.T) {
+	baseURL, err := ValidateCompatibleBaseURL("https://api.aisenyu.com/v1/")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.aisenyu.com/v1", baseURL)
+
+	_, err = ValidateCompatibleBaseURL("http://api.aisenyu.com/v1")
+	require.Error(t, err)
+
+	_, err = ValidateCompatibleBaseURL("https://127.0.0.1:18081/v1")
+	require.Error(t, err)
+}
+
 func TestValidateXAIURLsAllowUnsafeDevOverride(t *testing.T) {
 	t.Setenv(EnvAllowUnsafeURLOverrides, "true")
 

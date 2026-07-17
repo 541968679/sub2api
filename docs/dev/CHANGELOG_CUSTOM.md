@@ -1,4 +1,43 @@
-﻿## 2026-07-15 - deploy: production Sub2API `v0.1.168`
+﻿## 2026-07-17 - fix: Allow Grok-compatible API-key upstreams and model tests
+
+### What
+Fixed Grok API-key accounts configured with OpenAI-compatible public upstreams
+such as `https://api.aisenyu.com/v1`, and restored Grok models in the admin
+account model-test list.
+
+### Why
+Grok API-key traffic was sharing the official OAuth/CLI base-URL allowlist, so
+compatible public hosts were rejected as `host is not allowed`. The admin
+available-models endpoint also had no Grok branch, so Grok accounts fell through
+to the Anthropic model list.
+
+### Fix
+- Keep official Grok OAuth/CLI traffic on the strict xAI/Grok host allowlist.
+- Allow Grok API-key accounts to use public HTTPS compatible base URLs while
+  still rejecting insecure/private hosts.
+- Route Grok API-key account tests through `/v1/chat/completions`, matching
+  OpenAI-compatible providers; keep OAuth tests on `/v1/responses`.
+- Return xAI/Grok default models plus account mapping keys for Grok account
+  model tests.
+
+### Files
+- `backend/internal/pkg/xai/oauth.go` (+tests)
+- `backend/internal/service/openai_gateway_grok.go` (+tests)
+- `backend/internal/service/account_test_service.go`
+- `backend/internal/service/openai_gateway_chat_completions_raw.go`
+- `backend/internal/service/grok_media.go`
+- `backend/internal/handler/admin/account_handler.go` (+tests)
+
+### Verify
+- `go test -tags=unit ./internal/pkg/xai -count=1`
+- `go test -tags=unit ./internal/handler/admin -run 'TestAccountHandlerGetAvailableModels_GrokReturnsGrokModels' -count=1 -v`
+- `go test -tags=unit ./internal/service -run 'Test(BuildGrokResponsesRequest|BuildGrokMediaEndpointURLForAPIKey|AccountTestServiceGrokAPIKey|ForwardAsChatCompletionsForGrok|ForwardGrokResponsesAPIKey)' -count=1 -v`
+- Broader `go test -tags=unit ./internal/pkg/xai ./internal/handler/admin ./internal/service -count=1` still fails in unrelated existing service tests:
+  `TestOpenAIHandleErrorResponse_NoRuleKeepsDefault` and
+  `TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails`.
+
+---
+## 2026-07-15 - deploy: production Sub2API `v0.1.168`
 
 ### What
 Deployed Grok Codex multi-turn / models-fallback release to production via GHCR pull/up (no server-side docker build).

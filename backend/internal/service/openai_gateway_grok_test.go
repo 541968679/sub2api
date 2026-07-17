@@ -513,6 +513,21 @@ func TestBuildGrokResponsesRequestUsesAccountBaseURLAndBearerToken(t *testing.T)
 	require.Equal(t, `{"model":"grok-4.3"}`, strings.TrimSpace(string(data)))
 }
 
+func TestBuildGrokResponsesRequestAPIKeyAllowsCompatiblePublicBaseURL(t *testing.T) {
+	account := &Account{
+		Platform: PlatformGrok,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url": "https://api.aisenyu.com/v1/",
+		},
+	}
+
+	req, err := buildGrokResponsesRequest(context.Background(), nil, account, []byte(`{"model":"grok-4.5"}`), "api-key", "")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.aisenyu.com/v1/responses", req.URL.String())
+	require.Equal(t, "Bearer api-key", req.Header.Get("Authorization"))
+}
+
 func TestBuildGrokResponsesRequestRejectsUnsafeAccountBaseURL(t *testing.T) {
 	t.Parallel()
 
@@ -613,6 +628,24 @@ func TestNormalizeGrokMediaModelForEndpoint(t *testing.T) {
 			require.Equal(t, tt.want, normalizeGrokMediaModelForEndpoint(tt.endpoint, tt.model, tt.hasInputImage))
 		})
 	}
+}
+
+func TestBuildGrokMediaEndpointURLForAPIKeyAllowsCompatiblePublicBaseURL(t *testing.T) {
+	account := &Account{
+		Platform: PlatformGrok,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url": "https://api.aisenyu.com/v1/",
+		},
+	}
+
+	imageURL, err := buildGrokMediaEndpointURLForAccount(account, GrokMediaEndpointImagesGenerations, "")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.aisenyu.com/v1/images/generations", imageURL)
+
+	videoURL, err := buildGrokMediaEndpointURLForAccount(account, GrokMediaEndpointVideoStatus, "request-123")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.aisenyu.com/v1/videos/request-123", videoURL)
 }
 
 func TestForwardGrokMediaImagesGenerationNormalizesImagineAlias(t *testing.T) {
@@ -1105,7 +1138,7 @@ func TestForwardGrokResponsesAPIKeyUsesXAIResponses(t *testing.T) {
 	require.Equal(t, 1, result.Usage.OutputTokens)
 }
 
-func TestAccountTestServiceGrokAPIKeyUsesXAIResponses(t *testing.T) {
+func TestAccountTestServiceGrokAPIKeyUsesCompatibleChatCompletions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	account := &Account{
@@ -1116,15 +1149,15 @@ func TestAccountTestServiceGrokAPIKeyUsesXAIResponses(t *testing.T) {
 		Concurrency: 2,
 		Credentials: map[string]any{
 			"api_key":  "xai-test-key",
-			"base_url": xai.DefaultBaseURL,
+			"base_url": "https://api.aisenyu.com/v1",
 		},
 	}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body: io.NopCloser(strings.NewReader(
-			"data: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\n" +
-				"data: {\"type\":\"response.completed\"}\n\n",
+			"data: {\"id\":\"chatcmpl_test\",\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n" +
+				"data: {\"id\":\"chatcmpl_test\",\"choices\":[{\"finish_reason\":\"stop\",\"delta\":{}}]}\n\n",
 		)),
 	}}
 	svc := &AccountTestService{httpUpstream: upstream}
@@ -1134,8 +1167,11 @@ func TestAccountTestServiceGrokAPIKeyUsesXAIResponses(t *testing.T) {
 
 	err := svc.testGrokAccountConnection(c, account, "grok")
 	require.NoError(t, err)
-	require.Equal(t, xai.DefaultBaseURL+"/responses", upstream.lastReq.URL.String())
+	require.Equal(t, "https://api.aisenyu.com/v1/chat/completions", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer xai-test-key", upstream.lastReq.Header.Get("Authorization"))
+	require.Equal(t, "grok-4.5", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "hi", gjson.GetBytes(upstream.lastBody, "messages.0.content").String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "stream_options.include_usage").Bool())
 	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
 }
 
@@ -1204,6 +1240,51 @@ func TestForwardAsChatCompletionsForGrokStreamingUsesRawXAIChatCompletions(t *te
 	require.Equal(t, 1, result.Usage.CacheReadInputTokens)
 	require.Contains(t, recorder.Body.String(), "data: [DONE]")
 	require.NotNil(t, repo.updates[53][grokQuotaSnapshotExtraKey])
+}
+
+func TestForwardAsChatCompletionsForGrokAPIKeyUsesCompatibleBaseURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	body := []byte(`{"model":"grok-4.5","messages":[{"role":"user","content":"hi"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	account := &Account{
+		ID:          56,
+		Name:        "grok-api-key",
+		Platform:    PlatformGrok,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "xai-test-key",
+			"base_url": "https://api.aisenyu.com/v1",
+		},
+	}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+			"X-Request-Id": []string{"chat-compat-req"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"id":"chatcmpl_grok","object":"chat.completion","model":"grok-4.5","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":6,"completion_tokens":4,"total_tokens":10}}`)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.aisenyu.com/v1/chat/completions", upstream.lastReq.URL.String())
+	require.Equal(t, "Bearer xai-test-key", upstream.lastReq.Header.Get("Authorization"))
+	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Accept"))
+	require.Equal(t, "grok-4.5", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "ok", gjson.Get(recorder.Body.String(), "choices.0.message.content").String())
+	require.Equal(t, grokChatRawEndpoint, result.UpstreamEndpoint)
+	require.Equal(t, 6, result.Usage.InputTokens)
+	require.Equal(t, 4, result.Usage.OutputTokens)
 }
 
 func TestForwardAsChatCompletionsForGrokComposerBridgesImageInput(t *testing.T) {

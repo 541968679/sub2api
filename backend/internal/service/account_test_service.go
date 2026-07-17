@@ -22,7 +22,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/geminicli"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -242,7 +241,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Grok account type: %s", account.Type))
 	}
 
-	apiURL, err := xai.BuildResponsesURL(account.GetGrokBaseURL())
+	apiURL, useChatCompletions, err := buildGrokAccountTestURL(account)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid Grok base URL: %s", err.Error()))
 	}
@@ -253,11 +252,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payloadBytes, err := json.Marshal(map[string]any{
-		"model":  testModelID,
-		"input":  "hi",
-		"stream": true,
-	})
+	payloadBytes, err := buildGrokAccountTestPayload(testModelID, useChatCompletions)
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create Grok test payload")
 	}
@@ -279,7 +274,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 	}
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API request failed: %s", err.Error()))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok upstream request failed: %s", err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -300,9 +295,44 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API returned %d: %s", resp.StatusCode, string(body)))
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok upstream returned %d: %s", resp.StatusCode, string(body)))
+	}
+	if useChatCompletions {
+		return s.processOpenAIChatCompletionsStream(c, resp.Body)
 	}
 	return s.processOpenAIStream(c, resp.Body)
+}
+
+func buildGrokAccountTestURL(account *Account) (string, bool, error) {
+	if account != nil && account.Type == AccountTypeAPIKey {
+		targetURL, err := buildGrokChatCompletionsURLForAccount(account)
+		return targetURL, true, err
+	}
+	targetURL, err := buildGrokResponsesURLForAccount(account)
+	return targetURL, false, err
+}
+
+func buildGrokAccountTestPayload(modelID string, chatCompletions bool) ([]byte, error) {
+	if chatCompletions {
+		return json.Marshal(map[string]any{
+			"model": modelID,
+			"messages": []map[string]any{
+				{
+					"role":    "user",
+					"content": "hi",
+				},
+			},
+			"stream": true,
+			"stream_options": map[string]any{
+				"include_usage": true,
+			},
+		})
+	}
+	return json.Marshal(map[string]any{
+		"model":  modelID,
+		"input":  "hi",
+		"stream": true,
+	})
 }
 
 // testClaudeAccountConnection tests an Anthropic Claude account's connection

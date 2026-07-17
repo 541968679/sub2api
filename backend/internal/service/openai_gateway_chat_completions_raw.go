@@ -133,7 +133,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	// 5. Build upstream request
 	var targetURL string
 	if account.Platform == PlatformGrok {
-		targetURL, err = xai.BuildChatCompletionsURL(account.GetGrokBaseURL())
+		targetURL, err = buildGrokChatCompletionsURLForAccount(account)
 	} else {
 		baseURL := account.GetOpenAIBaseURL()
 		if baseURL == "" {

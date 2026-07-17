@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -1088,7 +1089,7 @@ func addGrokOpenAIUsage(dst *OpenAIUsage, usage OpenAIUsage) {
 }
 
 func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, cacheIdentity string) (*http.Request, error) {
-	targetURL, err := xai.BuildResponsesURL(account.GetGrokBaseURL())
+	targetURL, err := buildGrokResponsesURLForAccount(account)
 	if err != nil {
 		return nil, err
 	}
@@ -1107,6 +1108,71 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 		}
 	}
 	return req, nil
+}
+
+func buildGrokResponsesURLForAccount(account *Account) (string, error) {
+	return buildGrokEndpointURLForAccount(account, "/v1/responses")
+}
+
+func buildGrokChatCompletionsURLForAccount(account *Account) (string, error) {
+	return buildGrokEndpointURLForAccount(account, "/v1/chat/completions")
+}
+
+func buildGrokMediaEndpointURLForAccount(account *Account, endpoint GrokMediaEndpoint, requestID string) (string, error) {
+	if account == nil {
+		return "", fmt.Errorf("grok account is required")
+	}
+	if account.Type == AccountTypeAPIKey {
+		switch endpoint {
+		case GrokMediaEndpointImagesGenerations:
+			return buildGrokEndpointURLForAccount(account, "/v1/images/generations")
+		case GrokMediaEndpointImagesEdits:
+			return buildGrokEndpointURLForAccount(account, "/v1/images/edits")
+		case GrokMediaEndpointVideosGenerations:
+			return buildGrokEndpointURLForAccount(account, "/v1/videos/generations")
+		case GrokMediaEndpointVideoStatus:
+			requestID = strings.TrimSpace(requestID)
+			if requestID == "" {
+				return "", fmt.Errorf("request id is required")
+			}
+			return buildGrokEndpointURLForAccount(account, "/v1/videos/"+url.PathEscape(requestID))
+		default:
+			return "", fmt.Errorf("unsupported grok media endpoint: %s", endpoint)
+		}
+	}
+	return endpoint.upstreamURL(account.GetGrokBaseURL(), requestID)
+}
+
+func buildGrokEndpointURLForAccount(account *Account, endpoint string) (string, error) {
+	if account == nil {
+		return "", fmt.Errorf("grok account is required")
+	}
+	baseURL := account.GetGrokBaseURL()
+	if account.Type != AccountTypeAPIKey {
+		return buildOfficialGrokEndpointURL(baseURL, endpoint)
+	}
+	normalizedBaseURL, err := xai.ValidateCompatibleBaseURL(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid base url: %w", err)
+	}
+	return buildOpenAIEndpointURL(normalizedBaseURL, endpoint), nil
+}
+
+func buildOfficialGrokEndpointURL(baseURL string, endpoint string) (string, error) {
+	switch endpoint {
+	case "/v1/responses":
+		return xai.BuildResponsesURL(baseURL)
+	case "/v1/chat/completions":
+		return xai.BuildChatCompletionsURL(baseURL)
+	case "/v1/images/generations":
+		return xai.BuildImagesGenerationsURL(baseURL)
+	case "/v1/images/edits":
+		return xai.BuildImagesEditsURL(baseURL)
+	case "/v1/videos/generations":
+		return xai.BuildVideosGenerationsURL(baseURL)
+	default:
+		return "", fmt.Errorf("unsupported official grok endpoint: %s", endpoint)
+	}
 }
 
 // applyGrokCLIHeaders identifies subscription traffic as a supported Grok CLI

@@ -243,6 +243,37 @@ func TestAccountHandlerGetAvailableModels_AntigravityUsesEffectiveMappingKeys(t 
 	require.False(t, ids["claude-opus-4-8"], "models absent from the effective mapping are not schedulable")
 }
 
+func TestAccountHandlerGetAvailableModels_GrokReturnsGrokModels(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       48,
+			Name:     "grok-oauth",
+			Platform: service.PlatformGrok,
+			Type:     service.AccountTypeOAuth,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"grok-custom": "grok-4.5",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/48/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	ids := availableModelIDs(t, rec)
+	require.True(t, ids["grok-4.5"])
+	require.True(t, ids["grok-4.3"])
+	require.True(t, ids["grok-build-0.1"])
+	require.True(t, ids["grok-custom"], "account mapping key should be listed")
+	require.False(t, ids["claude-opus-4-8"], "Grok accounts must not fall through to Anthropic models")
+}
+
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {
 	svc := &availableModelsAdminService{
 		stubAdminService: newStubAdminService(),

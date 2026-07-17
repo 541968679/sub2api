@@ -26,6 +26,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -2365,6 +2366,19 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
+	// Handle Grok accounts
+	if account.IsGrok() {
+		mapping := account.GetModelMapping()
+		models := xai.DefaultModels()
+		seen := make(map[string]bool, len(models)+len(mapping))
+		for _, dm := range models {
+			seen[dm.ID] = true
+		}
+		models = appendGrokMappingKeys(models, seen, mapping)
+		response.Success(c, models)
+		return
+	}
+
 	// Handle Antigravity accounts: return Claude + Gemini models
 	if account.Platform == service.PlatformAntigravity {
 		// Passthrough 账号（Kiro 反代）走 Anthropic API Key 模型列表逻辑
@@ -2476,6 +2490,32 @@ func appendGeminiMappingKeys(models []geminicli.Model, seen map[string]bool, map
 				Type:        "model",
 				DisplayName: requestedModel,
 				CreatedAt:   "",
+			})
+		}
+	}
+	return models
+}
+
+func appendGrokMappingKeys(models []xai.Model, seen map[string]bool, mapping map[string]string) []xai.Model {
+	for _, requestedModel := range sortedMappingKeys(mapping) {
+		if seen[requestedModel] {
+			continue
+		}
+		seen[requestedModel] = true
+		var found bool
+		for _, dm := range xai.DefaultModels() {
+			if dm.ID == requestedModel {
+				models = append(models, dm)
+				found = true
+				break
+			}
+		}
+		if !found {
+			models = append(models, xai.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				OwnedBy:     "xai",
+				DisplayName: requestedModel,
 			})
 		}
 	}
