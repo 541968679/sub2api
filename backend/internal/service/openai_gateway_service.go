@@ -3915,6 +3915,21 @@ func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool 
 	return true
 }
 
+// newOpenAIEmptyVisibleOutputError marks empty-completed Anthropic conversions
+// so the handler does not multi-account failover (same request fails the same way).
+func (s *OpenAIGatewayService) newOpenAIEmptyVisibleOutputError(
+	c *gin.Context,
+	account *Account,
+	upstreamRequestID string,
+	message string,
+) *UpstreamFailoverError {
+	err := s.newOpenAIStreamFailoverError(c, account, false, upstreamRequestID, nil, message)
+	if err != nil {
+		err.NoAccountFailover = true
+	}
+	return err
+}
+
 func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	c *gin.Context,
 	account *Account,

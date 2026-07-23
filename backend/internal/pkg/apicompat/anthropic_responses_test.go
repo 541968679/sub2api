@@ -1502,6 +1502,105 @@ func TestAnthropicToResponses_NoOutputConfig(t *testing.T) {
 	assert.Equal(t, "medium", resp.Reasoning.Effort)
 }
 
+func TestAnthropicToResponses_HaikuDefaultsToLowEffort(t *testing.T) {
+	// Claude Code Haiku background tasks → low effort by default so GPT-5.*
+	// reasoning does not consume the entire max_output_tokens budget.
+	for _, model := range []string{
+		"claude-haiku-4-5",
+		"claude-haiku-4-5-20251001",
+		"Claude-Haiku-4-5",
+	} {
+		t.Run(model, func(t *testing.T) {
+			req := &AnthropicRequest{
+				Model:     model,
+				MaxTokens: 256,
+				Messages:  []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hello"`)}},
+			}
+			resp, err := AnthropicToResponses(req)
+			require.NoError(t, err)
+			require.NotNil(t, resp.Reasoning)
+			assert.Equal(t, "low", resp.Reasoning.Effort)
+		})
+	}
+}
+
+func TestAnthropicToResponses_HaikuOutputConfigOverridesDefault(t *testing.T) {
+	req := &AnthropicRequest{
+		Model:        "claude-haiku-4-5-20251001",
+		MaxTokens:    256,
+		Messages:     []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hello"`)}},
+		OutputConfig: &AnthropicOutputConfig{Effort: "high"},
+	}
+	resp, err := AnthropicToResponses(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Reasoning)
+	assert.Equal(t, "high", resp.Reasoning.Effort)
+}
+
+func TestApplyClaudeHaikuBridgeUpstreamAdjustments_RaisesFloorAndStripsSampling(t *testing.T) {
+	temp := 0.7
+	topP := 0.9
+	maxOut := 256
+	req := &ResponsesRequest{
+		Model:           "gpt-5.6-terra",
+		MaxOutputTokens: &maxOut,
+		Temperature:     &temp,
+		TopP:            &topP,
+		Reasoning:       &ResponsesReasoning{Effort: "low", Summary: "auto"},
+	}
+
+	ApplyClaudeHaikuBridgeUpstreamAdjustments(req, "claude-haiku-4-5-20251001")
+
+	require.NotNil(t, req.MaxOutputTokens)
+	assert.Equal(t, minReasoningMaxOutputTokens, *req.MaxOutputTokens)
+	assert.Nil(t, req.Temperature)
+	assert.Nil(t, req.TopP)
+	require.NotNil(t, req.Reasoning)
+	assert.Equal(t, "low", req.Reasoning.Effort)
+}
+
+func TestApplyClaudeHaikuBridgeUpstreamAdjustments_DoesNotLowerExistingBudget(t *testing.T) {
+	maxOut := 4096
+	req := &ResponsesRequest{
+		Model:           "gpt-5.4",
+		MaxOutputTokens: &maxOut,
+		Reasoning:       &ResponsesReasoning{Effort: "medium", Summary: "auto"},
+	}
+
+	ApplyClaudeHaikuBridgeUpstreamAdjustments(req, "claude-haiku-4-5")
+
+	require.NotNil(t, req.MaxOutputTokens)
+	assert.Equal(t, 4096, *req.MaxOutputTokens)
+	// Client/default effort already set — do not force-overwrite medium.
+	assert.Equal(t, "medium", req.Reasoning.Effort)
+}
+
+func TestApplyClaudeHaikuBridgeUpstreamAdjustments_SkipsNonHaikuOrNonReasoning(t *testing.T) {
+	maxOut := 256
+	temp := 0.5
+
+	// Non-Haiku Claude model mapped to GPT-5.*: only strip sampling.
+	req1 := &ResponsesRequest{
+		Model:           "gpt-5.4",
+		MaxOutputTokens: &maxOut,
+		Temperature:     &temp,
+	}
+	ApplyClaudeHaikuBridgeUpstreamAdjustments(req1, "claude-sonnet-4-5")
+	assert.Equal(t, 256, *req1.MaxOutputTokens)
+	assert.Nil(t, req1.Temperature)
+
+	// Haiku mapped to non-reasoning model: no floor raise.
+	maxOut2 := 256
+	req2 := &ResponsesRequest{
+		Model:           "gpt-4o",
+		MaxOutputTokens: &maxOut2,
+		Temperature:     &temp,
+	}
+	ApplyClaudeHaikuBridgeUpstreamAdjustments(req2, "claude-haiku-4-5")
+	assert.Equal(t, 256, *req2.MaxOutputTokens)
+	assert.NotNil(t, req2.Temperature)
+}
+
 func TestAnthropicToResponses_OutputConfigWithoutEffort(t *testing.T) {
 	// output_config present but effort empty (e.g. only format set) → default medium.
 	req := &AnthropicRequest{

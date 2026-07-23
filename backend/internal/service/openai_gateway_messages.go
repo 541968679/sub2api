@@ -396,6 +396,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	}
 
 	responsesReq.Model = upstreamModel
+	// Haiku → GPT-5.* bridge: low-effort default already applied at convert time;
+	// raise max_output_tokens floor and strip sampling params for reasoning models.
+	apicompat.ApplyClaudeHaikuBridgeUpstreamAdjustments(responsesReq, originalModel)
 	if previousResponseID != "" {
 		responsesReq.PreviousResponseID = previousResponseID
 		trimAnthropicCompatResponsesInputToLatestTurn(responsesReq)
@@ -915,7 +918,9 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 				"invalid_request_error",
 				"Upstream response reached the maximum output length before producing assistant content; reduce the conversation context or output budget and try again.")
 		}
-		return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
+		// Empty completed responses are request-shaped (common for Haiku→reasoning
+		// bridge with large context / small output budget). Do not multi-account failover.
+		return result, s.newOpenAIEmptyVisibleOutputError(c, account, requestID,
 			"Upstream messages response completed without assistant content or tool output")
 	}
 	if bridgeMode {
@@ -1574,7 +1579,8 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 					"invalid_request_error",
 					"Upstream response reached the maximum output length before producing assistant content; reduce the conversation context or output budget and try again.")
 			}
-			return result, s.newOpenAIStreamFailoverError(c, account, false, requestID, nil,
+			// Empty completed streams are request-shaped; skip multi-account failover.
+			return result, s.newOpenAIEmptyVisibleOutputError(c, account, requestID,
 				"Upstream messages stream completed without assistant content or tool output")
 		}
 		flushPendingClientSSE()

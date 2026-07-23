@@ -191,6 +191,20 @@ func TestOpenAIAnthropicClientFailoverErrorStopsAccountSwitching(t *testing.T) {
 	}))
 }
 
+func TestOpenAIEmptyVisibleOutput_NoAccountFailoverStopsAccountSwitching(t *testing.T) {
+	// Mirrors handler loop: NoAccountFailover short-circuits multi-account switch
+	// even when the error is not classified as a client invalid-request error.
+	h := &OpenAIGatewayHandler{}
+	err := &service.UpstreamFailoverError{
+		StatusCode:        http.StatusBadGateway,
+		NoAccountFailover: true,
+		ResponseBody:      []byte(`{"type":"error","error":{"type":"api_error","message":"Upstream messages stream completed without assistant content or tool output"}}`),
+	}
+	require.False(t, h.isAnthropicClientFailoverError(err))
+	// The handler condition is: clientFailover || NoAccountFailover
+	require.True(t, h.isAnthropicClientFailoverError(err) || err.NoAccountFailover)
+}
+
 func TestOpenAIAnthropicStreamingAwareError_UsesSSEAfterCompactKeepalive(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

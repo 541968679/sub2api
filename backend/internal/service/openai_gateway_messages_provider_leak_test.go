@@ -80,6 +80,18 @@ func TestBridgeStreamFailoverDefaultMessageIsProviderNeutral(t *testing.T) {
 	requireNoProviderBrand(t, "client-error default message", string(clientErr.ResponseBody))
 }
 
+// Empty completed Anthropic conversions must not multi-account failover:
+// the failure is request-shaped (same on every account).
+func TestEmptyVisibleOutputError_NoAccountFailover(t *testing.T) {
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
+	_, c, _, _, account := messagesTestStream(t)
+	err := svc.newOpenAIEmptyVisibleOutputError(c, account, "rid",
+		"Upstream messages stream completed without assistant content or tool output")
+	require.NotNil(t, err)
+	require.True(t, err.NoAccountFailover)
+	require.NotEmpty(t, err.ResponseBody)
+}
+
 // compact 恢复的 context-length sentinel 渲染文本不得点名 OpenAI。
 func TestBridgeCompactContextLengthErrorIsProviderNeutral(t *testing.T) {
 	err := &openAICompactContextLengthError{statusCode: 400, message: "This model's maximum context length is 272000 tokens"}

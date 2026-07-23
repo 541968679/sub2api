@@ -1068,7 +1068,15 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					h.handleAnthropicFailoverExhausted(c, failoverErr, true)
 					return
 				}
-				if h.isAnthropicClientFailoverError(failoverErr) {
+				if h.isAnthropicClientFailoverError(failoverErr) || failoverErr.NoAccountFailover {
+					// Request-shaped failures (invalid body / empty completed output):
+					// do not score the account or burn the whole pool.
+					if failoverErr.NoAccountFailover {
+						reqLog.Warn("openai_messages.empty_visible_output_no_account_failover",
+							zap.Int64("account_id", account.ID),
+							zap.Int("upstream_status", failoverErr.StatusCode),
+						)
+					}
 					h.handleAnthropicFailoverExhausted(c, failoverErr, streamStarted)
 					return
 				}

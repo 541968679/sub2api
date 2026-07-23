@@ -56,10 +56,16 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 	}
 
 	// Determine reasoning effort: only output_config.effort controls the
-	// level; thinking.type is ignored. Default follows Codex CLI / airgate's
-	// Anthropic bridge shape, which uses medium when unset.
+	// level; thinking.type is ignored.
+	// Default: medium (Codex CLI / airgate Anthropic bridge shape).
+	// Haiku-class Claude requests are usually short background tasks from
+	// Claude Code; default them to low so reasoning does not eat the entire
+	// output budget when mapped onto GPT-5.* reasoning models.
 	// Anthropic levels map 1:1 to OpenAI: low→low, medium→medium, high→high, max→xhigh.
 	effort := "medium"
+	if isClaudeHaikuModel(req.Model) {
+		effort = "low"
+	}
 	if req.OutputConfig != nil && req.OutputConfig.Effort != "" {
 		effort = req.OutputConfig.Effort
 	}
@@ -449,7 +455,49 @@ func boolPtr(v bool) *bool {
 // All gpt-5.x models are reasoning-only; the Responses API returns
 // "Unsupported parameter: temperature" if these fields are present.
 func isReasoningModel(model string) bool {
-	return strings.HasPrefix(model, "gpt-5")
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "gpt-5")
+}
+
+// isClaudeHaikuModel reports Claude Haiku request models (including dated IDs
+// such as claude-haiku-4-5-20251001).
+func isClaudeHaikuModel(model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	return strings.Contains(m, "haiku")
+}
+
+// ApplyClaudeHaikuBridgeUpstreamAdjustments tunes a Responses request after the
+// upstream GPT model is assigned for Claude-GPT bridge traffic.
+//
+// - Strips sampling params on reasoning models (safe even if conversion left them).
+// - Raises max_output_tokens floor so short Claude Code Haiku budgets still leave
+//   room for assistant text after reasoning.
+func ApplyClaudeHaikuBridgeUpstreamAdjustments(req *ResponsesRequest, originalClaudeModel string) {
+	if req == nil {
+		return
+	}
+	if isReasoningModel(req.Model) {
+		req.Temperature = nil
+		req.TopP = nil
+	}
+	if !isClaudeHaikuModel(originalClaudeModel) || !isReasoningModel(req.Model) {
+		return
+	}
+	// Prefer low effort unless the client explicitly set something else.
+	// AnthropicToResponses already defaults Haiku to low when OutputConfig is
+	// unset; keep a defensive re-apply here after model rewrite.
+	if req.Reasoning == nil {
+		req.Reasoning = &ResponsesReasoning{Effort: "low", Summary: "auto"}
+	} else if strings.TrimSpace(req.Reasoning.Effort) == "" {
+		req.Reasoning.Effort = "low"
+		if req.Reasoning.Summary == "" {
+			req.Reasoning.Summary = "auto"
+		}
+	}
+	floor := minReasoningMaxOutputTokens
+	if req.MaxOutputTokens == nil || *req.MaxOutputTokens < floor {
+		v := floor
+		req.MaxOutputTokens = &v
+	}
 }
 
 // normalizeToolParameters ensures the tool parameter schema is valid for

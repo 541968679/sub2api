@@ -688,3 +688,10 @@ type ChatDelta struct {
 // minMaxOutputTokens is the floor for max_output_tokens in a Responses request.
 // Very small values may cause upstream API errors, so we enforce a minimum.
 const minMaxOutputTokens = 128
+
+// minReasoningMaxOutputTokens is the floor for Haiku→GPT-5.* bridge traffic.
+// Claude Code Haiku background tasks often send small max_tokens while the
+// mapped reasoning model spends most of the budget on hidden reasoning, which
+// produces completed streams with zero visible assistant content. 1024 leaves
+// room for short assistant text after low-effort reasoning.
+const minReasoningMaxOutputTokens = 1024
