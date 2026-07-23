@@ -348,6 +348,25 @@ func (s *OpsService) GetErrorLogs(ctx context.Context, filter *OpsErrorLogFilter
 	return result, nil
 }
 
+func (s *OpsService) GetErrorLogStats(ctx context.Context, filter *OpsErrorLogFilter) (*OpsErrorLogStats, error) {
+	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+		return nil, err
+	}
+	if s.opsRepo == nil {
+		return &OpsErrorLogStats{
+			TopStatusCodes:     []OpsErrorStatBucket{},
+			TopRequestedModels: []OpsErrorStatBucket{},
+			TopUpstreamModels:  []OpsErrorStatBucket{},
+		}, nil
+	}
+	stats, err := s.opsRepo.GetErrorLogStats(ctx, filter)
+	if err != nil {
+		log.Printf("[Ops] GetErrorLogStats failed: %v", err)
+		return nil, err
+	}
+	return stats, nil
+}
+
 func (s *OpsService) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLogDetail, error) {
 	if err := s.RequireMonitoringEnabled(ctx); err != nil {
 		return nil, err

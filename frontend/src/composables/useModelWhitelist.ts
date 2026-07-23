@@ -346,6 +346,99 @@ export function resetOpenAIClaudeGPTBridgeTemplate(): OpenAIClaudeGPTBridgeTempl
   return getDefaultOpenAIClaudeGPTBridgeTemplate()
 }
 
+export type ApplyOpenAIClaudeGPTBridgeTemplateResult = {
+  mappings: OpenAIClaudeGPTBridgeTemplateMapping[]
+  added: number
+  updated: number
+  unchanged: number
+}
+
+/**
+ * Resolve the template to apply. Prefer an open draft (normalized); fall back
+ * to the saved localStorage template.
+ */
+export function resolveOpenAIClaudeGPTBridgeTemplate(
+  draft?: OpenAIClaudeGPTBridgeTemplateMapping[] | null
+): OpenAIClaudeGPTBridgeTemplateMapping[] {
+  if (draft && draft.length > 0) {
+    const normalized = normalizeOpenAIClaudeGPTBridgeTemplate(draft)
+    if (normalized.length > 0) {
+      return normalized
+    }
+  }
+  return loadOpenAIClaudeGPTBridgeTemplate()
+}
+
+/**
+ * Merge a Claude-GPT bridge template into existing model mappings.
+ * Matching `from` keys are overwritten by the template (not skipped).
+ * Non-template mappings are preserved.
+ */
+export function applyOpenAIClaudeGPTBridgeTemplateToMappings(
+  existing: OpenAIClaudeGPTBridgeTemplateMapping[],
+  template: OpenAIClaudeGPTBridgeTemplateMapping[]
+): ApplyOpenAIClaudeGPTBridgeTemplateResult {
+  const mappings = existing.map((mapping) => ({
+    from: mapping.from,
+    to: mapping.to
+  }))
+  const indexByFrom = new Map<string, number>()
+  for (let i = 0; i < mappings.length; i++) {
+    const from = mappings[i].from.trim()
+    if (from) {
+      indexByFrom.set(from, i)
+    }
+  }
+
+  let added = 0
+  let updated = 0
+  let unchanged = 0
+  const normalizedTemplate = normalizeOpenAIClaudeGPTBridgeTemplate(template)
+
+  for (const preset of normalizedTemplate) {
+    const existingIndex = indexByFrom.get(preset.from)
+    if (existingIndex === undefined) {
+      mappings.push({ from: preset.from, to: preset.to })
+      indexByFrom.set(preset.from, mappings.length - 1)
+      added += 1
+      continue
+    }
+    if (mappings[existingIndex].to.trim() !== preset.to) {
+      mappings[existingIndex] = { from: preset.from, to: preset.to }
+      updated += 1
+      continue
+    }
+    unchanged += 1
+  }
+
+  return { mappings, added, updated, unchanged }
+}
+
+/** Convert template rows into a model_mapping object (template keys overwrite). */
+export function openAIClaudeGPTBridgeTemplateToRecord(
+  template: OpenAIClaudeGPTBridgeTemplateMapping[]
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const mapping of normalizeOpenAIClaudeGPTBridgeTemplate(template)) {
+    out[mapping.from] = mapping.to
+  }
+  return out
+}
+
+/**
+ * Deep-merge template keys into an existing model_mapping record.
+ * Template `from` keys overwrite; other keys are preserved.
+ */
+export function mergeModelMappingWithClaudeGPTBridgeTemplate(
+  existing: Record<string, string> | null | undefined,
+  template: OpenAIClaudeGPTBridgeTemplateMapping[]
+): Record<string, string> {
+  return {
+    ...(existing ?? {}),
+    ...openAIClaudeGPTBridgeTemplateToRecord(template)
+  }
+}
+
 const geminiPresetMappings = [
   { label: 'Flash 2.0', from: 'gemini-2.0-flash', to: 'gemini-2.0-flash', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400' },
   { label: '2.5 Flash', from: 'gemini-2.5-flash', to: 'gemini-2.5-flash', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },

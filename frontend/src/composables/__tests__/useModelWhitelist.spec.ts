@@ -6,7 +6,10 @@ vi.mock('@/api/admin/accounts', () => ({
 
 import {
   buildModelMappingObject,
+  applyOpenAIClaudeGPTBridgeTemplateToMappings,
   getDefaultOpenAIClaudeGPTBridgeTemplate,
+  mergeModelMappingWithClaudeGPTBridgeTemplate,
+  resolveOpenAIClaudeGPTBridgeTemplate,
   getModelsByPlatform,
   getPresetMappingsByPlatform
 } from '../useModelWhitelist'
@@ -108,5 +111,49 @@ describe('useModelWhitelist', () => {
       { from: 'claude-haiku-4-5', to: 'gpt-5.4' },
       { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.4' }
     ])
+  })
+
+  it('applies Claude-GPT bridge template by overwriting matching source models', () => {
+    const result = applyOpenAIClaudeGPTBridgeTemplateToMappings(
+      [
+        { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.4' },
+        { from: 'gpt-5.2', to: 'gpt-5.2' }
+      ],
+      [
+        { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.6-luna' },
+        { from: 'claude-sonnet-4-6', to: 'gpt-5.6-terra' }
+      ]
+    )
+
+    expect(result.added).toBe(1)
+    expect(result.updated).toBe(1)
+    expect(result.unchanged).toBe(0)
+    expect(result.mappings).toEqual([
+      { from: 'claude-haiku-4-5-20251001', to: 'gpt-5.6-luna' },
+      { from: 'gpt-5.2', to: 'gpt-5.2' },
+      { from: 'claude-sonnet-4-6', to: 'gpt-5.6-terra' }
+    ])
+  })
+
+  it('merges Claude-GPT bridge template into an existing model_mapping record', () => {
+    const merged = mergeModelMappingWithClaudeGPTBridgeTemplate(
+      {
+        'gpt-5.5': 'gpt-5.5',
+        'claude-haiku-4-5-20251001': 'gpt-5.4'
+      },
+      [{ from: 'claude-haiku-4-5-20251001', to: 'gpt-5.6-luna' }]
+    )
+    expect(merged).toEqual({
+      'gpt-5.5': 'gpt-5.5',
+      'claude-haiku-4-5-20251001': 'gpt-5.6-luna'
+    })
+  })
+
+  it('resolves open draft template before falling back to saved defaults', () => {
+    const resolved = resolveOpenAIClaudeGPTBridgeTemplate([
+      { from: '  claude-opus-4-8  ', to: '  gpt-5.5  ' },
+      { from: '', to: 'ignored' }
+    ])
+    expect(resolved).toEqual([{ from: 'claude-opus-4-8', to: 'gpt-5.5' }])
   })
 })

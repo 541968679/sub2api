@@ -361,6 +361,7 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			item.APIKeyName = deletedKeyName
 		}
 		item.APIKeyDeleted = apiKeyDeletedAt.Valid || (apiKeyName == "" && deletedKeyName != "")
+		item.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(item.Platform, item.UpstreamModel)
 		out = append(out, &item)
 	}
 	if err := rows.Err(); err != nil {
@@ -373,6 +374,186 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		Page:     page,
 		PageSize: pageSize,
 	}, nil
+}
+
+// opsErrorRequestKeyExpr distinct-counts one client request despite multi-account failover rows.
+const opsErrorRequestKeyExpr = `COALESCE(NULLIF(TRIM(e.request_id), ''), NULLIF(TRIM(e.client_request_id), ''), e.id::text)`
+
+// GetErrorLogStats computes filtered-scope terminal error rate (PRD S1).
+func (r *opsRepository) GetErrorLogStats(ctx context.Context, filter *service.OpsErrorLogFilter) (*service.OpsErrorLogStats, error) {
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("nil ops repository")
+	}
+	if filter == nil {
+		filter = &service.OpsErrorLogFilter{}
+	}
+
+	// Full filter = F_biz ∩ F_err (numerator + tops + raw rows)
+	fullWhere, fullArgs := buildOpsErrorLogsWhere(filter)
+	// Biz-only filter strips error-specific dimensions for denominator errors.
+	bizFilter := *filter
+	bizFilter.StatusCodes = nil
+	bizFilter.StatusCodesOther = false
+	bizFilter.ErrorType = ""
+	bizFilter.ErrorTypesAny = nil
+	bizFilter.Query = ""
+	bizFilter.RequestID = ""
+	bizFilter.ClientRequestID = ""
+	bizWhere, bizArgs := buildOpsErrorLogsWhere(&bizFilter)
+
+	stats := &service.OpsErrorLogStats{
+		TopStatusCodes:     []service.OpsErrorStatBucket{},
+		TopRequestedModels: []service.OpsErrorStatBucket{},
+		TopUpstreamModels:  []service.OpsErrorStatBucket{},
+	}
+
+	// Raw rows under full filter.
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM ops_error_logs e "+fullWhere, fullArgs...).Scan(&stats.RawErrorRows); err != nil {
+		return nil, err
+	}
+
+	// Distinct terminal errors under full filter (numerator).
+	distinctSQL := "SELECT COUNT(*) FROM (SELECT 1 FROM ops_error_logs e " + fullWhere + " GROUP BY " + opsErrorRequestKeyExpr + ") t"
+	if err := r.db.QueryRowContext(ctx, distinctSQL, fullArgs...).Scan(&stats.TerminalErrorRequestsFiltered); err != nil {
+		return nil, err
+	}
+
+	// Distinct terminal errors under F_biz only (denominator error part).
+	bizDistinctSQL := "SELECT COUNT(*) FROM (SELECT 1 FROM ops_error_logs e " + bizWhere + " GROUP BY " + opsErrorRequestKeyExpr + ") t"
+	if err := r.db.QueryRowContext(ctx, bizDistinctSQL, bizArgs...).Scan(&stats.TerminalErrorRequests); err != nil {
+		return nil, err
+	}
+
+	success, err := r.countSuccessUsageForErrorStats(ctx, &bizFilter)
+	if err != nil {
+		return nil, err
+	}
+	stats.SuccessRequests = success
+	stats.TotalRequests = stats.SuccessRequests + stats.TerminalErrorRequests
+	if stats.TotalRequests > 0 {
+		stats.ErrorRate = float64(stats.TerminalErrorRequestsFiltered) / float64(stats.TotalRequests)
+	}
+
+	// Top breakdowns use full filter (what the list shows).
+	if buckets, err := r.queryErrorStatBuckets(ctx, fullWhere, fullArgs,
+		"COALESCE(NULLIF(COALESCE(e.upstream_status_code, e.status_code, 0)::text, '0'), 'unknown')", 8); err != nil {
+		return nil, err
+	} else {
+		stats.TopStatusCodes = buckets
+	}
+	if buckets, err := r.queryErrorStatBuckets(ctx, fullWhere, fullArgs,
+		"COALESCE(NULLIF(TRIM(e.requested_model), ''), NULLIF(TRIM(e.model), ''), 'unknown')", 8); err != nil {
+		return nil, err
+	} else {
+		stats.TopRequestedModels = buckets
+	}
+	if buckets, err := r.queryErrorStatBuckets(ctx, fullWhere, fullArgs,
+		"COALESCE(NULLIF(TRIM(e.upstream_model), ''), 'unknown')", 8); err != nil {
+		return nil, err
+	} else {
+		stats.TopUpstreamModels = buckets
+	}
+
+	return stats, nil
+}
+
+func (r *opsRepository) queryErrorStatBuckets(ctx context.Context, where string, args []any, keyExpr string, limit int) ([]service.OpsErrorStatBucket, error) {
+	if limit <= 0 {
+		limit = 8
+	}
+	sqlText := `
+SELECT ` + keyExpr + ` AS k, COUNT(*)::bigint AS c
+FROM ops_error_logs e
+` + where + `
+GROUP BY 1
+ORDER BY c DESC
+LIMIT $` + itoa(len(args)+1)
+	qArgs := append(append([]any{}, args...), limit)
+	rows, err := r.db.QueryContext(ctx, sqlText, qArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]service.OpsErrorStatBucket, 0, limit)
+	for rows.Next() {
+		var b service.OpsErrorStatBucket
+		if err := rows.Scan(&b.Key, &b.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+func (r *opsRepository) countSuccessUsageForErrorStats(ctx context.Context, filter *service.OpsErrorLogFilter) (int64, error) {
+	clauses := []string{"1=1", "COALESCE(u.image_count, 0) = 0", "COALESCE(u.video_count, 0) = 0"}
+	args := make([]any, 0, 12)
+	needAccountJoin := false
+
+	if filter != nil {
+		if filter.StartTime != nil && !filter.StartTime.IsZero() {
+			args = append(args, filter.StartTime.UTC())
+			clauses = append(clauses, "u.created_at >= $"+itoa(len(args)))
+		}
+		if filter.EndTime != nil && !filter.EndTime.IsZero() {
+			args = append(args, filter.EndTime.UTC())
+			clauses = append(clauses, "u.created_at < $"+itoa(len(args)))
+		}
+		if filter.UserID != nil && *filter.UserID > 0 {
+			args = append(args, *filter.UserID)
+			clauses = append(clauses, "u.user_id = $"+itoa(len(args)))
+		}
+		if filter.GroupID != nil && *filter.GroupID > 0 {
+			args = append(args, *filter.GroupID)
+			clauses = append(clauses, "u.group_id = $"+itoa(len(args)))
+		}
+		if filter.AccountID != nil && *filter.AccountID > 0 {
+			args = append(args, *filter.AccountID)
+			clauses = append(clauses, "u.account_id = $"+itoa(len(args)))
+		}
+		if filter.APIKeyID != nil && *filter.APIKeyID > 0 {
+			args = append(args, *filter.APIKeyID)
+			clauses = append(clauses, "u.api_key_id = $"+itoa(len(args)))
+		}
+		if model := strings.TrimSpace(filter.Model); model != "" {
+			args = append(args, model)
+			n := itoa(len(args))
+			clauses = append(clauses, "(COALESCE(u.requested_model,'') = $"+n+" OR COALESCE(u.model,'') = $"+n+")")
+		}
+		if upstream := strings.TrimSpace(filter.UpstreamModel); upstream != "" {
+			args = append(args, upstream)
+			clauses = append(clauses, "COALESCE(u.upstream_model,'') = $"+itoa(len(args)))
+		}
+		if p := strings.TrimSpace(filter.Platform); p != "" {
+			needAccountJoin = true
+			args = append(args, p)
+			clauses = append(clauses, "a.platform = $"+itoa(len(args)))
+		}
+		switch strings.ToLower(strings.TrimSpace(filter.Bridge)) {
+		case "bridge":
+			clauses = append(clauses, "LOWER(COALESCE(u.upstream_model,'')) LIKE 'gpt-%'")
+			clauses = append(clauses, "(LOWER(COALESCE(u.requested_model, u.model, '')) LIKE 'claude%' OR LOWER(COALESCE(u.model,'')) LIKE 'claude%')")
+		case "non_bridge":
+			clauses = append(clauses, "NOT (LOWER(COALESCE(u.upstream_model,'')) LIKE 'gpt-%' AND (LOWER(COALESCE(u.requested_model, u.model, '')) LIKE 'claude%' OR LOWER(COALESCE(u.model,'')) LIKE 'claude%'))")
+		}
+		if userQuery := strings.TrimSpace(filter.UserQuery); userQuery != "" {
+			like := "%" + userQuery + "%"
+			args = append(args, like)
+			n := itoa(len(args))
+			clauses = append(clauses, "EXISTS (SELECT 1 FROM users usr WHERE usr.id = u.user_id AND usr.email ILIKE $"+n+")")
+		}
+	}
+
+	from := "usage_logs u"
+	if needAccountJoin {
+		from += " LEFT JOIN accounts a ON a.id = u.account_id"
+	}
+	sqlText := "SELECT COUNT(*) FROM " + from + " WHERE " + strings.Join(clauses, " AND ")
+	var n int64
+	if err := r.db.QueryRowContext(ctx, sqlText, args...).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func (r *opsRepository) GetErrorLogByID(ctx context.Context, id int64) (*service.OpsErrorLogDetail, error) {
@@ -521,6 +702,7 @@ LIMIT 1`
 	}
 
 	out.StatusCode = int(statusCode.Int64)
+	out.IsClaudeGPTBridge = service.IsClaudeGPTBridgeError(out.Platform, out.UpstreamModel)
 	if resolvedAt.Valid {
 		t := resolvedAt.Time
 		out.ResolvedAt = &t
@@ -950,6 +1132,22 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 		args = append(args, model)
 		n := itoa(len(args))
 		clauses = append(clauses, "(COALESCE(e.requested_model,'') = $"+n+" OR COALESCE(e.model,'') = $"+n+")")
+	}
+	if upstream := strings.TrimSpace(filter.UpstreamModel); upstream != "" {
+		args = append(args, upstream)
+		clauses = append(clauses, "COALESCE(e.upstream_model,'') = $"+itoa(len(args)))
+	}
+	switch strings.ToLower(strings.TrimSpace(filter.Bridge)) {
+	case "bridge":
+		// Claude/Antigravity inbound + GPT upstream (Claude-GPT bridge heuristic).
+		clauses = append(clauses, "LOWER(COALESCE(e.platform,'')) IN ('antigravity','anthropic')")
+		clauses = append(clauses, "LOWER(COALESCE(e.upstream_model,'')) LIKE 'gpt-%'")
+	case "non_bridge":
+		clauses = append(clauses, "NOT (LOWER(COALESCE(e.platform,'')) IN ('antigravity','anthropic') AND LOWER(COALESCE(e.upstream_model,'')) LIKE 'gpt-%')")
+	}
+	if et := strings.TrimSpace(filter.ErrorType); et != "" {
+		args = append(args, et)
+		clauses = append(clauses, "e.error_type = $"+itoa(len(args)))
 	}
 	if phase := phaseFilter; phase != "" {
 		args = append(args, phase)

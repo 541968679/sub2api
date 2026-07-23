@@ -3514,8 +3514,10 @@ import {
   buildModelMappingObject,
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern,
+  applyOpenAIClaudeGPTBridgeTemplateToMappings,
   loadOpenAIClaudeGPTBridgeTemplate,
   resetOpenAIClaudeGPTBridgeTemplate,
+  resolveOpenAIClaudeGPTBridgeTemplate,
   saveOpenAIClaudeGPTBridgeTemplate
 } from '@/composables/useModelWhitelist'
 import { useAuthStore } from '@/stores/auth'
@@ -4389,35 +4391,44 @@ const restoreDefaultOpenAIClaudeGPTBridgeTemplate = () => {
 }
 
 const applyOpenAIClaudeGPTBridgePreset = () => {
-  const existingFromModels = new Set(
-    modelMappings.value
-      .map((mapping) => mapping.from.trim())
-      .filter(Boolean)
+  // Prefer the open draft so "edit template then apply" works without an extra Save.
+  const template = resolveOpenAIClaudeGPTBridgeTemplate(
+    showOpenAIClaudeGPTBridgeTemplateEditor.value
+      ? openAIClaudeGPTBridgeTemplateDraft.value
+      : null
   )
+  if (showOpenAIClaudeGPTBridgeTemplateEditor.value) {
+    openAIClaudeGPTBridgeTemplateDraft.value = saveOpenAIClaudeGPTBridgeTemplate(template)
+  }
 
+  const seedMappings = [...modelMappings.value]
   if (modelRestrictionMode.value === 'whitelist') {
-    for (const model of allowedModels.value.map((model) => model.trim()).filter(Boolean)) {
-      if (!existingFromModels.has(model)) {
-        modelMappings.value.push({ from: model, to: model })
-        existingFromModels.add(model)
+    const existingFrom = new Set(
+      seedMappings.map((mapping) => mapping.from.trim()).filter(Boolean)
+    )
+    for (const model of allowedModels.value.map((m) => m.trim()).filter(Boolean)) {
+      if (!existingFrom.has(model)) {
+        seedMappings.push({ from: model, to: model })
+        existingFrom.add(model)
       }
     }
     allowedModels.value = []
   }
 
   modelRestrictionMode.value = 'mapping'
+  const result = applyOpenAIClaudeGPTBridgeTemplateToMappings(seedMappings, template)
+  modelMappings.value = result.mappings
 
-  let added = 0
-  for (const preset of loadOpenAIClaudeGPTBridgeTemplate()) {
-    if (existingFromModels.has(preset.from)) continue
-    modelMappings.value.push({ from: preset.from, to: preset.to })
-    existingFromModels.add(preset.from)
-    added += 1
-  }
-
-  if (added === 0) {
+  if (result.added === 0 && result.updated === 0) {
     appStore.showInfo(t('admin.accounts.openai.claudeGPTBridgeTemplateAlreadyApplied'))
+    return
   }
+  appStore.showSuccess(
+    t('admin.accounts.openai.claudeGPTBridgeTemplateApplied', {
+      added: result.added,
+      updated: result.updated
+    })
+  )
 }
 
 const addAntigravityModelMapping = () => {

@@ -1,134 +1,175 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
-      <UsageStatsCards :stats="usageStats" />
-      <AntigravityRatioCard :stats="antigravityStats" @refresh="refreshAntigravityStats" />
-      <AntigravityUsageCurveChart :curve="antigravityCurve" :loading="antigravityCurveLoading" />
-      <!-- Charts Section -->
-      <div class="space-y-4">
-        <div class="card p-4">
-          <div class="flex flex-wrap items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
-              <DateRangePicker
-                v-model:start-date="startDate"
-                v-model:end-date="endDate"
-                @change="onDateRangeChange"
-              />
+      <!-- Shared date range (all tabs) -->
+      <div class="card p-4">
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.timeRange') }}:</span>
+            <DateRangePicker
+              v-model:start-date="startDate"
+              v-model:end-date="endDate"
+              @change="onDateRangeChange"
+            />
+          </div>
+          <div v-if="activeTab !== 'errors'" class="ml-auto flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
+            <div class="w-28">
+              <Select v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
             </div>
-            <div class="ml-auto flex items-center gap-2">
-              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.dashboard.granularity') }}:</span>
-              <div class="w-28">
-                <Select v-model="granularity" :options="granularityOptions" @change="onGranularityChange" />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-1 border-b border-gray-200 dark:border-dark-700">
+        <button
+          v-for="tab in detailTabs"
+          :key="tab.key"
+          type="button"
+          data-testid="usage-detail-tab"
+          class="border-b-2 px-4 py-3 text-sm font-medium"
+          :class="activeTab === tab.key ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500'"
+          @click="switchTab(tab.key)"
+        >{{ tab.label }}</button>
+      </div>
+
+      <!-- Usage + ranking: original content -->
+      <template v-if="activeTab !== 'errors'">
+        <UsageStatsCards :stats="usageStats" />
+        <AntigravityRatioCard :stats="antigravityStats" @refresh="refreshAntigravityStats" />
+        <AntigravityUsageCurveChart :curve="antigravityCurve" :loading="antigravityCurveLoading" />
+        <div class="space-y-4">
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ModelDistributionChart
+              v-model:source="modelDistributionSource"
+              v-model:metric="modelDistributionMetric"
+              :model-stats="requestedModelStats"
+              :upstream-model-stats="upstreamModelStats"
+              :mapping-model-stats="mappingModelStats"
+              :loading="modelStatsLoading"
+              :show-source-toggle="true"
+              :show-metric-toggle="true"
+              :start-date="startDate"
+              :end-date="endDate"
+              :filters="breakdownFilters"
+            />
+            <GroupDistributionChart
+              v-model:metric="groupDistributionMetric"
+              :group-stats="groupStats"
+              :loading="chartsLoading"
+              :show-metric-toggle="true"
+              :start-date="startDate"
+              :end-date="endDate"
+              :filters="breakdownFilters"
+            />
+          </div>
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <EndpointDistributionChart
+              v-model:source="endpointDistributionSource"
+              v-model:metric="endpointDistributionMetric"
+              :endpoint-stats="inboundEndpointStats"
+              :upstream-endpoint-stats="upstreamEndpointStats"
+              :endpoint-path-stats="endpointPathStats"
+              :loading="endpointStatsLoading"
+              :show-source-toggle="true"
+              :show-metric-toggle="true"
+              :title="t('usage.endpointDistribution')"
+              :start-date="startDate"
+              :end-date="endDate"
+              :filters="breakdownFilters"
+            />
+            <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          </div>
+        </div>
+        <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+          <template #after-reset>
+            <div v-if="activeTab === 'usage'" class="relative" ref="columnDropdownRef">
+              <button
+                @click="showColumnDropdown = !showColumnDropdown"
+                class="btn btn-secondary px-2 md:px-3"
+                :title="t('admin.users.columnSettings')"
+              >
+                <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+                <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
+              </button>
+              <div
+                v-if="showColumnDropdown"
+                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+              >
+                <button
+                  v-for="col in toggleableColumns"
+                  :key="col.key"
+                  @click="toggleColumn(col.key)"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                >
+                  <span>{{ col.label }}</span>
+                  <Icon
+                    v-if="isColumnVisible(col.key)"
+                    name="check"
+                    size="sm"
+                    class="text-primary-500"
+                    :stroke-width="2"
+                  />
+                </button>
               </div>
             </div>
-          </div>
-        </div>
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <ModelDistributionChart
-            v-model:source="modelDistributionSource"
-            v-model:metric="modelDistributionMetric"
-            :model-stats="requestedModelStats"
-            :upstream-model-stats="upstreamModelStats"
-            :mapping-model-stats="mappingModelStats"
-            :loading="modelStatsLoading"
-            :show-source-toggle="true"
-            :show-metric-toggle="true"
-            :start-date="startDate"
-            :end-date="endDate"
-            :filters="breakdownFilters"
-          />
-          <GroupDistributionChart
-            v-model:metric="groupDistributionMetric"
-            :group-stats="groupStats"
-            :loading="chartsLoading"
-            :show-metric-toggle="true"
-            :start-date="startDate"
-            :end-date="endDate"
-            :filters="breakdownFilters"
-          />
-        </div>
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <EndpointDistributionChart
-            v-model:source="endpointDistributionSource"
-            v-model:metric="endpointDistributionMetric"
-            :endpoint-stats="inboundEndpointStats"
-            :upstream-endpoint-stats="upstreamEndpointStats"
-            :endpoint-path-stats="endpointPathStats"
-            :loading="endpointStatsLoading"
-            :show-source-toggle="true"
-            :show-metric-toggle="true"
-            :title="t('usage.endpointDistribution')"
-            :start-date="startDate"
-            :end-date="endDate"
-            :filters="breakdownFilters"
-          />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
-        </div>
-      </div>
-      <div class="flex gap-1 border-b border-gray-200 dark:border-dark-700">
-        <button v-for="tab in detailTabs" :key="tab.key" type="button" data-testid="usage-detail-tab" class="border-b-2 px-4 py-3 text-sm font-medium" :class="activeTab === tab.key ? 'border-primary-500 text-primary-600' : 'border-transparent text-gray-500'" @click="switchTab(tab.key)">{{ tab.label }}</button>
-      </div>
-      <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
-        <template #after-reset>
-          <div v-if="activeTab === 'usage'" class="relative" ref="columnDropdownRef">
-            <button
-              @click="showColumnDropdown = !showColumnDropdown"
-              class="btn btn-secondary px-2 md:px-3"
-              :title="t('admin.users.columnSettings')"
-            >
-              <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-            </button>
-            <div
-              v-if="showColumnDropdown"
-              class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-            >
-              <button
-                v-for="col in toggleableColumns"
-                :key="col.key"
-                @click="toggleColumn(col.key)"
-                class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-              >
-                <span>{{ col.label }}</span>
-                <Icon
-                  v-if="isColumnVisible(col.key)"
-                  name="check"
-                  size="sm"
-                  class="text-primary-500"
-                  :stroke-width="2"
-                />
-              </button>
-            </div>
-          </div>
-        </template>
-      </UsageFilters>
-      <UsageTable v-show="activeTab === 'usage'"
-        :data="usageLogs"
-        :loading="loading"
-        :columns="visibleColumns"
-        :server-side-sort="true"
-        :default-sort-key="'created_at'"
-        :default-sort-order="'desc'"
-        @sort="handleSort"
-        @userClick="handleUserClick"
-        @userViewClick="handleUserViewClick"
-      />
-      <Pagination v-if="activeTab === 'usage' && pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
-      <UserTokenRanking v-if="rankingMounted" v-show="activeTab === 'ranking'" ref="rankingRef" :start-date="startDate" :end-date="endDate" :filters="breakdownFilters" :model="filters.model" @select-user="handleRankingSelectUser" />
-      <!-- 错误请求 tab：表格自带分页 -->
-      <OpsErrorLogTable v-if="errorsMounted" v-show="activeTab === 'errors'"
-        :rows="errorLogs"
-        :total="errorTotal"
-        :loading="errorLoading"
-        :page="errorPage"
-        :page-size="errorPageSize"
-        @openErrorDetail="openErrorDetail"
-        @update:page="handleErrorPageChange"
-        @update:pageSize="handleErrorPageSizeChange"
-      />
+          </template>
+        </UsageFilters>
+        <UsageTable
+          v-show="activeTab === 'usage'"
+          :data="usageLogs"
+          :loading="loading"
+          :columns="visibleColumns"
+          :server-side-sort="true"
+          :default-sort-key="'created_at'"
+          :default-sort-order="'desc'"
+          @sort="handleSort"
+          @userClick="handleUserClick"
+          @userViewClick="handleUserViewClick"
+        />
+        <Pagination
+          v-if="activeTab === 'usage' && pagination.total > 0"
+          :page="pagination.page"
+          :total="pagination.total"
+          :page-size="pagination.page_size"
+          @update:page="handlePageChange"
+          @update:pageSize="handlePageSizeChange"
+        />
+        <UserTokenRanking
+          v-if="rankingMounted"
+          v-show="activeTab === 'ranking'"
+          ref="rankingRef"
+          :start-date="startDate"
+          :end-date="endDate"
+          :filters="breakdownFilters"
+          :model="filters.model"
+          @select-user="handleRankingSelectUser"
+        />
+      </template>
+
+      <!-- Errors: full independent tab content -->
+      <template v-else>
+        <ErrorRequestFilters
+          v-model="errorFilters"
+          @change="onErrorFiltersChange"
+          @refresh="reloadErrorTab"
+          @reset="resetErrorFilters"
+        />
+        <ErrorRequestStatsCards :stats="errorStats" :loading="errorStatsLoading" />
+        <OpsErrorLogTable
+          v-if="errorsMounted"
+          :rows="errorLogs"
+          :total="errorTotal"
+          :loading="errorLoading"
+          :page="errorPage"
+          :page-size="errorPageSize"
+          @openErrorDetail="openErrorDetail"
+          @update:page="handleErrorPageChange"
+          @update:pageSize="handleErrorPageSizeChange"
+        />
+      </template>
     </div>
   </AppLayout>
   <UsageExportProgress :show="exportProgress.show" :progress="exportProgress.progress" :current="exportProgress.current" :total="exportProgress.total" :estimated-time="exportProgress.estimatedTime" @cancel="cancelExport" />
@@ -175,7 +216,11 @@ import UserViewCompareDrawer from '@/components/admin/usage/UserViewCompareDrawe
 import UserTokenRanking from '@/components/admin/usage/UserTokenRanking.vue'
 import OpsErrorLogTable from '@/views/admin/ops/components/OpsErrorLogTable.vue'
 import OpsErrorDetailModal from '@/views/admin/ops/components/OpsErrorDetailModal.vue'
-import { opsAPI, type OpsErrorLog } from '@/api/admin/ops'
+import ErrorRequestFilters, {
+  type ErrorRequestFilterState
+} from '@/components/admin/usage/ErrorRequestFilters.vue'
+import ErrorRequestStatsCards from '@/components/admin/usage/ErrorRequestStatsCards.vue'
+import { opsAPI, type OpsErrorLog, type OpsErrorLogStats } from '@/api/admin/ops'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
@@ -268,38 +313,65 @@ const switchTab = (tab: DetailTab) => {
   if (tab === 'ranking') rankingMounted.value = true
   if (tab === 'errors') {
     errorsMounted.value = true
-    if (errorLogs.value.length === 0 && !errorLoading.value) loadErrorLogs()
+    reloadErrorTab()
   }
 }
 
-// 错误请求 tab：复用运维监控的 /admin/ops/errors 全量错误日志，
-// 接入当前使用记录页的日期范围与分组/账号筛选。
+// 错误请求 tab：完整独立面板 + 筛选范围内错误率统计
 const errorsMounted = ref(false)
 const errorLogs = ref<OpsErrorLog[]>([])
 const errorTotal = ref(0)
 const errorLoading = ref(false)
+const errorStatsLoading = ref(false)
+const errorStats = ref<OpsErrorLogStats | null>(null)
 const errorPage = ref(1)
 const errorPageSize = ref(getPersistedPageSize())
 const showErrorDetailModal = ref(false)
 const selectedErrorId = ref<number | null>(null)
+const errorFilters = ref<ErrorRequestFilterState>({
+  platform: '',
+  bridge: 'all',
+  user_query: '',
+  model: '',
+  upstream_model: '',
+  group_id: '',
+  account_id: '',
+  q: '',
+  status_codes: []
+})
 
 const toDayStartISO = (d: string) => new Date(`${d}T00:00:00`).toISOString()
 const toDayEndISO = (d: string) => new Date(`${d}T23:59:59.999`).toISOString()
 
+function buildErrorQueryParams(includePagination: boolean): Record<string, any> {
+  const f = errorFilters.value
+  const params: Record<string, any> = {
+    start_time: toDayStartISO(startDate.value),
+    end_time: toDayEndISO(endDate.value),
+    view: f.status_codes.length > 0 ? 'all' : 'errors'
+  }
+  if (includePagination) {
+    params.page = errorPage.value
+    params.page_size = errorPageSize.value
+  }
+  if (f.platform) params.platform = f.platform
+  if (f.bridge && f.bridge !== 'all') params.bridge = f.bridge
+  if (f.user_query.trim()) params.user_query = f.user_query.trim()
+  if (f.model.trim()) params.model = f.model.trim()
+  if (f.upstream_model.trim()) params.upstream_model = f.upstream_model.trim()
+  if (f.q.trim()) params.q = f.q.trim()
+  const gid = Number(f.group_id)
+  if (Number.isFinite(gid) && gid > 0) params.group_id = gid
+  const aid = Number(f.account_id)
+  if (Number.isFinite(aid) && aid > 0) params.account_id = aid
+  if (f.status_codes.length > 0) params.status_codes = f.status_codes.join(',')
+  return params
+}
+
 const loadErrorLogs = async () => {
   errorLoading.value = true
   try {
-    const params: Record<string, any> = {
-      page: errorPage.value,
-      page_size: errorPageSize.value,
-      start_time: toDayStartISO(startDate.value),
-      end_time: toDayEndISO(endDate.value),
-      view: 'errors',
-    }
-    const bf = breakdownFilters.value
-    if (bf.group_id) params.group_id = bf.group_id
-    if (bf.account_id) params.account_id = bf.account_id
-    const res = await opsAPI.listErrorLogs(params)
+    const res = await opsAPI.listErrorLogs(buildErrorQueryParams(true))
     errorLogs.value = res.items || []
     errorTotal.value = res.total || 0
   } catch (error) {
@@ -311,6 +383,45 @@ const loadErrorLogs = async () => {
     errorLoading.value = false
   }
 }
+
+const loadErrorStats = async () => {
+  errorStatsLoading.value = true
+  try {
+    errorStats.value = await opsAPI.getErrorLogStats(buildErrorQueryParams(false))
+  } catch (error) {
+    console.error('Failed to load error stats:', error)
+    errorStats.value = null
+  } finally {
+    errorStatsLoading.value = false
+  }
+}
+
+const reloadErrorTab = () => {
+  void loadErrorLogs()
+  void loadErrorStats()
+}
+
+const onErrorFiltersChange = () => {
+  errorPage.value = 1
+  reloadErrorTab()
+}
+
+const resetErrorFilters = () => {
+  errorFilters.value = {
+    platform: '',
+    bridge: 'all',
+    user_query: '',
+    model: '',
+    upstream_model: '',
+    group_id: '',
+    account_id: '',
+    q: '',
+    status_codes: []
+  }
+  errorPage.value = 1
+  reloadErrorTab()
+}
+
 const handleErrorPageChange = (p: number) => { errorPage.value = p; loadErrorLogs() }
 const handleErrorPageSizeChange = (s: number) => { errorPageSize.value = s; errorPage.value = 1; loadErrorLogs() }
 const openErrorDetail = (id: number) => { selectedErrorId.value = id; showErrorDetailModal.value = true }
@@ -393,6 +504,11 @@ const onDateRangeChange = (range: { startDate: string; endDate: string; preset: 
     end_date: range.endDate
   }
   granularity.value = getGranularityForRange(range.startDate, range.endDate)
+  if (activeTab.value === 'errors') {
+    errorPage.value = 1
+    reloadErrorTab()
+    return
+  }
   applyFilters()
 }
 
@@ -603,7 +719,7 @@ const applyFilters = () => {
   loadStats()
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
-  if (errorsMounted.value) loadErrorLogs()
+  if (errorsMounted.value && activeTab.value === 'errors') reloadErrorTab()
 }
 const refreshData = () => {
   resetModelStatsCache()
@@ -612,7 +728,7 @@ const refreshData = () => {
   loadModelStats(modelDistributionSource.value, true)
   loadChartData()
   if (rankingMounted.value) void rankingRef.value?.reload()
-  if (errorsMounted.value) loadErrorLogs()
+  if (errorsMounted.value && activeTab.value === 'errors') reloadErrorTab()
 }
 const resetFilters = () => {
   const range = getLast24HoursRangeDates()

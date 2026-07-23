@@ -1,4 +1,78 @@
-﻿## 2026-07-17 - fix: Allow Grok-compatible API-key upstreams and model tests
+﻿## 2026-07-22 - feat: admin error-requests tab with filtered error rate
+
+### What
+Upgraded the admin Usage page “Error Requests” area into a full independent tab
+with dedicated filters (including multi-select status codes and Claude-GPT
+bridge), terminal request-level error-rate stats, and richer list columns.
+
+### Why
+Operators need filter-scoped error rates (e.g. user + haiku + bridge + 502) to
+debug intermittent bridge failures; the previous tab mixed usage UI and lacked
+filters/stats.
+
+### Fix
+- Backend: extend ops error filters (upstream_model, bridge, error_type, user…);
+  add `GET /admin/ops/errors/stats` with S1 rate formula (deduped terminal
+  errors / (success usage + biz-scope terminal errors)); mark
+  `is_claude_gpt_bridge` on list rows.
+- Frontend: errors tab hides usage charts/table; ErrorRequestFilters +
+  ErrorRequestStatsCards; OpsErrorLogTable shows bridge + user/account.
+
+### Files
+- `backend/internal/service/ops_models.go`, `ops_port.go`, `ops_service.go`
+- `backend/internal/repository/ops_repo.go`, tests
+- `backend/internal/handler/admin/ops_handler.go`
+- `backend/internal/server/routes/admin.go`
+- `frontend/src/views/admin/UsageView.vue`, tests
+- `frontend/src/components/admin/usage/ErrorRequest*.vue`
+- `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`
+- `frontend/src/api/admin/ops.ts`, i18n zh/en
+- `docs/dev/ERROR_REQUESTS_TAB_PRD_2026-07-22.md`
+- `docs/dev/ERROR_REQUESTS_TAB_DESIGN_2026-07-22.md`
+
+### Verify
+- `go test -tags=unit ./internal/repository -run TestBuildOpsErrorLogsWhere -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsageView.spec.ts`
+
+---
+## 2026-07-22 - fix: Claude-GPT bridge template overwrite + bulk apply
+
+### What
+Fixed Claude-GPT bridge mapping template application so template rows overwrite
+existing same-source mappings, and added bulk-edit support for applying the
+template across selected/filtered OpenAI accounts.
+
+### Why
+1. "Apply template" skipped any `from` key already present in model mapping, so
+   editing the template (e.g. haiku → gpt-5.6-luna) could not update accounts
+   that still had the old haiku → gpt-5.4 row.
+2. Bulk edit only toggled the bridge switch and could not apply the shared
+   local template to many accounts at once.
+
+### Fix
+- Shared helpers: overwrite-on-apply merge for template rows; draft is preferred
+  over saved localStorage when the editor is open (edit then apply without a
+  separate save).
+- Single create/edit modals use the overwrite helper and report added/updated counts.
+- Bulk edit exposes edit/apply template under Claude-GPT bridge; apply merges
+  template keys into each account's existing `model_mapping` (non-template keys
+  preserved), enables `openai_claude_gpt_bridge_enabled`, and persists immediately.
+
+### Files
+- `frontend/src/composables/useModelWhitelist.ts`
+- `frontend/src/composables/__tests__/useModelWhitelist.spec.ts`
+- `frontend/src/components/account/EditAccountModal.vue`
+- `frontend/src/components/account/CreateAccountModal.vue`
+- `frontend/src/components/account/BulkEditAccountModal.vue`
+- `frontend/src/components/account/__tests__/BulkEditAccountModal.spec.ts`
+- `frontend/src/i18n/locales/zh.ts`
+- `frontend/src/i18n/locales/en.ts`
+
+### Verify
+- `pnpm --dir frontend exec vitest run src/composables/__tests__/useModelWhitelist.spec.ts src/components/account/__tests__/BulkEditAccountModal.spec.ts`
+
+---
+## 2026-07-17 - fix: Allow Grok-compatible API-key upstreams and model tests
 
 ### What
 Fixed Grok API-key accounts configured with OpenAI-compatible public upstreams

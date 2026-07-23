@@ -16,7 +16,9 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       bulkUpdate: vi.fn(),
-      checkMixedChannelRisk: vi.fn()
+      checkMixedChannelRisk: vi.fn(),
+      getById: vi.fn(),
+      update: vi.fn()
     }
   }
 }))
@@ -77,6 +79,8 @@ describe('BulkEditAccountModal', () => {
   beforeEach(() => {
     vi.mocked(adminAPI.accounts.bulkUpdate).mockReset()
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockReset()
+    vi.mocked(adminAPI.accounts.getById).mockReset()
+    vi.mocked(adminAPI.accounts.update).mockReset()
 
     vi.mocked(adminAPI.accounts.bulkUpdate).mockResolvedValue({
       success: 2,
@@ -86,6 +90,7 @@ describe('BulkEditAccountModal', () => {
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockResolvedValue({
       has_risk: false
     } as any)
+    vi.mocked(adminAPI.accounts.update).mockResolvedValue({} as any)
   })
 
   it('antigravity 白名单包含 Gemini 图片模型且过滤掉普通 GPT 模型', async () => {
@@ -166,6 +171,56 @@ describe('BulkEditAccountModal', () => {
         openai_claude_gpt_bridge_enabled: true
       }
     })
+  })
+
+  it('OpenAI 账号批量编辑可应用 Claude-GPT 模板并覆盖同名映射', async () => {
+    vi.mocked(adminAPI.accounts.getById).mockImplementation(async (id: number) => ({
+      id,
+      platform: 'openai',
+      credentials: {
+        model_mapping: {
+          'claude-haiku-4-5-20251001': 'gpt-5.4',
+          'gpt-5.2': 'gpt-5.2'
+        }
+      },
+      extra: {}
+    }) as any)
+
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey']
+    })
+
+    await wrapper.get('#bulk-edit-openai-claude-gpt-bridge-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-claude-gpt-bridge-toggle').trigger('click')
+    await flushPromises()
+
+    // Edit draft then apply without separate save: dated haiku should overwrite gpt-5.4.
+    await wrapper.get('[data-testid="bulk-edit-openai-claude-gpt-bridge-template"]').trigger('click')
+    await flushPromises()
+    // Default template index: 0-3 opus, 4-6 sonnet, 7 short haiku, 8 dated haiku.
+    const haikuTo = wrapper.get('[data-testid="bulk-openai-claude-gpt-bridge-template-to-8"]')
+    await haikuTo.setValue('gpt-5.6-luna')
+
+    await wrapper.get('[data-testid="bulk-apply-openai-claude-gpt-bridge-template"]').trigger('click')
+    await flushPromises()
+
+    expect(adminAPI.accounts.getById).toHaveBeenCalledTimes(2)
+    expect(adminAPI.accounts.update).toHaveBeenCalledTimes(2)
+    expect(adminAPI.accounts.update).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        credentials: expect.objectContaining({
+          model_mapping: expect.objectContaining({
+            'claude-haiku-4-5-20251001': 'gpt-5.6-luna',
+            'gpt-5.2': 'gpt-5.2'
+          })
+        }),
+        extra: expect.objectContaining({
+          openai_claude_gpt_bridge_enabled: true
+        })
+      })
+    )
   })
 
   it('OpenAI 账号批量编辑可关闭 Claude-GPT bridge', async () => {

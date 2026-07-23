@@ -46,3 +46,35 @@ func TestBuildOpsErrorLogsWhere_UserQueryUsesExistsSubquery(t *testing.T) {
 		t.Fatalf("where should include EXISTS user email condition: %s", where)
 	}
 }
+
+func TestBuildOpsErrorLogsWhere_BridgeAndUpstreamModel(t *testing.T) {
+	filter := &service.OpsErrorLogFilter{
+		Bridge:        "bridge",
+		UpstreamModel: "gpt-5.4",
+	}
+	where, args := buildOpsErrorLogsWhere(filter)
+	if !strings.Contains(where, "LOWER(COALESCE(e.platform,'')) IN ('antigravity','anthropic')") {
+		t.Fatalf("missing bridge platform clause: %s", where)
+	}
+	if !strings.Contains(where, "LOWER(COALESCE(e.upstream_model,'')) LIKE 'gpt-%'") {
+		t.Fatalf("missing bridge upstream clause: %s", where)
+	}
+	if !strings.Contains(where, "COALESCE(e.upstream_model,'') = $") {
+		t.Fatalf("missing upstream_model exact filter: %s", where)
+	}
+	if len(args) < 1 {
+		t.Fatalf("expected upstream_model arg")
+	}
+}
+
+func TestIsClaudeGPTBridgeError(t *testing.T) {
+	if !service.IsClaudeGPTBridgeError("antigravity", "gpt-5.4") {
+		t.Fatal("expected bridge true")
+	}
+	if service.IsClaudeGPTBridgeError("openai", "gpt-5.5") {
+		t.Fatal("native openai should not be bridge")
+	}
+	if service.IsClaudeGPTBridgeError("antigravity", "claude-sonnet-4-6") {
+		t.Fatal("native antigravity should not be bridge")
+	}
+}

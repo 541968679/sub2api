@@ -922,6 +922,7 @@ export interface OpsErrorLog {
   requested_model?: string
   upstream_model?: string
   request_type?: number | null
+  is_claude_gpt_bridge?: boolean
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {
@@ -1075,6 +1076,13 @@ export type OpsErrorListQueryParams = {
   platform?: string
   group_id?: number | null
   account_id?: number | null
+  user_id?: number | null
+  api_key_id?: number | null
+  user_query?: string
+  model?: string
+  upstream_model?: string
+  bridge?: 'all' | 'bridge' | 'non_bridge' | string
+  error_type?: string
 
   phase?: string
   error_owner?: string
@@ -1087,9 +1095,31 @@ export type OpsErrorListQueryParams = {
   status_codes_other?: string
 }
 
+export interface OpsErrorStatBucket {
+  key: string
+  count: number
+}
+
+export interface OpsErrorLogStats {
+  success_requests: number
+  terminal_error_requests: number
+  terminal_error_requests_filtered: number
+  raw_error_rows: number
+  total_requests: number
+  error_rate: number
+  top_status_codes: OpsErrorStatBucket[]
+  top_requested_models: OpsErrorStatBucket[]
+  top_upstream_models: OpsErrorStatBucket[]
+}
+
 // Legacy unified endpoints
 export async function listErrorLogs(params: OpsErrorListQueryParams): Promise<OpsErrorLogsResponse> {
   const { data } = await apiClient.get<OpsErrorLogsResponse>('/admin/ops/errors', { params })
+  return data
+}
+
+export async function getErrorLogStats(params: OpsErrorListQueryParams): Promise<OpsErrorLogStats> {
+  const { data } = await apiClient.get<OpsErrorLogStats>('/admin/ops/errors/stats', { params })
   return data
 }
 
@@ -1296,6 +1326,7 @@ export const opsAPI = {
 
   // Legacy unified endpoints
   listErrorLogs,
+  getErrorLogStats,
   getErrorLogDetail,
   updateErrorResolved,
 

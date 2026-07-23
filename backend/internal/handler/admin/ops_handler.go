@@ -97,12 +97,66 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 	}
 
 	filter := &service.OpsErrorLogFilter{Page: page, PageSize: pageSize}
-
 	if !startTime.IsZero() {
 		filter.StartTime = &startTime
 	}
 	if !endTime.IsZero() {
 		filter.EndTime = &endTime
+	}
+	if err := applyOpsErrorListQuery(c, filter); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	result, err := h.opsService.GetErrorLogs(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, result.Errors, int64(result.Total), result.Page, result.PageSize)
+}
+
+// GetErrorLogStats returns filtered-scope terminal error rate for the admin usage errors tab.
+// GET /api/v1/admin/ops/errors/stats
+func (h *OpsHandler) GetErrorLogStats(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	startTime, endTime, err := parseOpsTimeRange(c, "24h")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	filter := &service.OpsErrorLogFilter{}
+	if !startTime.IsZero() {
+		filter.StartTime = &startTime
+	}
+	if !endTime.IsZero() {
+		filter.EndTime = &endTime
+	}
+	if err := applyOpsErrorListQuery(c, filter); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	stats, err := h.opsService.GetErrorLogStats(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, stats)
+}
+
+// applyOpsErrorListQuery fills shared list/stats filters from the request.
+func applyOpsErrorListQuery(c *gin.Context, filter *service.OpsErrorLogFilter) error {
+	if filter == nil {
+		return fmt.Errorf("nil filter")
 	}
 	filter.View = parseOpsViewParam(c)
 	filter.Phase = strings.TrimSpace(c.Query("phase"))
@@ -110,9 +164,12 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 	filter.Source = strings.TrimSpace(c.Query("error_source"))
 	filter.Query = strings.TrimSpace(c.Query("q"))
 	filter.UserQuery = strings.TrimSpace(c.Query("user_query"))
+	filter.Model = strings.TrimSpace(c.Query("model"))
+	filter.UpstreamModel = strings.TrimSpace(c.Query("upstream_model"))
+	filter.ErrorType = strings.TrimSpace(c.Query("error_type"))
+	filter.Bridge = strings.TrimSpace(c.Query("bridge"))
 
 	// Force request errors: client-visible status >= 400.
-	// buildOpsErrorLogsWhere already applies this for non-upstream phase.
 	if strings.EqualFold(strings.TrimSpace(filter.Phase), "upstream") {
 		filter.Phase = ""
 	}
@@ -123,18 +180,30 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 	if v := strings.TrimSpace(c.Query("group_id")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			response.BadRequest(c, "Invalid group_id")
-			return
+			return fmt.Errorf("Invalid group_id")
 		}
 		filter.GroupID = &id
 	}
 	if v := strings.TrimSpace(c.Query("account_id")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			response.BadRequest(c, "Invalid account_id")
-			return
+			return fmt.Errorf("Invalid account_id")
 		}
 		filter.AccountID = &id
+	}
+	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			return fmt.Errorf("Invalid user_id")
+		}
+		filter.UserID = &id
+	}
+	if v := strings.TrimSpace(c.Query("api_key_id")); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			return fmt.Errorf("Invalid api_key_id")
+		}
+		filter.APIKeyID = &id
 	}
 
 	if v := strings.TrimSpace(c.Query("resolved")); v != "" {
@@ -146,8 +215,7 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 			b := false
 			filter.Resolved = &b
 		default:
-			response.BadRequest(c, "Invalid resolved")
-			return
+			return fmt.Errorf("Invalid resolved")
 		}
 	}
 	if statusCodesStr := strings.TrimSpace(c.Query("status_codes")); statusCodesStr != "" {
@@ -160,20 +228,22 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 			}
 			n, err := strconv.Atoi(p)
 			if err != nil || n < 0 {
-				response.BadRequest(c, "Invalid status_codes")
-				return
+				return fmt.Errorf("Invalid status_codes")
 			}
 			out = append(out, n)
 		}
 		filter.StatusCodes = out
+		// Explicit status-code selection should not hide business-limited rows
+		// when the operator is intentionally hunting 429/529/etc.
+		if filter.View == "" || strings.EqualFold(filter.View, "errors") {
+			filter.View = "all"
+		}
 	}
-
-	result, err := h.opsService.GetErrorLogs(c.Request.Context(), filter)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+	if strings.EqualFold(strings.TrimSpace(c.Query("status_codes_other")), "1") ||
+		strings.EqualFold(strings.TrimSpace(c.Query("status_codes_other")), "true") {
+		filter.StatusCodesOther = true
 	}
-	response.Paginated(c, result.Errors, int64(result.Total), result.Page, result.PageSize)
+	return nil
 }
 
 // ListRequestErrors lists client-visible request errors.

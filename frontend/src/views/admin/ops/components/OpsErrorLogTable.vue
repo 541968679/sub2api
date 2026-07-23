@@ -24,6 +24,9 @@
                 {{ t('admin.ops.errorLog.platform') }}
               </th>
               <th class="border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                {{ t('admin.ops.errorLog.bridge') }}
+              </th>
+              <th class="border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:border-dark-700 dark:text-dark-400">
                 {{ t('admin.ops.errorLog.model') }}
               </th>
               <th class="border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:border-dark-700 dark:text-dark-400">
@@ -45,7 +48,7 @@
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-dark-700">
             <tr v-if="rows.length === 0">
-              <td colspan="10" class="py-12 text-center text-sm text-gray-400 dark:text-dark-500">
+              <td colspan="11" class="py-12 text-center text-sm text-gray-400 dark:text-dark-500">
                 {{ t('admin.ops.errorLog.noErrors') }}
               </td>
             </tr>
@@ -96,6 +99,17 @@
                 </span>
               </td>
 
+              <!-- Bridge -->
+              <td class="whitespace-nowrap px-4 py-2">
+                <span
+                  v-if="isBridge(log)"
+                  class="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-300"
+                >
+                  {{ t('admin.ops.errorLog.bridgeYes') }}
+                </span>
+                <span v-else class="text-xs text-gray-400">{{ t('admin.ops.errorLog.bridgeNo') }}</span>
+              </td>
+
               <!-- Model -->
               <td class="px-4 py-2">
                 <div class="max-w-[160px]">
@@ -129,22 +143,32 @@
 
               <!-- User / Account -->
               <td class="px-4 py-2">
-                <template v-if="isUpstreamRow(log)">
-                  <el-tooltip v-if="log.account_id" :content="t('admin.ops.errorLog.accountId') + ' ' + log.account_id" placement="top" :show-after="500">
-                    <span class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200">
-                      {{ log.account_name || '-' }}
+                <div class="flex max-w-[140px] flex-col gap-0.5">
+                  <el-tooltip
+                    v-if="log.user_id || log.user_email"
+                    :content="t('admin.ops.errorLog.userId') + ' ' + (log.user_id ?? '-')"
+                    placement="top"
+                    :show-after="500"
+                  >
+                    <span class="truncate text-xs font-medium text-gray-900 dark:text-gray-200">
+                      {{ log.user_email || ('#' + log.user_id) }}
                     </span>
                   </el-tooltip>
-                  <span v-else class="text-xs text-gray-400">-</span>
-                </template>
-                <template v-else>
-                  <el-tooltip v-if="log.user_id" :content="t('admin.ops.errorLog.userId') + ' ' + log.user_id" placement="top" :show-after="500">
-                    <span class="max-w-[100px] truncate text-xs font-medium text-gray-900 dark:text-gray-200">
-                      {{ log.user_email || '-' }}
+                  <el-tooltip
+                    v-if="log.account_id || log.account_name"
+                    :content="t('admin.ops.errorLog.accountId') + ' ' + (log.account_id ?? '-')"
+                    placement="top"
+                    :show-after="500"
+                  >
+                    <span class="truncate text-[10px] text-gray-500 dark:text-gray-400">
+                      {{ log.account_name || ('#' + log.account_id) }}
                     </span>
                   </el-tooltip>
-                  <span v-else class="text-xs text-gray-400">-</span>
-                </template>
+                  <span
+                    v-if="!log.user_id && !log.user_email && !log.account_id && !log.account_name"
+                    class="text-xs text-gray-400"
+                  >-</span>
+                </div>
               </td>
 
               <!-- Status -->
@@ -222,6 +246,14 @@ function isUpstreamRow(log: OpsErrorLog): boolean {
   const phase = String(log.phase || '').toLowerCase()
   const owner = String(log.error_owner || '').toLowerCase()
   return phase === 'upstream' && owner === 'provider'
+}
+
+function isBridge(log: OpsErrorLog): boolean {
+  if (log.is_claude_gpt_bridge === true) return true
+  if (log.is_claude_gpt_bridge === false) return false
+  const platform = String(log.platform || '').toLowerCase()
+  const upstream = String(log.upstream_model || '').toLowerCase().trim()
+  return (platform === 'antigravity' || platform === 'anthropic') && upstream.startsWith('gpt-')
 }
 
 function formatEndpointTooltip(log: OpsErrorLog): string {

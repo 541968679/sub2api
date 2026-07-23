@@ -133,6 +133,95 @@
               ]"
             />
           </button>
+
+          <div
+            v-if="openaiClaudeGPTBridgeEnabled"
+            class="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20"
+          >
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs text-green-700 dark:text-green-300">
+                {{ t('admin.accounts.openai.claudeGPTBridgeTemplateHint') }}
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  data-testid="bulk-edit-openai-claude-gpt-bridge-template"
+                  class="inline-flex items-center justify-center rounded-lg border border-green-300 px-3 py-2 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30"
+                  @click="toggleOpenAIClaudeGPTBridgeTemplateEditor"
+                >
+                  <Icon name="edit" size="sm" class="mr-1.5" :stroke-width="2" />
+                  {{ t('admin.accounts.openai.editClaudeGPTBridgeTemplate') }}
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-apply-openai-claude-gpt-bridge-template"
+                  :disabled="applyingClaudeGPTBridgeTemplate"
+                  class="inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  @click="applyOpenAIClaudeGPTBridgeTemplateToSelected"
+                >
+                  <Icon name="sparkles" size="sm" class="mr-1.5" :stroke-width="2" />
+                  {{
+                    applyingClaudeGPTBridgeTemplate
+                      ? t('admin.accounts.openai.applyingClaudeGPTBridgeTemplate')
+                      : t('admin.accounts.openai.applyClaudeGPTBridgeTemplate')
+                  }}
+                </button>
+              </div>
+            </div>
+            <div v-if="showOpenAIClaudeGPTBridgeTemplateEditor" class="mt-3 space-y-2">
+              <div
+                v-for="(mapping, index) in openAIClaudeGPTBridgeTemplateDraft"
+                :key="index"
+                class="flex items-center gap-2"
+              >
+                <input
+                  v-model="mapping.from"
+                  type="text"
+                  class="input flex-1 text-xs"
+                  :data-testid="`bulk-openai-claude-gpt-bridge-template-from-${index}`"
+                  :placeholder="t('admin.accounts.requestModel')"
+                />
+                <input
+                  v-model="mapping.to"
+                  type="text"
+                  class="input flex-1 text-xs"
+                  :data-testid="`bulk-openai-claude-gpt-bridge-template-to-${index}`"
+                  :placeholder="t('admin.accounts.actualModel')"
+                />
+                <button
+                  type="button"
+                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  @click="removeOpenAIClaudeGPTBridgeTemplateMapping(index)"
+                >
+                  <Icon name="trash" size="sm" :stroke-width="2" />
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30"
+                  @click="addOpenAIClaudeGPTBridgeTemplateMapping"
+                >
+                  {{ t('admin.accounts.addMapping') }}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-dark-500 dark:text-gray-300 dark:hover:bg-dark-600"
+                  @click="restoreDefaultOpenAIClaudeGPTBridgeTemplate"
+                >
+                  {{ t('admin.accounts.openai.restoreDefaultClaudeGPTBridgeTemplate') }}
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-save-openai-claude-gpt-bridge-template"
+                  class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                  @click="saveOpenAIClaudeGPTBridgeTemplateDraft"
+                >
+                  {{ t('common.save') }}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1169,7 +1258,14 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, GroupPlatform } from '@/types'
+import type {
+  Account,
+  Proxy as ProxyConfig,
+  AdminGroup,
+  AccountPlatform,
+  AccountType,
+  GroupPlatform
+} from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -1179,7 +1275,14 @@ import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.
 import Icon from '@/components/icons/Icon.vue'
 import {
   buildModelMappingObject as buildModelMappingPayload,
-  getPresetMappingsByPlatform
+  getPresetMappingsByPlatform,
+  applyOpenAIClaudeGPTBridgeTemplateToMappings,
+  loadOpenAIClaudeGPTBridgeTemplate,
+  mergeModelMappingWithClaudeGPTBridgeTemplate,
+  resetOpenAIClaudeGPTBridgeTemplate,
+  resolveOpenAIClaudeGPTBridgeTemplate,
+  saveOpenAIClaudeGPTBridgeTemplate,
+  type OpenAIClaudeGPTBridgeTemplateMapping
 } from '@/composables/useModelWhitelist'
 import {
   buildHeaderOverridesObject,
@@ -1373,6 +1476,9 @@ const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
+const showOpenAIClaudeGPTBridgeTemplateEditor = ref(false)
+const openAIClaudeGPTBridgeTemplateDraft = ref<OpenAIClaudeGPTBridgeTemplateMapping[]>([])
+const applyingClaudeGPTBridgeTemplate = ref(false)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const openaiAPIKeyResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const codexCLIOnlyEnabled = ref(false)
@@ -1457,6 +1563,168 @@ const addPresetMapping = (from: string, to: string) => {
     return
   }
   modelMappings.value.push({ from, to })
+}
+
+const openOpenAIClaudeGPTBridgeTemplateEditor = () => {
+  openAIClaudeGPTBridgeTemplateDraft.value = loadOpenAIClaudeGPTBridgeTemplate()
+  showOpenAIClaudeGPTBridgeTemplateEditor.value = true
+}
+
+const toggleOpenAIClaudeGPTBridgeTemplateEditor = () => {
+  if (showOpenAIClaudeGPTBridgeTemplateEditor.value) {
+    showOpenAIClaudeGPTBridgeTemplateEditor.value = false
+    return
+  }
+  openOpenAIClaudeGPTBridgeTemplateEditor()
+}
+
+const addOpenAIClaudeGPTBridgeTemplateMapping = () => {
+  openAIClaudeGPTBridgeTemplateDraft.value.push({ from: '', to: '' })
+}
+
+const removeOpenAIClaudeGPTBridgeTemplateMapping = (index: number) => {
+  openAIClaudeGPTBridgeTemplateDraft.value.splice(index, 1)
+}
+
+const saveOpenAIClaudeGPTBridgeTemplateDraft = () => {
+  openAIClaudeGPTBridgeTemplateDraft.value = saveOpenAIClaudeGPTBridgeTemplate(
+    openAIClaudeGPTBridgeTemplateDraft.value
+  )
+  showOpenAIClaudeGPTBridgeTemplateEditor.value = false
+  appStore.showSuccess(t('admin.accounts.openai.claudeGPTBridgeTemplateSaved'))
+}
+
+const restoreDefaultOpenAIClaudeGPTBridgeTemplate = () => {
+  openAIClaudeGPTBridgeTemplateDraft.value = resetOpenAIClaudeGPTBridgeTemplate()
+  appStore.showInfo(t('admin.accounts.openai.claudeGPTBridgeTemplateRestored'))
+}
+
+const toStringModelMapping = (raw: unknown): Record<string, string> => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return {}
+  }
+  const out: Record<string, string> = {}
+  for (const [from, to] of Object.entries(raw as Record<string, unknown>)) {
+    const key = from.trim()
+    if (!key || to == null) continue
+    const value = String(to).trim()
+    if (!value) continue
+    out[key] = value
+  }
+  return out
+}
+
+const resolveBulkTargetAccountIds = async (): Promise<number[]> => {
+  if (targetMode.value === 'selected') {
+    return [...props.accountIds]
+  }
+  const filters = props.target?.filters
+  if (!filters) {
+    return []
+  }
+  const ids: number[] = []
+  let page = 1
+  const pageSize = 100
+  // Cap at 50 pages (5000 accounts) as a safety bound for client-side merge.
+  while (page <= 50) {
+    const res = await adminAPI.accounts.list(page, pageSize, filters as any)
+    for (const item of res.items ?? []) {
+      if (item?.id != null) {
+        ids.push(item.id)
+      }
+    }
+    if (!res.items?.length || ids.length >= (res.total ?? ids.length)) {
+      break
+    }
+    page += 1
+  }
+  return ids
+}
+
+/**
+ * Immediately merge the Claude-GPT bridge template into each selected account's
+ * model_mapping (overwriting matching source models only) and enable the bridge flag.
+ */
+const applyOpenAIClaudeGPTBridgeTemplateToSelected = async () => {
+  if (!enableOpenAIClaudeGPTBridge.value || !openaiClaudeGPTBridgeEnabled.value) {
+    appStore.showError(t('admin.accounts.openai.claudeGPTBridgeTemplateEnableFirst'))
+    return
+  }
+
+  const template = resolveOpenAIClaudeGPTBridgeTemplate(
+    showOpenAIClaudeGPTBridgeTemplateEditor.value
+      ? openAIClaudeGPTBridgeTemplateDraft.value
+      : null
+  )
+  if (template.length === 0) {
+    appStore.showError(t('admin.accounts.openai.claudeGPTBridgeTemplateEmpty'))
+    return
+  }
+  if (showOpenAIClaudeGPTBridgeTemplateEditor.value) {
+    openAIClaudeGPTBridgeTemplateDraft.value = saveOpenAIClaudeGPTBridgeTemplate(template)
+  }
+
+  // Also mirror into the bulk form mapping list so the UI reflects the template.
+  const formResult = applyOpenAIClaudeGPTBridgeTemplateToMappings(modelMappings.value, template)
+  modelMappings.value = formResult.mappings
+  modelRestrictionMode.value = 'mapping'
+
+  applyingClaudeGPTBridgeTemplate.value = true
+  try {
+    const accountIds = await resolveBulkTargetAccountIds()
+    if (accountIds.length === 0) {
+      appStore.showError(t('admin.accounts.bulkEdit.noSelection'))
+      return
+    }
+
+    let success = 0
+    let failed = 0
+    for (const accountId of accountIds) {
+      try {
+        const account = (await adminAPI.accounts.getById(accountId)) as Account
+        if (account.platform !== 'openai') {
+          failed += 1
+          continue
+        }
+        const credentials: Record<string, unknown> = {
+          ...(account.credentials ?? {})
+        }
+        credentials.model_mapping = mergeModelMappingWithClaudeGPTBridgeTemplate(
+          toStringModelMapping(credentials.model_mapping),
+          template
+        )
+        const extra: Record<string, unknown> = {
+          ...(account.extra ?? {}),
+          openai_claude_gpt_bridge_enabled: true
+        }
+        await adminAPI.accounts.update(accountId, { credentials, extra })
+        success += 1
+      } catch (error) {
+        console.error('Failed to apply Claude-GPT bridge template to account', accountId, error)
+        failed += 1
+      }
+    }
+
+    if (success > 0 && failed === 0) {
+      appStore.showSuccess(
+        t('admin.accounts.openai.claudeGPTBridgeTemplateBulkApplied', { count: success })
+      )
+      emit('updated')
+    } else if (success > 0) {
+      appStore.showError(
+        t('admin.accounts.bulkEdit.partialSuccess', { success, failed })
+      )
+      emit('updated')
+    } else {
+      appStore.showError(t('admin.accounts.openai.claudeGPTBridgeTemplateBulkFailed'))
+    }
+  } catch (error: any) {
+    appStore.showError(
+      error?.message || t('admin.accounts.openai.claudeGPTBridgeTemplateBulkFailed')
+    )
+  } finally {
+    applyingClaudeGPTBridgeTemplate.value = false
+  }
 }
 
 // Error code helpers
@@ -1875,6 +2143,9 @@ watch(
       baseUrl.value = ''
       openaiPassthroughEnabled.value = false
       openaiClaudeGPTBridgeEnabled.value = false
+      showOpenAIClaudeGPTBridgeTemplateEditor.value = false
+      openAIClaudeGPTBridgeTemplateDraft.value = []
+      applyingClaudeGPTBridgeTemplate.value = false
       modelRestrictionMode.value = 'whitelist'
       allowedModels.value = []
       modelMappings.value = []

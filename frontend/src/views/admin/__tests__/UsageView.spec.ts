@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import UsageView from '../UsageView.vue'
 
-const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravityStats, getAntigravityCreditCurve, listErrorLogs } = vi.hoisted(() => {
+const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravityStats, getAntigravityCreditCurve, listErrorLogs, getErrorLogStats } = vi.hoisted(() => {
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -19,6 +19,7 @@ const { list, getStats, getSnapshotV2, getModelStats, getById, getAntigravitySta
     getAntigravityStats: vi.fn(),
     getAntigravityCreditCurve: vi.fn(),
     listErrorLogs: vi.fn(),
+    getErrorLogStats: vi.fn(),
   }
 })
 
@@ -61,7 +62,7 @@ vi.mock('@/api/admin/usage', () => ({
 }))
 
 vi.mock('@/api/admin/ops', () => ({
-  opsAPI: { listErrorLogs },
+  opsAPI: { listErrorLogs, getErrorLogStats },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -276,6 +277,17 @@ describe('admin UsageView ranking drilldown', () => {
 
   it('lazily loads the error requests tab from the ops error log endpoint', async () => {
     listErrorLogs.mockResolvedValue({ items: [{ id: 42 }], total: 1 })
+    getErrorLogStats.mockResolvedValue({
+      success_requests: 10,
+      terminal_error_requests: 2,
+      terminal_error_requests_filtered: 2,
+      raw_error_rows: 5,
+      total_requests: 12,
+      error_rate: 2 / 12,
+      top_status_codes: [],
+      top_requested_models: [],
+      top_upstream_models: []
+    })
     const wrapper = mount(UsageView, {
       global: { stubs: {
         AppLayout: AppLayoutStub, UsageStatsCards: true, UsageFilters: UsageFiltersStub,
@@ -286,6 +298,7 @@ describe('admin UsageView ranking drilldown', () => {
         EndpointDistributionChart: true, AntigravityRatioCard: true,
         AntigravityUsageCurveChart: true, UserTokenRanking: UserTokenRankingStub,
         OpsErrorLogTable: true, OpsErrorDetailModal: true,
+        ErrorRequestFilters: true, ErrorRequestStatsCards: true,
       } },
     })
     vi.advanceTimersByTime(120)
@@ -300,6 +313,7 @@ describe('admin UsageView ranking drilldown', () => {
 
     expect((wrapper.vm as any).activeTab).toBe('errors')
     expect(listErrorLogs).toHaveBeenCalledWith(expect.objectContaining({ view: 'errors', page: 1 }))
+    expect(getErrorLogStats).toHaveBeenCalled()
     expect((wrapper.vm as any).errorLogs).toEqual([{ id: 42 }])
     expect((wrapper.vm as any).errorTotal).toBe(1)
   })

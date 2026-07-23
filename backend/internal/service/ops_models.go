@@ -1,6 +1,9 @@
 package service
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type OpsSystemLog struct {
 	ID              int64          `json:"id"`
@@ -66,6 +69,9 @@ type OpsErrorLog struct {
 	RequestedModel   string `json:"requested_model"`
 	UpstreamModel    string `json:"upstream_model"`
 	RequestType      *int16 `json:"request_type"`
+
+	// Computed for admin error-request UX (Claude-GPT bridge heuristic).
+	IsClaudeGPTBridge bool `json:"is_claude_gpt_bridge"`
 }
 
 type OpsErrorLogDetail struct {
@@ -110,6 +116,7 @@ type OpsErrorLogFilter struct {
 	Phase            string
 	ErrorPhasesAny   []string
 	ErrorTypesAny    []string
+	ErrorType        string // single exact error_type
 	Owner            string
 	Source           string
 	Resolved         *bool
@@ -118,13 +125,16 @@ type OpsErrorLogFilter struct {
 	UserID           *int64
 	APIKeyID         *int64
 	Model            string
+	UpstreamModel    string
+	// Bridge: ""|"all" = no filter, "bridge" = Claude-GPT bridge heuristic, "non_bridge" = inverse.
+	Bridge string
 
 	// Optional correlation keys for exact matching.
 	RequestID       string
 	ClientRequestID string
 
 	// View controls error categorization for list endpoints.
-	// - errors: show actionable errors (exclude business-limited / 429 / 529)
+	// - errors: show actionable errors (exclude business-limited)
 	// - excluded: only show excluded errors
 	// - all: show everything
 	View string
@@ -138,4 +148,32 @@ type OpsErrorLogList struct {
 	Total    int            `json:"total"`
 	Page     int            `json:"page"`
 	PageSize int            `json:"page_size"`
+}
+
+// OpsErrorLogStats is the filtered-scope error-rate summary for the admin usage errors tab.
+type OpsErrorLogStats struct {
+	SuccessRequests              int64              `json:"success_requests"`
+	TerminalErrorRequests        int64              `json:"terminal_error_requests"`          // F_biz only (denominator errors)
+	TerminalErrorRequestsFiltered int64             `json:"terminal_error_requests_filtered"` // F_biz ∩ F_err (numerator)
+	RawErrorRows                 int64              `json:"raw_error_rows"`
+	TotalRequests                int64              `json:"total_requests"`
+	ErrorRate                    float64            `json:"error_rate"`
+	TopStatusCodes               []OpsErrorStatBucket `json:"top_status_codes"`
+	TopRequestedModels           []OpsErrorStatBucket `json:"top_requested_models"`
+	TopUpstreamModels            []OpsErrorStatBucket `json:"top_upstream_models"`
+}
+
+type OpsErrorStatBucket struct {
+	Key   string `json:"key"`
+	Count int64  `json:"count"`
+}
+
+// IsClaudeGPTBridgeError applies the MVP heuristic for Claude→GPT bridge errors.
+func IsClaudeGPTBridgeError(platform, upstreamModel string) bool {
+	p := strings.ToLower(strings.TrimSpace(platform))
+	if p != PlatformAntigravity && p != PlatformAnthropic {
+		return false
+	}
+	um := strings.ToLower(strings.TrimSpace(upstreamModel))
+	return strings.HasPrefix(um, "gpt-")
 }

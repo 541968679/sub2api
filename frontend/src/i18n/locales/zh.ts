@@ -1141,6 +1141,37 @@ const zhBase = {
         upstreamStatus: '上游状态码',
         responseBody: '响应内容',
         loadFailed: '加载错误详情失败'
+      },
+      filters: {
+        platform: '平台',
+        bridge: '桥接',
+        bridgeAll: '全部',
+        bridgeOnly: '仅桥接',
+        bridgeNon: '非桥接',
+        userQuery: '用户邮箱',
+        userQueryPlaceholder: '邮箱关键字',
+        model: '请求模型',
+        modelPlaceholder: 'claude-…',
+        upstreamModel: '上游模型',
+        upstreamModelPlaceholder: 'gpt-…',
+        groupId: '分组 ID',
+        accountId: '账号 ID',
+        idPlaceholder: '数字 ID',
+        q: '关键字',
+        qPlaceholder: '错误信息 / request_id',
+        statusCodes: '错误码（可多选）',
+        statusCodesHint: '勾选后按所选错误码过滤列表与分子；分母仍为当前业务范围内全部请求（含成功）。'
+      },
+      stats: {
+        totalRequests: '总请求数',
+        terminalErrors: '终局错误（去重）',
+        bizTerminal: '业务范围终局错误 {count}',
+        errorRate: '错误率',
+        rawRows: '原始错误行',
+        rawRowsHint: '未去重，含 failover 多次尝试',
+        topStatusCodes: '错误码 Top',
+        topRequestedModels: '请求模型 Top',
+        topUpstreamModels: '上游模型 Top'
       }
     }
   },
@@ -5588,6 +5619,9 @@ const zhBase = {
         context: '上下文',
         platform: '平台',
         model: '模型',
+        bridge: '桥接',
+        bridgeYes: '桥接',
+        bridgeNo: '—',
         group: '分组',
         user: '用户',
         userId: '用户 ID',
@@ -8642,13 +8676,19 @@ const v117ZhPatch = {
       },
       openai: {
         applyClaudeGPTBridgeTemplate: '应用常用 Claude-GPT 映射',
+        applyingClaudeGPTBridgeTemplate: '正在应用模板…',
         editClaudeGPTBridgeTemplate: '编辑模板',
         restoreDefaultClaudeGPTBridgeTemplate: '恢复默认',
         claudeGPTBridgeTemplateHint:
-          '一键加入 Opus 4.8、Sonnet 4.6 等常用 Claude 请求到 GPT 5.5 / GPT 5.4 的映射；已有映射会保留。',
-        claudeGPTBridgeTemplateAlreadyApplied: '常用 Claude-GPT 映射已应用',
+          '一键应用 Claude→GPT 桥接映射模板。同名源模型会被模板覆盖，其它映射保留。编辑模板后可直接点应用（无需先保存）。',
+        claudeGPTBridgeTemplateAlreadyApplied: 'Claude-GPT 映射模板已是最新，无需变更',
+        claudeGPTBridgeTemplateApplied: '已应用 Claude-GPT 映射模板（新增 {added}，覆盖 {updated}）',
         claudeGPTBridgeTemplateSaved: 'Claude-GPT 映射模板已保存到本机',
-        claudeGPTBridgeTemplateRestored: '已恢复默认 Claude-GPT 映射模板'
+        claudeGPTBridgeTemplateRestored: '已恢复默认 Claude-GPT 映射模板',
+        claudeGPTBridgeTemplateEnableFirst: '请先勾选并开启 Claude-GPT 桥接后再应用模板',
+        claudeGPTBridgeTemplateEmpty: '模板为空，请先编辑模板',
+        claudeGPTBridgeTemplateBulkApplied: '已向 {count} 个账号应用 Claude-GPT 映射模板',
+        claudeGPTBridgeTemplateBulkFailed: '批量应用 Claude-GPT 映射模板失败'
       }
     },
     groups: {

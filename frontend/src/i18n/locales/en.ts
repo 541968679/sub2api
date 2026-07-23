@@ -1186,6 +1186,38 @@ const enBase = {
         upstreamStatus: 'Upstream Status',
         responseBody: 'Response',
         loadFailed: 'Failed to load error detail'
+      },
+      filters: {
+        platform: 'Platform',
+        bridge: 'Bridge',
+        bridgeAll: 'All',
+        bridgeOnly: 'Bridge only',
+        bridgeNon: 'Non-bridge',
+        userQuery: 'User email',
+        userQueryPlaceholder: 'Email keyword',
+        model: 'Requested model',
+        modelPlaceholder: 'claude-…',
+        upstreamModel: 'Upstream model',
+        upstreamModelPlaceholder: 'gpt-…',
+        groupId: 'Group ID',
+        accountId: 'Account ID',
+        idPlaceholder: 'Numeric ID',
+        q: 'Keyword',
+        qPlaceholder: 'Message / request_id',
+        statusCodes: 'Status codes (multi-select)',
+        statusCodesHint:
+          'When selected, filters the list and numerator; the denominator stays all requests in the business scope (including successes).'
+      },
+      stats: {
+        totalRequests: 'Total requests',
+        terminalErrors: 'Terminal errors (deduped)',
+        bizTerminal: 'Business-scope terminal errors {count}',
+        errorRate: 'Error rate',
+        rawRows: 'Raw error rows',
+        rawRowsHint: 'Not deduped; includes failover attempts',
+        topStatusCodes: 'Top status codes',
+        topRequestedModels: 'Top requested models',
+        topUpstreamModels: 'Top upstream models'
       }
     },
     antigravity: {
@@ -5896,6 +5928,9 @@ const enBase = {
         context: 'Context',
         platform: 'Platform',
         model: 'Model',
+        bridge: 'Bridge',
+        bridgeYes: 'Bridge',
+        bridgeNo: '—',
         group: 'Group',
         user: 'User',
         userId: 'User ID',
@@ -8563,13 +8598,22 @@ const phase0LocalePatch = {
       },
       openai: {
         applyClaudeGPTBridgeTemplate: 'Apply common Claude-GPT mapping',
+        applyingClaudeGPTBridgeTemplate: 'Applying template…',
         editClaudeGPTBridgeTemplate: 'Edit template',
         restoreDefaultClaudeGPTBridgeTemplate: 'Restore default',
         claudeGPTBridgeTemplateHint:
-          'Add common Claude requests such as Opus 4.8 and Sonnet 4.6 to GPT 5.5 / GPT 5.4 mappings. Existing mappings are kept.',
-        claudeGPTBridgeTemplateAlreadyApplied: 'Common Claude-GPT mappings are already applied',
+          'Apply the Claude→GPT bridge mapping template. Matching source models are overwritten; other mappings stay. You can edit the template and apply immediately (no separate save required).',
+        claudeGPTBridgeTemplateAlreadyApplied: 'Claude-GPT mapping template is already up to date',
+        claudeGPTBridgeTemplateApplied:
+          'Applied Claude-GPT mapping template ({added} added, {updated} overwritten)',
         claudeGPTBridgeTemplateSaved: 'Claude-GPT mapping template saved locally',
-        claudeGPTBridgeTemplateRestored: 'Default Claude-GPT mapping template restored'
+        claudeGPTBridgeTemplateRestored: 'Default Claude-GPT mapping template restored',
+        claudeGPTBridgeTemplateEnableFirst:
+          'Enable Claude-GPT bridge for this bulk edit before applying the template',
+        claudeGPTBridgeTemplateEmpty: 'Template is empty. Edit the template first.',
+        claudeGPTBridgeTemplateBulkApplied:
+          'Applied Claude-GPT mapping template to {count} accounts',
+        claudeGPTBridgeTemplateBulkFailed: 'Failed to bulk-apply Claude-GPT mapping template'
       }
     },
     users: {
