@@ -14,7 +14,7 @@ Deployed Haiku Claude-GPT bridge empty-output mitigations to production.
 ## 2026-07-23 - fix: Haiku→GPT empty completed output mitigations
 
 ### What
-Gateway P0 mitigations for Claude Code Haiku ? GPT-5.* bridge empty completed
+Gateway P0 mitigations for Claude Code Haiku→GPT-5.* bridge empty completed
 streams ("Connection closed" / no assistant text):
 
 1. Default reasoning effort for Haiku-class Claude models to `low` when the
