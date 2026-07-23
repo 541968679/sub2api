@@ -357,6 +357,9 @@ func setOpsEndpointContext(c *gin.Context, upstreamModel string, requestType int
 	if c == nil {
 		return
 	}
+	// Prefer the shared service helper so gateway code and ops logger share one key.
+	service.SetOpsUpstreamModel(c, upstreamModel)
+	// Keep the package-local key write for backward-compatible tests that read opsUpstreamModelKey.
 	if upstreamModel = strings.TrimSpace(upstreamModel); upstreamModel != "" {
 		c.Set(opsUpstreamModelKey, upstreamModel)
 	}

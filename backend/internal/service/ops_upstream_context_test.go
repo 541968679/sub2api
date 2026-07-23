@@ -8,6 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSetOpsUpstreamModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	SetOpsUpstreamModel(c, "  gpt-5.6-luna  ")
+	v, ok := c.Get(OpsUpstreamModelKey)
+	require.True(t, ok)
+	require.Equal(t, "gpt-5.6-luna", v)
+
+	SetOpsUpstreamModel(c, "   ")
+	v2, ok2 := c.Get(OpsUpstreamModelKey)
+	require.True(t, ok2)
+	require.Equal(t, "gpt-5.6-luna", v2, "empty should not clear previous value")
+}
+
 func TestSafeUpstreamURL(t *testing.T) {
 	tests := []struct {
 		name  string

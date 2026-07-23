@@ -1023,6 +1023,14 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		if !bridgeMode && channelMappingMsg.Mapped {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMappingMsg.MappedModel)
 		}
+		// Populate ops upstream_model for error logs (Claude-GPT bridge / channel mapping).
+		opsUpstreamModel := defaultMappedModel
+		if !bridgeMode && channelMappingMsg.Mapped {
+			opsUpstreamModel = channelMappingMsg.MappedModel
+		}
+		if opsUpstreamModel != "" {
+			setOpsEndpointContext(c, opsUpstreamModel, int16(service.RequestTypeFromLegacy(reqStream, false)))
+		}
 		h.gatewayService.MaybeSetDisplayTokenMultipliers(c.Request.Context(), c, apiKey, reqModel)
 		writerSizeBeforeForward := c.Writer.Size()
 		result, err := h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)

@@ -264,13 +264,13 @@ function formatEndpointTooltip(log: OpsErrorLog): string {
 }
 
 function hasModelMapping(log: OpsErrorLog): boolean {
-  const requested = String(log.requested_model || '').trim()
+  const requested = String(log.requested_model || log.model || '').trim()
   const upstream = String(log.upstream_model || '').trim()
   return !!requested && !!upstream && requested !== upstream
 }
 
 function modelMappingTooltip(log: OpsErrorLog): string {
-  const requested = String(log.requested_model || '').trim()
+  const requested = String(log.requested_model || log.model || '').trim()
   const upstream = String(log.upstream_model || '').trim()
   if (!requested && !upstream) return ''
   if (requested && upstream) return `${requested} → ${upstream}`
@@ -278,11 +278,14 @@ function modelMappingTooltip(log: OpsErrorLog): string {
 }
 
 function displayModel(log: OpsErrorLog): string {
+  const requested = String(log.requested_model || log.model || '').trim()
   const upstream = String(log.upstream_model || '').trim()
+  if (requested && upstream && requested !== upstream) {
+    return `${requested} → ${upstream}`
+  }
   if (upstream) return upstream
-  const requested = String(log.requested_model || '').trim()
   if (requested) return requested
-  return String(log.model || '').trim()
+  return ''
 }
 
 function formatRequestType(type: number | null | undefined): string {

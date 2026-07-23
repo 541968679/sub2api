@@ -337,7 +337,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		anthropicCompactFallbackUpstreamModels = resolveOpenAICompactFallbackForwardModels(
 			account, anthropicCompactRequestedModel, billingModel,
 		)
+
 	}
+	// Persist mapped upstream model for ops_error_logs (admin error-request table).
+	SetOpsUpstreamModel(c, upstreamModel)
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	apiKeyID := getAPIKeyIDFromContext(c)
 	anthropicDigestChain := ""

@@ -1,4 +1,34 @@
-﻿## 2026-07-22 - feat: admin error-requests tab with filtered error rate
+﻿## 2026-07-23 - fix: populate ops error upstream_model for Claude-GPT bridge
+
+### What
+Ops error logs for Claude-GPT bridge empty-output failures left
+`upstream_model` empty, so the admin error-request table only showed the
+client Claude model (e.g. haiku) without the mapped GPT model (e.g. luna).
+
+### Why
+`setOpsEndpointContext` was called with an empty upstream model before account
+selection/mapping, and ForwardAsAnthropic never wrote the final upstream model
+into ops context.
+
+### Fix
+- Set ops upstream model after bridge/channel mapping is resolved in Messages.
+- Set ops upstream model inside ForwardAsAnthropic after final mapping/compact.
+- Frontend model cell falls back to `model` as request name and still shows
+  mapping when both sides exist.
+
+### Files
+- `backend/internal/service/ops_upstream_context.go` (+test)
+- `backend/internal/service/openai_gateway_messages.go`
+- `backend/internal/handler/openai_gateway_handler.go`
+- `backend/internal/handler/ops_error_logger.go`
+- `frontend/src/views/admin/ops/components/OpsErrorLogTable.vue`
+
+### Verify
+- `go test -tags=unit ./internal/service -run TestSetOpsUpstreamModel -count=1`
+- `go test -tags=unit ./internal/handler -run 'TestOps|TestMessagesClaudeGPT|TestOpenAIMessages' -count=1`
+
+---
+## 2026-07-22 - feat: admin error-requests tab with filtered error rate
 
 ### What
 Upgraded the admin Usage page “Error Requests” area into a full independent tab

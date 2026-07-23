@@ -11,6 +11,10 @@ import (
 // Gin context keys used by Ops error logger for capturing upstream error details.
 // These keys are set by gateway services and consumed by handler/ops_error_logger.go.
 const (
+	// OpsUpstreamModelKey must stay aligned with handler/ops_error_logger.go
+	// (opsUpstreamModelKey = "ops_upstream_model").
+	OpsUpstreamModelKey = "ops_upstream_model"
+
 	OpsUpstreamStatusCodeKey   = "ops_upstream_status_code"
 	OpsUpstreamErrorMessageKey = "ops_upstream_error_message"
 	OpsUpstreamErrorDetailKey  = "ops_upstream_error_detail"
@@ -78,6 +82,18 @@ func SetOpsLatencyMs(c *gin.Context, key string, value int64) {
 		return
 	}
 	c.Set(key, value)
+}
+
+// SetOpsUpstreamModel records the model actually sent upstream (after mapping)
+// so ops_error_logs.upstream_model is populated for bridge/mapping paths.
+func SetOpsUpstreamModel(c *gin.Context, upstreamModel string) {
+	if c == nil {
+		return
+	}
+	if upstreamModel = strings.TrimSpace(upstreamModel); upstreamModel == "" {
+		return
+	}
+	c.Set(OpsUpstreamModelKey, upstreamModel)
 }
 
 func MarkOpsClientBusinessLimited(c *gin.Context, reason string) {
