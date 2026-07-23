@@ -11,6 +11,43 @@ Deployed Haiku Claude-GPT bridge empty-output mitigations to production.
 - Prod: running, healthy, `/health` `{"status":"ok"}`
 
 ---
+## 2026-07-23 - fix: Haiku→GPT empty completed output mitigations
+
+### What
+Gateway P0 mitigations for Claude Code Haiku ? GPT-5.* bridge empty completed
+streams ("Connection closed" / no assistant text):
+
+1. Default reasoning effort for Haiku-class Claude models to `low` when the
+   client does not set `output_config.effort`.
+2. After bridge model rewrite, raise `max_output_tokens` floor to 1024 for
+   Haiku→reasoning traffic and strip sampling params on GPT-5.*.
+3. Mark empty completed (stream/non-stream) Anthropic conversions as
+   `UpstreamFailoverError.NoAccountFailover` so the handler does not burn the
+   multi-account pool on request-shaped failures.
+
+### Why
+Production Haiku bridge traffic (large Claude Code context + small max_tokens +
+default medium reasoning on GPT-5.*) often completed with zero visible text.
+Multi-account failover then multiplied error noise without changing the outcome.
+
+### Files
+- `backend/internal/pkg/apicompat/types.go` (`minReasoningMaxOutputTokens`)
+- `backend/internal/pkg/apicompat/anthropic_to_responses.go` (+tests)
+- `backend/internal/service/openai_gateway_messages.go`
+- `backend/internal/service/openai_gateway_service.go` (+test)
+- `backend/internal/service/gateway_service.go` (`NoAccountFailover`)
+- `backend/internal/handler/openai_gateway_handler.go` (+test)
+- `docs/dev/codebase/gateway.md`
+
+### Verify
+- `go test -tags=unit ./internal/pkg/apicompat -run 'TestAnthropicToResponses_Haiku|TestApplyClaudeHaiku' -count=1`
+- `go test -tags=unit ./internal/service -run TestEmptyVisibleOutputError -count=1`
+- `go test -tags=unit ./internal/handler -run TestOpenAIEmptyVisibleOutput -count=1`
+- Local HTTP + Claude Code smoke against `http://127.0.0.1:18081`:
+  Haiku bridge → gpt-5.4 returned visible text with large Claude Code context
+  (`local-haiku-ok-2`, exit 0, no empty-output failover).
+
+---
 ## 2026-07-23 - fix: populate ops error upstream_model for Claude-GPT bridge
 
 ### What
