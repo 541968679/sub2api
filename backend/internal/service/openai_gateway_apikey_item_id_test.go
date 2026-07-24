@@ -1,0 +1,81 @@
+//go:build unit
+
+package service
+
+import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
+)
+
+func TestOpenAIGatewayService_APIKeyPassthrough_StripsInvalidInputItemIDs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body: io.NopCloser(strings.NewReader(
+			`{"id":"resp_test","model":"gpt-5.6-sol","output":[],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`,
+		)),
+	}}
+	cfg := &config.Config{}
+	cfg.Security.URLAllowlist.Enabled = false
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+	account := &Account{
+		ID:          5151,
+		Name:        "openai-item-id-sanitizer",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://example.com",
+		},
+	}
+	account.Extra = map[string]any{"openai_passthrough": true}
+
+	body := []byte(`{
+		"model":"gpt-5.6-sol",
+		"stream":false,
+		"input":[
+			{"type":"message","id":"item_bad_message","role":"assistant","content":[{"type":"output_text","text":"hello"}]},
+			{"type":"function_call","id":"item_bad_call","call_id":"call_123","name":"exec_command","arguments":"{}"},
+			{"type":"message","id":"msg_valid","role":"user","content":[{"type":"input_text","text":"continue"}]},
+			{"type":"function_call","id":"fc_valid","call_id":"call_456","name":"apply_patch","arguments":"{}"},
+			{"type":"function_call_output","id":"item_output","call_id":"call_123","output":"done"},
+			{"type":"web_search_call","id":"item_unconstrained"}
+		]
+	}`)
+
+	result, err := svc.Forward(context.Background(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+
+	forwarded := upstream.lastBody
+	require.False(t, gjson.GetBytes(forwarded, "input.0.id").Exists())
+	require.Equal(t, "hello", gjson.GetBytes(forwarded, "input.0.content.0.text").String())
+	require.False(t, gjson.GetBytes(forwarded, "input.1.id").Exists())
+	require.Equal(t, "call_123", gjson.GetBytes(forwarded, "input.1.call_id").String())
+	require.Equal(t, "exec_command", gjson.GetBytes(forwarded, "input.1.name").String())
+	require.Equal(t, "{}", gjson.GetBytes(forwarded, "input.1.arguments").String())
+	require.Equal(t, "msg_valid", gjson.GetBytes(forwarded, "input.2.id").String())
+	require.Equal(t, "fc_valid", gjson.GetBytes(forwarded, "input.3.id").String())
+	require.Equal(t, "item_output", gjson.GetBytes(forwarded, "input.4.id").String())
+	require.Equal(t, "call_123", gjson.GetBytes(forwarded, "input.4.call_id").String())
+	require.Equal(t, "item_unconstrained", gjson.GetBytes(forwarded, "input.5.id").String())
+}
