@@ -379,6 +379,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		compatReplayTrimmed = applyAnthropicCompatFullReplayGuard(&anthropicReq)
 	}
 
+	// Active suffix must match the final Anthropic messages used for conversion
+	// (after normalize + optional replay-guard trim) so compact keeps the current turn.
+	activeSuffixItems := anthropicBridgeActiveSuffixItemCount(&anthropicReq)
+
 	// 3. Convert Anthropic → Responses after compatibility-only replay guard.
 	responsesReq, err := apicompat.AnthropicToResponses(&anthropicReq)
 	if err != nil {
@@ -557,6 +561,24 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
 		return nil, fmt.Errorf("get access token: %w", err)
+	}
+
+	// 5b. Pre-generation auto-compact for oversized Claude→GPT bridge history.
+	// Skip client-initiated compact requests (they already target /compact recovery).
+	// Fail-open: any compact error keeps the original responsesBody.
+	autoCompact := anthropicBridgeCompactResult{Body: responsesBody}
+	if !anthropicCompactRequest {
+		autoCompact = s.maybeAutoCompactAnthropicBridge(
+			ctx,
+			c,
+			account,
+			responsesBody,
+			token,
+			promptCacheKey,
+			compatTurnState,
+			activeSuffixItems,
+		)
+		responsesBody = autoCompact.Body
 	}
 
 	// 6. Build upstream request
@@ -768,6 +790,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	// Propagate ServiceTier and ReasoningEffort to result for billing
 	if handleErr == nil && result != nil {
+		if autoCompact.Applied {
+			// Compact tokens are billed in addition to the generation pass.
+			result.Usage = addOpenAIUsage(result.Usage, autoCompact.Usage)
+		}
 		if result.SkipContinuationBinding {
 			s.deleteOpenAICompatSessionContinuation(ctx, c, account, promptCacheKey)
 		}

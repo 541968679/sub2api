@@ -663,6 +663,15 @@ type GatewayConfig struct {
 	// OpenAIPassthroughAllowTimeoutHeaders: OpenAI 透传模式是否放行客户端超时头
 	// 关闭（默认）可避免 x-stainless-timeout 等头导致上游提前断流。
 	OpenAIPassthroughAllowTimeoutHeaders bool `mapstructure:"openai_passthrough_allow_timeout_headers"`
+	// AnthropicBridgeAutoCompactEnabled enables explicit /responses/compact calls
+	// for oversized Anthropic Messages history that maps to GPT-5.* OpenAI OAuth Responses.
+	// Fail-open: compact errors fall back to the original generation request.
+	AnthropicBridgeAutoCompactEnabled bool `mapstructure:"anthropic_bridge_auto_compact_enabled"`
+	// AnthropicBridgeAutoCompactInputBytes is the serialized Responses input size
+	// that triggers bridge compaction. This is a byte limit, not a token estimate.
+	AnthropicBridgeAutoCompactInputBytes int `mapstructure:"anthropic_bridge_auto_compact_input_bytes"`
+	// AnthropicBridgeAutoCompactTimeoutSeconds bounds the internal compact request.
+	AnthropicBridgeAutoCompactTimeoutSeconds int `mapstructure:"anthropic_bridge_auto_compact_timeout_seconds"`
 	// OpenAIWS: OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
 	OpenAIWS GatewayOpenAIWSConfig `mapstructure:"openai_ws"`
 	// OpenAIScheduler: OpenAI account scheduler behavior controls.
@@ -1795,6 +1804,12 @@ func setDefaults() {
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
+	// Claude→GPT bridge pre-generation compact for oversized history (default on).
+	// Production failures are mostly HTTP 400 context_length_exceeded on generation,
+	// not client-initiated compact; this proactively shrinks history for OAuth GPT-5.*.
+	viper.SetDefault("gateway.anthropic_bridge_auto_compact_enabled", true)
+	viper.SetDefault("gateway.anthropic_bridge_auto_compact_input_bytes", 512*1024)
+	viper.SetDefault("gateway.anthropic_bridge_auto_compact_timeout_seconds", 600)
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）
 	viper.SetDefault("gateway.openai_ws.enabled", true)
 	viper.SetDefault("gateway.openai_ws.mode_router_v2_enabled", false)
@@ -2457,6 +2472,12 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.MaxBodySize <= 0 {
 		return fmt.Errorf("gateway.max_body_size must be positive")
+	}
+	if c.Gateway.AnthropicBridgeAutoCompactInputBytes < 64*1024 {
+		return fmt.Errorf("gateway.anthropic_bridge_auto_compact_input_bytes must be at least 65536")
+	}
+	if c.Gateway.AnthropicBridgeAutoCompactTimeoutSeconds < 30 || c.Gateway.AnthropicBridgeAutoCompactTimeoutSeconds > 1800 {
+		return fmt.Errorf("gateway.anthropic_bridge_auto_compact_timeout_seconds must be between 30-1800 seconds")
 	}
 	if c.Gateway.UpstreamResponseReadMaxBytes <= 0 {
 		return fmt.Errorf("gateway.upstream_response_read_max_bytes must be positive")

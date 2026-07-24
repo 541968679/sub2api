@@ -1,3 +1,60 @@
+## 2026-07-24 - feat: Claude→GPT bridge pre-generation auto-compact (v1)
+
+### What
+Server-side auto-compact for oversized Anthropic Messages → OpenAI Responses
+bridge history **before** generation, so Opus/Haiku→gpt-5.* long sessions no
+longer depend on Claude Code client compact alone.
+
+Release/deploy hardening for this production push:
+
+- Default production compose image is now `ghcr.io/541968679/sub2api:latest`.
+- `deploy/update.sh` now refuses non-GHCR Sub2API images, pulls the published
+  GHCR image, records the previous GHCR digest for rollback, and never runs
+  `docker build` for the main service on the production host.
+
+Aligned with upstream PR #4756, with fork adaptations:
+
+1. Gate on **mapped upstream** model (`gpt-5*`), not Claude display names.
+2. Skip when the client already initiated a compact request.
+3. Compact model from account compact mapping (no global `OpenAICompactModel`).
+4. Fail-open: compact errors leave the original generation body unchanged.
+5. Merge compact usage into generation usage for billing.
+6. Default **enabled** (upstream PR defaulted off); threshold 512KiB; timeout 600s.
+
+### Why
+Production context-window failures on Claude→GPT were mostly generation-time
+HTTP 400 (`context_length_exceeded`). Client compact only runs when Claude Code
+decides to compact; generation path had no pre-gen shrink. Local synthetic tests
+did not reproduce production Opus loads; this is the reliable server-side fix.
+
+### Config
+- `gateway.anthropic_bridge_auto_compact_enabled` (default `true`)
+- `gateway.anthropic_bridge_auto_compact_input_bytes` (default `524288`, min `65536`)
+- `gateway.anthropic_bridge_auto_compact_timeout_seconds` (default `600`, range `30-1800`)
+- Env: `GATEWAY_ANTHROPIC_BRIDGE_AUTO_COMPACT_*`
+
+### Files
+- `backend/internal/config/config.go` (+tests)
+- `backend/internal/service/openai_anthropic_bridge_compact.go` (+tests)
+- `backend/internal/service/openai_gateway_messages.go` (hook after GetAccessToken)
+- `deploy/.env.example`, `deploy/config.example.yaml`, `deploy/docker-compose.yml`
+- `deploy/update.sh`, `docs/dev/DEPLOYMENT.md`
+
+### Verify
+- `go test -tags=unit ./internal/config -run 'TestLoad.*AnthropicBridgeAutoCompact' -count=1`
+- `go test -tags=unit ./internal/service -run 'TestAnthropicBridge|TestMaybeAutoCompact|TestIsMappedGPT5|TestForwardAsAnthropicAutoCompact' -count=1`
+- Real local Claude Code CLI (`claude.exe` 2.1.211) two-turn request through
+  local Sub2API: 560288-char seed returned `default-seed-ok`; follow-up returned
+  `ZC-DEFAULT-AUTOCOMPACT-CANARY-20260724`; backend logged
+  `openai messages: anthropic bridge history compacted` with input bytes reduced
+  from 620842 to 247542 before generation.
+- `bash -n deploy/update.sh`
+
+### Notes
+- OAuth OpenAI only; skips Grok, API-key, non-gpt-5 mapped models, client compact.
+- Disable in emergency: `GATEWAY_ANTHROPIC_BRIDGE_AUTO_COMPACT_ENABLED=false`.
+
+---
 ## 2026-07-23 - deploy: production Sub2API `v0.1.172`
 
 ### What

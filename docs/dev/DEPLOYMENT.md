@@ -31,11 +31,11 @@
 
 常用命令：
 
-Sub2API 主服务后续必须使用 GitHub Actions 发布到 GHCR 的镜像。不要在生产服务器执行 `docker build`，不要部署 `sub2api-custom:*`。如果服务器上的 `/opt/sub2api/update.sh` 仍会为主服务本机构建镜像，则该脚本在改造前只能用于侧车部署，不能用于 Sub2API 主服务部署。
+Sub2API 主服务必须使用 GitHub Actions 发布到 GHCR 的镜像。不要在生产服务器执行 `docker build`，不要部署 `sub2api-custom:*`。当前 `deploy/update.sh` 主服务路径只会写入 GHCR compose override、`docker compose pull sub2api` 并重建容器；生产使用前先把本仓库的脚本同步到 `/opt/sub2api/update.sh`。
 
 ```powershell
-# 只部署 Sub2API 主服务（GHCR；执行前确认 docker compose config 中 sub2api.image 指向 GHCR）
-ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose pull sub2api && docker compose up -d --no-deps sub2api"
+# 只部署 Sub2API 主服务（GHCR）
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai"
 
 # 只部署 AIClient2API 侧车
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --only-a2"
@@ -44,7 +44,7 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/upda
 ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh --only-invokeai"
 
 # 完整部署 Sub2API + AIClient2API + InvokeAI（GHCR；执行前确认三者镜像均可 pull）
-ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "cd /opt/sub2api && docker compose pull sub2api aiclient2api invokeai && docker compose up -d sub2api aiclient2api invokeai"
+ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "bash /opt/sub2api/update.sh"
 ```
 
 部署后核对：
@@ -61,7 +61,7 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 
 - Sub2API 主服务镜像由 GitHub Actions 构建并发布到 GHCR；生产部署只允许 `docker compose pull/up` 已发布镜像，不允许在生产服务器 `docker build`。
 - 当前 Release workflow 只会在 `v*` tag 推送或手动 `workflow_dispatch` 时发布 GHCR 镜像；单独 push `main` 不会刷新 `ghcr.io/541968679/sub2api:latest`。生产 `pull/up` 前必须确认目标 tag 或 `latest` 已经存在，并且镜像 label 指向本次要部署的 commit。
-- 下次主服务部署前，必须清理或替换历史 `/opt/sub2api/docker-compose.override.yml` 中对 `sub2api-custom:latest` 的 pin，确保 `docker compose config` 解析出的 `sub2api.image` 是 `ghcr.io/541968679/sub2api:latest` 或本次明确批准的 GHCR tag。
+- `deploy/update.sh` 会替换由旧脚本生成的 `sub2api-custom:latest` override；遇到无法识别的自定义 override 会拒绝覆盖。部署前后都要确认 `docker compose config` 解析出的 `sub2api.image` 是 `ghcr.io/541968679/sub2api:latest` 或本次明确批准的 GHCR tag/digest。
 - 生产 AIClient2API 是 sub2api Compose 中的侧车服务，服务名为 `aiclient2api`，宿主机仅绑定 `127.0.0.1:3000`。
 - Sub2API 内部访问 AIClient2API 使用 `http://aiclient2api:3000/claude-kiro-oauth`，不要改成本机公网地址。
 - AIClient2API 镜像由 GitHub Actions 构建并发布到 GHCR；`deploy/update.sh --only-a2` 只执行 `docker compose pull aiclient2api` 和重启。
@@ -84,8 +84,8 @@ ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 "tail -n 120 /opt/sub2a
 3. 等 GitHub Actions Release 成功后，确认 GHCR 镜像已经发布。
 4. 确认生产 Compose 的 `sub2api.image` 指向 GHCR，而不是
    `sub2api-custom:*`。
-5. 在生产机执行 `docker compose pull sub2api` 和
-   `docker compose up -d --no-deps sub2api`。
+5. 将本仓库 `deploy/update.sh` 同步到生产机 `/opt/sub2api/update.sh`，然后执行
+   `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`。
 6. 核对运行镜像、revision/version label、容器健康状态和 `/health`。
 
 常用检查命令：

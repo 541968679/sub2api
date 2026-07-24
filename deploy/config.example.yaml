@@ -232,6 +232,15 @@ gateway:
   # OpenAI 透传模式是否放行客户端超时头（如 x-stainless-timeout）
   # 默认 false：过滤超时头，降低上游提前断流风险。
   openai_passthrough_allow_timeout_headers: false
+  # Claude→GPT bridge pre-generation compact for oversized Messages history.
+  # When mapped upstream model is GPT-5.* OAuth, and Responses "input" bytes exceed
+  # the threshold, gateway calls /responses/compact on history (keeping the current
+  # turn) before generation. Fail-open on compact errors. Default: true.
+  anthropic_bridge_auto_compact_enabled: true
+  # Serialized Responses input byte threshold (not tokens). Min 65536. Default 512KiB.
+  anthropic_bridge_auto_compact_input_bytes: 524288
+  # Internal compact request timeout (seconds). Range 30-1800. Default 600.
+  anthropic_bridge_auto_compact_timeout_seconds: 600
   # OpenAI Responses WebSocket 配置（默认开启，可按需回滚到 HTTP）
   openai_ws:
     # 新版 WS mode 路由（默认关闭）。关闭时保持当前 legacy 实现行为。

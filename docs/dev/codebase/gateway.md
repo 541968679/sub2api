@@ -226,6 +226,25 @@ pairing check. This restoration is explicitly excluded from `platform=grok`;
 Grok Messages continue through `buildGrokResponsesRequest` with the xAI
 transport identity and no Codex `originator` or `version` leakage.
 
+### Claude→GPT pre-generation auto-compact (fork)
+
+Generation (non-client-compact) bridge traffic can still exceed the upstream
+context window when Claude Code has not yet initiated its own compact. After
+`GetAccessToken` and before building the generation upstream request,
+`maybeAutoCompactAnthropicBridge` (config `gateway.anthropic_bridge_auto_compact_*`)
+may call `/responses/compact` on the history prefix when:
+
+- feature enabled (default **true**),
+- account is OpenAI OAuth (not Grok, not API-key),
+- mapped **upstream** model is `gpt-5*` (not Claude display names / fable),
+- request is **not** a client-initiated Claude Code compact,
+- serialized Responses `input` bytes ≥ threshold (default 512KiB),
+- active suffix (current user turn, or assistant+tool_result pair) can be split out.
+
+Compact is fail-open: any error keeps the original generation body. Successful
+compact usage is merged into generation usage. This is independent of the
+client compact recovery path below.
+
 Claude Code emits a hidden compact request after the conversation reaches its
 context threshold. The bridge keeps an untouched transcript snapshot before the
 API-key 12-message replay guard. It buffers `message_start` and thinking until
