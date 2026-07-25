@@ -2863,6 +2863,33 @@
 
       <!-- OpenAI WS Mode 三态（off/ctx_pool/passthrough） -->
       <div
+        v-if="form.platform === 'openai' && accountCategory === 'apikey'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.openai.responsesRouteMode') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.responsesRouteModeDesc') }}
+            </p>
+          </div>
+          <div class="w-52 shrink-0">
+            <Select
+              v-model="openAIResponsesMode"
+              data-testid="create-openai-responses-mode"
+              :options="openAIResponsesModeOptions"
+            />
+          </div>
+        </div>
+        <p
+          v-if="openAIResponsesMode !== 'auto'"
+          class="mt-2 text-xs text-amber-600 dark:text-amber-400"
+        >
+          {{ t('admin.accounts.openai.responsesRouteOverrideHint') }}
+        </p>
+      </div>
+
+      <div
         v-if="form.platform === 'openai' && (accountCategory === 'oauth-based' || accountCategory === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
@@ -3755,6 +3782,8 @@ const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
+type OpenAIResponsesMode = 'auto' | 'force_responses' | 'force_chat_completions'
+const openAIResponsesMode = ref<OpenAIResponsesMode>('auto')
 const openAIEndpointCapabilities = ref<OpenAIEndpointCapability[]>(['chat_completions', 'embeddings'])
 const openAIImagesEndpointEnabled = ref(true)
 const openaiOAuthResponsesWebSocketV2Mode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
@@ -3821,6 +3850,14 @@ const openAICompactModeOptions = computed(() => [
   { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
   { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
   { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
+])
+const openAIResponsesModeOptions = computed(() => [
+  { value: 'auto', label: t('admin.accounts.openai.responsesRouteAuto') },
+  { value: 'force_responses', label: t('admin.accounts.openai.responsesRouteForceResponses') },
+  {
+    value: 'force_chat_completions',
+    label: t('admin.accounts.openai.responsesRouteForceChatCompletions')
+  }
 ])
 const openAIEndpointCapabilityOptions = computed<{ value: OpenAIEndpointCapability; label: string }[]>(() => [
   { value: 'chat_completions', label: t('admin.accounts.openai.capabilityChatCompletions') },
@@ -4788,6 +4825,7 @@ const resetForm = () => {
   openaiPassthroughEnabled.value = false
   openaiClaudeGPTBridgeEnabled.value = false
   openAICompactMode.value = 'auto'
+  openAIResponsesMode.value = 'auto'
   openAIEndpointCapabilities.value = ['chat_completions', 'embeddings']
   openAIImagesEndpointEnabled.value = true
   openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
@@ -4907,6 +4945,11 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     extra.openai_compact_mode = openAICompactMode.value
   } else {
     delete extra.openai_compact_mode
+  }
+  if (accountCategory.value === 'apikey' && openAIResponsesMode.value !== 'auto') {
+    extra.openai_responses_mode = openAIResponsesMode.value
+  } else {
+    delete extra.openai_responses_mode
   }
 
   return Object.keys(extra).length > 0 ? extra : undefined

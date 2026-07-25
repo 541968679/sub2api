@@ -4154,6 +4154,16 @@ const zhBase = {
           '限制该 OpenAI API Key 可参与调度的端点类型；至少保留一项。默认同时参与文本与 Embeddings。',
         capabilityChatCompletions: '文本 / Chat / Responses',
         capabilityEmbeddings: 'Embeddings',
+        responsesRouteMode: 'HTTP Responses 上游路由',
+        responsesRouteModeDesc:
+          '控制下游 /v1/responses 请求实际使用的上游端点。自动模式跟随账号能力探测结果。',
+        responsesRouteAuto: '自动探测',
+        responsesRouteForceResponses: '强制 /v1/responses',
+        responsesRouteForceChatCompletions: '强制 /v1/chat/completions',
+        responsesRouteOverrideHint: '人工覆盖优先于自动探测，后续探测不会改变当前选择。',
+        responsesProbeSupported: '自动探测结果：支持原生 /v1/responses',
+        responsesProbeUnsupported: '自动探测结果：不支持原生 /v1/responses',
+        responsesProbeUnknown: '自动探测结果：尚未探测',
         codexImageGenerationBridge: 'Codex 图片工具桥接',
         codexImageGenerationBridgeDesc:
           '控制 Codex /v1/responses 请求是否为该账号注入 image_generation 工具。图片端点 /v1/images/* 调度仍由分组图片权限与账号能力决定。',

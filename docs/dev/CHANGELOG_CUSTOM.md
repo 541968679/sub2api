@@ -1,3 +1,29 @@
+## 2026-07-25 - feat: expose OpenAI API-key Responses upstream routing
+
+### What
+Added an account-level HTTP Responses route selector to the OpenAI API-key
+create and edit forms. Admins can follow automatic capability probing, force
+native upstream `/v1/responses`, or force the `/v1/chat/completions`
+compatibility bridge. The edit form also shows the persisted automatic probe
+result.
+
+### Why
+An upstream can temporarily fail or return an obsolete capability probe result.
+Admins previously had no UI path to use the backend's existing
+`openai_responses_mode` override, leaving valid native Responses endpoints stuck
+behind the Chat compatibility conversion.
+
+### Compatibility And Verification
+- Manual mode is stored in `accounts.extra.openai_responses_mode` and takes
+  precedence over `openai_responses_supported`; choosing Auto removes the
+  override and resumes probe-based routing.
+- Automatic probes may continue updating their own result but cannot overwrite
+  an explicit manual mode.
+- WebSocket mode, endpoint scheduling, model mapping, billing, usage recording,
+  cache-read quantities, Images, Compact, and Claude-GPT behavior are unchanged.
+- Verified focused create/edit component tests, backend routing-priority tests,
+  frontend typecheck, lint, and production build.
+
 ## 2026-07-25 - ops: disable production Claude-GPT pre-generation auto-compact
 
 ### What
