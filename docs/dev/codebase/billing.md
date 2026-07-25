@@ -23,8 +23,9 @@ Usage and billing rules:
   from the GPT model name.
 - Bridge mode preserves the body-level `prompt_cache_key` for OpenAI upstream
   requests, keeping the request body close to the normal OpenAI path so upstream
-  caching can still work. It still removes upstream `session_id` and
-  `conversation_id` headers before sending the request.
+  caching can still work. It also preserves the deterministic, API-key-isolated
+  upstream `session_id` so repeated requests can reuse the same upstream cache;
+  the bridge still removes `conversation_id` before sending the request.
 - By default, OpenAI `input_tokens_details.cached_tokens` is converted to
   Anthropic-style `cache_read_tokens`, and stored ordinary input tokens are
   `raw_input_tokens - cache_read_tokens`, matching the existing OpenAI usage
@@ -33,18 +34,22 @@ Usage and billing rules:
   bridge-only cache display override with `min_percent` and `max_percent`
   between `0` and `100`. When enabled, the bridge randomly selects a percentage
   in that range and directly sets the bridge base `cache_read_tokens` to that
-  share of upstream `input_tokens`; it does not use upstream `cached_tokens` as
-  the base and does not add to or scale upstream cache values. The generated
-  base value is written to the usage record and participates in Claude-model
-  billing.
+  share of `max(upstream input_tokens - upstream cache_write_tokens, 0)`; it
+  does not use upstream `cached_tokens` as the base and does not add to or scale
+  upstream cache values. Stored ordinary input remains
+  `upstream input_tokens - generated cache_read_tokens - cache_write_tokens`,
+  so cache creation and generated cache read never claim the same input tokens.
+  The generated base value is written to the usage record and participates in
+  Claude-model billing.
 - When `users.downstream_usage_token_mode=display`, the OpenAI Messages bridge
   rewrites the returned Anthropic JSON/SSE `usage` with the same display pricing
   chain used by usage-log display. This rewrite is response-only; both the
   downstream response and user-facing usage-log DTO are transformed from the
   same generated base usage.
 - Bridge diagnostics log the token-only values at three points: raw upstream
-  Responses usage, converted Anthropic usage, and final usage-log values. These
-  logs do not include request or response content.
+  Responses usage (including cache read and cache write), generated cache-read
+  eligibility/base values, converted Anthropic usage, and final usage-log
+  values. These logs do not include request or response content.
 - User DTOs continue to hide `upstream_model`; admin DTOs expose it.
 
 Compatibility notes for custom billing/ops features:

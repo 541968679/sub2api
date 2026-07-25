@@ -127,7 +127,7 @@ func isOpenAIClaudeGPTBridgeForward(c *gin.Context) bool {
 	return enabled == true
 }
 
-func logClaudeGPTBridgeRawUsage(stage, requestID string, accountID int64, originalModel, billingModel, upstreamModel string, inputTokens, outputTokens, cachedTokens int, stream bool) {
+func logClaudeGPTBridgeRawUsage(stage, requestID string, accountID int64, originalModel, billingModel, upstreamModel string, inputTokens, outputTokens, cachedTokens, cacheWriteTokens int, stream bool) {
 	logger.L().Info("openai claude-gpt bridge raw upstream usage",
 		zap.String("stage", stage),
 		zap.String("request_id", requestID),
@@ -138,6 +138,7 @@ func logClaudeGPTBridgeRawUsage(stage, requestID string, accountID int64, origin
 		zap.Int("raw_input_tokens", inputTokens),
 		zap.Int("raw_output_tokens", outputTokens),
 		zap.Int("raw_cached_tokens", cachedTokens),
+		zap.Int("raw_cache_write_tokens", cacheWriteTokens),
 		zap.Bool("stream", stream),
 	)
 }
@@ -241,23 +242,28 @@ func (s *OpenAIGatewayService) applyClaudeGPTBridgeDisplayCacheOverride(
 	}
 
 	upstreamCachedTokens := 0
+	upstreamCacheWriteTokens := 0
 	if usage.InputTokensDetails != nil {
 		upstreamCachedTokens = usage.InputTokensDetails.CachedTokens
+		upstreamCacheWriteTokens = usage.InputTokensDetails.CacheWriteTokens
+	}
+	if usage.CacheCreationInputTokens > 0 {
+		upstreamCacheWriteTokens = usage.CacheCreationInputTokens
 	}
 	percent := settings.MinPercent
 	if settings.MaxPercent > settings.MinPercent {
 		percent += rand.Float64() * (settings.MaxPercent - settings.MinPercent)
 	}
-	inputTokens := usage.InputTokens
-	if inputTokens < 0 {
-		inputTokens = 0
+	cacheEligibleInputTokens := usage.InputTokens - upstreamCacheWriteTokens
+	if cacheEligibleInputTokens < 0 {
+		cacheEligibleInputTokens = 0
 	}
-	cachedTokens := int(math.Round(float64(inputTokens) * percent / 100))
+	cachedTokens := int(math.Round(float64(cacheEligibleInputTokens) * percent / 100))
 	if cachedTokens < 0 {
 		cachedTokens = 0
 	}
-	if cachedTokens > inputTokens {
-		cachedTokens = inputTokens
+	if cachedTokens > cacheEligibleInputTokens {
+		cachedTokens = cacheEligibleInputTokens
 	}
 	if usage.InputTokensDetails == nil {
 		usage.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{}
@@ -272,6 +278,8 @@ func (s *OpenAIGatewayService) applyClaudeGPTBridgeDisplayCacheOverride(
 		zap.String("upstream_model", upstreamModel),
 		zap.Int("raw_input_tokens", usage.InputTokens),
 		zap.Int("upstream_cached_tokens", upstreamCachedTokens),
+		zap.Int("upstream_cache_write_tokens", upstreamCacheWriteTokens),
+		zap.Int("cache_eligible_input_tokens", cacheEligibleInputTokens),
 		zap.Int("display_cached_tokens", cachedTokens),
 		zap.Float64("min_percent", settings.MinPercent),
 		zap.Float64("max_percent", settings.MaxPercent),
@@ -621,7 +629,6 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		upstreamReq.Header.Set("x-codex-turn-state", compatTurnState)
 	}
 	if bridgeMode {
-		upstreamReq.Header.Del("session_id")
 		upstreamReq.Header.Del("conversation_id")
 		logClaudeGPTBridgeUpstreamRequest(upstreamReq, promptCacheKey, account.ID, originalModel, billingModel, upstreamModel, responsesBody)
 	}
@@ -873,10 +880,15 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	}
 	if bridgeMode && finalResponse.Usage != nil {
 		rawCachedTokens := 0
+		rawCacheWriteTokens := 0
 		if finalResponse.Usage.InputTokensDetails != nil {
 			rawCachedTokens = finalResponse.Usage.InputTokensDetails.CachedTokens
+			rawCacheWriteTokens = finalResponse.Usage.InputTokensDetails.CacheWriteTokens
 		}
-		logClaudeGPTBridgeRawUsage("buffered_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, finalResponse.Usage.InputTokens, finalResponse.Usage.OutputTokens, rawCachedTokens, false)
+		if finalResponse.Usage.CacheCreationInputTokens > 0 {
+			rawCacheWriteTokens = finalResponse.Usage.CacheCreationInputTokens
+		}
+		logClaudeGPTBridgeRawUsage("buffered_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, finalResponse.Usage.InputTokens, finalResponse.Usage.OutputTokens, rawCachedTokens, rawCacheWriteTokens, false)
 		s.applyClaudeGPTBridgeDisplayCacheOverride(c.Request.Context(), finalResponse.Usage, requestID, accountID, originalModel, billingModel, upstreamModel, false)
 		usage = copyOpenAIUsageFromResponsesUsage(finalResponse.Usage)
 	}
@@ -1391,10 +1403,15 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 							accountID = account.ID
 						}
 						rawCachedTokens := 0
+						rawCacheWriteTokens := 0
 						if event.Response.Usage.InputTokensDetails != nil {
 							rawCachedTokens = event.Response.Usage.InputTokensDetails.CachedTokens
+							rawCacheWriteTokens = event.Response.Usage.InputTokensDetails.CacheWriteTokens
 						}
-						logClaudeGPTBridgeRawUsage("stream_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, event.Response.Usage.InputTokens, event.Response.Usage.OutputTokens, rawCachedTokens, true)
+						if event.Response.Usage.CacheCreationInputTokens > 0 {
+							rawCacheWriteTokens = event.Response.Usage.CacheCreationInputTokens
+						}
+						logClaudeGPTBridgeRawUsage("stream_terminal", requestID, accountID, originalModel, billingModel, upstreamModel, event.Response.Usage.InputTokens, event.Response.Usage.OutputTokens, rawCachedTokens, rawCacheWriteTokens, true)
 						s.applyClaudeGPTBridgeDisplayCacheOverride(c.Request.Context(), event.Response.Usage, requestID, accountID, originalModel, billingModel, upstreamModel, true)
 					}
 					usage = copyOpenAIUsageFromResponsesUsage(event.Response.Usage)

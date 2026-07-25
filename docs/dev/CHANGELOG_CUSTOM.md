@@ -1,3 +1,35 @@
+## 2026-07-25 - fix: preserve Claude-GPT cache sessions and separate cache-write display tokens
+
+### What
+Claude-GPT bridge requests now retain the deterministic API-key-isolated
+`session_id` sent upstream. The bridge cache display override calculates its
+random cache-read share from `max(upstream input_tokens - cache_write_tokens, 0)`
+instead of the full upstream input count.
+
+### Why
+The bridge previously generated a stable session header and then deleted it
+immediately before dispatch, causing repeated cold-cache writes. It also allowed
+locally generated cache-read tokens to overlap real upstream cache-write tokens,
+which could force displayed ordinary input to zero and make the token breakdown
+arithmetically impossible.
+
+### Verification
+- Focused unit tests first reproduced both defects, then passed after the fix.
+- Broader Claude-GPT/cache-write service tests and `internal/pkg/apicompat`
+  cache tests passed; `go build ./cmd/server` passed.
+- Two identical real bridge requests through account `3007` returned upstream
+  `input_tokens=54883`, cache write `0`, and real cache read `3840 -> 54016` with
+  the same non-empty session hash. Stored usage rows `17191/17192` preserved the
+  invariant `input + cache_read + cache_write = upstream input`.
+
+### Files
+- `backend/internal/service/openai_gateway_messages.go`
+- `backend/internal/service/openai_gateway_messages_compact.go`
+- `backend/internal/service/openai_compat_model_test.go`
+- `docs/dev/codebase/billing.md`
+- `docs/dev/codebase/gateway.md`
+- `docs/dev/OPENAI_CLAUDE_GPT_BRIDGE_2026-06-02.md`
+
 ## 2026-07-25 - deploy: production Sub2API `v0.1.174`
 
 ### What

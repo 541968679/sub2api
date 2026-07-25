@@ -217,6 +217,13 @@ usage fields, display cache override, display-token downstream rewriting, and
 Claude Code compact recovery. Non-bridge OpenAI Messages should otherwise
 follow upstream prompt-cache/session/continuation behavior.
 
+Bridge requests also preserve the deterministic `session_id` derived from the
+API-key-isolated prompt/session key. They remove `conversation_id` when the
+client did not explicitly supply one, but must not remove `session_id`: doing so
+turns each request into a new upstream cache session and causes repeated cold
+cache writes. The bridge cache display override applies its configured random
+percentage only to `max(upstream input_tokens - cache_write_tokens, 0)`.
+
 For OpenAI OAuth, the Messages bridge marks request construction as
 compatibility mode so it can preserve the bridge-specific body and
 session/conversation rules. Immediately before dispatch, it restores the full
@@ -577,7 +584,7 @@ carrier, or in `tool_choice`.
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
 | Chat Completions isolation | `/v1/chat/completions` currently converts only to Anthropic Messages upstream. It must disable Antigravity mixed scheduling, otherwise an Antigravity OAuth token can be sent to Anthropic and return 401 `Invalid bearer token`. |
 | Group model access control | Handlers reject models blocked by the group blacklist or not present in a non-empty whitelist before account selection. Responses payloads also validate `tools[].type == "image_generation"` entries with an explicit `model`, so image tools cannot bypass group restrictions. |
-| OpenAI Claude-GPT bridge | Antigravity `/v1/messages` resolves a strict route decision before dispatch. Bridge configuration intent (enabled account extra + explicit Claude model mapping on a bound OpenAI account) is separated from instantaneous schedulability: only `not_configured` reaches native; `rate_limited` returns 429 + Retry-After and `unavailable`/`probe_error` return 503, implementing the 2026-07-10 strict-routing plan. The conversion core follows upstream Messages behavior; local overlay owns Antigravity dispatch, bridge header stripping, usage/display semantics, scheduler eligibility, and compact recovery. |
+| OpenAI Claude-GPT bridge | Antigravity `/v1/messages` resolves a strict route decision before dispatch. Bridge configuration intent (enabled account extra + explicit Claude model mapping on a bound OpenAI account) is separated from instantaneous schedulability: only `not_configured` reaches native; `rate_limited` returns 429 + Retry-After and `unavailable`/`probe_error` return 503, implementing the 2026-07-10 strict-routing plan. The conversion core follows upstream Messages behavior; the local overlay owns Antigravity dispatch, deterministic isolated `session_id` preservation, `conversation_id` stripping, non-overlapping cache-write/cache-read display semantics, scheduler eligibility, and compact recovery. |
 | Haiku→GPT empty-output mitigation | Haiku-class Claude models default to reasoning effort `low` when `output_config.effort` is unset. After bridge upstream model assignment, `ApplyClaudeHaikuBridgeUpstreamAdjustments` floors `max_output_tokens` at 1024 for Haiku→GPT-5.* and strips sampling params. Empty completed streams/non-stream conversions set `UpstreamFailoverError.NoAccountFailover` so the OpenAI Messages handler does not multi-account switch on request-shaped failures. |
 | Public usage query | `/v1/usage*` uses API key authentication but intentionally skips billing enforcement and group-assignment enforcement so users can inspect exhausted, expired, or ungrouped keys. Public records/stats/trend endpoints must force the authenticated API key ID server-side and must not accept a user-supplied API key ID. |
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |

@@ -117,8 +117,9 @@ Billing and usage:
 - Bridge forwarding preserves body-level `prompt_cache_key`, including the
   derived key used by the normal OpenAI Messages path. This keeps the bridge
   upstream body close to normal OpenAI traffic and allows upstream OpenAI cache
-  behavior to work. Bridge mode still removes upstream `session_id` and
-  `conversation_id` headers before the OpenAI request is sent.
+  behavior to work. Bridge mode preserves the deterministic, API-key-isolated
+  upstream `session_id` and removes `conversation_id` before the OpenAI request
+  is sent.
 - Without a cache display override, OpenAI
   `input_tokens_details.cached_tokens` is converted to Anthropic-style
   `cache_read_tokens`. Stored ordinary input tokens are
@@ -130,12 +131,11 @@ Billing and usage:
   `0 <= min_percent <= max_percent <= 100`.
 - When that override is enabled, each bridge response randomly chooses a
   percentage in the configured range and directly sets
-  `cache_read_tokens = round(raw_input_tokens * percent / 100)`, clamped to the
-  upstream input-token count. This value is locally generated from upstream
-  `input_tokens`; it is not calculated from, added to, or scaled from upstream
-  `cached_tokens`. The generated value replaces upstream `cached_tokens` for
-  downstream Anthropic usage, usage-record display, and billing. The raw
-  upstream `cached_tokens` value is still logged only as a diagnostic.
+  `cache_read_tokens = round(max(raw_input_tokens - cache_write_tokens, 0) * percent / 100)`,
+  clamped to that cache-eligible input count. This value is not calculated from,
+  added to, or scaled from upstream `cached_tokens`. The generated value replaces
+  upstream `cached_tokens` for downstream Anthropic usage, usage-record display,
+  and billing while the real upstream cache-write count is preserved separately.
 - OpenAI `/v1/messages` and Antigravity bridge `/v1/messages` now apply the
   same downstream display-token rewrite hook used by the ordinary gateway
   paths. When a user is configured for downstream display tokens, the HTTP/SSE
@@ -184,14 +184,17 @@ Cache-read regression verification:
   `metadata.user_id` path and forwarded into the OpenAI/Codex upstream request.
 - A first mitigation removed those cache/session identifiers, which avoided the
   fixed cache display but also prevented normal upstream cache reuse.
-- The current mitigation restores body-level `prompt_cache_key` forwarding while
-  continuing to suppress `session_id` and `conversation_id` headers.
-- Focused tests now assert bridge requests forward body `prompt_cache_key` but
-  omit upstream session headers, while non-bridge OpenAI Messages behavior still
-  forwards both prompt and session identity.
+- The current behavior restores body-level `prompt_cache_key` forwarding and
+  preserves the deterministic isolated `session_id`; only `conversation_id`
+  remains suppressed for the bridge request.
+- Focused tests assert bridge requests forward body `prompt_cache_key` and the
+  stable upstream `session_id`, while keeping `conversation_id` empty.
 - Focused tests also assert the bridge cache display override ignores upstream
   `cached_tokens`, including a fixed upstream `18944`, and returns/writes the
   configured percentage-derived cache value instead.
+- A cache-write overlap regression test uses upstream `input_tokens=100`,
+  `cache_write_tokens=40`, and a fixed 60% display ratio. It verifies generated
+  cache read `36`, ordinary input `24`, and the invariant `24 + 36 + 40 = 100`.
 - Focused tests cover both buffered JSON and streaming Anthropic SSE display
   usage rewrite, so downstream returned usage stays aligned with the configured
   display-token mode.
@@ -203,6 +206,12 @@ Cache-read regression verification:
   with `chosen_percent=67.1041`. The stored usage row `15774` kept
   `model=requested_model=claude-opus-4-8`, `upstream_model=gpt-5.5`,
   `input_tokens=7327`, `cache_read_tokens=14946`, and `output_tokens=94`.
+- Real local verification on 2026-07-25 used API-key bridge account `3007`
+  (`linxinrui`) with mapped upstream `gpt-5.6-sol`. Two identical 54,883-token
+  requests carried the same deterministic `session_id` hash. Raw upstream cache
+  read increased from `3,840` to `54,016` (98.4%) while raw cache write stayed
+  `0` on both requests. Stored usage rows `17191/17192` satisfied
+  `input + cache_read + cache_write = 54,883` exactly.
   Claude Code's downstream display-mode usage showed `input_tokens=16149`,
   `cache_read_input_tokens=14946`, and `output_tokens=188`, matching the same
   display-token transform used by user-facing usage-log DTOs.

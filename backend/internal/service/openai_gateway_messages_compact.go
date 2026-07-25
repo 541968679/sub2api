@@ -1034,12 +1034,17 @@ func (s *OpenAIGatewayService) writeAnthropicCompactFinalResponse(
 	}
 	if bridgeMode && finalResponse.Usage != nil {
 		cachedTokens := 0
+		cacheWriteTokens := 0
 		if finalResponse.Usage.InputTokensDetails != nil {
 			cachedTokens = finalResponse.Usage.InputTokensDetails.CachedTokens
+			cacheWriteTokens = finalResponse.Usage.InputTokensDetails.CacheWriteTokens
+		}
+		if finalResponse.Usage.CacheCreationInputTokens > 0 {
+			cacheWriteTokens = finalResponse.Usage.CacheCreationInputTokens
 		}
 		logClaudeGPTBridgeRawUsage(
 			"compact_final", requestID, accountID, originalModel, billingModel, upstreamModel,
-			finalResponse.Usage.InputTokens, finalResponse.Usage.OutputTokens, cachedTokens, clientStream,
+			finalResponse.Usage.InputTokens, finalResponse.Usage.OutputTokens, cachedTokens, cacheWriteTokens, clientStream,
 		)
 		s.applyClaudeGPTBridgeDisplayCacheOverride(
 			c.Request.Context(), finalResponse.Usage, requestID, accountID,
