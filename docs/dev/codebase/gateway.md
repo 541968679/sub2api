@@ -252,6 +252,21 @@ Compact is fail-open: any error keeps the original generation body. Successful
 compact usage is merged into generation usage. This is independent of the
 client compact recovery path below.
 
+Production currently disables this hidden pass because Claude Code cannot see
+or wait on bridge-initiated compaction, making it appear as unexplained TTFT.
+This does not disable client-initiated compact or the recovery path below.
+When a 1M-advertised Claude client reaches a smaller GPT upstream window first,
+the upstream `context_length_exceeded` must use a Claude Code-recognized
+prompt-too-long error contract to trigger the client's visible reactive
+compact/retry flow. Returning the upstream `context window` text as an ordinary
+400 does not do that in Claude Code 2.1.220. Upstream Sub2API currently covers
+no-failover and configurable passthrough semantics, while open PR #4756 is the
+same hidden adapter-side auto-compact design and is not a reactive-client fix.
+See
+[`CLAUDE_GPT_CONTEXT_COMPACTION_INVESTIGATION_2026-07-25.md`](../CLAUDE_GPT_CONTEXT_COMPACTION_INVESTIGATION_2026-07-25.md)
+for evidence, upstream history, rejected workarounds, and the pending response
+contract change.
+
 Claude Code emits a hidden compact request after the conversation reaches its
 context threshold. The bridge keeps an untouched transcript snapshot before the
 API-key 12-message replay guard. It buffers `message_start` and thinking until

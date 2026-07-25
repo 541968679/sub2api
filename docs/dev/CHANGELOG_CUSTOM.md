@@ -1,3 +1,32 @@
+## 2026-07-25 - docs: capture Claude-GPT context compaction investigation
+
+### What
+Recorded the production failure, the boundary between client-initiated compact
+and fork-local hidden pre-generation auto-compact, the verified Claude Code
+prompt-too-long behavior, rejected client-configuration workarounds, and the
+candidate reactive compact error-contract fix.
+
+### Why
+Claude Code can advertise a larger context window than the mapped GPT/Codex
+upstream accepts. The bridge currently returns the upstream
+`context_length_exceeded` message as an ordinary 400 that Claude Code does not
+classify as `prompt_too_long`, so its own visible compact/retry flow does not
+start.
+
+### Scope
+- Documentation only; no runtime code, configuration, production service, or
+  deployment was changed.
+- Compared upstream `main` at `2e2638c01`, merged context-error PRs #3548,
+  #3859, #3868, #3870, and #3873, plus open PRs #3808 and #4756. Upstream fixes
+  error swallowing/failover/configurable passthrough but has no merged Claude
+  Code reactive-compact error contract; #4756 is the same hidden adapter-side
+  compaction design and remains default-off upstream.
+- Clarified that the fork has stronger client-initiated compact recovery than
+  upstream, while its direct 400 with the original context-window message is
+  the remaining compatibility gap rather than a missed upstream patch.
+- The candidate runtime fix remains explicitly unimplemented pending response
+  contract tests and a real long-conversation end-to-end test.
+
 ## 2026-07-25 - fix: record actual OpenAI upstream endpoints in error logs
 
 ### What
