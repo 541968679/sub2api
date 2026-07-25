@@ -1,3 +1,28 @@
+## 2026-07-25 - deploy: production Sub2API `v0.1.175`
+
+### What
+Deployed the Claude-GPT stable cache-session and non-overlapping cache-write
+accounting fix to production using the GitHub Actions-built GHCR image.
+
+### Deploy
+- Tag: `v0.1.175`
+- Commit: `80d9fd818ed248458772335df802fd691f6db6e5`
+- Image: `ghcr.io/541968679/sub2api:latest` (version label `0.1.175`)
+- Image digest / running image ID:
+  `sha256:9122cd929b70eb99fdef46f495d3cf178bbd858f35f35a39d85e02351642a38d`
+- Release: https://github.com/541968679/sub2api/releases/tag/v0.1.175
+- Release workflow: https://github.com/541968679/sub2api/actions/runs/30150931815
+- Prod: running, healthy, restart count `0`; internal and public `/health`
+  returned `{"status":"ok"}`
+- Rollback pointer: restored to the verified `v0.1.174` GHCR digest
+  `sha256:2f3101aa66bdabd47eb00eaf433ef52d3fe5f92d41e2f8acb661c20319f0a427`
+
+### Notes
+The production deployment pulled the published GHCR image and recreated only
+the Sub2API service; AIClient2API and InvokeAI were intentionally skipped. The
+post-deploy log scan found no panic, fatal error, migration failure, or
+database/Redis startup failure.
+
 ## 2026-07-25 - fix: preserve Claude-GPT cache sessions and separate cache-write display tokens
 
 ### What
