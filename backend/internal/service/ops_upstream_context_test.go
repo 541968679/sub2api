@@ -82,3 +82,23 @@ func TestAppendOpsUpstreamError_UsesRequestBodyStringFromContext(t *testing.T) {
 	require.Len(t, events, 1)
 	require.Equal(t, `{"model":"gpt-4"}`, events[0].UpstreamRequestBody)
 }
+
+func TestAppendOpsUpstreamError_CapturesActualOpenAIUpstreamEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
+
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform: PlatformOpenAI,
+		Kind:     "http_error",
+		Message:  "Unsupported content type",
+	})
+
+	v, ok := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, ok)
+	events, ok := v.([]*OpsUpstreamErrorEvent)
+	require.True(t, ok)
+	require.Len(t, events, 1)
+	require.Equal(t, "/v1/chat/completions", events[0].UpstreamEndpoint)
+}

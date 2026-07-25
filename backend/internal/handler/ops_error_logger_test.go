@@ -229,3 +229,16 @@ func TestSetOpsEndpointContext_NilContext(t *testing.T) {
 		setOpsEndpointContext(nil, "model", int16(1))
 	})
 }
+
+func TestResolveOpsUpstreamEndpoint_PrefersLastErrorAttempt(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+	service.SetActualOpenAIUpstreamEndpoint(c, EndpointResponses)
+	events := []*service.OpsUpstreamErrorEvent{
+		{UpstreamEndpoint: EndpointResponses},
+		{UpstreamEndpoint: EndpointChatCompletions},
+	}
+
+	require.Equal(t, EndpointChatCompletions, resolveOpsUpstreamEndpoint(c, service.PlatformOpenAI, events))
+}
