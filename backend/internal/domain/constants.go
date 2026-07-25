@@ -165,6 +165,7 @@ func ResolveAntigravityDefaultMapping() map[string]string {
 var DefaultAntigravityModelMapping = map[string]string{
 	// Claude 白名单
 	"claude-fable-5":             "claude-fable-5",           // 官方模型
+	"claude-opus-5":              "claude-opus-5",            // 官方模型
 	"claude-opus-4-8":            "claude-opus-4-8",          // 官方模型
 	"claude-opus-4-7":            "claude-opus-4-7",          // 官方模型
 	"claude-opus-4-6-thinking":   "claude-opus-4-6-thinking", // 官方模型
@@ -225,6 +226,7 @@ var DefaultBedrockModelMapping = map[string]string{
 	// Claude Fable
 	"claude-fable-5": "anthropic.claude-fable-5",
 	// Claude Opus
+	"claude-opus-5":            "us.anthropic.claude-opus-5-v1",
 	"claude-opus-4-8":          "us.anthropic.claude-opus-4-8-v1",
 	"claude-opus-4-7":          "us.anthropic.claude-opus-4-7-v1",
 	"claude-opus-4-6-thinking": "us.anthropic.claude-opus-4-6-v1",

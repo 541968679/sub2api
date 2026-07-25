@@ -48,6 +48,8 @@ describe('useModelWhitelist', () => {
   it('Claude 模型列表包含新发布的 Claude 模型', () => {
     expect(getModelsByPlatform('claude')).toContain('claude-fable-5')
     expect(getModelsByPlatform('antigravity')).toContain('claude-fable-5')
+    expect(getModelsByPlatform('claude')).toContain('claude-opus-5')
+    expect(getModelsByPlatform('antigravity')).toContain('claude-opus-5')
     expect(getModelsByPlatform('claude')).toContain('claude-opus-4-8')
     expect(getModelsByPlatform('antigravity')).toContain('claude-opus-4-8')
   })
@@ -101,6 +103,7 @@ describe('useModelWhitelist', () => {
 
     const bridgeTemplate = getDefaultOpenAIClaudeGPTBridgeTemplate()
     expect(bridgeTemplate).toEqual([
+      { from: 'claude-opus-5', to: 'gpt-5.5' },
       { from: 'claude-opus-4-8', to: 'gpt-5.5' },
       { from: 'claude-opus-4-7', to: 'gpt-5.5' },
       { from: 'claude-opus-4-6', to: 'gpt-5.4' },

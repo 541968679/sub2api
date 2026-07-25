@@ -4371,8 +4371,12 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 	if v := c.GetHeader("anthropic-version"); v != "" {
 		req.Header.Set("anthropic-version", v)
 	}
-	if v := c.GetHeader("anthropic-beta"); v != "" {
-		req.Header.Set("anthropic-beta", v)
+	// Opus 4.8 / Opus 5: force 1M context beta even when the client omits it.
+	// originalModel is the client-facing model id (may include a "[1m]" suffix).
+	clientBeta := c.GetHeader("anthropic-beta")
+	forcedBeta := ensureForcedContext1MBeta(clientBeta, originalModel)
+	if forcedBeta != "" {
+		req.Header.Set("anthropic-beta", forcedBeta)
 	}
 
 	// 代理 URL

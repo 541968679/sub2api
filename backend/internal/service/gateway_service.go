@@ -5342,6 +5342,8 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	// 能力维度 body sanitize：透传路径上 anthropic-beta header 原样透传客户端值，
 	// 依此决定是否保留 body 中的 context_management。避免“客户端 body 带字段但
 	// header 忘记带 beta token”的客户端 bug 在透传场景下让上游 400。
+	// Opus 4.8 / Opus 5: force context-1m regardless of client headers.
+	requestModel := gjson.GetBytes(body, "model").String()
 	clientBeta := ""
 	if c != nil && c.Request != nil {
 		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
@@ -5350,6 +5352,7 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
 		clientBeta = beta
 	}
+	clientBeta = ensureForcedContext1MBeta(clientBeta, requestModel)
 	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
 		body = sanitized
 	}
@@ -5388,6 +5391,10 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 
 	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
 	account.ApplyHeaderOverrides(req.Header)
+	// Force 1M after header overrides so account overrides cannot drop it for Opus 4.8/5.
+	if forced := ensureForcedContext1MBeta(getHeaderRaw(req.Header, "anthropic-beta"), requestModel); forced != "" {
+		setHeaderRaw(req.Header, "anthropic-beta", forced)
+	}
 
 	return req, nil
 }
@@ -6297,6 +6304,10 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 
 	// Build effective drop set: merge static defaults with dynamic beta policy filter rules
 	policyFilterSet := s.getBetaPolicyFilterSet(ctx, c, account, modelID)
+	// Opus 4.8 / Opus 5 always keep context-1m even if a policy rule would filter it.
+	if claude.RequiresForcedContext1M(modelID) && policyFilterSet != nil {
+		delete(policyFilterSet, claude.BetaContext1M)
+	}
 	effectiveDropSet := mergeDropSets(policyFilterSet)
 
 	// 处理 anthropic-beta header（OAuth 账号需要包含 oauth beta）
@@ -6337,6 +6348,10 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 				}
 			}
 		}
+	}
+	// Force 1M context beta for Opus 4.8 / Opus 5 after all policy/filter merges.
+	if forced := ensureForcedContext1MBeta(getHeaderRaw(req.Header, "anthropic-beta"), modelID); forced != "" {
+		setHeaderRaw(req.Header, "anthropic-beta", forced)
 	}
 
 	// 同步 X-Claude-Code-Session-Id 头：取 body 中已处理的 metadata.user_id 的 session_id 覆盖
@@ -6441,11 +6456,18 @@ func (s *GatewayService) buildUpstreamRequestAnthropicVertex(
 	if c != nil && c.Request != nil {
 		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
 	}
+	// Opus 4.8 / Opus 5: inject context-1m before policy/Vertex filtering so 1M
+	// is not lost when the client omits the beta header.
+	clientBeta = ensureForcedContext1MBeta(clientBeta, modelID)
 	policy := s.evaluateBetaPolicy(ctx, clientBeta, account, modelID)
 	if policy.blockErr != nil {
 		return nil, policy.blockErr
 	}
+	if claude.RequiresForcedContext1M(modelID) && policy.filterSet != nil {
+		delete(policy.filterSet, claude.BetaContext1M)
+	}
 	finalBeta := filterVertexBetaTokens(clientBeta, mergeDropSets(policy.filterSet))
+	finalBeta = ensureForcedContext1MBeta(finalBeta, modelID)
 
 	// 能力维度 sanitize：基于最终 beta（而非原始 client 值）决定是否保留 body 中的
 	// context_management，与 Anthropic 直连 / Bedrock 路径对称。
@@ -6607,6 +6629,23 @@ func mergeAnthropicBeta(required []string, incoming string) string {
 		add(p)
 	}
 	return strings.Join(out, ",")
+}
+
+// ensureForcedContext1MBeta injects context-1m-2025-08-07 for models that Sub2API
+// always upgrades to the 1M context window (Opus 4.8 / Opus 5). Client requests
+// without the beta, or with only a "[1m]" model-name suffix, still get the beta
+// on the upstream hop. The model ID in the body stays the clean name (no suffix).
+func ensureForcedContext1MBeta(header, modelID string) string {
+	if !claude.RequiresForcedContext1M(modelID) {
+		return header
+	}
+	if containsBetaToken(header, claude.BetaContext1M) {
+		return header
+	}
+	if strings.TrimSpace(header) == "" {
+		return claude.BetaContext1M
+	}
+	return mergeAnthropicBeta([]string{claude.BetaContext1M}, header)
 }
 
 func mergeAnthropicBetaDropping(required []string, incoming string, drop map[string]struct{}) string {
@@ -6832,10 +6871,16 @@ func (s *GatewayService) resolveBedrockBetaTokensForRequest(
 	body []byte,
 	modelID string,
 ) ([]string, error) {
+	// Force 1M context beta for Opus 4.8 / Opus 5 before policy evaluation.
+	betaHeader = ensureForcedContext1MBeta(betaHeader, modelID)
+
 	// 1. 对原始 header 中的 beta token 做 block 检查（快速失败）
 	policy := s.evaluateBetaPolicy(ctx, betaHeader, account, modelID)
 	if policy.blockErr != nil {
 		return nil, policy.blockErr
+	}
+	if claude.RequiresForcedContext1M(modelID) && policy.filterSet != nil {
+		delete(policy.filterSet, claude.BetaContext1M)
 	}
 
 	// 2. 解析 header + body 自动注入 + Bedrock 转换/过滤
@@ -6849,7 +6894,11 @@ func (s *GatewayService) resolveBedrockBetaTokensForRequest(
 		return nil, blockErr
 	}
 
-	return filterBetaTokens(betaTokens, policy.filterSet), nil
+	filtered := filterBetaTokens(betaTokens, policy.filterSet)
+	if claude.RequiresForcedContext1M(modelID) && !containsBetaToken(strings.Join(filtered, ","), claude.BetaContext1M) {
+		filtered = append([]string{claude.BetaContext1M}, filtered...)
+	}
+	return filtered, nil
 }
 
 // checkBetaPolicyBlockForTokens 检查 token 列表中是否有被管理员 block 规则命中的 token。
@@ -9538,6 +9587,8 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
 	}
 	// 同 buildUpstreamRequestAnthropicAPIKeyPassthrough：能力维度 sanitize。
+	// Opus 4.8 / Opus 5: force context-1m regardless of client headers.
+	requestModel := gjson.GetBytes(body, "model").String()
 	clientBeta := ""
 	if c != nil && c.Request != nil {
 		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
@@ -9546,6 +9597,7 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
 		clientBeta = beta
 	}
+	clientBeta = ensureForcedContext1MBeta(clientBeta, requestModel)
 	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
 		body = sanitized
 	}
@@ -9583,6 +9635,9 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 
 	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
 	account.ApplyHeaderOverrides(req.Header)
+	if forced := ensureForcedContext1MBeta(getHeaderRaw(req.Header, "anthropic-beta"), requestModel); forced != "" {
+		setHeaderRaw(req.Header, "anthropic-beta", forced)
+	}
 
 	return req, nil
 }
@@ -9693,7 +9748,11 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 	}
 
 	// Build effective drop set for count_tokens: merge static defaults with dynamic beta policy filter rules
-	ctEffectiveDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
+	ctPolicyFilterSet := s.getBetaPolicyFilterSet(ctx, c, account, modelID)
+	if claude.RequiresForcedContext1M(modelID) && ctPolicyFilterSet != nil {
+		delete(ctPolicyFilterSet, claude.BetaContext1M)
+	}
+	ctEffectiveDropSet := mergeDropSets(ctPolicyFilterSet)
 
 	// OAuth 账号：处理 anthropic-beta header
 	if tokenType == "oauth" {
@@ -9727,6 +9786,9 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 				}
 			}
 		}
+	}
+	if forced := ensureForcedContext1MBeta(getHeaderRaw(req.Header, "anthropic-beta"), modelID); forced != "" {
+		setHeaderRaw(req.Header, "anthropic-beta", forced)
 	}
 
 	// 同步 X-Claude-Code-Session-Id 头：取 body 中已处理的 metadata.user_id 的 session_id 覆盖

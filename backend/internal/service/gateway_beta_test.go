@@ -16,6 +16,29 @@ func TestMergeAnthropicBeta(t *testing.T) {
 	require.Equal(t, "oauth-2025-04-20,interleaved-thinking-2025-05-14,foo,bar", got)
 }
 
+func TestEnsureForcedContext1MBeta(t *testing.T) {
+	t.Parallel()
+
+	// Non-forced models leave header unchanged.
+	require.Equal(t, "", ensureForcedContext1MBeta("", "claude-sonnet-4-6"))
+	require.Equal(t, "interleaved-thinking-2025-05-14", ensureForcedContext1MBeta("interleaved-thinking-2025-05-14", "claude-opus-4-7"))
+
+	// Opus 4.8 / Opus 5 inject context-1m even when client omits it.
+	require.Equal(t, claude.BetaContext1M, ensureForcedContext1MBeta("", "claude-opus-5"))
+	require.Equal(t, claude.BetaContext1M, ensureForcedContext1MBeta("", "claude-opus-4-8"))
+	require.Equal(t, claude.BetaContext1M, ensureForcedContext1MBeta("", "claude-opus-5[1m]"))
+	require.Equal(t,
+		claude.BetaContext1M+",interleaved-thinking-2025-05-14",
+		ensureForcedContext1MBeta("interleaved-thinking-2025-05-14", "claude-opus-5"),
+	)
+
+	// Idempotent when already present.
+	require.Equal(t,
+		claude.BetaContext1M+",oauth-2025-04-20",
+		ensureForcedContext1MBeta(claude.BetaContext1M+",oauth-2025-04-20", "claude-opus-4-8"),
+	)
+}
+
 func TestMergeAnthropicBeta_EmptyIncoming(t *testing.T) {
 	got := mergeAnthropicBeta(
 		[]string{"oauth-2025-04-20", "interleaved-thinking-2025-05-14"},
@@ -263,9 +286,14 @@ func TestDefaultBetaPolicy_Context1M_Sonnet5Whitelist(t *testing.T) {
 		{"claude-sonnet-4-5@20250929", BetaPolicyActionFilter},
 		{"us.anthropic.claude-sonnet-4-6", BetaPolicyActionFilter},
 		{"us.anthropic.claude-sonnet-4-5-20250929-v1:0", BetaPolicyActionFilter},
-		{"claude-opus-4-8", BetaPolicyActionFilter},
+		// Opus 4.8 / Opus 5 always pass context-1m (forced 1M policy)
+		{"claude-opus-4-8", BetaPolicyActionPass},
+		{"claude-opus-4-8-thinking", BetaPolicyActionPass},
+		{"us.anthropic.claude-opus-4-8-v1", BetaPolicyActionPass},
+		{"claude-opus-5", BetaPolicyActionPass},
+		{"claude-opus-5-thinking", BetaPolicyActionPass},
+		{"us.anthropic.claude-opus-5-v1", BetaPolicyActionPass},
 		{"claude-opus-4-7", BetaPolicyActionFilter},
-		{"us.anthropic.claude-opus-4-8-v1", BetaPolicyActionFilter},
 		{"claude-haiku-4-5", BetaPolicyActionFilter},
 		{"us.anthropic.claude-haiku-4-5-20251001-v1:0", BetaPolicyActionFilter},
 		{"claude-3-5-sonnet-20241022", BetaPolicyActionFilter},

@@ -486,6 +486,10 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 				BetaToken: "context-1m-2025-08-07",
 				Action:    BetaPolicyActionPass,
 				Scope:     BetaPolicyScopeAll,
+				// Pass for Sonnet 5 and forced-1M Opus families (4.8 / 5).
+				// Other models still filter the beta (FallbackAction).
+				// Note: gateway also injects context-1m for Opus 4.8/5 regardless of
+				// client headers; this whitelist keeps policy evaluation consistent.
 				ModelWhitelist: []string{
 					"claude-sonnet-5",
 					"claude-sonnet-5-*",
@@ -498,6 +502,29 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 					"us-gov.anthropic.claude-sonnet-5*",
 					"global.anthropic.claude-sonnet-5*",
 					"anthropic.claude-sonnet-5*",
+					// Opus 4.8 / Opus 5 — always 1M on Sub2API
+					"claude-opus-5",
+					"claude-opus-5-*",
+					"claude-opus-5@*",
+					"claude-opus-4-8",
+					"claude-opus-4-8-*",
+					"claude-opus-4-8@*",
+					"us.anthropic.claude-opus-5*",
+					"eu.anthropic.claude-opus-5*",
+					"apac.anthropic.claude-opus-5*",
+					"jp.anthropic.claude-opus-5*",
+					"au.anthropic.claude-opus-5*",
+					"us-gov.anthropic.claude-opus-5*",
+					"global.anthropic.claude-opus-5*",
+					"anthropic.claude-opus-5*",
+					"us.anthropic.claude-opus-4-8*",
+					"eu.anthropic.claude-opus-4-8*",
+					"apac.anthropic.claude-opus-4-8*",
+					"jp.anthropic.claude-opus-4-8*",
+					"au.anthropic.claude-opus-4-8*",
+					"us-gov.anthropic.claude-opus-4-8*",
+					"global.anthropic.claude-opus-4-8*",
+					"anthropic.claude-opus-4-8*",
 				},
 				FallbackAction: BetaPolicyActionFilter,
 			},

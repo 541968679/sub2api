@@ -277,11 +277,26 @@ account.ResolveMappedModel():
 
 - **保存过的平台默认映射会滞后于内置表 (2026-07-04)**：管理员在模型配置页保存
   过映射表后，保存表整体替换内置表；之后 fork 同步新增的内置模型（如
-  claude-fable-5）不会自动出现，Antigravity 严格白名单会漏调度。补救模式是
-  回填 migration（`177_add_fable5_to_default_model_mapping.sql` 同时回填
+  claude-fable-5 / claude-opus-5）不会自动出现，Antigravity 严格白名单会漏调度。补救模式是
+  回填 migration（`177_add_fable5_to_default_model_mapping.sql`、
+  `192_add_opus5_to_default_model_mapping.sql` 同时回填
   settings 表和账号级 model_mapping，参照 146 的 opus-4-8 模式）。新增官方模型
   时检查是否需要同类回填。
-- **Sonnet 5 production-only sync (2026-07-02)**：`claude-sonnet-5` 通过 Claude 默认模型列表和前端白名单预设暴露。Bedrock 默认映射为 `us.anthropic.claude-sonnet-5-v1`，再由 `ResolveBedrockModelID` 按账号 `aws_region` 替换区域前缀。默认 `context-1m-2025-08-07` beta 策略只放行 Sonnet 5 direct/Vertex/Bedrock ID，Sonnet 4.x、Opus、Haiku、legacy Sonnet 仍会过滤该 beta。
+- **仅更新定价不会出现在账号测试列表 (2026-07-25)**：`model_pricing.json` /
+  LiteLLM 价目只影响计费。账号管理 → 测试连接的模型下拉来自
+  `GET /api/v1/admin/accounts/:id/models`（`claude.DefaultModels` ∪ 平台默认映射键；
+  Antigravity 非透传用生效映射表）。新模型必须同步改 DefaultModels / 默认映射 /
+  前端 `useModelWhitelist.ts`，否则会出现“已有价格但测试列表没有”。
+- **Opus 5 (2026-07-25)**：`claude-opus-5` 已加入 Claude `DefaultModels`、Antigravity
+  默认映射、Bedrock `us.anthropic.claude-opus-5-v1`、前端白名单/预设，以及
+  Antigravity curated discovery。高阶 Opus adaptive thinking 判定包含 `claude-opus-5*`。
+- **Opus 4.8 / Opus 5 强制 1M (2026-07-25)**：1M 是 `anthropic-beta: context-1m-2025-08-07`
+  参数，不是对用户暴露的模型名后缀。`claude.RequiresForcedContext1M` +
+  `ensureForcedContext1MBeta` 在 Anthropic/透传/Vertex/Bedrock/count_tokens/
+  Antigravity upstream 路径强制注入该 beta；默认 beta 策略白名单同步放行
+  `claude-opus-4-8*` / `claude-opus-5*`。不要把 `claude-opus-5[1m]` 作为公开模型
+  slug 推给用户；转发前仍会 strip `[1m]`/`[2m]` 后缀再上游。
+- **Sonnet 5 production-only sync (2026-07-02)**：`claude-sonnet-5` 通过 Claude 默认模型列表和前端白名单预设暴露。Bedrock 默认映射为 `us.anthropic.claude-sonnet-5-v1`，再由 `ResolveBedrockModelID` 按账号 `aws_region` 替换区域前缀。默认 `context-1m-2025-08-07` beta 策略放行 Sonnet 5 与 Opus 4.8/5（强制 1M）；其余 Sonnet 4.x、Opus 4.7 及更早、Haiku、legacy Sonnet 仍会过滤该 beta。
 - **Antigravity 默认映射更新滞后**：上游新增模型时，`DefaultAntigravityModelMapping` 可能未及时更新，需手动添加映射
 - **迁移编号分叉**：合并上游模型回填迁移时，先检查本 fork 最新 migration 编号；如上游编号已被二开占用，保留 SQL 逻辑并改用本地下一编号。
 - **白名单 vs 映射混淆**：白名单模式本质是映射到自身，前端 `buildModelMappingObject` 统一输出为映射格式

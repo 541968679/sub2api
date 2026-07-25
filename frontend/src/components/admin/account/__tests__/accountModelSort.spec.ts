@@ -18,12 +18,14 @@ describe('sortAccountTestModels', () => {
       model('claude-sonnet-4'),
       model('gpt-5.4'),
       model('claude-opus-4-8', 'Opus 4.8'),
+      model('claude-opus-5', 'Opus 5'),
       model('gemini-2.5-flash'),
       model('gpt-5.5'),
       model('custom-legacy-model')
     ])
 
     expect(sorted.map((item) => item.id)).toEqual([
+      'claude-opus-5',
       'claude-opus-4-8',
       'gpt-5.5',
       'gpt-5.4',
@@ -38,9 +40,10 @@ describe('sortAccountTestModels', () => {
     const sorted = sortAccountTestModels([
       model('gpt54'),
       model('opus48'),
+      model('opus5'),
       model('gpt55')
     ])
 
-    expect(sorted.map((item) => item.id)).toEqual(['opus48', 'gpt55', 'gpt54'])
+    expect(sorted.map((item) => item.id)).toEqual(['opus5', 'opus48', 'gpt55', 'gpt54'])
   })
 })

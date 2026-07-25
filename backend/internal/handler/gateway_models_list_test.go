@@ -100,6 +100,7 @@ func TestGatewayHandlerModels_AntigravityCuratedDiscoveryList(t *testing.T) {
 
 	ids := runGatewayModelsForTest(t, apiKey)
 	require.Equal(t, []string{
+		"claude-opus-5",
 		"claude-opus-4-8",
 		"claude-opus-4-7",
 		"claude-opus-4-6",
@@ -118,6 +119,7 @@ func TestGatewayHandlerAntigravityModels_CuratedDiscoveryList(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, []string{
+		"claude-opus-5",
 		"claude-opus-4-8",
 		"claude-opus-4-7",
 		"claude-opus-4-6",

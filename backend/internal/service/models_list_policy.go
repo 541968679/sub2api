@@ -25,6 +25,7 @@ var gatewayModelDiscoveryIDsByPlatform = map[string][]string{
 		"grok-4.5",
 	},
 	PlatformAntigravity: {
+		"claude-opus-5",
 		"claude-opus-4-8",
 		"claude-opus-4-7",
 		"claude-opus-4-6",

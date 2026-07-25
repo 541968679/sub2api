@@ -1,6 +1,8 @@
 import type { ClaudeModel } from '@/types'
 
 const preferredModelPatterns = [
+  /claude.*opus.*5(?![0-9])/,
+  /opus.*5(?![0-9])/,
   /claude.*opus.*4[.-]?8/,
   /opus.*4[.-]?8/,
   /gpt.*5[.-]?5/,

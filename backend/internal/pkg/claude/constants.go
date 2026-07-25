@@ -1,6 +1,8 @@
 // Package claude provides constants and helpers for Claude API integration.
 package claude
 
+import "strings"
+
 // Claude Code 客户端相关常量
 
 // Beta header 常量
@@ -122,6 +124,12 @@ var DefaultModels = []Model{
 		CreatedAt:   "2026-06-09T00:00:00Z",
 	},
 	{
+		ID:          "claude-opus-5",
+		Type:        "model",
+		DisplayName: "Claude Opus 5",
+		CreatedAt:   "2026-07-25T00:00:00Z",
+	},
+	{
 		ID:          "claude-opus-4-5-20251101",
 		Type:        "model",
 		DisplayName: "Claude Opus 4.5",
@@ -206,6 +214,45 @@ func NormalizeModelID(id string) string {
 		return mapped
 	}
 	return id
+}
+
+// RequiresForcedContext1M reports models that Sub2API always upgrades to the
+// 1M context-window beta (context-1m-2025-08-07), regardless of client headers
+// or model-name suffixes such as "[1m]".
+//
+// Scope (product policy): Claude Opus 4.8 and Claude Opus 5 families only.
+// Matching is suffix-aware for Bedrock/Vertex IDs (e.g. us.anthropic.claude-opus-5-v1)
+// and ignores client-only context-window suffixes like "[1m]" / "[2m]".
+func RequiresForcedContext1M(modelID string) bool {
+	m := strings.ToLower(strings.TrimSpace(modelID))
+	if m == "" {
+		return false
+	}
+	m = strings.TrimPrefix(m, "models/")
+	if i := strings.Index(m, "["); i > 0 {
+		m = m[:i]
+	}
+	if i := strings.LastIndex(m, "claude-"); i >= 0 {
+		m = m[i:]
+	}
+	return forcedContext1MFamilyMatch(m, "claude-opus-5") ||
+		forcedContext1MFamilyMatch(m, "claude-opus-4-8")
+}
+
+func forcedContext1MFamilyMatch(model, family string) bool {
+	if model == family {
+		return true
+	}
+	if !strings.HasPrefix(model, family) {
+		return false
+	}
+	// Avoid matching claude-opus-50 when family is claude-opus-5.
+	switch model[len(family)] {
+	case '-', '.', '@', ':', '/':
+		return true
+	default:
+		return false
+	}
 }
 
 // DenormalizeModelID 将上游模型 ID 转换为短名

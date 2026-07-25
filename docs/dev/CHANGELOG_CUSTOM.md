@@ -1,3 +1,65 @@
+## 2026-07-25 - feat: force 1M context beta for Opus 4.8 / Opus 5
+
+### What
+Sub2API now always injects `context-1m-2025-08-07` for Claude Opus 4.8 and
+Opus 5 families, regardless of whether the client sends that beta header or
+uses a `[1m]` model-name suffix. Model IDs exposed to users stay clean
+(`claude-opus-5`, `claude-opus-4-8`) — 1M is a transport beta, not a public
+model slug.
+
+Injection covers Anthropic OAuth/API-key, API-key passthrough (incl. Kiro),
+Vertex Anthropic, Bedrock body `anthropic_beta`, count_tokens, and Antigravity
+upstream passthrough. Default beta-policy whitelist for `context-1m` also
+includes these Opus families so policy evaluation does not strip the forced
+token.
+
+### Why
+Claude Code treats bare `claude-opus-5` as a 200k client-side window unless the
+1M beta is present on the request. Operators want Opus 4.8/5 to always use the
+1M window without requiring users to pick `…[1m]` models or edit local config.
+
+### Files
+- `backend/internal/pkg/claude/constants.go` (+tests)
+- `backend/internal/service/gateway_service.go` (+tests in gateway_beta_test.go)
+- `backend/internal/service/antigravity_gateway_service.go`
+- `backend/internal/service/settings_view.go`
+
+### Note
+Client UI compact meters may still show 200k if the CLI maps bare model IDs to
+200k locally; server-side upstream requests for Opus 4.8/5 still carry the 1M
+beta after this change.
+
+## 2026-07-25 - feat: expose claude-opus-5 in account test model lists
+
+### What
+Completed the `claude-opus-5` model wiring that previously only had pricing
+data. Account-test model dropdowns, Antigravity default/strict mapping,
+Bedrock default mapping, curated gateway discovery, frontend whitelist
+presets, and OpenAI Claude→GPT bridge template now include `claude-opus-5`.
+
+### Why
+Pricing already had `claude-opus-5` in `backend/data/model_pricing.json`, but
+`GET /api/v1/admin/accounts/:id/models` builds the test dropdown from
+`claude.DefaultModels` / platform default mapping keys — not from the pricing
+file. Without those curated lists, the model was billable but not selectable
+for account connection tests.
+
+### Files
+- `backend/internal/pkg/claude/constants.go` (+tests)
+- `backend/internal/domain/constants.go` (+tests)
+- `backend/internal/pkg/antigravity/claude_types.go` (+tests)
+- `backend/internal/pkg/antigravity/request_transformer.go`
+- `backend/internal/service/models_list_policy.go` (+tests)
+- `backend/internal/service/antigravity_model_mapping_test.go`
+- `backend/internal/handler/gateway_models_list_test.go`
+- `backend/migrations/192_add_opus5_to_default_model_mapping.sql`
+- `backend/resources/model-pricing/model_prices_and_context_window.json`
+- `frontend/src/composables/useModelWhitelist.ts` (+tests)
+- `frontend/src/components/admin/account/accountModelSort.ts` (+tests)
+- `frontend/src/components/account/AccountStatusIndicator.vue`
+- `frontend/src/components/account/AccountUsageCell.vue`
+- `frontend/src/components/keys/UseKeyModal.vue`
+
 ## 2026-07-24 - feat: Claude→GPT bridge pre-generation auto-compact (v1)
 
 ### What
@@ -53,6 +115,22 @@ did not reproduce production Opus loads; this is the reliable server-side fix.
 ### Notes
 - OAuth OpenAI only; skips Grok, API-key, non-gpt-5 mapped models, client compact.
 - Disable in emergency: `GATEWAY_ANTHROPIC_BRIDGE_AUTO_COMPACT_ENABLED=false`.
+
+---
+## 2026-07-24 - deploy: production Sub2API `v0.1.173`
+
+### What
+Deployed Claude-GPT bridge pre-generation auto-compact and GHCR-only deployment
+hardening to production.
+
+### Deploy
+- Tag: `v0.1.173`
+- Commit: `8ca41688ff7e61d75c0cefe2401231cfb5f6eb22`
+- Image: `ghcr.io/541968679/sub2api:latest` (version label `0.1.173`)
+- Image digest: `ghcr.io/541968679/sub2api@sha256:c4b76d93d79f1ba486e9935fbdce4080307aa292db6fc59dd817ae967899b9d4`
+- Release: https://github.com/541968679/sub2api/releases/tag/v0.1.173
+- Release workflow: https://github.com/541968679/sub2api/actions/runs/30075182232
+- Prod: running, healthy, `/health` `{"status":"ok"}`
 
 ---
 ## 2026-07-23 - deploy: production Sub2API `v0.1.172`

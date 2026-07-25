@@ -45,6 +45,12 @@ func TestAntigravityGatewayService_GetMappedModel(t *testing.T) {
 			expected:       "claude-opus-4-6-thinking",
 		},
 		{
+			name:           "默认映射透传 - claude-opus-5",
+			requestedModel: "claude-opus-5",
+			accountMapping: nil,
+			expected:       "claude-opus-5",
+		},
+		{
 			name:           "默认映射透传 - claude-opus-4-8",
 			requestedModel: "claude-opus-4-8",
 			accountMapping: nil,
@@ -219,6 +225,7 @@ func TestAntigravityGatewayService_IsModelSupported(t *testing.T) {
 	}{
 		// 直接支持
 		{"直接支持 - claude-fable-5", "claude-fable-5", true},
+		{"直接支持 - claude-opus-5", "claude-opus-5", true},
 		{"直接支持 - claude-sonnet-4-5", "claude-sonnet-4-5", true},
 		{"直接支持 - gemini-3-flash", "gemini-3-flash", true},
 
