@@ -163,6 +163,38 @@ function mountModal(account = buildAccount()) {
 }
 
 describe('EditAccountModal', () => {
+  it('shows the Responses probe result and can force the native Responses endpoint', async () => {
+    const account = buildAccount()
+    account.extra = {
+      openai_responses_supported: false,
+      preserved_setting: 'keep-me'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const modeSelect = wrapper.get<HTMLSelectElement>(
+      '[data-testid="edit-openai-responses-mode"]'
+    )
+
+    expect(modeSelect.element.value).toBe('auto')
+    expect(wrapper.get('[data-testid="edit-openai-responses-probe-status"]').text()).toContain(
+      'admin.accounts.openai.responsesProbeUnsupported'
+    )
+
+    await modeSelect.setValue('force_responses')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).toMatchObject({
+      openai_responses_mode: 'force_responses',
+      openai_responses_supported: false,
+      preserved_setting: 'keep-me'
+    })
+  })
+
   it('hydrates and can reset Anthropic API key bearer auth', async () => {
     const account = buildAccount()
     account.name = 'Anthropic Compatible'

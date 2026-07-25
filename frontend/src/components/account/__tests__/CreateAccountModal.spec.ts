@@ -97,6 +97,32 @@ const ModelWhitelistSelectorStub = defineComponent({
   template: '<div />'
 })
 
+const SelectStub = defineComponent({
+  name: 'SelectStub',
+  props: {
+    modelValue: {
+      type: [String, Number, Boolean, null],
+      default: ''
+    },
+    options: {
+      type: Array,
+      default: () => []
+    }
+  },
+  emits: ['update:modelValue'],
+  template: `
+    <select
+      v-bind="$attrs"
+      :value="modelValue"
+      @change="$emit('update:modelValue', $event.target.value)"
+    >
+      <option v-for="option in options" :key="option.value" :value="option.value">
+        {{ option.label }}
+      </option>
+    </select>
+  `
+})
+
 function mockOAuthComposable() {
   return {
     authUrl: { value: '' },
@@ -135,7 +161,7 @@ async function mountOpenAIAPIKeyModal() {
         GroupSelector: true,
         ModelWhitelistSelector: ModelWhitelistSelectorStub,
         OAuthAuthorizationFlow: true,
-        Select: true
+        Select: SelectStub
       }
     }
   })
@@ -202,6 +228,18 @@ async function mountAnthropicAPIKeyModal() {
 describe('CreateAccountModal', () => {
   beforeEach(() => {
     window.localStorage.clear()
+  })
+
+  it('can force a new OpenAI API key account to use the native Responses endpoint', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    await wrapper.get('[data-testid="create-openai-responses-mode"]').setValue('force_responses')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_responses_mode).toBe(
+      'force_responses'
+    )
   })
 
   it('omits OpenAI images endpoint toggle when enabled by default', async () => {
