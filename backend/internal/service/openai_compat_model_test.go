@@ -131,7 +131,7 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 	t.Logf("response body: %s", rec.Body.String())
 }
 
-func TestForwardAsAnthropic_ClaudeGPTBridgeForwardsPromptCacheKeyButNotSessionHeaders(t *testing.T) {
+func TestForwardAsAnthropic_ClaudeGPTBridgeForwardsStableSessionID(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
 
@@ -193,7 +193,7 @@ func TestForwardAsAnthropic_ClaudeGPTBridgeForwardsPromptCacheKeyButNotSessionHe
 			require.NotNil(t, result)
 			require.NotNil(t, upstream.lastReq)
 			require.Equal(t, "derived-cache-key", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String(), string(upstream.lastBody))
-			require.Empty(t, upstream.lastReq.Header.Get("session_id"))
+			require.Equal(t, generateSessionUUID(isolateOpenAISessionID(0, "derived-cache-key")), upstream.lastReq.Header.Get("session_id"))
 			require.Empty(t, upstream.lastReq.Header.Get("conversation_id"))
 		})
 	}
@@ -262,7 +262,7 @@ func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCachePercentOverridesUpstreamC
 	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
 
 	upstreamBody := strings.Join([]string{
-		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":7}}}}`,
+		`data: {"type":"response.completed","response":{"id":"resp_1","object":"response","model":"gpt-5.5","status":"completed","output":[{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"ok"}]}],"usage":{"input_tokens":100,"output_tokens":11,"total_tokens":111,"input_tokens_details":{"cached_tokens":7,"cache_write_tokens":40}}}}`,
 		"",
 		"data: [DONE]",
 		"",
@@ -302,11 +302,13 @@ func TestForwardAsAnthropic_ClaudeGPTBridgeDisplayCachePercentOverridesUpstreamC
 	require.NotNil(t, result)
 	require.Equal(t, 100, result.Usage.InputTokens)
 	require.Equal(t, 11, result.Usage.OutputTokens)
-	require.Equal(t, 60, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 36, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 40, result.Usage.CacheCreationInputTokens)
 	require.Equal(t, "derived-cache-key", gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.Equal(t, int64(40), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens").Int())
-	require.Equal(t, int64(60), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(24), gjson.GetBytes(rec.Body.Bytes(), "usage.input_tokens").Int())
+	require.Equal(t, int64(36), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(40), gjson.GetBytes(rec.Body.Bytes(), "usage.cache_creation_input_tokens").Int())
 	require.Equal(t, int64(11), gjson.GetBytes(rec.Body.Bytes(), "usage.output_tokens").Int())
 }
 
