@@ -1,3 +1,30 @@
+## 2026-07-25 - deploy: production Sub2API `v0.1.174`
+
+### What
+Deployed the `claude-opus-5` model wiring and forced 1M context beta support for
+Opus 4.8/5 to production using the GitHub Actions-built GHCR image.
+
+### Deploy
+- Tag: `v0.1.174`
+- Commit: `fc543d1503b06a2b4c2e2eddacfcfc5ea41fc96e`
+- Image: `ghcr.io/541968679/sub2api:latest` (version label `0.1.174`)
+- Running image ID: `sha256:2f3101aa66bdabd47eb00eaf433ef52d3fe5f92d41e2f8acb661c20319f0a427`
+- Release: https://github.com/541968679/sub2api/releases/tag/v0.1.174
+- Release workflow: https://github.com/541968679/sub2api/actions/runs/30143663118
+- Prod: running, healthy, restart count `0`; internal and public `/health`
+  returned `{"status":"ok"}`
+- Migration: `192_add_opus5_to_default_model_mapping.sql` applied; the persisted
+  platform mapping (`1/1`) and Antigravity account mappings (`3/3`) include
+  `claude-opus-5`
+
+### Notes
+The Release workflow passed. The repository CI and Security Scan workflows are
+not fully green: they still report the integration-helper and external TLS
+capture failures seen on `v0.1.173`, plus the existing Go/dependency advisory
+baseline. This feature did not change the failing helpers or dependency
+manifests, and no deployment failure was observed.
+
+---
 ## 2026-07-25 - feat: force 1M context beta for Opus 4.8 / Opus 5
 
 ### What
