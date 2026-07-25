@@ -169,11 +169,13 @@ func TestForwardResponses_AutoSupportedAccountStillUsesResponsesEndpoint(t *test
 		openai_compat.ExtraKeyResponsesMode:      string(openai_compat.ResponsesSupportModeAuto),
 		openai_compat.ExtraKeyResponsesSupported: true,
 	}
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
 
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.lastReq.URL.String())
+	require.Equal(t, "/v1/responses", GetActualOpenAIUpstreamEndpoint(c))
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
 	require.Equal(t, "ok", gjson.Get(rec.Body.String(), "output.0.content.0.text").String())
