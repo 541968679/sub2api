@@ -1,3 +1,26 @@
+## 2026-07-25 - ops: disable production Claude-GPT pre-generation auto-compact
+
+### What
+Disabled the fork-local hidden pre-generation Claude-GPT bridge compact pass in
+production by setting `gateway.anthropic_bridge_auto_compact_enabled: false` in
+the persisted `/app/data/config.yaml`, then restarted only the Sub2API service.
+Client-initiated Claude Code compact handling and recovery remain enabled.
+
+### Why
+The bridge-side pass synchronously called `/responses/compact` before ordinary
+generation without exposing that phase to the client. This could inflate
+time-to-first-token, repeat on stateless history replays, and add an upstream
+compact call that the client did not initiate.
+
+### Verification
+- Backed up the prior production config to
+  `/opt/sub2api/config.yaml.before-auto-compact-disable.20260725-092702.bak`.
+- Confirmed the running container reads the persisted value as `false`.
+- Production Sub2API returned to `running` / `healthy` with restart count `0`;
+  internal `/health` returned `{"status":"ok"}`.
+- Startup log scan found no config load error, fatal error, or panic, and no
+  hidden `anthropic bridge history compacted` event appeared after restart.
+
 ## 2026-07-25 - deploy: production Sub2API `v0.1.175`
 
 ### What
