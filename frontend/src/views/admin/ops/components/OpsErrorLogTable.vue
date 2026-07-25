@@ -83,9 +83,9 @@
               <!-- Endpoint -->
               <td class="px-4 py-2">
                 <div class="max-w-[160px]">
-                  <el-tooltip v-if="log.inbound_endpoint" :content="formatEndpointTooltip(log)" placement="top" :show-after="500">
-                    <span class="truncate font-mono text-[11px] text-gray-700 dark:text-gray-300">
-                      {{ log.inbound_endpoint }}
+                  <el-tooltip v-if="displayEndpoint(log)" :content="formatEndpointTooltip(log)" placement="top" :show-after="500">
+                    <span class="block truncate font-mono text-[11px] text-gray-700 dark:text-gray-300">
+                      {{ displayEndpoint(log) }}
                     </span>
                   </el-tooltip>
                   <span v-else class="text-xs text-gray-400">-</span>
@@ -261,6 +261,13 @@ function formatEndpointTooltip(log: OpsErrorLog): string {
   if (log.inbound_endpoint) parts.push(`Inbound: ${log.inbound_endpoint}`)
   if (log.upstream_endpoint) parts.push(`Upstream: ${log.upstream_endpoint}`)
   return parts.join('\n') || ''
+}
+
+function displayEndpoint(log: OpsErrorLog): string {
+  const inbound = String(log.inbound_endpoint || '').trim()
+  const upstream = String(log.upstream_endpoint || '').trim()
+  if (inbound && upstream && inbound !== upstream) return `${inbound} -> ${upstream}`
+  return upstream || inbound
 }
 
 function hasModelMapping(log: OpsErrorLog): boolean {

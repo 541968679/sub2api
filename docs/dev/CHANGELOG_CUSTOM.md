@@ -1,3 +1,38 @@
+## 2026-07-25 - fix: record actual OpenAI upstream endpoints in error logs
+
+### What
+Ops error logs now prefer the runtime OpenAI/Grok upstream endpoint over the
+platform-level default. The OpenAI Responses-to-Chat compatibility path records
+`/v1/chat/completions` before sending upstream, while native HTTP, passthrough,
+and Responses WebSocket paths reset the runtime value to `/v1/responses` (with
+HTTP subpaths such as `/compact` preserved).
+The admin error-log list renders differing endpoints as an explicit
+`inbound -> upstream` mapping instead of hiding the upstream value in a tooltip.
+
+### Why
+The generic endpoint derivation treated every OpenAI text request as native
+Responses. A downstream `/v1/responses` request converted to upstream
+`/v1/chat/completions` therefore appeared in `ops_error_logs.upstream_endpoint`
+as `/v1/responses`, including `Unsupported content type` failures. A stale
+runtime value could also survive an in-request account switch unless each
+actual transport overwrote it.
+
+### Compatibility And Verification
+- `inbound_endpoint` remains the normalized downstream client endpoint;
+  `upstream_endpoint` now reflects the endpoint selected for the actual OpenAI
+  upstream attempt.
+- Recovered failover logs persist the normalized endpoint on each upstream
+  error event and attribute the top-level row to the last failed attempt, even
+  when a later account succeeds through a different endpoint.
+- Requests rejected before an upstream transport is selected continue using
+  the existing best-effort platform derivation.
+- Routing, conversion, account selection, billing, quota deduction, usage
+  accounting, and stored request/response bodies are unchanged.
+- Verified focused endpoint/error reproductions and the complete unit-tagged
+  `internal/handler` and `internal/service` test packages, the backend-wide
+  unit suite, the focused error-table component test, frontend typecheck, lint,
+  and production build.
+
 ## 2026-07-25 - feat: expose OpenAI API-key Responses upstream routing
 
 ### What

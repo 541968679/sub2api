@@ -187,6 +187,8 @@ type OpsUpstreamErrorEvent struct {
 	Platform    string `json:"platform,omitempty"`
 	AccountID   int64  `json:"account_id,omitempty"`
 	AccountName string `json:"account_name,omitempty"`
+	// UpstreamEndpoint is the normalized path selected for this attempt.
+	UpstreamEndpoint string `json:"upstream_endpoint,omitempty"`
 
 	// Outcome
 	UpstreamStatusCode int    `json:"upstream_status_code,omitempty"`
@@ -218,6 +220,10 @@ func appendOpsUpstreamError(c *gin.Context, ev OpsUpstreamErrorEvent) {
 		ev.AtUnixMs = time.Now().UnixMilli()
 	}
 	ev.Platform = strings.TrimSpace(ev.Platform)
+	ev.UpstreamEndpoint = normalizeOpsUpstreamEndpoint(ev.UpstreamEndpoint)
+	if ev.UpstreamEndpoint == "" && (ev.Platform == PlatformOpenAI || ev.Platform == PlatformGrok) {
+		ev.UpstreamEndpoint = normalizeOpsUpstreamEndpoint(GetActualOpenAIUpstreamEndpoint(c))
+	}
 	ev.UpstreamRequestID = strings.TrimSpace(ev.UpstreamRequestID)
 	ev.UpstreamRequestBody = strings.TrimSpace(ev.UpstreamRequestBody)
 	ev.UpstreamResponseBody = strings.TrimSpace(ev.UpstreamResponseBody)
@@ -254,6 +260,17 @@ func appendOpsUpstreamError(c *gin.Context, ev OpsUpstreamErrorEvent) {
 	c.Set(OpsUpstreamErrorsKey, existing)
 
 	checkSkipMonitoringForUpstreamEvent(c, &evCopy)
+}
+
+func normalizeOpsUpstreamEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" || !strings.HasPrefix(endpoint, "/") {
+		return ""
+	}
+	if idx := strings.IndexAny(endpoint, "?#"); idx >= 0 {
+		endpoint = endpoint[:idx]
+	}
+	return truncateString(endpoint, 256)
 }
 
 // checkSkipMonitoringForUpstreamEvent checks whether the upstream error event

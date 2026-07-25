@@ -751,7 +751,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 				}(),
 				Stream:           stream,
 				InboundEndpoint:  GetInboundEndpoint(c),
-				UpstreamEndpoint: GetUpstreamEndpoint(c, platform),
+				UpstreamEndpoint: resolveOpsUpstreamEndpoint(c, platform, events),
 				RequestedModel:   modelName,
 				UpstreamModel: func() string {
 					if v, ok := c.Get(opsUpstreamModelKey); ok {
@@ -900,7 +900,7 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 			}(),
 			Stream:           stream,
 			InboundEndpoint:  GetInboundEndpoint(c),
-			UpstreamEndpoint: GetUpstreamEndpoint(c, platform),
+			UpstreamEndpoint: resolveOpsUpstreamEndpoint(c, platform, nil),
 			RequestedModel:   modelName,
 			UpstreamModel: func() string {
 				if v, ok := c.Get(opsUpstreamModelKey); ok {
@@ -1091,7 +1091,7 @@ func logOpsStreamError(c *gin.Context, ops *service.OpsService, wireStatus int) 
 		RequestPath:       c.Request.URL.Path,
 		Stream:            true,
 		InboundEndpoint:   GetInboundEndpoint(c),
-		UpstreamEndpoint:  GetUpstreamEndpoint(c, platform),
+		UpstreamEndpoint:  resolveOpsUpstreamEndpoint(c, platform, nil),
 		RequestedModel:    model,
 		UserAgent:         c.GetHeader("User-Agent"),
 		ErrorPhase:        phase,
@@ -1291,6 +1291,18 @@ func resolveOpsPlatform(apiKey *service.APIKey, fallback string) string {
 		return apiKey.Group.Platform
 	}
 	return fallback
+}
+
+func resolveOpsUpstreamEndpoint(c *gin.Context, platform string, events []*service.OpsUpstreamErrorEvent) string {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i] == nil {
+			continue
+		}
+		if endpoint := strings.TrimSpace(events[i].UpstreamEndpoint); endpoint != "" {
+			return endpoint
+		}
+	}
+	return GetUpstreamEndpoint(c, platform)
 }
 
 func guessPlatformFromPath(path string) string {

@@ -141,6 +141,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 
 	// 账号级请求头覆写（仅 openai api_key 账号启用时生效）
 	account.ApplyHeaderOverrides(upstreamReq.Header)
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
 
 	proxyURL := ""
 	if account.Proxy != nil {

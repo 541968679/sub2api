@@ -45,6 +45,11 @@ func TestSafeUpstreamURL(t *testing.T) {
 	}
 }
 
+func TestNormalizeOpsUpstreamEndpoint(t *testing.T) {
+	require.Equal(t, "/v1/responses", normalizeOpsUpstreamEndpoint(" /v1/responses?token=secret#fragment "))
+	require.Empty(t, normalizeOpsUpstreamEndpoint("https://api.example/v1/responses"))
+}
+
 func TestAppendOpsUpstreamError_UsesRequestBodyBytesFromContext(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

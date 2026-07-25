@@ -1107,6 +1107,7 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 			req.Header.Set("OpenAI-Beta", v)
 		}
 	}
+	SetActualOpenAIUpstreamEndpoint(c, grokChatResponsesEndpoint)
 	return req, nil
 }
 

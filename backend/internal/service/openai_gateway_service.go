@@ -2899,6 +2899,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	// 命中 WS 时仅走 WebSocket Mode；不再自动回退 HTTP。
 	if wsDecision.Transport == OpenAIUpstreamTransportResponsesWebsocketV2 {
+		SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 		wsReqBody := reqBody
 		if len(reqBody) > 0 {
 			wsReqBody = make(map[string]any, len(reqBody))
@@ -3125,6 +3126,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 
 		// Send request
+		SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+openAIResponsesRequestPathSuffix(c))
 		upstreamStart := time.Now()
 		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
@@ -3371,6 +3373,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	if c != nil {
 		c.Set("openai_passthrough", true)
 	}
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+openAIResponsesRequestPathSuffix(c))
 
 	upstreamStart := time.Now()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
