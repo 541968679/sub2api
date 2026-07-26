@@ -235,8 +235,9 @@ gateway:
   # Claude→GPT bridge pre-generation compact for oversized Messages history.
   # When mapped upstream model is GPT-5.* OAuth, and Responses "input" bytes exceed
   # the threshold, gateway calls /responses/compact on history (keeping the current
-  # turn) before generation. Fail-open on compact errors. Default: true.
-  anthropic_bridge_auto_compact_enabled: true
+  # turn) before generation. Fail-open on compact errors. Default: false; opt in
+  # only for targeted diagnostics because clients cannot observe this compact.
+  anthropic_bridge_auto_compact_enabled: false
   # Serialized Responses input byte threshold (not tokens). Min 65536. Default 512KiB.
   anthropic_bridge_auto_compact_input_bytes: 524288
   # Internal compact request timeout (seconds). Range 30-1800. Default 600.

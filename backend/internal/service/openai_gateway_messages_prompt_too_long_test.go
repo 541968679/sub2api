@@ -17,7 +17,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const claudeCodePromptTooLongPrefix = "Prompt is too long"
+const testClaudeCodePromptTooLongPrefix = "Prompt is too long"
 
 func markPromptTooLongBridge(c interface{ Set(string, any) }) {
 	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
@@ -28,7 +28,7 @@ func requirePromptTooLongContract(t *testing.T, status int, body []byte) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, status)
 	require.Equal(t, "invalid_request_error", gjson.GetBytes(body, "error.type").String())
 	message := gjson.GetBytes(body, "error.message").String()
-	require.True(t, strings.HasPrefix(message, claudeCodePromptTooLongPrefix), message)
+	require.True(t, strings.HasPrefix(message, testClaudeCodePromptTooLongPrefix), message)
 	require.Contains(t, strings.ToLower(message), "context window")
 }
 
@@ -39,6 +39,24 @@ func promptTooLongFailedEvent(message string) string {
 func TestClaudeGPTBridgeBufferedContextLengthUsesPromptTooLongContract(t *testing.T) {
 	svc, c, _, resp, account := messagesTestStream(t,
 		promptTooLongFailedEvent("Your input exceeds the context window of this model."),
+	)
+	markPromptTooLongBridge(c)
+
+	result, err := svc.handleAnthropicBufferedStreamingResponse(
+		resp, c, account, true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+	)
+
+	require.Nil(t, result)
+	failoverErr := requireMessagesFailoverError(t, err)
+	requirePromptTooLongContract(t, failoverErr.StatusCode, failoverErr.ResponseBody)
+}
+
+func TestClaudeGPTBridgeContextLengthMessageFallbackUsesPromptTooLongContract(t *testing.T) {
+	svc, c, _, resp, account := messagesTestStream(t,
+		`{"type":"response.failed","response":{"id":"resp_context","status":"failed",`+
+			`"error":{"type":"invalid_request_error","message":"The maximum context length was exceeded."},`+
+			`"output":[]}}`,
 	)
 	markPromptTooLongBridge(c)
 
@@ -147,7 +165,7 @@ func TestNonBridgeMessagesContextLengthKeepsExistingClientError(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, failoverErr.StatusCode)
 	require.False(t, strings.HasPrefix(
 		gjson.GetBytes(failoverErr.ResponseBody, "error.message").String(),
-		claudeCodePromptTooLongPrefix,
+		testClaudeCodePromptTooLongPrefix,
 	))
 }
 
@@ -171,5 +189,40 @@ func TestClaudeGPTBridgeContextLengthAfterVisibleOutputDoesNotInviteReplay(t *te
 	require.True(t, result.ClientOutputStarted)
 	require.Contains(t, rec.Body.String(), "partial answer")
 	require.Contains(t, rec.Body.String(), "event: error")
-	require.NotContains(t, rec.Body.String(), claudeCodePromptTooLongPrefix)
+	require.NotContains(t, rec.Body.String(), testClaudeCodePromptTooLongPrefix)
+}
+
+func TestClaudeGPTBridgeStreamingPromptTooLongOverridesConfiguredPassthroughRule(t *testing.T) {
+	svc, c, _, resp, account := messagesTestStream(t,
+		`{"type":"response.created","response":{"id":"resp_context","model":"gpt-5.5","status":"in_progress"}}`,
+		promptTooLongFailedEvent("Your input exceeds the context window of this model."),
+	)
+	markPromptTooLongBridge(c)
+	responseStatus := http.StatusBadRequest
+	customMessage := "legacy stream context message"
+	rule := &model.ErrorPassthroughRule{
+		ID:              102,
+		Name:            "legacy stream context override",
+		Enabled:         true,
+		Priority:        1,
+		Platforms:       []string{PlatformOpenAI},
+		ErrorCodes:      []int{http.StatusBadRequest},
+		Keywords:        []string{"context_length_exceeded"},
+		MatchMode:       model.MatchModeAll,
+		ResponseCode:    &responseStatus,
+		CustomMessage:   &customMessage,
+		PassthroughBody: false,
+	}
+	passthrough := &ErrorPassthroughService{}
+	passthrough.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	BindErrorPassthroughService(c, passthrough)
+
+	result, err := svc.handleAnthropicStreamingResponse(
+		resp, c, account, true,
+		"claude-opus-4-8", "gpt-5.5", "gpt-5.5", time.Now(),
+	)
+
+	require.NotNil(t, result)
+	failoverErr := requireMessagesFailoverError(t, err)
+	requirePromptTooLongContract(t, failoverErr.StatusCode, failoverErr.ResponseBody)
 }

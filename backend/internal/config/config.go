@@ -1804,10 +1804,10 @@ func setDefaults() {
 	viper.SetDefault("gateway.force_codex_cli", false)
 	viper.SetDefault("gateway.codex_image_generation_bridge_enabled", false)
 	viper.SetDefault("gateway.openai_passthrough_allow_timeout_headers", false)
-	// Claude→GPT bridge pre-generation compact for oversized history (default on).
-	// Production failures are mostly HTTP 400 context_length_exceeded on generation,
-	// not client-initiated compact; this proactively shrinks history for OAuth GPT-5.*.
-	viper.SetDefault("gateway.anthropic_bridge_auto_compact_enabled", true)
+	// Claude→GPT bridge pre-generation compact for oversized history (opt-in).
+	// Keep the default off because clients cannot observe or wait on this hidden
+	// request; normal generation overflow is returned as prompt-too-long instead.
+	viper.SetDefault("gateway.anthropic_bridge_auto_compact_enabled", false)
 	viper.SetDefault("gateway.anthropic_bridge_auto_compact_input_bytes", 512*1024)
 	viper.SetDefault("gateway.anthropic_bridge_auto_compact_timeout_seconds", 600)
 	// OpenAI Responses WebSocket（默认开启；可通过 force_http 紧急回滚）

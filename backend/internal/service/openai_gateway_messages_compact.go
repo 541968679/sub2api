@@ -302,7 +302,7 @@ func (s *OpenAIGatewayService) handleAnthropicCompactStreamingResponse(
 
 	if strings.TrimSpace(finalResponse.Status) == "failed" {
 		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
-		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
+		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload, false)
 	}
 	return s.writeAnthropicCompactFinalResponse(
 		c, account, resp.Header, finalResponse, usage, bridgeMode, originalModel,
@@ -912,7 +912,7 @@ func (s *OpenAIGatewayService) runOpenAIAnthropicCompactRecoveryRequest(
 		}
 		payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
 		return finalResponse, usage, requestID,
-			s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
+			s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload, false)
 	}
 	return finalResponse, usage, requestID, nil
 }

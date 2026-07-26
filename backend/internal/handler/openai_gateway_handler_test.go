@@ -227,6 +227,49 @@ func TestOpenAIAnthropicStreamingAwareError_UsesSSEAfterCompactKeepalive(t *test
 	require.Contains(t, w.Body.String(), `"message":"compact recovery exhausted"`)
 }
 
+func TestOpenAIAnthropicPromptTooLongWrites413JSONBeforeStreamStarts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleAnthropicFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode: http.StatusRequestEntityTooLarge,
+		ResponseBody: []byte(`{"error":{"type":"invalid_request_error",` +
+			`"message":"Prompt is too long: this request exceeds the context window for the selected model."}}`),
+	}, false)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	require.Equal(t, "error", gjson.Get(w.Body.String(), "type").String())
+	require.Equal(t, "invalid_request_error", gjson.Get(w.Body.String(), "error.type").String())
+	require.True(t, strings.HasPrefix(gjson.Get(w.Body.String(), "error.message").String(), "Prompt is too long"))
+}
+
+func TestOpenAIAnthropicPromptTooLongUsesSSEAfterKeepalive(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Header("Content-Type", "text/event-stream")
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.WriteString("event: ping\ndata: {\"type\":\"ping\"}\n\n")
+	service.MarkOpenAIAnthropicTransportStreamStarted(c)
+
+	h := &OpenAIGatewayHandler{}
+	h.handleAnthropicFailoverExhausted(c, &service.UpstreamFailoverError{
+		StatusCode: http.StatusRequestEntityTooLarge,
+		ResponseBody: []byte(`{"error":{"type":"invalid_request_error",` +
+			`"message":"Prompt is too long: this request exceeds the context window for the selected model."}}`),
+	}, true)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "event: ping")
+	require.Contains(t, w.Body.String(), "event: error")
+	require.Contains(t, w.Body.String(), "Prompt is too long")
+	require.Contains(t, strings.ToLower(w.Body.String()), "context window")
+}
+
 func TestOpenAIAnthropicStreamingAwareError_DoesNotAppendAfterTerminal(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

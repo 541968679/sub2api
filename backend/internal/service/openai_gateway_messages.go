@@ -27,6 +27,8 @@ import (
 
 const openAIClaudeGPTBridgeServiceContextKey = "openai_claude_gpt_bridge"
 
+const claudeCodePromptTooLongClientMessage = "Prompt is too long: this request exceeds the context window for the selected model."
+
 const (
 	openAIAnthropicCompactKeepaliveContextKey       = "openai_anthropic_compact_keepalive"
 	openAIAnthropicTransportStreamStartedContextKey = "openai_anthropic_transport_stream_started"
@@ -678,6 +680,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
 		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+		if bridgeMode && !anthropicCompactRequest && isOpenAIMessagesContextWindowError(nil, respBody, upstreamMsg) {
+			clientErr := s.newClaudeCodePromptTooLongError(c, account, resp.Header.Get("x-request-id"))
+			writeAnthropicError(c, clientErr.StatusCode, "invalid_request_error", claudeCodePromptTooLongClientMessage)
+			return nil, clientErr
+		}
 		if account.Platform == PlatformGrok {
 			s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 		}
@@ -914,6 +921,9 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			return nil, fmt.Errorf("openai cyber_policy: %s", msg)
 		}
 		message := extractOpenAISSEErrorMessage(payload)
+		if isOpenAIClaudeGPTBridgeForward(c) && isOpenAIMessagesContextWindowError(finalResponse, payload, message) {
+			return nil, s.newClaudeCodePromptTooLongError(c, account, requestID)
+		}
 		if openAIStreamFailedEventShouldFailover(payload, message) {
 			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, message)
 		}
@@ -930,7 +940,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 			writeAnthropicError(c, status, errType, scrubBridgeClientText(c, errMsg))
 			return nil, fmt.Errorf("upstream response failed (passthrough): %s", errMsg)
 		}
-		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload)
+		return nil, s.openAIMessagesTerminalFailureError(c, account, requestID, finalResponse, payload, true)
 	}
 
 	// When the terminal event has an empty output array, reconstruct from
@@ -988,6 +998,7 @@ func (s *OpenAIGatewayService) openAIMessagesTerminalFailureError(
 	requestID string,
 	response *apicompat.ResponsesResponse,
 	payload []byte,
+	allowPromptTooLong bool,
 ) *UpstreamFailoverError {
 	message := extractOpenAISSEErrorMessage(payload)
 	if message == "" {
@@ -1002,8 +1013,11 @@ func (s *OpenAIGatewayService) openAIMessagesTerminalFailureError(
 			message = strings.TrimSpace(response.Error.Message)
 		}
 	}
-	if strings.EqualFold(code, "context_length_exceeded") ||
-		(strings.Contains(strings.ToLower(message), "context window") && strings.Contains(strings.ToLower(message), "exceed")) {
+	if allowPromptTooLong && isOpenAIClaudeGPTBridgeForward(c) &&
+		isOpenAIMessagesContextWindowError(response, payload, message) {
+		return s.newClaudeCodePromptTooLongError(c, account, requestID)
+	}
+	if isOpenAIMessagesContextWindowError(response, payload, message) {
 		return s.newOpenAIStreamClientError(c, account, requestID, http.StatusBadRequest,
 			"invalid_request_error", message)
 	}
@@ -1017,6 +1031,49 @@ func (s *OpenAIGatewayService) openAIMessagesTerminalFailureError(
 		errType = "invalid_request_error"
 	}
 	return s.newOpenAIStreamClientError(c, account, requestID, http.StatusBadRequest, errType, message)
+}
+
+func isOpenAIMessagesContextWindowError(
+	response *apicompat.ResponsesResponse,
+	payload []byte,
+	message string,
+) bool {
+	code := ""
+	if response != nil && response.Error != nil {
+		code = strings.TrimSpace(response.Error.Code)
+		if strings.TrimSpace(message) == "" {
+			message = strings.TrimSpace(response.Error.Message)
+		}
+	}
+	if code == "" && len(payload) > 0 {
+		code = strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String())
+		if code == "" {
+			code = strings.TrimSpace(gjson.GetBytes(payload, "error.code").String())
+		}
+	}
+	if strings.EqualFold(code, "context_length_exceeded") {
+		return true
+	}
+
+	lower := strings.ToLower(strings.TrimSpace(message + " " + string(payload)))
+	hasContext := strings.Contains(lower, "context window") || strings.Contains(lower, "context length")
+	hasOverflow := strings.Contains(lower, "exceed") || strings.Contains(lower, "too long")
+	return hasContext && hasOverflow
+}
+
+func (s *OpenAIGatewayService) newClaudeCodePromptTooLongError(
+	c *gin.Context,
+	account *Account,
+	requestID string,
+) *UpstreamFailoverError {
+	return s.newOpenAIStreamClientError(
+		c,
+		account,
+		requestID,
+		http.StatusRequestEntityTooLarge,
+		"invalid_request_error",
+		claudeCodePromptTooLongClientMessage,
+	)
 }
 
 func anthropicResponseHasVisibleOutput(resp *apicompat.AnthropicResponse) bool {
@@ -1505,11 +1562,14 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 				terminalFailureErr = s.newOpenAIStreamFailoverError(c, account, false, requestID, payloadBytes, message)
 				return true
 			}
-			failureErr := s.openAIMessagesTerminalFailureError(c, account, requestID, event.Response, payloadBytes)
+			allowPromptTooLong := !clientVisibleOutputStarted
+			failureErr := s.openAIMessagesTerminalFailureError(c, account, requestID, event.Response, payloadBytes, allowPromptTooLong)
 			errStatus := failureErr.StatusCode
 			errType := strings.TrimSpace(gjson.GetBytes(failureErr.ResponseBody, "error.type").String())
 			errMessage := strings.TrimSpace(gjson.GetBytes(failureErr.ResponseBody, "error.message").String())
-			if status, matchedType, matchedMessage, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, payloadBytes, message); matched {
+			promptTooLong := allowPromptTooLong && isOpenAIClaudeGPTBridgeForward(c) &&
+				isOpenAIMessagesContextWindowError(event.Response, payloadBytes, message)
+			if status, matchedType, matchedMessage, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, payloadBytes, message); matched && !promptTooLong {
 				// Replace the helper's generic marker with the same single request-local
 				// upstream event; no extra Ops row is created by the middleware.
 				errStatus, errType, errMessage = status, matchedType, matchedMessage
