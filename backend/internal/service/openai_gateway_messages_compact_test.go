@@ -179,6 +179,18 @@ func TestMergeAnthropicCompactSummaries_BoundsOAuthEchoedFinalSummary(t *testing
 	require.Contains(t, bounded, "middle omitted by compact output guard")
 }
 
+func TestBuildAnthropicCompactMergePrompt_BoundsOversizedClientPrompt(t *testing.T) {
+	compactPrompt := "COMPACT_PROMPT_HEAD\n" + strings.Repeat("z", 300_000) + "\nCOMPACT_PROMPT_TAIL"
+
+	mergePrompt := buildAnthropicCompactMergePrompt(compactPrompt, []string{"short source summary"})
+
+	require.LessOrEqual(t, runeLen(mergePrompt), 32_000)
+	require.Contains(t, mergePrompt, "COMPACT_PROMPT_HEAD")
+	require.Contains(t, mergePrompt, "COMPACT_PROMPT_TAIL")
+	require.Contains(t, mergePrompt, "middle omitted by compact prompt guard")
+	require.Contains(t, mergePrompt, "short source summary")
+}
+
 func TestForwardAsAnthropic_APIKeyCompactFallbackUsesUntrimmedTranscript(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
