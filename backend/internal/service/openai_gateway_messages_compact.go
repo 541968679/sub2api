@@ -28,6 +28,7 @@ const (
 	openAIAnthropicCompactFallbackMaxChunks     = 40
 	openAIAnthropicCompactChunkMaxOutputTokens  = 6_000
 	openAIAnthropicCompactMergeMaxOutputTokens  = 12_000
+	openAIAnthropicCompactPromptMaxRunes        = 24_000
 	openAIAnthropicCompactChunkMaxOutputRunes   = 24_000
 	openAIAnthropicCompactMergeMaxOutputRunes   = 48_000
 	openAIAnthropicCompactEmergencyMaxRunes     = 90_000
@@ -1325,6 +1326,11 @@ func buildAnthropicCompactMergePrompt(compactPrompt string, summaries []string) 
 	if strings.TrimSpace(compactPrompt) == "" {
 		compactPrompt = "Create a detailed Claude Code compact summary for the conversation."
 	}
+	compactPrompt = trimRunesMiddleWithMarker(
+		strings.TrimSpace(compactPrompt),
+		openAIAnthropicCompactPromptMaxRunes,
+		"\n\n[... middle omitted by compact prompt guard ...]\n\n",
+	)
 	cleaned := make([]string, 0, len(summaries))
 	for _, summary := range summaries {
 		if summary = sanitizeAnthropicCompactSummaryForMerge(summary); summary != "" {
