@@ -18,6 +18,9 @@ Claude-GPT compaction changes for production:
 - aligned the best-effort usage-log queue-full integration contract with the
   existing backpressure behavior so billing records wait for drain until the
   request context is canceled instead of silently dropping under load;
+- aligned the synchronous batched usage-log queue-full integration contract
+  with the same bounded backpressure behavior, preventing the full integration
+  suite from waiting forever on a deliberately saturated queue;
 - brought the real `golangci-lint v2.9.0` gate to zero issues by checking
   close/type-assertion/builder results, applying the configured formatter, and
   removing helpers that had no production callers (including an unconnected
@@ -42,6 +45,9 @@ already passed.
   test transaction: `TestTempUnschedulableFieldsLoadedByGetByIDAndGetByIDs`.
 - The four repository release-gate regressions were reproduced independently
   and then passed against real testcontainers PostgreSQL/Redis after the fix.
+- The full integration run exposed the stale synchronous queue-full fixture;
+  its bounded cancellation regression, the repository integration package,
+  and the complete integration suite passed after correction.
 - `golangci-lint v2.9.0 run ./...` reports `0 issues`.
 - `govulncheck ./...` reports `0` reachable vulnerabilities.
 - Full release-gate verification is recorded by the deployment entry after the
