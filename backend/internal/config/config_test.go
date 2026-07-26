@@ -216,8 +216,9 @@ func TestLoadDefaultAnthropicBridgeAutoCompact(t *testing.T) {
 
 	cfg, err := Load()
 	require.NoError(t, err)
-	// Fork default: enabled for production context-window failures on Claude→GPT bridge.
-	require.True(t, cfg.Gateway.AnthropicBridgeAutoCompactEnabled)
+	// Hidden pre-generation compaction is opt-in. Claude Code owns visible
+	// reactive compact/retry after the bridge returns prompt-too-long.
+	require.False(t, cfg.Gateway.AnthropicBridgeAutoCompactEnabled)
 	require.Equal(t, 512*1024, cfg.Gateway.AnthropicBridgeAutoCompactInputBytes)
 	require.Equal(t, 600, cfg.Gateway.AnthropicBridgeAutoCompactTimeoutSeconds)
 }
