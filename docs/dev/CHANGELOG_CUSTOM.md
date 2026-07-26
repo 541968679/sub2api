@@ -50,6 +50,22 @@ already passed.
   and the complete integration suite passed after correction.
 - `golangci-lint v2.9.0 run ./...` reports `0 issues`.
 - `govulncheck ./...` reports `0` reachable vulnerabilities.
+- From final pre-release HEAD, the complete unit and integration suites passed
+  with `-count=1`; the integration run used real testcontainers PostgreSQL
+  18.1 and Redis 8.4, including the bounded queue-saturation regressions.
+- All 155 frontend Vitest files / 892 tests passed, followed by frontend
+  typecheck, ESLint, and the production Vite build.
+- Both the static backend build and the release-style `embed` build with
+  injected `0.1.176` version/commit metadata passed.
+- A repository-script-managed local restart reported backend `18081`, frontend
+  `15174`, PostgreSQL, and Redis ready. Real HTTP checks returned 200 for
+  `/health`, public settings, and the frontend login page; `/v1/messages`
+  returned the expected 401 through the registered gateway auth chain for
+  missing and invalid keys. Startup logs showed no panic, fatal, or migration
+  error, and the hidden Anthropic bridge auto-compact default remained false.
+- The host/proxy path returned malformed compressed npm audit responses even
+  under Node 20 / pnpm 9.15.9, so the GitHub `Security Scan` workflow remains
+  the authoritative frontend audit gate before tagging and deployment.
 - Full release-gate verification is recorded by the deployment entry after the
   production rollout completes.
 
