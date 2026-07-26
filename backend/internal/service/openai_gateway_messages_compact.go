@@ -28,6 +28,8 @@ const (
 	openAIAnthropicCompactFallbackMaxChunks     = 40
 	openAIAnthropicCompactChunkMaxOutputTokens  = 6_000
 	openAIAnthropicCompactMergeMaxOutputTokens  = 12_000
+	openAIAnthropicCompactChunkMaxOutputRunes   = 24_000
+	openAIAnthropicCompactMergeMaxOutputRunes   = 48_000
 	openAIAnthropicCompactEmergencyMaxRunes     = 90_000
 	openAIAnthropicCompactFallbackMinSplitRunes = 4_000
 	openAIAnthropicCompactChunkMaxSplitDepth    = 8
@@ -678,6 +680,7 @@ func (s *OpenAIGatewayService) summarizeAnthropicCompactChunk(
 	if summary == "" {
 		return nil, usage, requestID, fmt.Errorf("Upstream compact recovery chunk %s produced no summary", chunkLabel)
 	}
+	summary = trimAnthropicCompactOutput(summary, openAIAnthropicCompactChunkMaxOutputRunes)
 	return []string{summary}, usage, requestID, nil
 }
 
@@ -820,6 +823,7 @@ func (s *OpenAIGatewayService) mergeAnthropicCompactSummariesWithBudget(
 	if strings.TrimSpace(finalResponse.Status) == "failed" {
 		return finalResponse, usage, requestID, fmt.Errorf("compact recovery merge failed: %s", compactResponseErrorMessage(finalResponse))
 	}
+	boundOpenAICompactResponseText(finalResponse, openAIAnthropicCompactMergeMaxOutputRunes)
 	if strings.TrimSpace(openAIResponsesOutputText(finalResponse)) == "" {
 		return finalResponse, usage, requestID, errors.New("compact recovery merge produced no summary text")
 	}
@@ -1470,6 +1474,14 @@ func buildAnthropicCompactEmergencyResponse(model, summary string, usage OpenAIU
 }
 
 func trimRunesMiddle(text string, maxRunes int) string {
+	return trimRunesMiddleWithMarker(text, maxRunes, "\n\n[... middle omitted by compact emergency guard ...]\n\n")
+}
+
+func trimAnthropicCompactOutput(text string, maxRunes int) string {
+	return trimRunesMiddleWithMarker(text, maxRunes, "\n\n[... middle omitted by compact output guard ...]\n\n")
+}
+
+func trimRunesMiddleWithMarker(text string, maxRunes int, marker string) string {
 	runes := []rune(text)
 	if maxRunes <= 0 {
 		return ""
@@ -1477,9 +1489,43 @@ func trimRunesMiddle(text string, maxRunes int) string {
 	if len(runes) <= maxRunes {
 		return text
 	}
-	head := maxRunes * 2 / 3
-	tail := maxRunes - head
-	return string(runes[:head]) + "\n\n[... middle omitted by compact emergency guard ...]\n\n" + string(runes[len(runes)-tail:])
+	markerRunes := []rune(marker)
+	if len(markerRunes) >= maxRunes {
+		return string(markerRunes[:maxRunes])
+	}
+	contentBudget := maxRunes - len(markerRunes)
+	head := contentBudget * 2 / 3
+	tail := contentBudget - head
+	return string(runes[:head]) + marker + string(runes[len(runes)-tail:])
+}
+
+func boundOpenAICompactResponseText(resp *apicompat.ResponsesResponse, maxRunes int) {
+	if resp == nil || maxRunes <= 0 {
+		return
+	}
+	combined := openAIResponsesOutputText(resp)
+	if runeLen(combined) <= maxRunes {
+		return
+	}
+	bounded := trimAnthropicCompactOutput(combined, maxRunes)
+	written := false
+	for outputIndex := range resp.Output {
+		if strings.TrimSpace(resp.Output[outputIndex].Type) != "message" {
+			continue
+		}
+		for contentIndex := range resp.Output[outputIndex].Content {
+			part := &resp.Output[outputIndex].Content[contentIndex]
+			if strings.TrimSpace(part.Type) != "output_text" {
+				continue
+			}
+			if !written {
+				part.Text = bounded
+				written = true
+			} else {
+				part.Text = ""
+			}
+		}
+	}
 }
 
 func openAIResponsesOutputText(resp *apicompat.ResponsesResponse) string {
