@@ -4652,7 +4652,10 @@ const zhBase = {
       },
       grok: {
         baseUrlHint: '留空使用官方 xAI API。',
-        apiKeyHint: '您的 xAI API Key。'
+        apiKeyHint: '您的 xAI API Key。',
+        openaiGroupAccess: '允许 OpenAI 分组访问',
+        openaiGroupAccessDesc:
+          '开启后可将该 Grok 账号绑定到指定 OpenAI 分组；仅绑定分组的 Key 请求 Grok 文本模型时可调度此账号。默认关闭。'
       },
       grokAccount: 'Grok 账号',
       // Gemini specific (platform-wide)

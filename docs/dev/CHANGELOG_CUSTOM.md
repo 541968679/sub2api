@@ -1,3 +1,41 @@
+## 2026-07-26 - fix: restore release quality gates before production deploy
+
+### What
+Restored the local and GitHub release gates uncovered while preparing the
+Claude-GPT compaction changes for production:
+
+- upgraded `golang.org/x/text` from `v0.37.0` to `v0.39.0` and aligned the
+  related `golang.org/x/*` modules, removing the reachable `GO-2026-5970`
+  vulnerability;
+- scoped two unit-only service tests with the `unit` build tag and repaired
+  the account repository integration test recorder setup/isolation;
+- aligned stale Claude-GPT template, Grok CLI, and Grok Codex catalog tests
+  with the current product contracts; and
+- added the missing Chinese and English Grok OpenAI-group-access strings used
+  by both account create and edit forms.
+
+### Why
+The production release preflight found that the previous fork `main` CI could
+not compile several integration packages, the full frontend suite had five
+regressions, and `govulncheck` found an actually reachable infinite-loop
+vulnerability through `golang.org/x/text`. Those are release blockers even
+though the focused Claude-GPT bridge tests and real long-context OAuth test had
+already passed.
+
+### Verification
+- The five previously failing frontend files passed: 5 files / 34 tests.
+- Focused service unit and integration tests passed.
+- The repository integration test passed against the real local PostgreSQL
+  test transaction: `TestTempUnschedulableFieldsLoadedByGetByIDAndGetByIDs`.
+- `govulncheck ./...` reports `0` reachable vulnerabilities.
+- Full release-gate verification is recorded by the deployment entry after the
+  production rollout completes.
+
+### Affected files
+`backend/go.mod`, `backend/go.sum`, service/repository test files under
+`backend/internal`, affected frontend component/locale tests and locale files,
+and this changelog.
+
 ## 2026-07-26 - fix: close Claude-GPT reactive context compaction loop
 
 ### What

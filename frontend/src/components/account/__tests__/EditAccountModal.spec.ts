@@ -364,7 +364,7 @@ describe('EditAccountModal', () => {
     })
   })
 
-  it('applies the OpenAI Claude-GPT bridge mapping template without overwriting existing mappings', async () => {
+  it('applies the OpenAI Claude-GPT bridge mapping template and overwrites matching mappings', async () => {
     const account = buildAccount()
     account.credentials = {
       ...account.credentials,
@@ -387,7 +387,7 @@ describe('EditAccountModal', () => {
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toMatchObject({
-      'claude-opus-4-8': 'custom-gpt-opus',
+      'claude-opus-4-8': 'gpt-5.5',
       'claude-sonnet-4-6': 'gpt-5.4'
     })
   })

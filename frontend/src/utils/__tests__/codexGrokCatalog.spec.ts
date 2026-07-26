@@ -19,7 +19,7 @@ describe('codexGrokCatalog', () => {
     expect(model.supports_reasoning_summaries).toBe(true)
     expect(model.supports_parallel_tool_calls).toBe(true)
     expect(model.apply_patch_tool_type).toBe('freeform')
-    expect(model.tool_mode).toBe('code_mode_only')
+    expect(model.tool_mode).toBeNull()
     expect(model.default_reasoning_summary).toBe('none')
     expect(model.support_verbosity).toBe(true)
     expect(model.supports_search_tool).toBe(true)

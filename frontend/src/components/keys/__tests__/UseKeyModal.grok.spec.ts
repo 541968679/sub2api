@@ -41,6 +41,8 @@ describe('UseKeyModal Grok setup', () => {
       button.text().includes('keys.useKeyModal.cliTabs.grokCli')
     )
     expect(grokTab).toBeDefined()
+    await grokTab!.trigger('click')
+    await nextTick()
 
     const grokConfig = wrapper.findAll('pre code')
       .map((code) => code.text())

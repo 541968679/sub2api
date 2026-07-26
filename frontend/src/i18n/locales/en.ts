@@ -5058,7 +5058,10 @@ const enBase = {
       },
       grok: {
         baseUrlHint: 'Leave default for the official xAI API.',
-        apiKeyHint: 'Your xAI API key.'
+        apiKeyHint: 'Your xAI API key.',
+        openaiGroupAccess: 'Allow OpenAI group access',
+        openaiGroupAccessDesc:
+          'When enabled, this Grok account can be bound to specific OpenAI groups. Only keys in those groups can schedule it for Grok text models. Off by default.'
       },
       grokAccount: 'Grok Account',
       // Re-Auth Modal

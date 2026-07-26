@@ -198,8 +198,8 @@ describe('BulkEditAccountModal', () => {
     // Edit draft then apply without separate save: dated haiku should overwrite gpt-5.4.
     await wrapper.get('[data-testid="bulk-edit-openai-claude-gpt-bridge-template"]').trigger('click')
     await flushPromises()
-    // Default template index: 0-3 opus, 4-6 sonnet, 7 short haiku, 8 dated haiku.
-    const haikuTo = wrapper.get('[data-testid="bulk-openai-claude-gpt-bridge-template-to-8"]')
+    // Default template index: 0-4 opus, 5-7 sonnet, 8 short haiku, 9 dated haiku.
+    const haikuTo = wrapper.get('[data-testid="bulk-openai-claude-gpt-bridge-template-to-9"]')
     await haikuTo.setValue('gpt-5.6-luna')
 
     await wrapper.get('[data-testid="bulk-apply-openai-claude-gpt-bridge-template"]').trigger('click')
