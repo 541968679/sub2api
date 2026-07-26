@@ -9,6 +9,9 @@ Claude-GPT compaction changes for production:
   vulnerability;
 - scoped two unit-only service tests with the `unit` build tag and repaired
   the account repository integration test recorder setup/isolation;
+- made the default public TLS fingerprint capture integration skip only when
+  its TCP endpoint is unavailable, while custom capture URLs and reachable
+  fingerprint mismatches remain strict failures;
 - aligned stale Claude-GPT template, Grok CLI, and Grok Codex catalog tests
   with the current product contracts; and
 - added the missing Chinese and English Grok OpenAI-group-access strings used

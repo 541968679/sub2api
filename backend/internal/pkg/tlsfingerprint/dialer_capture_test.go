@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -51,6 +53,7 @@ func TestDialerAgainstCaptureServer(t *testing.T) {
 	if captureURL == "" {
 		captureURL = defaultTLSFingerprintCaptureURL
 	}
+	skipIfDefaultCaptureServerUnavailable(t, captureURL)
 
 	tests := []struct {
 		name    string
@@ -189,6 +192,23 @@ func TestDialerAgainstCaptureServer(t *testing.T) {
 			t.Logf("Full captured fingerprint:\n  %s", string(capturedJSON))
 		})
 	}
+}
+
+func skipIfDefaultCaptureServerUnavailable(t *testing.T, captureURL string) {
+	t.Helper()
+	if captureURL != defaultTLSFingerprintCaptureURL {
+		return
+	}
+
+	parsed, err := url.Parse(captureURL)
+	if err != nil {
+		t.Fatalf("parse default capture URL: %v", err)
+	}
+	conn, err := net.DialTimeout("tcp", parsed.Host, 3*time.Second)
+	if err != nil {
+		t.Skipf("default capture server is unavailable: %v", err)
+	}
+	_ = conn.Close()
 }
 
 func fetchCapturedFingerprint(t *testing.T, captureURL string, profile *Profile) *CapturedFingerprint {
