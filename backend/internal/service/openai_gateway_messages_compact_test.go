@@ -127,6 +127,58 @@ func TestIsClaudeCodeCompactAnthropicRequest(t *testing.T) {
 	require.False(t, isClaudeCodeCompactAnthropicRequest(notCompact))
 }
 
+func TestSummarizeAnthropicCompactChunk_BoundsOAuthEchoedSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	echoed := "SUMMARY_HEAD\n" + strings.Repeat("x", 80_000) + "\nSUMMARY_TAIL"
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactCompletedSSE("resp_chunk_echo", "gpt-5.5", echoed, 100, 80_000),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	remainingSplits := openAIAnthropicCompactChunkSplitBudget
+
+	summaries, _, _, err := svc.summarizeAnthropicCompactChunk(
+		context.Background(), c, rawChatCompletionsTestAccount(), "sk-test", "gpt-5.5",
+		"source transcript", "1/1", 0, &remainingSplits,
+	)
+
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	require.LessOrEqual(t, runeLen(summaries[0]), 24_000)
+	require.Contains(t, summaries[0], "SUMMARY_HEAD")
+	require.Contains(t, summaries[0], "SUMMARY_TAIL")
+	require.Contains(t, summaries[0], "middle omitted by compact output guard")
+}
+
+func TestMergeAnthropicCompactSummaries_BoundsOAuthEchoedFinalSummary(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	echoed := "# Compact Capsule\nFINAL_HEAD\n" + strings.Repeat("y", 100_000) + "\nFINAL_TAIL"
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		compactCompletedSSE("resp_merge_echo", "gpt-5.5", echoed, 100, 100_000),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+
+	response, _, _, err := svc.mergeAnthropicCompactSummaries(
+		context.Background(), c, rawChatCompletionsTestAccount(), "sk-test", "gpt-5.5",
+		testClaudeCodeCompactPrompt(), []string{"short source summary"},
+		openAIAnthropicCompactMergeTargetChars, 0,
+	)
+
+	require.NoError(t, err)
+	bounded := openAIResponsesOutputText(response)
+	require.LessOrEqual(t, runeLen(bounded), 48_000)
+	require.Contains(t, bounded, "FINAL_HEAD")
+	require.Contains(t, bounded, "FINAL_TAIL")
+	require.Contains(t, bounded, "middle omitted by compact output guard")
+}
+
 func TestForwardAsAnthropic_APIKeyCompactFallbackUsesUntrimmedTranscript(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
