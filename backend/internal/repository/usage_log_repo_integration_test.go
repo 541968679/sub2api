@@ -288,8 +288,9 @@ func TestUsageLogRepositoryCreateBestEffort_BatchPathDuplicateRequestID(t *testi
 	}, 3*time.Second, 20*time.Millisecond)
 }
 
-func TestUsageLogRepositoryCreateBestEffort_QueueFullReturnsDropped(t *testing.T) {
-	ctx := context.Background()
+func TestUsageLogRepositoryCreateBestEffort_QueueFullWaitsUntilContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 	client := testEntClient(t)
 	repo := newUsageLogRepositoryWithSQL(client, integrationDB)
 	repo.bestEffortBatchCh = make(chan usageLogBestEffortRequest, 1)
@@ -299,6 +300,7 @@ func TestUsageLogRepositoryCreateBestEffort_QueueFullReturnsDropped(t *testing.T
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-usage-best-effort-full-" + uuid.NewString(), Name: "k"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "acc-usage-best-effort-full-" + uuid.NewString()})
 
+	started := time.Now()
 	err := repo.CreateBestEffort(ctx, &service.UsageLog{
 		UserID:       user.ID,
 		APIKeyID:     apiKey.ID,
@@ -314,6 +316,7 @@ func TestUsageLogRepositoryCreateBestEffort_QueueFullReturnsDropped(t *testing.T
 
 	require.Error(t, err)
 	require.True(t, service.IsUsageLogCreateDropped(err))
+	require.GreaterOrEqual(t, time.Since(started), 75*time.Millisecond)
 }
 
 func TestUsageLogRepositoryCreate_BatchPathCanceledContextMarksNotPersisted(t *testing.T) {

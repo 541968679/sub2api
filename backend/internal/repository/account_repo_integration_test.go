@@ -745,6 +745,7 @@ func (s *AccountRepoSuite) TestSetTempUnschedulableSkipsOutboxWhenWindowDoesNotE
 	s.Require().NoError(err)
 	s.Require().Equal(1, count)
 	s.Require().Len(cacheRecorder.setAccounts, 1)
+	s.Require().Equal("first", cacheRecorder.setAccounts[0].TempUnschedulableReason)
 
 	got, err := s.repo.GetByID(s.ctx, account.ID)
 	s.Require().NoError(err)
@@ -1007,8 +1008,10 @@ func (s *AccountRepoSuite) TestGetByCRSAccountID_ExcludesSparkShadow() {
 // TestListCRSAccountIDs_ExcludesSparkShadow 验证外审第7轮 P1:影子的 crs_account_id 不应进入
 // CRS 同步映射(否则后续 CRS 同步会把影子当普通账号更新)。
 func (s *AccountRepoSuite) TestListCRSAccountIDs_ExcludesSparkShadow() {
+	parentCRSID := "crs-list-mother-77"
 	parent := mustCreateAccount(s.T(), s.client, &service.Account{
 		Name: "crs-list-mother", Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth,
+		Extra: map[string]any{"crs_account_id": parentCRSID},
 	})
 	shadowCRSID := "crs-list-shadow-77"
 	mustCreateAccount(s.T(), s.client, &service.Account{
@@ -1020,6 +1023,7 @@ func (s *AccountRepoSuite) TestListCRSAccountIDs_ExcludesSparkShadow() {
 
 	ids, err := s.repo.ListCRSAccountIDs(s.ctx)
 	s.Require().NoError(err)
+	s.Require().Equal(parent.ID, ids[parentCRSID], "CRS parent account should remain in the mapping")
 	_, ok := ids[shadowCRSID]
 	s.Require().False(ok, "影子的 crs_account_id 不应进入 CRS 映射")
 }
