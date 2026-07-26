@@ -1,3 +1,56 @@
+## 2026-07-26 - fix: close Claude-GPT reactive context compaction loop
+
+### What
+Claude-GPT bridge generation overflow now returns the Claude Code-recognized
+HTTP 413 `invalid_request_error` contract with a stable `Prompt is too long`
+message. The contract covers direct HTTP failures plus buffered and streaming
+Responses terminals before visible output. Hidden pre-generation auto-compact
+is now opt-in by default.
+
+Compact recovery also has local convergence budgets: 24,000 runes for the
+client compact prompt used during merge, 24,000 runes per chunk summary, and
+48,000 runes per intermediate/final merge summary. Oversized text preserves
+the head and tail with an explicit omission marker.
+
+### Why
+Mapped GPT/Codex windows can reject a 1M-advertised Claude Code conversation
+before Claude Code's preventive compact threshold. The previous ordinary 400
+did not trigger reactive compact. Real OAuth testing then exposed a second
+failure: Codex removes unsupported `max_output_tokens`, so recovery summaries
+could echo hundreds of thousands of characters and exceed the client's
+300-second first-event timeout.
+
+### Compatibility And Verification
+- Non-bridge Messages keep their existing 400 behavior. A bridge stream that
+  already emitted visible output terminates without the prompt-too-long marker,
+  preventing replay of a partial answer. Existing client compact recovery,
+  account failover, usage aggregation, stored billing, quota deduction,
+  display-token accounting, cache-read quantities, and `actual_cost` remain
+  authoritative.
+- TDD RED/GREEN checkpoints cover direct HTTP, buffered/streaming SSE,
+  code/message detection, passthrough priority, non-bridge behavior, partial
+  output, keepalive, and compact prompt/chunk/merge budgets.
+- A real Claude Code 2.1.220 session through local `127.0.0.1:18081` and a real
+  GPT/Codex OAuth upstream completed the full chain: 1,285,010-byte generation
+  -> HTTP 413 -> 909,560-byte compact -> HTTP 200 in 43.420s ->
+  `compact_boundary`/`isCompactSummary=true` -> automatic generation -> exact
+  `ACK-F3`. A separate 1.22 MiB recovery test exercised seven real GPT chunks,
+  recursive merge, and exact `ACK-3`.
+- Full backend verification passed with
+  `go test -tags=unit ./... -count=1` (`internal/service` 97.707s,
+  `internal/handler` 25.349s), plus focused compact/prompt-too-long tests and
+  `git diff --check`.
+
+### Affected files
+`backend/internal/config/config.go`,
+`backend/internal/handler/openai_gateway_handler_test.go`,
+`backend/internal/service/openai_gateway_messages.go`,
+`backend/internal/service/openai_gateway_messages_compact.go`,
+`backend/internal/service/openai_gateway_messages_compact_test.go`,
+`backend/internal/service/openai_gateway_messages_prompt_too_long_test.go`,
+`deploy/config.example.yaml`, `docs/dev/codebase/gateway.md`, this investigation,
+and this changelog.
+
 ## 2026-07-25 - docs: capture Claude-GPT context compaction investigation
 
 ### What
@@ -24,8 +77,8 @@ start.
 - Clarified that the fork has stronger client-initiated compact recovery than
   upstream, while its direct 400 with the original context-window message is
   the remaining compatibility gap rather than a missed upstream patch.
-- The candidate runtime fix remains explicitly unimplemented pending response
-  contract tests and a real long-conversation end-to-end test.
+- This was the state on 2026-07-25. The 2026-07-26 entry above supersedes it:
+  the runtime contract and real long-conversation end-to-end test are complete.
 
 ## 2026-07-25 - fix: record actual OpenAI upstream endpoints in error logs
 

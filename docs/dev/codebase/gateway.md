@@ -241,7 +241,7 @@ context window when Claude Code has not yet initiated its own compact. After
 `maybeAutoCompactAnthropicBridge` (config `gateway.anthropic_bridge_auto_compact_*`)
 may call `/responses/compact` on the history prefix when:
 
-- feature enabled (default **true**),
+- feature enabled (default **false**, opt-in only),
 - account is OpenAI OAuth (not Grok, not API-key),
 - mapped **upstream** model is `gpt-5*` (not Claude display names / fable),
 - request is **not** a client-initiated Claude Code compact,
@@ -252,20 +252,30 @@ Compact is fail-open: any error keeps the original generation body. Successful
 compact usage is merged into generation usage. This is independent of the
 client compact recovery path below.
 
-Production currently disables this hidden pass because Claude Code cannot see
-or wait on bridge-initiated compaction, making it appear as unexplained TTFT.
-This does not disable client-initiated compact or the recovery path below.
+The default and production configuration disable this hidden pass because
+Claude Code cannot see or wait on bridge-initiated compaction, making it appear
+as unexplained TTFT. This does not disable client-initiated compact or the
+recovery path below.
 When a 1M-advertised Claude client reaches a smaller GPT upstream window first,
-the upstream `context_length_exceeded` must use a Claude Code-recognized
-prompt-too-long error contract to trigger the client's visible reactive
-compact/retry flow. Returning the upstream `context window` text as an ordinary
-400 does not do that in Claude Code 2.1.220. Upstream Sub2API currently covers
-no-failover and configurable passthrough semantics, while open PR #4756 is the
-same hidden adapter-side auto-compact design and is not a reactive-client fix.
+the bridge normalizes an explicit upstream `context_length_exceeded` (or the
+equivalent context-window message fallback) to HTTP 413,
+`invalid_request_error`, and the stable message `Prompt is too long: this
+request exceeds the context window for the selected model.`. Claude Code
+2.1.220 recognizes that contract and starts its visible reactive compact/retry
+flow. The normalization is bridge-only, covers direct HTTP errors and
+buffered/streaming `response.failed` before visible output, and takes priority
+over configurable passthrough rules. Non-bridge Messages retain the existing
+400 behavior. After visible assistant output has started, the bridge emits a
+terminal stream error without the prompt-too-long marker so the client is not
+invited to replay a partially delivered answer.
+
+Upstream Sub2API currently covers no-failover and configurable passthrough
+semantics, while open PR #4756 is the same hidden adapter-side auto-compact
+design and is not a reactive-client fix.
 See
 [`CLAUDE_GPT_CONTEXT_COMPACTION_INVESTIGATION_2026-07-25.md`](../CLAUDE_GPT_CONTEXT_COMPACTION_INVESTIGATION_2026-07-25.md)
-for evidence, upstream history, rejected workarounds, and the pending response
-contract change.
+for evidence, upstream history, rejected workarounds, and the completed real
+Claude Code verification.
 
 Claude Code emits a hidden compact request after the conversation reaches its
 context threshold. The bridge keeps an untouched transcript snapshot before the
@@ -292,6 +302,16 @@ disables that behavior. Recursive depth and split budgets bound upstream work,
 with an emergency local capsule as the final merge fallback. Client cancellation
 is bridged into these otherwise detached recovery requests so abandoned compact
 work releases its upstream response and account concurrency slot.
+
+OAuth Codex transforms remove unsupported `max_output_tokens`, so the upstream
+may ignore the requested summary budget and echo a large part of the input.
+Recovery therefore also has local convergence guards: the client compact prompt
+used by merge requests is capped at 24,000 runes, each chunk summary at 24,000
+runes, and each intermediate/final merge summary at 48,000 runes. Oversized text
+keeps its first two-thirds and last third with an explicit omission marker.
+These guards apply only to recovery summaries and the merge-prompt copy; they do
+not mutate the original client transcript. Upstream usage remains authoritative
+for billing even when the downstream summary is locally bounded.
 
 The compact pre-header keepalive is a standard Anthropic `ping`. It keeps proxy
 and TCP/SSE idle timers alive, but it cannot legally use the empty

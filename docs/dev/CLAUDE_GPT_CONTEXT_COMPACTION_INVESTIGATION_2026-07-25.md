@@ -44,9 +44,9 @@ gateway:
 关闭的只是预生成 auto-compact；客户端主动 compact 及其桥接恢复逻辑没有
 关闭。
 
-## 3. 当前 400 为什么没有触发 CC 自己压缩
+## 3. 原 400 为什么没有触发 CC 自己压缩
 
-当前 Claude-GPT bridge 在收到 OpenAI Responses 终态
+实施前的 Claude-GPT bridge 在收到 OpenAI Responses 终态
 `response.failed` / `context_length_exceeded` 后，会把上游消息作为 Anthropic
 `invalid_request_error` 原样返回，HTTP 状态为 400：
 
@@ -83,27 +83,28 @@ Content-Type: application/json
 转换成了 CC 不识别的普通 400 文案，CC 无法进入 reactive compact/retry
 路径。
 
-## 4. 已验证、未验证与限制
+## 4. 实施前验证与限制
 
 ### 已验证
 
 - 生产隐藏预生成 auto-compact 已关闭，服务健康。
 - 生产/人工长会话能复现 GPT 上游先于 CC 主动 compact 返回上下文超限。
-- 当前代码对 `context_length_exceeded` 返回 HTTP 400，并保留上游文案。
+- 实施前代码对 `context_length_exceeded` 返回 HTTP 400，并保留上游文案。
 - CC 2.1.220 对 `Prompt is too long` 形态会分类为 `prompt_too_long`。
 - 在多消息 mock 中，CC 收到该错误后能进入 `compacting` 状态。
 - 单条巨大输入或只有一个可压缩 exchange 时，CC 会报告
   `A single-exchange conversation cannot be compacted`；错误转换无法消除
   这一客户端固有限制。
 
-### 尚未完成
+### 当时尚未完成
 
-- 尚未用“真实 CC + 本地修复版 Sub2API + GPT 上游 + 多轮长历史”完成从首次
-  超限、客户端 compact、摘要成功、自动重试到最终成功的全链路验证。
-- HTTP 400 与 413 中哪一个在受支持 CC 版本范围内兼容性最佳，仍需结合上游
-  代码/历史和真实客户端回归后决定。
-- 若上游错误未提供可信的 token limit，桥接不应伪造精确上限数字；文案可只
-  使用稳定的 `Prompt is too long` 前缀并保留经过清洗的上游详情。
+- 当时尚未用“真实 CC + 本地修复版 Sub2API + GPT 上游 + 多轮长历史”完成从
+  首次超限、客户端 compact、摘要成功、自动重试到最终成功的全链路验证；该项
+  已于 2026-07-26 完成，见第 9 节。
+- 当时尚未确定 HTTP 400 与 413 的最终契约；真实 Claude Code 2.1.220 验证后
+  已固定为 HTTP 413。
+- 上游错误未提供可信 token limit 时，桥接不伪造精确上限数字，使用稳定的
+  `Prompt is too long` 文案和通用 context-window 描述。
 
 ## 5. 已否决的产品方案
 
@@ -117,21 +118,27 @@ Content-Type: application/json
 原因是服务端不能要求所有客户端协调修改；隐藏 compact 又会恢复不可见长
 等待、首字时间膨胀和额外上游调用问题。
 
-## 6. 当前候选修复（方案二）
+## 6. 已实施修复（方案二）
 
-Sub2API 单方面可实施的最小方案是：
+Sub2API 已实施以下方案：
 
 1. 只捕获 GPT 上游明确的上下文超限，例如
    `error.code == context_length_exceeded`，并保留现有文案特征匹配作为兼容
    兜底。
-2. 将 Anthropic 下游错误规范化为 CC 可识别的 prompt-too-long 契约，候选为
-   HTTP 413 + `invalid_request_error` + 以 `Prompt is too long` 开头的消息。
+2. 将 Anthropic 下游错误规范化为 CC 可识别的 prompt-too-long 契约：
+   HTTP 413 + `invalid_request_error` + 稳定文案
+   `Prompt is too long: this request exceeds the context window for the selected model.`。
 3. 不将这类请求切换到其他同窗口 GPT 账号，不重放已产生的可见输出，不记为
    成功 usage。
 4. 由 CC 自己进入 reactive compact，发起它可见、可等待的客户端 compact
    请求；Sub2API 继续使用已有 compact bridge/recovery 路径处理该请求。
-5. 对 `response.failed/context_length_exceeded`、非超限 400、流式/非流式响应、
-   failover 和 Anthropic JSON/SSE 错误形态增加回归测试，再做真实长会话闭环。
+5. 对 `response.failed/context_length_exceeded`、错误码缺失时的文案兜底、非 bridge
+   400、流式/非流式响应、已产生可见输出、透传规则优先级和 Anthropic JSON/SSE
+   错误形态增加回归测试。
+6. 对 compact recovery 增加本地收敛预算：merge 使用的客户端 compact prompt
+   最多 24,000 runes，分块摘要最多 24,000 runes，中间/最终归并摘要最多
+   48,000 runes。超过预算时保留头尾并插入显式省略标记。
+7. 将隐藏预生成 auto-compact 默认值改为 `false`，保留为显式 opt-in 诊断能力。
 
 该方案是**首次超限后的恢复**，不是提前预防。GPT 上游仍会先拒绝一次，但
 用户可见的压缩状态、等待机制和会话重试重新归 CC 所有，不再由桥接静默代办。
@@ -208,14 +215,77 @@ group”。它用于原生 Antigravity 请求在 prompt-too-long 后切到一个
 `upstream_error`，其完整 CC 版本兼容性尚未验证，不能替代代码级、带回归测试
 的稳定错误契约。
 
-## 8. 最终判断
+## 8. 调查结论
 
 - 上游并非“完全没处理”：它已修复吞错、错误 failover 和可配置透传。
 - 上游也确实**没有**处理本次产品目标：让 1M 语义的 CC 在较小 GPT 窗口先
   超限时，自动进入客户端可见 compact/retry。
-- 本地偏差很大，但当前问题不是因为漏同步一个现成的上游修复。相反，当前
+- 本地偏差很大，但该问题不是因为漏同步一个现成的上游修复。相反，原先的
   400 来自 fork 为 compact recovery 新增的确定性客户端错误分支；它只差最后
   一步 CC 错误语义转换。
-- 因此仍应实施方案二：在 Claude-GPT bridge 出口将明确的上下文超限规范化为
-  CC 可识别的 prompt-too-long 契约，并用真实多轮历史验证 compact + retry
-  闭环。没有可直接 cherry-pick 的上游已合并方案。
+- 因此实施了方案二：在 Claude-GPT bridge 出口将明确的上下文超限规范化为
+  CC 可识别的 prompt-too-long 契约，并以本地预算保证 compact recovery 收敛。
+  没有可直接 cherry-pick 的上游已合并方案。
+
+## 9. 2026-07-26 实施与真实验收结果
+
+### 9.1 最终行为契约
+
+- 仅 Claude-GPT bridge 普通生成的明确上下文超限转换为 HTTP 413、
+  `invalid_request_error` 和稳定的 `Prompt is too long` 文案。
+- 覆盖上游直接 HTTP 错误、buffered SSE 和 streaming SSE；错误码与常见文案均可
+  识别。
+- 已有可见输出后不再发送 prompt-too-long 标记，避免 Claude Code 重放部分输出。
+- 非 bridge Messages 保持原 400 行为；客户端主动 compact 继续走已有恢复路径。
+- 隐藏预生成 auto-compact 默认关闭。
+- compact recovery 的 prompt、分块摘要和归并摘要分别受 24k/24k/48k rune
+  预算约束；原始客户端历史和真实上游 usage 不被改写。
+
+### 9.2 真实闭环证据
+
+本地服务通过仓库规定的 `scripts/dev-stack.ps1 restart -SkipAIClient` 启动，后端
+为当前工作树构建的 `backend/tmp/server.exe`，监听
+`http://127.0.0.1:18081`。Claude Code 使用本地数据库 API key，但测试过程不打印
+凭据。
+
+最终独立会话 `5feef6f3-8bda-45ca-9ad5-565bbd17dfaf` 使用 Claude Code
+2.1.220、真实 GPT/Codex OAuth 上游和三轮各 2,200 条独立记录：
+
+1. 前两轮分别返回 `ACK-F1`、`ACK-F2`。
+2. 第三轮普通请求 body 为 1,285,010 bytes，本地 bridge 在 2,402 ms 后返回
+   HTTP 413。
+3. Claude Code 立即发送 `source=compact`；compact 请求 body 为 909,560 bytes，
+   服务端在 43,420 ms 后返回 HTTP 200。
+4. 会话 JSONL 写入 `compact_boundary`，`trigger=auto`，`preTokens=394820`，
+   `postTokens=96104`，`durationMs=43442`，并写入 `isCompactSummary=true`。
+5. Claude Code 随后自动恢复普通生成，本地 bridge 在 3,127 ms 后返回 200，CLI
+   最终输出精确的 `ACK-F3`。
+
+另一个恢复分块路径会话 `3859ccbb-3636-4b1b-9d82-332e05595d93` 验证了
+1.22 MiB compact 请求触发 7 个真实 GPT 分块摘要、递归归并、HTTP 200、
+`compact_boundary`、`isCompactSummary=true` 和最终 `ACK-3`。第一次未加本地摘要
+上限时 compact 超过 Claude Code 300 秒首事件超时并被重试；加入 24k/48k 输出
+预算后同一会话成功闭环。该对照是增加本地收敛预算的直接依据。
+
+### 9.3 本地验收地址陷阱
+
+用户级 `C:\Users\mechrev-kayn\.claude\settings.json` 中的 `env` 会覆盖父进程
+设置的 `ANTHROPIC_BASE_URL`。仅在 PowerShell 中赋值并不能证明请求命中了本地
+服务；早期一次“本地”测试实际访问了远端
+`https://zerocode.kaynlab.com/antigravity`。
+
+真实本地验收必须同时：
+
+- 设置 `ANTHROPIC_BASE_URL=http://127.0.0.1:18081/antigravity`；
+- 使用 `--setting-sources project,local` 排除 user settings；
+- 在后端 access log 中确认 `client_ip=127.0.0.1`、请求 body 大小和 413/200
+  时序。
+
+### 9.4 自动化回归
+
+- RED 检查点分别复现原 400 契约、未受控的 80,026/100,040 rune 恢复输出和
+  300,903 rune compact merge prompt。
+- 新增契约测试覆盖 HTTP、buffered SSE、streaming SSE、错误码/文案、非 bridge、
+  可见输出后终止、透传规则、compact keepalive，以及三项本地长度预算。
+- `go test -tags=unit ./... -count=1` 全部通过；其中
+  `internal/service` 97.707s、`internal/handler` 25.349s。
