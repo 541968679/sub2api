@@ -41,7 +41,8 @@ func TestResetDailyUsageCAS_StaleResetPreservesNewWindowUsage(t *testing.T) {
 		Save(ctx)
 	require.NoError(t, err)
 
-	repo := NewUserSubscriptionRepository(client).(*userSubscriptionRepository)
+	repo, ok := NewUserSubscriptionRepository(client).(*userSubscriptionRepository)
+	require.True(t, ok)
 	require.NoError(t, repo.ResetDailyUsageCAS(ctx, sub.ID, &oldWindowStart, newWindowStart))
 	_, err = client.UserSubscription.UpdateOneID(sub.ID).SetDailyUsageUsd(3).Save(ctx)
 	require.NoError(t, err)

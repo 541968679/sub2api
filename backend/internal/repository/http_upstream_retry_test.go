@@ -40,7 +40,7 @@ func TestHTTPUpstreamNetworkRetryRetriesTransportError(t *testing.T) {
 
 	resp, err := svc.Do(req, "", 1, 1)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, "ok", string(body))
@@ -81,7 +81,7 @@ func TestHTTPUpstreamNetworkRetryDoesNotRetryHTTPResponse(t *testing.T) {
 
 	resp, err := svc.Do(req, "", 1, 1)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { require.NoError(t, resp.Body.Close()) }()
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	require.Equal(t, int32(1), atomic.LoadInt32(&attempts))
 }

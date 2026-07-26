@@ -64,7 +64,7 @@ func TestBuildSchedulerMetadataAccount_KeepsGrokOpenAIGroupAccessFlag(t *testing
 		Type:     service.AccountTypeOAuth,
 		Extra: map[string]any{
 			"grok_openai_group_access_enabled": true,
-			"email":                           "drop-me@example.com",
+			"email":                            "drop-me@example.com",
 		},
 	}
 

@@ -364,7 +364,9 @@ func isRetriableUpstreamNetworkError(err error) bool {
 		return true
 	}
 	var netErr net.Error
-	if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) {
+	// Temporary is deprecated but remains part of the compatibility contract for
+	// custom transports that classify retryable non-timeout network failures.
+	if errors.As(err, &netErr) && (netErr.Timeout() || netErr.Temporary()) { //nolint:staticcheck
 		return true
 	}
 	message := strings.ToLower(err.Error())

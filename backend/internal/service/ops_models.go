@@ -152,15 +152,15 @@ type OpsErrorLogList struct {
 
 // OpsErrorLogStats is the filtered-scope error-rate summary for the admin usage errors tab.
 type OpsErrorLogStats struct {
-	SuccessRequests              int64              `json:"success_requests"`
-	TerminalErrorRequests        int64              `json:"terminal_error_requests"`          // F_biz only (denominator errors)
-	TerminalErrorRequestsFiltered int64             `json:"terminal_error_requests_filtered"` // F_biz ∩ F_err (numerator)
-	RawErrorRows                 int64              `json:"raw_error_rows"`
-	TotalRequests                int64              `json:"total_requests"`
-	ErrorRate                    float64            `json:"error_rate"`
-	TopStatusCodes               []OpsErrorStatBucket `json:"top_status_codes"`
-	TopRequestedModels           []OpsErrorStatBucket `json:"top_requested_models"`
-	TopUpstreamModels            []OpsErrorStatBucket `json:"top_upstream_models"`
+	SuccessRequests               int64                `json:"success_requests"`
+	TerminalErrorRequests         int64                `json:"terminal_error_requests"`          // F_biz only (denominator errors)
+	TerminalErrorRequestsFiltered int64                `json:"terminal_error_requests_filtered"` // F_biz ∩ F_err (numerator)
+	RawErrorRows                  int64                `json:"raw_error_rows"`
+	TotalRequests                 int64                `json:"total_requests"`
+	ErrorRate                     float64              `json:"error_rate"`
+	TopStatusCodes                []OpsErrorStatBucket `json:"top_status_codes"`
+	TopRequestedModels            []OpsErrorStatBucket `json:"top_requested_models"`
+	TopUpstreamModels             []OpsErrorStatBucket `json:"top_upstream_models"`
 }
 
 type OpsErrorStatBucket struct {

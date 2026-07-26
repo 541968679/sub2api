@@ -1239,11 +1239,6 @@ func matchWildcard(pattern, str string) bool {
 	return matchAntigravityWildcard(pattern, str)
 }
 
-func matchWildcardMappingResult(mapping map[string]string, requestedModel string) (string, bool) {
-	target, _, matched := matchWildcardMappingResultWithKey(mapping, requestedModel)
-	return target, matched
-}
-
 func matchWildcardMappingResultWithKey(mapping map[string]string, requestedModel string) (string, string, bool) {
 	// 收集所有匹配的 pattern，按长度降序排序（最长优先）
 	type patternMatch struct {

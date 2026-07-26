@@ -41,7 +41,7 @@ const (
 	openAIAnthropicCompactFallbackClientMessage = "Claude Code compact recovery failed before producing a usable summary"
 )
 
-var errOpenAICompactContextLengthExceeded = errors.New("Upstream compact context_length_exceeded")
+var errOpenAICompactContextLengthExceeded = errors.New("upstream compact context_length_exceeded")
 
 type openAICompactContextLengthError struct {
 	statusCode int
@@ -679,7 +679,7 @@ func (s *OpenAIGatewayService) summarizeAnthropicCompactChunk(
 	}
 	summary := strings.TrimSpace(openAIResponsesOutputText(response))
 	if summary == "" {
-		return nil, usage, requestID, fmt.Errorf("Upstream compact recovery chunk %s produced no summary", chunkLabel)
+		return nil, usage, requestID, fmt.Errorf("upstream compact recovery chunk %s produced no summary", chunkLabel)
 	}
 	summary = trimAnthropicCompactOutput(summary, openAIAnthropicCompactChunkMaxOutputRunes)
 	return []string{summary}, usage, requestID, nil

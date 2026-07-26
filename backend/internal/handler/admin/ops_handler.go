@@ -180,28 +180,28 @@ func applyOpsErrorListQuery(c *gin.Context, filter *service.OpsErrorLogFilter) e
 	if v := strings.TrimSpace(c.Query("group_id")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			return fmt.Errorf("Invalid group_id")
+			return fmt.Errorf("invalid group_id")
 		}
 		filter.GroupID = &id
 	}
 	if v := strings.TrimSpace(c.Query("account_id")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			return fmt.Errorf("Invalid account_id")
+			return fmt.Errorf("invalid account_id")
 		}
 		filter.AccountID = &id
 	}
 	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			return fmt.Errorf("Invalid user_id")
+			return fmt.Errorf("invalid user_id")
 		}
 		filter.UserID = &id
 	}
 	if v := strings.TrimSpace(c.Query("api_key_id")); v != "" {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil || id <= 0 {
-			return fmt.Errorf("Invalid api_key_id")
+			return fmt.Errorf("invalid api_key_id")
 		}
 		filter.APIKeyID = &id
 	}
@@ -215,7 +215,7 @@ func applyOpsErrorListQuery(c *gin.Context, filter *service.OpsErrorLogFilter) e
 			b := false
 			filter.Resolved = &b
 		default:
-			return fmt.Errorf("Invalid resolved")
+			return fmt.Errorf("invalid resolved")
 		}
 	}
 	if statusCodesStr := strings.TrimSpace(c.Query("status_codes")); statusCodesStr != "" {
@@ -228,7 +228,7 @@ func applyOpsErrorListQuery(c *gin.Context, filter *service.OpsErrorLogFilter) e
 			}
 			n, err := strconv.Atoi(p)
 			if err != nil || n < 0 {
-				return fmt.Errorf("Invalid status_codes")
+				return fmt.Errorf("invalid status_codes")
 			}
 			out = append(out, n)
 		}

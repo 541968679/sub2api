@@ -219,10 +219,6 @@ func jsonString(s string) string {
 	return string(b)
 }
 
-func buildCodexGrokModelEntry(slug string) map[string]any {
-	return buildCodexGrokModelEntryFromTemplate(nil, slug)
-}
-
 func cloneCodexModelEntry(src map[string]any) map[string]any {
 	if src == nil {
 		return nil

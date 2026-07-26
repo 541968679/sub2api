@@ -4694,8 +4694,8 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	var errType, errMsg string
 	var statusCode int
 
-	switch {
-	case resp.StatusCode == 400:
+	switch resp.StatusCode {
+	case http.StatusBadRequest:
 		// Include Grok/xAI 400s (e.g. compaction blob / tool_choice). Previously only
 		// image requests surfaced the real message; others became generic 502 and
 		// streaming clients often displayed a bare "{".
@@ -4706,19 +4706,19 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		} else {
 			errMsg = "Upstream request failed"
 		}
-	case resp.StatusCode == 401:
+	case http.StatusUnauthorized:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream authentication failed, please contact administrator"
-	case resp.StatusCode == 402:
+	case http.StatusPaymentRequired:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream payment required: insufficient balance or billing issue"
-	case resp.StatusCode == 403:
+	case http.StatusForbidden:
 		statusCode = http.StatusBadGateway
 		errType = "upstream_error"
 		errMsg = "Upstream access forbidden, please contact administrator"
-	case resp.StatusCode == 429:
+	case http.StatusTooManyRequests:
 		statusCode = http.StatusTooManyRequests
 		errType = "rate_limit_error"
 		errMsg = "Upstream rate limit exceeded, please retry later"

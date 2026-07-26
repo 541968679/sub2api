@@ -12,6 +12,16 @@ Claude-GPT compaction changes for production:
 - made the default public TLS fingerprint capture integration skip only when
   its TCP endpoint is unavailable, while custom capture URLs and reachable
   fingerprint mismatches remain strict failures;
+- restored repository scheduler consistency by suppressing no-op temporary
+  unschedule side effects, synchronizing model-rate-limit clears into the
+  scheduler cache, and excluding Spark shadow accounts from CRS mappings;
+- aligned the best-effort usage-log queue-full integration contract with the
+  existing backpressure behavior so billing records wait for drain until the
+  request context is canceled instead of silently dropping under load;
+- brought the real `golangci-lint v2.9.0` gate to zero issues by checking
+  close/type-assertion/builder results, applying the configured formatter, and
+  removing helpers that had no production callers (including an unconnected
+  Grok quota auto-pause implementation);
 - aligned stale Claude-GPT template, Grok CLI, and Grok Codex catalog tests
   with the current product contracts; and
 - added the missing Chinese and English Grok OpenAI-group-access strings used
@@ -30,6 +40,9 @@ already passed.
 - Focused service unit and integration tests passed.
 - The repository integration test passed against the real local PostgreSQL
   test transaction: `TestTempUnschedulableFieldsLoadedByGetByIDAndGetByIDs`.
+- The four repository release-gate regressions were reproduced independently
+  and then passed against real testcontainers PostgreSQL/Redis after the fix.
+- `golangci-lint v2.9.0 run ./...` reports `0 issues`.
 - `govulncheck ./...` reports `0` reachable vulnerabilities.
 - Full release-gate verification is recorded by the deployment entry after the
   production rollout completes.

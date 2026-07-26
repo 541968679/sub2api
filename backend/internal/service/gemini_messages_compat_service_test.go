@@ -194,9 +194,15 @@ func TestCleanToolSchema_NormalizesGeminiUnsupportedSchemaFields(t *testing.T) {
 
 	properties, ok := cleaned["properties"].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "STRING", properties["path"].(map[string]any)["type"])
-	require.Equal(t, "INTEGER", properties["count"].(map[string]any)["type"])
-	require.NotContains(t, properties["empty"].(map[string]any), "type")
+	pathProperty, ok := properties["path"].(map[string]any)
+	require.True(t, ok)
+	countProperty, ok := properties["count"].(map[string]any)
+	require.True(t, ok)
+	emptyProperty, ok := properties["empty"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "STRING", pathProperty["type"])
+	require.Equal(t, "INTEGER", countProperty["type"])
+	require.NotContains(t, emptyProperty, "type")
 }
 
 func TestConvertClaudeToolsToGeminiTools_PreservesWebSearchAlongsideFunctions(t *testing.T) {

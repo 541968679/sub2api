@@ -2,7 +2,6 @@ package admin
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
@@ -65,15 +64,15 @@ func TestWriteImageChannelMonitorArtifactReturnsBinaryWithoutCaching(t *testing.
 }
 
 func TestImageChannelMonitorHandlerExposesManualImageEndpoint(t *testing.T) {
-	var endpoint func(*ImageChannelMonitorHandler, *gin.Context) = (*ImageChannelMonitorHandler).ManualTestImage
-	var lookup func(*service.ImageChannelMonitorService, string, int) (*service.ImageChannelMonitorArtifact, error) = (*service.ImageChannelMonitorService).GetManualCheckImage
+	endpoint := (*ImageChannelMonitorHandler).ManualTestImage
+	lookup := (*service.ImageChannelMonitorService).GetManualCheckImage
 	require.NotNil(t, endpoint)
 	require.NotNil(t, lookup)
 }
 
 func TestImageChannelMonitorHandlerExposesClientRunCancellationEndpoint(t *testing.T) {
-	var endpoint func(*ImageChannelMonitorHandler, *gin.Context) = (*ImageChannelMonitorHandler).CancelManualTestByClientRunID
-	var cancel func(*service.ImageChannelMonitorService, context.Context, int64, string) (*service.ImageChannelMonitorManualRunStatus, error) = (*service.ImageChannelMonitorService).CancelManualCheckByClientRunID
+	endpoint := (*ImageChannelMonitorHandler).CancelManualTestByClientRunID
+	cancel := (*service.ImageChannelMonitorService).CancelManualCheckByClientRunID
 	require.NotNil(t, endpoint)
 	require.NotNil(t, cancel)
 }

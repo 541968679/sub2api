@@ -156,16 +156,6 @@ func (s *AccountTestService) ProbeOpenAIAPIKeyResponsesSupport(ctx context.Conte
 	)
 }
 
-// isResponsesEndpointSupportedByStatus preserves the old endpoint-existence
-// predicate for callers that only need HTTP-status classification.
-func isResponsesEndpointSupportedByStatus(status int) bool {
-	switch status {
-	case http.StatusNotFound, http.StatusMethodNotAllowed:
-		return false
-	}
-	return true
-}
-
 func decideResponsesProbeSupport(status int, body []byte) bool {
 	if status == http.StatusNotFound || status == http.StatusMethodNotAllowed {
 		return false

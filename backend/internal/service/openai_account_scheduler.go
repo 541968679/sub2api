@@ -56,20 +56,20 @@ var openAIAdvancedSchedulerSettingCache atomic.Value // *cachedOpenAIAdvancedSch
 var openAIAdvancedSchedulerSettingSF singleflight.Group
 
 type OpenAIAccountScheduleRequest struct {
-	GroupID                 *int64
-	Platform                string
-	SessionHash             string
-	StickyAccountID         int64
-	StickyPreviousAccountID int64
-	StickyWeighted          bool
-	SubscriptionPriority    bool
-	PreserveStickyBinding   bool
-	PreviousResponseID      string
-	PreviousResponseCanMove bool
-	RequestedModel          string
-	RequiredTransport       OpenAIUpstreamTransport
-	RequiredCapability      OpenAIEndpointCapability
-	RequiredImageCapability OpenAIImagesCapability
+	GroupID                      *int64
+	Platform                     string
+	SessionHash                  string
+	StickyAccountID              int64
+	StickyPreviousAccountID      int64
+	StickyWeighted               bool
+	SubscriptionPriority         bool
+	PreserveStickyBinding        bool
+	PreviousResponseID           string
+	PreviousResponseCanMove      bool
+	RequestedModel               string
+	RequiredTransport            OpenAIUpstreamTransport
+	RequiredCapability           OpenAIEndpointCapability
+	RequiredImageCapability      OpenAIImagesCapability
 	RequireCompact               bool
 	RequireClaudeGPTBridge       bool
 	RequireGrokOpenAIGroupAccess bool
@@ -399,10 +399,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return nil, false, nil
 	}
 	account = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, account, openAIAccountRequestEligibility{
-		Platform:               req.Platform,
-		RequestedModel:         req.RequestedModel,
-		RequireCompact:         req.RequireCompact,
-		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		Platform:                     req.Platform,
+		RequestedModel:               req.RequestedModel,
+		RequireCompact:               req.RequireCompact,
+		RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
 		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 	})
 	if account == nil || !openAIStickyAccountMatchesGroup(account, req.GroupID) || !s.isAccountTransportCompatible(account, req.RequiredTransport) {
@@ -733,10 +733,10 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		candidate := account
 		if !s.isAccountCandidatePoolCompatible(ctx, candidate, req) {
 			candidate = s.service.refreshStaleOpenAIScheduleCandidate(ctx, account, openAIAccountRequestEligibility{
-				Platform:               req.Platform,
-				RequestedModel:         req.RequestedModel,
-				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
-		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
+				Platform:                     req.Platform,
+				RequestedModel:               req.RequestedModel,
+				RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
+				RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 			})
 			if candidate == nil {
 				continue
@@ -1014,11 +1014,11 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	for i := 0; i < len(selectionOrder); i++ {
 		candidate := selectionOrder[i]
 		eligibility := openAIAccountRequestEligibility{
-			Platform:               req.Platform,
-			RequestedModel:         req.RequestedModel,
-			RequireCompact:         req.RequireCompact,
-			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
-		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
+			Platform:                     req.Platform,
+			RequestedModel:               req.RequestedModel,
+			RequireCompact:               req.RequireCompact,
+			RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
+			RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 		}
 		fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, candidate.account, eligibility)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
@@ -1067,21 +1067,21 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 				continue
 			}
 			fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, stickyCandidate.account, openAIAccountRequestEligibility{
-				Platform:               req.Platform,
-				RequestedModel:         req.RequestedModel,
-				RequireCompact:         req.RequireCompact,
-				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
-		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
+				Platform:                     req.Platform,
+				RequestedModel:               req.RequestedModel,
+				RequireCompact:               req.RequireCompact,
+				RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
+				RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 			})
 			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
 			}
 			fresh = s.service.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, openAIAccountRequestEligibility{
-				Platform:               req.Platform,
-				RequestedModel:         req.RequestedModel,
-				RequireCompact:         req.RequireCompact,
-				RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
-		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
+				Platform:                     req.Platform,
+				RequestedModel:               req.RequestedModel,
+				RequireCompact:               req.RequireCompact,
+				RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
+				RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 			})
 			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
@@ -1107,11 +1107,11 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	// WaitPlan.MaxConcurrency 使用 Concurrency（非 EffectiveLoadFactor），因为 WaitPlan 控制的是 Redis 实际并发槽位等待。
 	for _, candidate := range waitOrder {
 		eligibility := openAIAccountRequestEligibility{
-			Platform:               req.Platform,
-			RequestedModel:         req.RequestedModel,
-			RequireCompact:         req.RequireCompact,
-			RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
-		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
+			Platform:                     req.Platform,
+			RequestedModel:               req.RequestedModel,
+			RequireCompact:               req.RequireCompact,
+			RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
+			RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 		}
 		fresh := s.service.resolveFreshSchedulableOpenAIAccountForSchedule(ctx, candidate.account, eligibility)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
@@ -1192,10 +1192,10 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(args ...any) 
 		}
 	}
 	if !isOpenAIAccountEligibleForScheduleRequest(account, openAIAccountRequestEligibility{
-		Platform:               req.Platform,
-		RequestedModel:         req.RequestedModel,
-		RequireCompact:         req.RequireCompact,
-		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		Platform:                     req.Platform,
+		RequestedModel:               req.RequestedModel,
+		RequireCompact:               req.RequireCompact,
+		RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
 		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 	}) {
 		return false
@@ -1211,10 +1211,10 @@ func (s *defaultOpenAIAccountScheduler) isAccountCandidatePoolCompatible(ctx con
 		return false
 	}
 	eligibility := openAIAccountRequestEligibility{
-		Platform:               req.Platform,
-		RequestedModel:         req.RequestedModel,
-		RequireCompact:         req.RequireCompact,
-		RequireClaudeGPTBridge: req.RequireClaudeGPTBridge,
+		Platform:                     req.Platform,
+		RequestedModel:               req.RequestedModel,
+		RequireCompact:               req.RequireCompact,
+		RequireClaudeGPTBridge:       req.RequireClaudeGPTBridge,
 		RequireGrokOpenAIGroupAccess: req.RequireGrokOpenAIGroupAccess,
 	}
 	eligibility = openAIAccountCandidatePoolEligibility(eligibility)

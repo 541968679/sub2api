@@ -855,7 +855,7 @@ func TestResponsesEventToAnthropicEvents_TextDoneCompletesPartialDelta(t *testin
 	var text strings.Builder
 	for _, event := range events {
 		if event.Delta != nil && event.Delta.Type == "text_delta" {
-			text.WriteString(event.Delta.Text)
+			_, _ = text.WriteString(event.Delta.Text)
 		}
 	}
 	require.Equal(t, "partial complete", text.String(),

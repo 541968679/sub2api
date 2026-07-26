@@ -2096,9 +2096,9 @@ func sanitizeImageMonitorFileName(name string) string {
 		}
 		switch r {
 		case '"', '\\', '/', ':', '*', '?', '<', '>', '|':
-			b.WriteByte('_')
+			_ = b.WriteByte('_')
 		default:
-			b.WriteRune(r)
+			_, _ = b.WriteRune(r)
 		}
 	}
 	out := strings.TrimSpace(b.String())

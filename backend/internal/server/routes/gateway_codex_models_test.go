@@ -39,10 +39,10 @@ func TestShouldServeCodexModelsManifest(t *testing.T) {
 		{name: "Anthropic client with version", platform: service.PlatformAnthropic, clientVersion: "0.144.1", want: false},
 		// Desktop omits client_version but identifies via UA / Originator.
 		{
-			name:       "OpenAI Desktop UA without client_version",
-			platform:   service.PlatformOpenAI,
-			userAgent:  "codex_chatgpt_desktop/1.2.3",
-			want:       true,
+			name:      "OpenAI Desktop UA without client_version",
+			platform:  service.PlatformOpenAI,
+			userAgent: "codex_chatgpt_desktop/1.2.3",
+			want:      true,
 		},
 		{
 			name:       "OpenAI Desktop Originator without client_version",
@@ -51,16 +51,16 @@ func TestShouldServeCodexModelsManifest(t *testing.T) {
 			want:       true,
 		},
 		{
-			name:       "OpenAI VS Code without client_version",
-			platform:   service.PlatformOpenAI,
-			userAgent:  "codex_vscode/1.0.0",
-			want:       true,
+			name:      "OpenAI VS Code without client_version",
+			platform:  service.PlatformOpenAI,
+			userAgent: "codex_vscode/1.0.0",
+			want:      true,
 		},
 		{
-			name:       "Desktop UA on Grok group stays false",
-			platform:   service.PlatformGrok,
-			userAgent:  "codex_chatgpt_desktop/1.2.3",
-			want:       false,
+			name:      "Desktop UA on Grok group stays false",
+			platform:  service.PlatformGrok,
+			userAgent: "codex_chatgpt_desktop/1.2.3",
+			want:      false,
 		},
 	}
 

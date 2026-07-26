@@ -124,9 +124,9 @@ func TestMatchWildcardMappingResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, matched := matchWildcardMappingResult(tt.mapping, tt.requestedModel)
+			result, _, matched := matchWildcardMappingResultWithKey(tt.mapping, tt.requestedModel)
 			if result != tt.expected || matched != tt.matched {
-				t.Errorf("matchWildcardMappingResult(%v, %q) = (%q, %v), want (%q, %v)", tt.mapping, tt.requestedModel, result, matched, tt.expected, tt.matched)
+				t.Errorf("matchWildcardMappingResultWithKey(%v, %q) = (%q, _, %v), want (%q, %v)", tt.mapping, tt.requestedModel, result, matched, tt.expected, tt.matched)
 			}
 		})
 	}

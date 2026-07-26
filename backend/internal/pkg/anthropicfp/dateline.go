@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	datelineHyphenRegex = regexp.MustCompile("Today(['’ʼʹ])s date is (\\d{4})-(\\d{2})-(\\d{2})\\.")
-	datelineSlashRegex  = regexp.MustCompile("Today(['’ʼʹ])s date is (\\d{4})/(\\d{2})/(\\d{2})\\.")
+	datelineHyphenRegex = regexp.MustCompile(`Today(['’ʼʹ])s date is (\d{4})-(\d{2})-(\d{2})\.`)
+	datelineSlashRegex  = regexp.MustCompile(`Today(['’ʼʹ])s date is (\d{4})/(\d{2})/(\d{2})\.`)
 	systemReminderRegex = regexp.MustCompile(`(?s)<system-reminder>.*?</system-reminder>`)
 )
 
@@ -78,15 +78,15 @@ func normalizeText(text string) (string, []DatelineHit) {
 		if text[match.start:match.end] == canonical {
 			continue
 		}
-		output.WriteString(text[previous:match.start])
-		output.WriteString(canonical)
+		_, _ = output.WriteString(text[previous:match.start])
+		_, _ = output.WriteString(canonical)
 		previous = match.end
 		hits = append(hits, DatelineHit{ApostropheVariant: apostropheVariant(match.apostrophe), DateSeparator: match.separator})
 	}
 	if len(hits) == 0 {
 		return text, nil
 	}
-	output.WriteString(text[previous:])
+	_, _ = output.WriteString(text[previous:])
 	return output.String(), hits
 }
 
@@ -100,17 +100,17 @@ func normalizeReminderText(text string) (string, []DatelineHit) {
 	previous := 0
 	var hits []DatelineHit
 	for _, location := range locations {
-		output.WriteString(text[previous:location[0]])
+		_, _ = output.WriteString(text[previous:location[0]])
 		block := text[location[0]:location[1]]
 		normalized, blockHits := normalizeText(block)
-		output.WriteString(normalized)
+		_, _ = output.WriteString(normalized)
 		hits = append(hits, blockHits...)
 		previous = location[1]
 	}
 	if len(hits) == 0 {
 		return text, nil
 	}
-	output.WriteString(text[previous:])
+	_, _ = output.WriteString(text[previous:])
 	return output.String(), hits
 }
 

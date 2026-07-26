@@ -165,9 +165,12 @@ func TestImageChannelManualGatewayRunIsIdempotentAndStoresEveryImageAsArtifact(t
 
 	started, err := svc.StartManualCheck(context.Background(), 21, params)
 	require.NoError(t, err)
-	apiKeyReader := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	apiKeyReader, ok := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	require.True(t, ok)
 	apiKeyReader.err = errors.New("API key database is temporarily unavailable")
-	svc.repo.(*imageMonitorRepoStub).getErr = errors.New("monitor database is temporarily unavailable")
+	repo, ok := svc.repo.(*imageMonitorRepoStub)
+	require.True(t, ok)
+	repo.getErr = errors.New("monitor database is temporarily unavailable")
 	retry, err := svc.StartManualCheck(context.Background(), 21, params)
 	require.NoError(t, err)
 	require.Equal(t, started.RunID, retry.RunID)
@@ -331,7 +334,8 @@ func TestImageChannelManualCancelByClientRunIDBeforeStartPreventsGatewayRequest(
 		Body:       []byte(`{"data":[{"b64_json":"aW1hZ2U="}]}`),
 	}}
 	svc := newConfiguredImageManualCoreTestService(t, gateway, nil, nil)
-	apiKeyReader := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	apiKeyReader, ok := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	require.True(t, ok)
 
 	canceled, err := svc.CancelManualCheckByClientRunID(context.Background(), 21, "cancel-before-start-1")
 	require.NoError(t, err)
@@ -362,7 +366,8 @@ func TestImageChannelManualCancelByClientRunIDWinsWhileStartIsPreparing(t *testi
 		Body:       []byte(`{"data":[{"b64_json":"aW1hZ2U="}]}`),
 	}}
 	svc := newConfiguredImageManualCoreTestService(t, gateway, nil, nil)
-	originalReader := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	originalReader, ok := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	require.True(t, ok)
 	blockingReader := &imageManualBlockingAPIKeyReader{
 		key:     originalReader.key,
 		started: make(chan struct{}, 1),
@@ -600,7 +605,8 @@ func TestImageChannelManualGatewayAccountRequiresSingleExpectedAccount(t *testin
 func TestImageChannelManualGatewayRejectsAPIKeyWithIPRestrictions(t *testing.T) {
 	gateway := &imageManualGatewayStub{response: &ImageManualGatewayResponse{StatusCode: http.StatusOK}}
 	svc := newConfiguredImageManualCoreTestService(t, gateway, []int64{42}, nil)
-	apiKeyReader := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	apiKeyReader, ok := svc.manualAPIKeyReader.(*imageManualAPIKeyReaderStub)
+	require.True(t, ok)
 	apiKeyReader.key.IPWhitelist = []string{"203.0.113.10"}
 
 	status, err := svc.StartManualCheck(context.Background(), 21, ImageChannelMonitorManualTestParams{
@@ -622,7 +628,9 @@ func TestImageChannelManualGatewayRejectsAPIKeyWithIPRestrictions(t *testing.T) 
 func TestImageChannelManualGatewayAccountRejectsNonAccountMonitor(t *testing.T) {
 	gateway := &imageManualGatewayStub{response: &ImageManualGatewayResponse{StatusCode: http.StatusOK, Body: []byte(`{"data":[]}`)}}
 	svc := newConfiguredImageManualCoreTestService(t, gateway, []int64{42}, nil)
-	monitor := svc.repo.(*imageMonitorRepoStub).monitor
+	repo, ok := svc.repo.(*imageMonitorRepoStub)
+	require.True(t, ok)
+	monitor := repo.monitor
 	monitor.SourceType = ImageChannelMonitorSourceCustom
 	monitor.Endpoint = "https://api.example.com"
 	monitor.APIKey = "custom-source-secret"
@@ -649,7 +657,9 @@ func TestImageChannelManualGatewayStatusNeverRetainsCustomMonitorSecret(t *testi
 		Body:       []byte(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, base64.StdEncoding.EncodeToString(png))),
 	}}
 	svc := newConfiguredImageManualCoreTestService(t, gateway, nil, nil)
-	monitor := svc.repo.(*imageMonitorRepoStub).monitor
+	repo, ok := svc.repo.(*imageMonitorRepoStub)
+	require.True(t, ok)
+	monitor := repo.monitor
 	monitor.SourceType = ImageChannelMonitorSourceCustom
 	monitor.Endpoint = "https://api.example.com"
 	monitor.APIKey = "custom-monitor-secret-must-not-persist"

@@ -468,9 +468,9 @@ func isClaudeHaikuModel(model string) bool {
 // ApplyClaudeHaikuBridgeUpstreamAdjustments tunes a Responses request after the
 // upstream GPT model is assigned for Claude-GPT bridge traffic.
 //
-// - Strips sampling params on reasoning models (safe even if conversion left them).
-// - Raises max_output_tokens floor so short Claude Code Haiku budgets still leave
-//   room for assistant text after reasoning.
+//   - Strips sampling params on reasoning models (safe even if conversion left them).
+//   - Raises max_output_tokens floor so short Claude Code Haiku budgets still leave
+//     room for assistant text after reasoning.
 func ApplyClaudeHaikuBridgeUpstreamAdjustments(req *ResponsesRequest, originalClaudeModel string) {
 	if req == nil {
 		return

@@ -1921,9 +1921,9 @@ func TestSelectAccountWithSchedulerForOpenAICompatibleRequest_GrokAccessMatrix(t
 		Status: StatusActive, Schedulable: true, Concurrency: 1,
 	}
 	svc := &OpenAIGatewayService{
-		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{openAIAcc, optInGrok, optOutGrok}},
-		cache:       &schedulerTestGatewayCache{},
-		cfg:         &config.Config{},
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{openAIAcc, optInGrok, optOutGrok}},
+		cache:              &schedulerTestGatewayCache{},
+		cfg:                &config.Config{},
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
 	}
 
