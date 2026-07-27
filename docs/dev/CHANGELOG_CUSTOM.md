@@ -1,3 +1,40 @@
+## 2026-07-27 - sync: import upstream Responses item-ID sanitization
+
+### What
+Imported upstream commits `c5d9d5794` and `1891faa68`, including their required
+call-input type helper behavior from `fd64d07e6`. Invalid replayed message and
+call-input IDs are now removed before OpenAI API-key Responses forwarding, and
+the OAuth Codex filter uses the same predicate. The sanitizer rebuilds the
+`input` array once so allocation growth stays linear for long conversations.
+
+### Why
+Production rejected a replayed `custom_tool_call.id=item_...` because the
+upstream expected the custom-tool namespace. The synchronized upstream behavior
+removes that foreign ID instead of fabricating an upstream object reference,
+while preserving `call_id` for call/output pairing.
+
+### Compatibility And Verification
+- Reconciled the upstream change into the fork's current
+  `openai_gateway_service.go::Forward`; the obsolete deleted
+  `openai_gateway_forward.go` was not restored.
+- No local `ctc_` generation enhancement was added. This is the upstream
+  sanitizer behavior only.
+- Focused API-key/OAuth item-ID and linear-allocation tests passed.
+- The committed-range upstream sync guard from `b39f5fe01` passed.
+  `go test -tags=unit ./... -count=1` passed across all backend packages;
+  `internal/service` completed in 100.218 seconds.
+- Billing/display tokens, cache-read quantities, `actual_cost`, model lists,
+  Claude-GPT, Images/Batch Image, scheduling/failover, Ops, settings,
+  migrations, frontend i18n, and routes are unchanged.
+
+### Affected files
+`backend/internal/service/openai_codex_transform.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_responses_item_id.go`,
+`backend/internal/service/openai_gateway_apikey_item_id_test.go`,
+`docs/dev/UPSTREAM_SYNC.md`, `docs/dev/codebase/gateway.md`, this changelog,
+and the incident debug report.
+
 ## 2026-07-27 - docs: diagnose Responses custom-tool item ID rejection
 
 ### What

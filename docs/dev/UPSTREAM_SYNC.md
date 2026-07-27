@@ -2,6 +2,17 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-07-27 - Selective sync of Responses item-ID sanitization
+
+- **Local baseline**: `b39f5fe01`.
+- **Upstream sources**: `c5d9d5794` (`fix(openai): sanitize API-key responses item IDs`) and `1891faa68` (`fix(openai): keep item ID sanitization linear`), with the `isCodexToolCallInputType` helper behavior required from upstream `fd64d07e6`.
+- **Strategy**: cherry-picked the two sanitizer commits and reconciled their old split `openai_gateway_forward.go` landing point into the fork's current `openai_gateway_service.go::Forward`. The deleted upstream file was not restored. The upstream API-key regression test was adapted to existing fork fixtures only.
+- **Behavior**: invalid replayed `message` and call-input item IDs are removed rather than rewritten before OpenAI API-key Responses forwarding. The OAuth Codex input filter uses the same shared predicate. The linear implementation rebuilds `input` once instead of repeatedly rewriting the full request body.
+- **Production incident coverage**: the reported `custom_tool_call.id=item_<24 hex>` is classified by the upstream helper as an invalid call-input ID and is removed, preventing the exact HTTP 400 `Expected an ID that begins with 'ctc'`. This batch intentionally does not add type-aware `ctc_` generation or alter the compatibility bridge's output IDs.
+- **Fork-local impact**: no changes to billing/display-token accounting, real cache-read quantities, stored `actual_cost`, curated/default model lists, Claude-GPT bridge, OpenAI Images/Batch Image, account scheduling/failover, Ops attribution, settings, migrations, frontend i18n, or routes.
+- **Verification**: focused API-key/OAuth filter and linear-allocation regressions passed; `go run ./tools/upstream-sync-guard --base b39f5fe01` passed; `go test -tags=unit ./... -count=1` passed across all backend packages (`internal/service` 100.218s).
+- **Pushed/deployed**: no.
+
 ## 2026-07-14 - Selective alignment to upstream v0.1.152
 
 - **Branch**: `codex/upstream-v0152-sync-20260713`
