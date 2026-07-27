@@ -1,3 +1,39 @@
+## 2026-07-27 - docs: diagnose Responses custom-tool item ID rejection
+
+### What
+Documented the production `/responses` HTTP 400 caused by replaying a
+`custom_tool_call` with a generic `item_...` ID into the OpenAI OAuth upstream.
+The investigation traced the full loop from Chat Completions -> Responses
+fallback output generation, through client history replay and Codex OAuth input
+filtering, to the upstream `ctc` namespace validation.
+
+### Why
+The error looked superficially like an upstream account or model problem, but
+production logs and code inspection show a protocol compatibility defect. The
+fallback bridge generates `item_<24 hex>` for custom tool calls, while tool
+continuation preserves that ID and the upstream requires `ctc...`. Recording
+the boundary prevents account rotation, quota changes, or model remapping from
+being used as ineffective mitigations.
+
+### Verification
+- Read-only production inspection confirmed one request at
+  `2026-07-27 09:53:03 +08:00`: `/responses`, `gpt-5.6-sol`, OpenAI OAuth
+  account `1633`, HTTP 400, request body size 327,105 bytes, with
+  `input[100].id=item_643ea17567eacddfb6003ee2` rejected in favor of `ctc`.
+- The same account served another `gpt-5.6-sol` Responses request successfully
+  immediately afterward, excluding account/token/model-wide failure.
+- The rejected ID exactly matches the local `generateItemID()` shape, and the
+  fallback bridge uses that helper for `custom_tool_call` in both streaming and
+  non-streaming output.
+- Focused existing Codex transform unit tests passed and confirmed the current
+  continuation/reference-preservation behavior.
+
+### Affected files
+`docs/dev/codebase/gateway.md`,
+`memory/2026-07-27-responses-custom-tool-item-id-debug-report.md`, and this
+changelog. No business code, configuration, production state, push, or deploy
+was changed.
+
 ## 2026-07-26 - fix: restore release quality gates before production deploy
 
 ### What
