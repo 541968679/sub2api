@@ -35,6 +35,53 @@ while preserving `call_id` for call/output pairing.
 `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/codebase/gateway.md`, this changelog,
 and the incident debug report.
 
+## 2026-07-27 - test: cover production Claude-GPT HTTP 413 compact recovery
+
+### What
+Added regression coverage for the production context-overflow response shape:
+HTTP 413 with `invalid_request_error`, the `Prompt is too long` message, and no
+`error.code`. The tests cover both ordinary Claude-GPT generation and a
+client-initiated compact request that must enter server-side chunk recovery.
+A negative case verifies that an unrelated HTTP 413 byte-limit error is not
+misclassified as a context-window overflow.
+
+### Why
+The first production HTTP 413 looked like an unhandled upstream response when
+viewed in isolation. The complete production sequence showed that Sub2API had
+normalized it into Claude Code's reactive-compact contract, Claude Code sent a
+compact request, Sub2API recovered that request, and both compact and the
+compressed generation retry returned HTTP 200. Explicit 413 fixtures prevent
+future changes from accidentally covering only the historically observed 400
+shape.
+
+### Verification
+- Read-only production logs for one affected session showed generation HTTP
+  413 at `2026-07-27 09:50:55 +08:00`. The same API key sent a compact request
+  one second later; the bridge logged chunk and merge recovery before returning
+  200, followed by a smaller compressed-generation retry.
+- The compact path logged `openai_messages.compact_recovery_started`, a chunk
+  attempt, and a merge attempt before returning 200.
+- A fresh local Claude Code 2.1.220 session against `127.0.0.1:18081` reached
+  the real GPT OAuth limit on round four: generation body `1,293,847` bytes ->
+  HTTP 413; client `source=compact` body `984,388` bytes -> HTTP 200 in 31.166s;
+  automatic compressed retry body `345,862` bytes -> HTTP 200 in 3.284s; final
+  CLI output was exactly `ACK-R413-4`.
+- The session persisted `compact_boundary` with `trigger=auto`,
+  `isCompactSummary=true`, and the final ACK after compaction.
+- Focused regression tests for the exact production envelope, compact recovery,
+  and non-context HTTP 413 misclassification passed.
+- `go test -tags=unit ./... -count=1` passed; `internal/service` completed in
+  135.959 seconds.
+- `go test -tags=integration ./... -count=1` passed; `internal/service`
+  completed in 88.376 seconds.
+- `golangci-lint` 2.9.0 reported `0 issues`; the CGO-disabled production build
+  completed successfully.
+
+### Affected files
+`backend/internal/service/openai_gateway_messages_prompt_too_long_test.go`,
+`backend/internal/service/openai_gateway_messages_compact_test.go`,
+`docs/dev/codebase/gateway.md`, and this changelog.
+
 ## 2026-07-27 - docs: diagnose Responses custom-tool item ID rejection
 
 ### What

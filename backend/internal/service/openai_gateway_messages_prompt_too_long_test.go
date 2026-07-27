@@ -150,6 +150,58 @@ func TestClaudeGPTBridgeDirectHTTPContextLengthUsesPromptTooLongContract(t *test
 	requirePromptTooLongContract(t, c.Writer.Status(), body)
 }
 
+func TestClaudeGPTBridgeDirectHTTP413WithoutErrorCodeUsesPromptTooLongContract(t *testing.T) {
+	rec, c := responseFailedRecorder(t, "/v1/messages", []byte(`{"model":"claude-sonnet-5","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`))
+	markPromptTooLongBridge(c)
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusRequestEntityTooLarge,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "X-Request-Id": []string{"rid-http-413-context"}},
+		Body: io.NopCloser(bytes.NewBufferString(
+			`{"error":{"message":"Prompt is too long: this request exceeds the context window for the selected model.","type":"invalid_request_error"},"type":"error"}`,
+		)),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+
+	result, err := svc.ForwardAsAnthropic(
+		context.Background(), c, rawChatCompletionsTestAccount(),
+		[]byte(`{"model":"claude-sonnet-5","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`),
+		"", "gpt-5.6-terra",
+	)
+
+	require.Nil(t, result)
+	require.Error(t, err)
+	require.Equal(t, http.StatusRequestEntityTooLarge, c.Writer.Status())
+	body := rec.Body.Bytes()
+	require.Equal(t, "error", gjson.GetBytes(body, "type").String())
+	requirePromptTooLongContract(t, c.Writer.Status(), body)
+}
+
+func TestClaudeGPTBridgeDirectHTTP413WithoutContextMeaningIsNotPromptTooLong(t *testing.T) {
+	rec, c := responseFailedRecorder(t, "/v1/messages", []byte(`{"model":"claude-sonnet-5","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`))
+	markPromptTooLongBridge(c)
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusRequestEntityTooLarge,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "X-Request-Id": []string{"rid-http-413-body"}},
+		Body: io.NopCloser(bytes.NewBufferString(
+			`{"error":{"message":"Request body exceeds the configured byte limit.","type":"invalid_request_error"},"type":"error"}`,
+		)),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+
+	result, err := svc.ForwardAsAnthropic(
+		context.Background(), c, rawChatCompletionsTestAccount(),
+		[]byte(`{"model":"claude-sonnet-5","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`),
+		"", "gpt-5.6-terra",
+	)
+
+	require.Nil(t, result)
+	require.Error(t, err)
+	require.Equal(t, http.StatusRequestEntityTooLarge, c.Writer.Status())
+	require.NotContains(t, rec.Body.String(), testClaudeCodePromptTooLongPrefix)
+}
+
 func TestNonBridgeMessagesContextLengthKeepsExistingClientError(t *testing.T) {
 	svc, c, _, resp, account := messagesTestStream(t,
 		promptTooLongFailedEvent("Your input exceeds the context window of this model."),

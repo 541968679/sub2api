@@ -294,6 +294,39 @@ func TestForwardAsAnthropic_CompactHTTPContextErrorRecoversWithChunks(t *testing
 	require.Len(t, upstream.bodies, 3)
 }
 
+func TestForwardAsAnthropic_CompactHTTP413WithoutErrorCodeRecoversWithChunks(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(fmt.Sprintf(`{"model":"claude-sonnet-5","max_tokens":2048,"stream":true,"messages":[{"role":"user","content":"state that must be summarized"},{"role":"user","content":[{"type":"text","text":%q}]}]}`, testClaudeCodeCompactPrompt()))
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set(openAIClaudeGPTBridgeServiceContextKey, true)
+
+	upstream := &httpUpstreamSequenceRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusRequestEntityTooLarge,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+				"X-Request-Id": []string{"rid_context_413"},
+			},
+			Body: io.NopCloser(strings.NewReader(
+				`{"error":{"message":"Prompt is too long: this request exceeds the context window for the selected model.","type":"invalid_request_error"},"type":"error"}`,
+			)),
+		},
+		compactCompletedSSE("resp_chunk_413", "gpt-5.6-terra", "chunk summary", 100, 20),
+		compactCompletedSSE("resp_merge_413", "gpt-5.6-terra", "usable summary after HTTP 413 context error", 40, 10),
+	}}
+	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	account := rawChatCompletionsTestAccount()
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "compact-http-413-context", "gpt-5.6-terra")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Contains(t, rec.Body.String(), "usable summary after HTTP 413 context error")
+	require.Len(t, upstream.bodies, 3)
+}
+
 func TestForwardAsAnthropic_CompactConfiguredFallbackModelRecoversFromRateLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
