@@ -3,9 +3,13 @@
 # =============================================================================
 # Build from local source code for testing changes.
 #
-# Usage:
-#   cd deploy
-#   docker compose -f docker-compose.dev.yml up --build
+# Formal local dev (host shared Postgres/Redis — preferred):
+#   docker compose -f docker-compose.dev.yml -f docker-compose.host-db.yml up -d --build sub2api
+#
+# Full-container POC only (avoid if host DBs already use 5432/6379):
+#   docker compose -f docker-compose.dev.yml --profile docker-db-only up --build
+#
+# Source-code daily path (no Docker app): scripts/dev-stack.ps1 + host shared-infra
 # =============================================================================
 
 services:
@@ -58,7 +62,9 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: sub2api-postgres-dev
-    restart: unless-stopped
+    # POC only — formal local uses host shared-infra + docker-compose.host-db.yml
+    profiles: ["docker-db-only"]
+    restart: "no"
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     environment:
@@ -79,7 +85,8 @@ services:
   redis:
     image: redis:8-alpine
     container_name: sub2api-redis-dev
-    restart: unless-stopped
+    profiles: ["docker-db-only"]
+    restart: "no"
     volumes:
       - ./redis_data:/data
     command: >

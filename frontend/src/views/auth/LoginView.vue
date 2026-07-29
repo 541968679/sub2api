@@ -618,8 +618,10 @@ async function handleLogin(): Promise<void> {
       return
     }
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    // Redirect to intended route, or role-appropriate dashboard
+    const redirectTo =
+      (router.currentRoute.value.query.redirect as string) ||
+      (response.user?.role === 'admin' ? '/admin/dashboard' : '/dashboard')
     await completeAuthenticatedLogin(response.user, redirectTo)
   } catch (error: unknown) {
     // Reset Turnstile on error
@@ -651,7 +653,9 @@ async function handle2FAVerify(code: string): Promise<void> {
     await authStore.login2FA(totpTempToken.value, code)
 
     show2FAModal.value = false
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    const redirectTo =
+      (router.currentRoute.value.query.redirect as string) ||
+      (authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     await completeAuthenticatedLogin(authStore.user as User | null, redirectTo)
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: { message?: string } } }
@@ -699,7 +703,8 @@ async function handleLegalConsentAccepted(payload: LegalConsentPayload): Promise
 async function finishLoginRedirect(): Promise<void> {
   clearAllAffiliateReferralCodes()
   appStore.showSuccess(t('auth.loginSuccess'))
-  await router.push(pendingRedirectAfterConsent.value || '/dashboard')
+  const fallback = authStore.isAdmin ? '/admin/dashboard' : '/dashboard'
+  await router.push(pendingRedirectAfterConsent.value || fallback)
 }
 
 async function handleLegalConsentCancelled(): Promise<void> {

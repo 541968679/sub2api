@@ -122,3 +122,31 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
 
   return `ccswitch://v1/import?${new URLSearchParams(entries).toString()}`
 }
+
+/**
+ * Open a `ccswitch://` deeplink from a user gesture.
+ *
+ * Browsers cannot reliably report whether a custom protocol handler succeeded.
+ * Focus/visibility heuristics (e.g. document.hasFocus after a short timeout)
+ * produce false "not installed" errors on Windows when CC-Switch opens without
+ * stealing browser focus. Callers should treat launch as best-effort and show
+ * an optimistic success message with a soft fallback, not a hard failure.
+ */
+export function launchCcSwitchImportDeeplink(deeplink: string): void {
+  if (typeof document === 'undefined') {
+    throw new Error('ccswitch deeplink launch requires a browser document')
+  }
+
+  // Prefer a same-document <a> click: stays in the user-gesture chain and does
+  // not depend on popup/window.open behavior for custom schemes.
+  const anchor = document.createElement('a')
+  anchor.href = deeplink
+  anchor.rel = 'noopener noreferrer'
+  anchor.style.display = 'none'
+  document.body.appendChild(anchor)
+  try {
+    anchor.click()
+  } finally {
+    anchor.remove()
+  }
+}

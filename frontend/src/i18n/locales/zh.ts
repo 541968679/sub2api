@@ -942,6 +942,8 @@ const zhBase = {
     ipRestrictionEnabled: '已配置 IP 限制',
     ccSwitchNotInstalled:
       'CC-Switch 未安装或协议处理程序未注册。请先安装 CC-Switch 或手动复制 API 密钥。',
+    ccSwitchImportLaunched:
+      '已唤起 CC-Switch 导入。若未自动打开，请确认已安装 CC-Switch，或改用「使用密钥」手动配置。',
     ccsGrokCodexMetadataHint:
       'Grok 已导入为 Codex（model=grok-4.5）。CCS 不会写入 model catalog；若出现 “Model metadata for grok-4.5 not found”，请打开「使用密钥 → Codex CLI」复制 model-catalog-grok.json 与 config.toml 中的 context 字段，然后重启 Codex。',
     ccsClientSelect: {

@@ -1,0 +1,35 @@
+# Formal local development overlay: Sub2API app container + host shared DBs.
+#
+#   cd deploy
+#   docker compose -f docker-compose.dev.yml -f docker-compose.host-db.yml up -d --build sub2api
+#
+# Requires host Windows services:
+#   PostgreSQL 127.0.0.1:5432  (db/user sub2api/sub2api)
+#   Redis      127.0.0.1:6379
+#
+# Do not start compose services postgres/redis when using this file.
+
+services:
+  postgres:
+    profiles: ["docker-db-only"]
+    ports:
+      - "127.0.0.1:15432:5432"
+
+  redis:
+    profiles: ["docker-db-only"]
+    ports:
+      - "127.0.0.1:16379:6379"
+
+  sub2api:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - DATABASE_HOST=host.docker.internal
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-sub2api}
+      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - REDIS_HOST=host.docker.internal
+      - REDIS_PORT=6379
+    depends_on: !override {}
+    restart: "no"

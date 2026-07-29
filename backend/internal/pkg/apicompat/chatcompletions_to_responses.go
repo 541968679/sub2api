@@ -87,7 +87,87 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 		out.ToolChoice = tc
 	}
 
+	// response_format → text.format (Structured Outputs / JSON mode).
+	// Without this mapping, OAuth Chat Completions→Responses drops schema
+	// constraints and upstream generates unconstrained free-form text.
+	if req.ResponseFormat != nil {
+		format, err := convertChatResponseFormatToResponsesTextFormat(req.ResponseFormat)
+		if err != nil {
+			return nil, fmt.Errorf("convert response_format: %w", err)
+		}
+		if format != nil {
+			out.Text = &ResponsesText{Format: format}
+		}
+	}
+
 	return out, nil
+}
+
+// convertChatResponseFormatToResponsesTextFormat maps Chat Completions
+// response_format into Responses text.format.
+//
+// Mapping rules:
+//   - type=json_object → {type: json_object}
+//   - type=json_schema → {type: json_schema, name, description, schema, strict}
+//     (schema payload preserved as raw JSON bytes)
+//   - type=text or empty → nil (default unconstrained text; omit text.format)
+//   - unknown type → error so clients learn the field was not silently dropped
+func convertChatResponseFormatToResponsesTextFormat(rf *ChatResponseFormat) (*ResponsesTextFormat, error) {
+	if rf == nil {
+		return nil, nil
+	}
+	typ := strings.TrimSpace(rf.Type)
+	switch typ {
+	case "", "text":
+		return nil, nil
+	case "json_object":
+		return &ResponsesTextFormat{Type: "json_object"}, nil
+	case "json_schema":
+		name := strings.TrimSpace(rf.Name)
+		description := strings.TrimSpace(rf.Description)
+		schema := cloneJSONRaw(rf.Schema)
+		strict := rf.Strict
+		if rf.JSONSchema != nil {
+			if n := strings.TrimSpace(rf.JSONSchema.Name); n != "" {
+				name = n
+			}
+			if d := strings.TrimSpace(rf.JSONSchema.Description); d != "" {
+				description = d
+			}
+			if len(rf.JSONSchema.Schema) > 0 {
+				schema = cloneJSONRaw(rf.JSONSchema.Schema)
+			}
+			if rf.JSONSchema.Strict != nil {
+				strict = rf.JSONSchema.Strict
+			}
+		}
+		if name == "" {
+			return nil, fmt.Errorf("response_format.json_schema.name is required")
+		}
+		if len(schema) == 0 {
+			return nil, fmt.Errorf("response_format.json_schema.schema is required")
+		}
+		return &ResponsesTextFormat{
+			Type:        "json_schema",
+			Name:        name,
+			Description: description,
+			Schema:      schema,
+			Strict:      strict,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported response_format.type %q", typ)
+	}
+}
+
+// cloneJSONRaw returns a defensive copy of raw JSON so later mutations of the
+// source request cannot alias into the converted Responses body.
+func cloneJSONRaw(in json.RawMessage) json.RawMessage {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(json.RawMessage, len(in))
+	copy(out, in)
+	return out
 }
 
 // convertChatMessagesToResponsesInput converts the Chat Completions messages

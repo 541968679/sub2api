@@ -14,22 +14,31 @@
 
 ## 二、本地环境配置
 
-### PostgreSQL 16 (Docker 容器)
+### PostgreSQL 16（主机共享服务 — 正式开发默认）
+
+> 不再使用 Docker 容器 `sub2api-pg-dev` 做日常开发。共享实例由
+> `shared-infra`（`E:\cursor project\dev-infra`）管理，本项目只占用逻辑库。
 
 | 配置项 | 值 |
 |--------|-----|
+| 运行位置 | Windows 服务 `postgresql-x64-16`（主机 sticky） |
 | 端口 | 5432 |
-| 容器名 | `sub2api-pg-dev` |
 | 数据库凭据 | user=`sub2api`, password=`sub2api`, dbname=`sub2api` |
 | psql 连接 | `psql -U sub2api -h 127.0.0.1 -d sub2api` |
+| 策略文档 | `E:\cursor project\dev-infra\docs\SHARED-INFRA-POLICY.md` |
 
-### Redis (Docker 容器)
+`deploy/docker-compose*.yml` 里的 postgres 仅用于 **POC / 打包验证**，正式开发请 `down` 掉容器库，改连主机。
+
+### Redis（主机共享服务 — 正式开发默认）
 
 | 配置项 | 值 |
 |--------|-----|
+| 运行位置 | Windows 服务 `Redis`（主机 sticky） |
 | 端口 | 6379 |
-| 容器名 | `sub2api-redis-dev` |
 | 密码 | 无 |
+| 隔离 | 逻辑 DB index 或 key 前缀（见 dev-infra redis-index-map） |
+
+Docker 容器 `sub2api-redis-dev` 同样仅限 POC，勿与主机 Redis 同时抢 6379。
 
 ### 开发工具
 
@@ -289,12 +298,38 @@ git rebase upstream/main
 cd frontend
 pnpm install
 
-# 开发服务器
+# 开发服务器（默认关闭 vite-plugin-checker，省内存）
 pnpm dev
+
+# 需要浏览器内实时类型检查时再开（更吃内存）
+pnpm run dev:check
 
 # 构建
 pnpm build
 ```
+
+### 本地内存占用说明（Windows）
+
+实测大致量级（会随页面打开、冷启动依赖预构建而波动）：
+
+| 组件 | 约占用 | 说明 |
+|------|--------|------|
+| Vite 前端 dev | **1.5–2.5 GB** | 本仓库前端最大头；`vite-plugin-checker` 双开 tsc+vue-tsc 时更高 |
+| 后端 `server.exe` | **120–150 MB** | 空闲态可接受；含大量后台 worker |
+| `air` 热重载 | **20–60 MB** | 改 Go 文件时编译峰值另算 |
+| 主机 PostgreSQL | **300–400 MB** | 共享基础设施，非 Sub2API 独享 |
+| Redis | **15–30 MB** | 只应保留一个 Redis 兼容服务 |
+
+省内存工作流（按收益排序）：
+
+1. **只改后端时不要起前端**  
+   `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 restart -Component backend -SkipAIClient`
+2. **日常 `pnpm dev` 默认不带 checker**；类型检查用 IDE 或 `pnpm run typecheck`。需要浏览器内红线时用 `pnpm run dev:check`。
+3. **关掉不用的浏览器标签页**（HMR 会把访问过的模块图留在 Vite 进程里）。
+4. **只保留一个 Redis**（本机若同时有 `redis-server` 与 Memurai，关掉其中一个）。
+5. **避免残留 `air`/`node` 进程**：`dev-stack.ps1 stop` 后用任务管理器确认没有孤儿 `air.exe` / 旧 Vite。
+6. **UI 只验证、不需要 HMR 时**：`pnpm build` 后只跑后端，走嵌入的 `backend/internal/web/dist`。
+7. 可选环境变量：`VITE_DEV_HOST=127.0.0.1`（默认已是 loopback）、`VITE_DEV_CHECKER=1` 开启 checker。
 
 ### 后端操作
 
@@ -328,11 +363,11 @@ golangci-lint run ./...
 | sub2api 前端 | **15174** | `frontend/.env.development.local` 中 `VITE_DEV_PORT` |
 | AIClient2API | **3000** | 关联项目 `E:\cursor project\AIClient2API`，`npm start` |
 | new-api | **13200** | 可选关联项目 `E:\cursor project\new-api`，通过 `scripts/dev-stack.ps1 -IncludeNewAPI` 启动 |
-| PostgreSQL | 5432 | Docker 容器 `sub2api-pg-dev` |
-| Redis | 6379 | Docker 容器 `sub2api-redis-dev` |
+| PostgreSQL | 5432 | **主机**共享服务 `postgresql-x64-16`（逻辑库 `sub2api`） |
+| Redis | 6379 | **主机**共享服务 `Redis` |
 
-> 禁止使用 8080/8081/5173/5174 等低位端口，避免与 Docker 容器冲突。
-> 生产环境端口由服务器 Docker Compose 配置决定，与本地无关。
+> 正式开发禁止再起 Docker 版 postgres/redis 占用 5432/6379。
+> 应用端口仍避免 8080/5173 等与其它本机工具冲突；生产端口由服务器 Compose 决定。
 
 启动 `new-api` 子项目时不要直接改它自己的 `docker-compose.dev.yml` 来避开
 3000 端口冲突；使用本仓库脚本：

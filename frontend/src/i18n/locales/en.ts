@@ -941,6 +941,8 @@ const enBase = {
     ipBlacklistHint: 'One IP or CIDR per line. These IPs will be blocked from using this key.',
     ipRestrictionEnabled: 'IP restriction enabled',
     ccSwitchNotInstalled: 'CC-Switch is not installed or the protocol handler is not registered. Please install CC-Switch first or manually copy the API key.',
+    ccSwitchImportLaunched:
+      'CC-Switch import launched. If nothing opened, install CC-Switch first or use "Use Key" to configure manually.',
     ccsGrokCodexMetadataHint:
       'Grok was imported as Codex (model=grok-4.5). CCS does not write a model catalog; if you see “Model metadata for grok-4.5 not found”, open Use Key → Codex CLI, copy model-catalog-grok.json and the context fields in config.toml, then restart Codex.',
     ccsClientSelect: {

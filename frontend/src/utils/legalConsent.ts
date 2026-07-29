@@ -139,6 +139,43 @@ export function hasAcceptedCurrentLegalConsent(
   }
 }
 
+/**
+ * Whether the user has any stored legal-consent record (any version).
+ * Used to distinguish "fresh login awaiting dialog" from "stale consent that must re-accept".
+ */
+export function hasStoredLegalConsentRecord(userID: number | string | null | undefined): boolean {
+  if (userID === null || userID === undefined || userID === '') {
+    return false
+  }
+  try {
+    return localStorage.getItem(userConsentStorageKey(userID)) !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Force-logout is only appropriate when legal consent is required AND the user
+ * previously accepted a version that is no longer current. Fresh logins have no
+ * stored record and must keep the session so LoginView can show LegalConsentDialog.
+ */
+export function shouldForceLogoutForLegalConsent(
+  userID: number | string | null | undefined,
+  settings?: LegalConsentSettingsInput
+): boolean {
+  const resolved = resolveLegalConsentSettings(settings)
+  if (!resolved.enabled) {
+    return false
+  }
+  if (userID === null || userID === undefined || userID === '') {
+    return false
+  }
+  if (hasAcceptedCurrentLegalConsent(userID, resolved)) {
+    return false
+  }
+  return hasStoredLegalConsentRecord(userID)
+}
+
 export function markLegalConsentAccepted(
   userID: number | string | null | undefined,
   payload: LegalConsentPayload,

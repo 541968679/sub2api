@@ -39,8 +39,8 @@ Default local endpoints:
 
 - Backend: `http://127.0.0.1:18081`
 - Frontend: `http://127.0.0.1:15174`
-- PostgreSQL: `127.0.0.1:5432`
-- Redis: `127.0.0.1:6379`
+- PostgreSQL: `127.0.0.1:5432` (**host** shared-infra `postgresql-x64-16`, logical db `sub2api` — not Docker for formal local dev)
+- Redis: `127.0.0.1:6379` (**host** shared-infra Windows service — not Docker for formal local dev)
 
 Avoid local ports `8080`, `8081`, `5173`, `5174`, and `5175`; this checkout reserves `18081` and `15174` instead.
 

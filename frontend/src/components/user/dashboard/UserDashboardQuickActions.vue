@@ -4,8 +4,11 @@
       <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.quickActions') }}</h2>
     </div>
     <div class="p-4 space-y-3">
-      <!-- Row 1: Primary actions (large cards) -->
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <!-- Row 1: Primary actions (large cards).
+           Column count follows visible cards so a fresh/empty install
+           (payment off + no tutorial URL) does not leave a single card
+           stranded in a 3-column grid. -->
+      <div :class="primaryGridClass">
         <!-- 充值/订阅 -->
         <button
           v-if="showTopUp"
@@ -117,6 +120,24 @@ const authStore = useAuthStore()
 const showTopUp = computed(() => appStore.cachedPublicSettings?.payment_enabled && !authStore.isSimpleMode)
 // External (Feishu) tutorial link; the tutorial card shows only when an admin has configured it.
 const tutorialUrl = computed(() => appStore.tutorialUrl || appStore.cachedPublicSettings?.tutorial_url || '')
+/** Visible primary cards: top-up (optional) + tutorial (optional) + API key (always). */
+const primaryCardCount = computed(() => {
+  let n = 1 // getApiKey always present
+  if (showTopUp.value) n += 1
+  if (tutorialUrl.value) n += 1
+  return n
+})
+const primaryGridClass = computed(() => {
+  // 1 card: single column full width; 2: half/half; 3: classic three-up.
+  switch (primaryCardCount.value) {
+    case 1:
+      return 'grid grid-cols-1 gap-3'
+    case 2:
+      return 'grid grid-cols-1 gap-3 sm:grid-cols-2'
+    default:
+      return 'grid grid-cols-1 gap-3 sm:grid-cols-3'
+  }
+})
 const openTutorial = () => {
   if (tutorialUrl.value) window.open(tutorialUrl.value, '_blank', 'noopener,noreferrer')
 }
@@ -280,6 +301,7 @@ const openTutorial = () => {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   padding: 1.5rem 1rem;
   border-radius: 1rem;
   border: 1px solid var(--card-border);

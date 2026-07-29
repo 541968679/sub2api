@@ -6,8 +6,10 @@ import {
   DEFAULT_LEGAL_CONSENT_SETTINGS,
   getPendingRegisterLegalConsent,
   hasAcceptedCurrentLegalConsent,
+  hasStoredLegalConsentRecord,
   markLegalConsentAccepted,
   resolveLegalConsentSettings,
+  shouldForceLogoutForLegalConsent,
   storePendingRegisterLegalConsent
 } from '@/utils/legalConsent'
 
@@ -37,6 +39,42 @@ describe('legal consent persistence', () => {
 
     expect(hasAcceptedCurrentLegalConsent(1, v3)).toBe(true)
     expect(hasAcceptedCurrentLegalConsent(1, { ...v3, version: 'legal-v4' })).toBe(false)
+  })
+
+  it('does not force logout for fresh logins with no prior consent record', () => {
+    expect(hasStoredLegalConsentRecord(1)).toBe(false)
+    expect(
+      shouldForceLogoutForLegalConsent(1, {
+        ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+        version: 'legal-v1',
+        confirmation_phrase: 'I agree'
+      })
+    ).toBe(false)
+  })
+
+  it('forces logout only when a prior consent version is stale', () => {
+    const v3 = {
+      ...DEFAULT_LEGAL_CONSENT_SETTINGS,
+      version: 'legal-v3',
+      confirmation_phrase: 'I agree to legal-v3'
+    }
+    markLegalConsentAccepted(1, {
+      typedConfirmation: 'I agree to legal-v3',
+      dwellSeconds: 20,
+      scrolledToBottom: true,
+      authorizedUseAttestation: true,
+      source: 'login'
+    }, v3)
+
+    expect(hasStoredLegalConsentRecord(1)).toBe(true)
+    expect(shouldForceLogoutForLegalConsent(1, v3)).toBe(false)
+    expect(
+      shouldForceLogoutForLegalConsent(1, {
+        ...v3,
+        version: 'legal-v4',
+        confirmation_phrase: 'I agree to legal-v4'
+      })
+    ).toBe(true)
   })
 
   it('records the accepted version as the current force-logout version', () => {

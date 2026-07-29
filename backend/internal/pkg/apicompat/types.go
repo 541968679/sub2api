@@ -216,7 +216,19 @@ type ResponsesReasoning struct {
 
 // ResponsesText configures text output options in the Responses API.
 type ResponsesText struct {
-	Verbosity string `json:"verbosity,omitempty"` // "low" | "medium" | "high"
+	Verbosity string               `json:"verbosity,omitempty"` // "low" | "medium" | "high"
+	Format    *ResponsesTextFormat `json:"format,omitempty"`
+}
+
+// ResponsesTextFormat is the structured-output / JSON mode constraint for
+// Responses API (text.format). For type=json_schema, name/strict/schema live
+// flat under format (not nested under a json_schema key as in Chat Completions).
+type ResponsesTextFormat struct {
+	Type        string          `json:"type"` // "text" | "json_object" | "json_schema"
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Schema      json.RawMessage `json:"schema,omitempty"`
+	Strict      *bool           `json:"strict,omitempty"`
 }
 
 // ResponsesInputItem is one item in the Responses API input array.
@@ -528,25 +540,55 @@ type ResponsesStreamEvent struct {
 
 // ChatCompletionsRequest is the request body for POST /v1/chat/completions.
 type ChatCompletionsRequest struct {
-	Model               string             `json:"model"`
-	Messages            []ChatMessage      `json:"messages"`
-	Instructions        string             `json:"instructions,omitempty"` // OpenAI Responses API compat
-	MaxTokens           *int               `json:"max_tokens,omitempty"`
-	MaxCompletionTokens *int               `json:"max_completion_tokens,omitempty"`
-	Temperature         *float64           `json:"temperature,omitempty"`
-	TopP                *float64           `json:"top_p,omitempty"`
-	Stream              bool               `json:"stream,omitempty"`
-	StreamOptions       *ChatStreamOptions `json:"stream_options,omitempty"`
-	Tools               []ChatTool         `json:"tools,omitempty"`
-	ParallelToolCalls   *bool              `json:"parallel_tool_calls,omitempty"`
-	ToolChoice          json.RawMessage    `json:"tool_choice,omitempty"`
-	ReasoningEffort     string             `json:"reasoning_effort,omitempty"` // "low" | "medium" | "high" | "xhigh"
-	ServiceTier         string             `json:"service_tier,omitempty"`
-	Stop                json.RawMessage    `json:"stop,omitempty"` // string or []string
+	Model               string              `json:"model"`
+	Messages            []ChatMessage       `json:"messages"`
+	Instructions        string              `json:"instructions,omitempty"` // OpenAI Responses API compat
+	MaxTokens           *int                `json:"max_tokens,omitempty"`
+	MaxCompletionTokens *int                `json:"max_completion_tokens,omitempty"`
+	Temperature         *float64            `json:"temperature,omitempty"`
+	TopP                *float64            `json:"top_p,omitempty"`
+	Stream              bool                `json:"stream,omitempty"`
+	StreamOptions       *ChatStreamOptions  `json:"stream_options,omitempty"`
+	Tools               []ChatTool          `json:"tools,omitempty"`
+	ParallelToolCalls   *bool               `json:"parallel_tool_calls,omitempty"`
+	ToolChoice          json.RawMessage     `json:"tool_choice,omitempty"`
+	ResponseFormat      *ChatResponseFormat `json:"response_format,omitempty"`
+	ReasoningEffort     string              `json:"reasoning_effort,omitempty"` // "low" | "medium" | "high" | "xhigh"
+	ServiceTier         string              `json:"service_tier,omitempty"`
+	Stop                json.RawMessage     `json:"stop,omitempty"` // string or []string
 
 	// Legacy function calling (deprecated but still supported)
 	Functions    []ChatFunction  `json:"functions,omitempty"`
 	FunctionCall json.RawMessage `json:"function_call,omitempty"`
+}
+
+// ChatResponseFormat is the Chat Completions response_format constraint
+// (JSON mode or Structured Outputs).
+//
+// Canonical OpenAI shape for Structured Outputs:
+//
+//	{"type":"json_schema","json_schema":{"name":"...","strict":true,"schema":{...}}}
+//
+// Some clients also flatten name/strict/schema under response_format; those
+// top-level fields are accepted as a compatibility fallback.
+type ChatResponseFormat struct {
+	Type       string                       `json:"type"` // "text" | "json_object" | "json_schema"
+	JSONSchema *ChatResponseFormatJSONSchema `json:"json_schema,omitempty"`
+
+	// Flat fallbacks used by some SDKs / older shapes.
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Schema      json.RawMessage `json:"schema,omitempty"`
+	Strict      *bool           `json:"strict,omitempty"`
+}
+
+// ChatResponseFormatJSONSchema holds the nested json_schema object used by
+// Chat Completions Structured Outputs.
+type ChatResponseFormatJSONSchema struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Schema      json.RawMessage `json:"schema,omitempty"`
+	Strict      *bool           `json:"strict,omitempty"`
 }
 
 // ChatStreamOptions configures streaming behavior.

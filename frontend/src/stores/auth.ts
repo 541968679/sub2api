@@ -10,7 +10,8 @@ import type { LegalConsentSettings, User, LoginRequest, RegisterRequest, AuthRes
 import {
   clearStaleAuthForLegalConsent,
   hasAcceptedCurrentLegalConsent,
-  resolveLegalConsentSettings
+  resolveLegalConsentSettings,
+  shouldForceLogoutForLegalConsent
 } from '@/utils/legalConsent'
 
 const AUTH_TOKEN_KEY = 'auth_token'
@@ -495,7 +496,10 @@ export const useAuthStore = defineStore('auth', () => {
       return false
     }
     const currentUser = user.value
-    if (!currentUser?.id || hasAcceptedCurrentLegalConsent(currentUser.id, settings)) {
+    // Do NOT clear a just-logged-in session that still needs the LegalConsentDialog.
+    // Only force logout when the user previously accepted a now-stale consent version
+    // (settings version bump while authenticated). Fresh logins have no stored record.
+    if (!currentUser?.id || !shouldForceLogoutForLegalConsent(currentUser.id, settings)) {
       return false
     }
     clearAuth({ preservePendingAuthSession: true })

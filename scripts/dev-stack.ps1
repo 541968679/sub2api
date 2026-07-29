@@ -274,6 +274,8 @@ function New-NewAPIComposeFile {
     }
 
     $contextPath = (Resolve-Path -LiteralPath $WorkingDirectory).Path.Replace("\", "/")
+    # App container only — DB/cache use host shared-infra (postgresql-x64-16 + Redis).
+    # Logical resources: Postgres db/user new_api/new_api, Redis index default.
     $composeContent = @"
 services:
   new-api:
@@ -282,56 +284,21 @@ services:
       dockerfile: Dockerfile.dev
     image: new-api-dev:local
     container_name: sub2api-new-api-dev
-    restart: unless-stopped
+    restart: "no"
     ports:
       - "127.0.0.1:${Port}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - new_api_dev_data:/data
     environment:
-      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
-      - REDIS_CONN_STRING=redis://redis
+      - SQL_DSN=postgresql://new_api:new_api@host.docker.internal:5432/new_api
+      - REDIS_CONN_STRING=redis://host.docker.internal:6379/2
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
-    depends_on:
-      redis:
-        condition: service_started
-      postgres:
-        condition: service_healthy
-    networks:
-      - new_api_dev_network
-
-  redis:
-    image: redis:7-alpine
-    container_name: sub2api-new-api-dev-redis
-    restart: unless-stopped
-    networks:
-      - new_api_dev_network
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: sub2api-new-api-dev-pg
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: 123456
-      POSTGRES_DB: new-api
-    volumes:
-      - new_api_dev_pg_data:/var/lib/postgresql/data
-    networks:
-      - new_api_dev_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
 
 volumes:
   new_api_dev_data:
-  new_api_dev_pg_data:
-
-networks:
-  new_api_dev_network:
-    driver: bridge
 "@
 
     Set-Content -Path $ComposeFile -Value $composeContent -Encoding UTF8
@@ -492,11 +459,11 @@ if ($Action -eq "run") {
     }
 
     foreach ($dependency in @(
-        [pscustomobject]@{ Name = "PostgreSQL"; Port = 5432 },
-        [pscustomobject]@{ Name = "Redis"; Port = 6379 }
+        [pscustomobject]@{ Name = "PostgreSQL (shared host)"; Port = 5432 },
+        [pscustomobject]@{ Name = "Redis (shared host)"; Port = 6379 }
     )) {
         if (-not (Test-PortOpen -HostName "127.0.0.1" -Port $dependency.Port)) {
-            Write-Warning "$($dependency.Name) is not reachable on 127.0.0.1:$($dependency.Port). Start Docker Desktop/dev containers first if this service is required."
+            Write-Warning "$($dependency.Name) is not reachable on 127.0.0.1:$($dependency.Port). Start Windows services / shared-infra (not Docker DB containers)."
         }
     }
 
@@ -525,11 +492,11 @@ switch ($Action) {
 
 if ($Action -in @("start", "restart")) {
     foreach ($dependency in @(
-        [pscustomobject]@{ Name = "PostgreSQL"; Port = 5432 },
-        [pscustomobject]@{ Name = "Redis"; Port = 6379 }
+        [pscustomobject]@{ Name = "PostgreSQL (shared host)"; Port = 5432 },
+        [pscustomobject]@{ Name = "Redis (shared host)"; Port = 6379 }
     )) {
         if (-not (Test-PortOpen -HostName "127.0.0.1" -Port $dependency.Port)) {
-            Write-Warning "$($dependency.Name) is not reachable on 127.0.0.1:$($dependency.Port). Start Docker Desktop/dev containers first if this service is required."
+            Write-Warning "$($dependency.Name) is not reachable on 127.0.0.1:$($dependency.Port). Start Windows services / shared-infra (not Docker DB containers)."
         }
     }
 

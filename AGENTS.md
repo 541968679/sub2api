@@ -100,8 +100,8 @@ conventions, reusable task templates, or environment/build pitfalls.
 | new-api API | **13200** | Optional sibling project `E:\cursor project\new-api`, via `scripts/dev-stack.ps1 -IncludeNewAPI` |
 | InvokeAI backend | **9090** | Sibling project `E:\cursor project\InvokeAI`, via its own `scripts\dev-stack.ps1` |
 | InvokeAI frontend | **15175** | Sibling project `E:\cursor project\InvokeAI`, via its own `scripts\dev-stack.ps1` |
-| PostgreSQL | 5432 | Docker container `sub2api-pg-dev` |
-| Redis | 6379 | Docker container `sub2api-redis-dev` |
+| PostgreSQL | 5432 | **Host** Windows service `postgresql-x64-16` (shared-infra; logical DB `sub2api`) — not Docker for daily dev |
+| Redis | 6379 | **Host** Windows service `Redis` (shared-infra) — not Docker for daily dev |
 
 **Forbidden local ports**: 8080, 8081, 5173, 5174, 5175 — these conflict with
 Docker containers and other services. Production ports are managed by server

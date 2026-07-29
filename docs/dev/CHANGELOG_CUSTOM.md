@@ -23,6 +23,151 @@ JSONB merge API cannot remove an account-level override safely.
 `frontend/src/components/account/__tests__/BulkEditAccountModal.spec.ts`,
 `docs/dev/codebase/account.md`, this changelog.
 
+## 2026-07-29 - fix: preserve Chat Completions structured outputs on OAuth CC→Responses
+
+### What
+Chat Completions `response_format` is no longer dropped when converting to the
+Responses API for OAuth / GPT Pro accounts. `json_schema` and `json_object`
+now map to Responses `text.format`, preserving name/strict/schema payload so
+strict structured-output probes (e.g. hvoy schema constraint adherence) receive
+a constrained upstream request instead of unconstrained free-form text.
+
+### Why
+The OAuth path always converts Chat Completions → Responses via
+`ChatCompletionsToResponses`. `ChatCompletionsRequest` lacked
+`response_format` and `ResponsesText` lacked `format`, so structured-output
+constraints were silently discarded before Codex OAuth transform. Detectors
+that require pure schema-adherent JSON therefore failed even on GPT Pro 20x.
+
+### Affected files
+`backend/internal/pkg/apicompat/types.go`,
+`backend/internal/pkg/apicompat/chatcompletions_to_responses.go`,
+`backend/internal/pkg/apicompat/chatcompletions_to_responses_structured_output_test.go`,
+`backend/internal/service/openai_codex_transform_structured_output_test.go`,
+this changelog.
+
+## 2026-07-29 - perf: lower local frontend dev memory defaults
+
+### What
+Local Vite dev no longer enables `vite-plugin-checker` by default (it previously
+ran both `typescript` and `vueTsc`, roughly doubling language-server cost).
+Checker is opt-in via `VITE_DEV_CHECKER=1` or `pnpm run dev:check` (vue-tsc only).
+Dev server defaults to `127.0.0.1`, disables `preTransformRequests`, and tightens
+file-watch ignores. Documented local RSS breakdown and lite workflows in
+`DEV_GUIDE.md`.
+
+### Why
+Measured local stack: Vite alone ~2GB working set on this codebase; backend
+`server.exe` ~120MB; PostgreSQL host ~360MB. Frontend was the blocker for light
+local debugging.
+
+### Affected files
+`frontend/vite.config.ts`,
+`frontend/package.json`,
+`frontend/scripts/dev-with-checker.mjs`,
+`DEV_GUIDE.md`,
+this changelog.
+
+## 2026-07-29 - fix: user dashboard quick-actions grid with few visible cards
+
+### What
+Made the user dashboard "Quick Actions" primary row use 1/2/3 columns based on
+how many cards are actually visible (top-up and tutorial are optional).
+
+### Why
+After an empty host-DB install, `payment_enabled=false` and empty `tutorial_url`
+left only "Get API Key" in a hard-coded `sm:grid-cols-3` grid, so the lone card
+sat in the first column and looked broken. This is settings-driven visibility,
+not a Docker volume layout bug — but empty defaults make it show up.
+
+### Affected files
+`frontend/src/components/user/dashboard/UserDashboardQuickActions.vue`,
+this changelog.
+
+## 2026-07-29 - fix: login success stuck on login page (legal consent race)
+
+### What
+Fixed a race where `applySettings` → `enforceLegalConsentSettings` cleared the
+just-established session because legal consent was not yet accepted. Fresh
+logins now keep the session so `LegalConsentDialog` can complete; force-logout
+only runs when a *prior* consent version is stale. Admin login default redirect
+is `/admin/dashboard`.
+
+### Why
+After login API succeeded, public-settings application wiped tokens, so
+navigation to the dashboard bounced back to `/login`.
+
+### Affected files
+`frontend/src/utils/legalConsent.ts`,
+`frontend/src/stores/auth.ts`,
+`frontend/src/views/auth/LoginView.vue`,
+`frontend/src/utils/__tests__/legalConsent.spec.ts`,
+`frontend/src/stores/__tests__/auth.spec.ts`,
+this changelog.
+
+## 2026-07-29 - fix: empty host Postgres blocked login (no admin user)
+
+### What
+After switching formal local DBs from Docker to host `postgresql-x64-16`, the
+shared `sub2api` database had all migrations but **zero users**, so
+`POST /api/v1/auth/login` always returned 401. Seeded the local admin from
+`backend/config.yaml` (`admin@sub2api.local` / `admin123456`), and added missing
+`payment_orders.credit_amount` (Ent field without a prior SQL migration) plus
+migration `193_add_payment_order_credit_amount.sql`.
+
+### Why
+Setup only creates the admin during the setup wizard / auto-setup path. A
+freshly provisioned host DB with migrations alone leaves `users` empty.
+
+### Verification
+- `POST http://127.0.0.1:18081/api/v1/auth/login` → 200 with admin tokens
+- Same path via Vite proxy `15174` → 200
+
+### Affected files
+`backend/migrations/193_add_payment_order_credit_amount.sql`, this changelog
+(DB row seed is local-only, not committed).
+
+## 2026-07-29 - fix: Vite dev public-settings inject less noisy / more reliable
+
+### What
+Pointed the local Vite proxy at `http://127.0.0.1:18081` (not `localhost` /
+historical `8080`), added loopback fetch fallbacks when injecting
+`window.__APP_CONFIG__`, and rate-limited the "无法获取公开配置" warning so a
+temporarily down backend no longer floods the console on every HTML request.
+
+### Why
+When PostgreSQL/backend were unavailable, each page load hit
+`inject-public-settings` and logged `fetch failed` / `afterConnectMultiple`.
+On Windows, Node `localhost` dual-stack races also make this flakier than
+`127.0.0.1`.
+
+### Affected files
+`frontend/.env.development.local`, `frontend/vite.config.ts`,
+`frontend/vite.config.js`, this changelog.
+
+## 2026-07-29 - fix: CCS import no longer false-reports "not installed"
+
+### What
+Fixed API Keys "Import to CCS" so a successful `ccswitch://` launch no longer
+shows the error "CC-Switch is not installed or the protocol handler is not
+registered". The page now opens the deeplink via a same-document anchor click
+and shows an optimistic success toast (with a soft fallback hint). Grok→Codex
+still shows the existing metadata catalog warning.
+
+### Why
+The previous detector used `document.hasFocus()` after only 100ms. On Windows,
+CC-Switch often imports successfully without stealing browser focus, so the
+heuristic reported failure even when import worked. Custom protocol success
+cannot be detected reliably from the page.
+
+### Affected files
+`frontend/src/views/user/KeysView.vue`,
+`frontend/src/utils/ccswitchImport.ts`,
+`frontend/src/utils/__tests__/ccswitchImport.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-07-27 - sync: import upstream Responses item-ID sanitization
 
 ### What

@@ -1,6 +1,20 @@
+# Sub2API — dev-control SSOT
+# Shared DBs: host PostgreSQL + Redis via shared-infra (NOT Docker for daily dev).
+# Policy: E:/cursor project/dev-infra/docs/SHARED-INFRA-POLICY.md
+#
+# Logical resources (provisioned on host):
+#   Postgres: user=sub2api password=sub2api db=sub2api @ 127.0.0.1:5432
+#   Redis:    127.0.0.1:6379 (no auth; see backend/config.yaml db index)
+# Do NOT docker compose up postgres/redis for formal local development.
+# Docker compose under deploy/ remains for POC / production packaging only.
+
 project:
   id: api2sub
   name: Sub2API
+
+depends:
+  shared: [postgres, redis]
+
 network:
   host: 127.0.0.1
   ports:
@@ -9,15 +23,43 @@ network:
     aiclient2api: 3000
     aiclient2api_master: 3100
     new_api: 13200
+    # Shared host sticky ports
+    postgres: 5432
+    redis: 6379
 
 services:
+  # --- Shared host infra (sticky; owned by shared-infra) ---
+  postgres:
+    label: PostgreSQL (shared host)
+    role: monitor
+    runtime: host
+    lifecycle: sticky
+    ports: [${ports.postgres}]
+    reload: false
+
+  redis:
+    label: Redis (shared host)
+    role: monitor
+    runtime: host
+    lifecycle: sticky
+    ports: [${ports.redis}]
+    reload: false
+
+  # --- Application (ephemeral source processes) ---
   backend:
     label: Backend API
     role: managed
+    runtime: process
+    lifecycle: ephemeral
     cwd: .
+    depends_on: [postgres, redis]
     command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component backend -SkipAIClient
     env:
       GIN_MODE: release
+      DATABASE_HOST: ${network.host}
+      DATABASE_PORT: ${ports.postgres}
+      REDIS_HOST: ${network.host}
+      REDIS_PORT: ${ports.redis}
     ports: [${ports.backend}]
     health: http://${network.host}:${ports.backend}/health
     open_url: http://${network.host}:${ports.backend}/health
@@ -26,6 +68,8 @@ services:
   frontend:
     label: Frontend
     role: managed
+    runtime: process
+    lifecycle: ephemeral
     cwd: .
     command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component frontend -SkipAIClient
     ports: [${ports.frontend}]
@@ -36,6 +80,8 @@ services:
   aiclient2api:
     label: AIClient2API
     role: monitor
+    runtime: process
+    lifecycle: ephemeral
     ports: [${ports.aiclient2api}, ${ports.aiclient2api_master}]
     open_url: http://${network.host}:${ports.aiclient2api}
     reload: false
@@ -43,13 +89,18 @@ services:
   new-api:
     label: new-api
     role: monitor
+    runtime: process
+    lifecycle: ephemeral
     ports: [${ports.new_api}]
     open_url: http://${network.host}:${ports.new_api}
     reload: false
 
 groups:
+  shared-deps:
+    label: Shared host deps (sticky)
+    services: [postgres, redis]
   core:
-    label: Core
+    label: Core app (ephemeral)
     services: [backend, frontend]
   optional:
     label: Optional Sidecars

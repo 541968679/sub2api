@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   GROK_CC_SWITCH_CODEX_MODEL,
   buildCcSwitchImportDeeplink,
+  launchCcSwitchImportDeeplink,
   resolveCcSwitchImportConfig
 } from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
@@ -131,5 +132,35 @@ describe('ccswitchImport utils', () => {
     expect(params.get('app')).toBe('gemini')
     expect(params.get('endpoint')).toBe(`${baseInput.baseUrl}/antigravity`)
     expect(params.has('model')).toBe(false)
+  })
+
+  describe('launchCcSwitchImportDeeplink', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('clicks a temporary anchor with the deeplink (no focus-heuristic failure path)', () => {
+      const click = vi.fn()
+      const remove = vi.fn()
+      const appendChild = vi.spyOn(document.body, 'appendChild').mockImplementation((node) => node)
+      const createElement = vi.spyOn(document, 'createElement').mockReturnValue({
+        href: '',
+        rel: '',
+        style: { display: '' },
+        click,
+        remove
+      } as unknown as HTMLAnchorElement)
+
+      const deeplink = 'ccswitch://v1/import?resource=provider&app=codex'
+      launchCcSwitchImportDeeplink(deeplink)
+
+      expect(createElement).toHaveBeenCalledWith('a')
+      expect(appendChild).toHaveBeenCalled()
+      const anchor = createElement.mock.results[0]?.value as HTMLAnchorElement
+      expect(anchor.href).toBe(deeplink)
+      expect(anchor.rel).toBe('noopener noreferrer')
+      expect(click).toHaveBeenCalledTimes(1)
+      expect(remove).toHaveBeenCalledTimes(1)
+    })
   })
 })

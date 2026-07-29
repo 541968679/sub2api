@@ -337,6 +337,24 @@ describe('useAuthStore', () => {
       expect(localStorage.getItem('auth_token')).toBeNull()
     })
 
+    it('keeps a fresh login session so LegalConsentDialog can complete', async () => {
+      mockLogin.mockResolvedValue(fakeAuthResponse)
+      const store = useAuthStore()
+      await store.login({ email: 'test@example.com', password: '123456' })
+
+      // Public settings apply after login used to call enforceLegalConsentSettings and
+      // wipe the session before the consent dialog could finish.
+      expect(store.enforceLegalConsentSettings({
+        enabled: true,
+        version: 'legal-v1',
+        content: 'terms',
+        confirmation_phrase: 'I agree',
+        min_read_seconds: 0
+      })).toBe(false)
+      expect(store.isAuthenticated).toBe(true)
+      expect(localStorage.getItem('auth_token')).toBeTruthy()
+    })
+
     it('恢复持久化 pending auth session', () => {
       localStorage.setItem('auth_token', 'saved-token')
       localStorage.setItem('auth_user', JSON.stringify(fakeUser))

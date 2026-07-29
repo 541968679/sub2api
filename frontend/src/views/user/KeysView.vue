@@ -1134,6 +1134,7 @@ import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
 import {
   buildCcSwitchImportDeeplink,
+  launchCcSwitchImportDeeplink,
   type CcSwitchClientType
 } from '@/utils/ccswitchImport'
 
@@ -1945,22 +1946,20 @@ const executeCcsImport = (row: ApiKey, clientType: CcSwitchClientType) => {
   })
 
   try {
-    window.open(deeplink, '_self')
+    // Custom protocol success cannot be detected via focus/visibility. The old
+    // document.hasFocus() + 100ms check false-reported "not installed" even when
+    // CC-Switch imported successfully (common on Windows when the app does not
+    // steal browser focus).
+    launchCcSwitchImportDeeplink(deeplink)
 
     // CCS Codex template only sets model=...; it does not emit model_catalog_json.
     // Grok is not in Codex's built-in catalog, so prompt users how to complete metadata.
     if (platform === 'grok' && clientType === 'codex') {
       appStore.showWarning(t('keys.ccsGrokCodexMetadataHint'))
+    } else {
+      appStore.showSuccess(t('keys.ccSwitchImportLaunched'))
     }
-
-    // Check if the protocol handler worked by detecting if we're still focused
-    setTimeout(() => {
-      if (document.hasFocus()) {
-        // Still focused means the protocol handler likely failed
-        appStore.showError(t('keys.ccSwitchNotInstalled'))
-      }
-    }, 100)
-  } catch (error) {
+  } catch {
     appStore.showError(t('keys.ccSwitchNotInstalled'))
   }
 }
