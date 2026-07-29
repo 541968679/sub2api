@@ -28,7 +28,8 @@ function backendFetchCandidates(backendUrl: string): string[] {
   } catch {
     // keep primary only
   }
-  return [...new Set(candidates)]
+  // Dedupe without Set iteration (tsconfig.node may not enable downlevelIteration).
+  return candidates.filter((value, index) => candidates.indexOf(value) === index)
 }
 
 /**
@@ -49,7 +50,10 @@ function injectPublicSettings(backendUrl: string): Plugin {
               signal: AbortSignal.timeout(2000)
             })
             if (response.ok) {
-              const data = await response.json()
+              const data = (await response.json()) as {
+                code?: number
+                data?: unknown
+              }
               if (data.code === 0 && data.data) {
                 const script = `<script>window.__APP_CONFIG__=${JSON.stringify(data.data)};</script>`
                 return html.replace('</head>', `${script}\n</head>`)
