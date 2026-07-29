@@ -225,6 +225,108 @@
         </div>
       </div>
 
+      <!-- OpenAI image endpoint scheduling -->
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-images-endpoint-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-images-endpoint-enabled"
+            >
+              {{ t('admin.accounts.openai.imagesEndpointScheduling') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.imagesEndpointSchedulingDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIImagesEndpoint"
+            id="bulk-edit-openai-images-endpoint-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-images-endpoint-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-images-endpoint-body"
+          :class="!enableOpenAIImagesEndpoint && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-images-endpoint-label"
+        >
+          <button
+            id="bulk-edit-openai-images-endpoint-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openAIImagesEndpointEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="openAIImagesEndpointEnabled = !openAIImagesEndpointEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openAIImagesEndpointEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
+      <!-- Codex image generation tool bridge -->
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-codex-image-bridge-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-codex-image-bridge-enabled"
+            >
+              {{ t('admin.accounts.openai.codexImageGenerationBridge') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.codexImageGenerationBridgeDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableCodexImageGenerationBridge"
+            id="bulk-edit-openai-codex-image-bridge-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-codex-image-bridge-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-codex-image-bridge-body"
+          :class="!enableCodexImageGenerationBridge && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-codex-image-bridge-label"
+        >
+          <button
+            id="bulk-edit-openai-codex-image-bridge-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              codexImageGenerationBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="codexImageGenerationBridgeEnabled = !codexImageGenerationBridgeEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                codexImageGenerationBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
       <!-- Base URL (API Key only) -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
@@ -1417,6 +1519,8 @@ const enableStatus = ref(false)
 const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIClaudeGPTBridge = ref(false)
+const enableOpenAIImagesEndpoint = ref(false)
+const enableCodexImageGenerationBridge = ref(false)
 const enableOpenAIWSMode = ref(false)
 const enableOpenAIAPIKeyWSMode = ref(false)
 const enableCodexCLIOnly = ref(false)
@@ -1476,6 +1580,8 @@ const status = ref<'active' | 'inactive'>('active')
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
+const openAIImagesEndpointEnabled = ref(true)
+const codexImageGenerationBridgeEnabled = ref(false)
 const showOpenAIClaudeGPTBridgeTemplateEditor = ref(false)
 const openAIClaudeGPTBridgeTemplateDraft = ref<OpenAIClaudeGPTBridgeTemplateMapping[]>([])
 const applyingClaudeGPTBridgeTemplate = ref(false)
@@ -1849,6 +1955,16 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     extra.openai_claude_gpt_bridge_enabled = openaiClaudeGPTBridgeEnabled.value
   }
 
+  if (enableOpenAIImagesEndpoint.value) {
+    const extra = ensureExtra()
+    extra.openai_images_endpoint_enabled = openAIImagesEndpointEnabled.value
+  }
+
+  if (enableCodexImageGenerationBridge.value) {
+    const extra = ensureExtra()
+    extra.codex_image_generation_bridge = codexImageGenerationBridgeEnabled.value
+  }
+
   if (enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
     // 统一使用 model_mapping 字段
     if (modelRestrictionMode.value === 'whitelist') {
@@ -1998,6 +2114,8 @@ const handleSubmit = async () => {
     enableBaseUrl.value ||
     enableOpenAIPassthrough.value ||
     enableOpenAIClaudeGPTBridge.value ||
+    enableOpenAIImagesEndpoint.value ||
+    enableCodexImageGenerationBridge.value ||
     enableModelRestriction.value ||
     enableCustomErrorCodes.value ||
     enableInterceptWarmup.value ||
@@ -2134,6 +2252,8 @@ watch(
       enableGroups.value = false
       enableOpenAIPassthrough.value = false
       enableOpenAIClaudeGPTBridge.value = false
+      enableOpenAIImagesEndpoint.value = false
+      enableCodexImageGenerationBridge.value = false
       enableOpenAIWSMode.value = false
       enableOpenAIAPIKeyWSMode.value = false
       enableCodexCLIOnly.value = false
@@ -2143,6 +2263,8 @@ watch(
       baseUrl.value = ''
       openaiPassthroughEnabled.value = false
       openaiClaudeGPTBridgeEnabled.value = false
+      openAIImagesEndpointEnabled.value = true
+      codexImageGenerationBridgeEnabled.value = false
       showOpenAIClaudeGPTBridgeTemplateEditor.value = false
       openAIClaudeGPTBridgeTemplateDraft.value = []
       applyingClaudeGPTBridgeTemplate.value = false

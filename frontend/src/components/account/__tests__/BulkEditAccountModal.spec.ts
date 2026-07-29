@@ -385,4 +385,93 @@ describe('BulkEditAccountModal', () => {
       status: 'active'
     })
   })
+
+  it('OpenAI accounts expose image endpoint and Codex image bridge bulk controls', () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    expect(wrapper.find('#bulk-edit-openai-images-endpoint-enabled').exists()).toBe(true)
+    expect(wrapper.find('#bulk-edit-openai-codex-image-bridge-enabled').exists()).toBe(true)
+  })
+
+  it('non-OpenAI accounts hide image endpoint and Codex image bridge bulk controls', () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['oauth']
+    })
+
+    expect(wrapper.find('#bulk-edit-openai-images-endpoint-enabled').exists()).toBe(false)
+    expect(wrapper.find('#bulk-edit-openai-codex-image-bridge-enabled').exists()).toBe(false)
+  })
+
+  it('bulk edit can enable OpenAI Images endpoint scheduling without changing the bridge', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-images-endpoint-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        openai_images_endpoint_enabled: true
+      }
+    })
+  })
+
+  it('bulk edit can disable OpenAI Images endpoint scheduling', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await wrapper.get('#bulk-edit-openai-images-endpoint-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-openai-images-endpoint-toggle').trigger('click')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        openai_images_endpoint_enabled: false
+      }
+    })
+  })
+
+  it('bulk edit can enable and disable the Codex image generation bridge', async () => {
+    const enabledWrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await enabledWrapper.get('#bulk-edit-openai-codex-image-bridge-enabled').setValue(true)
+    await enabledWrapper.get('#bulk-edit-openai-codex-image-bridge-toggle').trigger('click')
+    await enabledWrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenLastCalledWith([1, 2], {
+      extra: {
+        codex_image_generation_bridge: true
+      }
+    })
+
+    vi.mocked(adminAPI.accounts.bulkUpdate).mockClear()
+    const disabledWrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['oauth']
+    })
+
+    await disabledWrapper.get('#bulk-edit-openai-codex-image-bridge-enabled').setValue(true)
+    await disabledWrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        codex_image_generation_bridge: false
+      }
+    })
+  })
 })

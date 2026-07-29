@@ -385,6 +385,12 @@ Implementation notes:
 
 - Create/Edit account forms save `false` only when disabled; re-enabling removes
   the extra key.
+- Bulk edit exposes independent apply checkboxes for Images endpoint scheduling
+  and the Codex image tool bridge when every target is an OpenAI OAuth/API-key
+  account. Selected fields write explicit booleans; unselected fields are left
+  unchanged. The bridge bulk control intentionally offers enabled/disabled only
+  because the incremental JSONB merge endpoint cannot delete an account-level
+  override to restore global inheritance.
 - The scheduler reads the same `Account.SupportsOpenAIImageCapability()` helper
   in both scheduler and load-awareness fallback paths.
 - `openai_images_endpoint_enabled` is scheduler-relevant, so updating it must

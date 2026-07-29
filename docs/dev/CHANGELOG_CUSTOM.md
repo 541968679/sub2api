@@ -1,3 +1,28 @@
+## 2026-07-29 - feat: bulk edit OpenAI image routing controls
+
+### What
+OpenAI OAuth/API-key bulk editing can now independently apply Images endpoint
+scheduling and the Codex image tool bridge as explicit enabled/disabled account
+overrides. Leaving either apply checkbox clear preserves every selected
+account's current value.
+
+### Why
+These controls already existed in single-account editing, but administrators
+had to update image-capable OAuth account pools one account at a time. The
+bridge bulk control omits "inherit global" because the existing incremental
+JSONB merge API cannot remove an account-level override safely.
+
+### Verification
+- `pnpm run test:run -- BulkEditAccountModal` (19 tests passed)
+- `pnpm run typecheck`
+- `pnpm run lint:check`
+- `git diff --check -- <affected files>`
+
+### Affected files
+`frontend/src/components/account/BulkEditAccountModal.vue`,
+`frontend/src/components/account/__tests__/BulkEditAccountModal.spec.ts`,
+`docs/dev/codebase/account.md`, this changelog.
+
 ## 2026-07-27 - sync: import upstream Responses item-ID sanitization
 
 ### What
