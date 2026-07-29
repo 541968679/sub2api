@@ -1732,6 +1732,27 @@ func TestOpenAINonStreamingContentTypeDefault(t *testing.T) {
 	}
 }
 
+func TestOpenAINonStreamingImageGenerationCompletesItemStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	body := []byte(`{"id":"resp_img","output":[{"id":"ig_1","type":"image_generation_call","status":"generating","result":"aGVsbG8="}],"usage":{"input_tokens":1,"output_tokens":2}}`)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}
+
+	_, err := svc.handleNonStreamingResponse(c.Request.Context(), resp, c, &Account{}, "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.Equal(t, "completed", gjson.Get(rec.Body.String(), "output.0.status").String())
+	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "output.0.result").String())
+}
+
 func TestOpenAINonStreamingDisplayUsageRewritesDownstreamOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := &OpenAIGatewayService{cfg: &config.Config{}}
@@ -1845,6 +1866,41 @@ func TestOpenAIStreamingDisplayUsageRewritesTerminalEventOnly(t *testing.T) {
 	require.Contains(t, body, `"cached_tokens":200`)
 	require.Contains(t, body, `"output_tokens":400`)
 	require.Contains(t, body, `"total_tokens":2600`)
+}
+
+func TestOpenAIStreamingImageGenerationCompletesItemStatus(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamDataIntervalTimeout: 0,
+			StreamKeepaliveInterval:   0,
+			MaxLineSize:               defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			`data: {"type":"response.output_item.done","item":{"id":"ig_1","type":"image_generation_call","status":"generating","result":"aGVsbG8="}}`,
+			`data: {"type":"response.completed","response":{"id":"resp_img","output":[],"usage":{"input_tokens":1,"output_tokens":2}}}`,
+			`data: [DONE]`,
+		}, "\n"))),
+		Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	result, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"response.output_item.done"`)
+	require.NotContains(t, body, `"status":"generating"`)
+	require.Contains(t, body, `"status":"completed"`)
+	require.Contains(t, body, `"type":"response.completed"`)
 }
 
 func TestOpenAIStreamingRealUsageDoesNotRewrite(t *testing.T) {
@@ -2625,8 +2681,60 @@ func TestHandleSSEToJSON_ReconstructsImageGenerationOutputItemDone(t *testing.T)
 	require.Equal(t, 4, usage.ImageOutputTokens)
 	require.NotContains(t, rec.Body.String(), "data:")
 	require.Equal(t, "image_generation_call", gjson.Get(rec.Body.String(), "output.0.type").String())
+	require.Equal(t, "completed", gjson.Get(rec.Body.String(), "output.0.status").String())
 	require.Equal(t, "aGVsbG8=", gjson.Get(rec.Body.String(), "output.0.result").String())
 	require.Equal(t, "draw a cat", gjson.Get(rec.Body.String(), "output.0.revised_prompt").String())
+}
+
+func TestNormalizeCompletedImageGenerationOutputItemDone(t *testing.T) {
+	tests := []struct {
+		name        string
+		payload     string
+		wantChanged bool
+		wantStatus  string
+	}{
+		{
+			name:        "missing status becomes completed",
+			payload:     `{"type":"response.output_item.done","item":{"id":"ig_1","type":"image_generation_call","result":"aGVsbG8="}}`,
+			wantChanged: true,
+			wantStatus:  "completed",
+		},
+		{
+			name:        "generating status becomes completed",
+			payload:     `{"type":"response.output_item.done","item":{"id":"ig_1","type":"image_generation_call","status":"generating","result":"aGVsbG8="}}`,
+			wantChanged: true,
+			wantStatus:  "completed",
+		},
+		{
+			name:        "failed status is preserved",
+			payload:     `{"type":"response.output_item.done","item":{"id":"ig_1","type":"image_generation_call","status":"failed","result":"aGVsbG8="}}`,
+			wantChanged: false,
+			wantStatus:  "failed",
+		},
+		{
+			name:        "missing result is not completed",
+			payload:     `{"type":"response.output_item.done","item":{"id":"ig_1","type":"image_generation_call","status":"generating"}}`,
+			wantChanged: false,
+			wantStatus:  "generating",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updated, changed := normalizeCompletedImageGenerationOutputItemDone([]byte(tt.payload))
+			require.Equal(t, tt.wantChanged, changed)
+			require.Equal(t, tt.wantStatus, gjson.GetBytes(updated, "item.status").String())
+		})
+	}
+}
+
+func TestNormalizeResponsesStreamingTerminalOutput_CompletesImageStatus(t *testing.T) {
+	payload := []byte(`{"type":"response.completed","response":{"output":[{"id":"ig_1","type":"image_generation_call","status":"generating","result":"aGVsbG8="}]}}`)
+
+	updated, changed := normalizeResponsesStreamingTerminalOutput(payload, nil, nil)
+
+	require.True(t, changed)
+	require.Equal(t, "completed", gjson.GetBytes(updated, "response.output.0.status").String())
 }
 
 func TestHandleSSEToJSON_NoFinalResponseKeepsSSEBody(t *testing.T) {

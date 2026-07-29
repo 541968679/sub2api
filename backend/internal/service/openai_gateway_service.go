@@ -5140,6 +5140,11 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				line = "data: " + data
 				eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
 			}
+			if normalizedData, normalized := normalizeCompletedImageGenerationOutputItemDone(dataBytes); normalized {
+				dataBytes = normalizedData
+				data = string(normalizedData)
+				line = "data: " + data
+			}
 			if imageOutput, ok := extractImageGenerationOutputFromSSEData(dataBytes, streamSeenImages); ok {
 				streamImageOutputs = append(streamImageOutputs, imageOutput)
 			}
@@ -5687,6 +5692,9 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 		return nil, fmt.Errorf("parse response: invalid json response")
 	}
 	usage := &usageValue
+	if normalized, changed := normalizeCompletedImageGenerationOutputStatuses(body, "output"); changed {
+		body = normalized
+	}
 
 	// Replace model in response if needed
 	if originalModel != mappedModel {
@@ -5725,6 +5733,9 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 
 	usage := &OpenAIUsage{}
 	if ok {
+		if normalized, changed := normalizeCompletedImageGenerationOutputStatuses(finalResponse, "output"); changed {
+			finalResponse = normalized
+		}
 		if parsedUsage, parsed := extractOpenAIUsageFromJSONBytes(finalResponse); parsed {
 			*usage = parsedUsage
 		}
@@ -5918,12 +5929,17 @@ func normalizeResponsesStreamingTerminalOutput(data []byte, acc *apicompat.Buffe
 	default:
 		return data, false
 	}
+	statusNormalized := false
+	if normalized, changed := normalizeCompletedImageGenerationOutputStatuses(data, "response.output"); changed {
+		data = normalized
+		statusNormalized = true
+	}
 
 	output := gjson.GetBytes(data, "response.output")
 	hasAccumulatedOutput := (acc != nil && acc.HasContent()) || len(imageOutputs) > 0
 	if output.Exists() && output.IsArray() {
 		if len(output.Array()) > 0 || !hasAccumulatedOutput {
-			return data, false
+			return data, statusNormalized
 		}
 	}
 
@@ -5977,6 +5993,9 @@ func extractImageGenerationOutputFromSSEData(data []byte, seen map[string]struct
 	if len(data) == 0 || !gjson.ValidBytes(data) {
 		return nil, false
 	}
+	if normalized, changed := normalizeCompletedImageGenerationOutputItemDone(data); changed {
+		data = normalized
+	}
 	if gjson.GetBytes(data, "type").String() != "response.output_item.done" {
 		return nil, false
 	}
@@ -5998,6 +6017,64 @@ func extractImageGenerationOutputFromSSEData(data []byte, seen map[string]struct
 		seen[key] = struct{}{}
 	}
 	return json.RawMessage(item.Raw), true
+}
+
+func normalizeCompletedImageGenerationOutputItemDone(payload []byte) ([]byte, bool) {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return payload, false
+	}
+	if gjson.GetBytes(payload, "type").String() != "response.output_item.done" {
+		return payload, false
+	}
+	item := gjson.GetBytes(payload, "item")
+	if !imageGenerationCallNeedsCompletedStatus(item) {
+		return payload, false
+	}
+	updated, err := sjson.SetBytes(payload, "item.status", "completed")
+	if err != nil {
+		return payload, false
+	}
+	return updated, true
+}
+
+func normalizeCompletedImageGenerationOutputStatuses(payload []byte, outputPath string) ([]byte, bool) {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) || strings.TrimSpace(outputPath) == "" {
+		return payload, false
+	}
+	output := gjson.GetBytes(payload, outputPath)
+	if !output.Exists() || !output.IsArray() {
+		return payload, false
+	}
+
+	updated := payload
+	changed := false
+	for index, item := range output.Array() {
+		if !imageGenerationCallNeedsCompletedStatus(item) {
+			continue
+		}
+		next, err := sjson.SetBytes(updated, fmt.Sprintf("%s.%d.status", outputPath, index), "completed")
+		if err != nil {
+			return payload, false
+		}
+		updated = next
+		changed = true
+	}
+	return updated, changed
+}
+
+func imageGenerationCallNeedsCompletedStatus(item gjson.Result) bool {
+	if !item.Exists() || !item.IsObject() || item.Get("type").String() != "image_generation_call" {
+		return false
+	}
+	if strings.TrimSpace(item.Get("result").String()) == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(item.Get("status").String())) {
+	case "", "queued", "generating", "in_progress":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *OpenAIGatewayService) parseSSEUsageFromBody(body string) *OpenAIUsage {

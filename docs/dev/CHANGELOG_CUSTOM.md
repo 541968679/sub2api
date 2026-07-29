@@ -1,3 +1,28 @@
+## 2026-07-29 - fix: finalize Codex image bridge results
+
+### What
+Responses image-generation output items with a complete base64 `result` are
+now normalized to `status: "completed"` when the upstream omits the status or
+leaves it as queued/generating/in-progress. The normalization covers streamed
+`response.output_item.done` events, terminal response output, reconstructed
+SSE-to-JSON output, and direct non-streaming Responses JSON.
+
+### Why
+The Codex image bridge successfully generated image bytes, but Codex Desktop
+kept the returned item in a generating state and did not render or save the
+image because the final status was missing. Explicit failure states and image
+items without a result remain unchanged.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "NormalizeCompletedImageGeneration|NormalizeResponsesStreamingTerminalOutput|HandleSSEToJSON_ReconstructsImageGeneration"`
+- `go test -tags=unit ./internal/service`
+- `git diff --check -- <affected files>`
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_gateway_service_test.go`,
+`docs/dev/codebase/gateway.md`, this changelog.
+
 ## 2026-07-29 - feat: bulk edit OpenAI image routing controls
 
 ### What

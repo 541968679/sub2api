@@ -614,6 +614,13 @@ carrier, or in `tool_choice`.
   display/cache-read usage, or alter Claude-GPT bridge eligibility, model
   fallback, account scheduling, or Ops attribution.
 
+Completed image results also need a terminal item status. When an upstream
+`response.output_item.done` or terminal `response.output` image call includes a
+non-empty base64 `result`, the gateway normalizes a missing or still-active
+status to `completed`. Reconstructed SSE-to-JSON output uses the same rule so
+Codex clients render the image instead of leaving the call in a generating
+state. Explicit failure states and result-less items remain unchanged.
+
 | Mechanism | Notes |
 |-----------|-------|
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
