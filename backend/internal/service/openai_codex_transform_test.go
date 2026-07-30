@@ -616,6 +616,50 @@ func TestEnsureOpenAIResponsesImageGenerationTool_PreservesExistingImageTool(t *
 	require.Equal(t, "webp", tool["output_format"])
 }
 
+func TestEnsureOpenAIResponsesImageGenerationTool_SkipsClientImageGenNamespace(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.4",
+		"tools": []any{
+			map[string]any{
+				"type":        "namespace",
+				"name":        "image_gen",
+				"description": "Tools in the image_gen namespace.",
+				"tools": []any{
+					map[string]any{
+						"type":       "function",
+						"name":       "imagegen",
+						"strict":     false,
+						"parameters": map[string]any{"type": "object"},
+					},
+				},
+			},
+		},
+	}
+
+	modified := ensureOpenAIResponsesImageGenerationTool(reqBody)
+	require.False(t, modified)
+
+	tools, ok := reqBody["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+	require.Equal(t, "namespace", tools[0].(map[string]any)["type"])
+}
+
+func TestEnsureOpenAIResponsesImageGenerationTool_DoesNotTrustUndeclaredNamespaceChoice(t *testing.T) {
+	reqBody := map[string]any{
+		"model":       "gpt-5.4",
+		"tool_choice": map[string]any{"type": "namespace", "name": "image_gen"},
+	}
+
+	modified := ensureOpenAIResponsesImageGenerationTool(reqBody)
+	require.True(t, modified)
+
+	tools, ok := reqBody["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+	require.Equal(t, "image_generation", tools[0].(map[string]any)["type"])
+}
+
 func TestEnsureOpenAIResponsesImageGenerationToolChoiceAuto(t *testing.T) {
 	t.Run("sets_auto_when_image_tool_exists", func(t *testing.T) {
 		reqBody := map[string]any{
@@ -712,6 +756,26 @@ func TestApplyCodexImageGenerationBridgeInstructions_SkipsWithoutImageTool(t *te
 		"instructions": "existing instructions",
 		"tools": []any{
 			map[string]any{"type": "web_search"},
+		},
+	}
+
+	modified := applyCodexImageGenerationBridgeInstructions(reqBody)
+	require.False(t, modified)
+	require.Equal(t, "existing instructions", reqBody["instructions"])
+}
+
+func TestApplyCodexImageGenerationBridgeInstructions_SkipsClientImageGenNamespace(t *testing.T) {
+	reqBody := map[string]any{
+		"model":        "gpt-5.4",
+		"instructions": "existing instructions",
+		"tools": []any{
+			map[string]any{
+				"type": "namespace",
+				"name": "image_gen",
+				"tools": []any{
+					map[string]any{"type": "function", "name": "imagegen"},
+				},
+			},
 		},
 	}
 
@@ -923,6 +987,44 @@ func TestApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark(t *testing
 
 	applyCodexOAuthTransform(reqBody, true, false)
 	require.True(t, hasOpenAIImageGenerationTool(reqBody))
+}
+
+func TestApplyCodexOAuthTransform_PreservesClientImageGenNamespace(t *testing.T) {
+	imageNamespace := map[string]any{
+		"type":        "namespace",
+		"name":        "image_gen",
+		"description": "Tools in the image_gen namespace.",
+		"tools": []any{
+			map[string]any{
+				"type":       "function",
+				"name":       "imagegen",
+				"strict":     false,
+				"parameters": map[string]any{"type": "object"},
+			},
+		},
+	}
+	reqBody := map[string]any{
+		"model": "gpt-5.4",
+		"input": []any{
+			map[string]any{"type": "message", "role": "user", "content": "draw a cat"},
+			map[string]any{"type": "additional_tools", "tools": []any{imageNamespace}},
+		},
+		"tool_choice": map[string]any{"type": "namespace", "name": "image_gen"},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+
+	choice, ok := reqBody["tool_choice"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "namespace", choice["type"])
+	require.Equal(t, "image_gen", choice["name"])
+	require.True(t, hasOpenAIImageGenerationTool(reqBody))
+	input, ok := reqBody["input"].([]any)
+	require.True(t, ok)
+	require.Len(t, input, 2)
+	additional := input[1].(map[string]any)
+	tools := additional["tools"].([]any)
+	require.Equal(t, imageNamespace, tools[0])
 }
 
 func TestNormalizeOpenAIResponsesImageOnlyModel_BuildsImageToolRequest(t *testing.T) {

@@ -603,6 +603,17 @@ appear in top-level `tools`, in a Responses Lite `input[].additional_tools`
 carrier, or in `tool_choice`.
 
 - Image-intent checks recognize all three locations.
+- A declared `image_gen` namespace is the modern Codex Desktop client
+  extension. When it is present in `tools` or `input[].additional_tools`, the
+  Codex image bridge must preserve that namespace and any matching namespace
+  `tool_choice`, and must not inject a competing flat `image_generation` tool,
+  set the legacy `tool_choice: "auto"`, or add the legacy bridge instructions.
+  This lets the desktop extension call `/v1/images/generations`, persist the
+  returned PNG under the Codex generated-image directory, and emit the saved
+  path/UI item.
+- The flat `image_generation` injection remains the compatibility fallback for
+  clients that do not actually declare the `image_gen` namespace. A namespace
+  `tool_choice` alone is not treated as proof that the client extension exists.
 - The existing Spark compatibility strip removes only flat image tools and the
   exact `image_gen` namespace declarations. Empty `additional_tools` carriers
   and an image-only `tool_choice` are removed with them.
@@ -662,6 +673,12 @@ state. Explicit failure states and result-less items remain unchanged.
 - **Compatibility path selecting Antigravity**: `/v1/chat/completions` is not an Antigravity native entry point. If it selects an Antigravity account, the request can send an Antigravity bearer token to Anthropic upstream and produce `Authentication failed (401): Invalid bearer token`, while the same account remains usable on `/antigravity/v1/messages`.
 - **Antigravity OAuth 401 false positive**: Antigravity OAuth 401 does not always mean the refresh token is invalid. It can be caused by protocol/upstream path mismatch, stale token cache, or a transient upstream state. Use temporary unschedulable plus token refresh instead of permanent `status=error`.
 - **Image trace is temporary and opt-in**: Keep `OPENAI_IMAGE_TRACE_LOG` disabled by default. It is for targeted local/production timing windows and should be turned off after sampling.
+- **Do not combine modern Codex image extensions with the legacy hosted tool**:
+  if a Codex Desktop request declares `image_gen.imagegen`, injecting the flat
+  Responses `image_generation` tool can make the model choose the hosted tool.
+  The session then contains valid base64 but no extension-owned `saved_path`,
+  so the desktop UI does not display or persist the image. Preserve the client
+  namespace and reserve legacy injection for clients without that declaration.
 - **OpenAI Images 400s are usually client input**: Invalid image size, unsupported image options, and similar upstream 400s should remain visible to the client on `/v1/images/*`. Do not require `OPENAI_IMAGE_TRACE_LOG` for this behavior.
 - **OpenAI image timeout is not account failover**: The first version treats long generation timeout as a client-facing 504 instead of switching accounts, because previous sampling showed the elapsed time is dominated by upstream generation rather than Sub2API scheduling. Revisit only with evidence that account switching materially improves completion probability.
 - **Embeddings fixture has two gates**: scheduler selection requires both endpoint capability and model support. If `/v1/embeddings` returns 503 `no available accounts`, check `credentials.model_mapping` for the requested embedding model before debugging the forwarder. If it returns upstream 404, check the account base URL and upstream service support for `/v1/embeddings`.

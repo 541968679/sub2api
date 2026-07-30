@@ -1,3 +1,34 @@
+## 2026-07-30 - fix: preserve Codex Desktop image extension routing
+
+### What
+The OpenAI Codex image bridge now detects a declared `image_gen` namespace in
+top-level tools or Responses Lite `input[].additional_tools`. For those modern
+Codex Desktop requests, the gateway preserves the namespace and matching
+namespace tool choice without injecting the legacy flat `image_generation`
+tool, forcing `tool_choice: "auto"`, or adding legacy bridge instructions.
+Clients without an actual namespace declaration keep the existing hosted
+Responses image-tool fallback.
+
+### Why
+When both tool forms were forwarded, the model could choose the hosted
+Responses image tool instead of the desktop extension. The image bytes then
+arrived as a valid base64 `image_generation_call`, but the client extension did
+not execute, so no image file or `saved_path` was produced and Codex Desktop
+showed no image. The modern extension owns the `/v1/images/generations` call,
+local persistence, and display lifecycle.
+
+### Verification
+- `go test ./internal/service -run 'Test(EnsureOpenAIResponsesImageGenerationTool|ApplyCodexImageGenerationBridgeInstructions|ApplyCodexOAuthTransform|OpenAIGatewayService_Forward_CodexImageBridge)' -count=1`
+- `go test ./internal/service -count=1`
+- `go test -tags=unit ./... -count=1`
+- `git diff --check`
+
+### Affected files
+`backend/internal/service/openai_codex_transform.go`,
+`backend/internal/service/openai_codex_transform_test.go`,
+`backend/internal/service/openai_gateway_service_hotpath_test.go`,
+`docs/dev/codebase/gateway.md`, this changelog.
+
 ## 2026-07-30 - test: wait for canceled image artifact writer shutdown
 
 ### What

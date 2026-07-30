@@ -343,11 +343,57 @@ func normalizeCodexToolChoice(reqBody map[string]any) bool {
 		}
 		return modified
 	}
+	if choiceType == "namespace" {
+		name := strings.TrimSpace(firstNonEmptyString(choiceMap["name"], choiceMap["namespace"]))
+		if name != "" && codexRequestContainsNamespaceName(reqBody, name) {
+			return modified
+		}
+		reqBody["tool_choice"] = "auto"
+		return true
+	}
 	if codexToolsContainType(reqBody["tools"], choiceType) {
 		return modified
 	}
 	reqBody["tool_choice"] = "auto"
 	return true
+}
+
+func codexRequestContainsNamespaceName(reqBody map[string]any, name string) bool {
+	if codexToolsContainNamespaceName(reqBody["tools"], name) {
+		return true
+	}
+	input, ok := reqBody["input"].([]any)
+	if !ok {
+		return false
+	}
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+			continue
+		}
+		if codexToolsContainNamespaceName(item["tools"], name) {
+			return true
+		}
+	}
+	return false
+}
+
+func codexToolsContainNamespaceName(rawTools any, name string) bool {
+	tools, ok := rawTools.([]any)
+	if !ok || strings.TrimSpace(name) == "" {
+		return false
+	}
+	normalizedName := strings.TrimSpace(name)
+	for _, rawTool := range tools {
+		tool, ok := rawTool.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(tool["type"])) != "namespace" {
+			continue
+		}
+		if strings.TrimSpace(firstNonEmptyString(tool["name"], tool["namespace"])) == normalizedName {
+			return true
+		}
+	}
+	return false
 }
 
 func codexToolsContainType(rawTools any, toolType string) bool {
@@ -644,6 +690,44 @@ func hasOpenAIImageGenerationTool(reqBody map[string]any) bool {
 	return false
 }
 
+func hasOpenAIResponsesNativeImageGenerationTool(reqBody map[string]any) bool {
+	if toolsContainOpenAIResponsesNativeImageGeneration(reqBody["tools"]) {
+		return true
+	}
+	input, ok := reqBody["input"].([]any)
+	if !ok {
+		return false
+	}
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+			continue
+		}
+		if toolsContainOpenAIResponsesNativeImageGeneration(item["tools"]) {
+			return true
+		}
+	}
+	return false
+}
+
+func toolsContainOpenAIResponsesNativeImageGeneration(rawTools any) bool {
+	tools, ok := rawTools.([]any)
+	if !ok {
+		return false
+	}
+	for _, rawTool := range tools {
+		tool, ok := rawTool.(map[string]any)
+		if ok && isOpenAIImageGenerationType(firstNonEmptyString(tool["type"])) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasCodexClientImageGenNamespace(reqBody map[string]any) bool {
+	return codexRequestContainsNamespaceName(reqBody, "image_gen")
+}
+
 func toolsContainOpenAIImageGeneration(rawTools any) bool {
 	tools, ok := rawTools.([]any)
 	if !ok {
@@ -822,6 +906,9 @@ func ensureOpenAIResponsesImageGenerationTool(reqBody map[string]any) bool {
 	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {
 		return false
 	}
+	if hasCodexClientImageGenNamespace(reqBody) {
+		return false
+	}
 
 	tool := map[string]any{
 		"type":          "image_generation",
@@ -854,7 +941,7 @@ func ensureOpenAIResponsesImageGenerationTool(reqBody map[string]any) bool {
 }
 
 func ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody map[string]any) bool {
-	if len(reqBody) == 0 || !hasOpenAIImageGenerationTool(reqBody) {
+	if len(reqBody) == 0 || !hasOpenAIResponsesNativeImageGenerationTool(reqBody) {
 		return false
 	}
 	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {
@@ -868,7 +955,7 @@ func ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody map[string]any) 
 }
 
 func applyCodexImageGenerationBridgeInstructions(reqBody map[string]any) bool {
-	if len(reqBody) == 0 || !hasOpenAIImageGenerationTool(reqBody) {
+	if len(reqBody) == 0 || !hasOpenAIResponsesNativeImageGenerationTool(reqBody) {
 		return false
 	}
 	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {

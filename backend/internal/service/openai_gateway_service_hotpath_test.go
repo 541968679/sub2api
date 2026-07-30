@@ -299,3 +299,52 @@ func TestOpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto(t *test
 	require.Equal(t, "auto", gjson.GetBytes(upstream.lastBody, "tool_choice").String())
 	require.Contains(t, gjson.GetBytes(upstream.lastBody, "instructions").String(), codexImageGenerationBridgeMarker)
 }
+
+func TestOpenAIGatewayService_Forward_CodexImageBridgePreservesClientNamespace(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body: io.NopCloser(strings.NewReader(
+				"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_test\",\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":2},\"output\":[]}}\n\n",
+			)),
+		},
+	}
+	cfg := &config.Config{}
+	cfg.Security.URLAllowlist.Enabled = false
+	cfg.Gateway.CodexImageGenerationBridgeEnabled = true
+	cfg.Gateway.ForceCodexCLI = true
+	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+	account := &Account{
+		ID:          13,
+		Name:        "openai-oauth",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token":       "oauth-test-token",
+			"chatgpt_account_id": "chatgpt-test-account",
+		},
+	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	c.Set("api_key", &APIKey{Group: &Group{AllowImageGeneration: true}})
+	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+
+	body := []byte(`{"model":"gpt-5.3-codex","stream":false,"input":[{"type":"message","role":"user","content":"draw a cat"},{"type":"additional_tools","tools":[{"type":"namespace","name":"image_gen","description":"Tools in the image_gen namespace.","tools":[{"type":"function","name":"imagegen","description":"Generate an image","strict":false,"parameters":{"type":"object","properties":{"prompt":{"type":"string"}},"required":["prompt"],"additionalProperties":false}}]}]}],"tool_choice":{"type":"namespace","name":"image_gen"}}`)
+	result, err := svc.Forward(context.Background(), c, account, body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+	require.False(t, gjson.GetBytes(upstream.lastBody, "tools").Exists())
+	require.Equal(t, "namespace", gjson.GetBytes(upstream.lastBody, `input.#(type=="additional_tools").tools.0.type`).String())
+	require.Equal(t, "image_gen", gjson.GetBytes(upstream.lastBody, `input.#(type=="additional_tools").tools.0.name`).String())
+	require.Equal(t, "imagegen", gjson.GetBytes(upstream.lastBody, `input.#(type=="additional_tools").tools.0.tools.0.name`).String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, `tools.#(type=="image_generation")`).Exists())
+	require.Equal(t, "namespace", gjson.GetBytes(upstream.lastBody, "tool_choice.type").String())
+	require.Equal(t, "image_gen", gjson.GetBytes(upstream.lastBody, "tool_choice.name").String())
+	require.NotContains(t, gjson.GetBytes(upstream.lastBody, "instructions").String(), codexImageGenerationBridgeMarker)
+	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+}
