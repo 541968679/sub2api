@@ -20,6 +20,7 @@ local persistence, and display lifecycle.
 ### Verification
 - `go test ./internal/service -run 'Test(EnsureOpenAIResponsesImageGenerationTool|ApplyCodexImageGenerationBridgeInstructions|ApplyCodexOAuthTransform|OpenAIGatewayService_Forward_CodexImageBridge)' -count=1`
 - `go test ./internal/service -count=1`
+- `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0 run ./... --timeout=30m`
 - `go test -tags=unit ./... -count=1`
 - `git diff --check`
 

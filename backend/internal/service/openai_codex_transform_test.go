@@ -642,7 +642,9 @@ func TestEnsureOpenAIResponsesImageGenerationTool_SkipsClientImageGenNamespace(t
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
 	require.Len(t, tools, 1)
-	require.Equal(t, "namespace", tools[0].(map[string]any)["type"])
+	tool, ok := tools[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "namespace", tool["type"])
 }
 
 func TestEnsureOpenAIResponsesImageGenerationTool_DoesNotTrustUndeclaredNamespaceChoice(t *testing.T) {
@@ -657,7 +659,9 @@ func TestEnsureOpenAIResponsesImageGenerationTool_DoesNotTrustUndeclaredNamespac
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
 	require.Len(t, tools, 1)
-	require.Equal(t, "image_generation", tools[0].(map[string]any)["type"])
+	tool, ok := tools[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "image_generation", tool["type"])
 }
 
 func TestEnsureOpenAIResponsesImageGenerationToolChoiceAuto(t *testing.T) {
@@ -1022,8 +1026,11 @@ func TestApplyCodexOAuthTransform_PreservesClientImageGenNamespace(t *testing.T)
 	input, ok := reqBody["input"].([]any)
 	require.True(t, ok)
 	require.Len(t, input, 2)
-	additional := input[1].(map[string]any)
-	tools := additional["tools"].([]any)
+	additional, ok := input[1].(map[string]any)
+	require.True(t, ok)
+	tools, ok := additional["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
 	require.Equal(t, imageNamespace, tools[0])
 }
 
