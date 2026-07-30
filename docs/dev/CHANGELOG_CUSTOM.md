@@ -1,3 +1,34 @@
+## 2026-07-30 - chore: clear release security and formatting gates
+
+### What
+Upgraded frontend `axios` to `1.19.0` and `postcss` to the patched `8.5.25`
+resolution, which also upgrades the axios `form-data` dependency to
+`4.0.6`. Removed security exceptions that are no longer needed, renewed the two
+unfixed `xlsx` exceptions through 2026-10-30, and applied the pending Go format
+fix in the OpenAI compatibility types.
+
+### Why
+The previous `main` CI run was blocked by one Go formatting finding and by
+frontend audit findings with available patched dependency versions. SheetJS
+still has no patched npm release, so its existing admin-export-only mitigation
+remains time-bounded instead of being treated as resolved.
+
+### Verification
+- `go test -tags=unit ./...`
+- `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0 run ./... --timeout=30m`
+- `pnpm install --frozen-lockfile` with pnpm 9.15.9
+- `pnpm run typecheck`
+- `pnpm run lint:check`
+- `pnpm run build`
+- `pnpm audit --prod --audit-level=high` plus
+  `tools/check_pnpm_audit_exceptions.py`
+- `gofmt -d backend/internal/pkg/apicompat/types.go`
+
+### Affected files
+`.github/audit-exceptions.yml`,
+`backend/internal/pkg/apicompat/types.go`,
+`frontend/package.json`, `frontend/pnpm-lock.yaml`, this changelog.
+
 ## 2026-07-29 - fix: finalize Codex image bridge results
 
 ### What

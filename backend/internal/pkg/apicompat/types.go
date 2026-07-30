@@ -572,7 +572,7 @@ type ChatCompletionsRequest struct {
 // Some clients also flatten name/strict/schema under response_format; those
 // top-level fields are accepted as a compatibility fallback.
 type ChatResponseFormat struct {
-	Type       string                       `json:"type"` // "text" | "json_object" | "json_schema"
+	Type       string                        `json:"type"` // "text" | "json_object" | "json_schema"
 	JSONSchema *ChatResponseFormatJSONSchema `json:"json_schema,omitempty"`
 
 	// Flat fallbacks used by some SDKs / older shapes.
