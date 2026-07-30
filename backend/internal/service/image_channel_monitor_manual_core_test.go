@@ -105,6 +105,17 @@ func (f imageManualRoundTripperFunc) RoundTrip(req *http.Request) (*http.Respons
 	return f(req)
 }
 
+type imageManualCloseSignalReadCloser struct {
+	io.Reader
+	once   sync.Once
+	closed chan struct{}
+}
+
+func (r *imageManualCloseSignalReadCloser) Close() error {
+	r.once.Do(func() { close(r.closed) })
+	return nil
+}
+
 type imageManualArtifactGateReader struct {
 	reader      *bytes.Reader
 	artifactDir string
@@ -1212,14 +1223,18 @@ func TestImageChannelManualCancelWinsAgainstInFlightArtifactCommit(t *testing.T)
 	}}
 	consumerStarted := make(chan struct{}, 1)
 	releaseConsumer := make(chan struct{})
+	responseClosed := make(chan struct{})
 	consumer := &http.Client{Transport: imageManualRoundTripperFunc(func(request *http.Request) (*http.Response, error) {
 		consumerStarted <- struct{}{}
 		<-releaseConsumer
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"image/png"}},
-			Body:       io.NopCloser(bytes.NewReader(png)),
-			Request:    request,
+			Body: &imageManualCloseSignalReadCloser{
+				Reader: bytes.NewReader(png),
+				closed: responseClosed,
+			},
+			Request: request,
 		}, nil
 	})}
 	svc := newConfiguredImageManualCoreTestService(t, gateway, nil, consumer)
@@ -1243,6 +1258,11 @@ func TestImageChannelManualCancelWinsAgainstInFlightArtifactCommit(t *testing.T)
 	require.NoError(t, err)
 	require.True(t, canceled.Canceled)
 	close(releaseConsumer)
+	select {
+	case <-responseClosed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("URL consumer response body was not closed")
+	}
 
 	require.Eventually(t, func() bool {
 		entries, readErr := os.ReadDir(svc.manualArtifactDir)

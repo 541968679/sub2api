@@ -1,3 +1,25 @@
+## 2026-07-30 - test: wait for canceled image artifact writer shutdown
+
+### What
+The manual image cancellation race integration test now waits until the mocked
+download response body is closed before allowing its temporary artifact
+directory to be cleaned up.
+
+### Why
+The canceled status becomes observable before the detached download worker has
+fully returned. GitHub Actions could therefore finish the assertion and start
+`t.TempDir()` cleanup while the worker was still creating or removing an
+artifact file, producing an intermittent `directory not empty` failure even
+though the cancellation behavior was correct.
+
+### Verification
+- `go test -tags=integration ./internal/service -run TestImageChannelManualCancelWinsAgainstInFlightArtifactCommit -count=20`
+- `go test -tags=unit ./...`
+
+### Affected files
+`backend/internal/service/image_channel_monitor_manual_core_test.go`, this
+changelog.
+
 ## 2026-07-30 - chore: clear release security and formatting gates
 
 ### What
