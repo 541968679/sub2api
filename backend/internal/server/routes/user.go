@@ -138,6 +138,8 @@ func RegisterUserRoutes(
 		// 模型计价页（两段文案 + 展示价格表，按 provider 分组）
 		authenticated.GET("/user/pricing-page", h.PricingPage.Get)
 		authenticated.GET("/user/tutorial-page", h.TutorialPage.Get)
+		// 充值/订阅页顶部公告
+		authenticated.GET("/user/purchase-page", h.PurchasePage.Get)
 		// 渠道监控（用户只读）
 		monitors := authenticated.Group("/channel-monitors")
 		{

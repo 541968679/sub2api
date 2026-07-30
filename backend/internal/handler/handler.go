@@ -34,6 +34,7 @@ type AdminHandlers struct {
 	PricingPage            *admin.PricingPageHandler
 	LoginPage              *admin.LoginPageHandler
 	TutorialPage           *admin.TutorialPageHandler
+	PurchasePage           *admin.PurchasePageHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
 	ImageChannelMonitor    *admin.ImageChannelMonitorHandler
@@ -62,6 +63,7 @@ type Handlers struct {
 	PaymentWebhook          *PaymentWebhookHandler
 	PricingPage             *PricingPageHandler
 	TutorialPage            *TutorialPageHandler
+	PurchasePage            *PurchasePageHandler
 	AvailableChannel        *AvailableChannelHandler
 	BatchImage              *BatchImageHandler
 }

@@ -100,6 +100,8 @@ func RegisterAdminRoutes(
 		// 登录页文案管理
 		registerLoginPageRoutes(admin, h)
 		registerTutorialPageRoutes(admin, h)
+		// 充值/订阅页顶部公告
+		registerPurchasePageRoutes(admin, h)
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
 		registerImageChannelMonitorRoutes(admin, h)
@@ -717,6 +719,15 @@ func registerTutorialPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		tp.GET("/content", h.Admin.TutorialPage.Get)
 		tp.PUT("/content", h.Admin.TutorialPage.Update)
 		tp.POST("/upload-image", h.Admin.TutorialPage.UploadImage)
+	}
+}
+
+// registerPurchasePageRoutes 充值/订阅页顶部公告管理。一段文案存在 settings KV。
+func registerPurchasePageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	pp := admin.Group("/purchase-page")
+	{
+		pp.GET("/content", h.Admin.PurchasePage.Get)
+		pp.PUT("/content", h.Admin.PurchasePage.Update)
 	}
 }
 

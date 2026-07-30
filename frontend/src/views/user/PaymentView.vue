@@ -46,6 +46,25 @@
             </button>
           </div>
 
+          <!-- Page-content managed notice: shared by recharge + subscription tabs -->
+          <div
+            v-if="purchaseNotice"
+            class="flex items-start gap-3 rounded-xl border-2 border-red-400 bg-red-50 px-4 py-4 text-red-900 shadow-sm dark:border-red-500/70 dark:bg-red-950/40 dark:text-red-100 sm:px-5 sm:py-5"
+            role="alert"
+          >
+            <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500 text-base font-bold text-white shadow">
+              !
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
+                {{ t('payment.pageNoticeTitle') }}
+              </p>
+              <p class="mt-1 whitespace-pre-line text-base font-semibold leading-7 sm:text-lg">
+                {{ purchaseNotice }}
+              </p>
+            </div>
+          </div>
+
           <div v-if="activeTab === 'recharge' && !checkout.balance_disabled" class="space-y-6">
             <div class="mx-auto max-w-3xl space-y-5">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabTopUp') }}</h2>
@@ -395,6 +414,7 @@ import { usePaymentStore } from '@/stores/payment'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
+import { purchasePageAPI } from '@/api/purchasePage'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'
 import { isMobileDevice } from '@/utils/device'
@@ -455,6 +475,8 @@ const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
 const previewImage = ref('')
+/** Managed via admin → 页面内容 → 充值订阅页; empty = hidden */
+const purchaseNotice = ref('')
 
 const paymentPhase = ref<'select' | 'paying'>('select')
 
@@ -1231,8 +1253,12 @@ async function resumeWechatPaymentFromQuery() {
 
 onMounted(async () => {
   try {
-    const res = await paymentAPI.getCheckoutInfo()
+    const [res, noticeRes] = await Promise.all([
+      paymentAPI.getCheckoutInfo(),
+      purchasePageAPI.getUserPurchasePageNotice().catch(() => ({ notice: '' })),
+    ])
     checkout.value = res.data
+    purchaseNotice.value = (noticeRes.notice || '').trim()
     if (enabledMethods.value.length) {
       const order: readonly string[] = METHOD_ORDER
       const sorted = [...enabledMethods.value].sort((a, b) => {

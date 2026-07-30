@@ -7771,6 +7771,7 @@ const zhBase = {
     noActiveSubscription: '暂无有效订阅',
     tabTopUp: '充值',
     tabSubscribe: '订阅',
+    pageNoticeTitle: '重要公告',
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
     confirmSubscription: '确认订阅',
@@ -8429,12 +8430,28 @@ const v117ZhPatch = {
     },
     pageContent: {
       title: '页面内容',
-      description: '编辑模型定价页和登录页展示的营销文案，可通过下方标签切换页面。',
+      description: '编辑模型定价页、登录页、教程页和充值订阅页展示的文案，可通过下方标签切换页面。',
       tabs: {
         pricing: '模型定价页',
         login: '登录页',
-        tutorial: '使用教程'
+        tutorial: '使用教程',
+        purchase: '充值订阅页'
       }
+    },
+    purchasePage: {
+      title: '充值订阅页公告',
+      description: '编辑用户充值/订阅页顶部的醒目公告。充值与订阅两个选项卡都会显示。',
+      hint: '公告会以醒目红色横幅显示在充值页与订阅页顶部。支付渠道恢复后，可在此清空文案以关闭公告。',
+      noticeLabel: '公告文案',
+      noticeHint: '建议写清原因与联系方式。支持换行。',
+      noticePlaceholder: '线上支付渠道暂不可用，如需测试请联系客服vx：tqrzfwidc',
+      clearHint: '保存空内容将关闭用户端公告横幅。',
+      clearButton: '清空并关闭公告',
+      clearConfirm: '确定清空公告文案吗？用户端将不再显示该横幅。',
+      previewLabel: '预览效果',
+      previewButton: '预览用户充值页',
+      saveButton: '保存',
+      saveSuccess: '公告已保存'
     },
     tutorial: {
       uploadMd: '上传 MD 文件',

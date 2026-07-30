@@ -1,3 +1,41 @@
+## 2026-07-30 - feat: purchase page emergency payment notice (page content managed)
+
+### What
+Added a prominent red notice banner on the user `/purchase` page that is shared
+by both the recharge and subscription tabs. The notice text is managed under
+Admin → 页面内容 → 充值订阅页 (settings key `purchase_page.notice`). When the
+setting has never been saved, the built-in default is shown:
+「线上支付渠道暂不可用，如需测试请联系客服vx：tqrzfwidc」. Saving an empty
+string disables the banner.
+
+### Why
+Online payment channels are temporarily unavailable. Operators need a highly
+visible user-facing notice plus an admin-editable control path without waiting
+for another deploy when channels recover.
+
+### Verification
+- Backend compile of handler package and wire wiring
+- Frontend PaymentView loads `/user/purchase-page` alongside checkout info
+- Admin Page Content hub exposes the new purchase tab
+
+### Affected files
+`backend/internal/handler/admin/purchase_page_handler.go`,
+`backend/internal/handler/purchase_page_handler.go`,
+`backend/internal/handler/handler.go`,
+`backend/internal/handler/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`backend/internal/server/routes/admin.go`,
+`backend/internal/server/routes/user.go`,
+`frontend/src/api/purchasePage.ts`,
+`frontend/src/api/index.ts`,
+`frontend/src/components/admin/page-content/PurchaseContentForm.vue`,
+`frontend/src/views/admin/PageContentView.vue`,
+`frontend/src/views/user/PaymentView.vue`,
+`frontend/src/views/user/__tests__/PaymentView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-07-30 - fix: preserve Codex Desktop image extension routing
 
 ### What

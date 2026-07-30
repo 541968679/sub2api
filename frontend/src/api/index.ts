@@ -33,6 +33,10 @@ export {
   type PricingPageModel,
   type PricingPageContent
 } from './pricingPage'
+export {
+  purchasePageAPI,
+  type PurchasePageContent
+} from './purchasePage'
 export { loginPageAPI, type LoginPageContent } from './loginPage'
 export { channelMonitorUserAPI } from './channelMonitor'
 export * as batchImageAPI from './batchImage'

@@ -80,6 +80,12 @@ vi.mock('@/api/payment', () => ({
   },
 }))
 
+vi.mock('@/api/purchasePage', () => ({
+  purchasePageAPI: {
+    getUserPurchasePageNotice: vi.fn().mockResolvedValue({ notice: '' }),
+  },
+}))
+
 vi.mock('@/utils/device', () => ({
   isMobileDevice: () => true,
 }))

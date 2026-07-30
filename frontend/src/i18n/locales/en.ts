@@ -3707,15 +3707,31 @@ const enBase = {
       }
     },
 
-    // Page Content hub (wrapper with tabs for pricing/login)
+    // Page Content hub (wrapper with tabs for pricing/login/tutorial/purchase)
     pageContent: {
       title: 'Page Content',
-      description: 'Edit the marketing copy shown on the Model Pricing page and the Login page. Use the tabs below to switch between them.',
+      description: 'Edit the copy shown on the Model Pricing page, Login page, Tutorial page, and Purchase page. Use the tabs below to switch between them.',
       tabs: {
         pricing: 'Model Pricing page',
         login: 'Login page',
-        tutorial: 'Tutorial'
+        tutorial: 'Tutorial',
+        purchase: 'Purchase page'
       }
+    },
+    purchasePage: {
+      title: 'Purchase page notice',
+      description: 'Edit the prominent notice shown at the top of the user recharge/subscription page. It appears on both tabs.',
+      hint: 'The notice is shown as a red banner on both the recharge and subscription tabs. Clear the text after payment channels recover to hide the banner.',
+      noticeLabel: 'Notice text',
+      noticeHint: 'Explain the outage and contact channel. Line breaks are preserved.',
+      noticePlaceholder: 'Online payment is temporarily unavailable. For testing, contact support WeChat: tqrzfwidc',
+      clearHint: 'Saving an empty notice disables the user-facing banner.',
+      clearButton: 'Clear and disable',
+      clearConfirm: 'Clear the notice? The user-facing banner will no longer appear.',
+      previewLabel: 'Preview',
+      previewButton: 'Preview purchase page',
+      saveButton: 'Save',
+      saveSuccess: 'Notice saved'
     },
 
     tutorial: {
@@ -8073,6 +8089,7 @@ const enBase = {
     noActiveSubscription: 'No active subscription',
     tabTopUp: 'Top Up',
     tabSubscribe: 'Subscribe',
+    pageNoticeTitle: 'Important notice',
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     confirmSubscription: 'Confirm Subscription',
