@@ -595,6 +595,8 @@ export interface SystemSettings {
   openai_advanced_scheduler_effective_weight_previous_response?: string;
   openai_advanced_scheduler_effective_weight_session_sticky?: string;
   openai_claude_gpt_bridge_cache_display_settings: OpenAIClaudeGPTBridgeCacheDisplaySettings;
+  display_cache_token_max_mult: number;
+  display_output_residual_growth_ratio: number;
 
   // Balance & quota notification
   balance_low_notify_enabled: boolean;
@@ -808,6 +810,8 @@ export interface UpdateSettingsRequest {
   openai_advanced_scheduler_weight_previous_response?: string;
   openai_advanced_scheduler_weight_session_sticky?: string;
   openai_claude_gpt_bridge_cache_display_settings?: OpenAIClaudeGPTBridgeCacheDisplaySettings;
+  display_cache_token_max_mult?: number;
+  display_output_residual_growth_ratio?: number;
   // Balance & quota notification
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
@@ -952,6 +956,8 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     gateway_network_retry_max: s.gateway_network_retry_max,
     openai_claude_gpt_bridge_cache_display_settings:
       s.openai_claude_gpt_bridge_cache_display_settings,
+    display_cache_token_max_mult: s.display_cache_token_max_mult,
+    display_output_residual_growth_ratio: s.display_output_residual_growth_ratio,
     payment_enabled: s.payment_enabled,
     payment_min_amount: s.payment_min_amount,
     payment_max_amount: s.payment_max_amount,

@@ -263,6 +263,11 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
 	}
 
+	// Persist display cache amplify cap via SQL until ent mutation builders include the field.
+	if err := setUserDisplayCacheTokenMaxMultSQL(txCtx, txClient, updated.ID, userIn.DisplayCacheTokenMaxMult); err != nil {
+		return err
+	}
+
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
 		return err
 	}
@@ -989,9 +994,24 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
 	dst.DownstreamUsageTokenMode = service.NormalizeDownstreamUsageTokenMode(src.DownstreamUsageTokenMode)
+	dst.DisplayCacheTokenMaxMult = src.DisplayCacheTokenMaxMult
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
 	dst.DeletedAt = src.DeletedAt
+}
+
+// setUserDisplayCacheTokenMaxMultSQL updates users.display_cache_token_max_mult outside
+// generated ent mutation builders (field is selected on read via Columns).
+func setUserDisplayCacheTokenMaxMultSQL(ctx context.Context, client *dbent.Client, userID int64, value *float64) error {
+	if client == nil || userID <= 0 {
+		return nil
+	}
+	if value == nil {
+		_, err := client.ExecContext(ctx, "UPDATE users SET display_cache_token_max_mult = NULL WHERE id = $1", userID)
+		return err
+	}
+	_, err := client.ExecContext(ctx, "UPDATE users SET display_cache_token_max_mult = $1 WHERE id = $2", *value, userID)
+	return err
 }
 
 func userSignupSourceOrDefault(signupSource string) string {

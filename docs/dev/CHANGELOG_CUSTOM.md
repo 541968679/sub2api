@@ -1,3 +1,32 @@
+## 2026-07-31 - feat: display cache amplify cap (M) + output residual ratio (α)
+
+### What
+- Display layer: cache_read may amplify up to `M` (`display_cache_token_max_mult`, default **1.3**); residual cache premium prefers **output** under growth ratio `α` (`display_output_residual_growth_ratio`, default **1.5**), overflow to input.
+- Admin Settings: new **展示层 / Display** tab for global M/α; Claude-GPT bridge cache display controls moved here from Gateway.
+- User model pricing modal: optional per-user M override (NULL/empty inherits global).
+- Admin usage table: real vs display **cache share** = `cache_read / (input+output+cache_read+cache_creation)`.
+
+### Why
+Concentrating amplify on input collapsed visible cache share; unbounded cache amplify filled client context too fast. Bounded M + α-capped output residual balances both.
+
+### Verification
+- `go test -tags=unit` on `internal/service` (AllocateDisplay*, DisplayToken_*) and `internal/handler/dto` (ApplyDisplayTransform*)
+- `go build ./cmd/server`
+
+### Affected files
+`backend/internal/service/display_token_alloc.go`, `display_token_rewrite.go`, `model_pricing_resolver.go`, `setting_service.go`, `settings_view.go`, `domain_constants.go`, `admin_service.go`, `user.go`,
+`backend/internal/handler/dto/display_pricing.go`, `usage_handler.go`, `gateway_handler.go`,
+`backend/internal/handler/admin/setting_handler.go`, `user_handler.go`,
+`backend/internal/repository/user_repo.go`,
+`backend/migrations/194_display_cache_token_max_mult.sql`,
+`backend/ent/schema/user.go` (+ minimal ent user field patches),
+`backend/cmd/server/wire_gen.go`,
+`frontend/src/views/admin/SettingsView.vue`, `api/admin/settings.ts`,
+`frontend/src/components/admin/user/UserModelPricingModal.vue`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+this changelog.
+
 ## 2026-07-30 - feat: purchase page emergency payment notice (page content managed)
 
 ### What

@@ -6242,9 +6242,18 @@ const zhBase = {
         security: '安全与认证',
         users: '用户默认值',
         gateway: '网关服务',
+        display: '展示层',
         email: '邮件设置',
         backup: '数据备份',
         payment: '支付设置',
+      },
+      displayLayer: {
+        title: '展示 Token 放大',
+        description: '控制用户可见 usage / 下游 display 模式下的 cache 放大与溢价折入策略，不影响真实扣费。',
+        cacheTokenMaxMult: 'Cache 放大倍率上限 (M)',
+        cacheTokenMaxMultHint: 'display_cache_read ≤ real_cache_read × M。默认 1.3；设为 1.0 则不放大 cache_read。',
+        outputResidualGrowthRatio: 'Output 附加增长比例 (α)',
+        outputResidualGrowthRatioHint: '输出在自身放大后，最多再接 α×自身增量 的 cache 残差 token；超出回 input。默认 1.5，建议 0～3。',
       },
       features: {
         channelMonitor: {
@@ -8778,6 +8787,9 @@ const v117ZhPatch = {
     usage: {
       actions: '操作',
       viewUserPerspective: '查看用户视角',
+      cacheShareHint: '缓存占比 = cache_read / (input+output+cache_read+cache_creation)，非命中率',
+      cacheShareRealOnly: '缓存占比 真实 {real}',
+      cacheShareBoth: '缓存占比 真实 {real} · 展示 {display}',
       userViewCompareTitle: '用户视角费用对比',
       userViewConfigHint: '以下展示值可能包含用户侧展示覆盖和分组倍率。',
       userViewConfigUsed: '已使用配置',
@@ -8819,6 +8831,9 @@ const v117ZhPatch = {
       modelPricing: '模型定价',
       modelPricingConfig: '模型定价配置',
       modelPricingHint: '为该用户配置单独的模型展示价或计费价覆盖。',
+      displayCacheTokenMaxMult: 'Cache 放大倍率上限 (用户级)',
+      displayCacheTokenMaxMultPlaceholder: '空 = 继承全局',
+      displayCacheTokenMaxMultHint: '覆盖系统「展示层」全局 M。留空或 0 表示继承全局默认。',
       addModelOverride: '添加模型覆盖',
       noModelOverrides: '暂无模型覆盖',
       duplicateModelError: '模型名称不能重复',

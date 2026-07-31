@@ -110,6 +110,8 @@ export interface AdminUser extends User {
   last_used_at?: string | null
   last_used_ip?: string | null
   downstream_usage_token_mode?: DownstreamUsageTokenMode
+  // User override for display cache amplify cap M (null = inherit global)
+  display_cache_token_max_mult?: number | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
   // 用户专属分组展示倍率配置 (group_id -> display_rate_multiplier)
@@ -1863,6 +1865,8 @@ export interface UpdateUserRequest {
   balance?: number
   concurrency?: number
   downstream_usage_token_mode?: DownstreamUsageTokenMode
+  /** >0 set override; 0 clear override (inherit global); omit leave unchanged */
+  display_cache_token_max_mult?: number
   status?: UserStatus
   allowed_groups?: number[] | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier | null)

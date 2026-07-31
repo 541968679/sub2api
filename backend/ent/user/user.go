@@ -65,6 +65,8 @@ const (
 	FieldRpmLimit = "rpm_limit"
 	// FieldDownstreamUsageTokenMode holds the string denoting the downstream_usage_token_mode field in the database.
 	FieldDownstreamUsageTokenMode = "downstream_usage_token_mode"
+	// FieldDisplayCacheTokenMaxMult holds the string denoting the display_cache_token_max_mult field in the database.
+	FieldDisplayCacheTokenMaxMult = "display_cache_token_max_mult"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -221,6 +223,7 @@ var Columns = []string{
 	FieldTotalRecharged,
 	FieldRpmLimit,
 	FieldDownstreamUsageTokenMode,
+	FieldDisplayCacheTokenMaxMult,
 }
 
 var (

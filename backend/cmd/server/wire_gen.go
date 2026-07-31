@@ -199,6 +199,18 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	deferredService := service.ProvideDeferredService(accountRepository, timingWheelService)
 	digestSessionStore := service.NewDigestSessionStore()
 	modelPricingResolver := service.NewModelPricingResolver(channelService, billingService, globalPricingCache, userModelPricingRepository)
+	// Wire display-layer M/α controls for downstream token rewrite allocation.
+	modelPricingResolver.SetDisplayAllocControls(func(ctx context.Context) (float64, float64, bool) {
+		m, alpha := settingService.GetDisplayTokenAllocSettings(ctx)
+		return m, alpha, true
+	})
+	modelPricingResolver.SetUserDisplayCacheMaxMultResolver(func(ctx context.Context, userID int64) (*float64, bool) {
+		u, err := userRepository.GetByID(ctx, userID)
+		if err != nil || u == nil || u.DisplayCacheTokenMaxMult == nil {
+			return nil, false
+		}
+		return u.DisplayCacheTokenMaxMult, true
+	})
 	batchImageModelPricingResolver := service.ProvideBatchImageModelPricingResolver(modelPricingResolver)
 	batchImagePublicService := service.NewBatchImagePublicService(batchImageRepository, accountRepository, groupRepository, userGroupRateRepository, batchImageQueue, batchImageModelPricingResolver, usageBillingRepository, apiKeyAuthCacheInvalidator, configConfig)
 	batchImageDownloadService := service.NewBatchImageDownloadService(batchImageRepository, accountRepository, batchImageDownloadLimiter, configConfig)

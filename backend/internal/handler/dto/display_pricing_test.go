@@ -8,9 +8,11 @@ import (
 )
 
 func TestApplyDisplayTransform_CachePremiumMovesToInput(t *testing.T) {
+	// Legacy-compatible path: M=1 (no cache amplify) and α=0 (residual all to input).
 	dispInput := 1.5e-6
 	dispOutput := 7.5e-6
 	dispCache := 0.3e-6
+	alpha0 := 0.0
 	log := UsageLog{
 		Model:           "claude-sonnet-4-6",
 		InputTokens:     1000,
@@ -25,13 +27,15 @@ func TestApplyDisplayTransform_CachePremiumMovesToInput(t *testing.T) {
 	}
 
 	ApplyDisplayTransform(&log, &DisplayPricingConfig{
-		DisplayInputPrice:     &dispInput,
-		DisplayOutputPrice:    &dispOutput,
-		DisplayCacheReadPrice: &dispCache,
+		DisplayInputPrice:         &dispInput,
+		DisplayOutputPrice:        &dispOutput,
+		DisplayCacheReadPrice:     &dispCache,
+		CacheTokenMaxMult:         1.0,
+		OutputResidualGrowthRatio: &alpha0,
 	})
 
 	if log.CacheReadTokens != 5000 {
-		t.Fatalf("cache_read_tokens should stay real, got %d", log.CacheReadTokens)
+		t.Fatalf("cache_read_tokens should stay real at M=1, got %d", log.CacheReadTokens)
 	}
 	assertClose(t, "cache_read_cost", log.CacheReadCost, 0.0015)
 	assertClose(t, "input_cost", log.InputCost, 0.006)
@@ -46,6 +50,44 @@ func TestApplyDisplayTransform_CachePremiumMovesToInput(t *testing.T) {
 		t.Fatalf("rate_multiplier should be unchanged, got %.2f", log.RateMultiplier)
 	}
 	assertClose(t, "total_cost", log.TotalCost, 0.015)
+}
+
+func TestApplyDisplayTransform_BoundedCacheAndOutputResidual(t *testing.T) {
+	// Defaults M=1.3, α=1.5: cache amplifies to 1.3×, residual prefers output.
+	dispInput := 1.5e-6
+	dispOutput := 7.5e-6
+	dispCache := 0.3e-6
+	log := UsageLog{
+		InputTokens:     1000,
+		OutputTokens:    500,
+		CacheReadTokens: 5000,
+		InputCost:       0.003,
+		OutputCost:      0.0075,
+		CacheReadCost:   0.0045,
+		TotalCost:       0.015,
+		ActualCost:      0.015,
+		RateMultiplier:  1.0,
+	}
+
+	ApplyDisplayTransform(&log, &DisplayPricingConfig{
+		DisplayInputPrice:     &dispInput,
+		DisplayOutputPrice:    &dispOutput,
+		DisplayCacheReadPrice: &dispCache,
+		// defaults for M/α
+	})
+
+	if log.CacheReadTokens != 6500 {
+		t.Fatalf("cache_read should amplify to min(ideal, real*1.3)=6500, got %d", log.CacheReadTokens)
+	}
+	assertClose(t, "cache_read_cost", log.CacheReadCost, 0.00195)
+	// residual fully fits under α*G_own → input keeps own-only 2000
+	if log.InputTokens != 2000 {
+		t.Fatalf("input should stay own-cost back-calc (2000), got %d", log.InputTokens)
+	}
+	if log.OutputTokens != 1340 {
+		t.Fatalf("output should be own 1000 + residual 340 = 1340, got %d", log.OutputTokens)
+	}
+	assertClose(t, "actual_cost", log.ActualCost, 0.015)
 }
 
 func TestApplyDisplayTransform_NoDisplayInputPriceLeavesCacheReal(t *testing.T) {
@@ -270,11 +312,14 @@ func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmp
 		LongContextOutputMultiplier: 1.5,
 	}
 
+	alpha0 := 0.0
 	out := UsageLogFromService(log, DisplayPricingMap{
 		"gpt-5.5": &DisplayPricingConfig{
-			DisplayInputPrice:     &displayInput,
-			DisplayOutputPrice:    &displayOutput,
-			DisplayCacheReadPrice: &displayCacheRead,
+			DisplayInputPrice:         &displayInput,
+			DisplayOutputPrice:        &displayOutput,
+			DisplayCacheReadPrice:     &displayCacheRead,
+			CacheTokenMaxMult:         1.0,
+			OutputResidualGrowthRatio: &alpha0,
 		},
 	})
 	ApplyUserDisplayRate(out, 1.0)
@@ -559,6 +604,7 @@ func TestApplyDisplayTransform_CacheCreationComposesWithCacheReadPremium(t *test
 	dispOutput := 7.5e-6
 	dispCache := 0.3e-6
 	dispCreate := 2.5e-6
+	alpha0 := 0.0
 	log := UsageLog{
 		InputTokens:         1000,
 		OutputTokens:        500,
@@ -578,9 +624,11 @@ func TestApplyDisplayTransform_CacheCreationComposesWithCacheReadPremium(t *test
 		DisplayOutputPrice:        &dispOutput,
 		DisplayCacheReadPrice:     &dispCache,
 		DisplayCacheCreationPrice: &dispCreate,
+		CacheTokenMaxMult:         1.0,
+		OutputResidualGrowthRatio: &alpha0,
 	})
 
-	// Same expectations as the cache-read premium test...
+	// Same expectations as the M=1/α=0 cache-read premium test...
 	if log.InputTokens != 4000 || log.OutputTokens != 1000 || log.CacheReadTokens != 5000 {
 		t.Fatalf("read-premium math changed: input=%d output=%d cacheRead=%d", log.InputTokens, log.OutputTokens, log.CacheReadTokens)
 	}

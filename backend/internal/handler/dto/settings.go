@@ -197,6 +197,10 @@ type SystemSettings struct {
 	// OpenAI Claude-GPT bridge cache display override
 	OpenAIClaudeGPTBridgeCacheDisplaySettings *OpenAIClaudeGPTBridgeCacheDisplaySettings `json:"openai_claude_gpt_bridge_cache_display_settings,omitempty"`
 
+	// Display-layer token amplify controls
+	DisplayCacheTokenMaxMult         float64 `json:"display_cache_token_max_mult"`
+	DisplayOutputResidualGrowthRatio float64 `json:"display_output_residual_growth_ratio"`
+
 	// Payment configuration
 	PaymentEnabled                   bool                `json:"payment_enabled"`
 	PaymentMinAmount                 float64             `json:"payment_min_amount"`

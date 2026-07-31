@@ -443,6 +443,10 @@ const (
 	SettingKeyEnableClientDatelineNormalization  = "enable_client_dateline_normalization"
 	// SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings stores optional display-only cache generation settings for OpenAI Claude-GPT bridge requests.
 	SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings = "openai_claude_gpt_bridge_cache_display_settings"
+	// SettingKeyDisplayCacheTokenMaxMult is the global cache_read display amplify cap (M).
+	SettingKeyDisplayCacheTokenMaxMult = "display_cache_token_max_mult"
+	// SettingKeyDisplayOutputResidualGrowthRatio is α: max extra output growth from cache residual.
+	SettingKeyDisplayOutputResidualGrowthRatio = "display_output_residual_growth_ratio"
 	// SettingKeyGatewayNetworkRetryMax controls retry count for upstream transport/network errors.
 	SettingKeyGatewayNetworkRetryMax = "gateway_network_retry_max"
 

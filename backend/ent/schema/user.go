@@ -126,6 +126,10 @@ func (User) Fields() []ent.Field {
 					return fmt.Errorf("must be one of real, display")
 				}
 			}),
+		// User override for display cache_read amplify cap M (NULL = inherit global).
+		field.Float("display_cache_token_max_mult").
+			Optional().
+			Nillable(),
 	}
 }
 

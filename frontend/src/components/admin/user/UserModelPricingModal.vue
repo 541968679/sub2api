@@ -9,6 +9,23 @@
         <div class="flex-1">
           <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ user.email }}</p>
           <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ t('admin.users.modelPricingHint') }}</p>
+          <div class="mt-3 max-w-sm">
+            <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+              {{ t('admin.users.displayCacheTokenMaxMult') }}
+            </label>
+            <input
+              v-model="cacheMaxMultInput"
+              type="number"
+              min="0"
+              max="100"
+              step="0.1"
+              class="input text-sm"
+              :placeholder="t('admin.users.displayCacheTokenMaxMultPlaceholder')"
+            />
+            <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+              {{ t('admin.users.displayCacheTokenMaxMultHint') }}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -192,6 +209,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import { perTokenToMTok, mTokToPerToken } from '@/components/admin/channel/types'
 import { adminAPI } from '@/api/admin'
+import { update as updateUser } from '@/api/admin/users'
 import {
   getUserModelPricing,
   batchUpsertUserModelPricing,
@@ -200,6 +218,7 @@ import {
 } from '@/api/admin/userModelPricing'
 
 const { t } = useI18n()
+const cacheMaxMultInput = ref<string | number>('')
 
 interface OverrideRow {
   id?: number
@@ -325,6 +344,10 @@ watch(
     if (!val || !props.user) return
     loading.value = true
     try {
+      cacheMaxMultInput.value =
+        props.user.display_cache_token_max_mult != null && props.user.display_cache_token_max_mult > 0
+          ? props.user.display_cache_token_max_mult
+          : ''
       await loadAvailableModels()
       const data = await getUserModelPricing(props.user.id)
       overrides.value = (data || []).map((o: UserModelPricingOverride) => ({
@@ -418,6 +441,14 @@ async function save() {
     if (toUpsert.length > 0) {
       await batchUpsertUserModelPricing(userId, toUpsert)
     }
+
+    // User-global cache amplify cap (empty/0 = inherit global)
+    const rawMult = Number(cacheMaxMultInput.value)
+    const multPayload =
+      cacheMaxMultInput.value === '' || cacheMaxMultInput.value == null || Number.isNaN(rawMult) || rawMult <= 0
+        ? 0
+        : rawMult
+    await updateUser(userId, { display_cache_token_max_mult: multPayload })
 
     emit('success')
     emit('close')

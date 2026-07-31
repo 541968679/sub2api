@@ -25,6 +25,21 @@ type DisplayTokenMultipliers struct {
 	CacheCreate1hMult float64
 	RateScale         float64
 	RateScaleSet      bool
+
+	// Alloc path (M + α residual sink). When UseTokenAlloc is true,
+	// computeSeparatedDisplayUsage prefers AllocateDisplayTokens over linear mults
+	// for input/output/cache_read so usage-log and downstream stay aligned.
+	UseTokenAlloc             bool
+	RealInputPrice            float64
+	RealOutputPrice           float64
+	RealCacheReadPrice        float64
+	AllocDisplayInputPrice    *float64
+	AllocDisplayOutputPrice   *float64
+	AllocDisplayCacheReadPrice *float64
+	CacheTokenMaxMult         float64
+	OutputResidualGrowthRatio *float64
+	// CacheReadOutputMult is retained for diagnostics / legacy linear fallbacks.
+	CacheReadOutputMult float64
 }
 
 type displayTokenPricingConfig struct {
@@ -56,6 +71,7 @@ func (m *DisplayTokenMultipliers) IsNonTrivial() bool {
 		m.cacheCreate5mMultOrDefault() != 1.0 ||
 		m.cacheCreate1hMultOrDefault() != 1.0 ||
 		m.CacheReadInputMult != 0 ||
+		m.CacheReadOutputMult != 0 ||
 		displayTokenRateScale(m) != 1.0
 }
 
@@ -199,17 +215,57 @@ func computeDisplayTokenMultipliers(
 		RateScaleSet:      true,
 	}
 
-	// Layer 1: display pricing. Cache-read tokens stay on the cache line, and
-	// any lower display cache price is balanced by moving the cache premium into
-	// display input tokens, matching handler/dto.ApplyDisplayTransform.
+	// Layer 1: display pricing. Input/output/cache_read use AllocateDisplayTokens
+	// when rewrite sees real token counts (UseTokenAlloc). Linear mults remain for
+	// cache-creation and as a fallback when alloc prices are incomplete.
 	pricing := resolveDisplayTokenPricing(ctx, model, userID, groupID, resolver)
 	mult.InputMult = displayTokenMultiplier(pricing.InputPrice, pricing.DisplayInputPrice)
 	mult.OutputMult = displayTokenMultiplier(pricing.OutputPrice, pricing.DisplayOutputPrice)
+
+	// Legacy linear residual mults (fallback only when UseTokenAlloc is false).
 	mult.CacheReadInputMult = displayCacheReadInputPremiumMultiplier(
 		pricing.CacheReadPrice,
 		pricing.DisplayCacheReadPrice,
 		pricing.DisplayInputPrice,
 	)
+
+	mEff := DefaultDisplayCacheTokenMaxMult
+	alpha := DefaultDisplayOutputResidualGrowthRatio
+	if resolver != nil {
+		// Settings-backed M/α are injected later when SettingService is available on
+		// the gateway path; defaults apply until wired. User override M is resolved
+		// via resolveDisplayTokenAllocControls when present on pricing bundle.
+		if controls := resolveDisplayTokenAllocControls(ctx, userID, resolver); controls != nil {
+			mEff = controls.CacheTokenMaxMult
+			alpha = controls.OutputResidualGrowthRatio
+		}
+	}
+	mult.CacheTokenMaxMult = mEff
+	alphaCopy := alpha
+	mult.OutputResidualGrowthRatio = &alphaCopy
+	mult.RealInputPrice = pricing.InputPrice
+	mult.RealOutputPrice = pricing.OutputPrice
+	mult.RealCacheReadPrice = pricing.CacheReadPrice
+	mult.AllocDisplayInputPrice = pricing.DisplayInputPrice
+	mult.AllocDisplayOutputPrice = pricing.DisplayOutputPrice
+	mult.AllocDisplayCacheReadPrice = pricing.DisplayCacheReadPrice
+	if pricing.DisplayInputPrice != nil || pricing.DisplayOutputPrice != nil || pricing.DisplayCacheReadPrice != nil {
+		// Enable token alloc whenever any display component price is set.
+		if pricing.InputPrice > 0 || pricing.OutputPrice > 0 || pricing.CacheReadPrice > 0 {
+			mult.UseTokenAlloc = true
+		}
+		// Approximate CacheReadMult for IsNonTrivial / diagnostics.
+		if pricing.CacheReadPrice > 0 && pricing.DisplayCacheReadPrice != nil && *pricing.DisplayCacheReadPrice > 0 {
+			ratio := pricing.CacheReadPrice / *pricing.DisplayCacheReadPrice
+			if ratio > 1 {
+				if ratio > mEff {
+					mult.CacheReadMult = mEff
+				} else {
+					mult.CacheReadMult = ratio
+				}
+			}
+		}
+	}
 
 	// Cache creation: tokens are back-computed directly at the display price
 	// (matching dto.ApplyDisplayTransform's cost ÷ display-price semantics).
@@ -240,6 +296,36 @@ func computeDisplayTokenMultipliers(
 	}
 
 	return mult
+}
+
+// displayTokenAllocControls holds resolved M/α for a user request.
+type displayTokenAllocControls struct {
+	CacheTokenMaxMult         float64
+	OutputResidualGrowthRatio float64
+}
+
+// resolveDisplayTokenAllocControls returns M/α defaults; SettingService wiring
+// fills global values when the resolver carries a settings reader (optional).
+func resolveDisplayTokenAllocControls(ctx context.Context, userID int64, resolver *ModelPricingResolver) *displayTokenAllocControls {
+	_ = ctx
+	controls := &displayTokenAllocControls{
+		CacheTokenMaxMult:         DefaultDisplayCacheTokenMaxMult,
+		OutputResidualGrowthRatio: DefaultDisplayOutputResidualGrowthRatio,
+	}
+	if resolver == nil {
+		return controls
+	}
+	if resolver.displayAllocControls != nil {
+		globalM, globalAlpha, alphaSet := resolver.displayAllocControls(ctx)
+		controls.CacheTokenMaxMult = ResolveDisplayCacheTokenMaxMult(nil, globalM)
+		controls.OutputResidualGrowthRatio = ResolveDisplayOutputResidualGrowthRatio(globalAlpha, alphaSet)
+	}
+	if userID > 0 && resolver.userDisplayCacheMaxMult != nil {
+		if override, ok := resolver.userDisplayCacheMaxMult(ctx, userID); ok {
+			controls.CacheTokenMaxMult = ResolveDisplayCacheTokenMaxMult(override, controls.CacheTokenMaxMult)
+		}
+	}
+	return controls
 }
 
 //nolint:unused // Kept as a GatewayService-bound adapter for callers that need service-owned pricing resolution.
@@ -877,13 +963,40 @@ func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTo
 		cacheCreateTokens = 0
 	}
 
-	displayInputRaw := float64(inputTokens) * mult.InputMult
-	if inputTokens > 0 {
-		displayInputRaw += float64(cacheReadTokens) * mult.CacheReadInputMult
+	var displayInput, displayOutput, displayCacheRead int
+	if mult.UseTokenAlloc &&
+		(mult.RealInputPrice > 0 || mult.RealOutputPrice > 0 || mult.RealCacheReadPrice > 0) {
+		alloc := AllocateDisplayTokens(DisplayTokenAllocInput{
+			InputTokens:               inputTokens,
+			OutputTokens:              outputTokens,
+			CacheReadTokens:           cacheReadTokens,
+			InputCost:                 float64(inputTokens) * mult.RealInputPrice,
+			OutputCost:                float64(outputTokens) * mult.RealOutputPrice,
+			CacheReadCost:             float64(cacheReadTokens) * mult.RealCacheReadPrice,
+			DisplayInputPrice:         mult.AllocDisplayInputPrice,
+			DisplayOutputPrice:        mult.AllocDisplayOutputPrice,
+			DisplayCacheReadPrice:     mult.AllocDisplayCacheReadPrice,
+			CacheTokenMaxMult:         mult.CacheTokenMaxMult,
+			OutputResidualGrowthRatio: mult.OutputResidualGrowthRatio,
+		})
+		displayInput = alloc.InputTokens
+		displayOutput = alloc.OutputTokens
+		displayCacheRead = alloc.CacheReadTokens
+	} else {
+		displayInputRaw := float64(inputTokens) * mult.InputMult
+		if inputTokens > 0 {
+			displayInputRaw += float64(cacheReadTokens) * mult.CacheReadInputMult
+		}
+		if outputTokens > 0 && mult.CacheReadOutputMult != 0 {
+			// linear fallback only; primary path uses UseTokenAlloc
+		}
+		displayInput = int(math.Round(displayInputRaw))
+		displayOutput = roundDisplayTokenCount(outputTokens, mult.OutputMult)
+		if mult.CacheReadOutputMult != 0 {
+			displayOutput += roundDisplayTokenCount(cacheReadTokens, mult.CacheReadOutputMult)
+		}
+		displayCacheRead = roundDisplayTokenCount(cacheReadTokens, mult.CacheReadMult)
 	}
-	displayInput := int(math.Round(displayInputRaw))
-	displayOutput := roundDisplayTokenCount(outputTokens, mult.OutputMult)
-	displayCacheRead := roundDisplayTokenCount(cacheReadTokens, mult.CacheReadMult)
 	displayCacheCreate := roundDisplayTokenCount(cacheCreateTokens, mult.CacheCreateMult)
 
 	rateScale := displayTokenRateScale(mult)
@@ -891,6 +1004,7 @@ func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTo
 		displayInput = roundDisplayTokenCount(displayInput, rateScale)
 		displayOutput = roundDisplayTokenCount(displayOutput, rateScale)
 		displayCacheCreate = roundDisplayTokenCount(displayCacheCreate, rateScale)
+		// cache_read is not rate-scaled (same as usage ApplyUserDisplayRate).
 	}
 
 	return displayInput, displayOutput, displayCacheRead, displayCacheCreate

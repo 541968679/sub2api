@@ -67,6 +67,8 @@ type User struct {
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// DownstreamUsageTokenMode holds the value of the "downstream_usage_token_mode" field.
 	DownstreamUsageTokenMode string `json:"downstream_usage_token_mode,omitempty"`
+	// DisplayCacheTokenMaxMult holds the value of the "display_cache_token_max_mult" field.
+	DisplayCacheTokenMaxMult *float64 `json:"display_cache_token_max_mult,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -241,7 +243,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
+		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged, user.FieldDisplayCacheTokenMaxMult:
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
@@ -425,6 +427,13 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field downstream_usage_token_mode", values[i])
 			} else if value.Valid {
 				_m.DownstreamUsageTokenMode = value.String
+			}
+		case user.FieldDisplayCacheTokenMaxMult:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field display_cache_token_max_mult", values[i])
+			} else if value.Valid {
+				_m.DisplayCacheTokenMaxMult = new(float64)
+				*_m.DisplayCacheTokenMaxMult = value.Float64
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])

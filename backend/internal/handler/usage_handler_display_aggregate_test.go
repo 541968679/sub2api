@@ -96,11 +96,11 @@ func TestAggregateDisplayedGroups_ReconcilesWithPerRow(t *testing.T) {
 	require.InDelta(t, rowSum.TotalCost, groupAgg.TotalCost, 1e-9)
 	require.InDelta(t, rowSum.ActualCost, groupAgg.ActualCost, 1e-9)
 
-	// Expected display values: cache_read count is preserved, input is inflated by the
-	// moved cache premium, and actual_cost equals the real charged amount (rate 1).
-	require.Equal(t, int64(150000), groupAgg.CacheReadTokens)
-	require.Equal(t, int64(52200), groupAgg.InputTokens)
-	require.Equal(t, int64(600), groupAgg.OutputTokens)
+	// New alloc: default M=1.3 cache cap + α=1.5 residual prefers output.
+	// actual_cost stays the real charged amount (rate 1).
+	require.Equal(t, int64(195000), groupAgg.CacheReadTokens)
+	require.Equal(t, int64(45000), groupAgg.InputTokens)
+	require.Equal(t, int64(1050), groupAgg.OutputTokens)
 	require.InDelta(t, 0.354, groupAgg.ActualCost, 1e-9)
 }
 

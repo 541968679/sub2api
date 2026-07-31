@@ -129,6 +129,13 @@
                   <span v-if="row.cache_ttl_overridden" :title="t('usage.cacheTtlOverriddenHint')" class="inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-rose-100 text-rose-600 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:ring-rose-500/30 cursor-help">R</span>
                 </div>
               </div>
+              <div
+                v-if="cacheShareLabel(row)"
+                class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400"
+                :title="t('admin.usage.cacheShareHint')"
+              >
+                {{ cacheShareLabel(row) }}
+              </div>
             </div>
             <!-- Token Detail Tooltip -->
             <div
@@ -426,6 +433,23 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
   return Number.isNaN(result) ? 0 : result
 }
 
+/** Cache share = cache_read / (input+output+cache_read+cache_creation), not hit rate. */
+function cacheSharePercent(
+  input: number,
+  output: number,
+  cacheRead: number,
+  cacheCreate: number,
+): number | null {
+  const total = Math.max(0, input) + Math.max(0, output) + Math.max(0, cacheRead) + Math.max(0, cacheCreate)
+  if (total <= 0) return null
+  return (Math.max(0, cacheRead) / total) * 100
+}
+
+function formatShare(pct: number | null): string {
+  if (pct == null || Number.isNaN(pct)) return '-'
+  return `${pct.toFixed(1)}%`
+}
+
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -454,6 +478,33 @@ defineEmits<{
   sort: [key: string, order: 'asc' | 'desc']
 }>()
 const { t } = useI18n()
+
+function cacheShareLabel(row: AdminUsageLog): string {
+  const real = cacheSharePercent(
+    row.input_tokens ?? 0,
+    textOutputTokens(row) + (row.image_output_tokens ?? 0),
+    row.cache_read_tokens ?? 0,
+    row.cache_creation_tokens ?? 0,
+  )
+  const df = row.display_fields
+  let display: number | null = null
+  if (df) {
+    display = cacheSharePercent(
+      df.display_input_tokens ?? 0,
+      df.display_output_tokens ?? 0,
+      df.display_cache_read_tokens ?? 0,
+      df.display_cache_creation_tokens ?? 0,
+    )
+  }
+  if (real == null && display == null) return ''
+  if (display == null) {
+    return t('admin.usage.cacheShareRealOnly', { real: formatShare(real) })
+  }
+  return t('admin.usage.cacheShareBoth', {
+    real: formatShare(real),
+    display: formatShare(display),
+  })
+}
 
 // Tooltip state - cost
 const tooltipVisible = ref(false)

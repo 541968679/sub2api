@@ -1283,7 +1283,7 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	// Best-effort: 获取模型统计（展示值）
 	var modelStats any
 	if h.usageService != nil {
-		if records, err := loadDisplayedUsageRecords(ctx, h.usageService, displayMap, userDisplayRates, h.pricingResolver, apiKey.UserID, apiKey.ID, startTime, endTime); err == nil && len(records) > 0 {
+		if records, err := loadDisplayedUsageRecords(ctx, h.usageService, displayMap, userDisplayRates, h.pricingResolver, nil, apiKey.UserID, apiKey.ID, startTime, endTime); err == nil && len(records) > 0 {
 			modelStats = aggregateDisplayedModelStats(records)
 		}
 	}

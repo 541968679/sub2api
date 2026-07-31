@@ -124,9 +124,11 @@ func TestDisplayToken_ComputeMultipliersUsesUserDisplayPricingOverride(t *testin
 	require.NotNil(t, mult)
 	require.InDelta(t, 4.0, mult.InputMult, 1e-12)
 	require.InDelta(t, 4.0, mult.OutputMult, 1e-12)
-	require.InDelta(t, 1.0, mult.CacheReadMult, 1e-12)
+	// CacheReadMult is min(real/display, M_default) for diagnostics; full residual uses UseTokenAlloc.
+	require.InDelta(t, DefaultDisplayCacheTokenMaxMult, mult.CacheReadMult, 1e-12)
 	require.InDelta(t, 1.5, mult.CacheReadInputMult, 1e-12)
 	require.InDelta(t, 1.0, mult.CacheCreateMult, 1e-12)
+	require.True(t, mult.UseTokenAlloc)
 }
 
 func TestDisplayToken_LongContextEffectivePricesKeepTokenAmplificationInvariant(t *testing.T) {
@@ -167,9 +169,10 @@ func TestDisplayToken_LongContextEffectivePricesKeepTokenAmplificationInvariant(
 
 	require.InDelta(t, 2.0, mult.InputMult, 1e-12)
 	require.InDelta(t, 2.0, mult.OutputMult, 1e-12)
-	require.InDelta(t, 1.0, mult.CacheReadMult, 1e-12)
+	require.InDelta(t, DefaultDisplayCacheTokenMaxMult, mult.CacheReadMult, 1e-12)
 	require.InDelta(t, 0.1, mult.CacheReadInputMult, 1e-12)
 	require.InDelta(t, 2.0, displayTokenRateScale(mult), 1e-12)
+	require.True(t, mult.UseTokenAlloc)
 
 	longInputMultiplier := 2.0
 	longOutputMultiplier := 1.5

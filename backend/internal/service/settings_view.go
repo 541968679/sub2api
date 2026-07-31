@@ -209,6 +209,10 @@ type SystemSettings struct {
 	// OpenAI Claude-GPT bridge cache display override
 	OpenAIClaudeGPTBridgeCacheDisplaySettings *OpenAIClaudeGPTBridgeCacheDisplaySettings
 
+	// Display-layer token amplify controls (admin "展示层" settings)
+	DisplayCacheTokenMaxMult         float64 // M, default 1.2
+	DisplayOutputResidualGrowthRatio float64 // α, default 1.0
+
 	// Balance low notification
 	BalanceLowNotifyEnabled     bool
 	BalanceLowNotifyThreshold   float64

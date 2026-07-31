@@ -1545,6 +1545,10 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	settings.GatewayNetworkRetryMax = ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax)
 	updates[SettingKeyGatewayNetworkRetryMax] = strconv.Itoa(settings.GatewayNetworkRetryMax)
+	settings.DisplayCacheTokenMaxMult = ResolveDisplayCacheTokenMaxMult(nil, settings.DisplayCacheTokenMaxMult)
+	updates[SettingKeyDisplayCacheTokenMaxMult] = strconv.FormatFloat(settings.DisplayCacheTokenMaxMult, 'f', -1, 64)
+	settings.DisplayOutputResidualGrowthRatio = ResolveDisplayOutputResidualGrowthRatio(settings.DisplayOutputResidualGrowthRatio, true)
+	updates[SettingKeyDisplayOutputResidualGrowthRatio] = strconv.FormatFloat(settings.DisplayOutputResidualGrowthRatio, 'f', -1, 64)
 	bridgeCacheDisplay, err := normalizeOpenAIClaudeGPTBridgeCacheDisplaySettings(settings.OpenAIClaudeGPTBridgeCacheDisplaySettings)
 	if err != nil {
 		return nil, err
@@ -2357,6 +2361,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingPaymentVisibleMethodWxpayEnabled:             "false",
 		openAIAdvancedSchedulerSettingKey:                   "false",
 		SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings: `{"enabled":false,"min_percent":0,"max_percent":0}`,
+		SettingKeyDisplayCacheTokenMaxMult:                  strconv.FormatFloat(DefaultDisplayCacheTokenMaxMult, 'f', -1, 64),
+		SettingKeyDisplayOutputResidualGrowthRatio:          strconv.FormatFloat(DefaultDisplayOutputResidualGrowthRatio, 'f', -1, 64),
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -2721,6 +2727,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableAnthropicCacheTTL1hInjection = settings[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
 	result.EnableClientDatelineNormalization = settings[SettingKeyEnableClientDatelineNormalization] != "false"
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
+	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
+	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])
 	result.OpenAIClaudeGPTBridgeCacheDisplaySettings = parseOpenAIClaudeGPTBridgeCacheDisplaySettings(settings[SettingKeyOpenAIClaudeGPTBridgeCacheDisplaySettings])
 
 	// Web search emulation: quick enabled check from the JSON config
@@ -2824,6 +2832,48 @@ func ParseGatewayNetworkRetryMax(raw string) int {
 		return GatewayNetworkRetryMaxDefault
 	}
 	return ClampGatewayNetworkRetryMax(value)
+}
+
+// ParseDisplayCacheTokenMaxMult parses global M from settings KV.
+func ParseDisplayCacheTokenMaxMult(raw string) float64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return DefaultDisplayCacheTokenMaxMult
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return DefaultDisplayCacheTokenMaxMult
+	}
+	return ResolveDisplayCacheTokenMaxMult(nil, value)
+}
+
+// ParseDisplayOutputResidualGrowthRatio parses global α from settings KV.
+func ParseDisplayOutputResidualGrowthRatio(raw string) float64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return DefaultDisplayOutputResidualGrowthRatio
+	}
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return DefaultDisplayOutputResidualGrowthRatio
+	}
+	return ResolveDisplayOutputResidualGrowthRatio(value, true)
+}
+
+// GetDisplayTokenAllocSettings returns global M and α for display token allocation.
+func (s *SettingService) GetDisplayTokenAllocSettings(ctx context.Context) (m float64, alpha float64) {
+	if s == nil || s.settingRepo == nil {
+		return DefaultDisplayCacheTokenMaxMult, DefaultDisplayOutputResidualGrowthRatio
+	}
+	values, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyDisplayCacheTokenMaxMult,
+		SettingKeyDisplayOutputResidualGrowthRatio,
+	})
+	if err != nil {
+		return DefaultDisplayCacheTokenMaxMult, DefaultDisplayOutputResidualGrowthRatio
+	}
+	return ParseDisplayCacheTokenMaxMult(values[SettingKeyDisplayCacheTokenMaxMult]),
+		ParseDisplayOutputResidualGrowthRatio(values[SettingKeyDisplayOutputResidualGrowthRatio])
 }
 
 func parseLegalConsentSettings(settings map[string]string) LegalConsentSettings {

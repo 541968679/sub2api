@@ -71,6 +71,7 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 		Notes:                    u.Notes,
 		LastUsedAt:               u.LastUsedAt,
 		DownstreamUsageTokenMode: service.NormalizeDownstreamUsageTokenMode(u.DownstreamUsageTokenMode),
+		DisplayCacheTokenMaxMult: u.DisplayCacheTokenMaxMult,
 		GroupRates:               u.GroupRates,
 		GroupDisplayRates:        u.GroupDisplayRates,
 	}
@@ -689,6 +690,12 @@ func usageLogDisplayModel(l *service.UsageLog) string {
 // It includes minimal Account info (ID, Name only) and IP address.
 // Display fields are computed for dual-column comparison but real values are preserved.
 func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap) *AdminUsageLog {
+	return UsageLogFromServiceAdminWithAlloc(l, displayMap, 0, 0, false)
+}
+
+// UsageLogFromServiceAdminWithAlloc is like UsageLogFromServiceAdmin but applies
+// display alloc controls (M / α). When allocSet is false, service defaults are used.
+func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPricingMap, m, alpha float64, allocSet bool) *AdminUsageLog {
 	if l == nil {
 		return nil
 	}
@@ -708,6 +715,13 @@ func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap)
 		if cfg := displayMap[toLowerModel(base.Model)]; cfg != nil {
 			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
 			cfg = EffectiveDisplayPricingForUsageLog(&base, cfg)
+			if cfg != nil {
+				if allocSet {
+					cfg.CacheTokenMaxMult = m
+					a := alpha
+					cfg.OutputResidualGrowthRatio = &a
+				}
+			}
 			admin.DisplayFields = ComputeDisplayFields(&base, cfg)
 		}
 	}

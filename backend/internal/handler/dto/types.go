@@ -44,6 +44,8 @@ type AdminUser struct {
 	Notes                    string     `json:"notes"`
 	LastUsedAt               *time.Time `json:"last_used_at"`
 	DownstreamUsageTokenMode string     `json:"downstream_usage_token_mode"`
+	// DisplayCacheTokenMaxMult user override for cache amplify cap M (null = inherit global).
+	DisplayCacheTokenMaxMult *float64 `json:"display_cache_token_max_mult"`
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]rateMultiplier
 	GroupRates map[int64]float64 `json:"group_rates,omitempty"`

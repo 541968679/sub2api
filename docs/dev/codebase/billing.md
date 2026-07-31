@@ -338,25 +338,27 @@ inflated token counts when the configured display price is the short-context
 base price. Custom display prices still scale tokens by the custom price ratio,
 but do not get an extra long-context token amplification.
 
-### Display cache premium handling (2026-05-06)
+### Display cache premium handling (updated 2026-07-31)
 
-User-facing display pricing keeps cache-read token counts unchanged. When both
-`display_cache_read_price` and `display_input_price` are configured, the display
-layer calculates:
+Bounded cache amplify + output-first residual (see `service.AllocateDisplayTokens`):
 
 ```
-display_cache_read_tokens = real_cache_read_tokens
-display_cache_read_cost = real_cache_read_tokens * display_cache_read_price
-cache_premium = max(0, real_cache_read_cost - display_cache_read_cost)
-display_input_cost = real_input_cost + cache_premium
-display_input_tokens = round(display_input_cost / display_input_price)
+M     = display_cache_token_max_mult        (global default 1.3; user override optional)
+α     = display_output_residual_growth_ratio (global default 1.5)
+
+display_cache = min(round(real_cache_cost / P_cache), round(real_cache * M))
+residual      = max(0, real_cache_cost - display_cache * P_cache)
+
+G_own       = max(0, out_own - real_output)   # out_own from own output cost / P_out
+G_extra_max = floor(α * G_own)
+G_extra     = min(round(residual / P_out), G_extra_max)
+# overflow residual → input cost, then input tokens = cost / P_in
 ```
 
-`actual_cost` and `rate_multiplier` are unchanged by model display pricing. If
-`display_input_price` is missing, cache-read usage display remains real, so the
-display layer does not manufacture unexplained input tokens or silently drop the
-cache premium. Output display pricing continues to affect only output
-tokens/cost and never absorbs cache premium.
+- Residual pool is **cache residual only** (input own amplify stays on input).
+- If residual cannot sink (no display input/output price path), cache rewrite is skipped (legacy cache-only price no-op).
+- `actual_cost` never changes. Settings: admin **展示层** tab; user M override on model-pricing modal.
+- Downstream display mode uses the same allocator when prices are available.
 
 User-facing usage DTOs include the effective `display_input_price`,
 `display_output_price`, and `display_cache_read_price` used for the user-visible

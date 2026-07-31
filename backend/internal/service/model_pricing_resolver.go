@@ -65,6 +65,36 @@ type ModelPricingResolver struct {
 	billingService       *BillingService
 	globalPricingCache   *GlobalPricingCache        // 可选，nil 时跳过全局覆盖
 	userModelPricingRepo UserModelPricingRepository // 可选，nil 时跳过用户级覆盖
+
+	// Optional display-layer alloc controls (M / α). Wired from SettingService + user repo.
+	// global: (m, alpha, alphaSet); user: (override, ok).
+	displayAllocControls    func(ctx context.Context) (globalM float64, globalAlpha float64, alphaSet bool)
+	userDisplayCacheMaxMult func(ctx context.Context, userID int64) (*float64, bool)
+}
+
+// SetDisplayAllocControls wires global M/α resolution for downstream display rewrite.
+func (r *ModelPricingResolver) SetDisplayAllocControls(fn func(ctx context.Context) (globalM float64, globalAlpha float64, alphaSet bool)) {
+	if r == nil {
+		return
+	}
+	r.displayAllocControls = fn
+}
+
+// SetUserDisplayCacheMaxMultResolver wires per-user M override lookup.
+func (r *ModelPricingResolver) SetUserDisplayCacheMaxMultResolver(fn func(ctx context.Context, userID int64) (*float64, bool)) {
+	if r == nil {
+		return
+	}
+	r.userDisplayCacheMaxMult = fn
+}
+
+// ResolveDisplayAllocControls returns effective M and α for a user (user M overrides global).
+func (r *ModelPricingResolver) ResolveDisplayAllocControls(ctx context.Context, userID int64) (m float64, alpha float64) {
+	controls := resolveDisplayTokenAllocControls(ctx, userID, r)
+	if controls == nil {
+		return DefaultDisplayCacheTokenMaxMult, DefaultDisplayOutputResidualGrowthRatio
+	}
+	return controls.CacheTokenMaxMult, controls.OutputResidualGrowthRatio
 }
 
 // NewModelPricingResolver 创建定价解析器实例

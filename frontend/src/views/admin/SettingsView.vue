@@ -3454,103 +3454,6 @@
                 />
               </div>
 
-              <div class="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <label
-                      class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                    >
-                      {{
-                        t(
-                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplay",
-                        )
-                      }}
-                    </label>
-                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {{
-                        t(
-                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplayHint",
-                        )
-                      }}
-                    </p>
-                  </div>
-                  <Toggle
-                    v-model="
-                      form.openai_claude_gpt_bridge_cache_display_settings
-                        .enabled
-                    "
-                  />
-                </div>
-
-                <div
-                  class="grid gap-4 sm:grid-cols-2"
-                  :class="{
-                    'opacity-60':
-                      !form.openai_claude_gpt_bridge_cache_display_settings
-                        .enabled,
-                  }"
-                >
-                  <div>
-                    <label
-                      class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400"
-                    >
-                      {{
-                        t(
-                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheMinPercent",
-                        )
-                      }}
-                    </label>
-                    <input
-                      v-model.number="
-                        form.openai_claude_gpt_bridge_cache_display_settings
-                          .min_percent
-                      "
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      class="input text-sm"
-                      :disabled="
-                        !form.openai_claude_gpt_bridge_cache_display_settings
-                          .enabled
-                      "
-                    />
-                  </div>
-                  <div>
-                    <label
-                      class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400"
-                    >
-                      {{
-                        t(
-                          "admin.settings.gatewayForwarding.claudeGPTBridgeCacheMaxPercent",
-                        )
-                      }}
-                    </label>
-                    <input
-                      v-model.number="
-                        form.openai_claude_gpt_bridge_cache_display_settings
-                          .max_percent
-                      "
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="1"
-                      class="input text-sm"
-                      :disabled="
-                        !form.openai_claude_gpt_bridge_cache_display_settings
-                          .enabled
-                      "
-                    />
-                  </div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{
-                    t(
-                      "admin.settings.gatewayForwarding.claudeGPTBridgeCachePercentHint",
-                    )
-                  }}
-                </p>
-              </div>
             </div>
           </div>
           <!-- Web Search Emulation -->
@@ -5153,7 +5056,105 @@
 
         </div><!-- /Tab: Features -->
 
-        <!-- Tab: Email -->
+        <!-- Tab: Display (展示层) -->
+        <div v-show="activeTab === 'display'" class="space-y-6">
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.displayLayer.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.displayLayer.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div>
+                <label class="input-label">{{ t("admin.settings.displayLayer.cacheTokenMaxMult") }}</label>
+                <input
+                  v-model.number="form.display_cache_token_max_mult"
+                  type="number"
+                  min="0.01"
+                  max="100"
+                  step="0.1"
+                  class="input text-sm"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.displayLayer.cacheTokenMaxMultHint") }}
+                </p>
+              </div>
+              <div>
+                <label class="input-label">{{ t("admin.settings.displayLayer.outputResidualGrowthRatio") }}</label>
+                <input
+                  v-model.number="form.display_output_residual_growth_ratio"
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  class="input text-sm"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.displayLayer.outputResidualGrowthRatioHint") }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplay") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplayHint") }}
+              </p>
+            </div>
+            <div class="space-y-4 p-6">
+              <div class="flex items-center justify-between gap-4">
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t("admin.settings.gatewayForwarding.claudeGPTBridgeCacheDisplay") }}
+                </label>
+                <Toggle v-model="form.openai_claude_gpt_bridge_cache_display_settings.enabled" />
+              </div>
+              <div
+                class="grid gap-4 sm:grid-cols-2"
+                :class="{ 'opacity-60': !form.openai_claude_gpt_bridge_cache_display_settings.enabled }"
+              >
+                <div>
+                  <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.claudeGPTBridgeCacheMinPercent") }}
+                  </label>
+                  <input
+                    v-model.number="form.openai_claude_gpt_bridge_cache_display_settings.min_percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    class="input text-sm"
+                    :disabled="!form.openai_claude_gpt_bridge_cache_display_settings.enabled"
+                  />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.claudeGPTBridgeCacheMaxPercent") }}
+                  </label>
+                  <input
+                    v-model.number="form.openai_claude_gpt_bridge_cache_display_settings.max_percent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    class="input text-sm"
+                    :disabled="!form.openai_claude_gpt_bridge_cache_display_settings.enabled"
+                  />
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.gatewayForwarding.claudeGPTBridgeCachePercentHint") }}
+              </p>
+            </div>
+          </div>
+        </div><!-- /Tab: Display -->
+
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
           <!-- Payment System Settings -->
@@ -6197,6 +6198,7 @@ type SettingsTab =
   | "security"
   | "users"
   | "gateway"
+  | "display"
   | "payment"
   | "email"
   | "backup";
@@ -6207,6 +6209,7 @@ const settingsTabs = [
   { key: "security" as SettingsTab, icon: "shield" as const },
   { key: "users" as SettingsTab, icon: "user" as const },
   { key: "gateway" as SettingsTab, icon: "server" as const },
+  { key: "display" as SettingsTab, icon: "chart" as const },
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
@@ -6322,6 +6325,8 @@ type SettingsForm = Omit<
   openai_advanced_scheduler_sticky_weighted_enabled: boolean;
   openai_advanced_scheduler_subscription_priority_enabled: boolean;
   openai_claude_gpt_bridge_cache_display_settings: OpenAIClaudeGPTBridgeCacheDisplaySettings;
+  display_cache_token_max_mult: number;
+  display_output_residual_growth_ratio: number;
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
 
@@ -6513,6 +6518,8 @@ const form = reactive<SettingsForm>({
     min_percent: 0,
     max_percent: 0,
   },
+  display_cache_token_max_mult: 1.3,
+  display_output_residual_growth_ratio: 1.5,
   // Balance & quota notification
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -7601,6 +7608,19 @@ async function saveSettings() {
         min_percent: bridgeCacheMinPercent,
         max_percent: bridgeCacheMaxPercent,
       },
+      display_cache_token_max_mult: Math.min(
+        100,
+        Math.max(0.01, Number(form.display_cache_token_max_mult) || 1.3),
+      ),
+      display_output_residual_growth_ratio: Math.min(
+        10,
+        Math.max(
+          0,
+          Number.isFinite(Number(form.display_output_residual_growth_ratio))
+            ? Number(form.display_output_residual_growth_ratio)
+            : 1.5,
+        ),
+      ),
       // Payment configuration
       payment_enabled: form.payment_enabled,
       payment_min_amount: Number(form.payment_min_amount) || 0,

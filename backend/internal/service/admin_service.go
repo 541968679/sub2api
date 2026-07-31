@@ -161,8 +161,13 @@ type UpdateUserInput struct {
 	Concurrency              *int     // 使用指针区分"未提供"和"设置为0"
 	RPMLimit                 *int     // 使用指针区分"未提供"和"设置为0"
 	DownstreamUsageTokenMode *string
-	Status                   string
-	AllowedGroups            *[]int64 // 使用指针区分"未提供"和"设置为空数组"
+	// DisplayCacheTokenMaxMult: nil field = leave unchanged; non-nil pointer value:
+	//   - pointer to nil? use DisplayCacheTokenMaxMultSet + value
+	// Simpler: DisplayCacheTokenMaxMultSet marks presence; value nil clears override.
+	DisplayCacheTokenMaxMultSet bool
+	DisplayCacheTokenMaxMult    *float64
+	Status                      string
+	AllowedGroups               *[]int64 // 使用指针区分"未提供"和"设置为空数组"
 	// GroupRates 用户专属分组倍率配置
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64
@@ -907,6 +912,15 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 
 	if input.DownstreamUsageTokenMode != nil {
 		user.DownstreamUsageTokenMode = NormalizeDownstreamUsageTokenMode(*input.DownstreamUsageTokenMode)
+	}
+
+	if input.DisplayCacheTokenMaxMultSet {
+		if input.DisplayCacheTokenMaxMult != nil {
+			m := ResolveDisplayCacheTokenMaxMult(input.DisplayCacheTokenMaxMult, DefaultDisplayCacheTokenMaxMult)
+			user.DisplayCacheTokenMaxMult = &m
+		} else {
+			user.DisplayCacheTokenMaxMult = nil
+		}
 	}
 
 	if input.AllowedGroups != nil {

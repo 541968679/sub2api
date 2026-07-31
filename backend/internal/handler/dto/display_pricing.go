@@ -23,6 +23,12 @@ type DisplayPricingConfig struct {
 	// 仅用于按比例拆分成本（比例未知时按 1:1 处理），不会出现在任何用户可见输出中。
 	RealCacheWritePrice   *float64
 	RealCacheWrite1hPrice *float64
+
+	// CacheTokenMaxMult (M): display cache_read ≤ real × M. <=0 → service default 1.2.
+	CacheTokenMaxMult float64
+	// OutputResidualGrowthRatio (α): max extra output growth from cache residual as
+	// a multiple of own output growth. nil → service default 1.0; non-nil may be 0.
+	OutputResidualGrowthRatio *float64
 }
 
 // DisplayPricingMap maps lowercase model name to display config.
@@ -171,6 +177,9 @@ func EffectiveDisplayPricingForUsageLog(d *UsageLog, cfg *DisplayPricingConfig) 
 // ApplyDisplayTransform modifies a user-facing UsageLog DTO in-place to use display prices.
 // The actual_cost field is never changed. Rate multiplier is not changed here;
 // use ApplyUserDisplayRate for that.
+//
+// Cache-read uses bounded amplify (M) and cache residual prefers output under α
+// (see service.AllocateDisplayTokens). Cache-creation remains independent cost back-calc.
 func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	if cfg == nil {
 		return
@@ -186,38 +195,37 @@ func ApplyDisplayTransform(d *UsageLog, cfg *DisplayPricingConfig) {
 	}
 
 	oldComponentSum := d.InputCost + d.OutputCost + d.CacheCreationCost + d.CacheReadCost
-	inputCostForDisplay := d.InputCost
 
-	// Keep cache-read tokens unchanged. Cache premium is only explainable when
-	// both display cache and display input prices exist.
-	if cfg.DisplayCacheReadPrice != nil && *cfg.DisplayCacheReadPrice > 0 &&
-		cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 &&
-		d.CacheReadTokens > 0 && d.CacheReadCost > 0 {
-		realCacheReadCost := d.CacheReadCost
-		displayCacheReadCost := float64(d.CacheReadTokens) * *cfg.DisplayCacheReadPrice
-		d.CacheReadCost = displayCacheReadCost
-
-		cachePremium := realCacheReadCost - displayCacheReadCost
-		if cachePremium > 0 {
-			inputCostForDisplay += cachePremium
-		}
+	// Input / output / cache-read allocation (M + α residual sink).
+	// Requires explicit display prices on the components being rewritten; unit-only
+	// prices still populate Display*Price fields above for labels but do not by
+	// themselves trigger transform (same as historical HasDisplayOverride paths).
+	alloc := service.AllocateDisplayTokens(service.DisplayTokenAllocInput{
+		InputTokens:               d.InputTokens,
+		OutputTokens:              d.OutputTokens,
+		CacheReadTokens:           d.CacheReadTokens,
+		InputCost:                 d.InputCost,
+		OutputCost:                d.OutputCost,
+		CacheReadCost:             d.CacheReadCost,
+		DisplayInputPrice:         cfg.DisplayInputPrice,
+		DisplayOutputPrice:        cfg.DisplayOutputPrice,
+		DisplayCacheReadPrice:     cfg.DisplayCacheReadPrice,
+		CacheTokenMaxMult:         cfg.CacheTokenMaxMult,
+		OutputResidualGrowthRatio: cfg.OutputResidualGrowthRatio,
+	})
+	// Apply only when at least one display override price is set for these components.
+	if cfg.DisplayInputPrice != nil || cfg.DisplayOutputPrice != nil || cfg.DisplayCacheReadPrice != nil {
+		d.InputTokens = alloc.InputTokens
+		d.OutputTokens = alloc.OutputTokens
+		d.CacheReadTokens = alloc.CacheReadTokens
+		d.InputCost = alloc.InputCost
+		d.OutputCost = alloc.OutputCost
+		d.CacheReadCost = alloc.CacheReadCost
 	}
 
-	if cfg.DisplayInputPrice != nil && *cfg.DisplayInputPrice > 0 && d.InputTokens > 0 && inputCostForDisplay > 0 {
-		displayTokens := inputCostForDisplay / *cfg.DisplayInputPrice
-		d.InputTokens = int(math.Round(displayTokens))
-		d.InputCost = float64(d.InputTokens) * *cfg.DisplayInputPrice
-	}
-
-	if cfg.DisplayOutputPrice != nil && *cfg.DisplayOutputPrice > 0 && d.OutputTokens > 0 && d.OutputCost > 0 {
-		displayTokens := d.OutputCost / *cfg.DisplayOutputPrice
-		d.OutputTokens = int(math.Round(displayTokens))
-		d.OutputCost = float64(d.OutputTokens) * *cfg.DisplayOutputPrice
-	}
-
-	// Cache creation: unlike cache-read (tokens kept, premium folded into input),
+	// Cache creation: unlike cache-read (bounded M + residual sink),
 	// cache-creation tokens are back-computed directly from the real cost at the
-	// display price — the same amplification shape as input/output above.
+	// display price — the same amplification shape as classic input/output back-calc.
 	if cfg.DisplayCacheCreationPrice != nil && *cfg.DisplayCacheCreationPrice > 0 && d.CacheCreationTokens > 0 && d.CacheCreationCost > 0 {
 		display5mPrice := *cfg.DisplayCacheCreationPrice
 		display1hPrice := display5mPrice

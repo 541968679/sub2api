@@ -275,6 +275,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAIAdvancedSchedulerEffectiveWeightQuotaHeadroom:    settings.OpenAIAdvancedSchedulerEffectiveWeightQuotaHeadroom,
 		OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse: settings.OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse,
 		OpenAIAdvancedSchedulerEffectiveWeightSessionSticky:    settings.OpenAIAdvancedSchedulerEffectiveWeightSessionSticky,
+		DisplayCacheTokenMaxMult:         settings.DisplayCacheTokenMaxMult,
+		DisplayOutputResidualGrowthRatio: settings.DisplayOutputResidualGrowthRatio,
 		OpenAIClaudeGPTBridgeCacheDisplaySettings: openAIClaudeGPTBridgeCacheDisplaySettingsToDTO(
 			settings.OpenAIClaudeGPTBridgeCacheDisplaySettings,
 		),
@@ -599,6 +601,10 @@ type UpdateSettingsRequest struct {
 
 	// OpenAI Claude-GPT bridge cache display override
 	OpenAIClaudeGPTBridgeCacheDisplaySettings *dto.OpenAIClaudeGPTBridgeCacheDisplaySettings `json:"openai_claude_gpt_bridge_cache_display_settings"`
+
+	// Display-layer token amplify controls
+	DisplayCacheTokenMaxMult         *float64 `json:"display_cache_token_max_mult"`
+	DisplayOutputResidualGrowthRatio *float64 `json:"display_output_residual_growth_ratio"`
 
 	// Balance low notification
 	BalanceLowNotifyEnabled     *bool                   `json:"balance_low_notify_enabled"`
@@ -1513,6 +1519,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.GatewayNetworkRetryMax
 		}(),
+		DisplayCacheTokenMaxMult: func() float64 {
+			if req.DisplayCacheTokenMaxMult != nil {
+				return service.ResolveDisplayCacheTokenMaxMult(nil, *req.DisplayCacheTokenMaxMult)
+			}
+			return previousSettings.DisplayCacheTokenMaxMult
+		}(),
+		DisplayOutputResidualGrowthRatio: func() float64 {
+			if req.DisplayOutputResidualGrowthRatio != nil {
+				return service.ResolveDisplayOutputResidualGrowthRatio(*req.DisplayOutputResidualGrowthRatio, true)
+			}
+			return previousSettings.DisplayOutputResidualGrowthRatio
+		}(),
 		PaymentVisibleMethodAlipaySource: func() string {
 			if req.PaymentVisibleMethodAlipaySource != nil {
 				return strings.TrimSpace(*req.PaymentVisibleMethodAlipaySource)
@@ -1876,6 +1894,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
+		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
+		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
 		PaymentVisibleMethodAlipaySource:                       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:                        updatedSettings.PaymentVisibleMethodWxpaySource,
 		PaymentVisibleMethodAlipayEnabled:                      updatedSettings.PaymentVisibleMethodAlipayEnabled,
@@ -2314,6 +2334,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")
+	}
+	if before.DisplayCacheTokenMaxMult != after.DisplayCacheTokenMaxMult {
+		changed = append(changed, "display_cache_token_max_mult")
+	}
+	if before.DisplayOutputResidualGrowthRatio != after.DisplayOutputResidualGrowthRatio {
+		changed = append(changed, "display_output_residual_growth_ratio")
 	}
 	if before.PaymentVisibleMethodAlipaySource != after.PaymentVisibleMethodAlipaySource {
 		changed = append(changed, "payment_visible_method_alipay_source")

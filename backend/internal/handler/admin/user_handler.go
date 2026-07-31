@@ -75,8 +75,14 @@ type UpdateUserRequest struct {
 	Concurrency              *int     `json:"concurrency"`
 	RPMLimit                 *int     `json:"rpm_limit"`
 	DownstreamUsageTokenMode *string  `json:"downstream_usage_token_mode" binding:"omitempty,oneof=real display"`
-	Status                   string   `json:"status" binding:"omitempty,oneof=active disabled pending_approval"`
-	AllowedGroups            *[]int64 `json:"allowed_groups"`
+	// DisplayCacheTokenMaxMult: omit = unchanged; null JSON = clear; number = set override.
+	// Use a dedicated present flag from raw JSON is hard with binding; optional pointer:
+	// frontend always sends the key when saving from model pricing modal.
+	DisplayCacheTokenMaxMult *float64 `json:"display_cache_token_max_mult"`
+	// DisplayCacheTokenMaxMultPresent is set by handler when the key is present in JSON.
+	// Not a client field — internal.
+	Status        string   `json:"status" binding:"omitempty,oneof=active disabled pending_approval"`
+	AllowedGroups *[]int64 `json:"allowed_groups"`
 	// GroupRates 用户专属分组倍率配置（兼容旧格式）
 	// map[groupID]*rate，nil 表示删除该分组的专属倍率
 	GroupRates map[int64]*float64 `json:"group_rates"`
@@ -383,7 +389,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 	}
 
 	// 使用指针类型直接传递，nil 表示未提供该字段
-	user, err := h.adminService.UpdateUser(c.Request.Context(), userID, &service.UpdateUserInput{
+	input := &service.UpdateUserInput{
 		Email:                    req.Email,
 		Password:                 req.Password,
 		Username:                 req.Username,
@@ -398,7 +404,15 @@ func (h *UserHandler) Update(c *gin.Context) {
 		AllowedGroups:            req.AllowedGroups,
 		GroupRates:               req.GroupRates,
 		GroupRatesFull:           req.GroupRatesFull,
-	})
+	}
+	// display_cache_token_max_mult: omit = unchanged; <=0 = clear override; >0 = set.
+	if req.DisplayCacheTokenMaxMult != nil {
+		input.DisplayCacheTokenMaxMultSet = true
+		if *req.DisplayCacheTokenMaxMult > 0 {
+			input.DisplayCacheTokenMaxMult = req.DisplayCacheTokenMaxMult
+		}
+	}
+	user, err := h.adminService.UpdateUser(c.Request.Context(), userID, input)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

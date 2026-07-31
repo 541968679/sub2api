@@ -93,6 +93,9 @@ type User struct {
 
 	DownstreamUsageTokenMode string
 
+	// DisplayCacheTokenMaxMult user override for cache_read amplify cap M (nil = inherit global).
+	DisplayCacheTokenMaxMult *float64
+
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
 }

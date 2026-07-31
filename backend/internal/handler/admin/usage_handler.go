@@ -212,7 +212,13 @@ func (h *UsageHandler) List(c *gin.Context) {
 		if userMap, ok := userDisplayMaps[records[i].UserID]; ok {
 			displayMap = userMap
 		}
-		out = append(out, *dto.UsageLogFromServiceAdmin(&records[i], displayMap))
+		m, alpha := service.DefaultDisplayCacheTokenMaxMult, service.DefaultDisplayOutputResidualGrowthRatio
+		allocSet := false
+		if h.pricingResolver != nil {
+			m, alpha = h.pricingResolver.ResolveDisplayAllocControls(c.Request.Context(), records[i].UserID)
+			allocSet = true
+		}
+		out = append(out, *dto.UsageLogFromServiceAdminWithAlloc(&records[i], displayMap, m, alpha, allocSet))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
