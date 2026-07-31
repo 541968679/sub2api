@@ -2314,17 +2314,38 @@ func (a *Account) getExtraTime(key string) time.Time {
 	return time.Time{}
 }
 
-// getExtraBool 从 Extra 中读取指定 key 的 bool 值
+// getExtraBool 从 Extra 中读取指定 key 的 bool 值。
+// 兼容 JSON 反序列化后的 bool / 字符串 / 数字，避免调度快照或历史写入导致误判为 false。
 func (a *Account) getExtraBool(key string) bool {
-	if a.Extra == nil {
+	if a == nil || a.Extra == nil {
 		return false
 	}
-	if v, ok := a.Extra[key]; ok {
-		if b, ok := v.(bool); ok {
-			return b
-		}
+	v, ok := a.Extra[key]
+	if !ok || v == nil {
+		return false
 	}
-	return false
+	switch b := v.(type) {
+	case bool:
+		return b
+	case string:
+		switch strings.TrimSpace(strings.ToLower(b)) {
+		case "1", "true", "yes", "on":
+			return true
+		default:
+			return false
+		}
+	case float64:
+		return b != 0
+	case int:
+		return b != 0
+	case int64:
+		return b != 0
+	case json.Number:
+		i, err := b.Int64()
+		return err == nil && i != 0
+	default:
+		return false
+	}
 }
 
 // getExtraString 从 Extra 中读取指定 key 的字符串值

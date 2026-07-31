@@ -12,6 +12,8 @@ func TestAccountIsFallbackOnly(t *testing.T) {
 	require.False(t, (&Account{Extra: map[string]any{}}).IsFallbackOnly())
 	require.True(t, (&Account{Extra: map[string]any{AccountExtraFallbackOnly: true}}).IsFallbackOnly())
 	require.False(t, (&Account{Extra: map[string]any{AccountExtraFallbackOnly: false}}).IsFallbackOnly())
+	require.True(t, (&Account{Extra: map[string]any{AccountExtraFallbackOnly: "true"}}).IsFallbackOnly())
+	require.True(t, (&Account{Extra: map[string]any{AccountExtraFallbackOnly: float64(1)}}).IsFallbackOnly())
 }
 
 func TestAccountSetFallbackOnly(t *testing.T) {

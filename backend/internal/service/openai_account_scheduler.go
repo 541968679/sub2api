@@ -308,6 +308,19 @@ func (s *defaultOpenAIAccountScheduler) Select(
 				selection = nil
 			}
 		}
+		// Fallback-only accounts must not keep multi-turn sticky traffic while any
+		// primary peer is available. Prefer re-selecting a primary over pinning.
+		if selection != nil && selection.Account != nil && selection.Account.IsFallbackOnly() &&
+			s.hasPrimaryOpenAIPeer(ctx, req, selection.Account.ID) {
+			slog.Info("previous_response_sticky_escaped",
+				"account_id", selection.Account.ID,
+				"reason", "fallback_only_primary_available",
+			)
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			selection = nil
+		}
 		if selection != nil && selection.Account != nil {
 			decision.Layer = openAIAccountScheduleLayerPreviousResponse
 			decision.StickyPreviousHit = true

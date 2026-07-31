@@ -1,3 +1,17 @@
+## 2026-07-31 - fix: escape previous_response sticky on fallback-only accounts
+
+### What
+- When a `previous_response` sticky target is `fallback_only` and any primary peer is available, release the sticky selection and fall through to primary load-balance.
+- Harden `getExtraBool` to accept string/number truthy values for scheduler-critical flags.
+
+### Why
+Production residual traffic on safeapi after primary recovery was partly multi-turn previous_response sticky to the fallback account.
+
+### Affected files
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/account.go`,
+`backend/internal/service/account_fallback_only_test.go`
+
 ## 2026-07-31 - feat: account fallback-only hard scheduling tier
 
 ### What
