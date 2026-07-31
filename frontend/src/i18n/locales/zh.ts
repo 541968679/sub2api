@@ -3758,12 +3758,21 @@ const zhBase = {
         status: '状态',
         schedulable: '调度',
         todayStats: '今日统计',
+        qualityTtft: '首字',
+        qualitySuccessRate: '成功率',
         groups: '分组',
         usageWindows: '用量窗口',
         proxy: '代理',
         lastUsed: '最近使用',
         expiresAt: '过期时间',
         actions: '操作'
+      },
+      quality: {
+        ttftHint:
+          '最近 15 分钟内该账号成功请求的平均首字延迟（TTFT）。仅统计有 first_token_ms 的样本；无样本显示 —。',
+        successRateHint:
+          '最近 15 分钟内该账号请求成功率 = 成功次数 / (成功 + 失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens）。无样本显示 —。',
+        tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}'
       },
       usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
       allPrivacyModes: '全部Privacy状态',

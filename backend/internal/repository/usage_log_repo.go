@@ -2292,6 +2292,112 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 	return result, nil
 }
 
+// GetAccountQualityStatsBatch aggregates recent success counts, error counts, and average TTFT
+// for account list quality columns. Success comes from usage_logs; errors from ops_error_logs
+// (status_code >= 400, excluding count_tokens probes). Missing accounts get zero-sample stats.
+func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
+	result := make(map[int64]*service.AccountQualityStats, len(accountIDs))
+	if len(accountIDs) == 0 {
+		return result, nil
+	}
+
+	type rawAgg struct {
+		successCount int64
+		errorCount   int64
+		ttftSamples  int64
+		avgTTFT      sql.NullFloat64
+	}
+	aggs := make(map[int64]*rawAgg, len(accountIDs))
+	for _, accountID := range accountIDs {
+		aggs[accountID] = &rawAgg{}
+	}
+
+	usageQuery := `
+		SELECT
+			account_id,
+			COUNT(*) AS success_count,
+			COUNT(first_token_ms) AS ttft_samples,
+			AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS avg_ttft_ms
+		FROM usage_logs
+		WHERE account_id = ANY($1) AND created_at >= $2
+		GROUP BY account_id
+	`
+	usageRows, err := r.sql.QueryContext(ctx, usageQuery, pq.Array(accountIDs), startTime)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = usageRows.Close() }()
+
+	for usageRows.Next() {
+		var accountID int64
+		var successCount, ttftSamples int64
+		var avgTTFT sql.NullFloat64
+		if err := usageRows.Scan(&accountID, &successCount, &ttftSamples, &avgTTFT); err != nil {
+			return nil, err
+		}
+		agg := aggs[accountID]
+		if agg == nil {
+			agg = &rawAgg{}
+			aggs[accountID] = agg
+		}
+		agg.successCount = successCount
+		agg.ttftSamples = ttftSamples
+		agg.avgTTFT = avgTTFT
+	}
+	if err := usageRows.Err(); err != nil {
+		return nil, err
+	}
+
+	errorQuery := `
+		SELECT
+			account_id,
+			COUNT(*) AS error_count
+		FROM ops_error_logs
+		WHERE account_id = ANY($1)
+		  AND created_at >= $2
+		  AND COALESCE(status_code, 0) >= 400
+		  AND is_count_tokens = FALSE
+		GROUP BY account_id
+	`
+	errorRows, err := r.sql.QueryContext(ctx, errorQuery, pq.Array(accountIDs), startTime)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = errorRows.Close() }()
+
+	for errorRows.Next() {
+		var accountID int64
+		var errorCount int64
+		if err := errorRows.Scan(&accountID, &errorCount); err != nil {
+			return nil, err
+		}
+		agg := aggs[accountID]
+		if agg == nil {
+			agg = &rawAgg{}
+			aggs[accountID] = agg
+		}
+		agg.errorCount = errorCount
+	}
+	if err := errorRows.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, accountID := range accountIDs {
+		agg := aggs[accountID]
+		if agg == nil {
+			result[accountID] = service.BuildAccountQualityStats(0, 0, 0, nil)
+			continue
+		}
+		var avgPtr *float64
+		if agg.avgTTFT.Valid {
+			v := agg.avgTTFT.Float64
+			avgPtr = &v
+		}
+		result[accountID] = service.BuildAccountQualityStats(agg.successCount, agg.errorCount, agg.ttftSamples, avgPtr)
+	}
+	return result, nil
+}
+
 // GetGeminiUsageTotalsBatch 批量聚合 Gemini 账号在窗口内的 Pro/Flash 请求与用量。
 // 模型分类规则与 service.geminiModelClassFromName 一致：model 包含 flash/lite 视为 flash，其余视为 pro。
 func (r *usageLogRepository) GetGeminiUsageTotalsBatch(ctx context.Context, accountIDs []int64, startTime, endTime time.Time) (map[int64]service.GeminiUsageTotals, error) {

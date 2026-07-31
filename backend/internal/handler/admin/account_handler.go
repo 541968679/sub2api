@@ -2245,6 +2245,62 @@ func (h *AccountHandler) GetBatchTodayStats(c *gin.Context) {
 	response.Success(c, payload)
 }
 
+// BatchQualityStatsRequest is the body for batch account quality stats.
+type BatchQualityStatsRequest struct {
+	AccountIDs []int64 `json:"account_ids" binding:"required"`
+}
+
+// GetBatchQualityStats returns rolling-window TTFT and success-rate for account list columns.
+// POST /api/v1/admin/accounts/quality-stats/batch
+func (h *AccountHandler) GetBatchQualityStats(c *gin.Context) {
+	var req BatchQualityStatsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	accountIDs := normalizeInt64IDList(req.AccountIDs)
+	if len(accountIDs) == 0 {
+		response.Success(c, gin.H{"stats": map[string]any{}})
+		return
+	}
+
+	cacheKey := buildAccountQualityStatsBatchCacheKey(accountIDs)
+	if cached, ok := accountQualityStatsBatchCache.Get(cacheKey); ok {
+		if cached.ETag != "" {
+			c.Header("ETag", cached.ETag)
+			c.Header("Vary", "If-None-Match")
+			if ifNoneMatchMatched(c.GetHeader("If-None-Match"), cached.ETag) {
+				c.Status(http.StatusNotModified)
+				return
+			}
+		}
+		c.Header("X-Snapshot-Cache", "hit")
+		response.Success(c, cached.Payload)
+		return
+	}
+
+	if h.accountUsageService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account usage service unavailable")
+		return
+	}
+
+	stats, err := h.accountUsageService.GetQualityStatsBatch(c.Request.Context(), accountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	payload := gin.H{"stats": stats}
+	cached := accountQualityStatsBatchCache.Set(cacheKey, payload)
+	if cached.ETag != "" {
+		c.Header("ETag", cached.ETag)
+		c.Header("Vary", "If-None-Match")
+	}
+	c.Header("X-Snapshot-Cache", "miss")
+	response.Success(c, payload)
+}
+
 // SetSchedulableRequest represents the request body for setting schedulable status
 type SetSchedulableRequest struct {
 	Schedulable bool `json:"schedulable"`

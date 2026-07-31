@@ -255,6 +255,34 @@
               :error="todayStatsError"
             />
           </template>
+          <template #header-quality_ttft="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.quality.ttftHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-quality_ttft="{ row }">
+            <AccountQualityCell
+              mode="ttft"
+              :stats="qualityStatsByAccountId[String(row.id)] ?? null"
+              :loading="qualityStatsLoading"
+              :error="qualityStatsError"
+            />
+          </template>
+          <template #header-quality_success_rate="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.quality.successRateHint')" width-class="w-80" />
+            </div>
+          </template>
+          <template #cell-quality_success_rate="{ row }">
+            <AccountQualityCell
+              mode="success_rate"
+              :stats="qualityStatsByAccountId[String(row.id)] ?? null"
+              :loading="qualityStatsLoading"
+              :error="qualityStatsError"
+            />
+          </template>
           <template #cell-groups="{ row }">
             <AccountGroupsCell :groups="row.groups" :max-display="4" />
           </template>
@@ -461,6 +489,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import type { AccountQualityStats } from '@/api/admin/accounts'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -485,10 +514,12 @@ import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
+import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
@@ -672,6 +703,10 @@ const todayStatsLoading = ref(false)
 const todayStatsError = ref<string | null>(null)
 const todayStatsReqSeq = ref(0)
 const pendingTodayStatsRefresh = ref(false)
+const qualityStatsByAccountId = ref<Record<string, AccountQualityStats>>({})
+const qualityStatsLoading = ref(false)
+const qualityStatsError = ref<string | null>(null)
+const qualityStatsReqSeq = ref(0)
 const usageManualRefreshToken = ref(0)
 
 function getAccountEmail(row: { extra?: Record<string, unknown>; credentials?: Record<string, unknown>; parent_email?: string }): string | undefined {
@@ -773,6 +808,50 @@ const refreshTodayStatsBatch = async () => {
   } finally {
     if (reqSeq === todayStatsReqSeq.value) {
       todayStatsLoading.value = false
+    }
+  }
+}
+
+const refreshQualityStatsBatch = async () => {
+  const qualityHidden =
+    hiddenColumns.has('quality_ttft') && hiddenColumns.has('quality_success_rate')
+  if (qualityHidden) {
+    qualityStatsLoading.value = false
+    qualityStatsError.value = null
+    return
+  }
+
+  const accountIDs = accounts.value.map(account => account.id)
+  const reqSeq = ++qualityStatsReqSeq.value
+  if (accountIDs.length === 0) {
+    qualityStatsByAccountId.value = {}
+    qualityStatsError.value = null
+    qualityStatsLoading.value = false
+    return
+  }
+
+  qualityStatsLoading.value = true
+  qualityStatsError.value = null
+
+  try {
+    const result = await adminAPI.accounts.getBatchQualityStats(accountIDs)
+    if (reqSeq !== qualityStatsReqSeq.value) return
+    const serverStats = result.stats ?? {}
+    const nextStats: Record<string, AccountQualityStats> = {}
+    for (const accountID of accountIDs) {
+      const key = String(accountID)
+      if (serverStats[key]) {
+        nextStats[key] = serverStats[key]
+      }
+    }
+    qualityStatsByAccountId.value = nextStats
+  } catch (error) {
+    if (reqSeq !== qualityStatsReqSeq.value) return
+    qualityStatsError.value = 'Failed'
+    console.error('Failed to load account quality stats:', error)
+  } finally {
+    if (reqSeq === qualityStatsReqSeq.value) {
+      qualityStatsLoading.value = false
     }
   }
 }
@@ -919,6 +998,11 @@ const toggleColumn = (key: string) => {
       console.error('Failed to load account today stats after showing column:', error)
     })
   }
+  if ((key === 'quality_ttft' || key === 'quality_success_rate') && wasHidden) {
+    refreshQualityStatsBatch().catch((error) => {
+      console.error('Failed to load account quality stats after showing column:', error)
+    })
+  }
   if (key === 'scheduler_score') {
     // The server only returns scheduler scores when this column is visible, so reload the current page immediately.
     syncAccountListDerivedParams()
@@ -1057,7 +1141,7 @@ const load = async () => {
     isFirstLoad.value = false
     delete requestParams.lite
   }
-  await refreshTodayStatsBatch()
+  await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
   refreshAICreditsTotal()
 }
 
@@ -1067,7 +1151,7 @@ const reload = async () => {
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = false
   await baseReload()
-  await refreshTodayStatsBatch()
+  await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
   refreshAICreditsTotal()
 }
 
@@ -1131,8 +1215,8 @@ const handleFilterUpdate = (newFilters: Record<string, unknown>) => {
 watch(loading, (isLoading, wasLoading) => {
   if (wasLoading && !isLoading && pendingTodayStatsRefresh.value) {
     pendingTodayStatsRefresh.value = false
-    refreshTodayStatsBatch().catch((error) => {
-      console.error('Failed to refresh account today stats after table load:', error)
+    Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()]).catch((error) => {
+      console.error('Failed to refresh account side stats after table load:', error)
     })
   }
 })
@@ -1250,7 +1334,7 @@ const refreshAccountsIncrementally = async () => {
       hasPendingListSync.value = false
     }
 
-    await refreshTodayStatsBatch()
+    await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
   } catch (error) {
     console.error('Auto refresh failed:', error)
   } finally {
@@ -1378,7 +1462,13 @@ const allColumns = computed(() => {
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
-    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
+    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
+    { key: 'quality_ttft', label: t('admin.accounts.columns.qualityTtft'), sortable: false },
+    {
+      key: 'quality_success_rate',
+      label: t('admin.accounts.columns.qualitySuccessRate'),
+      sortable: false
+    }
   ]
   if (!authStore.isSimpleMode) {
     c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })

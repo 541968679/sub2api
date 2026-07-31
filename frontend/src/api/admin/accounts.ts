@@ -449,6 +449,30 @@ export async function getBatchTodayStats(accountIds: number[]): Promise<BatchTod
   return data
 }
 
+/** Rolling-window TTFT / success-rate snapshot for admin account list columns. */
+export interface AccountQualityStats {
+  window_seconds: number
+  success_count: number
+  error_count: number
+  success_rate: number | null
+  avg_ttft_ms: number | null
+  ttft_samples: number
+}
+
+export interface BatchQualityStatsResponse {
+  stats: Record<string, AccountQualityStats>
+}
+
+/**
+ * Batch fetch account quality metrics (last 15 minutes rolling window).
+ */
+export async function getBatchQualityStats(accountIds: number[]): Promise<BatchQualityStatsResponse> {
+  const { data } = await apiClient.post<BatchQualityStatsResponse>('/admin/accounts/quality-stats/batch', {
+    account_ids: accountIds
+  })
+  return data
+}
+
 /**
  * Set account schedulable status
  * @param id - Account ID
@@ -946,6 +970,7 @@ export const accountsAPI = {
   getUsage,
   getTodayStats,
   getBatchTodayStats,
+  getBatchQualityStats,
   clearRateLimit,
   recoverState,
   resetAccountQuota,

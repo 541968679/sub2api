@@ -1238,6 +1238,53 @@ func (s *AccountUsageService) GetTodayStats(ctx context.Context, accountID int64
 	}, nil
 }
 
+// GetQualityStatsBatch returns rolling-window TTFT / success-rate stats for account list columns.
+// Window is AccountQualityWindow (15 minutes). IDs are de-duplicated and capped.
+func (s *AccountUsageService) GetQualityStatsBatch(ctx context.Context, accountIDs []int64) (map[int64]*AccountQualityStats, error) {
+	uniqueIDs := make([]int64, 0, len(accountIDs))
+	seen := make(map[int64]struct{}, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if accountID <= 0 {
+			continue
+		}
+		if _, exists := seen[accountID]; exists {
+			continue
+		}
+		seen[accountID] = struct{}{}
+		uniqueIDs = append(uniqueIDs, accountID)
+		if len(uniqueIDs) >= AccountQualityMaxBatchSize {
+			break
+		}
+	}
+
+	result := make(map[int64]*AccountQualityStats, len(uniqueIDs))
+	if len(uniqueIDs) == 0 {
+		return result, nil
+	}
+
+	startTime := time.Now().Add(-AccountQualityWindow)
+	if reader, ok := s.usageLogRepo.(AccountQualityStatsBatchReader); ok {
+		statsByAccount, err := reader.GetAccountQualityStatsBatch(ctx, uniqueIDs, startTime)
+		if err != nil {
+			return nil, fmt.Errorf("get account quality stats batch failed: %w", err)
+		}
+		for _, accountID := range uniqueIDs {
+			if stats, ok := statsByAccount[accountID]; ok && stats != nil {
+				result[accountID] = stats
+				continue
+			}
+			result[accountID] = BuildAccountQualityStats(0, 0, 0, nil)
+		}
+		return result, nil
+	}
+
+	// Fallback when the concrete repo does not implement the batch reader (tests/stubs).
+	for _, accountID := range uniqueIDs {
+		result[accountID] = BuildAccountQualityStats(0, 0, 0, nil)
+	}
+	return result, nil
+}
+
 // GetTodayStatsBatch 批量获取账号今日统计，优先走批量 SQL，失败时回退单账号查询。
 func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs []int64) (map[int64]*WindowStats, error) {
 	uniqueIDs := make([]int64, 0, len(accountIDs))

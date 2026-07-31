@@ -1,3 +1,99 @@
+## 2026-07-31 - feat: account list TTFT and success-rate columns
+
+### What
+- Added admin account-list columns **首字 (TTFT)** and **成功率 (success rate)** over a **rolling 15-minute** window.
+- Batch API `POST /api/v1/admin/accounts/quality-stats/batch` aggregates successes/`first_token_ms` from `usage_logs` and failures from `ops_error_logs` (status ≥ 400, exclude count_tokens).
+- Frontend loads metrics only when the columns are visible (default visible), with ~30s snapshot cache and tooltip sample counts.
+
+### Why
+Operators need to compare upstream API account quality directly on the account table without leaving for Ops dashboards.
+
+### Verification
+- Unit tests for quality stats builder, service batch path, and repo SQL mock.
+- Frontend AccountsView tests updated for the new batch API mock.
+
+### Affected files
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_quality_test.go`,
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/account_usage_quality_stats_test.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/usage_log_repo_quality_stats_test.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/admin/account_today_stats_cache.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/views/admin/__tests__/AccountsView.*.spec.ts`,
+`.trellis/tasks/07-31-account-quality-columns/*`
+
+## 2026-07-31 - ops: production DB GPT-5.6 Terra/Luna price cut sync
+
+### What
+- Updated production `global_model_pricing` for **Terra** (−20%) and **Luna** (−80%) to track OpenAI 2026-07-30 cut.
+- Preserved existing platform markup: **display ≈ 1× official**, **billing ≈ 2× official**.
+- Sol / generic `gpt-5.6` left unchanged (official Sol price did not change).
+- Also scaled matching **user overrides** that were still on launch-era 1× official rates (`user_id=16` terra/luna). Custom Sol overrides (users 1/16/220) left as-is.
+- Restarted `sub2api` to reload `GlobalPricingCache`.
+
+### Why
+Repo defaults were updated, but production still served old prices from DB global overrides (higher priority than LiteLLM JSON).
+
+### Verification
+- Pre/post SQL snapshot in transaction; COMMIT applied.
+- `docker compose restart sub2api` → container running, `{"status":"ok"}` on `/health`.
+- Final global display: Terra `$2/$12`, Luna `$0.20/$1.20`; billing Terra `$4/$24`, Luna `$0.40/$2.40` (per MTok).
+
+### Affected
+Production DB tables `global_model_pricing`, `user_model_pricing_overrides` (terra/luna only); runtime cache via container restart. No code deploy required for this ops step.
+
+## 2026-07-31 - fix: sync GPT-5.6 Terra/Luna default prices to OpenAI 2026-07-30 cut
+
+### What
+- Updated packaged LiteLLM pricing and static billing/pricing fallbacks so GPT-5.6 tiers match OpenAI Standard after the 2026-07-30 price cut.
+- **Sol** unchanged: `$5 / $30` input/output per 1MTok.
+- **Terra** −20%: `$2.50/$15` → **`$2 / $12`** (cache write `$2.50`, cache read `$0.20`).
+- **Luna** −80%: `$1/$6` → **`$0.20 / $1.20`** (cache write `$0.25`, cache read `$0.02`).
+- Split previously shared Sol-level fallback so Terra/Luna no longer resolve to `$5/$30` when dynamic pricing is missing.
+- Also fixed resources JSON where Terra/Luna were incorrectly cloned as Sol prices.
+
+### Why
+OpenAI reduced Luna by 80% and Terra by 20% on 2026-07-30; local default display/billing prices still used launch-era rates (and Sol fallbacks for all tiers).
+
+### Verification
+- `go test -tags=unit ./internal/service -run "OpenAIGPT56|Gpt56" -count=1` (PASS)
+
+### Affected files
+`backend/data/model_pricing.json`,
+`backend/resources/model-pricing/model_prices_and_context_window.json`,
+`backend/internal/service/billing_service.go`,
+`backend/internal/service/pricing_service.go`,
+`backend/internal/service/billing_service_test.go`,
+`backend/internal/service/pricing_service_test.go`,
+`docs/dev/codebase/billing.md`,
+this changelog.
+
+## 2026-07-31 - deploy: production v0.1.183 (display cache M/α)
+
+### What
+- Released and deployed `v0.1.183` to production via GHCR (`ghcr.io/541968679/sub2api:latest`).
+- Image revision `9ad06529a`, version label `0.1.183`, digest `sha256:7e164c3002f4d6dcf16f1ba2f01d1ba98c55c1fbe4f984eb2410af25f9227f8b`.
+- Defaults in this build: display cache max mult **M=1.3**, output residual growth ratio **α=1.5**.
+
+### Why
+Ship the bounded cache amplify allocator after Codex OAuth multi-turn validation.
+
+### Verification
+- GitHub Actions Release run `30599717871` success
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- Container healthy; internal + public `/health` return `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-07-31 - feat: display cache amplify cap (M) + output residual ratio (α)
 
 ### What

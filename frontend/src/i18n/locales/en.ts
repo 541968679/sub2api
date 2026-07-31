@@ -4156,12 +4156,21 @@ const enBase = {
         status: 'Status',
         schedulable: 'Schedulable',
         todayStats: 'Today Stats',
+        qualityTtft: 'TTFT',
+        qualitySuccessRate: 'Success Rate',
         groups: 'Groups',
         usageWindows: 'Usage Windows',
         proxy: 'Proxy',
         lastUsed: 'Last Used',
         expiresAt: 'Expires At',
         actions: 'Actions'
+      },
+      quality: {
+        ttftHint:
+          'Average time-to-first-token over the last 15 minutes for this account. Only successful requests with first_token_ms are included; shows — when there is no sample.',
+        successRateHint:
+          'Request success rate over the last 15 minutes: successes / (successes + failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens). Shows — when empty.',
+        tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}'
       },
       usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
       allPrivacyModes: 'All Privacy States',
