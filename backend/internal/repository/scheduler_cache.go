@@ -547,6 +547,8 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"openai_ws_enabled",
 		"openai_ws_force_http",
 		"openai_claude_gpt_bridge_enabled",
+		// Hard last-resort tier for load-balance; must survive slim scheduler snapshots.
+		"fallback_only",
 		// Grok accounts bound to OpenAI groups need this flag in the scheduler
 		// snapshot; without it OpenAI-group keys cannot select Grok capacity.
 		"grok_openai_group_access_enabled",

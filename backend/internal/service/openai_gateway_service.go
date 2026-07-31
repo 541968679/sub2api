@@ -2024,6 +2024,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		candidates = append(candidates, candidate)
 	}
 
+	// Hard fallback tier: exclude fallback_only accounts while any primary remains.
+	candidates = preferPrimaryAccounts(candidates)
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}

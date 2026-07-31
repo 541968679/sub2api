@@ -1,3 +1,31 @@
+## 2026-07-31 - feat: account fallback-only hard scheduling tier
+
+### What
+- Added account flag `extra.fallback_only` (**仅作兜底调度**): selected only when no non-fallback peer remains in the eligible candidate pool.
+- OpenAI load-balance and Anthropic/general load-aware selection partition primary vs fallback; session sticky to a fallback account escapes when a primary peer is available.
+- Scheduler slim snapshot retains `fallback_only`; admin create/edit toggles write the extra key.
+
+### Why
+Soft numeric priority still load-balances low-priority accounts. Operators need a true last-resort upstream that stays unused while any primary channel works.
+
+### Verification
+- Unit tests for `IsFallbackOnly`, `preferPrimaryAccounts`, `preferPrimaryOpenAICandidates`.
+
+### Affected files
+`backend/internal/service/account.go`,
+`backend/internal/service/account_fallback_only_test.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/repository/scheduler_cache.go`,
+`backend/internal/handler/dto/types.go`,
+`backend/internal/handler/dto/mappers.go`,
+`frontend/src/types/index.ts`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`
+
 ## 2026-07-31 - feat: account list TTFT and success-rate columns
 
 ### What

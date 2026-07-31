@@ -1073,6 +1073,9 @@ export interface Account {
   group_ids?: number[] // Groups this account belongs to
   groups?: Group[] // Preloaded group objects
 
+  /** When true, only selected after all non-fallback peers are unavailable. */
+  fallback_only?: boolean
+
   // Rate limit & scheduling fields
   schedulable: boolean
   rate_limited_at: string | null

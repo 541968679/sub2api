@@ -2683,6 +2683,29 @@
         </div>
       </div>
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.fallbackOnly') }}</label>
+            <p class="input-hint mb-0">{{ t('admin.accounts.fallbackOnlyHint') }}</p>
+          </div>
+          <button
+            type="button"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="fallbackOnly ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'"
+            role="switch"
+            :aria-checked="fallbackOnly"
+            data-testid="account-form-fallback-only"
+            @click="fallbackOnly = !fallbackOnly"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="fallbackOnly ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.fallbackOnlyInfo') }}</p>
+      </div>
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
         <input v-model="expiresAtInput" type="datetime-local" class="input" />
         <p class="input-hint">{{ t('admin.accounts.expiresAtHint') }}</p>
@@ -3808,7 +3831,8 @@ adminAPI.settings.getWebSearchEmulationConfig().then(cfg => {
 
 loadQuotaNotifyGlobal()
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
-const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
+const allowOverages = ref(false)
+const fallbackOnly = ref(false) // For antigravity accounts: enable AI Credits overages
 const useEmailAsName = ref(false) // For antigravity batch import: use email as account name
 const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigravity: oauth or upstream
 const upstreamBaseUrl = ref('') // For upstream type: base URL
@@ -3894,11 +3918,21 @@ const applyOpenAIEndpointCapabilities = (credentials: Record<string, unknown>) =
   credentials.openai_capabilities = capabilities
 }
 
+function applyFallbackOnlyToExtra(extra?: Record<string, unknown>): Record<string, unknown> | undefined {
+  const next: Record<string, unknown> = { ...(extra || {}) }
+  if (fallbackOnly.value) {
+    next.fallback_only = true
+  } else {
+    delete next.fallback_only
+  }
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
 function buildAntigravityExtra(): Record<string, unknown> | undefined {
   const extra: Record<string, unknown> = {}
   if (mixedScheduling.value) extra.mixed_scheduling = true
   if (allowOverages.value) extra.allow_overages = true
-  return Object.keys(extra).length > 0 ? extra : undefined
+  return applyFallbackOnlyToExtra(extra)
 }
 
 const buildOpenAICompactModelMapping = () =>
@@ -4889,7 +4923,7 @@ const handleClose = () => {
 // inside buildOpenAIExtra — that function early-returns for non-openai platforms.
 const buildGrokExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
   if (form.platform !== 'grok') {
-    return base
+    return applyFallbackOnlyToExtra(base)
   }
   const extra: Record<string, unknown> = { ...(base || {}) }
   if (grokOpenAIGroupAccessEnabled.value) {
@@ -4897,7 +4931,7 @@ const buildGrokExtra = (base?: Record<string, unknown>): Record<string, unknown>
   } else {
     delete extra.grok_openai_group_access_enabled
   }
-  return Object.keys(extra).length > 0 ? extra : undefined
+  return applyFallbackOnlyToExtra(extra)
 }
 
 const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
@@ -4952,14 +4986,14 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     delete extra.openai_responses_mode
   }
 
-  return Object.keys(extra).length > 0 ? extra : undefined
+  return applyFallbackOnlyToExtra(extra)
 }
 
 const buildAnthropicExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
   const isAnthropicApikey = form.platform === 'anthropic' && accountCategory.value === 'apikey'
   const isAntigravityApikey = form.platform === 'antigravity' && antigravityAccountType.value === 'upstream'
   if (!isAnthropicApikey && !isAntigravityApikey) {
-    return base
+    return applyFallbackOnlyToExtra(base)
   }
 
   const extra: Record<string, unknown> = { ...(base || {}) }
@@ -4979,7 +5013,7 @@ const buildAnthropicExtra = (base?: Record<string, unknown>): Record<string, unk
     extra.web_search_emulation = webSearchEmulationMode.value
   }
 
-  return Object.keys(extra).length > 0 ? extra : undefined
+  return applyFallbackOnlyToExtra(extra)
 }
 
 // Helper function to create account with mixed channel warning handling
@@ -5407,7 +5441,7 @@ const createAccountAndFinish = async (
     platform,
     type,
     credentials,
-    extra: finalExtra,
+    extra: applyFallbackOnlyToExtra(finalExtra),
     proxy_id: form.proxy_id,
     auto_assign_proxy: form.auto_assign_proxy,
     concurrency: form.concurrency,

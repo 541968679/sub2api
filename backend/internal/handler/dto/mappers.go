@@ -240,6 +240,7 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		AutoPauseOnExpired:      a.AutoPauseOnExpired,
 		CreatedAt:               a.CreatedAt,
 		UpdatedAt:               a.UpdatedAt,
+		FallbackOnly:            a.IsFallbackOnly(),
 		Schedulable:             a.Schedulable,
 		RateLimitedAt:           a.RateLimitedAt,
 		RateLimitResetAt:        a.RateLimitResetAt,

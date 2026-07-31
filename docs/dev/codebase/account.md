@@ -734,6 +734,7 @@ can be written by the request-path rate-limit/session-window logic.
 | 账号分组全选 | 创建、编辑、批量编辑共用 `GroupSelector` 的 `show-toggle-all` 入口；全选/取消全选只作用于当前可选分组，保留平台过滤外的既有 `group_ids` | `GroupSelector.vue`, `CreateAccountModal.vue`, `EditAccountModal.vue`, `BulkEditAccountModal.vue` |
 | 跨页批量删除 | 跨页选择后的删除必须通过 `deleteAccountIdsInBatches` 以 10 个账号为一批执行，并保留失败 ID 供重试 | `AccountsView.vue`, `AccountsView.bulkEdit.spec.ts` |
 | 账号质量列（首字/成功率） | 列表默认显示最近 **15 分钟**滚动窗口的平均 TTFT 与成功率；成功与首字来自 `usage_logs`，失败来自 `ops_error_logs`（status≥400，排除 count_tokens）。列隐藏时不请求；`POST /admin/accounts/quality-stats/batch` + 30s 缓存。不参与调度/熔断 | `account_quality.go`, `usage_log_repo.go`, `AccountsView.vue`, `AccountQualityCell.vue` |
+| 仅作兜底调度 (`fallback_only`) | `extra.fallback_only=true` 时账号进入硬兜底层：同池存在任意非兜底候选时永不负载均衡选中；全部 primary 不可用/被排除后才用兜底。与 soft `priority` 解耦。会话粘性若钉在兜底号且 primary 可用会逃逸；`previous_response` 多轮粘性保留 | `account.go` `IsFallbackOnly`, `preferPrimary*`, `openai_account_scheduler.go`, `gateway_service.go` |
 | Gemini RT client 绑定 | Google OAuth 的 refresh_token 绑定签发它的 client_id；google_one 批量导入强制用内置 Gemini CLI client，自建 client 的 RT 报 unauthorized_client | `gemini_oauth_service.go:ValidateGoogleOneRefreshToken` |
 
 ## 已知陷阱

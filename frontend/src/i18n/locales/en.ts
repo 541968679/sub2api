@@ -4674,6 +4674,11 @@ const enBase = {
       loadFactorHint: 'Higher load factor increases scheduling frequency',
       priority: 'Priority',
       priorityHint: 'Lower value accounts are used first',
+      fallbackOnly: 'Fallback only',
+      fallbackOnlyHint:
+        'When enabled, this account is selected only if every other schedulable peer is unavailable',
+      fallbackOnlyInfo:
+        'Unlike soft priority weights, a fallback-only account is never load-balanced while any non-fallback candidate remains. Use for spare or high-cost upstreams.',
       billingRateMultiplier: 'Billing Rate Multiplier',
       billingRateMultiplierHint: '0 = free, affects account billing only',
       expiresAt: 'Expires At',

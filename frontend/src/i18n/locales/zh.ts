@@ -4405,6 +4405,10 @@ const zhBase = {
       loadFactorHint: '提高负载因子可以提高对账号的调度频率',
       priority: '优先级',
       priorityHint: '优先级越小的账号优先使用',
+      fallbackOnly: '仅作兜底调度',
+      fallbackOnlyHint: '开启后，仅当同分组内其他可调度账号都不可用时才会选中本账号',
+      fallbackOnlyInfo:
+        '与优先级软权重不同：兜底账号在存在任何「非兜底」候选时都不会被负载均衡选中。适合备用中转/高成本渠道。',
       billingRateMultiplier: '账号计费倍率',
       billingRateMultiplierHint: '0 表示不计费，仅影响账号计费',
       expiresAt: '过期时间',

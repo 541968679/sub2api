@@ -197,6 +197,10 @@ type Account struct {
 	CreatedAt          time.Time      `json:"created_at"`
 	UpdatedAt          time.Time      `json:"updated_at"`
 
+	// FallbackOnly is extracted from extra.fallback_only for admin forms.
+	// When true, the account is only selected after all primary peers are unavailable.
+	FallbackOnly bool `json:"fallback_only"`
+
 	Schedulable bool `json:"schedulable"`
 
 	RateLimitedAt    *time.Time `json:"rate_limited_at"`

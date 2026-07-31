@@ -1014,6 +1014,35 @@ func (a *Account) IsOpenAIClaudeGPTBridgeEnabled() bool {
 	return a != nil && a.IsOpenAI() && a.getExtraBool("openai_claude_gpt_bridge_enabled")
 }
 
+// AccountExtraFallbackOnly is the accounts.extra key for hard fallback-only scheduling.
+// When true, the account is selected only if no non-fallback peer remains in the
+// eligible candidate pool. Independent of soft priority weights.
+const AccountExtraFallbackOnly = "fallback_only"
+
+// IsFallbackOnly reports whether the account is reserved as a last-resort
+// scheduling candidate. Default (missing key) is false.
+func (a *Account) IsFallbackOnly() bool {
+	return a != nil && a.getExtraBool(AccountExtraFallbackOnly)
+}
+
+// SetFallbackOnly writes or clears the fallback-only flag on Extra.
+func (a *Account) SetFallbackOnly(enabled bool) {
+	if a == nil {
+		return
+	}
+	if a.Extra == nil {
+		if !enabled {
+			return
+		}
+		a.Extra = make(map[string]any, 1)
+	}
+	if enabled {
+		a.Extra[AccountExtraFallbackOnly] = true
+		return
+	}
+	delete(a.Extra, AccountExtraFallbackOnly)
+}
+
 // AccountExtraGrokOpenAIGroupAccessEnabled is the accounts.extra key that opts a
 // Grok account into OpenAI-group discovery and scheduling. Default is off.
 const AccountExtraGrokOpenAIGroupAccessEnabled = "grok_openai_group_access_enabled"

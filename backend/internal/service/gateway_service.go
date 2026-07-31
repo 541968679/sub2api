@@ -2034,6 +2034,8 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		candidates = append(candidates, acc)
 	}
 
+	// Hard fallback tier: exclude fallback_only accounts while any primary remains.
+	candidates = preferPrimaryAccounts(candidates)
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}

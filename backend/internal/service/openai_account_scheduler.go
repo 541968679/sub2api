@@ -414,6 +414,11 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", reason, "error_rate", errorRate, "ttft", ttft)
 		return nil, true, nil
 	}
+	// Fallback-only sticky must not pin traffic while primary peers are available.
+	if account.IsFallbackOnly() && s.hasPrimaryOpenAIPeer(ctx, req, accountID) {
+		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "fallback_only_primary_available")
+		return nil, true, nil
+	}
 
 	result, acquireErr := s.service.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
 	if acquireErr == nil && result != nil && result.Acquired {
@@ -458,6 +463,42 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int6
 		return "error_rate", errorRate, ttft, true
 	}
 	return "", errorRate, ttft, false
+}
+
+// hasPrimaryOpenAIPeer reports whether any non-fallback schedulable peer exists
+// for the current sticky request context (excluding stickyAccountID).
+func (s *defaultOpenAIAccountScheduler) hasPrimaryOpenAIPeer(
+	ctx context.Context,
+	req OpenAIAccountScheduleRequest,
+	stickyAccountID int64,
+) bool {
+	if s == nil || s.service == nil {
+		return false
+	}
+	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID, req.Platform)
+	if err != nil || len(accounts) == 0 {
+		return false
+	}
+	platform := normalizeOpenAICompatiblePlatform(req.Platform)
+	for i := range accounts {
+		account := &accounts[i]
+		if account.ID == stickyAccountID {
+			continue
+		}
+		if req.ExcludedIDs != nil {
+			if _, excluded := req.ExcludedIDs[account.ID]; excluded {
+				continue
+			}
+		}
+		if account.IsFallbackOnly() {
+			continue
+		}
+		if !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != platform || s.service.isOpenAIAccountRuntimeBlocked(account) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func openAIStickyAccountMatchesGroup(account *Account, groupID *int64) bool {
@@ -531,6 +572,48 @@ func (h *openAIAccountCandidateHeap) Pop() any {
 	last := old[n-1]
 	*h = old[:n-1]
 	return last
+}
+
+// preferPrimaryOpenAICandidates keeps only non-fallback accounts when any exist.
+// When every remaining candidate is fallback_only, the fallback pool is used as-is.
+func preferPrimaryOpenAICandidates(candidates []openAIAccountCandidateScore) []openAIAccountCandidateScore {
+	if len(candidates) == 0 {
+		return candidates
+	}
+	primary := make([]openAIAccountCandidateScore, 0, len(candidates))
+	fallback := make([]openAIAccountCandidateScore, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.account != nil && candidate.account.IsFallbackOnly() {
+			fallback = append(fallback, candidate)
+			continue
+		}
+		primary = append(primary, candidate)
+	}
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
+}
+
+// preferPrimaryAccounts applies the same hard fallback partition to account slices
+// used by non-OpenAI gateway selection paths.
+func preferPrimaryAccounts(accounts []*Account) []*Account {
+	if len(accounts) == 0 {
+		return accounts
+	}
+	primary := make([]*Account, 0, len(accounts))
+	fallback := make([]*Account, 0, len(accounts))
+	for _, account := range accounts {
+		if account != nil && account.IsFallbackOnly() {
+			fallback = append(fallback, account)
+			continue
+		}
+		primary = append(primary, account)
+	}
+	if len(primary) > 0 {
+		return primary
+	}
+	return fallback
 }
 
 func isOpenAIAccountCandidateBetter(left openAIAccountCandidateScore, right openAIAccountCandidateScore) bool {
@@ -795,6 +878,12 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			return nil, 0, 0, 0, ErrNoAvailableCompactAccounts
 		}
 	}
+
+	// Hard fallback tier after capability filters: never mix fallback_only with
+	// primary peers in the same selection/wait pool. Soft priority cannot express
+	// "only when everyone else is unavailable".
+	candidates = preferPrimaryOpenAICandidates(candidates)
+	staleSnapshotCompactRetry = preferPrimaryOpenAICandidates(staleSnapshotCompactRetry)
 
 	candidateCount := len(candidates)
 	loadSkew := 0.0
