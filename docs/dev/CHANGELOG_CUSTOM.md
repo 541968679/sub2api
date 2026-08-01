@@ -1,3 +1,17 @@
+## 2026-08-01 - feat: inline redeem on purchase page + redeem buy notice
+
+### What
+- 充值/订阅页（`PaymentView`）的充值 Tab 与订阅 Tab 各增加内嵌兑换卡片，用户无需跳转 `/redeem` 即可兑换。
+- 兑换页增加管理员可配置的「购买兑换码」纯文本说明（Settings KV `redeem_page.buy_notice`）。
+- 管理端「页面内容」新增「兑换页」Tab；充值公告与兑换说明统一为温和绿色大字号横幅（去掉红色与感叹号圆标）。
+
+### Why
+将兑换码作为间接支付通道：后台生成码 → 外部销售站售卖 → 用户购后兑换；并在充值/订阅入口降低操作路径。
+
+### Affected files
+Backend: `handler/admin/redeem_page_handler.go`, `handler/redeem_page_handler.go`, `handler/handler.go`, `handler/wire.go`, `cmd/server/wire_gen.go`, `server/routes/user.go`, `server/routes/admin.go`  
+Frontend: `api/redeemPage.ts`, `components/common/SoftNoticeBanner.vue`, `components/user/InlineRedeemCard.vue`, `components/admin/page-content/{Purchase,Redeem}ContentForm.vue`, `views/user/{Payment,Redeem}View.vue`, `views/admin/PageContentView.vue`, `i18n/locales/{zh,en}.ts`, `api/index.ts`
+
 ## 2026-07-31 - fix: escape previous_response sticky on fallback-only accounts
 
 ### What

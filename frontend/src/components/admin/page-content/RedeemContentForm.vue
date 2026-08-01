@@ -1,15 +1,15 @@
 <template>
   <div class="space-y-6">
-    <div class="card border-l-4 border-amber-500 p-4">
+    <div class="card border-l-4 border-emerald-500 p-4">
       <p class="text-sm text-gray-700 dark:text-gray-200">
-        {{ t('admin.purchasePage.hint') }}
+        {{ t('admin.redeemPage.hint') }}
       </p>
       <router-link
-        to="/purchase"
+        to="/redeem"
         class="mt-2 inline-block text-sm font-medium text-primary-600 hover:underline dark:text-primary-400"
         target="_blank"
       >
-        {{ t('admin.purchasePage.previewButton') }} →
+        {{ t('admin.redeemPage.previewButton') }} →
       </router-link>
     </div>
 
@@ -19,37 +19,37 @@
 
     <template v-else>
       <section class="card p-6">
-        <label class="input-label">{{ t('admin.purchasePage.noticeLabel') }}</label>
+        <label class="input-label">{{ t('admin.redeemPage.noticeLabel') }}</label>
         <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
-          {{ t('admin.purchasePage.noticeHint') }}
+          {{ t('admin.redeemPage.noticeHint') }}
         </p>
         <textarea
           v-model="form.notice"
           rows="8"
           class="input font-mono text-sm"
-          :placeholder="t('admin.purchasePage.noticePlaceholder')"
+          :placeholder="t('admin.redeemPage.noticePlaceholder')"
         ></textarea>
         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          {{ t('admin.purchasePage.clearHint') }}
+          {{ t('admin.redeemPage.clearHint') }}
         </p>
       </section>
 
       <div v-if="form.notice.trim()" class="card p-4">
         <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          {{ t('admin.purchasePage.previewLabel') }}
+          {{ t('admin.redeemPage.previewLabel') }}
         </p>
         <SoftNoticeBanner
-          :title="t('payment.pageNoticeTitle')"
+          :title="t('redeem.buyNoticeTitle')"
           :text="form.notice.trim()"
         />
       </div>
 
       <div class="flex items-center justify-end gap-3">
         <button type="button" class="btn btn-secondary" :disabled="saving" @click="handleClear">
-          {{ t('admin.purchasePage.clearButton') }}
+          {{ t('admin.redeemPage.clearButton') }}
         </button>
         <button type="button" class="btn btn-primary" :disabled="saving" @click="handleSave">
-          {{ saving ? t('common.saving') : t('admin.purchasePage.saveButton') }}
+          {{ saving ? t('common.saving') : t('admin.redeemPage.saveButton') }}
         </button>
       </div>
     </template>
@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { purchasePageAPI } from '@/api/purchasePage'
+import { redeemPageAPI } from '@/api/redeemPage'
 import { useAppStore } from '@/stores'
 import SoftNoticeBanner from '@/components/common/SoftNoticeBanner.vue'
 
@@ -73,7 +73,7 @@ const form = reactive({ notice: '' })
 async function load() {
   loading.value = true
   try {
-    const data = await purchasePageAPI.getAdminPurchasePageContent()
+    const data = await redeemPageAPI.getAdminRedeemPageContent()
     form.notice = data.notice ?? ''
   } catch (err: unknown) {
     appStore.showError(err instanceof Error ? err.message : String(err))
@@ -85,9 +85,9 @@ async function load() {
 async function handleSave() {
   saving.value = true
   try {
-    await purchasePageAPI.updateAdminPurchasePageContent({ notice: form.notice.trim() })
+    await redeemPageAPI.updateAdminRedeemPageContent({ notice: form.notice.trim() })
     form.notice = form.notice.trim()
-    appStore.showSuccess(t('admin.purchasePage.saveSuccess'))
+    appStore.showSuccess(t('admin.redeemPage.saveSuccess'))
   } catch (err: unknown) {
     appStore.showError(err instanceof Error ? err.message : String(err))
   } finally {
@@ -96,7 +96,7 @@ async function handleSave() {
 }
 
 async function handleClear() {
-  if (!window.confirm(t('admin.purchasePage.clearConfirm'))) return
+  if (!window.confirm(t('admin.redeemPage.clearConfirm'))) return
   form.notice = ''
   await handleSave()
 }

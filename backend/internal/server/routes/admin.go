@@ -102,6 +102,7 @@ func RegisterAdminRoutes(
 		registerTutorialPageRoutes(admin, h)
 		// 充值/订阅页顶部公告
 		registerPurchasePageRoutes(admin, h)
+		registerRedeemPageRoutes(admin, h)
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h)
 		registerImageChannelMonitorRoutes(admin, h)
@@ -729,6 +730,15 @@ func registerPurchasePageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		pp.GET("/content", h.Admin.PurchasePage.Get)
 		pp.PUT("/content", h.Admin.PurchasePage.Update)
+	}
+}
+
+// registerRedeemPageRoutes 兑换页「购买兑换码」说明管理。一段文案存在 settings KV。
+func registerRedeemPageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	rp := admin.Group("/redeem-page")
+	{
+		rp.GET("/content", h.Admin.RedeemPage.Get)
+		rp.PUT("/content", h.Admin.RedeemPage.Update)
 	}
 }
 

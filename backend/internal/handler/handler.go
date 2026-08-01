@@ -35,6 +35,7 @@ type AdminHandlers struct {
 	LoginPage              *admin.LoginPageHandler
 	TutorialPage           *admin.TutorialPageHandler
 	PurchasePage           *admin.PurchasePageHandler
+	RedeemPage             *admin.RedeemPageHandler
 	ChannelMonitor         *admin.ChannelMonitorHandler
 	ChannelMonitorTemplate *admin.ChannelMonitorRequestTemplateHandler
 	ImageChannelMonitor    *admin.ImageChannelMonitorHandler
@@ -64,6 +65,7 @@ type Handlers struct {
 	PricingPage             *PricingPageHandler
 	TutorialPage            *TutorialPageHandler
 	PurchasePage            *PurchasePageHandler
+	RedeemPage              *RedeemPageHandler
 	AvailableChannel        *AvailableChannelHandler
 	BatchImage              *BatchImageHandler
 }
