@@ -1,3 +1,18 @@
+## 2026-08-01 - feat: group create/edit modal three-zone PC layout
+
+### What
+- Admin group **create** and **edit** dialogs use `extra-wide` width and a three-column layout on PC (`lg+`):
+  1. **Basic Config** — name, description, platform, copy accounts, rate/RPM, exclusive, subscription type + USD limits
+  2. **Model Control** — model allow/block lists and `/v1/models` custom list
+  3. **Other Features** — pricing (image/video/web/peak) and platform-advanced options; collapsed by default on PC, always open on mobile
+- Opening create/edit resets the Other Features expand state.
+
+### Why
+Group create/edit was a long single column mixing daily setup with rare advanced options.
+
+### Affected files
+Frontend: `views/admin/GroupsView.vue`, `i18n/locales/{zh,en}.ts`
+
 ## 2026-08-01 - feat: account edit modal three-zone PC layout
 
 ### What
@@ -11,6 +26,19 @@ Long single-column edit form mixed everyday settings with advanced options, maki
 
 ### Affected files
 Frontend: `components/account/EditAccountModal.vue`, `components/common/GroupSelector.vue`, `components/common/__tests__/GroupSelector.spec.ts`, `i18n/locales/{zh,en}.ts`
+
+## 2026-08-01 - feat: account list open usage by account + hide antigravity usage cards
+
+### What
+- Account management actions: **查看使用记录 / Usage** opens `/admin/usage` in a new tab with `account_id` (+ `account_name`) applied.
+- Admin usage page reads `account_id` from query and resolves the account filter label.
+- Removed Antigravity ratio card and credit usage curve from admin usage page (no longer needed).
+
+### Why
+Jump from an account row into filtered usage logs; drop unused Antigravity dashboard cards.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`, `frontend/src/views/admin/UsageView.vue`, `frontend/src/components/admin/usage/UsageFilters.vue`, `frontend/src/i18n/locales/{zh,en}.ts`
 
 ## 2026-08-01 - feat: account list inline concurrency, priority, fallback-only
 

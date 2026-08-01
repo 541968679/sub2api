@@ -2325,6 +2325,13 @@ const zhBase = {
       searchGroups: '搜索分组...',
       createGroup: '创建分组',
       editGroup: '编辑分组',
+      editZones: {
+        basic: '基础配置',
+        models: '模型控制',
+        other: '其他功能',
+        expand: '展开',
+        collapse: '收起'
+      },
       deleteGroup: '删除分组',
       sortOrder: '排序',
       sortOrderHint: '拖拽分组调整显示顺序，排在前面的分组会优先显示',
@@ -3756,6 +3763,8 @@ const zhBase = {
       schedulableEnabled: '调度已开启',
       schedulableDisabled: '调度已关闭',
       failedToToggleSchedulable: '切换调度状态失败',
+      viewUsage: '查看使用记录',
+      viewUsageShort: '用量',
       groupCountTotal: '共 {count} 个分组',
       columns: {
         name: '名称',

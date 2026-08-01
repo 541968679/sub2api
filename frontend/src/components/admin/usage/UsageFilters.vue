@@ -169,6 +169,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, toRef, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
@@ -197,6 +198,7 @@ const emit = defineEmits([
 ])
 
 const { t } = useI18n()
+const route = useRoute()
 const filters = toRef(props, 'modelValue')
 
 const userSearchRef = ref<HTMLElement | null>(null)
@@ -409,18 +411,42 @@ watch(
   }
 )
 
+async function resolveAccountLabel(accountId: number | string | undefined | null) {
+  if (!accountId) {
+    accountKeyword.value = ''
+    accountResults.value = []
+    return
+  }
+  const queryName = route.query.account_name
+  const nameFromQuery = Array.isArray(queryName)
+    ? queryName.find((v): v is string => typeof v === 'string' && v.length > 0)
+    : typeof queryName === 'string' && queryName.length > 0
+      ? queryName
+      : undefined
+  if (nameFromQuery) {
+    accountKeyword.value = nameFromQuery
+    return
+  }
+  if (accountKeyword.value) return
+  try {
+    const acc = await adminAPI.accounts.getById(Number(accountId))
+    accountKeyword.value = acc.name || `#${accountId}`
+  } catch {
+    accountKeyword.value = `#${accountId}`
+  }
+}
+
 watch(
   () => filters.value.account_id,
   (accountId) => {
-    if (!accountId) {
-      accountKeyword.value = ''
-      accountResults.value = []
-    }
-  }
+    void resolveAccountLabel(accountId)
+  },
+  { immediate: true }
 )
 
 onMounted(async () => {
   document.addEventListener('click', onDocumentClick)
+  void resolveAccountLabel(filters.value.account_id)
 
   try {
     const [gs, ms] = await Promise.all([

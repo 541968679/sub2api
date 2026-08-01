@@ -2459,6 +2459,13 @@ const enBase = {
       searchGroups: 'Search groups...',
       createGroup: 'Create Group',
       editGroup: 'Edit Group',
+      editZones: {
+        basic: 'Basic Config',
+        models: 'Model Control',
+        other: 'Other Features',
+        expand: 'Expand',
+        collapse: 'Collapse'
+      },
       deleteGroup: 'Delete Group',
       sortOrder: 'Sort',
       sortOrderHint: 'Drag groups to adjust display order, groups at the top will be displayed first',
@@ -4129,6 +4136,8 @@ const enBase = {
       schedulableEnabled: 'Scheduling enabled',
       schedulableDisabled: 'Scheduling disabled',
       failedToToggleSchedulable: 'Failed to toggle scheduling status',
+      viewUsage: 'View usage records',
+      viewUsageShort: 'Usage',
       groupCountTotal: '{count} groups total',
       platforms: {
         anthropic: 'Anthropic',
