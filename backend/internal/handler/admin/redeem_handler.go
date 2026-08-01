@@ -83,6 +83,73 @@ func (h *RedeemHandler) List(c *gin.Context) {
 	response.Paginated(c, out, total, page, pageSize)
 }
 
+// ListBatches handles listing redeem code generation batches
+// GET /api/v1/admin/redeem-codes/batches
+func (h *RedeemHandler) ListBatches(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	codeType := c.Query("type")
+	status := c.Query("status")
+	search := strings.TrimSpace(c.Query("search"))
+	if len(search) > 100 {
+		search = search[:100]
+	}
+
+	batches, total, err := h.adminService.ListRedeemCodeBatches(c.Request.Context(), page, pageSize, codeType, status, search)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := make([]dto.AdminRedeemCodeBatch, 0, len(batches))
+	for i := range batches {
+		out = append(out, dto.RedeemCodeBatchFromService(&batches[i]))
+	}
+	response.Paginated(c, out, total, page, pageSize)
+}
+
+// ListBatchCodes handles listing codes inside one generation batch
+// GET /api/v1/admin/redeem-codes/batches/:batchKey/codes
+func (h *RedeemHandler) ListBatchCodes(c *gin.Context) {
+	batchKey := strings.TrimSpace(c.Param("batchKey"))
+	if batchKey == "" {
+		response.BadRequest(c, "batch key is required")
+		return
+	}
+
+	codes, err := h.adminService.ListRedeemCodesByBatchKey(c.Request.Context(), batchKey)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	out := make([]dto.AdminRedeemCode, 0, len(codes))
+	for i := range codes {
+		out = append(out, *dto.RedeemCodeFromServiceAdmin(&codes[i]))
+	}
+	response.Success(c, out)
+}
+
+// DeleteBatchUnused deletes unused codes in a generation batch
+// DELETE /api/v1/admin/redeem-codes/batches/:batchKey/unused
+func (h *RedeemHandler) DeleteBatchUnused(c *gin.Context) {
+	batchKey := strings.TrimSpace(c.Param("batchKey"))
+	if batchKey == "" {
+		response.BadRequest(c, "batch key is required")
+		return
+	}
+
+	deleted, err := h.adminService.DeleteUnusedRedeemCodesByBatchKey(c.Request.Context(), batchKey)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{
+		"deleted": deleted,
+		"message": "Unused redeem codes deleted successfully",
+	})
+}
+
 // GetByID handles getting a redeem code by ID
 // GET /api/v1/admin/redeem-codes/:id
 func (h *RedeemHandler) GetByID(c *gin.Context) {

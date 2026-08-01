@@ -2,7 +2,10 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +18,9 @@ import (
 
 	entsql "entgo.io/ent/dialect/sql"
 )
+
+// Path-safe prefix for codes that predate batch_id assignment.
+const redeemLegacyBatchPrefix = "legacy-"
 
 type redeemCodeRepository struct {
 	client *dbent.Client
@@ -410,6 +416,244 @@ func isRedeemBatchLimitConstraint(err error) bool {
 		return pqErr.Code == "23505" && pqErr.Constraint == "redeemcode_batch_id_used_by"
 	}
 	return false
+}
+
+// ListBatches returns paginated generation batches (or legacy single-code pseudo-batches).
+func (r *redeemCodeRepository) ListBatches(
+	ctx context.Context,
+	params pagination.PaginationParams,
+	codeType, status, search string,
+) ([]service.RedeemCodeBatch, *pagination.PaginationResult, error) {
+	client := clientFromContext(ctx, r.client)
+
+	whereRC, havingRC, args := buildRedeemBatchFilters("rc", codeType, status, search)
+	_, havingOuter, _ := buildRedeemBatchFilters("", codeType, status, search)
+
+	countQuery := `
+SELECT COUNT(*) FROM (
+  SELECT
+    CASE
+      WHEN rc.batch_id IS NOT NULL AND rc.batch_id <> '' THEN rc.batch_id
+      ELSE '` + redeemLegacyBatchPrefix + `' || rc.id::text
+    END AS batch_key
+  FROM redeem_codes rc
+  WHERE ` + whereRC + `
+  GROUP BY 1
+  ` + havingRC + `
+) batches`
+
+	var total int64
+	countRows, err := client.QueryContext(ctx, countQuery, args...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("count redeem batches: %w", err)
+	}
+	if countRows.Next() {
+		if err := countRows.Scan(&total); err != nil {
+			_ = countRows.Close()
+			return nil, nil, fmt.Errorf("scan redeem batch count: %w", err)
+		}
+	}
+	if err := countRows.Close(); err != nil {
+		return nil, nil, err
+	}
+
+	offset := params.Offset()
+	limit := params.Limit()
+	if limit <= 0 {
+		limit = 20
+	}
+
+	listArgs := append(append([]any{}, args...), limit, offset)
+	listQuery := `
+SELECT
+  batch_key,
+  MAX(real_batch_id) AS batch_id,
+  BOOL_OR(is_legacy) AS is_legacy,
+  MAX(type) AS type,
+  MAX(value)::float8 AS value,
+  MAX(group_id) AS group_id,
+  COALESCE(MAX(group_name), '') AS group_name,
+  COALESCE(MAX(validity_days), 30) AS validity_days,
+  BOOL_OR(batch_redeem_limit_per_user) AS batch_redeem_limit_per_user,
+  MAX(expires_at) AS expires_at,
+  MIN(created_at) AS created_at,
+  COUNT(*)::int AS total_count,
+  COUNT(*) FILTER (WHERE status = 'unused')::int AS unused_count,
+  COUNT(*) FILTER (WHERE status = 'used')::int AS used_count,
+  COUNT(*) FILTER (WHERE status = 'expired')::int AS expired_count
+FROM (
+  SELECT
+    CASE
+      WHEN rc.batch_id IS NOT NULL AND rc.batch_id <> '' THEN rc.batch_id
+      ELSE '` + redeemLegacyBatchPrefix + `' || rc.id::text
+    END AS batch_key,
+    rc.batch_id AS real_batch_id,
+    (rc.batch_id IS NULL OR rc.batch_id = '') AS is_legacy,
+    rc.type,
+    rc.value,
+    rc.group_id,
+    g.name AS group_name,
+    rc.validity_days,
+    rc.batch_redeem_limit_per_user,
+    rc.expires_at,
+    rc.created_at,
+    rc.status
+  FROM redeem_codes rc
+  LEFT JOIN groups g ON g.id = rc.group_id
+  WHERE ` + whereRC + `
+) filtered
+GROUP BY batch_key
+` + havingOuter + `
+ORDER BY MIN(created_at) DESC, batch_key DESC
+LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+
+	rows, err := client.QueryContext(ctx, listQuery, listArgs...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list redeem batches: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]service.RedeemCodeBatch, 0)
+	for rows.Next() {
+		var (
+			b         service.RedeemCodeBatch
+			batchID   sql.NullString
+			groupID   sql.NullInt64
+			expiresAt sql.NullTime
+			groupName string
+		)
+		if err := rows.Scan(
+			&b.BatchKey,
+			&batchID,
+			&b.IsLegacy,
+			&b.Type,
+			&b.Value,
+			&groupID,
+			&groupName,
+			&b.ValidityDays,
+			&b.BatchRedeemLimitPerUser,
+			&expiresAt,
+			&b.CreatedAt,
+			&b.TotalCount,
+			&b.UnusedCount,
+			&b.UsedCount,
+			&b.ExpiredCount,
+		); err != nil {
+			return nil, nil, fmt.Errorf("scan redeem batch: %w", err)
+		}
+		if batchID.Valid && batchID.String != "" {
+			id := batchID.String
+			b.BatchID = &id
+		}
+		if groupID.Valid {
+			gid := groupID.Int64
+			b.GroupID = &gid
+		}
+		b.GroupName = groupName
+		if expiresAt.Valid {
+			t := expiresAt.Time
+			b.ExpiresAt = &t
+		}
+		out = append(out, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return out, paginationResultFromTotal(total, params), nil
+}
+
+// buildRedeemBatchFilters builds WHERE (row-level) and HAVING (batch-level status) clauses.
+func buildRedeemBatchFilters(alias, codeType, status, search string) (where string, having string, args []any) {
+	prefix := ""
+	if alias != "" {
+		prefix = alias + "."
+	}
+	parts := []string{"TRUE"}
+	args = make([]any, 0, 3)
+	argN := 1
+
+	if codeType != "" {
+		parts = append(parts, fmt.Sprintf("%stype = $%d", prefix, argN))
+		args = append(args, codeType)
+		argN++
+	}
+	if search != "" {
+		like := "%" + search + "%"
+		parts = append(parts, fmt.Sprintf("(%scode ILIKE $%d OR %sbatch_id ILIKE $%d)", prefix, argN, prefix, argN))
+		args = append(args, like)
+		argN++
+	}
+
+	statusCol := "status"
+	if alias != "" {
+		statusCol = prefix + "status"
+	}
+	having = ""
+	switch status {
+	case "unused":
+		having = "HAVING COUNT(*) FILTER (WHERE " + statusCol + " = 'unused') > 0"
+	case "used":
+		having = "HAVING COUNT(*) FILTER (WHERE " + statusCol + " = 'used') > 0"
+	case "expired":
+		having = "HAVING COUNT(*) FILTER (WHERE " + statusCol + " = 'expired') > 0"
+	}
+	_ = argN
+	return strings.Join(parts, " AND "), having, args
+}
+
+// ListCodesByBatchKey returns all codes for a generation batch or a legacy singleton.
+func (r *redeemCodeRepository) ListCodesByBatchKey(ctx context.Context, batchKey string) ([]service.RedeemCode, error) {
+	client := clientFromContext(ctx, r.client)
+	batchKey = strings.TrimSpace(batchKey)
+	if batchKey == "" {
+		return nil, fmt.Errorf("batch key is required")
+	}
+
+	q := client.RedeemCode.Query().WithUser().WithGroup()
+	if strings.HasPrefix(batchKey, redeemLegacyBatchPrefix) {
+		idStr := strings.TrimPrefix(batchKey, redeemLegacyBatchPrefix)
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid legacy batch key")
+		}
+		q = q.Where(redeemcode.IDEQ(id))
+	} else {
+		q = q.Where(redeemcode.BatchIDEQ(batchKey))
+	}
+
+	codes, err := q.Order(dbent.Asc(redeemcode.FieldID)).All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return redeemCodeEntitiesToService(codes), nil
+}
+
+// DeleteUnusedByBatchKey deletes unused (and non-used) codes in a batch. Used codes are skipped.
+func (r *redeemCodeRepository) DeleteUnusedByBatchKey(ctx context.Context, batchKey string) (int64, error) {
+	client := clientFromContext(ctx, r.client)
+	batchKey = strings.TrimSpace(batchKey)
+	if batchKey == "" {
+		return 0, fmt.Errorf("batch key is required")
+	}
+
+	del := client.RedeemCode.Delete().Where(redeemcode.StatusNEQ(service.StatusUsed))
+	if strings.HasPrefix(batchKey, redeemLegacyBatchPrefix) {
+		idStr := strings.TrimPrefix(batchKey, redeemLegacyBatchPrefix)
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid legacy batch key")
+		}
+		del = del.Where(redeemcode.IDEQ(id))
+	} else {
+		del = del.Where(redeemcode.BatchIDEQ(batchKey))
+	}
+
+	n, err := del.Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return int64(n), nil
 }
 
 func redeemCodeEntitiesToService(models []*dbent.RedeemCode) []service.RedeemCode {

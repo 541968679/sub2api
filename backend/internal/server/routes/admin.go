@@ -471,6 +471,10 @@ func registerRedeemCodeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		codes.GET("", h.Admin.Redeem.List)
 		codes.GET("/stats", h.Admin.Redeem.GetStats)
 		codes.GET("/export", h.Admin.Redeem.Export)
+		// Batch aggregation routes must be registered before /:id
+		codes.GET("/batches", h.Admin.Redeem.ListBatches)
+		codes.GET("/batches/:batchKey/codes", h.Admin.Redeem.ListBatchCodes)
+		codes.DELETE("/batches/:batchKey/unused", h.Admin.Redeem.DeleteBatchUnused)
 		codes.GET("/:id", h.Admin.Redeem.GetByID)
 		codes.POST("/create-and-redeem", h.Admin.Redeem.CreateAndRedeem)
 		codes.POST("/generate", h.Admin.Redeem.Generate)

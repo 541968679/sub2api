@@ -547,6 +547,30 @@ func RedeemCodeFromServiceAdmin(rc *service.RedeemCode) *AdminRedeemCode {
 	}
 }
 
+// RedeemCodeBatchFromService converts a service RedeemCodeBatch to admin DTO.
+func RedeemCodeBatchFromService(b *service.RedeemCodeBatch) AdminRedeemCodeBatch {
+	if b == nil {
+		return AdminRedeemCodeBatch{}
+	}
+	return AdminRedeemCodeBatch{
+		BatchKey:                b.BatchKey,
+		BatchID:                 b.BatchID,
+		IsLegacy:                b.IsLegacy,
+		Type:                    b.Type,
+		Value:                   b.Value,
+		GroupID:                 b.GroupID,
+		GroupName:               b.GroupName,
+		ValidityDays:            b.ValidityDays,
+		BatchRedeemLimitPerUser: b.BatchRedeemLimitPerUser,
+		ExpiresAt:               b.ExpiresAt,
+		CreatedAt:               b.CreatedAt,
+		TotalCount:              b.TotalCount,
+		UnusedCount:             b.UnusedCount,
+		UsedCount:               b.UsedCount,
+		ExpiredCount:            b.ExpiredCount,
+	}
+}
+
 func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
 	out := RedeemCode{
 		ID:                      rc.ID,

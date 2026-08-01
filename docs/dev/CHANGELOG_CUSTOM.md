@@ -1,3 +1,18 @@
+## 2026-08-01 - feat: admin redeem list batch aggregation + split generate modal
+
+### What
+- Admin redeem list aggregates codes by generation `batch_id` (legacy codes without batch_id shown as singleton rows).
+- Batch detail drawer with per-code status; batch actions: copy unused, delete unused.
+- Generate UI is a wide modal: left config, right latest codes (continuous generate overwrites right panel).
+- Every generation now always writes `batch_id` (not only when per-user batch limit is enabled).
+
+### Why
+Operators sell codes in batches; per-code list rows do not scale. Continuous generation needs a persistent result panel.
+
+### Affected files
+Backend: `service/redeem_batch.go`, `service/admin_service.go`, `service/redeem_service.go`, `repository/redeem_code_repo.go`, `handler/admin/redeem_handler.go`, `handler/dto/*`, `server/routes/admin.go`  
+Frontend: `views/admin/RedeemView.vue`, `api/admin/redeem.ts`, `types/index.ts`, `i18n/locales/{zh,en}.ts`
+
 ## 2026-08-01 - feat: inline redeem on purchase page + redeem buy notice
 
 ### What

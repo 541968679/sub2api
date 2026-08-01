@@ -1673,6 +1673,25 @@ export interface RedeemCode {
   group?: Group // 关联的分组
 }
 
+/** Aggregated generation batch for admin redeem list */
+export interface RedeemCodeBatch {
+  batch_key: string
+  batch_id?: string | null
+  is_legacy: boolean
+  type: RedeemCodeType
+  value: number
+  group_id?: number | null
+  group_name?: string
+  validity_days: number
+  batch_redeem_limit_per_user: boolean
+  expires_at?: string | null
+  created_at: string
+  total_count: number
+  unused_count: number
+  used_count: number
+  expired_count: number
+}
+
 export interface GenerateRedeemCodesRequest {
   count: number
   type: RedeemCodeType

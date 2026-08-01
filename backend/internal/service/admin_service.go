@@ -119,6 +119,9 @@ type AdminService interface {
 
 	// Redeem code management
 	ListRedeemCodes(ctx context.Context, page, pageSize int, codeType, status, search string, sortBy, sortOrder string) ([]RedeemCode, int64, error)
+	ListRedeemCodeBatches(ctx context.Context, page, pageSize int, codeType, status, search string) ([]RedeemCodeBatch, int64, error)
+	ListRedeemCodesByBatchKey(ctx context.Context, batchKey string) ([]RedeemCode, error)
+	DeleteUnusedRedeemCodesByBatchKey(ctx context.Context, batchKey string) (int64, error)
 	GetRedeemCode(ctx context.Context, id int64) (*RedeemCode, error)
 	GenerateRedeemCodes(ctx context.Context, input *GenerateRedeemCodesInput) ([]RedeemCode, error)
 	DeleteRedeemCode(ctx context.Context, id int64) error
@@ -3477,6 +3480,35 @@ func (s *adminServiceImpl) ListRedeemCodes(ctx context.Context, page, pageSize i
 	return codes, result.Total, nil
 }
 
+func (s *adminServiceImpl) ListRedeemCodeBatches(ctx context.Context, page, pageSize int, codeType, status, search string) ([]RedeemCodeBatch, int64, error) {
+	batchRepo, ok := s.redeemCodeRepo.(RedeemCodeBatchRepository)
+	if !ok {
+		return nil, 0, fmt.Errorf("redeem batch listing is unavailable")
+	}
+	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: "created_at", SortOrder: "desc"}
+	batches, result, err := batchRepo.ListBatches(ctx, params, codeType, status, search)
+	if err != nil {
+		return nil, 0, err
+	}
+	return batches, result.Total, nil
+}
+
+func (s *adminServiceImpl) ListRedeemCodesByBatchKey(ctx context.Context, batchKey string) ([]RedeemCode, error) {
+	batchRepo, ok := s.redeemCodeRepo.(RedeemCodeBatchRepository)
+	if !ok {
+		return nil, fmt.Errorf("redeem batch listing is unavailable")
+	}
+	return batchRepo.ListCodesByBatchKey(ctx, batchKey)
+}
+
+func (s *adminServiceImpl) DeleteUnusedRedeemCodesByBatchKey(ctx context.Context, batchKey string) (int64, error) {
+	batchRepo, ok := s.redeemCodeRepo.(RedeemCodeBatchRepository)
+	if !ok {
+		return 0, fmt.Errorf("redeem batch delete is unavailable")
+	}
+	return batchRepo.DeleteUnusedByBatchKey(ctx, batchKey)
+}
+
 func (s *adminServiceImpl) GetRedeemCode(ctx context.Context, id int64) (*RedeemCode, error) {
 	return s.redeemCodeRepo.GetByID(ctx, id)
 }
@@ -3497,14 +3529,12 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		}
 	}
 
-	var batchID *string
-	if input.BatchRedeemLimitPerUser {
-		generatedBatchID, err := GenerateRedeemBatchID()
-		if err != nil {
-			return nil, err
-		}
-		batchID = &generatedBatchID
+	// Always assign a batch_id so admin list can aggregate by generation run.
+	generatedBatchID, err := GenerateRedeemBatchID()
+	if err != nil {
+		return nil, err
 	}
+	batchID := &generatedBatchID
 
 	codes := make([]RedeemCode, 0, input.Count)
 	for i := 0; i < input.Count; i++ {

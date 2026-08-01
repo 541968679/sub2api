@@ -402,6 +402,25 @@ type AdminRedeemCode struct {
 	Notes string `json:"notes"`
 }
 
+// AdminRedeemCodeBatch is an aggregated generation batch for admin list UI.
+type AdminRedeemCodeBatch struct {
+	BatchKey                string     `json:"batch_key"`
+	BatchID                 *string    `json:"batch_id,omitempty"`
+	IsLegacy                bool       `json:"is_legacy"`
+	Type                    string     `json:"type"`
+	Value                   float64    `json:"value"`
+	GroupID                 *int64     `json:"group_id,omitempty"`
+	GroupName               string     `json:"group_name,omitempty"`
+	ValidityDays            int        `json:"validity_days"`
+	BatchRedeemLimitPerUser bool       `json:"batch_redeem_limit_per_user"`
+	ExpiresAt               *time.Time `json:"expires_at,omitempty"`
+	CreatedAt               time.Time  `json:"created_at"`
+	TotalCount              int        `json:"total_count"`
+	UnusedCount             int        `json:"unused_count"`
+	UsedCount               int        `json:"used_count"`
+	ExpiredCount            int        `json:"expired_count"`
+}
+
 type NullableTimeField struct {
 	Set   bool
 	Value *time.Time

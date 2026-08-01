@@ -614,6 +614,18 @@ func (s *stubAdminService) ListRedeemCodes(ctx context.Context, page, pageSize i
 	return s.redeems, int64(len(s.redeems)), nil
 }
 
+func (s *stubAdminService) ListRedeemCodeBatches(ctx context.Context, page, pageSize int, codeType, status, search string) ([]service.RedeemCodeBatch, int64, error) {
+	return nil, 0, nil
+}
+
+func (s *stubAdminService) ListRedeemCodesByBatchKey(ctx context.Context, batchKey string) ([]service.RedeemCode, error) {
+	return s.redeems, nil
+}
+
+func (s *stubAdminService) DeleteUnusedRedeemCodesByBatchKey(ctx context.Context, batchKey string) (int64, error) {
+	return 0, nil
+}
+
 func (s *stubAdminService) GetRedeemCode(ctx context.Context, id int64) (*service.RedeemCode, error) {
 	code := service.RedeemCode{ID: id, Code: "R-TEST", Status: service.StatusUnused}
 	return &code, nil

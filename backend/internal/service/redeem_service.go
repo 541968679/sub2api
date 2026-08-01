@@ -217,14 +217,12 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		value = 0
 	}
 
-	var batchID *string
-	if req.BatchRedeemLimitPerUser {
-		generatedBatchID, err := GenerateRedeemBatchID()
-		if err != nil {
-			return nil, fmt.Errorf("generate batch id: %w", err)
-		}
-		batchID = &generatedBatchID
+	// Always assign batch_id so generations can be aggregated in admin UI.
+	generatedBatchID, err := GenerateRedeemBatchID()
+	if err != nil {
+		return nil, fmt.Errorf("generate batch id: %w", err)
 	}
+	batchID := &generatedBatchID
 
 	codes := make([]RedeemCode, 0, req.Count)
 	for i := 0; i < req.Count; i++ {

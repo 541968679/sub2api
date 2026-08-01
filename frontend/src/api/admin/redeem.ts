@@ -6,6 +6,7 @@
 import { apiClient } from '../client'
 import type {
   RedeemCode,
+  RedeemCodeBatch,
   GenerateRedeemCodesRequest,
   BatchUpdateRedeemCodeFields,
   RedeemCodeType,
@@ -51,6 +52,52 @@ export async function list(
  */
 export async function getById(id: number): Promise<RedeemCode> {
   const { data } = await apiClient.get<RedeemCode>(`/admin/redeem-codes/${id}`)
+  return data
+}
+
+/**
+ * List generation batches (aggregated redeem codes)
+ */
+export async function listBatches(
+  page: number = 1,
+  pageSize: number = 20,
+  filters?: {
+    type?: RedeemCodeType
+    status?: 'active' | 'used' | 'expired' | 'unused'
+    search?: string
+  },
+  options?: {
+    signal?: AbortSignal
+  }
+): Promise<PaginatedResponse<RedeemCodeBatch>> {
+  const { data } = await apiClient.get<PaginatedResponse<RedeemCodeBatch>>('/admin/redeem-codes/batches', {
+    params: {
+      page,
+      page_size: pageSize,
+      ...filters
+    },
+    signal: options?.signal
+  })
+  return data
+}
+
+/**
+ * List all codes in a generation batch
+ */
+export async function listBatchCodes(batchKey: string): Promise<RedeemCode[]> {
+  const { data } = await apiClient.get<RedeemCode[]>(
+    `/admin/redeem-codes/batches/${encodeURIComponent(batchKey)}/codes`
+  )
+  return data
+}
+
+/**
+ * Delete unused codes in a generation batch
+ */
+export async function deleteBatchUnused(batchKey: string): Promise<{ deleted: number; message: string }> {
+  const { data } = await apiClient.delete<{ deleted: number; message: string }>(
+    `/admin/redeem-codes/batches/${encodeURIComponent(batchKey)}/unused`
+  )
   return data
 }
 
@@ -178,6 +225,9 @@ export async function exportCodes(filters?: {
 
 export const redeemAPI = {
   list,
+  listBatches,
+  listBatchCodes,
+  deleteBatchUnused,
   getById,
   generate,
   delete: deleteCode,
