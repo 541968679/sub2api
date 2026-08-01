@@ -43,6 +43,17 @@ Long single-column edit form mixed everyday settings with advanced options, maki
 ### Affected files
 Frontend: `components/account/EditAccountModal.vue`, `components/common/GroupSelector.vue`, `components/common/__tests__/GroupSelector.spec.ts`, `i18n/locales/{zh,en}.ts`
 
+## 2026-08-01 - feat: remember account list platform and filters
+
+### What
+- Admin accounts page restores last **platform**, type, status, privacy, group, and search from `localStorage` on next visit.
+
+### Why
+Operators usually work within one platform/filter set; re-selecting every time is friction.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`
+
 ## 2026-08-01 - feat: account list TTFT p50/p95 quality metrics
 
 ### What

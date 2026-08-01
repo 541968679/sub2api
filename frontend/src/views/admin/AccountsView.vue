@@ -755,6 +755,72 @@ const loadInitialAccountSortState = (): AccountSortState => {
 }
 const sortState = reactive<AccountSortState>(loadInitialAccountSortState())
 
+/** Persist platform + filter bar so re-entering Accounts restores last view. */
+const ACCOUNT_FILTERS_STORAGE_KEY = 'account-list-filters'
+type AccountListFiltersState = {
+  platform: string
+  type: string
+  status: string
+  privacy_mode: string
+  group: string
+  search: string
+}
+const ACCOUNT_FILTER_PLATFORMS = new Set(['', 'anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
+const ACCOUNT_FILTER_TYPES = new Set(['', 'oauth', 'setup-token', 'apikey', 'bedrock'])
+const ACCOUNT_FILTER_STATUSES = new Set([
+  '',
+  'active',
+  'inactive',
+  'error',
+  'rate_limited',
+  'temp_unschedulable',
+  'unschedulable'
+])
+const ACCOUNT_FILTER_PRIVACY = new Set(['', '__unset__', 'training_off', 'training_set_cf_blocked', 'training_set_failed'])
+
+const emptyAccountListFilters = (): AccountListFiltersState => ({
+  platform: '',
+  type: '',
+  status: '',
+  privacy_mode: '',
+  group: '',
+  search: ''
+})
+
+const normalizeAccountGroupFilter = (value: unknown): string => {
+  if (typeof value !== 'string') return ''
+  const v = value.trim()
+  if (!v) return ''
+  if (v === 'ungrouped') return v
+  if (/^\d+$/.test(v)) return v
+  return ''
+}
+
+const loadInitialAccountFilters = (): AccountListFiltersState => {
+  const fallback = emptyAccountListFilters()
+  try {
+    const raw = localStorage.getItem(ACCOUNT_FILTERS_STORAGE_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw) as Partial<AccountListFiltersState>
+    const platform = typeof parsed.platform === 'string' ? parsed.platform : ''
+    const type = typeof parsed.type === 'string' ? parsed.type : ''
+    const status = typeof parsed.status === 'string' ? parsed.status : ''
+    const privacy = typeof parsed.privacy_mode === 'string' ? parsed.privacy_mode : ''
+    const search = typeof parsed.search === 'string' ? parsed.search.slice(0, 100) : ''
+    return {
+      platform: ACCOUNT_FILTER_PLATFORMS.has(platform) ? platform : '',
+      type: ACCOUNT_FILTER_TYPES.has(type) ? type : '',
+      status: ACCOUNT_FILTER_STATUSES.has(status) ? status : '',
+      privacy_mode: ACCOUNT_FILTER_PRIVACY.has(privacy) ? privacy : '',
+      group: normalizeAccountGroupFilter(parsed.group),
+      search
+    }
+  } catch {
+    return fallback
+  }
+}
+const initialAccountFilters = loadInitialAccountFilters()
+
 // Auto refresh settings
 const showAutoRefreshDropdown = ref(false)
 const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
@@ -1106,17 +1172,49 @@ const {
 } = useTableLoader<Account, any>({
   fetchFn: adminAPI.accounts.list,
   initialParams: {
-    platform: '',
-    type: '',
-    status: '',
-    privacy_mode: '',
-    group: '',
-    search: '',
+    platform: initialAccountFilters.platform,
+    type: initialAccountFilters.type,
+    status: initialAccountFilters.status,
+    privacy_mode: initialAccountFilters.privacy_mode,
+    group: initialAccountFilters.group,
+    search: initialAccountFilters.search,
     include_scheduler_score: shouldIncludeSchedulerScore() ? '1' : '0',
     sort_by: sortState.sort_by,
     sort_order: sortState.sort_order
   }
 })
+
+const saveAccountListFilters = () => {
+  try {
+    const snapshot: AccountListFiltersState = {
+      platform: typeof params.platform === 'string' ? params.platform : '',
+      type: typeof params.type === 'string' ? params.type : '',
+      status: typeof params.status === 'string' ? params.status : '',
+      privacy_mode: typeof params.privacy_mode === 'string' ? params.privacy_mode : '',
+      group: typeof params.group === 'string' ? params.group : '',
+      search: typeof params.search === 'string' ? params.search.slice(0, 100) : ''
+    }
+    localStorage.setItem(ACCOUNT_FILTERS_STORAGE_KEY, JSON.stringify(snapshot))
+  } catch (e) {
+    console.error('Failed to save account list filters:', e)
+  }
+}
+
+// Persist platform / type / status / privacy / group / search whenever they change.
+watch(
+  () =>
+    [
+      params.platform,
+      params.type,
+      params.status,
+      params.privacy_mode,
+      params.group,
+      params.search
+    ] as const,
+  () => {
+    saveAccountListFilters()
+  }
+)
 
 const {
   selectedIds: selIds,
