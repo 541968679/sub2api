@@ -61,6 +61,7 @@ function mountSelector(modelValue: number[] = [], extraProps: Record<string, unk
           props: ['name'],
           template: '<span>{{ name }}</span>'
         },
+        PlatformIcon: true,
         Icon: true
       }
     }
@@ -100,5 +101,36 @@ describe('GroupSelector', () => {
     await wrapper.get('button').trigger('click')
 
     expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual([2, 3, 4])
+  })
+
+  it('selects all groups of a platform via quick filter', async () => {
+    const wrapper = mountSelector([], {
+      showQuickFilters: true
+    })
+
+    await wrapper.get('[data-testid="group-selector-platform-openai"]').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual([2, 3])
+  })
+
+  it('toggles subscription-type groups via quick filter', async () => {
+    const wrapper = mountSelector([3, 4], {
+      showQuickFilters: true
+    })
+
+    await wrapper.get('[data-testid="group-selector-type-subscription"]').trigger('click')
+
+    // all subscription groups were selected -> deselect them
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual([])
+  })
+
+  it('selects only standard (pay-as-you-go) groups via type quick filter', async () => {
+    const wrapper = mountSelector([], {
+      showQuickFilters: true
+    })
+
+    await wrapper.get('[data-testid="group-selector-type-standard"]').trigger('click')
+
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual([1, 2])
   })
 })

@@ -389,7 +389,7 @@
     <BaseDialog
       :show="showCreateModal"
       :title="t('admin.groups.createGroup')"
-      width="normal"
+      width="extra-wide"
       @close="closeCreateModal"
     >
       <form
@@ -397,6 +397,17 @@
         @submit.prevent="handleCreateGroup"
         class="space-y-5"
       >
+      <div
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        data-testid="create-group-layout"
+      >
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="create-group-layout-zone-basic">
+          <div class="mb-3 flex items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-dark-600">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.groups.editZones.basic') }}
+            </h3>
+          </div>
+          <div class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1" data-testid="create-group-layout-zone-basic-body">
         <div>
           <label class="input-label">{{ t("admin.groups.form.name") }}</label>
           <input
@@ -547,56 +558,67 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
-        <div class="border-t pt-4">
-          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
-            {{ t("admin.groups.modelAccess.title") }}
-          </label>
-          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-            {{ t("admin.groups.modelAccess.description") }}
-          </p>
-          <div class="grid gap-3 md:grid-cols-2">
+<!-- Subscription Configuration -->
+        <div class="mt-4 border-t pt-4">
+          <div>
+            <label class="input-label">{{
+              t("admin.groups.subscription.type")
+            }}</label>
+            <Select
+              v-model="createForm.subscription_type"
+              :options="subscriptionTypeOptions"
+            />
+            <p class="input-hint">
+              {{ t("admin.groups.subscription.typeHint") }}
+            </p>
+          </div>
+
+          <!-- Subscription limits (only show when subscription type is selected) -->
+          <div
+            v-if="createForm.subscription_type === 'subscription'"
+            class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
+          >
             <div>
               <label class="input-label">{{
-                t("admin.groups.modelAccess.blocked")
+                t("admin.groups.subscription.dailyLimit")
               }}</label>
-              <textarea
-                v-model="createForm.blocked_models_text"
-                rows="3"
+              <input
+                v-model.number="createForm.daily_limit_usd"
+                type="number"
+                step="0.01"
+                min="0"
                 class="input"
-                placeholder="gpt-image-2&#10;gpt-image-*"
-              ></textarea>
-              <p class="input-hint">
-                {{ t("admin.groups.modelAccess.blockedHint") }}
-              </p>
+                :placeholder="t('admin.groups.subscription.noLimit')"
+              />
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.modelAccess.allowed")
+                t("admin.groups.subscription.weeklyLimit")
               }}</label>
-              <textarea
-                v-model="createForm.allowed_models_text"
-                rows="3"
+              <input
+                v-model.number="createForm.weekly_limit_usd"
+                type="number"
+                step="0.01"
+                min="0"
                 class="input"
-                placeholder="gpt-5*&#10;claude-sonnet-*"
-              ></textarea>
-              <p class="input-hint">
-                {{ t("admin.groups.modelAccess.allowedHint") }}
-              </p>
+                :placeholder="t('admin.groups.subscription.noLimit')"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{
+                t("admin.groups.subscription.monthlyLimit")
+              }}</label>
+              <input
+                v-model.number="createForm.monthly_limit_usd"
+                type="number"
+                step="0.01"
+                min="0"
+                class="input"
+                :placeholder="t('admin.groups.subscription.noLimit')"
+              />
             </div>
           </div>
         </div>
-        <GroupModelsListConfigPanel
-          :state="createModelsListState"
-          :loading="createModelsListLoading"
-          @toggle-enabled="createModelsListState.enabled = !createModelsListState.enabled"
-          @select-all="selectAllModelsListItems(createModelsListState)"
-          @invert-selection="invertModelsListSelection(createModelsListState)"
-          @toggle-item="toggleModelsListItem(createModelsListState, $event)"
-          @move-item="
-            (fromIndex, toIndex) =>
-              moveModelsListItem(createModelsListState, fromIndex, toIndex)
-          "
-        />
         <div
           v-if="createForm.subscription_type !== 'subscription'"
           data-tour="group-form-exclusive"
@@ -671,69 +693,102 @@
             </span>
           </div>
         </div>
+                  </div>
+        </section>
 
-        <!-- Subscription Configuration -->
-        <div class="mt-4 border-t pt-4">
-          <div>
-            <label class="input-label">{{
-              t("admin.groups.subscription.type")
-            }}</label>
-            <Select
-              v-model="createForm.subscription_type"
-              :options="subscriptionTypeOptions"
-            />
-            <p class="input-hint">
-              {{ t("admin.groups.subscription.typeHint") }}
-            </p>
-          </div>
-
-          <!-- Subscription limits (only show when subscription type is selected) -->
-          <div
-            v-if="createForm.subscription_type === 'subscription'"
-            class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="create-group-layout-zone-models">
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600 lg:cursor-default"
+            data-testid="create-group-layout-zone-models-toggle"
+            @click="createZone2Expanded = !createZone2Expanded"
           >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.groups.editZones.models') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 lg:hidden">
+              {{ createZone2Expanded ? t('admin.groups.editZones.collapse') : t('admin.groups.editZones.expand') }}
+              <Icon :name="createZone2Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+          <div
+            class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+            :class="createZone2Expanded ? 'block' : 'hidden lg:block'"
+            data-testid="create-group-layout-zone-models-body"
+          >
+        <div class="border-t pt-4">
+          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.modelAccess.title") }}
+          </label>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.modelAccess.description") }}
+          </p>
+          <div class="grid gap-3 md:grid-cols-2">
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit")
+                t("admin.groups.modelAccess.blocked")
               }}</label>
-              <input
-                v-model.number="createForm.daily_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
+              <textarea
+                v-model="createForm.blocked_models_text"
+                rows="3"
                 class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
+                placeholder="gpt-image-2&#10;gpt-image-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.blockedHint") }}
+              </p>
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit")
+                t("admin.groups.modelAccess.allowed")
               }}</label>
-              <input
-                v-model.number="createForm.weekly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
+              <textarea
+                v-model="createForm.allowed_models_text"
+                rows="3"
                 class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit")
-              }}</label>
-              <input
-                v-model.number="createForm.monthly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
+                placeholder="gpt-5*&#10;claude-sonnet-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.allowedHint") }}
+              </p>
             </div>
           </div>
         </div>
+        <GroupModelsListConfigPanel
+          :state="createModelsListState"
+          :loading="createModelsListLoading"
+          @toggle-enabled="createModelsListState.enabled = !createModelsListState.enabled"
+          @select-all="selectAllModelsListItems(createModelsListState)"
+          @invert-selection="invertModelsListSelection(createModelsListState)"
+          @toggle-item="toggleModelsListItem(createModelsListState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelsListItem(createModelsListState, fromIndex, toIndex)
+          "
+        />
+          </div>
+        </section>
 
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="create-group-layout-zone-other">
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600"
+            data-testid="create-group-layout-zone-other-toggle"
+            @click="createZone3Expanded = !createZone3Expanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.groups.editZones.other') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ createZone3Expanded ? t('admin.groups.editZones.collapse') : t('admin.groups.editZones.expand') }}
+              <Icon :name="createZone3Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+          <div
+            v-show="createZone3Expanded"
+            class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+            data-testid="create-group-layout-zone-other-body"
+          >
         <!-- 图片生成计费配置 -->
         <div
           v-if="supportsImagePricingPlatform(createForm.platform)"
@@ -933,7 +988,6 @@
             </div>
           </div>
         </div>
-
         <!-- 支持的模型系列（仅 antigravity 平台） -->
         <div v-if="createForm.platform === 'antigravity'" class="border-t pt-4">
           <div class="mb-1.5 flex items-center gap-1">
@@ -1670,6 +1724,10 @@
             {{ t("admin.groups.modelRouting.addRule") }}
           </button>
         </div>
+          </div>
+        </section>
+      </div>
+
       </form>
 
       <template #footer>
@@ -1718,7 +1776,7 @@
     <BaseDialog
       :show="showEditModal"
       :title="t('admin.groups.editGroup')"
-      width="normal"
+      width="extra-wide"
       @close="closeEditModal"
     >
       <form
@@ -1727,6 +1785,17 @@
         @submit.prevent="handleUpdateGroup"
         class="space-y-5"
       >
+      <div
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        data-testid="edit-group-layout"
+      >
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="edit-group-layout-zone-basic">
+          <div class="mb-3 flex items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-dark-600">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.groups.editZones.basic') }}
+            </h3>
+          </div>
+          <div class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1" data-testid="edit-group-layout-zone-basic-body">
         <div>
           <label class="input-label">{{ t("admin.groups.form.name") }}</label>
           <input
@@ -1876,56 +1945,71 @@
           />
           <p class="input-hint">{{ t("admin.groups.form.rpmLimitHint") }}</p>
         </div>
-        <div class="border-t pt-4">
-          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
-            {{ t("admin.groups.modelAccess.title") }}
-          </label>
-          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
-            {{ t("admin.groups.modelAccess.description") }}
-          </p>
-          <div class="grid gap-3 md:grid-cols-2">
+<!-- Subscription Configuration -->
+        <!-- Subscription Configuration -->
+        <div class="mt-4 border-t pt-4">
+          <div>
+            <label class="input-label">{{
+              t("admin.groups.subscription.type")
+            }}</label>
+            <Select
+              v-model="editForm.subscription_type"
+              :options="subscriptionTypeOptions"
+              :disabled="true"
+            />
+            <p class="input-hint">
+              {{ t("admin.groups.subscription.typeNotEditable") }}
+            </p>
+          </div>
+
+          <!-- Subscription limits (only show when subscription type is selected) -->
+          <div
+            v-if="editForm.subscription_type === 'subscription'"
+            class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
+          >
             <div>
               <label class="input-label">{{
-                t("admin.groups.modelAccess.blocked")
+                t("admin.groups.subscription.dailyLimit")
               }}</label>
-              <textarea
-                v-model="editForm.blocked_models_text"
-                rows="3"
+              <input
+                v-model.number="editForm.daily_limit_usd"
+                type="number"
+                step="0.01"
+                min="0"
                 class="input"
-                placeholder="gpt-image-2&#10;gpt-image-*"
-              ></textarea>
-              <p class="input-hint">
-                {{ t("admin.groups.modelAccess.blockedHint") }}
-              </p>
+                :placeholder="t('admin.groups.subscription.noLimit')"
+              />
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.modelAccess.allowed")
+                t("admin.groups.subscription.weeklyLimit")
               }}</label>
-              <textarea
-                v-model="editForm.allowed_models_text"
-                rows="3"
+              <input
+                v-model.number="editForm.weekly_limit_usd"
+                type="number"
+                step="0.01"
+                min="0"
                 class="input"
-                placeholder="gpt-5*&#10;claude-sonnet-*"
-              ></textarea>
-              <p class="input-hint">
-                {{ t("admin.groups.modelAccess.allowedHint") }}
-              </p>
+                :placeholder="t('admin.groups.subscription.noLimit')"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{
+                t("admin.groups.subscription.monthlyLimit")
+              }}</label>
+              <input
+                v-model.number="editForm.monthly_limit_usd"
+                type="number"
+                step="0.01"
+                min="0"
+                class="input"
+                :placeholder="t('admin.groups.subscription.noLimit')"
+              />
             </div>
           </div>
         </div>
-        <GroupModelsListConfigPanel
-          :state="editModelsListState"
-          :loading="editModelsListLoading"
-          @toggle-enabled="editModelsListState.enabled = !editModelsListState.enabled"
-          @select-all="selectAllModelsListItems(editModelsListState)"
-          @invert-selection="invertModelsListSelection(editModelsListState)"
-          @toggle-item="toggleModelsListItem(editModelsListState, $event)"
-          @move-item="
-            (fromIndex, toIndex) =>
-              moveModelsListItem(editModelsListState, fromIndex, toIndex)
-          "
-        />
+
+        <!-- 图片生成计费配置 -->
         <div v-if="editForm.subscription_type !== 'subscription'">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2002,70 +2086,102 @@
           <Select v-model="editForm.status" :options="editStatusOptions" />
         </div>
 
-        <!-- Subscription Configuration -->
-        <div class="mt-4 border-t pt-4">
-          <div>
-            <label class="input-label">{{
-              t("admin.groups.subscription.type")
-            }}</label>
-            <Select
-              v-model="editForm.subscription_type"
-              :options="subscriptionTypeOptions"
-              :disabled="true"
-            />
-            <p class="input-hint">
-              {{ t("admin.groups.subscription.typeNotEditable") }}
-            </p>
-          </div>
+                  </div>
+        </section>
 
-          <!-- Subscription limits (only show when subscription type is selected) -->
-          <div
-            v-if="editForm.subscription_type === 'subscription'"
-            class="space-y-4 border-l-2 border-primary-200 pl-4 dark:border-primary-800"
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="edit-group-layout-zone-models">
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600 lg:cursor-default"
+            data-testid="edit-group-layout-zone-models-toggle"
+            @click="editZone2Expanded = !editZone2Expanded"
           >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.groups.editZones.models') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 lg:hidden">
+              {{ editZone2Expanded ? t('admin.groups.editZones.collapse') : t('admin.groups.editZones.expand') }}
+              <Icon :name="editZone2Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+          <div
+            class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+            :class="editZone2Expanded ? 'block' : 'hidden lg:block'"
+            data-testid="edit-group-layout-zone-models-body"
+          >
+        <div class="border-t pt-4">
+          <label class="block mb-2 font-medium text-gray-700 dark:text-gray-300">
+            {{ t("admin.groups.modelAccess.title") }}
+          </label>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.modelAccess.description") }}
+          </p>
+          <div class="grid gap-3 md:grid-cols-2">
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.dailyLimit")
+                t("admin.groups.modelAccess.blocked")
               }}</label>
-              <input
-                v-model.number="editForm.daily_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
+              <textarea
+                v-model="editForm.blocked_models_text"
+                rows="3"
                 class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
+                placeholder="gpt-image-2&#10;gpt-image-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.blockedHint") }}
+              </p>
             </div>
             <div>
               <label class="input-label">{{
-                t("admin.groups.subscription.weeklyLimit")
+                t("admin.groups.modelAccess.allowed")
               }}</label>
-              <input
-                v-model.number="editForm.weekly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
+              <textarea
+                v-model="editForm.allowed_models_text"
+                rows="3"
                 class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
-            </div>
-            <div>
-              <label class="input-label">{{
-                t("admin.groups.subscription.monthlyLimit")
-              }}</label>
-              <input
-                v-model.number="editForm.monthly_limit_usd"
-                type="number"
-                step="0.01"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.subscription.noLimit')"
-              />
+                placeholder="gpt-5*&#10;claude-sonnet-*"
+              ></textarea>
+              <p class="input-hint">
+                {{ t("admin.groups.modelAccess.allowedHint") }}
+              </p>
             </div>
           </div>
         </div>
+        <GroupModelsListConfigPanel
+          :state="editModelsListState"
+          :loading="editModelsListLoading"
+          @toggle-enabled="editModelsListState.enabled = !editModelsListState.enabled"
+          @select-all="selectAllModelsListItems(editModelsListState)"
+          @invert-selection="invertModelsListSelection(editModelsListState)"
+          @toggle-item="toggleModelsListItem(editModelsListState, $event)"
+          @move-item="
+            (fromIndex, toIndex) =>
+              moveModelsListItem(editModelsListState, fromIndex, toIndex)
+          "
+        />
+          </div>
+        </section>
 
-        <!-- 图片生成计费配置 -->
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="edit-group-layout-zone-other">
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600"
+            data-testid="edit-group-layout-zone-other-toggle"
+            @click="editZone3Expanded = !editZone3Expanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.groups.editZones.other') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ editZone3Expanded ? t('admin.groups.editZones.collapse') : t('admin.groups.editZones.expand') }}
+              <Icon :name="editZone3Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+          <div
+            v-show="editZone3Expanded"
+            class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+            data-testid="edit-group-layout-zone-other-body"
+          >
         <div
           v-if="supportsImagePricingPlatform(editForm.platform)"
           class="border-t pt-4"
@@ -2996,6 +3112,10 @@
             {{ t("admin.groups.modelRouting.addRule") }}
           </button>
         </div>
+          </div>
+        </section>
+      </div>
+
       </form>
 
       <template #footer>
@@ -3492,6 +3612,12 @@ let abortController: AbortController | null = null;
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
+/** Zone 2 (models): collapsed by default on mobile; always visible on PC */
+const createZone2Expanded = ref(false);
+const editZone2Expanded = ref(false);
+/** Zone 3 (other): collapsed by default on all breakpoints */
+const createZone3Expanded = ref(false);
+const editZone3Expanded = ref(false);
 const showDeleteDialog = ref(false);
 const showSortModal = ref(false);
 const submitting = ref(false);
@@ -4073,6 +4199,8 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 };
 
 const openCreateModal = () => {
+  createZone2Expanded.value = false;
+  createZone3Expanded.value = false;
   showCreateModal.value = true;
   loadModelsListCandidates("create", 0, createForm.platform);
 };
@@ -4283,6 +4411,8 @@ const handleEdit = async (group: AdminGroup) => {
   );
   resetModelsListState(editModelsListState, group.models_list_config);
   loadModelsListCandidates("edit", group.id, group.platform);
+  editZone2Expanded.value = false;
+  editZone3Expanded.value = false;
   showEditModal.value = true;
 };
 
