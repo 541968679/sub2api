@@ -455,7 +455,14 @@ export interface AccountQualityStats {
   success_count: number
   error_count: number
   success_rate: number | null
+  /** Mean TTFT — skewed by outliers; prefer p50 for list display */
   avg_ttft_ms: number | null
+  /** Median TTFT — primary, outlier-resistant */
+  p50_ttft_ms?: number | null
+  /** 95th percentile TTFT — tail latency */
+  p95_ttft_ms?: number | null
+  /** Slowest sample in window */
+  max_ttft_ms?: number | null
   ttft_samples: number
 }
 

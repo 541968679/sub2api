@@ -4214,10 +4214,12 @@ const enBase = {
       },
       quality: {
         ttftHint:
-          'Average time-to-first-token over the last 15 minutes for this account. Only successful requests with first_token_ms are included; shows — when there is no sample.',
+          'TTFT over the last 15 minutes. Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
           'Request success rate over the last 15 minutes: successes / (successes + failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens). Shows — when empty.',
-        tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}'
+        tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}',
+        ttftTooltip:
+          'Last {windowMinutes} min · samples {samples} · p50 {p50}ms · p95 {p95}ms · avg {avg}ms · max {max}ms'
       },
       usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
       allPrivacyModes: 'All Privacy States',

@@ -3800,10 +3800,12 @@ const zhBase = {
       },
       quality: {
         ttftHint:
-          '最近 15 分钟内该账号成功请求的平均首字延迟（TTFT）。仅统计有 first_token_ms 的样本；无样本显示 —。',
+          '最近 15 分钟首字延迟（TTFT）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:
           '最近 15 分钟内该账号请求成功率 = 成功次数 / (成功 + 失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens）。无样本显示 —。',
-        tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}'
+        tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}',
+        ttftTooltip:
+          '最近 {windowMinutes} 分钟 · 样本 {samples} · p50 {p50}ms · p95 {p95}ms · 均值 {avg}ms · 最大 {max}ms'
       },
       usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
       allPrivacyModes: '全部Privacy状态',

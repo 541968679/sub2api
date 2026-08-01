@@ -1,3 +1,19 @@
+## 2026-08-01 - feat: mobile accordion for account/group three-zone forms
+
+### What
+- Account edit and group create/edit three-zone forms now adapt for mobile:
+  - Stacked accordion cards with full-width tappable headers + chevron
+  - Zone 1 always open; secondary zones collapsible
+  - Account **groups** default open on mobile; group **models** and all **other** zones default collapsed
+  - PC keeps three-column layout; zone 2 always visible on `lg+`
+- Group selector `panel` variant uses shorter max-height on small screens
+
+### Why
+Mobile previously forced full expansion of advanced zones, making long forms hard to use.
+
+### Affected files
+Frontend: `components/account/EditAccountModal.vue`, `views/admin/GroupsView.vue`, `components/common/GroupSelector.vue`
+
 ## 2026-08-01 - feat: group create/edit modal three-zone PC layout
 
 ### What
@@ -26,6 +42,19 @@ Long single-column edit form mixed everyday settings with advanced options, maki
 
 ### Affected files
 Frontend: `components/account/EditAccountModal.vue`, `components/common/GroupSelector.vue`, `components/common/__tests__/GroupSelector.spec.ts`, `i18n/locales/{zh,en}.ts`
+
+## 2026-08-01 - feat: account list TTFT p50/p95 quality metrics
+
+### What
+- Quality TTFT batch stats now return **p50 / p95 / max** in addition to avg (15m window).
+- Account list “首字” cell shows **p50** (primary) + **p95** (tail); tooltip has avg/max/sample count.
+- Coloring uses p50 thresholds; p95 uses slightly higher thresholds for tail risk.
+
+### Why
+Mean TTFT is easily skewed by one or two pathological requests; median + tail percentiles give a fuller picture.
+
+### Affected files
+`backend/internal/service/account_quality.go`, `account_usage_service.go`, `repository/usage_log_repo.go`, tests; `frontend/src/components/account/AccountQualityCell.vue`, `api/admin/accounts.ts`, i18n
 
 ## 2026-08-01 - feat: account list open usage by account + hide antigravity usage cards
 

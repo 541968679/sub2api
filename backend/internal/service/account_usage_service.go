@@ -1273,14 +1273,14 @@ func (s *AccountUsageService) GetQualityStatsBatch(ctx context.Context, accountI
 				result[accountID] = stats
 				continue
 			}
-			result[accountID] = BuildAccountQualityStats(0, 0, 0, nil)
+			result[accountID] = BuildAccountQualityStats(0, 0, TTFTAggregate{})
 		}
 		return result, nil
 	}
 
 	// Fallback when the concrete repo does not implement the batch reader (tests/stubs).
 	for _, accountID := range uniqueIDs {
-		result[accountID] = BuildAccountQualityStats(0, 0, 0, nil)
+		result[accountID] = BuildAccountQualityStats(0, 0, TTFTAggregate{})
 	}
 	return result, nil
 }

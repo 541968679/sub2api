@@ -18,8 +18,9 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 	start := time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
 	ids := []int64{10, 20}
 
-	usageRows := sqlmock.NewRows([]string{"account_id", "success_count", "ttft_samples", "avg_ttft_ms"}).
-		AddRow(int64(10), int64(8), int64(7), 321.6)
+	usageRows := sqlmock.NewRows([]string{
+		"account_id", "success_count", "ttft_samples", "avg_ttft_ms", "p50_ttft_ms", "p95_ttft_ms", "max_ttft_ms",
+	}).AddRow(int64(10), int64(8), int64(7), 321.6, 280.0, 900.4, 5000.0)
 	mock.ExpectQuery(`FROM usage_logs`).
 		WithArgs(sqlmock.AnyArg(), start).
 		WillReturnRows(usageRows)
@@ -43,6 +44,12 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 	require.InDelta(t, 0.8, *acc10.SuccessRate, 1e-9)
 	require.NotNil(t, acc10.AvgTTFTMs)
 	require.Equal(t, 322, *acc10.AvgTTFTMs)
+	require.NotNil(t, acc10.P50TTFTMs)
+	require.Equal(t, 280, *acc10.P50TTFTMs)
+	require.NotNil(t, acc10.P95TTFTMs)
+	require.Equal(t, 900, *acc10.P95TTFTMs)
+	require.NotNil(t, acc10.MaxTTFTMs)
+	require.Equal(t, 5000, *acc10.MaxTTFTMs)
 	require.Equal(t, int64(7), acc10.TTFTSamples)
 
 	acc20 := got[20]
@@ -52,6 +59,7 @@ func TestUsageLogRepository_GetAccountQualityStatsBatch(t *testing.T) {
 	require.NotNil(t, acc20.SuccessRate)
 	require.InDelta(t, 0.0, *acc20.SuccessRate, 1e-9)
 	require.Nil(t, acc20.AvgTTFTMs)
+	require.Nil(t, acc20.P50TTFTMs)
 
 	require.NoError(t, mock.ExpectationsWereMet())
 }

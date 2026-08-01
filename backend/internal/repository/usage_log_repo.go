@@ -2306,18 +2306,26 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 		errorCount   int64
 		ttftSamples  int64
 		avgTTFT      sql.NullFloat64
+		p50TTFT      sql.NullFloat64
+		p95TTFT      sql.NullFloat64
+		maxTTFT      sql.NullFloat64
 	}
 	aggs := make(map[int64]*rawAgg, len(accountIDs))
 	for _, accountID := range accountIDs {
 		aggs[accountID] = &rawAgg{}
 	}
 
+	// Percentiles resist single-pathological outliers better than AVG alone.
+	// p50 = typical latency; p95 = tail; avg/max kept for context.
 	usageQuery := `
 		SELECT
 			account_id,
 			COUNT(*) AS success_count,
 			COUNT(first_token_ms) AS ttft_samples,
-			AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS avg_ttft_ms
+			AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS avg_ttft_ms,
+			PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS p50_ttft_ms,
+			PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS p95_ttft_ms,
+			MAX(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS max_ttft_ms
 		FROM usage_logs
 		WHERE account_id = ANY($1) AND created_at >= $2
 		GROUP BY account_id
@@ -2331,8 +2339,8 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 	for usageRows.Next() {
 		var accountID int64
 		var successCount, ttftSamples int64
-		var avgTTFT sql.NullFloat64
-		if err := usageRows.Scan(&accountID, &successCount, &ttftSamples, &avgTTFT); err != nil {
+		var avgTTFT, p50TTFT, p95TTFT, maxTTFT sql.NullFloat64
+		if err := usageRows.Scan(&accountID, &successCount, &ttftSamples, &avgTTFT, &p50TTFT, &p95TTFT, &maxTTFT); err != nil {
 			return nil, err
 		}
 		agg := aggs[accountID]
@@ -2343,6 +2351,9 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 		agg.successCount = successCount
 		agg.ttftSamples = ttftSamples
 		agg.avgTTFT = avgTTFT
+		agg.p50TTFT = p50TTFT
+		agg.p95TTFT = p95TTFT
+		agg.maxTTFT = maxTTFT
 	}
 	if err := usageRows.Err(); err != nil {
 		return nil, err
@@ -2382,18 +2393,27 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 		return nil, err
 	}
 
+	nullF := func(n sql.NullFloat64) *float64 {
+		if !n.Valid {
+			return nil
+		}
+		v := n.Float64
+		return &v
+	}
+
 	for _, accountID := range accountIDs {
 		agg := aggs[accountID]
 		if agg == nil {
-			result[accountID] = service.BuildAccountQualityStats(0, 0, 0, nil)
+			result[accountID] = service.BuildAccountQualityStats(0, 0, service.TTFTAggregate{})
 			continue
 		}
-		var avgPtr *float64
-		if agg.avgTTFT.Valid {
-			v := agg.avgTTFT.Float64
-			avgPtr = &v
-		}
-		result[accountID] = service.BuildAccountQualityStats(agg.successCount, agg.errorCount, agg.ttftSamples, avgPtr)
+		result[accountID] = service.BuildAccountQualityStats(agg.successCount, agg.errorCount, service.TTFTAggregate{
+			Samples: agg.ttftSamples,
+			Avg:     nullF(agg.avgTTFT),
+			P50:     nullF(agg.p50TTFT),
+			P95:     nullF(agg.p95TTFT),
+			Max:     nullF(agg.maxTTFT),
+		})
 	}
 	return result, nil
 }
