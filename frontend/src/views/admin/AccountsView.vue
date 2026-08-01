@@ -238,6 +238,26 @@
           <template #cell-capacity="{ row }">
             <AccountCapacityCell :account="row" />
           </template>
+          <template #header-concurrency="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.inlineEdit.concurrencyHint')" width-class="w-64" />
+            </div>
+          </template>
+          <template #cell-concurrency="{ row }">
+            <div class="flex flex-col gap-0.5">
+              <AccountInlineNumberCell
+                :model-value="row.concurrency"
+                :min="1"
+                :disabled="inlineSavingId === row.id"
+                :hint="t('admin.accounts.inlineEdit.concurrencyHint')"
+                @save="(v) => handleInlineConcurrency(row, v)"
+              />
+              <span class="pl-1 text-[11px] text-gray-400 dark:text-gray-500">
+                {{ t('admin.accounts.inlineEdit.inUse', { n: row.current_concurrency ?? 0 }) }}
+              </span>
+            </div>
+          </template>
           <template #cell-status="{ row }">
             <div class="flex items-center gap-1.5">
               <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
@@ -246,6 +266,27 @@
           <template #cell-schedulable="{ row }">
             <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
+            </button>
+          </template>
+          <template #header-fallback_only="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.fallbackOnlyHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-fallback_only="{ row }">
+            <button
+              type="button"
+              @click="handleToggleFallbackOnly(row)"
+              :disabled="inlineSavingId === row.id"
+              class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
+              :class="[isFallbackOnly(row) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']"
+              :title="isFallbackOnly(row) ? t('admin.accounts.fallbackOnly') : t('admin.accounts.fallbackOnlyHint')"
+            >
+              <span
+                class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                :class="[isFallbackOnly(row) ? 'translate-x-4' : 'translate-x-0']"
+              />
             </button>
           </template>
           <template #cell-today_stats="{ row }">
@@ -321,8 +362,20 @@
           <template #cell-exported_at="{ row }">
             <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatExportedAt(row) }}</span>
           </template>
-          <template #cell-priority="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ value }}</span>
+          <template #header-priority="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.priorityHint')" width-class="w-64" />
+            </div>
+          </template>
+          <template #cell-priority="{ row }">
+            <AccountInlineNumberCell
+              :model-value="row.priority ?? 0"
+              :min="0"
+              :disabled="inlineSavingId === row.id"
+              :hint="t('admin.accounts.priorityHint')"
+              @save="(v) => handleInlinePriority(row, v)"
+            />
           </template>
           <template #header-scheduler_score="{ column }">
             <div class="flex items-center">
@@ -517,6 +570,7 @@ import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vu
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
+import AccountInlineNumberCell from '@/components/account/AccountInlineNumberCell.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
@@ -631,6 +685,7 @@ const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
+const inlineSavingId = ref<number | null>(null)
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
 
@@ -638,11 +693,12 @@ const exportingData = ref(false)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
-const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'priority', 'scheduler_score', 'rate_multiplier', 'exported_at']
+// priority / concurrency / fallback_only are shown by default for quick inline edits.
+const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'scheduler_score', 'rate_multiplier', 'exported_at']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
-// One-time migration: hide scheduler score for existing admins too, because showing it opt-ins to heavy backend scoring.
+// One-time migration: hide scheduler score; unhide priority for inline edit; ensure new columns visible.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
-const HIDDEN_COLUMNS_CURRENT_VERSION = 'scheduler-score-hidden-by-default'
+const HIDDEN_COLUMNS_CURRENT_VERSION = 'inline-concurrency-priority-fallback-v1'
 
 // Sorting settings
 const ACCOUNT_SORT_STORAGE_KEY = 'account-table-sort'
@@ -661,6 +717,7 @@ const ACCOUNT_SORTABLE_KEYS = new Set([
   'status',
   'schedulable',
   'availability',
+  'concurrency',
   'priority',
   'rate_multiplier',
   'last_used_at',
@@ -902,9 +959,12 @@ const loadSavedColumns = () => {
       parsed.forEach(key => {
         hiddenColumns.add(key)
       })
-      // Older saved column layouts may have scheduler_score visible; migrate them to the new safe default once.
+      // Migrate saved layouts once: keep scheduler_score hidden; surface inline-edit columns.
       if (localStorage.getItem(HIDDEN_COLUMNS_VERSION_KEY) !== HIDDEN_COLUMNS_CURRENT_VERSION) {
         hiddenColumns.add('scheduler_score')
+        hiddenColumns.delete('priority')
+        hiddenColumns.delete('concurrency')
+        hiddenColumns.delete('fallback_only')
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
       }
@@ -1460,8 +1520,10 @@ const allColumns = computed(() => {
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: true },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
+    { key: 'concurrency', label: t('admin.accounts.columns.concurrency'), sortable: true },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
+    { key: 'fallback_only', label: t('admin.accounts.columns.fallbackOnly'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
     { key: 'quality_ttft', label: t('admin.accounts.columns.qualityTtft'), sortable: false },
     {
@@ -2198,6 +2260,77 @@ const handleToggleSchedulable = async (a: Account) => {
     appStore.showError(t('admin.accounts.failedToToggleSchedulable'))
   } finally {
     togglingSchedulable.value = null
+  }
+}
+
+function isFallbackOnly(a: Account): boolean {
+  return a.fallback_only === true || a.extra?.fallback_only === true
+}
+
+function buildExtraWithFallbackOnly(a: Account, enabled: boolean): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...(a.extra || {}) }
+  if (enabled) {
+    next.fallback_only = true
+  } else {
+    delete next.fallback_only
+  }
+  return next
+}
+
+const handleInlineConcurrency = async (a: Account, value: number) => {
+  if (value < 1 || value === a.concurrency) return
+  inlineSavingId.value = a.id
+  const previous = a.concurrency
+  try {
+    // Optimistic local update for snappy UI
+    patchAccountInList({ ...a, concurrency: value })
+    const updated = await adminAPI.accounts.update(a.id, { concurrency: value })
+    patchAccountInList(mergeRuntimeFields(a, updated))
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to update concurrency:', error)
+    patchAccountInList({ ...a, concurrency: previous })
+    appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
+  } finally {
+    inlineSavingId.value = null
+  }
+}
+
+const handleInlinePriority = async (a: Account, value: number) => {
+  if (value < 0 || value === (a.priority ?? 0)) return
+  inlineSavingId.value = a.id
+  const previous = a.priority ?? 0
+  try {
+    patchAccountInList({ ...a, priority: value })
+    const updated = await adminAPI.accounts.update(a.id, { priority: value })
+    patchAccountInList(mergeRuntimeFields(a, updated))
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to update priority:', error)
+    patchAccountInList({ ...a, priority: previous })
+    appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
+  } finally {
+    inlineSavingId.value = null
+  }
+}
+
+const handleToggleFallbackOnly = async (a: Account) => {
+  const next = !isFallbackOnly(a)
+  inlineSavingId.value = a.id
+  const previousExtra = a.extra ? { ...a.extra } : undefined
+  const previousFlag = a.fallback_only
+  try {
+    const extra = buildExtraWithFallbackOnly(a, next)
+    patchAccountInList({ ...a, fallback_only: next, extra })
+    const updated = await adminAPI.accounts.update(a.id, { extra })
+    patchAccountInList(mergeRuntimeFields(a, updated))
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to toggle fallback_only:', error)
+    patchAccountInList({ ...a, fallback_only: previousFlag, extra: previousExtra })
+    appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
+  } finally {
+    inlineSavingId.value = null
   }
 }
 const handleShowTempUnsched = (a: Account) => { tempUnschedAcc.value = a; showTempUnsched.value = true }

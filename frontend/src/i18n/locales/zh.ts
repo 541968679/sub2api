@@ -322,6 +322,10 @@ const zhBase = {
     searchPlaceholder: '搜索...',
     noOptionsFound: '无匹配选项',
     noGroupsAvailable: '无可用分组',
+    groupSelector: {
+      byPlatform: '按平台',
+      byType: '按类型'
+    },
     unknownError: '发生未知错误',
     saving: '保存中...',
     selectedCount: '（已选 {count} 个）',
@@ -2425,6 +2429,7 @@ const zhBase = {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        grok: 'Grok'
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -3711,6 +3716,14 @@ const zhBase = {
         '已有账号仅同步 CRS 返回的字段，缺失字段保持原值；凭据按键合并，不会清空未下发的键；未勾选"同步代理"时保留原有代理。',
       crsBack: '返回',
       editAccount: '编辑账号',
+      editZones: {
+        config: '账号配置',
+        groups: '分组配置',
+        other: '其他功能',
+        expand: '展开',
+        collapse: '收起',
+        groupsSimpleMode: '简易模式下无需配置分组'
+      },
       deleteAccount: '删除账号',
       deleteConfirmMessage: "确定要删除账号 '{name}' 吗？",
       refreshCookie: '刷新 Cookie',
@@ -3750,6 +3763,7 @@ const zhBase = {
         platform: '平台',
         type: '类型',
         capacity: '容量',
+        concurrency: '并发',
         notes: '备注',
         priority: '优先级',
         billingRateMultiplier: '账号倍率',
@@ -3758,6 +3772,7 @@ const zhBase = {
         schedulerScore: '调度权值',
         status: '状态',
         schedulable: '调度',
+        fallbackOnly: '兜底调度',
         todayStats: '今日统计',
         qualityTtft: '首字',
         qualitySuccessRate: '成功率',
@@ -3767,6 +3782,12 @@ const zhBase = {
         lastUsed: '最近使用',
         expiresAt: '过期时间',
         actions: '操作'
+      },
+      inlineEdit: {
+        hint: '点击修改，回车保存，Esc 取消',
+        concurrencyHint: '账号并发上限。下方为当前占用数。',
+        inUse: '占用 {n}',
+        saveFailed: '保存失败，已恢复原值'
       },
       quality: {
         ttftHint:

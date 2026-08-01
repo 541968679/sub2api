@@ -323,6 +323,10 @@ const enBase = {
     searchPlaceholder: 'Search...',
     noOptionsFound: 'No options found',
     noGroupsAvailable: 'No groups available',
+    groupSelector: {
+      byPlatform: 'By platform',
+      byType: 'By type'
+    },
     unknownError: 'Unknown error occurred',
     saving: 'Saving...',
     selectedCount: '({count} selected)',
@@ -2584,6 +2588,7 @@ const enBase = {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        grok: 'Grok'
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -4086,6 +4091,14 @@ const enBase = {
         'Existing accounts only sync fields returned by CRS; missing fields keep their current values. Credentials are merged by key — keys not returned by CRS are preserved. Proxies are kept when "Sync proxies" is unchecked.',
       crsBack: 'Back',
       editAccount: 'Edit Account',
+      editZones: {
+        config: 'Account Config',
+        groups: 'Group Config',
+        other: 'Other Features',
+        expand: 'Expand',
+        collapse: 'Collapse',
+        groupsSimpleMode: 'Group assignment is not used in simple mode'
+      },
       deleteAccount: 'Delete Account',
       searchAccounts: 'Search accounts...',
       notes: 'Notes',
@@ -4164,6 +4177,7 @@ const enBase = {
         platform: 'Platform',
         type: 'Type',
         capacity: 'Capacity',
+        concurrency: 'Concurrency',
         notes: 'Notes',
         priority: 'Priority',
         billingRateMultiplier: 'Billing Rate',
@@ -4172,6 +4186,7 @@ const enBase = {
         schedulerScore: 'Scheduler Score',
         status: 'Status',
         schedulable: 'Schedulable',
+        fallbackOnly: 'Fallback only',
         todayStats: 'Today Stats',
         qualityTtft: 'TTFT',
         qualitySuccessRate: 'Success Rate',
@@ -4181,6 +4196,12 @@ const enBase = {
         lastUsed: 'Last Used',
         expiresAt: 'Expires At',
         actions: 'Actions'
+      },
+      inlineEdit: {
+        hint: 'Click to edit, Enter to save, Esc to cancel',
+        concurrencyHint: 'Max concurrency for this account. Current in-use count is shown below.',
+        inUse: 'in use {n}',
+        saveFailed: 'Save failed; value restored'
       },
       quality: {
         ttftHint:

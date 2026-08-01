@@ -1,3 +1,30 @@
+## 2026-08-01 - feat: account edit modal three-zone PC layout
+
+### What
+- Admin **Edit Account** dialog (`EditAccountModal`) uses `extra-wide` width and a three-column layout on PC (`lg+`): Account Config / Group Config / Other Features.
+- Mobile keeps a stacked flow; Other Features is always expanded on small screens and collapsed by default on PC.
+- Group selector gains platform / subscription-type one-click select chips and a taller `panel` variant.
+- Billing rate multiplier and expiry move to Other Features; model restriction and Claude-GPT bridge stay at the top of that zone.
+
+### Why
+Long single-column edit form mixed everyday settings with advanced options, making account and group assignment hard to manage.
+
+### Affected files
+Frontend: `components/account/EditAccountModal.vue`, `components/common/GroupSelector.vue`, `components/common/__tests__/GroupSelector.spec.ts`, `i18n/locales/{zh,en}.ts`
+
+## 2026-08-01 - feat: account list inline concurrency, priority, fallback-only
+
+### What
+- Admin account table: inline edit **concurrency** (max) and **priority**; toggle **fallback_only** (兜底调度) like schedulable.
+- New/default columns: concurrency, priority, fallback_only visible; one-time column-layout migration unhides priority.
+- Backend list sort supports `concurrency`.
+
+### Why
+Operators frequently tweak concurrency/priority/fallback without opening the full edit modal.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`, `frontend/src/components/account/AccountInlineNumberCell.vue`, `frontend/src/i18n/locales/{zh,en}.ts`, `backend/internal/repository/account_repo.go`
+
 ## 2026-08-01 - feat: admin redeem list batch aggregation + split generate modal
 
 ### What

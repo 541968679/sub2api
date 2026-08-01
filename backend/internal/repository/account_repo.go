@@ -688,6 +688,9 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 	case "priority":
 		field = dbaccount.FieldPriority
 		defaultOrder = false
+	case "concurrency":
+		field = dbaccount.FieldConcurrency
+		defaultOrder = false
 	case "rate_multiplier":
 		field = dbaccount.FieldRateMultiplier
 		defaultOrder = false
