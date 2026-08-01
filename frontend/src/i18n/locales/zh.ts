@@ -1360,8 +1360,9 @@ const zhBase = {
     redeemCodeHint: '支持余额兑换码和订阅兑换码，兑换码区分大小写',
     redeeming: '兑换中...',
     redeemButton: '兑换',
-    redeemSuccess: '兑换成功！',
+    redeemSuccess: '兑换成功',
     redeemFailed: '兑换失败',
+    buyNoticeTitle: '购买说明',
     added: '已添加',
     concurrentRequests: '并发请求',
     newBalance: '新余额',
@@ -1385,7 +1386,7 @@ const zhBase = {
     subscriptionRedeemed: '订阅兑换码已兑换成功',
     subscriptionDays: '{days} 天',
     days: '天',
-    codeRedeemSuccess: '兑换成功！',
+    codeRedeemSuccess: '兑换成功',
     failedToRedeem: '兑换失败，请检查兑换码后重试。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
     pleaseEnterCode: '请输入兑换码'
@@ -7793,7 +7794,9 @@ const zhBase = {
     noActiveSubscription: '暂无有效订阅',
     tabTopUp: '充值',
     tabSubscribe: '订阅',
-    pageNoticeTitle: '重要公告',
+    pageNoticeTitle: '温馨提示',
+    inlineRedeemTitle: '兑换码充值 / 开通',
+    inlineRedeemHint: '已有兑换码可在此直接兑换，无需切换页面',
     noPlans: '暂无可用订阅套餐',
     notAvailable: '充值功能暂未开放',
     confirmSubscription: '确认订阅',
@@ -8452,18 +8455,19 @@ const v117ZhPatch = {
     },
     pageContent: {
       title: '页面内容',
-      description: '编辑模型定价页、登录页、教程页和充值订阅页展示的文案，可通过下方标签切换页面。',
+      description: '编辑模型定价页、登录页、教程页、充值订阅页和兑换页展示的文案，可通过下方标签切换页面。',
       tabs: {
         pricing: '模型定价页',
         login: '登录页',
         tutorial: '使用教程',
-        purchase: '充值订阅页'
+        purchase: '充值订阅页',
+        redeem: '兑换页'
       }
     },
     purchasePage: {
       title: '充值订阅页公告',
-      description: '编辑用户充值/订阅页顶部的醒目公告。充值与订阅两个选项卡都会显示。',
-      hint: '公告会以醒目红色横幅显示在充值页与订阅页顶部。支付渠道恢复后，可在此清空文案以关闭公告。',
+      description: '编辑用户充值/订阅页顶部的说明。充值与订阅两个选项卡都会显示。',
+      hint: '说明会以温和绿色横幅显示在充值页与订阅页顶部。不需要时清空文案即可关闭。',
       noticeLabel: '公告文案',
       noticeHint: '建议写清原因与联系方式。支持换行。',
       noticePlaceholder: '线上支付渠道暂不可用，如需测试请联系客服vx：tqrzfwidc',
@@ -8474,6 +8478,21 @@ const v117ZhPatch = {
       previewButton: '预览用户充值页',
       saveButton: '保存',
       saveSuccess: '公告已保存'
+    },
+    redeemPage: {
+      title: '兑换页购买说明',
+      description: '编辑用户兑换页顶部的「去哪购买兑换码」说明，纯文本，支持换行。',
+      hint: '说明会以温和绿色横幅显示在兑换页顶部。可写明外部销售站入口或购买方式；清空后不展示。',
+      noticeLabel: '购买说明文案',
+      noticeHint: '纯文本。例如：兑换码可在 xx 站点购买，购后回到本页兑换。',
+      noticePlaceholder: '兑换码可在指定销售站点购买，购买后请回到本页输入兑换码完成充值或开通订阅。',
+      clearHint: '保存空内容将关闭用户端说明横幅。',
+      clearButton: '清空并关闭说明',
+      clearConfirm: '确定清空购买说明吗？用户端将不再显示该横幅。',
+      previewLabel: '预览效果',
+      previewButton: '预览用户兑换页',
+      saveButton: '保存',
+      saveSuccess: '购买说明已保存'
     },
     tutorial: {
       uploadMd: '上传 MD 文件',

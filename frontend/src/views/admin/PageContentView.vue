@@ -35,6 +35,7 @@
         <LoginContentForm v-else-if="activeTab === 'login'" />
         <TutorialContentForm v-else-if="activeTab === 'tutorial'" />
         <PurchaseContentForm v-else-if="activeTab === 'purchase'" />
+        <RedeemContentForm v-else-if="activeTab === 'redeem'" />
       </KeepAlive>
     </div>
   </AppLayout>
@@ -49,8 +50,9 @@ import PricingContentForm from '@/components/admin/page-content/PricingContentFo
 import LoginContentForm from '@/components/admin/page-content/LoginContentForm.vue'
 import TutorialContentForm from '@/components/admin/page-content/TutorialContentForm.vue'
 import PurchaseContentForm from '@/components/admin/page-content/PurchaseContentForm.vue'
+import RedeemContentForm from '@/components/admin/page-content/RedeemContentForm.vue'
 
-type TabKey = 'pricing' | 'login' | 'tutorial' | 'purchase'
+type TabKey = 'pricing' | 'login' | 'tutorial' | 'purchase' | 'redeem'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -60,13 +62,15 @@ const tabs = computed(() => [
   { key: 'pricing' as TabKey, label: t('admin.pageContent.tabs.pricing') },
   { key: 'login' as TabKey, label: t('admin.pageContent.tabs.login') },
   { key: 'tutorial' as TabKey, label: t('admin.pageContent.tabs.tutorial') },
-  { key: 'purchase' as TabKey, label: t('admin.pageContent.tabs.purchase') }
+  { key: 'purchase' as TabKey, label: t('admin.pageContent.tabs.purchase') },
+  { key: 'redeem' as TabKey, label: t('admin.pageContent.tabs.redeem') }
 ])
 
 function normalizeTab(v: unknown): TabKey {
   if (v === 'login') return 'login'
   if (v === 'tutorial') return 'tutorial'
   if (v === 'purchase') return 'purchase'
+  if (v === 'redeem') return 'redeem'
   return 'pricing'
 }
 

@@ -47,27 +47,16 @@
           </div>
 
           <!-- Page-content managed notice: shared by recharge + subscription tabs -->
-          <div
+          <SoftNoticeBanner
             v-if="purchaseNotice"
-            class="flex items-start gap-3 rounded-xl border-2 border-red-400 bg-red-50 px-4 py-4 text-red-900 shadow-sm dark:border-red-500/70 dark:bg-red-950/40 dark:text-red-100 sm:px-5 sm:py-5"
-            role="alert"
-          >
-            <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-500 text-base font-bold text-white shadow">
-              !
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-300">
-                {{ t('payment.pageNoticeTitle') }}
-              </p>
-              <p class="mt-1 whitespace-pre-line text-base font-semibold leading-7 sm:text-lg">
-                {{ purchaseNotice }}
-              </p>
-            </div>
-          </div>
+            :title="t('payment.pageNoticeTitle')"
+            :text="purchaseNotice"
+          />
 
           <div v-if="activeTab === 'recharge' && !checkout.balance_disabled" class="space-y-6">
             <div class="mx-auto max-w-3xl space-y-5">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('payment.tabTopUp') }}</h2>
+              <InlineRedeemCard instance-id="recharge" />
               <div class="card p-6">
                 <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                   <div class="flex items-center gap-4">
@@ -224,6 +213,7 @@
                 {{ checkout.plans.length }}
               </span>
             </div>
+            <InlineRedeemCard instance-id="subscription" />
             <!-- Subscription confirm (inline, replaces plan list) -->
             <template v-if="selectedPlan">
               <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
@@ -439,6 +429,8 @@ import { platformAccentBarClass, platformTextClass } from '@/utils/platformColor
 import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import SupportContactBar from '@/components/common/SupportContactBar.vue'
+import SoftNoticeBanner from '@/components/common/SoftNoticeBanner.vue'
+import InlineRedeemCard from '@/components/user/InlineRedeemCard.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'

@@ -37,6 +37,10 @@ export {
   purchasePageAPI,
   type PurchasePageContent
 } from './purchasePage'
+export {
+  redeemPageAPI,
+  type RedeemPageContent
+} from './redeemPage'
 export { loginPageAPI, type LoginPageContent } from './loginPage'
 export { channelMonitorUserAPI } from './channelMonitor'
 export * as batchImageAPI from './batchImage'

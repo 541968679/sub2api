@@ -140,6 +140,7 @@ func RegisterUserRoutes(
 		authenticated.GET("/user/tutorial-page", h.TutorialPage.Get)
 		// 充值/订阅页顶部公告
 		authenticated.GET("/user/purchase-page", h.PurchasePage.Get)
+		authenticated.GET("/user/redeem-page", h.RedeemPage.Get)
 		// 渠道监控（用户只读）
 		monitors := authenticated.Group("/channel-monitors")
 		{

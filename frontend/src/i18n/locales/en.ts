@@ -1426,8 +1426,9 @@ const enBase = {
     redeemCodeHint: 'Balance and subscription codes can be redeemed here. Codes are case-sensitive.',
     redeeming: 'Redeeming...',
     redeemButton: 'Redeem Code',
-    redeemSuccess: 'Code Redeemed Successfully!',
+    redeemSuccess: 'Code Redeemed Successfully',
     redeemFailed: 'Redemption Failed',
+    buyNoticeTitle: 'Where to buy',
     added: 'Added',
     concurrentRequests: 'concurrent requests',
     newBalance: 'New Balance',
@@ -1451,7 +1452,7 @@ const enBase = {
     subscriptionRedeemed: 'Subscription code redeemed successfully',
     subscriptionDays: '{days} days',
     days: ' days',
-    codeRedeemSuccess: 'Code redeemed successfully!',
+    codeRedeemSuccess: 'Code redeemed successfully',
     failedToRedeem: 'Failed to redeem code. Please check the code and try again.',
     subscriptionRefreshFailed: 'Redeemed successfully, but failed to refresh subscription status.',
     pleaseEnterCode: 'Please enter a redeem code'
@@ -3713,18 +3714,19 @@ const enBase = {
     // Page Content hub (wrapper with tabs for pricing/login/tutorial/purchase)
     pageContent: {
       title: 'Page Content',
-      description: 'Edit the copy shown on the Model Pricing page, Login page, Tutorial page, and Purchase page. Use the tabs below to switch between them.',
+      description: 'Edit the copy shown on the Model Pricing page, Login page, Tutorial page, Purchase page, and Redeem page. Use the tabs below to switch between them.',
       tabs: {
         pricing: 'Model Pricing page',
         login: 'Login page',
         tutorial: 'Tutorial',
-        purchase: 'Purchase page'
+        purchase: 'Purchase page',
+        redeem: 'Redeem page'
       }
     },
     purchasePage: {
       title: 'Purchase page notice',
-      description: 'Edit the prominent notice shown at the top of the user recharge/subscription page. It appears on both tabs.',
-      hint: 'The notice is shown as a red banner on both the recharge and subscription tabs. Clear the text after payment channels recover to hide the banner.',
+      description: 'Edit the notice shown at the top of the user recharge/subscription page. It appears on both tabs.',
+      hint: 'The notice is shown as a soft green banner on both the recharge and subscription tabs. Clear the text to hide the banner when it is no longer needed.',
       noticeLabel: 'Notice text',
       noticeHint: 'Explain the outage and contact channel. Line breaks are preserved.',
       noticePlaceholder: 'Online payment is temporarily unavailable. For testing, contact support WeChat: tqrzfwidc',
@@ -3735,6 +3737,21 @@ const enBase = {
       previewButton: 'Preview purchase page',
       saveButton: 'Save',
       saveSuccess: 'Notice saved'
+    },
+    redeemPage: {
+      title: 'Redeem page buy notice',
+      description: 'Edit the plain-text “where to buy redeem codes” notice on the user redeem page. Line breaks are preserved.',
+      hint: 'Shown as a soft green banner at the top of the redeem page. Describe your external sales site or purchase channel; clear to hide.',
+      noticeLabel: 'Buy notice text',
+      noticeHint: 'Plain text only. Example: Buy codes on the dedicated shop, then return here to redeem.',
+      noticePlaceholder: 'Redeem codes can be purchased on the dedicated sales site. After purchase, return here and enter the code to top up or activate a subscription.',
+      clearHint: 'Saving an empty notice disables the user-facing banner.',
+      clearButton: 'Clear and disable',
+      clearConfirm: 'Clear the buy notice? The user-facing banner will no longer appear.',
+      previewLabel: 'Preview',
+      previewButton: 'Preview redeem page',
+      saveButton: 'Save',
+      saveSuccess: 'Buy notice saved'
     },
 
     tutorial: {
@@ -8118,7 +8135,9 @@ const enBase = {
     noActiveSubscription: 'No active subscription',
     tabTopUp: 'Top Up',
     tabSubscribe: 'Subscribe',
-    pageNoticeTitle: 'Important notice',
+    pageNoticeTitle: 'Notice',
+    inlineRedeemTitle: 'Redeem a code',
+    inlineRedeemHint: 'Already have a redeem code? Redeem it here without leaving this page',
     noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
     confirmSubscription: 'Confirm Subscription',

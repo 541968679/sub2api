@@ -1,6 +1,12 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-2xl space-y-6">
+      <SoftNoticeBanner
+        v-if="buyNotice"
+        :title="t('redeem.buyNoticeTitle')"
+        :text="buyNotice"
+      />
+
       <!-- Current Balance Card -->
       <div class="card overflow-hidden">
         <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
@@ -348,7 +354,9 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem, type RedeemResult } from '@/api'
+import { redeemPageAPI } from '@/api/redeemPage'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import SoftNoticeBanner from '@/components/common/SoftNoticeBanner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 
@@ -379,6 +387,7 @@ const redeemSuccessMessage = computed(() => {
 const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
 const contactInfo = ref('')
+const buyNotice = ref('')
 
 // Helper functions for history display
 const isBalanceType = (type: string) => {
@@ -482,8 +491,12 @@ const handleRedeem = async () => {
 onMounted(async () => {
   fetchHistory()
   try {
-    const settings = await authAPI.getPublicSettings()
+    const [settings, noticeRes] = await Promise.all([
+      authAPI.getPublicSettings(),
+      redeemPageAPI.getUserRedeemPageNotice().catch(() => ({ notice: '' }))
+    ])
     contactInfo.value = settings.contact_info || ''
+    buyNotice.value = (noticeRes.notice || '').trim()
   } catch (error) {
     console.error('Failed to load contact info:', error)
   }
