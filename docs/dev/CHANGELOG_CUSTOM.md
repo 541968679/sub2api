@@ -1,3 +1,17 @@
+## 2026-08-02 - deploy: production v0.1.191
+
+### What
+- Released and deployed `v0.1.191` to production via GHCR.
+- Fix: subscription total/avg/usage-rate metrics scoped to current term; rate capped at 100%.
+
+### Verification
+- Release workflow success; digest `sha256:8785cde9121abc5d19d010a4b548396ce9c32036d2255acd8e1d672ad684b879`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- Container healthy, internal `/health` OK
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-02 - fix: subscription usage metrics scoped to current term
 
 ### What
