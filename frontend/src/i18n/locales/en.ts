@@ -2507,6 +2507,8 @@ const enBase = {
       accountsRateLimited: 'Limited:',
       accountsTotal: 'Total:',
       accountsUnit: '',
+      capacityHint:
+        'Concurrency: used = live requests on this group’s API keys; max = sum of schedulable account concurrency. Sessions/RPM: only accounts with those limits (account-level runtime counters).',
       rateAndAccounts: '{rate}x rate · {count} accounts',
       accountsCount: '{count} accounts',
       form: {

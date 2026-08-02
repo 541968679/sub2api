@@ -2375,6 +2375,8 @@ const zhBase = {
       accountsRateLimited: '限流:',
       accountsTotal: '总量:',
       accountsUnit: '个账号',
+      capacityHint:
+        '并发：已用=本分组 API Key 实时请求数；上限=分组可调度账号并发容量之和。会话/RPM：仅统计配置了对应限制的账号（账号级运行时计数）。',
       form: {
         name: '名称',
         description: '描述',

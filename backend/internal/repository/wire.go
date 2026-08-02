@@ -68,6 +68,7 @@ var ProviderSet = wire.NewSet(
 	NewUserPlatformQuotaRepository,
 	NewUserPlatformQuotaServiceAdapter,
 	NewAPIKeyRepository,
+	NewGroupCapacityAPIKeyLister,
 	NewGroupRepository,
 	NewAccountRepository,
 	NewScheduledTestPlanRepository,   // 定时测试计划仓储

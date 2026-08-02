@@ -1,3 +1,29 @@
+## 2026-08-02 - fix: group capacity concurrency used is group-scoped
+
+### What
+- Group management capacity **concurrency used** now sums live request slots on
+  this group's API keys (group-scoped), not account-wide concurrency (shared).
+- Sessions/RPM used only count accounts that configure those limits (no longer
+  add unlimited-side accounts into used).
+- Tooltip clarifies used vs max semantics.
+
+### Why
+Shared accounts made every bound group show the account's total occupancy as if
+it belonged to that group alone ("统计的是总的").
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestGetAllGroupCapacity -count=1`
+- `go build ./cmd/server`
+
+### Affected files
+`backend/internal/service/group_capacity_service.go`,
+`backend/internal/service/group_capacity_service_test.go`,
+`backend/internal/repository/group_capacity_api_key_lister.go`,
+`backend/internal/repository/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`frontend/src/components/common/GroupCapacityBadge.vue`,
+`frontend/src/i18n/locales/{zh,en}.ts`, this changelog.
+
 ## 2026-08-02 - deploy: production v0.1.191
 
 ### What

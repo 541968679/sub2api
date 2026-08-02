@@ -1,6 +1,6 @@
 <template>
-  <div class="flex flex-col gap-1">
-    <!-- 并发槽位 -->
+  <div class="flex flex-col gap-1" :title="t('admin.groups.capacityHint')">
+    <!-- 并发槽位：已用=本分组 API Key 实时请求；上限=分组可调度账号并发容量 -->
     <div class="flex items-center gap-1">
       <span
         :class="[
@@ -54,6 +54,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 interface Props {
   concurrencyUsed: number
   concurrencyMax: number
@@ -71,6 +73,8 @@ withDefaults(defineProps<Props>(), {
   rpmUsed: 0,
   rpmMax: 0
 })
+
+const { t } = useI18n()
 
 function capacityClass(used: number, max: number): string {
   if (max > 0 && used >= max) {
