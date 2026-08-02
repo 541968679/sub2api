@@ -1,3 +1,19 @@
+## 2026-08-02 - deploy: production v0.1.192
+
+### What
+- Released and deployed `v0.1.192` to production via GHCR.
+- Includes: group capacity used scoped to group API keys; user management
+  "view usage" opens usage page filtered by user.
+
+### Verification
+- Release workflow success (retry after Docker Hub timeout); digest
+  `sha256:cb885fa24132549ea281e399754924bc601d57d82493712e8901e9aa5edbe5c0`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- revision `ab308b741`, version `0.1.192`, healthy, `/health` OK
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-02 - fix: group capacity concurrency used is group-scoped
 
 ### What
