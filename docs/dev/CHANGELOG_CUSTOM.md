@@ -1,3 +1,18 @@
+## 2026-08-02 - deploy: production v0.1.194
+
+### What
+- Released and deployed `v0.1.194` to production via GHCR.
+- OAI fleet badge: used/capacity pool model + two-column accounts toolbar layout.
+
+### Verification
+- Release workflow success: run `30745498824`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- revision `48787ba6a`, version `0.1.194`, healthy, `/health` OK
+- digest `sha256:050a076d41c98f3a73018fd4b2976e41fca07391b7cd52bfa504bbb57ea816a8`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-02 - fix: OAI fleet used/capacity pool + two-column layout
 
 ### What
