@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-02 | `v0.1.192` | `ab308b741` | `ghcr.io/541968679/sub2api:latest` | `0.1.192` | running, healthy, digest `sha256:cb885fa24132549ea281e399754924bc601d57d82493712e8901e9aa5edbe5c0`, internal `/health` OK; group capacity group-scoped used; user list view-usage deep link |
+| 2026-08-02 | `v0.1.193` | `a7b37e0c0` | `ghcr.io/541968679/sub2api:latest` | `0.1.193` | running, healthy, digest `sha256:66feb930867e4ea3ca4b19f0418814699a6ed2fe1fac49550dfea0257da47dd8`, internal `/health` OK; OAI Pro/Prolite fleet 5h/7d used badge |
+| 2026-08-02 | `v0.1.192` | `ab308b741` | `ghcr.io/541968679/sub2api:latest` | `0.1.192` | superseded by `v0.1.193`; group capacity group-scoped used; user list view-usage deep link |
 | 2026-08-02 | `v0.1.191` | `3fefec077` | `ghcr.io/541968679/sub2api:latest` | `0.1.191` | superseded by `v0.1.192`; fix subscription usage metrics current-term scope + rate cap 100% |
 | 2026-08-02 | `v0.1.190` | `a7bf77b73` | `ghcr.io/541968679/sub2api:latest` | `0.1.190` | superseded by `v0.1.191`; subscription group rates/usage columns/sort, usage recent filters |
 | 2026-08-01 | `v0.1.189` | `b1e22ded6` (tag tree; latest main admin UX batch) | `ghcr.io/541968679/sub2api:latest` | `0.1.189` | running, healthy, digest `sha256:204a3e594425800f10213886d4d7aa88d4b96c257a25aafc4b61574f76356d0d`, internal `/health` OK; redeem batch UI, account inline edits, TTFT p50/p95, filter memory, group/account layout |

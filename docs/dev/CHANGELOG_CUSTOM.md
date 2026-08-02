@@ -1,3 +1,19 @@
+## 2026-08-02 - deploy: production v0.1.193
+
+### What
+- Released and deployed `v0.1.193` to production via GHCR.
+- Includes: OpenAI OAuth Pro/Prolite fleet 5h/7d used usage badge (filter-independent),
+  used labels, progress bars, mobile layout.
+
+### Verification
+- Release workflow success (workflow_dispatch): run `30741788133`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- revision `a7b37e0c0`, version `0.1.193`, healthy, `/health` OK
+- digest `sha256:66feb930867e4ea3ca4b19f0418814699a6ed2fe1fac49550dfea0257da47dd8`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-02 - fix: fleet badge mobile layout + wider used bars
 
 ### What
