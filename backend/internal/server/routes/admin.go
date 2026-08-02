@@ -359,6 +359,8 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.POST("/batch-auto-assign-proxy", h.Admin.Account.BatchAutoAssignProxy)
 		accounts.GET("/data", h.Admin.Account.ExportData)
 		accounts.POST("/data", h.Admin.Account.ImportData)
+		// Static path: OpenAI OAuth pro/prolite fleet 5h/7d usage (filter-independent).
+		accounts.GET("/openai-oauth-fleet-usage", h.Admin.Account.GetOpenAIOauthFleetUsage)
 		accounts.POST("/batch-update-credentials", h.Admin.Account.BatchUpdateCredentials)
 		accounts.POST("/batch-refresh-tier", h.Admin.Account.BatchRefreshTier)
 		accounts.POST("/bulk-update", h.Admin.Account.BulkUpdate)

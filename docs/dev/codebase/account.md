@@ -97,6 +97,42 @@ This setting does not change model mapping/fallback, scheduler/failover, Ops,
 Claude-GPT, Images, billing, quota deduction, `actual_cost`, display tokens,
 or cache-read values.
 
+## OpenAI OAuth Pro/Prolite Fleet Usage Summary
+
+Admin accounts page shows a **filter-independent** badge for the global
+OpenAI OAuth Pro/Prolite pool (5h and 7d upstream Codex windows).
+
+```
+GET /api/v1/admin/accounts/openai-oauth-fleet-usage
+  -> AccountUsageService.GetOpenAIOauthFleetUsage
+  -> ListAllWithFilters(platform=openai, type=oauth, no status filter)
+  -> aggregateOpenAIOauthFleetUsage
+```
+
+Inclusion: OpenAI OAuth **parent** accounts only (`!IsShadow()`), with
+`credentials.plan_type` in `{pro, chatgptpro, prolite}`. Plus/team/free and
+other plans are excluded. Status/schedulable/rate-limit do **not** exclude.
+
+Aggregation is a **weighted percent sum** (can exceed 100):
+
+- pro / chatgptpro weight = 1.0
+- prolite weight = 0.25
+- per window: `Σ used_percent * weight`
+- missing `codex_{5h|7d}_used_percent` skips that window (counted in
+  `missing_5h` / `missing_7d`, not treated as 0%)
+- utilization uses `buildCodexUsageProgressFromExtra` so expired windows
+  zero like the per-account usage cell
+
+UI: `AccountsView` right-side badge (next to AI Credits) with an explicit
+**Used / 已用** label and the same `UsageProgressBar` rows as per-account
+usage windows (used%, not remaining). On small screens the strip is full-width
+and ordered above filters/actions; progress tracks use a wider
+`trackWidthClass` only in this badge (table cells stay default). Refreshed
+with list load/reload/auto-refresh; never derived from the filtered page list.
+
+Read-only admin surface. Does not change scheduling, billing, or single-account
+usage cells.
+
 ## OpenAI Spark Shadow Accounts
 
 Spark shadows are linked OpenAI OAuth scheduling records. They own an explicit

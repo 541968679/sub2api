@@ -34,8 +34,13 @@
         {{ label }}
       </span>
 
-      <!-- Progress bar container -->
-      <div class="h-1.5 w-8 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+      <!-- Progress bar container (trackWidthClass defaults to table-cell size) -->
+      <div
+        :class="[
+          'h-1.5 shrink-0 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700',
+          trackWidthClass
+        ]"
+      >
         <div
           :class="['h-full transition-all duration-300', barClass]"
           :style="{ width: barWidth }"
@@ -62,15 +67,22 @@ import { useI18n } from 'vue-i18n'
 import type { WindowStats } from '@/types'
 import { formatCompactNumber } from '@/utils/format'
 
-const props = defineProps<{
-  label: string
-  utilization: number // Percentage (0-100+)
-  resetsAt?: string | null
-  color: 'indigo' | 'emerald' | 'purple' | 'amber'
-  windowStats?: WindowStats | null
-  showNowWhenIdle?: boolean
-  remainingCapacity?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    label: string
+    utilization: number // Percentage (0-100+)
+    resetsAt?: string | null
+    color: 'indigo' | 'emerald' | 'purple' | 'amber'
+    windowStats?: WindowStats | null
+    showNowWhenIdle?: boolean
+    remainingCapacity?: boolean
+    /** Tailwind width classes for the track; default matches account table cells. */
+    trackWidthClass?: string
+  }>(),
+  {
+    trackWidthClass: 'w-8'
+  }
+)
 
 const { t } = useI18n()
 

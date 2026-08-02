@@ -265,6 +265,28 @@ export async function getUsage(id: number, source?: 'passive' | 'active'): Promi
   return data
 }
 
+/** Filter-independent OpenAI OAuth pro/prolite fleet 5h/7d usage summary. */
+export interface OpenAIOauthFleetUsageSummary {
+  fleet_5h_percent: number
+  fleet_7d_percent: number
+  pro_count: number
+  prolite_count: number
+  missing_5h: number
+  missing_7d: number
+  included_count: number
+}
+
+/**
+ * Global OpenAI OAuth pro/prolite fleet usage (weighted percent sum).
+ * Independent of account list filters.
+ */
+export async function getOpenAIOauthFleetUsage(): Promise<OpenAIOauthFleetUsageSummary> {
+  const { data } = await apiClient.get<OpenAIOauthFleetUsageSummary>(
+    '/admin/accounts/openai-oauth-fleet-usage'
+  )
+  return data
+}
+
 /**
  * Clear account rate limit status
  * @param id - Account ID
@@ -975,6 +997,7 @@ export const accountsAPI = {
   getStats,
   clearError,
   getUsage,
+  getOpenAIOauthFleetUsage,
   getTodayStats,
   getBatchTodayStats,
   getBatchQualityStats,

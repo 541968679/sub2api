@@ -4241,6 +4241,13 @@ const enBase = {
           'Last {windowMinutes} min · samples {samples} · p50 {p50}ms · p95 {p95}ms · avg {avg}ms · max {max}ms'
       },
       usageWindowsHint: '"5h / 7d" are upstream rolling usage windows imposed on the account itself. They reset automatically and are unrelated to sub2api model mapping.',
+      oauthFleetUsage: {
+        title: 'OAI Pro pool',
+        usedBadge: 'Used',
+        detail: '{pro} Pro · {prolite} Prolite · miss5h:{missing5h} · miss7d:{missing7d}',
+        tooltip:
+          'Shows used percentage (not remaining). Weighted sum of upstream 5h/7d used% for OpenAI OAuth Pro/Prolite parent accounts (Prolite = Pro × 1/4; may exceed 100%). Bars match the per-account usage windows. Independent of list filters; accounts without a snapshot are skipped for that window.'
+      },
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
       privacyTrainingOff: 'Training data sharing disabled',

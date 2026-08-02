@@ -1,3 +1,71 @@
+## 2026-08-02 - fix: fleet badge mobile layout + wider used bars
+
+### What
+- OAI Pro pool strip is full-width on small screens and ordered above filters/actions.
+- Detail text wraps; progress tracks are wider on mobile (`trackWidthClass` on
+  `UsageProgressBar`, table cells keep default `w-8`).
+
+### Why
+Initial fleet badge only relied on flex-wrap and was cramped / hard to read on phones.
+
+### Verification
+- `pnpm exec vitest run src/components/account/__tests__/UsageProgressBar.spec.ts src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/components/account/UsageProgressBar.vue`,
+this changelog.
+
+## 2026-08-02 - fix: fleet badge labels used% + progress bars
+
+### What
+- OAI Pro pool badge now marks **已用 / Used** (not remaining).
+- Renders 5h/7d with the same `UsageProgressBar` as per-account usage windows.
+
+### Why
+Plain "12%" was ambiguous (used vs remaining); operators also wanted bar affordance.
+
+### Verification
+- `pnpm exec vitest run src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`,
+this changelog.
+
+## 2026-08-02 - feat: OpenAI OAuth Pro/Prolite fleet 5h/7d usage badge
+
+### What
+- Account management page shows a permanent top-right summary of all OpenAI
+  OAuth **Pro/Prolite parent** accounts' upstream 5h/7d usage.
+- Aggregation: weighted **percent sum** (prolite = 1/4 of pro); can exceed 100%.
+- Scope is **independent of list filters**; excludes shadows and non-pro plans;
+  includes all statuses; missing snapshots skip that window and increment miss counts.
+- New admin API: `GET /api/v1/admin/accounts/openai-oauth-fleet-usage`.
+
+### Why
+Operators need a single glance at total Pro-pool pressure without changing
+group/search filters or paging through accounts.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestAggregateOpenAIOauthFleetUsage|TestOpenAIOauthFleetPlanWeight" -count=1`
+- Frontend i18n spec for fleet badge copy
+
+### Affected files
+`backend/internal/service/account_usage_fleet.go`,
+`backend/internal/service/account_usage_fleet_test.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-02 - deploy: production v0.1.192
 
 ### What

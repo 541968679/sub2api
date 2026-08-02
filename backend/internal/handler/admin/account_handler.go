@@ -2086,6 +2086,22 @@ func (h *AccountHandler) GetUsage(c *gin.Context) {
 	response.Success(c, usage)
 }
 
+// GetOpenAIOauthFleetUsage returns filter-independent pro/prolite OAuth fleet
+// 5h/7d weighted usage summary for the accounts admin page.
+// GET /api/v1/admin/accounts/openai-oauth-fleet-usage
+func (h *AccountHandler) GetOpenAIOauthFleetUsage(c *gin.Context) {
+	if h.accountUsageService == nil {
+		response.ErrorFrom(c, fmt.Errorf("account usage service not configured"))
+		return
+	}
+	summary, err := h.accountUsageService.GetOpenAIOauthFleetUsage(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, summary)
+}
+
 // ClearRateLimit handles clearing account rate limit status
 // POST /api/v1/admin/accounts/:id/clear-rate-limit
 func (h *AccountHandler) ClearRateLimit(c *gin.Context) {

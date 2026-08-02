@@ -2,8 +2,10 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-wrap-reverse items-start justify-between gap-3">
+        <div class="flex flex-col gap-3 md:flex-row md:flex-wrap-reverse md:items-start md:justify-between">
+          <!-- Mobile: fleet badge first (order-1). Desktop: filters left. -->
           <AccountTableFilters
+            class="order-2 min-w-0 md:order-1 md:flex-1"
             v-model:searchQuery="params.search"
             :filters="params"
             :groups="groups"
@@ -12,6 +14,7 @@
             @update:searchQuery="debouncedReload"
           />
           <AccountTableActions
+            class="order-3 md:order-2"
             :loading="loading"
             @refresh="handleManualRefresh"
             @sync="showSync = true"
@@ -136,15 +139,64 @@
               </button>
             </template>
           </AccountTableActions>
-          <span
-            v-if="totalAICredits > 0"
-            class="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"
+          <!-- Stats strip: full-width on mobile, sits above filters/actions. -->
+          <div
+            class="order-1 flex w-full min-w-0 flex-wrap items-stretch gap-2 md:order-3 md:w-auto md:items-center md:justify-end"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            AI Credits: ${{ totalAICredits.toFixed(2) }}
-          </span>
+            <div
+              v-if="openaiFleetUsage && openaiFleetUsage.included_count > 0"
+              class="flex min-w-0 flex-1 flex-col gap-1 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 dark:border-sky-700/40 dark:bg-sky-900/20 sm:flex-none sm:min-w-[11.5rem]"
+              :title="t('admin.accounts.oauthFleetUsage.tooltip')"
+            >
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+                  {{ t('admin.accounts.oauthFleetUsage.title') }}
+                </span>
+                <span
+                  class="rounded bg-sky-100 px-1 py-px text-[9px] font-medium text-sky-700 dark:bg-sky-800/60 dark:text-sky-200"
+                >
+                  {{ t('admin.accounts.oauthFleetUsage.usedBadge') }}
+                </span>
+              </div>
+              <!-- Same used-percent bars as per-account usage windows (not remaining).
+                   Wider track on mobile so the fill is easier to read. -->
+              <div class="space-y-0.5">
+                <UsageProgressBar
+                  label="5h"
+                  :utilization="openaiFleetUsage.fleet_5h_percent"
+                  color="indigo"
+                  track-width-class="w-16 sm:w-12 md:w-10"
+                />
+                <UsageProgressBar
+                  label="7d"
+                  :utilization="openaiFleetUsage.fleet_7d_percent"
+                  color="emerald"
+                  track-width-class="w-16 sm:w-12 md:w-10"
+                />
+              </div>
+              <span
+                class="break-words text-[10px] leading-snug text-sky-700/90 dark:text-sky-300/90"
+              >
+                {{
+                  t('admin.accounts.oauthFleetUsage.detail', {
+                    pro: openaiFleetUsage.pro_count,
+                    prolite: openaiFleetUsage.prolite_count,
+                    missing5h: openaiFleetUsage.missing_5h,
+                    missing7d: openaiFleetUsage.missing_7d
+                  })
+                }}
+              </span>
+            </div>
+            <span
+              v-if="totalAICredits > 0"
+              class="inline-flex max-w-full items-center gap-1.5 self-start rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"
+            >
+              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="truncate">AI Credits: ${{ totalAICredits.toFixed(2) }}</span>
+            </span>
+          </div>
         </div>
         <div
           v-if="hasPendingListSync"
@@ -554,7 +606,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
-import type { AccountQualityStats } from '@/api/admin/accounts'
+import type { AccountQualityStats, OpenAIOauthFleetUsageSummary } from '@/api/admin/accounts'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -578,6 +630,7 @@ import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
+import UsageProgressBar from '@/components/account/UsageProgressBar.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
@@ -857,6 +910,17 @@ function getAccountExportedAt(row: Account): string {
 
 const totalAICredits = ref(0)
 const aiCreditsLoading = ref(false)
+
+/** Filter-independent OpenAI OAuth pro/prolite fleet usage (right-corner badge). */
+const openaiFleetUsage = ref<OpenAIOauthFleetUsageSummary | null>(null)
+
+async function refreshOpenAIOauthFleetUsage() {
+  try {
+    openaiFleetUsage.value = await adminAPI.accounts.getOpenAIOauthFleetUsage()
+  } catch {
+    // Keep last good snapshot on transient failures.
+  }
+}
 
 async function refreshAICreditsTotal() {
   const antigravityAccounts = accounts.value.filter(a => a.platform === 'antigravity')
@@ -1314,6 +1378,7 @@ const load = async () => {
   }
   await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
   refreshAICreditsTotal()
+  refreshOpenAIOauthFleetUsage()
 }
 
 const reload = async () => {
@@ -1324,6 +1389,7 @@ const reload = async () => {
   await baseReload()
   await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
   refreshAICreditsTotal()
+  refreshOpenAIOauthFleetUsage()
 }
 
 const debouncedReload = () => {
@@ -1505,7 +1571,11 @@ const refreshAccountsIncrementally = async () => {
       hasPendingListSync.value = false
     }
 
-    await Promise.all([refreshTodayStatsBatch(), refreshQualityStatsBatch()])
+    await Promise.all([
+      refreshTodayStatsBatch(),
+      refreshQualityStatsBatch(),
+      refreshOpenAIOauthFleetUsage()
+    ])
   } catch (error) {
     console.error('Auto refresh failed:', error)
   } finally {

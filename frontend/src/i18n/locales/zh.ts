@@ -3829,6 +3829,13 @@ const zhBase = {
           '最近 {windowMinutes} 分钟 · 样本 {samples} · p50 {p50}ms · p95 {p95}ms · 均值 {avg}ms · 最大 {max}ms'
       },
       usageWindowsHint: '“5h / 7d”是上游对账号本身施加的滚动用量窗口，到期后自动重置，与 sub2api 的模型映射无关。',
+      oauthFleetUsage: {
+        title: 'OAI Pro 池',
+        usedBadge: '已用',
+        detail: '{pro} Pro · {prolite} Prolite · 缺5h:{missing5h} · 缺7d:{missing7d}',
+        tooltip:
+          '展示已用比例（非剩余）。全站 OpenAI OAuth 的 Pro/Prolite 母账号 5h/7d 上游已用百分比加权相加（Prolite=Pro×1/4，可超过 100%）。进度条与账号列表用量窗口同语义。不受列表筛选影响；缺快照的账号不计入该窗口。'
+      },
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
       privacyTrainingOff: '已关闭训练数据共享',
