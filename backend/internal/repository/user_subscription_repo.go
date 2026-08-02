@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
@@ -12,6 +14,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+
+	entsql "entgo.io/ent/dialect/sql"
 )
 
 type userSubscriptionRepository struct {
@@ -292,22 +296,28 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 		q = q.WithUser().WithGroup().WithAssignedByUser()
 	}
 
-	// Determine sort field
-	var field string
-	switch sortBy {
-	case "expires_at":
-		field = usersubscription.FieldExpiresAt
-	case "status":
-		field = usersubscription.FieldStatus
-	default:
-		field = usersubscription.FieldCreatedAt
-	}
-
-	// Determine sort order (default: desc)
-	if sortOrder == "asc" && sortBy != "" {
-		q = q.Order(dbent.Asc(field))
+	// Sort: usage metrics need correlated subqueries; others use columns.
+	sortBy = strings.ToLower(strings.TrimSpace(sortBy))
+	asc := strings.EqualFold(strings.TrimSpace(sortOrder), "asc") && sortBy != ""
+	if isSubscriptionUsageMetricSort(sortBy) {
+		for _, order := range subscriptionUsageMetricOrder(sortBy, asc) {
+			q = q.Order(order)
+		}
 	} else {
-		q = q.Order(dbent.Desc(field))
+		var field string
+		switch sortBy {
+		case "expires_at":
+			field = usersubscription.FieldExpiresAt
+		case "status":
+			field = usersubscription.FieldStatus
+		default:
+			field = usersubscription.FieldCreatedAt
+		}
+		if asc {
+			q = q.Order(dbent.Asc(field))
+		} else {
+			q = q.Order(dbent.Desc(field))
+		}
 	}
 
 	subs, err := q.
@@ -326,6 +336,81 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 	}
 
 	return result, paginationResultFromTotal(int64(total), params), nil
+}
+
+// isSubscriptionUsageMetricSort reports whether sortBy is an admin-list usage metric.
+// Frontend column keys: total_consumed, avg_daily, usage_rate (aliases accepted).
+func isSubscriptionUsageMetricSort(sortBy string) bool {
+	switch strings.ToLower(strings.TrimSpace(sortBy)) {
+	case "total_consumed", "total_consumed_usd",
+		"avg_daily", "avg_daily_usage_usd",
+		"usage_rate", "daily_usage_rate":
+		return true
+	default:
+		return false
+	}
+}
+
+// subscriptionUsageMetricOrder builds ORDER BY expressions matching enrichAdminListStats:
+//   total = SUM(usage_logs.actual_cost)
+//   active_days = max(1, floor(hours/24)+1) over [starts_at, min(now, expires_at)]
+//   avg_daily = total / active_days
+//   usage_rate = avg_daily / groups.daily_limit_usd (NULL when no daily limit)
+func subscriptionUsageMetricOrder(sortBy string, asc bool) []usersubscription.OrderOption {
+	direction := "DESC"
+	nulls := "LAST"
+	if asc {
+		direction = "ASC"
+		nulls = "FIRST"
+	}
+	return []usersubscription.OrderOption{
+		func(s *entsql.Selector) {
+			id := s.C(usersubscription.FieldID)
+			starts := s.C(usersubscription.FieldStartsAt)
+			expires := s.C(usersubscription.FieldExpiresAt)
+			groupID := s.C(usersubscription.FieldGroupID)
+
+			totalExpr := fmt.Sprintf(
+				"(SELECT COALESCE(SUM(actual_cost), 0) FROM usage_logs WHERE subscription_id = %s)",
+				id,
+			)
+			// Mirror service.subscriptionActiveDays in SQL.
+			activeDaysExpr := fmt.Sprintf(
+				"GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (LEAST(NOW(), %s) - %s)) / 86400)::bigint + 1)",
+				expires,
+				starts,
+			)
+			avgDailyExpr := fmt.Sprintf("((%s) / (%s)::float8)", totalExpr, activeDaysExpr)
+			dailyLimitExpr := fmt.Sprintf(
+				"(SELECT daily_limit_usd FROM groups WHERE id = %s AND deleted_at IS NULL)",
+				groupID,
+			)
+			usageRateExpr := fmt.Sprintf(
+				"CASE WHEN (%s) IS NULL OR (%s) <= 0 THEN NULL ELSE (%s) / (%s) END",
+				dailyLimitExpr,
+				dailyLimitExpr,
+				avgDailyExpr,
+				dailyLimitExpr,
+			)
+
+			var expr string
+			switch sortBy {
+			case "avg_daily", "avg_daily_usage_usd":
+				expr = avgDailyExpr
+			case "usage_rate", "daily_usage_rate":
+				expr = usageRateExpr
+			default: // total_consumed / total_consumed_usd
+				expr = totalExpr
+			}
+			s.OrderExpr(entsql.Expr(expr + " " + direction + " NULLS " + nulls))
+			// Stable tie-break
+			if asc {
+				s.OrderBy(entsql.Asc(id))
+			} else {
+				s.OrderBy(entsql.Desc(id))
+			}
+		},
+	}
 }
 
 func (r *userSubscriptionRepository) ExistsByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (bool, error) {

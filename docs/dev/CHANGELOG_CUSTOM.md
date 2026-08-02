@@ -1,3 +1,41 @@
+## 2026-08-02 - feat: sort subscription usage metric columns
+
+### What
+- Admin subscription list can server-sort by **total consumed**, **avg daily**, and **daily limit usage rate**.
+- Sorting uses SQL expressions aligned with list enrichment (SUM actual_cost, active-days avg, avg/daily_limit).
+
+### Why
+Operators need to rank heavy users / high utilization subscriptions without exporting data.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run "TestIsSubscriptionUsageMetricSort|TestSubscriptionUsageMetricOrder" -count=1`
+
+### Affected files
+`backend/internal/repository/user_subscription_repo.go`,
+`backend/internal/repository/user_subscription_usage_sort_test.go`,
+`frontend/src/views/admin/SubscriptionsView.vue`,
+`docs/dev/codebase/subscription.md`, this changelog.
+
+## 2026-08-02 - feat: usage filter recent user/account dropdowns
+
+### What
+- Admin usage filters for **user** and **account** open a dropdown on focus even with empty input.
+- Dropdown order: **recently selected** (localStorage MRU) first, then browse list (users by last_active_at, accounts by last_used_at).
+- Dropdown is teleported to `body` with fixed positioning to avoid clipped/incomplete lists inside overflow containers.
+- Typing still debounced remote-searches; selection updates MRU.
+
+### Why
+Empty-input browse was impossible (search required text), network lag made typeahead flaky, and nested overflow clipped the menu.
+
+### Verification
+- `pnpm exec vue-tsc --noEmit`
+
+### Affected files
+`frontend/src/components/admin/usage/UsageFilters.vue`,
+`frontend/src/composables/useRecentPicks.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`, this changelog.
+
 ## 2026-08-02 - feat: subscription-group user rates + admin usage columns
 
 ### What

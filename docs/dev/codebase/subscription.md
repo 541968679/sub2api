@@ -54,6 +54,10 @@ expiry workers, and active lookups retain Ent's default soft-delete scope.
   - `daily_usage_rate` = avg / `group.daily_limit_usd` when limit > 0
   - `user_rate_multiplier` / `user_display_rate_multiplier` from
     `user_group_rate_multipliers` (not group default)
+- Admin list server-side sort keys for usage metrics (correlated subqueries,
+  same formulas as enrichment): `total_consumed`, `avg_daily`, `usage_rate`
+  (aliases `*_usd` / `daily_usage_rate` also accepted). Rows without a daily
+  limit sort as NULL for usage rate (NULLS LAST on desc).
 - Subscription-group access is controlled by subscriptions, not
   `allowed_groups`. User rate overrides for subscription groups are edited
   via `PUT /admin/users/:id` `group_rates_full` (partial keys only).
