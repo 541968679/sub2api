@@ -2034,6 +2034,8 @@ const zhBase = {
       title: '用户管理',
       description: '管理用户账户和权限',
       createUser: '创建用户',
+      viewUsage: '查看使用记录',
+      viewUsageShort: '查看使用',
       editUser: '编辑用户',
       deleteUser: '删除用户',
       deleteConfirmMessage: "确定要删除用户 '{email}' 吗？此操作无法撤销。",

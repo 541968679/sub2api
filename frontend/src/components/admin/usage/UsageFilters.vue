@@ -811,6 +811,19 @@ async function resolveUserLabel(userId: number | string | undefined | null) {
     return
   }
   if (userKeyword.value) return
+  // Prefer email from query (deep-link from user management)
+  const queryEmail = route.query.user_email
+  const emailFromQuery = Array.isArray(queryEmail)
+    ? queryEmail.find((v): v is string => typeof v === 'string' && v.length > 0)
+    : typeof queryEmail === 'string' && queryEmail.length > 0
+      ? queryEmail
+      : undefined
+  if (emailFromQuery) {
+    userKeyword.value = emailFromQuery
+    pushRecentPick(RECENT_USERS_KEY, { id: Number(userId), label: emailFromQuery })
+    loadUserRecents()
+    return
+  }
   const recent = loadRecentPicks(RECENT_USERS_KEY).find((p) => p.id === Number(userId))
   if (recent) {
     userKeyword.value = recent.label

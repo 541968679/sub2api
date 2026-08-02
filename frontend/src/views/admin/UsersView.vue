@@ -240,7 +240,7 @@
           :columns="columns"
           :data="users"
           :loading="loading"
-          :actions-count="7"
+          :actions-count="8"
           :server-side-sort="true"
           default-sort-key="created_at"
           default-sort-order="desc"
@@ -479,6 +479,17 @@
                 <span class="text-xs">{{ t('common.edit') }}</span>
               </button>
 
+              <!-- View Usage Button -->
+              <button
+                type="button"
+                @click="handleViewUsage(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                :title="t('admin.users.viewUsage')"
+              >
+                <Icon name="chartBar" size="sm" />
+                <span class="text-xs">{{ t('admin.users.viewUsageShort') }}</span>
+              </button>
+
               <!-- Toggle Status Button (not for admin) -->
               <button
                 v-if="row.role !== 'admin'"
@@ -639,12 +650,14 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
+const router = useRouter()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
 import type { BatchUserUsageStats } from '@/api/admin/dashboard'
@@ -1359,6 +1372,18 @@ const updateAttributeFilter = (attrId: number, value: string) => {
 const applyFilter = () => {
   saveFiltersToStorage()
   loadUsers()
+}
+
+/** Open admin usage page filtered to this user (new browser tab). */
+const handleViewUsage = (user: AdminUser) => {
+  const resolved = router.resolve({
+    path: '/admin/usage',
+    query: {
+      user_id: String(user.id),
+      user_email: user.email || undefined
+    }
+  })
+  window.open(resolved.href, '_blank', 'noopener,noreferrer')
 }
 
 const handleEdit = (user: AdminUser) => {

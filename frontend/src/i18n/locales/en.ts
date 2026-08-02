@@ -2177,6 +2177,8 @@ const enBase = {
       title: 'User Management',
       description: 'Manage users and their permissions',
       createUser: 'Create User',
+      viewUsage: 'View usage records',
+      viewUsageShort: 'View usage',
       editUser: 'Edit User',
       deleteUser: 'Delete User',
       searchUsers: 'Search by email, username, notes, or API key...',
