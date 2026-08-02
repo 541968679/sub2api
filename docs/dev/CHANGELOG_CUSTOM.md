@@ -1,3 +1,17 @@
+## 2026-08-02 - deploy: production v0.1.190
+
+### What
+- Released and deployed `v0.1.190` to production via GHCR (`ghcr.io/541968679/sub2api:latest`).
+- Includes subscription group user rates, admin subscription usage columns + sort, and usage filter recent/browse dropdowns.
+
+### Verification
+- Release workflow success; image revision `a7bf77b73`, version label `0.1.190`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- `status=running health=healthy`, internal `/health` OK
+
+### Affected files
+docs only for this entry: `docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-02 - feat: sort subscription usage metric columns
 
 ### What

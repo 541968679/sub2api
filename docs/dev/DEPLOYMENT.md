@@ -118,6 +118,7 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
+| 2026-08-02 | `v0.1.190` | `a7bf77b73` | `ghcr.io/541968679/sub2api:latest` | `0.1.190` | running, healthy, digest `sha256:6f168dd1f9c13ccc647ac1d2b02588d0ce244150db23eff265670a5bd015078d`, internal `/health` OK; subscription group rates/usage columns/sort, usage recent filters |
 | 2026-08-01 | `v0.1.189` | `b1e22ded6` (tag tree; latest main admin UX batch) | `ghcr.io/541968679/sub2api:latest` | `0.1.189` | running, healthy, digest `sha256:204a3e594425800f10213886d4d7aa88d4b96c257a25aafc4b61574f76356d0d`, internal `/health` OK; redeem batch UI, account inline edits, TTFT p50/p95, filter memory, group/account layout |
 | 2026-08-01 | `v0.1.187` | `7a7cf372b8ace3ee388dfc9ccb01495fc8072488` | `ghcr.io/541968679/sub2api:latest` | `0.1.187` | running, healthy, digest `sha256:9498746a7d4d5150e9e6ae1899cb476e477ca5b14313d96177cc8add6cccfab0`, internal `/health` OK; inline redeem + redeem buy notice |
 | 2026-07-30 | `v0.1.182` | `bf21c543a2823451b4de397585833d8ffb716519` | `ghcr.io/541968679/sub2api:0.1.182` | `0.1.182` | running, healthy, digest `sha256:1cd517da8ede857548f44c92bab62e850071318961d5afe83fa6be09cd20ac83`, internal `/health` OK; purchase-page notice emergency deploy |
