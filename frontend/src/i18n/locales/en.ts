@@ -3637,9 +3637,9 @@ const enBase = {
         status: 'Status',
         actions: 'Actions'
       },
-      totalConsumedHint: 'Lifetime consumed quota (actual_cost) over this subscription lifetime',
-      avgDailyHint: 'Total used ÷ active days',
-      usageRateHint: 'Avg daily ÷ daily limit; shows — when no daily limit',
+      totalConsumedHint: 'Quota consumed (actual_cost) in the current subscription term [starts_at, expires_at)',
+      avgDailyHint: 'Current-term total used ÷ active days',
+      usageRateHint: 'Avg daily ÷ daily limit (capped at 100%); shows — when no daily limit',
       userRateHint: 'User-specific billing/display rate for this subscription group (overrides group default)',
       groupDefaultRate: 'Group default',
       saveUserRate: 'Save rates',

@@ -2032,6 +2032,9 @@ func (r *usageLogRepository) GetDailyStatsAggregated(ctx context.Context, userID
 }
 
 // SumConsumedUSDBySubscriptionIDs returns SUM(actual_cost) per subscription_id for the given IDs.
+// Only usage inside the current subscription window [starts_at, expires_at) is counted
+// (matches subscription-profit / "current term" admin list semantics). Logs from a prior
+// term that reused the same subscription_id after reactivation are excluded.
 // Missing IDs are omitted from the map (caller treats as 0).
 func (r *usageLogRepository) SumConsumedUSDBySubscriptionIDs(ctx context.Context, subscriptionIDs []int64) (map[int64]float64, error) {
 	out := make(map[int64]float64, len(subscriptionIDs))
@@ -2039,10 +2042,14 @@ func (r *usageLogRepository) SumConsumedUSDBySubscriptionIDs(ctx context.Context
 		return out, nil
 	}
 	rows, err := r.sql.QueryContext(ctx, `
-		SELECT subscription_id, COALESCE(SUM(actual_cost), 0)
-		FROM usage_logs
-		WHERE subscription_id = ANY($1)
-		GROUP BY subscription_id
+		SELECT s.id, COALESCE(SUM(l.actual_cost), 0)
+		FROM user_subscriptions s
+		LEFT JOIN usage_logs l
+			ON l.subscription_id = s.id
+			AND l.created_at >= s.starts_at
+			AND l.created_at < s.expires_at
+		WHERE s.id = ANY($1)
+		GROUP BY s.id
 	`, pq.Array(subscriptionIDs))
 	if err != nil {
 		return nil, err

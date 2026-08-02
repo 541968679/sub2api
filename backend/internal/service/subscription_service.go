@@ -938,6 +938,7 @@ func (s *SubscriptionService) enrichAdminListStats(ctx context.Context, subs []U
 	now := time.Now()
 	for i := range subs {
 		sub := &subs[i]
+		// consumed totals are already scoped to [starts_at, expires_at) by the reader.
 		total := consumed[sub.ID]
 		sub.TotalConsumedUSD = total
 		sub.ActiveDays = subscriptionActiveDays(sub.StartsAt, sub.ExpiresAt, now)
@@ -947,6 +948,14 @@ func (s *SubscriptionService) enrichAdminListStats(ctx context.Context, subs []U
 		sub.AvgDailyUsageUSD = total / float64(sub.ActiveDays)
 		if sub.Group != nil && sub.Group.DailyLimitUSD != nil && *sub.Group.DailyLimitUSD > 0 {
 			rate := sub.AvgDailyUsageUSD / *sub.Group.DailyLimitUSD
+			// Product invariant: daily-limit utilization never displays above 100%.
+			// (Single-day overshoot is possible on the live window; lifetime avg is capped.)
+			if rate > 1 {
+				rate = 1
+			}
+			if rate < 0 {
+				rate = 0
+			}
 			sub.DailyUsageRate = &rate
 		}
 		if ratesByUser != nil {

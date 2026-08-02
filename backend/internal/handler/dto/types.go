@@ -664,11 +664,12 @@ type AdminUserSubscription struct {
 	// User-level rate overrides for this subscription's group (admin list enrichment).
 	UserRateMultiplier        *float64 `json:"user_rate_multiplier,omitempty"`
 	UserDisplayRateMultiplier *float64 `json:"user_display_rate_multiplier,omitempty"`
-	// Lifetime usage stats for admin list columns.
+	// Current-term usage stats for admin list columns ([starts_at, expires_at)).
 	TotalConsumedUSD float64  `json:"total_consumed_usd"`
 	ActiveDays       int      `json:"active_days"`
 	AvgDailyUsageUSD float64  `json:"avg_daily_usage_usd"`
-	DailyUsageRate   *float64 `json:"daily_usage_rate,omitempty"`
+	// Capped to [0, 1] when set.
+	DailyUsageRate *float64 `json:"daily_usage_rate,omitempty"`
 }
 
 type BulkAssignResult struct {

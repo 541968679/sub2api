@@ -89,3 +89,27 @@ func TestEnrichAdminListStats(t *testing.T) {
 	require.NotNil(t, subs[0].UserDisplayRateMultiplier)
 	require.Equal(t, 2.0, *subs[0].UserDisplayRateMultiplier)
 }
+
+func TestEnrichAdminListStats_CapsUsageRateAtOne(t *testing.T) {
+	dailyLimit := 100.0
+	start := time.Now().Add(-24 * time.Hour)
+
+	svc := &SubscriptionService{
+		// 300 over 2 active days => avg 150 => raw rate 1.5, must cap at 1.0
+		consumedReader: &stubConsumedReader{totals: map[int64]float64{1: 300}},
+	}
+	subs := []UserSubscription{
+		{
+			ID:        1,
+			UserID:    1,
+			GroupID:   1,
+			StartsAt:  start,
+			ExpiresAt: start.Add(30 * 24 * time.Hour),
+			Group:     &Group{DailyLimitUSD: &dailyLimit},
+		},
+	}
+	svc.enrichAdminListStats(context.Background(), subs)
+	require.NotNil(t, subs[0].DailyUsageRate)
+	require.InDelta(t, 1.0, *subs[0].DailyUsageRate, 1e-9)
+	require.InDelta(t, 150.0, subs[0].AvgDailyUsageUSD, 0.001)
+}

@@ -352,10 +352,10 @@ func isSubscriptionUsageMetricSort(sortBy string) bool {
 }
 
 // subscriptionUsageMetricOrder builds ORDER BY expressions matching enrichAdminListStats:
-//   total = SUM(usage_logs.actual_cost)
+//   total = SUM(actual_cost) for logs in [starts_at, expires_at) only (current term)
 //   active_days = max(1, floor(hours/24)+1) over [starts_at, min(now, expires_at)]
 //   avg_daily = total / active_days
-//   usage_rate = avg_daily / groups.daily_limit_usd (NULL when no daily limit)
+//   usage_rate = LEAST(1, avg_daily / daily_limit) (NULL when no daily limit)
 func subscriptionUsageMetricOrder(sortBy string, asc bool) []usersubscription.OrderOption {
 	direction := "DESC"
 	nulls := "LAST"
@@ -370,9 +370,12 @@ func subscriptionUsageMetricOrder(sortBy string, asc bool) []usersubscription.Or
 			expires := s.C(usersubscription.FieldExpiresAt)
 			groupID := s.C(usersubscription.FieldGroupID)
 
+			// Current subscription term only — exclude pre-reactivation history.
 			totalExpr := fmt.Sprintf(
-				"(SELECT COALESCE(SUM(actual_cost), 0) FROM usage_logs WHERE subscription_id = %s)",
+				"(SELECT COALESCE(SUM(actual_cost), 0) FROM usage_logs WHERE subscription_id = %s AND created_at >= %s AND created_at < %s)",
 				id,
+				starts,
+				expires,
 			)
 			// Mirror service.subscriptionActiveDays in SQL.
 			activeDaysExpr := fmt.Sprintf(
@@ -385,8 +388,9 @@ func subscriptionUsageMetricOrder(sortBy string, asc bool) []usersubscription.Or
 				"(SELECT daily_limit_usd FROM groups WHERE id = %s AND deleted_at IS NULL)",
 				groupID,
 			)
+			// Cap at 1.0 so sort order matches admin display (never >100%).
 			usageRateExpr := fmt.Sprintf(
-				"CASE WHEN (%s) IS NULL OR (%s) <= 0 THEN NULL ELSE (%s) / (%s) END",
+				"CASE WHEN (%s) IS NULL OR (%s) <= 0 THEN NULL ELSE LEAST(1.0, (%s) / (%s)) END",
 				dailyLimitExpr,
 				dailyLimitExpr,
 				avgDailyExpr,

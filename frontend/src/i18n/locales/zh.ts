@@ -3529,9 +3529,9 @@ const zhBase = {
         status: '状态',
         actions: '操作'
       },
-      totalConsumedHint: '该订阅生命周期内计入额度的累计消耗（actual_cost）',
-      avgDailyHint: '累计已用 ÷ 生效天数',
-      usageRateHint: '日均用量 ÷ 日限额；无日限额时显示 —',
+      totalConsumedHint: '当前订阅周期内计入额度的累计消耗（starts_at～expires_at 的 actual_cost）',
+      avgDailyHint: '当前周期累计已用 ÷ 生效天数',
+      usageRateHint: '日均用量 ÷ 日限额（最高 100%）；无日限额时显示 —',
       userRateHint: '用户对该订阅分组的专属/展示倍率（覆盖分组默认）',
       groupDefaultRate: '分组默认',
       saveUserRate: '保存倍率',

@@ -1,3 +1,29 @@
+## 2026-08-02 - fix: subscription usage metrics scoped to current term
+
+### What
+- Admin subscription **total consumed** only sums `usage_logs.actual_cost` inside
+  the current term `[starts_at, expires_at)` (excludes pre-reactivation history).
+- **Daily-limit usage rate** is capped at 100% for display and server sort.
+- Sort SQL and i18n hints match the same current-term semantics.
+
+### Why
+Reactivating a subscription resets `starts_at` but reuses `subscription_id`, so
+lifetime SUM inflated avg daily and pushed usage rate well above 100%.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestSubscriptionActiveDays|TestEnrichAdminListStats" -count=1`
+- `go test -tags=unit ./internal/repository -run "TestIsSubscriptionUsageMetricSort|TestSubscriptionUsageMetricOrder" -count=1`
+
+### Affected files
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/user_subscription_repo.go`,
+`backend/internal/service/subscription_service.go`,
+`backend/internal/service/user_subscription.go`,
+`backend/internal/service/subscription_admin_enrich_test.go`,
+`backend/internal/handler/dto/types.go`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+`docs/dev/codebase/subscription.md`, this changelog.
+
 ## 2026-08-02 - deploy: production v0.1.190
 
 ### What

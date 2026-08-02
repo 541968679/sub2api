@@ -46,18 +46,23 @@ expiry workers, and active lookups retain Ent's default soft-delete scope.
 - The Redis Pub/Sub subscriber is owned by `SubscriptionService` and is stopped
   by `Stop()`; construction is not blocked on the Redis subscription handshake.
 - Database uniqueness remains the final concurrency guard during restore.
-- Admin list enrichment (page only):
-  - `total_consumed_usd` = `SUM(usage_logs.actual_cost)` by `subscription_id`
+- Admin list enrichment (page only; **current term only**):
+  - `total_consumed_usd` = `SUM(actual_cost)` for logs with
+    `created_at ∈ [starts_at, expires_at)` (not full history on reused IDs)
   - `active_days` = `max(1, floor(elapsed/24h)+1)` from `starts_at` to
     `min(now, expires_at)`
   - `avg_daily_usage_usd` = total / active_days
-  - `daily_usage_rate` = avg / `group.daily_limit_usd` when limit > 0
+  - `daily_usage_rate` = min(1, avg / `group.daily_limit_usd`) when limit > 0
+    (display never exceeds 100%)
   - `user_rate_multiplier` / `user_display_rate_multiplier` from
     `user_group_rate_multipliers` (not group default)
 - Admin list server-side sort keys for usage metrics (correlated subqueries,
   same formulas as enrichment): `total_consumed`, `avg_daily`, `usage_rate`
   (aliases `*_usd` / `daily_usage_rate` also accepted). Rows without a daily
   limit sort as NULL for usage rate (NULLS LAST on desc).
+- Pitfall: reactivating an expired subscription resets `starts_at` but keeps
+  `subscription_id`; term-scoped SUM is required so pre-reactivation logs do
+  not inflate avg / usage rate.
 - Subscription-group access is controlled by subscriptions, not
   `allowed_groups`. User rate overrides for subscription groups are edited
   via `PUT /admin/users/:id` `group_rates_full` (partial keys only).

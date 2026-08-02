@@ -26,9 +26,9 @@ func TestSubscriptionUsageMetricOrder_BuildsExprs(t *testing.T) {
 		asc      bool
 		wantFrag string
 	}{
-		{sortBy: "total_consumed", asc: false, wantFrag: "SUM(actual_cost)"},
+		{sortBy: "total_consumed", asc: false, wantFrag: "created_at >="},
 		{sortBy: "avg_daily", asc: true, wantFrag: "GREATEST(1, FLOOR(EXTRACT(EPOCH"},
-		{sortBy: "usage_rate", asc: false, wantFrag: "daily_limit_usd"},
+		{sortBy: "usage_rate", asc: false, wantFrag: "LEAST(1.0"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.sortBy, func(t *testing.T) {
