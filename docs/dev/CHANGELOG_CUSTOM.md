@@ -1,3 +1,39 @@
+## 2026-08-02 - feat: subscription-group user rates + admin usage columns
+
+### What
+- User group config modal now shows the user's linked **subscription groups**
+  and allows editing dedicated billing/display rate overrides (access still
+  comes from subscriptions, not `allowed_groups`).
+- Admin subscription list returns and displays lifetime total consumed USD,
+  average daily usage, daily-limit utilization, and per-user rate overrides.
+- Subscription list supports inline edit/save of the user's rate for that
+  subscription group via existing `group_rates_full` user update API.
+
+### Why
+Admins could not see or edit subscription-group rates from user management,
+and subscription ops needed quick visibility into daily-limit utilization
+without opening the cost-analysis page.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestSubscriptionActiveDays|TestEnrichAdminListStats" -count=1`
+
+### Affected files
+`backend/internal/service/user_subscription.go`,
+`backend/internal/service/subscription_service.go`,
+`backend/internal/service/subscription_admin_enrich_test.go`,
+`backend/internal/service/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/handler/dto/types.go`,
+`backend/internal/handler/dto/mappers.go`,
+`backend/internal/handler/admin/subscription_handler.go`,
+`frontend/src/components/admin/user/UserAllowedGroupsModal.vue`,
+`frontend/src/views/admin/SubscriptionsView.vue`,
+`frontend/src/types/index.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/subscription.md`, this changelog.
+
 ## 2026-08-01 - feat: mobile accordion for account/group three-zone forms
 
 ### What

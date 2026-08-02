@@ -813,17 +813,23 @@ func UserSubscriptionFromService(sub *service.UserSubscription) *UserSubscriptio
 }
 
 // UserSubscriptionFromServiceAdmin converts a service UserSubscription to DTO for admin users.
-// It includes assignment metadata and notes.
+// It includes assignment metadata, notes, rate overrides, and lifetime usage stats.
 func UserSubscriptionFromServiceAdmin(sub *service.UserSubscription) *AdminUserSubscription {
 	if sub == nil {
 		return nil
 	}
 	return &AdminUserSubscription{
-		UserSubscription: userSubscriptionFromServiceBase(sub),
-		AssignedBy:       sub.AssignedBy,
-		AssignedAt:       sub.AssignedAt,
-		Notes:            sub.Notes,
-		AssignedByUser:   UserFromServiceShallow(sub.AssignedByUser),
+		UserSubscription:          userSubscriptionFromServiceBase(sub),
+		AssignedBy:                sub.AssignedBy,
+		AssignedAt:                sub.AssignedAt,
+		Notes:                     sub.Notes,
+		AssignedByUser:            UserFromServiceShallow(sub.AssignedByUser),
+		UserRateMultiplier:        sub.UserRateMultiplier,
+		UserDisplayRateMultiplier: sub.UserDisplayRateMultiplier,
+		TotalConsumedUSD:          sub.TotalConsumedUSD,
+		ActiveDays:                sub.ActiveDays,
+		AvgDailyUsageUSD:          sub.AvgDailyUsageUSD,
+		DailyUsageRate:            sub.DailyUsageRate,
 	}
 }
 

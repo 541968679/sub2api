@@ -30,6 +30,19 @@ type UserSubscription struct {
 	User           *User
 	Group          *Group
 	AssignedByUser *User
+
+	// Admin list enrichment (optional; not persisted on user_subscriptions).
+	// User-level rate overrides for this subscription's group.
+	UserRateMultiplier        *float64
+	UserDisplayRateMultiplier *float64
+	// Lifetime usage for this subscription (SUM usage_logs.actual_cost).
+	TotalConsumedUSD float64
+	// Calendar-day span used for avg daily: max(1, floor(elapsed/24h)+1).
+	ActiveDays int
+	// TotalConsumedUSD / ActiveDays.
+	AvgDailyUsageUSD float64
+	// AvgDailyUsageUSD / group.daily_limit_usd when daily limit > 0.
+	DailyUsageRate *float64
 }
 
 func (s *UserSubscription) IsActive() bool {

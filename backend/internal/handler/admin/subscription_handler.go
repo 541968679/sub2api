@@ -346,7 +346,7 @@ func (h *SubscriptionHandler) ListByUser(c *gin.Context) {
 		return
 	}
 
-	subscriptions, err := h.subscriptionService.ListUserSubscriptions(c.Request.Context(), userID)
+	subscriptions, err := h.subscriptionService.ListUserSubscriptionsAdmin(c.Request.Context(), userID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

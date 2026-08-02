@@ -14,11 +14,16 @@ coexist with at most one live subscription for the same user and group.
 - `backend/internal/repository/user_subscription_repo.go`: active-scoped reads,
   admin include-deleted reads, soft delete, and atomic restore.
 - `backend/internal/service/subscription_service.go`: assign, revoke, restore,
-  quota maintenance, L1 cache, and cross-instance invalidation.
+  quota maintenance, L1 cache, cross-instance invalidation, and admin list
+  enrichment (lifetime consumed USD + user group rate overrides).
+- `backend/internal/repository/usage_log_repo.go`:
+  `SumConsumedUSDBySubscriptionIDs` for page-scoped lifetime usage.
 - `backend/internal/handler/admin/subscription_handler.go`: admin actions.
 - `backend/internal/server/routes/admin.go`: explicit revoke/restore routes.
-- `frontend/src/views/admin/SubscriptionsView.vue`: revoked filtering and
-  restore action.
+- `frontend/src/views/admin/SubscriptionsView.vue`: list columns, usage rate,
+  inline user rate edit, revoke/restore.
+- `frontend/src/components/admin/user/UserAllowedGroupsModal.vue`: user group
+  config including subscription-group rate overrides.
 
 ## Core flow
 
@@ -41,6 +46,17 @@ expiry workers, and active lookups retain Ent's default soft-delete scope.
 - The Redis Pub/Sub subscriber is owned by `SubscriptionService` and is stopped
   by `Stop()`; construction is not blocked on the Redis subscription handshake.
 - Database uniqueness remains the final concurrency guard during restore.
+- Admin list enrichment (page only):
+  - `total_consumed_usd` = `SUM(usage_logs.actual_cost)` by `subscription_id`
+  - `active_days` = `max(1, floor(elapsed/24h)+1)` from `starts_at` to
+    `min(now, expires_at)`
+  - `avg_daily_usage_usd` = total / active_days
+  - `daily_usage_rate` = avg / `group.daily_limit_usd` when limit > 0
+  - `user_rate_multiplier` / `user_display_rate_multiplier` from
+    `user_group_rate_multipliers` (not group default)
+- Subscription-group access is controlled by subscriptions, not
+  `allowed_groups`. User rate overrides for subscription groups are edited
+  via `PUT /admin/users/:id` `group_rates_full` (partial keys only).
 
 ## Known pitfalls
 

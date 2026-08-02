@@ -2031,6 +2031,37 @@ func (r *usageLogRepository) GetDailyStatsAggregated(ctx context.Context, userID
 	return result, nil
 }
 
+// SumConsumedUSDBySubscriptionIDs returns SUM(actual_cost) per subscription_id for the given IDs.
+// Missing IDs are omitted from the map (caller treats as 0).
+func (r *usageLogRepository) SumConsumedUSDBySubscriptionIDs(ctx context.Context, subscriptionIDs []int64) (map[int64]float64, error) {
+	out := make(map[int64]float64, len(subscriptionIDs))
+	if len(subscriptionIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.sql.QueryContext(ctx, `
+		SELECT subscription_id, COALESCE(SUM(actual_cost), 0)
+		FROM usage_logs
+		WHERE subscription_id = ANY($1)
+		GROUP BY subscription_id
+	`, pq.Array(subscriptionIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var id int64
+		var total float64
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+		out[id] = total
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GetSubscriptionProfitRaw 聚合每个包月订阅的用量与套餐信息（不含派生计算）。
 //
 // 口径：

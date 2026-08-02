@@ -45,12 +45,22 @@ var (
 	ErrAdjustWouldExpire           = infraerrors.BadRequest("ADJUST_WOULD_EXPIRE", "adjustment would result in expired subscription (remaining days must be > 0)")
 )
 
+// SubscriptionConsumedUSDReader batch-reads lifetime consumed USD for subscription IDs.
+// Defined as a small interface so UsageLogRepository stubs do not need the method.
+type SubscriptionConsumedUSDReader interface {
+	SumConsumedUSDBySubscriptionIDs(ctx context.Context, subscriptionIDs []int64) (map[int64]float64, error)
+}
+
 // SubscriptionService 订阅服务
 type SubscriptionService struct {
 	groupRepo           GroupRepository
 	userSubRepo         UserSubscriptionRepository
 	billingCacheService *BillingCacheService
 	entClient           *dbent.Client
+
+	// Optional admin list enrichers (nil-safe).
+	userGroupRateRepo UserGroupRateRepository
+	consumedReader    SubscriptionConsumedUSDReader
 
 	// L1 缓存：加速中间件热路径的订阅查询
 	subCacheL1                 *ristretto.Cache
@@ -75,6 +85,24 @@ func NewSubscriptionService(groupRepo GroupRepository, userSubRepo UserSubscript
 	svc.initSubCache(cfg)
 	svc.initMaintenanceQueue(cfg)
 	svc.startSubCacheInvalidationSubscriber()
+	return svc
+}
+
+// ProvideSubscriptionService wires admin list enrichers onto SubscriptionService.
+func ProvideSubscriptionService(
+	groupRepo GroupRepository,
+	userSubRepo UserSubscriptionRepository,
+	billingCacheService *BillingCacheService,
+	entClient *dbent.Client,
+	cfg *config.Config,
+	userGroupRateRepo UserGroupRateRepository,
+	usageLogRepo UsageLogRepository,
+) *SubscriptionService {
+	svc := NewSubscriptionService(groupRepo, userSubRepo, billingCacheService, entClient, cfg)
+	svc.userGroupRateRepo = userGroupRateRepo
+	if reader, ok := usageLogRepo.(SubscriptionConsumedUSDReader); ok {
+		svc.consumedReader = reader
+	}
 	return svc
 }
 
@@ -814,6 +842,15 @@ func (s *SubscriptionService) GetActiveSubscription(ctx context.Context, userID,
 }
 
 // ListUserSubscriptions 获取用户的所有订阅
+func (s *SubscriptionService) ListUserSubscriptionsAdmin(ctx context.Context, userID int64) ([]UserSubscription, error) {
+	subs, err := s.ListUserSubscriptions(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	s.enrichAdminListStats(ctx, subs)
+	return subs, nil
+}
+
 func (s *SubscriptionService) ListUserSubscriptions(ctx context.Context, userID int64) ([]UserSubscription, error) {
 	subs, err := s.userSubRepo.ListByUserID(ctx, userID)
 	if err != nil {
@@ -843,6 +880,7 @@ func (s *SubscriptionService) ListGroupSubscriptions(ctx context.Context, groupI
 	}
 	normalizeExpiredWindows(subs)
 	normalizeSubscriptionStatus(subs)
+	s.enrichAdminListStats(ctx, subs)
 	return subs, pag, nil
 }
 
@@ -855,7 +893,88 @@ func (s *SubscriptionService) List(ctx context.Context, page, pageSize int, user
 	}
 	normalizeExpiredWindows(subs)
 	normalizeSubscriptionStatus(subs)
+	s.enrichAdminListStats(ctx, subs)
 	return subs, pag, nil
+}
+
+// enrichAdminListStats fills lifetime usage and user group rate overrides for the current page.
+// Failures are logged and skipped so list still returns core subscription data.
+func (s *SubscriptionService) enrichAdminListStats(ctx context.Context, subs []UserSubscription) {
+	if len(subs) == 0 {
+		return
+	}
+
+	ids := make([]int64, 0, len(subs))
+	userIDs := make([]int64, 0, len(subs))
+	userSeen := make(map[int64]struct{}, len(subs))
+	for i := range subs {
+		ids = append(ids, subs[i].ID)
+		if _, ok := userSeen[subs[i].UserID]; !ok {
+			userSeen[subs[i].UserID] = struct{}{}
+			userIDs = append(userIDs, subs[i].UserID)
+		}
+	}
+
+	consumed := map[int64]float64{}
+	if s.consumedReader != nil {
+		if totals, err := s.consumedReader.SumConsumedUSDBySubscriptionIDs(ctx, ids); err != nil {
+			log.Printf("[SubscriptionService] SumConsumedUSDBySubscriptionIDs failed: %v", err)
+		} else if totals != nil {
+			consumed = totals
+		}
+	}
+
+	var ratesByUser map[int64]map[int64]UserGroupRateData
+	if s.userGroupRateRepo != nil {
+		if batch, ok := s.userGroupRateRepo.(UserGroupRateFullBatchReader); ok {
+			if m, err := batch.GetFullByUserIDs(ctx, userIDs); err != nil {
+				log.Printf("[SubscriptionService] GetFullByUserIDs failed: %v", err)
+			} else {
+				ratesByUser = m
+			}
+		}
+	}
+
+	now := time.Now()
+	for i := range subs {
+		sub := &subs[i]
+		total := consumed[sub.ID]
+		sub.TotalConsumedUSD = total
+		sub.ActiveDays = subscriptionActiveDays(sub.StartsAt, sub.ExpiresAt, now)
+		if sub.ActiveDays < 1 {
+			sub.ActiveDays = 1
+		}
+		sub.AvgDailyUsageUSD = total / float64(sub.ActiveDays)
+		if sub.Group != nil && sub.Group.DailyLimitUSD != nil && *sub.Group.DailyLimitUSD > 0 {
+			rate := sub.AvgDailyUsageUSD / *sub.Group.DailyLimitUSD
+			sub.DailyUsageRate = &rate
+		}
+		if ratesByUser != nil {
+			if byGroup, ok := ratesByUser[sub.UserID]; ok {
+				if data, ok := byGroup[sub.GroupID]; ok {
+					sub.UserRateMultiplier = data.RateMultiplier
+					sub.UserDisplayRateMultiplier = data.DisplayRateMultiplier
+				}
+			}
+		}
+	}
+}
+
+// subscriptionActiveDays returns calendar-style active days for avg usage:
+// day 1 on the first partial day, then +1 per full 24h elapsed until end.
+func subscriptionActiveDays(startsAt, expiresAt, now time.Time) int {
+	end := now
+	if !expiresAt.IsZero() && expiresAt.Before(end) {
+		end = expiresAt
+	}
+	if end.Before(startsAt) {
+		return 1
+	}
+	days := int(math.Floor(end.Sub(startsAt).Hours()/24)) + 1
+	if days < 1 {
+		return 1
+	}
+	return days
 }
 
 // normalizeExpiredWindows 将已过期窗口的数据清零（仅影响返回数据，不影响数据库）

@@ -1929,6 +1929,16 @@ export interface UserSubscription {
   expires_at: string | null
   user?: User
   group?: Group
+  // Admin list enrichment
+  user_rate_multiplier?: number | null
+  user_display_rate_multiplier?: number | null
+  total_consumed_usd?: number
+  active_days?: number
+  avg_daily_usage_usd?: number
+  daily_usage_rate?: number | null
+  assigned_by?: number | null
+  assigned_at?: string
+  notes?: string
 }
 
 export interface SubscriptionProgress {

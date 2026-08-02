@@ -211,6 +211,83 @@
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
 
+          <template #cell-total_consumed="{ row }">
+            <div class="text-sm font-medium text-gray-900 dark:text-white" :title="t('admin.subscriptions.totalConsumedHint')">
+              ${{ formatUsdAmount(row.total_consumed_usd) }}
+            </div>
+            <div v-if="row.active_days" class="text-xs text-gray-500 dark:text-gray-400">
+              {{ row.active_days }}d
+            </div>
+          </template>
+
+          <template #cell-avg_daily="{ row }">
+            <div class="text-sm font-medium text-gray-900 dark:text-white" :title="t('admin.subscriptions.avgDailyHint')">
+              ${{ formatUsdAmount(row.avg_daily_usage_usd) }}
+            </div>
+          </template>
+
+          <template #cell-usage_rate="{ row }">
+            <div v-if="row.daily_usage_rate != null && row.group?.daily_limit_usd" class="min-w-[100px]" :title="t('admin.subscriptions.usageRateHint')">
+              <div class="mb-1 flex items-center justify-between text-xs">
+                <span
+                  class="font-medium"
+                  :class="usageRateTextClass(row.daily_usage_rate)"
+                >
+                  {{ formatPercent(row.daily_usage_rate) }}
+                </span>
+              </div>
+              <div class="h-1.5 rounded-full bg-gray-200 dark:bg-dark-600">
+                <div
+                  class="h-1.5 rounded-full transition-all"
+                  :class="usageRateBarClass(row.daily_usage_rate)"
+                  :style="{ width: Math.min(100, (row.daily_usage_rate || 0) * 100) + '%' }"
+                ></div>
+              </div>
+            </div>
+            <span v-else class="text-sm text-gray-400">—</span>
+          </template>
+
+          <template #cell-user_rate="{ row }">
+            <div class="min-w-[160px] space-y-1.5" :title="t('admin.subscriptions.userRateHint')">
+              <div class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.subscriptions.groupDefaultRate') }}:
+                {{ row.group?.rate_multiplier != null ? `${row.group.rate_multiplier}x` : '—' }}
+              </div>
+              <div class="flex items-center gap-1.5">
+                <label class="w-10 shrink-0 text-xs text-gray-500">{{ t('admin.users.customRate') }}</label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  class="hide-spinner input w-20 px-2 py-1 text-xs"
+                  :placeholder="row.group?.rate_multiplier != null ? String(row.group.rate_multiplier) : ''"
+                  :value="rateDrafts[row.id]?.rate ?? ''"
+                  @input="onRateDraftInput(row.id, 'rate', ($event.target as HTMLInputElement).value)"
+                />
+              </div>
+              <div class="flex items-center gap-1.5">
+                <label class="w-10 shrink-0 text-xs text-amber-600 dark:text-amber-400">{{ t('admin.users.displayRate') }}</label>
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  class="hide-spinner input w-20 px-2 py-1 text-xs border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20"
+                  :placeholder="t('admin.users.displayRatePlaceholder')"
+                  :value="rateDrafts[row.id]?.display_rate ?? ''"
+                  @input="onRateDraftInput(row.id, 'display_rate', ($event.target as HTMLInputElement).value)"
+                />
+              </div>
+              <button
+                type="button"
+                class="btn btn-secondary px-2 py-1 text-xs"
+                :disabled="savingRateId === row.id || !isRateDraftDirty(row)"
+                @click="saveUserRate(row)"
+              >
+                {{ savingRateId === row.id ? t('common.saving') : t('admin.subscriptions.saveUserRate') }}
+              </button>
+            </div>
+          </template>
+
           <template #cell-usage="{ row }">
             <div class="min-w-[280px] space-y-2">
               <!-- Daily Usage -->
@@ -965,6 +1042,10 @@ const allColumns = computed<Column[]>(() => [
   },
   { key: 'group', label: t('admin.subscriptions.columns.group'), sortable: false },
   { key: 'usage', label: t('admin.subscriptions.columns.usage'), sortable: false },
+  { key: 'total_consumed', label: t('admin.subscriptions.columns.totalConsumed'), sortable: false },
+  { key: 'avg_daily', label: t('admin.subscriptions.columns.avgDaily'), sortable: false },
+  { key: 'usage_rate', label: t('admin.subscriptions.columns.usageRate'), sortable: false },
+  { key: 'user_rate', label: t('admin.subscriptions.columns.userRate'), sortable: false },
   { key: 'expires_at', label: t('admin.subscriptions.columns.expires'), sortable: true },
   { key: 'status', label: t('admin.subscriptions.columns.status'), sortable: true },
   { key: 'actions', label: t('admin.subscriptions.columns.actions'), sortable: false }
@@ -1045,6 +1126,112 @@ const subscriptions = ref<UserSubscription[]>([])
 const groups = ref<Group[]>([])
 const loading = ref(false)
 let abortController: AbortController | null = null
+
+// Per-row user rate draft (billing + display) for inline edit
+type RateDraft = { rate: string; display_rate: string }
+const rateDrafts = reactive<Record<number, RateDraft>>({})
+const savingRateId = ref<number | null>(null)
+
+const initRateDrafts = (items: UserSubscription[]) => {
+  // Drop drafts for rows no longer on page to avoid unbounded growth
+  for (const key of Object.keys(rateDrafts)) {
+    const id = Number(key)
+    if (!items.some((s) => s.id === id)) {
+      delete rateDrafts[id]
+    }
+  }
+  for (const sub of items) {
+    rateDrafts[sub.id] = {
+      rate: sub.user_rate_multiplier != null ? String(sub.user_rate_multiplier) : '',
+      display_rate:
+        sub.user_display_rate_multiplier != null ? String(sub.user_display_rate_multiplier) : ''
+    }
+  }
+}
+
+const onRateDraftInput = (subId: number, field: 'rate' | 'display_rate', value: string) => {
+  if (!rateDrafts[subId]) {
+    rateDrafts[subId] = { rate: '', display_rate: '' }
+  }
+  rateDrafts[subId][field] = value
+}
+
+const parseOptionalRate = (raw: string): number | null => {
+  const trimmed = raw.trim()
+  if (trimmed === '') return null
+  const n = parseFloat(trimmed)
+  return Number.isFinite(n) ? n : null
+}
+
+const isRateDraftDirty = (row: UserSubscription): boolean => {
+  const draft = rateDrafts[row.id]
+  if (!draft) return false
+  const rate = parseOptionalRate(draft.rate)
+  const display = parseOptionalRate(draft.display_rate)
+  const origRate = row.user_rate_multiplier ?? null
+  const origDisplay = row.user_display_rate_multiplier ?? null
+  return rate !== origRate || display !== origDisplay
+}
+
+const saveUserRate = async (row: UserSubscription) => {
+  const draft = rateDrafts[row.id]
+  if (!draft) return
+  savingRateId.value = row.id
+  try {
+    const rate = parseOptionalRate(draft.rate)
+    const display = parseOptionalRate(draft.display_rate)
+    const hadRate = row.user_rate_multiplier != null
+    const hadDisplay = row.user_display_rate_multiplier != null
+    const hasAny = rate !== null || display !== null
+
+    // Skip no-op if nothing to set and nothing to clear
+    if (!hasAny && !hadRate && !hadDisplay) {
+      return
+    }
+    // null entry clears override for this group only
+    const groupRatesFull: Record<number, import('@/types').UserGroupRateData | null> = {
+      [row.group_id]: hasAny ? { rate, display_rate: display } : null
+    }
+
+    await adminAPI.users.update(row.user_id, {
+      group_rates_full: groupRatesFull
+    })
+
+    row.user_rate_multiplier = rate
+    row.user_display_rate_multiplier = display
+    rateDrafts[row.id] = {
+      rate: rate != null ? String(rate) : '',
+      display_rate: display != null ? String(display) : ''
+    }
+    appStore.showSuccess(t('admin.subscriptions.userRateSaved'))
+  } catch (error) {
+    console.error('Failed to save user rate:', error)
+    appStore.showError(t('admin.subscriptions.failedToSaveUserRate'))
+  } finally {
+    savingRateId.value = null
+  }
+}
+
+const formatUsdAmount = (value: number | null | undefined): string => {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return n.toFixed(2)
+}
+
+const formatPercent = (rate: number): string => {
+  return `${(rate * 100).toFixed(1)}%`
+}
+
+const usageRateTextClass = (rate: number): string => {
+  if (rate >= 0.9) return 'text-red-600 dark:text-red-400'
+  if (rate >= 0.7) return 'text-amber-600 dark:text-amber-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+}
+
+const usageRateBarClass = (rate: number): string => {
+  if (rate >= 0.9) return 'bg-red-500'
+  if (rate >= 0.7) return 'bg-amber-500'
+  return 'bg-emerald-500'
+}
 
 // Toolbar user filter (fuzzy search -> select user_id)
 const filterUserKeyword = ref('')
@@ -1183,6 +1370,7 @@ const loadSubscriptions = async () => {
     )
     if (signal.aborted || abortController !== requestController) return
     subscriptions.value = response.items
+    initRateDrafts(response.items)
     pagination.total = response.total
     pagination.pages = response.pages
   } catch (error: any) {
@@ -1690,5 +1878,14 @@ onUnmounted(() => {
 
 .reset-info {
   @apply flex items-center gap-1 pl-12 text-[10px] text-blue-600 dark:text-blue-400;
+}
+
+.hide-spinner::-webkit-outer-spin-button,
+.hide-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hide-spinner {
+  -moz-appearance: textfield;
 }
 </style>

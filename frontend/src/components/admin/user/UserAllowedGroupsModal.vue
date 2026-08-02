@@ -21,8 +21,8 @@
       </div>
 
       <div v-else class="space-y-6">
-        <!-- 专属分组区域 -->
-        <div v-if="exclusiveGroups.length > 0">
+        <!-- 专属分组区域（标准） -->
+        <div v-if="exclusiveGroupConfigs.length > 0">
           <div class="mb-3 flex items-center gap-2">
             <div class="h-1.5 w-1.5 rounded-full bg-purple-500"></div>
             <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.users.exclusiveGroups') }}</h4>
@@ -38,7 +38,6 @@
                 : 'border-gray-200 bg-white hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:hover:border-dark-500'"
             >
               <div class="flex items-center gap-4">
-                <!-- 复选框 -->
                 <div class="flex-shrink-0">
                   <label class="relative flex h-6 w-6 cursor-pointer items-center justify-center">
                     <input
@@ -55,7 +54,6 @@
                   </label>
                 </div>
 
-                <!-- 分组信息 -->
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <span class="text-base font-semibold text-gray-900 dark:text-white">{{ config.groupName }}</span>
@@ -75,7 +73,6 @@
                   </div>
                 </div>
 
-                <!-- 专属倍率输入 -->
                 <div class="flex flex-shrink-0 items-center gap-3">
                   <div class="flex items-center gap-1.5">
                     <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
@@ -107,8 +104,8 @@
           </div>
         </div>
 
-        <!-- 公开分组区域 -->
-        <div v-if="publicGroups.length > 0">
+        <!-- 公开分组区域（标准） -->
+        <div v-if="publicGroupConfigs.length > 0">
           <div class="mb-3 flex items-center gap-2">
             <div class="h-1.5 w-1.5 rounded-full bg-green-500"></div>
             <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.users.publicGroups') }}</h4>
@@ -121,7 +118,6 @@
               class="relative overflow-hidden rounded-xl border-2 border-green-200 bg-green-50/50 p-4 dark:border-green-800/50 dark:bg-green-900/10"
             >
               <div class="flex items-center gap-4">
-                <!-- 复选框（禁用状态） -->
                 <div class="flex-shrink-0">
                   <div class="flex h-5 w-5 items-center justify-center rounded-md border-2 border-green-400 bg-green-500 dark:border-green-600 dark:bg-green-600">
                     <svg class="h-full w-full text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
@@ -130,7 +126,6 @@
                   </div>
                 </div>
 
-                <!-- 分组信息 -->
                 <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
                     <span class="text-base font-semibold text-gray-900 dark:text-white">{{ config.groupName }}</span>
@@ -147,7 +142,83 @@
                   </div>
                 </div>
 
-                <!-- 专属倍率输入 -->
+                <div class="flex flex-shrink-0 items-center gap-3">
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      :value="config.customRate ?? ''"
+                      @input="updateCustomRate(config.groupId, ($event.target as HTMLInputElement).value)"
+                      :placeholder="String(config.defaultRate)"
+                      class="hide-spinner w-20 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 dark:border-dark-500 dark:bg-dark-700 dark:focus:border-primary-500"
+                    />
+                  </div>
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-sm font-medium text-amber-600 dark:text-amber-400">{{ t('admin.users.displayRate') }}</label>
+                    <input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      :value="config.displayRate ?? ''"
+                      @input="updateDisplayRate(config.groupId, ($event.target as HTMLInputElement).value)"
+                      :placeholder="t('admin.users.displayRatePlaceholder')"
+                      class="hide-spinner w-20 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm font-medium transition-colors focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20 dark:border-amber-700 dark:bg-amber-900/20 dark:focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 订阅分组区域 -->
+        <div>
+          <div class="mb-3 flex items-center gap-2">
+            <div class="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.users.subscriptionGroups') }}</h4>
+            <span class="text-xs text-gray-400">({{ subscriptionGroupConfigs.length }})</span>
+          </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.users.subscriptionGroupsHint') }}</p>
+
+          <div v-if="subscriptionGroupConfigs.length === 0" class="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
+            {{ t('admin.users.noSubscriptionGroups') }}
+          </div>
+
+          <div v-else class="grid gap-3">
+            <div
+              v-for="config in subscriptionGroupConfigs"
+              :key="config.groupId"
+              class="relative overflow-hidden rounded-xl border-2 border-blue-200 bg-blue-50/40 p-4 dark:border-blue-800/50 dark:bg-blue-900/10"
+            >
+              <div class="flex items-center gap-4">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-base font-semibold text-gray-900 dark:text-white">{{ config.groupName }}</span>
+                    <span class="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                      {{ t('admin.groups.subscription.subscription') }}
+                    </span>
+                    <span
+                      v-if="config.subscriptionStatus"
+                      class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                      :class="subscriptionStatusClass(config.subscriptionStatus)"
+                    >
+                      {{ t(`admin.subscriptions.status.${config.subscriptionStatus}`) }}
+                    </span>
+                  </div>
+                  <div class="mt-1.5 flex items-center gap-3 text-sm">
+                    <span class="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                      <PlatformIcon :platform="config.platform" size="xs" />
+                      <span>{{ config.platform }}</span>
+                    </span>
+                    <span class="text-gray-300 dark:text-dark-500">•</span>
+                    <span class="text-gray-500 dark:text-gray-400">
+                      {{ t('admin.users.defaultRate') }}: <span class="font-medium text-gray-700 dark:text-gray-300">{{ config.defaultRate }}x</span>
+                    </span>
+                  </div>
+                </div>
+
                 <div class="flex flex-shrink-0 items-center gap-3">
                   <div class="flex items-center gap-1.5">
                     <label class="text-sm font-medium text-gray-600 dark:text-gray-400">{{ t('admin.users.customRate') }}</label>
@@ -180,7 +251,10 @@
         </div>
 
         <!-- 无分组提示 -->
-        <div v-if="groups.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
+        <div
+          v-if="exclusiveGroupConfigs.length === 0 && publicGroupConfigs.length === 0 && subscriptionGroupConfigs.length === 0"
+          class="flex flex-col items-center justify-center py-12 text-center"
+        >
           <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700">
             <svg class="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -211,7 +285,7 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { AdminUser, Group, GroupPlatform } from '@/types'
+import type { AdminUser, Group, GroupPlatform, UserSubscription } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 
@@ -219,11 +293,13 @@ interface GroupRateConfig {
   groupId: number
   groupName: string
   platform: GroupPlatform
+  kind: 'standard_exclusive' | 'standard_public' | 'subscription'
   isExclusive: boolean
   defaultRate: number
   customRate: number | null
   displayRate: number | null
   isSelected: boolean
+  subscriptionStatus?: UserSubscription['status']
 }
 
 const props = defineProps<{ show: boolean; user: AdminUser | null }>()
@@ -231,19 +307,21 @@ const emit = defineEmits(['close', 'success'])
 const { t } = useI18n()
 const appStore = useAppStore()
 
-const groups = ref<Group[]>([])
 const groupConfigs = ref<GroupRateConfig[]>([])
-const originalGroupRates = ref<Record<number, number>>({}) // 记录原始专属倍率，用于检测删除
-const originalGroupDisplayRates = ref<Record<number, number>>({}) // 记录原始展示倍率
+const originalGroupRates = ref<Record<number, number>>({})
+const originalGroupDisplayRates = ref<Record<number, number>>({})
 const loading = ref(false)
 const submitting = ref(false)
 
-// 分离专属分组和公开分组
-const exclusiveGroups = computed(() => groups.value.filter((g) => g.is_exclusive))
-const publicGroups = computed(() => groups.value.filter((g) => !g.is_exclusive))
-
-const exclusiveGroupConfigs = computed(() => groupConfigs.value.filter((c) => c.isExclusive))
-const publicGroupConfigs = computed(() => groupConfigs.value.filter((c) => !c.isExclusive))
+const exclusiveGroupConfigs = computed(() =>
+  groupConfigs.value.filter((c) => c.kind === 'standard_exclusive')
+)
+const publicGroupConfigs = computed(() =>
+  groupConfigs.value.filter((c) => c.kind === 'standard_public')
+)
+const subscriptionGroupConfigs = computed(() =>
+  groupConfigs.value.filter((c) => c.kind === 'subscription')
+)
 
 watch(
   () => props.show,
@@ -254,34 +332,89 @@ watch(
   }
 )
 
+const subscriptionStatusClass = (status: string) => {
+  if (status === 'active') return 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+  if (status === 'expired') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+  if (status === 'suspended') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+}
+
 const load = async () => {
   loading.value = true
   try {
-    const res = await adminAPI.groups.list(1, 1000)
-    // 只显示标准类型且活跃的分组
-    groups.value = res.items.filter((g) => g.subscription_type === 'standard' && g.status === 'active')
+    const [groupsRes, subsRes] = await Promise.all([
+      adminAPI.groups.list(1, 1000),
+      adminAPI.subscriptions.list(1, 200, { user_id: props.user!.id }).catch(() => ({ items: [] as UserSubscription[] }))
+    ])
 
-    // 初始化配置
+    const allActive = groupsRes.items.filter((g) => g.status === 'active')
+    const standardGroups = allActive.filter((g) => g.subscription_type === 'standard')
+    const subscriptionTypeGroups = allActive.filter((g) => g.subscription_type === 'subscription')
+
     const userAllowedGroups = props.user?.allowed_groups || []
     const userGroupRates = props.user?.group_rates || {}
     const userGroupDisplayRates = props.user?.group_display_rates || {}
-
-    // 保存原始专属倍率，用于检测删除操作
     originalGroupRates.value = { ...userGroupRates }
     originalGroupDisplayRates.value = { ...userGroupDisplayRates }
 
-    groupConfigs.value = groups.value.map((g) => ({
+    // Best subscription status per group (prefer active > suspended > expired > revoked)
+    const statusPriority: Record<string, number> = {
+      active: 4,
+      suspended: 3,
+      expired: 2,
+      revoked: 1
+    }
+    const subStatusByGroup = new Map<number, UserSubscription['status']>()
+    for (const sub of subsRes.items || []) {
+      const prev = subStatusByGroup.get(sub.group_id)
+      if (!prev || (statusPriority[sub.status] || 0) > (statusPriority[prev] || 0)) {
+        subStatusByGroup.set(sub.group_id, sub.status)
+      }
+    }
+
+    // Subscription groups to show: has subscription row OR has rate override
+    const subscriptionGroupIds = new Set<number>()
+    for (const id of subStatusByGroup.keys()) subscriptionGroupIds.add(id)
+    for (const g of subscriptionTypeGroups) {
+      if (userGroupRates[g.id] !== undefined || userGroupDisplayRates[g.id] !== undefined) {
+        subscriptionGroupIds.add(g.id)
+      }
+    }
+
+    const toConfig = (
+      g: Group,
+      kind: GroupRateConfig['kind'],
+      isSelected: boolean,
+      subscriptionStatus?: UserSubscription['status']
+    ): GroupRateConfig => ({
       groupId: g.id,
       groupName: g.name,
       platform: g.platform,
+      kind,
       isExclusive: g.is_exclusive,
       defaultRate: g.rate_multiplier,
       customRate: userGroupRates[g.id] ?? null,
       displayRate: userGroupDisplayRates[g.id] ?? null,
-      // 专属分组：检查是否在 allowed_groups 中
-      // 公开分组：始终选中
-      isSelected: g.is_exclusive ? userAllowedGroups.includes(g.id) : true,
-    }))
+      isSelected,
+      subscriptionStatus
+    })
+
+    const configs: GroupRateConfig[] = []
+
+    for (const g of standardGroups) {
+      if (g.is_exclusive) {
+        configs.push(toConfig(g, 'standard_exclusive', userAllowedGroups.includes(g.id)))
+      } else {
+        configs.push(toConfig(g, 'standard_public', true))
+      }
+    }
+
+    for (const g of subscriptionTypeGroups) {
+      if (!subscriptionGroupIds.has(g.id)) continue
+      configs.push(toConfig(g, 'subscription', true, subStatusByGroup.get(g.id)))
+    }
+
+    groupConfigs.value = configs
   } catch (error) {
     console.error('Failed to load groups:', error)
   } finally {
@@ -291,7 +424,7 @@ const load = async () => {
 
 const toggleExclusiveGroup = (groupId: number) => {
   const config = groupConfigs.value.find((c) => c.groupId === groupId)
-  if (config && config.isExclusive) {
+  if (config && config.kind === 'standard_exclusive') {
     config.isSelected = !config.isSelected
   }
 }
@@ -325,10 +458,11 @@ const handleSave = async () => {
   submitting.value = true
 
   try {
-    // 构建 allowed_groups（仅包含专属分组中被勾选的）
-    const allowedGroups = groupConfigs.value.filter((c) => c.isExclusive && c.isSelected).map((c) => c.groupId)
+    // Only standard exclusive groups control allowed_groups
+    const allowedGroups = groupConfigs.value
+      .filter((c) => c.kind === 'standard_exclusive' && c.isSelected)
+      .map((c) => c.groupId)
 
-    // 构建 group_rates_full（含展示倍率）
     const groupRatesFull: Record<number, import('@/types').UserGroupRateData | null> = {}
     for (const c of groupConfigs.value) {
       const hadOriginalRate = originalGroupRates.value[c.groupId] !== undefined
@@ -347,7 +481,7 @@ const handleSave = async () => {
 
     await adminAPI.users.update(props.user.id, {
       allowed_groups: allowedGroups,
-      group_rates_full: Object.keys(groupRatesFull).length > 0 ? groupRatesFull : undefined,
+      group_rates_full: Object.keys(groupRatesFull).length > 0 ? groupRatesFull : undefined
     })
 
     appStore.showSuccess(t('admin.users.groupConfigUpdated'))
@@ -362,7 +496,6 @@ const handleSave = async () => {
 </script>
 
 <style scoped>
-/* 隐藏数字输入框的箭头按钮 */
 .hide-spinner::-webkit-outer-spin-button,
 .hide-spinner::-webkit-inner-spin-button {
   -webkit-appearance: none;
