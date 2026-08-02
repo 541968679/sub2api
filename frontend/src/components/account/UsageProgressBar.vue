@@ -47,9 +47,15 @@
         ></div>
       </div>
 
-      <!-- Percentage -->
-      <span :class="['w-[32px] shrink-0 text-right text-[10px] font-medium', textClass]">
-        {{ displayPercent }}
+      <!-- Percentage / custom fraction text -->
+      <span
+        :class="[
+          displayText ? 'min-w-[52px]' : 'w-[32px]',
+          'shrink-0 text-right text-[10px] font-medium',
+          textClass
+        ]"
+      >
+        {{ displayText || displayPercent }}
       </span>
 
       <!-- Reset time -->
@@ -78,6 +84,8 @@ const props = withDefaults(
     remainingCapacity?: boolean
     /** Tailwind width classes for the track; default matches account table cells. */
     trackWidthClass?: string
+    /** Optional override for the right-side label (e.g. fleet "375/725"). */
+    displayText?: string
   }>(),
   {
     trackWidthClass: 'w-8'

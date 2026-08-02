@@ -113,22 +113,21 @@ Inclusion: OpenAI OAuth **parent** accounts only (`!IsShadow()`), with
 `credentials.plan_type` in `{pro, chatgptpro, prolite}`. Plus/team/free and
 other plans are excluded. Status/schedulable/rate-limit do **not** exclude.
 
-Aggregation is a **weighted percent sum** (can exceed 100):
+Pool model (used/capacity units — not a bare percent sum):
 
-- pro / chatgptpro weight = 1.0
-- prolite weight = 0.25
-- per window: `Σ used_percent * weight`
-- missing `codex_{5h|7d}_used_percent` skips that window (counted in
-  `missing_5h` / `missing_7d`, not treated as 0%)
-- utilization uses `buildCodexUsageProgressFromExtra` so expired windows
-  zero like the per-account usage cell
+- Capacity: Pro = 100 units, Prolite = 25 units (1/4 of Pro)
+  - Example: 7 Pro + 1 Prolite → capacity = 725
+- Used (per window): `Σ used_percent × (plan_capacity/100)`
+  - Example: 7 Pro at 50% + 1 Prolite at 100% → used = 350 + 25 = 375
+- UI fraction: `used/capacity` (e.g. `375/725`)
+- Bar fill: `used/capacity × 100` (same example ≈ 51.7%)
+- Missing `codex_{5h|7d}_used_percent`: still counts toward capacity;
+  does not add used for that window (`missing_*` counters)
+- Snapshot util uses `buildCodexUsageProgressFromExtra` (expired windows zero)
 
-UI: `AccountsView` right-side badge (next to AI Credits) with an explicit
-**Used / 已用** label and the same `UsageProgressBar` rows as per-account
-usage windows (used%, not remaining). On small screens the strip is full-width
-and ordered above filters/actions; progress tracks use a wider
-`trackWidthClass` only in this badge (table cells stay default). Refreshed
-with list load/reload/auto-refresh; never derived from the filtered page list.
+UI: `AccountsView` badge (next to AI Credits) with **已用/容量**, fraction
+labels, and progress bars. Mobile: full-width strip above filters. Independent
+of list filters.
 
 Read-only admin surface. Does not change scheduling, billing, or single-account
 usage cells.

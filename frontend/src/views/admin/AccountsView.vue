@@ -2,181 +2,219 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-col gap-3 md:flex-row md:flex-wrap-reverse md:items-start md:justify-between">
-          <!-- Mobile: fleet badge first (order-1). Desktop: filters left. -->
-          <AccountTableFilters
-            class="order-2 min-w-0 md:order-1 md:flex-1"
-            v-model:searchQuery="params.search"
-            :filters="params"
-            :groups="groups"
-            @update:filters="handleFilterUpdate"
-            @change="debouncedReload"
-            @update:searchQuery="debouncedReload"
-          />
-          <AccountTableActions
-            class="order-3 md:order-2"
-            :loading="loading"
-            @refresh="handleManualRefresh"
-            @sync="showSync = true"
-            @create="showCreate = true"
-          >
-            <template #after>
-              <!-- Auto Refresh Dropdown -->
-              <div class="relative" ref="autoRefreshDropdownRef">
-                <button
-                  @click="
-                    showAutoRefreshDropdown = !showAutoRefreshDropdown;
-                    showColumnDropdown = false
-                  "
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.accounts.autoRefresh')"
-                >
-                  <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
-                  <span class="hidden md:inline">
-                    {{
-                      autoRefreshEnabled
-                        ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown })
-                        : t('admin.accounts.autoRefresh')
-                    }}
-                  </span>
-                </button>
-                <div
-                  v-if="showAutoRefreshDropdown"
-                  class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <div class="p-2">
+        <!--
+          Same horizontal band as the left ops area, two columns:
+          left = filters + action buttons; right = fleet card (fills empty right space).
+        -->
+        <div class="flex flex-col items-stretch gap-4 xl:flex-row xl:items-start xl:gap-6">
+          <!-- Left column: original toolbar (filters + actions) -->
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap-reverse items-start justify-between gap-3">
+              <AccountTableFilters
+                v-model:searchQuery="params.search"
+                :filters="params"
+                :groups="groups"
+                @update:filters="handleFilterUpdate"
+                @change="debouncedReload"
+                @update:searchQuery="debouncedReload"
+              />
+              <AccountTableActions
+                :loading="loading"
+                @refresh="handleManualRefresh"
+                @sync="showSync = true"
+                @create="showCreate = true"
+              >
+                <template #after>
+                  <!-- Auto Refresh Dropdown -->
+                  <div class="relative" ref="autoRefreshDropdownRef">
                     <button
-                      @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                      @click="
+                        showAutoRefreshDropdown = !showAutoRefreshDropdown;
+                        showColumnDropdown = false
+                      "
+                      class="btn btn-secondary px-2 md:px-3"
+                      :title="t('admin.accounts.autoRefresh')"
                     >
-                      <span>{{ t('admin.accounts.enableAutoRefresh') }}</span>
-                      <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
+                      <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
+                      <span class="hidden md:inline">
+                        {{
+                          autoRefreshEnabled
+                            ? t('admin.accounts.autoRefreshCountdown', { seconds: autoRefreshCountdown })
+                            : t('admin.accounts.autoRefresh')
+                        }}
+                      </span>
                     </button>
-                    <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
-                    <button
-                      v-for="sec in autoRefreshIntervals"
-                      :key="sec"
-                      @click="setAutoRefreshInterval(sec)"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    <div
+                      v-if="showAutoRefreshDropdown"
+                      class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
                     >
-                      <span>{{ autoRefreshIntervalLabel(sec) }}</span>
-                      <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
-                    </button>
+                      <div class="p-2">
+                        <button
+                          @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
+                          class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          <span>{{ t('admin.accounts.enableAutoRefresh') }}</span>
+                          <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
+                        </button>
+                        <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                        <button
+                          v-for="sec in autoRefreshIntervals"
+                          :key="sec"
+                          @click="setAutoRefreshInterval(sec)"
+                          class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          <span>{{ autoRefreshIntervalLabel(sec) }}</span>
+                          <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              <!-- Error Passthrough Rules -->
-              <button
-                @click="showErrorPassthrough = true"
-                class="btn btn-secondary"
-                :title="t('admin.errorPassthrough.title')"
-              >
-                <Icon name="shield" size="md" class="mr-1.5" />
-                <span class="hidden md:inline">{{ t('admin.errorPassthrough.title') }}</span>
-              </button>
+                  <!-- Error Passthrough Rules -->
+                  <button
+                    @click="showErrorPassthrough = true"
+                    class="btn btn-secondary"
+                    :title="t('admin.errorPassthrough.title')"
+                  >
+                    <Icon name="shield" size="md" class="mr-1.5" />
+                    <span class="hidden md:inline">{{ t('admin.errorPassthrough.title') }}</span>
+                  </button>
 
-              <!-- TLS Fingerprint Profiles -->
-              <button
-                @click="showTLSFingerprintProfiles = true"
-                class="btn btn-secondary"
-                :title="t('admin.tlsFingerprintProfiles.title')"
-              >
-                <Icon name="lock" size="md" class="mr-1.5" />
-                <span class="hidden md:inline">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
-              </button>
+                  <!-- TLS Fingerprint Profiles -->
+                  <button
+                    @click="showTLSFingerprintProfiles = true"
+                    class="btn btn-secondary"
+                    :title="t('admin.tlsFingerprintProfiles.title')"
+                  >
+                    <Icon name="lock" size="md" class="mr-1.5" />
+                    <span class="hidden md:inline">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
+                  </button>
 
-              <!-- Column Settings Dropdown -->
-              <div class="relative" ref="columnDropdownRef">
-                <button
-                  @click="
-                    showColumnDropdown = !showColumnDropdown;
-                    showAutoRefreshDropdown = false
-                  "
-                  class="btn btn-secondary px-2 md:px-3"
-                  :title="t('admin.users.columnSettings')"
-                >
-                  <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-                  </svg>
-                  <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
-                </button>
-                <!-- Dropdown menu -->
-                <div
-                  v-if="showColumnDropdown"
-                  class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-                >
-                  <div class="max-h-80 overflow-y-auto p-2">
+                  <!-- Column Settings Dropdown -->
+                  <div class="relative" ref="columnDropdownRef">
                     <button
-                      v-for="col in toggleableColumns"
-                      :key="col.key"
-                      @click="toggleColumn(col.key)"
-                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                      @click="
+                        showColumnDropdown = !showColumnDropdown;
+                        showAutoRefreshDropdown = false
+                      "
+                      class="btn btn-secondary px-2 md:px-3"
+                      :title="t('admin.users.columnSettings')"
                     >
-                      <span>{{ col.label }}</span>
-                      <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
+                      <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
+                      </svg>
+                      <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
                     </button>
+                    <!-- Dropdown menu -->
+                    <div
+                      v-if="showColumnDropdown"
+                      class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                    >
+                      <div class="max-h-80 overflow-y-auto p-2">
+                        <button
+                          v-for="col in toggleableColumns"
+                          :key="col.key"
+                          @click="toggleColumn(col.key)"
+                          class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          <span>{{ col.label }}</span>
+                          <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </template>
-            <template #beforeCreate>
-              <button @click="showCodexSessionImport = true" class="btn btn-secondary">
-                {{ t('admin.accounts.codexSessionImport.action') }}
-              </button>
-              <button @click="showImportData = true" class="btn btn-secondary">
-                {{ t('admin.accounts.dataImport') }}
-              </button>
-              <button @click="openExportDataDialog" class="btn btn-secondary">
-                {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
-              </button>
-              <button
-                @click="handleDeleteExportedAccounts"
-                :disabled="deletingExported"
-                class="btn btn-danger"
-              >
-                {{ deletingExported ? t('admin.accounts.deleteExportedDeleting') : t('admin.accounts.deleteExported') }}
-              </button>
-            </template>
-          </AccountTableActions>
-          <!-- Stats strip: full-width on mobile, sits above filters/actions. -->
+                </template>
+                <template #beforeCreate>
+                  <button @click="showCodexSessionImport = true" class="btn btn-secondary">
+                    {{ t('admin.accounts.codexSessionImport.action') }}
+                  </button>
+                  <button @click="showImportData = true" class="btn btn-secondary">
+                    {{ t('admin.accounts.dataImport') }}
+                  </button>
+                  <button @click="openExportDataDialog" class="btn btn-secondary">
+                    {{ selIds.length ? t('admin.accounts.dataExportSelected') : t('admin.accounts.dataExport') }}
+                  </button>
+                  <button
+                    @click="handleDeleteExportedAccounts"
+                    :disabled="deletingExported"
+                    class="btn btn-danger"
+                  >
+                    {{ deletingExported ? t('admin.accounts.deleteExportedDeleting') : t('admin.accounts.deleteExported') }}
+                  </button>
+                </template>
+              </AccountTableActions>
+            </div>
+          </div>
+
+          <!-- Right column: fleet card only (same row as left ops, separate column) -->
           <div
-            class="order-1 flex w-full min-w-0 flex-wrap items-stretch gap-2 md:order-3 md:w-auto md:items-center md:justify-end"
+            v-if="(openaiFleetUsage && openaiFleetUsage.included_count > 0) || totalAICredits > 0"
+            class="flex w-full shrink-0 flex-col gap-2 xl:w-[22rem]"
           >
             <div
               v-if="openaiFleetUsage && openaiFleetUsage.included_count > 0"
-              class="flex min-w-0 flex-1 flex-col gap-1 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 dark:border-sky-700/40 dark:bg-sky-900/20 sm:flex-none sm:min-w-[11.5rem]"
+              class="flex w-full flex-col gap-2.5 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3.5 shadow-sm dark:border-sky-700/40 dark:bg-sky-900/20"
               :title="t('admin.accounts.oauthFleetUsage.tooltip')"
             >
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span class="text-[10px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-300">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm font-semibold text-sky-800 dark:text-sky-100">
                   {{ t('admin.accounts.oauthFleetUsage.title') }}
                 </span>
                 <span
-                  class="rounded bg-sky-100 px-1 py-px text-[9px] font-medium text-sky-700 dark:bg-sky-800/60 dark:text-sky-200"
+                  class="rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-800/60 dark:text-sky-200"
                 >
                   {{ t('admin.accounts.oauthFleetUsage.usedBadge') }}
                 </span>
               </div>
-              <!-- Same used-percent bars as per-account usage windows (not remaining).
-                   Wider track on mobile so the fill is easier to read. -->
-              <div class="space-y-0.5">
-                <UsageProgressBar
-                  label="5h"
-                  :utilization="openaiFleetUsage.fleet_5h_percent"
-                  color="indigo"
-                  track-width-class="w-16 sm:w-12 md:w-10"
-                />
-                <UsageProgressBar
-                  label="7d"
-                  :utilization="openaiFleetUsage.fleet_7d_percent"
-                  color="emerald"
-                  track-width-class="w-16 sm:w-12 md:w-10"
-                />
+              <div class="space-y-2.5">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-9 shrink-0 rounded-md bg-indigo-100 px-1.5 py-0.5 text-center text-xs font-semibold text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                    5h
+                  </span>
+                  <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      class="h-full rounded-full transition-all duration-300"
+                      :class="fleetBarClass(openaiFleetUsage.fill_5h_percent)"
+                      :style="{ width: fleetBarWidth(openaiFleetUsage.fill_5h_percent) }"
+                    />
+                  </div>
+                  <span
+                    class="w-[5.5rem] shrink-0 text-right text-sm font-semibold tabular-nums"
+                    :class="fleetTextClass(openaiFleetUsage.fill_5h_percent)"
+                  >
+                    {{
+                      t('admin.accounts.oauthFleetUsage.fraction', {
+                        used: formatFleetUnits(openaiFleetUsage.used_5h),
+                        capacity: formatFleetUnits(openaiFleetUsage.capacity)
+                      })
+                    }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                  <span class="w-9 shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-center text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    7d
+                  </span>
+                  <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                    <div
+                      class="h-full rounded-full transition-all duration-300"
+                      :class="fleetBarClass(openaiFleetUsage.fill_7d_percent)"
+                      :style="{ width: fleetBarWidth(openaiFleetUsage.fill_7d_percent) }"
+                    />
+                  </div>
+                  <span
+                    class="w-[5.5rem] shrink-0 text-right text-sm font-semibold tabular-nums"
+                    :class="fleetTextClass(openaiFleetUsage.fill_7d_percent)"
+                  >
+                    {{
+                      t('admin.accounts.oauthFleetUsage.fraction', {
+                        used: formatFleetUnits(openaiFleetUsage.used_7d),
+                        capacity: formatFleetUnits(openaiFleetUsage.capacity)
+                      })
+                    }}
+                  </span>
+                </div>
               </div>
-              <span
-                class="break-words text-[10px] leading-snug text-sky-700/90 dark:text-sky-300/90"
-              >
+              <span class="text-xs leading-snug text-sky-700/90 dark:text-sky-300/90">
                 {{
                   t('admin.accounts.oauthFleetUsage.detail', {
                     pro: openaiFleetUsage.pro_count,
@@ -189,12 +227,12 @@
             </div>
             <span
               v-if="totalAICredits > 0"
-              class="inline-flex max-w-full items-center gap-1.5 self-start rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"
+              class="inline-flex items-center gap-1.5 self-start rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700 dark:border-emerald-700/40 dark:bg-emerald-900/20 dark:text-emerald-300"
             >
-              <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span class="truncate">AI Credits: ${{ totalAICredits.toFixed(2) }}</span>
+              AI Credits: ${{ totalAICredits.toFixed(2) }}
             </span>
           </div>
         </div>
@@ -630,7 +668,6 @@ import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.
 import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
-import UsageProgressBar from '@/components/account/UsageProgressBar.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
@@ -911,8 +948,33 @@ function getAccountExportedAt(row: Account): string {
 const totalAICredits = ref(0)
 const aiCreditsLoading = ref(false)
 
-/** Filter-independent OpenAI OAuth pro/prolite fleet usage (right-corner badge). */
+/** Filter-independent OpenAI OAuth pro/prolite fleet usage (under action toolbar). */
 const openaiFleetUsage = ref<OpenAIOauthFleetUsageSummary | null>(null)
+
+/** Round pool units for display (375/725). */
+function formatFleetUnits(value: number): string {
+  if (!Number.isFinite(value)) return '0'
+  return String(Math.round(value))
+}
+
+function fleetBarWidth(fillPercent: number): string {
+  if (!Number.isFinite(fillPercent)) return '0%'
+  return `${Math.min(Math.max(fillPercent, 0), 100)}%`
+}
+
+function fleetBarClass(fillPercent: number): string {
+  if (!Number.isFinite(fillPercent)) return 'bg-green-500'
+  if (fillPercent >= 100) return 'bg-red-500'
+  if (fillPercent >= 80) return 'bg-amber-500'
+  return 'bg-green-500'
+}
+
+function fleetTextClass(fillPercent: number): string {
+  if (!Number.isFinite(fillPercent)) return 'text-gray-700 dark:text-gray-200'
+  if (fillPercent >= 100) return 'text-red-600 dark:text-red-400'
+  if (fillPercent >= 80) return 'text-amber-600 dark:text-amber-400'
+  return 'text-gray-800 dark:text-gray-100'
+}
 
 async function refreshOpenAIOauthFleetUsage() {
   try {

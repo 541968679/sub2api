@@ -1,3 +1,88 @@
+## 2026-08-02 - fix: OAI fleet used/capacity pool + two-column layout
+
+### What
+- Fleet aggregate is **used/capacity** (e.g. 375/725), bar fill = used÷capacity.
+- Accounts page layout: left ops toolbar column, right fleet card column (same row).
+- Capacity Pro×100 + Prolite×25; missing snapshots still count capacity.
+
+### Why
+Bare percent sum misled operators; card placement had been fighting the toolbar.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestAggregateOpenAIOauthFleetUsage|TestOpenAIOauthFleetPlanCapacity" -count=1`
+- `pnpm exec vitest run src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`
+
+### Affected files
+`backend/internal/service/account_usage_fleet.go`,
+`backend/internal/service/account_usage_fleet_test.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/components/account/UsageProgressBar.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-02 - fix: place larger OAI fleet card under create-account actions
+
+### What
+- Moved the OAI Pro pool card to sit **below** the account action toolbar
+  (under 添加账号), not as a tiny top-right corner chip.
+- Enlarged typography, padding, and progress tracks; shows `used/capacity`.
+
+### Why
+The previous right-corner placement was too far up/right and too small to read.
+
+### Verification
+- Manual: `/admin/accounts` — filters left, actions right, fleet card under actions.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`, this changelog.
+
+## 2026-08-02 - fix: restore accounts page toolbar layout
+
+### What
+- Reverted the fleet badge mobile `flex-col`/`order` toolbar rewrite that scrambled
+  filters and action buttons on `/admin/accounts`.
+- Fleet + AI Credits stay in the original right-side compact slot under
+  `flex-wrap-reverse justify-between`.
+
+### Why
+Local accounts page ops area was unusable after the mobile layout experiment.
+
+### Verification
+- Manual: `/admin/accounts` toolbar matches pre-change structure (filters left, actions right).
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`, this changelog.
+
+## 2026-08-02 - fix: OAI fleet badge uses used/capacity pool (e.g. 375/725)
+
+### What
+- Replaced bare weighted-percent sum (e.g. misleading "386%") with pool units:
+  capacity = Pro×100 + Prolite×25; used = Σ used% × plan units; UI `used/capacity`.
+- Progress bar fill is `used/capacity×100`. Missing snapshots still occupy capacity.
+
+### Why
+Operators need 375/725 style pool pressure, not an unbounded percent sum.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestAggregateOpenAIOauthFleetUsage|TestOpenAIOauthFleetPlanCapacity" -count=1`
+- `pnpm exec vitest run src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`
+
+### Affected files
+`backend/internal/service/account_usage_fleet.go`,
+`backend/internal/service/account_usage_fleet_test.go`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/components/account/UsageProgressBar.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/views/admin/__tests__/AccountsView.oauthFleetUsage.spec.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-02 - deploy: production v0.1.193
 
 ### What

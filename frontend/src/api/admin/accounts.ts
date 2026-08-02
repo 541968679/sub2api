@@ -265,10 +265,17 @@ export async function getUsage(id: number, source?: 'passive' | 'active'): Promi
   return data
 }
 
-/** Filter-independent OpenAI OAuth pro/prolite fleet 5h/7d usage summary. */
+/**
+ * Filter-independent OpenAI OAuth pro/prolite fleet 5h/7d usage.
+ * Display: used_x / capacity with bar fill_x_percent = used/capacity*100.
+ * Example: 7 Pro + 1 Prolite, Pro half-used, Prolite full → used 375 / capacity 725.
+ */
 export interface OpenAIOauthFleetUsageSummary {
-  fleet_5h_percent: number
-  fleet_7d_percent: number
+  used_5h: number
+  used_7d: number
+  capacity: number
+  fill_5h_percent: number
+  fill_7d_percent: number
   pro_count: number
   prolite_count: number
   missing_5h: number
@@ -277,7 +284,7 @@ export interface OpenAIOauthFleetUsageSummary {
 }
 
 /**
- * Global OpenAI OAuth pro/prolite fleet usage (weighted percent sum).
+ * Global OpenAI OAuth pro/prolite fleet usage (used/capacity pool model).
  * Independent of account list filters.
  */
 export async function getOpenAIOauthFleetUsage(): Promise<OpenAIOauthFleetUsageSummary> {
