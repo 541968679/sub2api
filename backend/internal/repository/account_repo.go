@@ -649,9 +649,23 @@ func (r *accountRepository) ListAllWithFilters(ctx context.Context, platform, ac
 	}
 }
 
+// accountListPinOrderExpr sorts admin-pinned accounts first via extra.list_order
+// (higher = closer to top). Safe for missing/non-numeric values (treated as 0).
+const accountListPinOrderExpr = "COALESCE(NULLIF(extra->>'list_order','')::bigint, 0) DESC"
+
+func accountListPinOrder() func(*entsql.Selector) {
+	return func(s *entsql.Selector) {
+		s.OrderExpr(entsql.Expr(accountListPinOrderExpr))
+	}
+}
+
 func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
 	sortBy := strings.ToLower(strings.TrimSpace(params.SortBy))
 	sortOrder := params.NormalizedSortOrder(pagination.SortOrderAsc)
+
+	// Always float manually pinned accounts (extra.list_order) to the top of
+	// the admin list, then apply the requested column sort as the secondary key.
+	pinFirst := accountListPinOrder()
 
 	field := dbaccount.FieldName
 	defaultOrder := true
@@ -682,9 +696,9 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 			}
 		}
 		if sortOrder == pagination.SortOrderDesc {
-			return []func(*entsql.Selector){availabilityOrder("DESC"), dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
+			return []func(*entsql.Selector){pinFirst, availabilityOrder("DESC"), dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
 		}
-		return []func(*entsql.Selector){availabilityOrder("ASC"), dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
+		return []func(*entsql.Selector){pinFirst, availabilityOrder("ASC"), dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
 	case "priority":
 		field = dbaccount.FieldPriority
 		defaultOrder = false
@@ -703,15 +717,27 @@ func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selecto
 	case "created_at":
 		field = dbaccount.FieldCreatedAt
 		defaultOrder = false
+	case "list_order":
+		// Explicit list_order sort is the same pin key (already first).
+		if sortOrder == pagination.SortOrderDesc {
+			return []func(*entsql.Selector){pinFirst, dbent.Desc(dbaccount.FieldCreatedAt), dbent.Desc(dbaccount.FieldID)}
+		}
+		return []func(*entsql.Selector){
+			func(s *entsql.Selector) {
+				s.OrderExpr(entsql.Expr("COALESCE(NULLIF(extra->>'list_order','')::bigint, 0) ASC"))
+			},
+			dbent.Asc(dbaccount.FieldCreatedAt),
+			dbent.Asc(dbaccount.FieldID),
+		}
 	}
 
 	if sortOrder == pagination.SortOrderDesc {
-		return []func(*entsql.Selector){dbent.Desc(field), dbent.Desc(dbaccount.FieldID)}
+		return []func(*entsql.Selector){pinFirst, dbent.Desc(field), dbent.Desc(dbaccount.FieldID)}
 	}
 	if defaultOrder {
-		return []func(*entsql.Selector){dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
+		return []func(*entsql.Selector){pinFirst, dbent.Asc(dbaccount.FieldName), dbent.Asc(dbaccount.FieldID)}
 	}
-	return []func(*entsql.Selector){dbent.Asc(field), dbent.Asc(dbaccount.FieldID)}
+	return []func(*entsql.Selector){pinFirst, dbent.Asc(field), dbent.Asc(dbaccount.FieldID)}
 }
 
 func (r *accountRepository) ListByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {

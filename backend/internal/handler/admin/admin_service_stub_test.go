@@ -700,6 +700,10 @@ func (s *stubAdminService) ResetAccountQuota(ctx context.Context, id int64) erro
 	return nil
 }
 
+func (s *stubAdminService) MoveAccountToTop(ctx context.Context, id int64) (*service.Account, error) {
+	return &service.Account{ID: id}, nil
+}
+
 func (s *stubAdminService) BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*service.BatchAutoAssignProxyResult, error) {
 	return &service.BatchAutoAssignProxyResult{}, nil
 }

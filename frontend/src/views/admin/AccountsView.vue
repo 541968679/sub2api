@@ -563,7 +563,7 @@
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @move-to-top="handleMoveToTop" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <CodexSessionImportModal
@@ -2505,6 +2505,18 @@ const handleResetQuota = async (a: Account) => {
     appStore.showSuccess(t('common.success'))
   } catch (error) {
     console.error('Failed to reset quota:', error)
+  }
+}
+const handleMoveToTop = async (a: Account) => {
+  try {
+    await adminAPI.accounts.moveAccountToTop(a.id)
+    enterAutoRefreshSilentWindow()
+    appStore.showSuccess(t('admin.accounts.moveToTopSuccess'))
+    // Reload so pin order (list_order DESC) is reflected immediately.
+    await reload()
+  } catch (error: any) {
+    console.error('Failed to move account to top:', error)
+    appStore.showError(error?.message || t('admin.accounts.moveToTopFailed'))
   }
 }
 const handleSetPrivacy = async (a: Account) => {

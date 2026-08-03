@@ -139,7 +139,7 @@
                 <!-- Dropdown menu -->
                 <div
                   v-if="showFilterDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                  class="absolute top-full z-50 mt-1 w-48 max-w-[min(12rem,calc(100vw-1.5rem))] rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800 left-0 right-auto md:left-auto md:right-0"
                 >
                   <!-- Built-in filters -->
                   <button
@@ -195,7 +195,7 @@
                 <!-- Dropdown menu -->
                 <div
                   v-if="showColumnDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                  class="absolute top-full z-50 mt-1 max-h-80 w-48 max-w-[min(12rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800 left-0 right-auto md:left-auto md:right-0"
                 >
                   <button
                     v-for="col in toggleableColumns"
@@ -242,7 +242,7 @@
           :loading="loading"
           :actions-count="8"
           :server-side-sort="true"
-          default-sort-key="created_at"
+          default-sort-key="concurrency"
           default-sort-order="desc"
           :sort-storage-key="USER_SORT_STORAGE_KEY"
           @sort="handleSort"
@@ -810,10 +810,11 @@ const toggleableColumns = computed(() =>
 // This way, new columns are visible by default
 const hiddenColumns = reactive<Set<string>>(new Set())
 
-// Default hidden columns (columns hidden by default on first load)
-const DEFAULT_HIDDEN_COLUMNS = ['notes', 'groups', 'subscriptions', 'usage', 'concurrency']
+// Default hidden columns (columns hidden by default on first load).
+// concurrency is visible by default so default sort-by-concurrency is meaningful.
+const DEFAULT_HIDDEN_COLUMNS = ['notes', 'groups', 'subscriptions', 'usage']
 const REMOVED_COLUMNS = new Set(['last_login_at'])
-const FORCED_VISIBLE_COLUMNS = new Set(['last_active_at'])
+const FORCED_VISIBLE_COLUMNS = new Set(['last_active_at', 'concurrency'])
 
 // localStorage key for column settings
 const HIDDEN_COLUMNS_KEY = 'user-hidden-columns'
@@ -831,9 +832,12 @@ const loadSavedColumns = () => {
       // Use default hidden columns on first load
       DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
     }
+    // Ensure concurrency stays visible (was previously hidden by default).
+    hiddenColumns.delete('concurrency')
   } catch (e) {
     console.error('Failed to load saved columns:', e)
     DEFAULT_HIDDEN_COLUMNS.forEach(key => hiddenColumns.add(key))
+    hiddenColumns.delete('concurrency')
   }
 }
 
@@ -885,16 +889,27 @@ const columns = computed<Column[]>(() =>
 const users = ref<AdminUser[]>([])
 const loading = ref(false)
 const searchQuery = ref('')
-const USER_SORT_STORAGE_KEY = 'admin-users-table-sort'
+// v2: default sort is current concurrency high → low (was created_at desc).
+const USER_SORT_STORAGE_KEY = 'admin-users-table-sort-v2'
+const USER_SORT_STORAGE_KEY_LEGACY = 'admin-users-table-sort'
 const loadInitialSortState = (): { sort_by: string; sort_order: 'asc' | 'desc' } => {
-  const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
+  const fallback = { sort_by: 'current_concurrency', sort_order: 'desc' as 'asc' | 'desc' }
   const sortable = new Set(['email', 'id', 'username', 'role', 'balance', 'concurrency', 'current_concurrency', 'status', 'last_used_at', 'last_active_at', 'created_at'])
   try {
-    const raw = localStorage.getItem(USER_SORT_STORAGE_KEY)
+    const raw = localStorage.getItem(USER_SORT_STORAGE_KEY) || localStorage.getItem(USER_SORT_STORAGE_KEY_LEGACY)
     if (!raw) return fallback
+    // Migrate away from the old created_at default so concurrency sort takes effect once.
     const parsed = JSON.parse(raw) as { key?: string; order?: string }
     const key = typeof parsed.key === 'string' ? parsed.key : ''
     if (!sortable.has(key)) return fallback
+    // If legacy storage only ever held the old default, adopt concurrency desc.
+    if (
+      !localStorage.getItem(USER_SORT_STORAGE_KEY) &&
+      key === 'created_at' &&
+      (parsed.order === 'desc' || !parsed.order)
+    ) {
+      return fallback
+    }
     return {
       sort_by: key === 'concurrency' ? 'current_concurrency' : key,
       sort_order: parsed.order === 'asc' ? 'asc' : 'desc'

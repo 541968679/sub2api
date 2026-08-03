@@ -334,6 +334,16 @@ export async function resetAccountQuota(id: number): Promise<Account> {
 }
 
 /**
+ * Pin account to the top of the admin account list (extra.list_order).
+ * @param id - Account ID
+ * @returns Updated account
+ */
+export async function moveAccountToTop(id: number): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/move-to-top`)
+  return data
+}
+
+/**
  * Get temporary unschedulable status
  * @param id - Account ID
  * @returns Status with detail state if active
@@ -1016,6 +1026,7 @@ export const accountsAPI = {
   clearRateLimit,
   recoverState,
   resetAccountQuota,
+  moveAccountToTop,
   getTempUnschedulableStatus,
   resetTempUnschedulable,
   setSchedulable,

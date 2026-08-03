@@ -47,6 +47,42 @@ Selective small-feature cherry-picks were being mistaken for the sync baseline; 
 ### Affected files
 `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`, this changelog.
 
+## 2026-08-03 - fix(admin): mobile user column settings + concurrency sort
+
+### What
+- Users admin: column-settings / filter dropdowns no longer open off-screen on mobile (`left-0` on small screens, `right-0` on md+).
+- Default user list sort is **current concurrency high → low**; concurrency column is visible by default.
+
+### Why
+Mobile toolbar put the column button on the left while the menu used `absolute right-0`, pushing it off-viewport; default sort was still `created_at`.
+
+### Affected files
+`frontend/src/views/admin/UsersView.vue`, this changelog.
+
+## 2026-08-03 - feat(admin): account list move-to-top
+
+### What
+- Admin account action menu: **移到顶部 / Move to top**.
+- Persists pin rank in `account.extra.list_order` (Unix ms); list queries always order by `list_order DESC` first.
+
+### Why
+Operators need a quick way to pin frequently managed accounts to the top of the accounts table without changing scheduler priority.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestMoveAccountToTop -count=1`
+
+### Affected files
+`backend/internal/service/admin_service.go`,
+`backend/internal/service/admin_service_move_to_top_test.go`,
+`backend/internal/repository/account_repo.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`frontend/src/components/admin/account/AccountActionMenu.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+this changelog.
+
 ## 2026-08-03 - fix: New API /api/usage/token balance (token-bits)
 
 ### What

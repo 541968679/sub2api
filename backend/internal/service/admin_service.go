@@ -128,6 +128,8 @@ type AdminService interface {
 	BatchDeleteRedeemCodes(ctx context.Context, ids []int64) (int64, error)
 	ExpireRedeemCode(ctx context.Context, id int64) (*RedeemCode, error)
 	ResetAccountQuota(ctx context.Context, id int64) error
+	// MoveAccountToTop pins an account to the top of the admin list via extra.list_order.
+	MoveAccountToTop(ctx context.Context, id int64) (*Account, error)
 	BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error)
 }
 
@@ -4189,6 +4191,32 @@ func (s *adminServiceImpl) ResetAccountQuota(ctx context.Context, id int64) erro
 		return infraerrors.BadRequest("SPARK_SHADOW_QUOTA_RESET_FORBIDDEN", "spark shadow quota is managed by its Spark quota dimension")
 	}
 	return s.accountRepo.ResetQuotaUsed(ctx, id)
+}
+
+// AccountListOrderExtraKey is stored in account.extra for admin-list pin rank.
+// Higher values appear first; move-to-top writes Unix milliseconds.
+const AccountListOrderExtraKey = "list_order"
+
+// MoveAccountToTop sets extra.list_order so the account floats to the top of
+// the admin accounts list (all sorts prepend list_order DESC).
+func (s *adminServiceImpl) MoveAccountToTop(ctx context.Context, id int64) (*Account, error) {
+	account, err := s.accountRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	// Unix ms is monotonic enough for admin pin rank without a max() race.
+	order := time.Now().UnixMilli()
+	if err := s.accountRepo.UpdateExtra(ctx, id, map[string]any{
+		AccountListOrderExtraKey: order,
+	}); err != nil {
+		return nil, err
+	}
+	if account.Extra == nil {
+		account.Extra = map[string]any{}
+	}
+	account.Extra[AccountListOrderExtraKey] = order
+	// Reload for consistent DTO (updated_at etc.).
+	return s.accountRepo.GetByID(ctx, id)
 }
 
 // EnsureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，
