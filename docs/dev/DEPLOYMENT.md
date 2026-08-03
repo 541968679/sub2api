@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-02 | `v0.1.194` | `48787ba6a` | `ghcr.io/541968679/sub2api:latest` | `0.1.194` | running, healthy, digest `sha256:050a076d41c98f3a73018fd4b2976e41fca07391b7cd52bfa504bbb57ea816a8`, internal `/health` OK; OAI fleet used/capacity + two-column layout |
+| 2026-08-03 | `v0.1.195` | `f588f50ab` | `ghcr.io/541968679/sub2api:latest` | `0.1.195` | running, healthy, digest `sha256:d14ccb1b5957a1be5c22224328766a7dc5123e6af7d5f2c8f5362ebd584ae58d`, internal `/health` OK; API key balance probe + burn-rate ETA (incl. Sub2API `/v1/usage`) |
+| 2026-08-02 | `v0.1.194` | `48787ba6a` | `ghcr.io/541968679/sub2api:latest` | `0.1.194` | superseded by `v0.1.195`; OAI fleet used/capacity + two-column layout |
 | 2026-08-02 | `v0.1.193` | `a7b37e0c0` | `ghcr.io/541968679/sub2api:latest` | `0.1.193` | superseded by `v0.1.194`; OAI Pro/Prolite fleet 5h/7d used badge |
 | 2026-08-02 | `v0.1.192` | `ab308b741` | `ghcr.io/541968679/sub2api:latest` | `0.1.192` | superseded by `v0.1.193`; group capacity group-scoped used; user list view-usage deep link |
 | 2026-08-02 | `v0.1.191` | `3fefec077` | `ghcr.io/541968679/sub2api:latest` | `0.1.191` | superseded by `v0.1.192`; fix subscription usage metrics current-term scope + rate cap 100% |

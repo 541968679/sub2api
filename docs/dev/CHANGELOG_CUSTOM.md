@@ -1,3 +1,18 @@
+## 2026-08-03 - deploy: production v0.1.195
+
+### What
+- Released and deployed `v0.1.195` to production via GHCR.
+- API key balance probe + burn-rate/ETA; Sub2API/ZeroCode `/v1/usage` balance path.
+
+### Verification
+- Release workflow success: run `30778084505`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- revision `f588f50ab`, version `0.1.195`, healthy, `/health` OK
+- digest `sha256:d14ccb1b5957a1be5c22224328766a7dc5123e6af7d5f2c8f5362ebd584ae58d`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-03 - fix: Sub2API/ZeroCode balance via GET /v1/usage
 
 ### What
