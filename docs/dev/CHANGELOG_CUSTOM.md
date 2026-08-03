@@ -47,6 +47,21 @@ Selective small-feature cherry-picks were being mistaken for the sync baseline; 
 ### Affected files
 `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`, this changelog.
 
+## 2026-08-03 - deploy: production v0.1.197
+
+### What
+- Released and deployed `v0.1.197` to production via GHCR.
+- Includes: account move-to-top, mobile user column settings, default concurrency sort; also New API `/api/usage/token` balance (`v0.1.196` image content via main).
+
+### Verification
+- Release workflow success: run `30805113999`
+- `bash /opt/sub2api/update.sh --skip-a2 --skip-invokeai`, health check passed
+- revision `734787d60`, version `0.1.197`, healthy, `/health` OK
+- digest `sha256:ceb2c59c869e7bcfb07c0ea9e9dd5485030fa41ff9ec558ec3395a099c8581fd`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-03 - fix(admin): mobile user column settings + concurrency sort
 
 ### What
