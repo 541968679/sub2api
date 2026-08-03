@@ -245,6 +245,19 @@ type UsageInfo struct {
 
 	// 获取 usage 时的错误信息（降级返回，而非 500）
 	Error string `json:"error,omitempty"`
+
+	// Upstream prepaid balance (API Key OpenAI/Anthropic compatible billing).
+	BalanceUSD       *float64   `json:"balance_usd,omitempty"`
+	BalanceUpdatedAt *time.Time `json:"balance_updated_at,omitempty"`
+	BalanceSource    string     `json:"balance_source,omitempty"`
+	BalanceError     string     `json:"balance_error,omitempty"`
+
+	// Burn-rate / remaining-time prediction (mixed units: usd | percent | fleet_units).
+	BurnRatePerHour  *float64 `json:"burn_rate_per_hour,omitempty"`
+	BurnRateUnit     string   `json:"burn_rate_unit,omitempty"`
+	BurnETASeconds   *float64 `json:"burn_eta_seconds,omitempty"`
+	BurnSampleCount  int      `json:"burn_sample_count,omitempty"`
+	BurnInsufficient bool     `json:"burn_insufficient,omitempty"`
 }
 
 type ClaudeUsageWindow struct {
@@ -336,7 +349,7 @@ func (s *AccountUsageService) SetGrokQuotaService(quota *GrokQuotaService) {
 // GetUsage 获取账号使用量
 // OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟
 // Setup Token账号: 根据session_window推算5h窗口，7d数据不可用（没有profile scope）
-// API Key账号: 不支持usage查询
+// API Key（OpenAI/Anthropic）: 拉取兼容 billing 余额 + burn-rate；其他 API Key 不支持
 func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, force ...bool) (*UsageInfo, error) {
 	forceProbe := len(force) > 0 && force[0]
 
@@ -345,10 +358,19 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 		return nil, fmt.Errorf("get account failed: %w", err)
 	}
 
+	if SupportsUpstreamBalanceProbe(account) {
+		usage, err := s.getAPIKeyBalanceUsage(ctx, account, forceProbe)
+		if err == nil {
+			s.tryClearRecoverableAccountError(ctx, account)
+		}
+		return usage, err
+	}
+
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
 		usage, err := s.getOpenAIUsage(ctx, account, forceProbe)
 		if err == nil {
 			s.tryClearRecoverableAccountError(ctx, account)
+			s.attachOAuth7dBurnRate(ctx, account, usage)
 		}
 		return usage, err
 	}
@@ -457,6 +479,7 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 		}
 
 		s.tryClearRecoverableAccountError(ctx, account)
+		s.attachOAuth7dBurnRate(ctx, account, usage)
 		return usage, nil
 	}
 
@@ -465,6 +488,7 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 		usage := s.estimateSetupTokenUsage(account)
 		// 添加窗口统计
 		s.addWindowStats(ctx, account, usage)
+		s.attachOAuth7dBurnRate(ctx, account, usage)
 		return usage, nil
 	}
 
@@ -503,6 +527,7 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 
 	// 添加窗口统计
 	s.addWindowStats(ctx, account, info)
+	s.attachOAuth7dBurnRate(ctx, account, info)
 
 	return info, nil
 }
@@ -556,6 +581,217 @@ func (s *AccountUsageService) syncActiveToPassive(ctx context.Context, accountID
 			slog.Warn("sync_active_to_passive_session_window_end_failed", "account_id", accountID, "error", err)
 		}
 	}
+}
+
+// getAPIKeyBalanceUsage probes third-party OpenAI-shape billing balance and burn-rate.
+func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
+	now := time.Now().UTC()
+	usage := &UsageInfo{UpdatedAt: &now}
+	if account == nil {
+		return usage, nil
+	}
+	if s.cache == nil {
+		s.cache = NewUsageCache()
+	}
+
+	// Seed from last known extra so failures still show something.
+	hydrateBalanceFromExtra(account, usage)
+
+	probedOK := false
+	shouldProbe := force || shouldRefreshUpstreamBalance(account, now)
+	if shouldProbe && IsUpstreamBalanceProbeEnabled() {
+		flightKey := fmt.Sprintf("balance:%d", account.ID)
+		result, flightErr, _ := s.cache.apiFlight.Do(flightKey, func() (any, error) {
+			// Re-check after waiting: another caller may have just refreshed.
+			if !force {
+				if acc, err := s.accountRepo.GetByID(ctx, account.ID); err == nil && acc != nil {
+					if !shouldRefreshUpstreamBalance(acc, time.Now().UTC()) {
+						return acc, nil
+					}
+				}
+			}
+			probe := ProbeUpstreamBalance(ctx, account)
+			updates := applyBalanceProbeToExtra(account, probe, now)
+			if len(updates) > 0 && s.accountRepo != nil {
+				if err := s.accountRepo.UpdateExtra(ctx, account.ID, updates); err != nil {
+					slog.Warn("upstream_balance_extra_update_failed", "account_id", account.ID, "error", err)
+				} else {
+					mergeAccountExtra(account, updates)
+				}
+			}
+			return probe, nil
+		})
+		if flightErr == nil {
+			switch v := result.(type) {
+			case UpstreamBalanceResult:
+				applyBalanceResultToUsage(usage, v)
+				if v.Source != "" {
+					probedOK = true
+				}
+			case *Account:
+				if v != nil {
+					hydrateBalanceFromExtra(v, usage)
+					account.Extra = v.Extra
+				}
+			}
+		}
+	}
+
+	// Append balance sample only after a successful probe; always recompute burn.
+	samples := ParseBurnSamplesFromExtra(account.Extra, burnKindBalanceUSD)
+	if probedOK && usage.BalanceUSD != nil {
+		sampleT := now
+		if usage.BalanceUpdatedAt != nil {
+			sampleT = usage.BalanceUpdatedAt.UTC()
+		}
+		samples = AppendBurnSample(samples, BurnSample{
+			T:    sampleT,
+			V:    *usage.BalanceUSD,
+			Kind: burnKindBalanceUSD,
+		}, burnSampleRingMax)
+		serialized := SerializeBurnSamples(mergeBurnSamplesByKind(account.Extra, samples, burnKindBalanceUSD))
+		if s.accountRepo != nil {
+			if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
+				extraKeyBurnSamples: serialized,
+			}); err != nil {
+				slog.Warn("balance_burn_sample_update_failed", "account_id", account.ID, "error", err)
+			}
+		}
+		if account.Extra == nil {
+			account.Extra = map[string]any{}
+		}
+		account.Extra[extraKeyBurnSamples] = serialized
+	}
+	if usage.BalanceUSD != nil || len(samples) > 0 {
+		ApplyBurnRateToUsage(usage, ComputeBurnRate(samples, now, burnRateMinSpan), "usd")
+	}
+
+	// Optional local today stats for API key cells.
+	s.addWindowStats(ctx, account, usage)
+	return usage, nil
+}
+
+func shouldRefreshUpstreamBalance(account *Account, now time.Time) bool {
+	if account == nil || account.Extra == nil {
+		return true
+	}
+	raw, ok := account.Extra[extraKeyUpstreamBalanceAt]
+	if !ok {
+		return true
+	}
+	str, _ := raw.(string)
+	if str == "" {
+		return true
+	}
+	ts, err := time.Parse(time.RFC3339, str)
+	if err != nil {
+		return true
+	}
+	// Align with usage cache TTL (~6 min).
+	return now.Sub(ts) >= 6*time.Minute
+}
+
+func hydrateBalanceFromExtra(account *Account, usage *UsageInfo) {
+	if account == nil || account.Extra == nil || usage == nil {
+		return
+	}
+	if _, ok := account.Extra[extraKeyUpstreamBalanceUSD]; ok {
+		bal := parseExtraFloat64(account.Extra[extraKeyUpstreamBalanceUSD])
+		usage.BalanceUSD = &bal
+	}
+	if raw, ok := account.Extra[extraKeyUpstreamBalanceAt]; ok {
+		if str, ok := raw.(string); ok && str != "" {
+			if ts, err := time.Parse(time.RFC3339, str); err == nil {
+				usage.BalanceUpdatedAt = &ts
+			}
+		}
+	}
+	if src, ok := account.Extra[extraKeyUpstreamBalanceSrc].(string); ok {
+		usage.BalanceSource = src
+	}
+	if errStr, ok := account.Extra[extraKeyUpstreamBalanceErr].(string); ok && errStr != "" {
+		usage.BalanceError = errStr
+	}
+}
+
+func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now time.Time) map[string]any {
+	updates := map[string]any{}
+	if probe.Error != "" && probe.Source == "" {
+		updates[extraKeyUpstreamBalanceErr] = probe.Error
+		// Keep previous balance; only stamp error.
+		return updates
+	}
+	updates[extraKeyUpstreamBalanceUSD] = probe.BalanceUSD
+	updates[extraKeyUpstreamBalanceAt] = now.Format(time.RFC3339)
+	updates[extraKeyUpstreamBalanceSrc] = probe.Source
+	updates[extraKeyUpstreamBalanceErr] = ""
+	if account != nil {
+		if account.Extra == nil {
+			account.Extra = map[string]any{}
+		}
+		account.Extra[extraKeyUpstreamBalanceUSD] = probe.BalanceUSD
+		account.Extra[extraKeyUpstreamBalanceAt] = now.Format(time.RFC3339)
+		account.Extra[extraKeyUpstreamBalanceSrc] = probe.Source
+		account.Extra[extraKeyUpstreamBalanceErr] = ""
+	}
+	return updates
+}
+
+func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
+	if usage == nil {
+		return
+	}
+	if probe.Source != "" || probe.Error == "" {
+		bal := probe.BalanceUSD
+		usage.BalanceUSD = &bal
+		t := probe.FetchedAt
+		usage.BalanceUpdatedAt = &t
+		usage.BalanceSource = probe.Source
+		usage.BalanceError = ""
+		return
+	}
+	usage.BalanceError = probe.Error
+}
+
+// attachOAuth7dBurnRate records 7d remaining% sample and fills burn fields.
+func (s *AccountUsageService) attachOAuth7dBurnRate(ctx context.Context, account *Account, usage *UsageInfo) {
+	if account == nil || usage == nil || usage.SevenDay == nil {
+		return
+	}
+	now := time.Now().UTC()
+	remaining := RemainingPctFromUtilization(usage.SevenDay.Utilization)
+	samples := ParseBurnSamplesFromExtra(account.Extra, burnKindOAuth7dRemainingPct)
+	samples = AppendBurnSample(samples, BurnSample{
+		T:    now,
+		V:    remaining,
+		Kind: burnKindOAuth7dRemainingPct,
+	}, burnSampleRingMax)
+	if s.accountRepo != nil {
+		if err := s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{
+			extraKeyBurnSamples: SerializeBurnSamples(mergeBurnSamplesByKind(account.Extra, samples, burnKindOAuth7dRemainingPct)),
+		}); err != nil {
+			slog.Warn("oauth_burn_sample_update_failed", "account_id", account.ID, "error", err)
+		}
+	}
+	ApplyBurnRateToUsage(usage, ComputeBurnRate(samples, now, burnRateMinSpan), "percent")
+}
+
+// mergeBurnSamplesByKind keeps other kinds from extra and replaces kind with newSamples.
+func mergeBurnSamplesByKind(extra map[string]any, newSamples []BurnSample, kind string) []BurnSample {
+	existing := ParseBurnSamplesFromExtra(extra, "")
+	out := make([]BurnSample, 0, len(existing)+len(newSamples))
+	for _, s := range existing {
+		if s.Kind == kind {
+			continue
+		}
+		out = append(out, s)
+	}
+	out = append(out, newSamples...)
+	// Cap total size softly by kind already capped.
+	if len(out) > burnSampleRingMax*3 {
+		out = out[len(out)-burnSampleRingMax*3:]
+	}
+	return out
 }
 
 func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account, force ...bool) (*UsageInfo, error) {

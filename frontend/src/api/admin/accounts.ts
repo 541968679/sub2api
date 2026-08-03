@@ -281,6 +281,11 @@ export interface OpenAIOauthFleetUsageSummary {
   missing_5h: number
   missing_7d: number
   included_count: number
+  /** 7d pool burn-rate in capacity units per hour */
+  burn_rate_7d_per_hour?: number | null
+  burn_eta_7d_seconds?: number | null
+  burn_sample_count?: number
+  burn_insufficient?: boolean
 }
 
 /**

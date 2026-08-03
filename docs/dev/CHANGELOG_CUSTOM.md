@@ -1,3 +1,53 @@
+## 2026-08-03 - fix: Sub2API/ZeroCode balance via GET /v1/usage
+
+### What
+- Third-party balance probe prefers `GET {base}/v1/usage` (Sub2API public usage summary: `balance` / `remaining`) before OpenAI `credit_grants`.
+- Fixes ZeroCode (`zerocode.kaynlab.com`) accounts showing 余额不可用 when `credit_grants` is 404.
+
+### Why
+ZeroCode is a Sub2API-compatible gateway; wallet balance is exposed on `/v1/usage`, not OpenAI dashboard billing paths.
+
+### Verification
+- Live probe: `GET https://zerocode.kaynlab.com/v1/usage` with account key → `balance≈98004`
+- `go test -tags=unit ./internal/service -run "ProbeUpstream|Sub2API|IsOfficial" -count=1`
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`,
+`backend/internal/service/upstream_balance_probe_test.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-03 - feat: API key balance + burn-rate / remaining-time ETA
+
+### What
+- OpenAI/Anthropic API Key accounts: probe third-party OpenAI-shape billing balance (`credit_grants` then `subscription+usage`) via account `base_url`; show balance as hero in usage cell.
+- Burn-rate + remaining-time ETA for API Key (USD samples) and OAuth 7d remaining% samples; sliding-window linear fit; recharge/reset starts a new epoch.
+- OAI Pro/Prolite fleet badge: 7d pool burn-rate (capacity units/h) + ETA from process-local samples.
+- Kill-switch: `SUB2API_UPSTREAM_BALANCE_PROBE=0`.
+
+### Why
+Operators need prepaid balance visibility and “how long until empty” for keys and OAuth pools, not only consumed usage.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "BurnRate|ProbeUpstream|JoinOpenAI|RemainingPct|SerializeParse|SupportsUpstream|AggregateOpenAIOauthFleet" -count=1`
+- Frontend typecheck / vitest as available for AccountUsageCell and fleet i18n.
+
+### Affected files
+`backend/internal/service/burn_rate.go`,
+`backend/internal/service/burn_rate_test.go`,
+`backend/internal/service/upstream_balance_probe.go`,
+`backend/internal/service/upstream_balance_probe_test.go`,
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/account_usage_fleet.go`,
+`frontend/src/components/account/AccountUsageCell.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/types/index.ts`,
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-02 - deploy: production v0.1.194
 
 ### What

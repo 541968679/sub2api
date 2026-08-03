@@ -107,6 +107,7 @@ GET /api/v1/admin/accounts/openai-oauth-fleet-usage
   -> AccountUsageService.GetOpenAIOauthFleetUsage
   -> ListAllWithFilters(platform=openai, type=oauth, no status filter)
   -> aggregateOpenAIOauthFleetUsage
+  -> attachFleet7dBurnRate (process-local sample ring)
 ```
 
 Inclusion: OpenAI OAuth **parent** accounts only (`!IsShadow()`), with
@@ -125,12 +126,46 @@ Pool model (used/capacity units — not a bare percent sum):
   does not add used for that window (`missing_*` counters)
 - Snapshot util uses `buildCodexUsageProgressFromExtra` (expired windows zero)
 
+**7d burn-rate / ETA** (pool-level): samples `capacity - used_7d` over time
+(process-local ring), sliding-window linear fit → `burn_rate_7d_per_hour`
+(capacity units/h) and `burn_eta_7d_seconds`. Insufficient samples →
+`burn_insufficient` without a fake ETA.
+
 UI: `AccountsView` badge (next to AI Credits) with **已用/容量**, fraction
-labels, and progress bars. Mobile: full-width strip above filters. Independent
-of list filters.
+labels, progress bars, and 7d burn line. Mobile: full-width strip above
+filters. Independent of list filters.
 
 Read-only admin surface. Does not change scheduling, billing, or single-account
 usage cells.
+
+## API Key upstream balance + burn-rate
+
+OpenAI/Anthropic **API Key** accounts probe third-party balance APIs on the
+account `base_url` (not Console session cookies):
+
+```
+GET /admin/accounts/:id/usage
+  -> getAPIKeyBalanceUsage
+  -> ProbeUpstreamBalance (third-party host order)
+       1) {base}/v1/usage → balance|remaining (Sub2API / ZeroCode stack)
+       2) {base}/v1/dashboard/billing/credit_grants → total_available
+       3) subscription + usage → hard_limit_usd - total_usage/100
+  -> burn_samples ring in account.extra + ComputeBurnRate
+```
+
+Official `api.openai.com` / `api.anthropic.com` skip step 1 first (try OpenAI-shape
+billing first). ZeroCode and other Sub2API deployments only implement step 1.
+
+Auth: OpenAI Bearer; Anthropic uses existing `x-api-key` / Bearer scheme.
+Kill-switch: `SUB2API_UPSTREAM_BALANCE_PROBE=0|false|off`.
+
+`UsageInfo` fields: `balance_usd`, `balance_*`, `burn_rate_per_hour`,
+`burn_rate_unit` (`usd`|`percent`), `burn_eta_seconds`, `burn_insufficient`.
+
+Admin usage cell: **balance is the hero**; today stats / local quota bars are
+muted. OAuth accounts show 7d burn as `%/h · ETA` under the 7d bar (5h has no
+burn-rate). Samples reset on balance/remaining increase (recharge / window
+reset). Does not auto-disable accounts or change billing.
 
 ## OpenAI Spark Shadow Accounts
 

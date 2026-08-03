@@ -214,6 +214,18 @@
                   </span>
                 </div>
               </div>
+              <div
+                v-if="fleetBurnLine"
+                class="text-xs font-medium text-sky-800 dark:text-sky-200"
+              >
+                {{ fleetBurnLine }}
+              </div>
+              <div
+                v-else-if="openaiFleetUsage.burn_insufficient"
+                class="text-[11px] text-sky-600/80 dark:text-sky-400/80"
+              >
+                {{ t('admin.accounts.oauthFleetUsage.burnInsufficient') }}
+              </div>
               <span class="text-xs leading-snug text-sky-700/90 dark:text-sky-300/90">
                 {{
                   t('admin.accounts.oauthFleetUsage.detail', {
@@ -975,6 +987,31 @@ function fleetTextClass(fillPercent: number): string {
   if (fillPercent >= 80) return 'text-amber-600 dark:text-amber-400'
   return 'text-gray-800 dark:text-gray-100'
 }
+
+function formatFleetBurnDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—'
+  if (seconds >= 30 * 24 * 3600) return '>30d'
+  if (seconds >= 48 * 3600) {
+    const d = seconds / (24 * 3600)
+    return `~${d.toFixed(d >= 10 ? 0 : 1)}d`
+  }
+  if (seconds >= 90 * 60) {
+    const h = seconds / 3600
+    return `~${h.toFixed(h >= 10 ? 0 : 1)}h`
+  }
+  const m = Math.max(1, Math.round(seconds / 60))
+  return `~${m}m`
+}
+
+const fleetBurnLine = computed(() => {
+  const f = openaiFleetUsage.value
+  if (!f || f.burn_rate_7d_per_hour == null || f.burn_insufficient) return ''
+  const rate = f.burn_rate_7d_per_hour
+  const rateLabel =
+    rate >= 10 ? `~${rate.toFixed(0)} u/h` : `~${rate.toFixed(1)} u/h`
+  const eta = formatFleetBurnDuration(f.burn_eta_7d_seconds)
+  return t('admin.accounts.oauthFleetUsage.burnLine', { rate: rateLabel, eta })
+})
 
 async function refreshOpenAIOauthFleetUsage() {
   try {

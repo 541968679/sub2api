@@ -556,6 +556,7 @@ describe('AccountUsageCell', () => {
 
 		await flushPromises()
 
+		// OpenAI/Anthropic apikey: balance-first cell; stats remain visible but muted.
 		expect(wrapper.text()).toContain('1.0M req')
 		expect(wrapper.text()).toContain('1.0B')
 		expect(wrapper.text()).toContain('A $12.35')
@@ -1070,12 +1071,13 @@ describe('AccountUsageCell', () => {
   })
 
   it('Key 账号在无 today stats 且无配额时显示兜底短横线', async () => {
+		// Non-OAI/Anthropic key (bedrock) still uses the legacy stats-only cell.
 		const wrapper = mount(AccountUsageCell, {
 		  props: {
 		    account: makeAccount({
 		      id: 3003,
 		      platform: 'anthropic',
-		      type: 'apikey',
+		      type: 'bedrock',
 		      quota_limit: 0,
 		      quota_daily_limit: 0,
 		      quota_weekly_limit: 0
@@ -1094,6 +1096,37 @@ describe('AccountUsageCell', () => {
 		await flushPromises()
 
 		expect(wrapper.text().trim()).toBe('-')
+  })
+
+  it('Anthropic apikey 无余额时展示余额待查询而非短横线', async () => {
+		getUsage.mockResolvedValue({
+		  five_hour: null,
+		  seven_day: null,
+		  seven_day_sonnet: null,
+		  balance_usd: null,
+		  burn_insufficient: true
+		})
+		const wrapper = mount(AccountUsageCell, {
+		  props: {
+		    account: makeAccount({
+		      id: 3004,
+		      platform: 'anthropic',
+		      type: 'apikey'
+		    }),
+		    todayStats: null,
+		    todayStatsLoading: false
+		  },
+		  global: {
+		    stubs: {
+		      UsageProgressBar: true,
+		      AccountQuotaInfo: true
+		    }
+		  }
+		})
+
+		await flushPromises()
+		expect(wrapper.text()).toMatch(/balancePending|余额待查询/)
+		expect(getUsage).toHaveBeenCalled()
   })
 
   it('Vertex 账号会在 Gemini 用量窗口里展示 today stats 徽章', async () => {

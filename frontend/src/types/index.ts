@@ -1237,6 +1237,20 @@ export interface AccountUsageInfo {
   error_code?: string
 
   error?: string            // usage 获取失败时的错误信息
+
+  /** Upstream prepaid balance (OpenAI/Anthropic API-key compatible billing). */
+  balance_usd?: number | null
+  balance_updated_at?: string | null
+  balance_source?: string
+  balance_error?: string
+
+  /** Burn-rate / remaining-time prediction. */
+  burn_rate_per_hour?: number | null
+  /** usd | percent | fleet_units */
+  burn_rate_unit?: string
+  burn_eta_seconds?: number | null
+  burn_sample_count?: number
+  burn_insufficient?: boolean
 }
 
 export interface GrokBillingProductUsage {

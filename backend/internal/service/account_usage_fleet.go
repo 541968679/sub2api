@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -12,6 +13,12 @@ import (
 const (
 	openAIOauthFleetProCapacity     = 100.0
 	openAIOauthFleetProliteCapacity = 25.0
+)
+
+// Process-local ring for fleet 7d remaining units (MVP; multi-instance later via Redis).
+var (
+	fleetBurnMu      sync.Mutex
+	fleetBurnSamples []BurnSample
 )
 
 // OpenAIOauthFleetUsageSummary is the filter-independent fleet aggregate for
@@ -38,6 +45,12 @@ type OpenAIOauthFleetUsageSummary struct {
 	Missing5h     int     `json:"missing_5h"`
 	Missing7d     int     `json:"missing_7d"`
 	IncludedCount int     `json:"included_count"`
+
+	// 7d pool burn-rate (capacity units / hour) and remaining-time estimate.
+	BurnRate7dPerHour *float64 `json:"burn_rate_7d_per_hour,omitempty"`
+	BurnETA7dSeconds  *float64 `json:"burn_eta_7d_seconds,omitempty"`
+	BurnSampleCount   int      `json:"burn_sample_count,omitempty"`
+	BurnInsufficient  bool     `json:"burn_insufficient,omitempty"`
 }
 
 // GetOpenAIOauthFleetUsage returns the global OpenAI OAuth pro/prolite fleet
@@ -51,8 +64,47 @@ func (s *AccountUsageService) GetOpenAIOauthFleetUsage(ctx context.Context) (*Op
 	if err != nil {
 		return nil, fmt.Errorf("list openai oauth accounts for fleet usage: %w", err)
 	}
-	summary := aggregateOpenAIOauthFleetUsage(accounts, time.Now())
+	now := time.Now()
+	summary := aggregateOpenAIOauthFleetUsage(accounts, now)
+	attachFleet7dBurnRate(&summary, now)
 	return &summary, nil
+}
+
+// attachFleet7dBurnRate samples pool remaining units and fills burn fields.
+func attachFleet7dBurnRate(summary *OpenAIOauthFleetUsageSummary, now time.Time) {
+	if summary == nil || summary.Capacity <= 0 {
+		return
+	}
+	remaining := summary.Capacity - summary.Used7d
+	if remaining < 0 {
+		remaining = 0
+	}
+	fleetBurnMu.Lock()
+	fleetBurnSamples = AppendBurnSample(fleetBurnSamples, BurnSample{
+		T:    now.UTC(),
+		V:    remaining,
+		Kind: burnKindFleet7dRemainingUnits,
+	}, burnSampleRingMax)
+	samples := make([]BurnSample, len(fleetBurnSamples))
+	copy(samples, fleetBurnSamples)
+	fleetBurnMu.Unlock()
+
+	result := ComputeBurnRate(samples, now, burnRateMinSpan)
+	summary.BurnSampleCount = result.SampleCount
+	summary.BurnInsufficient = result.Insufficient
+	if result.Insufficient {
+		return
+	}
+	if result.Idle {
+		zero := 0.0
+		summary.BurnRate7dPerHour = &zero
+		summary.BurnETA7dSeconds = nil
+		summary.BurnInsufficient = false
+		return
+	}
+	rate := result.RatePerHour
+	summary.BurnRate7dPerHour = &rate
+	summary.BurnETA7dSeconds = result.ETASeconds
 }
 
 // openAIOauthFleetPlanCapacity returns capacity units for a plan_type, or 0 when excluded.

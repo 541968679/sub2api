@@ -59,6 +59,21 @@
           color="emerald"
         />
 
+        <!-- 7d burn-rate / ETA (percent · remaining time) -->
+        <div
+          v-if="burnRateLine"
+          class="text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
+          :title="t('admin.accounts.usageWindow.burnRateHint')"
+        >
+          {{ burnRateLine }}
+        </div>
+        <div
+          v-else-if="usageInfo.seven_day && usageInfo.burn_insufficient"
+          class="text-[9px] text-gray-400 dark:text-gray-500"
+        >
+          {{ t('admin.accounts.usageWindow.burnInsufficient') }}
+        </div>
+
         <!-- 7d Sonnet Window (OAuth only) -->
         <UsageProgressBar
           v-if="usageInfo.seven_day_sonnet"
@@ -139,6 +154,19 @@
           :show-now-when-idle="true"
           color="emerald"
         />
+        <div
+          v-if="burnRateLine"
+          class="text-[10px] font-medium text-emerald-700 dark:text-emerald-300"
+          :title="t('admin.accounts.usageWindow.burnRateHint')"
+        >
+          {{ burnRateLine }}
+        </div>
+        <div
+          v-else-if="usageInfo?.seven_day && usageInfo?.burn_insufficient"
+          class="text-[9px] text-gray-400 dark:text-gray-500"
+        >
+          {{ t('admin.accounts.usageWindow.burnInsufficient') }}
+        </div>
         <!--
           Upstream codex /wham/usage quota query + reset. The local active-sampling
           refresh button is rendered via the pre-actions slot so the user sees a
@@ -540,13 +568,126 @@
       </div>
     </template>
 
+    <!-- OpenAI / Anthropic API Key: balance hero + burn-rate -->
+    <template v-else-if="isBalanceEligibleApiKey">
+      <div v-if="loading" class="space-y-1">
+        <div class="h-4 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        <div class="h-3 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+      </div>
+      <div v-else class="space-y-1">
+        <div
+          v-if="usageInfo?.balance_usd != null"
+          class="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-50"
+          :title="balanceTitle"
+        >
+          ${{ formatBalanceUSD(usageInfo.balance_usd) }}
+        </div>
+        <div
+          v-else-if="usageInfo?.balance_error"
+          class="text-xs text-amber-600 dark:text-amber-400 truncate max-w-[180px]"
+          :title="usageInfo.balance_error"
+        >
+          {{ t('admin.accounts.usageWindow.balanceUnavailable') }}
+        </div>
+        <div
+          v-else
+          class="text-xs text-gray-400"
+        >
+          {{ t('admin.accounts.usageWindow.balancePending') }}
+        </div>
+
+        <div
+          v-if="burnRateLine"
+          class="text-[11px] font-medium text-sky-700 dark:text-sky-300"
+          :title="t('admin.accounts.usageWindow.burnRateHint')"
+        >
+          {{ burnRateLine }}
+        </div>
+        <div
+          v-else-if="usageInfo?.burn_insufficient"
+          class="text-[9px] text-gray-400 dark:text-gray-500"
+        >
+          {{ t('admin.accounts.usageWindow.burnInsufficient') }}
+        </div>
+
+        <!-- Weakened today stats -->
+        <div
+          v-if="todayStats"
+          class="flex flex-wrap items-center gap-1 text-[9px] text-gray-400 dark:text-gray-500 opacity-80"
+        >
+          <span>{{ formatKeyRequests }} req</span>
+          <span>·</span>
+          <span>{{ formatKeyTokens }}</span>
+          <span>·</span>
+          <span :title="t('usage.accountBilled')">A ${{ formatKeyCost }}</span>
+          <template v-if="todayStats.user_cost != null">
+            <span>·</span>
+            <span :title="t('usage.userBilled')">U ${{ formatKeyUserCost }}</span>
+          </template>
+        </div>
+        <div
+          v-else-if="todayStatsLoading"
+          class="flex items-center gap-1"
+        >
+          <div class="h-2.5 w-8 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+
+        <!-- Local quota bars (muted) -->
+        <div class="opacity-70 scale-[0.92] origin-left">
+          <UsageProgressBar
+            v-if="quotaDailyBar"
+            label="1d"
+            :utilization="quotaDailyBar.utilization"
+            :resets-at="quotaDailyBar.resetsAt"
+            color="indigo"
+          />
+          <UsageProgressBar
+            v-if="quotaWeeklyBar"
+            label="7d"
+            :utilization="quotaWeeklyBar.utilization"
+            :resets-at="quotaWeeklyBar.resetsAt"
+            color="emerald"
+          />
+          <UsageProgressBar
+            v-if="quotaTotalBar"
+            label="total"
+            :utilization="quotaTotalBar.utilization"
+            color="purple"
+          />
+        </div>
+
+        <button
+          type="button"
+          class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
+          :disabled="activeQueryLoading"
+          @click="loadActiveUsage"
+        >
+          <svg
+            class="h-2.5 w-2.5"
+            :class="{ 'animate-spin': activeQueryLoading }"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          {{ t('admin.accounts.usageWindow.activeQuery') }}
+        </button>
+      </div>
+    </template>
+
     <!-- Other accounts: no usage window -->
     <template v-else>
       <div class="text-xs text-gray-400">-</div>
     </template>
   </div>
 
-  <!-- Non-OAuth/Setup-Token accounts -->
+  <!-- Non-OAuth/Setup-Token accounts (e.g. Gemini apikey, Bedrock, other keys) -->
   <div ref="rootRef" v-else>
     <!-- Gemini API Key accounts: show quota info -->
     <AccountQuotaInfo v-if="account.platform === 'gemini'" :account="account" />
@@ -670,16 +811,28 @@ let desktopViewportMediaQuery: MediaQueryList | null = null
 let desktopViewportListener: ((event: MediaQueryListEvent) => void) | null = null
 let visibilityObserver: IntersectionObserver | null = null
 
-// Show usage windows for OAuth and Setup Token accounts
+const isBalanceEligibleApiKey = computed(() => {
+  return (
+    props.account.type === 'apikey' &&
+    (props.account.platform === 'openai' || props.account.platform === 'anthropic')
+  )
+})
+
+// Show usage windows for OAuth/Setup Token, Gemini, and OpenAI/Anthropic API-key balance cells.
 const showUsageWindows = computed(() => {
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
   if (props.account.platform === 'gemini') return true
+  if (isBalanceEligibleApiKey.value) return true
   return props.account.type === 'oauth' || props.account.type === 'setup-token'
 })
 
 const shouldFetchUsage = computed(() => {
   if (props.account.platform === 'anthropic') {
-    return props.account.type === 'oauth' || props.account.type === 'setup-token'
+    return (
+      props.account.type === 'oauth' ||
+      props.account.type === 'setup-token' ||
+      props.account.type === 'apikey'
+    )
   }
   if (props.account.platform === 'gemini') {
     return true
@@ -691,7 +844,7 @@ const shouldFetchUsage = computed(() => {
     return props.account.type === 'oauth'
   }
   if (props.account.platform === 'openai') {
-    return props.account.type === 'oauth'
+    return props.account.type === 'oauth' || props.account.type === 'apikey'
   }
   return false
 })
@@ -1455,6 +1608,69 @@ const formatKeyRequests = computed(() => {
 const formatKeyTokens = computed(() => {
   if (!props.todayStats) return ''
   return formatCompactNumber(props.todayStats.tokens)
+})
+
+function formatBalanceUSD(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  const abs = Math.abs(value)
+  if (abs >= 100) return value.toFixed(0)
+  if (abs >= 10) return value.toFixed(1)
+  return value.toFixed(2)
+}
+
+function formatBurnDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return ''
+  if (seconds >= 30 * 24 * 3600) return '>30d'
+  if (seconds >= 48 * 3600) {
+    const d = seconds / (24 * 3600)
+    return `~${d.toFixed(d >= 10 ? 0 : 1)}d`
+  }
+  if (seconds >= 90 * 60) {
+    const h = seconds / 3600
+    return `~${h.toFixed(h >= 10 ? 0 : 1)}h`
+  }
+  const m = Math.max(1, Math.round(seconds / 60))
+  return `~${m}m`
+}
+
+const burnRateLine = computed(() => {
+  const info = usageInfo.value
+  if (!info || info.burn_insufficient) return ''
+  if (info.burn_rate_per_hour == null) return ''
+  const rate = info.burn_rate_per_hour
+  const unit = info.burn_rate_unit || ''
+  let ratePart = ''
+  if (unit === 'usd') {
+    ratePart = t('admin.accounts.usageWindow.burnRateUsd', {
+      rate: formatBalanceUSD(rate)
+    })
+  } else if (unit === 'percent') {
+    ratePart = t('admin.accounts.usageWindow.burnRatePercent', {
+      rate: rate >= 10 ? rate.toFixed(0) : rate.toFixed(1)
+    })
+  } else if (unit === 'fleet_units') {
+    ratePart = t('admin.accounts.usageWindow.burnRateFleetUnits', {
+      rate: rate >= 10 ? rate.toFixed(0) : rate.toFixed(1)
+    })
+  } else {
+    ratePart = `~${rate.toFixed(2)}/h`
+  }
+  const eta = formatBurnDuration(info.burn_eta_seconds)
+  if (eta) return `${ratePart} · ${eta}`
+  if (rate === 0) return ratePart
+  return ratePart
+})
+
+const balanceTitle = computed(() => {
+  const info = usageInfo.value
+  if (!info) return ''
+  const parts: string[] = []
+  if (info.balance_source) parts.push(info.balance_source)
+  if (info.balance_updated_at) {
+    parts.push(formatRelativeTime(info.balance_updated_at))
+  }
+  if (info.balance_error) parts.push(info.balance_error)
+  return parts.join(' · ')
 })
 
 const formatKeyCost = computed(() => {

@@ -4246,8 +4246,10 @@ const enBase = {
         usedBadge: 'Used/Cap',
         fraction: '{used}/{capacity}',
         detail: '{pro} Pro · {prolite} Prolite · miss5h:{missing5h} · miss7d:{missing7d}',
+        burnLine: '7d burn {rate} · ETA {eta}',
+        burnInsufficient: '7d burn samples insufficient',
         tooltip:
-          'Shows used/capacity (not remaining). Capacity = Pro×100 + Prolite×25; used = each account used% × its capacity unit (Prolite = 1/4 Pro). Example: 7 Pro at half + 1 full Prolite → 375/725. Bar fill = used÷capacity. Independent of list filters; accounts without a snapshot still count toward capacity but not used for that window.'
+          'Shows used/capacity (not remaining). Capacity = Pro×100 + Prolite×25; used = each account used% × its capacity unit (Prolite = 1/4 Pro). Example: 7 Pro at half + 1 full Prolite → 375/725. Bar fill = used÷capacity. Independent of list filters; accounts without a snapshot still count toward capacity but not used for that window. 7d burn/ETA uses pool remaining capacity-unit samples.'
       },
       allPrivacyModes: 'All Privacy States',
       privacyUnset: 'Unset',
@@ -5270,7 +5272,14 @@ const enBase = {
         gemini3Image: 'G31FI',
         claude: 'Claude',
         passiveSampled: 'Passive',
-        activeQuery: 'Query'
+        activeQuery: 'Query',
+        balanceUnavailable: 'Balance unavailable',
+        balancePending: 'Balance pending',
+        burnRateUsd: '~${rate}/h',
+        burnRatePercent: '~{rate}%/h',
+        burnRateFleetUnits: '~{rate} u/h',
+        burnInsufficient: 'Burn samples insufficient',
+        burnRateHint: 'Sliding-window linear fit over recent samples; recharge/window reset starts a new epoch'
       },
       openaiQuotaReset: {
         count: 'Credits',

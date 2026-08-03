@@ -3834,8 +3834,10 @@ const zhBase = {
         usedBadge: '已用/容量',
         fraction: '{used}/{capacity}',
         detail: '{pro} Pro · {prolite} Prolite · 缺5h:{missing5h} · 缺7d:{missing7d}',
+        burnLine: '7d 速度 {rate} · 预计剩余 {eta}',
+        burnInsufficient: '7d 速度样本不足',
         tooltip:
-          '展示已用/容量（非剩余）。容量=Pro×100+Prolite×25；已用=各账号 used%×对应容量单位（Prolite 按 Pro 的 1/4）。例如 7 个 Pro 各用一半 + 1 个 Prolite 用满 → 375/725。进度条按已用÷容量填充。不受列表筛选影响；无快照账号仍占容量、该窗口不加已用。'
+          '展示已用/容量（非剩余）。容量=Pro×100+Prolite×25；已用=各账号 used%×对应容量单位（Prolite 按 Pro 的 1/4）。例如 7 个 Pro 各用一半 + 1 个 Prolite 用满 → 375/725。进度条按已用÷容量填充。不受列表筛选影响；无快照账号仍占容量、该窗口不加已用。7d 烧速/剩余时长基于池级剩余容量单位采样。'
       },
       allPrivacyModes: '全部Privacy状态',
       privacyUnset: '未设置',
@@ -4045,7 +4047,14 @@ const zhBase = {
         gemini3Image: 'G31FI',
         claude: 'Claude',
         passiveSampled: '被动采样',
-        activeQuery: '查询'
+        activeQuery: '查询',
+        balanceUnavailable: '余额不可用',
+        balancePending: '余额待查询',
+        burnRateUsd: '~${rate}/时',
+        burnRatePercent: '~{rate}%/时',
+        burnRateFleetUnits: '~{rate} 单位/时',
+        burnInsufficient: '速度样本不足',
+        burnRateHint: '基于最近采样的滑动窗口线性拟合；充值/窗口重置后会重新计 epoch'
       },
       openaiQuotaReset: {
         count: '次数',
