@@ -5299,6 +5299,7 @@ const enBase = {
         activeQuery: 'Query',
         balanceUnavailable: 'Balance unavailable',
         balancePending: 'Balance pending',
+        balanceUnlimited: 'Unlimited',
         burnRateUsd: '~${rate}/h',
         burnRatePercent: '~{rate}%/h',
         burnRateFleetUnits: '~{rate} u/h',

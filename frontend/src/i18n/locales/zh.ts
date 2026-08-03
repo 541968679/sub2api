@@ -4074,6 +4074,7 @@ const zhBase = {
         activeQuery: '查询',
         balanceUnavailable: '余额不可用',
         balancePending: '余额待查询',
+        balanceUnlimited: '无限额度',
         burnRateUsd: '~${rate}/时',
         burnRatePercent: '~{rate}%/时',
         burnRateFleetUnits: '~{rate} 单位/时',

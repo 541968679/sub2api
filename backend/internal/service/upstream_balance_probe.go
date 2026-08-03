@@ -21,14 +21,21 @@ const (
 	balanceSourceSubscriptionUsage = "subscription_usage"
 	// Sub2API-compatible gateways (e.g. ZeroCode): GET /v1/usage with API key.
 	balanceSourceSub2APIUsage = "sub2api_v1_usage"
+	// New API / one-api style: GET /api/usage/token with API key (Bearer sk-...).
+	balanceSourceNewAPITokenUsage = "newapi_usage_token"
+
+	// Default New API quota unit: 500000 internal units == $1 USD (from /api/status.quota_per_unit).
+	defaultNewAPIQuotaPerUnit = 500000.0
 )
 
 // UpstreamBalanceResult is a successful or failed balance probe outcome.
 type UpstreamBalanceResult struct {
 	BalanceUSD float64
-	Source     string
-	Error      string
-	FetchedAt  time.Time
+	// Unlimited is true when the upstream token has unlimited quota (New API).
+	Unlimited bool
+	Source    string
+	Error     string
+	FetchedAt time.Time
 }
 
 type openAICreditGrantsResponse struct {
@@ -119,14 +126,27 @@ func isOfficialOpenAIOrAnthropicHost(baseURL string) bool {
 	}
 }
 
+// originFromBaseURL returns scheme://host from a base URL that may include /v1 path.
+func originFromBaseURL(baseURL string) string {
+	base := strings.TrimSpace(baseURL)
+	base = strings.TrimRight(base, "/")
+	// Strip trailing /v1 so /api/usage/token is not under /v1.
+	if strings.HasSuffix(strings.ToLower(base), "/v1") {
+		base = strings.TrimSuffix(base, "/v1")
+		base = strings.TrimSuffix(base, "/V1")
+	}
+	return strings.TrimRight(base, "/")
+}
+
 // ProbeUpstreamBalance fetches prepaid-style balance via compatible billing APIs.
 //
-// Probe order for third-party / self-hosted (e.g. ZeroCode = Sub2API):
-//  1. GET {base}/v1/usage  → balance / remaining (Sub2API public usage summary)
-//  2. GET {base}/v1/dashboard/billing/credit_grants
-//  3. subscription + usage (OpenAI-shape hard_limit - spent)
+// Probe order for third-party / self-hosted:
+//  1. GET {base}/v1/usage  → balance / remaining (Sub2API / ZeroCode)
+//  2. GET {origin}/api/usage/token → New API token_usage (token-bits / one-api)
+//  3. GET {base}/v1/dashboard/billing/credit_grants
+//  4. subscription + usage (OpenAI-shape hard_limit - spent)
 //
-// Official OpenAI/Anthropic hosts skip step 1 (they do not speak Sub2API /v1/usage).
+// Official OpenAI/Anthropic hosts skip steps 1–2 first.
 func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalanceResult {
 	now := time.Now().UTC()
 	result := UpstreamBalanceResult{FetchedAt: now}
@@ -177,8 +197,7 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		}
 	}
 
-	// 1) Sub2API-compatible /v1/usage (ZeroCode and same-stack gateways).
-	// Prefer first on third-party hosts: credit_grants is often 404 there.
+	// 1–2) Third-party first: Sub2API then New API (credit_grants often 404 there).
 	if !isOfficialOpenAIOrAnthropicHost(baseURL) {
 		if bal, ok, probeErr := fetchSub2APIUsageBalance(ctx, client, account, apiKey, baseURL); ok {
 			result.BalanceUSD = bal
@@ -188,9 +207,18 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		} else {
 			appendErr(probeErr)
 		}
+		if bal, unlimited, ok, probeErr := fetchNewAPITokenUsageBalance(ctx, client, account, apiKey, baseURL); ok {
+			result.BalanceUSD = bal
+			result.Unlimited = unlimited
+			result.Source = balanceSourceNewAPITokenUsage
+			result.Error = ""
+			return result
+		} else {
+			appendErr(probeErr)
+		}
 	}
 
-	// 2) OpenAI-shape credit_grants
+	// 3) OpenAI-shape credit_grants
 	if bal, ok, probeErr := fetchCreditGrantsBalance(ctx, client, account, apiKey, baseURL); ok {
 		result.BalanceUSD = bal
 		result.Source = balanceSourceCreditGrants
@@ -200,7 +228,7 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		appendErr(probeErr)
 	}
 
-	// 3) subscription + usage
+	// 4) subscription + usage
 	if bal, ok, probeErr := fetchSubscriptionUsageBalance(ctx, client, account, apiKey, baseURL); ok {
 		result.BalanceUSD = bal
 		result.Source = balanceSourceSubscriptionUsage
@@ -210,11 +238,20 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		appendErr(probeErr)
 	}
 
-	// 4) Last chance: Sub2API /v1/usage even on unknown official-like hosts.
+	// 5) Last chance on official-like hosts: Sub2API then New API.
 	if isOfficialOpenAIOrAnthropicHost(baseURL) {
 		if bal, ok, probeErr := fetchSub2APIUsageBalance(ctx, client, account, apiKey, baseURL); ok {
 			result.BalanceUSD = bal
 			result.Source = balanceSourceSub2APIUsage
+			result.Error = ""
+			return result
+		} else {
+			appendErr(probeErr)
+		}
+		if bal, unlimited, ok, probeErr := fetchNewAPITokenUsageBalance(ctx, client, account, apiKey, baseURL); ok {
+			result.BalanceUSD = bal
+			result.Unlimited = unlimited
+			result.Source = balanceSourceNewAPITokenUsage
 			result.Error = ""
 			return result
 		} else {
@@ -226,6 +263,115 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		result.Error = "balance probe failed"
 	}
 	return result
+}
+
+// newAPITokenUsageResponse matches New API GET /api/usage/token JSON.
+type newAPITokenUsageResponse struct {
+	Code    any    `json:"code"` // true or 1
+	Message string `json:"message"`
+	Data    *struct {
+		Object          string  `json:"object"`
+		Name            string  `json:"name"`
+		TotalGranted    float64 `json:"total_granted"`
+		TotalUsed       float64 `json:"total_used"`
+		TotalAvailable  float64 `json:"total_available"`
+		UnlimitedQuota  bool    `json:"unlimited_quota"`
+		ExpiresAt       int64   `json:"expires_at"`
+	} `json:"data"`
+}
+
+func fetchNewAPITokenUsageBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (balance float64, unlimited bool, ok bool, errMsg string) {
+	origin := originFromBaseURL(baseURL)
+	if origin == "" {
+		return 0, false, false, "newapi: empty origin"
+	}
+	// Prefer no trailing slash first (token-bits returns 200); then with slash.
+	urls := []string{
+		origin + "/api/usage/token",
+		origin + "/api/usage/token/",
+	}
+	var lastErr string
+	for _, url := range urls {
+		// New API always expects Authorization: Bearer <sk-...> regardless of Anthropic scheme.
+		body, status, err := doBalanceGETBearer(ctx, client, apiKey, url)
+		if err != nil {
+			lastErr = err.Error()
+			continue
+		}
+		if status == http.StatusMovedPermanently || status == http.StatusFound || status == http.StatusTemporaryRedirect {
+			lastErr = fmt.Sprintf("newapi usage/token redirect %d", status)
+			continue
+		}
+		if status != http.StatusOK {
+			lastErr = fmt.Sprintf("newapi usage/token status %d: %s", status, truncateForErr(body, 200))
+			continue
+		}
+		if looksLikeHTML(body) {
+			lastErr = "newapi usage/token returned HTML"
+			continue
+		}
+		var resp newAPITokenUsageResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			lastErr = fmt.Sprintf("newapi usage/token decode: %v", err)
+			continue
+		}
+		// Success envelope: code true/1 and data present.
+		if !newAPICodeOK(resp.Code) || resp.Data == nil {
+			lastErr = fmt.Sprintf("newapi usage/token not ok: %s", resp.Message)
+			continue
+		}
+		// Prefer status-reported unit; fall back to defaultNewAPIQuotaPerUnit.
+		unit := resolveNewAPIQuotaPerUnit(ctx, client, account, apiKey, origin)
+		if unit <= 0 {
+			unit = defaultNewAPIQuotaPerUnit
+		}
+		available := resp.Data.TotalAvailable
+		unlimited = resp.Data.UnlimitedQuota
+		// Convert internal quota units → USD. Clamp negative remaining to 0 for display.
+		balanceUSD := available / unit
+		if balanceUSD < 0 {
+			balanceUSD = 0
+		}
+		return balanceUSD, unlimited, true, ""
+	}
+	return 0, false, false, lastErr
+}
+
+func newAPICodeOK(code any) bool {
+	switch v := code.(type) {
+	case bool:
+		return v
+	case float64:
+		return v != 0
+	case json.Number:
+		f, err := v.Float64()
+		return err == nil && f != 0
+	case string:
+		return v == "true" || v == "1" || v == "ok"
+	default:
+		return false
+	}
+}
+
+// resolveNewAPIQuotaPerUnit reads /api/status.data.quota_per_unit when available.
+func resolveNewAPIQuotaPerUnit(ctx context.Context, client *http.Client, account *Account, apiKey, origin string) float64 {
+	_ = account
+	body, status, err := doBalanceGETBearer(ctx, client, apiKey, origin+"/api/status")
+	if err != nil || status != http.StatusOK || looksLikeHTML(body) {
+		return defaultNewAPIQuotaPerUnit
+	}
+	var resp struct {
+		Data struct {
+			QuotaPerUnit float64 `json:"quota_per_unit"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return defaultNewAPIQuotaPerUnit
+	}
+	if resp.Data.QuotaPerUnit > 0 {
+		return resp.Data.QuotaPerUnit
+	}
+	return defaultNewAPIQuotaPerUnit
 }
 
 // sub2apiUsageBalanceResponse matches GatewayHandler.Usage JSON for balance mode.
@@ -364,6 +510,20 @@ func doBalanceGET(ctx context.Context, client *http.Client, account *Account, ap
 		return nil, 0, err
 	}
 	applyUpstreamBalanceAuth(req, account, apiKey)
+	return doBalanceRequest(client, req)
+}
+
+func doBalanceGETBearer(ctx context.Context, client *http.Client, apiKey, url string) ([]byte, int, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Accept", "application/json")
+	return doBalanceRequest(client, req)
+}
+
+func doBalanceRequest(client *http.Client, req *http.Request) ([]byte, int, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, err

@@ -15,6 +15,22 @@ Admins previously only discovered auto-bans by manually opening risk-control log
 ### Affected files
 `backend/migrations/195_admin_risk_ban_notifications.sql`, `backend/internal/service/content_moderation.go`, `backend/internal/repository/content_moderation_repo.go`, `backend/internal/handler/admin/content_moderation_handler.go`, `backend/internal/server/routes/admin.go`, `frontend/src/api/admin/riskControl.ts`, `frontend/src/stores/banNotifications.ts`, `frontend/src/components/common/BanNotificationBell.vue`, `frontend/src/components/layout/AppHeader.vue`, `frontend/src/App.vue`, i18n zh/en, `docs/dev/codebase/risk-control.md`, this changelog.
 
+## 2026-08-03 - docs: graded assessment for upstream v0.1.152..main
+
+### What
+- Draft multi-batch assessment for selective sync after large baseline `v0.1.152` / `b73d8c3ef`.
+- Proposed first wave B1–B2–B3–B7–B9; defer high-risk B4 billing fields, B5 profit-control, B8 security-audit, B12 upstream async image pending product decisions.
+- Linked from `UPSTREAM_SYNC.md`; no product code changes in this step.
+
+### Why
+AGENTS.md requires an explicit assessment table before upstream-sync code changes; volume is ~860+ commits and needs graded handling with fork-local boundaries.
+
+### Verification
+- Document-only; commit themes counted from `git log b73d8c3ef..upstream/main` and path churn; fork feature presence checked via tree/grep.
+
+### Affected files
+`docs/dev/UPSTREAM_SYNC_ASSESSMENT_v0152_to_main.md`, `docs/dev/UPSTREAM_SYNC.md`, this changelog.
+
 ## 2026-08-03 - docs: pin large upstream-sync baseline to v0.1.152
 
 ### What
@@ -30,6 +46,30 @@ Selective small-feature cherry-picks were being mistaken for the sync baseline; 
 
 ### Affected files
 `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`, this changelog.
+
+## 2026-08-03 - fix: New API /api/usage/token balance (token-bits)
+
+### What
+- Third-party balance probe adds New API `GET {origin}/api/usage/token` (Bearer sk-...).
+- Converts `total_available / quota_per_unit` to USD; supports `unlimited_quota` UI flag.
+- Strips trailing `/v1` from account base_url when calling New API admin-style routes.
+
+### Why
+token-bits and other New API gateways do not expose OpenAI `credit_grants` or Sub2API `/v1/usage`; balance is only on `/api/usage/token`.
+
+### Verification
+- Live: `GET https://api.token-bits.com/api/usage/token` → `token_usage` JSON
+- `go test -tags=unit ./internal/service -run "ProbeUpstream|NewAPI|OriginFrom" -count=1`
+
+### Affected files
+`backend/internal/service/upstream_balance_probe.go`,
+`backend/internal/service/upstream_balance_probe_test.go`,
+`backend/internal/service/account_usage_service.go`,
+`frontend/src/components/account/AccountUsageCell.vue`,
+`frontend/src/types/index.ts`,
+`frontend/src/i18n/locales/{zh,en}.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
 
 ## 2026-08-03 - deploy: production v0.1.195
 

@@ -251,6 +251,8 @@ type UsageInfo struct {
 	BalanceUpdatedAt *time.Time `json:"balance_updated_at,omitempty"`
 	BalanceSource    string     `json:"balance_source,omitempty"`
 	BalanceError     string     `json:"balance_error,omitempty"`
+	// BalanceUnlimited is true for New API tokens with unlimited_quota.
+	BalanceUnlimited bool `json:"balance_unlimited,omitempty"`
 
 	// Burn-rate / remaining-time prediction (mixed units: usd | percent | fleet_units).
 	BurnRatePerHour  *float64 `json:"burn_rate_per_hour,omitempty"`
@@ -625,7 +627,7 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 			switch v := result.(type) {
 			case UpstreamBalanceResult:
 				applyBalanceResultToUsage(usage, v)
-				if v.Source != "" {
+				if v.Source != "" || v.Unlimited {
 					probedOK = true
 				}
 			case *Account:
@@ -637,9 +639,10 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 		}
 	}
 
-	// Append balance sample only after a successful probe; always recompute burn.
+	// Append balance sample only after a successful probe of a finite balance.
+	// Unlimited tokens skip burn-rate sampling (no meaningful remaining).
 	samples := ParseBurnSamplesFromExtra(account.Extra, burnKindBalanceUSD)
-	if probedOK && usage.BalanceUSD != nil {
+	if probedOK && usage.BalanceUSD != nil && !usage.BalanceUnlimited {
 		sampleT := now
 		if usage.BalanceUpdatedAt != nil {
 			sampleT = usage.BalanceUpdatedAt.UTC()
@@ -662,7 +665,7 @@ func (s *AccountUsageService) getAPIKeyBalanceUsage(ctx context.Context, account
 		}
 		account.Extra[extraKeyBurnSamples] = serialized
 	}
-	if usage.BalanceUSD != nil || len(samples) > 0 {
+	if !usage.BalanceUnlimited && (usage.BalanceUSD != nil || len(samples) > 0) {
 		ApplyBurnRateToUsage(usage, ComputeBurnRate(samples, now, burnRateMinSpan), "usd")
 	}
 
@@ -691,6 +694,8 @@ func shouldRefreshUpstreamBalance(account *Account, now time.Time) bool {
 	return now.Sub(ts) >= 6*time.Minute
 }
 
+const extraKeyUpstreamBalanceUnlimited = "upstream_balance_unlimited"
+
 func hydrateBalanceFromExtra(account *Account, usage *UsageInfo) {
 	if account == nil || account.Extra == nil || usage == nil {
 		return
@@ -712,11 +717,19 @@ func hydrateBalanceFromExtra(account *Account, usage *UsageInfo) {
 	if errStr, ok := account.Extra[extraKeyUpstreamBalanceErr].(string); ok && errStr != "" {
 		usage.BalanceError = errStr
 	}
+	if v, ok := account.Extra[extraKeyUpstreamBalanceUnlimited]; ok {
+		switch t := v.(type) {
+		case bool:
+			usage.BalanceUnlimited = t
+		case string:
+			usage.BalanceUnlimited = t == "true" || t == "1"
+		}
+	}
 }
 
 func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now time.Time) map[string]any {
 	updates := map[string]any{}
-	if probe.Error != "" && probe.Source == "" {
+	if probe.Error != "" && probe.Source == "" && !probe.Unlimited {
 		updates[extraKeyUpstreamBalanceErr] = probe.Error
 		// Keep previous balance; only stamp error.
 		return updates
@@ -725,6 +738,7 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 	updates[extraKeyUpstreamBalanceAt] = now.Format(time.RFC3339)
 	updates[extraKeyUpstreamBalanceSrc] = probe.Source
 	updates[extraKeyUpstreamBalanceErr] = ""
+	updates[extraKeyUpstreamBalanceUnlimited] = probe.Unlimited
 	if account != nil {
 		if account.Extra == nil {
 			account.Extra = map[string]any{}
@@ -733,6 +747,7 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 		account.Extra[extraKeyUpstreamBalanceAt] = now.Format(time.RFC3339)
 		account.Extra[extraKeyUpstreamBalanceSrc] = probe.Source
 		account.Extra[extraKeyUpstreamBalanceErr] = ""
+		account.Extra[extraKeyUpstreamBalanceUnlimited] = probe.Unlimited
 	}
 	return updates
 }
@@ -741,12 +756,13 @@ func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
 	if usage == nil {
 		return
 	}
-	if probe.Source != "" || probe.Error == "" {
+	if probe.Source != "" || probe.Unlimited || probe.Error == "" {
 		bal := probe.BalanceUSD
 		usage.BalanceUSD = &bal
 		t := probe.FetchedAt
 		usage.BalanceUpdatedAt = &t
 		usage.BalanceSource = probe.Source
+		usage.BalanceUnlimited = probe.Unlimited
 		usage.BalanceError = ""
 		return
 	}

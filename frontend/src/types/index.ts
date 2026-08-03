@@ -1243,6 +1243,8 @@ export interface AccountUsageInfo {
   balance_updated_at?: string | null
   balance_source?: string
   balance_error?: string
+  /** New API unlimited_quota tokens */
+  balance_unlimited?: boolean
 
   /** Burn-rate / remaining-time prediction. */
   burn_rate_per_hour?: number | null

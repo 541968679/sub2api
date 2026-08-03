@@ -15,8 +15,9 @@ import (
 func TestProbeUpstreamBalance_CreditGrants(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Third-party hosts try /v1/usage first; force fallthrough to credit_grants.
-		if r.URL.Path == "/v1/usage" {
+		// Third-party hosts try /v1/usage and new-api first; force fallthrough to credit_grants.
+		switch r.URL.Path {
+		case "/v1/usage", "/api/usage/token", "/api/usage/token/", "/api/status":
 			http.Error(w, "no", http.StatusNotFound)
 			return
 		}
@@ -47,8 +48,9 @@ func TestProbeUpstreamBalance_CreditGrants(t *testing.T) {
 func TestProbeUpstreamBalance_AnthropicAuthHeader(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Prefer path that reaches credit_grants after /v1/usage miss.
-		if r.URL.Path == "/v1/usage" {
+		// Prefer path that reaches credit_grants after earlier probes miss.
+		switch r.URL.Path {
+		case "/v1/usage", "/api/usage/token", "/api/usage/token/", "/api/status":
 			http.Error(w, "no", http.StatusNotFound)
 			return
 		}
@@ -75,7 +77,7 @@ func TestProbeUpstreamBalance_SubscriptionFallback(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v1/usage":
+		case "/v1/usage", "/api/usage/token", "/api/usage/token/", "/api/status":
 			http.Error(w, "no", http.StatusNotFound)
 		case "/v1/dashboard/billing/credit_grants":
 			http.Error(w, "no", http.StatusForbidden)
@@ -156,4 +158,98 @@ func TestIsOfficialOpenAIOrAnthropicHost(t *testing.T) {
 	require.True(t, isOfficialOpenAIOrAnthropicHost("https://api.openai.com"))
 	require.True(t, isOfficialOpenAIOrAnthropicHost("https://api.anthropic.com/v1"))
 	require.False(t, isOfficialOpenAIOrAnthropicHost("https://zerocode.kaynlab.com"))
+}
+
+func TestProbeUpstreamBalance_NewAPITokenUsage(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/usage":
+			http.Error(w, "404 page not found", http.StatusNotFound)
+		case "/api/usage/token", "/api/usage/token/":
+			require.Equal(t, "Bearer sk-tb", r.Header.Get("Authorization"))
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code":    true,
+				"message": "ok",
+				"data": map[string]any{
+					"object":           "token_usage",
+					"name":             "plus",
+					"total_granted":    1_000_000.0,
+					"total_used":       250_000.0,
+					"total_available":  750_000.0,
+					"unlimited_quota":  false,
+					"expires_at":       0,
+				},
+			})
+		case "/api/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"quota_per_unit": 500000.0},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	// base_url ends with /v1 like token-bits production accounts.
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-tb",
+			"base_url": srv.URL + "/v1",
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error, result.Error)
+	require.Equal(t, balanceSourceNewAPITokenUsage, result.Source)
+	require.False(t, result.Unlimited)
+	// 750000 / 500000 = $1.50
+	require.InDelta(t, 1.5, result.BalanceUSD, 0.001)
+}
+
+func TestProbeUpstreamBalance_NewAPIUnlimited(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/usage":
+			http.Error(w, "no", http.StatusNotFound)
+		case "/api/usage/token":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": true,
+				"data": map[string]any{
+					"total_available": -122.0,
+					"unlimited_quota": true,
+					"object":          "token_usage",
+				},
+			})
+		case "/api/status":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": map[string]any{"quota_per_unit": 500000.0},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "sk-tb",
+			"base_url": srv.URL + "/v1",
+		},
+	}
+	result := ProbeUpstreamBalance(context.Background(), account)
+	require.Empty(t, result.Error)
+	require.True(t, result.Unlimited)
+	require.Equal(t, 0.0, result.BalanceUSD)
+}
+
+func TestOriginFromBaseURL(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "https://api.token-bits.com", originFromBaseURL("https://api.token-bits.com/v1"))
+	require.Equal(t, "https://api.token-bits.com", originFromBaseURL("https://api.token-bits.com/v1/"))
+	require.Equal(t, "https://api.token-bits.com", originFromBaseURL("https://api.token-bits.com"))
 }

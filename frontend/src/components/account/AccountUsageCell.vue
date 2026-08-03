@@ -576,7 +576,14 @@
       </div>
       <div v-else class="space-y-1">
         <div
-          v-if="usageInfo?.balance_usd != null"
+          v-if="usageInfo?.balance_unlimited"
+          class="text-sm font-semibold text-emerald-700 dark:text-emerald-300"
+          :title="balanceTitle"
+        >
+          {{ t('admin.accounts.usageWindow.balanceUnlimited') }}
+        </div>
+        <div
+          v-else-if="usageInfo?.balance_usd != null"
           class="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-50"
           :title="balanceTitle"
         >
@@ -597,14 +604,14 @@
         </div>
 
         <div
-          v-if="burnRateLine"
+          v-if="!usageInfo?.balance_unlimited && burnRateLine"
           class="text-[11px] font-medium text-sky-700 dark:text-sky-300"
           :title="t('admin.accounts.usageWindow.burnRateHint')"
         >
           {{ burnRateLine }}
         </div>
         <div
-          v-else-if="usageInfo?.burn_insufficient"
+          v-else-if="!usageInfo?.balance_unlimited && usageInfo?.burn_insufficient"
           class="text-[9px] text-gray-400 dark:text-gray-500"
         >
           {{ t('admin.accounts.usageWindow.burnInsufficient') }}

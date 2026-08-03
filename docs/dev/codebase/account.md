@@ -147,14 +147,16 @@ account `base_url` (not Console session cookies):
 GET /admin/accounts/:id/usage
   -> getAPIKeyBalanceUsage
   -> ProbeUpstreamBalance (third-party host order)
-       1) {base}/v1/usage → balance|remaining (Sub2API / ZeroCode stack)
-       2) {base}/v1/dashboard/billing/credit_grants → total_available
-       3) subscription + usage → hard_limit_usd - total_usage/100
+       1) {base}/v1/usage → balance|remaining (Sub2API / ZeroCode)
+       2) {origin}/api/usage/token → New API token_usage (token-bits / one-api)
+            total_available / quota_per_unit → USD; unlimited_quota → balance_unlimited
+       3) {base}/v1/dashboard/billing/credit_grants → total_available
+       4) subscription + usage → hard_limit_usd - total_usage/100
   -> burn_samples ring in account.extra + ComputeBurnRate
 ```
 
-Official `api.openai.com` / `api.anthropic.com` skip step 1 first (try OpenAI-shape
-billing first). ZeroCode and other Sub2API deployments only implement step 1.
+`origin` strips trailing `/v1` from account `base_url` so New API routes are not nested under `/v1`.
+Official `api.openai.com` / `api.anthropic.com` try OpenAI-shape billing first.
 
 Auth: OpenAI Bearer; Anthropic uses existing `x-api-key` / Bearer scheme.
 Kill-switch: `SUB2API_UPSTREAM_BALANCE_PROBE=0|false|off`.
