@@ -3086,6 +3086,30 @@ const zhBase = {
       }
     },
 
+    banNotifications: {
+      title: '风控封禁通知',
+      unread: '条未读封禁消息',
+      noUnread: '暂无未读封禁消息',
+      unreadBadge: '未读',
+      markAllRead: '全部已读',
+      markAllReadSuccess: '已全部标为已读',
+      markRead: '标为已读',
+      clearAll: '清空全部',
+      clearAllConfirm: '确定清空全部封禁消息？此操作会删除所有管理员看到的这些消息，不会解封用户，也不会删除风控日志。',
+      clearOne: '删除',
+      clearSuccess: '消息已清空',
+      quickUnban: '快捷解封',
+      unbanConfirm: '确定解封用户 {email}？',
+      empty: '暂无封禁消息',
+      emptyHint: '风控自动封禁用户后会显示在这里',
+      openRiskControl: '前往风控中心',
+      summary: '自动封禁 · {category} · {count}/{threshold} 次',
+      statusDisabled: '已禁用',
+      statusActive: '已恢复',
+      statusUnknown: '未知',
+      actionFailed: '操作失败，请重试'
+    },
+
     riskControl: {
       title: '风控中心',
       description: '配置内容审计策略并查看审核记录',

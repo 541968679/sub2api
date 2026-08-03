@@ -21,8 +21,11 @@
         </div>
       </div>
 
-      <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
+      <!-- Right: Ban notifications (admin) + Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
       <div class="flex items-center gap-3">
+        <!-- Risk-control auto-ban notifications (admin only) -->
+        <BanNotificationBell v-if="user && authStore.isAdmin" />
+
         <!-- Announcement Bell -->
         <AnnouncementBell v-if="user" />
 
@@ -221,6 +224,7 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
+import BanNotificationBell from '@/components/common/BanNotificationBell.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 

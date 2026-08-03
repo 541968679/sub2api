@@ -1,3 +1,36 @@
+## 2026-08-03 - feat(admin): risk-control auto-ban notification inbox
+
+### What
+- When content-moderation auto-ban newly disables a user, create an admin inbox event.
+- Admin header shows a shield badge with unread count; panel supports mark read, clear (global for all admins), and quick unban.
+- Read state is per admin; clear/delete removes the message for every admin without touching audit logs or ban status.
+
+### Why
+Admins previously only discovered auto-bans by manually opening risk-control logs; users already received ban emails.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestContentModerationAutoBan`
+- `go build ./internal/server`
+
+### Affected files
+`backend/migrations/195_admin_risk_ban_notifications.sql`, `backend/internal/service/content_moderation.go`, `backend/internal/repository/content_moderation_repo.go`, `backend/internal/handler/admin/content_moderation_handler.go`, `backend/internal/server/routes/admin.go`, `frontend/src/api/admin/riskControl.ts`, `frontend/src/stores/banNotifications.ts`, `frontend/src/components/common/BanNotificationBell.vue`, `frontend/src/components/layout/AppHeader.vue`, `frontend/src/App.vue`, i18n zh/en, `docs/dev/codebase/risk-control.md`, this changelog.
+
+## 2026-08-03 - docs: pin large upstream-sync baseline to v0.1.152
+
+### What
+- Record fork release **0.1.195** as mapping to large-sync upstream **`v0.1.152` / `b73d8c3ef`** (2026-07-14 graded batch), not to later hotfixes.
+- Demote 2026-07-27 item-ID sanitization to hotfix-only (does not raise content ceiling).
+- Add machine-readable pin `docs/dev/UPSTREAM_BASE.json` and refresh「当前状态」so pending eval window is `b73d8c3ef..upstream/main`.
+
+### Why
+Selective small-feature cherry-picks were being mistaken for the sync baseline; version numbers (fork 0.1.195 vs upstream 0.1.170) had no explicit mapping.
+
+### Verification
+- Document-only; cross-checked against `docs/dev/UPSTREAM_SYNC.md` batch entries, `b73d8c3ef`, and current `upstream/main` tip.
+
+### Affected files
+`docs/dev/UPSTREAM_SYNC.md`, `docs/dev/UPSTREAM_BASE.json`, this changelog.
+
 ## 2026-08-03 - deploy: production v0.1.195
 
 ### What

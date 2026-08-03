@@ -77,14 +77,21 @@ func (r *contentModerationTestSettingRepo) Delete(ctx context.Context, key strin
 }
 
 type contentModerationTestRepo struct {
-	mu   sync.Mutex
-	logs []ContentModerationLog
+	mu              sync.Mutex
+	logs            []ContentModerationLog
+	banNotifications []AdminRiskBanNotification
+	nextLogID       int64
+	nextBanID       int64
 }
 
 func (r *contentModerationTestRepo) CreateLog(ctx context.Context, log *ContentModerationLog) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if log != nil {
+		if log.ID == 0 {
+			r.nextLogID++
+			log.ID = r.nextLogID
+		}
 		r.logs = append(r.logs, *log)
 	}
 	return nil
@@ -119,6 +126,50 @@ func (r *contentModerationTestRepo) CleanupExpiredLogs(ctx context.Context, hitB
 
 func (r *contentModerationTestRepo) UpdateLogEmailSent(ctx context.Context, id int64, sent bool) error {
 	return nil
+}
+
+func (r *contentModerationTestRepo) CreateBanNotification(ctx context.Context, n *AdminRiskBanNotification) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if n == nil {
+		return nil
+	}
+	r.nextBanID++
+	n.ID = r.nextBanID
+	n.CreatedAt = time.Now()
+	r.banNotifications = append(r.banNotifications, *n)
+	return nil
+}
+
+func (r *contentModerationTestRepo) ListBanNotifications(ctx context.Context, adminUserID int64, page, pageSize int) ([]AdminRiskBanNotification, int64, *pagination.PaginationResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	items := make([]AdminRiskBanNotification, len(r.banNotifications))
+	copy(items, r.banNotifications)
+	return items, int64(len(items)), &pagination.PaginationResult{Total: int64(len(items)), Page: 1, PageSize: pageSize, Pages: 1}, nil
+}
+
+func (r *contentModerationTestRepo) MarkBanNotificationsRead(ctx context.Context, adminUserID int64, ids []int64, all bool) (int64, error) {
+	return 0, nil
+}
+
+func (r *contentModerationTestRepo) DeleteBanNotifications(ctx context.Context, ids []int64, all bool) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if all {
+		n := int64(len(r.banNotifications))
+		r.banNotifications = nil
+		return n, nil
+	}
+	return 0, nil
+}
+
+func (r *contentModerationTestRepo) snapshotBanNotifications() []AdminRiskBanNotification {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]AdminRiskBanNotification, len(r.banNotifications))
+	copy(out, r.banNotifications)
+	return out
 }
 
 func (r *contentModerationTestRepo) snapshotLogs() []ContentModerationLog {
@@ -1517,11 +1568,13 @@ func TestContentModerationAutoBanDisablesRegularUserAtThreshold(t *testing.T) {
 	userID := int64(1001)
 	repo := &contentModerationTestRepo{}
 	require.NoError(t, repo.CreateLog(context.Background(), newContentModerationFlaggedLog(userID)))
-	userRepo := &contentModerationTestUserRepo{user: &User{ID: userID, Role: RoleUser, Status: StatusActive}}
+	userRepo := &contentModerationTestUserRepo{user: &User{ID: userID, Role: RoleUser, Status: StatusActive, Email: "banned@example.com"}}
 	invalidator := &contentModerationTestAuthCacheInvalidator{}
 	svc := NewContentModerationService(nil, repo, nil, nil, userRepo, invalidator, nil)
 
-	svc.persistContentModerationLog(context.Background(), cfg, newContentModerationFlaggedLog(userID), "", false, true)
+	flagged := newContentModerationFlaggedLog(userID)
+	flagged.UserEmail = "banned@example.com"
+	svc.persistContentModerationLog(context.Background(), cfg, flagged, "", false, true)
 
 	logs := requireContentModerationLogCount(t, repo, 2)
 	require.Equal(t, 2, logs[1].ViolationCount)
@@ -1529,6 +1582,32 @@ func TestContentModerationAutoBanDisablesRegularUserAtThreshold(t *testing.T) {
 	require.Len(t, userRepo.updated, 1)
 	require.Equal(t, StatusDisabled, userRepo.user.Status)
 	require.Equal(t, []int64{userID}, invalidator.userIDs)
+
+	bans := repo.snapshotBanNotifications()
+	require.Len(t, bans, 1)
+	require.Equal(t, userID, bans[0].UserID)
+	require.Equal(t, "banned@example.com", bans[0].UserEmail)
+	require.Equal(t, 2, bans[0].ViolationCount)
+	require.Equal(t, cfg.BanThreshold, bans[0].BanThreshold)
+	require.NotNil(t, bans[0].ModerationLogID)
+}
+
+func TestContentModerationAutoBanDoesNotNotifyWhenAlreadyDisabled(t *testing.T) {
+	cfg := defaultContentModerationConfig()
+	cfg.BanThreshold = 1
+	cfg.ViolationWindowHours = 24
+
+	userID := int64(1002)
+	repo := &contentModerationTestRepo{}
+	userRepo := &contentModerationTestUserRepo{user: &User{ID: userID, Role: RoleUser, Status: StatusDisabled}}
+	svc := NewContentModerationService(nil, repo, nil, nil, userRepo, nil, nil)
+
+	svc.persistContentModerationLog(context.Background(), cfg, newContentModerationFlaggedLog(userID), "", false, true)
+
+	logs := requireContentModerationLogCount(t, repo, 1)
+	require.True(t, logs[0].AutoBanned)
+	require.Empty(t, userRepo.updated)
+	require.Empty(t, repo.snapshotBanNotifications())
 }
 
 func TestContentModerationAdminBelowBanThresholdRecordsViolationOnly(t *testing.T) {

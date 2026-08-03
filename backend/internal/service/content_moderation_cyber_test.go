@@ -48,6 +48,22 @@ func (r *cyberOrderingTestRepo) CleanupExpiredLogs(ctx context.Context, hitBefor
 	return &ContentModerationCleanupResult{}, nil
 }
 
+func (r *cyberOrderingTestRepo) CreateBanNotification(ctx context.Context, n *AdminRiskBanNotification) error {
+	return nil
+}
+
+func (r *cyberOrderingTestRepo) ListBanNotifications(ctx context.Context, adminUserID int64, page, pageSize int) ([]AdminRiskBanNotification, int64, *pagination.PaginationResult, error) {
+	return nil, 0, &pagination.PaginationResult{}, nil
+}
+
+func (r *cyberOrderingTestRepo) MarkBanNotificationsRead(ctx context.Context, adminUserID int64, ids []int64, all bool) (int64, error) {
+	return 0, nil
+}
+
+func (r *cyberOrderingTestRepo) DeleteBanNotifications(ctx context.Context, ids []int64, all bool) (int64, error) {
+	return 0, nil
+}
+
 func (r *cyberOrderingTestRepo) snapshot() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()

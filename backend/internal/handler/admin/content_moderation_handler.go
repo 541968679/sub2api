@@ -7,6 +7,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -207,6 +208,61 @@ func (h *ContentModerationHandler) UnbanUser(c *gin.Context) {
 		return
 	}
 	result, err := h.service.UnbanUser(c.Request.Context(), userID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+type banNotificationIDsRequest struct {
+	IDs []int64 `json:"ids"`
+	All bool    `json:"all"`
+}
+
+func (h *ContentModerationHandler) ListBanNotifications(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	result, err := h.service.ListBanNotifications(c.Request.Context(), subject.UserID, page, pageSize)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *ContentModerationHandler) MarkBanNotificationsRead(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Unauthorized(c, "User not found in context")
+		return
+	}
+	var req banNotificationIDsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result, err := h.service.MarkBanNotificationsRead(c.Request.Context(), subject.UserID, req.IDs, req.All)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *ContentModerationHandler) ClearBanNotifications(c *gin.Context) {
+	var req banNotificationIDsRequest
+	// empty body with all=true is allowed; tolerate empty JSON
+	_ = c.ShouldBindJSON(&req)
+	if !req.All && len(req.IDs) == 0 {
+		// default: clear all when no ids provided (global empty inbox)
+		req.All = true
+	}
+	result, err := h.service.DeleteBanNotifications(c.Request.Context(), req.IDs, req.All)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

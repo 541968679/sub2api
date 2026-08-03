@@ -5,7 +5,7 @@ import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
-import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminSettingsStore } from '@/stores'
+import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useBanNotificationStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
 
 const router = useRouter()
@@ -14,6 +14,7 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
+const banNotificationStore = useBanNotificationStore()
 const adminSettingsStore = useAdminSettingsStore()
 
 function updateDocumentTitle() {
@@ -69,6 +70,17 @@ watch(
 function onVisibilityChange() {
   if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
     announcementStore.fetchAnnouncements()
+    if (authStore.isAdmin) {
+      banNotificationStore.fetchNotifications(true)
+    }
+  }
+}
+
+function startAdminBanPolling() {
+  if (authStore.isAdmin) {
+    banNotificationStore.startPolling()
+  } else {
+    banNotificationStore.reset()
   }
 }
 
@@ -91,16 +103,28 @@ watch(
         announcementStore.fetchAnnouncements()
       }
 
+      startAdminBanPolling()
+
       // Register visibility change listener
       document.addEventListener('visibilitychange', onVisibilityChange)
     } else {
       // User logged out: clear data and stop polling
       subscriptionStore.clear()
       announcementStore.reset()
+      banNotificationStore.reset()
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => authStore.isAdmin,
+  () => {
+    if (authStore.isAuthenticated) {
+      startAdminBanPolling()
+    }
+  }
 )
 
 // Route change trigger (throttled by store)
@@ -112,6 +136,7 @@ router.afterEach(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  banNotificationStore.stopPolling()
 })
 
 onMounted(async () => {

@@ -3194,6 +3194,30 @@ const enBase = {
       }
     },
 
+    banNotifications: {
+      title: 'Risk Ban Alerts',
+      unread: 'unread ban alerts',
+      noUnread: 'No unread ban alerts',
+      unreadBadge: 'Unread',
+      markAllRead: 'Mark all read',
+      markAllReadSuccess: 'All alerts marked as read',
+      markRead: 'Mark read',
+      clearAll: 'Clear all',
+      clearAllConfirm: 'Clear all ban alerts? This deletes them for every admin. It does not unban users or remove risk-control audit logs.',
+      clearOne: 'Delete',
+      clearSuccess: 'Alerts cleared',
+      quickUnban: 'Quick unban',
+      unbanConfirm: 'Unban user {email}?',
+      empty: 'No ban alerts',
+      emptyHint: 'Auto-ban events from risk control will appear here',
+      openRiskControl: 'Open Risk Control',
+      summary: 'Auto-banned · {category} · {count}/{threshold} hits',
+      statusDisabled: 'Disabled',
+      statusActive: 'Active',
+      statusUnknown: 'Unknown',
+      actionFailed: 'Action failed, please retry'
+    },
+
     riskControl: {
       title: 'Risk Control',
       description: 'Configure content moderation and review audit records',

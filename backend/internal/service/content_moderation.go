@@ -466,6 +466,37 @@ type ContentModerationClearHashesResult struct {
 	Deleted int64 `json:"deleted"`
 }
 
+// AdminRiskBanNotification is a global admin-facing auto-ban event.
+type AdminRiskBanNotification struct {
+	ID              int64     `json:"id"`
+	UserID          int64     `json:"user_id"`
+	UserEmail       string    `json:"user_email"`
+	ModerationLogID *int64    `json:"moderation_log_id,omitempty"`
+	HighestCategory string    `json:"highest_category"`
+	HighestScore    float64   `json:"highest_score"`
+	ViolationCount  int       `json:"violation_count"`
+	BanThreshold    int       `json:"ban_threshold"`
+	GroupName       string    `json:"group_name"`
+	Model           string    `json:"model"`
+	CreatedAt       time.Time `json:"created_at"`
+	// View fields (per admin / current user state)
+	Read       bool   `json:"read"`
+	UserStatus string `json:"user_status"`
+}
+
+type AdminRiskBanNotificationListResult struct {
+	UnreadCount int                        `json:"unread_count"`
+	Items       []AdminRiskBanNotification `json:"items"`
+	Total       int64                      `json:"total"`
+	Page        int                        `json:"page"`
+	PageSize    int                        `json:"page_size"`
+	Pages       int                        `json:"pages"`
+}
+
+type AdminRiskBanNotificationActionResult struct {
+	Affected int64 `json:"affected"`
+}
+
 type ContentModerationRepository interface {
 	CreateLog(ctx context.Context, log *ContentModerationLog) error
 	ListLogs(ctx context.Context, filter ContentModerationLogFilter) ([]ContentModerationLog, *pagination.PaginationResult, error)
@@ -475,6 +506,12 @@ type ContentModerationRepository interface {
 	CleanupExpiredLogs(ctx context.Context, hitBefore time.Time, nonHitBefore time.Time) (*ContentModerationCleanupResult, error)
 	// UpdateLogEmailSent 回写邮件发送结果（F7：CreateLog 先行后补 EmailSent）。
 	UpdateLogEmailSent(ctx context.Context, id int64, sent bool) error
+
+	// Admin ban notification inbox (global events + per-admin reads).
+	CreateBanNotification(ctx context.Context, n *AdminRiskBanNotification) error
+	ListBanNotifications(ctx context.Context, adminUserID int64, page, pageSize int) ([]AdminRiskBanNotification, int64, *pagination.PaginationResult, error)
+	MarkBanNotificationsRead(ctx context.Context, adminUserID int64, ids []int64, all bool) (int64, error)
+	DeleteBanNotifications(ctx context.Context, ids []int64, all bool) (int64, error)
 }
 
 type ContentModerationHashCache interface {
@@ -1291,6 +1328,128 @@ func (s *ContentModerationService) UnbanUser(ctx context.Context, userID int64) 
 	}, nil
 }
 
+func (s *ContentModerationService) createAdminBanNotification(ctx context.Context, cfg *ContentModerationConfig, log *ContentModerationLog) {
+	if s == nil || s.repo == nil || log == nil || log.UserID == nil || *log.UserID <= 0 {
+		return
+	}
+	threshold := 0
+	if cfg != nil {
+		threshold = cfg.BanThreshold
+	}
+	var logID *int64
+	if log.ID > 0 {
+		id := log.ID
+		logID = &id
+	}
+	n := &AdminRiskBanNotification{
+		UserID:          *log.UserID,
+		UserEmail:       strings.TrimSpace(log.UserEmail),
+		ModerationLogID: logID,
+		HighestCategory: log.HighestCategory,
+		HighestScore:    log.HighestScore,
+		ViolationCount:  log.ViolationCount,
+		BanThreshold:    threshold,
+		GroupName:       log.GroupName,
+		Model:           log.Model,
+	}
+	if err := s.repo.CreateBanNotification(ctx, n); err != nil {
+		slog.Warn("content_moderation.create_ban_notification_failed",
+			"user_id", *log.UserID,
+			"moderation_log_id", log.ID,
+			"error", err)
+	}
+}
+
+func (s *ContentModerationService) ListBanNotifications(ctx context.Context, adminUserID int64, page, pageSize int) (*AdminRiskBanNotificationListResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_REPOSITORY_UNAVAILABLE", "内容审计仓储不可用")
+	}
+	if adminUserID <= 0 {
+		return nil, infraerrors.Unauthorized("UNAUTHORIZED", "未授权")
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	items, unread, pageResult, err := s.repo.ListBanNotifications(ctx, adminUserID, page, pageSize)
+	if err != nil {
+		return nil, fmt.Errorf("list ban notifications: %w", err)
+	}
+	if items == nil {
+		items = []AdminRiskBanNotification{}
+	}
+	return &AdminRiskBanNotificationListResult{
+		UnreadCount: int(unread),
+		Items:       items,
+		Total:       pageResult.Total,
+		Page:        pageResult.Page,
+		PageSize:    pageResult.PageSize,
+		Pages:       pageResult.Pages,
+	}, nil
+}
+
+func (s *ContentModerationService) MarkBanNotificationsRead(ctx context.Context, adminUserID int64, ids []int64, all bool) (*AdminRiskBanNotificationActionResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_REPOSITORY_UNAVAILABLE", "内容审计仓储不可用")
+	}
+	if adminUserID <= 0 {
+		return nil, infraerrors.Unauthorized("UNAUTHORIZED", "未授权")
+	}
+	if !all {
+		ids = normalizePositiveIDs(ids)
+		if len(ids) == 0 {
+			return nil, infraerrors.BadRequest("INVALID_NOTIFICATION_IDS", "通知 ID 无效")
+		}
+	}
+	affected, err := s.repo.MarkBanNotificationsRead(ctx, adminUserID, ids, all)
+	if err != nil {
+		return nil, fmt.Errorf("mark ban notifications read: %w", err)
+	}
+	return &AdminRiskBanNotificationActionResult{Affected: affected}, nil
+}
+
+// DeleteBanNotifications globally deletes notification events (all admins).
+func (s *ContentModerationService) DeleteBanNotifications(ctx context.Context, ids []int64, all bool) (*AdminRiskBanNotificationActionResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_REPOSITORY_UNAVAILABLE", "内容审计仓储不可用")
+	}
+	if !all {
+		ids = normalizePositiveIDs(ids)
+		if len(ids) == 0 {
+			return nil, infraerrors.BadRequest("INVALID_NOTIFICATION_IDS", "通知 ID 无效")
+		}
+	}
+	affected, err := s.repo.DeleteBanNotifications(ctx, ids, all)
+	if err != nil {
+		return nil, fmt.Errorf("delete ban notifications: %w", err)
+	}
+	return &AdminRiskBanNotificationActionResult{Affected: affected}, nil
+}
+
+func normalizePositiveIDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 func (s *ContentModerationService) DeleteFlaggedInputHash(ctx context.Context, inputHash string) (*ContentModerationDeleteHashResult, error) {
 	inputHash = normalizeContentModerationHash(inputHash)
 	if inputHash == "" {
@@ -1648,8 +1807,12 @@ func (s *ContentModerationService) persistContentModerationLog(ctx context.Conte
 	if s.repo != nil {
 		if err := s.repo.CreateLog(ctx, log); err != nil {
 			slog.Warn("content_moderation.create_log_failed", "user_id", contentModerationEmailUserID(log), "endpoint", log.Endpoint, "action", log.Action, "error", err)
-			return
+			// Continue: auto-ban may already have applied; still attempt admin inbox notify.
 		}
+	}
+	// Admin inbox: only when auto-ban newly disabled the user (not re-hits while already banned).
+	if autoBanJustApplied {
+		s.createAdminBanNotification(ctx, cfg, log)
 	}
 }
 

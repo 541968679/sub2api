@@ -240,6 +240,185 @@ WHERE flagged = FALSE AND created_at < $1
 	return result, nil
 }
 
+func (r *contentModerationRepository) CreateBanNotification(ctx context.Context, n *service.AdminRiskBanNotification) error {
+	if n == nil {
+		return nil
+	}
+	var logID any
+	if n.ModerationLogID != nil && *n.ModerationLogID > 0 {
+		logID = *n.ModerationLogID
+	}
+	err := r.db.QueryRowContext(ctx, `
+INSERT INTO admin_risk_ban_notifications (
+    user_id, user_email, moderation_log_id, highest_category, highest_score,
+    violation_count, ban_threshold, group_name, model
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, created_at`,
+		n.UserID, n.UserEmail, logID, n.HighestCategory, n.HighestScore,
+		n.ViolationCount, n.BanThreshold, n.GroupName, n.Model,
+	).Scan(&n.ID, &n.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("insert admin risk ban notification: %w", err)
+	}
+	return nil
+}
+
+func (r *contentModerationRepository) ListBanNotifications(ctx context.Context, adminUserID int64, page, pageSize int) ([]service.AdminRiskBanNotification, int64, *pagination.PaginationResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM admin_risk_ban_notifications`).Scan(&total); err != nil {
+		return nil, 0, nil, fmt.Errorf("count admin risk ban notifications: %w", err)
+	}
+
+	var unread int64
+	if err := r.db.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM admin_risk_ban_notifications n
+LEFT JOIN admin_risk_ban_notification_reads r
+  ON r.notification_id = n.id AND r.admin_user_id = $1
+WHERE r.notification_id IS NULL`, adminUserID).Scan(&unread); err != nil {
+		return nil, 0, nil, fmt.Errorf("count unread admin risk ban notifications: %w", err)
+	}
+
+	offset := (page - 1) * pageSize
+	rows, err := r.db.QueryContext(ctx, `
+SELECT
+    n.id, n.user_id, n.user_email, n.moderation_log_id, n.highest_category, n.highest_score,
+    n.violation_count, n.ban_threshold, n.group_name, n.model, n.created_at,
+    (r.read_at IS NOT NULL) AS is_read,
+    COALESCE(u.status, '')
+FROM admin_risk_ban_notifications n
+LEFT JOIN admin_risk_ban_notification_reads r
+  ON r.notification_id = n.id AND r.admin_user_id = $1
+LEFT JOIN users u ON u.id = n.user_id
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT $2 OFFSET $3`, adminUserID, pageSize, offset)
+	if err != nil {
+		return nil, 0, nil, fmt.Errorf("list admin risk ban notifications: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	items := make([]service.AdminRiskBanNotification, 0)
+	for rows.Next() {
+		var item service.AdminRiskBanNotification
+		var logID sql.NullInt64
+		if err := rows.Scan(
+			&item.ID,
+			&item.UserID,
+			&item.UserEmail,
+			&logID,
+			&item.HighestCategory,
+			&item.HighestScore,
+			&item.ViolationCount,
+			&item.BanThreshold,
+			&item.GroupName,
+			&item.Model,
+			&item.CreatedAt,
+			&item.Read,
+			&item.UserStatus,
+		); err != nil {
+			return nil, 0, nil, fmt.Errorf("scan admin risk ban notification: %w", err)
+		}
+		if logID.Valid {
+			v := logID.Int64
+			item.ModerationLogID = &v
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, nil, fmt.Errorf("iterate admin risk ban notifications: %w", err)
+	}
+
+	pages := int(total) / pageSize
+	if int(total)%pageSize != 0 {
+		pages++
+	}
+	return items, unread, &pagination.PaginationResult{
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+		Pages:    pages,
+	}, nil
+}
+
+func (r *contentModerationRepository) MarkBanNotificationsRead(ctx context.Context, adminUserID int64, ids []int64, all bool) (int64, error) {
+	if adminUserID <= 0 {
+		return 0, nil
+	}
+	if all {
+		res, err := r.db.ExecContext(ctx, `
+INSERT INTO admin_risk_ban_notification_reads (admin_user_id, notification_id, read_at)
+SELECT $1, n.id, NOW()
+FROM admin_risk_ban_notifications n
+ON CONFLICT (admin_user_id, notification_id) DO UPDATE
+SET read_at = EXCLUDED.read_at`, adminUserID)
+		if err != nil {
+			return 0, fmt.Errorf("mark all ban notifications read: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		return n, nil
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids)+1)
+	args = append(args, adminUserID)
+	for i, id := range ids {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+2))
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(`
+INSERT INTO admin_risk_ban_notification_reads (admin_user_id, notification_id, read_at)
+SELECT $1, n.id, NOW()
+FROM admin_risk_ban_notifications n
+WHERE n.id IN (%s)
+ON CONFLICT (admin_user_id, notification_id) DO UPDATE
+SET read_at = EXCLUDED.read_at`, strings.Join(placeholders, ","))
+	res, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("mark ban notifications read: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+func (r *contentModerationRepository) DeleteBanNotifications(ctx context.Context, ids []int64, all bool) (int64, error) {
+	if all {
+		res, err := r.db.ExecContext(ctx, `DELETE FROM admin_risk_ban_notifications`)
+		if err != nil {
+			return 0, fmt.Errorf("delete all ban notifications: %w", err)
+		}
+		n, _ := res.RowsAffected()
+		return n, nil
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, 0, len(ids))
+	args := make([]any, 0, len(ids))
+	for i, id := range ids {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		args = append(args, id)
+	}
+	query := fmt.Sprintf(`DELETE FROM admin_risk_ban_notifications WHERE id IN (%s)`, strings.Join(placeholders, ","))
+	res, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("delete ban notifications: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 func nullableIntPtr(value *int) any {
 	if value == nil {
 		return nil

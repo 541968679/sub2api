@@ -150,6 +150,10 @@ func registerContentModerationRoutes(admin *gin.RouterGroup, h *handler.Handlers
 		risk.POST("/users/:user_id/unban", h.Admin.ContentModeration.UnbanUser)
 		risk.DELETE("/hashes", h.Admin.ContentModeration.DeleteFlaggedHash)
 		risk.DELETE("/hashes/all", h.Admin.ContentModeration.ClearFlaggedHashes)
+		// Admin ban notification inbox (global events; read is per-admin; clear is global)
+		risk.GET("/ban-notifications", h.Admin.ContentModeration.ListBanNotifications)
+		risk.POST("/ban-notifications/read", h.Admin.ContentModeration.MarkBanNotificationsRead)
+		risk.POST("/ban-notifications/clear", h.Admin.ContentModeration.ClearBanNotifications)
 	}
 }
 

@@ -281,6 +281,68 @@ export async function clearFlaggedHashes(): Promise<ClearFlaggedHashesResponse> 
   return data
 }
 
+export interface AdminRiskBanNotification {
+  id: number
+  user_id: number
+  user_email: string
+  moderation_log_id?: number | null
+  highest_category: string
+  highest_score: number
+  violation_count: number
+  ban_threshold: number
+  group_name: string
+  model: string
+  created_at: string
+  read: boolean
+  user_status: string
+}
+
+export interface AdminRiskBanNotificationListResponse {
+  unread_count: number
+  items: AdminRiskBanNotification[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface AdminRiskBanNotificationActionResponse {
+  affected: number
+}
+
+export async function listBanNotifications(params: {
+  page?: number
+  page_size?: number
+} = {}): Promise<AdminRiskBanNotificationListResponse> {
+  const { data } = await apiClient.get<AdminRiskBanNotificationListResponse>(
+    '/admin/risk-control/ban-notifications',
+    { params }
+  )
+  return data
+}
+
+export async function markBanNotificationsRead(payload: {
+  ids?: number[]
+  all?: boolean
+}): Promise<AdminRiskBanNotificationActionResponse> {
+  const { data } = await apiClient.post<AdminRiskBanNotificationActionResponse>(
+    '/admin/risk-control/ban-notifications/read',
+    payload
+  )
+  return data
+}
+
+export async function clearBanNotifications(payload: {
+  ids?: number[]
+  all?: boolean
+} = { all: true }): Promise<AdminRiskBanNotificationActionResponse> {
+  const { data } = await apiClient.post<AdminRiskBanNotificationActionResponse>(
+    '/admin/risk-control/ban-notifications/clear',
+    payload
+  )
+  return data
+}
+
 export const riskControlAPI = {
   getConfig,
   updateConfig,
@@ -290,6 +352,9 @@ export const riskControlAPI = {
   unbanUser,
   deleteFlaggedHash,
   clearFlaggedHashes,
+  listBanNotifications,
+  markBanNotificationsRead,
+  clearBanNotifications,
 }
 
 export default riskControlAPI
