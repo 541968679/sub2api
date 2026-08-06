@@ -119,17 +119,66 @@
             <div class="flex items-center gap-2 md:contents">
               <!-- Refresh Button -->
               <button
-                @click="loadUsers"
-                :disabled="loading"
+                @click="handleManualRefresh"
+                :disabled="loading || autoRefreshFetching"
                 class="btn btn-secondary px-2 md:px-3"
                 :title="t('common.refresh')"
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
               </button>
+              <!-- Auto Refresh Dropdown -->
+              <div class="relative" ref="autoRefreshDropdownRef">
+                <button
+                  @click="
+                    showAutoRefreshDropdown = !showAutoRefreshDropdown;
+                    showFilterDropdown = false;
+                    showColumnDropdown = false
+                  "
+                  class="btn btn-secondary px-2 md:px-3"
+                  :title="t('admin.users.autoRefresh')"
+                >
+                  <Icon name="refresh" size="sm" :class="[autoRefreshEnabled ? 'animate-spin' : '']" />
+                  <span class="hidden md:inline">
+                    {{
+                      autoRefreshEnabled
+                        ? t('admin.users.autoRefreshCountdown', { seconds: autoRefreshCountdown })
+                        : t('admin.users.autoRefresh')
+                    }}
+                  </span>
+                </button>
+                <div
+                  v-if="showAutoRefreshDropdown"
+                  class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <div class="p-2">
+                    <button
+                      @click="setAutoRefreshEnabled(!autoRefreshEnabled)"
+                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      <span>{{ t('admin.users.enableAutoRefresh') }}</span>
+                      <Icon v-if="autoRefreshEnabled" name="check" size="sm" class="text-primary-500" />
+                    </button>
+                    <div class="my-1 border-t border-gray-100 dark:border-gray-700"></div>
+                    <button
+                      v-for="sec in autoRefreshIntervals"
+                      :key="sec"
+                      @click="setAutoRefreshInterval(sec)"
+                      class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                    >
+                      <span>{{ autoRefreshIntervalLabel(sec) }}</span>
+                      <Icon v-if="autoRefreshIntervalSeconds === sec" name="check" size="sm" class="text-primary-500" />
+                    </button>
+                  </div>
+                </div>
+              </div>
               <!-- Filter Settings Dropdown -->
               <div class="relative" ref="filterDropdownRef">
                 <button
-                  @click="showFilterDropdown = !showFilterDropdown"
+                  @click="
+                    showFilterDropdown = !showFilterDropdown;
+                    showAutoRefreshDropdown = false;
+                    showColumnDropdown = false
+                  "
                   class="btn btn-secondary px-2 md:px-3"
                   :title="t('admin.users.filterSettings')"
                 >
@@ -183,7 +232,11 @@
               <!-- Column Settings Dropdown -->
               <div class="relative" ref="columnDropdownRef">
                 <button
-                  @click="showColumnDropdown = !showColumnDropdown"
+                  @click="
+                    showColumnDropdown = !showColumnDropdown;
+                    showAutoRefreshDropdown = false;
+                    showFilterDropdown = false
+                  "
                   class="btn btn-secondary px-2 md:px-3"
                   :title="t('admin.users.columnSettings')"
                 >
@@ -651,6 +704,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { useIntervalFn } from '@vueuse/core'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { formatDateTime } from '@/utils/format'
@@ -974,10 +1028,77 @@ const visibleFilters = reactive<Set<string>>(new Set())
 // Dropdown states
 const showFilterDropdown = ref(false)
 const showColumnDropdown = ref(false)
+const showAutoRefreshDropdown = ref(false)
 
 // Dropdown refs for click outside detection
 const filterDropdownRef = ref<HTMLElement | null>(null)
 const columnDropdownRef = ref<HTMLElement | null>(null)
+const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
+
+// Auto refresh (concurrency / list realtime without full page reload)
+const AUTO_REFRESH_STORAGE_KEY = 'user-auto-refresh'
+const autoRefreshIntervals = [5, 10, 15, 30] as const
+const autoRefreshEnabled = ref(false)
+const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(5)
+const autoRefreshCountdown = ref(0)
+const autoRefreshFetching = ref(false)
+
+const autoRefreshIntervalLabel = (sec: number) => {
+  if (sec === 5) return t('admin.users.refreshInterval5s')
+  if (sec === 10) return t('admin.users.refreshInterval10s')
+  if (sec === 15) return t('admin.users.refreshInterval15s')
+  if (sec === 30) return t('admin.users.refreshInterval30s')
+  return `${sec}s`
+}
+
+const loadSavedAutoRefresh = () => {
+  try {
+    const saved = localStorage.getItem(AUTO_REFRESH_STORAGE_KEY)
+    if (!saved) return
+    const parsed = JSON.parse(saved) as { enabled?: boolean; interval_seconds?: number }
+    autoRefreshEnabled.value = parsed.enabled === true
+    const interval = Number(parsed.interval_seconds)
+    if (autoRefreshIntervals.includes(interval as (typeof autoRefreshIntervals)[number])) {
+      autoRefreshIntervalSeconds.value = interval as (typeof autoRefreshIntervals)[number]
+    }
+  } catch (e) {
+    console.error('Failed to load saved auto refresh settings:', e)
+  }
+}
+
+const saveAutoRefreshToStorage = () => {
+  try {
+    localStorage.setItem(
+      AUTO_REFRESH_STORAGE_KEY,
+      JSON.stringify({
+        enabled: autoRefreshEnabled.value,
+        interval_seconds: autoRefreshIntervalSeconds.value
+      })
+    )
+  } catch (e) {
+    console.error('Failed to save auto refresh settings:', e)
+  }
+}
+
+const setAutoRefreshEnabled = (enabled: boolean) => {
+  autoRefreshEnabled.value = enabled
+  saveAutoRefreshToStorage()
+  if (enabled) {
+    autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
+    resumeAutoRefresh()
+  } else {
+    pauseAutoRefresh()
+    autoRefreshCountdown.value = 0
+  }
+}
+
+const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) => {
+  autoRefreshIntervalSeconds.value = seconds
+  saveAutoRefreshToStorage()
+  if (autoRefreshEnabled.value) {
+    autoRefreshCountdown.value = seconds
+  }
+}
 
 // localStorage keys
 const FILTER_VALUES_KEY = 'user-filter-values'
@@ -1193,6 +1314,9 @@ const handleClickOutside = (event: MouseEvent) => {
   if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
     showColumnDropdown.value = false
   }
+  if (autoRefreshDropdownRef.value && !autoRefreshDropdownRef.value.contains(target)) {
+    showAutoRefreshDropdown.value = false
+  }
   // Close expanded group dropdown when clicking outside
   if (expandedGroupUserId.value !== null) {
     expandedGroupUserId.value = null
@@ -1227,6 +1351,21 @@ const balanceOperation = ref<'add' | 'subtract'>('add')
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
 
+const isAnyModalOpen = computed(
+  () =>
+    showCreateModal.value ||
+    showEditModal.value ||
+    showDeleteDialog.value ||
+    showApiKeysModal.value ||
+    showAttributesModal.value ||
+    showAllowedGroupsModal.value ||
+    showModelPricingModal.value ||
+    showPlatformQuotaModal.value ||
+    showBalanceModal.value ||
+    showBalanceHistoryModal.value ||
+    showGroupReplaceModal.value
+)
+
 // 计算剩余天数
 const getDaysRemaining = (expiresAt: string): number => {
   const now = new Date()
@@ -1250,6 +1389,86 @@ const handleAttributesModalClose = async () => {
   loadUsers()
 }
 
+const buildUserListFilters = () => {
+  const attrFilters: Record<number, string> = {}
+  for (const [attrId, value] of Object.entries(activeAttributeFilters)) {
+    if (value) {
+      attrFilters[Number(attrId)] = value
+    }
+  }
+  return {
+    role: filters.role as any,
+    status: filters.status as any,
+    search: searchQuery.value || undefined,
+    group_name: filters.group || undefined,
+    attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
+    include_subscriptions: hasVisibleSubscriptionsColumn.value,
+    sort_by: sortState.sort_by,
+    sort_order: sortState.sort_order
+  }
+}
+
+const shouldReplaceAutoRefreshUser = (current: AdminUser, next: AdminUser) => {
+  return (
+    current.current_concurrency !== next.current_concurrency ||
+    current.concurrency !== next.concurrency ||
+    current.balance !== next.balance ||
+    current.status !== next.status ||
+    current.role !== next.role ||
+    current.updated_at !== next.updated_at ||
+    current.last_used_at !== next.last_used_at ||
+    current.last_active_at !== next.last_active_at ||
+    current.notes !== next.notes ||
+    current.username !== next.username ||
+    current.email !== next.email
+  )
+}
+
+const syncUserRefs = (nextUser: AdminUser) => {
+  if (editingUser.value?.id === nextUser.id) editingUser.value = nextUser
+  if (deletingUser.value?.id === nextUser.id) deletingUser.value = nextUser
+  if (viewingUser.value?.id === nextUser.id) viewingUser.value = nextUser
+  if (allowedGroupsUser.value?.id === nextUser.id) allowedGroupsUser.value = nextUser
+  if (modelPricingUser.value?.id === nextUser.id) modelPricingUser.value = nextUser
+  if (platformQuotaUser.value?.id === nextUser.id) platformQuotaUser.value = nextUser
+  if (balanceUser.value?.id === nextUser.id) balanceUser.value = nextUser
+  if (balanceHistoryUser.value?.id === nextUser.id) balanceHistoryUser.value = nextUser
+  if (groupReplaceUser.value?.id === nextUser.id) groupReplaceUser.value = nextUser
+}
+
+const mergeUsersIncrementally = (nextRows: AdminUser[]) => {
+  const currentRows = users.value
+  const currentByID = new Map(currentRows.map((row) => [row.id, row]))
+  let changed = nextRows.length !== currentRows.length
+  const mergedRows = nextRows.map((nextRow, index) => {
+    if (currentRows[index]?.id !== nextRow.id) {
+      changed = true
+    }
+    const currentRow = currentByID.get(nextRow.id)
+    if (!currentRow) {
+      changed = true
+      return nextRow
+    }
+    if (shouldReplaceAutoRefreshUser(currentRow, nextRow)) {
+      changed = true
+      syncUserRefs(nextRow)
+      // Preserve subscriptions if auto-refresh response omitted them (column hidden).
+      if (
+        hasVisibleSubscriptionsColumn.value &&
+        nextRow.subscriptions == null &&
+        currentRow.subscriptions != null
+      ) {
+        return { ...nextRow, subscriptions: currentRow.subscriptions }
+      }
+      return nextRow
+    }
+    return currentRow
+  })
+  if (changed) {
+    users.value = mergedRows
+  }
+}
+
 const loadUsers = async () => {
   abortController?.abort()
   const currentAbortController = new AbortController()
@@ -1257,27 +1476,10 @@ const loadUsers = async () => {
   const { signal } = currentAbortController
   loading.value = true
   try {
-    // Build attribute filters from active filters
-    const attrFilters: Record<number, string> = {}
-    for (const [attrId, value] of Object.entries(activeAttributeFilters)) {
-      if (value) {
-        attrFilters[Number(attrId)] = value
-      }
-    }
-
     const response = await adminAPI.users.list(
       pagination.page,
       pagination.page_size,
-      {
-        role: filters.role as any,
-        status: filters.status as any,
-        search: searchQuery.value || undefined,
-        group_name: filters.group || undefined,
-        attributes: Object.keys(attrFilters).length > 0 ? attrFilters : undefined,
-        include_subscriptions: hasVisibleSubscriptionsColumn.value,
-        sort_by: sortState.sort_by,
-        sort_order: sortState.sort_order
-      },
+      buildUserListFilters(),
       { signal }
     )
     if (signal.aborted) {
@@ -1312,6 +1514,63 @@ const loadUsers = async () => {
     }
   }
 }
+
+/** Silent list refresh for concurrency (no full-table loading spinner). */
+const refreshUsersIncrementally = async () => {
+  if (autoRefreshFetching.value || loading.value) return
+  autoRefreshFetching.value = true
+  try {
+    const response = await adminAPI.users.list(
+      pagination.page,
+      pagination.page_size,
+      buildUserListFilters()
+    )
+    pagination.total = response.total || 0
+    pagination.pages = response.pages || 0
+    const previousIds = users.value.map((u) => u.id).join(',')
+    mergeUsersIncrementally(response.items || [])
+    const nextIds = (response.items || []).map((u) => u.id).join(',')
+    // Only refetch secondary data when the page membership changed (sort by concurrency may reorder).
+    if (previousIds !== nextIds) {
+      const userIds = (response.items || []).map((u) => u.id)
+      if (userIds.length > 0) {
+        const seq = ++secondaryDataSeq
+        void loadUsersSecondaryData(userIds, undefined, seq)
+      } else {
+        usageStats.value = {}
+        userAttributeValues.value = {}
+      }
+    }
+  } catch (error) {
+    console.error('User auto refresh failed:', error)
+  } finally {
+    autoRefreshFetching.value = false
+  }
+}
+
+const handleManualRefresh = async () => {
+  await loadUsers()
+}
+
+const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
+  async () => {
+    if (!autoRefreshEnabled.value) return
+    if (document.hidden) return
+    if (loading.value || autoRefreshFetching.value) return
+    if (isAnyModalOpen.value) return
+    if (activeMenuId.value !== null) return
+
+    if (autoRefreshCountdown.value <= 0) {
+      autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
+      await refreshUsersIncrementally()
+      return
+    }
+
+    autoRefreshCountdown.value -= 1
+  },
+  1000,
+  { immediate: false }
+)
 
 let searchTimeout: ReturnType<typeof setTimeout>
 const handleSearch = () => {
@@ -1548,6 +1807,7 @@ const handleScroll = () => {
 }
 
 onMounted(async () => {
+  loadSavedAutoRefresh()
   await loadAttributeDefinitions()
   loadSavedFilters()
   loadSavedColumns()
@@ -1557,9 +1817,17 @@ onMounted(async () => {
   }
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('scroll', handleScroll, true)
+
+  if (autoRefreshEnabled.value) {
+    autoRefreshCountdown.value = autoRefreshIntervalSeconds.value
+    resumeAutoRefresh()
+  } else {
+    pauseAutoRefresh()
+  }
 })
 
 onUnmounted(() => {
+  pauseAutoRefresh()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
   clearTimeout(searchTimeout)

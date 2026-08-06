@@ -112,34 +112,39 @@ describe('admin UsersView', () => {
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
 
-  it('shows active, used, and created activity columns in order and requests last_used_at sort', async () => {
-    const wrapper = mount(UsersView, {
-      global: {
-        stubs: {
-          AppLayout: { template: '<div><slot /></div>' },
-          TablePageLayout: {
-            template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
-          },
-          DataTable: DataTableStub,
-          Pagination: true,
-          ConfirmDialog: true,
-          EmptyState: true,
-          GroupBadge: true,
-          Select: true,
-          UserAttributesConfigModal: true,
-          UserConcurrencyCell: true,
-          UserCreateModal: true,
-          UserEditModal: true,
-          UserApiKeysModal: true,
-          UserAllowedGroupsModal: true,
-          UserBalanceModal: true,
-          UserBalanceHistoryModal: true,
-          GroupReplaceModal: true,
-          Icon: true,
-          Teleport: true
-        }
+const mountUsersView = () =>
+  mount(UsersView, {
+    global: {
+      stubs: {
+        AppLayout: { template: '<div><slot /></div>' },
+        TablePageLayout: {
+          template: '<div><slot name="filters" /><slot name="table" /><slot name="pagination" /></div>'
+        },
+        DataTable: DataTableStub,
+        Pagination: true,
+        ConfirmDialog: true,
+        EmptyState: true,
+        GroupBadge: true,
+        Select: true,
+        UserAttributesConfigModal: true,
+        UserConcurrencyCell: true,
+        UserCreateModal: true,
+        UserEditModal: true,
+        UserApiKeysModal: true,
+        UserAllowedGroupsModal: true,
+        UserModelPricingModal: true,
+        UserPlatformQuotaModal: true,
+        UserBalanceModal: true,
+        UserBalanceHistoryModal: true,
+        GroupReplaceModal: true,
+        Icon: true,
+        Teleport: true
       }
-    })
+    }
+  })
+
+  it('shows active, used, and created activity columns in order and requests last_used_at sort', async () => {
+    const wrapper = mountUsersView()
 
     await flushPromises()
 
@@ -160,5 +165,33 @@ describe('admin UsersView', () => {
       }),
       expect.any(Object)
     )
+  })
+
+  it('exposes auto-refresh control and persists enable preference', async () => {
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.users.autoRefresh')
+
+    const autoRefreshButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.attributes('title') === 'admin.users.autoRefresh')
+    expect(autoRefreshButton).toBeTruthy()
+    await autoRefreshButton!.trigger('click')
+    await flushPromises()
+
+    const enableButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('admin.users.enableAutoRefresh'))
+    expect(enableButton).toBeTruthy()
+    await enableButton!.trigger('click')
+    await flushPromises()
+
+    const saved = JSON.parse(localStorage.getItem('user-auto-refresh') || '{}') as {
+      enabled?: boolean
+      interval_seconds?: number
+    }
+    expect(saved.enabled).toBe(true)
+    expect(saved.interval_seconds).toBe(5)
   })
 })

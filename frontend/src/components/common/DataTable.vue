@@ -66,18 +66,24 @@
     class="table-wrapper"
     :class="{
       'actions-expanded': actionsExpanded,
-      'is-scrollable': isScrollable
+      'is-scrollable': isScrollable,
+      'table-wrapper--resizable': resizableColumns
     }"
+    :style="tableWrapperStyle"
   >
-    <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
+    <table
+      class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700"
+      :class="{ 'table-layout-fixed': usesFixedLayout }"
+    >
       <thead class="table-header bg-gray-50 dark:bg-dark-800">
         <tr>
           <th
             v-for="(column, index) in columns"
             :key="column.key"
             scope="col"
+            :style="getColumnStyle(column)"
             :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
+              'sticky-header-cell relative py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
               getAdaptivePaddingClass(),
               { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
               getStickyColumnClass(column, index),
@@ -91,9 +97,9 @@
               :sort-key="sortKey"
               :sort-order="sortOrder"
             >
-              <div class="flex items-center space-x-1">
-                <span>{{ column.label }}</span>
-                <span v-if="column.sortable" class="text-gray-400 dark:text-dark-500">
+              <div class="flex min-w-0 items-center space-x-1">
+                <span class="truncate">{{ column.label }}</span>
+                <span v-if="column.sortable" class="shrink-0 text-gray-400 dark:text-dark-500">
                   <svg
                     v-if="sortKey === column.key"
                     class="h-4 w-4"
@@ -115,13 +121,26 @@
                 </span>
               </div>
             </slot>
+            <span
+              v-if="isColumnResizable(column)"
+              class="column-resize-handle"
+              data-testid="column-resize-handle"
+              :data-column-key="column.key"
+              @mousedown.prevent.stop="startColumnResize($event, column)"
+              @click.stop
+            />
           </th>
         </tr>
       </thead>
       <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
-          <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
+          <td
+            v-for="column in columns"
+            :key="column.key"
+            :style="getColumnStyle(column)"
+            :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]"
+          >
             <div class="animate-pulse">
               <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
             </div>
@@ -167,6 +186,7 @@
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
+              :style="getColumnStyle(column)"
               :class="[
                 'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
                 getAdaptivePaddingClass(),
@@ -211,6 +231,7 @@ const isDesktopViewport = ref(
 
 const emit = defineEmits<{
   sort: [key: string, order: 'asc' | 'desc']
+  'column-resize': [key: string, width: number]
 }>()
 
 // 表格容器引用
@@ -363,6 +384,11 @@ interface Props {
   overscan?: number
   /** Enable row virtualization for fixed-height table containers. */
   virtualScroll?: boolean
+  /**
+   * Enable drag-to-resize column handles on desktop headers.
+   * Parent should persist widths via column.width + @column-resize.
+   */
+  resizableColumns?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -372,7 +398,8 @@ const props = withDefaults(defineProps<Props>(), {
   expandableActions: true,
   defaultSortOrder: 'asc',
   serverSideSort: false,
-  virtualScroll: true
+  virtualScroll: true,
+  resizableColumns: false
 })
 
 const sortKey = ref<string>('')
@@ -617,6 +644,102 @@ const hasSelectColumn = computed(() => {
   return props.columns.length > 0 && props.columns[0].key === 'select'
 })
 
+const usesFixedLayout = computed(
+  () => props.resizableColumns || props.columns.some((column) => typeof column.width === 'number' && column.width > 0)
+)
+
+const selectColumnWidthPx = computed(() => {
+  if (!hasSelectColumn.value) return 52
+  const selectCol = props.columns[0]
+  if (typeof selectCol?.width === 'number' && selectCol.width > 0) {
+    return selectCol.width
+  }
+  return 52
+})
+
+const tableWrapperStyle = computed(() => ({
+  '--select-col-width': `${selectColumnWidthPx.value}px`
+}))
+
+const isColumnResizable = (column: Column) => {
+  if (!props.resizableColumns) return false
+  if (column.resizable === false) return false
+  if (column.key === 'actions') return false
+  return true
+}
+
+const getColumnStyle = (column: Column): Record<string, string> | undefined => {
+  const style: Record<string, string> = {}
+  if (typeof column.width === 'number' && column.width > 0) {
+    style.width = `${column.width}px`
+    style.minWidth = `${column.width}px`
+    style.maxWidth = `${column.width}px`
+  } else if (typeof column.minWidth === 'number' && column.minWidth > 0) {
+    style.minWidth = `${column.minWidth}px`
+  }
+  return Object.keys(style).length > 0 ? style : undefined
+}
+
+type ResizeSession = {
+  key: string
+  startX: number
+  startWidth: number
+  minWidth: number
+}
+
+let resizeSession: ResizeSession | null = null
+
+const resolveResizeMinWidth = (column: Column) => {
+  if (typeof column.minWidth === 'number' && column.minWidth > 0) {
+    return column.minWidth
+  }
+  return column.key === 'select' ? 40 : 64
+}
+
+const resolveResizeStartWidth = (column: Column, th: HTMLElement) => {
+  if (typeof column.width === 'number' && column.width > 0) {
+    return column.width
+  }
+  return Math.max(resolveResizeMinWidth(column), Math.round(th.getBoundingClientRect().width))
+}
+
+const onColumnResizeMove = (event: MouseEvent) => {
+  if (!resizeSession) return
+  const delta = event.clientX - resizeSession.startX
+  const nextWidth = Math.min(
+    640,
+    Math.max(resizeSession.minWidth, Math.round(resizeSession.startWidth + delta))
+  )
+  emit('column-resize', resizeSession.key, nextWidth)
+}
+
+const stopColumnResize = () => {
+  if (!resizeSession) return
+  resizeSession = null
+  document.body.classList.remove('column-resizing')
+  window.removeEventListener('mousemove', onColumnResizeMove)
+  window.removeEventListener('mouseup', stopColumnResize)
+}
+
+const startColumnResize = (event: MouseEvent, column: Column) => {
+  if (!isColumnResizable(column)) return
+  const th = (event.currentTarget as HTMLElement | null)?.parentElement
+  if (!th) return
+  resizeSession = {
+    key: column.key,
+    startX: event.clientX,
+    startWidth: resolveResizeStartWidth(column, th),
+    minWidth: resolveResizeMinWidth(column)
+  }
+  document.body.classList.add('column-resizing')
+  window.addEventListener('mousemove', onColumnResizeMove)
+  window.addEventListener('mouseup', stopColumnResize)
+}
+
+onUnmounted(() => {
+  stopColumnResize()
+})
+
 // 生成固定列的 CSS 类
 const getStickyColumnClass = (column: Column, index: number) => {
   const classes: string[] = []
@@ -724,6 +847,43 @@ defineExpose({
   flex: 1;
   min-height: 0;
   isolation: isolate;
+}
+
+.table-layout-fixed {
+  table-layout: fixed;
+}
+
+.column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 5;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.column-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 3px;
+  width: 1px;
+  background: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.sticky-header-cell:hover .column-resize-handle::after,
+.table-wrapper--resizable .column-resize-handle:hover::after {
+  background: rgb(156 163 175);
+}
+
+.dark .sticky-header-cell:hover .column-resize-handle::after,
+.dark .table-wrapper--resizable .column-resize-handle:hover::after {
+  background: rgb(107 114 128);
 }
 
 /* 表头容器，确保在滚动时覆盖表体内容 */
@@ -853,6 +1013,18 @@ tbody tr:hover .sticky-col {
 
 .dark .is-scrollable .sticky-col-right::before {
   background: linear-gradient(to left, rgba(0, 0, 0, 0.2), transparent);
+}
+</style>
+
+<style>
+/* Global while dragging a column edge — keep cursor stable over all cells. */
+body.column-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+body.column-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 </style>
 

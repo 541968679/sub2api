@@ -1,3 +1,56 @@
+## 2026-08-06 - feat(admin): account list column order and resize
+
+### What
+- Account management column settings support reordering (up/down) with pinned select/name/actions.
+- Desktop table headers support drag-to-resize; order and widths persist in `localStorage` (`account-column-layout`).
+- DataTable gains optional `resizableColumns` + `column-resize` event and `Column.width` / `minWidth`.
+- Reset control restores default order and clears custom widths.
+
+### Why
+Admins need to put frequently edited columns (e.g. priority next to schedulable) where they work and widen cramped cells without code changes.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/accountColumnLayout.spec.ts`
+
+### Affected files
+`frontend/src/components/common/types.ts`, `frontend/src/components/common/DataTable.vue`, `frontend/src/views/admin/accountColumnLayout.ts`, `frontend/src/views/admin/AccountsView.vue`, `frontend/src/views/admin/__tests__/accountColumnLayout.spec.ts`, i18n zh/en, this changelog.
+
+## 2026-08-06 - fix(admin): account edit modal wrongly clears group checkboxes
+
+### What
+- Fix EditAccountModal bridge-group cleanup so same-platform groups are never wiped on open (root cause of intermittent wrong checkboxes).
+- Run bridge cleanup only after form hydration, with a sync guard so intermediate toggle resets cannot strip groups.
+- Do not re-hydrate the edit form when list auto-refresh replaces the same account object (same id) mid-dialog.
+- Prefer submitted `group_ids` in the update emit; backend Update now returns post-bind `group_ids`.
+- List merge keeps prior `group_ids`/`groups` when a payload omits them.
+- CreateAccountModal gets the same platform-scoped watcher condition.
+
+### Why
+Opening account edit sometimes showed different group checkboxes than the real membership; Update without touching groups then persisted the wrong set. Intermittency came from platform-specific strip logic + whether the groups catalog had loaded + auto-refresh re-syncing the form.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`frontend/src/components/account/EditAccountModal.vue`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/__tests__/EditAccountModal.spec.ts`, `frontend/src/views/admin/AccountsView.vue`, `backend/internal/service/account_service.go`, this changelog.
+
+## 2026-08-04 - feat(admin): user list auto-refresh for live concurrency
+
+### What
+- User management toolbar gains auto-refresh (5/10/15/30s), same pattern as accounts.
+- Silent incremental list refresh updates `current_concurrency` without full-page loading spinner.
+- Preference persisted in `localStorage` (`user-auto-refresh`).
+- Accounts auto-refresh default interval changed from 30s to 5s for new preferences.
+
+### Why
+Admins need live concurrency on user and account lists without manually reloading the page when investigating occupancy mismatches.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UsersView.vue`, `frontend/src/views/admin/AccountsView.vue`, `frontend/src/i18n/locales/zh.ts`, `frontend/src/i18n/locales/en.ts`, `frontend/src/views/admin/__tests__/UsersView.spec.ts`, this changelog.
+
 ## 2026-08-03 - feat(admin): risk-control auto-ban notification inbox
 
 ### What

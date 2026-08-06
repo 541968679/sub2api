@@ -236,8 +236,9 @@ describe('admin AccountsView scheduler score column', () => {
   })
 
   it('requests scheduler scores when the migrated column settings explicitly show the column', async () => {
+    // Version already current → no force-hide migration; admin left scheduler_score visible.
     localStorage.setItem('account-hidden-columns', JSON.stringify(['today_stats']))
-    localStorage.setItem('account-hidden-columns-version', 'scheduler-score-hidden-by-default')
+    localStorage.setItem('account-hidden-columns-version', 'inline-concurrency-priority-fallback-v1')
 
     mountView()
     await flushPromises()

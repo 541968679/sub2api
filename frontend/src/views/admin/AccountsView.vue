@@ -105,21 +105,71 @@
                       </svg>
                       <span class="hidden md:inline">{{ t('admin.users.columnSettings') }}</span>
                     </button>
-                    <!-- Dropdown menu -->
+                    <!-- Dropdown menu: visibility + reorder -->
                     <div
                       v-if="showColumnDropdown"
-                      class="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                      class="absolute right-0 z-50 mt-2 w-72 origin-top-right rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                      data-testid="account-column-settings"
                     >
-                      <div class="max-h-80 overflow-y-auto p-2">
+                      <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-700">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                          {{ t('admin.accounts.columnLayoutHint') }}
+                        </p>
                         <button
-                          v-for="col in toggleableColumns"
-                          :key="col.key"
-                          @click="toggleColumn(col.key)"
-                          class="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                          type="button"
+                          class="mt-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                          data-testid="account-column-layout-reset"
+                          @click="resetColumnLayout"
                         >
-                          <span>{{ col.label }}</span>
-                          <Icon v-if="isColumnVisible(col.key)" name="check" size="sm" class="text-primary-500" />
+                          {{ t('admin.accounts.resetColumnLayout') }}
                         </button>
+                      </div>
+                      <div class="max-h-80 overflow-y-auto p-2">
+                        <div
+                          v-for="col in orderedToggleableColumns"
+                          :key="col.key"
+                          class="flex items-center gap-1 rounded-md px-1 py-1 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                          data-testid="account-column-settings-row"
+                          :data-column-key="col.key"
+                        >
+                          <button
+                            type="button"
+                            class="min-w-0 flex-1 rounded-md px-2 py-1.5 text-left"
+                            @click="toggleColumn(col.key)"
+                          >
+                            <span class="flex items-center justify-between gap-2">
+                              <span class="truncate">{{ col.label }}</span>
+                              <Icon
+                                v-if="isColumnVisible(col.key)"
+                                name="check"
+                                size="sm"
+                                class="shrink-0 text-primary-500"
+                              />
+                            </span>
+                          </button>
+                          <div class="flex shrink-0 flex-col">
+                            <button
+                              type="button"
+                              class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-gray-600 dark:hover:text-gray-100"
+                              :disabled="!canMoveColumn(col.key, 'up')"
+                              :title="t('admin.accounts.moveColumnUp')"
+                              :data-testid="`account-column-move-up-${col.key}`"
+                              @click="moveColumn(col.key, 'up')"
+                            >
+                              <Icon name="chevronUp" size="xs" :stroke-width="2" />
+                            </button>
+                            <button
+                              type="button"
+                              class="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-gray-600 dark:hover:text-gray-100"
+                              :disabled="!canMoveColumn(col.key, 'down')"
+                              :title="t('admin.accounts.moveColumnDown')"
+                              :data-testid="`account-column-move-down-${col.key}`"
+                              @click="moveColumn(col.key, 'down')"
+                            >
+                              <Icon name="chevronDown" size="xs" :stroke-width="2" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -285,7 +335,9 @@
           :loading="loading"
           row-key="id"
           :server-side-sort="true"
+          :resizable-columns="true"
           @sort="handleSort"
+          @column-resize="handleColumnResize"
           default-sort-key="name"
           default-sort-order="asc"
           :estimate-row-height="72"
@@ -663,6 +715,14 @@ import { useTableSelection } from '@/composables/useTableSelection'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import {
+  ACCOUNT_COLUMN_LAYOUT_KEY,
+  clampColumnWidth,
+  isReorderableColumn,
+  mergeAccountColumnOrder,
+  moveAccountColumnOrder,
+  parseAccountColumnLayout
+} from './accountColumnLayout'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
@@ -804,7 +864,7 @@ const inlineSavingId = ref<number | null>(null)
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
 
-// Column settings
+// Column settings (visibility + order + widths)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
@@ -814,6 +874,19 @@ const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 // One-time migration: hide scheduler score; unhide priority for inline edit; ensure new columns visible.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
 const HIDDEN_COLUMNS_CURRENT_VERSION = 'inline-concurrency-priority-fallback-v1'
+const columnOrder = ref<string[]>([])
+const columnWidths = ref<Record<string, number>>({})
+const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  select: 48,
+  name: 180,
+  platform_type: 140,
+  capacity: 120,
+  concurrency: 110,
+  status: 120,
+  schedulable: 100,
+  priority: 100,
+  actions: 120
+}
 
 // Sorting settings
 const ACCOUNT_SORT_STORAGE_KEY = 'account-table-sort'
@@ -1193,6 +1266,36 @@ const formatSchedulerScoreGroup = (score: AccountSchedulerGroupScore): string =>
   return t('admin.accounts.schedulerScore.ungrouped')
 }
 
+const getAllColumnKeys = () => allColumns.value.map((col) => col.key)
+
+const loadSavedColumnLayout = () => {
+  try {
+    const keys = getAllColumnKeys()
+    const layout = parseAccountColumnLayout(localStorage.getItem(ACCOUNT_COLUMN_LAYOUT_KEY), keys)
+    columnOrder.value = layout.order
+    columnWidths.value = layout.widths
+  } catch (e) {
+    console.error('Failed to load account column layout:', e)
+    columnOrder.value = mergeAccountColumnOrder(null, getAllColumnKeys())
+    columnWidths.value = {}
+  }
+}
+
+const saveColumnLayoutToStorage = () => {
+  try {
+    localStorage.setItem(
+      ACCOUNT_COLUMN_LAYOUT_KEY,
+      JSON.stringify({
+        version: 1,
+        order: columnOrder.value,
+        widths: columnWidths.value
+      })
+    )
+  } catch (e) {
+    console.error('Failed to save account column layout:', e)
+  }
+}
+
 const loadSavedColumns = () => {
   try {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
@@ -1222,6 +1325,7 @@ const loadSavedColumns = () => {
       hiddenColumns.add(key)
     })
   }
+  // Column order/widths are loaded after allColumns is defined (see below).
 }
 
 const saveColumnsToStorage = () => {
@@ -1231,6 +1335,47 @@ const saveColumnsToStorage = () => {
   } catch (e) {
     console.error('Failed to save columns:', e)
   }
+}
+
+const ensureColumnOrderSynced = () => {
+  const keys = getAllColumnKeys()
+  const merged = mergeAccountColumnOrder(columnOrder.value, keys)
+  if (merged.join('|') !== columnOrder.value.join('|')) {
+    columnOrder.value = merged
+    saveColumnLayoutToStorage()
+  }
+}
+
+const moveColumn = (key: string, direction: 'up' | 'down') => {
+  ensureColumnOrderSynced()
+  const next = moveAccountColumnOrder(columnOrder.value, key, direction)
+  if (next.join('|') === columnOrder.value.join('|')) return
+  columnOrder.value = next
+  saveColumnLayoutToStorage()
+}
+
+const canMoveColumn = (key: string, direction: 'up' | 'down') => {
+  if (!isReorderableColumn(key)) return false
+  const order = mergeAccountColumnOrder(columnOrder.value, getAllColumnKeys())
+  const index = order.indexOf(key)
+  if (index < 0) return false
+  const target = direction === 'up' ? index - 1 : index + 1
+  if (target < 0 || target >= order.length) return false
+  return isReorderableColumn(order[target])
+}
+
+const handleColumnResize = (key: string, width: number) => {
+  columnWidths.value = {
+    ...columnWidths.value,
+    [key]: clampColumnWidth(key, width)
+  }
+  saveColumnLayoutToStorage()
+}
+
+const resetColumnLayout = () => {
+  columnOrder.value = mergeAccountColumnOrder(null, getAllColumnKeys())
+  columnWidths.value = {}
+  saveColumnLayoutToStorage()
 }
 
 const loadSavedAutoRefresh = () => {
@@ -1830,17 +1975,51 @@ const allColumns = computed(() => {
   return c
 })
 
-// Columns that can be toggled (exclude select, name, and actions)
-const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'select' && col.key !== 'name' && col.key !== 'actions')
-)
-
-// Filtered columns based on visibility
-const cols = computed(() =>
-  allColumns.value.filter(col =>
-    col.key === 'select' || col.key === 'name' || col.key === 'actions' || !hiddenColumns.has(col.key)
+// Columns that can be toggled (exclude select, name, and actions), in user order
+const orderedToggleableColumns = computed(() => {
+  const byKey = new Map(allColumns.value.map((col) => [col.key, col]))
+  const order = mergeAccountColumnOrder(
+    columnOrder.value.length ? columnOrder.value : null,
+    allColumns.value.map((col) => col.key)
   )
-)
+  return order
+    .filter((key) => key !== 'select' && key !== 'name' && key !== 'actions')
+    .map((key) => byKey.get(key))
+    .filter((col): col is NonNullable<typeof col> => Boolean(col))
+})
+
+// Visible columns: user order + widths (pinned select/name/actions stay fixed ends)
+const cols = computed(() => {
+  const byKey = new Map(allColumns.value.map((col) => [col.key, col]))
+  const order = mergeAccountColumnOrder(
+    columnOrder.value.length ? columnOrder.value : null,
+    allColumns.value.map((col) => col.key)
+  )
+  return order
+    .map((key) => byKey.get(key))
+    .filter((col): col is NonNullable<typeof col> => Boolean(col))
+    .filter(
+      (col) =>
+        col.key === 'select' ||
+        col.key === 'name' ||
+        col.key === 'actions' ||
+        !hiddenColumns.has(col.key)
+    )
+    .map((col) => {
+      const width = columnWidths.value[col.key] ?? DEFAULT_COLUMN_WIDTHS[col.key]
+      return {
+        ...col,
+        width,
+        minWidth: col.key === 'select' ? 40 : 64,
+        resizable: col.key !== 'actions'
+      }
+    })
+})
+
+// allColumns must exist before order/width merge can resolve current keys.
+if (typeof window !== 'undefined') {
+  loadSavedColumnLayout()
+}
 
 const handleEdit = (a: Account) => { edAcc.value = a; showEdit.value = true }
 
