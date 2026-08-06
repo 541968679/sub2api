@@ -929,7 +929,7 @@ const autoRefreshDropdownRef = ref<HTMLElement | null>(null)
 const AUTO_REFRESH_STORAGE_KEY = 'account-auto-refresh'
 const autoRefreshIntervals = [5, 10, 15, 30] as const
 const autoRefreshEnabled = ref(false)
-const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(30)
+const autoRefreshIntervalSeconds = ref<(typeof autoRefreshIntervals)[number]>(5)
 const autoRefreshCountdown = ref(0)
 const autoRefreshETag = ref<string | null>(null)
 const autoRefreshFetching = ref(false)
@@ -2296,7 +2296,10 @@ const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Accou
   ...updatedAccount,
   current_concurrency: updatedAccount.current_concurrency ?? oldAccount.current_concurrency,
   current_window_cost: updatedAccount.current_window_cost ?? oldAccount.current_window_cost,
-  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions
+  active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
+  // Keep membership when an update/refresh payload omits groups (omitempty / shallow update).
+  group_ids: updatedAccount.group_ids ?? oldAccount.group_ids,
+  groups: updatedAccount.groups ?? oldAccount.groups
 })
 
 const syncPaginationAfterLocalRemoval = () => {

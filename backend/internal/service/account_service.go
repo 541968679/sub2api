@@ -323,6 +323,12 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 		if err := s.accountRepo.BindGroups(ctx, account.ID, *req.GroupIDs); err != nil {
 			return nil, fmt.Errorf("bind groups: %w", err)
 		}
+		// GetByID above still holds pre-bind membership; keep the response in
+		// sync with what was just written so admin list/edit clients do not
+		// briefly show stale group_ids after update.
+		account.GroupIDs = append([]int64(nil), (*req.GroupIDs)...)
+		account.Groups = nil
+		account.AccountGroups = nil
 	}
 
 	return account, nil

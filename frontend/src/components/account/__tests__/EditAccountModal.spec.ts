@@ -141,13 +141,21 @@ function buildAccount() {
   } as any
 }
 
-function mountModal(account = buildAccount()) {
+function buildGroups() {
+  return [
+    { id: 10, name: 'OpenAI Group', platform: 'openai', rate_multiplier: 1, account_count: 1 },
+    { id: 20, name: 'Antigravity Group', platform: 'antigravity', rate_multiplier: 1, account_count: 1 },
+    { id: 30, name: 'Grok Group', platform: 'grok', rate_multiplier: 1, account_count: 1 }
+  ] as any[]
+}
+
+function mountModal(account = buildAccount(), groups: any[] = []) {
   return mount(EditAccountModal, {
     props: {
       show: true,
       account,
       proxies: [],
-      groups: []
+      groups
     },
     global: {
       stubs: {
@@ -335,6 +343,143 @@ describe('EditAccountModal', () => {
       'claude-opus-4-8': 'gpt-5.5'
     })
     expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([12])
+  })
+
+  async function openEditModal(account: any, groups = buildGroups()) {
+    // Mirror real AccountsView flow: modal stays mounted closed, then opens
+    // with an account so platform/bridge watchers observe a real transition.
+    const wrapper = mount(EditAccountModal, {
+      props: {
+        show: false,
+        account: null,
+        proxies: [],
+        groups
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          Icon: true,
+          ProxySelector: true,
+          GroupSelector: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub
+        }
+      }
+    })
+    await wrapper.setProps({ show: true, account })
+    await wrapper.vm.$nextTick()
+    return wrapper
+  }
+
+  it('preserves same-platform group selections when opening edit (OpenAI)', async () => {
+    const account = buildAccount()
+    account.group_ids = [10]
+    account.extra = {}
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = await openEditModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([10])
+  })
+
+  it('preserves same-platform group selections when opening edit (Antigravity)', async () => {
+    const account = buildAccount()
+    account.platform = 'antigravity'
+    account.type = 'oauth'
+    account.group_ids = [20]
+    account.credentials = {}
+    account.extra = {}
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = await openEditModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([20])
+  })
+
+  it('hydrates group_ids from groups when group_ids is missing', async () => {
+    const account = buildAccount()
+    delete account.group_ids
+    account.groups = [{ id: 10, name: 'OpenAI Group', platform: 'openai' }]
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = await openEditModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([10])
+  })
+
+  it('strips antigravity bridge groups on OpenAI when Claude-GPT bridge is off', async () => {
+    const account = buildAccount()
+    // Stale mixed selection: openai + antigravity without bridge enabled
+    account.group_ids = [10, 20]
+    account.extra = { openai_claude_gpt_bridge_enabled: false }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = await openEditModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([10])
+  })
+
+  it('preserves OpenAI+antigravity groups when Claude-GPT bridge is on', async () => {
+    const account = buildAccount()
+    account.group_ids = [10, 20]
+    account.extra = { openai_claude_gpt_bridge_enabled: true }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = await openEditModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([10, 20])
+  })
+
+  it('does not re-hydrate groups when auto-refresh replaces the same account object', async () => {
+    const account = buildAccount()
+    account.group_ids = [10]
+    account.extra = {}
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = await openEditModal(account)
+
+    // Simulate list auto-refresh: same id, new object with different group_ids
+    const refreshed = {
+      ...account,
+      group_ids: [99],
+      current_concurrency: 3
+    }
+    await wrapper.setProps({ account: refreshed })
+    await wrapper.vm.$nextTick()
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    // Form must keep the values from the original open, not the refresh payload.
+    expect(updateAccountMock.mock.calls[0]?.[1]?.group_ids).toEqual([10])
   })
 
   it('submits OpenAI quota auto-pause thresholds and per-window disable flags', async () => {

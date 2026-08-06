@@ -4325,10 +4325,12 @@ watch(
   }
 )
 
+// Same platform-scoped cleanup as EditAccountModal: only strip bridge groups
+// on the owning platform when the bridge toggle is off.
 watch(
   [() => form.platform, openaiClaudeGPTBridgeEnabled],
   ([platform, bridgeEnabled]) => {
-    if (platform !== 'openai' || !bridgeEnabled) {
+    if (platform === 'openai' && !bridgeEnabled) {
       removeAntigravityGroupSelections()
     }
   }
@@ -4337,7 +4339,7 @@ watch(
 watch(
   [() => form.platform, grokOpenAIGroupAccessEnabled],
   ([platform, accessEnabled]) => {
-    if (platform !== 'grok' || !accessEnabled) {
+    if (platform === 'grok' && !accessEnabled) {
       removeOpenAIGroupSelections()
     }
   }

@@ -3160,10 +3160,17 @@ const normalizePoolModeRetryCount = (value: number) => {
   return normalized
 }
 
+// Suppress bridge-group cleanup watchers while hydrating the form from an account.
+// syncFormFromAccount briefly resets toggles (false → real value); without this flag
+// those intermediate writes would strip legitimate group checkboxes on open.
+let isSyncingFormFromAccount = false
+
 const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
   }
+  isSyncingFormFromAccount = true
+  try {
   antigravityMixedChannelConfirmed.value = false
   showMixedChannelWarning.value = false
   mixedChannelWarningDetails.value = null
@@ -3179,7 +3186,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   form.status = (newAccount.status === 'active' || newAccount.status === 'inactive' || newAccount.status === 'error')
     ? newAccount.status
     : 'active'
-  form.group_ids = newAccount.group_ids || []
+  // Prefer group_ids; fall back to preloaded groups. Always copy so v-model
+  // cannot mutate the list-row account object by reference.
+  form.group_ids = [
+    ...(newAccount.group_ids ?? newAccount.groups?.map((group) => group.id) ?? [])
+  ]
   form.expires_at = newAccount.expires_at ?? null
 
   // Load intercept warmup requests setting (applies to all account types)
@@ -3534,6 +3545,23 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     selectedErrorCodes.value = []
   }
   editApiKey.value = ''
+
+  // After flags + group_ids are hydrated, drop invalid bridge-only groups.
+  // Must run here (not only in watchers) so same-platform account switches still clean up.
+  applyBridgeGroupSelectionRules(newAccount.platform)
+  } finally {
+    isSyncingFormFromAccount = false
+  }
+}
+
+/** Drop cross-platform bridge groups that are invalid for the current toggle state. */
+const applyBridgeGroupSelectionRules = (platform: string | undefined) => {
+  if (platform === 'openai' && !openaiClaudeGPTBridgeEnabled.value) {
+    removeAntigravityGroupSelections()
+  }
+  if (platform === 'grok' && !grokOpenAIGroupAccessEnabled.value) {
+    removeOpenAIGroupSelections()
+  }
 }
 
 async function loadTLSProfiles() {
@@ -3551,7 +3579,12 @@ watch(
     if (!show || !newAccount) {
       return
     }
-    if (!wasShow || newAccount !== previousAccount) {
+    // Re-hydrate only when the modal opens or the edited account id changes.
+    // Auto-refresh replaces the account object reference for the same id; re-syncing
+    // would reset form.group_ids (and other edits) mid-dialog and look intermittent.
+    const openedNow = !wasShow
+    const accountIdChanged = !previousAccount || previousAccount.id !== newAccount.id
+    if (openedNow || accountIdChanged) {
       zone2Expanded.value = true
       zone3Expanded.value = false
       syncFormFromAccount(newAccount)
@@ -3561,22 +3594,29 @@ watch(
   { immediate: true }
 )
 
+// Live toggle cleanup while the dialog is open (user turns bridge/access off).
+// flush:'sync' so isSyncingFormFromAccount is still true during intermediate
+// false→true writes inside syncFormFromAccount (default pre flush runs too late).
 watch(
-  [() => props.account?.platform, openaiClaudeGPTBridgeEnabled],
-  ([platform, bridgeEnabled]) => {
-    if (platform !== 'openai' || !bridgeEnabled) {
+  openaiClaudeGPTBridgeEnabled,
+  (bridgeEnabled) => {
+    if (isSyncingFormFromAccount) return
+    if (props.show && props.account?.platform === 'openai' && !bridgeEnabled) {
       removeAntigravityGroupSelections()
     }
-  }
+  },
+  { flush: 'sync' }
 )
 
 watch(
-  [() => props.account?.platform, grokOpenAIGroupAccessEnabled],
-  ([platform, accessEnabled]) => {
-    if (platform !== 'grok' || !accessEnabled) {
+  grokOpenAIGroupAccessEnabled,
+  (accessEnabled) => {
+    if (isSyncingFormFromAccount) return
+    if (props.show && props.account?.platform === 'grok' && !accessEnabled) {
       removeOpenAIGroupSelections()
     }
-  }
+  },
+  { flush: 'sync' }
 )
 
 // Model mapping helpers
@@ -4089,8 +4129,16 @@ const submitUpdateAccount = async (accountID: number, updatePayload: Record<stri
   submitting.value = true
   try {
     const updatedAccount = await adminAPI.accounts.update(accountID, withAntigravityConfirmFlag(updatePayload))
+    // Prefer submitted group_ids so list patch stays correct even if the update
+    // response omits or returns stale group membership.
+    const submittedGroupIds = Array.isArray(updatePayload.group_ids)
+      ? (updatePayload.group_ids as number[])
+      : undefined
+    const accountForList: Account = submittedGroupIds
+      ? { ...updatedAccount, group_ids: [...submittedGroupIds] }
+      : updatedAccount
     appStore.showSuccess(t('admin.accounts.accountUpdated'))
-    emit('updated', updatedAccount)
+    emit('updated', accountForList)
     handleClose()
   } catch (error: any) {
     if (error.status === 409 && error.error === 'mixed_channel_warning' && needsMixedChannelCheck()) {
