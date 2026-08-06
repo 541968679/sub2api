@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-03 | `v0.1.197` | `734787d60` | `ghcr.io/541968679/sub2api:latest` | `0.1.197` | running, healthy, digest `sha256:ceb2c59c869e7bcfb07c0ea9e9dd5485030fa41ff9ec558ec3395a099c8581fd`, internal `/health` OK; account move-to-top + mobile user columns + concurrency sort; includes New API balance (`v0.1.196`) |
+| 2026-08-06 | `v0.1.198` | `6b0263cee` | `ghcr.io/541968679/sub2api:latest` | `0.1.198` | running, healthy, digest `sha256:d6b6afaa5eb659827f782fc65d031604989f5dd2398e1f971bcdcaba834252d3`, internal `/health` OK; account edit group-checkbox fix + account column order/resize + users list auto-refresh |
+| 2026-08-03 | `v0.1.197` | `734787d60` | `ghcr.io/541968679/sub2api:latest` | `0.1.197` | superseded by `v0.1.198`; account move-to-top + mobile user columns + concurrency sort; includes New API balance (`v0.1.196`) |
 | 2026-08-03 | `v0.1.195` | `f588f50ab` | `ghcr.io/541968679/sub2api:latest` | `0.1.195` | superseded by `v0.1.197`; API key balance probe + burn-rate ETA (Sub2API `/v1/usage`) |
 | 2026-08-02 | `v0.1.194` | `48787ba6a` | `ghcr.io/541968679/sub2api:latest` | `0.1.194` | superseded by `v0.1.195`; OAI fleet used/capacity + two-column layout |
 | 2026-08-02 | `v0.1.193` | `a7b37e0c0` | `ghcr.io/541968679/sub2api:latest` | `0.1.193` | superseded by `v0.1.194`; OAI Pro/Prolite fleet 5h/7d used badge |
