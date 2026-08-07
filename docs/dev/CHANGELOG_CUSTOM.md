@@ -1,3 +1,19 @@
+﻿## 2026-08-07 - release: v0.1.200 admin recharge history manage (hotfix on 0.1.198)
+
+### What
+- Hotfix release based on production baseline `v0.1.198` (does not re-introduce `v0.1.199` sticky/concurrency changes).
+- Admin Users → More → manage/delete user balance and concurrency history records.
+- Delete reuses existing redeem-code delete API and does not reverse balances.
+
+### Why
+Ship the recharge-history admin tool to production while production remains on the 0.1.198 rollback line after the billing anomaly.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsersView.spec.ts src/components/admin/user/__tests__/UserBalanceHistoryManageModal.spec.ts`
+
+### Affected files
+Frontend admin users view, balance history manage modal, i18n, tests.
+
 ## 2026-08-06 - feat(admin): account list column order and resize
 
 ### What
@@ -72,7 +88,7 @@ Admins previously only discovered auto-bans by manually opening risk-control log
 
 ### What
 - Draft multi-batch assessment for selective sync after large baseline `v0.1.152` / `b73d8c3ef`.
-- Proposed first wave B1–B2–B3–B7–B9; defer high-risk B4 billing fields, B5 profit-control, B8 security-audit, B12 upstream async image pending product decisions.
+- Proposed first wave B1鈥揃2鈥揃3鈥揃7鈥揃9; defer high-risk B4 billing fields, B5 profit-control, B8 security-audit, B12 upstream async image pending product decisions.
 - Linked from `UPSTREAM_SYNC.md`; no product code changes in this step.
 
 ### Why
@@ -89,7 +105,7 @@ AGENTS.md requires an explicit assessment table before upstream-sync code change
 ### What
 - Record fork release **0.1.195** as mapping to large-sync upstream **`v0.1.152` / `b73d8c3ef`** (2026-07-14 graded batch), not to later hotfixes.
 - Demote 2026-07-27 item-ID sanitization to hotfix-only (does not raise content ceiling).
-- Add machine-readable pin `docs/dev/UPSTREAM_BASE.json` and refresh「当前状态」so pending eval window is `b73d8c3ef..upstream/main`.
+- Add machine-readable pin `docs/dev/UPSTREAM_BASE.json` and refresh銆屽綋鍓嶇姸鎬併€峴o pending eval window is `b73d8c3ef..upstream/main`.
 
 ### Why
 Selective small-feature cherry-picks were being mistaken for the sync baseline; version numbers (fork 0.1.195 vs upstream 0.1.170) had no explicit mapping.
@@ -119,7 +135,7 @@ Selective small-feature cherry-picks were being mistaken for the sync baseline; 
 
 ### What
 - Users admin: column-settings / filter dropdowns no longer open off-screen on mobile (`left-0` on small screens, `right-0` on md+).
-- Default user list sort is **current concurrency high → low**; concurrency column is visible by default.
+- Default user list sort is **current concurrency high 鈫?low**; concurrency column is visible by default.
 
 ### Why
 Mobile toolbar put the column button on the left while the menu used `absolute right-0`, pushing it off-viewport; default sort was still `created_at`.
@@ -130,7 +146,7 @@ Mobile toolbar put the column button on the left while the menu used `absolute r
 ## 2026-08-03 - feat(admin): account list move-to-top
 
 ### What
-- Admin account action menu: **移到顶部 / Move to top**.
+- Admin account action menu: **绉诲埌椤堕儴 / Move to top**.
 - Persists pin rank in `account.extra.list_order` (Unix ms); list queries always order by `list_order DESC` first.
 
 ### Why
@@ -162,7 +178,7 @@ this changelog.
 token-bits and other New API gateways do not expose OpenAI `credit_grants` or Sub2API `/v1/usage`; balance is only on `/api/usage/token`.
 
 ### Verification
-- Live: `GET https://api.token-bits.com/api/usage/token` → `token_usage` JSON
+- Live: `GET https://api.token-bits.com/api/usage/token` 鈫?`token_usage` JSON
 - `go test -tags=unit ./internal/service -run "ProbeUpstream|NewAPI|OriginFrom" -count=1`
 
 ### Affected files
@@ -194,13 +210,13 @@ this changelog.
 
 ### What
 - Third-party balance probe prefers `GET {base}/v1/usage` (Sub2API public usage summary: `balance` / `remaining`) before OpenAI `credit_grants`.
-- Fixes ZeroCode (`zerocode.kaynlab.com`) accounts showing 余额不可用 when `credit_grants` is 404.
+- Fixes ZeroCode (`zerocode.kaynlab.com`) accounts showing 浣欓涓嶅彲鐢?when `credit_grants` is 404.
 
 ### Why
 ZeroCode is a Sub2API-compatible gateway; wallet balance is exposed on `/v1/usage`, not OpenAI dashboard billing paths.
 
 ### Verification
-- Live probe: `GET https://zerocode.kaynlab.com/v1/usage` with account key → `balance≈98004`
+- Live probe: `GET https://zerocode.kaynlab.com/v1/usage` with account key 鈫?`balance鈮?8004`
 - `go test -tags=unit ./internal/service -run "ProbeUpstream|Sub2API|IsOfficial" -count=1`
 
 ### Affected files
@@ -218,7 +234,7 @@ this changelog.
 - Kill-switch: `SUB2API_UPSTREAM_BALANCE_PROBE=0`.
 
 ### Why
-Operators need prepaid balance visibility and “how long until empty” for keys and OAuth pools, not only consumed usage.
+Operators need prepaid balance visibility and 鈥渉ow long until empty鈥?for keys and OAuth pools, not only consumed usage.
 
 ### Verification
 - `go test -tags=unit ./internal/service -run "BurnRate|ProbeUpstream|JoinOpenAI|RemainingPct|SerializeParse|SupportsUpstream|AggregateOpenAIOauthFleet" -count=1`
@@ -258,9 +274,9 @@ this changelog.
 ## 2026-08-02 - fix: OAI fleet used/capacity pool + two-column layout
 
 ### What
-- Fleet aggregate is **used/capacity** (e.g. 375/725), bar fill = used÷capacity.
+- Fleet aggregate is **used/capacity** (e.g. 375/725), bar fill = used梅capacity.
 - Accounts page layout: left ops toolbar column, right fleet card column (same row).
-- Capacity Pro×100 + Prolite×25; missing snapshots still count capacity.
+- Capacity Pro脳100 + Prolite脳25; missing snapshots still count capacity.
 
 ### Why
 Bare percent sum misled operators; card placement had been fighting the toolbar.
@@ -285,14 +301,14 @@ this changelog.
 
 ### What
 - Moved the OAI Pro pool card to sit **below** the account action toolbar
-  (under 添加账号), not as a tiny top-right corner chip.
+  (under 娣诲姞璐﹀彿), not as a tiny top-right corner chip.
 - Enlarged typography, padding, and progress tracks; shows `used/capacity`.
 
 ### Why
 The previous right-corner placement was too far up/right and too small to read.
 
 ### Verification
-- Manual: `/admin/accounts` — filters left, actions right, fleet card under actions.
+- Manual: `/admin/accounts` 鈥?filters left, actions right, fleet card under actions.
 
 ### Affected files
 `frontend/src/views/admin/AccountsView.vue`, this changelog.
@@ -318,8 +334,8 @@ Local accounts page ops area was unusable after the mobile layout experiment.
 
 ### What
 - Replaced bare weighted-percent sum (e.g. misleading "386%") with pool units:
-  capacity = Pro×100 + Prolite×25; used = Σ used% × plan units; UI `used/capacity`.
-- Progress bar fill is `used/capacity×100`. Missing snapshots still occupy capacity.
+  capacity = Pro脳100 + Prolite脳25; used = 危 used% 脳 plan units; UI `used/capacity`.
+- Progress bar fill is `used/capacity脳100`. Missing snapshots still occupy capacity.
 
 ### Why
 Operators need 375/725 style pool pressure, not an unbounded percent sum.
@@ -377,7 +393,7 @@ this changelog.
 ## 2026-08-02 - fix: fleet badge labels used% + progress bars
 
 ### What
-- OAI Pro pool badge now marks **已用 / Used** (not remaining).
+- OAI Pro pool badge now marks **宸茬敤 / Used** (not remaining).
 - Renders 5h/7d with the same `UsageProgressBar` as per-account usage windows.
 
 ### Why
@@ -451,7 +467,7 @@ this changelog.
 
 ### Why
 Shared accounts made every bound group show the account's total occupancy as if
-it belonged to that group alone ("统计的是总的").
+it belonged to that group alone ("缁熻鐨勬槸鎬荤殑").
 
 ### Verification
 - `go test -tags=unit ./internal/service -run TestGetAllGroupCapacity -count=1`
@@ -614,9 +630,9 @@ Frontend: `components/account/EditAccountModal.vue`, `views/admin/GroupsView.vue
 
 ### What
 - Admin group **create** and **edit** dialogs use `extra-wide` width and a three-column layout on PC (`lg+`):
-  1. **Basic Config** — name, description, platform, copy accounts, rate/RPM, exclusive, subscription type + USD limits
-  2. **Model Control** — model allow/block lists and `/v1/models` custom list
-  3. **Other Features** — pricing (image/video/web/peak) and platform-advanced options; collapsed by default on PC, always open on mobile
+  1. **Basic Config** 鈥?name, description, platform, copy accounts, rate/RPM, exclusive, subscription type + USD limits
+  2. **Model Control** 鈥?model allow/block lists and `/v1/models` custom list
+  3. **Other Features** 鈥?pricing (image/video/web/peak) and platform-advanced options; collapsed by default on PC, always open on mobile
 - Opening create/edit resets the Other Features expand state.
 
 ### Why
@@ -654,7 +670,7 @@ Operators usually work within one platform/filter set; re-selecting every time i
 
 ### What
 - Quality TTFT batch stats now return **p50 / p95 / max** in addition to avg (15m window).
-- Account list “首字” cell shows **p50** (primary) + **p95** (tail); tooltip has avg/max/sample count.
+- Account list 鈥滈瀛椻€?cell shows **p50** (primary) + **p95** (tail); tooltip has avg/max/sample count.
 - Coloring uses p50 thresholds; p95 uses slightly higher thresholds for tail risk.
 
 ### Why
@@ -666,7 +682,7 @@ Mean TTFT is easily skewed by one or two pathological requests; median + tail pe
 ## 2026-08-01 - feat: account list open usage by account + hide antigravity usage cards
 
 ### What
-- Account management actions: **查看使用记录 / Usage** opens `/admin/usage` in a new tab with `account_id` (+ `account_name`) applied.
+- Account management actions: **鏌ョ湅浣跨敤璁板綍 / Usage** opens `/admin/usage` in a new tab with `account_id` (+ `account_name`) applied.
 - Admin usage page reads `account_id` from query and resolves the account filter label.
 - Removed Antigravity ratio card and credit usage curve from admin usage page (no longer needed).
 
@@ -679,7 +695,7 @@ Jump from an account row into filtered usage logs; drop unused Antigravity dashb
 ## 2026-08-01 - feat: account list inline concurrency, priority, fallback-only
 
 ### What
-- Admin account table: inline edit **concurrency** (max) and **priority**; toggle **fallback_only** (兜底调度) like schedulable.
+- Admin account table: inline edit **concurrency** (max) and **priority**; toggle **fallback_only** (鍏滃簳璋冨害) like schedulable.
 - New/default columns: concurrency, priority, fallback_only visible; one-time column-layout migration unhides priority.
 - Backend list sort supports `concurrency`.
 
@@ -707,12 +723,12 @@ Frontend: `views/admin/RedeemView.vue`, `api/admin/redeem.ts`, `types/index.ts`,
 ## 2026-08-01 - feat: inline redeem on purchase page + redeem buy notice
 
 ### What
-- 充值/订阅页（`PaymentView`）的充值 Tab 与订阅 Tab 各增加内嵌兑换卡片，用户无需跳转 `/redeem` 即可兑换。
-- 兑换页增加管理员可配置的「购买兑换码」纯文本说明（Settings KV `redeem_page.buy_notice`）。
-- 管理端「页面内容」新增「兑换页」Tab；充值公告与兑换说明统一为温和绿色大字号横幅（去掉红色与感叹号圆标）。
+- 鍏呭€?璁㈤槄椤碉紙`PaymentView`锛夌殑鍏呭€?Tab 涓庤闃?Tab 鍚勫鍔犲唴宓屽厬鎹㈠崱鐗囷紝鐢ㄦ埛鏃犻渶璺宠浆 `/redeem` 鍗冲彲鍏戞崲銆?
+- 鍏戞崲椤靛鍔犵鐞嗗憳鍙厤缃殑銆岃喘涔板厬鎹㈢爜銆嶇函鏂囨湰璇存槑锛圫ettings KV `redeem_page.buy_notice`锛夈€?
+- 绠＄悊绔€岄〉闈㈠唴瀹广€嶆柊澧炪€屽厬鎹㈤〉銆峊ab锛涘厖鍊煎叕鍛婁笌鍏戞崲璇存槑缁熶竴涓烘俯鍜岀豢鑹插ぇ瀛楀彿妯箙锛堝幓鎺夌孩鑹蹭笌鎰熷徆鍙峰渾鏍囷級銆?
 
 ### Why
-将兑换码作为间接支付通道：后台生成码 → 外部销售站售卖 → 用户购后兑换；并在充值/订阅入口降低操作路径。
+灏嗗厬鎹㈢爜浣滀负闂存帴鏀粯閫氶亾锛氬悗鍙扮敓鎴愮爜 鈫?澶栭儴閿€鍞珯鍞崠 鈫?鐢ㄦ埛璐悗鍏戞崲锛涘苟鍦ㄥ厖鍊?璁㈤槄鍏ュ彛闄嶄綆鎿嶄綔璺緞銆?
 
 ### Affected files
 Backend: `handler/admin/redeem_page_handler.go`, `handler/redeem_page_handler.go`, `handler/handler.go`, `handler/wire.go`, `cmd/server/wire_gen.go`, `server/routes/user.go`, `server/routes/admin.go`  
@@ -735,7 +751,7 @@ Production residual traffic on safeapi after primary recovery was partly multi-t
 ## 2026-07-31 - feat: account fallback-only hard scheduling tier
 
 ### What
-- Added account flag `extra.fallback_only` (**仅作兜底调度**): selected only when no non-fallback peer remains in the eligible candidate pool.
+- Added account flag `extra.fallback_only` (**浠呬綔鍏滃簳璋冨害**): selected only when no non-fallback peer remains in the eligible candidate pool.
 - OpenAI load-balance and Anthropic/general load-aware selection partition primary vs fallback; session sticky to a fallback account escapes when a primary peer is available.
 - Scheduler slim snapshot retains `fallback_only`; admin create/edit toggles write the extra key.
 
@@ -763,8 +779,8 @@ Soft numeric priority still load-balances low-priority accounts. Operators need 
 ## 2026-07-31 - feat: account list TTFT and success-rate columns
 
 ### What
-- Added admin account-list columns **首字 (TTFT)** and **成功率 (success rate)** over a **rolling 15-minute** window.
-- Batch API `POST /api/v1/admin/accounts/quality-stats/batch` aggregates successes/`first_token_ms` from `usage_logs` and failures from `ops_error_logs` (status ≥ 400, exclude count_tokens).
+- Added admin account-list columns **棣栧瓧 (TTFT)** and **鎴愬姛鐜?(success rate)** over a **rolling 15-minute** window.
+- Batch API `POST /api/v1/admin/accounts/quality-stats/batch` aggregates successes/`first_token_ms` from `usage_logs` and failures from `ops_error_logs` (status 鈮?400, exclude count_tokens).
 - Frontend loads metrics only when the columns are visible (default visible), with ~30s snapshot cache and tooltip sample counts.
 
 ### Why
@@ -795,10 +811,10 @@ Operators need to compare upstream API account quality directly on the account t
 ## 2026-07-31 - ops: production DB GPT-5.6 Terra/Luna price cut sync
 
 ### What
-- Updated production `global_model_pricing` for **Terra** (−20%) and **Luna** (−80%) to track OpenAI 2026-07-30 cut.
-- Preserved existing platform markup: **display ≈ 1× official**, **billing ≈ 2× official**.
+- Updated production `global_model_pricing` for **Terra** (鈭?0%) and **Luna** (鈭?0%) to track OpenAI 2026-07-30 cut.
+- Preserved existing platform markup: **display 鈮?1脳 official**, **billing 鈮?2脳 official**.
 - Sol / generic `gpt-5.6` left unchanged (official Sol price did not change).
-- Also scaled matching **user overrides** that were still on launch-era 1× official rates (`user_id=16` terra/luna). Custom Sol overrides (users 1/16/220) left as-is.
+- Also scaled matching **user overrides** that were still on launch-era 1脳 official rates (`user_id=16` terra/luna). Custom Sol overrides (users 1/16/220) left as-is.
 - Restarted `sub2api` to reload `GlobalPricingCache`.
 
 ### Why
@@ -806,7 +822,7 @@ Repo defaults were updated, but production still served old prices from DB globa
 
 ### Verification
 - Pre/post SQL snapshot in transaction; COMMIT applied.
-- `docker compose restart sub2api` → container running, `{"status":"ok"}` on `/health`.
+- `docker compose restart sub2api` 鈫?container running, `{"status":"ok"}` on `/health`.
 - Final global display: Terra `$2/$12`, Luna `$0.20/$1.20`; billing Terra `$4/$24`, Luna `$0.40/$2.40` (per MTok).
 
 ### Affected
@@ -817,8 +833,8 @@ Production DB tables `global_model_pricing`, `user_model_pricing_overrides` (ter
 ### What
 - Updated packaged LiteLLM pricing and static billing/pricing fallbacks so GPT-5.6 tiers match OpenAI Standard after the 2026-07-30 price cut.
 - **Sol** unchanged: `$5 / $30` input/output per 1MTok.
-- **Terra** −20%: `$2.50/$15` → **`$2 / $12`** (cache write `$2.50`, cache read `$0.20`).
-- **Luna** −80%: `$1/$6` → **`$0.20 / $1.20`** (cache write `$0.25`, cache read `$0.02`).
+- **Terra** 鈭?0%: `$2.50/$15` 鈫?**`$2 / $12`** (cache write `$2.50`, cache read `$0.20`).
+- **Luna** 鈭?0%: `$1/$6` 鈫?**`$0.20 / $1.20`** (cache write `$0.25`, cache read `$0.02`).
 - Split previously shared Sol-level fallback so Terra/Luna no longer resolve to `$5/$30` when dynamic pricing is missing.
 - Also fixed resources JSON where Terra/Luna were incorrectly cloned as Sol prices.
 
@@ -838,12 +854,12 @@ OpenAI reduced Luna by 80% and Terra by 20% on 2026-07-30; local default display
 `docs/dev/codebase/billing.md`,
 this changelog.
 
-## 2026-07-31 - deploy: production v0.1.183 (display cache M/α)
+## 2026-07-31 - deploy: production v0.1.183 (display cache M/伪)
 
 ### What
 - Released and deployed `v0.1.183` to production via GHCR (`ghcr.io/541968679/sub2api:latest`).
 - Image revision `9ad06529a`, version label `0.1.183`, digest `sha256:7e164c3002f4d6dcf16f1ba2f01d1ba98c55c1fbe4f984eb2410af25f9227f8b`.
-- Defaults in this build: display cache max mult **M=1.3**, output residual growth ratio **α=1.5**.
+- Defaults in this build: display cache max mult **M=1.3**, output residual growth ratio **伪=1.5**.
 
 ### Why
 Ship the bounded cache amplify allocator after Codex OAuth multi-turn validation.
@@ -856,16 +872,16 @@ Ship the bounded cache amplify allocator after Codex OAuth multi-turn validation
 ### Affected files
 `docs/dev/DEPLOYMENT.md`, this changelog.
 
-## 2026-07-31 - feat: display cache amplify cap (M) + output residual ratio (α)
+## 2026-07-31 - feat: display cache amplify cap (M) + output residual ratio (伪)
 
 ### What
-- Display layer: cache_read may amplify up to `M` (`display_cache_token_max_mult`, default **1.3**); residual cache premium prefers **output** under growth ratio `α` (`display_output_residual_growth_ratio`, default **1.5**), overflow to input.
-- Admin Settings: new **展示层 / Display** tab for global M/α; Claude-GPT bridge cache display controls moved here from Gateway.
+- Display layer: cache_read may amplify up to `M` (`display_cache_token_max_mult`, default **1.3**); residual cache premium prefers **output** under growth ratio `伪` (`display_output_residual_growth_ratio`, default **1.5**), overflow to input.
+- Admin Settings: new **灞曠ず灞?/ Display** tab for global M/伪; Claude-GPT bridge cache display controls moved here from Gateway.
 - User model pricing modal: optional per-user M override (NULL/empty inherits global).
 - Admin usage table: real vs display **cache share** = `cache_read / (input+output+cache_read+cache_creation)`.
 
 ### Why
-Concentrating amplify on input collapsed visible cache share; unbounded cache amplify filled client context too fast. Bounded M + α-capped output residual balances both.
+Concentrating amplify on input collapsed visible cache share; unbounded cache amplify filled client context too fast. Bounded M + 伪-capped output residual balances both.
 
 ### Verification
 - `go test -tags=unit` on `internal/service` (AllocateDisplay*, DisplayToken_*) and `internal/handler/dto` (ApplyDisplayTransform*)
@@ -890,9 +906,9 @@ this changelog.
 ### What
 Added a prominent red notice banner on the user `/purchase` page that is shared
 by both the recharge and subscription tabs. The notice text is managed under
-Admin → 页面内容 → 充值订阅页 (settings key `purchase_page.notice`). When the
+Admin 鈫?椤甸潰鍐呭 鈫?鍏呭€艰闃呴〉 (settings key `purchase_page.notice`). When the
 setting has never been saved, the built-in default is shown:
-「线上支付渠道暂不可用，如需测试请联系客服vx：tqrzfwidc」. Saving an empty
+銆岀嚎涓婃敮浠樻笭閬撴殏涓嶅彲鐢紝濡傞渶娴嬭瘯璇疯仈绯诲鏈峷x锛歵qrzfwidc銆? Saving an empty
 string disables the banner.
 
 ### Why
@@ -1058,7 +1074,7 @@ JSONB merge API cannot remove an account-level override safely.
 `frontend/src/components/account/__tests__/BulkEditAccountModal.spec.ts`,
 `docs/dev/codebase/account.md`, this changelog.
 
-## 2026-07-29 - fix: preserve Chat Completions structured outputs on OAuth CC→Responses
+## 2026-07-29 - fix: preserve Chat Completions structured outputs on OAuth CC鈫扲esponses
 
 ### What
 Chat Completions `response_format` is no longer dropped when converting to the
@@ -1068,7 +1084,7 @@ strict structured-output probes (e.g. hvoy schema constraint adherence) receive
 a constrained upstream request instead of unconstrained free-form text.
 
 ### Why
-The OAuth path always converts Chat Completions → Responses via
+The OAuth path always converts Chat Completions 鈫?Responses via
 `ChatCompletionsToResponses`. `ChatCompletionsRequest` lacked
 `response_format` and `ResponsesText` lacked `format`, so structured-output
 constraints were silently discarded before Codex OAuth transform. Detectors
@@ -1113,7 +1129,7 @@ how many cards are actually visible (top-up and tutorial are optional).
 After an empty host-DB install, `payment_enabled=false` and empty `tutorial_url`
 left only "Get API Key" in a hard-coded `sm:grid-cols-3` grid, so the lone card
 sat in the first column and looked broken. This is settings-driven visibility,
-not a Docker volume layout bug — but empty defaults make it show up.
+not a Docker volume layout bug 鈥?but empty defaults make it show up.
 
 ### Affected files
 `frontend/src/components/user/dashboard/UserDashboardQuickActions.vue`,
@@ -1122,7 +1138,7 @@ this changelog.
 ## 2026-07-29 - fix: login success stuck on login page (legal consent race)
 
 ### What
-Fixed a race where `applySettings` → `enforceLegalConsentSettings` cleared the
+Fixed a race where `applySettings` 鈫?`enforceLegalConsentSettings` cleared the
 just-established session because legal consent was not yet accepted. Fresh
 logins now keep the session so `LegalConsentDialog` can complete; force-logout
 only runs when a *prior* consent version is stale. Admin login default redirect
@@ -1155,8 +1171,8 @@ Setup only creates the admin during the setup wizard / auto-setup path. A
 freshly provisioned host DB with migrations alone leaves `users` empty.
 
 ### Verification
-- `POST http://127.0.0.1:18081/api/v1/auth/login` → 200 with admin tokens
-- Same path via Vite proxy `15174` → 200
+- `POST http://127.0.0.1:18081/api/v1/auth/login` 鈫?200 with admin tokens
+- Same path via Vite proxy `15174` 鈫?200
 
 ### Affected files
 `backend/migrations/193_add_payment_order_credit_amount.sql`, this changelog
@@ -1167,7 +1183,7 @@ freshly provisioned host DB with migrations alone leaves `users` empty.
 ### What
 Pointed the local Vite proxy at `http://127.0.0.1:18081` (not `localhost` /
 historical `8080`), added loopback fetch fallbacks when injecting
-`window.__APP_CONFIG__`, and rate-limited the "无法获取公开配置" warning so a
+`window.__APP_CONFIG__`, and rate-limited the "鏃犳硶鑾峰彇鍏紑閰嶇疆" warning so a
 temporarily down backend no longer floods the console on every HTML request.
 
 ### Why
@@ -1186,7 +1202,7 @@ On Windows, Node `localhost` dual-stack races also make this flakier than
 Fixed API Keys "Import to CCS" so a successful `ccswitch://` launch no longer
 shows the error "CC-Switch is not installed or the protocol handler is not
 registered". The page now opens the deeplink via a same-document anchor click
-and shows an optimistic success toast (with a soft fallback hint). Grok→Codex
+and shows an optimistic success toast (with a soft fallback hint). Grok鈫扖odex
 still shows the existing metadata catalog warning.
 
 ### Why
@@ -1655,7 +1671,7 @@ manifests, and no deployment failure was observed.
 Sub2API now always injects `context-1m-2025-08-07` for Claude Opus 4.8 and
 Opus 5 families, regardless of whether the client sends that beta header or
 uses a `[1m]` model-name suffix. Model IDs exposed to users stay clean
-(`claude-opus-5`, `claude-opus-4-8`) — 1M is a transport beta, not a public
+(`claude-opus-5`, `claude-opus-4-8`) 鈥?1M is a transport beta, not a public
 model slug.
 
 Injection covers Anthropic OAuth/API-key, API-key passthrough (incl. Kiro),
@@ -1667,7 +1683,7 @@ token.
 ### Why
 Claude Code treats bare `claude-opus-5` as a 200k client-side window unless the
 1M beta is present on the request. Operators want Opus 4.8/5 to always use the
-1M window without requiring users to pick `…[1m]` models or edit local config.
+1M window without requiring users to pick `鈥1m]` models or edit local config.
 
 ### Files
 - `backend/internal/pkg/claude/constants.go` (+tests)
@@ -1686,12 +1702,12 @@ beta after this change.
 Completed the `claude-opus-5` model wiring that previously only had pricing
 data. Account-test model dropdowns, Antigravity default/strict mapping,
 Bedrock default mapping, curated gateway discovery, frontend whitelist
-presets, and OpenAI Claude→GPT bridge template now include `claude-opus-5`.
+presets, and OpenAI Claude鈫扜PT bridge template now include `claude-opus-5`.
 
 ### Why
 Pricing already had `claude-opus-5` in `backend/data/model_pricing.json`, but
 `GET /api/v1/admin/accounts/:id/models` builds the test dropdown from
-`claude.DefaultModels` / platform default mapping keys — not from the pricing
+`claude.DefaultModels` / platform default mapping keys 鈥?not from the pricing
 file. Without those curated lists, the model was billable but not selectable
 for account connection tests.
 
@@ -1711,11 +1727,11 @@ for account connection tests.
 - `frontend/src/components/account/AccountUsageCell.vue`
 - `frontend/src/components/keys/UseKeyModal.vue`
 
-## 2026-07-24 - feat: Claude→GPT bridge pre-generation auto-compact (v1)
+## 2026-07-24 - feat: Claude鈫扜PT bridge pre-generation auto-compact (v1)
 
 ### What
-Server-side auto-compact for oversized Anthropic Messages → OpenAI Responses
-bridge history **before** generation, so Opus/Haiku→gpt-5.* long sessions no
+Server-side auto-compact for oversized Anthropic Messages 鈫?OpenAI Responses
+bridge history **before** generation, so Opus/Haiku鈫抔pt-5.* long sessions no
 longer depend on Claude Code client compact alone.
 
 Release/deploy hardening for this production push:
@@ -1735,7 +1751,7 @@ Aligned with upstream PR #4756, with fork adaptations:
 6. Default **enabled** (upstream PR defaulted off); threshold 512KiB; timeout 600s.
 
 ### Why
-Production context-window failures on Claude→GPT were mostly generation-time
+Production context-window failures on Claude鈫扜PT were mostly generation-time
 HTTP 400 (`context_length_exceeded`). Client compact only runs when Claude Code
 decides to compact; generation path had no pre-gen shrink. Local synthetic tests
 did not reproduce production Opus loads; this is the reliable server-side fix.
@@ -1797,16 +1813,16 @@ Deployed Haiku Claude-GPT bridge empty-output mitigations to production.
 - Prod: running, healthy, `/health` `{"status":"ok"}`
 
 ---
-## 2026-07-23 - fix: Haiku→GPT empty completed output mitigations
+## 2026-07-23 - fix: Haiku鈫扜PT empty completed output mitigations
 
 ### What
-Gateway P0 mitigations for Claude Code Haiku→GPT-5.* bridge empty completed
+Gateway P0 mitigations for Claude Code Haiku鈫扜PT-5.* bridge empty completed
 streams ("Connection closed" / no assistant text):
 
 1. Default reasoning effort for Haiku-class Claude models to `low` when the
    client does not set `output_config.effort`.
 2. After bridge model rewrite, raise `max_output_tokens` floor to 1024 for
-   Haiku→reasoning traffic and strip sampling params on GPT-5.*.
+   Haiku鈫抮easoning traffic and strip sampling params on GPT-5.*.
 3. Mark empty completed (stream/non-stream) Anthropic conversions as
    `UpstreamFailoverError.NoAccountFailover` so the handler does not burn the
    multi-account pool on request-shaped failures.
@@ -1830,7 +1846,7 @@ Multi-account failover then multiplied error noise without changing the outcome.
 - `go test -tags=unit ./internal/service -run TestEmptyVisibleOutputError -count=1`
 - `go test -tags=unit ./internal/handler -run TestOpenAIEmptyVisibleOutput -count=1`
 - Local HTTP + Claude Code smoke against `http://127.0.0.1:18081`:
-  Haiku bridge → gpt-5.4 returned visible text with large Claude Code context
+  Haiku bridge 鈫?gpt-5.4 returned visible text with large Claude Code context
   (`local-haiku-ok-2`, exit 0, no empty-output failover).
 
 ---
@@ -1867,7 +1883,7 @@ into ops context.
 ## 2026-07-22 - feat: admin error-requests tab with filtered error rate
 
 ### What
-Upgraded the admin Usage page “Error Requests” area into a full independent tab
+Upgraded the admin Usage page 鈥淓rror Requests鈥?area into a full independent tab
 with dedicated filters (including multi-select status codes and Claude-GPT
 bridge), terminal request-level error-rate stats, and richer list columns.
 
@@ -1877,7 +1893,7 @@ debug intermittent bridge failures; the previous tab mixed usage UI and lacked
 filters/stats.
 
 ### Fix
-- Backend: extend ops error filters (upstream_model, bridge, error_type, user…);
+- Backend: extend ops error filters (upstream_model, bridge, error_type, user鈥?;
   add `GET /admin/ops/errors/stats` with S1 rate formula (deduped terminal
   errors / (success usage + biz-scope terminal errors)); mark
   `is_claude_gpt_bridge` on list rows.
@@ -1910,8 +1926,8 @@ template across selected/filtered OpenAI accounts.
 
 ### Why
 1. "Apply template" skipped any `from` key already present in model mapping, so
-   editing the template (e.g. haiku → gpt-5.6-luna) could not update accounts
-   that still had the old haiku → gpt-5.4 row.
+   editing the template (e.g. haiku 鈫?gpt-5.6-luna) could not update accounts
+   that still had the old haiku 鈫?gpt-5.4 row.
 2. Bulk edit only toggled the bridge switch and could not apply the shared
    local template to many accounts at once.
 
@@ -2012,17 +2028,17 @@ Deployed Grok Codex multi-turn / models-fallback release to production via GHCR 
 
 ### Notes
 - Tag `v0.1.168` Release Actions succeeded before deploy.
-- Desktop picker still may hide custom Grok under Statsig whitelist; runtime with `model=grok-4.5` (UI 自定义) was verified locally before ship.
+- Desktop picker still may hide custom Grok under Statsig whitelist; runtime with `model=grok-4.5` (UI 鑷畾涔? was verified locally before ship.
 
 ---
 ## 2026-07-15 - fix: Desktop Grok missing when ChatGPT models catalog times out
 
 ### Root cause (not xhigh filtering)
 Codex Desktop uses headers that force Sub2API onto the Codex **manifest** path
-(`GET /v1/models` → proxy `chatgpt.com/backend-api/codex/models`). When that
+(`GET /v1/models` 鈫?proxy `chatgpt.com/backend-api/codex/models`). When that
 upstream request times out (observed on this machine), the handler returned
 502/`upstream_error` and **never reached Grok injection**. Desktop then only
-shows its local GPT-oriented catalog and Grok cannot be selected — even though
+shows its local GPT-oriented catalog and Grok cannot be selected 鈥?even though
 the OpenAI-list path already had `grok-4.5`.
 
 Also aligned Grok ModelInfo with GPT rows: `tool_mode=null`,
@@ -2054,7 +2070,7 @@ so Grok was hidden.
 
 ### Fix
 - Advertise `xhigh` in Codex Grok ModelInfo (`/v1/models` inject + frontend
-  `model-catalog-grok` template); gateway still clamps xhigh→high for xAI.
+  `model-catalog-grok` template); gateway still clamps xhigh鈫抙igh for xAI.
 - Refresh local `~/.codex` catalogs with xhigh + Fast tier metadata.
 
 ### Files
@@ -2078,7 +2094,7 @@ User ModelInput 422 matches known upstream issues. Upstream already fixed:
 
 ### What we ported / tightened
 - Always run `sanitizeGrokResponsesInput` + `sanitizeGrokReasoningNullContent`
-  (including compact-preserve path — previously skipped additional_tools)
+  (including compact-preserve path 鈥?previously skipped additional_tools)
 - Also drop `encrypted_content:null`
 - Keep local turn-2 fixes: empty `summary` for encrypted reasoning, decrypt recovery
 
@@ -2097,13 +2113,13 @@ This is **not** real remote compaction (turn 2 is far too early).
 ### Root cause
 Codex multi-turn echoes `reasoning.encrypted_content` from turn 1. If `summary`
 is missing or JSON null, xAI rejects it with that misleading "compaction blob"
-message. Repro: `encrypted_content` alone → 400; same blob + `summary:[]` → 200.
+message. Repro: `encrypted_content` alone 鈫?400; same blob + `summary:[]` 鈫?200.
 
 ### Fix
 - Proactive: `ensureGrokReasoningEncryptedSummary` sets missing/null summary to `[]`
 - Reactive: on compaction-blob / encrypted_content decrypt 400, drop encrypted
   reasoning once and retry (OpenAI-style invalid_encrypted_content recovery)
-- Applied on HTTP Grok forward + WS→HTTP bridge
+- Applied on HTTP Grok forward + WS鈫扝TTP bridge
 
 ### Files
 - `backend/internal/service/openai_gateway_grok.go`
@@ -2112,7 +2128,7 @@ message. Repro: `encrypted_content` alone → 400; same blob + `summary:[]` → 
 
 ### Verify
 - Unit: `TestEnsureGrokReasoningEncryptedSummaryAddsEmptySummary`
-- Live: T2 with `{type:reasoning, encrypted_content:...}` only → 200
+- Live: T2 with `{type:reasoning, encrypted_content:...}` only 鈫?200
 
 ---
 ## 2026-07-15 - fix: Grok/xAI errors show full message (not bare `{`)
@@ -2154,7 +2170,7 @@ around the opaque compaction item. The blob is integrity-bound to the compact re
 When body has compaction context (`type=compaction` / `compaction_trigger` / compact path):
 - only sjson-set model + drop always-unsupported top-level fields
 - skip tool filter, free-tier tool injection, prompt_cache_key rewrite, full JSON remashal
-- same for HTTP forward and WS→HTTP bridge
+- same for HTTP forward and WS鈫扝TTP bridge
 
 ### Files
 - `backend/internal/service/openai_gateway_grok.go`
@@ -2176,7 +2192,7 @@ WebSocket v2`). Client often only showed a truncated `{` error body.
 
 ### Why
 Grok has no Responses WS v2. Desktop still multi-turns over plain HTTP (not only
-WS). The WS→HTTP bridge already strips `previous_response_id`; HTTP handler did not.
+WS). The WS鈫扝TTP bridge already strips `previous_response_id`; HTTP handler did not.
 
 ### Fix
 - Grok platform groups and Grok text models: strip `previous_response_id` on HTTP
@@ -2194,7 +2210,7 @@ WS). The WS→HTTP bridge already strips `previous_response_id`; HTTP handler di
 
 ### Verify
 - Unit: `TestOpenAIResponses_GrokHTTPStripsPreviousResponseID*`
-- Live: Grok key turn1 + turn2 with `previous_response_id` → 200 (no WS-v2 400)
+- Live: Grok key turn1 + turn2 with `previous_response_id` 鈫?200 (no WS-v2 400)
 
 ### Note
 Stripping `previous_response_id` without a server-side response store means pure
@@ -2221,15 +2237,15 @@ Desktop filters the model picker by plan membership and selected service tier. A
 - Restart Codex Desktop after cache refresh
 
 ---
-# Sub2API 二次开发变更日志
+# Sub2API 浜屾寮€鍙戝彉鏇存棩蹇?
 
-> 记录所有相对于上游 (Wei-Shaw/sub2api) 的自定义修改。每次二次开发变更必须在此记录，便于合并上游更新时追踪差异。
+> 璁板綍鎵€鏈夌浉瀵逛簬涓婃父 (Wei-Shaw/sub2api) 鐨勮嚜瀹氫箟淇敼銆傛瘡娆′簩娆″紑鍙戝彉鏇村繀椤诲湪姝よ褰曪紝渚夸簬鍚堝苟涓婃父鏇存柊鏃惰拷韪樊寮傘€?
 
 ## [2026-07-15] fix: Grok account usage query (billing probe + free 24h estimate)
 
 **Upstream sources** (ported, not full merge):
-- `c896cacf6` / PR #4188 — free quota probing and billing display
-- `30d4301be` / PR #4231 — rolling 24h free quota estimate
+- `c896cacf6` / PR #4188 鈥?free quota probing and billing display
+- `30d4301be` / PR #4231 鈥?rolling 24h free quota estimate
 
 **Root cause**:
 1. `AccountUsageService.GetUsage` never branched on `PlatformGrok`, so Grok OAuth
@@ -2281,7 +2297,7 @@ Grok slugs in the Desktop picker.
 as an official Codex client (UA/Originator), not only when `client_version` is
 set; fall back to `Version` header for upstream catalog version.
 
-## [2026-07-15] fix: Grok reasoning effort clamps xhigh→high; Codex catalog drops xhigh
+## [2026-07-15] fix: Grok reasoning effort clamps xhigh鈫抙igh; Codex catalog drops xhigh
 
 **Affected files**: `openai_gateway_grok.go`, `openai_codex_models_grok_inject.go`,
 `frontend/src/utils/codexGrokCatalog.ts`, tests, this changelog.
@@ -2292,7 +2308,7 @@ upstream failures.
 
 **What changed**:
 - Forward path clamps `reasoning.effort` / `reasoning_effort` values above high
-  (xhigh/max/ultra/…) to `high` for non-composer Grok models.
+  (xhigh/max/ultra/鈥? to `high` for non-composer Grok models.
 - Composer models still strip reasoning fields entirely.
 - Codex inject + local catalog helpers only list low/medium/high.
 
@@ -2310,7 +2326,7 @@ eligibility always failed.
 
 **What changed**: Whitelist `grok_openai_group_access_enabled` in scheduler
 Extra filtering; reload from DB when Grok-access eligibility fails; diagnose
-availability against the Grok schedule pool for OpenAI→Grok requests.
+availability against the Grok schedule pool for OpenAI鈫扜rok requests.
 
 ## [2026-07-15] feat: OpenAI /v1/models always surfaces grok-4.5
 
@@ -2336,7 +2352,7 @@ risky. Operators want a simple default: OpenAI-group keys see `grok-4.5` in
 `handler/openai_codex_models_handler.go`, tests, this changelog.
 
 **Why**: Codex CLI/Desktop calls `GET /v1/models?client_version=...`, which is
-routed to the ChatGPT Codex manifest proxy — **not** the ordinary
+routed to the ChatGPT Codex manifest proxy 鈥?**not** the ordinary
 `Gateway.Models` discovery path that merges Grok text models. After enabling
 Grok OpenAI-group access, Codex still only saw gpt-* slugs.
 
@@ -2368,13 +2384,13 @@ specific OpenAI groups without requiring a second Grok-group key.
 3. Custom models lists never auto-append Grok models; only explicitly listed IDs appear.
 
 **What changed**:
-- Bind validation: opt-out Grok → Grok groups only; opt-in Grok → Grok + OpenAI groups.
+- Bind validation: opt-out Grok 鈫?Grok groups only; opt-in Grok 鈫?Grok + OpenAI groups.
 - OpenAI-compatible schedule resolves Grok text models to the Grok pool with
   access eligibility; gpt models stay on the OpenAI pool.
 - `/v1/models` merges Grok text models for non-custom OpenAI discovery when
   bound opt-in Grok accounts exist.
 - WS/responses/chat use the access-aware selector; previous_response sticky is
-  not reused across OpenAI↔Grok access routing.
+  not reused across OpenAI鈫擥rok access routing.
 - Admin UI toggle + i18n for the opt-in control.
 
 ## [2026-07-15] fix: Grok strips orphan tool_choice (Codex 400 hang)
@@ -2383,7 +2399,7 @@ specific OpenAI groups without requiring a second Grok-group key.
 `openai_ws_http_bridge.go`, tests, this changelog.
 
 **Why**: Codex sends `tool_choice` with tools that Grok does not support (or empty
-tools). After filtering tools away, `tool_choice` could remain → xAI 400
+tools). After filtering tools away, `tool_choice` could remain 鈫?xAI 400
 `A tool_choice was set on the request but no tools were specified.` Streaming
 clients then appear to hang and may surface a truncated `{` error body.
 
@@ -2400,15 +2416,15 @@ connection request id. With the `local:` prefix this exceeded `usage_logs.reques
 varchar(64), so WS Grok turns completed but usage insert failed
 (`pq: value too long for type character varying(64)`).
 
-**What changed**: Compact suffix `:t:<turn>-<last8>` so stored request ids stay ≤64.
+**What changed**: Compact suffix `:t:<turn>-<last8>` so stored request ids stay 鈮?4.
 
 ## [2026-07-15] fix: Grok Responses WS HTTP bridge must call xAI, not ChatGPT Codex
 
 **Affected files**: `backend/internal/service/openai_ws_http_bridge.go`, this changelog.
 
-**Why**: After opening Grok WS ingress, multi-turn still failed: the shared WS→HTTP
+**Why**: After opening Grok WS ingress, multi-turn still failed: the shared WS鈫扝TTP
 bridge built upstream requests via OpenAI passthrough (`chatgpt.com/.../codex/responses`)
-with a Grok OAuth token → upstream 401 “Could not parse your authentication token”.
+with a Grok OAuth token 鈫?upstream 401 鈥淐ould not parse your authentication token鈥?
 No successful usage was recorded; repeated failures temp-unschedulable the only Grok account.
 
 **What changed**: For `account.IsGrok()`, the bridge now reuses
@@ -2429,7 +2445,7 @@ Without it, requests hang ~21s then 502 and produce no usage rows.
 (`supports_reasoning_summaries`, `apply_patch_tool_type`, `tool_mode`, etc.)
 aligned with a real Codex ModelInfo shape, not a sparse subset.
 
-## [2026-07-15] fix: silence Codex “Model metadata for grok-4.5 not found” after Grok import
+## [2026-07-15] fix: silence Codex 鈥淢odel metadata for grok-4.5 not found鈥?after Grok import
 
 **Affected files**:
 - `frontend/src/utils/codexGrokCatalog.ts` (+ unit tests)
@@ -2438,13 +2454,13 @@ aligned with a real Codex ModelInfo shape, not a sparse subset.
 - `frontend/src/i18n/locales/{zh,en}.ts`
 - this changelog
 
-**Why**: CCS one-click import for Grok correctly sets `model = "grok-4.5"` but CC Switch’s
+**Why**: CCS one-click import for Grok correctly sets `model = "grok-4.5"` but CC Switch鈥檚
 Codex deeplink template does **not** write `model_context_window` / `model_catalog_json`.
 Codex then warns that Grok metadata is missing and uses fallback ModelInfo.
 
 **What changed**:
 - Ship a portable `model-catalog-grok.json` + Codex `config.toml` template with 1M context
-  and relative catalog pointer (Use Key → Codex CLI / WebSocket for Grok groups).
+  and relative catalog pointer (Use Key 鈫?Codex CLI / WebSocket for Grok groups).
 - After CCS import of a Grok key, show a warning tip explaining the catalog gap.
 - Local ops note: patch `~/.codex/config.toml` + write catalog when verifying.
 
@@ -2456,7 +2472,7 @@ Codex then warns that Grok metadata is missing and uses fallback ModelInfo.
 - `frontend/src/views/user/KeysView.vue`
 - this changelog
 
-**Why**: Grok-group API keys imported via 「导入到 CCS」 wrote
+**Why**: Grok-group API keys imported via 銆屽鍏ュ埌 CCS銆?wrote
 `model = "claude-sonnet-4-5"` because Codex model selection only had
 openai vs non-openai buckets, and Grok fell into
 `ccs_import_anthropic_codex_model`.
@@ -2464,15 +2480,15 @@ openai vs non-openai buckets, and Grok fell into
 **What changed** (minimal, upstream-style):
 - Extract `resolveCcSwitchImportConfig` / `buildCcSwitchImportDeeplink` like
   upstream `ccswitchImport`.
-- Explicit `platform=grok` → `app=codex`, `model=grok-4.5` (matches UseKeyModal).
-- OpenAI still uses admin `ccs_import_codex_model`; Anthropic→Codex still uses
+- Explicit `platform=grok` 鈫?`app=codex`, `model=grok-4.5` (matches UseKeyModal).
+- OpenAI still uses admin `ccs_import_codex_model`; Anthropic鈫扖odex still uses
   `ccs_import_anthropic_codex_model`. Grok no longer reuses the Anthropic setting.
 
 **Note**: Upstream maps unknown platforms to Claude without a model; Grok is
 OpenAI-compatible Responses, so we intentionally set Codex + `grok-4.5` rather
 than copying that fallthrough.
 
-## [2026-07-15] fix: Grok Responses WebSocket ingress → HTTP/SSE bridge (Codex multi-turn)
+## [2026-07-15] fix: Grok Responses WebSocket ingress 鈫?HTTP/SSE bridge (Codex multi-turn)
 
 **Affected files**:
 - `backend/internal/handler/openai_gateway_handler.go`
@@ -2487,11 +2503,11 @@ than copying that fallthrough.
 keys failed: first HTTP turn worked, then client preferred Responses WebSocket
 ingress (501 hard reject) or HTTP `previous_response_id` (400 WS-v2 only).
 
-**What changed** (requirement A, minimal patch — not full upstream WS cache/pool):
+**What changed** (requirement A, minimal patch 鈥?not full upstream WS cache/pool):
 - Remove Grok-only 501 gate on `ResponsesWebSocket`.
 - Schedule Grok WS ingress with `requiredTransport=http_sse` and
   `requestPlatform=grok` so only Grok accounts are selected.
-- Force Grok accounts onto the existing client-WS → upstream HTTP/SSE bridge
+- Force Grok accounts onto the existing client-WS 鈫?upstream HTTP/SSE bridge
   (including multi-turn with `previous_response_id` via bridge replay).
 - OpenAI WS path unchanged (still requires ws_v2 when not forced to bridge).
 
@@ -2499,7 +2515,7 @@ ingress (501 hard reject) or HTTP `previous_response_id` (400 WS-v2 only).
 Grok routing (requirement B) is **not** included.
 
 **Tests**: handler regression (Grok no longer 501); bridge decision forces Grok;
-end-to-end multi-turn Grok WS→HTTP bridge unit test.
+end-to-end multi-turn Grok WS鈫扝TTP bridge unit test.
 
 ## [2026-07-15] docs: Grok Codex multi-turn and OpenAI-key cross-platform research
 
@@ -2758,7 +2774,7 @@ form/types/i18n, tests, and this changelog.
 **Compatibility**: Frontend only. Makes error-request viewing admin-only. The user-side `allow_user_view_error_requests` setting and `/usage/errors` API are retained but the user tab no longer renders.
 **Details**:
 - User usage view (`/usage`): the error-request tab is hidden unconditionally (`errorViewEnabled` forced false). The tab bar disappears and only the usage records section renders; the setting/API are kept dormant for future re-enablement.
-- Admin usage view (`/admin/usage`): added an "错误请求 / Error Requests" tab alongside "使用记录" and "用户排行", lazily mounted like the ranking tab. It reuses the existing Ops error infrastructure — `opsAPI.listErrorLogs` (`/admin/ops/errors`, `view=errors`), `OpsErrorLogTable` (self-paginating), and `OpsErrorDetailModal` (`error-type="request"`) — scoped to the page's date range plus group/account filters (converted to RFC3339 full-day bounds).
+- Admin usage view (`/admin/usage`): added an "閿欒璇锋眰 / Error Requests" tab alongside "浣跨敤璁板綍" and "鐢ㄦ埛鎺掕", lazily mounted like the ranking tab. It reuses the existing Ops error infrastructure 鈥?`opsAPI.listErrorLogs` (`/admin/ops/errors`, `view=errors`), `OpsErrorLogTable` (self-paginating), and `OpsErrorDetailModal` (`error-type="request"`) 鈥?scoped to the page's date range plus group/account filters (converted to RFC3339 full-day bounds).
 - Errors reload on filter apply/refresh when the tab is active; i18n `usage.tabs.errors` already existed in zh/en.
 - Verified: typecheck + lint clean; admin UsageView spec updated (3 tabs, new lazy-load-and-fetch test) and user/admin specs green; live check confirmed the admin tab fires `GET /admin/ops/errors?...view=errors` (200) with the correct date bounds and the user view shows no error tab.
 
@@ -2842,22 +2858,22 @@ and unrelated routes retain their contracts.
   deletion, import/export, and frontend actions against detached shadows.
 - Added focused backend and frontend regression coverage. No push/deploy.
 
-## 鏍煎紡璇存槑
+## 閺嶇厧绱＄拠瀛樻
 
 ```
-## [鏃ユ湡] 绫诲埆: 绠€鐭弿杩?
+## [閺冦儲婀 缁鍩? 缁犫偓閻厽寮挎潻?
 
-**褰卞搷鑼冨洿**: 娑夊強鐨勬ā鍧?鏂囦欢
-**涓婃父鍏煎鎬?*: 鏄惁鍙兘涓庝笂娓告洿鏂板啿绐?
-**鍙樻洿璇︽儏**:
-- 鍏蜂綋淇敼鍐呭
+**瑜板崬鎼烽懠鍐ㄦ纯**: 濞戝寮烽惃鍕侀崸?閺傚洣娆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺勵垰鎯侀崣顖濆厴娑撳簼绗傚〒鍛婃纯閺傛澘鍟跨粣?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閸忚渹缍嬫穱顔芥暭閸愬懎顔?
 
-**鍏宠仈 Issue/PR**: #xxx锛堝鏈夛級
+**閸忓疇浠?Issue/PR**: #xxx閿涘牆顩ч張澶涚礆
 ```
 
 ---
 
-## 鍙樻洿璁板綍
+## 閸欐ɑ娲跨拋鏉跨秿
 
 ## [2026-07-11] merge: Integrate bridge hardening into upstream alignment
 
@@ -3150,9 +3166,9 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Details**:
 - Manual image-edit runs no longer require one exclusive input image per concurrent request (c16 previously demanded 16 distinct uploads). The pool now needs at least 1 image and assigns images to runs in round-robin order; the assignment lives in `buildManualRunRequests` and is returned per request, so the uploaded blob can never drift from the payload's `input_image_name`/`input_image_type`.
 - Fixed every manual edit run failing instantly with `api_key_id is required for gateway manual tests` even in direct-probe mode: the client-wide axios `Content-Type: application/json` default made axios 1.x rewrite the edit `FormData` through `formDataToJSON` into a JSON body, so the backend JSON binding saw zero values for every real field (`execution_mode`, `api_key_id`, `client_run_id`, batch fields), and an empty `execution_mode` defaults to `gateway_account` whenever the manual gateway is configured. `manualTest` now posts `FormData` with an explicit `multipart/form-data` override (same idiom as the tutorial-page upload API).
-- Input-pool UI: the counter chip reads "已选 X 张 / N 条请求", the empty-pool warning explains that one image can be reused, and a neutral hint appears when the pool is smaller than the planned run count.
+- Input-pool UI: the counter chip reads "宸查€?X 寮?/ N 鏉¤姹?, the empty-pool warning explains that one image can be reused, and a neutral hint appears when the pool is smaller than the planned run count.
 - Regression coverage: utils round-robin distribution, single-image reuse across all runs, and empty-pool rejection; a view-level launch of 3 concurrent edit runs reusing one uploaded image; API-layer assertions that edit runs post multipart with the explicit override while generate runs stay plain JSON.
-- Verification: targeted vitest suites (utils 24, view 20, API 6 tests), `pnpm run typecheck`, `pnpm run lint:check`, and a live browser run against the local stack — 4 concurrent direct-probe edit requests sharing one input image all reached the backend as multipart `direct_probe` (HTTP 200) and completed with real generated 1536x1024 images via URL delivery.
+- Verification: targeted vitest suites (utils 24, view 20, API 6 tests), `pnpm run typecheck`, `pnpm run lint:check`, and a live browser run against the local stack 鈥?4 concurrent direct-probe edit requests sharing one input image all reached the backend as multipart `direct_probe` (HTTP 200) and completed with real generated 1536x1024 images via URL delivery.
 
 ## [2026-07-11] fix: Claude-GPT bridge strict routing (P0)
 
@@ -3161,10 +3177,10 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Details**:
 - Implemented the 2026-07-10 investigation P0: `ResolveClaudeGPTBridgeRoute` diagnoses `not_configured/ready/rate_limited/unavailable/probe_error` from `AccountRepository.ListByGroup` without acquiring scheduler slots, separating stable mapping intent from instantaneous capacity.
 - `routes/gateway.go` dispatches Antigravity `/v1/messages` by route action; `rate_limited` returns Anthropic 429 `rate_limit_error` with `Retry-After` (earliest future recovery, rounded up, min 1s), `unavailable` returns 503 `overloaded_error`, `probe_error` returns 503 `api_error`, and protocol errors return canonical 400 instead of masquerading as a native miss.
-- Removed `ShouldUseClaudeGPTBridge`, the hidden `markOpenAIClaudeGPTBridgeFallback` native fallback, and its context key. Selection races and mid-request mapping deletion re-diagnose once (`respondClaudeGPTBridgeSelectionRace`): pure rate limit → 429, otherwise → bridge-side 503.
-- Multi-account bridge failover is preserved; when every attempt fails with 429 the final response stays 429 and propagates a validated upstream `Retry-After` (positive integer, ≤86400s).
+- Removed `ShouldUseClaudeGPTBridge`, the hidden `markOpenAIClaudeGPTBridgeFallback` native fallback, and its context key. Selection races and mid-request mapping deletion re-diagnose once (`respondClaudeGPTBridgeSelectionRace`): pure rate limit 鈫?429, otherwise 鈫?bridge-side 503.
+- Multi-account bridge failover is preserved; when every attempt fails with 429 the final response stays 429 and propagates a validated upstream `Retry-After` (positive integer, 鈮?6400s).
 - Route decisions emit `openai_claude_gpt_bridge.route_decision` (state, candidate/schedulable/rate-limited counts, retry_at, decision_source, latency) with no account identities.
-- Added the two-request 429 regression (`429 → cooldown → next request must be 429, never native`) plus the section-10 test matrix for diagnosis states, Retry-After bounds, streaming-aware race errors, and body preservation for native fallthrough. Updated upstream-sync-guard signatures (including the stale `writeCustomModelsList` entry).
+- Added the two-request 429 regression (`429 鈫?cooldown 鈫?next request must be 429, never native`) plus the section-10 test matrix for diagnosis states, Retry-After bounds, streaming-aware race errors, and body preservation for native fallthrough. Updated upstream-sync-guard signatures (including the stale `writeCustomModelsList` entry).
 - Post-review hardening (multi-agent adversarial review): Messages forward-path `UpstreamFailoverError` now carries `ResponseHeaders` so the exhausted-all-429 Retry-After propagation actually fires in production; group-blocked models return a stable 403 before capacity 429/503; `Retry-After` from `RateLimitResetAt` is capped at 86400s; simple run mode diagnoses candidates platform-wide to match the scheduler pool instead of silently regressing unbound bridge accounts to native; a rate limit expiring between schedulability checks re-classifies as schedulable instead of 503.
 
 ## [2026-07-11] feat: Claude-GPT bridge-aware count_tokens (P1)
@@ -3176,7 +3192,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Antigravity groups with an explicit bridge mapping use `CountTokensClaudeGPTBridge`: `ready` counts upstream with the mapped GPT model (scheduler slot released immediately; bridge-lenient mode answers any upstream failure with a 200 local estimate while keeping `HandleUpstreamError` account bookkeeping), and `rate_limited/unavailable/probe_error` return a 200 local estimate without touching the native pool.
 - count_tokens keeps zero usage/billing/concurrency side effects; group model access and billing eligibility checks match the Messages gates.
 - Added `github.com/tiktoken-go/tokenizer v0.8.0`; local estimation sample expectations match official upstream exactly (o200k_base default, cl100k_base for gpt-3.5/gpt-4-era models). Estimates log `count_tokens_estimated=true` with an `estimate_reason`.
-- Post-review hardening: local estimation is bounded at 8 MiB — larger converted inputs use a bytes/4 approximation instead of feeding the tokenizer (local-compute DoS guard); bridge count preflight returns a proper 413/400 on body-read errors instead of handing native a consumed empty body; the degraded path reuses the diagnosis-carried mapped model instead of a second account scan; the bridge count path records the same ops request/endpoint/selected-account context as the other count paths.
+- Post-review hardening: local estimation is bounded at 8 MiB 鈥?larger converted inputs use a bytes/4 approximation instead of feeding the tokenizer (local-compute DoS guard); bridge count preflight returns a proper 413/400 on body-read errors instead of handing native a consumed empty body; the degraded path reuses the diagnosis-carried mapped model instead of a second account scan; the bridge count path records the same ops request/endpoint/selected-account context as the other count paths.
 
 ## [2026-07-11] feat: Codex models manifest passthrough
 
@@ -3194,125 +3210,125 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 
 ## [2026-07-10] feat: OpenAI GPT-5.6 sol/terra/luna support
 
-**影响范围**: backend/internal/{pkg/openai/constants.go, service/{openai_model_alias.go,openai_codex_transform.go,models_list_policy.go,pricing_service.go,billing_service.go}(+tests), handler/gateway_models_list_test.go}, backend/resources/model-pricing/model_prices_and_context_window.json, frontend/src/{composables/useModelWhitelist.ts(+test),components/keys/UseKeyModal.vue(+test)}, docs/dev/codebase/{model-mapping.md,billing.md}
-**上游兼容性**: 中低风险。按上游 `6cea1c35` 增量接入 `gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`，但不做大范围 upstream merge，不移除本地 GPT-5.5-pro/date、Codex Spark、Claude-GPT bridge、图片通道、展示倍率等二开逻辑。
-**变更详情**:
-- OpenAI 默认模型、`/v1/models` curated discovery、前端 OpenAI 白名单/预设、OpenCode 配置加入 GPT-5.6 三个官方变体。
-- Codex/OpenAI 模型归一支持 `gpt5.6-*`、`openai/gpt5.6-*`、reasoning-effort 后缀、日期后缀和 compact 后缀，避免新模型落入旧的 `gpt-5 -> gpt-5.4` 兼容兜底。
-- LiteLLM 资源文件加入上游 GPT-5.6 pricing/context/service-tier 字段；动态价格仍优先，静态兜底仅在价格资源缺失时启用，且不改变用户/渠道/全局/display rate 解析链。
-- 默认 Claude-GPT bridge 模板保持 `claude-opus-4-8/4-7 -> gpt-5.5`、其他 Claude 4.x -> `gpt-5.4`，只新增可选 OpenAI 预设，不隐式升级默认桥接目标。
-- 验证：`go test -tags=unit ./internal/pkg/openai ./internal/service ./internal/handler` 通过；`node -e "JSON.parse(...model_prices_and_context_window.json...)"` 通过；`pnpm test:run src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts` 通过；`pnpm exec eslint src/composables/useModelWhitelist.ts src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/UseKeyModal.vue src/components/keys/__tests__/UseKeyModal.spec.ts` 通过。
+**褰卞搷鑼冨洿**: backend/internal/{pkg/openai/constants.go, service/{openai_model_alias.go,openai_codex_transform.go,models_list_policy.go,pricing_service.go,billing_service.go}(+tests), handler/gateway_models_list_test.go}, backend/resources/model-pricing/model_prices_and_context_window.json, frontend/src/{composables/useModelWhitelist.ts(+test),components/keys/UseKeyModal.vue(+test)}, docs/dev/codebase/{model-mapping.md,billing.md}
+**涓婃父鍏煎鎬?*: 涓綆椋庨櫓銆傛寜涓婃父 `6cea1c35` 澧為噺鎺ュ叆 `gpt-5.6-sol`銆乣gpt-5.6-terra`銆乣gpt-5.6-luna`锛屼絾涓嶅仛澶ц寖鍥?upstream merge锛屼笉绉婚櫎鏈湴 GPT-5.5-pro/date銆丆odex Spark銆丆laude-GPT bridge銆佸浘鐗囬€氶亾銆佸睍绀哄€嶇巼绛変簩寮€閫昏緫銆?
+**鍙樻洿璇︽儏**:
+- OpenAI 榛樿妯″瀷銆乣/v1/models` curated discovery銆佸墠绔?OpenAI 鐧藉悕鍗?棰勮銆丱penCode 閰嶇疆鍔犲叆 GPT-5.6 涓変釜瀹樻柟鍙樹綋銆?
+- Codex/OpenAI 妯″瀷褰掍竴鏀寔 `gpt5.6-*`銆乣openai/gpt5.6-*`銆乺easoning-effort 鍚庣紑銆佹棩鏈熷悗缂€鍜?compact 鍚庣紑锛岄伩鍏嶆柊妯″瀷钀藉叆鏃х殑 `gpt-5 -> gpt-5.4` 鍏煎鍏滃簳銆?
+- LiteLLM 璧勬簮鏂囦欢鍔犲叆涓婃父 GPT-5.6 pricing/context/service-tier 瀛楁锛涘姩鎬佷环鏍间粛浼樺厛锛岄潤鎬佸厹搴曚粎鍦ㄤ环鏍艰祫婧愮己澶辨椂鍚敤锛屼笖涓嶆敼鍙樼敤鎴?娓犻亾/鍏ㄥ眬/display rate 瑙ｆ瀽閾俱€?
+- 榛樿 Claude-GPT bridge 妯℃澘淇濇寔 `claude-opus-4-8/4-7 -> gpt-5.5`銆佸叾浠?Claude 4.x -> `gpt-5.4`锛屽彧鏂板鍙€?OpenAI 棰勮锛屼笉闅愬紡鍗囩骇榛樿妗ユ帴鐩爣銆?
+- 楠岃瘉锛歚go test -tags=unit ./internal/pkg/openai ./internal/service ./internal/handler` 閫氳繃锛沗node -e "JSON.parse(...model_prices_and_context_window.json...)"` 閫氳繃锛沗pnpm test:run src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/__tests__/UseKeyModal.spec.ts` 閫氳繃锛沗pnpm exec eslint src/composables/useModelWhitelist.ts src/composables/__tests__/useModelWhitelist.spec.ts src/components/keys/UseKeyModal.vue src/components/keys/__tests__/UseKeyModal.spec.ts` 閫氳繃銆?
 
-## [2026-07-08] feat: 网关上游网络错误可配置重试
+## [2026-07-08] feat: 缃戝叧涓婃父缃戠粶閿欒鍙厤缃噸璇?
 
-**影响范围**: backend/internal/{repository/http_upstream.go(+test), service/{http_upstream_port.go,setting_service.go,settings_view.go,domain_constants.go,wire.go,setting_service_update_test.go}, handler/{admin/setting_handler.go,dto/settings.go}, cmd/server/wire_gen.go}, frontend/src/{api/admin/settings.ts,views/admin/SettingsView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/gateway.md
-**上游兼容性**: 中低风险。统一 HTTPUpstream 出站层新增传输错误兜底；仅对未收到 HTTP 响应的连接失败/超时/EOF/DNS 等网络错误生效，不重试上游 4xx/5xx 响应；不可重放 request body 不重试。
-**变更详情**:
-- 新增系统设置 `gateway_network_retry_max`，位于后台「系统设置 - 网关服务 - 请求转发行为」，取值 0-10，默认 2；0 表示关闭重试。
-- `repository.HTTPUpstream` 外层增加网络错误重试：默认最多重试 2 次（总尝试 3 次），短退避；触发时写 `upstream_network_retry` 日志；已有专用重试循环的 OpenAI OAuth 图片 `/responses` 工具路径通过上下文关闭全局重试，避免次数叠加。
-- 设置服务将该字段并入网关转发行为缓存，保存后刷新热路径缓存；admin settings API 支持未传字段沿用旧值并记录审计 diff。
-- 前端补齐类型、默认值、保存 payload 和中英文文案。
-- 验证：`go test -tags=unit ./internal/repository ./internal/service ./internal/handler/admin ./cmd/server` 通过；`pnpm run typecheck` 通过。
+**褰卞搷鑼冨洿**: backend/internal/{repository/http_upstream.go(+test), service/{http_upstream_port.go,setting_service.go,settings_view.go,domain_constants.go,wire.go,setting_service_update_test.go}, handler/{admin/setting_handler.go,dto/settings.go}, cmd/server/wire_gen.go}, frontend/src/{api/admin/settings.ts,views/admin/SettingsView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/gateway.md
+**涓婃父鍏煎鎬?*: 涓綆椋庨櫓銆傜粺涓€ HTTPUpstream 鍑虹珯灞傛柊澧炰紶杈撻敊璇厹搴曪紱浠呭鏈敹鍒?HTTP 鍝嶅簲鐨勮繛鎺ュけ璐?瓒呮椂/EOF/DNS 绛夌綉缁滈敊璇敓鏁堬紝涓嶉噸璇曚笂娓?4xx/5xx 鍝嶅簲锛涗笉鍙噸鏀?request body 涓嶉噸璇曘€?
+**鍙樻洿璇︽儏**:
+- 鏂板绯荤粺璁剧疆 `gateway_network_retry_max`锛屼綅浜庡悗鍙般€岀郴缁熻缃?- 缃戝叧鏈嶅姟 - 璇锋眰杞彂琛屼负銆嶏紝鍙栧€?0-10锛岄粯璁?2锛? 琛ㄧず鍏抽棴閲嶈瘯銆?
+- `repository.HTTPUpstream` 澶栧眰澧炲姞缃戠粶閿欒閲嶈瘯锛氶粯璁ゆ渶澶氶噸璇?2 娆★紙鎬诲皾璇?3 娆★級锛岀煭閫€閬匡紱瑙﹀彂鏃跺啓 `upstream_network_retry` 鏃ュ織锛涘凡鏈変笓鐢ㄩ噸璇曞惊鐜殑 OpenAI OAuth 鍥剧墖 `/responses` 宸ュ叿璺緞閫氳繃涓婁笅鏂囧叧闂叏灞€閲嶈瘯锛岄伩鍏嶆鏁板彔鍔犮€?
+- 璁剧疆鏈嶅姟灏嗚瀛楁骞跺叆缃戝叧杞彂琛屼负缂撳瓨锛屼繚瀛樺悗鍒锋柊鐑矾寰勭紦瀛橈紱admin settings API 鏀寔鏈紶瀛楁娌跨敤鏃у€煎苟璁板綍瀹¤ diff銆?
+- 鍓嶇琛ラ綈绫诲瀷銆侀粯璁ゅ€笺€佷繚瀛?payload 鍜屼腑鑻辨枃鏂囨銆?
+- 楠岃瘉锛歚go test -tags=unit ./internal/repository ./internal/service ./internal/handler/admin ./cmd/server` 閫氳繃锛沗pnpm run typecheck` 閫氳繃銆?
 
-## [2026-07-08] fix: 图片渠道监控手动参数区增加内部下拉滚动
+## [2026-07-08] fix: 鍥剧墖娓犻亾鐩戞帶鎵嬪姩鍙傛暟鍖哄鍔犲唴閮ㄤ笅鎷夋粴鍔?
 
-**影响范围**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
-**上游兼容性**: 低风险。仅调整手动检测面板左侧参数配置区域的布局滚动边界，不改接口、检测逻辑或持久化结构。
-**变更详情**:
-- 手动检测左侧参数配置块改为固定标题 + 有高度边界的内部滚动正文，内容过高时可向下滚到预设/模板选择区域。
-- 保持手动面板的固定视口设计：不恢复整页滚动，Channels 列表和底部开始/取消 CTA 仍按原内部滚动布局工作。
-- 更新 image-channel-monitor 模块文档，记录参数正文也是左侧内部滚动区域之一，后续新增控件不能再次隐藏底部控制项。
+**褰卞搷鑼冨洿**: frontend/src/views/admin/ImageChannelMonitorView.vue, docs/dev/codebase/image-channel-monitor.md
+**涓婃父鍏煎鎬?*: 浣庨闄┿€備粎璋冩暣鎵嬪姩妫€娴嬮潰鏉垮乏渚у弬鏁伴厤缃尯鍩熺殑甯冨眬婊氬姩杈圭晫锛屼笉鏀规帴鍙ｃ€佹娴嬮€昏緫鎴栨寔涔呭寲缁撴瀯銆?
+**鍙樻洿璇︽儏**:
+- 鎵嬪姩妫€娴嬪乏渚у弬鏁伴厤缃潡鏀逛负鍥哄畾鏍囬 + 鏈夐珮搴﹁竟鐣岀殑鍐呴儴婊氬姩姝ｆ枃锛屽唴瀹硅繃楂樻椂鍙悜涓嬫粴鍒伴璁?妯℃澘閫夋嫨鍖哄煙銆?
+- 淇濇寔鎵嬪姩闈㈡澘鐨勫浐瀹氳鍙ｈ璁★細涓嶆仮澶嶆暣椤垫粴鍔紝Channels 鍒楄〃鍜屽簳閮ㄥ紑濮?鍙栨秷 CTA 浠嶆寜鍘熷唴閮ㄦ粴鍔ㄥ竷灞€宸ヤ綔銆?
+- 鏇存柊 image-channel-monitor 妯″潡鏂囨。锛岃褰曞弬鏁版鏂囦篃鏄乏渚у唴閮ㄦ粴鍔ㄥ尯鍩熶箣涓€锛屽悗缁柊澧炴帶浠朵笉鑳藉啀娆￠殣钘忓簳閮ㄦ帶鍒堕」銆?
 
-## [2026-07-07] feat: 图片渠道监控手动检测支持并发批次
+## [2026-07-07] feat: 鍥剧墖娓犻亾鐩戞帶鎵嬪姩妫€娴嬫敮鎸佸苟鍙戞壒娆?
 
-**影响范围**: backend/internal/{service/{image_channel_monitor_types.go,image_channel_monitor_service.go(+test)},handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts,views/admin/ImageChannelMonitorView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/image-channel-monitor.md
-**上游兼容性**: 低风险。手动检测仍是异步内存 run + 前端本地历史，不改 `image_channel_monitor_histories` 定时监控历史表，也不改变 scheduled check 语义。
-**变更详情**:
-- 手动检测参数区新增并发数，点击开始后按 `选中渠道数 × 并发数` 展开独立检测记录；前端限制单渠道并发 1-20、单轮总记录 100 条，避免误操作压垮浏览器或上游。
-- 后端 manual run 请求/响应新增 `batch_id`、`batch_size`、`batch_index`，轮询与取消响应保持同一批次标识；`StartManualCheck` 单测覆盖批次字段保留。
-- 前端 `manualResults` 从按渠道 ID 存储改为按单条 recordId 存储，同一渠道可同时显示多条并发记录；手动记录表新增「批次」列，详情弹窗新增批次/序号/平均耗时指标。
-- 浏览器本地手动历史保存批次字段与 `batch_average_elapsed_ms`；同批记录完成时回填平均耗时，旧历史/预设数据兼容默认值；手动预设同步保存并发数。
-- 验证：`pnpm --dir frontend run typecheck` 通过；`go test -tags=unit ./internal/service -run TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult` 通过。
+**褰卞搷鑼冨洿**: backend/internal/{service/{image_channel_monitor_types.go,image_channel_monitor_service.go(+test)},handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts,views/admin/ImageChannelMonitorView.vue,i18n/locales/{zh,en}.ts}, docs/dev/codebase/image-channel-monitor.md
+**涓婃父鍏煎鎬?*: 浣庨闄┿€傛墜鍔ㄦ娴嬩粛鏄紓姝ュ唴瀛?run + 鍓嶇鏈湴鍘嗗彶锛屼笉鏀?`image_channel_monitor_histories` 瀹氭椂鐩戞帶鍘嗗彶琛紝涔熶笉鏀瑰彉 scheduled check 璇箟銆?
+**鍙樻洿璇︽儏**:
+- 鎵嬪姩妫€娴嬪弬鏁板尯鏂板骞跺彂鏁帮紝鐐瑰嚮寮€濮嬪悗鎸?`閫変腑娓犻亾鏁?脳 骞跺彂鏁癭 灞曞紑鐙珛妫€娴嬭褰曪紱鍓嶇闄愬埗鍗曟笭閬撳苟鍙?1-20銆佸崟杞€昏褰?100 鏉★紝閬垮厤璇搷浣滃帇鍨祻瑙堝櫒鎴栦笂娓搞€?
+- 鍚庣 manual run 璇锋眰/鍝嶅簲鏂板 `batch_id`銆乣batch_size`銆乣batch_index`锛岃疆璇笌鍙栨秷鍝嶅簲淇濇寔鍚屼竴鎵规鏍囪瘑锛沗StartManualCheck` 鍗曟祴瑕嗙洊鎵规瀛楁淇濈暀銆?
+- 鍓嶇 `manualResults` 浠庢寜娓犻亾 ID 瀛樺偍鏀逛负鎸夊崟鏉?recordId 瀛樺偍锛屽悓涓€娓犻亾鍙悓鏃舵樉绀哄鏉″苟鍙戣褰曪紱鎵嬪姩璁板綍琛ㄦ柊澧炪€屾壒娆°€嶅垪锛岃鎯呭脊绐楁柊澧炴壒娆?搴忓彿/骞冲潎鑰楁椂鎸囨爣銆?
+- 娴忚鍣ㄦ湰鍦版墜鍔ㄥ巻鍙蹭繚瀛樻壒娆″瓧娈典笌 `batch_average_elapsed_ms`锛涘悓鎵硅褰曞畬鎴愭椂鍥炲～骞冲潎鑰楁椂锛屾棫鍘嗗彶/棰勮鏁版嵁鍏煎榛樿鍊硷紱鎵嬪姩棰勮鍚屾淇濆瓨骞跺彂鏁般€?
+- 楠岃瘉锛歚pnpm --dir frontend run typecheck` 閫氳繃锛沗go test -tags=unit ./internal/service -run TestImageChannelMonitorStartManualCheckRunsAsyncAndPollsResult` 閫氳繃銆?
 
-## [2026-07-06] feat: 图片渠道监控/手动测试支持 response_format 拿图方式选择
+## [2026-07-06] feat: 鍥剧墖娓犻亾鐩戞帶/鎵嬪姩娴嬭瘯鏀寔 response_format 鎷垮浘鏂瑰紡閫夋嫨
 
-**影响范围**: backend/{migrations/179, ent/schema/{image_channel_monitor,image_channel_monitor_history}.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test)}, internal/repository/image_channel_monitor_repo.go, internal/handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts, views/admin/ImageChannelMonitorView.vue, i18n/locales/{zh,en}.ts}
-**上游兼容性**: 低风险。新增迁移 179（monitors/histories 各加 response_format 列,存量回填 'url' 与旧强制行为一致）;imageMonitorMaxResponseBytes 2MB→24MB(容纳 b64 内联大图);配合 8611221ba(网关透传显式 response_format)。
-**变更详情**:
-- 渠道监控与手动测试均可选拿图方式:URL / Base64 / 不传(跟随上游默认),对应 payload 带 response_format=url / b64_json / 省略参数;JSON 与 multipart(图生图 edits)两条路径同步。
-- 语义:仅 url 模式下 b64 返回视为交付失败(维持旧监控语义);b64_json/不传模式接受 b64 返回为正常,内联图片元数据(尺寸/大小)照常解析。
-- 历史记录:每次检查的拿图方式写入 histories 并在定时历史弹窗新增「拿图方式」列;手动检测记录详情弹窗新增同名指标;手动预置(preset)与本地历史同步保存该字段,旧数据回落 url。
-- 新建渠道/手动测试表单默认 url(行为不变),需要测 base64 或跟随上游时显式切换。
-- 验证:后端新增三态 payload/调度接受性单测,全量 unit 通过;前端 typecheck/lint/相关 vitest 通过;浏览器实测编辑表单回填(库改 b64_json 后正确显示)、手动面板选项、历史列渲染,无控制台报错。
+**褰卞搷鑼冨洿**: backend/{migrations/179, ent/schema/{image_channel_monitor,image_channel_monitor_history}.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test)}, internal/repository/image_channel_monitor_repo.go, internal/handler/admin/image_channel_monitor_handler.go}, frontend/src/{api/admin/imageChannelMonitor.ts, views/admin/ImageChannelMonitorView.vue, i18n/locales/{zh,en}.ts}
+**涓婃父鍏煎鎬?*: 浣庨闄┿€傛柊澧炶縼绉?179锛坢onitors/histories 鍚勫姞 response_format 鍒?瀛橀噺鍥炲～ 'url' 涓庢棫寮哄埗琛屼负涓€鑷达級;imageMonitorMaxResponseBytes 2MB鈫?4MB(瀹圭撼 b64 鍐呰仈澶у浘);閰嶅悎 8611221ba(缃戝叧閫忎紶鏄惧紡 response_format)銆?
+**鍙樻洿璇︽儏**:
+- 娓犻亾鐩戞帶涓庢墜鍔ㄦ祴璇曞潎鍙€夋嬁鍥炬柟寮?URL / Base64 / 涓嶄紶(璺熼殢涓婃父榛樿),瀵瑰簲 payload 甯?response_format=url / b64_json / 鐪佺暐鍙傛暟;JSON 涓?multipart(鍥剧敓鍥?edits)涓ゆ潯璺緞鍚屾銆?
+- 璇箟:浠?url 妯″紡涓?b64 杩斿洖瑙嗕负浜や粯澶辫触(缁存寔鏃х洃鎺ц涔?;b64_json/涓嶄紶妯″紡鎺ュ彈 b64 杩斿洖涓烘甯?鍐呰仈鍥剧墖鍏冩暟鎹?灏哄/澶у皬)鐓у父瑙ｆ瀽銆?
+- 鍘嗗彶璁板綍:姣忔妫€鏌ョ殑鎷垮浘鏂瑰紡鍐欏叆 histories 骞跺湪瀹氭椂鍘嗗彶寮圭獥鏂板銆屾嬁鍥炬柟寮忋€嶅垪;鎵嬪姩妫€娴嬭褰曡鎯呭脊绐楁柊澧炲悓鍚嶆寚鏍?鎵嬪姩棰勭疆(preset)涓庢湰鍦板巻鍙插悓姝ヤ繚瀛樿瀛楁,鏃ф暟鎹洖钀?url銆?
+- 鏂板缓娓犻亾/鎵嬪姩娴嬭瘯琛ㄥ崟榛樿 url(琛屼负涓嶅彉),闇€瑕佹祴 base64 鎴栬窡闅忎笂娓告椂鏄惧紡鍒囨崲銆?
+- 楠岃瘉:鍚庣鏂板涓夋€?payload/璋冨害鎺ュ彈鎬у崟娴?鍏ㄩ噺 unit 閫氳繃;鍓嶇 typecheck/lint/鐩稿叧 vitest 閫氳繃;娴忚鍣ㄥ疄娴嬬紪杈戣〃鍗曞洖濉?搴撴敼 b64_json 鍚庢纭樉绀?銆佹墜鍔ㄩ潰鏉块€夐」銆佸巻鍙插垪娓叉煋,鏃犳帶鍒跺彴鎶ラ敊銆?
 
-## [2026-07-06] feat: 图片渠道监控状态时间线 + 用户侧公开展示
+## [2026-07-06] feat: 鍥剧墖娓犻亾鐩戞帶鐘舵€佹椂闂寸嚎 + 鐢ㄦ埛渚у叕寮€灞曠ず
 
-**影响范围**: backend/{migrations/178, ent/schema/image_channel_monitor.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test), ops_cleanup_service.go, wire.go}, internal/repository/image_channel_monitor_repo.go, internal/handler/{image_channel_monitor_user_handler.go(新+test), handler.go, wire.go, admin/image_channel_monitor_handler.go}, internal/server/routes/{admin.go, user.go}, cmd/server/wire_gen.go(手工对齐)}, frontend/src/{api/{admin/imageChannelMonitor.ts, imageChannelMonitor.ts(新)}, components/{admin/ImageMonitorStatusDialog.vue(新), user/monitor/{ImageMonitorCard.vue(新), ImageMonitorDetailDialog.vue(新), __tests__/ImageMonitorCard.spec.ts(新)}}, views/{admin/ImageChannelMonitorView.vue, user/ChannelStatusView.vue}, i18n/locales/{zh,en}.ts}
-**上游兼容性**: 低风险。新增迁移 178（image_channel_monitors 加 public_visible/public_name 两列）；`NewOpsCleanupService` 签名加 imageChannelMonitorSvc 参数（wire_gen 已手工对齐）；`Handlers` 容器加 ImageChannelMonitorUser；admin List 响应每项追加 timeline/availability_7d 字段（增量，不破坏旧消费方）。设计文档 docs/superpowers/specs/2026-07-06-image-monitor-status-timeline-design.md。
-**变更详情**:
-- 管理端监控列表每行内嵌迷你状态条（复用用户侧 MonitorTimeline 60 根柱）+ 7 天可用率；新增「状态详情」弹窗：24h/7d/30d 窗口切换 + chart.js 混合图（API 总耗时/图片下载两条折线 + 失败次数红色柱，空桶断线）+ 可用率/次数/失败/平均/最大耗时汇总卡。
-- 数据策略：不建 rollup 表，全部对原始历史实时 SQL 聚合（epoch-floor 分桶 24h→10min/7d→2h/30d→1d；批量近 60 次 ROW_NUMBER 消 N+1；三窗口可用率单条 FILTER 聚合）。
-- 历史保留：激活 DeleteHistoryBefore 死代码，RunDailyMaintenance 物理删 30 天前明细，挂进 ops 每日清理（同 cron/领导锁），修复历史表无限增长问题。
-- 每渠道公开配置：public_visible（默认不公开）+ public_name（掩盖内部命名，空回落渠道名），编辑表单新增「用户侧展示」区块。
-- 用户侧 /monitor 渠道状态页新增「生图渠道」分组：卡片（生图耗时/图片下载/窗口可用率/60 根时间线，empty 状态中性徽章）+ 简版详情弹窗（7/15/30d 可用率+平均耗时）；列表一次带回三窗口可用率，窗口切换纯前端；跟随页面 channel_monitor_enabled 门禁与自动刷新。
-- 安全红线：用户侧 DTO 白名单（绝不下发内部名/endpoint/host/IP/错误消息/error_stage/图片 URL/代理账号信息），白名单 JSON key 快照测试兜底。
-- 验证：后端全量 unit 通过（含 9 个新用例）；前端 typecheck/lint/全量 vitest 620 用例通过（含新卡片 spec）；本地注入 3 天含失败/降级数据浏览器实测：行内条/弹窗三窗口/折线失败柱/用户侧掩名卡片/详情弹窗/响应净化抽查全部正确，验证数据已清理。
+**褰卞搷鑼冨洿**: backend/{migrations/178, ent/schema/image_channel_monitor.go(+regen), internal/service/{image_channel_monitor_types.go, image_channel_monitor_service.go(+test), ops_cleanup_service.go, wire.go}, internal/repository/image_channel_monitor_repo.go, internal/handler/{image_channel_monitor_user_handler.go(鏂?test), handler.go, wire.go, admin/image_channel_monitor_handler.go}, internal/server/routes/{admin.go, user.go}, cmd/server/wire_gen.go(鎵嬪伐瀵归綈)}, frontend/src/{api/{admin/imageChannelMonitor.ts, imageChannelMonitor.ts(鏂?}, components/{admin/ImageMonitorStatusDialog.vue(鏂?, user/monitor/{ImageMonitorCard.vue(鏂?, ImageMonitorDetailDialog.vue(鏂?, __tests__/ImageMonitorCard.spec.ts(鏂?}}, views/{admin/ImageChannelMonitorView.vue, user/ChannelStatusView.vue}, i18n/locales/{zh,en}.ts}
+**涓婃父鍏煎鎬?*: 浣庨闄┿€傛柊澧炶縼绉?178锛坕mage_channel_monitors 鍔?public_visible/public_name 涓ゅ垪锛夛紱`NewOpsCleanupService` 绛惧悕鍔?imageChannelMonitorSvc 鍙傛暟锛坵ire_gen 宸叉墜宸ュ榻愶級锛沗Handlers` 瀹瑰櫒鍔?ImageChannelMonitorUser锛沘dmin List 鍝嶅簲姣忛」杩藉姞 timeline/availability_7d 瀛楁锛堝閲忥紝涓嶇牬鍧忔棫娑堣垂鏂癸級銆傝璁℃枃妗?docs/superpowers/specs/2026-07-06-image-monitor-status-timeline-design.md銆?
+**鍙樻洿璇︽儏**:
+- 绠＄悊绔洃鎺у垪琛ㄦ瘡琛屽唴宓岃糠浣犵姸鎬佹潯锛堝鐢ㄧ敤鎴蜂晶 MonitorTimeline 60 鏍规煴锛? 7 澶╁彲鐢ㄧ巼锛涙柊澧炪€岀姸鎬佽鎯呫€嶅脊绐楋細24h/7d/30d 绐楀彛鍒囨崲 + chart.js 娣峰悎鍥撅紙API 鎬昏€楁椂/鍥剧墖涓嬭浇涓ゆ潯鎶樼嚎 + 澶辫触娆℃暟绾㈣壊鏌憋紝绌烘《鏂嚎锛? 鍙敤鐜?娆℃暟/澶辫触/骞冲潎/鏈€澶ц€楁椂姹囨€诲崱銆?
+- 鏁版嵁绛栫暐锛氫笉寤?rollup 琛紝鍏ㄩ儴瀵瑰師濮嬪巻鍙插疄鏃?SQL 鑱氬悎锛坋poch-floor 鍒嗘《 24h鈫?0min/7d鈫?h/30d鈫?d锛涙壒閲忚繎 60 娆?ROW_NUMBER 娑?N+1锛涗笁绐楀彛鍙敤鐜囧崟鏉?FILTER 鑱氬悎锛夈€?
+- 鍘嗗彶淇濈暀锛氭縺娲?DeleteHistoryBefore 姝讳唬鐮侊紝RunDailyMaintenance 鐗╃悊鍒?30 澶╁墠鏄庣粏锛屾寕杩?ops 姣忔棩娓呯悊锛堝悓 cron/棰嗗閿侊級锛屼慨澶嶅巻鍙茶〃鏃犻檺澧為暱闂銆?
+- 姣忔笭閬撳叕寮€閰嶇疆锛歱ublic_visible锛堥粯璁や笉鍏紑锛? public_name锛堟帺鐩栧唴閮ㄥ懡鍚嶏紝绌哄洖钀芥笭閬撳悕锛夛紝缂栬緫琛ㄥ崟鏂板銆岀敤鎴蜂晶灞曠ず銆嶅尯鍧椼€?
+- 鐢ㄦ埛渚?/monitor 娓犻亾鐘舵€侀〉鏂板銆岀敓鍥炬笭閬撱€嶅垎缁勶細鍗＄墖锛堢敓鍥捐€楁椂/鍥剧墖涓嬭浇/绐楀彛鍙敤鐜?60 鏍规椂闂寸嚎锛宔mpty 鐘舵€佷腑鎬у窘绔狅級+ 绠€鐗堣鎯呭脊绐楋紙7/15/30d 鍙敤鐜?骞冲潎鑰楁椂锛夛紱鍒楄〃涓€娆″甫鍥炰笁绐楀彛鍙敤鐜囷紝绐楀彛鍒囨崲绾墠绔紱璺熼殢椤甸潰 channel_monitor_enabled 闂ㄧ涓庤嚜鍔ㄥ埛鏂般€?
+- 瀹夊叏绾㈢嚎锛氱敤鎴蜂晶 DTO 鐧藉悕鍗曪紙缁濅笉涓嬪彂鍐呴儴鍚?endpoint/host/IP/閿欒娑堟伅/error_stage/鍥剧墖 URL/浠ｇ悊璐﹀彿淇℃伅锛夛紝鐧藉悕鍗?JSON key 蹇収娴嬭瘯鍏滃簳銆?
+- 楠岃瘉锛氬悗绔叏閲?unit 閫氳繃锛堝惈 9 涓柊鐢ㄤ緥锛夛紱鍓嶇 typecheck/lint/鍏ㄩ噺 vitest 620 鐢ㄤ緥閫氳繃锛堝惈鏂板崱鐗?spec锛夛紱鏈湴娉ㄥ叆 3 澶╁惈澶辫触/闄嶇骇鏁版嵁娴忚鍣ㄥ疄娴嬶細琛屽唴鏉?寮圭獥涓夌獥鍙?鎶樼嚎澶辫触鏌?鐢ㄦ埛渚ф帺鍚嶅崱鐗?璇︽儏寮圭獥/鍝嶅簲鍑€鍖栨娊鏌ュ叏閮ㄦ纭紝楠岃瘉鏁版嵁宸叉竻鐞嗐€?
 
-## [2026-07-06] feat: 图片渠道监控补全返回图片尺寸/大小信息
+## [2026-07-06] feat: 鍥剧墖娓犻亾鐩戞帶琛ュ叏杩斿洖鍥剧墖灏哄/澶у皬淇℃伅
 
-**影响范围**: backend/internal/service/image_channel_monitor_service.go(+test), frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
-**上游兼容性**: 低风险。后端仅在 b64_json 分支补填 history 已有字段（image_bytes/image_content_type/image_width/image_height），不改状态判定与请求行为；前端手动检测表格新增可选列。
-**变更详情**:
-- 后端：上游返回 b64_json 时（gpt-image-1 常态）原先完全不解析图片元数据，新增 `fillImageMonitorInlineImageInfo` 解码 base64 填充字节数、嗅探 content-type、DecodeConfig 取宽高，定时与手动路径共用；URL+下载路径原有逻辑不变。
-- 手动检测记录表新增"返回图片"列（默认显示，可在字段选择器关闭）：显示实际宽高 + 文件大小；当请求 size 为具体 WxH 且与实际不一致时琥珀色加 ⚠ 警示，tooltip 注明请求尺寸（omit/auto 不比对）。
-- 查看详情弹窗新增"实际尺寸/图片大小/图片格式"三项指标，不一致时实际尺寸标黄并在指标区下方显示整句提示。
-- 定时监控历史弹窗"图片"列由仅宽高改为"宽高 · 大小"。
-- 验证：后端新增单测（1x1 PNG b64 断言宽高/字节/content-type），TestImageChannelMonitor* 全过；前端 typecheck/lint 通过；本地浏览器注入一致/不一致/无图三类记录，实测表格列、警示样式、tooltip、详情弹窗渲染均正确，无控制台报错。
+**褰卞搷鑼冨洿**: backend/internal/service/image_channel_monitor_service.go(+test), frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
+**涓婃父鍏煎鎬?*: 浣庨闄┿€傚悗绔粎鍦?b64_json 鍒嗘敮琛ュ～ history 宸叉湁瀛楁锛坕mage_bytes/image_content_type/image_width/image_height锛夛紝涓嶆敼鐘舵€佸垽瀹氫笌璇锋眰琛屼负锛涘墠绔墜鍔ㄦ娴嬭〃鏍兼柊澧炲彲閫夊垪銆?
+**鍙樻洿璇︽儏**:
+- 鍚庣锛氫笂娓歌繑鍥?b64_json 鏃讹紙gpt-image-1 甯告€侊級鍘熷厛瀹屽叏涓嶈В鏋愬浘鐗囧厓鏁版嵁锛屾柊澧?`fillImageMonitorInlineImageInfo` 瑙ｇ爜 base64 濉厖瀛楄妭鏁般€佸梾鎺?content-type銆丏ecodeConfig 鍙栧楂橈紝瀹氭椂涓庢墜鍔ㄨ矾寰勫叡鐢紱URL+涓嬭浇璺緞鍘熸湁閫昏緫涓嶅彉銆?
+- 鎵嬪姩妫€娴嬭褰曡〃鏂板"杩斿洖鍥剧墖"鍒楋紙榛樿鏄剧ず锛屽彲鍦ㄥ瓧娈甸€夋嫨鍣ㄥ叧闂級锛氭樉绀哄疄闄呭楂?+ 鏂囦欢澶у皬锛涘綋璇锋眰 size 涓哄叿浣?WxH 涓斾笌瀹為檯涓嶄竴鑷存椂鐞ョ弨鑹插姞 鈿?璀︾ず锛宼ooltip 娉ㄦ槑璇锋眰灏哄锛坥mit/auto 涓嶆瘮瀵癸級銆?
+- 鏌ョ湅璇︽儏寮圭獥鏂板"瀹為檯灏哄/鍥剧墖澶у皬/鍥剧墖鏍煎紡"涓夐」鎸囨爣锛屼笉涓€鑷存椂瀹為檯灏哄鏍囬粍骞跺湪鎸囨爣鍖轰笅鏂规樉绀烘暣鍙ユ彁绀恒€?
+- 瀹氭椂鐩戞帶鍘嗗彶寮圭獥"鍥剧墖"鍒楃敱浠呭楂樻敼涓?瀹介珮 路 澶у皬"銆?
+- 楠岃瘉锛氬悗绔柊澧炲崟娴嬶紙1x1 PNG b64 鏂█瀹介珮/瀛楄妭/content-type锛夛紝TestImageChannelMonitor* 鍏ㄨ繃锛涘墠绔?typecheck/lint 閫氳繃锛涙湰鍦版祻瑙堝櫒娉ㄥ叆涓€鑷?涓嶄竴鑷?鏃犲浘涓夌被璁板綍锛屽疄娴嬭〃鏍煎垪銆佽绀烘牱寮忋€乼ooltip銆佽鎯呭脊绐楁覆鏌撳潎姝ｇ‘锛屾棤鎺у埗鍙版姤閿欍€?
 
-## [2026-07-04] feat: 导入 CCS 客户端选择扩展——anthropic 密钥支持 Codex 客户端
+## [2026-07-04] feat: 瀵煎叆 CCS 瀹㈡埛绔€夋嫨鎵╁睍鈥斺€攁nthropic 瀵嗛挜鏀寔 Codex 瀹㈡埛绔?
 
-**影响范围**: backend/internal/{service/{domain_constants.go, setting_service.go, settings_view.go}, handler/{setting_handler.go, dto/settings.go, admin/setting_handler.go}, server/api_contract_test.go}, frontend/src/{views/user/KeysView.vue, views/admin/SettingsView.vue, api/admin/settings.ts, stores/app.ts, types/index.ts, i18n/locales/{zh,en}.ts}
-**上游兼容性**: 低风险。新增 Settings KV `ccs_import_anthropic_codex_model`（镜像 `ccs_import_codex_model` 全链，默认空）；KeysView 导入弹窗逻辑重写为数据驱动。若上游后续也改 CCS 导入需人工比对。
-**变更详情**:
-- 客户端选择弹窗从"仅 antigravity"扩展到 anthropic + antigravity 平台：anthropic 密钥可选 Claude Code / Codex（Codex 走根路径 `/responses` Responses→Anthropic 桥，deeplink `app=codex`）；antigravity 保持 Claude Code / Gemini CLI（按产品决策不提供 Codex，`/antigravity/*` 下无 /responses 路由）；openai/gemini 平台仍无弹窗直接映射。
-- 调研结论（cc-switch v3.16.5 源码）：deeplink `app` 白名单为 claude/codex/gemini/opencode/openclaw/hermes，**不支持 claude-desktop**（UI 有该页签但 parser 拒绝）；Claude Code CLI 与桌面版共用 ~/.claude/settings.json，`app=claude` 一个入口覆盖两者，弹窗文案已注明。
-- 新增管理端设置"CCS 导入默认模型（Anthropic 密钥 → Codex 客户端）"：anthropic 密钥选 Codex 导入时写入 deeplink `model` 参数，应填本站可调度的 Claude 模型或已配置渠道映射的模型名；留空则 cc-switch 回落 gpt-5-codex。
-- 顺带修复两处存量测试损坏（被 unit-tag 编译错误掩盖）：`NewUsageHandler` 签名漂移致 api_contract_test 编译失败；redeem/history fixture 缺 `batch_redeem_limit_per_user` 字段。
-- 验证：go test -tags=unit ./... 全过；前端 typecheck/lint/SettingsView+app spec 全过；本地浏览器 E2E 实测四种平台密钥的弹窗选项与 deeplink 参数（含管理端设置保存→公开设置下发→deeplink model 参数全链）。
+**褰卞搷鑼冨洿**: backend/internal/{service/{domain_constants.go, setting_service.go, settings_view.go}, handler/{setting_handler.go, dto/settings.go, admin/setting_handler.go}, server/api_contract_test.go}, frontend/src/{views/user/KeysView.vue, views/admin/SettingsView.vue, api/admin/settings.ts, stores/app.ts, types/index.ts, i18n/locales/{zh,en}.ts}
+**涓婃父鍏煎鎬?*: 浣庨闄┿€傛柊澧?Settings KV `ccs_import_anthropic_codex_model`锛堥暅鍍?`ccs_import_codex_model` 鍏ㄩ摼锛岄粯璁ょ┖锛夛紱KeysView 瀵煎叆寮圭獥閫昏緫閲嶅啓涓烘暟鎹┍鍔ㄣ€傝嫢涓婃父鍚庣画涔熸敼 CCS 瀵煎叆闇€浜哄伐姣斿銆?
+**鍙樻洿璇︽儏**:
+- 瀹㈡埛绔€夋嫨寮圭獥浠?浠?antigravity"鎵╁睍鍒?anthropic + antigravity 骞冲彴锛歛nthropic 瀵嗛挜鍙€?Claude Code / Codex锛圕odex 璧版牴璺緞 `/responses` Responses鈫扐nthropic 妗ワ紝deeplink `app=codex`锛夛紱antigravity 淇濇寔 Claude Code / Gemini CLI锛堟寜浜у搧鍐崇瓥涓嶆彁渚?Codex锛宍/antigravity/*` 涓嬫棤 /responses 璺敱锛夛紱openai/gemini 骞冲彴浠嶆棤寮圭獥鐩存帴鏄犲皠銆?
+- 璋冪爺缁撹锛坈c-switch v3.16.5 婧愮爜锛夛細deeplink `app` 鐧藉悕鍗曚负 claude/codex/gemini/opencode/openclaw/hermes锛?*涓嶆敮鎸?claude-desktop**锛圲I 鏈夎椤电浣?parser 鎷掔粷锛夛紱Claude Code CLI 涓庢闈㈢増鍏辩敤 ~/.claude/settings.json锛宍app=claude` 涓€涓叆鍙ｈ鐩栦袱鑰咃紝寮圭獥鏂囨宸叉敞鏄庛€?
+- 鏂板绠＄悊绔缃?CCS 瀵煎叆榛樿妯″瀷锛圓nthropic 瀵嗛挜 鈫?Codex 瀹㈡埛绔級"锛歛nthropic 瀵嗛挜閫?Codex 瀵煎叆鏃跺啓鍏?deeplink `model` 鍙傛暟锛屽簲濉湰绔欏彲璋冨害鐨?Claude 妯″瀷鎴栧凡閰嶇疆娓犻亾鏄犲皠鐨勬ā鍨嬪悕锛涚暀绌哄垯 cc-switch 鍥炶惤 gpt-5-codex銆?
+- 椤哄甫淇涓ゅ瀛橀噺娴嬭瘯鎹熷潖锛堣 unit-tag 缂栬瘧閿欒鎺╃洊锛夛細`NewUsageHandler` 绛惧悕婕傜Щ鑷?api_contract_test 缂栬瘧澶辫触锛況edeem/history fixture 缂?`batch_redeem_limit_per_user` 瀛楁銆?
+- 楠岃瘉锛歡o test -tags=unit ./... 鍏ㄨ繃锛涘墠绔?typecheck/lint/SettingsView+app spec 鍏ㄨ繃锛涙湰鍦版祻瑙堝櫒 E2E 瀹炴祴鍥涚骞冲彴瀵嗛挜鐨勫脊绐楅€夐」涓?deeplink 鍙傛暟锛堝惈绠＄悊绔缃繚瀛樷啋鍏紑璁剧疆涓嬪彂鈫抎eeplink model 鍙傛暟鍏ㄩ摼锛夈€?
 
-## [2026-07-04] feat: 模型配置页所有行可删除——直通行删除=持久化隐藏(可恢复)
+## [2026-07-04] feat: 妯″瀷閰嶇疆椤垫墍鏈夎鍙垹闄も€斺€旂洿閫氳鍒犻櫎=鎸佷箙鍖栭殣钘?鍙仮澶?
 
-**影响范围**: backend/internal/{domain/constants.go, service/{domain_constants.go, setting_service.go, wire.go, global_model_pricing_service.go(+test), setting_service_model_mapping_test.go, model_pricing_resolver.go}, handler/admin/model_pricing_handler.go, server/routes/admin.go}, backend/cmd/server/wire_gen.go(手工对齐), frontend/src/{api/admin/modelPricing.ts, components/admin/model-pricing/ModelPricingTab.vue, i18n/locales/{zh,en}.ts}, docs/dev/codebase/model-mapping.md
-**上游兼容性**: 低风险。新增 Settings KV `model_pricing_hidden_models` 与 `GET/PUT /admin/model-pricing/hidden-models`;`NewModelPricingHandler` 增加 settingService 参数(wire_gen 已手工对齐);列表 source 筛选新增特殊值 `hidden`。不改任何计费/调度行为。
-**变更详情**:
-- 直通行(请求=上游,来自 LiteLLM 目录/覆盖,无映射条目可删)新增"删除"按钮:确认后把模型加入隐藏集合,列表不再显示;仅影响模型配置列表展示,不影响计费与请求转发。
-- 来源筛选新增"已隐藏"视图:列出全部隐藏模型(含目录中已不存在的名字,补 stub 保证可恢复),行内"恢复"一键还原。
-- 隐藏永不吞掉真实映射:模型自身是有效映射键时(即使被隐藏)映射行保持可见。
-- 真实映射条目行为不变(删除映射=从平台默认映射表移除条目)。
+**褰卞搷鑼冨洿**: backend/internal/{domain/constants.go, service/{domain_constants.go, setting_service.go, wire.go, global_model_pricing_service.go(+test), setting_service_model_mapping_test.go, model_pricing_resolver.go}, handler/admin/model_pricing_handler.go, server/routes/admin.go}, backend/cmd/server/wire_gen.go(鎵嬪伐瀵归綈), frontend/src/{api/admin/modelPricing.ts, components/admin/model-pricing/ModelPricingTab.vue, i18n/locales/{zh,en}.ts}, docs/dev/codebase/model-mapping.md
+**涓婃父鍏煎鎬?*: 浣庨闄┿€傛柊澧?Settings KV `model_pricing_hidden_models` 涓?`GET/PUT /admin/model-pricing/hidden-models`;`NewModelPricingHandler` 澧炲姞 settingService 鍙傛暟(wire_gen 宸叉墜宸ュ榻?;鍒楄〃 source 绛涢€夋柊澧炵壒娈婂€?`hidden`銆備笉鏀逛换浣曡璐?璋冨害琛屼负銆?
+**鍙樻洿璇︽儏**:
+- 鐩撮€氳(璇锋眰=涓婃父,鏉ヨ嚜 LiteLLM 鐩綍/瑕嗙洊,鏃犳槧灏勬潯鐩彲鍒?鏂板"鍒犻櫎"鎸夐挳:纭鍚庢妸妯″瀷鍔犲叆闅愯棌闆嗗悎,鍒楄〃涓嶅啀鏄剧ず;浠呭奖鍝嶆ā鍨嬮厤缃垪琛ㄥ睍绀?涓嶅奖鍝嶈璐逛笌璇锋眰杞彂銆?
+- 鏉ユ簮绛涢€夋柊澧?宸查殣钘?瑙嗗浘:鍒楀嚭鍏ㄩ儴闅愯棌妯″瀷(鍚洰褰曚腑宸蹭笉瀛樺湪鐨勫悕瀛?琛?stub 淇濊瘉鍙仮澶?,琛屽唴"鎭㈠"涓€閿繕鍘熴€?
+- 闅愯棌姘镐笉鍚炴帀鐪熷疄鏄犲皠:妯″瀷鑷韩鏄湁鏁堟槧灏勯敭鏃?鍗充娇琚殣钘?鏄犲皠琛屼繚鎸佸彲瑙併€?
+- 鐪熷疄鏄犲皠鏉＄洰琛屼负涓嶅彉(鍒犻櫎鏄犲皠=浠庡钩鍙伴粯璁ゆ槧灏勮〃绉婚櫎鏉＄洰)銆?
 
-## [2026-07-04] fix: 模型配置页映射表彻底重构（角色不再坍缩）+ 测试连接模型列表并入平台映射
+## [2026-07-04] fix: 妯″瀷閰嶇疆椤垫槧灏勮〃褰诲簳閲嶆瀯锛堣鑹蹭笉鍐嶅潔缂╋級+ 娴嬭瘯杩炴帴妯″瀷鍒楄〃骞跺叆骞冲彴鏄犲皠
 
-**影响范围**: backend/internal/service/global_model_pricing_service.go(+test), backend/internal/handler/admin/account_handler.go(+test), backend/internal/pkg/antigravity/claude_types.go, backend/migrations/177_add_fable5_to_default_model_mapping.sql, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue, ModelMappingInlinePopover.vue, modelPricingRows.ts(新), __tests__/modelPricingRows.spec.ts(新)}, frontend/src/api/admin/modelPricing.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/model-mapping.md
-**上游兼容性**: 中风险。`billing_basis_hint` 新增 `mapping_target`/`mapped_from` 字段并新增复数 `billing_basis_hints`，单数字段保留兼容；`GET /admin/accounts/:id/models` 各分支并入平台级默认映射键；迁移 177 为二开自有编号。合并上游时若上游也改了模型配置页需人工比对。
-**变更详情**:
-- 修复映射角色坍缩：旧实现按 same_name > upstream_only > requested_only 收敛单一角色，模型"既是映射键又是别人的映射目标"时（如 claude-sonnet-4-5 -> claude-fable-5 且 claude-sonnet-4-5-20250929 -> claude-sonnet-4-5）自身映射从列表消失，前端把上游名画回请求名（"添加映射后映射目标被改回原名"的根因）。现在 hint 同时携带 mapping_target 与 mapped_from，且"全部"视图按平台各发一条 hint。
-- 前端行推导重写（modelPricingRows.ts）：映射行只由映射键自己的条目产生，不再从目标条目反向展开+去重互踩；纯映射目标模型保留自己的直通行（修复"claude-fable-5 可请求但映射表里没有该请求模型"）；所有直通行提供"添加映射"入口，弹窗预填 from=to=模型名（修复"大量行无法编辑/删除"——真实条目才有删除，直通行编辑即建条目）。
-- 保存映射的平台与当前供应商 tab 不同时自动切 tab，避免"添加成功但看不到"。
-- 测试连接模型列表（账号管理）：Antigravity 非透传账号改为按生效映射表请求键生成（含 [1m]/[2m] 变体），Claude/Gemini/OpenAI 账号并入对应平台默认映射键（修复"新添加映射的请求模型在测试连接列表看不到"）。
-- 迁移 177：为保存过的 antigravity_default_model_mapping 设置及账号级 model_mapping 回填 claude-fable-5 同名映射（保存表整体替换内置表，早于 fable-5 的存量表缺该条导致 Antigravity 漏调度）。
+**褰卞搷鑼冨洿**: backend/internal/service/global_model_pricing_service.go(+test), backend/internal/handler/admin/account_handler.go(+test), backend/internal/pkg/antigravity/claude_types.go, backend/migrations/177_add_fable5_to_default_model_mapping.sql, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue, ModelMappingInlinePopover.vue, modelPricingRows.ts(鏂?, __tests__/modelPricingRows.spec.ts(鏂?}, frontend/src/api/admin/modelPricing.ts, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/model-mapping.md
+**涓婃父鍏煎鎬?*: 涓闄┿€俙billing_basis_hint` 鏂板 `mapping_target`/`mapped_from` 瀛楁骞舵柊澧炲鏁?`billing_basis_hints`锛屽崟鏁板瓧娈典繚鐣欏吋瀹癸紱`GET /admin/accounts/:id/models` 鍚勫垎鏀苟鍏ュ钩鍙扮骇榛樿鏄犲皠閿紱杩佺Щ 177 涓轰簩寮€鑷湁缂栧彿銆傚悎骞朵笂娓告椂鑻ヤ笂娓镐篃鏀逛簡妯″瀷閰嶇疆椤甸渶浜哄伐姣斿銆?
+**鍙樻洿璇︽儏**:
+- 淇鏄犲皠瑙掕壊鍧嶇缉锛氭棫瀹炵幇鎸?same_name > upstream_only > requested_only 鏀舵暃鍗曚竴瑙掕壊锛屾ā鍨?鏃㈡槸鏄犲皠閿張鏄埆浜虹殑鏄犲皠鐩爣"鏃讹紙濡?claude-sonnet-4-5 -> claude-fable-5 涓?claude-sonnet-4-5-20250929 -> claude-sonnet-4-5锛夎嚜韬槧灏勪粠鍒楄〃娑堝け锛屽墠绔妸涓婃父鍚嶇敾鍥炶姹傚悕锛?娣诲姞鏄犲皠鍚庢槧灏勭洰鏍囪鏀瑰洖鍘熷悕"鐨勬牴鍥狅級銆傜幇鍦?hint 鍚屾椂鎼哄甫 mapping_target 涓?mapped_from锛屼笖"鍏ㄩ儴"瑙嗗浘鎸夊钩鍙板悇鍙戜竴鏉?hint銆?
+- 鍓嶇琛屾帹瀵奸噸鍐欙紙modelPricingRows.ts锛夛細鏄犲皠琛屽彧鐢辨槧灏勯敭鑷繁鐨勬潯鐩骇鐢燂紝涓嶅啀浠庣洰鏍囨潯鐩弽鍚戝睍寮€+鍘婚噸浜掕俯锛涚函鏄犲皠鐩爣妯″瀷淇濈暀鑷繁鐨勭洿閫氳锛堜慨澶?claude-fable-5 鍙姹備絾鏄犲皠琛ㄩ噷娌℃湁璇ヨ姹傛ā鍨?锛夛紱鎵€鏈夌洿閫氳鎻愪緵"娣诲姞鏄犲皠"鍏ュ彛锛屽脊绐楅濉?from=to=妯″瀷鍚嶏紙淇"澶ч噺琛屾棤娉曠紪杈?鍒犻櫎"鈥斺€旂湡瀹炴潯鐩墠鏈夊垹闄わ紝鐩撮€氳缂栬緫鍗冲缓鏉＄洰锛夈€?
+- 淇濆瓨鏄犲皠鐨勫钩鍙颁笌褰撳墠渚涘簲鍟?tab 涓嶅悓鏃惰嚜鍔ㄥ垏 tab锛岄伩鍏?娣诲姞鎴愬姛浣嗙湅涓嶅埌"銆?
+- 娴嬭瘯杩炴帴妯″瀷鍒楄〃锛堣处鍙风鐞嗭級锛欰ntigravity 闈為€忎紶璐﹀彿鏀逛负鎸夌敓鏁堟槧灏勮〃璇锋眰閿敓鎴愶紙鍚?[1m]/[2m] 鍙樹綋锛夛紝Claude/Gemini/OpenAI 璐﹀彿骞跺叆瀵瑰簲骞冲彴榛樿鏄犲皠閿紙淇"鏂版坊鍔犳槧灏勭殑璇锋眰妯″瀷鍦ㄦ祴璇曡繛鎺ュ垪琛ㄧ湅涓嶅埌"锛夈€?
+- 杩佺Щ 177锛氫负淇濆瓨杩囩殑 antigravity_default_model_mapping 璁剧疆鍙婅处鍙风骇 model_mapping 鍥炲～ claude-fable-5 鍚屽悕鏄犲皠锛堜繚瀛樿〃鏁翠綋鏇挎崲鍐呯疆琛紝鏃╀簬 fable-5 鐨勫瓨閲忚〃缂鸿鏉″鑷?Antigravity 婕忚皟搴︼級銆?
 
 ## [2026-07-04] feat: redesign manual image test into a fixed-viewport split console
 
 **Affected files**: frontend/src/views/admin/ImageChannelMonitorView.vue, frontend/src/components/layout/TablePageLayout.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/image-channel-monitor.md
 **Upstream compatibility**: frontend-only fork-local layout rework. It does not change backend APIs, schemas, scheduling, manual history storage, browser-local storage keys, or polling/cancel logic. `TablePageLayout` gains an additive `bareTable` prop (default `false`) guarded by `:not(.is-bare)`, so all other consumers are unaffected.
 **Change details**:
-- Reworked the manual-test panel into a fixed-viewport split console (`bareTable` slot): left column stacks Parameters (collapsible) → Channels (internal scroll) → a persistent Start-test CTA bar; right column is the records table with an internal scroll area and a sticky header. The whole panel fits one viewport — scrolling happens only inside the channel list and the table, never the page.
+- Reworked the manual-test panel into a fixed-viewport split console (`bareTable` slot): left column stacks Parameters (collapsible) 鈫?Channels (internal scroll) 鈫?a persistent Start-test CTA bar; right column is the records table with an internal scroll area and a sticky header. The whole panel fits one viewport 鈥?scrolling happens only inside the channel list and the table, never the page.
 - Panel switcher moved from two large cards to a compact header + segmented tabs (A), reclaiming ~90px of vertical space.
-- Parameters: two-column grid, prompt spans full width, and the separate size-mode + size selects were merged into one dropdown (with a "custom…" entry) backed by a `manualSizeChoice` get/set computed over the unchanged `size_mode`/`size`/`custom_size` trio. Collapsing the card shows a one-line summary of chips.
+- Parameters: two-column grid, prompt spans full width, and the separate size-mode + size selects were merged into one dropdown (with a "custom鈥? entry) backed by a `manualSizeChoice` get/set computed over the unchanged `size_mode`/`size`/`custom_size` trio. Collapsing the card shows a one-line summary of chips.
 - Presets condensed to dropdown + save/delete at the card foot; naming moved into a save dialog.
 - Channels: row list with selected-count pill, select-all/clear, and a channel search filter (`manualFilteredTargets`); internal scroll keeps the page height bounded regardless of channel count.
-- Results: running/completion banner (progress x/y, ok/fail counts, cancel) driven by new `manualBatchStats`/`manualBatchProgress` computeds derived from `manualResults` — zero API changes. Default columns trimmed (mode/model/size hidden by default via the existing field-visibility state); numeric columns right-aligned with `tabular-nums`; compact text actions.
-- Detail dialog: added a latency waterfall over the existing `api_header_ms` (start→headers) / `api_body_ms` (headers→body phase) / `image_download_ms` (download phase) — confirmed sequential non-overlapping phase durations in `image_channel_monitor_service.go`, so they stack correctly; dropped the now-redundant raw timing metrics.
+- Results: running/completion banner (progress x/y, ok/fail counts, cancel) driven by new `manualBatchStats`/`manualBatchProgress` computeds derived from `manualResults` 鈥?zero API changes. Default columns trimmed (mode/model/size hidden by default via the existing field-visibility state); numeric columns right-aligned with `tabular-nums`; compact text actions.
+- Detail dialog: added a latency waterfall over the existing `api_header_ms` (start鈫抙eaders) / `api_body_ms` (headers鈫抌ody phase) / `image_download_ms` (download phase) 鈥?confirmed sequential non-overlapping phase durations in `image_channel_monitor_service.go`, so they stack correctly; dropped the now-redundant raw timing metrics.
 - Added the field-popover outside-click-to-close handler.
 - New i18n keys (zh/en in sync): config, collapse/expand, selectAll/clearSelection, searchTargets, selectedOfTotal, noTargets, startWithCount, testingProgress, ctaHint, batchRunning/batchComplete, resultOk/resultFail, waterfall, savePresetTitle.
 - Verified: `pnpm run typecheck`; `pnpm run lint:check`; Vite dev-server transform of all four changed modules returns HTTP 200 with the new markup and no compile errors. Live authenticated screenshot not captured (no local admin credentials on hand); layout mechanics validated in a standalone prototype using the same flex/overflow approach.
@@ -3415,7 +3431,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: backend/internal/service/global_model_pricing_service.go, backend/internal/service/global_model_pricing_service_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingTab.vue, docs/dev/codebase/model-mapping.md
 **Upstream compatibility**: fork-local admin model configuration correction. No schema, migration, image-channel monitoring, push, or deployment changes.
 **Change details**:
-- Added per-key billing-object metadata to mapping hints so multi-source mappings can display the correct `计费对象` for every source key.
+- Added per-key billing-object metadata to mapping hints so multi-source mappings can display the correct `璁¤垂瀵硅薄` for every source key.
 - Changed the model configuration table to expand multi-source default mappings into one row per mapping relationship instead of hiding extra mappings behind `+N`.
 - Edit, delete, and billing-object actions now operate on each expanded row's source mapping key, so all effective mappings have their own operation entry.
 - Added regression coverage for multi-source upstream-only mappings and same-name mappings with aliases.
@@ -3427,7 +3443,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Change details**:
 - Changed Antigravity default mapping persistence so a saved table is treated as the full effective table. Saving `{}` now intentionally means no default mappings, preventing deleted built-in mappings from reappearing after reload.
 - Changed model-pricing hints to return `mapping_key` and mark effective default mapping key rows editable, including built-in/runtime default and LiteLLM-discovered mapping rows.
-- Enabled `计费对象` editing for same-name and upstream-only mapping relationship rows by saving against `mapping_key` instead of the row's pricing model name.
+- Enabled `璁¤垂瀵硅薄` editing for same-name and upstream-only mapping relationship rows by saving against `mapping_key` instead of the row's pricing model name.
 - Updated frontend edit/delete/billing-object actions to operate on `mapping_key`; this fixes rows where the visible pricing model is the mapped target rather than the requested source.
 - Verified: targeted service tests for editable hints and empty Antigravity overrides; `pnpm --dir frontend run typecheck`.
 
@@ -3436,7 +3452,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: backend/internal/domain/constants.go, backend/internal/service/{account.go,setting_service.go,global_model_pricing_service.go,gateway_service.go,openai_gateway_service.go}, backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, frontend/src/components/admin/model-pricing/{ModelPricingTab.vue,ModelMappingInlinePopover.vue}, frontend/src/api/admin/{accounts.ts,modelPricing.ts}, frontend/src/i18n/locales/{zh,en}.ts, frontend/src/views/admin/ChannelsView.vue, docs/dev/codebase/model-mapping.md
 **Upstream compatibility**: fork-local admin model configuration fix. It adds Settings KV entries and admin APIs for per-platform default mapping billing-object overrides, but does not add schema/migration changes and does not touch image channel monitoring.
 **Change details**:
-- Replaced the model configuration table's derived "映射角色" label with an editable "计费对象" field for platform default mapping key rows.
+- Replaced the model configuration table's derived "鏄犲皠瑙掕壊" label with an editable "璁¤垂瀵硅薄" field for platform default mapping key rows.
 - Added per-platform `*_default_model_mapping_billing_object` settings and `GET/PUT /api/v1/admin/accounts/default-model-mapping-billing-objects/:platform`; valid values are only `requested` and `mapped`.
 - Kept the default behavior as `requested`, so existing traffic still prices by the client-requested model unless an administrator explicitly selects `mapped`.
 - Applied the billing-object override only to platform default mappings. Account-level `credentials.model_mapping`, channel `billing_model_source`, and token/image billing mode remain separate mechanisms.
@@ -3449,7 +3465,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Upstream compatibility**: small user-facing usage display adjustment. It exposes the existing usage log `billing_tier` field to regular usage DTOs and changes only the user usage table image token cell.
 **Change details**:
 - Added `billing_tier` to regular user usage records so image rows can display the actual billed tier.
-- Changed the user usage token cell for image requests from request size display to billed-tier display, e.g. `1张（2K计费）`.
+- Changed the user usage token cell for image requests from request size display to billed-tier display, e.g. `1寮狅紙2K璁¤垂锛塦.
 - Kept image quality visible under the billed-tier label and intentionally removed request-size text from that cell.
 - Verified: `go test -tags=unit ./internal/handler/dto`; `pnpm --dir frontend exec eslint src/views/user/UsageView.vue src/types/index.ts`; `git diff --check`.
 - Note: full frontend `pnpm --dir frontend run typecheck` is currently blocked by unrelated `ImageChannelMonitorView.vue` `number` vs `Timeout` errors.
@@ -3482,7 +3498,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Upstream compatibility**: admin model-config UI/backend-list fix. No schema, migration, Ent, image-channel monitoring, pricing formula, quota, push, or deployment changes.
 **Change details**:
 - Fixed provider-aware default mapping hints in the model pricing list so non-Antigravity mapping rows receive `billing_basis_hint`.
-- The table-label and per-row billing behavior from this earlier entry was corrected by the later "editable billing object" change above; model configuration now uses `计费对象` with only `requested` and `mapped` choices.
+- The table-label and per-row billing behavior from this earlier entry was corrected by the later "editable billing object" change above; model configuration now uses `璁¤垂瀵硅薄` with only `requested` and `mapped` choices.
 - Channel `billing_model_source` remains a separate channel form setting and is not edited from the model configuration table.
 - Verified: `go test -tags=unit ./internal/service -run "TestGlobalModelPricingListPrefersOverrideProvider|TestGlobalModelPricingListAddsProviderMappingHintWithoutFilter|TestAccountPlatformDefaultModelMapping|TestAccountGetMappedModel|TestAccountResolveMappedModel|TestOpenAIAccountResolveClaudeGPTBridgeModel" -count=1`; `pnpm run typecheck`.
 
@@ -3515,7 +3531,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Added independent image monitor tables for monitor configuration and per-run timing history, with custom API source and OpenAI API-key account source.
 - Custom source stores an encrypted API key and public HTTPS base endpoint; account source stores only `account_id` and resolves the current account base URL, API key, proxy, concurrency, and TLS profile at run time.
 - Image checks call `/v1/images/generations` with `response_format=url`, record API header/body/total timing, response shape (`has_url`, `has_b64_json`), returned URL host, and optional returned-image download timing/size/dimensions.
-- Added an independent scheduler/runner, admin CRUD/run/history endpoints under `/api/v1/admin/image-channel-monitors`, and an admin submenu at `渠道管理 -> 图片渠道监控`.
+- Added an independent scheduler/runner, admin CRUD/run/history endpoints under `/api/v1/admin/image-channel-monitors`, and an admin submenu at `娓犻亾绠＄悊 -> 鍥剧墖娓犻亾鐩戞帶`.
 - Added focused service tests for account-source request construction and `b64_json` response handling.
 - Verified: `go generate ./ent`; `go test ./internal/service -run TestImageChannelMonitor -count=1`; `go test ./internal/service ./internal/repository ./internal/handler/admin ./cmd/server -run TestDoesNotExist -count=0`; `pnpm run typecheck`. `go generate ./cmd/server` was attempted but blocked by a local Wire tool `go.sum` missing entry, so `wire_gen.go` was manually reconciled.
 
@@ -3524,10 +3540,10 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: frontend/src/views/auth/LoginView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
 **Upstream compatibility**: frontend-only visual layer rewrite of the login view; all login logic (auth store flow, Turnstile, TOTP 2FA modal, legal consent dialog, LinuxDo/WeChat/OIDC OAuth sections, backend-mode/password-reset flags, admin login_page overrides) is preserved unchanged. Diverges further from upstream login UI; watch this file on upstream merges.
 **Change details**:
-- Rebuilt template per the Figma v2 design (file 5DlRiTxu0w28djyDCdl1Xf, frames 25:2 / 25:75): left purple-gradient hero (#2563EB→#7C3AED→#EC4899) with brand tile, admin-overridable badge/heading/description, a static "live usage bill" sample card, three model cards (Opus 4.7 / GPT-5.4 / Gemini 3.1 Pro) and a 7×24 / 100% / 0 stats row; right light-theme form with trust badges, mail/lock input icons, gradient submit button, outline register button, and two capability cards (gpt-image-2 / tutorials).
+- Rebuilt template per the Figma v2 design (file 5DlRiTxu0w28djyDCdl1Xf, frames 25:2 / 25:75): left purple-gradient hero (#2563EB鈫?7C3AED鈫?EC4899) with brand tile, admin-overridable badge/heading/description, a static "live usage bill" sample card, three model cards (Opus 4.7 / GPT-5.4 / Gemini 3.1 Pro) and a 7脳24 / 100% / 0 stats row; right light-theme form with trust badges, mail/lock input icons, gradient submit button, outline register button, and two capability cards (gpt-image-2 / tutorials).
 - Mobile: gradient hero with the form card floating over it, forgot-password link, trust chips, and key-usage/docs links (previously desktop-only nav pills).
-- Wired the previously unused `login_page.description` admin override into the hero paragraph; form switched from dark to light theme (Turnstile theme dark→light).
-- i18n: replaced `auth.login.features.*`, `postLoginInfo`, `postLoginDetails`, `keyUsageLink` with new v2 keys (billCard*, modelCard*, stat*, trustBadge*, cap*, mobileHero*, registerButton) in both zh and en; login form title default changed to 欢迎回来 / Welcome back, hero heading defaults to 登录后，即刻接入 / 最新旗舰模型.
+- Wired the previously unused `login_page.description` admin override into the hero paragraph; form switched from dark to light theme (Turnstile theme dark鈫抣ight).
+- i18n: replaced `auth.login.features.*`, `postLoginInfo`, `postLoginDetails`, `keyUsageLink` with new v2 keys (billCard*, modelCard*, stat*, trustBadge*, cap*, mobileHero*, registerButton) in both zh and en; login form title default changed to 娆㈣繋鍥炴潵 / Welcome back, hero heading defaults to 鐧诲綍鍚庯紝鍗冲埢鎺ュ叆 / 鏈€鏂版棗鑸版ā鍨?
 - Verified: `pnpm --dir frontend run typecheck`, `lint:check`, i18n locale spec suite, plus live check on the dev stack (127.0.0.1:15174/login desktop + 390px iframe mobile viewport; admin session backed up and restored).
 
 ## [2026-07-03] fix: complete provider-aware model config UI
@@ -3597,7 +3613,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: backend/cmd/server/wire_gen.go, backend/internal/handler/usage_handler.go, backend/internal/handler/gateway_handler.go, backend/internal/handler/dto/types.go, backend/internal/handler/dto/mappers.go, backend/internal/handler/dto/display_pricing.go, backend/internal/handler/dto/display_pricing_test.go, backend/internal/service/model_pricing_resolver.go, backend/internal/service/model_pricing_resolver_test.go, backend/internal/service/display_token_rewrite.go, backend/internal/service/display_token_rewrite_test.go, frontend/src/utils/usagePricing.ts, frontend/src/types/index.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/views/user/__tests__/UsageView.spec.ts, docs/dev/codebase/billing.md
 **Upstream compatibility**: fork-local user display and billing presentation fix. No database, route, stored usage, real billing, quota, push, or deployment changes.
 **Change details**:
-- Added effective unit-price fields to user usage DTOs and changed user/API-key usage tooltips to use those configured prices instead of reverse-deriving unit prices from rounded display tokens. Explicit display-price overrides win; otherwise the backend resolves the configured model price through the existing User → Channel → Global → LiteLLM/Fallback pricing chain.
+- Added effective unit-price fields to user usage DTOs and changed user/API-key usage tooltips to use those configured prices instead of reverse-deriving unit prices from rounded display tokens. Explicit display-price overrides win; otherwise the backend resolves the configured model price through the existing User 鈫?Channel 鈫?Global 鈫?LiteLLM/Fallback pricing chain.
 - Removed the user tooltip fallback that computed model unit price from `cost / tokens`; if the backend cannot resolve a unit price, the frontend shows an empty value instead of inventing one from usage costs.
 - Fixed the fable-style small-token rounding case where input cost `$0.000025` and displayed input tokens `3` produced a false `$8.3333/M` tooltip even though the configured display input price is `$10/M`.
 - Preserved real cache-read token quantities in user usage display transforms and downstream display-mode response rewrites; display-rate scaling now keeps cache-read cost tied to cache-read tokens/unit price and folds the cache-read rate delta into input display tokens/cost so the displayed bill remains explainable.
@@ -3615,7 +3631,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 ## [2026-07-02] sync: Sonnet 5 production-only upstream patch
 
 **Affected files**: backend/internal/pkg/claude/constants.go, backend/internal/domain/constants.go, backend/internal/service/settings_view.go, backend/internal/service/gateway_beta_test.go, backend/internal/service/bedrock_request_test.go, backend/internal/domain/constants_test.go, backend/internal/pkg/claude/constants_test.go, frontend/src/composables/useModelWhitelist.ts, docs/dev/UPSTREAM_SYNC.md, docs/dev/codebase/model-mapping.md
-**Upstream compatibility**: Manual partial sync from upstream commit `db0414233ce324903adc72e858374086da158b4b` (`feat: 适配 sonnet5`). This intentionally excludes the same upstream commit's unrelated `backend/internal/pkg/anthropicfp/dateline.go` changes and does not include any unfinished local OpenAI/Image work from the current conversation.
+**Upstream compatibility**: Manual partial sync from upstream commit `db0414233ce324903adc72e858374086da158b4b` (`feat: 閫傞厤 sonnet5`). This intentionally excludes the same upstream commit's unrelated `backend/internal/pkg/anthropicfp/dateline.go` changes and does not include any unfinished local OpenAI/Image work from the current conversation.
 **Change details**:
 - Added `claude-sonnet-5` to the Claude OAuth default model list so `/v1/models` can expose the model.
 - Added the Bedrock default mapping `claude-sonnet-5 -> us.anthropic.claude-sonnet-5-v1`; existing Bedrock region-prefix adjustment still rewrites it according to account `aws_region`.
@@ -3624,66 +3640,66 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Added regression tests for the default Claude model list, Bedrock mapping constants, Bedrock region adjustment, and the Sonnet 5-only 1M context beta whitelist.
 - Verified: `go test -tags=unit ./internal/pkg/claude ./internal/domain ./internal/service -count=1`; `pnpm --dir frontend run typecheck`; `pnpm --dir frontend run build`; `go build -tags embed -trimpath ./cmd/server`; `git diff --check`.
 
-## [2026-07-02] feat(billing): display cache creation price — 缓存创建纳入展示放大体系 + 用户侧可见性
+## [2026-07-02] feat(billing): display cache creation price 鈥?缂撳瓨鍒涘缓绾冲叆灞曠ず鏀惧ぇ浣撶郴 + 鐢ㄦ埛渚у彲瑙佹€?
 
 **Affected files**: backend/migrations/171_add_display_cache_creation_price.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/types/index.ts, frontend/src/api/admin/{usage,modelPricing,userModelPricing}.ts, frontend/src/views/user/UsageView.vue, frontend/src/views/KeyUsageView.vue, frontend/src/components/admin/usage/{UsageTable,UserViewCompareDrawer}.vue, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal}.vue, frontend/src/i18n/locales/{zh,en}.ts, docs/dev/codebase/billing.md
-**Upstream compatibility**: additive, fork-local。新增 DB 列 `display_cache_creation_price`（global_model_pricing + user_model_pricing_overrides，NULL=未配置=行为零变化）；DisplayUsageFields 增加两个 admin 契约字段；用户 DTO 无新 JSON 字段。upstream-sync-guard 已登记 `DisplayCacheCreationPrice` 关键签名。
+**Upstream compatibility**: additive, fork-local銆傛柊澧?DB 鍒?`display_cache_creation_price`锛坓lobal_model_pricing + user_model_pricing_overrides锛孨ULL=鏈厤缃?琛屼负闆跺彉鍖栵級锛汥isplayUsageFields 澧炲姞涓や釜 admin 濂戠害瀛楁锛涚敤鎴?DTO 鏃犳柊 JSON 瀛楁銆倁pstream-sync-guard 宸茬櫥璁?`DisplayCacheCreationPrice` 鍏抽敭绛惧悕銆?
 **Change details**:
-- 背景：anthropic 平台记录（如 claude-fable-5，input=2/output=38/cache_creation=42778/$0.54）在用户侧"token 很少但很贵"——缓存创建 token/成本此前完全不参与展示换算，且用户可用 cache_creation_cost/tokens 反推真实缓存写单价。
-- 核心（display_pricing.go）：新分支在 ApplyDisplayTransform 中把缓存创建 token 直接按展示价反算放大（display_tokens = 真实成本 ÷ 展示价，cost 保持守恒），**与 cache-read 的 premium 折入 input 机制刻意不同**（用户明确要求：直接放大缓存创建自身 token 数）。守卫：展示价>0 && tokens>0 && cost>0，不依赖 display_input_price。线性变换 → 聚合组与逐行天然等价，GetUserDisplayAggregateGroups 零改动。
-- 5m/1h 细分：新 helper rescaleCacheCreationBreakdown 等比缩放 + 减法导出，保证 5m+1h==total；ApplyUserDisplayRate 同步接入（修复既有"细分不随展示倍率缩放"bug）。
-- 长上下文：effectiveDisplayPricingForUsageLog 对新价乘 LongContextInputMultiplier。
-- 配置链：migration 171（含 user 表 NOT VALID 非负约束，模板 147）→ 实体/两个 raw-SQL repo 全枚举点（global 4 处、user 5 处）→ 校验（validateUserModelPricingOverride）→ admin API（global create/partial-update applyFloat、user create/update/batch）→ 前端两个定价表单（$/MTok 双向换算、applyDisplaySuggested 从 cache_write_price 取建议值）→ i18n zh/en。
-- Admin 可视：DisplayUsageFields + ComputeDisplayFields 增加 display_cache_creation_tokens/cost；UsageTable 双列 tooltip 增行；UserViewCompareDrawer config_used 回传展示创建价。
-- 用户侧可见性（此前完全不显示）：UsageView.vue 与 KeyUsageView.vue 的 token 徽章（amber 图标+1h 标签）、token tooltip（5m/1h 细分）、成本 tooltip、token 合计均渲染 cache creation；admin 专属 TTL override "R" 徽章仍不下发用户。UsageView.spec.ts 两个断言"用户侧隐藏缓存创建"的旧规格测试已反转。
-- 平台边界（软 gate，详见 billing.md 2026-07-02 节）：openai 原生/antigravity OAuth/桥接/gemini 行 cache_creation 恒 0 → no-op；antigravity 分组的 upstream 中转/apikey 型账号行与 openai relay 透传行若命中已配置的 claude-* 模型会同样换算（语义正确）。
-- **本批不改**：display_token_rewrite.go（下游响应 CacheCreateMult 仍恒 1.0）；claude-gpt 桥接 openai_claude_gpt_bridge_cache_display_settings；真实计费链。下游一致性如需跟进，前置为 gateway_service.go OAuth 流式 extractSSEUsagePatch 计费污染修复（PLAN 文档 Phase 0，未实施）。
-- Verified: `go build ./...`、`go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/repository/...` 全过（新增 8 个 display_pricing 用例：放大/独立守卫/no-op/与 read premium 复合/长上下文单次缩放/ComputeDisplayFields/倍率细分一致性）；`./internal/server -run Contract` 仅 redeem/history 一处**既有**失败（基线同样失败，与本改动无关）；前端 typecheck + lint:check + vitest 全量 101 文件/603 用例全过。
+- 鑳屾櫙锛歛nthropic 骞冲彴璁板綍锛堝 claude-fable-5锛宨nput=2/output=38/cache_creation=42778/$0.54锛夊湪鐢ㄦ埛渚?token 寰堝皯浣嗗緢璐?鈥斺€旂紦瀛樺垱寤?token/鎴愭湰姝ゅ墠瀹屽叏涓嶅弬涓庡睍绀烘崲绠楋紝涓旂敤鎴峰彲鐢?cache_creation_cost/tokens 鍙嶆帹鐪熷疄缂撳瓨鍐欏崟浠枫€?
+- 鏍稿績锛坉isplay_pricing.go锛夛細鏂板垎鏀湪 ApplyDisplayTransform 涓妸缂撳瓨鍒涘缓 token 鐩存帴鎸夊睍绀轰环鍙嶇畻鏀惧ぇ锛坉isplay_tokens = 鐪熷疄鎴愭湰 梅 灞曠ず浠凤紝cost 淇濇寔瀹堟亽锛夛紝**涓?cache-read 鐨?premium 鎶樺叆 input 鏈哄埗鍒绘剰涓嶅悓**锛堢敤鎴锋槑纭姹傦細鐩存帴鏀惧ぇ缂撳瓨鍒涘缓鑷韩 token 鏁帮級銆傚畧鍗細灞曠ず浠?0 && tokens>0 && cost>0锛屼笉渚濊禆 display_input_price銆傜嚎鎬у彉鎹?鈫?鑱氬悎缁勪笌閫愯澶╃劧绛変环锛孏etUserDisplayAggregateGroups 闆舵敼鍔ㄣ€?
+- 5m/1h 缁嗗垎锛氭柊 helper rescaleCacheCreationBreakdown 绛夋瘮缂╂斁 + 鍑忔硶瀵煎嚭锛屼繚璇?5m+1h==total锛汚pplyUserDisplayRate 鍚屾鎺ュ叆锛堜慨澶嶆棦鏈?缁嗗垎涓嶉殢灞曠ず鍊嶇巼缂╂斁"bug锛夈€?
+- 闀夸笂涓嬫枃锛歟ffectiveDisplayPricingForUsageLog 瀵规柊浠蜂箻 LongContextInputMultiplier銆?
+- 閰嶇疆閾撅細migration 171锛堝惈 user 琛?NOT VALID 闈炶礋绾︽潫锛屾ā鏉?147锛夆啋 瀹炰綋/涓や釜 raw-SQL repo 鍏ㄦ灇涓剧偣锛坓lobal 4 澶勩€乽ser 5 澶勶級鈫?鏍￠獙锛坴alidateUserModelPricingOverride锛夆啋 admin API锛坓lobal create/partial-update applyFloat銆乽ser create/update/batch锛夆啋 鍓嶇涓や釜瀹氫环琛ㄥ崟锛?/MTok 鍙屽悜鎹㈢畻銆乤pplyDisplaySuggested 浠?cache_write_price 鍙栧缓璁€硷級鈫?i18n zh/en銆?
+- Admin 鍙锛欴isplayUsageFields + ComputeDisplayFields 澧炲姞 display_cache_creation_tokens/cost锛沀sageTable 鍙屽垪 tooltip 澧炶锛沀serViewCompareDrawer config_used 鍥炰紶灞曠ず鍒涘缓浠枫€?
+- 鐢ㄦ埛渚у彲瑙佹€э紙姝ゅ墠瀹屽叏涓嶆樉绀猴級锛歎sageView.vue 涓?KeyUsageView.vue 鐨?token 寰界珷锛坅mber 鍥炬爣+1h 鏍囩锛夈€乼oken tooltip锛?m/1h 缁嗗垎锛夈€佹垚鏈?tooltip銆乼oken 鍚堣鍧囨覆鏌?cache creation锛沘dmin 涓撳睘 TTL override "R" 寰界珷浠嶄笉涓嬪彂鐢ㄦ埛銆俇sageView.spec.ts 涓や釜鏂█"鐢ㄦ埛渚ч殣钘忕紦瀛樺垱寤?鐨勬棫瑙勬牸娴嬭瘯宸插弽杞€?
+- 骞冲彴杈圭晫锛堣蒋 gate锛岃瑙?billing.md 2026-07-02 鑺傦級锛歰penai 鍘熺敓/antigravity OAuth/妗ユ帴/gemini 琛?cache_creation 鎭?0 鈫?no-op锛沘ntigravity 鍒嗙粍鐨?upstream 涓浆/apikey 鍨嬭处鍙疯涓?openai relay 閫忎紶琛岃嫢鍛戒腑宸查厤缃殑 claude-* 妯″瀷浼氬悓鏍锋崲绠楋紙璇箟姝ｇ‘锛夈€?
+- **鏈壒涓嶆敼**锛歞isplay_token_rewrite.go锛堜笅娓稿搷搴?CacheCreateMult 浠嶆亽 1.0锛夛紱claude-gpt 妗ユ帴 openai_claude_gpt_bridge_cache_display_settings锛涚湡瀹炶璐归摼銆備笅娓镐竴鑷存€у闇€璺熻繘锛屽墠缃负 gateway_service.go OAuth 娴佸紡 extractSSEUsagePatch 璁¤垂姹℃煋淇锛圥LAN 鏂囨。 Phase 0锛屾湭瀹炴柦锛夈€?
+- Verified: `go build ./...`銆乣go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/repository/...` 鍏ㄨ繃锛堟柊澧?8 涓?display_pricing 鐢ㄤ緥锛氭斁澶?鐙珛瀹堝崼/no-op/涓?read premium 澶嶅悎/闀夸笂涓嬫枃鍗曟缂╂斁/ComputeDisplayFields/鍊嶇巼缁嗗垎涓€鑷存€э級锛沗./internal/server -run Contract` 浠?redeem/history 涓€澶?*鏃㈡湁**澶辫触锛堝熀绾垮悓鏍峰け璐ワ紝涓庢湰鏀瑰姩鏃犲叧锛夛紱鍓嶇 typecheck + lint:check + vitest 鍏ㄩ噺 101 鏂囦欢/603 鐢ㄤ緥鍏ㄨ繃銆?
 
-## [2026-07-02] fix(billing): 流式计费 patch 先于展示改写提取 —— 修复 display 模式真实扣费污染
+## [2026-07-02] fix(billing): 娴佸紡璁¤垂 patch 鍏堜簬灞曠ず鏀瑰啓鎻愬彇 鈥斺€?淇 display 妯″紡鐪熷疄鎵ｈ垂姹℃煋
 
 **Affected files**: backend/internal/service/gateway_service.go, backend/internal/service/gateway_service_streaming_test.go
-**Upstream compatibility**: 单行重排,fork-local。
+**Upstream compatibility**: 鍗曡閲嶆帓,fork-local銆?
 **Change details**:
-- 根因:processSSEEvent 先对共享 SSE event map 做展示改写(ApplyDisplayMultipliersToUsageMap 就地变异),后 extractSSEUsagePatch 从同一 map 提取计费 → mergeSSEUsagePatch → ForwardResult.Usage → calculateTokenCost。`downstream_usage_token_mode=display`(migration 169 起新用户默认)且展示倍率非平凡时,**真实扣费按展示 token 计算**(生产已配置展示倍率,污染已实际发生)。
-- 修法:extractSSEUsagePatch 上移到 cache TTL override(刻意影响计费归类,保持在前)之后、display 改写之前;display 改写仍作用于发给客户端的序列化对象,展示语义不变。顺带修复 marshal 失败回退路径"客户端见真实值、计费用展示值"的不自洽。
-- 影响面:所有走 GatewayService 流式路径的账号(anthropic OAuth/SetupToken/ServiceAccount/APIKey + antigravity 分组 apikey 型账号)。**行为变化:display 模式用户的流式扣费从污染值恢复为真实值**(已拍板只修复+记录,不做历史修正)。其余路径经三轮探索核实均为"先提取后改写",安全:passthrough 流式/非流式、标准非流式、claude-gpt 桥接(response-only)、OpenAI 原生全路径、antigravity(hook 变异 usageToMap 全新拷贝,计费走独立累计字段)。
-- 红/绿回归:TestGatewayService_StreamingDisplayModeBillsRealTokens(修复前红)、TestGatewayService_StreamingDisplayModeKeepsTTLOverrideBeforeBillingPatch(TTL 归类仍先于提取)。
+- 鏍瑰洜:processSSEEvent 鍏堝鍏变韩 SSE event map 鍋氬睍绀烘敼鍐?ApplyDisplayMultipliersToUsageMap 灏卞湴鍙樺紓),鍚?extractSSEUsagePatch 浠庡悓涓€ map 鎻愬彇璁¤垂 鈫?mergeSSEUsagePatch 鈫?ForwardResult.Usage 鈫?calculateTokenCost銆俙downstream_usage_token_mode=display`(migration 169 璧锋柊鐢ㄦ埛榛樿)涓斿睍绀哄€嶇巼闈炲钩鍑℃椂,**鐪熷疄鎵ｈ垂鎸夊睍绀?token 璁＄畻**(鐢熶骇宸查厤缃睍绀哄€嶇巼,姹℃煋宸插疄闄呭彂鐢?銆?
+- 淇硶:extractSSEUsagePatch 涓婄Щ鍒?cache TTL override(鍒绘剰褰卞搷璁¤垂褰掔被,淇濇寔鍦ㄥ墠)涔嬪悗銆乨isplay 鏀瑰啓涔嬪墠;display 鏀瑰啓浠嶄綔鐢ㄤ簬鍙戠粰瀹㈡埛绔殑搴忓垪鍖栧璞?灞曠ず璇箟涓嶅彉銆傞『甯︿慨澶?marshal 澶辫触鍥為€€璺緞"瀹㈡埛绔鐪熷疄鍊笺€佽璐圭敤灞曠ず鍊?鐨勪笉鑷唇銆?
+- 褰卞搷闈?鎵€鏈夎蛋 GatewayService 娴佸紡璺緞鐨勮处鍙?anthropic OAuth/SetupToken/ServiceAccount/APIKey + antigravity 鍒嗙粍 apikey 鍨嬭处鍙?銆?*琛屼负鍙樺寲:display 妯″紡鐢ㄦ埛鐨勬祦寮忔墸璐逛粠姹℃煋鍊兼仮澶嶄负鐪熷疄鍊?*(宸叉媿鏉垮彧淇+璁板綍,涓嶅仛鍘嗗彶淇)銆傚叾浣欒矾寰勭粡涓夎疆鎺㈢储鏍稿疄鍧囦负"鍏堟彁鍙栧悗鏀瑰啓",瀹夊叏:passthrough 娴佸紡/闈炴祦寮忋€佹爣鍑嗛潪娴佸紡銆乧laude-gpt 妗ユ帴(response-only)銆丱penAI 鍘熺敓鍏ㄨ矾寰勩€乤ntigravity(hook 鍙樺紓 usageToMap 鍏ㄦ柊鎷疯礉,璁¤垂璧扮嫭绔嬬疮璁″瓧娈?銆?
+- 绾?缁垮洖褰?TestGatewayService_StreamingDisplayModeBillsRealTokens(淇鍓嶇孩)銆乀estGatewayService_StreamingDisplayModeKeepsTTLOverrideBeforeBillingPatch(TTL 褰掔被浠嶅厛浜庢彁鍙?銆?
 
-## [2026-07-02] feat(billing): cache_write_1h_price —— 1h 缓存创建按溢价分档计费
+## [2026-07-02] feat(billing): cache_write_1h_price 鈥斺€?1h 缂撳瓨鍒涘缓鎸夋孩浠峰垎妗ｈ璐?
 
 **Affected files**: backend/migrations/172_add_cache_write_1h_price.sql, backend/internal/service/{global_model_pricing,global_model_pricing_service,model_pricing_resolver}.go, backend/internal/repository/global_model_pricing_repo.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/service/model_pricing_resolver_test.go, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: additive。新列 NULL = 历史行为逐字节不变(回归钉测试)。
+**Upstream compatibility**: additive銆傛柊鍒?NULL = 鍘嗗彶琛屼负閫愬瓧鑺備笉鍙?鍥炲綊閽夋祴璇?銆?
 **Change details**:
-- 背景:官方缓存写入分两档(5m=1.25×输入价,1h=2×输入价)。【2026-07-02 修正】走 LiteLLM 源价的模型(sonnet-5/fable-5)本就按官方分档正确计费——生产 sonnet-5 纯 1h 行隐含 $4.0/MTok = 官方优惠期 1h 价(2×$2),经官方价目表核实,原"1h 溢价漏计"诊断不成立。被压平的是配了全局 cache_write_price 覆盖的模型(opus 系列 $10 平价、sonnet-4-6 $5 平价):单一覆盖价同写三档,1h 溢价无法表达——本字段即为此而设。
-- 全局定价覆盖新增 cache_write_1h_price(migration 172):配置后 applyGlobalPricingOverride 单独写 CacheCreation1hPrice 并强制 SupportsCacheBreakdown=true,computeCacheCreationCost 按 5m×p5m+1h×p1h 分档;admin 表单加"1h 缓存写入价"输入框($/MTok),i18n zh/en。
-- **运营动作**:部署后给 claude-sonnet-5 / claude-fable-5 等中转模型配置 1h 价(按上游实际扣费口径);此后新请求真实成本计入 1h 溢价(admin 成本与用户 actual_cost 同步变化)。
-- 测试:纯 1h 生产形状(66061 tokens)按 1h 价计费、混合行分档、未配置时平价行为回归钉。
+- 鑳屾櫙:瀹樻柟缂撳瓨鍐欏叆鍒嗕袱妗?5m=1.25脳杈撳叆浠?1h=2脳杈撳叆浠?銆傘€?026-07-02 淇銆戣蛋 LiteLLM 婧愪环鐨勬ā鍨?sonnet-5/fable-5)鏈氨鎸夊畼鏂瑰垎妗ｆ纭璐光€斺€旂敓浜?sonnet-5 绾?1h 琛岄殣鍚?$4.0/MTok = 瀹樻柟浼樻儬鏈?1h 浠?2脳$2),缁忓畼鏂逛环鐩〃鏍稿疄,鍘?1h 婧环婕忚"璇婃柇涓嶆垚绔嬨€傝鍘嬪钩鐨勬槸閰嶄簡鍏ㄥ眬 cache_write_price 瑕嗙洊鐨勬ā鍨?opus 绯诲垪 $10 骞充环銆乻onnet-4-6 $5 骞充环):鍗曚竴瑕嗙洊浠峰悓鍐欎笁妗?1h 婧环鏃犳硶琛ㄨ揪鈥斺€旀湰瀛楁鍗充负姝よ€岃銆?
+- 鍏ㄥ眬瀹氫环瑕嗙洊鏂板 cache_write_1h_price(migration 172):閰嶇疆鍚?applyGlobalPricingOverride 鍗曠嫭鍐?CacheCreation1hPrice 骞跺己鍒?SupportsCacheBreakdown=true,computeCacheCreationCost 鎸?5m脳p5m+1h脳p1h 鍒嗘。;admin 琛ㄥ崟鍔?1h 缂撳瓨鍐欏叆浠?杈撳叆妗?$/MTok),i18n zh/en銆?
+- **杩愯惀鍔ㄤ綔**:閮ㄧ讲鍚庣粰 claude-sonnet-5 / claude-fable-5 绛変腑杞ā鍨嬮厤缃?1h 浠?鎸変笂娓稿疄闄呮墸璐瑰彛寰?;姝ゅ悗鏂拌姹傜湡瀹炴垚鏈鍏?1h 婧环(admin 鎴愭湰涓庣敤鎴?actual_cost 鍚屾鍙樺寲)銆?
+- 娴嬭瘯:绾?1h 鐢熶骇褰㈢姸(66061 tokens)鎸?1h 浠疯璐广€佹贩鍚堣鍒嗘。銆佹湭閰嶇疆鏃跺钩浠疯涓哄洖褰掗拤銆?
 
-## [2026-07-02] feat(billing): 下游响应 usage 缓存创建展示改写(real/display 双模式)
+## [2026-07-02] feat(billing): 涓嬫父鍝嶅簲 usage 缂撳瓨鍒涘缓灞曠ず鏀瑰啓(real/display 鍙屾ā寮?
 
 **Affected files**: backend/internal/service/display_token_rewrite{,_test}.go, docs/dev/codebase/billing.md
-**Upstream compatibility**: fork-local。real 模式零变化;display 模式仅在配置了 display_cache_creation_price 的模型上激活。
+**Upstream compatibility**: fork-local銆俽eal 妯″紡闆跺彉鍖?display 妯″紡浠呭湪閰嶇疆浜?display_cache_creation_price 鐨勬ā鍨嬩笂婵€娲汇€?
 **Change details**:
-- computeDisplayTokenMultipliers 接入缓存创建:CacheCreateMult(无明细回退,5m 档口径对齐计费回退)+ CacheCreate5mMult/CacheCreate1hMult 分档倍率(真实档价÷展示创建价);displayTokenPricingConfig/两个 merge 函数补真实价与展示价管道;IsNonTrivial 纳入分档判断(仅配展示创建价即可激活改写链)。
-- 新 helper computeDisplayCacheCreationBreakdown:有嵌套 5m/1h 明细时按档反算(displayTotal×展示价 == 5m×p5m+1h×p1h,与 usage 页成本反算口径逐 token 一致,含纯 1h 中转流量),display1h 减法导出保证 5m+1h==顶层;无明细退化单一倍率。接入 rewriteSeparatedUsageTokens(passthrough 流式/非流式+桥接,顶层与嵌套同步 sjson 回写)与 ApplyDisplayMultipliersToUsageMap(托管流式+antigravity hook;antigravity map 无嵌套,行为不变)。applyOpenAIResponsesUsageDisplayMultipliers 的 CacheCreationInputTokens 改为同规则缩放(桥接恒 0,no-op)。
-- RateScale(展示倍率层)在分档反算后复合,与 ApplyUserDisplayRate 串联语义一致。
-- 前置依赖:同日的流式计费 patch 顺序修复(否则缓存创建计费会被本改写污染)。
-- Verified: go build/vet;display token 全部用例(既有 11 + 新增 8:分档倍率计算/用户级覆盖优先/嵌套同步/纯 1h 生产形状/RateScale 复合/无嵌套回退/OpenAI 结构缩放/trivial no-op);gateway 流式与 handler/repository 全量单测通过。
+- computeDisplayTokenMultipliers 鎺ュ叆缂撳瓨鍒涘缓:CacheCreateMult(鏃犳槑缁嗗洖閫€,5m 妗ｅ彛寰勫榻愯璐瑰洖閫€)+ CacheCreate5mMult/CacheCreate1hMult 鍒嗘。鍊嶇巼(鐪熷疄妗ｄ环梅灞曠ず鍒涘缓浠?;displayTokenPricingConfig/涓や釜 merge 鍑芥暟琛ョ湡瀹炰环涓庡睍绀轰环绠￠亾;IsNonTrivial 绾冲叆鍒嗘。鍒ゆ柇(浠呴厤灞曠ず鍒涘缓浠峰嵆鍙縺娲绘敼鍐欓摼)銆?
+- 鏂?helper computeDisplayCacheCreationBreakdown:鏈夊祵濂?5m/1h 鏄庣粏鏃舵寜妗ｅ弽绠?displayTotal脳灞曠ず浠?== 5m脳p5m+1h脳p1h,涓?usage 椤垫垚鏈弽绠楀彛寰勯€?token 涓€鑷?鍚函 1h 涓浆娴侀噺),display1h 鍑忔硶瀵煎嚭淇濊瘉 5m+1h==椤跺眰;鏃犳槑缁嗛€€鍖栧崟涓€鍊嶇巼銆傛帴鍏?rewriteSeparatedUsageTokens(passthrough 娴佸紡/闈炴祦寮?妗ユ帴,椤跺眰涓庡祵濂楀悓姝?sjson 鍥炲啓)涓?ApplyDisplayMultipliersToUsageMap(鎵樼娴佸紡+antigravity hook;antigravity map 鏃犲祵濂?琛屼负涓嶅彉)銆俛pplyOpenAIResponsesUsageDisplayMultipliers 鐨?CacheCreationInputTokens 鏀逛负鍚岃鍒欑缉鏀?妗ユ帴鎭?0,no-op)銆?
+- RateScale(灞曠ず鍊嶇巼灞?鍦ㄥ垎妗ｅ弽绠楀悗澶嶅悎,涓?ApplyUserDisplayRate 涓茶仈璇箟涓€鑷淬€?
+- 鍓嶇疆渚濊禆:鍚屾棩鐨勬祦寮忚璐?patch 椤哄簭淇(鍚﹀垯缂撳瓨鍒涘缓璁¤垂浼氳鏈敼鍐欐薄鏌?銆?
+- Verified: go build/vet;display token 鍏ㄩ儴鐢ㄤ緥(鏃㈡湁 11 + 鏂板 8:鍒嗘。鍊嶇巼璁＄畻/鐢ㄦ埛绾ц鐩栦紭鍏?宓屽鍚屾/绾?1h 鐢熶骇褰㈢姸/RateScale 澶嶅悎/鏃犲祵濂楀洖閫€/OpenAI 缁撴瀯缂╂斁/trivial no-op);gateway 娴佸紡涓?handler/repository 鍏ㄩ噺鍗曟祴閫氳繃銆?
 
-## [2026-07-02] feat(billing): 5m/1h 缓存分档价格配置面补全（用户级真实价 + 全局/用户级展示价 + LiteLLM 参考）
+## [2026-07-02] feat(billing): 5m/1h 缂撳瓨鍒嗘。浠锋牸閰嶇疆闈㈣ˉ鍏紙鐢ㄦ埛绾х湡瀹炰环 + 鍏ㄥ眬/鐢ㄦ埛绾у睍绀轰环 + LiteLLM 鍙傝€冿級
 
 **Affected files**: backend/migrations/173_add_cache_tier_pricing_fields.sql, backend/internal/service/{global_model_pricing,user_model_pricing,user_model_pricing_service,global_model_pricing_service,model_pricing_resolver,display_token_rewrite}.go, backend/internal/repository/{global_model_pricing_repo,user_model_pricing_repo}.go, backend/internal/handler/admin/{model_pricing_handler,user_model_pricing_handler,usage_handler}.go, backend/internal/handler/dto/display_pricing{,_test}.go, backend/internal/service/{display_token_rewrite_test,model_pricing_resolver_test}.go, backend/tools/upstream-sync-guard/main.go, frontend/src/api/admin/{modelPricing,userModelPricing,usage}.ts, frontend/src/components/admin/{model-pricing/ModelPricingDetailDialog,user/UserModelPricingModal,usage/UserViewCompareDrawer}.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: additive。migration 173 新增三列均 NULL=行为零变化;LiteLLMPrices 载荷加 cache_write_1h_price(来自 litellm 的 cache_creation_input_token_cost_above_1hr)。
+**Upstream compatibility**: additive銆俶igration 173 鏂板涓夊垪鍧?NULL=琛屼负闆跺彉鍖?LiteLLMPrices 杞借嵎鍔?cache_write_1h_price(鏉ヨ嚜 litellm 鐨?cache_creation_input_token_cost_above_1hr)銆?
 **Change details**:
-- **用户级真实 1h 价** `user_model_pricing_overrides.cache_write_1h_price`:applyUserModelPricingOverride 与全局同语义(单独写 CacheCreation1hPrice + 强制 SupportsCacheBreakdown),用户级也能表达 1h 溢价分档计费。
-- **展示价分档** `display_cache_creation_1h_price`(全局 + 用户级):
-  - usage-log 展示(ApplyDisplayTransform):行有 5m/1h 细分且两档展示价不同时,按真实档价比例(r=1h/5m,来自定价条目的 RealCacheWritePrice/RealCacheWrite1hPrice,未知时按 1:1)拆分实际落库成本,各档独立反算展示 token —— 成本总额按构造守恒;只配 5m 档展示价时保持既有"总成本反算"路径(回归钉)。
-  - 下游改写(computeDisplayTokenMultipliers):CacheCreate1hMult 分母改用 1h 展示价(未配回退 5m 档展示价),两侧口径一致。
-  - 长上下文克隆对 1h 展示价同乘 LongContextInputMultiplier;hasDisplayOverride/BuildUserDisplayPricingMap/merge 函数全链纳入。
-- **配置界面补全**:全局定价对话框(LiteLLM 参考区 + 计费区 1h 输入框带 litellm placeholder + 展示区 1h 输入框 + applyDisplaySuggested 从 litellm 1h 取建议)、用户定价模态框(LiteLLM 参考行 + 真实/展示两个 1h 输入框 + 建议值 + $/MTok 双向换算)、对比抽屉 config_used 展示 1h 展示价;i18n zh/en。
-- **口径答疑**(用户提问,billing.md 亦有记载):所有支持缓存的 Claude 模型都有 5m/1h 两档,是否出现取决于调用方请求的 TTL;无分档价的模型走平价回退(total × CacheCreationPricePerToken);上游未返回 5m/1h 细分时全部按 5m 价计费(计费与展示两侧一致)。
-- Verified: go build/vet 全过;新增 6 个单测(dto 分档反算/1:1 兜底/单价回归钉,resolver 用户级 1h,display_token 1h 展示价倍率/用户级 1h 真实价);后端全量 unit 测试、前端 typecheck+lint+603 用例全过。
+- **鐢ㄦ埛绾х湡瀹?1h 浠?* `user_model_pricing_overrides.cache_write_1h_price`:applyUserModelPricingOverride 涓庡叏灞€鍚岃涔?鍗曠嫭鍐?CacheCreation1hPrice + 寮哄埗 SupportsCacheBreakdown),鐢ㄦ埛绾т篃鑳借〃杈?1h 婧环鍒嗘。璁¤垂銆?
+- **灞曠ず浠峰垎妗?* `display_cache_creation_1h_price`(鍏ㄥ眬 + 鐢ㄦ埛绾?:
+  - usage-log 灞曠ず(ApplyDisplayTransform):琛屾湁 5m/1h 缁嗗垎涓斾袱妗ｅ睍绀轰环涓嶅悓鏃?鎸夌湡瀹炴。浠锋瘮渚?r=1h/5m,鏉ヨ嚜瀹氫环鏉＄洰鐨?RealCacheWritePrice/RealCacheWrite1hPrice,鏈煡鏃舵寜 1:1)鎷嗗垎瀹為檯钀藉簱鎴愭湰,鍚勬。鐙珛鍙嶇畻灞曠ず token 鈥斺€?鎴愭湰鎬婚鎸夋瀯閫犲畧鎭?鍙厤 5m 妗ｅ睍绀轰环鏃朵繚鎸佹棦鏈?鎬绘垚鏈弽绠?璺緞(鍥炲綊閽?銆?
+  - 涓嬫父鏀瑰啓(computeDisplayTokenMultipliers):CacheCreate1hMult 鍒嗘瘝鏀圭敤 1h 灞曠ず浠?鏈厤鍥為€€ 5m 妗ｅ睍绀轰环),涓や晶鍙ｅ緞涓€鑷淬€?
+  - 闀夸笂涓嬫枃鍏嬮殕瀵?1h 灞曠ず浠峰悓涔?LongContextInputMultiplier;hasDisplayOverride/BuildUserDisplayPricingMap/merge 鍑芥暟鍏ㄩ摼绾冲叆銆?
+- **閰嶇疆鐣岄潰琛ュ叏**:鍏ㄥ眬瀹氫环瀵硅瘽妗?LiteLLM 鍙傝€冨尯 + 璁¤垂鍖?1h 杈撳叆妗嗗甫 litellm placeholder + 灞曠ず鍖?1h 杈撳叆妗?+ applyDisplaySuggested 浠?litellm 1h 鍙栧缓璁?銆佺敤鎴峰畾浠锋ā鎬佹(LiteLLM 鍙傝€冭 + 鐪熷疄/灞曠ず涓や釜 1h 杈撳叆妗?+ 寤鸿鍊?+ $/MTok 鍙屽悜鎹㈢畻)銆佸姣旀娊灞?config_used 灞曠ず 1h 灞曠ず浠?i18n zh/en銆?
+- **鍙ｅ緞绛旂枒**(鐢ㄦ埛鎻愰棶,billing.md 浜︽湁璁拌浇):鎵€鏈夋敮鎸佺紦瀛樼殑 Claude 妯″瀷閮芥湁 5m/1h 涓ゆ。,鏄惁鍑虹幇鍙栧喅浜庤皟鐢ㄦ柟璇锋眰鐨?TTL;鏃犲垎妗ｄ环鐨勬ā鍨嬭蛋骞充环鍥為€€(total 脳 CacheCreationPricePerToken);涓婃父鏈繑鍥?5m/1h 缁嗗垎鏃跺叏閮ㄦ寜 5m 浠疯璐?璁¤垂涓庡睍绀轰袱渚т竴鑷?銆?
+- Verified: go build/vet 鍏ㄨ繃;鏂板 6 涓崟娴?dto 鍒嗘。鍙嶇畻/1:1 鍏滃簳/鍗曚环鍥炲綊閽?resolver 鐢ㄦ埛绾?1h,display_token 1h 灞曠ず浠峰€嶇巼/鐢ㄦ埛绾?1h 鐪熷疄浠?;鍚庣鍏ㄩ噺 unit 娴嬭瘯銆佸墠绔?typecheck+lint+603 鐢ㄤ緥鍏ㄨ繃銆?
 
 ## [2026-07-02] docs: record Hajimi candidate 4K key availability failure
 
@@ -3691,7 +3707,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Upstream compatibility**: documentation only; no backend/frontend runtime behavior, route, database, billing, i18n, or migration changes.
 **Change details**:
 - Recorded the new `hajimicc.top` native 4K candidate key check by key fingerprint only; the full key is stored only in the ignored local test-secret registry under `tmp/image-channel-secrets/`.
-- Documented that quality c1 and concurrency c2/c4/c8 all fail before generation with HTTP 503: `No available channel for model gpt-image-2 under group 4K-3（原生） (distributor)`.
+- Documented that quality c1 and concurrency c2/c4/c8 all fail before generation with HTTP 503: `No available channel for model gpt-image-2 under group 4K-3锛堝師鐢燂級 (distributor)`.
 - Recorded that no image URL host or no-proxy direct download can be measured for this candidate key until the upstream group has an available `gpt-image-2` channel.
 - Added the current no-proxy direct-access probe for the existing `www.geek2api.com` image URL host, including the observed ~10s first-byte latency.
 
@@ -3719,7 +3735,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Upstream compatibility**: documentation only; no backend/frontend runtime behavior, route, database, billing, i18n, or migration changes.
 **Change details**:
 - Added a production diagnostic record for OpenAI API-key image URL relay behavior after the `v0.1.151` forced-URL hotfix.
-- Recorded the `gpt image 2 高质量` group permission finding, the native 4K quality smoke result, and the `c2/c4/c8` 4K concurrency baseline.
+- Recorded the `gpt image 2 楂樿川閲廯 group permission finding, the native 4K quality smoke result, and the `c2/c4/c8` 4K concurrency baseline.
 - Documented the timing split between Sub2API API URL response latency and downstream image URL download latency.
 - Recorded the completed Japan-proxy `c2/c8/c16` timing run, including API pre-body latency, image URL pre-body latency, body download time, throughput, URL hosts, and URL/base64 response shape.
 
@@ -4000,14 +4016,14 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Updated `api_contract_test.go` expected JSON for both the admin settings GET and the public settings payload to include `tutorial_url`.
 - Hid the in-app tutorial page: the `/tutorial` route is now a redirect to `/dashboard` (TutorialView.vue retained but unrouted).
 - Routed all tutorial entry points to the configurable link, shown only when `tutorial_url` is set: the dashboard "view tutorial" card now opens the link in a new tab; the sidebar "Tutorial" nav item renders as an external link (added an `external?: string` field to NavItem and switched both user/personal nav render blocks to `<component :is>` so it emits an `<a target=_blank>`); and the keys-page guide gained a "Detailed Tutorial" button (new `tutorialUrl` prop passed from KeysView).
-- Renamed the keys-page guide heading from "Getting Started" / 开始使用 to "Quick Tutorial" / 快速教程, and added `keys.guide.detailedTutorial` plus `admin.settings.site.tutorialUrl*` i18n keys (zh + en).
+- Renamed the keys-page guide heading from "Getting Started" / 寮€濮嬩娇鐢?to "Quick Tutorial" / 蹇€熸暀绋? and added `keys.guide.detailedTutorial` plus `admin.settings.site.tutorialUrl*` i18n keys (zh + en).
 - Added `tutorialUrl` to the app store (ref, applySettings parse, fallback cached object, export) and `tutorial_url` to the PublicSettings type and admin settings API types/mapping.
 - Verified with `go build ./...`, `go test -tags=unit ./internal/handler/dto -run SchemaDoesNotDrift`, `go test -tags=unit ./internal/server -run TestAPIContracts`, `go test -tags=unit ./internal/service ./internal/handler ./internal/handler/admin`, `pnpm --dir frontend run typecheck`, `pnpm --dir frontend run lint:check`, `pnpm --dir frontend exec vitest run src/stores/__tests__/app.spec.ts src/views/admin/__tests__/SettingsView.spec.ts`, and a live `GET /api/v1/settings/public` showing `tutorial_url`.
 
 ## [2026-06-20] feat: admin-configurable CCS import model for OpenAI/Codex
 
 **Affected files**: backend/internal/service/domain_constants.go, backend/internal/service/setting_service.go, backend/internal/service/settings_view.go, backend/internal/handler/dto/settings.go, backend/internal/handler/setting_handler.go, backend/internal/handler/admin/setting_handler.go, backend/internal/server/api_contract_test.go, frontend/src/types/index.ts, frontend/src/stores/app.ts, frontend/src/api/admin/settings.ts, frontend/src/views/admin/SettingsView.vue, frontend/src/views/user/KeysView.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: adds a new public Settings-KV key `ccs_import_codex_model` (string, default `gpt-5-codex`) following the existing `api_base_url` / `hide_ccs_import_button` plumbing exactly. Additive — could conflict if upstream restructures the settings DTO/struct chain or the KeysView CC Switch deeplink builder.
+**Upstream compatibility**: adds a new public Settings-KV key `ccs_import_codex_model` (string, default `gpt-5-codex`) following the existing `api_base_url` / `hide_ccs_import_button` plumbing exactly. Additive 鈥?could conflict if upstream restructures the settings DTO/struct chain or the KeysView CC Switch deeplink builder.
 **Change details**:
 - Root cause of the reported issue: the "Import to CC Switch" deeplink built in `KeysView.executeCcsImport` never sent a `model` param, so cc-switch's `build_codex_settings` fell back to its built-in default `gpt-5-codex` (verified against farion1231/cc-switch `src-tauri/src/deeplink/provider.rs`). The model was therefore not controllable from Sub2API.
 - Added public setting `ccs_import_codex_model` (default `gpt-5-codex`) and wired it through the full Settings-KV chain: constant, public-keys list, both map->struct assemblies, the injection payload + `GetPublicSettingsForInjection`, the updates map (TrimSpace), `settings_view` PublicSettings/SettingsView structs, public + admin DTOs, admin request struct, admin response mappers, and the admin change-diff list.
@@ -4025,53 +4041,53 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Moved the "Usage Rules" and dismiss buttons into the header row so they do not consume card-grid height.
 - Step 2 now offers separate direct download buttons for Windows (.msi) and macOS (.dmg) instead of a single GitHub releases-page link.
 - Download URLs are resolved at runtime from the GitHub Releases API (farion1231/cc-switch) because asset file names embed the version and have no stable "latest" URL. Results are cached in localStorage for 24h to respect GitHub's unauthenticated rate limit, and both buttons fall back to the releases page on any fetch/parse failure so they are never dead links. The fetch is skipped entirely when admin has hidden CCS (`hide_ccs_import_button`).
-- Step 3 stays informational (Claude Code / Gemini CLI tool chips) rather than carrying its own action button: a guide-level "use key" button would be ambiguous about which key it opens when the user has several. Instead, aligned the zh wording so the card points users at the table — changed step3 title and the "使用 Key" references in step3Desc/step3DescNoCcs to "使用密钥", matching the per-row table button (`keys.useKey` = 使用密钥). English already used "Use Key", so en is unchanged.
+- Step 3 stays informational (Claude Code / Gemini CLI tool chips) rather than carrying its own action button: a guide-level "use key" button would be ambiguous about which key it opens when the user has several. Instead, aligned the zh wording so the card points users at the table 鈥?changed step3 title and the "浣跨敤 Key" references in step3Desc/step3DescNoCcs to "浣跨敤瀵嗛挜", matching the per-row table button (`keys.useKey` = 浣跨敤瀵嗛挜). English already used "Use Key", so en is unchanged.
 - Verified with `pnpm --dir frontend run typecheck` and `pnpm --dir frontend run lint:check`.
 
 ## [2026-06-19] fix: user-facing usage statistics must show display values, not raw
 
 **Affected files**: backend/internal/handler/usage_handler.go, backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/account_usage_service.go, backend/internal/service/usage_service.go, backend/internal/handler/usage_handler_request_type_test.go, backend/internal/handler/usage_handler_display_aggregate_test.go
-**Issue**: User-side aggregate stats endpoints summed raw `usage_logs` columns and returned **real** token counts / unit prices, while the per-row usage records list already applied the display-pricing transform (展示单价/展示倍率, the "token 放大机制"). So the dashboard/usage stat cards leaked real tokens and did not reconcile with the records list. Design rule: users must only ever see display values; real tokens/prices are internal.
+**Issue**: User-side aggregate stats endpoints summed raw `usage_logs` columns and returned **real** token counts / unit prices, while the per-row usage records list already applied the display-pricing transform (灞曠ず鍗曚环/灞曠ず鍊嶇巼, the "token 鏀惧ぇ鏈哄埗"). So the dashboard/usage stat cards leaked real tokens and did not reconcile with the records list. Design rule: users must only ever see display values; real tokens/prices are internal.
 **Change details**:
-- `GET /api/v1/usage/stats` (Stats), `/usage/dashboard/trend` (DashboardTrend), `/usage/dashboard/models` (DashboardModels) now aggregate from the same display-transformed records the user sees (`loadAllDisplayedPublicUsageRecords` + `aggregateDisplayedPublicUsageStats` / `aggregateDisplayedPublicUsageTrend` / new `aggregateDisplayedModelStats`) — exact row-for-row reconciliation with the records list for the selected range.
+- `GET /api/v1/usage/stats` (Stats), `/usage/dashboard/trend` (DashboardTrend), `/usage/dashboard/models` (DashboardModels) now aggregate from the same display-transformed records the user sees (`loadAllDisplayedPublicUsageRecords` + `aggregateDisplayedPublicUsageStats` / `aggregateDisplayedPublicUsageTrend` / new `aggregateDisplayedModelStats`) 鈥?exact row-for-row reconciliation with the records list for the selected range.
 - `GET /api/v1/usage/dashboard/stats` (DashboardStats) all-time + today token/cost totals now use display values. All-time is unbounded (heaviest user ~247k rows), so it uses per-group SQL aggregation: new repo `GetUserDisplayAggregateGroups` groups by every field the display transform branches on (model, group_id, rate_multiplier, long_context snapshot) and the handler applies the transform once per group and sums (`aggregateDisplayedGroups`). API-key counts, RPM/TPM, and `actual_cost` are unchanged (actual_cost is never altered by the transform).
 - New `usagestats.DisplayAggregateGroup` type; new method added to `UsageLogRepository` interface + `UsageService` passthrough.
-- `POST /usage/dashboard/api-keys-usage` left as-is — it only returns `actual_cost` (real money the user pays), which the display transform never changes, so it does not leak tokens/prices.
+- `POST /usage/dashboard/api-keys-usage` left as-is 鈥?it only returns `actual_cost` (real money the user pays), which the display transform never changes, so it does not leak tokens/prices.
 - New unit test `usage_handler_display_aggregate_test.go` proves per-group aggregation reconciles exactly with per-row summation (and preserves real values when no display override exists).
-- Verified: `go -C backend build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/pkg/usagestats/...` pass. Pre-existing unrelated failure `TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost` (stale 8-col sqlmock vs 11-col `GetStatsWithFilters`) also fails on unmodified `main` — not caused by this change.
+- Verified: `go -C backend build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/... ./internal/service/... ./internal/pkg/usagestats/...` pass. Pre-existing unrelated failure `TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost` (stale 8-col sqlmock vs 11-col `GetStatsWithFilters`) also fails on unmodified `main` 鈥?not caused by this change.
 **Known follow-ups (not in this change)**:
-- `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` → `buildUsageData` + `GetAPIKeyModelStats`) still returns raw tokens, while its siblings `/v1/usage/stats|trend|records` already show display values. Fixing it needs the pricing/display services on `GatewayHandler` (Wire DI) or pushing the display aggregation into the service layer.
-- Pricing data finding (config, not code): `global_model_pricing` bills `cache_read` at a flat $2.00/M for `claude-opus-4-8`/`claude-sonnet-4-6`/`gpt-5.4`/`gpt-5.5` while displaying $0.25–0.50/M; for cache-heavy users (cache_read ≈ 90% of tokens) this dominates the bill. Confirmed by the operator as intentional config (not a bug) — left unchanged.
+- `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` 鈫?`buildUsageData` + `GetAPIKeyModelStats`) still returns raw tokens, while its siblings `/v1/usage/stats|trend|records` already show display values. Fixing it needs the pricing/display services on `GatewayHandler` (Wire DI) or pushing the display aggregation into the service layer.
+- Pricing data finding (config, not code): `global_model_pricing` bills `cache_read` at a flat $2.00/M for `claude-opus-4-8`/`claude-sonnet-4-6`/`gpt-5.4`/`gpt-5.5` while displaying $0.25鈥?.50/M; for cache-heavy users (cache_read 鈮?90% of tokens) this dominates the bill. Confirmed by the operator as intentional config (not a bug) 鈥?left unchanged.
 
 ## [2026-06-19] fix: user dashboard cards go stale across midnight + `/v1/usage` raw-token leak
 
 **Affected files**: frontend/src/views/user/DashboardView.vue, backend/internal/handler/gateway_handler.go, backend/internal/handler/usage_handler.go, backend/cmd/server/wire_gen.go, backend/internal/handler/usage_handler_display_aggregate_test.go
-**Issue A (stale dashboard)**: A user reported the home dashboard "今日请求/今日消费/今日 Token" cards showing the *previous* day's stats while the balance was correct. Root cause: the balance is refreshed by a global 60s timer in the auth store (`stores/auth.ts` `startAutoRefresh`), but the summary cards were fetched only once in `DashboardView.vue` `onMounted` — no polling, no refetch-on-focus, no day-rollover handling. A tab left open across midnight keeps showing the load-day's "今日". Backend was verified correct (today query returns the right count; no Redis dashboard cache — only `sched:*`/`sticky_session:*` keys).
-**Issue B (`/v1/usage` leak)**: The audit of user-facing token surfaces found `GET /v1/usage` and `/antigravity/v1/usage` (`GatewayHandler.Usage` → `buildUsageData` + `GetAPIKeyModelStats`) were the only remaining endpoints returning **raw** token counts, while their siblings `/v1/usage/{stats,trend,records}` already show display values.
+**Issue A (stale dashboard)**: A user reported the home dashboard "浠婃棩璇锋眰/浠婃棩娑堣垂/浠婃棩 Token" cards showing the *previous* day's stats while the balance was correct. Root cause: the balance is refreshed by a global 60s timer in the auth store (`stores/auth.ts` `startAutoRefresh`), but the summary cards were fetched only once in `DashboardView.vue` `onMounted` 鈥?no polling, no refetch-on-focus, no day-rollover handling. A tab left open across midnight keeps showing the load-day's "浠婃棩". Backend was verified correct (today query returns the right count; no Redis dashboard cache 鈥?only `sched:*`/`sticky_session:*` keys).
+**Issue B (`/v1/usage` leak)**: The audit of user-facing token surfaces found `GET /v1/usage` and `/antigravity/v1/usage` (`GatewayHandler.Usage` 鈫?`buildUsageData` + `GetAPIKeyModelStats`) were the only remaining endpoints returning **raw** token counts, while their siblings `/v1/usage/{stats,trend,records}` already show display values.
 **Change details**:
 - Frontend: `DashboardView.vue` now silently refetches the summary stats (no full-page spinner) on `visibilitychange`/window `focus` and on a 60s visible-only interval, with listener cleanup in `onBeforeUnmount`. The cards now stay live like the balance and self-correct across midnight within ~60s. The date-range picker still only drives the trend/model widgets (unchanged).
 - Backend: `GatewayHandler.Usage` now produces display values. Added `modelPricingService` + `userModelPricingService` to `GatewayHandler` (constructor + `wire_gen.go` hand-edit). `buildUsageData` rewritten to compute today/all-time via per-group display aggregation (`GetUserDisplayAggregateGroups` scoped to the API key); model stats now come from display-transformed records. `actual_cost`, RPM/TPM, avg duration are unchanged.
 - Refactor (no behavior change): extracted `loadDisplayedUsageRecords`, `buildDisplayPricingMapForUser`, `loadUserGroupDisplayRates` as free functions and made `aggregateDisplayedGroups` a free function, so both `UsageHandler` (JWT) and `GatewayHandler` (API key) share one display path. `UsageHandler` methods now delegate to them.
 - Verified: `go build ./...` (exit 0), `go vet` clean, `go test -tags=unit ./internal/handler/...` pass; frontend `typecheck` + `lint:check` + `build` all pass.
 
-## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 1 backend MVP
+## [2026-06-19] feat(subscription): mixed/bundle subscription 鈥?Phase 1 backend MVP
 
 **Affected files**: backend/migrations/168_subscription_plan_member_groups.sql, backend/ent/schema/{subscription_plan,payment_order}.go (+ regenerated ent), backend/internal/service/{payment_config_plans,payment_config_service,subscription_service,payment_order,payment_fulfillment}.go, backend/internal/handler/payment_handler.go, backend/internal/service/payment_config_plans_member_test.go
-**Upstream compatibility**: additive, fork-local. New `member_group_ids JSONB NOT NULL DEFAULT '[]'` columns on `subscription_plans` + `payment_orders`; empty = legacy single-group plan/order → identical behavior. No change to the gateway/billing/quota/cache hot path (everything stays keyed by `(user_id, group_id)`). Upstream has no mixed-subscription concept; the new columns/fields are additive and safe across upstream syncs.
+**Upstream compatibility**: additive, fork-local. New `member_group_ids JSONB NOT NULL DEFAULT '[]'` columns on `subscription_plans` + `payment_orders`; empty = legacy single-group plan/order 鈫?identical behavior. No change to the gateway/billing/quota/cache hot path (everything stays keyed by `(user_id, group_id)`). Upstream has no mixed-subscription concept; the new columns/fields are additive and safe across upstream syncs.
 **Change details**:
-- A subscription plan can now bundle multiple subscription-type groups. Effective member set = `unique(group_id ∪ member_group_ids)`, with `group_id` kept as the primary/representative group (price/sort/display/back-compat).
-- One purchase fans out into N independent `user_subscription` rows (one per member group), each with its own quota pool from that group's own `daily/weekly/monthly_limit_usd`. The user switches the API key's group (or uses multiple keys) to access each — chosen "separate quota pools + multi-group switch" model, so each group stays single-platform and the gateway dispatch is untouched.
+- A subscription plan can now bundle multiple subscription-type groups. Effective member set = `unique(group_id 鈭?member_group_ids)`, with `group_id` kept as the primary/representative group (price/sort/display/back-compat).
+- One purchase fans out into N independent `user_subscription` rows (one per member group), each with its own quota pool from that group's own `daily/weekly/monthly_limit_usd`. The user switches the API key's group (or uses multiple keys) to access each 鈥?chosen "separate quota pools + multi-group switch" model, so each group stays single-platform and the gateway dispatch is untouched.
 - `PlanMemberGroupIDs(plan)` (payment_config_plans.go) computes the effective set; `AssignOrExtendSubscriptionToGroups` (subscription_service.go) reuses the existing per-`(user,group)` `AssignOrExtendSubscription` without a wrapping tx (so partial failures commit and resume).
 - Order creation snapshots the member set onto `payment_orders` (`createOrderInTx`); `doSub` (payment_fulfillment.go) fans out with per-group idempotency markers `SUBSCRIPTION_SUCCESS:<gid>` (and `SUBSCRIPTION_MEMBER_SKIPPED:<gid>` for a dead non-primary member), writing the suffix-less `SUBSCRIPTION_SUCCESS` only after every member succeeds. Legacy single-group orders short-circuit exactly as before.
-- Admin plan Create/Update DTOs accept `member_group_ids` (normalized: drop ≤0, dedup, remove primary, must be existing subscription-type groups, cap 10). Public `GetPlans`/`GetCheckoutInfo` expose `member_group_ids` + `member_groups` (per-member platform/name/limits/scopes).
+- Admin plan Create/Update DTOs accept `member_group_ids` (normalized: drop 鈮?, dedup, remove primary, must be existing subscription-type groups, cap 10). Public `GetPlans`/`GetCheckoutInfo` expose `member_group_ids` + `member_groups` (per-member platform/name/limits/scopes).
 - Refund intentionally untouched (this deployment has refunds disabled); documented limitation: a future bundle refund would only roll back the primary group.
 - Verified: `go generate ./ent`, `go build ./...` (exit 0), `go vet` clean, `go test ./internal/service` (untagged) + `go test -tags=unit ./internal/service/...` all pass.
 **Pending (Phase 2/3)**: redeem-code/distribution bundle support + admin assign-by-plan; frontend (admin plan editor multi-select, purchase page member-group display, zh/en i18n).
 
-## [2026-06-19] feat(subscription): mixed/bundle subscription — Phase 3 frontend
+## [2026-06-19] feat(subscription): mixed/bundle subscription 鈥?Phase 3 frontend
 
 **Affected files**: frontend/src/types/payment.ts, frontend/src/views/admin/orders/PlanEditDialog.vue, frontend/src/components/payment/SubscriptionPlanCard.vue, frontend/src/i18n/locales/{zh,en}.ts
-**Upstream compatibility**: additive UI on top of the Phase 1 backend. No behavior change for single-group plans (no member groups selected → renders exactly as before).
+**Upstream compatibility**: additive UI on top of the Phase 1 backend. No behavior change for single-group plans (no member groups selected 鈫?renders exactly as before).
 **Change details**:
 - `types/payment.ts`: added `PlanMemberGroup` interface and `member_group_ids` + `member_groups` on `SubscriptionPlan`.
 - Admin `PlanEditDialog.vue`: added a "Bundle groups (additional)" checkbox list of subscription-type groups (excluding the primary), bound to `planForm.member_group_ids`; the primary group is auto-pruned from the member set when it changes; payload now sends `member_group_ids`; edit pre-fills from the plan (admin list returns the raw ent struct).
@@ -4134,29 +4150,29 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Added i18n keys `usage.cacheHitTitle/cacheCreationRate/cacheRequestHitRate/cacheHitHint` to both zh.ts and en.ts.
 - Verified with `go build ./internal/... ./cmd/...`, `go vet ./internal/repository ./internal/pkg/usagestats`, `pnpm --dir frontend run typecheck`, and `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageStatsCards.spec.ts` (2/2 passing).
 
-## [2026-06-14] feat: cost-analysis module — subscription cost/profit stats
+## [2026-06-14] feat: cost-analysis module 鈥?subscription cost/profit stats
 
 **Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/account_usage_service.go, backend/internal/repository/usage_log_repo.go, backend/internal/service/dashboard_service.go, backend/internal/handler/admin/dashboard_handler.go, backend/internal/server/routes/admin.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/components/layout/AppSidebar.vue, frontend/src/router/index.ts, frontend/src/i18n/locales/{zh,en}.ts
-**Purpose**: New admin "Cost Analysis" (成本分析) sidebar module; first page = per-subscription cost/profit for monthly / daily-limited users, so the operator can see real margin per subscription/plan.
+**Purpose**: New admin "Cost Analysis" (鎴愭湰鍒嗘瀽) sidebar module; first page = per-subscription cost/profit for monthly / daily-limited users, so the operator can see real margin per subscription/plan.
 **Change details**:
 - New endpoint `GET /api/v1/admin/dashboard/subscription-profit?start_date&end_date&purchase_price_per_mtok`.
-- Repo `GetSubscriptionProfitRaw` aggregates per `subscription_id`: joins user_subscriptions → (LATERAL latest paid subscription payment_order → subscription_plans) → groups → users → usage_logs. INNER JOIN on the paid order excludes redeem-code / admin-granted subscriptions. Filters subscriptions by `starts_at` range; `deleted_at IS NULL`.
-- Cost basis: real_cost_rmb = total tokens × purchase price (RMB / million tokens), default 0.25 (= ¥10 / 40M tokens), passed as a query param driven by a UI input persisted in localStorage (no settings/Wire change in v1). Revenue = plan list price. Consumed "$" = SUM(actual_cost). Derived: avg ¥/$, real cost ¥/$, profit multiple, equivalent full-days (consumed$ ÷ daily_limit_usd), cache rate; plus summary + by-plan rollups (loss / <2x counts).
-- Frontend: new collapsible nav group 成本分析 (expandOnly) in AppSidebar; routes `/admin/cost-analysis` → redirect → `/admin/cost-analysis/subscriptions`; SubscriptionProfitView (control bar + summary cards + by-plan + detail table, multiple color-coded). Added to simple-mode restrictedPaths. New i18n keys nav.costAnalysis / nav.costSubscriptionProfit and costAnalysis.* in zh + en.
+- Repo `GetSubscriptionProfitRaw` aggregates per `subscription_id`: joins user_subscriptions 鈫?(LATERAL latest paid subscription payment_order 鈫?subscription_plans) 鈫?groups 鈫?users 鈫?usage_logs. INNER JOIN on the paid order excludes redeem-code / admin-granted subscriptions. Filters subscriptions by `starts_at` range; `deleted_at IS NULL`.
+- Cost basis: real_cost_rmb = total tokens 脳 purchase price (RMB / million tokens), default 0.25 (= 楼10 / 40M tokens), passed as a query param driven by a UI input persisted in localStorage (no settings/Wire change in v1). Revenue = plan list price. Consumed "$" = SUM(actual_cost). Derived: avg 楼/$, real cost 楼/$, profit multiple, equivalent full-days (consumed$ 梅 daily_limit_usd), cache rate; plus summary + by-plan rollups (loss / <2x counts).
+- Frontend: new collapsible nav group 鎴愭湰鍒嗘瀽 (expandOnly) in AppSidebar; routes `/admin/cost-analysis` 鈫?redirect 鈫?`/admin/cost-analysis/subscriptions`; SubscriptionProfitView (control bar + summary cards + by-plan + detail table, multiple color-coded). Added to simple-mode restrictedPaths. New i18n keys nav.costAnalysis / nav.costSubscriptionProfit and costAnalysis.* in zh + en.
 - Verified: `CGO_ENABLED=0 go -C backend build ./...` (exit 0); `pnpm --dir frontend run typecheck` + `lint:check` (both exit 0). Not yet runtime-tested against live data; no DB migration (uses existing columns).
 
 ## [2026-06-14] fix: wrap SubscriptionProfitView in AppLayout (sidebar)
 
 **Affected files**: frontend/src/views/admin/cost/SubscriptionProfitView.vue
-**Issue**: The cost-analysis page rendered bare content so the left sidebar vanished — admin views must wrap their template in `<AppLayout>` (which renders AppSidebar + AppHeader). Wrapped the page in `<AppLayout>` and imported it. Verified: `typecheck` + `lint:check` exit 0.
+**Issue**: The cost-analysis page rendered bare content so the left sidebar vanished 鈥?admin views must wrap their template in `<AppLayout>` (which renders AppSidebar + AppHeader). Wrapped the page in `<AppLayout>` and imported it. Verified: `typecheck` + `lint:check` exit 0.
 
-## [2026-06-14] feat: cost-analysis subscription view — active-by-default + per-dollar cost mode
+## [2026-06-14] feat: cost-analysis subscription view 鈥?active-by-default + per-dollar cost mode
 
 **Affected files**: backend/internal/pkg/usagestats/usage_log_types.go, backend/internal/service/{account_usage_service,dashboard_service}.go, backend/internal/repository/usage_log_repo.go, backend/internal/handler/admin/dashboard_handler.go, frontend/src/api/admin/costAnalysis.ts, frontend/src/views/admin/cost/SubscriptionProfitView.vue, frontend/src/i18n/locales/{zh,en}.ts
 **Change details**:
-- Default now shows **currently-active subscriptions** with no date picking required: `active_only` query param defaults true → repo filters `status='active' AND starts_at <= now() AND expires_at > now()`. Date range is optional (active_only=false → filter by starts_at, history mode).
-- Added **cost basis mode**: `cost_mode=per_mtok` (real cost = total tokens × ¥/M, default 0.25) or `per_dollar` (real cost = consumed $ × ¥/$). Endpoint params renamed: `purchase_price` + `cost_mode` (was `purchase_price_per_mtok`). Summary echoes cost_mode + purchase_price. The per_dollar path is the simple form (consumed_usd × rate); finer ¥/$ valuation nuances deferred per user.
-- Frontend: "仅当前有效订阅" checkbox (default on, hides date inputs), cost-basis selector with dynamic unit label, localStorage persists price + mode. New i18n keys activeOnly/activeHint/costMode/unitPerMtok/unitPerDollar (zh+en).
+- Default now shows **currently-active subscriptions** with no date picking required: `active_only` query param defaults true 鈫?repo filters `status='active' AND starts_at <= now() AND expires_at > now()`. Date range is optional (active_only=false 鈫?filter by starts_at, history mode).
+- Added **cost basis mode**: `cost_mode=per_mtok` (real cost = total tokens 脳 楼/M, default 0.25) or `per_dollar` (real cost = consumed $ 脳 楼/$). Endpoint params renamed: `purchase_price` + `cost_mode` (was `purchase_price_per_mtok`). Summary echoes cost_mode + purchase_price. The per_dollar path is the simple form (consumed_usd 脳 rate); finer 楼/$ valuation nuances deferred per user.
+- Frontend: "浠呭綋鍓嶆湁鏁堣闃? checkbox (default on, hides date inputs), cost-basis selector with dynamic unit label, localStorage persists price + mode. New i18n keys activeOnly/activeHint/costMode/unitPerMtok/unitPerDollar (zh+en).
 - Verified: `go -C backend build ./...`, `pnpm --dir frontend typecheck` + `lint:check` all exit 0.
 
 ## [2026-06-13] feat: manual OAuth refresh-token update for accounts
@@ -4164,7 +4180,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: backend/internal/handler/admin/account_handler.go, backend/internal/server/routes/admin.go, backend/internal/handler/admin/account_handler_refresh_token_test.go, frontend/src/api/admin/accounts.ts, frontend/src/components/admin/account/UpdateRefreshTokenModal.vue, frontend/src/components/admin/account/AccountActionMenu.vue, frontend/src/views/admin/AccountsView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/CHANGELOG_CUSTOM.md
 **Upstream compatibility**: additive local admin feature; no schema/migration and no billing/gateway routing changes. Reuses the existing per-platform OAuth refresh path and the existing `accounts.credentials` JSONB column.
 **Change details**:
-- Added `POST /api/v1/admin/accounts/:id/refresh-token` (`AccountHandler.UpdateRefreshToken`) so an admin can paste a new OAuth refresh token when the stored one has expired/revoked — distinct from the existing auto `/:id/refresh` (which reuses the stored token) and from full Re-authorize.
+- Added `POST /api/v1/admin/accounts/:id/refresh-token` (`AccountHandler.UpdateRefreshToken`) so an admin can paste a new OAuth refresh token when the stored one has expired/revoked 鈥?distinct from the existing auto `/:id/refresh` (which reuses the stored token) and from full Re-authorize.
 - Default `validate=true` clones the account in memory, injects the pasted refresh token, and reuses `refreshSingleAccount` to exchange it for a fresh access token per platform (Claude/OpenAI/Gemini/Antigravity) before persisting; on success it calls `ClearAccountError` to re-enable a previously errored account. `validate=false` saves the merged credentials without an upstream call (e.g. when the upstream/proxy is temporarily unreachable).
 - Credentials are key-merged (not overwritten) so `access_token`/`project_id`/`oauth_type`/`client_id`/`scope` are preserved; the refresh token value is never logged (audit line records operator/account/platform/validated only).
 - Frontend: new "Update Refresh Token" row action (oauth accounts only) opening a new `UpdateRefreshTokenModal` with a token textarea, a "validate before saving" toggle, and an optional OpenAI `client_id` field; on success the account row is patched in place via the existing `handleAccountUpdated`. Added paired zh/en i18n keys under `admin.accounts`.
@@ -4252,7 +4268,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: .github/workflows/backend-ci.yml, .github/workflows/release.yml, .github/workflows/security-scan.yml
 **Upstream compatibility**: keep these "Verify Go version" greps in sync with the go.mod `go` directive on every sync that bumps Go.
 **Change details**:
-- The go.mod bump to 1.26.4 made all four hardcoded `go version | grep -q 'go1.26.2'` verify steps fail (CI, golangci-lint, security scan, release), which blocked the v0.1.139 GHCR image publish. Bumped all four to go1.26.4 — same root cause as the Dockerfile builder image fix.
+- The go.mod bump to 1.26.4 made all four hardcoded `go version | grep -q 'go1.26.2'` verify steps fail (CI, golangci-lint, security scan, release), which blocked the v0.1.139 GHCR image publish. Bumped all four to go1.26.4 鈥?same root cause as the Dockerfile builder image fix.
 
 ---
 
@@ -4261,7 +4277,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: frontend/src/components/auth/LegalConsentDialog.vue, frontend/src/components/auth/__tests__/LegalConsentDialog.spec.ts
 **Upstream compatibility**: fork-only feature (legal consent), no upstream overlap.
 **Change details**:
-- P2 from pre-deploy review: `scrolledToBottom` was only ever set by a scroll event, which never fires when the rendered terms fit inside the dialog (short admin-configured content, tall screens). The accept button then stays permanently disabled — bricking login/registration for all users.
+- P2 from pre-deploy review: `scrolledToBottom` was only ever set by a scroll event, which never fires when the rendered terms fit inside the dialog (short admin-configured content, tall screens). The accept button then stays permanently disabled 鈥?bricking login/registration for all users.
 - On dialog open, after render, the gate now auto-passes when `scrollHeight <= clientHeight + 4`. Spec updated to mock overflow dimensions before the gate check; added a no-overflow auto-pass case.
 
 ---
@@ -4271,7 +4287,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: backend/internal/handler/openai_gateway_handler.go, backend/internal/handler/turn_usage_record_context_test.go
 **Upstream compatibility**: fork-side fix for a regression introduced by the phase-6b upstream sync (87f2a29c); watch for upstream's own fix when syncing later.
 **Change details**:
-- P0 found in pre-deploy review: phase 6b made async usage-record tasks inherit the request context, so every turn of an OpenAI WS connection resolved the same billing request id (`client:<connection-uuid>`). Turns 2..N then collided on the `usage_billing_dedup`/`usage_logs (request_id, api_key_id)` keys — tokens were neither billed nor logged (silent revenue loss for Codex WS-mode multi-turn traffic).
+- P0 found in pre-deploy review: phase 6b made async usage-record tasks inherit the request context, so every turn of an OpenAI WS connection resolved the same billing request id (`client:<connection-uuid>`). Turns 2..N then collided on the `usage_billing_dedup`/`usage_logs (request_id, api_key_id)` keys 鈥?tokens were neither billed nor logged (silent revenue loss for Codex WS-mode multi-turn traffic).
 - Added `turnUsageRecordContext` which suffixes both `ctxkey.ClientRequestID` and `ctxkey.RequestID` with the per-turn upstream response id (falling back to the turn number) inside the WS `AfterTurn` hook. This covers the forwarder, HTTP-bridge, and passthrough adapter paths, which all share that hook. Unit tests added.
 
 ---
@@ -4279,9 +4295,9 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 ## [2026-06-12] fix(billing): normalize usage-log image size to billing tier (migration 156 compatibility)
 
 **Affected files**: backend/internal/service/image_billing_size.go (new, ported from upstream), backend/internal/service/image_billing_size_test.go (new), backend/internal/service/openai_gateway_service.go, backend/internal/service/gateway_service.go
-**Upstream compatibility**: partial port of upstream's image billing size classifier; the forward-result audit fields (image_input_size/image_output_size/image_size_source/image_size_breakdown) are still unsynced — finish that on a later sync, then move normalization back to the parse points like upstream.
+**Upstream compatibility**: partial port of upstream's image billing size classifier; the forward-result audit fields (image_input_size/image_output_size/image_size_source/image_size_breakdown) are still unsynced 鈥?finish that on a later sync, then move normalization back to the parse points like upstream.
 **Change details**:
-- P1 found in pre-deploy review: migration 156 adds CHECK `usage_logs_image_billing_size_check` (image_count > 0 requires image_size IN 1K/2K/4K/mixed), but the fork's OpenAI image paths still write raw request sizes ("1024x1024", "auto", "") — after deploy every OpenAI image-generation usage-log INSERT would violate the constraint: user charged, row silently dropped.
+- P1 found in pre-deploy review: migration 156 adds CHECK `usage_logs_image_billing_size_check` (image_count > 0 requires image_size IN 1K/2K/4K/mixed), but the fork's OpenAI image paths still write raw request sizes ("1024x1024", "auto", "") 鈥?after deploy every OpenAI image-generation usage-log INSERT would violate the constraint: user charged, row silently dropped.
 - Ported upstream's pure classifier functions (ClassifyImageBillingTier / NormalizeImageBillingTierOrDefault / ResolveImageBillingSize) and normalized image_size at both usage-log write points (`normalizedImageBillingSizePtr`), covering images/responses/WS-bridge and the Anthropic-side path. Upstream's classifier tests ported as-is.
 
 ---
@@ -4289,7 +4305,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 ## [2026-06-12] fix(pricing): add claude-fable-5 to checked-in fallback pricing
 
 **Affected files**: backend/resources/model-pricing/model_prices_and_context_window.json
-**Upstream compatibility**: additive entry copied verbatim from the live remote pricing cache (backend/data/model_pricing.json); upstream may add it later — dedupe on sync.
+**Upstream compatibility**: additive entry copied verbatim from the live remote pricing cache (backend/data/model_pricing.json); upstream may add it later 鈥?dedupe on sync.
 **Change details**:
 - P2 from pre-deploy review: claude-fable-5 is enabled for routing/billing but missing from the checked-in fallback pricing file. If the remote pricing download fails on a fresh container, billing would fall back to claude-sonnet-4 rates ($3/$15 vs real $10/$50, ~70% undercharge). Added the entry ($10/MTok input, $50/MTok output, cache rates included).
 
@@ -4321,8 +4337,8 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: backend/internal/service/announcement_service_test.go, backend/internal/server/api_contract_test.go
 **Upstream compatibility**: test-only; no runtime behavior change.
 **Change details**:
-- Added missing `//go:build unit` tag to `announcement_service_test.go` — it references `userRepoStub` defined in unit-tagged `admin_service_delete_test.go`, so untagged builds (`go vet ./...`, plain `go test ./...`) failed to compile the service package.
-- Added `long_context_applied: false` to the `GET /api/v1/usage` expected payload in the API contract test — the field was intentionally added to the usage DTO by the long-context pricing snapshot work (a5bba54f) but the contract expectation was not updated.
+- Added missing `//go:build unit` tag to `announcement_service_test.go` 鈥?it references `userRepoStub` defined in unit-tagged `admin_service_delete_test.go`, so untagged builds (`go vet ./...`, plain `go test ./...`) failed to compile the service package.
+- Added `long_context_applied: false` to the `GET /api/v1/usage` expected payload in the API contract test 鈥?the field was intentionally added to the usage DTO by the long-context pricing snapshot work (a5bba54f) but the contract expectation was not updated.
 
 ---
 
@@ -4907,7 +4923,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Synced the production tutorial page Markdown from the verified local development database value.
 - Production backup files were created before the update: `/opt/sub2api/backups/tutorial_page.content.20260604T014422Z.sql` and `/opt/sub2api/backups/tutorial_page.content.20260604T014422Z.md`.
 - Verified the production value changed from md5 `80db5e44a43fac0679b841a9c9939299`, length `19206`, updated `2026-05-05 21:31:10 +08`, to md5 `111eb6bfb4d253a288485d62481ee7a9`, length `21687`, updated `2026-06-04 09:44:23 +08`.
-- The synced content header is `# ZeroCode API 使用文档` with `最后更新：2026-05-25`.
+- The synced content header is `# ZeroCode API 浣跨敤鏂囨。` with `鏈€鍚庢洿鏂帮細2026-05-25`.
 
 ## [2026-06-03] docs: refresh Claude-GPT bridge production handoff
 
@@ -5408,7 +5424,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: frontend/src/views/user/DistributionView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
 **Upstream compatibility**: frontend-only user distribution page copy and layout change; user/admin distribution APIs unchanged
 **Change details**:
-- Renamed the user-side distribution entry and page title to "Become an Agent" / "成为代理" while leaving admin distribution management unchanged.
+- Renamed the user-side distribution entry and page title to "Become an Agent" / "鎴愪负浠ｇ悊" while leaving admin distribution management unchanged.
 - Added an application-page explanation of the agent model, covering low-cost supply, fast delivery, and asset/customer management benefits.
 - Replaced the approved-state application record card with an agent usage guide and kept the application record visible only for non-approved states.
 
@@ -5426,7 +5442,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: docs/API_USAGE.md
 **Upstream compatibility**: docs-only; no runtime behavior changes
 **Change details**:
-- Reworked chapter 4 into separate `CLI 版本：安装与配置` and `Desktop 桌面版：安装与配置` sections, matching chapter 3's version-based tutorial structure.
+- Reworked chapter 4 into separate `CLI 鐗堟湰锛氬畨瑁呬笌閰嶇疆` and `Desktop 妗岄潰鐗堬細瀹夎涓庨厤缃甡 sections, matching chapter 3's version-based tutorial structure.
 - Moved Codex CLI installation, CC-Switch setup, manual configuration, WebSocket option, and verification into one CLI flow.
 - Added a full Codex Desktop flow for install, CC-Switch configuration, local project startup, and Desktop-specific troubleshooting.
 
@@ -5435,9 +5451,9 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 **Affected files**: docs/API_USAGE.md
 **Upstream compatibility**: docs-only; no runtime behavior changes
 **Change details**:
-- Updated Claude Code CLI, Codex CLI, and Codex Desktop setup flows to use the API Keys page `导入到 CCS` action as the primary configuration method.
+- Updated Claude Code CLI, Codex CLI, and Codex Desktop setup flows to use the API Keys page `瀵煎叆鍒?CCS` action as the primary configuration method.
 - Clarified that the API Keys import action maps Anthropic groups to Claude Code, OpenAI groups to Codex, and Gemini groups to Gemini CLI.
-- Reframed manual file copying and the `使用` modal as fallback paths; Claude Code Desktop remains the manual application-level setup path.
+- Reframed manual file copying and the `浣跨敤` modal as fallback paths; Claude Code Desktop remains the manual application-level setup path.
 
 ## [2026-05-25] feat: restrict distribution API key groups
 
@@ -5720,7 +5736,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Added per-agent ratio overrides for `rmb_per_usd_override` and `subscription_discount_override`; effective precedence is agent override first, then global setting.
 - Updated frontend API types, bilingual UI strings, and distribution module documentation.
 
-## [2026-05-14] fix(frontend): 补齐分销管理中文文案
+## [2026-05-14] fix(frontend): 琛ラ綈鍒嗛攢绠＄悊涓枃鏂囨
 
 **Affected files**: `frontend/src/i18n/locales/zh.ts`
 **Upstream compatibility**: frontend locale-only fix; no backend or API behavior changes
@@ -5754,7 +5770,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Recorded the tokenless `origin` remote URL convention for `541968679/sub2api`.
 - Added rotation guidance for removing or replacing the stored GitHub credential.
 
-## [2026-05-14] feat: 鐢ㄦ埛渚у浘鐗囦娇鐢ㄨ褰曞睍绀哄昂瀵镐笌璐ㄩ噺
+## [2026-05-14] feat: 閻劍鍩涙笟褍娴橀悧鍥﹀▏閻劏顔囪ぐ鏇炵潔缁€鍝勬槀鐎甸晲绗岀拹銊╁櫤
 
 **Affected files**: frontend/src/views/user/UsageView.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
 **Upstream compatibility**: low risk, user usage UI/export display only
@@ -5784,7 +5800,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Leaves actual billing and stored actual cost based on the existing real pricing path.
 - Verified by backend compile through targeted unit tests and frontend build.
 
-## [2026-05-14] fix: 绐佸嚭鍥剧墖璐ㄩ噺鍗曚环閰嶇疆鍏ュ彛
+## [2026-05-14] fix: 缁愪礁鍤崶鍓у鐠愩劑鍣洪崡鏇氱幆闁板秶鐤嗛崗銉ュ經
 
 **Affected files**: frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts
 **Upstream compatibility**: low risk, admin model pricing UI only
@@ -5793,7 +5809,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Clarified that empty quality prices fall back to the default megapixel price.
 - Verified with `pnpm run typecheck`.
 
-## [2026-05-14] feat: 鍥剧墖妗ｄ綅璁¤垂鏀寔 quality 涔樻暟
+## [2026-05-14] feat: 閸ュ墽澧栧锝勭秴鐠伮ゅ瀭閺€顖涘瘮 quality 娑旀ɑ鏆?
 
 **Affected files**: backend/internal/service/image_billing.go, backend/internal/service/image_billing_test.go, backend/internal/service/global_model_pricing.go, backend/internal/service/global_model_pricing_service.go, backend/internal/service/model_pricing_resolver.go, backend/internal/handler/admin/model_pricing_handler.go, backend/internal/repository/global_model_pricing_repo.go, backend/migrations/137_add_image_quality_multipliers.sql, frontend/src/api/admin/modelPricing.ts, frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue, frontend/src/i18n/locales/zh.ts, frontend/src/i18n/locales/en.ts, docs/dev/codebase/billing.md
 **Upstream compatibility**: additive DB/API/UI change; existing tier pricing remains unchanged when multipliers are unset
@@ -5829,67 +5845,67 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Wired generation paths through transactions so wallet deduction and generated assets commit together.
 - Updated user and admin distribution views to expose the new controls and generation results.
 
-## [2026-05-12] feat(aiclient2api): Kiro 鍙嶄唬缂撳瓨浼扮畻涓?conversationId 绋冲畾鍖?
+## [2026-05-12] feat(aiclient2api): Kiro 閸欏秳鍞紓鎾崇摠娴兼壆鐣绘稉?conversationId 缁嬪啿鐣鹃崠?
 
-**褰卞搷鑼冨洿**: `aiclient2api/src/providers/claude/claud*: 鏃犲啿绐侊紙aiclient2api 鏄嫭绔?fork锛?
-**鍙樻洿璇︽儏**:
-- 鏂板 `deriveStableConversationId(metadata)`: 浠?Claude Code 鐨?`metadata.user_id` 涓彁鍙?session_id锛宧ash 涓虹‘瀹氭€?UUID锛屼娇鍚屼竴浼氳瘽鐨勬墍鏈?turn 鍏变韩 conversationId锛屽惎鐢?Amazon Q 鏈嶅姟绔笂涓嬫枃缂撳瓨
-- 鏂板 `filterBillingHeaderFromSystem()`: 杩囨护 system prompt 涓瘡杞兘鍙樼殑 `x-anthropic-billing-header`锛坈ch= 瀛楁锛夛紝淇濇寔 prompt 绋冲畾
-- 鏂板 `_estimateCacheMetrics(requestBody)` + `_countMessageTokens(msg)`: 浠庤姹備綋浼扮畻缂撳瓨 token 鈥?棣栬疆鎶?cache_creation锛屽悗缁疆鎶?system + tools + 鍘嗗彶鍓嶇紑鎶ヤ负 cache_read锛宨nput_tokens 鍙鏈€鍚庝竴鏉℃柊娑堟伅
-- `_countMessageTokens` 姝ｇ‘澶勭悊鎵€鏈?content block 绫诲瀷锛坱ext/thinking/tool_use/tool_result锛夛紝缂撳瓨鐜囦粠 ~45% 鎻愬崌鑷?~83%
-- 娴佸紡鍝嶅簲鐨?message_start 鍜?message_delta 浜嬩欢浣跨敤浼扮畻鍊兼浛浠ｇ‖缂栫爜 0
+**瑜板崬鎼烽懠鍐ㄦ纯**: `aiclient2api/src/providers/claude/claud*: 閺冪姴鍟跨粣渚婄礄aiclient2api 閺勵垳瀚粩?fork閿?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤?`deriveStableConversationId(metadata)`: 娴?Claude Code 閻?`metadata.user_id` 娑擃厽褰侀崣?session_id閿涘ash 娑撹櫣鈥樼€规碍鈧?UUID閿涘奔濞囬崥灞肩娴兼俺鐦介惃鍕閺?turn 閸忓彉闊?conversationId閿涘苯鎯庨悽?Amazon Q 閺堝秴濮熺粩顖欑瑐娑撳鏋冪紓鎾崇摠
+- 閺傛澘顤?`filterBillingHeaderFromSystem()`: 鏉╁洦鎶?system prompt 娑擃厽鐦℃潪顕€鍏橀崣妯兼畱 `x-anthropic-billing-header`閿涘潏ch= 鐎涙顔岄敍澶涚礉娣囨繃瀵?prompt 缁嬪啿鐣?
+- 閺傛澘顤?`_estimateCacheMetrics(requestBody)` + `_countMessageTokens(msg)`: 娴犲氦顕Ч鍌欑秼娴兼壆鐣荤紓鎾崇摠 token 閳?妫ｆ牞鐤嗛幎?cache_creation閿涘苯鎮楃紒顓＄枂閹?system + tools + 閸樺棗褰堕崜宥囩磻閹躲儰璐?cache_read閿涘nput_tokens 閸欘亣顓搁張鈧崥搴濈閺夆剝鏌婂☉鍫熶紖
+- `_countMessageTokens` 濮濓絿鈥樻径鍕倞閹碘偓閺?content block 缁鐎烽敍鍧眅xt/thinking/tool_use/tool_result閿涘绱濈紓鎾崇摠閻滃洣绮?~45% 閹绘劕宕岄懛?~83%
+- 濞翠礁绱￠崫宥呯安閻?message_start 閸?message_delta 娴滃娆㈡担璺ㄦ暏娴兼壆鐣婚崐鍏兼禌娴狅絿鈥栫紓鏍垳 0
 
-## [2026-05-12] feat: antigravity 鍒嗙粍鎺ュ叆 Kiro 鍙嶄唬锛堟柟妗?B锛?
+## [2026-05-12] feat: antigravity 閸掑棛绮嶉幒銉ュ弳 Kiro 閸欏秳鍞敍鍫熸煙濡?B閿?
 
-**褰卞搷鑼冨洿**: `backend/internal/service/account.go`, `backend/internal/service/gateway_service.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/service/account_anthropic_passthrough_test.go`, `frontend/vite.config.ts`, `docs/dev/KIRO_PROXY.md`
-**涓婃父鍏煎鎬?*: 涓瓑銆俙account.go` 鐨?`IsAnthropicAPIKeyPassthroughEnabled` 鍜?`GetBaseURL` 鏀逛簡鏉′欢閫昏緫锛沗gateway_service.go` 鐨勬ā鍨嬫敮鎸佹鏌ュ姞浜?passthrough bypass锛涗笂娓歌嫢閲嶆瀯杩欎簺鍑芥暟闇€鎵嬪姩鍚堝苟銆?
-**鍙樻洿璇︽儏**:
-- 鏀惧純鏂规 A锛堣矾鐢卞眰鍥為€€锛夛紝閲囩敤鏂规 B锛欿iro 璐﹀彿閰嶇疆涓?`platform=antigravity` + `type=apikey` + `passthrough=true`锛岀洿鎺ュ弬涓?antigravity 鍒嗙粍 load-aware 璋冨害
-- `IsAnthropicAPIKeyPassthroughEnabled()`: 鏀惧骞冲彴闄愬埗锛屼粠鍙帴鍙?anthropic 鏀逛负鍚屾椂鎺ュ彈 antigravity
-- `GetBaseURL()`: antigravity passthrough 璐﹀彿涓嶅啀鑷姩鎷兼帴 `/antigravity` 鍚庣紑锛堜粎 Google Cloud Code 鍘熺敓 apikey 璐﹀彿闇€瑕侊級
-- `isModelSupportedByAccountWithContext()` / `isModelSupportedByAccount()`: antigravity passthrough 璐﹀彿璺宠繃妯″瀷鏄犲皠妫€鏌ワ紝鎺ュ彈鎵€鏈夋ā鍨?
-- `DefaultModels()`: 涓?Claude 妯″瀷鐢熸垚 `[1m]`/`[2m]` 涓婁笅鏂囩獥鍙ｅ悗缂€鍙樹綋锛岃В鍐?Claude Code 瀹㈡埛绔ā鍨嬫牎楠屼笉閫氳繃鐨勯棶棰?
-- `vite.config.ts`: 鏂板 `/antigravity` 浠ｇ悊璺緞锛屾湰鍦板紑鍙戞椂鍓嶇 dev server 姝ｇ‘杞彂鍒板悗绔?
-- 鏇存柊 `docs/dev/KIRO_PROXY.md` 鏂囨。锛岃褰曞畬鏁存柟妗堛€侀厤缃楠ゅ拰鎺掓煡杩囩▼涓彂鐜扮殑 4 涓潙
+**瑜板崬鎼烽懠鍐ㄦ纯**: `backend/internal/service/account.go`, `backend/internal/service/gateway_service.go`, `backend/internal/pkg/antigravity/claude_types.go`, `backend/internal/service/account_anthropic_passthrough_test.go`, `frontend/vite.config.ts`, `docs/dev/KIRO_PROXY.md`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃厾鐡戦妴淇檃ccount.go` 閻?`IsAnthropicAPIKeyPassthroughEnabled` 閸?`GetBaseURL` 閺€閫涚啊閺夆€叉闁槒绶敍娌梘ateway_service.go` 閻ㄥ嫭膩閸ㄥ鏁幐浣诡梾閺屻儱濮炴禍?passthrough bypass閿涙稐绗傚〒姝屽闁插秵鐎潻娆庣昂閸戣姤鏆熼棁鈧幍瀣З閸氬牆鑻熼妴?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺€鎯х磾閺傝顢?A閿涘牐鐭鹃悽鍗炵湴閸ョ偤鈧偓閿涘绱濋柌鍥╂暏閺傝顢?B閿涙iro 鐠愶箑褰块柊宥囩枂娑?`platform=antigravity` + `type=apikey` + `passthrough=true`閿涘瞼娲块幒銉ュ棘娑?antigravity 閸掑棛绮?load-aware 鐠嬪啫瀹?
+- `IsAnthropicAPIKeyPassthroughEnabled()`: 閺€鎯ь啍楠炲啿褰撮梽鎰煑閿涘奔绮犻崣顏呭复閸?anthropic 閺€閫涜礋閸氬本妞傞幒銉ュ綀 antigravity
+- `GetBaseURL()`: antigravity passthrough 鐠愶箑褰挎稉宥呭晙閼奉亜濮╅幏鍏煎复 `/antigravity` 閸氬海绱戦敍鍫滅矌 Google Cloud Code 閸樼喓鏁?apikey 鐠愶箑褰块棁鈧憰渚婄礆
+- `isModelSupportedByAccountWithContext()` / `isModelSupportedByAccount()`: antigravity passthrough 鐠愶箑褰跨捄瀹犵箖濡€崇€烽弰鐘茬殸濡偓閺屻儻绱濋幒銉ュ綀閹碘偓閺堝膩閸?
+- `DefaultModels()`: 娑?Claude 濡€崇€烽悽鐔稿灇 `[1m]`/`[2m]` 娑撳﹣绗呴弬鍥╃崶閸欙絽鎮楃紓鈧崣妯圭秼閿涘矁袙閸?Claude Code 鐎广垺鍩涚粩顖浤侀崹瀣墡妤犲奔绗夐柅姘崇箖閻ㄥ嫰妫舵０?
+- `vite.config.ts`: 閺傛澘顤?`/antigravity` 娴狅絿鎮婄捄顖氱窞閿涘本婀伴崷鏉跨磻閸欐垶妞傞崜宥囶伂 dev server 濮濓絿鈥樻潪顒€褰傞崚鏉挎倵缁?
+- 閺囧瓨鏌?`docs/dev/KIRO_PROXY.md` 閺傚洦銆傞敍宀冾唶瑜版洖鐣弫瀛樻煙濡楀牄鈧線鍘ょ純顔筋劄妤犮倕鎷伴幒鎺撶叀鏉╁洨鈻兼稉顓炲絺閻滄壆娈?4 娑擃亜娼?
 
-## [2026-05-12] feat(deploy): AIClient2API 姝ｅ紡涓婄嚎鐢熶骇 + Web UI 鍏綉鍙闂?
+## [2026-05-12] feat(deploy): AIClient2API 濮濓絽绱℃稉濠勫殠閻㈢喍楠?+ Web UI 閸忣剛缍夐崣顖濐問闂?
 
-**褰卞搷鑼冨洿**: 鐢熶骇 `/opt/sub2api/.env`銆乣/opt/sub2api/docker-compose.yml`銆乣/etc/caddy/Caddyfile`銆丆loudflare DNS (`a2.zerocode.kaynlab.com`)锛宍deploy/docker-compose.yml`銆乣docs/dev/KIRO_PROXY.md`
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紙浠呯敓浜ч儴缃查厤缃?+ 鏈粨搴?compose/鏂囨。锛?
-**鍙樻洿璇︽儏**:
-- 瀹屾垚 AIClient2API 鐢熶骇閮ㄧ讲锛欶ork `541968679/AIClient2API` 鈫?鍦ㄧ敓浜ф湇鍔″櫒 `git clone + docker build` 鈫?閫氳繃 `update.sh --only-a2` 閮ㄧ讲
-- 鐢熶骇 `.env` 琛ュ厖 `SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=true` 鍜?`SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=true`锛屽厑璁?sub2api 閫氳繃 `http://aiclient2api:3000` 璋冪敤鍐呯綉 sidecar锛堟湰鍦?dev 鏈惎鐢?allowlist 鎵€浠ユ病閬囧埌锛?
-- 淇 aiclient2api healthcheck锛歚localhost` 鍦ㄥ鍣ㄥ唴浼樺厛瑙ｆ瀽鍒?IPv6 `::1`锛屼絾鏈嶅姟鍙洃鍚?IPv4 `0.0.0.0:3000`锛屾敼涓?`127.0.0.1:3000`
-- 鍏綉 Web UI锛氭柊澧?Cloudflare DNS A 璁板綍 `a2.zerocode.kaynlab.com 鈫?172.245.247.80`锛圖NS Only锛夛紝鏂板 Caddy vhost 鍙嶄唬鍒板涓绘満 `127.0.0.1:3000`
-- compose 缁?aiclient2api 缁戝畾鍒板涓绘満 `127.0.0.1:3000`锛堜笉瀵瑰叕缃戞毚闇诧紝浠呬緵 Caddy 鏈満鍙嶄唬锛夛紝Docker 鍐呯綉 DNS 鍚屾椂浠嶅彲鐢?
-- 鍙ｄ护銆乄eb UI 璁块棶鍦板潃銆丆addyfile 绀轰緥銆佽疆鎹㈡祦绋嬪凡鍏ㄩ儴璁板綍鍦?`docs/dev/KIRO_PROXY.md`
-- **褰撳墠鍙敤閾捐矾**锛歛nthropic 鍒嗙粍 API Key 鈫?sub2api 缃戝叧 鈫?AIClient2API (`http://aiclient2api:3000/claude-kiro-oauth`) 鈫?Kiro API 鈫?Claude 绯诲垪妯″瀷
+**瑜板崬鎼烽懠鍐ㄦ纯**: 閻㈢喍楠?`/opt/sub2api/.env`閵嗕梗/opt/sub2api/docker-compose.yml`閵嗕梗/etc/caddy/Caddyfile`閵嗕竼loudflare DNS (`a2.zerocode.kaynlab.com`)閿涘畭deploy/docker-compose.yml`閵嗕梗docs/dev/KIRO_PROXY.md`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礄娴犲懐鏁撴禍褔鍎寸純鏌ュ帳缂?+ 閺堫兛绮ㄦ惔?compose/閺傚洦銆傞敍?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 鐎瑰本鍨?AIClient2API 閻㈢喍楠囬柈銊ц閿涙ork `541968679/AIClient2API` 閳?閸︺劎鏁撴禍褎婀囬崝鈥虫珤 `git clone + docker build` 閳?闁俺绻?`update.sh --only-a2` 闁劎璁?
+- 閻㈢喍楠?`.env` 鐞涖儱鍘?`SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=true` 閸?`SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=true`閿涘苯鍘戠拋?sub2api 闁俺绻?`http://aiclient2api:3000` 鐠嬪啰鏁ら崘鍛秹 sidecar閿涘牊婀伴崷?dev 閺堫亜鎯庨悽?allowlist 閹碘偓娴犮儲鐥呴柆鍥у煂閿?
+- 娣囶喖顦?aiclient2api healthcheck閿涙瓪localhost` 閸︺劌顔愰崳銊ュ敶娴兼ê鍘涚憴锝嗙€介崚?IPv6 `::1`閿涘奔绲鹃張宥呭閸欘亞娲冮崥?IPv4 `0.0.0.0:3000`閿涘本鏁兼稉?`127.0.0.1:3000`
+- 閸忣剛缍?Web UI閿涙碍鏌婃晶?Cloudflare DNS A 鐠佹澘缍?`a2.zerocode.kaynlab.com 閳?172.245.247.80`閿涘湒NS Only閿涘绱濋弬鏉款杻 Caddy vhost 閸欏秳鍞崚鏉款問娑撶粯婧€ `127.0.0.1:3000`
+- compose 缂?aiclient2api 缂佹垵鐣鹃崚鏉款問娑撶粯婧€ `127.0.0.1:3000`閿涘牅绗夌€电懓鍙曠純鎴炴瘹闂囪绱濇禒鍛返 Caddy 閺堫剚婧€閸欏秳鍞敍澶涚礉Docker 閸愬懐缍?DNS 閸氬本妞傛禒宥呭讲閻?
+- 閸欙絼鎶ら妴涔別b UI 鐠佸潡妫堕崷鏉挎絻閵嗕竼addyfile 缁€杞扮伐閵嗕浇鐤嗛幑銏＄ウ缁嬪鍑￠崗銊╁劥鐠佹澘缍嶉崷?`docs/dev/KIRO_PROXY.md`
+- **瑜版挸澧犻崣顖滄暏闁炬崘鐭?*閿涙瓫nthropic 閸掑棛绮?API Key 閳?sub2api 缂冩垵鍙?閳?AIClient2API (`http://aiclient2api:3000/claude-kiro-oauth`) 閳?Kiro API 閳?Claude 缁鍨Ο鈥崇€?
 
-## [2026-05-11] feat: Kiro 鍙嶄唬瀵规帴锛坅nthropic 鍒嗙粍宸查€氾紝antigravity 鍒嗙粍閬楃暀锛?
+## [2026-05-11] feat: Kiro 閸欏秳鍞€佃甯撮敍鍧卬thropic 閸掑棛绮嶅鏌モ偓姘剧礉antigravity 閸掑棛绮嶉柆妤冩殌閿?
 
-**褰卞搷鑼冨洿**: `backend/internal/service/gateway_service.go`, `backend/internal/service/account.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/EditAccountModal.vue`, `AIClient2API` 瀛愰」鐩? `docs/dev/KIRO_PROXY.md`
-**涓婃父鍏煎鎬?*: 涓瓑鍐茬獊锛実ateway_service.go 鍔ㄤ簡 passthrough 鍒嗘敮鍜?selectAccount 娴佺▼
-**鍙樻洿璇︽儏**:
-- 閫氳繃 AIClient2API 瀛愰」鐩皢 Kiro 璐﹀彿鍙嶄唬涓?Anthropic Messages API锛屽啀浠?anthropic 骞冲彴 API Key 鏂瑰紡鎺ュ叆 sub2api锛堝凡璺戦€氾紝閫氳繃 `/v1/messages` 绔偣鍙甯镐娇鐢?Kiro 鐨?Claude 妯″瀷锛?
-- `gateway_service.go`: passthrough 杞彂鍓嶆竻鐞嗘ā鍨嬪悕涓殑 `[1m]`/`[2m]` 绛変笂涓嬫枃绐楀彛鍚庣紑锛圕laude Code 瀹㈡埛绔細甯︽鍚庣紑锛孠iro 涓嶈瘑鍒級
-- `gateway_service.go`: antigravity 鍒嗙粍閫変笉鍒拌处鍙锋椂鍥為€€鍒?anthropic passthrough 璐﹀彿锛堟柟妗?A锛氳矾鐢卞眰鍥為€€锛屼笉鏀硅处鍙锋ā鍨嬶級
-- 鍓嶇 `CreateAccountModal` / `EditAccountModal`: 鎵╁睍 `anthropic_passthrough` 寮€鍏虫樉绀哄埌 antigravity 骞冲彴 apikey 璐﹀彿
-- AIClient2API 渚т慨鏀?`claude-kiro.js` 鐨勮韩浠芥敞鍏ワ紝鎶婁綔鑰呯殑"浣曞2077"鏀逛负鍔ㄦ€?`${model}` 鍙橀噺锛岃妯″瀷鑷О涓庤姹備竴鑷寸殑鍚嶅瓧锛堝 `claude-opus-4-7`锛?
-- **閬楃暀闂**锛堣瑙?`docs/dev/KIRO_PROXY.md`锛夛細
-  1. antigravity 鍒嗙粍瀹炴祴浠嶆姤 `claude-opus-4-7[1m]` 妯″瀷閿欒锛岀枒浼肩紪璇戞湭鐢熸晥鎴栬蛋浜嗗叾浠栬矾寰?
-  2. antigravity 鍒嗙粍鐨?key 鏃犳硶鍦?sub2 骞冲彴鑾峰彇棰濆害淇℃伅
-  3. API 璋冪敤閫熷害鍋忔參锛屾湭鍋氱綉缁滈摼璺垎鏋?
-- 瀹屾暣瀵规帴鏂规銆佸凡鐭ュ潙銆侀仐鐣欓棶棰樻帓鏌ユ柟鍚戝潎璁板綍鍦?`docs/dev/KIRO_PROXY.md`
+**瑜板崬鎼烽懠鍐ㄦ纯**: `backend/internal/service/gateway_service.go`, `backend/internal/service/account.go`, `frontend/src/components/account/CreateAccountModal.vue`, `frontend/src/components/account/EditAccountModal.vue`, `AIClient2API` 鐎涙劙銆嶉惄? `docs/dev/KIRO_PROXY.md`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃厾鐡戦崘鑼崐閿涘疅ateway_service.go 閸斻劋绨?passthrough 閸掑棙鏁崪?selectAccount 濞翠胶鈻?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 闁俺绻?AIClient2API 鐎涙劙銆嶉惄顔肩殺 Kiro 鐠愶箑褰块崣宥勫敩娑?Anthropic Messages API閿涘苯鍟€娴?anthropic 楠炲啿褰?API Key 閺傜懓绱￠幒銉ュ弳 sub2api閿涘牆鍑＄捄鎴︹偓姘剧礉闁俺绻?`/v1/messages` 缁旑垳鍋ｉ崣顖涱劀鐢晲濞囬悽?Kiro 閻?Claude 濡€崇€烽敍?
+- `gateway_service.go`: passthrough 鏉烆剙褰傞崜宥嗙閻炲棙膩閸ㄥ鎮曟稉顓犳畱 `[1m]`/`[2m]` 缁涘绗傛稉瀣瀮缁愭褰涢崥搴ｇ磻閿涘湑laude Code 鐎广垺鍩涚粩顖欑窗鐢附顒濋崥搴ｇ磻閿涘瓲iro 娑撳秷鐦戦崚顐礆
+- `gateway_service.go`: antigravity 閸掑棛绮嶉柅澶夌瑝閸掓媽澶勯崣閿嬫閸ョ偤鈧偓閸?anthropic passthrough 鐠愶箑褰块敍鍫熸煙濡?A閿涙俺鐭鹃悽鍗炵湴閸ョ偤鈧偓閿涘奔绗夐弨纭呭閸欓攱膩閸ㄥ绱?
+- 閸撳秶顏?`CreateAccountModal` / `EditAccountModal`: 閹碘晛鐫?`anthropic_passthrough` 瀵偓閸忚櫕妯夌粈鍝勫煂 antigravity 楠炲啿褰?apikey 鐠愶箑褰?
+- AIClient2API 娓氀傛叏閺€?`claude-kiro.js` 閻ㄥ嫯闊╂禒鑺ユ暈閸忋儻绱濋幎濠佺稊閼板懐娈?娴ｆ洖顦?077"閺€閫涜礋閸斻劍鈧?`${model}` 閸欐﹢鍣洪敍宀冾唨濡€崇€烽懛顏喰炴稉搴ゎ嚞濮瑰倷绔撮懛瀵告畱閸氬秴鐡ч敍鍫濐洤 `claude-opus-4-7`閿?
+- **闁鏆€闂傤噣顣?*閿涘牐顕涚憴?`docs/dev/KIRO_PROXY.md`閿涘绱?
+  1. antigravity 閸掑棛绮嶇€圭偞绁存禒宥嗗Г `claude-opus-4-7[1m]` 濡€崇€烽柨娆掝嚖閿涘瞼鏋掓导鑲╃椽鐠囨垶婀悽鐔告櫏閹存牞铔嬫禍鍡楀従娴犳牞鐭惧?
+  2. antigravity 閸掑棛绮嶉惃?key 閺冪姵纭堕崷?sub2 楠炲啿褰撮懢宄板絿妫版繂瀹虫穱鈩冧紖
+  3. API 鐠嬪啰鏁ら柅鐔峰閸嬪繑鍙冮敍灞炬弓閸嬫氨缍夌紒婊堟懠鐠侯垰鍨庨弸?
+- 鐎瑰本鏆ｇ€佃甯撮弬瑙勵攳閵嗕礁鍑￠惌銉ユ綑閵嗕線浠愰悾娆撴６妫版ɑ甯撻弻銉︽煙閸氭垵娼庣拋鏉跨秿閸?`docs/dev/KIRO_PROXY.md`
 
-## [2026-05-10] infra: 寮曞叆 AIClient2API 浣滀负 Kiro 鍙嶄唬瀛愰」鐩?
+## [2026-05-10] infra: 瀵洖鍙?AIClient2API 娴ｆ粈璐?Kiro 閸欏秳鍞€涙劙銆嶉惄?
 
-**褰卞搷鑼冨洿**: 椤圭洰澶栭儴渚濊禆锛坄E:\cursor project\AIClient2API`锛夈€乣docs/dev/KIRO_PROXY.md`
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝涓嶄慨鏀?sub2api 浠ｇ爜
-**鍙樻洿璇︽儏**:
-- 寮曞叆 [AIClient2API](https://github.com/justlovemaki/AIClient2API)锛?600+ stars锛変綔涓?Kiro 鍙嶅悜浠ｇ悊瀛愰」鐩?
-- sub2api 鏈韩涓嶆敮鎸?Kiro 骞冲彴锛岄€氳繃 AIClient2API 灏?Kiro 璐﹀彿鍙嶄唬涓?Anthropic Messages API锛屽啀浠?API Key 鏂瑰紡鎺ュ叆 sub2api
-- 瀵规帴璺緞锛歴ub2api Anthropic API Key 璐﹀彿 鈫?`base_url` 鎸囧悜 `http://{A2鍦板潃}:3000/claude-kiro-oauth` 鈫?AIClient2API 杞彂鑷?Kiro 涓婃父
-- 鏂板 `docs/dev/KIRO_PROXY.md` 鏂囨。璁板綍瀹屾暣瀵规帴鏂规
+**瑜板崬鎼烽懠鍐ㄦ纯**: 妞ゅ湱娲版径鏍劥娓氭繆绂嗛敍鍧凟:\cursor project\AIClient2API`閿涘鈧梗docs/dev/KIRO_PROXY.md`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉娑撳秳鎱ㄩ弨?sub2api 娴狅絿鐖?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 瀵洖鍙?[AIClient2API](https://github.com/justlovemaki/AIClient2API)閿?600+ stars閿涘缍旀稉?Kiro 閸欏秴鎮滄禒锝囨倞鐎涙劙銆嶉惄?
+- sub2api 閺堫剝闊╂稉宥嗘暜閹?Kiro 楠炲啿褰撮敍宀勨偓姘崇箖 AIClient2API 鐏?Kiro 鐠愶箑褰块崣宥勫敩娑?Anthropic Messages API閿涘苯鍟€娴?API Key 閺傜懓绱￠幒銉ュ弳 sub2api
+- 鐎佃甯寸捄顖氱窞閿涙ub2api Anthropic API Key 鐠愶箑褰?閳?`base_url` 閹稿洤鎮?`http://{A2閸︽澘娼儅:3000/claude-kiro-oauth` 閳?AIClient2API 鏉烆剙褰傞懛?Kiro 娑撳﹥鐖?
+- 閺傛澘顤?`docs/dev/KIRO_PROXY.md` 閺傚洦銆傜拋鏉跨秿鐎瑰本鏆ｇ€佃甯撮弬瑙勵攳
 
 ## [2026-05-10] docs: document Kiro Gateway sidecar integration
 
@@ -5929,14 +5945,14 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Changed OAuth 401 handling so Antigravity OAuth accounts follow the same cache invalidation, forced refresh, and temporary-unschedulable path as other OAuth accounts instead of permanent `SetError`.
 - Added regression coverage for mixed-scheduling isolation and updated the OAuth 401 expectations.
 
-## [2026-05-07] fix(frontend): 璁㈤槄濂楅浠锋牸绗﹀彿 $ 鈫?楼
+## [2026-05-07] fix(frontend): 鐠併垽妲勬總妤咁樀娴犻攱鐗哥粭锕€褰?$ 閳?妤?
 
-**褰卞搷鑼冨洿**: `frontend/src/components/payment/SubscriptionPlanCard.vue`, `frontend/src/views/admin/orders/AdminPaymentPlansView.vue`
-**涓婃父鍏煎鎬?*: 浣庡啿绐侊紝浠呮秹鍙婂墠绔ā鏉挎枃鏈?
-**鍙樻洿璇︽儏**:
-- 淇璁㈤槄濂楅鍗＄墖浠锋牸鍜屽垝绾垮師浠锋樉绀?`$` 鑰岄潪 `楼` 鐨勯棶棰橈紙濂楅浠锋牸鏄汉姘戝竵锛?
-- 淇绠＄悊鍚庡彴濂楅鍒楄〃椤典环鏍煎垪鍚屾牱鐨?`$` 鈫?`楼` 閿欒
-- 娉ㄦ剰鍖哄垎锛氬椁愪环鏍硷紙price/original_price锛変负 CNY 鐢?`楼`锛涚敤閲忛檺棰濓紙daily_limit_usd 绛夛級涓?USD 鐢?`$`
+**瑜板崬鎼烽懠鍐ㄦ纯**: `frontend/src/components/payment/SubscriptionPlanCard.vue`, `frontend/src/views/admin/orders/AdminPaymentPlansView.vue`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ骸鍟跨粣渚婄礉娴犲懏绉归崣濠傚缁旑垱膩閺夋寧鏋冮張?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 娣囶喖顦茬拋銏ゆ婵傛顦甸崡锛勫娴犻攱鐗搁崪灞藉灊缁惧灝甯禒閿嬫▔缁€?`$` 閼板矂娼?`妤糮 閻ㄥ嫰妫舵０姗堢礄婵傛顦垫禒閿嬬壐閺勵垯姹夊鎴濈閿?
+- 娣囶喖顦茬粻锛勬倞閸氬骸褰存總妤咁樀閸掓銆冩い鍏哥幆閺嶇厧鍨崥灞剧壉閻?`$` 閳?`妤糮 闁挎瑨顕?
+- 濞夈劍鍓伴崠鍝勫瀻閿涙艾顨滄鎰幆閺嶇》绱檖rice/original_price閿涘璐?CNY 閻?`妤糮閿涙稓鏁ら柌蹇涙妫版繐绱檇aily_limit_usd 缁涘绱氭稉?USD 閻?`$`
 
 ## [2026-05-07] fix: avoid permanent error on setup-token 401
 
@@ -5947,16 +5963,16 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - A first 401 for setup-token accounts now invalidates token state and marks the account temporarily unschedulable instead of immediately setting `status=error`.
 - Added unit coverage for Anthropic setup-token `Invalid bearer token` responses.
 
-## [2026-05-07] docs: 浼樺寲 Codex 鎺ュ叆鏁欑▼
+## [2026-05-07] docs: 娴兼ê瀵?Codex 閹恒儱鍙嗛弫娆戔柤
 
 **Affected files**: docs/API_USAGE.md
 **Upstream compatibility**: docs-only; no runtime behavior changes
 **Change details**:
-- Renamed chapter 4 from "OpenAI Codex CLI 鎺ュ叆鎸囧崡" to "Codex 鎺ュ叆鎸囧崡".
+- Renamed chapter 4 from "OpenAI Codex CLI 閹恒儱鍙嗛幐鍥у础" to "Codex 閹恒儱鍙嗛幐鍥у础".
 - Clarified that Codex CLI and Codex desktop share the same `.codex/config.toml` and `.codex/auth.json` files, so CC-Switch can manage both with one configuration.
 - Removed the WSL2-based Windows installation path and simplified Windows setup to native Node.js/npm installation.
 
-## [2026-05-07] docs: 璋冩暣鏁欑▼骞冲彴椤哄簭骞剁Щ闄?Linux 瀹夎閰嶇疆
+## [2026-05-07] docs: 鐠嬪啯鏆ｉ弫娆戔柤楠炲啿褰存い鍝勭碍楠炲墎些闂?Linux 鐎瑰顥婇柊宥囩枂
 
 **Affected files**: docs/API_USAGE.md
 **Upstream compatibility**: docs-only; no runtime behavior changes
@@ -5966,7 +5982,7 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Updated screenshot notes and platform selectors to reference only Windows and macOS.
 
 <!--
-绀轰緥鏉＄洰锛?
+缁€杞扮伐閺夛紕娲伴敍?
 
 ## [2026-05-06] chore: add read-only Antigravity usage audit script
 
@@ -6083,1105 +6099,1105 @@ integrated baseline `7bf5fd15c`, reconciled with PAT and fork-local UI/settings.
 - Soft-deprecated `cache_transfer_ratio`: backend no longer reads/writes it, admin/user pricing APIs no longer expose it, and frontend forms/compare drawer no longer render it. Existing DB columns remain.
 - Added DTO unit coverage for cache premium transfer, missing display input price fallback, and display map behavior.
 
-## [2026-05-04] fix(frontend): 鍏呭€艰闃呴〉闈?UI 浼樺寲
+## [2026-05-04] fix(frontend): 閸忓懎鈧壈顓归梼鍛淬€夐棃?UI 娴兼ê瀵?
 
-**褰卞搷鑼冨洿**: `frontend/src/views/user/PaymentView.vue`, `frontend/src/components/payment/SubscriptionPlanCard.vue`
-**涓婃父鍏煎鎬?*: 浣庡啿绐侊紝浠呮秹鍙婂墠绔ā鏉垮拰鏍峰紡
-**鍙樻洿璇︽儏**:
-- 淇鍙充晶璁㈤槄鏍忔爣棰?i18n key 閿欒锛坄payment.tabSubscription` 鈫?`payment.tabSubscribe`锛夛紝涔嬪墠鏄剧ず鍘熷 key 鑰岄潪涓枃缈昏瘧
-- 澶氬椁愭椂浠庢í鍚戠綉鏍兼帓鍒楁敼涓虹旱鍚戝垪琛ㄦ帓鍒楋紝纭繚鍏抽敭淇℃伅涓嶈鎴柇
-- 绉婚櫎濂楅鍗＄墖鍜岃闃呯‘璁ゅ尯鍩熺殑骞冲彴鏍囪瘑 badge锛圤penAI銆丄ntigravity 绛夛級
+**瑜板崬鎼烽懠鍐ㄦ纯**: `frontend/src/views/user/PaymentView.vue`, `frontend/src/components/payment/SubscriptionPlanCard.vue`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ骸鍟跨粣渚婄礉娴犲懏绉归崣濠傚缁旑垱膩閺夊灝鎷伴弽宄扮础
+**閸欐ɑ娲跨拠锔藉剰**:
+- 娣囶喖顦查崣鍏呮櫠鐠併垽妲勯弽蹇旂垼妫?i18n key 闁挎瑨顕ら敍鍧刾ayment.tabSubscription` 閳?`payment.tabSubscribe`閿涘绱濇稊瀣閺勫墽銇氶崢鐔奉潗 key 閼板矂娼稉顓熸瀮缂堟槒鐦?
+- 婢舵艾顨滄鎰娴犲孩铆閸氭垹缍夐弽鍏煎笓閸掓鏁兼稉铏规棻閸氭垵鍨悰銊﹀笓閸掓绱濈涵顔荤箽閸忔娊鏁穱鈩冧紖娑撳秷顫﹂幋顏呮焽
+- 缁夊娅庢總妤咁樀閸楋紕澧栭崪宀冾吂闂冨懐鈥樼拋銈呭隘閸╃喓娈戦獮鍐插酱閺嶅洩鐦?badge閿涘湦penAI閵嗕竸ntigravity 缁涘绱?
 
-## [2026-05-04] docs: 鏂板 API 浣跨敤鏂囨。锛堝鎴峰悜锛?
+## [2026-05-04] docs: 閺傛澘顤?API 娴ｈ法鏁ら弬鍥ㄣ€傞敍鍫濐吂閹村嘲鎮滈敍?
 
-**褰卞搷鑼冨洿**:
-- `docs/API_USAGE.md`锛堟柊澧烇級
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `docs/API_USAGE.md`閿涘牊鏌婃晶鐑囩礆
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紙绾柊澧炴枃浠讹級
-**鍙樻洿璇︽儏**:
-- 鏂板闈㈠悜瀹㈡埛鐨?API 浣跨敤鏂囨。锛岃鐩?Claude Code锛圕LI / Desktop / VS Code / JetBrains锛夊拰 OpenAI Codex CLI 鐨勫畨瑁呴厤缃叏娴佺▼
-- 鍖呭惈骞冲彴娉ㄥ唽鍏呭€兼祦绋嬨€佹ā鍨嬪垪琛ㄣ€丄PI 绔偣鍙傝€冦€佽璐硅鏄庛€丗AQ
-- 棰勭暀鎴浘鍗犱綅绗︼紙鍚爣娉ㄨ鏄庯級锛屽緟鍚庣画琛ュ厖瀹為檯鎴浘
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礄缁绢垱鏌婃晶鐐存瀮娴犺绱?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤冮棃銏犳倻鐎广垺鍩涢惃?API 娴ｈ法鏁ら弬鍥ㄣ€傞敍宀冾洬閻?Claude Code閿涘湑LI / Desktop / VS Code / JetBrains閿涘鎷?OpenAI Codex CLI 閻ㄥ嫬鐣ㄧ憗鍛村帳缂冾喖鍙忓ù浣衡柤
+- 閸栧懎鎯堥獮鍐插酱濞夈劌鍞介崗鍛偓鍏肩ウ缁嬪鈧焦膩閸ㄥ鍨悰銊ｂ偓涓凱I 缁旑垳鍋ｉ崣鍌濃偓鍐︹偓浣筋吀鐠愮顕╅弰搴涒偓涓桝Q
+- 妫板嫮鏆€閹搭亜娴橀崡鐘辩秴缁楋讣绱欓崥顐ｇ垼濞夈劏顕╅弰搴礆閿涘苯绶熼崥搴ｇ敾鐞涖儱鍘栫€圭偤妾幋顏勬禈
 
 ---
 
-## [2026-05-02] progress: v0.1.117 鍚堝苟楠岃瘉涓庝腑鏂?i18n 琛ラ綈
+## [2026-05-02] progress: v0.1.117 閸氬牆鑻熸宀冪槈娑撳簼鑵戦弬?i18n 鐞涖儵缍?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `frontend/src/i18n/index.ts`
 - `frontend/src/i18n/locales/en.ts`
 - `frontend/src/i18n/locales/zh.ts`
 - `docs/dev/CHANGELOG_CUSTOM.md`
 - `docs/dev/UPSTREAM_SYNC.md`
 
-**涓婃父鍏煎鎬?*:
-- Low. 褰撳墠鏀瑰姩闆嗕腑鍦ㄥ墠绔?i18n 榛樿璇█銆佹彃鍊兼牸寮忓拰涓枃鏂囨琛ラ綈锛屼笉鏀瑰彉鍚庣涓氬姟閫昏緫銆?
-- 鍚庣画濡傛灉涓婃父缁х画鏂板 i18n key锛岄渶瑕佺户缁繚鎸?`en.ts` / `zh.ts` key 瑕嗙洊涓€鑷淬€?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- Low. 瑜版挸澧犻弨鐟板З闂嗗棔鑵戦崷銊ュ缁?i18n 姒涙顓荤拠顓♀枅閵嗕焦褰冮崐鍏肩壐瀵繐鎷版稉顓熸瀮閺傚洦顢嶇悰銉╃秷閿涘奔绗夐弨鐟板綁閸氬海顏稉姘闁槒绶妴?
+- 閸氬海鐢绘俊鍌涚亯娑撳﹥鐖剁紒褏鐢婚弬鏉款杻 i18n key閿涘矂娓剁憰浣烘埛缂侇厺绻氶幐?`en.ts` / `zh.ts` key 鐟曞棛娲婃稉鈧懛娣偓?
 
-**褰撳墠杩涘害**:
-- 宸插湪鐙珛 worktree `E:\cursor project\api2sub-v117`銆佸垎鏀?`sync/upstream-v0.1.117` 鍚堝苟涓婃父 `v0.1.117`銆?
-- 宸插畬鎴愭湰鍦版彁浜わ細
+**瑜版挸澧犳潻娑樺**:
+- 瀹告彃婀悪顒傜彌 worktree `E:\cursor project\api2sub-v117`閵嗕礁鍨庨弨?`sync/upstream-v0.1.117` 閸氬牆鑻熸稉濠冪埗 `v0.1.117`閵?
+- 瀹告彃鐣幋鎰拱閸︾増褰佹禍銈忕窗
   - `37519fcb` merge v0.1.117
   - `511e419b` fix(frontend): default locale and interpolation for v117
   - `64b5dff2` fix(frontend): add zh login locale keys
   - `243eae93` fix(frontend): add missing zh dashboard labels
   - `9ca7e522` fix(frontend): complete v117 zh locale coverage
-- 宸茬‘璁や笂娓?tag `v0.1.117` 鍐?`backend/cmd/server/VERSION` 浠嶄负 `0.1.116`锛屽洜姝ら〉闈㈠乏涓婅鏄剧ず `v0.1.116` 鏄笂娓哥増鏈枃浠舵粸鍚庯紝涓嶄唬琛ㄨ繍琛岄敊鍒嗘敮銆?
-- 鏈湴楠岃瘉鏈嶅姟锛?
-  - 鍓嶇锛歚http://localhost:5180`
-  - 鍚庣锛歚http://localhost:18082`
-  - 鍚庣闇€瑕佷互 `RUN_MODE=standard` 杩愯锛屽惁鍒欑鐞嗗憳渚ф爮浼氶殣钘忔笭閬撶鐞嗙瓑鑿滃崟銆?
+- 瀹歌尙鈥樼拋銈勭瑐濞?tag `v0.1.117` 閸?`backend/cmd/server/VERSION` 娴犲秳璐?`0.1.116`閿涘苯娲滃銈夈€夐棃銏犱箯娑撳﹨顫楅弰鍓с仛 `v0.1.116` 閺勵垯绗傚〒鍝ュ閺堫剚鏋冩禒鑸电哺閸氬函绱濇稉宥勫敩鐞涖劏绻嶇悰宀勬晩閸掑棙鏁妴?
+- 閺堫剙婀存宀冪槈閺堝秴濮熼敍?
+  - 閸撳秶顏敍姝歨ttp://localhost:5180`
+  - 閸氬海顏敍姝歨ttp://localhost:18082`
+  - 閸氬海顏棁鈧憰浣蜂簰 `RUN_MODE=standard` 鏉╂劘顢戦敍灞芥儊閸掓瑧顓搁悶鍡楁喅娓氀勭埉娴兼岸娈ｉ挊蹇旂闁挾顓搁悶鍡欑搼閼挎粌宕熼妴?
 
-**鍙樻洿璇︽儏**:
-- 榛樿璇█鏀逛负涓枃锛屽苟淇 vue-i18n 鎻掑€兼牸寮忥紝灏?`${amount}` 杩欑被鍐欐硶鏀逛负 `{amount}`銆?
-- 琛ラ綈鐧诲綍椤典腑鏂?key锛岄伩鍏嶉娆℃墦寮€鐧诲綍椤垫樉绀?`auth.login.*`銆?
-- 琛ラ綈浠〃鐩樺揩鎹峰叆鍙ｄ腑鏂?key銆?
-- 琛ラ綈 v117 鏂板/浜屽紑椤甸潰涓枃 key锛岃鐩栭〉闈㈠唴瀹广€佺櫥褰曢〉閰嶇疆銆佸畾浠烽〉閰嶇疆銆佹ā鍨嬮厤缃€佹ā鍨嬪畾浠枫€丄PI Key 浣跨敤寮曞銆佽处鍙?鐢ㄦ埛/浠ｇ悊/浣跨敤璁板綍銆佸厖鍊?鏀粯/瀹氫环椤电瓑鍖哄煙銆?
-- 涓轰唬鐮佷腑鐩存帴寮曠敤浣嗚嫳鏂囧寘涔熺己澶辩殑 `common.done` 鍚屾琛ュ厖 en/zh 鏂囨銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 姒涙顓荤拠顓♀枅閺€閫涜礋娑擃厽鏋冮敍灞借嫙娣囶喖顦?vue-i18n 閹绘帒鈧吋鐗稿蹇ョ礉鐏?`${amount}` 鏉╂瑧琚崘娆愮《閺€閫涜礋 `{amount}`閵?
+- 鐞涖儵缍堥惂璇茬秿妞ゅ吀鑵戦弬?key閿涘矂浼╅崗宥夘浕濞嗏剝澧﹀鈧惂璇茬秿妞ゅ灚妯夌粈?`auth.login.*`閵?
+- 鐞涖儵缍堟禒顏囥€冮惄妯烘彥閹瑰嘲鍙嗛崣锝勮厬閺?key閵?
+- 鐞涖儵缍?v117 閺傛澘顤?娴滃苯绱戞い鐢告桨娑擃厽鏋?key閿涘矁顩惄鏍€夐棃銏犲敶鐎瑰箍鈧胶娅ヨぐ鏇€夐柊宥囩枂閵嗕礁鐣炬禒鐑姐€夐柊宥囩枂閵嗕焦膩閸ㄥ鍘ょ純顔衡偓浣鼓侀崹瀣暰娴犳灚鈧竸PI Key 娴ｈ法鏁ゅ鏇烆嚤閵嗕浇澶勯崣?閻劍鍩?娴狅絿鎮?娴ｈ法鏁ょ拋鏉跨秿閵嗕礁鍘栭崐?閺€顖欑帛/鐎规矮鐜い鐢电搼閸栧搫鐓欓妴?
+- 娑撹桨鍞惍浣疯厬閻╁瓨甯村鏇犳暏娴ｅ棜瀚抽弬鍥у瘶娑旂喓宸辨径杈╂畱 `common.done` 閸氬本顒炵悰銉ュ帠 en/zh 閺傚洦顢嶉妴?
 
-**楠岃瘉缁撴灉**:
-- `pnpm typecheck` 閫氳繃銆?
-- i18n key 瀵规瘮缁撴灉锛歚missing zh count 0`銆?
-- 娴忚鍣ㄨ嚜鍔ㄥ寲鎶芥煡閫氳繃锛歚/pricing`銆乣/keys`銆乣/admin/model-config`銆乣/admin/page-content`銆乣/admin/users`銆乣/admin/accounts`銆乣/admin/proxies`銆乣/admin/usage` 鍧囨湭鍙戠幇 raw i18n key锛屼篃鏃?intlify missing-key 璀﹀憡銆?
-- 鎶芥煡绠＄悊鍛樼櫥褰曟€佷晶鏍忓畬鏁存樉绀猴細浠〃鐩樸€佽繍缁寸洃鎺с€佺敤鎴风鐞嗐€佸垎缁勭鐞嗐€佹笭閬撶鐞嗐€佽闃呯鐞嗐€佽处鍙风鐞嗐€佹ā鍨嬮厤缃€侀〉闈㈠唴瀹广€佽鍗曠鐞嗐€佸厖鍊奸厤缃瓑銆?
+**妤犲矁鐦夌紒鎾寸亯**:
+- `pnpm typecheck` 闁俺绻冮妴?
+- i18n key 鐎佃鐦紒鎾寸亯閿涙瓪missing zh count 0`閵?
+- 濞村繗顫嶉崳銊ㄥ殰閸斻劌瀵查幎鑺ョ叀闁俺绻冮敍姝?pricing`閵嗕梗/keys`閵嗕梗/admin/model-config`閵嗕梗/admin/page-content`閵嗕梗/admin/users`閵嗕梗/admin/accounts`閵嗕梗/admin/proxies`閵嗕梗/admin/usage` 閸у洦婀崣鎴犲箛 raw i18n key閿涘奔绡冮弮?intlify missing-key 鐠€锕€鎲￠妴?
+- 閹惰姤鐓＄粻锛勬倞閸涙娅ヨぐ鏇熲偓浣锋櫠閺嶅繐鐣弫瀛樻▔缁€鐚寸窗娴狀亣銆冮惄妯糕偓浣界箥缂佸娲冮幒褋鈧胶鏁ら幋椋庮吀閻炲棎鈧礁鍨庣紒鍕吀閻炲棎鈧焦绗柆鎾额吀閻炲棎鈧浇顓归梼鍛吀閻炲棎鈧浇澶勯崣椋庮吀閻炲棎鈧焦膩閸ㄥ鍘ょ純顔衡偓渚€銆夐棃銏犲敶鐎瑰箍鈧浇顓归崡鏇狀吀閻炲棎鈧礁鍘栭崐濂稿帳缂冾喚鐡戦妴?
 
-**鍓╀綑娉ㄦ剰浜嬮」**:
-- 濡傛灉娴忚鍣ㄤ粛鏄剧ず灏戦噺鑿滃崟鎴栧彉閲忓悕锛屼紭鍏堟竻鐞嗘棫 localStorage / 閫€鍑洪噸鐧伙紱涔嬪墠 simple-mode 鐧诲綍鎬佸彲鑳界紦瀛樹簡 `run_mode='simple'`銆?
-- 涓存椂 Playwright 鍙敤浜庢湰鍦版娊鏌ワ紝宸蹭粠渚濊禆涓Щ闄わ紝鏈繚鐣欏湪 `package.json`銆?
+**閸撯晙缍戝▔銊﹀壈娴滃銆?*:
+- 婵″倹鐏夊ù蹇氼潔閸ｃ劋绮涢弰鍓с仛鐏忔垿鍣洪懣婊冨礋閹存牕褰夐柌蹇撴倳閿涘奔绱崗鍫熺閻炲棙妫?localStorage / 闁偓閸戞椽鍣搁惂浼欑幢娑斿澧?simple-mode 閻ц缍嶉幀浣稿讲閼崇晫绱︾€涙ü绨?`run_mode='simple'`閵?
+- 娑撳瓨妞?Playwright 閸欘亞鏁ゆ禍搴㈡拱閸︾増濞婇弻銉礉瀹歌弓绮犳笟婵婄娑擃厾些闂勩倧绱濋張顏冪箽閻ｆ瑥婀?`package.json`閵?
 
-## [2026-05-01] docs: 鏂板 Codex 鍒濆鍖栬鏄?
+## [2026-05-01] docs: 閺傛澘顤?Codex 閸掓繂顫愰崠鏍嚛閺?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `AGENTS.md`
 - `docs/dev/CHANGELOG_CUSTOM.md`
 
-**涓婃父鍏煎鎬?*:
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
 - Low. Documentation-only change.
 
-**鍙樻洿璇︽儏**:
-- 鍩轰簬 `CLAUDE.md` 鎻愮偧 Codex 鍏ュ彛璇存槑锛屼繚鐣欐灦鏋勪紭鍏堛€乧odebase 鏂囨。娌夋穩銆乸npm-only銆丒nt/Wire 鐢熸垚銆乸ush/deploy 闇€鎺堟潈绛夎鍒?
-- 鏂板鍏抽敭鏂囦欢绱㈠紩锛屽叧鑱斿悗绔叆鍙ｃ€佺綉鍏崇儹璺緞銆丒nt/migrations銆佸墠绔叆鍙ｃ€侀儴缃插拰宸ュ叿鏂囦欢
-- 鏍￠獙鍏抽敭璺緞骞剁Щ闄ゅ綋鍓?checkout 涓笉瀛樺湪鐨?`deploy/remote_exec.py`銆乣tools/secret_scan.py` 浣滀负鍏抽敭鏂囦欢寮曠敤
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閸╄桨绨?`CLAUDE.md` 閹绘劗鍋?Codex 閸忋儱褰涚拠瀛樻閿涘奔绻氶悾娆愮仸閺嬪嫪绱崗鍫涒偓涔debase 閺傚洦銆傚▽澶嬬┅閵嗕垢npm-only閵嗕笒nt/Wire 閻㈢喐鍨氶妴涔竨sh/deploy 闂団偓閹哄牊娼堢粵澶庮潐閸?
+- 閺傛澘顤冮崗鎶芥暛閺傚洣娆㈢槐銏犵穿閿涘苯鍙ч懕鏂挎倵缁旑垰鍙嗛崣锝冣偓浣虹秹閸忓磭鍎圭捄顖氱窞閵嗕笒nt/migrations閵嗕礁澧犵粩顖氬弳閸欙絻鈧線鍎寸純鎻掓嫲瀹搞儱鍙块弬鍥︽
+- 閺嶏繝鐛欓崗鎶芥暛鐠侯垰绶為獮鍓佇╅梽銈呯秼閸?checkout 娑擃厺绗夌€涙ê婀惃?`deploy/remote_exec.py`閵嗕梗tools/secret_scan.py` 娴ｆ粈璐熼崗鎶芥暛閺傚洣娆㈠鏇犳暏
 
-## [2026-05-01] fix(frontend): cache_transfer_ratio 鍜?display_rate_multiplier 鏃犳硶淇敼
+## [2026-05-01] fix(frontend): cache_transfer_ratio 閸?display_rate_multiplier 閺冪姵纭舵穱顔芥暭
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue`
 - `frontend/src/components/admin/user/UserModelPricingModal.vue`
 
-**涓婃父鍏煎鎬?*:
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
 - Low. Frontend-only change.
 
-**鍙樻洿璇︽儏**:
-- `Number(val) || null` 妯″紡灏?`0` 璇浆涓?`null`锛屽悗绔樊閲忔洿鏂?`if != nil` 璺宠繃璇ュ瓧娈碉紝瀵艰嚧鍊兼棤娉曡淇敼涓?0
-- 鏇挎崲涓?`toNullableNum()` 杈呭姪鍑芥暟锛氱┖鍊?NaN 鈫?null锛屾湁鏁堟暟瀛楋紙鍚?0锛夆啋 number
-- 鍚屾椂淇浜嗗叏灞€妯″瀷瀹氫环 dialog 鍜岀敤鎴风骇瀹氫环 modal 涓ゅ
+**閸欐ɑ娲跨拠锔藉剰**:
+- `Number(val) || null` 濡€崇础鐏?`0` 鐠囶垵娴嗘稉?`null`閿涘苯鎮楃粩顖氭▕闁插繑娲块弬?`if != nil` 鐠哄疇绻冪拠銉ョ摟濞堢绱濈€佃壈鍤ч崐鍏兼￥濞夋洝顫︽穱顔芥暭娑?0
+- 閺囨寧宕叉稉?`toNullableNum()` 鏉堝懎濮崙鑺ユ殶閿涙氨鈹栭崐?NaN 閳?null閿涘本婀侀弫鍫熸殶鐎涙绱欓崥?0閿涘鍟?number
+- 閸氬本妞傛穱顔碱槻娴滃棗鍙忕仦鈧Ο鈥崇€风€规矮鐜?dialog 閸滃瞼鏁ら幋椋庨獓鐎规矮鐜?modal 娑撱倕顦?
 
 ## [2026-05-01] fix(display): skip cache transfer for channel-override usage logs
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/handler/dto/display_pricing.go` 鈥?add `stripCacheTransferIfChannel` helper
-- `backend/internal/handler/dto/mappers.go` 鈥?call helper in `UsageLogFromService` and `UsageLogFromServiceAdmin`
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/handler/dto/display_pricing.go` 閳?add `stripCacheTransferIfChannel` helper
+- `backend/internal/handler/dto/mappers.go` 閳?call helper in `UsageLogFromService` and `UsageLogFromServiceAdmin`
 
-**涓婃父鍏煎鎬?*:
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
 - Low. Changes are in dto layer display logic only.
 
-**鍙樻洿璇︽儏**:
-- 褰?usage log 缁忚繃娓犻亾璁¤垂锛圕hannelID 闈炵┖锛夋椂锛宒isplay transform 涓嶅啀搴旂敤鍏ㄥ眬鐨?CacheTransferRatio
-- 淇浜嗘笭閬撹鐩栦环鏍间絾缂撳瓨杞Щ浠嶇敓鏁堝鑷寸敤鎴风湅鍒扮殑 token 鍒嗗竷涓庡疄闄呰璐逛笉涓€鑷寸殑 bug
+**閸欐ɑ娲跨拠锔藉剰**:
+- 瑜?usage log 缂佸繗绻冨〒鐘讳壕鐠伮ゅ瀭閿涘湑hannelID 闂堢偟鈹栭敍澶嬫閿涘畳isplay transform 娑撳秴鍟€鎼存梻鏁ら崗銊ョ湰閻?CacheTransferRatio
+- 娣囶喖顦叉禍鍡樼闁捁顩惄鏍︾幆閺嶉棿绲剧紓鎾崇摠鏉烆剛些娴犲秶鏁撻弫鍫濐嚤閼峰鏁ら幋椋庢箙閸掓壆娈?token 閸掑棗绔锋稉搴＄杽闂勫懓顓哥拹閫涚瑝娑撯偓閼峰娈?bug
 
 ## [2026-04-30] feat(admin): add cache status dashboard module
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/handler/admin/dashboard_handler.go` 鈥?add `/admin/dashboard/cache-status` handler.
-- `backend/internal/repository/usage_log_repo.go` 鈥?aggregate cache read/create stats from `usage_logs`.
-- `frontend/src/views/admin/DashboardView.vue` 鈥?add admin dashboard cache status module.
-- `frontend/src/api/admin/dashboard.ts` / `frontend/src/i18n/locales/*` 鈥?add API types and copy.
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/handler/admin/dashboard_handler.go` 閳?add `/admin/dashboard/cache-status` handler.
+- `backend/internal/repository/usage_log_repo.go` 閳?aggregate cache read/create stats from `usage_logs`.
+- `frontend/src/views/admin/DashboardView.vue` 閳?add admin dashboard cache status module.
+- `frontend/src/api/admin/dashboard.ts` / `frontend/src/i18n/locales/*` 閳?add API types and copy.
 
-**涓婃父鍏煎鎬?*:
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
 - Low. This is an additive admin dashboard feature; likely conflicts only if upstream edits the same dashboard files.
 
-**鍙樻洿璇︽儏**:
+**閸欐ɑ娲跨拠锔藉剰**:
 - Add cache read rate, cache creation rate, request hit rate, prompt token total, trend buckets, and per-model cache status.
 - Support `1h`, `6h`, `24h`, and `7d` windows. Default platform is `antigravity`, with an `all` option.
 - Status levels: `insufficient` for fewer than 5 requests, `healthy` for read rate >= 50%, `watch` for 20%-50%, and `unhealthy` below 20%.
 
 ## [2026-04-30] fix(repository): restore Redis concurrency slot Lua compatibility
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/repository/concurrency_cache.go` 鈥?remove `TIME` calls from write-capable Redis Lua scripts.
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/repository/concurrency_cache.go` 閳?remove `TIME` calls from write-capable Redis Lua scripts.
 
-**涓婃父鍏煎鎬?*:
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
 - Low. The behavior and key layout are unchanged; only the timestamp source moves from Redis Lua to Go.
 
-**鍙樻洿璇︽儏**:
+**閸欐ɑ娲跨拠锔藉剰**:
 - Pass current Unix seconds from Go into `acquireScript`, `getCountScript`, and `cleanupExpiredSlotsScript`.
 - Fix Redis error `Write commands not allowed after non deterministic commands`, which caused `gateway.user_slot_acquire_failed` and immediate IDE retry on `/antigravity/v1/messages`.
 - Verified locally with `claude-opus-4-7` Antigravity messages endpoint returning 200 through `http://127.0.0.1:8081`.
 
 ## [2026-04-30] fix(antigravity): stabilize Claude Opus cache inputs
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/pkg/antigravity/request_transformer.go` 鈥?normalize cache-sensitive request fields before forwarding to Antigravity v1internal.
-- `backend/internal/pkg/antigravity/request_transformer_test.go` 鈥?add regression tests for billing-header filtering and metadata session normalization.
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/pkg/antigravity/request_transformer.go` 閳?normalize cache-sensitive request fields before forwarding to Antigravity v1internal.
+- `backend/internal/pkg/antigravity/request_transformer_test.go` 閳?add regression tests for billing-header filtering and metadata session normalization.
 
-**涓婃父鍏煎鎬?*:
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
 - Low. The change is scoped to Antigravity Claude request transformation; upstream sync conflicts should be limited to the same transformer tests if upstream edits this area.
 
-**鍙樻洿璇︽儏**:
+**閸欐ɑ娲跨拠锔藉剰**:
 - Drop dynamic `x-anthropic-billing-header` system lines before building `systemInstruction`, so per-request `cch=` changes do not perturb the upstream implicit cache key.
 - Normalize JSON-form `metadata.user_id` from new Claude CLI clients. Prefer stable `device_id`, fall back to `session_id`, and preserve plain string user IDs.
 - Keeps non-billing system text intact and preserves existing generated fallback session IDs when metadata is absent.
 
-## [2026-04-28] fix(antigravity): 鏄惧紡鍖栨ā鍨嬫槧灏勫垹闄ゅ叆鍙ｅ苟闅愯棌宸插瓨鍦ㄩ璁?
+## [2026-04-28] fix(antigravity): 閺勬儳绱￠崠鏍侀崹瀣Ё鐏忓嫬鍨归梽銈呭弳閸欙絽鑻熼梾鎰瀹告彃鐡ㄩ崷銊╊暕鐠?
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/components/account/CreateAccountModal.vue` - Antigravity 璐﹀彿鏂板缓寮圭獥鐨勬槧灏勫垹闄ゆ寜閽敼涓烘樉寮忔枃瀛楁寜閽紝棰勮鎸夐挳闅愯棌宸插瓨鍦ㄦ槧灏勩€?
-- `frontend/src/components/account/EditAccountModal.vue` - Antigravity 璐﹀彿缂栬緫寮圭獥鍚屾涓婅堪浜や簰銆?
-- `frontend/src/components/admin/model-pricing/AntigravityMappingCard.vue` - 鍏ㄥ眬 Antigravity 榛樿鏄犲皠缂栬緫椤电殑鍒犻櫎鍏ュ彛鏀逛负鏄惧紡鏂囧瓧鎸夐挳銆?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/components/account/CreateAccountModal.vue` - Antigravity 鐠愶箑褰块弬鏉跨紦瀵湱鐛ラ惃鍕Ё鐏忓嫬鍨归梽銈嗗瘻闁筋喗鏁兼稉鐑樻▔瀵繑鏋冪€涙瀵滈柦顕嗙礉妫板嫯顔曢幐澶愭尦闂呮劘妫屽鎻掔摠閸︺劍妲х亸鍕┾偓?
+- `frontend/src/components/account/EditAccountModal.vue` - Antigravity 鐠愶箑褰跨紓鏍帆瀵湱鐛ラ崥灞绢劄娑撳﹨鍫禍銈勭鞍閵?
+- `frontend/src/components/admin/model-pricing/AntigravityMappingCard.vue` - 閸忋劌鐪?Antigravity 姒涙顓婚弰鐘茬殸缂傛牞绶い鐢垫畱閸掔娀娅庨崗銉ュ經閺€閫涜礋閺勬儳绱￠弬鍥х摟閹稿鎸抽妴?
 
-**涓婃父鍏煎鎬?*:
-- 绾墠绔氦浜掍紭鍖栵紝涓嶆敼鍙樺悗绔槧灏勮В鏋愯鍒欙紱鍚屾涓婃父鏃朵綆鍐茬獊銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 缁绢垰澧犵粩顖欐唉娴滄帊绱崠鏍电礉娑撳秵鏁奸崣妯烘倵缁旑垱妲х亸鍕掗弸鎰潐閸掓瑱绱遍崥灞绢劄娑撳﹥鐖堕弮鏈电秵閸愯尙鐛婇妴?
 
-**鍙樻洿璇︽儏**:
-- 瑙ｅ喅 Antigravity 鏄犲皠涓嚭鐜?`claude-opus-4.7` / `claude-opus-4-7` 绫讳技閲嶅椤规椂锛岀敤鎴烽毦浠ュ彂鐜板垹闄ゅ叆鍙ｇ殑闂銆?
-- 璐﹀彿寮圭獥涓 Claude 4.x 鐐瑰彿/鐭í绾垮啓娉曞仛鍚岀被鏄犲皠鍒ゆ柇锛岄伩鍏嶅揩鎹烽璁惧啀娆℃樉绀烘垨娣诲姞鍚岀被閲嶅鏄犲皠銆?
-- `妯″瀷閰嶇疆` 涓昏〃鎿嶄綔鍒楄ˉ鍏呯洿鎺ョ殑鈥滃垹闄ゆ槧灏勨€濇寜閽紝閬垮厤蹇呴』鍏堟墦寮€鏄犲皠缂栬緫 popover 鎵嶈兘鍒犻櫎銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 鐟欙絽鍠?Antigravity 閺勭姴鐨犳稉顓炲毉閻?`claude-opus-4.7` / `claude-opus-4-7` 缁鎶€闁插秴顦叉い瑙勬閿涘瞼鏁ら幋鐑芥娴犮儱褰傞悳鏉垮灩闂勩倕鍙嗛崣锝囨畱闂傤噣顣介妴?
+- 鐠愶箑褰垮鍦崶娑擃厼顕?Claude 4.x 閻愮懓褰?閻厽铆缁惧灝鍟撳▔鏇炰粵閸氬瞼琚弰鐘茬殸閸掋倖鏌囬敍宀勪缉閸忓秴鎻╅幑鐑筋暕鐠佹儳鍟€濞嗏剝妯夌粈鐑樺灗濞ｈ濮為崥宀€琚柌宥咁槻閺勭姴鐨犻妴?
+- `濡€崇€烽柊宥囩枂` 娑撴槒銆冮幙宥勭稊閸掓藟閸忓懐娲块幒銉ф畱閳ユ粌鍨归梽銈嗘Ё鐏忓嫧鈧繃瀵滈柦顕嗙礉闁灝鍘よ箛鍛淬€忛崗鍫熷ⅵ瀵偓閺勭姴鐨犵紓鏍帆 popover 閹靛秷鍏橀崚鐘绘珟閵?
 
-## [2026-04-28] fix(antigravity): 鏇存柊榛樿瀹㈡埛绔増鏈埌 1.23.2
+## [2026-04-28] fix(antigravity): 閺囧瓨鏌婃妯款吇鐎广垺鍩涚粩顖滃閺堫剙鍩?1.23.2
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/pkg/antigravity/oauth.go` 鈥?榛樿 `ANTIGRAVITY_USER_AGENT_VERSION` 浠?`1.21.9` 鏇存柊鍒?`1.23.2`
-- `backend/internal/pkg/antigravity/oauth_test.go` 鈥?鏇存柊榛樿 User-Agent 鏂█
-- `deploy/docker-compose.yml` 鈥?閫忎紶 `ANTIGRAVITY_USER_AGENT_VERSION`
-- `deploy/.env.example` 鈥?琛ュ厖 Antigravity User-Agent 鐗堟湰閰嶇疆璇存槑
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/pkg/antigravity/oauth.go` 閳?姒涙顓?`ANTIGRAVITY_USER_AGENT_VERSION` 娴?`1.21.9` 閺囧瓨鏌婇崚?`1.23.2`
+- `backend/internal/pkg/antigravity/oauth_test.go` 閳?閺囧瓨鏌婃妯款吇 User-Agent 閺傤叀鈻?
+- `deploy/docker-compose.yml` 閳?闁繋绱?`ANTIGRAVITY_USER_AGENT_VERSION`
+- `deploy/.env.example` 閳?鐞涖儱鍘?Antigravity User-Agent 閻楀牊婀伴柊宥囩枂鐠囧瓨妲?
 
-**涓婃父鍏煎鎬?*:
-- 浣庨闄╋紱浠呮洿鏂伴粯璁?User-Agent 鐗堟湰锛屼粛鍏佽杩愯鐜閫氳繃 `ANTIGRAVITY_USER_AGENT_VERSION` 瑕嗙洊銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 娴ｅ酣顥撻梽鈺嬬幢娴犲懏娲块弬浼寸帛鐠?User-Agent 閻楀牊婀伴敍灞肩矝閸忎浇顔忔潻鎰攽閻滎垰顣ㄩ柅姘崇箖 `ANTIGRAVITY_USER_AGENT_VERSION` 鐟曞棛娲婇妴?
 
-**鍙樻洿璇︽儏**:
-- Google Antigravity 涓嬭浇椤靛綋鍓?stable 涓嬭浇璺緞涓?`stable/1.23.2-...`锛屾湰鍦伴粯璁や粛涓?`antigravity/1.21.9 windows/amd64`銆?
-- 涓婃父杩斿洖 `This version of Antigravity is no longer supported. Please upgrade to receive the latest features.` 鏃讹紝浼樺厛鎬€鐤?User-Agent 鐗堟湰杩囨棫銆?
-- 鏇存柊榛樿鍊煎苟琛ュ厖閮ㄧ讲鐜鍙橀噺锛岄伩鍏嶇敓浜у鍣ㄥ洜鏈樉寮忚缃増鏈€岀户缁娇鐢ㄦ棫瀹㈡埛绔寚绾广€?
+**閸欐ɑ娲跨拠锔藉剰**:
+- Google Antigravity 娑撳娴囨い闈涚秼閸?stable 娑撳娴囩捄顖氱窞娑?`stable/1.23.2-...`閿涘本婀伴崷浼寸帛鐠併倓绮涙稉?`antigravity/1.21.9 windows/amd64`閵?
+- 娑撳﹥鐖舵潻鏂挎礀 `This version of Antigravity is no longer supported. Please upgrade to receive the latest features.` 閺冭绱濇导妯哄帥閹偓閻?User-Agent 閻楀牊婀版潻鍥ㄦ＋閵?
+- 閺囧瓨鏌婃妯款吇閸婄厧鑻熺悰銉ュ帠闁劎璁查悳顖氼暔閸欐﹢鍣洪敍宀勪缉閸忓秶鏁撴禍褍顔愰崳銊ユ礈閺堫亝妯夊蹇氼啎缂冾喚澧楅張顒冣偓宀€鎴风紒顓濆▏閻劍妫€广垺鍩涚粩顖涘瘹缁惧箍鈧?
 
-## [2026-04-27] feat(antigravity): 娣诲姞缂撳瓨璇婃柇鏃ュ織
+## [2026-04-27] feat(antigravity): 濞ｈ濮炵紓鎾崇摠鐠囧﹥鏌囬弮銉ョ箶
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/config/config.go` 鈥?Gateway struct 鏂板 `LogCacheDiagnostics` 瀛楁 + Viper 榛樿鍊兼敞鍐?
-- `backend/internal/pkg/antigravity/request_transformer.go` 鈥?鏂板 `CacheDiagnostics` 缁撴瀯浣撳拰 `ExtractCacheDiagnostics()` 鍑芥暟
-- `backend/internal/service/antigravity_gateway_service.go` 鈥?Forward() 涓坊鍔犺姹?鍝嶅簲闃舵璇婃柇鏃ュ織
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/config/config.go` 閳?Gateway struct 閺傛澘顤?`LogCacheDiagnostics` 鐎涙顔?+ Viper 姒涙顓婚崐鍏兼暈閸?
+- `backend/internal/pkg/antigravity/request_transformer.go` 閳?閺傛澘顤?`CacheDiagnostics` 缂佹挻鐎担鎾虫嫲 `ExtractCacheDiagnostics()` 閸戣姤鏆?
+- `backend/internal/service/antigravity_gateway_service.go` 閳?Forward() 娑擃厽鍧婇崝鐘侯嚞濮?閸濆秴绨查梼鑸殿唽鐠囧﹥鏌囬弮銉ョ箶
 
-**涓婃父鍏煎鎬?*:
-- 绾柊澧烇紝涓嶅奖鍝嶄笂娓稿悎骞?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 缁绢垱鏌婃晶鐑囩礉娑撳秴濂栭崫宥勭瑐濞撶鎮庨獮?
 
-**鍙樻洿璇︽儏**:
-- 鑳屾櫙锛歝laude-opus-4-7 璇锋眰缁?Antigravity 骞冲彴杞彂鍚?0% 缂撳瓨鍛戒腑锛岃€屽悓璺緞鐨?claude-opus-4-6 鏈?99.7% 缂撳瓨鍛戒腑鐜?
-- 鏂板 `gateway.log_cache_diagnostics` 閰嶇疆寮€鍏筹紙榛樿鍏抽棴锛夛紝鐢熶骇鐜閫氳繃 `GATEWAY_LOG_CACHE_DIAGNOSTICS=true` 鍚敤
-- 寮€鍚悗璁板綍锛歴essionId銆乻ystemInstruction hash/prefix/per-part hash銆乧ontents 缁撴瀯銆乽nstable_part 鏄庢枃
-- 鍚屾椂璁板綍涓婃父杩斿洖鐨?cache_read/cache_creation tokens
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閼冲本娅欓敍姝漧aude-opus-4-7 鐠囬攱鐪扮紒?Antigravity 楠炲啿褰存潪顒€褰傞崥?0% 缂傛挸鐡ㄩ崨鎴掕厬閿涘矁鈧苯鎮撶捄顖氱窞閻?claude-opus-4-6 閺?99.7% 缂傛挸鐡ㄩ崨鎴掕厬閻?
+- 閺傛澘顤?`gateway.log_cache_diagnostics` 闁板秶鐤嗗鈧崗绛圭礄姒涙顓婚崗鎶芥４閿涘绱濋悽鐔堕獓閻滎垰顣ㄩ柅姘崇箖 `GATEWAY_LOG_CACHE_DIAGNOSTICS=true` 閸氼垳鏁?
+- 瀵偓閸氼垰鎮楃拋鏉跨秿閿涙essionId閵嗕够ystemInstruction hash/prefix/per-part hash閵嗕恭ontents 缂佹挻鐎妴涔絥stable_part 閺勫孩鏋?
+- 閸氬本妞傜拋鏉跨秿娑撳﹥鐖舵潻鏂挎礀閻?cache_read/cache_creation tokens
 
-**璋冪爺缁撹锛堟埅鑷?2026-04-30锛?*:
+**鐠嬪啰鐖虹紒鎾诡啈閿涘牊鍩呴懛?2026-04-30閿?*:
 
-缁忓杞凯浠ｈ瘖鏂紝瀹氫綅鍒颁笂娓搁殣寮忕紦瀛樺け鏁堢殑涓や釜鐙珛鍥犵礌锛?
+缂佸繐顦挎潪顔垮嚡娴狅綀鐦栭弬顓ㄧ礉鐎规矮缍呴崚棰佺瑐濞撴悂娈ｅ蹇曠处鐎涙ê銇戦弫鍫㈡畱娑撱倓閲滈悪顒傜彌閸ョ姷绀岄敍?
 
-1. **systemInstruction 涓?`x-anthropic-billing-header` block 鐨?`cch=` 瀛楁姣忔璇锋眰閮藉彉**
-   - Claude Code CLI 鍦?system prompt 鏁扮粍鐨勭涓€涓?text block 娉ㄥ叆 `x-anthropic-billing-header: cc_version=2.1.12x.xxx; cc_entrypoint=cli; cch=xxxxx;`
-   - `cch`锛坈ontext content hash锛夋瘡杞璇濋兘鍙橈紝瀵艰嚧 systemInstruction 鐨?Part[2] hash 涓嶇ǔ瀹?
-   - 浣嗕粠鏁版嵁鐪嬶紝閮ㄥ垎甯?billing header 鐨勮姹備粛鐒惰兘鍛戒腑缂撳瓨锛岃鏄庝笂娓哥紦瀛樹笉瀹屽叏渚濊禆 system instruction prefix 鍖归厤
-   - 淇鏂瑰悜锛氬湪 `buildSystemInstruction` 涓繃婊?`x-anthropic-billing-header` 寮€澶寸殑 system block
+1. **systemInstruction 娑?`x-anthropic-billing-header` block 閻?`cch=` 鐎涙顔屽В蹇旑偧鐠囬攱鐪伴柈钘夊綁**
+   - Claude Code CLI 閸?system prompt 閺佹壆绮嶉惃鍕儑娑撯偓娑?text block 濞夈劌鍙?`x-anthropic-billing-header: cc_version=2.1.12x.xxx; cc_entrypoint=cli; cch=xxxxx;`
+   - `cch`閿涘潏ontext content hash閿涘鐦℃潪顔碱嚠鐠囨繈鍏橀崣姗堢礉鐎佃壈鍤?systemInstruction 閻?Part[2] hash 娑撳秶菙鐎?
+   - 娴ｅ棔绮犻弫鐗堝祦閻绱濋柈銊ュ瀻鐢?billing header 閻ㄥ嫯顕Ч鍌欑矝閻掓儼鍏橀崨鎴掕厬缂傛挸鐡ㄩ敍宀冾嚛閺勫簼绗傚〒鍝ョ处鐎涙ü绗夌€瑰苯鍙忔笟婵婄 system instruction prefix 閸栧綊鍘?
+   - 娣囶喖顦查弬鐟版倻閿涙艾婀?`buildSystemInstruction` 娑擃叀绻冨?`x-anthropic-billing-header` 瀵偓婢跺娈?system block
 
-2. **`metadata.user_id` JSON 琚暣涓敤浣?sessionId**
-   - 鏂扮増 Claude CLI 鍙戦€?`metadata.user_id = {"device_id":"...","account_uuid":"","session_id":"xxx"}`
-   - `request_transformer.go:161-163` 灏嗘暣涓?JSON 瀛楃涓茬洿鎺ヨ祴鍊肩粰 `innerRequest.SessionID`
-   - 鑳藉懡涓紦瀛樼殑璇锋眰锛歚metadata_user_id` 涓虹┖锛坰essionId 鏄暟瀛?hash锛夋垨鍙湁 `device_id`锛堟棤 session_id 瀛楁锛?
-   - 涓嶈兘鍛戒腑缂撳瓨鐨勮姹傦細`metadata_user_id` 鍖呭惈 `session_id` UUID锛堟瘡涓?Claude Code 浼氳瘽涓嶅悓锛?
-   - 淇鏂瑰悜锛氫粠 JSON 涓彁鍙?`session_id` 瀛楁鍗曠嫭浣跨敤锛屾垨浠呯敤 `device_id` 浣滀负 sessionId
+2. **`metadata.user_id` JSON 鐞氼偅鏆ｆ稉顏嗘暏娴?sessionId**
+   - 閺傛壆澧?Claude CLI 閸欐垿鈧?`metadata.user_id = {"device_id":"...","account_uuid":"","session_id":"xxx"}`
+   - `request_transformer.go:161-163` 鐏忓棙鏆ｆ稉?JSON 鐎涙顑佹稉鑼纯閹恒儴绁撮崐鑲╃舶 `innerRequest.SessionID`
+   - 閼宠棄鎳℃稉顓犵处鐎涙娈戠拠閿嬬湴閿涙瓪metadata_user_id` 娑撹櫣鈹栭敍鍧癳ssionId 閺勵垱鏆熺€?hash閿涘鍨ㄩ崣顏呮箒 `device_id`閿涘牊妫?session_id 鐎涙顔岄敍?
+   - 娑撳秷鍏橀崨鎴掕厬缂傛挸鐡ㄩ惃鍕嚞濮瑰偊绱癭metadata_user_id` 閸栧懎鎯?`session_id` UUID閿涘牊鐦℃稉?Claude Code 娴兼俺鐦芥稉宥呮倱閿?
+   - 娣囶喖顦查弬鐟版倻閿涙矮绮?JSON 娑擃厽褰侀崣?`session_id` 鐎涙顔岄崡鏇犲娴ｈ法鏁ら敍灞惧灗娴犲懐鏁?`device_id` 娴ｆ粈璐?sessionId
 
-**淇鐘舵€?*锛?026-04-30 宸插湪 `request_transformer.go` 钀藉湴杩囨护 billing header 涓庤鑼冨寲 `metadata.user_id`锛岃瘖鏂棩蹇楀紑鍏冲彲鍦ㄧ敓浜ч獙璇佺紦瀛樺懡涓悗鍏抽棴銆?
+**娣囶喖顦查悩鑸碘偓?*閿?026-04-30 瀹告彃婀?`request_transformer.go` 閽€钘夋勾鏉╁洦鎶?billing header 娑撳氦顫夐懠鍐ㄥ `metadata.user_id`閿涘矁鐦栭弬顓熸）韫囨绱戦崗鍐插讲閸︺劎鏁撴禍褔鐛欑拠浣虹处鐎涙ê鎳℃稉顓炴倵閸忔娊妫撮妴?
 
-## [2026-04-27] feat(openai): 娣诲姞 GPT-5.5 / GPT-5.5 Pro 妯″瀷鏀寔
+## [2026-04-27] feat(openai): 濞ｈ濮?GPT-5.5 / GPT-5.5 Pro 濡€崇€烽弨顖涘瘮
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/pkg/openai/constants.go` 鈥?DefaultModels 鍒楄〃
-- `backend/internal/service/openai_codex_transform.go` 鈥?codexModelMap + normalizeCodexModel
-- `backend/internal/service/billing_service.go` 鈥?fallback 瀹氫环銆乬etFallbackPricing銆乮sOpenAIGPT54Model
-- `backend/resources/model-pricing/model_prices_and_context_window.json` 鈥?鍔ㄦ€佸畾浠锋潯鐩?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/pkg/openai/constants.go` 閳?DefaultModels 閸掓銆?
+- `backend/internal/service/openai_codex_transform.go` 閳?codexModelMap + normalizeCodexModel
+- `backend/internal/service/billing_service.go` 閳?fallback 鐎规矮鐜妴涔琫tFallbackPricing閵嗕巩sOpenAIGPT54Model
+- `backend/resources/model-pricing/model_prices_and_context_window.json` 閳?閸斻劍鈧礁鐣炬禒閿嬫蒋閻?
 
-**涓婃父鍏煎鎬?*:
-- 涓婃父 v0.1.112 灏氭湭娣诲姞 GPT-5.5 鏀寔锛涗笂娓歌嫢鍚庣画娣诲姞闇€浜哄伐瀵归綈鍥涘鏂囦欢
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 娑撳﹥鐖?v0.1.112 鐏忔碍婀ǎ璇插 GPT-5.5 閺€顖涘瘮閿涙稐绗傚〒姝屽閸氬海鐢诲ǎ璇插闂団偓娴滃搫浼愮€靛綊缍堥崶娑橆槱閺傚洣娆?
 
-**鍙樻洿璇︽儏**:
-- 鑳屾櫙锛歄penAI 浜?2026-04-23 鍙戝竷 GPT-5.5锛屼笂娓告湭璺熻繘锛涘師 normalizeCodexModel 涓?`gpt-5.5` 浼氳 `gpt-5` 鍏滃簳閫昏緫闈欓粯闄嶇骇涓?`gpt-5.1`锛屽鑷磋姹備笉閫?
-- 鏂板妯″瀷锛歚gpt-5.5`锛?5/$30 per MTok锛夈€乣gpt-5.5-pro`锛?30/$180 per MTok锛?
-- codexModelMap 鍖呭惈 reasoning effort 鍚庣紑鍙樹綋锛坣one/low/medium/high/xhigh锛夊強 chat-latest
-- 闀夸笂涓嬫枃瀹氫环澶嶇敤 GPT-5.4 鐨勯槇鍊硷紙272K input tokens, 2x input / 1.5x output锛?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閼冲本娅欓敍姝刾enAI 娴?2026-04-23 閸欐垵绔?GPT-5.5閿涘奔绗傚〒鍛婃弓鐠虹喕绻橀敍娑樺斧 normalizeCodexModel 娑?`gpt-5.5` 娴兼俺顫?`gpt-5` 閸忔粌绨抽柅鏄忕帆闂堟瑩绮梽宥囬獓娑?`gpt-5.1`閿涘苯顕遍懛纾嬵嚞濮瑰倷绗夐柅?
+- 閺傛澘顤冨Ο鈥崇€烽敍姝歡pt-5.5`閿?5/$30 per MTok閿涘鈧梗gpt-5.5-pro`閿?30/$180 per MTok閿?
+- codexModelMap 閸栧懎鎯?reasoning effort 閸氬海绱戦崣妯圭秼閿涘潱one/low/medium/high/xhigh閿涘寮?chat-latest
+- 闂€澶哥瑐娑撳鏋冪€规矮鐜径宥囨暏 GPT-5.4 閻ㄥ嫰妲囬崐纭风礄272K input tokens, 2x input / 1.5x output閿?
 
-## [2026-04-21] ops(deploy): 涓?docker-compose 涓変釜鏈嶅姟鍔犳棩蹇楄疆杞?
+## [2026-04-21] ops(deploy): 娑?docker-compose 娑撳閲滈張宥呭閸旂姵妫╄箛妤勭枂鏉?
 
-**褰卞搷鑼冨洿**:
-- `deploy/docker-compose.yml` 鈥?`sub2api` / `postgres` / `redis` 鍚勫姞 `logging: { driver: json-file, options: { max-size: 50m, max-file: 5 } }`
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `deploy/docker-compose.yml` 閳?`sub2api` / `postgres` / `redis` 閸氬嫬濮?`logging: { driver: json-file, options: { max-size: 50m, max-file: 5 } }`
 
-**涓婃父鍏煎鎬?*:
-- 浠呰拷鍔犲瓧娈碉紝涓嶆敼鍔ㄦ棦鏈夐厤缃紱涓婃父鑻ラ噸鍐?compose 缁撴瀯闇€浜哄伐瀵归綈姝や笁娈?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 娴犲懓鎷烽崝鐘茬摟濞堢绱濇稉宥嗘暭閸斻劍妫﹂張澶愬帳缂冾噯绱辨稉濠冪埗閼汇儵鍣搁崘?compose 缂佹挻鐎棁鈧禍鍝勪紣鐎靛綊缍堝銈勭瑏濞?
 
-**鍙樻洿璇︽儏**:
-- 鑳屾櫙锛?026-04-20 鏅?23:01 鐢熶骇鏈虹鐩樺啓婊″鑷村畷鏈猴紙`rsyslogd: No space left on device`锛夛紝鏍瑰洜鏄?Docker 榛樿 `json-file` 鏃ュ織椹卞姩鏃犺疆杞笂闄愶紝`sub2api` 瀹瑰櫒鎸?~4.3 GB/澶╃疮绉紝8 澶╃疮璁?~37 GB锛岃€楀敖鏍圭洏锛涢噸鍚悗 `docker compose up` 閲嶅缓瀹瑰櫒椤哄甫鍒犻櫎鏃?`*-json.log`锛岀鐩樻墠浠?100% 闄嶅洖 45%
-- 淇锛氭瘡瀹瑰櫒涓婇檺 5 脳 50 MB = 250 MB锛屼笁瀹瑰櫒鍚堣鏈€澶?~750 MB锛屼粠姝や笉浼氬啀琚鍣ㄦ棩蹇楁墦鐖嗙鐩?
-- 鐢熸晥璺緞锛歝ommit 鈫?push 鈫?`python deploy/remote_exec.py --update`锛坄update.sh` 瑙﹀彂 `docker compose up -d`锛屽鍣ㄩ噸寤烘椂鏂?`logging` 閰嶇疆鎵嶈惤浣嶏級
-- 鍚庣画寰呭姙锛氣憼 娓呯悊 15.84 GB build cache 鍜?24 涓?dangling 闀滃儚锛涒憽 `ops_error_logger` 鍦?postgres 涓嶅彲杈炬椂鐤媯閲嶈瘯鍒锋棩蹇楋紝闇€鍔犻€熺巼闄愬埗
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閼冲本娅欓敍?026-04-20 閺?23:01 閻㈢喍楠囬張铏诡梿閻╂ê鍟撳鈥愁嚤閼锋潙鐣烽張鐚寸礄`rsyslogd: No space left on device`閿涘绱濋弽鐟版礈閺?Docker 姒涙顓?`json-file` 閺冦儱绻旀す鍗炲З閺冪姾鐤嗘潪顑跨瑐闂勬劧绱漙sub2api` 鐎圭懓娅掗幐?~4.3 GB/婢垛晝鐤粔顖ょ礉8 婢垛晝鐤拋?~37 GB閿涘矁鈧鏁栭弽鍦磸閿涙盯鍣搁崥顖氭倵 `docker compose up` 闁插秴缂撶€圭懓娅掓い鍝勭敨閸掔娀娅庨弮?`*-json.log`閿涘瞼顥嗛惄妯诲娴?100% 闂勫秴娲?45%
+- 娣囶喖顦查敍姘槨鐎圭懓娅掓稉濠囨 5 鑴?50 MB = 250 MB閿涘奔绗佺€圭懓娅掗崥鍫ｎ吀閺堚偓婢?~750 MB閿涘奔绮犲銈勭瑝娴兼艾鍟€鐞氼偄顔愰崳銊︽）韫囨澧﹂悥鍡欘梿閻?
+- 閻㈢喐鏅ョ捄顖氱窞閿涙瓭ommit 閳?push 閳?`python deploy/remote_exec.py --update`閿涘潉update.sh` 鐟欙箑褰?`docker compose up -d`閿涘苯顔愰崳銊╁櫢瀵ょ儤妞傞弬?`logging` 闁板秶鐤嗛幍宥堟儰娴ｅ稄绱?
+- 閸氬海鐢诲鍛閿涙埃鎲?濞撳懐鎮?15.84 GB build cache 閸?24 娑?dangling 闂€婊冨剼閿涙稈鎲?`ops_error_logger` 閸?postgres 娑撳秴褰叉潏鐐閻ゎ垳濯柌宥堢槸閸掗攱妫╄箛妤嬬礉闂団偓閸旂娀鈧喓宸奸梽鎰煑
 
-## [2026-04-21] docs(sales): 鍒濈増閿€鍞唬鐞嗘墜鍐?
+## [2026-04-21] docs(sales): 閸掓繄澧楅柨鈧崬顔诲敩閻炲棙澧滈崘?
 
-**褰卞搷鑼冨洿**:
-- `docs/sales/SALES_HANDBOOK.md` 鈥?**鏂板缓**銆傞潰鍚戠嫭绔嬪紑鍙戣€?/ AI 宸ュ叿涓汉鐢ㄦ埛鐨勯攢鍞唬鐞嗘墜鍐岋紝9 绔狅細浜у搧涓€鍙ヨ瘽 / 鏍稿績鍗栫偣 / 鑳藉姏娓呭崟 / 浣跨敤娴佺▼ / 瀹氫环瑙勫垯 / FAQ / 閿€鍞瘽鏈?/ 瑙﹁揪娓犻亾 / 闄勫綍銆傛墍鏈夊叿浣撻噾棰濓紙姹囩巼銆佹ā鍨嬪崟浠枫€侀鍏呬紭鎯犮€佽繑鐐癸級鐣欑┖锛坄鈻?____`锛夛紝閿€鍞寜褰撴棩鏀跨瓥鐜板満濉啓銆?
-- `.gitignore` 娉ㄦ剰锛歚docs/*` 琚拷鐣ワ紝鎻愪氦鏈枃浠堕渶 `git add -f`
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `docs/sales/SALES_HANDBOOK.md` 閳?**閺傛澘缂?*閵嗗倿娼伴崥鎴犲缁斿绱戦崣鎴ｂ偓?/ AI 瀹搞儱鍙挎稉顏冩眽閻劍鍩涢惃鍕敘閸烆喕鍞悶鍡樺閸愬矉绱? 缁旂媴绱版禍褍鎼ф稉鈧崣銉ㄧ樈 / 閺嶇绺鹃崡鏍仯 / 閼宠棄濮忓〒鍛礋 / 娴ｈ法鏁ゅù浣衡柤 / 鐎规矮鐜憴鍕灟 / FAQ / 闁库偓閸烆喛鐦介張?/ 鐟欙箒鎻〒鐘讳壕 / 闂勫嫬缍嶉妴鍌涘閺堝鍙挎担鎾诲櫨妫版繐绱欏Ч鍥╁芳閵嗕焦膩閸ㄥ宕熸禒鏋偓渚€顩婚崗鍛喘閹姰鈧浇绻戦悙鐧哥礆閻ｆ瑧鈹栭敍鍧勯埢?____`閿涘绱濋柨鈧崬顔藉瘻瑜版挻妫╅弨璺ㄧ摜閻滄澘婧€婵夘偄鍟撻妴?
+- `.gitignore` 濞夈劍鍓伴敍姝歞ocs/*` 鐞氼偄鎷烽悾銉礉閹绘劒姘﹂張顒佹瀮娴犲爼娓?`git add -f`
 
-**涓婃父鍏煎鎬?*: 绾柊澧炴枃妗ｏ紝涓庝笂娓告棤鍐茬獊锛沗docs/sales/` 鏄簩寮€涓撳睘鐩綍
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 缁绢垱鏌婃晶鐐存瀮濡楋綇绱濇稉搴濈瑐濞撳憡妫ら崘鑼崐閿涙矖docs/sales/` 閺勵垯绨╁鈧稉鎾崇潣閻╊喖缍?
 
-**鍙樻洿璇︽儏**:
-- 鍗栫偣鏉ユ簮浜庝唬鐮佷簨瀹烇紙涓夊崗璁吋瀹广€佺矘鎬т細璇濄€佺啍鏂€佸鏀粯閫氶亾銆乀OTP銆並ey 绾ч搴︼級锛屾棤鑷嗛€?
-- 瀹氫环绔犺妭鍙啓鏈哄埗锛坱oken 鍙屽悜 / cache hit / 闀夸笂涓嬫枃鍊嶇巼 / Priority-Flex 妗ｄ綅 / USD鈫扖NY锛夛紝涓嶅啓鏁板瓧
-- FAQ 鎸夊敭鍓?/ 鎺ュ叆 / 璁¤垂 / 绋冲畾鎬?/ 瀹夊叏浜旂粍锛涘惈 Claude Code + Cursor 鍏蜂綋鎺ュ叆鍛戒护
-- 璇濇湳鍚笁涓紑鍦虹増鏈?+ 浜斿ぇ寮傝搴斿 + 涓撮棬涓€鑴氭ā鏉?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閸楁牜鍋ｉ弶銉︾爱娴滃簼鍞惍浣风皑鐎圭儑绱欐稉澶婂礂鐠侇喖鍚嬬€瑰箍鈧胶鐭橀幀褌绱扮拠婵勨偓浣哄晬閺傤厹鈧礁顦块弨顖欑帛闁岸浜鹃妴涔€OTP閵嗕甫ey 缁狙囶杺鎼达讣绱氶敍灞炬￥閼峰棝鈧?
+- 鐎规矮鐜粩鐘哄Ν閸欘亜鍟撻張鍝勫煑閿涘澅oken 閸欏苯鎮?/ cache hit / 闂€澶哥瑐娑撳鏋冮崐宥囧芳 / Priority-Flex 濡楋絼缍?/ USD閳墫NY閿涘绱濇稉宥呭晸閺佹澘鐡?
+- FAQ 閹稿鏁崜?/ 閹恒儱鍙?/ 鐠伮ゅ瀭 / 缁嬪啿鐣鹃幀?/ 鐎瑰鍙忔禍鏃傜矋閿涙稑鎯?Claude Code + Cursor 閸忚渹缍嬮幒銉ュ弳閸涙垝鎶?
+- 鐠囨繃婀抽崥顐＄瑏娑擃亜绱戦崷铏瑰閺?+ 娴滄柨銇囧鍌濐唴鎼存柨顕?+ 娑撴挳妫稉鈧懘姘侀弶?
 
-**鍏宠仈 Issue/PR**: 鈥?
+**閸忓疇浠?Issue/PR**: 閳?
 
 ---
 
-## [2026-04-20] fix: 淇 Gemini 璐︽埛 OAuth 鍒锋柊 Token 瓒呮椂
+## [2026-04-20] fix: 娣囶喖顦?Gemini 鐠愶附鍩?OAuth 閸掗攱鏌?Token 鐡掑懏妞?
 
-**褰卞搷鑼冨洿**: backend/internal/service/account.go
-**涓婃父鍏煎鎬?*: 鍙兘涓庝笂娓稿悓鍖哄煙淇敼鍐茬獊锛屽悎骞舵椂娉ㄦ剰
-**鍙樻洿璇︽儏**:
-- OAuth token refresh 瓒呮椂浠?10s 鏀逛负 30s
-- 鏂板閲嶈瘯閫昏緫锛堟渶澶?3 娆★紝鎸囨暟閫€閬匡級
+**瑜板崬鎼烽懠鍐ㄦ纯**: backend/internal/service/account.go
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閸欘垵鍏樻稉搴濈瑐濞撶鎮撻崠鍝勭厵娣囶喗鏁奸崘鑼崐閿涘苯鎮庨獮鑸垫濞夈劍鍓?
+**閸欐ɑ娲跨拠锔藉剰**:
+- OAuth token refresh 鐡掑懏妞傛禒?10s 閺€閫涜礋 30s
+- 閺傛澘顤冮柌宥堢槸闁槒绶敍鍫熸付婢?3 濞嗏槄绱濋幐鍥ㄦ殶闁偓闁尅绱?
 
-**鍏宠仈 Issue/PR**: 鏃狅紙绾夸笂鎺掓煡鍙戠幇锛?
+**閸忓疇浠?Issue/PR**: 閺冪媴绱欑痪澶哥瑐閹烘帗鐓￠崣鎴犲箛閿?
 -->
 
-## [2026-04-19] feat(admin/usage): "鐢ㄦ埛瑙嗚瀵规瘮"鎶藉眽鍓嶇娈?
+## [2026-04-19] feat(admin/usage): "閻劍鍩涚憴鍡氼潡鐎佃鐦?閹惰棄鐪介崜宥囶伂濞?
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/api/admin/usage.ts` 鈥?鏂板 `getUserViewPreview(logId)` API 涓?`UserViewPreview` / `UserViewSnapshot` / `UserViewConfigUsed` 绫诲瀷锛涙寕杞藉埌 `adminUsageAPI` 榛樿瀵煎嚭
-- `frontend/src/components/admin/usage/UserViewCompareDrawer.vue` 鈥?**鏂板缓**銆傚熀浜?`BaseDialog` 鐨?extra-wide 瀵硅瘽妗嗭紝灞曠ず real / user_view 鍙屽垪瀵规瘮 + 宸紓%锛涘垎缁勶細Tokens / Costs / Invariants锛涢《閮ㄥ睍绀?`config_used`锛堝惈 `has_user_override` badge锛夛紱actual_cost 涓嶄竴鑷存椂绾㈣壊鍛婅
-- `frontend/src/components/admin/usage/UsageTable.vue` 鈥?鏂板 `userViewClick` emit 涓?`<template #cell-actions>` 娓叉煋 eye 鎸夐挳
-- `frontend/src/views/admin/UsageView.vue` 鈥?`allColumns` 鏈熬鏂板 `actions` 鍒楋紱`ALWAYS_VISIBLE` 鍖呭惈 `actions`锛涙柊澧?`userViewLogId/userViewOpen/handleUserViewClick/closeUserViewDrawer` 鐘舵€佷笌澶勭悊锛沗<UsageTable>` 鐩戝惉 `@userViewClick`锛涙ā鏉挎湯鎸傝浇 `<UserViewCompareDrawer>`
-- `frontend/src/i18n/locales/zh.ts`銆乣en.ts` 鈥?`admin.usage` 鑺傜偣鏂板 actions/viewUserPerspective/userView* 绛?16 涓?key
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/api/admin/usage.ts` 閳?閺傛澘顤?`getUserViewPreview(logId)` API 娑?`UserViewPreview` / `UserViewSnapshot` / `UserViewConfigUsed` 缁鐎烽敍娑欏瘯鏉炶棄鍩?`adminUsageAPI` 姒涙顓荤€电厧鍤?
+- `frontend/src/components/admin/usage/UserViewCompareDrawer.vue` 閳?**閺傛澘缂?*閵嗗倸鐔€娴?`BaseDialog` 閻?extra-wide 鐎电鐦藉鍡礉鐏炴洜銇?real / user_view 閸欏苯鍨€佃鐦?+ 瀹割喖绱?閿涙稑鍨庣紒鍕剁窗Tokens / Costs / Invariants閿涙盯銆婇柈銊ョ潔缁€?`config_used`閿涘牆鎯?`has_user_override` badge閿涘绱盿ctual_cost 娑撳秳绔撮懛瀛樻缁俱垼澹婇崨濠咁劅
+- `frontend/src/components/admin/usage/UsageTable.vue` 閳?閺傛澘顤?`userViewClick` emit 娑?`<template #cell-actions>` 濞撳弶鐓?eye 閹稿鎸?
+- `frontend/src/views/admin/UsageView.vue` 閳?`allColumns` 閺堫偄鐔弬鏉款杻 `actions` 閸掓绱盽ALWAYS_VISIBLE` 閸栧懎鎯?`actions`閿涙稒鏌婃晶?`userViewLogId/userViewOpen/handleUserViewClick/closeUserViewDrawer` 閻樿埖鈧椒绗屾径鍕倞閿涙矖<UsageTable>` 閻╂垵鎯?`@userViewClick`閿涙稒膩閺夋寧婀幐鍌濇祰 `<UserViewCompareDrawer>`
+- `frontend/src/i18n/locales/zh.ts`閵嗕梗en.ts` 閳?`admin.usage` 閼哄倻鍋ｉ弬鏉款杻 actions/viewUserPerspective/userView* 缁?16 娑?key
 
-**涓婃父鍏煎鎬?*:
-- 浠呰拷鍔犲垪涓庣粍浠讹紝鏈敼鍔ㄧ幇鏈夊垪娓叉煋锛涗笂娓歌嫢鏀瑰姩 admin usage 琛ㄧ殑鍒楃粨鏋勶紝闇€瑕佹妸 `actions` 鍒楄拷鍔犻噸鍋氬嵆鍙?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 娴犲懓鎷烽崝鐘插灙娑撳海绮嶆禒璁圭礉閺堫亝鏁奸崝銊у箛閺堝鍨〒鍙夌厠閿涙稐绗傚〒姝屽閺€鐟板З admin usage 鐞涖劎娈戦崚妤冪波閺嬪嫸绱濋棁鈧憰浣瑰Ω `actions` 閸掓鎷烽崝鐘诲櫢閸嬫艾宓嗛崣?
 
-**鍙樻洿璇︽儏**:
-- 涓庢槰鏃ュ悗绔 `GET /admin/usage/:id/user-view` 閰嶅锛岄棴鐜簡"绠＄悊鍛樺悗鍙扮洿鎺ョ湅鐢ㄦ埛鍓嶇瑙嗚"鐨勫伐浣滄祦鈥斺€旂鐞嗗憳鐐瑰嚮琛屽熬 eye 鍥炬爣 鈫?鎶藉眽鎷夋帴鍙?鈫?宸﹀彸瀵规瘮 real(绠＄悊鍛樿瑙? vs user_view(鐢ㄦ埛瀹為檯鐪嬪埌)锛屽苟鏍囨敞鍝簺 display 閰嶇疆鐢熸晥锛堝惈鍏ㄥ眬 vs 鐢ㄦ埛瑕嗙洊鏉ユ簮锛?
-- 鎶藉眽鑷姩闅愯棌鍏?0 瀛楁娈碉紝閬垮厤鍣煶锛沝iff 鍒椾互绾?缁?+ 鐧惧垎姣旇〃杈炬斁澶?缂╁皬
-- `pnpm typecheck` 閫氳繃锛沗pnpm build` 鍦ㄤ笌鏈敼鍔ㄦ棤鍏崇殑 PricingView.vue 涓婃湁 cnyRate TS 閿欙紙浼氳瘽寮€濮嬪墠宸插瓨鍦ㄧ殑鏈彁浜ゆ敼鍔級锛屼笉闃诲褰撳墠娈?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 娑撳孩妲伴弮銉ユ倵缁旑垱顔?`GET /admin/usage/:id/user-view` 闁板秴顨滈敍宀勬４閻滎垯绨?缁狅紕鎮婇崨妯烘倵閸欐壆娲块幒銉ф箙閻劍鍩涢崜宥囶伂鐟欏棜顫?閻ㄥ嫬浼愭担婊勭ウ閳ユ柡鈧梻顓搁悶鍡楁喅閻愮懓鍤悰灞界啲 eye 閸ョ偓鐖?閳?閹惰棄鐪介幏澶嬪复閸?閳?瀹革箑褰哥€佃鐦?real(缁狅紕鎮婇崨妯款潒鐟? vs user_view(閻劍鍩涚€圭偤妾惇瀣煂)閿涘苯鑻熼弽鍥ㄦ暈閸濐亙绨?display 闁板秶鐤嗛悽鐔告櫏閿涘牆鎯堥崗銊ョ湰 vs 閻劍鍩涚憰鍡欐磰閺夈儲绨敍?
+- 閹惰棄鐪介懛顏勫З闂呮劘妫岄崗?0 鐎涙顔屽▓纰夌礉闁灝鍘ら崳顏堢叾閿涙矟iff 閸掓ぞ浜掔痪?缂?+ 閻ф儳鍨庡В鏃囥€冩潏鐐杹婢?缂傗晛鐨?
+- `pnpm typecheck` 闁俺绻冮敍娌梡npm build` 閸︺劋绗岄張顒佹暭閸斻劍妫ら崗宕囨畱 PricingView.vue 娑撳﹥婀?cnyRate TS 闁挎瑱绱欐导姘崇樈瀵偓婵澧犲鎻掔摠閸︺劎娈戦張顏呭絹娴溿倖鏁奸崝顭掔礆閿涘奔绗夐梼璇差敚瑜版挸澧犲▓?
 
-## [2026-04-19] feat(admin/usage): 鏂板"鐢ㄦ埛瑙嗚"瀵规瘮棰勮鎺ュ彛锛堝悗绔锛?
+## [2026-04-19] feat(admin/usage): 閺傛澘顤?閻劍鍩涚憴鍡氼潡"鐎佃鐦０鍕潔閹恒儱褰涢敍鍫濇倵缁旑垱顔岄敍?
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/handler/admin/usage_handler.go` 鈥?`UsageHandler` 鏂板 `userModelPricingService` 渚濊禆锛涙柊澧?`GetUserViewPreview` handler 涓庨厤濂?DTO锛坄UserViewPreviewResponse` / `UserViewSnapshot` / `UserViewConfigUsed` / `snapshotFromDTO`锛?
-- `backend/internal/server/routes/admin.go` 鈥?娉ㄥ唽 `GET /api/v1/admin/usage/:id/user-view`
-- `backend/cmd/server/wire_gen.go` 鈥?`admin.NewUsageHandler` 璋冪敤澧炶ˉ `userModelPricingService` 鍙傛暟锛坄go generate` 鍥犻」鐩?Wire 宸插瓨鍦ㄧ殑澶氱粦瀹氶棶棰樺け璐ワ紝鏁呮墜鍔?patch锛涗笉褰卞搷鍔熻兘锛?
-- `backend/internal/handler/admin/usage_cleanup_handler_test.go`銆乣usage_handler_request_type_test.go` 鈥?鍚屾 `NewUsageHandler` 鏂扮鍚嶏紙澶氫紶涓€涓?nil锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/handler/admin/usage_handler.go` 閳?`UsageHandler` 閺傛澘顤?`userModelPricingService` 娓氭繆绂嗛敍娑欐煀婢?`GetUserViewPreview` handler 娑撳酣鍘ゆ總?DTO閿涘潉UserViewPreviewResponse` / `UserViewSnapshot` / `UserViewConfigUsed` / `snapshotFromDTO`閿?
+- `backend/internal/server/routes/admin.go` 閳?濞夈劌鍞?`GET /api/v1/admin/usage/:id/user-view`
+- `backend/cmd/server/wire_gen.go` 閳?`admin.NewUsageHandler` 鐠嬪啰鏁ゆ晶鐐端?`userModelPricingService` 閸欏倹鏆熼敍鍧刧o generate` 閸ョ娀銆嶉惄?Wire 瀹告彃鐡ㄩ崷銊ф畱婢舵氨绮︾€规岸妫舵０妯恒亼鐠愩儻绱濋弫鍛閸?patch閿涙稐绗夎ぐ鍗炴惙閸旂喕鍏橀敍?
+- `backend/internal/handler/admin/usage_cleanup_handler_test.go`閵嗕梗usage_handler_request_type_test.go` 閳?閸氬本顒?`NewUsageHandler` 閺傛壆顒烽崥宥忕礄婢舵矮绱舵稉鈧稉?nil閿?
 
-**涓婃父鍏煎鎬?*:
-- 绾柊澧炵鐐?+ 鏋勯€犲嚱鏁版湯浣嶅墠涓€浣嶆彃鍙傦紝涓庝笂娓?admin usage handler 鏀瑰姩鍙兘浜х敓灏忓啿绐侊紝浣嗗弬鏁伴『搴忓彉鍖栧鏄撹瘑鍒?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 缁绢垱鏌婃晶鐐殿伂閻?+ 閺嬪嫰鈧姴鍤遍弫鐗堟汞娴ｅ秴澧犳稉鈧担宥嗗絻閸欏偊绱濇稉搴濈瑐濞?admin usage handler 閺€鐟板З閸欘垵鍏樻禍褏鏁撶亸蹇撳暱缁愪緤绱濇担鍡楀棘閺佷即銆庢惔蹇撳綁閸栨牕顔愰弰鎾圭槕閸?
 
-**鍙樻洿璇︽儏**:
-- 鐩殑锛氱鐞嗗憳鎺掓煡鏌愪釜鐢ㄦ埛锛堝 gybilly2023锛?鍓嶇瀹為檯鐪嬪埌鐨?token / 鎴愭湰"鏄惁绗﹀悎 `cache_transfer_ratio` + `display_input_price` 绛?濂稿晢"閰嶇疆棰勬湡锛岀洰鍓嶅敮涓€鍔炴硶鏄櫥褰曡鐢ㄦ埛璐﹀彿浜茬溂鐪?
-- 鏂版帴鍙ｅ鍗曟潯 usage_log 閲嶆柊璺戜笁灞?transform锛氬叏灞€ display 浠?鈫?user model overrides锛坄BuildUserDisplayPricingMap`锛夆啋 user group display rate锛坄ApplyUserDisplayRate`锛夛紝杩斿洖 `real` / `user_view` 涓ゅ垪瀵规瘮 + `config_used` 閰嶇疆婧簮锛堝惈 `has_user_override`銆乣user_group_rate`锛?
-- 瀹屽叏澶嶇敤 `dto.UsageLogFromService` / `ApplyDisplayTransform` / `ApplyUserDisplayRate` / `BuildUserDisplayPricingMap`锛屼笉鍐欐柊璁＄畻閫昏緫
-- 涓嶅姩鐜版湁鍒楄〃鏌ヨ閫昏緫鈥斺€擿AdminUsageLog.DisplayFields` 浠嶆寜鍏ㄥ眬 displayMap 绠楋紙淇濇寔鍚戝悗鍏煎锛?
-- 宸叉湰鍦?`go run ./cmd/server` 楠岃瘉璺敱姝ｇ‘娉ㄥ唽銆丟in 鏃?radix 鍐茬獊 panic
-- 鍓嶇鍏ュ彛涓庢娊灞?UI 寰呬笅涓€娈垫彁浜?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閻╊喚娈戦敍姘鳖吀閻炲棗鎲抽幒鎺撶叀閺屾劒閲滈悽銊﹀煕閿涘牆顩?gybilly2023閿?閸撳秶顏€圭偤妾惇瀣煂閻?token / 閹存劖婀?閺勵垰鎯佺粭锕€鎮?`cache_transfer_ratio` + `display_input_price` 缁?婵傜鏅?闁板秶鐤嗘０鍕埂閿涘瞼娲伴崜宥呮暜娑撯偓閸旂偞纭堕弰顖滄瑜版洝顕氶悽銊﹀煕鐠愶箑褰挎禍鑼簜閻?
+- 閺傜増甯撮崣锝咁嚠閸楁洘娼?usage_log 闁插秵鏌婄捄鎴滅瑏鐏?transform閿涙艾鍙忕仦鈧?display 娴?閳?user model overrides閿涘潉BuildUserDisplayPricingMap`閿涘鍟?user group display rate閿涘潉ApplyUserDisplayRate`閿涘绱濇潻鏂挎礀 `real` / `user_view` 娑撱倕鍨€佃鐦?+ `config_used` 闁板秶鐤嗗┃顖涚爱閿涘牆鎯?`has_user_override`閵嗕梗user_group_rate`閿?
+- 鐎瑰苯鍙忔径宥囨暏 `dto.UsageLogFromService` / `ApplyDisplayTransform` / `ApplyUserDisplayRate` / `BuildUserDisplayPricingMap`閿涘奔绗夐崘娆愭煀鐠侊紕鐣婚柅鏄忕帆
+- 娑撳秴濮╅悳鐗堟箒閸掓銆冮弻銉嚄闁槒绶垾鏂衡偓鎿緼dminUsageLog.DisplayFields` 娴犲秵瀵滈崗銊ョ湰 displayMap 缁犳绱欐穱婵囧瘮閸氭垵鎮楅崗鐓庮啇閿?
+- 瀹稿弶婀伴崷?`go run ./cmd/server` 妤犲矁鐦夌捄顖滄暠濮濓絿鈥樺▔銊ュ斀閵嗕笩in 閺?radix 閸愯尙鐛?panic
+- 閸撳秶顏崗銉ュ經娑撳孩濞婄仦?UI 瀵板懍绗呮稉鈧▓鍨絹娴?
 
-## [2026-04-19] feat(pricing): 妯″瀷浠锋牸琛ㄥ悓鏃跺睍绀?CNY 瀹炰粯閲戦锛堟寜鍏呭€肩鐞嗘崲绠楃巼锛?
+## [2026-04-19] feat(pricing): 濡€崇€锋禒閿嬬壐鐞涖劌鎮撻弮璺虹潔缁€?CNY 鐎圭偘绮柌鎴︻杺閿涘牊瀵滈崗鍛偓鑲╊吀閻炲棙宕茬粻妤冨芳閿?
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/views/user/PricingView.vue` 鈥?浠锋牸琛ㄥ崱鐗囬《閮ㄥ姞 USD鈫扖NY 鎹㈢畻 banner锛堜粎鍦?`payment_cny_per_usd > 0` 鏃舵樉绀猴級锛沗formatTokenPrice` / `formatPerRequest` 鎷嗕负 `tokenPrimary`/`tokenSecondary` + `perRequestPrimary`/`perRequestSecondary` 鍥涗釜 helper锛欳NY 涓虹矖浣撲富鏄剧ず锛孶SD 鍔犳嫭鍙峰皬鐏板瓧鍓樉绀猴紱鏈厤缃崲绠楃巼鏃惰嚜鍔ㄩ€€鍖栦负鍗曚竴 USD 鏄剧ず
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鏂板 `pricing.cnyBanner`锛涘垪澶村幓鎺夌‖缂栫爜 `$/MTok` 鏀逛负銆岃緭鍏ヤ环 / MTok銆嶃€孖nput / MTok銆嶈鍗曞厓鏍艰嚜甯﹀竵绉嶇鍙凤紱`unitHint` 鏀瑰啓涓鸿鏄?楼 / $ 鍚箟鐨勫弻甯佺鏂囨
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/views/user/PricingView.vue` 閳?娴犻攱鐗哥悰銊ュ幢閻楀洭銆婇柈銊ュ USD閳墫NY 閹广垻鐣?banner閿涘牅绮庨崷?`payment_cny_per_usd > 0` 閺冭埖妯夌粈鐚寸礆閿涙矖formatTokenPrice` / `formatPerRequest` 閹峰棔璐?`tokenPrimary`/`tokenSecondary` + `perRequestPrimary`/`perRequestSecondary` 閸ユ稐閲?helper閿涙NY 娑撹櫣鐭栨担鎾插瘜閺勫墽銇氶敍瀛禨D 閸旂姵瀚崣宄扮毈閻忔澘鐡ч崜顖涙▔缁€鐚寸幢閺堫亪鍘ょ純顔藉床缁犳宸奸弮鎯板殰閸斻劑鈧偓閸栨牔璐熼崡鏇氱 USD 閺勫墽銇?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?閺傛澘顤?`pricing.cnyBanner`閿涙稑鍨径鏉戝箵閹哄鈥栫紓鏍垳 `$/MTok` 閺€閫涜礋閵嗗矁绶崗銉ょ幆 / MTok閵嗗秲鈧瓥nput / MTok閵嗗秷顔€閸楁洖鍘撻弽鑹板殰鐢箑绔电粔宥囶儊閸欏嚖绱盽unitHint` 閺€鐟板晸娑撻缚顕╅弰?妤?/ $ 閸氼偂绠熼惃鍕蓟鐢胶顫掗弬鍥攳
 
-**鏂囨**锛氱敤鎴锋巿鏉冭寖鍥村唴鐨勫睍绀烘€ф枃瀛楋紙banner 鏂囨銆佸崟浣嶈鏄庯級锛屼笉鍔?i18n 閲屽叾浠栦笟鍔℃枃妗堛€?
+**閺傚洦顢?*閿涙氨鏁ら幋閿嬪房閺夊啳瀵栭崶鏉戝敶閻ㄥ嫬鐫嶇粈鐑樷偓褎鏋冪€涙绱檅anner 閺傚洦顢嶉妴浣稿礋娴ｅ秷顕╅弰搴礆閿涘奔绗夐崝?i18n 闁插苯鍙炬禒鏍︾瑹閸斺剝鏋冨鍫涒偓?
 
-**涓婃父鍏煎鎬?*: 浣庛€傜函鍓嶇 + i18n 琛屽唴淇敼銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倻鍑介崜宥囶伂 + i18n 鐞涘苯鍞存穱顔芥暭閵?
 
-**鍙樻洿璇︽儏**:
-1. 瑙嗚绛栫暐锛欳NY 涓汇€乁SD 杈呫€傛瘡涓环鏍煎崟鍏冩牸 `楼3.50 ($5.00)` 鍚岃锛涘乏渚х矖浣?CNY 鏄敤鎴峰疄闄呮墸璐归噺绾э紝鍙虫嫭鍙峰唴鐏板瓧 $ 鏄函婧愪緷鎹?
-2. 椤堕儴涓€娆℃€?banner 璇存槑鎹㈢畻鐜囷紙`楼0.7 / 1 USD 路 鏉ヨ嚜鍏呭€肩鐞哷锛夛紝鍗曞厓鏍奸噷灏变笉閲嶅"脳 0.7"
-3. 閫€鍖栭€昏緫锛氱鐞嗗憳鏈厤缃?`payment_cny_per_usd`锛堝€间负 0 鎴?null锛夆啋 banner 鑷姩闅愯棌銆佹墍鏈夊崟鍏冩牸鍙樉绀?USD锛屼笌鏀瑰姩鍓嶅畬鍏ㄤ竴鑷达紝閬垮厤鍑虹幇 `楼0` 涔嬬被鐨勫紓甯?
-4. 鎬т环姣斿姣旓紙脳10銆佸畼鏂逛环 脳 0.7 绛夛級宸插湪涓婃柟璁′环妯″紡璇存槑閲岃杩囷紝浠锋牸琛ㄦ湰韬笉鍐嶅彔鍔?甯傚満甯歌浠?鍒楋紝淇濇寔琛ㄦ牸骞插噣
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 鐟欏棜顫庣粵鏍殣閿涙NY 娑撴眹鈧箒SD 鏉堝懌鈧倹鐦℃稉顏冪幆閺嶇厧宕熼崗鍐╃壐 `妤?.50 ($5.00)` 閸氬矁顢戦敍娑樹箯娓氀呯煐娴?CNY 閺勵垳鏁ら幋宄扮杽闂勫懏澧哥拹褰掑櫤缁狙嶇礉閸欒櫕瀚崣宄板敶閻忔澘鐡?$ 閺勵垱鍑藉┃鎰贩閹?
+2. 妞ゅ爼鍎存稉鈧▎鈩冣偓?banner 鐠囧瓨妲戦幑銏㈢暬閻滃浄绱檂妤?.7 / 1 USD 璺?閺夈儴鍤滈崗鍛偓鑲╊吀閻炲摲閿涘绱濋崡鏇炲帗閺嶅ジ鍣风亸鍙樼瑝闁插秴顦?鑴?0.7"
+3. 闁偓閸栨牠鈧槒绶敍姘鳖吀閻炲棗鎲抽張顏堝帳缂?`payment_cny_per_usd`閿涘牆鈧棿璐?0 閹?null閿涘鍟?banner 閼奉亜濮╅梾鎰閵嗕焦澧嶉張澶婂礋閸忓啯鐗搁崣顏呮▔缁€?USD閿涘奔绗岄弨鐟板З閸撳秴鐣崗銊ょ閼疯揪绱濋柆鍨帳閸戣櫣骞?`妤?` 娑斿琚惃鍕磽鐢?
+4. 閹傜幆濮ｆ柨顕В鏃撶礄鑴?0閵嗕礁鐣奸弬閫涚幆 鑴?0.7 缁涘绱氬鎻掓躬娑撳﹥鏌熺拋鈥茬幆濡€崇础鐠囧瓨妲戦柌宀冾唹鏉╁浄绱濇禒閿嬬壐鐞涖劍婀伴煬顐＄瑝閸愬秴褰旈崝?鐢倸婧€鐢瓕顫嗘禒?閸掓绱濇穱婵囧瘮鐞涖劍鐗搁獮鎻掑櫍
 
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹傦紙鎺?pricing-page 鏂囨鏀归€狅級
-
----
-
-## [2026-04-19] docs(architecture): 鏂板椤圭洰鎶€鏈灦鏋勬枃妗?+ CLAUDE.md 瑙勫垯
-
-**褰卞搷鑼冨洿**:
-- `docs/dev/ARCHITECTURE.md` 鈥?鏂板銆傞《灞傚叆鍙ｆ枃妗ｏ紝瑕嗙洊鎶€鏈爤銆佸墠鍚庣鐩綍鍒嗗眰銆佽姹傜敓鍛藉懆鏈熴€乄ire DI 瑁呴厤鏂瑰紡銆丼ettings/PublicSettings KV 妯″紡銆佽縼绉荤害瀹氥€佺紦瀛樼瓥鐣ャ€佽璇佹巿鏉冦€佹ā鍨嬪畾浠疯В鏋愶紱鍓嶇鐨勮矾鐢?store/api client/甯冨眬/i18n/鍙嶉绾﹀畾锛? 涓父瑙佸紑鍙戜换鍔＄殑銆屾妱鍐欏紡銆嶆ā鏉匡紙鏂板 setting 瀛楁 / 鏂板瀛愮粨鏋?setting / 鏂板鐢ㄦ埛 API / 鏂板 ent 瀛楁 / 鏂板鍓嶇椤?/ 鏂板 i18n 閿級锛涙湰鍦板寲鐨勩€屽凡鐭ュ潙鐐广€嶆竻鍗曪紙Wire 涓诲共澶辫触銆乣docs/dev` gitignore銆丟it Bash POSIX 璺緞鏀瑰啓銆乄indows 绔彛鍐茬獊绛夛級锛涙ā鍧楁繁搴︽枃妗ｅ鑸?
-- `docs/dev/codebase/README.md` 鈥?鍦ㄦ渶涓婃柟鍔犱竴娈碉紝鎶婃灦鏋勬枃妗ｅ畾浣嶄负銆屽厛璇绘湰鏋舵瀯銆佸啀鎸夋ā鍧楄〃娣卞叆銆嶇殑鍏ュ彛
-- `CLAUDE.md` 鈥?Quick Reference 椤堕儴鍔?ARCHITECTURE.md锛汯ey Development Rules 绗?3 鏉℃柊澧炪€屾帰绱唬鐮佸墠鍏堣 ARCHITECTURE.md銆?銆屼綍鏃舵洿鏂?ARCHITECTURE.md銆嶏紙鏂板妯″潡銆佹敼璺ㄥ垏闈㈢害瀹氥€佸彂鐜版柊鍧戙€佹娊鍑哄彲澶嶇敤妯℃澘鍥涚被瑙﹀彂鏉′欢锛夛紱鍘熴€孋odebase Map銆嶈鍒欑紪鍙蜂粠 3 椤虹Щ鍒?4锛屽悗缁?4鈥?0 鍏ㄩ儴 +1
-
-**涓婃父鍏煎鎬?*: 闆躲€傜函鏂囨。銆?
-
-**鍙樻洿璇︽儏**:
-1. 鏂囨。瀹氫綅锛氭灦鏋勬枃妗ｄ笉鏄ā鍧?deep-dive锛岃€屾槸銆岃法鍒囬潰绾﹀畾 + 鍏ュ彛瀵艰埅銆嶃€傛ā鍧楃粏鑺傜户缁斁 `codebase/{module}.md`銆?
-2. 妯℃澘绔犺妭锛埪?锛夌洿鎺ユ妱灏辫兘鐢細姣忔潯閮界粰浜嗗叿浣撶殑鏂囦欢璺緞鍜岄『搴忥紝姣斻€岀瓑涓嬫鍙堝緱鐜版懜绱竴閬嶃€嶅揩寰堝銆?
-3. 宸茬煡鍧戯紙搂6锛夋妸浼氬弽澶嶈俯鐨?Wire / docs/dev / Git Bash / Windows 绔彛绛変簨鏁呭叏閮ㄦ矇娣€锛岄伩鍏嶄笅娆″張鑺辨椂闂村鐩樸€?
-
-**鍏宠仈 Issue/PR**: 鏃狅紙鏉ヨ嚜浼氳瘽鎬荤粨锛?
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮瑰偊绱欓幒?pricing-page 閺傚洦顢嶉弨褰掆偓鐙呯礆
 
 ---
 
-## [2026-04-19] feat(login-page): 宸︽爮鏀逛负 6 寮犲崱鐗囷紝鍚堝苟鎺ㄥ箍閭€璇峰苟绉婚櫎鍓爣棰樻
+## [2026-04-19] docs(architecture): 閺傛澘顤冩い鍦窗閹垛偓閺堫垱鐏﹂弸鍕瀮濡?+ CLAUDE.md 鐟欏嫬鍨?
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/views/auth/LoginView.vue` 鈥?鍒犻櫎鍓爣棰?`<p>` 浠ュ強 `loginDescription` computed锛涚嫭绔嬬殑鎺ㄥ箍閭€璇峰潡绉婚櫎锛沗FeatureKey` 鎵╁埌 6锛堝姞 `tutorial` / `referral`锛夛紱`featureCards` 閰嶇疆鍔犱袱寮犲崱锛堥潚鑹?/ 鐜矇锛夊苟鍚勯厤鍥炬爣锛坆ook-open / gift锛夛紱`featureHighlightTerms{Zh,En}` 琛?tutorial 鍜?referral 涓ょ粍楂樹寒璇嶏紱grid 浠?2脳2 璋冧负 2脳3锛堜粛鏄?`sm:grid-cols-2`锛?
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?`auth.login.features.*` 鏂板 `tutorial.{title,desc}`锛沗auth.login.referral` 缁撴瀯浠?`{tag,title,body}` 鍚堝苟杩?`features.referral.{title,desc}`锛屾鏂囨寜銆屽彲鍘嬬缉銆嶅師鍒欑簿绠€
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `docs/dev/ARCHITECTURE.md` 閳?閺傛澘顤冮妴鍌炪€婄仦鍌氬弳閸欙絾鏋冨锝忕礉鐟曞棛娲婇幎鈧張顖涚垽閵嗕礁澧犻崥搴ｎ伂閻╊喖缍嶉崚鍡楃湴閵嗕浇顕Ч鍌滄晸閸涜棄鎳嗛張鐔粹偓涔刬re DI 鐟佸懘鍘ら弬鐟扮础閵嗕讣ettings/PublicSettings KV 濡€崇础閵嗕浇绺肩粔鑽ゅ鐎规哎鈧胶绱︾€涙鐡ラ悾銉ｂ偓浣筋吇鐠囦焦宸块弶鍐︹偓浣鼓侀崹瀣暰娴犵柉袙閺嬫劧绱遍崜宥囶伂閻ㄥ嫯鐭鹃悽?store/api client/鐢啫鐪?i18n/閸欏秹顩痪锕€鐣鹃敍? 娑擃亜鐖剁憴浣哥磻閸欐垳鎹㈤崝锛勬畱閵嗗本濡遍崘娆忕础閵嗗秵膩閺夊尅绱欓弬鏉款杻 setting 鐎涙顔?/ 閺傛澘顤冪€涙劗绮ㄩ弸?setting / 閺傛澘顤冮悽銊﹀煕 API / 閺傛澘顤?ent 鐎涙顔?/ 閺傛澘顤冮崜宥囶伂妞?/ 閺傛澘顤?i18n 闁款噯绱氶敍娑欐拱閸︽澘瀵查惃鍕┾偓灞藉嚒閻儱娼欓悙骞库偓宥嗙閸楁洩绱橶ire 娑撹鍏辨径杈Е閵嗕梗docs/dev` gitignore閵嗕笩it Bash POSIX 鐠侯垰绶為弨鐟板晸閵嗕箘indows 缁旑垰褰涢崘鑼崐缁涘绱氶敍娑櫮侀崸妤佺箒鎼达附鏋冨锝咁嚤閼?
+- `docs/dev/codebase/README.md` 閳?閸︺劍娓舵稉濠冩煙閸旂姳绔村▓纰夌礉閹跺﹥鐏﹂弸鍕瀮濡楋絽鐣炬担宥勮礋閵嗗苯鍘涚拠缁樻拱閺嬭埖鐎妴浣稿晙閹稿膩閸ф銆冨ǎ鍗炲弳閵嗗秶娈戦崗銉ュ經
+- `CLAUDE.md` 閳?Quick Reference 妞ゅ爼鍎撮崝?ARCHITECTURE.md閿涙悲ey Development Rules 缁?3 閺夆剝鏌婃晶鐐偓灞惧赴缁鳖澀鍞惍浣稿閸忓牐顕?ARCHITECTURE.md閵?閵嗗奔缍嶉弮鑸垫纯閺?ARCHITECTURE.md閵嗗稄绱欓弬鏉款杻濡€虫健閵嗕焦鏁肩捄銊ュ瀼闂堛垻瀹崇€规哎鈧礁褰傞悳鐗堟煀閸ф垯鈧焦濞婇崙鍝勫讲婢跺秶鏁ゅΟ鈩冩緲閸ユ稓琚憴锕€褰傞弶鈥叉閿涘绱遍崢鐔粹偓瀛媜debase Map閵嗗秷顫夐崚娆戠椽閸欒渹绮?3 妞よ櫣些閸?4閿涘苯鎮楃紒?4閳?0 閸忋劑鍎?+1
 
-**鏂囨**: `features.tutorial` 鏂囧瓧涓ユ牸浣跨敤鐢ㄦ埛缁欏畾鍘熸枃銆俙features.referral.desc` 涓轰笂涓€娆″崰浣嶇鐨勫帇缂╃増锛堟巿鏉冨帇缂╋級銆傚叾浣欏崱鐗囷紙metered / quality / models / enterprise锛夊畬鍏ㄦ病鍔ㄣ€俙auth.login.description` i18n 閿繚鐣欎絾涓嶅啀娓叉煋銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 闂嗚翰鈧倻鍑介弬鍥ㄣ€傞妴?
 
-**涓婃父鍏煎鎬?*: 浣庛€傜函鍓嶇 + i18n 缁撴瀯璋冩暣銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 閺傚洦銆傜€规矮缍呴敍姘仸閺嬪嫭鏋冨锝勭瑝閺勵垱膩閸?deep-dive閿涘矁鈧本妲搁妴宀冩硶閸掑洭娼扮痪锕€鐣?+ 閸忋儱褰涚€佃壈鍩呴妴宥冣偓鍌浤侀崸妤冪矎閼哄倻鎴风紒顓熸杹 `codebase/{module}.md`閵?
+2. 濡剝婢樼粩鐘哄Ν閿涘煪?閿涘娲块幒銉﹀Ρ鐏忚精鍏橀悽顭掔窗濮ｅ繑娼柈鐣岀舶娴滃棗鍙挎担鎾舵畱閺傚洣娆㈢捄顖氱窞閸滃矂銆庢惔蹇ョ礉濮ｆ柣鈧瞼鐡戞稉瀣偧閸欏牆绶遍悳鐗堟嚋缁鳖澀绔撮柆宥冣偓宥呮彥瀵板牆顦块妴?
+3. 瀹歌尙鐓￠崸鎴礄鎼?閿涘濡告导姘冀婢跺秷淇惃?Wire / docs/dev / Git Bash / Windows 缁旑垰褰涚粵澶夌皑閺佸懎鍙忛柈銊︾焽濞ｂ偓閿涘矂浼╅崗宥勭瑓濞嗏€冲嫉閼鸿鲸妞傞梻鏉戭槻閻╂ǜ鈧?
 
-**鍙樻洿璇︽儏**:
-1. 鍓爣棰樻锛堛€岄潰鍚戝紑鍙戣€呭拰鍥㈤槦鐨勫妯″瀷涓浆绔欌€︹€︺€嶏級鎸夐渶姹傚垹闄わ紝`auth.login.description` 閿殏鏃朵繚鐣欓伩鍏嶅叾浠栨綔鍦ㄥ紩鐢ㄣ€?
-2. 鏂板绗?5 寮犲崱銆屽畬鍠勭殑鍒濆鑰呮暀绋嬨€嶏細闈掕壊锛坄#22D3EE`锛変富棰橈紝book-open 鍥炬爣銆?
-3. 鎺ㄥ箍閭€璇蜂粠鐙珛鍧楀彉涓虹 6 寮犲崱锛氱帿绮夛紙`#F472B6`锛変富棰橈紝gift 鍥炬爣銆傛弿杩板帇缂╀负涓€鍙ワ紝銆屼赴鍘氬鍔?/ 鎸佺画杩斾剑銆嶄袱澶勭敤涓婚鑹查珮浜己璋冦€?
-4. 鎺掑垪锛歳ow1 = metered + quality锛宺ow2 = models + tutorial锛宺ow3 = enterprise + referral锛屾寜銆屾牳蹇冧环鍊?鈫?浜у搧鑳藉姏 鈫?杩涢樁/鎺ㄥ箍銆嶈嚜鐒舵敹鏉熴€?
-
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
+**閸忓疇浠?Issue/PR**: 閺冪媴绱欓弶銉ㄥ殰娴兼俺鐦介幀鑽ょ波閿?
 
 ---
 
-## [2026-04-19] style(login-page): 4 寮?feature 鍗¤瑙夊姞閲?+ 鍏抽敭璇嶉珮浜?
+## [2026-04-19] feat(login-page): 瀹革附鐖弨閫涜礋 6 瀵姴宕遍悧鍥风礉閸氬牆鑻熼幒銊ョ畭闁偓鐠囧嘲鑻熺粔濠氭珟閸擃垱鐖ｆ０妯活唽
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/views/auth/LoginView.vue` 鈥?姣忓紶鍗℃柊澧為《閮ㄤ富棰樿壊鍏夊甫銆乣10脳10` 甯﹁壊鍥炬爣鍧椼€乣17px` 绮楁爣棰樸€乣14px` 姝ｆ枃锛涙弿杩伴噷鐗瑰畾鍏抽敭璇嶏紙浠锋牸銆?瓒呴珮鎬т环姣?銆乣Opus 4.7` / `GPT-5.4` / `Gemini 3.1 Pro`銆?寮€绁? 绛夛級鐢?`splitWithTerms` 鍦ㄨ繍琛屾椂鎷嗘骞剁敤涓婚鑹插姞绮楋紱鏂板 `FeatureKey` 绫诲瀷銆乣escapeRegExp`/`splitWithTerms` 杈呭姪鍑芥暟浠ュ強涓嫳涓ゅ楂樹寒璇嶈〃锛涙帹骞块個璇峰潡 padding / 鏍囬瀛楀彿鐣ユ敹锛岃 4 寮犲崱鐗囧湪瑙嗚灞傜骇涓婃洿绐佸嚭
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/views/auth/LoginView.vue` 閳?閸掔娀娅庨崜顖涚垼妫?`<p>` 娴犮儱寮?`loginDescription` computed閿涙稓瀚粩瀣畱閹恒劌绠嶉柇鈧拠宄版健缁夊娅庨敍娌桭eatureKey` 閹碘晛鍩?6閿涘牆濮?`tutorial` / `referral`閿涘绱盽featureCards` 闁板秶鐤嗛崝鐘辫⒈瀵姴宕遍敍鍫ユ綒閼?/ 閻滎偆鐭囬敍澶婅嫙閸氬嫰鍘ら崶鐐垼閿涘潌ook-open / gift閿涘绱盽featureHighlightTerms{Zh,En}` 鐞?tutorial 閸?referral 娑撱倗绮嶆妯瑰瘨鐠囧稄绱眊rid 娴?2鑴? 鐠嬪啩璐?2鑴?閿涘牅绮涢弰?`sm:grid-cols-2`閿?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?`auth.login.features.*` 閺傛澘顤?`tutorial.{title,desc}`閿涙矖auth.login.referral` 缂佹挻鐎禒?`{tag,title,body}` 閸氬牆鑻熸潻?`features.referral.{title,desc}`閿涘本顒滈弬鍥ㄥ瘻閵嗗苯褰查崢瀣級閵嗗秴甯崚娆戠翱缁犫偓
 
-**鏂囨**: 涓嶅彉銆俙auth.login.features.*.{title,desc}` 鍜?`auth.login.referral.*` 鍏ㄩ儴涓庝笂涓€涓彁浜や竴鑷达紝鏈绾瑙夊眰鏀瑰姩銆?
+**閺傚洦顢?*: `features.tutorial` 閺傚洤鐡ф稉銉︾壐娴ｈ法鏁ら悽銊﹀煕缂佹瑥鐣鹃崢鐔告瀮閵嗕繖features.referral.desc` 娑撹桨绗傛稉鈧▎鈥冲窗娴ｅ秶顭堥惃鍕竾缂傗晝澧楅敍鍫熷房閺夊啫甯囩紓鈺嬬礆閵嗗倸鍙炬担娆忓幢閻楀浄绱檓etered / quality / models / enterprise閿涘鐣崗銊︾梾閸斻劊鈧繖auth.login.description` i18n 闁款喕绻氶悾娆庣稻娑撳秴鍟€濞撳弶鐓嬮妴?
 
-**涓婃父鍏煎鎬?*: 浣庛€傚彧鏀圭櫥褰曢〉鏍锋澘 + 缁勪欢绾у唴閮ㄩ厤缃€?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倻鍑介崜宥囶伂 + i18n 缂佹挻鐎拫鍐╂殻閵?
 
-**鍙樻洿璇︽儏**:
-1. 姣忓紶鍗℃湁鐙珛涓婚鑹诧細浠锋牸锛堥潚缁匡級/ 鍝佽川锛堣摑锛? 妯″瀷锛堢传锛? 浼佷笟锛堢惀鐝€锛夛紝鍥炬爣鑳屾櫙 + 楂樹寒璇?+ 椤堕儴 2px 鍏夊甫閮借窡鐫€閰嶈壊鍙樸€?
-2. 楂樹寒璇嶆槸瑙嗚瑙勫垯锛屼笉鏄枃妗堬細鐢ㄤ竴浠?`featureHighlightTermsZh|En` 鍦ㄨ剼鏈噷澹版槑锛岃繍琛屾椂鐢ㄦ鍒欐媶鎻忚堪涓诧紝鍖归厤鍒板氨鍖?`<span>` 鍙樼矖鍔犺壊锛沬18n 鏂囨鏀瑰姩鍚庤嫢娌″懡涓紝鍙槸涓嶉珮浜紝涓嶆姤閿欍€?
-3. 鍗＄墖 shell锛歚rounded-[22px]` + 娓愬彉搴?+ 鏇村己闃村奖 + hover 鏃跺彉浜紝鏁翠綋浣撻噺鏄庢樉瓒呰繃鎺ㄥ箍鍧椼€?
-4. 鎺ㄥ箍鍧楋細padding 浠?`p-5` 璋冨埌 `px-5 py-4`锛屾爣棰?18鈫?6锛岃瑙嗚鐒︾偣钀藉湪 4 寮犲崱鐗囦笂銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 閸擃垱鐖ｆ０妯活唽閿涘牄鈧矂娼伴崥鎴濈磻閸欐垼鈧懎鎷伴崶銏ゆЕ閻ㄥ嫬顦垮Ο鈥崇€锋稉顓℃祮缁旀瑢鈧腹鈧负鈧稄绱氶幐澶愭付濮瑰倸鍨归梽銈忕礉`auth.login.description` 闁款喗娈忛弮鏈电箽閻ｆ瑩浼╅崗宥呭従娴犳牗缍旈崷銊ョ穿閻劊鈧?
+2. 閺傛澘顤冪粭?5 瀵姴宕遍妴灞界暚閸犲嫮娈戦崚婵嗩劅閼板懏鏆€缁嬪鈧稄绱伴棃鎺曞閿涘潉#22D3EE`閿涘瀵屾０姗堢礉book-open 閸ョ偓鐖ｉ妴?
+3. 閹恒劌绠嶉柇鈧拠铚傜矤閻欘剛鐝涢崸妤€褰夋稉铏诡儑 6 瀵姴宕遍敍姘卞缚缁绱檂#F472B6`閿涘瀵屾０姗堢礉gift 閸ョ偓鐖ｉ妴鍌涘伎鏉╂澘甯囩紓鈺€璐熸稉鈧崣銉礉閵嗗奔璧撮崢姘殯閸?/ 閹镐胶鐢绘潻鏂惧墤閵嗗秳琚辨径鍕暏娑撳顣介懝鏌ョ彯娴滎喖宸辩拫鍐︹偓?
+4. 閹烘帒鍨敍姝硂w1 = metered + quality閿涘ow2 = models + tutorial閿涘ow3 = enterprise + referral閿涘本瀵滈妴灞剧壋韫囧啩鐜崐?閳?娴溠冩惂閼宠棄濮?閳?鏉╂盯妯?閹恒劌绠嶉妴宥堝殰閻掕埖鏁归弶鐔粹偓?
 
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹傦紙鎺ヤ笂鏉?feature 鍗￠噸璁捐锛?
-
----
-
-## [2026-04-19] feat(login-page): 宸︽爮钀ラ攢鍖烘敼鐗堬細4 寮?feature 鍗?+ 鎺ㄥ箍閭€璇?
-
-**褰卞搷鑼冨洿**:
-- `frontend/src/views/auth/LoginView.vue` 鈥?鍒犻櫎宸︽爮涓嬪崐鍖虹殑 feature pills銆佹ā鍨嬪睍绀虹綉鏍笺€? 寮犳棫 feature cards 鍜屼笉鍐嶄娇鐢ㄧ殑 `modelChannels` / `paymentCnyPerUsd` / `loginSupportedModelsTitle` / `loginModelsDesc`锛涙柊澧?2脳2 鐨?4 寮?feature 鍗＄墖锛堣绠楀睘鎬?`featureCards`锛変笌鎺ㄥ箍閭€璇峰己璋冨尯鍧?
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鏂板 `auth.login.features.{metered,quality,models,enterprise}.{title,desc}` + `auth.login.referral.{tag,title,body}` 涓ょ粍閿紱淇濈暀 `featurePrice`銆乣featureUnifiedApi*` 绛夋棫閿笉鍔紙閬垮厤褰卞搷鍏朵粬缁勪欢 / 闃叉涓婃父鍐茬獊锛夛紝鍙槸鐧诲綍椤垫ā鏉夸笉鍐嶅紩鐢?
-
-**涓婃父鍏煎鎬?*: 浣庛€傚墠绔牱鏉块噸鍐?+ 鏂板 i18n锛涘悗绔€佹暟鎹簱涓嶅姩銆?
-
-**鍙樻洿璇︽儏**:
-1. 椤堕儴鍖轰粛鐢?badge / 涓よ鏍囬 / description 缁勬垚锛屾部鐢ㄤ箣鍓嶇殑绠＄悊鍛樺彲缂栬緫瑕嗙洊鏈哄埗锛坄login_page.*` settings 瀛楁锛夈€?
-2. 涓嬪崐鍖轰竴娆℃斁瀹?4 寮犲崱鐗?+ 1 寮犳帹骞块個璇峰崱锛岃瑙夊眰绾э細feature 鍗★紙涓€ф繁鑹插簳锛夆啋 鎺ㄥ箍鍗★紙闈掔豢娓愬彉 + 鑽у厜鎻忚竟锛夋妸閲嶇偣鎷夊紑銆?
-3. 4 寮犲崱鐗囧綋鍓嶈蛋 i18n 纭紪鐮侊紙鏂囨绋冲畾锛夛紝鍚庣画鑻ラ渶绠＄悊鍛樺彲缂栬緫锛屽姞瀛楁鍒?`LoginPageContent` 鍗冲彲銆?
-4. 鎺ㄥ箍閭€璇?`body` 涓哄崰浣嶇锛岀瓑鏈€缁堟枃妗堢‘瀹氬悗鐩存帴鏀?i18n 鎴栧崌绾т负绠＄悊鍛樺彲缂栬緫瀛楁銆?
-5. 绠＄悊鍛樼紪杈戝櫒閲岀殑 `supportedModelsTitle`銆乣modelsDesc` 涓ゅ瓧娈垫湰娆¤捣涓嶅啀褰卞搷鐧诲綍椤垫覆鏌擄紙淇濈暀瀛楁鏆備笉鍒狅紝鍚庣画缁熶竴娓呯悊锛夈€?
-
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮?
 
 ---
 
-## [2026-04-18] fix(settings): 鐧诲綍椤典环鏍煎姩鎬佸寲 + 淇鍏呭€肩鐞嗕繚瀛樿娓呯┖娉ㄥ唽绛夎缃?
+## [2026-04-19] style(login-page): 4 瀵?feature 閸椔ゎ潒鐟欏濮為柌?+ 閸忔娊鏁拠宥夌彯娴?
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/service/settings_view.go` 鈥?`PublicSettings` 鏂板 `PaymentCNYPerUSD float64`
-- `backend/internal/service/setting_service.go` 鈥?`GetPublicSettings` 璇诲彇 `SettingCNYPerUSD`锛沗GetPublicSettingsForInjection` 娉ㄥ叆鍖垮悕缁撴瀯浣撳悓姝ユ柊澧炲瓧娈?
-- `backend/internal/handler/dto/settings.go` 鈥?鍏紑璁剧疆 DTO 鏂板 `payment_cny_per_usd`
-- `backend/internal/handler/setting_handler.go` 鈥?鍦?`GetPublicSettings` 鍝嶅簲閲屽～鍏呮柊瀛楁
-- `frontend/src/types/index.ts` 鈥?`PublicSettings` 鎺ュ彛鏂板 `payment_cny_per_usd: number`
-- `frontend/src/stores/app.ts` 鈥?榛樿绌洪厤缃ˉ榻?`payment_cny_per_usd: 0`
-- `frontend/src/i18n/locales/zh.ts`銆乣en.ts` 鈥?`featurePrice` 鏀逛负甯?`{price}` 鍗犱綅鐨勬ā鏉匡紱鏂板 `featurePriceDefault` 浣滀负鏈厤缃椂鐨勫洖閫€鏂囨
-- `frontend/src/views/auth/LoginView.vue` 鈥?鏂板 `paymentCnyPerUsd` ref锛宍onMounted` 浠庡叕寮€璁剧疆璇诲彇锛沠eature pill 鎸夐厤缃姩鎬佹覆鏌擄紝鏈厤缃洖閫€
-- `frontend/src/api/admin/settings.ts` 鈥?鏂板 `systemSettingsToUpdateRequest(SystemSettings) => UpdateSettingsRequest` 鏄犲皠鍑芥暟锛涙敞鍏?`settingsAPI`
-- `frontend/src/views/admin/RechargeConfigView.vue` 鈥?`save()` 鍏?`getSettings()` 鍐嶆暣浣?`updateSettings(...)`锛屽彧瑕嗙洊 `payment_cny_per_usd` / `payment_bonus_tiers`
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/views/auth/LoginView.vue` 閳?濮ｅ繐绱堕崡鈩冩煀婢х偤銆婇柈銊ゅ瘜妫版澹婇崗澶婄敨閵嗕梗10鑴?0` 鐢箒澹婇崶鐐垼閸фぜ鈧梗17px` 缁鐖ｆ０妯糕偓涔?4px` 濮濓絾鏋冮敍娑欏伎鏉╀即鍣烽悧鐟扮暰閸忔娊鏁拠宥忕礄娴犻攱鐗搁妴?鐡掑懘鐝幀褌鐜В?閵嗕梗Opus 4.7` / `GPT-5.4` / `Gemini 3.1 Pro`閵?瀵偓缁? 缁涘绱氶悽?`splitWithTerms` 閸︺劏绻嶇悰灞炬閹峰棙顔岄獮鍓佹暏娑撳顣介懝鎻掑缁绱遍弬鏉款杻 `FeatureKey` 缁鐎烽妴涔scapeRegExp`/`splitWithTerms` 鏉堝懎濮崙鑺ユ殶娴犮儱寮锋稉顓″娑撱倕顨滄妯瑰瘨鐠囧秷銆冮敍娑欏腹楠炲潡鍊嬬拠宄版健 padding / 閺嶅洭顣界€涙褰块悾銉︽暪閿涘矁顔€ 4 瀵姴宕遍悧鍥ф躬鐟欏棜顫庣仦鍌滈獓娑撳﹥娲跨粣浣稿毉
 
-**涓婃父鍏煎鎬?*:
-- 鍚庣鏂板瀛楁涓哄彲閫夎拷鍔狅紝鍚堝苟涓婃父鏃惰嫢涓婃父涔熸敼鍔?`PublicSettings` / 鍏紑璁剧疆 handler锛岀暀鎰忓啿绐佷綅缃紙鍧囦负缁撴瀯浣撳熬閮ㄦ垨 return 瀛楁鍒楄〃锛?
-- 鍓嶇鏂板鐨?`systemSettingsToUpdateRequest` 鏄湰鍦颁簩寮€宸ュ叿鍑芥暟锛岀嫭绔嬩簬涓婃父
+**閺傚洦顢?*: 娑撳秴褰夐妴淇檃uth.login.features.*.{title,desc}` 閸?`auth.login.referral.*` 閸忋劑鍎存稉搴濈瑐娑撯偓娑擃亝褰佹禍銈勭閼疯揪绱濋張顒侇偧缁绢垵顫嬬憴澶婄湴閺€鐟板З閵?
 
-**鍙樻洿璇︽儏**:
-- Bug 1 鈥?鐧诲綍椤典环鏍肩‖缂栫爜锛歚LoginView` 鍘熷厛娓叉煋 `t('auth.login.featurePrice')` 鐨勯潤鎬佹枃妗?`'0.6 / 1$ 璧?`锛屼笌 admin 鍦?鍏呭€肩鐞?璁剧疆鐨?`payment_cny_per_usd` 瀹屽叏鑴遍挬銆傜幇灏嗚姹囩巼閫氳繃 `/api/v1/settings/public` 鏆撮湶锛堜笌 SSR 娉ㄥ叆璺緞淇濇寔涓€鑷达級锛屽墠绔鍙栧悗浠?`{price} / 1$ 璧穈 妯℃澘娓叉煋锛涗负 0 鎴栨湭閰嶇疆鏃跺洖閫€鍒?`featurePriceDefault` 闈欐€佹枃妗堛€?
-- Bug 2 鈥?"姣忔閮ㄧ讲寮€鏀炬敞鍐岃閲嶇疆"锛氱湡姝ｆ牴鍥犱笉鏄儴缃茶剼鏈€傚悗绔?`UpdateSettingsRequest` 缁濆ぇ澶氭暟 `bool` / `string` 瀛楁鏄?*闈炴寚閽?*锛孞SON 鍙嶅簭鍒楀寲鏃剁己澶卞瓧娈典細琚～ `false` / `""`锛沗RechargeConfigView.save()` 鍙彂 `payment_cny_per_usd` 涓?`payment_bonus_tiers`锛宧andler 缁х画鏋勯€犲畬鏁?`SystemSettings` 骞?`SetMultiple` 鍥炲啓锛屽鑷?`registration_enabled`銆乣site_name`銆丱IDC/LinuxDo 寮€鍏崇瓑琚潤榛樻竻绌恒€備慨澶嶉噰鐢ㄦ渶灏忔敼鍔細`RechargeConfigView` 鍏堟媺瀹屾暣 settings锛岀敤鏂板缓鐨勬槧灏勫嚱鏁拌浆鎴愯姹備綋锛屽啀瑕嗙洊涓や釜 payment 瀛楁鍙戝嚭锛屼娇鍥炲啓鏄?璇绘棫鍊煎啓鏃у€?锛岄伩鍏嶈娓呯┖銆傚嚟鎹被瀛楁锛坄smtp_password` 绛夛級鍦ㄦ槧灏勫嚱鏁颁腑鏁呮剰鐣欑┖锛屽悗绔?绌哄€艰烦杩囪鐩?瀹堟姢缁х画鐢熸晥銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倸褰ч弨鍦瑜版洟銆夐弽閿嬫緲 + 缂佸嫪娆㈢痪褍鍞撮柈銊╁帳缂冾喓鈧?
 
-**楠岃瘉鏂瑰紡**:
-- `go build ./...` 閫氳繃锛涘墠绔?`pnpm run typecheck` 閫氳繃锛沨andler 鐩稿叧鍗曟祴閫氳繃锛坰ervice 灞傚彈 `gemini_oauth_service_test.go` 棰勫瓨鍦ㄧ殑 mock 鎺ュ彛涓嶅畬鏁村奖鍝嶏紝鏈柊澧炴祴璇曞け璐ワ級
-- 鎵嬪伐锛氬厖鍊肩鐞嗕繚瀛?`cny_per_usd=0.8` 鈫?鐧诲綍椤垫樉绀?`0.8 / 1$ 璧穈锛涘悓鏃剁郴缁熻缃噷"寮€鏀炬敞鍐?绛夊紑鍏充繚鎸佺敤鎴蜂箣鍓嶇殑鍊间笉鍙?
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 濮ｅ繐绱堕崡鈩冩箒閻欘剛鐝涙稉濠氼暯閼硅绱版禒閿嬬壐閿涘牓娼氱紒鍖＄礆/ 閸濅浇宸濋敍鍫ｆ憫閿? 濡€崇€烽敍鍫紶閿? 娴间椒绗熼敍鍫㈡儉閻濃偓閿涘绱濋崶鐐垼閼冲本娅?+ 妤傛ü瀵掔拠?+ 妞ゅ爼鍎?2px 閸忓鐢柈鍊熺閻偓闁板秷澹婇崣妯糕偓?
+2. 妤傛ü瀵掔拠宥嗘Ц鐟欏棜顫庣憴鍕灟閿涘奔绗夐弰顖涙瀮濡楀牞绱伴悽銊ょ娴?`featureHighlightTermsZh|En` 閸︺劏鍓奸張顒勫櫡婢圭増妲戦敍宀冪箥鐞涘本妞傞悽銊︻劀閸掓瑦濯堕幓蹇氬牚娑撹绱濋崠褰掑帳閸掓澘姘ㄩ崠?`<span>` 閸欐鐭栭崝鐘哄閿涙铂18n 閺傚洦顢嶉弨鐟板З閸氬氦瀚㈠▽鈥虫嚒娑擃叏绱濋崣顏呮Ц娑撳秹鐝禍顕嗙礉娑撳秵濮ら柨娆嶁偓?
+3. 閸楋紕澧?shell閿涙瓪rounded-[22px]` + 濞撴劕褰夋惔?+ 閺囨潙宸遍梼鏉戝 + hover 閺冭泛褰夋禍顕嗙礉閺佺繝缍嬫担鎾诲櫤閺勫孩妯夌搾鍛扮箖閹恒劌绠嶉崸妞尖偓?
+4. 閹恒劌绠嶉崸妤嬬窗padding 娴?`p-5` 鐠嬪啫鍩?`px-5 py-4`閿涘本鐖ｆ０?18閳?6閿涘矁顔€鐟欏棜顫庨悞锔惧仯閽€钘夋躬 4 瀵姴宕遍悧鍥︾瑐閵?
 
-
-**褰卞搷鑼冨洿**:
-- `backend/ent/schema/ai_credit_snapshot.go` 鈥?鏂?Ent schema锛歚AICreditSnapshot { email, credit_type, amount, captured_at }` + 澶嶅悎绱㈠紩
-- `backend/ent/aicreditsnapshot/`銆乣backend/ent/aicreditsnapshot*.go` 鈥?Ent 鐢熸垚浠ｇ爜锛坄go generate ./ent`锛?
-- `backend/migrations/110_add_ai_credit_snapshots.sql` 鈥?寤鸿〃 + `(email, captured_at)` 涓?`(captured_at)` 绱㈠紩
-- `backend/internal/service/credit_snapshot.go` 鈥?`CreditSnapshot` 缁撴瀯銆乣CreditSnapshotRepository`銆乣AntigravityUsageAggregator`銆乣AntigravityUsageRatio` 鍝嶅簲绫诲瀷
-- `backend/internal/service/credit_snapshot_service.go` 鈥?`CreditSnapshotService`锛?5 鍒嗛挓 ticker 瀹氭椂閲囨牱銆乣TriggerManualCapture`锛?0 绉掕繘绋嬪唴鍐峰嵈閿侊級銆乣GetAntigravityUsageRatio`锛堢浉閭婚噰鏍风偣姝ｅ悜 delta 姹傚拰 + `usage_logs` 鑱氬悎锛?
-- `backend/internal/repository/credit_snapshot_repo.go` 鈥?鍩轰簬 Ent 鐨勪粨搴撳疄鐜帮紙Insert/ListInRange/GetLatestBefore锛?
-- `backend/internal/repository/antigravity_usage_aggregator.go` 鈥?鐙珛灏忔帴鍙ｅ疄鐜帮細`SELECT COUNT + SUM(total_cost) FROM usage_logs WHERE account_id = ANY($1) AND created_at 鈭?[start,end)`
-- `backend/internal/handler/admin/usage_handler.go` 鈥?`NewUsageHandler` 鍔?`creditSnapshotService` 渚濊禆锛涙柊澧?`StatsAntigravity` / `RefreshAntigravityStats`锛涙彁鍙?`parseStatsDateRange` 杈呭姪鍑芥暟
-- `backend/internal/handler/admin/{usage_cleanup_handler_test,usage_handler_request_type_test}.go` 鈥?stub 琛ラ綈鏂板弬鏁颁綅 `nil`
-- `backend/internal/server/routes/admin.go` 鈥?`GET /admin/usage/stats/antigravity`銆乣POST /admin/usage/stats/antigravity/refresh`
-- `backend/internal/service/wire.go` 鈥?鏂板 `ProvideCreditSnapshotService` 骞跺叆 `ProviderSet`
-- `backend/internal/repository/wire.go` 鈥?`NewCreditSnapshotRepository` / `NewAntigravityUsageAggregator` 鍔犲叆 `ProviderSet`
-- `backend/cmd/server/wire_gen.go` 鈥?鎵嬪姩缂栨帓鏂?Repo + Service + Handler 渚濊禆锛堜富骞?`go generate` 鍥犲巻鍙?Payment 閲嶅缁戝畾澶辫触锛屾寜鐜版湁妯″紡鎻掑叆锛?
-- `frontend/src/api/admin/usage.ts` 鈥?鏂板 `AntigravityUsageRatio` 绫诲瀷銆乣getAntigravityStats`銆乣refreshAntigravityStats`
-- `frontend/src/components/admin/usage/AntigravityRatioCard.vue` 鈥?鏂扮粍浠讹細4 鍒楁寚鏍囧崱 + 銆岀珛鍗抽噰鏍枫€嶆寜閽?+ 閲囨牱涓嶈冻/鍐峰嵈鎻愮ず
-- `frontend/src/views/admin/UsageView.vue` 鈥?寮曞叆鍗＄墖锛屼笌鐜版湁 `UsageStatsCards` 鍏辩敤 `DateRangePicker`锛屽悓涓€鍒锋柊閾捐矾瑙﹀彂
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鏂板 `usage.antigravity.*` 鏂囨
-
-**涓婃父鍏煎鎬?*: 浣庛€傛墍鏈夋柊澧炴枃浠?瀛楁鍧囦负 additive锛涗粎 `admin/usage_handler.go` 鏋勯€犲櫒鍔犲弬鏁帮紙涓婃父鑻ラ噸鏋?handler 鍒濆鍖栫鍚嶉渶鍚屾锛夛紱`wire_gen.go` 浠嶉渶鎵嬪伐鍚堝苟銆俙AntigravityUsageAggregator` 鍒绘剰娌℃帴鍏?`UsageLogRepository` 鎺ュ彛锛岄伩鍏嶆棩鍚庢敼鍔ㄥ崄鍑犲 stub銆?
-
-**鍙樻洿璇︽儏**:
-1. Antigravity AI Credits 浣欓涓嶅彲鍥炴函鏌ヨ锛堣繙绔?API 鍙粰褰撳墠鍊硷級锛屽洜姝ゆ柊澧?`ai_credit_snapshots` 琛ㄣ€俙CreditSnapshotService` 姣?15 鍒嗛挓鍚姩涓€娆￠噰鏍凤細鎸?`credentials.email` 鍘婚噸锛堝悓 Google 璐﹀彿鍏变韩 credits锛夛紝澶嶇敤 `AccountUsageService.GetUsage` 鐨?3 鍒嗛挓缂撳瓨灞傛媺浣欓锛岄伩鍏嶉澶?API 鍘嬪姏銆?
-2. 鑱氬悎鍙ｅ緞锛氬姣忎釜 email 鍦?`[start - 30 min lookback, end]` 鍐呯殑蹇収鎸夋椂闂村崌搴忚蛋鐩搁偦瀵癸紝绱姞姝ｅ悜 delta銆傝礋鍚?delta锛堝厖鍊?閲嶇疆锛夎烦杩囥€傛淳鐢熸瘮鐜?`quota_per_credit = SUM(total_cost) / total_credits`銆乣calls_per_credit = COUNT(*) / total_credits`锛宍total_credits == 0` 鏃惰繑鍥?null锛堝墠绔睍绀?閲囨牱涓嶈冻"鎻愮ず锛夈€?
-3. 鎵嬪姩瑙﹀彂鎺ュ彛 `POST .../refresh` 鍔?30 绉掕繘绋嬪唴鍐峰嵈閿侊紙`sync.Mutex + lastManualAt`锛夛紝鍐峰嵈鏈熷唴杩斿洖 `manual_refresh_throttled=true` 骞朵笉閲嶅鎵撹繙绔€傜鐞嗗憳璇偣涓嶄細鏀惧ぇ API 鍘嬪姏銆?
-4. 鍓嶇鍗＄墖鎺ュ叆鐜版湁 `startDate`/`endDate`锛宍loadStats()` 缁撴潫鍚庡苟琛屾媺 antigravity 鑱氬悎锛涘け璐ュ彧 `console.error` 涓嶉樆鏂富娴佺▼銆?
-5. 楠岃瘉锛歚docker exec sub2api-pg-dev psql` 纭 migration 110 搴旂敤銆乣ai_credit_snapshots` 琛ㄧ粨鏋勬纭紱鏈湴鍚姩鍚?`[CreditSnapshot] Scheduler started` 涓庤矾鐢?`GET/POST /api/v1/admin/usage/stats/antigravity(/refresh)` 鍧囧凡娉ㄥ唽銆?
-
-**鍏宠仈 Issue/PR**: 鏃?
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮瑰偊绱欓幒銉ょ瑐閺?feature 閸楋繝鍣哥拋鎹愵吀閿?
 
 ---
 
-## [2026-04-18] fix(keys): 淇銆屽叆闂ㄦ寚鍗椼€嶉噷 CC-Switch 鐨勪笅杞藉湴鍧€
+## [2026-04-19] feat(login-page): 瀹革附鐖拃銉╂敘閸栫儤鏁奸悧鍫窗4 瀵?feature 閸?+ 閹恒劌绠嶉柇鈧拠?
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/components/keys/GettingStartedGuide.vue` 鈥?绗簩姝ヤ笅杞芥寜閽?`href` 浠?`github.com/nicepkg/cc-switch/releases`锛堥敊璇粨搴擄級鏀逛负 `github.com/farion1231/cc-switch/releases`锛堝畼鏂逛粨搴擄級
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/views/auth/LoginView.vue` 閳?閸掔娀娅庡锔界埉娑撳宕愰崠铏规畱 feature pills閵嗕焦膩閸ㄥ鐫嶇粈铏圭秹閺嶇鈧? 瀵姵妫?feature cards 閸滃奔绗夐崘宥勫▏閻劎娈?`modelChannels` / `paymentCnyPerUsd` / `loginSupportedModelsTitle` / `loginModelsDesc`閿涙稒鏌婃晶?2鑴? 閻?4 瀵?feature 閸楋紕澧栭敍鍫ｎ吀缁犳鐫橀幀?`featureCards`閿涘绗岄幒銊ョ畭闁偓鐠囧嘲宸辩拫鍐ㄥ隘閸?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?閺傛澘顤?`auth.login.features.{metered,quality,models,enterprise}.{title,desc}` + `auth.login.referral.{tag,title,body}` 娑撱倗绮嶉柨顕嗙幢娣囨繄鏆€ `featurePrice`閵嗕梗featureUnifiedApi*` 缁涘妫柨顔荤瑝閸旑煉绱欓柆鍨帳瑜板崬鎼烽崗鏈电铂缂佸嫪娆?/ 闂冨弶顒涙稉濠冪埗閸愯尙鐛婇敍澶涚礉閸欘亝妲搁惂璇茬秿妞ゅ灚膩閺夊じ绗夐崘宥呯穿閻?
 
-**涓婃父鍏煎鎬?*: 浣庛€備笂娓歌嫢鏈娇鐢ㄦ閾炬帴鍒欐棤鍐茬獊銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倸澧犵粩顖涚壉閺夊潡鍣搁崘?+ 閺傛澘顤?i18n閿涙稑鎮楃粩顖樷偓浣规殶閹诡喖绨辨稉宥呭З閵?
 
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 妞ゅ爼鍎撮崠杞扮矝閻?badge / 娑撱倛顢戦弽鍥暯 / description 缂佸嫭鍨氶敍灞鹃儴閻劋绠ｉ崜宥囨畱缁狅紕鎮婇崨妯哄讲缂傛牞绶憰鍡欐磰閺堝搫鍩楅敍鍧刲ogin_page.*` settings 鐎涙顔岄敍澶堚偓?
+2. 娑撳宕愰崠杞扮濞嗏剝鏂佺€?4 瀵姴宕遍悧?+ 1 瀵姵甯归獮鍧楀€嬬拠宄板幢閿涘矁顫嬬憴澶婄湴缁狙嶇窗feature 閸椻槄绱欐稉顓熲偓褎绻侀懝鎻掔俺閿涘鍟?閹恒劌绠嶉崡鈽呯礄闂堟帞璞㈠〒鎰綁 + 閼窖冨帨閹诲繗绔熼敍澶嬪Ω闁插秶鍋ｉ幏澶婄磻閵?
+3. 4 瀵姴宕遍悧鍥х秼閸撳秷铔?i18n 绾剛绱惍渚婄礄閺傚洦顢嶇粙鍐茬暰閿涘绱濋崥搴ｇ敾閼汇儵娓剁粻锛勬倞閸涙ê褰茬紓鏍帆閿涘苯濮炵€涙顔岄崚?`LoginPageContent` 閸楀啿褰查妴?
+4. 閹恒劌绠嶉柇鈧拠?`body` 娑撳搫宕版担宥囶焾閿涘瞼鐡戦張鈧紒鍫熸瀮濡楀牏鈥樼€规艾鎮楅惄瀛樺复閺€?i18n 閹存牕宕岀痪褌璐熺粻锛勬倞閸涙ê褰茬紓鏍帆鐎涙顔岄妴?
+5. 缁狅紕鎮婇崨妯肩椽鏉堟垵娅掗柌宀€娈?`supportedModelsTitle`閵嗕梗modelsDesc` 娑撱倕鐡у▓鍨拱濞喡ゆ崳娑撳秴鍟€瑜板崬鎼烽惂璇茬秿妞ゅ灚瑕嗛弻鎿勭礄娣囨繄鏆€鐎涙顔岄弳鍌欑瑝閸掔媴绱濋崥搴ｇ敾缂佺喍绔村〒鍛倞閿涘鈧?
 
----
-
-## [2026-04-18] refactor(page-content): 鍚堝苟銆岃浠烽〉鏂囨銆嶅拰銆岀櫥褰曢〉鏂囨銆嶄负缁熶竴 Tab 椤?
-
-**褰卞搷鑼冨洿**:
-- `frontend/src/views/admin/PageContentView.vue` 鈥?鏂板鍚堝苟鐖惰鍥撅細`AppLayout` + 鍏变韩澶撮儴 + 涓や釜 tab锛堟ā鍨嬭浠烽〉 / 鐧诲綍椤碉級 + `?tab=pricing|login` URL 鍚屾 + `<KeepAlive>` 淇濈暀琛ㄥ崟杈撳叆涓嶄涪澶?
-- `frontend/src/components/admin/page-content/PricingContentForm.vue` 鈥?鐢?`PricingPageView.vue` 鍓ュ嚭 AppLayout/椤垫爣棰樺悗寰楀埌锛屼粎淇濈暀鎻愮ず鍗°€佷袱娈?textarea銆佷繚瀛樻寜閽?
-- `frontend/src/components/admin/page-content/LoginContentForm.vue` 鈥?鐢?`LoginPageView.vue` 鍓ュ嚭 AppLayout/椤垫爣棰樺悗寰楀埌锛屼繚鐣欎笁缁?8 瀛楁 + 娓呯┖/淇濆瓨/棰勮
-- `frontend/src/views/admin/PricingPageView.vue`銆乣frontend/src/views/admin/LoginPageView.vue` 鈥?鍒犻櫎
-- `frontend/src/router/index.ts` 鈥?鏂?`/admin/page-content` 璺敱锛沗/admin/pricing-page`銆乣/admin/login-page` 淇濈暀涓?redirect 鍒版柊璺緞骞跺甫涓?`?tab=` 鍙傛暟锛岃€佷功绛句笉澶辨晥
-- `frontend/src/components/layout/AppSidebar.vue` 鈥?绠＄悊鍛樹晶杈规爮鍘绘帀涓ゆ潯鏃ч」锛屽悎鎴愪竴鏉°€岄〉闈㈡枃妗堛€?
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鍒?`nav.pricingPage` / `nav.loginPage`锛涙柊澧?`nav.pageContent` + `admin.pageContent.{title,description,tabs.{pricing,login}}`锛涗繚鐣?`admin.pricingPage.*` / `admin.loginPage.*`锛堜袱涓瓙缁勪欢浠嶇劧娑堣垂锛?
-
-**涓婃父鍏煎鎬?*: 浣庛€傚彧鍔ㄥ墠绔紝鍚庣 handler 鍜岃缃?key 涓嶅彉銆?
-
-**鍙樻洿璇︽儏**:
-1. 鍚堝苟鍔ㄦ満锛氫袱鍧楅兘鏄€屽墠鍙伴〉闈㈡枃妗堢鐞嗐€嶏紝鎷嗕袱涓晶杈规爮鏉＄洰鍋忓啑浣欙紱鏈潵濡傛灉杩樿鍔犳柊椤甸潰锛堜緥濡備华琛ㄧ洏銆?04 椤碉級缁熶竴鏀捐繘杩欎釜 tab 椤靛嵆鍙€?
-2. Tab 鍒囨崲閫氳繃 URL `?tab=...` 鍚屾锛屼究浜庢繁閾炬帴 + 娴忚鍣ㄥ墠杩?鍚庨€€锛涙湭鎸囧畾鏃堕粯璁?`pricing`銆?
-3. `<KeepAlive>` 淇濈暀瀛愮粍浠剁姸鎬侊紝鐢ㄦ埛鍦ㄤ袱涓?tab 涔嬮棿鍒囨崲鏃舵湭淇濆瓨鐨勭紪杈戜笉浼氫涪銆?
-4. 鑰佽矾寰勪繚鐣?redirect 鍒版柊璺緞锛屾棫涔︾骞虫粦杩囨浮銆?
-
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹傦紙绱ф帴涓ゆ鏂囨鍔熻兘鍚堝苟锛?
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮?
 
 ---
 
-## [2026-04-18] feat(login-page): 绠＄悊鍛樺彲缂栬緫鐧诲綍椤垫枃妗?
+## [2026-04-18] fix(settings): 閻ц缍嶆い鍏哥幆閺嶇厧濮╅幀浣稿 + 娣囶喖顦查崗鍛偓鑲╊吀閻炲棔绻氱€涙顕ゅ〒鍛敄濞夈劌鍞界粵澶庮啎缂?
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/service/domain_constants.go` 鈥?鏂板 8 涓?`SettingKeyLoginPage*` 甯搁噺
-- `backend/internal/service/settings_view.go` 鈥?`LoginPageContent` 缁撴瀯锛坖son tag + `IsEmpty`锛夛紱`PublicSettings.LoginPage *LoginPageContent`
-- `backend/internal/service/setting_service.go` 鈥?`GetPublicSettings` 鍔?8 涓?key 鍒版壒閲忚鍙栧垪琛紱鏂板 `buildLoginPageContent`锛堢┖瀛楁 trim 鍚庢暣浣?nil 鍖栵級锛沗GetPublicSettingsForInjection` 鐨勫尶鍚?struct 涔熷姞 `login_page`
-- `backend/internal/handler/dto/settings.go` 鈥?`PublicSettings` DTO 鍔?`LoginPage *LoginPageContent`锛涙柊澧?`dto.LoginPageContent`
-- `backend/internal/handler/setting_handler.go` 鈥?鍏紑 `/settings/public` 杈撳嚭鏄犲皠 + `toDTOLoginPageContent` 杈呭姪鍑芥暟
-- `backend/internal/handler/admin/login_page_handler.go` 鈥?鏂板锛欸ET/PUT `/admin/login-page/content`锛涘瓧娈电骇 trim + 闀垮害鏍￠獙锛坰hort 255 / long 500锛?
-- `backend/internal/handler/handler.go` + `wire.go` + `backend/cmd/server/wire_gen.go` 鈥?`AdminHandlers.LoginPage` + provider锛屾墜鍔ㄦ彃鍏?wire_gen 涓?pricing-page 淇濇寔鍚屼竴妯″紡
-- `backend/internal/server/routes/admin.go` 鈥?`registerLoginPageRoutes`
-- `frontend/src/api/loginPage.ts` 鈥?鏂板 API client锛坄getAdminLoginPageContent` / `updateAdminLoginPageContent` / `resetAdminLoginPageContent`锛?
-- `frontend/src/api/index.ts` 鈥?瀵煎嚭
-- `frontend/src/types/index.ts` 鈥?`LoginPageContent` 鎺ュ彛锛沗PublicSettings.login_page?` 鍙€夊瓧娈?
-- `frontend/src/views/auth/LoginView.vue` 鈥?8 澶?`t('auth.login.xxx')` 鏇挎崲涓?`loginXxx` computed锛涙瘡涓?computed 閮界敤 `pickLoginText` 鍋?fallback锛堢┖涓?鏈畾涔夋椂鐢?i18n 鍘熸枃锛?
-- `frontend/src/views/admin/LoginPageView.vue` 鈥?鏂板绠＄悊鍛樼紪杈戦〉锛? 涓皬鍒嗙粍锛堣惀閿€/妯″瀷鍖?鐧诲綍妗嗭級8 涓瓧娈佃〃鍗?+ 棰勮閾炬帴 + 淇濆瓨 + 鎭㈠榛樿锛堝甫 confirm锛夛紱淇濆瓨/鎭㈠鍚庤Е鍙?`appStore.fetchPublicSettings(true)` 绔嬪埢璁╁叾浠栨湭鍒锋柊鐨勯〉闈㈢湅鍒版柊鍊?
-- `frontend/src/components/layout/AppSidebar.vue` 鈥?`adminNavItems` 澧炲姞銆岀櫥褰曢〉鏂囨銆嶅叆鍙?
-- `frontend/src/router/index.ts` 鈥?`/admin/login-page` 璺敱
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?`nav.loginPage` + `admin.loginPage.*`锛坱itle/description/preview/fallbackHint/sections/fields 8 椤?save/reset/reset-confirm锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/service/settings_view.go` 閳?`PublicSettings` 閺傛澘顤?`PaymentCNYPerUSD float64`
+- `backend/internal/service/setting_service.go` 閳?`GetPublicSettings` 鐠囪褰?`SettingCNYPerUSD`閿涙矖GetPublicSettingsForInjection` 濞夈劌鍙嗛崠鍨倳缂佹挻鐎担鎾虫倱濮濄儲鏌婃晶鐐茬摟濞?
+- `backend/internal/handler/dto/settings.go` 閳?閸忣剙绱戠拋鍓х枂 DTO 閺傛澘顤?`payment_cny_per_usd`
+- `backend/internal/handler/setting_handler.go` 閳?閸?`GetPublicSettings` 閸濆秴绨查柌灞斤綖閸忓懏鏌婄€涙顔?
+- `frontend/src/types/index.ts` 閳?`PublicSettings` 閹恒儱褰涢弬鏉款杻 `payment_cny_per_usd: number`
+- `frontend/src/stores/app.ts` 閳?姒涙顓荤粚娲帳缂冾喛藟姒?`payment_cny_per_usd: 0`
+- `frontend/src/i18n/locales/zh.ts`閵嗕梗en.ts` 閳?`featurePrice` 閺€閫涜礋鐢?`{price}` 閸楃姳缍呴惃鍕侀弶鍖＄幢閺傛澘顤?`featurePriceDefault` 娴ｆ粈璐熼張顏堝帳缂冾喗妞傞惃鍕礀闁偓閺傚洦顢?
+- `frontend/src/views/auth/LoginView.vue` 閳?閺傛澘顤?`paymentCnyPerUsd` ref閿涘畭onMounted` 娴犲骸鍙曞鈧拋鍓х枂鐠囪褰囬敍娌爀ature pill 閹稿鍘ょ純顔煎З閹焦瑕嗛弻鎿勭礉閺堫亪鍘ょ純顔兼礀闁偓
+- `frontend/src/api/admin/settings.ts` 閳?閺傛澘顤?`systemSettingsToUpdateRequest(SystemSettings) => UpdateSettingsRequest` 閺勭姴鐨犻崙鑺ユ殶閿涙稒鏁為崗?`settingsAPI`
+- `frontend/src/views/admin/RechargeConfigView.vue` 閳?`save()` 閸?`getSettings()` 閸愬秵鏆ｆ担?`updateSettings(...)`閿涘苯褰х憰鍡欐磰 `payment_cny_per_usd` / `payment_bonus_tiers`
 
-**涓婃父鍏煎鎬?*: 涓€俙PublicSettings` 缁撴瀯琚墿灞曪紙service + DTO + TS 绫诲瀷锛夛紝涓婃父鑻ュ皢鏉ユ敼鍔ㄨ繖涓粨鏋勯渶瑕佸悓姝ワ紱鏂板 key 鍛藉悕鐢?`login_page.*` 鍛藉悕绌洪棿锛屼笉涓庢棦鏈?key 鍐茬獊銆傝矾鐢?/ handler / 鍓嶇鏂囦欢閮芥槸鏂板锛屼笉瑕嗙洊涓婃父銆俙wire_gen.go` 浠嶉渶鎵嬪姩鍚堝苟銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*:
+- 閸氬海顏弬鏉款杻鐎涙顔屾稉鍝勫讲闁鎷烽崝鐙呯礉閸氬牆鑻熸稉濠冪埗閺冩儼瀚㈡稉濠冪埗娑旂喐鏁奸崝?`PublicSettings` / 閸忣剙绱戠拋鍓х枂 handler閿涘瞼鏆€閹板繐鍟跨粣浣风秴缂冾噯绱欓崸鍥﹁礋缂佹挻鐎担鎾崇啲闁劍鍨?return 鐎涙顔岄崚妤勩€冮敍?
+- 閸撳秶顏弬鏉款杻閻?`systemSettingsToUpdateRequest` 閺勵垱婀伴崷棰佺癌瀵偓瀹搞儱鍙块崙鑺ユ殶閿涘瞼瀚粩瀣╃艾娑撳﹥鐖?
 
-**鍙樻洿璇︽儏**:
-1. 8 涓?settings key锛坄login_page.badge` / `heading_line1` / `heading_line2` / `description` / `supported_models_title` / `models_desc` / `form_title` / `form_subtitle`锛変竴涓€瀵瑰簲 i18n `auth.login.*` 閲岀殑钀ラ攢鏂囨瀛楁銆?
-2. 浠绘剰瀛楁绌哄瓧绗︿覆 鈫?鍚庣杩斿洖鐨?`LoginPage` 瀛愮粨鏋勪负 nil锛坄omitempty` 鏁翠綋 omit锛夛紝鍓嶇鎷夸笉鍒板氨缁х画鐢?`t('auth.login.xxx')`锛屼腑鑻卞垏鎹㈣嚜鍔ㄧ敓鏁堛€?
-3. 绠＄悊鍛樹繚瀛樺悗璋冪敤 `appStore.fetchPublicSettings(true)` 寮哄埗閲嶆柊鎷夊彇 public settings锛岄伩鍏嶅叾浠栧凡鎵撳紑鐨勯〉闈㈢湅鍒版棫鐗堛€?
-4. 銆屾仮澶嶉粯璁ゃ€? 鎵归噺鍐欏叆绌轰覆锛屼笉鏄墿鐞嗗垹 key锛涜涔夋洿鏄庣‘锛屼笖涓嶇敤鍔犲垹闄ゆ帴鍙ｃ€?
-5. SSR 娉ㄥ叆鐨?`window.__APP_CONFIG__` 涔熷悓姝ユ洿鏂帮紙`GetPublicSettingsForInjection`锛夛紝棣栨娓叉煋鐧诲綍椤靛氨鏄渶缁堟枃妗堬紝涓嶉棯灞忋€?
-6. 楠岃瘉锛歚curl /api/v1/settings/public | grep login_page` 鈫?鏈繚瀛樻椂鏃?key锛涚櫥褰曞悗 `curl /admin/login-page/content` 杩斿洖 8 瀛楁鍏ㄧ┖瀵硅薄锛涗繚瀛樺悗 public 鎺ュ彛寮€濮嬭繑鍥?`login_page` 瀛愮粨鏋勩€?
+**閸欐ɑ娲跨拠锔藉剰**:
+- Bug 1 閳?閻ц缍嶆い鍏哥幆閺嶈偐鈥栫紓鏍垳閿涙瓪LoginView` 閸樼喎鍘涘〒鍙夌厠 `t('auth.login.featurePrice')` 閻ㄥ嫰娼ら幀浣规瀮濡?`'0.6 / 1$ 鐠?`閿涘奔绗?admin 閸?閸忓懎鈧偐顓搁悶?鐠佸墽鐤嗛惃?`payment_cny_per_usd` 鐎瑰苯鍙忛懘閬嶆尙閵嗗倻骞囩亸鍡氼嚉濮瑰洨宸奸柅姘崇箖 `/api/v1/settings/public` 閺嗘挳婀堕敍鍫滅瑢 SSR 濞夈劌鍙嗙捄顖氱窞娣囨繃瀵旀稉鈧懛杈剧礆閿涘苯澧犵粩顖濐嚢閸欐牕鎮楁禒?`{price} / 1$ 鐠х﹫ 濡剝婢樺〒鍙夌厠閿涙稐璐?0 閹存牗婀柊宥囩枂閺冭泛娲栭柅鈧崚?`featurePriceDefault` 闂堟瑦鈧焦鏋冨鍫涒偓?
+- Bug 2 閳?"濮ｅ繑顐奸柈銊ц瀵偓閺€鐐暈閸愬矁顫﹂柌宥囩枂"閿涙氨婀″锝嗙壌閸ョ姳绗夐弰顖炲劥缂冭尪鍓奸張顑锯偓鍌氭倵缁?`UpdateSettingsRequest` 缂佹繂銇囨径姘殶 `bool` / `string` 鐎涙顔岄弰?*闂堢偞瀵氶柦?*閿涘瓰SON 閸欏秴绨崚妤€瀵查弮鍓佸繁婢跺崬鐡у▓鍏哥窗鐞氼偄锝?`false` / `""`閿涙矖RechargeConfigView.save()` 閸欘亜褰?`payment_cny_per_usd` 娑?`payment_bonus_tiers`閿涘andler 缂佈呯敾閺嬪嫰鈧姴鐣弫?`SystemSettings` 楠?`SetMultiple` 閸ョ偛鍟撻敍灞筋嚤閼?`registration_enabled`閵嗕梗site_name`閵嗕副IDC/LinuxDo 瀵偓閸忓磭鐡戠悮顐︽饯姒涙ɑ绔荤粚鎭掆偓鍌欐叏婢跺秹鍣伴悽銊︽付鐏忓繑鏁奸崝顭掔窗`RechargeConfigView` 閸忓牊濯虹€瑰本鏆?settings閿涘瞼鏁ら弬鏉跨紦閻ㄥ嫭妲х亸鍕毐閺佹媽娴嗛幋鎰嚞濮瑰倷缍嬮敍灞藉晙鐟曞棛娲婃稉銈勯嚋 payment 鐎涙顔岄崣鎴濆毉閿涘奔濞囬崶鐐插晸閺?鐠囩粯妫崐鐓庡晸閺冄冣偓?閿涘矂浼╅崗宥堫嚖濞撳懐鈹栭妴鍌氬殶閹诡喚琚€涙顔岄敍鍧剆mtp_password` 缁涘绱氶崷銊︽Ё鐏忓嫬鍤遍弫棰佽厬閺佸懏鍓伴悾娆戔敄閿涘苯鎮楃粩?缁屽搫鈧壈鐑︽潻鍥洬閻?鐎瑰牊濮㈢紒褏鐢婚悽鐔告櫏閵?
 
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹傦紙缁€屾ā鍨嬭浠烽〉鏂囨銆嶏級
+**妤犲矁鐦夐弬鐟扮础**:
+- `go build ./...` 闁俺绻冮敍娑樺缁?`pnpm run typecheck` 闁俺绻冮敍娌╝ndler 閻╃鍙ч崡鏇熺ゴ闁俺绻冮敍鍧癳rvice 鐏炲倸褰?`gemini_oauth_service_test.go` 妫板嫬鐡ㄩ崷銊ф畱 mock 閹恒儱褰涙稉宥呯暚閺佹潙濂栭崫宥忕礉閺堫亝鏌婃晶鐐寸ゴ鐠囨洖銇戠拹銉礆
+- 閹靛浼愰敍姘帠閸婅偐顓搁悶鍡曠箽鐎?`cny_per_usd=0.8` 閳?閻ц缍嶆い鍨▔缁€?`0.8 / 1$ 鐠х﹫閿涙稑鎮撻弮鍓侀兇缂佺喕顔曠純顕€鍣?瀵偓閺€鐐暈閸?缁涘绱戦崗鍏呯箽閹镐胶鏁ら幋铚傜閸撳秶娈戦崐闂寸瑝閸?
 
----
 
-## [2026-04-18] fix(pricing-page): 绠＄悊鍛樼紪杈戦〉鏈繚瀛樻椂棰勫～榛樿鏂囨
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/ent/schema/ai_credit_snapshot.go` 閳?閺?Ent schema閿涙瓪AICreditSnapshot { email, credit_type, amount, captured_at }` + 婢跺秴鎮庣槐銏犵穿
+- `backend/ent/aicreditsnapshot/`閵嗕梗backend/ent/aicreditsnapshot*.go` 閳?Ent 閻㈢喐鍨氭禒锝囩垳閿涘潉go generate ./ent`閿?
+- `backend/migrations/110_add_ai_credit_snapshots.sql` 閳?瀵ら缚銆?+ `(email, captured_at)` 娑?`(captured_at)` 缁便垹绱?
+- `backend/internal/service/credit_snapshot.go` 閳?`CreditSnapshot` 缂佹挻鐎妴涔reditSnapshotRepository`閵嗕梗AntigravityUsageAggregator`閵嗕梗AntigravityUsageRatio` 閸濆秴绨茬猾璇茬€?
+- `backend/internal/service/credit_snapshot_service.go` 閳?`CreditSnapshotService`閿?5 閸掑棝鎸?ticker 鐎规碍妞傞柌鍥ㄧ壉閵嗕梗TriggerManualCapture`閿?0 缁夋帟绻樼粙瀣敶閸愬嘲宓堥柨渚婄礆閵嗕梗GetAntigravityUsageRatio`閿涘牏娴夐柇濠氬櫚閺嶉鍋ｅ锝呮倻 delta 濮瑰倸鎷?+ `usage_logs` 閼辨艾鎮庨敍?
+- `backend/internal/repository/credit_snapshot_repo.go` 閳?閸╄桨绨?Ent 閻ㄥ嫪绮ㄦ惔鎾崇杽閻滃府绱橧nsert/ListInRange/GetLatestBefore閿?
+- `backend/internal/repository/antigravity_usage_aggregator.go` 閳?閻欘剛鐝涚亸蹇斿复閸欙絽鐤勯悳甯窗`SELECT COUNT + SUM(total_cost) FROM usage_logs WHERE account_id = ANY($1) AND created_at 閳?[start,end)`
+- `backend/internal/handler/admin/usage_handler.go` 閳?`NewUsageHandler` 閸?`creditSnapshotService` 娓氭繆绂嗛敍娑欐煀婢?`StatsAntigravity` / `RefreshAntigravityStats`閿涙稒褰侀崣?`parseStatsDateRange` 鏉堝懎濮崙鑺ユ殶
+- `backend/internal/handler/admin/{usage_cleanup_handler_test,usage_handler_request_type_test}.go` 閳?stub 鐞涖儵缍堥弬鏉垮棘閺侀缍?`nil`
+- `backend/internal/server/routes/admin.go` 閳?`GET /admin/usage/stats/antigravity`閵嗕梗POST /admin/usage/stats/antigravity/refresh`
+- `backend/internal/service/wire.go` 閳?閺傛澘顤?`ProvideCreditSnapshotService` 楠炶泛鍙?`ProviderSet`
+- `backend/internal/repository/wire.go` 閳?`NewCreditSnapshotRepository` / `NewAntigravityUsageAggregator` 閸旂姴鍙?`ProviderSet`
+- `backend/cmd/server/wire_gen.go` 閳?閹靛濮╃紓鏍ㄥ笓閺?Repo + Service + Handler 娓氭繆绂嗛敍鍫滃瘜楠?`go generate` 閸ョ姴宸婚崣?Payment 闁插秴顦茬紒鎴濈暰婢惰精瑙﹂敍灞惧瘻閻滅増婀佸Ο鈥崇础閹绘帒鍙嗛敍?
+- `frontend/src/api/admin/usage.ts` 閳?閺傛澘顤?`AntigravityUsageRatio` 缁鐎烽妴涔etAntigravityStats`閵嗕梗refreshAntigravityStats`
+- `frontend/src/components/admin/usage/AntigravityRatioCard.vue` 閳?閺傛壆绮嶆禒璁圭窗4 閸掓瀵氶弽鍥у幢 + 閵嗗瞼鐝涢崡鎶藉櫚閺嶆灚鈧秵瀵滈柦?+ 闁插洦鐗辨稉宥堝喕/閸愬嘲宓堥幓鎰仛
+- `frontend/src/views/admin/UsageView.vue` 閳?瀵洖鍙嗛崡锛勫閿涘奔绗岄悳鐗堟箒 `UsageStatsCards` 閸忚京鏁?`DateRangePicker`閿涘苯鎮撴稉鈧崚閿嬫煀闁炬崘鐭剧憴锕€褰?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?閺傛澘顤?`usage.antigravity.*` 閺傚洦顢?
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/handler/admin/pricing_page_handler.go` 鈥?瀵煎嚭 `DefaultPricingPageIntro` / `DefaultPricingPageEducation` 甯搁噺锛沗Get` 鍦?settings 鏈啓 / 绌轰覆鏃跺洖钀藉埌榛樿鍊硷紱`loadValue` 澶氫竴涓?fallback 鍏ュ弬
-- `backend/internal/handler/pricing_page_handler.go` 鈥?鍒犳帀鏈湴榛樿甯搁噺锛屽鐢?`admin.Default*`
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倹澧嶉張澶嬫煀婢х偞鏋冩禒?鐎涙顔岄崸鍥﹁礋 additive閿涙稐绮?`admin/usage_handler.go` 閺嬪嫰鈧姴娅掗崝鐘插棘閺佸府绱欐稉濠冪埗閼汇儵鍣搁弸?handler 閸掓繂顫愰崠鏍劮閸氬秹娓堕崥灞绢劄閿涘绱盽wire_gen.go` 娴犲秹娓堕幍瀣紣閸氬牆鑻熼妴淇橝ntigravityUsageAggregator` 閸掔粯鍓板▽鈩冨复閸?`UsageLogRepository` 閹恒儱褰涢敍宀勪缉閸忓秵妫╅崥搴㈡暭閸斻劌宕勯崙鐘差槱 stub閵?
 
-**涓婃父鍏煎鎬?*: 浣庛€傜函瀛楁绾ц皟鏁达紝鏃?schema / 璺敱鍙樺寲銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+1. Antigravity AI Credits 娴ｆ瑩顤傛稉宥呭讲閸ョ偞鍑介弻銉嚄閿涘牐绻欑粩?API 閸欘亞绮拌ぐ鎾冲閸婄》绱氶敍灞芥礈濮濄倖鏌婃晶?`ai_credit_snapshots` 鐞涖劊鈧繖CreditSnapshotService` 濮?15 閸掑棝鎸撻崥顖氬З娑撯偓濞嗭繝鍣伴弽鍑ょ窗閹?`credentials.email` 閸樺鍣搁敍鍫濇倱 Google 鐠愶箑褰块崗鍙橀煩 credits閿涘绱濇径宥囨暏 `AccountUsageService.GetUsage` 閻?3 閸掑棝鎸撶紓鎾崇摠鐏炲倹濯烘担娆擃杺閿涘矂浼╅崗宥夘杺婢?API 閸樺濮忛妴?
+2. 閼辨艾鎮庨崣锝呯窞閿涙艾顕В蹇庨嚋 email 閸?`[start - 30 min lookback, end]` 閸愬懐娈戣箛顐ゅ弾閹稿妞傞梻鏉戝磳鎼村繗铔嬮惄鎼佸仸鐎电櫢绱濈槐顖氬濮濓絽鎮?delta閵嗗倽绀嬮崥?delta閿涘牆鍘栭崐?闁插秶鐤嗛敍澶庣儲鏉╁洢鈧倹娣抽悽鐔哥槷閻?`quota_per_credit = SUM(total_cost) / total_credits`閵嗕梗calls_per_credit = COUNT(*) / total_credits`閿涘畭total_credits == 0` 閺冩儼绻戦崶?null閿涘牆澧犵粩顖氱潔缁€?闁插洦鐗辨稉宥堝喕"閹绘劗銇氶敍澶堚偓?
+3. 閹靛濮╃憴锕€褰傞幒銉ュ經 `POST .../refresh` 閸?30 缁夋帟绻樼粙瀣敶閸愬嘲宓堥柨渚婄礄`sync.Mutex + lastManualAt`閿涘绱濋崘宄板祱閺堢喎鍞存潻鏂挎礀 `manual_refresh_throttled=true` 楠炴湹绗夐柌宥咁槻閹垫捁绻欑粩顖樷偓鍌滎吀閻炲棗鎲崇拠顖滃仯娑撳秳绱伴弨鎯с亣 API 閸樺濮忛妴?
+4. 閸撳秶顏崡锛勫閹恒儱鍙嗛悳鐗堟箒 `startDate`/`endDate`閿涘畭loadStats()` 缂佹挻娼崥搴¤嫙鐞涘本濯?antigravity 閼辨艾鎮庨敍娑樸亼鐠愩儱褰?`console.error` 娑撳秹妯嗛弬顓濆瘜濞翠胶鈻奸妴?
+5. 妤犲矁鐦夐敍姝歞ocker exec sub2api-pg-dev psql` 绾喛顓?migration 110 鎼存梻鏁ら妴涔i_credit_snapshots` 鐞涖劎绮ㄩ弸鍕劀绾噯绱遍張顒€婀撮崥顖氬З閸?`[CreditSnapshot] Scheduler started` 娑撳氦鐭鹃悽?`GET/POST /api/v1/admin/usage/stats/antigravity(/refresh)` 閸у洤鍑″▔銊ュ斀閵?
 
-**鍙樻洿璇︽儏**: 鍘熷厛绠＄悊鍛樿繘缂栬緫椤垫椂 settings 閲岃繕娌″啓鍏ワ紝涓や釜 textarea 閮芥槸绌虹殑锛屼絾鐢ㄦ埛璁′环椤靛張鏄剧ず鐨勬槸 handler 鍐呯疆榛樿鏂囨锛屽鑷淬€岀紪杈戜笉鍒扮敤鎴风湅鍒扮殑涓滆タ銆嶃€傜幇鍦?admin Get 鎺ュ彛涓庣敤鎴蜂晶鍏辩敤鍚屼竴浠藉父閲忥紝绠＄悊鍛樼涓€娆¤繘鏉ュ氨鑳界湅鍒般€岀敤鎴锋鍒诲疄闄呭湪鐪嬬殑鍐呭銆嶏紝鐩存帴鏀瑰氨琛屻€?
-
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹傦紙涓婃潯鍙樻洿鐨勫悗缁級
-
----
-
-## [2026-04-18] feat(pricing-page): 鏂板鐢ㄦ埛銆屾ā鍨嬭浠枫€嶉〉 + 绠＄悊鍛樺彲缂栬緫鏂囨
-
-**褰卞搷鑼冨洿**:
-- `backend/migrations/109_add_show_on_pricing_page.sql` 鈥?`global_model_pricing` 鏂板 `show_on_pricing_page BOOLEAN`
-- `backend/internal/service/global_model_pricing.go` 鈥?`GlobalModelPricing` 鍔?`ShowOnPricingPage` 瀛楁锛涙帴鍙ｆ柊澧?`ListForPricingPage`
-- `backend/internal/repository/global_model_pricing_repo.go` 鈥?鎵€鏈?SELECT/INSERT/UPDATE 鍚屾鏂板瓧娈碉紱鏂板 `ListForPricingPage`
-- `backend/internal/service/global_model_pricing_service.go` 鈥?`GlobalOverride` DTO 鍔?`show_on_pricing_page`锛沗ToGlobalOverride` 鍚屾锛涙柊澧?`ListForPricingPage` 鏂规硶
-- `backend/internal/handler/admin/model_pricing_handler.go` 鈥?Create/Update 璇锋眰 DTO 鍔?`show_on_pricing_page *bool`
-- `backend/internal/handler/admin/pricing_page_handler.go` 鈥?鏂板锛欸ET/PUT `/admin/pricing-page/content`锛岃鍐?`settings` KV 涓や釜 key
-- `backend/internal/handler/pricing_page_handler.go` 鈥?鏂板鐢ㄦ埛渚э細GET `/user/pricing-page`锛岃仛鍚堜袱娈垫枃妗?+ 鎸?provider 鍒嗙粍鐨勫睍绀轰环鏍?
-- `backend/internal/handler/handler.go` 鈥?`AdminHandlers.PricingPage`銆乣Handlers.PricingPage` 鏂板瓧娈?
-- `backend/internal/handler/wire.go` 鈥?娉ㄥ唽 `NewPricingPageHandler` / `NewPricingPageAdminHandler`
-- `backend/cmd/server/wire_gen.go` 鈥?鎵嬪姩缂栨帓鏂?handler 渚濊禆锛坄go generate` 鍦ㄤ富骞插凡棰勫厛澶辫触锛屾寜鐜版湁妯″紡鎻掑叆锛?
-- `backend/internal/server/routes/admin.go` 鈥?`registerPricingPageRoutes`
-- `backend/internal/server/routes/user.go` 鈥?娉ㄥ唽 `/user/pricing-page`
-- `frontend/src/api/pricingPage.ts` 鈥?鏂板 API client锛堢敤鎴?Get + 绠＄悊鍛?Get/Update锛?
-- `frontend/src/api/index.ts` 鈥?瀵煎嚭 `pricingPageAPI`
-- `frontend/src/api/admin/modelPricing.ts` 鈥?`GlobalOverride`/`CreateOverrideRequest`/`UpdateOverrideRequest` 鍔?`show_on_pricing_page`
-- `frontend/src/views/user/PricingView.vue` 鈥?鏂板鐢ㄦ埛椤碉細涓夎妭鍐呭锛堟湰绔欒浠锋ā寮?/ 璁′环妯″紡绉戞櫘 / 鎸夊钩鍙板垎缁勭殑浠锋牸琛級锛孧arkdown 鐢?`marked@17` + `DOMPurify` 娓叉煋
-- `frontend/src/views/admin/PricingPageView.vue` 鈥?鏂板绠＄悊鍛橀〉锛氫袱娈?textarea 缂栬緫 + 淇濆瓨 + 鎸囧悜妯″瀷閰嶇疆鐨勫紩瀵?
-- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue` 鈥?缂栬緫瀵硅瘽妗嗗姞銆屽湪璁′环椤靛睍绀恒€嶅紑鍏?
-- `frontend/src/components/layout/AppSidebar.vue` 鈥?鐢ㄦ埛/涓汉渚ц竟鏍忔柊澧炪€屾ā鍨嬭浠枫€嶈彍鍗曪紱绠＄悊鍛樹晶杈规爮鏂板銆岃浠烽〉鏂囨銆嶅叆鍙ｏ紱鏂板 `PriceTagIcon`
-- `frontend/src/router/index.ts` 鈥?鏂板 `/pricing` 涓?`/admin/pricing-page` 璺敱
-- `frontend/src/i18n/locales/{zh,en}.ts` 鈥?鏂板 `pricing.*`銆乣admin.pricingPage.*`銆乣admin.modelPricing.showOnPricingPage` 閿互鍙?`nav.modelPricing`銆乣nav.pricingPage`
-
-**涓婃父鍏煎鎬?*: 涓€傛柊澧炲瓧娈?`show_on_pricing_page` 浣嶄簬 `global_model_pricing` 琛紝杩佺Щ鏄?additive锛屼笂娓歌嫢灏嗘潵瀵硅琛ㄧ粨鏋勫仛鏀瑰姩闇€鎵嬪姩鍚堝苟銆侶andler / 璺敱鍧囦负鏂板锛屼笉瑕嗙洊涓婃父鏂囦欢鐨勬棦鏈夎矾寰勩€俙wire_gen.go` 鎵嬪姩缂栬緫锛堝洜涓诲共 Wire 鐢熸垚棰勫厛澶辫触锛宍ProvidePaymentConfigService` 绛夐噸澶嶇粦瀹氾級锛屽悎骞朵笂娓告椂闇€鐣欐剰銆?
-
-**鍙樻洿璇︽儏**:
-1. 绠＄悊鍛樺彲鍦ㄣ€屾ā鍨嬮厤缃?鈫?妯″瀷璇︽儏銆嶉噷鍕鹃€夈€屽湪璁′环椤靛睍绀恒€嶏紝鎺у埗鍝簺妯″瀷鍑虹幇鍦ㄧ敤鎴蜂晶鐨勮浠烽〉锛岀嫭绔嬩簬璁¤垂 `enabled` 寮€鍏炽€?
-2. 绠＄悊鍛樺彲鍦?`/admin/pricing-page` 缂栬緫涓ゆ Markdown 鏂囨锛堟湰绔欒浠锋ā寮忋€佽浠锋ā寮忕鏅級锛屼繚瀛樺埌 `settings` 琛ㄧ殑 `pricing_page.intro_markdown` / `pricing_page.education_markdown` 涓や釜 key銆傛湭淇濆瓨鏃剁敤鎴蜂晶鍥炶惤鍒?handler 鍐呯疆榛樿鏂囨銆?
-3. 鐢ㄦ埛 `/pricing` 椤典竴娆℃媺鍙栬仛鍚堟帴鍙ｏ細杩斿洖涓ゆ鏂囨 + 鎸?provider 鍒嗙粍鐨勫睍绀轰环鏍艰〃銆傚睍绀轰环鐨勪紭鍏堢骇锛氱敤鎴风骇 display override > 鍏ㄥ眬 display override > 鐪熷疄鍗曚环锛坒allback锛夈€?
-4. 浠锋牸琛?per-token 浠锋寜 $/MTok 鏄剧ず锛宲er_request 鎸?$/娆?鏄剧ず銆?
-5. i18n 宸茶ˉ zh/en 瀹屾暣閿€笺€?
-
-**鍏宠仈 Issue/PR**: 鏈湴浜屽紑闇€姹?
+**閸忓疇浠?Issue/PR**: 閺?
 
 ---
 
-## [2026-04-17] feat(billing): 鐢ㄦ埛绾фā鍨嬪畾浠疯鐩?(User Model Pricing Override)
+## [2026-04-18] fix(keys): 娣囶喗顒滈妴灞藉弳闂傘劍瀵氶崡妞尖偓宥夊櫡 CC-Switch 閻ㄥ嫪绗呮潪钘夋勾閸р偓
 
-**褰卞搷鑼冨洿**:
-- `backend/migrations/106_add_user_model_pricing_overrides.sql` 鈥?鏂板琛?
-- `backend/internal/service/user_model_pricing.go` 鈥?瀹炰綋 + 浠撳偍鎺ュ彛
-- `backend/internal/service/user_model_pricing_service.go` 鈥?涓氬姟閫昏緫灞?
-- `backend/internal/repository/user_model_pricing_repo.go` 鈥?鍘熺敓 SQL 瀹炵幇
-- `backend/internal/service/model_pricing_resolver.go` 鈥?PricingInput 澧炲姞 UserID, Resolve 澧炲姞鐢ㄦ埛绾ц鐩栧彔鍔?
-- `backend/internal/service/gateway_service.go` 鈥?浼犻€?UserID 鍒板畾浠疯В鏋愰摼璺?
-- `backend/internal/handler/dto/display_pricing.go` 鈥?鏂板 BuildUserDisplayPricingMap
-- `backend/internal/handler/usage_handler.go` 鈥?浣跨敤鐢ㄦ埛绾у睍绀鸿鐩?
-- `backend/internal/handler/admin/user_model_pricing_handler.go` 鈥?Admin CRUD API
-- `backend/internal/service/global_model_pricing_service.go` 鈥?鍒楄〃澧炲姞 user_override_count, 璇︽儏澧炲姞 user_overrides
-- `backend/internal/service/admin_service.go` 鈥?鐢ㄦ埛鍒犻櫎鏃剁骇鑱旀竻鐞?
-- `backend/internal/handler/handler.go` 鈥?AdminHandlers 澧炲姞 UserModelPricing 瀛楁
-- `backend/internal/handler/wire.go` 鈥?娉ㄥ唽鏂?handler
-- `backend/internal/repository/wire.go` 鈥?娉ㄥ唽鏂?repo
-- `backend/internal/service/wire.go` 鈥?娉ㄥ唽鏂?service
-- `backend/internal/server/routes/admin.go` 鈥?娉ㄥ唽鏂拌矾鐢?
-- `frontend/src/api/admin/userModelPricing.ts` 鈥?鍓嶇 API 瀹㈡埛绔?
-- `frontend/src/components/admin/user/UserModelPricingModal.vue` 鈥?绠＄悊妯℃€佹
-- `frontend/src/views/admin/UsersView.vue` 鈥?鐢ㄦ埛鎿嶄綔鑿滃崟澧炲姞"妯″瀷瀹氫环"鍏ュ彛
-- `frontend/src/i18n/locales/en.ts` 鈥?鍥介檯鍖栨枃妗?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/components/keys/GettingStartedGuide.vue` 閳?缁楊兛绨╁銉ょ瑓鏉炶姤瀵滈柦?`href` 娴?`github.com/nicepkg/cc-switch/releases`閿涘牓鏁婄拠顖欑波鎼存搫绱氶弨閫涜礋 `github.com/farion1231/cc-switch/releases`閿涘牆鐣奸弬閫涚波鎼存搫绱?
 
-**璇存槑**: 鏂板鐢ㄦ埛绾фā鍨嬪畾浠疯鐩栧姛鑳斤紝鏀寔绠＄悊鍛樹负鐗瑰畾鐢ㄦ埛鐨勭壒瀹氭ā鍨嬭缃細
-1. 鐪熷疄璁¤垂浠锋牸瑕嗙洊锛坕nput_price, output_price, cache_write_price, cache_read_price锛?
-2. 灞曠ず浠锋牸瑕嗙洊锛坉isplay_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio锛?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倷绗傚〒姝屽閺堫亙濞囬悽銊︻劃闁剧偓甯撮崚娆愭￥閸愯尙鐛婇妴?
 
-瀹屾暣瀹氫环浼樺厛绾ч摼锛氱敤鎴?> 娓犻亾 > 鍏ㄥ眬 > LiteLLM/Fallback銆備笉褰卞搷鐜版湁鐨勫叏灞€瑕嗙洊銆佹笭閬撹鐩栥€佸垎缁勫€嶇巼鍜岀敤鎴峰垎缁勫€嶇巼鏈哄埗銆?
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮?
 
-## [2026-04-17] feat(billing): 鐢ㄦ埛绾у睍绀哄€嶇巼 (User Display Rate Multiplier)
+---
 
-**褰卞搷鑼冨洿**:
-- `backend/migrations/104_add_display_rate_multiplier.sql` 鈥?鏂板
-- `backend/internal/service/user_group_rate.go` 鈥?鎵╁睍 UserGroupRateEntry, GroupRateMultiplierInput, 鏂板 UserGroupRateData
-- `backend/internal/repository/user_group_rate_repo.go` 鈥?鏀寔 display_rate_multiplier 璇诲啓
-- `backend/internal/handler/dto/display_pricing.go` 鈥?鏂板 ApplyUserDisplayRate()
-- `backend/internal/handler/usage_handler.go` 鈥?浣跨敤璁板綍搴旂敤鐢ㄦ埛绾у睍绀哄彉鎹?
-- `backend/internal/handler/api_key_handler.go` 鈥?/groups/rates 杩斿洖灞曠ず鍊嶇巼
-- `backend/internal/service/api_key_service.go` 鈥?鏂板 GetUserGroupRatesFull()
-- `backend/internal/service/admin_service.go` 鈥?UpdateUser 鏀寔 GroupRatesFull
-- `backend/internal/handler/admin/user_handler.go` 鈥?鏀寔 group_rates_full
-- `frontend/src/types/index.ts` 鈥?鏂板 UserGroupRateData, group_display_rates
-- `frontend/src/api/groups.ts` 鈥?杩斿洖 UserGroupRateData
-- `frontend/src/views/user/KeysView.vue` 鈥?GroupBadge 灞曠ず灞曠ず鍊嶇巼
-- `frontend/src/components/admin/user/UserAllowedGroupsModal.vue` 鈥?灞曠ず鍊嶇巼缂栬緫UI
-- `frontend/src/i18n/locales/{en,zh}.ts` 鈥?鍥介檯鍖?
+## [2026-04-18] refactor(page-content): 閸氬牆鑻熼妴宀冾吀娴犵兘銆夐弬鍥攳閵嗗秴鎷伴妴宀€娅ヨぐ鏇€夐弬鍥攳閵嗗秳璐熺紒鐔剁 Tab 妞?
 
-**涓婃父鍏煎鎬?*: 浣庡啿绐侀闄╋紝鏂板瀛楁鍜屾柟娉曪紝涓嶄慨鏀圭幇鏈夐€昏緫
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/views/admin/PageContentView.vue` 閳?閺傛澘顤冮崥鍫濊嫙閻栨儼顫嬮崶鎾呯窗`AppLayout` + 閸忓彉闊╂径鎾劥 + 娑撱倓閲?tab閿涘牊膩閸ㄥ顓告禒鐑姐€?/ 閻ц缍嶆い纰夌礆 + `?tab=pricing|login` URL 閸氬本顒?+ `<KeepAlive>` 娣囨繄鏆€鐞涖劌宕熸潏鎾冲弳娑撳秳娑径?
+- `frontend/src/components/admin/page-content/PricingContentForm.vue` 閳?閻?`PricingPageView.vue` 閸撱儱鍤?AppLayout/妞ゅ灚鐖ｆ０妯烘倵瀵版鍩岄敍灞肩矌娣囨繄鏆€閹绘劗銇氶崡掳鈧椒琚卞▓?textarea閵嗕椒绻氱€涙ɑ瀵滈柦?
+- `frontend/src/components/admin/page-content/LoginContentForm.vue` 閳?閻?`LoginPageView.vue` 閸撱儱鍤?AppLayout/妞ゅ灚鐖ｆ０妯烘倵瀵版鍩岄敍灞肩箽閻ｆ瑤绗佺紒?8 鐎涙顔?+ 濞撳懐鈹?娣囨繂鐡?妫板嫯顫?
+- `frontend/src/views/admin/PricingPageView.vue`閵嗕梗frontend/src/views/admin/LoginPageView.vue` 閳?閸掔娀娅?
+- `frontend/src/router/index.ts` 閳?閺?`/admin/page-content` 鐠侯垳鏁遍敍娌?admin/pricing-page`閵嗕梗/admin/login-page` 娣囨繄鏆€娑?redirect 閸掔増鏌婄捄顖氱窞楠炶泛鐢稉?`?tab=` 閸欏倹鏆熼敍宀冣偓浣峰姛缁涘彞绗夋径杈ㄦ櫏
+- `frontend/src/components/layout/AppSidebar.vue` 閳?缁狅紕鎮婇崨妯规櫠鏉堣鐖崢缁樺竴娑撱倖娼弮褔銆嶉敍灞芥値閹存劒绔撮弶掳鈧矂銆夐棃銏℃瀮濡楀牄鈧?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?閸?`nav.pricingPage` / `nav.loginPage`閿涙稒鏌婃晶?`nav.pageContent` + `admin.pageContent.{title,description,tabs.{pricing,login}}`閿涙稐绻氶悾?`admin.pricingPage.*` / `admin.loginPage.*`閿涘牅琚辨稉顏勭摍缂佸嫪娆㈡禒宥囧姧濞戝牐鍨傞敍?
 
-**鍙樻洿璇︽儏**:
-- 绠＄悊鍛樺彲涓烘瘡涓敤鎴峰湪姣忎釜鍒嗙粍璁剧疆鐙珛鐨?灞曠ず鍊嶇巼"锛岀敤鎴风湅鍒板睍绀哄€嶇巼鑰岄潪鐪熷疄璁¤垂鍊嶇巼
-- 灞曠ず鍊嶇巼鐙珛浜庣湡瀹炰笓灞炲€嶇巼锛屽嵆浣跨敤鎴蜂娇鐢ㄥ垎缁勯粯璁ゅ€嶇巼涔熷彲鍗曠嫭璁惧睍绀哄€嶇巼
-- 浣跨敤璁板綍閫氳繃缂╂斁 token 鏁伴噺瀹炵幇鑷唇锛歛ctual_cost 涓嶅彉锛宼otal_cost 脳 display_rate 鈮?actual_cost
-- 涓庢ā鍨嬬骇灞曠ず浠锋牸閾惧紡鍙犲姞锛岀敤鎴风骇浼樺厛绾ф洿楂?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倸褰ч崝銊ュ缁旑垽绱濋崥搴ｎ伂 handler 閸滃矁顔曠純?key 娑撳秴褰夐妴?
 
-## [2026-04-16] fix(pricing): 淇缂栬緫鐢ㄦ埛灞曠ず璁剧疆鍚庢ā鍨嬩环鏍兼帴鍙?00閿欒
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 閸氬牆鑻熼崝銊︽簚閿涙矮琚遍崸妤呭厴閺勵垬鈧苯澧犻崣浼淬€夐棃銏℃瀮濡楀牏顓搁悶鍡愨偓宥忕礉閹峰棔琚辨稉顏冩櫠鏉堣鐖弶锛勬窗閸嬪繐鍟戞担娆欑幢閺堫亝娼垫俊鍌涚亯鏉╂顩﹂崝鐘虫煀妞ょ敻娼伴敍鍫滅伐婵″倷鍗庣悰銊ф磸閵?04 妞ょ绱氱紒鐔剁閺€鎹愮箻鏉╂瑤閲?tab 妞ら潧宓嗛崣顖樷偓?
+2. Tab 閸掑洦宕查柅姘崇箖 URL `?tab=...` 閸氬本顒為敍灞肩┒娴滃孩绻侀柧鐐复 + 濞村繗顫嶉崳銊ュ鏉?閸氬酣鈧偓閿涙稒婀幐鍥х暰閺冨爼绮拋?`pricing`閵?
+3. `<KeepAlive>` 娣囨繄鏆€鐎涙劗绮嶆禒鍓佸Ц閹緤绱濋悽銊﹀煕閸︺劋琚辨稉?tab 娑斿妫块崚鍥ㄥ床閺冭埖婀穱婵嗙摠閻ㄥ嫮绱潏鎴滅瑝娴兼矮娑妴?
+4. 閼颁浇鐭惧鍕箽閻?redirect 閸掔増鏌婄捄顖氱窞閿涘本妫稊锔绢劮楠炶櫕绮︽潻鍥ㄦ诞閵?
 
-**褰卞搷鑼冨洿**:
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮瑰偊绱欑槐褎甯存稉銈嗩偧閺傚洦顢嶉崝鐔诲厴閸氬牆鑻熼敍?
+
+---
+
+## [2026-04-18] feat(login-page): 缁狅紕鎮婇崨妯哄讲缂傛牞绶惂璇茬秿妞ゅ灚鏋冨?
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/service/domain_constants.go` 閳?閺傛澘顤?8 娑?`SettingKeyLoginPage*` 鐢悂鍣?
+- `backend/internal/service/settings_view.go` 閳?`LoginPageContent` 缂佹挻鐎敍鍧杝on tag + `IsEmpty`閿涘绱盽PublicSettings.LoginPage *LoginPageContent`
+- `backend/internal/service/setting_service.go` 閳?`GetPublicSettings` 閸?8 娑?key 閸掔増澹掗柌蹇氼嚢閸欐牕鍨悰顭掔幢閺傛澘顤?`buildLoginPageContent`閿涘牏鈹栫€涙顔?trim 閸氬孩鏆ｆ担?nil 閸栨牭绱氶敍娌桮etPublicSettingsForInjection` 閻ㄥ嫬灏堕崥?struct 娑旂喎濮?`login_page`
+- `backend/internal/handler/dto/settings.go` 閳?`PublicSettings` DTO 閸?`LoginPage *LoginPageContent`閿涙稒鏌婃晶?`dto.LoginPageContent`
+- `backend/internal/handler/setting_handler.go` 閳?閸忣剙绱?`/settings/public` 鏉堟挸鍤弰鐘茬殸 + `toDTOLoginPageContent` 鏉堝懎濮崙鑺ユ殶
+- `backend/internal/handler/admin/login_page_handler.go` 閳?閺傛澘顤冮敍娆窫T/PUT `/admin/login-page/content`閿涙稑鐡у▓鐢甸獓 trim + 闂€鍨閺嶏繝鐛欓敍鍧癶ort 255 / long 500閿?
+- `backend/internal/handler/handler.go` + `wire.go` + `backend/cmd/server/wire_gen.go` 閳?`AdminHandlers.LoginPage` + provider閿涘本澧滈崝銊﹀絻閸?wire_gen 娑?pricing-page 娣囨繃瀵旈崥灞肩濡€崇础
+- `backend/internal/server/routes/admin.go` 閳?`registerLoginPageRoutes`
+- `frontend/src/api/loginPage.ts` 閳?閺傛澘顤?API client閿涘潉getAdminLoginPageContent` / `updateAdminLoginPageContent` / `resetAdminLoginPageContent`閿?
+- `frontend/src/api/index.ts` 閳?鐎电厧鍤?
+- `frontend/src/types/index.ts` 閳?`LoginPageContent` 閹恒儱褰涢敍娌桺ublicSettings.login_page?` 閸欘垶鈧鐡у▓?
+- `frontend/src/views/auth/LoginView.vue` 閳?8 婢?`t('auth.login.xxx')` 閺囨寧宕叉稉?`loginXxx` computed閿涙稒鐦℃稉?computed 闁晫鏁?`pickLoginText` 閸?fallback閿涘牏鈹栨稉?閺堫亜鐣炬稊澶嬫閻?i18n 閸樼喐鏋冮敍?
+- `frontend/src/views/admin/LoginPageView.vue` 閳?閺傛澘顤冪粻锛勬倞閸涙绱潏鎴︺€夐敍? 娑擃亜鐨崚鍡欑矋閿涘牐鎯€闁库偓/濡€崇€烽崠?閻ц缍嶅鍡礆8 娑擃亜鐡у▓浣冦€冮崡?+ 妫板嫯顫嶉柧鐐复 + 娣囨繂鐡?+ 閹垹顦叉妯款吇閿涘牆鐢?confirm閿涘绱辨穱婵嗙摠/閹垹顦查崥搴ば曢崣?`appStore.fetchPublicSettings(true)` 缁斿鍩㈢拋鈺佸従娴犳牗婀崚閿嬫煀閻ㄥ嫰銆夐棃銏㈡箙閸掔増鏌婇崐?
+- `frontend/src/components/layout/AppSidebar.vue` 閳?`adminNavItems` 婢х偛濮為妴宀€娅ヨぐ鏇€夐弬鍥攳閵嗗秴鍙嗛崣?
+- `frontend/src/router/index.ts` 閳?`/admin/login-page` 鐠侯垳鏁?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?`nav.loginPage` + `admin.loginPage.*`閿涘澅itle/description/preview/fallbackHint/sections/fields 8 妞?save/reset/reset-confirm閿?
+
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃厹鈧繖PublicSettings` 缂佹挻鐎悮顐ｅ⒖鐏炴洩绱檚ervice + DTO + TS 缁鐎烽敍澶涚礉娑撳﹥鐖堕懟銉ョ殺閺夈儲鏁奸崝銊ㄧ箹娑擃亞绮ㄩ弸鍕付鐟曚礁鎮撳銉幢閺傛澘顤?key 閸涜棄鎮曢悽?`login_page.*` 閸涜棄鎮曠粚娲？閿涘奔绗夋稉搴㈡＆閺?key 閸愯尙鐛婇妴鍌濈熅閻?/ handler / 閸撳秶顏弬鍥︽闁姤妲搁弬鏉款杻閿涘奔绗夌憰鍡欐磰娑撳﹥鐖堕妴淇檞ire_gen.go` 娴犲秹娓堕幍瀣З閸氬牆鑻熼妴?
+
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 8 娑?settings key閿涘潉login_page.badge` / `heading_line1` / `heading_line2` / `description` / `supported_models_title` / `models_desc` / `form_title` / `form_subtitle`閿涘绔存稉鈧€电懓绨?i18n `auth.login.*` 闁插瞼娈戦拃銉╂敘閺傚洦顢嶇€涙顔岄妴?
+2. 娴犵粯鍓扮€涙顔岀粚鍝勭摟缁楋缚瑕?閳?閸氬海顏潻鏂挎礀閻?`LoginPage` 鐎涙劗绮ㄩ弸鍕礋 nil閿涘潉omitempty` 閺佺繝缍?omit閿涘绱濋崜宥囶伂閹峰じ绗夐崚鏉挎皑缂佈呯敾閻?`t('auth.login.xxx')`閿涘奔鑵戦懟鍗炲瀼閹广垼鍤滈崝銊ф晸閺佸牄鈧?
+3. 缁狅紕鎮婇崨妯圭箽鐎涙ê鎮楃拫鍐暏 `appStore.fetchPublicSettings(true)` 瀵搫鍩楅柌宥嗘煀閹峰褰?public settings閿涘矂浼╅崗宥呭従娴犳牕鍑￠幍鎾崇磻閻ㄥ嫰銆夐棃銏㈡箙閸掔増妫悧鍫涒偓?
+4. 閵嗗本浠径宥夌帛鐠併們鈧? 閹靛綊鍣洪崘娆忓弳缁岃桨瑕嗛敍灞肩瑝閺勵垳澧块悶鍡楀灩 key閿涙稖顕㈡稊澶嬫纯閺勫海鈥橀敍灞肩瑬娑撳秶鏁ら崝鐘插灩闂勩倖甯撮崣锝冣偓?
+5. SSR 濞夈劌鍙嗛惃?`window.__APP_CONFIG__` 娑旂喎鎮撳銉︽纯閺傚府绱檂GetPublicSettingsForInjection`閿涘绱濇＃鏍偧濞撳弶鐓嬮惂璇茬秿妞ら潧姘ㄩ弰顖涙付缂佸牊鏋冨鍫礉娑撳秹妫仦蹇嬧偓?
+6. 妤犲矁鐦夐敍姝歝url /api/v1/settings/public | grep login_page` 閳?閺堫亙绻氱€涙ɑ妞傞弮?key閿涙稓娅ヨぐ鏇炴倵 `curl /admin/login-page/content` 鏉╂柨娲?8 鐎涙顔岄崗銊р敄鐎电钖勯敍娑楃箽鐎涙ê鎮?public 閹恒儱褰涘鈧慨瀣箲閸?`login_page` 鐎涙劗绮ㄩ弸鍕┾偓?
+
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮瑰偊绱欑紒顓溾偓灞灸侀崹瀣吀娴犵兘銆夐弬鍥攳閵嗗稄绱?
+
+---
+
+## [2026-04-18] fix(pricing-page): 缁狅紕鎮婇崨妯肩椽鏉堟垿銆夐張顏冪箽鐎涙ɑ妞傛０鍕綖姒涙顓婚弬鍥攳
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/handler/admin/pricing_page_handler.go` 閳?鐎电厧鍤?`DefaultPricingPageIntro` / `DefaultPricingPageEducation` 鐢悂鍣洪敍娌桮et` 閸?settings 閺堫亜鍟?/ 缁岃桨瑕嗛弮璺烘礀閽€钘夊煂姒涙顓婚崐纭风幢`loadValue` 婢舵矮绔存稉?fallback 閸忋儱寮?
+- `backend/internal/handler/pricing_page_handler.go` 閳?閸掔姵甯€閺堫剙婀存妯款吇鐢悂鍣洪敍灞筋槻閻?`admin.Default*`
+
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ簺鈧倻鍑界€涙顔岀痪褑鐨熼弫杈剧礉閺?schema / 鐠侯垳鏁遍崣妯哄閵?
+
+**閸欐ɑ娲跨拠锔藉剰**: 閸樼喎鍘涚粻锛勬倞閸涙绻樼紓鏍帆妞ゅ灚妞?settings 闁插矁绻曞▽鈥冲晸閸忋儻绱濇稉銈勯嚋 textarea 闁姤妲哥粚铏规畱閿涘奔绲鹃悽銊﹀煕鐠佲€茬幆妞ら潧寮甸弰鍓с仛閻ㄥ嫭妲?handler 閸愬懐鐤嗘妯款吇閺傚洦顢嶉敍灞筋嚤閼锋番鈧瞼绱潏鎴滅瑝閸掓壆鏁ら幋椋庢箙閸掓壆娈戞稉婊嗐偪閵嗗秲鈧倻骞囬崷?admin Get 閹恒儱褰涙稉搴ｆ暏閹磋渹鏅堕崗杈╂暏閸氬奔绔存禒钘夌埗闁插骏绱濈粻锛勬倞閸涙顑囨稉鈧▎陇绻橀弶銉ユ皑閼崇晫婀呴崚鑸偓宀€鏁ら幋閿嬵劃閸掕鐤勯梽鍛躬閻娈戦崘鍛啇閵嗗稄绱濋惄瀛樺复閺€鐟版皑鐞涘被鈧?
+
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮瑰偊绱欐稉濠冩蒋閸欐ɑ娲块惃鍕倵缂侇叏绱?
+
+---
+
+## [2026-04-18] feat(pricing-page): 閺傛澘顤冮悽銊﹀煕閵嗗本膩閸ㄥ顓告禒鏋偓宥夈€?+ 缁狅紕鎮婇崨妯哄讲缂傛牞绶弬鍥攳
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/migrations/109_add_show_on_pricing_page.sql` 閳?`global_model_pricing` 閺傛澘顤?`show_on_pricing_page BOOLEAN`
+- `backend/internal/service/global_model_pricing.go` 閳?`GlobalModelPricing` 閸?`ShowOnPricingPage` 鐎涙顔岄敍娑欏复閸欙絾鏌婃晶?`ListForPricingPage`
+- `backend/internal/repository/global_model_pricing_repo.go` 閳?閹碘偓閺?SELECT/INSERT/UPDATE 閸氬本顒為弬鏉跨摟濞堢绱遍弬鏉款杻 `ListForPricingPage`
+- `backend/internal/service/global_model_pricing_service.go` 閳?`GlobalOverride` DTO 閸?`show_on_pricing_page`閿涙矖ToGlobalOverride` 閸氬本顒為敍娑欐煀婢?`ListForPricingPage` 閺傝纭?
+- `backend/internal/handler/admin/model_pricing_handler.go` 閳?Create/Update 鐠囬攱鐪?DTO 閸?`show_on_pricing_page *bool`
+- `backend/internal/handler/admin/pricing_page_handler.go` 閳?閺傛澘顤冮敍娆窫T/PUT `/admin/pricing-page/content`閿涘矁顕伴崘?`settings` KV 娑撱倓閲?key
+- `backend/internal/handler/pricing_page_handler.go` 閳?閺傛澘顤冮悽銊﹀煕娓氀嶇窗GET `/user/pricing-page`閿涘矁浠涢崥鍫滆⒈濞堝灚鏋冨?+ 閹?provider 閸掑棛绮嶉惃鍕潔缁€杞扮幆閺?
+- `backend/internal/handler/handler.go` 閳?`AdminHandlers.PricingPage`閵嗕梗Handlers.PricingPage` 閺傛澘鐡у▓?
+- `backend/internal/handler/wire.go` 閳?濞夈劌鍞?`NewPricingPageHandler` / `NewPricingPageAdminHandler`
+- `backend/cmd/server/wire_gen.go` 閳?閹靛濮╃紓鏍ㄥ笓閺?handler 娓氭繆绂嗛敍鍧刧o generate` 閸︺劋瀵岄獮鎻掑嚒妫板嫬鍘涙径杈Е閿涘本瀵滈悳鐗堟箒濡€崇础閹绘帒鍙嗛敍?
+- `backend/internal/server/routes/admin.go` 閳?`registerPricingPageRoutes`
+- `backend/internal/server/routes/user.go` 閳?濞夈劌鍞?`/user/pricing-page`
+- `frontend/src/api/pricingPage.ts` 閳?閺傛澘顤?API client閿涘牏鏁ら幋?Get + 缁狅紕鎮婇崨?Get/Update閿?
+- `frontend/src/api/index.ts` 閳?鐎电厧鍤?`pricingPageAPI`
+- `frontend/src/api/admin/modelPricing.ts` 閳?`GlobalOverride`/`CreateOverrideRequest`/`UpdateOverrideRequest` 閸?`show_on_pricing_page`
+- `frontend/src/views/user/PricingView.vue` 閳?閺傛澘顤冮悽銊﹀煕妞ょ绱版稉澶庡Ν閸愬懎顔愰敍鍫熸拱缁旀瑨顓告禒閿嬆佸?/ 鐠佲€茬幆濡€崇础缁夋垶娅?/ 閹稿閽╅崣鏉垮瀻缂佸嫮娈戞禒閿嬬壐鐞涱煉绱氶敍瀛rkdown 閻?`marked@17` + `DOMPurify` 濞撳弶鐓?
+- `frontend/src/views/admin/PricingPageView.vue` 閳?閺傛澘顤冪粻锛勬倞閸涙﹢銆夐敍姘⒈濞?textarea 缂傛牞绶?+ 娣囨繂鐡?+ 閹稿洤鎮滃Ο鈥崇€烽柊宥囩枂閻ㄥ嫬绱╃€?
+- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue` 閳?缂傛牞绶€电鐦藉鍡楀閵嗗苯婀拋鈥茬幆妞ら潧鐫嶇粈鎭掆偓宥呯磻閸?
+- `frontend/src/components/layout/AppSidebar.vue` 閳?閻劍鍩?娑擃亙姹夋笟褑绔熼弽蹇旀煀婢х偑鈧本膩閸ㄥ顓告禒鏋偓宥堝綅閸楁洩绱辩粻锛勬倞閸涙ü鏅舵潏瑙勭埉閺傛澘顤冮妴宀冾吀娴犵兘銆夐弬鍥攳閵嗗秴鍙嗛崣锝忕幢閺傛澘顤?`PriceTagIcon`
+- `frontend/src/router/index.ts` 閳?閺傛澘顤?`/pricing` 娑?`/admin/pricing-page` 鐠侯垳鏁?
+- `frontend/src/i18n/locales/{zh,en}.ts` 閳?閺傛澘顤?`pricing.*`閵嗕梗admin.pricingPage.*`閵嗕梗admin.modelPricing.showOnPricingPage` 闁款喕浜掗崣?`nav.modelPricing`閵嗕梗nav.pricingPage`
+
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃厹鈧倹鏌婃晶鐐茬摟濞?`show_on_pricing_page` 娴ｅ秳绨?`global_model_pricing` 鐞涱煉绱濇潻浣盒╅弰?additive閿涘奔绗傚〒姝屽鐏忓棙娼电€电顕氱悰銊х波閺嬪嫬浠涢弨鐟板З闂団偓閹靛濮╅崥鍫濊嫙閵嗕径andler / 鐠侯垳鏁遍崸鍥﹁礋閺傛澘顤冮敍灞肩瑝鐟曞棛娲婃稉濠冪埗閺傚洣娆㈤惃鍕＆閺堝鐭惧鍕┾偓淇檞ire_gen.go` 閹靛濮╃紓鏍帆閿涘牆娲滄稉璇插叡 Wire 閻㈢喐鍨氭０鍕帥婢惰精瑙﹂敍瀹峆rovidePaymentConfigService` 缁涘鍣告径宥囩拨鐎规熬绱氶敍灞芥値楠炴湹绗傚〒鍛婃闂団偓閻ｆ瑦鍓伴妴?
+
+**閸欐ɑ娲跨拠锔藉剰**:
+1. 缁狅紕鎮婇崨妯哄讲閸︺劊鈧本膩閸ㄥ鍘ょ純?閳?濡€崇€风拠锔藉剰閵嗗秹鍣烽崟楣冣偓澶堚偓灞芥躬鐠佲€茬幆妞ら潧鐫嶇粈鎭掆偓宥忕礉閹貉冨煑閸濐亙绨哄Ο鈥崇€烽崙铏瑰箛閸︺劎鏁ら幋铚傛櫠閻ㄥ嫯顓告禒鐑姐€夐敍宀€瀚粩瀣╃艾鐠伮ゅ瀭 `enabled` 瀵偓閸忕偨鈧?
+2. 缁狅紕鎮婇崨妯哄讲閸?`/admin/pricing-page` 缂傛牞绶稉銈嗩唽 Markdown 閺傚洦顢嶉敍鍫熸拱缁旀瑨顓告禒閿嬆佸蹇嬧偓浣筋吀娴犻攱膩瀵繒顫栭弲顕嗙礆閿涘奔绻氱€涙ê鍩?`settings` 鐞涖劎娈?`pricing_page.intro_markdown` / `pricing_page.education_markdown` 娑撱倓閲?key閵嗗倹婀穱婵嗙摠閺冨墎鏁ら幋铚傛櫠閸ョ偠鎯ら崚?handler 閸愬懐鐤嗘妯款吇閺傚洦顢嶉妴?
+3. 閻劍鍩?`/pricing` 妞ゅ吀绔村▎鈩冨閸欐牞浠涢崥鍫熷复閸欙綇绱版潻鏂挎礀娑撱倖顔岄弬鍥攳 + 閹?provider 閸掑棛绮嶉惃鍕潔缁€杞扮幆閺嶈壈銆冮妴鍌氱潔缁€杞扮幆閻ㄥ嫪绱崗鍫㈤獓閿涙氨鏁ら幋椋庨獓 display override > 閸忋劌鐪?display override > 閻喎鐤勯崡鏇氱幆閿涘潚allback閿涘鈧?
+4. 娴犻攱鐗哥悰?per-token 娴犻攱瀵?$/MTok 閺勫墽銇氶敍瀹瞖r_request 閹?$/濞?閺勫墽銇氶妴?
+5. i18n 瀹歌尪藟 zh/en 鐎瑰本鏆ｉ柨顔尖偓绗衡偓?
+
+**閸忓疇浠?Issue/PR**: 閺堫剙婀存禍灞界磻闂団偓濮?
+
+---
+
+## [2026-04-17] feat(billing): 閻劍鍩涚痪褎膩閸ㄥ鐣炬禒鐤洬閻?(User Model Pricing Override)
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/migrations/106_add_user_model_pricing_overrides.sql` 閳?閺傛澘顤冪悰?
+- `backend/internal/service/user_model_pricing.go` 閳?鐎圭偘缍?+ 娴犳挸鍋嶉幒銉ュ經
+- `backend/internal/service/user_model_pricing_service.go` 閳?娑撴艾濮熼柅鏄忕帆鐏?
+- `backend/internal/repository/user_model_pricing_repo.go` 閳?閸樼喓鏁?SQL 鐎圭偟骞?
+- `backend/internal/service/model_pricing_resolver.go` 閳?PricingInput 婢х偛濮?UserID, Resolve 婢х偛濮為悽銊﹀煕缁狙嗩洬閻╂牕褰旈崝?
+- `backend/internal/service/gateway_service.go` 閳?娴肩娀鈧?UserID 閸掓澘鐣炬禒鐤掗弸鎰版懠鐠?
+- `backend/internal/handler/dto/display_pricing.go` 閳?閺傛澘顤?BuildUserDisplayPricingMap
+- `backend/internal/handler/usage_handler.go` 閳?娴ｈ法鏁ら悽銊﹀煕缁狙冪潔缁€楦款洬閻?
+- `backend/internal/handler/admin/user_model_pricing_handler.go` 閳?Admin CRUD API
+- `backend/internal/service/global_model_pricing_service.go` 閳?閸掓銆冩晶鐐插 user_override_count, 鐠囷附鍎忔晶鐐插 user_overrides
+- `backend/internal/service/admin_service.go` 閳?閻劍鍩涢崚鐘绘珟閺冨墎楠囬懕鏃€绔婚悶?
+- `backend/internal/handler/handler.go` 閳?AdminHandlers 婢х偛濮?UserModelPricing 鐎涙顔?
+- `backend/internal/handler/wire.go` 閳?濞夈劌鍞介弬?handler
+- `backend/internal/repository/wire.go` 閳?濞夈劌鍞介弬?repo
+- `backend/internal/service/wire.go` 閳?濞夈劌鍞介弬?service
+- `backend/internal/server/routes/admin.go` 閳?濞夈劌鍞介弬鎷岀熅閻?
+- `frontend/src/api/admin/userModelPricing.ts` 閳?閸撳秶顏?API 鐎广垺鍩涚粩?
+- `frontend/src/components/admin/user/UserModelPricingModal.vue` 閳?缁狅紕鎮婂Ο鈩冣偓浣诡攱
+- `frontend/src/views/admin/UsersView.vue` 閳?閻劍鍩涢幙宥勭稊閼挎粌宕熸晶鐐插"濡€崇€风€规矮鐜?閸忋儱褰?
+- `frontend/src/i18n/locales/en.ts` 閳?閸ヤ粙妾崠鏍ㄦ瀮濡?
+
+**鐠囧瓨妲?*: 閺傛澘顤冮悽銊﹀煕缁狙勀侀崹瀣暰娴犵柉顩惄鏍у閼虫枻绱濋弨顖涘瘮缁狅紕鎮婇崨妯硅礋閻楃懓鐣鹃悽銊﹀煕閻ㄥ嫮澹掔€规碍膩閸ㄥ顔曠純顕嗙窗
+1. 閻喎鐤勭拋陇鍨傛禒閿嬬壐鐟曞棛娲婇敍鍧昻put_price, output_price, cache_write_price, cache_read_price閿?
+2. 鐏炴洜銇氭禒閿嬬壐鐟曞棛娲婇敍鍧塱splay_input_price, display_output_price, display_rate_multiplier, cache_transfer_ratio閿?
+
+鐎瑰本鏆ｇ€规矮鐜导妯哄帥缁狙囨懠閿涙氨鏁ら幋?> 濞撶娀浜?> 閸忋劌鐪?> LiteLLM/Fallback閵嗗倷绗夎ぐ鍗炴惙閻滅増婀侀惃鍕弿鐏炩偓鐟曞棛娲婇妴浣圭闁捁顩惄鏍モ偓浣稿瀻缂佸嫬鈧秶宸奸崪宀€鏁ら幋宄板瀻缂佸嫬鈧秶宸奸張鍝勫煑閵?
+
+## [2026-04-17] feat(billing): 閻劍鍩涚痪褍鐫嶇粈鍝勨偓宥囧芳 (User Display Rate Multiplier)
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/migrations/104_add_display_rate_multiplier.sql` 閳?閺傛澘顤?
+- `backend/internal/service/user_group_rate.go` 閳?閹碘晛鐫?UserGroupRateEntry, GroupRateMultiplierInput, 閺傛澘顤?UserGroupRateData
+- `backend/internal/repository/user_group_rate_repo.go` 閳?閺€顖涘瘮 display_rate_multiplier 鐠囪鍟?
+- `backend/internal/handler/dto/display_pricing.go` 閳?閺傛澘顤?ApplyUserDisplayRate()
+- `backend/internal/handler/usage_handler.go` 閳?娴ｈ法鏁ょ拋鏉跨秿鎼存梻鏁ら悽銊﹀煕缁狙冪潔缁€鍝勫綁閹?
+- `backend/internal/handler/api_key_handler.go` 閳?/groups/rates 鏉╂柨娲栫仦鏇犮仛閸婂秶宸?
+- `backend/internal/service/api_key_service.go` 閳?閺傛澘顤?GetUserGroupRatesFull()
+- `backend/internal/service/admin_service.go` 閳?UpdateUser 閺€顖涘瘮 GroupRatesFull
+- `backend/internal/handler/admin/user_handler.go` 閳?閺€顖涘瘮 group_rates_full
+- `frontend/src/types/index.ts` 閳?閺傛澘顤?UserGroupRateData, group_display_rates
+- `frontend/src/api/groups.ts` 閳?鏉╂柨娲?UserGroupRateData
+- `frontend/src/views/user/KeysView.vue` 閳?GroupBadge 鐏炴洜銇氱仦鏇犮仛閸婂秶宸?
+- `frontend/src/components/admin/user/UserAllowedGroupsModal.vue` 閳?鐏炴洜銇氶崐宥囧芳缂傛牞绶玌I
+- `frontend/src/i18n/locales/{en,zh}.ts` 閳?閸ヤ粙妾崠?
+
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ骸鍟跨粣渚€顥撻梽鈺嬬礉閺傛澘顤冪€涙顔岄崪灞炬煙濞夋洩绱濇稉宥勬叏閺€鍦箛閺堝鈧槒绶?
+
+**閸欐ɑ娲跨拠锔藉剰**:
+- 缁狅紕鎮婇崨妯哄讲娑撶儤鐦℃稉顏嗘暏閹村嘲婀В蹇庨嚋閸掑棛绮嶇拋鍓х枂閻欘剛鐝涢惃?鐏炴洜銇氶崐宥囧芳"閿涘瞼鏁ら幋椋庢箙閸掓澘鐫嶇粈鍝勨偓宥囧芳閼板矂娼惇鐔风杽鐠伮ゅ瀭閸婂秶宸?
+- 鐏炴洜銇氶崐宥囧芳閻欘剛鐝涙禍搴ｆ埂鐎圭偘绗撶仦鐐测偓宥囧芳閿涘苯宓嗘担璺ㄦ暏閹磋渹濞囬悽銊ュ瀻缂佸嫰绮拋銈呪偓宥囧芳娑旂喎褰查崡鏇犲鐠佹儳鐫嶇粈鍝勨偓宥囧芳
+- 娴ｈ法鏁ょ拋鏉跨秿闁俺绻冪紓鈺傛杹 token 閺佷即鍣虹€圭偟骞囬懛顏呭攪閿涙瓫ctual_cost 娑撳秴褰夐敍瀹紀tal_cost 鑴?display_rate 閳?actual_cost
+- 娑撳孩膩閸ㄥ楠囩仦鏇犮仛娴犻攱鐗搁柧鎯х础閸欑姴濮為敍宀€鏁ら幋椋庨獓娴兼ê鍘涚痪褎娲挎?
+
+## [2026-04-16] fix(pricing): 娣囶喖顦茬紓鏍帆閻劍鍩涚仦鏇犮仛鐠佸墽鐤嗛崥搴⒛侀崹瀣╃幆閺嶅吋甯撮崣?00闁挎瑨顕?
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `backend/internal/repository/global_model_pricing_repo.go`
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝淇鑷繁寮曞叆鐨刡ug
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉娣囶喖顦查懛顏勭箒瀵洖鍙嗛惃鍒g
 
-**鍙樻洿璇︽儏**:
-- `GetByID` 鍜?`GetByModel` 鏂规硶 SELECT 浜?18 鍒椾絾 Scan 鍙帴鏀?14 涓瓧娈?
-- 婕忔帀浜?`display_input_price`, `display_output_price`, `display_rate_multiplier`, `cache_transfer_ratio` 鍥涗釜瀛楁
-- 褰?display 瀛楁涓?NULL 鏃跺伓灏斾笉鎶ラ敊锛岃缃簡闈?NULL 鍊煎悗蹇呯幇 500
+**閸欐ɑ娲跨拠锔藉剰**:
+- `GetByID` 閸?`GetByModel` 閺傝纭?SELECT 娴?18 閸掓ぞ绲?Scan 閸欘亝甯撮弨?14 娑擃亜鐡у▓?
+- 濠曞繑甯€娴?`display_input_price`, `display_output_price`, `display_rate_multiplier`, `cache_transfer_ratio` 閸ユ稐閲滅€涙顔?
+- 瑜?display 鐎涙顔屾稉?NULL 閺冭泛浼撶亸鏂剧瑝閹躲儵鏁婇敍宀冾啎缂冾喕绨￠棃?NULL 閸婄厧鎮楄箛鍛箛 500
 
-## [2026-04-16] feat(deploy): 瀹夊叏閮ㄧ讲鑴氭湰锛屾敮鎸佽嚜鍔ㄥ洖婊?
+## [2026-04-16] feat(deploy): 鐎瑰鍙忛柈銊ц閼存碍婀伴敍灞炬暜閹镐浇鍤滈崝銊ユ礀濠?
 
-**褰卞搷鑼冨洿**:
-- `deploy/update.sh`锛堟柊澧烇級
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `deploy/update.sh`閿涘牊鏌婃晶鐑囩礆
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝鏂板鐙珛鏂囦欢
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉閺傛澘顤冮悪顒傜彌閺傚洣娆?
 
-**鍙樻洿璇︽儏**:
-- 鏋勫缓鍒颁复鏃?staging tag锛屾棫闀滃儚鍦ㄦ瀯寤烘湡闂翠繚鎸佷笉鍙?
-- 淇濈暀涓婁竴涓増鏈暅鍍?(`sub2api-custom:prev`) 鐢ㄤ簬鍗虫椂鍥炴粴
-- 閮ㄧ讲鍚?health check 澶辫触鑷姩鍥炴粴鍒板墠涓€鐗堟湰
-- 鏀寔 `--rollback` 鎵嬪姩鍥炴粴
-- 鍏ㄨ繃绋嬫棩蹇楄褰曞埌 `/opt/sub2api/deploy.log`
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺嬪嫬缂撻崚棰佸閺?staging tag閿涘本妫梹婊冨剼閸︺劍鐎鐑樻埂闂傜繝绻氶幐浣风瑝閸?
+- 娣囨繄鏆€娑撳﹣绔存稉顏嗗閺堫剟鏆呴崓?(`sub2api-custom:prev`) 閻劋绨崡铏閸ョ偞绮?
+- 闁劎璁查崥?health check 婢惰精瑙﹂懛顏勫З閸ョ偞绮撮崚鏉垮娑撯偓閻楀牊婀?
+- 閺€顖涘瘮 `--rollback` 閹靛濮╅崶鐐寸泊
+- 閸忋劏绻冪粙瀣）韫囨顔囪ぐ鏇炲煂 `/opt/sub2api/deploy.log`
 
-## [2026-04-16] feat(branding): 鏂板寮鸿皟瀹夊叏涓庣ǔ瀹氭皵璐ㄧ殑涓ょ増绮楃姺鍥炬爣
+## [2026-04-16] feat(branding): 閺傛澘顤冨楦跨殶鐎瑰鍙忔稉搴Ｇ旂€规碍鐨电拹銊ф畱娑撱倗澧楃划妤冨Ш閸ョ偓鐖?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `frontend/public/logo-gateway-fortress.svg`
 - `frontend/public/logo-gateway-vault.svg`
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝浠呮柊澧為潤鎬佸搧鐗岃祫婧?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉娴犲懏鏌婃晶鐐烘饯閹礁鎼ч悧宀冪カ濠?
 
-**鍙樻洿璇︽儏**:
-- 鏂板 `logo-gateway-fortress.svg`锛屾柟鍚戝亸鈥滄姢鐩?+ 鍩虹璁炬柦鍫″瀿鈥濓紝鐢ㄥ帤閲嶅绉扮粨鏋勫己鍖栧畨鍏ㄣ€佺ǔ鍥恒€佸彲淇¤禆鐨勭涓€鍗拌薄
-- 鏂板 `logo-gateway-vault.svg`锛屾柟鍚戝亸鈥滈噾搴撻棬 + 绋冲畾涓灑鈥濓紝閫氳繃鏇寸矖鐨勯棬妗嗗拰閿佽姱璇箟绐佸嚭鍙潬鎵樼涓庤祫浜у畨鍏ㄦ劅
-- 涓ょ増閮芥瘮鍓嶉潰鐨勬柟妗堟洿澶ц儐銆佹洿鍘氶噸锛屼紭鍏堟湇鍔♀€滃畨鍏ㄣ€佺ǔ瀹氥€侀潬璋扁€濈殑鍝佺墝蹇冩櫤
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤?`logo-gateway-fortress.svg`閿涘本鏌熼崥鎴濅焊閳ユ粍濮㈤惄?+ 閸╄櫣顢呯拋鐐煢閸€崇€块垾婵撶礉閻劌甯ら柌宥咁嚠缁夋壆绮ㄩ弸鍕繁閸栨牕鐣ㄩ崗銊ｂ偓浣呵旈崶鎭掆偓浣稿讲娣嚶ょ閻ㄥ嫮顑囨稉鈧崡鎷岃杽
+- 閺傛澘顤?`logo-gateway-vault.svg`閿涘本鏌熼崥鎴濅焊閳ユ粓鍣炬惔鎾绘， + 缁嬪啿鐣炬稉顓熺亼閳ユ繐绱濋柅姘崇箖閺囧鐭栭惃鍕，濡楀棗鎷伴柨浣藉П鐠囶厺绠熺粣浣稿毉閸欘垶娼幍妯碱吀娑撳氦绁禍褍鐣ㄩ崗銊﹀妳
+- 娑撱倗澧楅柈鑺ョ槷閸撳秹娼伴惃鍕煙濡楀牊娲挎径褑鍎愰妴浣规纯閸樻岸鍣搁敍灞肩喘閸忓牊婀囬崝鈾€鈧粌鐣ㄩ崗銊ｂ偓浣呵旂€规哎鈧線娼拫鎵佲偓婵堟畱閸濅胶澧濊箛鍐╂
 
-## [2026-04-16] feat(branding): 鏂板涓ょ増鍘熷垱鍥炬爣澶囬€夋柟妗?
+## [2026-04-16] feat(branding): 閺傛澘顤冩稉銈囧閸樼喎鍨遍崶鐐垼婢跺洭鈧鏌熷?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `frontend/public/logo-gateway-orbit.svg`
 - `frontend/public/logo-gateway-portal.svg`
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝浠呮柊澧為潤鎬佸搧鐗岃祫婧?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉娴犲懏鏌婃晶鐐烘饯閹礁鎼ч悧宀冪カ濠?
 
-**鍙樻洿璇︽儏**:
-- 鏂板 `logo-gateway-orbit.svg`锛屾柟鍚戝亸鈥滅綉缁滀腑鏋?/ 鎺у埗闈?/ 璋冨害鑺傜偣鈥濓紝鏍稿績鏄幆褰㈡眹鑱氫笌涓夎矾鎺ュ叆
-- 鏂板 `logo-gateway-portal.svg`锛屾柟鍚戝亸鈥滃叆鍙?/ 閫氶亾 / 缃戝叧闂ㄦ埛鈥濓紝鏍稿績鏄垎灞傞棬妗嗕笌鍚戝績鑱氬悎
-- 涓ょ増閮藉埢鎰忛伩寮€涓婃父 `sub2api` 甯歌鐨勫瓧姣嶅寲鍑犱綍閫犲瀷锛屼紭鍏堝缓绔嬩綘鑷繁鐨勫搧鐗岃瘑鍒?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤?`logo-gateway-orbit.svg`閿涘本鏌熼崥鎴濅焊閳ユ粎缍夌紒婊€鑵戦弸?/ 閹貉冨煑闂?/ 鐠嬪啫瀹抽懞鍌滃仯閳ユ繐绱濋弽绋跨妇閺勵垳骞嗚ぐ銏＄湽閼辨矮绗屾稉澶庣熅閹恒儱鍙?
+- 閺傛澘顤?`logo-gateway-portal.svg`閿涘本鏌熼崥鎴濅焊閳ユ粌鍙嗛崣?/ 闁岸浜?/ 缂冩垵鍙ч梻銊﹀煕閳ユ繐绱濋弽绋跨妇閺勵垰鍨庣仦鍌炴，濡楀棔绗岄崥鎴濈妇閼辨艾鎮?
+- 娑撱倗澧楅柈钘夊煝閹板繘浼╁鈧稉濠冪埗 `sub2api` 鐢瓕顫嗛惃鍕摟濮ｅ秴瀵查崙鐘辩秿闁姴鐎烽敍灞肩喘閸忓牆缂撶粩瀣╃稑閼奉亜绻侀惃鍕惂閻楀矁鐦戦崚?
 
-## [2026-04-16] feat(branding): 鍥炬爣閲嶆瀯涓哄師鍒涚綉鍏充腑鏋㈤€犲瀷锛岄伩寮€涓婃父瑙嗚鍏宠仈
+## [2026-04-16] feat(branding): 閸ョ偓鐖ｉ柌宥嗙€稉鍝勫斧閸掓稓缍夐崗鍏呰厬閺嬨垽鈧姴鐎烽敍宀勪缉瀵偓娑撳﹥鐖剁憴鍡氼潕閸忓疇浠?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `frontend/public/logo-gateway-mark.svg`
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝浠呮洿鏂拌嚜瀹氫箟鍝佺墝璧勬簮
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉娴犲懏娲块弬鎷屽殰鐎规矮绠熼崫浣哄鐠у嫭绨?
 
-**鍙樻洿璇︽儏**:
-- 灏嗕笂涓€鐗堝亸鍑犱綍瀛楁瘝鐨勫浘鏍囬噸鏋勪负鈥滃叚杈瑰舰缃戝叧鏍稿績 + 涓夎矾姹囪仛鑺傜偣鈥濈殑鍘熷垱绗﹀彿锛岄伩鍏嶈浜鸿仈鎯冲埌涓婃父 `sub2api` 榛樿瑙嗚
-- 淇濈暀褰撳墠绔欑偣鑷繁鐨勬繁钃濆簳鍜岄潚缁夸富鑹诧紝浠ヤ繚璇佸拰鐜版湁棣栭〉銆佸悗鍙版寜閽€佸崱鐗囬珮浜粛鐒剁粺涓€
-- 鏂板浘鏍囨洿寮鸿皟鈥滆仛鍚堛€佽皟搴︺€佸垎鍙戔€濈殑浜у搧璇箟锛岃€屼笉鏄瓧姣嶉€犲瀷锛屼究浜庡悗缁嫭绔嬪搧鐗屽寲
+**閸欐ɑ娲跨拠锔藉剰**:
+- 鐏忓棔绗傛稉鈧悧鍫濅焊閸戠姳缍嶇€涙鐦濋惃鍕禈閺嶅洭鍣搁弸鍕礋閳ユ粌鍙氭潏鐟拌埌缂冩垵鍙ч弽绋跨妇 + 娑撳鐭惧Ч鍥粵閼哄倻鍋ｉ垾婵堟畱閸樼喎鍨辩粭锕€褰块敍宀勪缉閸忓秷顔€娴滈缚浠堥幆鍐插煂娑撳﹥鐖?`sub2api` 姒涙顓荤憴鍡氼潕
+- 娣囨繄鏆€瑜版挸澧犵粩娆戝仯閼奉亜绻侀惃鍕箒閽冩繂绨抽崪宀勬綒缂佸じ瀵岄懝璇х礉娴犮儰绻氱拠浣告嫲閻滅増婀佹＃鏍€夐妴浣告倵閸欑増瀵滈柦顔衡偓浣稿幢閻楀洭鐝禍顔荤矝閻掑墎绮烘稉鈧?
+- 閺傛澘娴橀弽鍥ㄦ纯瀵缚鐨熼垾婊嗕粵閸氬牄鈧浇鐨熸惔锔衡偓浣稿瀻閸欐垟鈧繄娈戞禍褍鎼х拠顓濈疅閿涘矁鈧奔绗夐弰顖氱摟濮ｅ秹鈧姴鐎烽敍灞肩┒娴滃骸鎮楃紒顓犲缁斿鎼ч悧灞藉
 
-## [2026-04-16] feat(branding): 鏂板璐村悎 AI 缃戝叧璇箟鐨?SVG 鍥炬爣鏂规
+## [2026-04-16] feat(branding): 閺傛澘顤冪拹鏉戞値 AI 缂冩垵鍙х拠顓濈疅閻?SVG 閸ョ偓鐖ｉ弬瑙勵攳
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `frontend/public/logo-gateway-mark.svg`
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紝浠呮柊澧為潤鎬佸搧鐗岃祫婧愶紝涓嶆浛鎹笂娓搁粯璁ゆ枃浠?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礉娴犲懏鏌婃晶鐐烘饯閹礁鎼ч悧宀冪カ濠ф劧绱濇稉宥嗘禌閹诡澀绗傚〒鎼佺帛鐠併倖鏋冩禒?
 
-**鍙樻洿璇︽儏**:
-- 鏂板涓€鐗堢敤浜?Sub2API 鐨勫搧鐗屽浘鏍囨柟妗堬紝寤剁画鐜版湁娣辫摑搴曚笌闈掔豢鍒拌摑鑹叉笎鍙樼殑瑙嗚璇█锛岄伩鍏嶄笌棣栭〉鍜屽悗鍙扮殑涓昏壊浣撶郴鍓茶
-- 鍥炬爣璇箟浠庡崟绾嚑浣曞瓧姣嶈繘涓€姝ユ敹鏁涘埌鈥滅綉鍏?/ 璺敱 / 鑱氬悎鍒嗗彂鈥濓紝閫氳繃涓灑寮忓嚑浣曚富褰㈠拰鑺傜偣绔偣寮哄寲 API Gateway 浜у搧璇嗗埆搴?
-- 璧勬簮浣跨敤 SVG 鐭㈤噺鏍煎紡锛屼究浜庡悗缁湪鍚庡彴 `site_logo`銆佺珯鐐归椤点€乫avicon 瀵煎嚭鍜岃惀閿€鐗╂枡涓鐢?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤冩稉鈧悧鍫㈡暏娴?Sub2API 閻ㄥ嫬鎼ч悧灞芥禈閺嶅洦鏌熷鍫礉瀵ゅ墎鐢婚悳鐗堟箒濞ｈ精鎽戞惔鏇氱瑢闂堟帞璞㈤崚鎷屾憫閼瑰弶绗庨崣妯兼畱鐟欏棜顫庣拠顓♀枅閿涘矂浼╅崗宥勭瑢妫ｆ牠銆夐崪灞芥倵閸欐壆娈戞稉鏄忓娴ｆ挾閮撮崜鑼额棁
+- 閸ョ偓鐖ｇ拠顓濈疅娴犲骸宕熺痪顖氬殤娴ｆ洖鐡уВ宥堢箻娑撯偓濮濄儲鏁归弫娑樺煂閳ユ粎缍夐崗?/ 鐠侯垳鏁?/ 閼辨艾鎮庨崚鍡楀絺閳ユ繐绱濋柅姘崇箖娑擃厽鐏戝蹇撳殤娴ｆ洑瀵岃ぐ銏犳嫲閼哄倻鍋ｇ粩顖滃仯瀵搫瀵?API Gateway 娴溠冩惂鐠囧棗鍩嗘惔?
+- 鐠у嫭绨担璺ㄦ暏 SVG 閻垽鍣洪弽鐓庣础閿涘奔绌舵禍搴℃倵缂侇厼婀崥搴″酱 `site_logo`閵嗕胶鐝悙褰掝浕妞ょ偣鈧公avicon 鐎电厧鍤崪宀冩儉闁库偓閻椻晜鏋℃稉顓烆槻閻?
 
-## [2026-04-16] fix: AI Credits 琚复鏃堕檺娴佽鏍囦负绉垎鑰楀敖瀵艰嚧璐﹀彿閿佸畾 5 灏忔椂
+## [2026-04-16] fix: AI Credits 鐞氼偂澶嶉弮鍫曟濞翠浇顕ら弽鍥﹁礋缁夘垰鍨庨懓妤€鏁栫€佃壈鍤х拹锕€褰块柨浣哥暰 5 鐏忓繑妞?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - `backend/internal/service/antigravity_credits_overages.go`
 - `backend/internal/service/antigravity_credits_overages_test.go`
 
-**涓婃父鍏煎鎬?*: 鏃犲啿绐侊紙浜屽紑鏂板鍔熻兘锛?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 閺冪姴鍟跨粣渚婄礄娴滃苯绱戦弬鏉款杻閸旂喕鍏橀敍?
 
-**鍙樻洿璇︽儏**:
-- `shouldMarkCreditsExhausted` 涓?`"resource has been exhausted"` 鍏抽敭璇嶅尮閰嶄簡 Google API 鎵€鏈?429 鍝嶅簲锛堝寘鎷复鏃?RPM 闄愭祦锛夛紝瀵艰嚧 credits 琚敊璇爣璁颁负鑰楀敖銆備竴鏃﹁鏍囧舰鎴愯嚜閿侊紙`isCreditsExhausted` 闃绘閲嶈瘯 鈫?`clearCreditsExhausted` 姘镐笉瑙﹀彂锛夛紝璐﹀彿琚攣瀹氬畬鏁?5 灏忔椂銆?
-- 绉婚櫎杩囦簬瀹芥硾鐨?`"resource has been exhausted"` 鍏抽敭璇嶏紝鍏朵綑鍏抽敭璇嶏紙`insufficient credit`銆乣credit exhausted` 绛夛級宸茶冻澶熺簿纭?
-- `shouldMarkCreditsExhausted` 鎺掗櫎 429 鐘舵€佺爜锛屼复鏃堕檺娴佷笉搴斿垽瀹氫负绉垎鑰楀敖
+**閸欐ɑ娲跨拠锔藉剰**:
+- `shouldMarkCreditsExhausted` 娑?`"resource has been exhausted"` 閸忔娊鏁拠宥呭爱闁板秳绨?Google API 閹碘偓閺?429 閸濆秴绨查敍鍫濆瘶閹奉兛澶嶉弮?RPM 闂勬劖绁﹂敍澶涚礉鐎佃壈鍤?credits 鐞氼偊鏁婄拠顖涚垼鐠侀璐熼懓妤€鏁栭妴鍌欑閺冿箒顕ら弽鍥ц埌閹存劘鍤滈柨渚婄礄`isCreditsExhausted` 闂冪粯顒涢柌宥堢槸 閳?`clearCreditsExhausted` 濮橀晲绗夌憴锕€褰傞敍澶涚礉鐠愶箑褰跨悮顐︽敚鐎规艾鐣弫?5 鐏忓繑妞傞妴?
+- 缁夊娅庢潻鍥︾艾鐎硅姤纭鹃惃?`"resource has been exhausted"` 閸忔娊鏁拠宥忕礉閸忔湹缍戦崗鎶芥暛鐠囧稄绱檂insufficient credit`閵嗕梗credit exhausted` 缁涘绱氬鑼跺喕婢剁喓绨跨涵?
+- `shouldMarkCreditsExhausted` 閹烘帡娅?429 閻樿埖鈧胶鐖滈敍灞煎閺冨爼妾哄ù浣风瑝鎼存柨鍨界€规矮璐熺粔顖氬瀻閼版鏁?
 
 ---
 
-## [2026-04-16] feat(admin): 妯″瀷瀹氫环椤靛悎骞舵槧灏?CRUD + 妯″瀷娴嬭瘯锛屽垹闄ゆ棫 mapping tab
+## [2026-04-16] feat(admin): 濡€崇€风€规矮鐜い闈涙値楠炶埖妲х亸?CRUD + 濡€崇€峰ù瀣槸閿涘苯鍨归梽銈嗘＋ mapping tab
 
-**褰卞搷鑼冨洿**:
-- `frontend/src/views/admin/ModelConfigView.vue`锛?*澶у箙绮剧畝**锛氬垹闄?mapping tab 鍏ㄩ儴妯℃澘鍜?script锛屽彧淇濈暀 pricing 鍜?rate 涓や釜 tab锛?
-- `frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue`锛?*鏂板缓**锛?
-- `frontend/src/components/admin/model-pricing/ModelTestDialog.vue`锛?*鏂板缓**锛?
-- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`锛堣〃鏍奸《閮ㄥ姞"+ 娣诲姞鏄犲皠"鎸夐挳锛涜鎿嶄綔鍒楀姞"缂栬緫鏄犲皠"鍜?娴嬭瘯"涓や釜鏉′欢鏄剧ず鎸夐挳锛涙帴鍏ヤ袱涓柊缁勪欢锛?
-- `frontend/src/i18n/locales/zh.ts` & `en.ts`锛堟柊澧?~20 鏉?key锛氭槧灏?CRUD + 妯″瀷娴嬭瘯锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `frontend/src/views/admin/ModelConfigView.vue`閿?*婢堆冪畽缁墽鐣?*閿涙艾鍨归梽?mapping tab 閸忋劑鍎村Ο鈩冩緲閸?script閿涘苯褰ф穱婵堟殌 pricing 閸?rate 娑撱倓閲?tab閿?
+- `frontend/src/components/admin/model-pricing/ModelMappingInlinePopover.vue`閿?*閺傛澘缂?*閿?
+- `frontend/src/components/admin/model-pricing/ModelTestDialog.vue`閿?*閺傛澘缂?*閿?
+- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`閿涘牐銆冮弽濂搞€婇柈銊ュ"+ 濞ｈ濮為弰鐘茬殸"閹稿鎸抽敍娑滎攽閹垮秳缍旈崚妤€濮?缂傛牞绶弰鐘茬殸"閸?濞村鐦?娑撱倓閲滈弶鈥叉閺勫墽銇氶幐澶愭尦閿涙稒甯撮崗銉よ⒈娑擃亝鏌婄紒鍕閿?
+- `frontend/src/i18n/locales/zh.ts` & `en.ts`閿涘牊鏌婃晶?~20 閺?key閿涙碍妲х亸?CRUD + 濡€崇€峰ù瀣槸閿?
 
-**涓婃父鍏煎鎬?*: 浣庨闄┿€傚叏閮ㄩ泦涓湪浜屽紑鐙湁鐨勬ā鍨嬮厤缃晫闈€侫PI 澶嶇敤鐜版湁鐨?`adminAPI.accounts.getAntigravityDefaultModelMapping` / `updateAntigravityDefaultModelMapping`锛堜笂娓稿凡鏈夛級锛屼互鍙?SSE 娴嬭瘯鎺ュ彛 `POST /admin/accounts/:id/test`銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈹库偓鍌氬弿闁劑娉︽稉顓炴躬娴滃苯绱戦悪顒佹箒閻ㄥ嫭膩閸ㄥ鍘ょ純顔炬櫕闂堫潿鈧精PI 婢跺秶鏁ら悳鐗堟箒閻?`adminAPI.accounts.getAntigravityDefaultModelMapping` / `updateAntigravityDefaultModelMapping`閿涘牅绗傚〒绋垮嚒閺堝绱氶敍灞间簰閸?SSE 濞村鐦幒銉ュ經 `POST /admin/accounts/:id/test`閵?
 
-**鑳屾櫙**:
+**閼冲本娅?*:
 
-涓婁竴杞妸妯″瀷瀹氫环椤甸噸鏋勪负"鍙屽垪妯″瀷鍚?+ 璁¤垂妯″紡"椋庢牸鍚庯紝鐢ㄦ埛鍙嶉锛?鏄犲皠鍏崇郴鍜岃璐规ā寮忎笉鑳戒慨鏀?銆傜粡璁ㄨ锛?
-- 璁¤垂妯″紡淇濈暀鍙锛堟湰韬槸浠庢槧灏勫叧绯绘帹鏂殑鏍囩锛屼笉鏄彲閰嶇疆灞炴€э級
-- 鏄犲皠鍏崇郴**搴旇**鑳芥敼锛屼笖鍐冲畾鎶娿€屾ā鍨嬫槧灏勩€嶇嫭绔?tab 鍚堝苟鍒板畾浠烽〉锛堝悗缁笎杩涘垹闄ょ嫭绔?tab锛?
-- 妯″瀷娴嬭瘯鍔熻兘鎼埌瀹氫环椤佃鎿嶄綔閲屽仛鎴愬皬鎸夐挳
+娑撳﹣绔存潪顔藉Ω濡€崇€风€规矮鐜い鐢稿櫢閺嬪嫪璐?閸欏苯鍨Ο鈥崇€烽崥?+ 鐠伮ゅ瀭濡€崇础"妞嬪孩鐗搁崥搴礉閻劍鍩涢崣宥夘洯閿?閺勭姴鐨犻崗宕囬兇閸滃矁顓哥拹瑙勀佸蹇庣瑝閼虫垝鎱ㄩ弨?閵嗗倻绮＄拋銊啈閿?
+- 鐠伮ゅ瀭濡€崇础娣囨繄鏆€閸欘亣顕伴敍鍫熸拱闊偅妲告禒搴㈡Ё鐏忓嫬鍙х化缁樺腹閺傤厾娈戦弽鍥╊劮閿涘奔绗夐弰顖氬讲闁板秶鐤嗙仦鐐粹偓褝绱?
+- 閺勭姴鐨犻崗宕囬兇**鎼存棁顕?*閼宠姤鏁奸敍灞肩瑬閸愬啿鐣鹃幎濞库偓灞灸侀崹瀣Ё鐏忓嫨鈧秶瀚粩?tab 閸氬牆鑻熼崚鏉跨暰娴犵兘銆夐敍鍫濇倵缂侇厽绗庢潻娑樺灩闂勩倗瀚粩?tab閿?
+- 濡€崇€峰ù瀣槸閸旂喕鍏橀幖顒€鍩岀€规矮鐜い浣冾攽閹垮秳缍旈柌灞戒粵閹存劕鐨幐澶愭尦
 
-鏂瑰悜纭畾鍚庢湰杞疄鏂藉交搴曠殑鍚堝苟銆?
+閺傜懓鎮滅涵顔肩暰閸氬孩婀版潪顔肩杽閺傝棄浜ゆ惔鏇犳畱閸氬牆鑻熼妴?
 
-**鍙樻洿璇︽儏**:
+**閸欐ɑ娲跨拠锔藉剰**:
 
-1. **鏂板缓 `ModelMappingInlinePopover.vue`**锛垀210 琛岋級锛?
-   - 涓夌鎿嶄綔锛氭柊澧炴槧灏勶紙mode="add"锛? 淇敼鏄犲皠锛坢ode="edit"锛? 鍒犻櫎鏄犲皠锛坋dit 妯″紡搴曢儴鎸夐挳锛?
-   - 涓や釜 input锛氳姹傛ā鍨嬪悕 + 涓婃父妯″瀷鍚嶏紝涓嬫柟甯︿竴琛岀伆瀛楁彁绀?鍚屽悕鏄犲皠鐩存帴濉浉鍚屽€?
-   - 璧扮幇鏈?API锛歚GET /admin/accounts/antigravity/default-model-mapping` 璇诲叏琛?鈫?灞€閮ㄤ慨鏀?鈫?`PUT` 鏁磋〃鍐欏洖
-   - 鏀瑰悕鍦烘櫙锛坋dit 鏃舵妸 from 涔熸敼浜嗭級姝ｇ‘澶勭悊锛氬厛 delete 鏃?key 鍐?set 鏂?key/value
-   - Teleport + fixed 瀹氫綅锛堝弬鑰?ModelPricingInlinePopover 璁捐锛夛紝鑷姩閬垮紑瑙嗗彛杈圭晫
-   - Enter 淇濆瓨銆佺孩瀛?inline 閿欒鍙嶉
+1. **閺傛澘缂?`ModelMappingInlinePopover.vue`**閿涘瀫210 鐞涘矉绱氶敍?
+   - 娑撳顫掗幙宥勭稊閿涙碍鏌婃晶鐐存Ё鐏忓嫸绱檓ode="add"閿? 娣囶喗鏁奸弰鐘茬殸閿涘潰ode="edit"閿? 閸掔娀娅庨弰鐘茬殸閿涘潒dit 濡€崇础鎼存洟鍎撮幐澶愭尦閿?
+   - 娑撱倓閲?input閿涙俺顕Ч鍌浤侀崹瀣倳 + 娑撳﹥鐖跺Ο鈥崇€烽崥宥忕礉娑撳鏌熺敮锔跨鐞涘瞼浼嗙€涙褰佺粈?閸氬苯鎮曢弰鐘茬殸閻╁瓨甯存繅顐ゆ祲閸氬苯鈧?
+   - 鐠ф壆骞囬張?API閿涙瓪GET /admin/accounts/antigravity/default-model-mapping` 鐠囪鍙忕悰?閳?鐏炩偓闁劋鎱ㄩ弨?閳?`PUT` 閺佺銆冮崘娆忔礀
+   - 閺€鐟版倳閸︾儤娅欓敍鍧媎it 閺冭埖濡?from 娑旂喐鏁兼禍鍡礆濮濓絿鈥樻径鍕倞閿涙艾鍘?delete 閺?key 閸?set 閺?key/value
+   - Teleport + fixed 鐎规矮缍呴敍鍫濆棘閼?ModelPricingInlinePopover 鐠佹崘顓搁敍澶涚礉閼奉亜濮╅柆鍨磻鐟欏棗褰涙潏鍦櫕
+   - Enter 娣囨繂鐡ㄩ妴浣哄鐎?inline 闁挎瑨顕ら崣宥夘洯
 
-2. **鏂板缓 `ModelTestDialog.vue`**锛垀160 琛岋級锛?
-   - 浠庡師 `ModelConfigView.vue` 鐨?mapping tab 鍙充晶娴嬭瘯闈㈡澘鎼縼锛岄€昏緫鍩烘湰淇濈暀
-   - 鍥哄畾浼犲叆 `model` prop锛堜粠琛屾寜閽Е鍙戞椂閿佸畾锛夛紝涓嶅啀闇€瑕佹ā鍨嬩笅鎷?
-   - 鍐呴儴鍔犺浇 Antigravity 璐﹀彿鍒楄〃锛堜粎 active / schedulable / 鏃?error 鐨勶級
-   - SSE 娴佸紡娑堣垂 `/api/v1/admin/accounts/:id/test`锛岃В鏋?`test_start / content / test_complete / error` 浜嬩欢绫诲瀷
-   - `testRunning` 鏃堕樆姝㈠叧闂?dialog 閬垮厤鐢ㄦ埛璇搷浣?
+2. **閺傛澘缂?`ModelTestDialog.vue`**閿涘瀫160 鐞涘矉绱氶敍?
+   - 娴犲骸甯?`ModelConfigView.vue` 閻?mapping tab 閸欏厖鏅跺ù瀣槸闂堛垺婢橀幖顒冪讣閿涘矂鈧槒绶崺鐑樻拱娣囨繄鏆€
+   - 閸ュ搫鐣炬导鐘插弳 `model` prop閿涘牅绮犵悰灞惧瘻闁筋喛袝閸欐垶妞傞柨浣哥暰閿涘绱濇稉宥呭晙闂団偓鐟曚焦膩閸ㄥ绗呴幏?
+   - 閸愬懘鍎撮崝鐘烘祰 Antigravity 鐠愶箑褰块崚妤勩€冮敍鍫滅矌 active / schedulable / 閺?error 閻ㄥ嫸绱?
+   - SSE 濞翠礁绱″☉鍫ｅ瀭 `/api/v1/admin/accounts/:id/test`閿涘矁袙閺?`test_start / content / test_complete / error` 娴滃娆㈢猾璇茬€?
+   - `testRunning` 閺冨爼妯嗗銏犲彠闂?dialog 闁灝鍘ら悽銊﹀煕鐠囶垱鎼锋担?
 
-3. **`ModelPricingTab.vue` 鎺ュ叆**锛?
-   - 琛ㄦ牸椤堕儴锛堟悳绱㈣鍙充晶銆佸埛鏂版寜閽乏渚э級鏂板"+ 娣诲姞鏄犲皠"鎸夐挳锛岄敋鐐?ref 鐢ㄤ簬 popover 瀹氫綅
-   - 琛屾搷浣滃垪涓夋寜閽紙鏉′欢鏄剧ず锛夛細
-     - 鈬?**缂栬緫鏄犲皠**锛氫粎 `canEditMapping` 琛岋紙hint type=requested_only 鎴?requested_equals_upstream锛?
-     - 鈻?**娴嬭瘯妯″瀷**锛歚canTest` 琛岋紙鏈?billing_basis_hint 鎴?provider=antigravity锛?
-     - 鉁?鏌ョ湅璇︽儏 / 鍒涘缓瀹氫环锛氭墍鏈夎锛堜繚鎸佸師琛屼负锛?
-   - `handleMappingSaved` 浜嬩欢鍥炶皟璋冪敤 `loadData` 鏁磋〃鍒锋柊锛堟槧灏勫彉鍖栧奖鍝嶆墍鏈夊窘鏍囧拰 related_models锛?
-   - `RowDisplay` 鎺ュ彛鎵?`canEditMapping` / `canTest` 瀛楁锛屽湪 `displayRows` computed 閲屾寜 hint 绫诲瀷鎺ㄥ
+3. **`ModelPricingTab.vue` 閹恒儱鍙?*閿?
+   - 鐞涖劍鐗告い鍫曞劥閿涘牊鎮崇槐銏ｎ攽閸欏厖鏅堕妴浣稿煕閺傜増瀵滈柦顔间箯娓氀嶇礆閺傛澘顤?+ 濞ｈ濮為弰鐘茬殸"閹稿鎸抽敍宀勬晪閻?ref 閻劋绨?popover 鐎规矮缍?
+   - 鐞涘本鎼锋担婊冨灙娑撳瀵滈柦顕嗙礄閺夆€叉閺勫墽銇氶敍澶涚窗
+     - 閳?**缂傛牞绶弰鐘茬殸**閿涙矮绮?`canEditMapping` 鐞涘矉绱檋int type=requested_only 閹?requested_equals_upstream閿?
+     - 閳?**濞村鐦Ο鈥崇€?*閿涙瓪canTest` 鐞涘矉绱欓張?billing_basis_hint 閹?provider=antigravity閿?
+     - 閴?閺屻儳婀呯拠锔藉剰 / 閸掓稑缂撶€规矮鐜敍姘閺堝顢戦敍鍫滅箽閹镐礁甯悰灞艰礋閿?
+   - `handleMappingSaved` 娴滃娆㈤崶鐐剁殶鐠嬪啰鏁?`loadData` 閺佺銆冮崚閿嬫煀閿涘牊妲х亸鍕綁閸栨牕濂栭崫宥嗗閺堝绐橀弽鍥ф嫲 related_models閿?
+   - `RowDisplay` 閹恒儱褰涢幍?`canEditMapping` / `canTest` 鐎涙顔岄敍灞芥躬 `displayRows` computed 闁插本瀵?hint 缁鐎烽幒銊ヮ嚤
 
-4. **鍒犻櫎鏃?mapping tab**锛?
-   - `ModelConfigView.vue` 浠?350 琛岀簿绠€鍒?40 琛岋紝鍙繚鐣?pricing 鍜?rate 涓や釜 tab + 蹇呰鐨?AppLayout 澹?
-   - 鍘嗗彶 URL 鍏煎锛歚?tab=mapping` 琚嚜鍔ㄥ洖閫€鍒?pricing
-   - 鏃?i18n key锛坄admin.modelConfig.antigravityMapping` / `testTitle` 绛夛級鏆傛湭娓呯悊锛岀暀鐫€涓嶇敤涓嶅奖鍝嶈涓猴紝鍚庣画鍙殢涓婃父鍚屾涓€璧锋竻闄?
+4. **閸掔娀娅庨弮?mapping tab**閿?
+   - `ModelConfigView.vue` 娴?350 鐞涘瞼绨跨粻鈧崚?40 鐞涘矉绱濋崣顏冪箽閻?pricing 閸?rate 娑撱倓閲?tab + 韫囧懓顩﹂惃?AppLayout 婢?
+   - 閸樺棗褰?URL 閸忕厧顔愰敍姝?tab=mapping` 鐞氼偉鍤滈崝銊ユ礀闁偓閸?pricing
+   - 閺?i18n key閿涘潉admin.modelConfig.antigravityMapping` / `testTitle` 缁涘绱氶弳鍌涙弓濞撳懐鎮婇敍宀€鏆€閻偓娑撳秶鏁ゆ稉宥呭閸濆秷顢戞稉鐚寸礉閸氬海鐢婚崣顖炴娑撳﹥鐖堕崥灞绢劄娑撯偓鐠ч攱绔婚梽?
 
-**楠岃瘉**:
-- `pnpm run typecheck` 閫氳繃
-- 鍓嶇 dev server 鐑噸杞藉悗鎵嬫祴娴佺▼锛?
-  - 鐐?+ 娣诲姞鏄犲皠" 鈫?濉?from/to 鈫?淇濆瓨 鈫?琛ㄦ牸 reload 鏂版槧灏勫嚭鐜?
-  - 鐐规煇琛?缂栬緫鏄犲皠" 鈫?鏀逛笂娓稿悕 鈫?淇濆瓨 鈫?鍒楄〃鏇存柊锛涘窘鏍囧拰 +N 璁℃暟姝ｇ‘鑱斿姩
-  - 缂栬緫 popover 搴曢儴鐐?鍒犻櫎鏄犲皠" 鈫?纭 鈫?璇ユ槧灏勪粠琛ㄤ腑娑堝け
-  - 鐐规煇琛?娴嬭瘯" 鈫?dialog 寮瑰嚭 鈫?閫夎处鍙?鈫?鍙戦€?鈫?娴佸紡杈撳嚭姝ｇ‘鏄剧ず
-  - 鏃?mapping tab 褰诲簳娑堝け锛屽彧鍓?Pricing 鍜?Rate Multipliers 涓や釜 tab
+**妤犲矁鐦?*:
+- `pnpm run typecheck` 闁俺绻?
+- 閸撳秶顏?dev server 閻戭參鍣告潪钘夋倵閹靛绁村ù浣衡柤閿?
+  - 閻?+ 濞ｈ濮為弰鐘茬殸" 閳?婵?from/to 閳?娣囨繂鐡?閳?鐞涖劍鐗?reload 閺傜増妲х亸鍕毉閻?
+  - 閻愯鐓囩悰?缂傛牞绶弰鐘茬殸" 閳?閺€閫涚瑐濞撶鎮?閳?娣囨繂鐡?閳?閸掓銆冮弴瀛樻煀閿涙稑绐橀弽鍥ф嫲 +N 鐠佲剝鏆熷锝団€橀懕鏂垮З
+  - 缂傛牞绶?popover 鎼存洟鍎撮悙?閸掔娀娅庨弰鐘茬殸" 閳?绾喛顓?閳?鐠囥儲妲х亸鍕矤鐞涖劋鑵戝☉鍫濄亼
+  - 閻愯鐓囩悰?濞村鐦? 閳?dialog 瀵懓鍤?閳?闁澶勯崣?閳?閸欐垿鈧?閳?濞翠礁绱℃潏鎾冲毉濮濓絿鈥橀弰鍓с仛
+  - 閺?mapping tab 瑜拌绨冲☉鍫濄亼閿涘苯褰ч崜?Pricing 閸?Rate Multipliers 娑撱倓閲?tab
 
-**宸茬煡闄愬埗 / 鏈潵杩唬**:
-- `upstream_only` 绫诲瀷鐨勮锛堜粎浣滀负鏄犲皠 value 瀛樺湪銆佹棤鍚屽悕鑷槧灏勶級涓嶆彁渚?缂栬緫鏄犲皠"鎸夐挳锛涘綋鍓?Antigravity 榛樿鏄犲皠閲屾绫诲瀷涓虹┖锛堟墍鏈?value 閮芥湁鍚屽悕鑷槧灏勶級锛屽疄闄呮棤褰卞搷
-- 璐﹀彿绾?`credentials.model_mapping` 鐨勭鐞嗕粛璧板師璐﹀彿缂栬緫鐣岄潰锛屾湰娆℃病鏈夊悎骞讹紙鐢ㄦ埛鏄庣‘鍙姹傚钩鍙扮骇鏄犲皠绠＄悊鍚堝叆锛?
-- 鏃?`admin.modelConfig.*` 涓嬬殑 mapping 鐩稿叧 i18n key 鏆傜暀鏈竻鐞?
+**瀹歌尙鐓￠梽鎰煑 / 閺堫亝娼垫潻顓濆敩**:
+- `upstream_only` 缁鐎烽惃鍕攽閿涘牅绮庢担婊€璐熼弰鐘茬殸 value 鐎涙ê婀妴浣规￥閸氬苯鎮曢懛顏呮Ё鐏忓嫸绱氭稉宥嗗絹娓?缂傛牞绶弰鐘茬殸"閹稿鎸抽敍娑樼秼閸?Antigravity 姒涙顓婚弰鐘茬殸闁插本顒濈猾璇茬€锋稉铏光敄閿涘牊澧嶉張?value 闁姤婀侀崥灞芥倳閼奉亝妲х亸鍕剁礆閿涘苯鐤勯梽鍛￥瑜板崬鎼?
+- 鐠愶箑褰跨痪?`credentials.model_mapping` 閻ㄥ嫮顓搁悶鍡曠矝鐠ф澘甯拹锕€褰跨紓鏍帆閻ｅ矂娼伴敍灞炬拱濞嗏剝鐥呴張澶婃値楠炶绱欓悽銊﹀煕閺勫海鈥橀崣顏囶洣濮瑰倸閽╅崣鎵獓閺勭姴鐨犵粻锛勬倞閸氬牆鍙嗛敍?
+- 閺?`admin.modelConfig.*` 娑撳娈?mapping 閻╃鍙?i18n key 閺嗗倻鏆€閺堫亝绔婚悶?
 
-## [2026-04-15] feat(admin): 妯″瀷瀹氫环椤垫繁搴︿紭鍖栵紙涓嬪垝绾?tab / 鍐呰仈 popover / 寤鸿浠?/ billing hint锛?
+## [2026-04-15] feat(admin): 濡€崇€风€规矮鐜い鍨箒鎼达缚绱崠鏍电礄娑撳鍨濈痪?tab / 閸愬懓浠?popover / 瀵ら缚顔呮禒?/ billing hint閿?
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/service/global_model_pricing_service.go`锛圡odelPricingListItem/Detail 鍔犲瓧娈点€乻uggestPricing銆乮sAntigravityStubModel銆丄ntigravity 鍙嶆壂 mapping value锛?
-- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`锛堜笅鍒掔嚎 tab 绛涢€夊櫒銆乧omputePriceDelta 娑ㄨ穼鏌撹壊銆佹姌鍙?banner銆乮nline popover 鎺ュ叆銆佽绾у窘鏍囷級
-- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue`锛堝缓璁环灞曠ず + 搴旂敤鎸夐挳锛?
-- `frontend/src/components/admin/model-pricing/ModelPricingInlinePopover.vue`锛堟柊寤猴紝308 琛岋級
-- `frontend/src/api/admin/modelPricing.ts`锛堢被鍨嬫墿鍏咃細suggested_prices/suggested_from/billing_basis_hint锛?
-- `frontend/src/i18n/locales/zh.ts` & `en.ts`锛垀20 鏉℃柊 key锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/service/global_model_pricing_service.go`閿涘湣odelPricingListItem/Detail 閸旂姴鐡у▓鐐光偓涔籾ggestPricing閵嗕巩sAntigravityStubModel閵嗕竸ntigravity 閸欏秵澹?mapping value閿?
+- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`閿涘牅绗呴崚鎺斿殠 tab 缁涙盯鈧娅掗妴涔mputePriceDelta 濞戙劏绌奸弻鎾瑰閵嗕焦濮岄崣?banner閵嗕巩nline popover 閹恒儱鍙嗛妴浣筋攽缁狙冪獦閺嶅浄绱?
+- `frontend/src/components/admin/model-pricing/ModelPricingDetailDialog.vue`閿涘牆缂撶拋顔荤幆鐏炴洜銇?+ 鎼存梻鏁ら幐澶愭尦閿?
+- `frontend/src/components/admin/model-pricing/ModelPricingInlinePopover.vue`閿涘牊鏌婂鐚寸礉308 鐞涘矉绱?
+- `frontend/src/api/admin/modelPricing.ts`閿涘牏琚崹瀣⒖閸忓拑绱皊uggested_prices/suggested_from/billing_basis_hint閿?
+- `frontend/src/i18n/locales/zh.ts` & `en.ts`閿涘瀫20 閺夆剝鏌?key閿?
 
-**涓婃父鍏煎鎬?*: 涓瓑銆傛墍鏈夋敼鍔ㄩ泦涓湪浜屽紑鐙湁鐨勩€屾ā鍨嬪畾浠枫€嶇鐞嗙晫闈紙2026-04-12 鏂板鐨?ModelPricingTab 鍜岀浉鍏虫湇鍔℃柟娉曚笂娓镐笉瀛樺湪锛夛紝涓庝笂娓镐富绾挎棤鍐茬獊銆侴lobalModelPricing 瀹炰綋娌℃湁鏂板 DB 瀛楁锛岄浂 migration銆傞渶瑕佺暀鎰忕殑鏄笂娓告湭鏉ヨ嫢缁?`ModelPricingListItem` / `ModelPricingDetail` 澧炲姞瀛楁鏃惰閬垮厤鍜屾湰娆℃柊澧炲瓧娈靛懡鍚嶅啿绐併€?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃厾鐡戦妴鍌涘閺堝鏁奸崝銊╂肠娑擃厼婀禍灞界磻閻欘剚婀侀惃鍕┾偓灞灸侀崹瀣暰娴犳灚鈧秶顓搁悶鍡欐櫕闂堫澁绱?026-04-12 閺傛澘顤冮惃?ModelPricingTab 閸滃瞼娴夐崗铏箛閸斺剝鏌熷▔鏇氱瑐濞撻晲绗夌€涙ê婀敍澶涚礉娑撳簼绗傚〒闀愬瘜缁炬寧妫ら崘鑼崐閵嗕敬lobalModelPricing 鐎圭偘缍嬪▽鈩冩箒閺傛澘顤?DB 鐎涙顔岄敍宀勬祩 migration閵嗗倿娓剁憰浣烘殌閹板繒娈戦弰顖欑瑐濞撳憡婀弶銉ㄥ缂?`ModelPricingListItem` / `ModelPricingDetail` 婢х偛濮炵€涙顔岄弮鎯邦洣闁灝鍘ら崪灞炬拱濞嗏剝鏌婃晶鐐茬摟濞堥潧鎳￠崥宥呭暱缁愪降鈧?
 
-**鑳屾櫙**:
+**閼冲本娅?*:
 
-姝ゅ墠銆屾ā鍨嬮厤缃?鈫?妯″瀷瀹氫环銆峊ab 宸茶兘姝ｇ‘灞曠ず Gemini/Antigravity 绛涢€夌粨鏋滐紝浣嗙鐞嗗憳鐪熸浣跨敤璇ラ〉闈㈢鐞嗗叏灞€瀹氫环鏃惰繕鏈夊洓涓棝鐐癸細
-1. 琛ㄦ牸閲屾瘡涓环鏍煎瓧娈靛埌搴曟潵鑷?LiteLLM 杩樻槸琚?global/channel 瑕嗙洊鐪嬩笉娓咃紝鍙湁 input/output 鍒楁湁绠€鍗曢鑹诧紝cache 鍒楀畬鍏ㄦ病鏍?
-2. 鏉ユ簮绛涢€?Tab 椤哄簭鏄€屽叏閮?/ 鍏ㄥ眬瑕嗙洊 / 娓犻亾瑕嗙洊 / 浠?LiteLLM銆嶏紝浣嗗疄闄呰璐逛紭鍏堢骇鏄?`Channel > Global > LiteLLM`锛岄『搴忓弽浜嗕笖椤甸潰娌℃湁浠讳綍浣嶇疆璇存槑杩欎釜浼樺厛绾?
-3. 鏀逛竴涓ā鍨嬬殑 input 浠疯鐐归搮绗斿浘鏍囧脊鍏ㄥ睆 dialog 鈫?缈绘壘 鈫?鏀?鈫?淇濆瓨 鈫?鍏抽棴锛屽楂橀璋冨弬鍦烘櫙澶噸
-4. 涓婁竴杞ˉ鐨?Antigravity 涓撴湁 stub锛坄gemini-3-pro-high`銆乣gpt-oss-120b-medium`銆乣tab_flash_lite_preview` 绛?8+ 涓級涓€鎺?`-`锛岀鐞嗗憳鏃犱粠涓嬫墜锛涗笖杩欎簺妯″瀷娑夊強璐﹀彿绾ф槧灏勶紝涓庢笭閬撳畾浠风殑 `billing_model_source` 鏈哄埗寮虹浉鍏?
+濮濄倕澧犻妴灞灸侀崹瀣帳缂?閳?濡€崇€风€规矮鐜妴宄奱b 瀹歌尪鍏樺锝団€樼仦鏇犮仛 Gemini/Antigravity 缁涙盯鈧绮ㄩ弸婊愮礉娴ｅ棛顓搁悶鍡楁喅閻喐顒滄担璺ㄦ暏鐠囥儵銆夐棃銏㈩吀閻炲棗鍙忕仦鈧€规矮鐜弮鎯扮箷閺堝娲撴稉顏嗘閻愮櫢绱?
+1. 鐞涖劍鐗搁柌灞剧槨娑擃亙鐜弽鐓庣摟濞堥潧鍩屾惔鏇熸降閼?LiteLLM 鏉╂ɑ妲哥悮?global/channel 鐟曞棛娲婇惇瀣╃瑝濞撳拑绱濋崣顏呮箒 input/output 閸掓婀佺粻鈧崡鏇㈩杹閼硅绱漜ache 閸掓鐣崗銊︾梾閺?
+2. 閺夈儲绨粵娑⑩偓?Tab 妞ゅ搫绨弰顖樷偓灞藉弿闁?/ 閸忋劌鐪憰鍡欐磰 / 濞撶娀浜剧憰鍡欐磰 / 娴?LiteLLM閵嗗稄绱濇担鍡楃杽闂勫懓顓哥拹閫涚喘閸忓牏楠囬弰?`Channel > Global > LiteLLM`閿涘矂銆庢惔蹇撳冀娴滃棔绗栨い鐢告桨濞屸剝婀佹禒璁崇秿娴ｅ秶鐤嗙拠瀛樻鏉╂瑤閲滄导妯哄帥缁?
+3. 閺€閫涚娑擃亝膩閸ㄥ娈?input 娴犵柉顩﹂悙褰掓惍缁楁柨娴橀弽鍥ц剨閸忋劌鐫?dialog 閳?缂堢粯澹?閳?閺€?閳?娣囨繂鐡?閳?閸忔娊妫撮敍灞筋嚠妤傛﹢顣剁拫鍐ㄥ棘閸︾儤娅欐径顏堝櫢
+4. 娑撳﹣绔存潪顔克夐惃?Antigravity 娑撴挻婀?stub閿涘潉gemini-3-pro-high`閵嗕梗gpt-oss-120b-medium`閵嗕梗tab_flash_lite_preview` 缁?8+ 娑擃亷绱氭稉鈧幒?`-`閿涘瞼顓搁悶鍡楁喅閺冪姳绮犳稉瀣閿涙稐绗栨潻娆庣昂濡€崇€峰☉澶婂挤鐠愶箑褰跨痪褎妲х亸鍕剁礉娑撳孩绗柆鎾崇暰娴犻娈?`billing_model_source` 閺堝搫鍩楀铏规祲閸?
 
-**璁捐鍐崇瓥**锛?
+**鐠佹崘顓搁崘宕囩摜**閿?
 
-缁忚繃 Explore+Plan 瀛愪唬鍒嗘瀽锛屽叧閿彂鐜帮細`model_pricing_resolver.go` 鐨?`resolveBasePricing(model)` 鏀跺埌鐨?`model` 宸茬粡鏄 `BillingModelSource` 杩囨护鐨?`billingModel`锛屽叏灞€瑕嗙洊鐨勬煡琛?key **澶╃劧璺熼殢姣忎釜璇锋眰鎵€灞炴笭閬撶殑 billing_model_source**銆備篃灏辨槸璇寸郴缁熷凡瀹炶川涓€鑷达紝缂虹殑鍙槸**璁╃鐞嗗憳鐪嬪埌杩欎釜闅愬紡琛屼负**銆傚洜姝ゆ湰杞€?*鏂规 A**锛堝墠绔槑绀洪殣寮忚涓猴級锛屼笉鍔犲悗绔瓧娈碉紝闆?migration銆?
+缂佸繗绻?Explore+Plan 鐎涙劒鍞崚鍡樼€介敍灞藉彠闁款喖褰傞悳甯窗`model_pricing_resolver.go` 閻?`resolveBasePricing(model)` 閺€璺哄煂閻?`model` 瀹歌尙绮￠弰顖濐潶 `BillingModelSource` 鏉╁洦鎶ら惃?`billingModel`閿涘苯鍙忕仦鈧憰鍡欐磰閻ㄥ嫭鐓＄悰?key **婢垛晝鍔х捄鐔兼濮ｅ繋閲滅拠閿嬬湴閹碘偓鐏炵偞绗柆鎾舵畱 billing_model_source**閵嗗倷绡冪亸杈ㄦЦ鐠囧閮寸紒鐔峰嚒鐎圭偠宸濇稉鈧懛杈剧礉缂傝櫣娈戦崣顏呮Ц**鐠佲晝顓搁悶鍡楁喅閻鍩屾潻娆庨嚋闂呮劕绱＄悰灞艰礋**閵嗗倸娲滃銈嗘拱鏉烆噣鈧?*閺傝顢?A**閿涘牆澧犵粩顖涙缁€娲瀵繗顢戞稉鐚寸礆閿涘奔绗夐崝鐘叉倵缁旑垰鐡у▓纰夌礉闂?migration閵?
 
-**鍙樻洿璇︽儏**:
+**閸欐ɑ娲跨拠锔藉剰**:
 
-1. **绛涢€夐『搴?+ 灞傜骇璇存槑**锛歴ourceTabs 椤哄簭鏀逛负 `鍏ㄩ儴 / 鏈夋笭閬撹鐩?/ 鏈夊叏灞€瑕嗙洊 / 浠?LiteLLM`锛汼ource label 鍙充晶鍔?鈸?鍥炬爣锛宧over 鏄剧ず"浼樺厛绾э細娓犻亾 > 鍏ㄥ眬 > LiteLLM"tooltip銆?
-2. **宸紓楂樹寒**锛歚formatPrice` 閲嶆瀯涓?`computePriceDelta`锛岃繑鍥?`{text, className, tooltip}`銆備互 LiteLLM 涓哄熀鍑嗚绠楃浉瀵圭櫨鍒嗘瘮宸紓锛屄?% 鍐呰浣滅瓑鍚屻€傛定浠?`text-rose-600`銆佽穼浠?`text-emerald-600`銆佺瓑鍚屾垨鏃犲熀鍑?`text-primary-600`銆佺函 LiteLLM 榛樿鐏般€俢ache_write/cache_read 涓€骞跺惎鐢ㄣ€傛瘡涓暟瀛椾笂 `title` 鏄剧ず"LiteLLM 鍩哄噯 $X 路 宸紓 +Y%"銆?
-3. **鎶樺彔 banner锛堣璐瑰熀鍑嗚鏄庯級**锛歴tats 鍗′笅鏂瑰姞 `<details>` 鎶樺彔鍧楋紝榛樿鏀惰捣銆傚睍寮€瑙ｉ噴 requested/upstream/channel_mapped 涓夌鍩哄噯鍚箟 + "娓犻亾榛樿 channel_mapped锛屾棤娓犻亾璺緞榛樿 requested"銆?
-4. **鍐呰仈 popover 缂栬緫**锛?
-   - 鏂板缓 `ModelPricingInlinePopover.vue`锛歍eleport 鍒?body 閬垮厤琛ㄦ牸 overflow 瑁佸垏锛沠ixed 瀹氫綅鑷姩閬垮紑瑙嗗彛杈圭晫锛堜笅鏂?鈫?涓婃柟銆佸彸渚?鈫?宸﹀榻愶級锛? 涓牳蹇冧环鏍煎瓧娈?+ enabled 澶嶉€夋 + 淇濆瓨/鍒犻櫎/璇︾粏璁剧疆 3 鎸夐挳锛涙瘡涓瓧娈靛甫 LiteLLM 鍩哄噯 placeholder锛汦nter 鎻愪氦
-   - 琛ㄦ牸 4 涓环鏍?`<td>` 鍔?`@click` 瑙﹀彂 popover + `cursor-pointer hover:bg-primary-50/50`
-   - 淇濆瓨鏃?*涓嶆暣琛?reload**锛岀埗缁勪欢 `handleInlineSaved` 灏卞湴鏇挎崲 items 骞跺樊閲忔洿鏂?stats.global_override_count
-   - Popover 淇濈暀鍘?override 鐨?provider/notes/image_output_price/per_request_price 绛夊瓧娈碉紙PATCH 宸噺锛夛紝閬垮厤娓呴浂
-   - `< lg` 鏂偣 `window.matchMedia('(max-width: 1023px)')` 鍥為€€鍒板師 dialog锛泂tub 妯″瀷锛堥渶瑕侀厤 provider/notes/寤鸿浠凤級涔熷洖閫€鍒?dialog
-   - 绛涢€夊櫒涓嬫柟鍔犵伆鑹插皬瀛楁彁绀?鐐瑰嚮琛ㄦ牸涓殑浠锋牸鏁板瓧鍙揩閫熺紪杈?
-5. **Antigravity stub 鍙厤缃?+ 寤鸿浠?*锛?
-   - 琛ㄦ牸閾呯瑪鍥炬爣瀵?stub 琛?tooltip 鍒囨崲涓?鍒涘缓瀹氫环"
-   - 鍚庣 `ModelPricingDetail` 鍔?`SuggestedPrices` / `SuggestedFrom` 瀛楁锛屼粎鍦ㄦ棤 LiteLLM + 鏃?global_override 鏃跺～鍏?
-   - 鏂?`suggestPricing` 鏂规硶鎸変互涓嬮摼鍖归厤锛氭樉寮忔槧灏勮〃锛坄tab_flash_lite_preview 鈫?gemini-2.5-flash-lite`銆乣gpt-oss-120b-medium 鈫?gpt-4o-mini`锛夆啋 鍓ョ `-high/-low/-medium` 妗ｄ綅鍚庣紑 鈫?鍓ョ `-thinking` 鈫?Gemini 鐗堟湰闄嶇骇锛?.x 鈫?2.5锛?
-   - `ModelPricingDetailDialog.vue` 鍦?Global Override section 椤堕儴灞曠ず"馃挕 寤鸿浠凤紙鏉ヨ嚜 xxx锛壜?搴旂敤"琛岋紝鐐瑰嚮搴旂敤鎶婂€煎～鍏?form锛堥渶绠＄悊鍛樼‘璁や繚瀛橈紝涓嶈嚜鍔ㄥ叆搴擄級
-   - 淇涓€涓壇浣滅敤 bug锛歚pricingService.GetModelPricing` 甯︽ā绯婂尮閰嶏紝瀵?Antigravity 涓撴湁 stub 浼氶敊璇尮閰嶅埌涓嶇浉鍏崇殑 LiteLLM 妯″瀷浠锋牸銆傛柊澧?`isAntigravityStubModel` 妫€娴嬶紙model 鍦?Antigravity mapping keys 浣嗕笉鍦?LiteLLM 绮剧‘妯″瀷鍒楄〃锛夛紝璇︽儏鎺ュ彛瀵?stub 璺宠繃 LiteLLM 骞惰蛋 suggestPricing锛屼笌鍒楄〃鎺ュ彛鐨勭簿纭尮閰嶈涔変竴鑷?
-6. **鍙屽垪妯″瀷鍚?+ 璁¤垂妯″紡鍒?*锛堣凯浠ｈ繃 badge 鏂规鍚庣殑鏈€缁堝舰鎬侊級锛?
-   鐢ㄦ埛鍙嶉灏?badge 澶娊璞★紝浜庢槸鎶婁俊鎭彁鍗囦负姝ｅ紡琛ㄦ牸鍒椻€斺€旂洿鎺ヤ綋鐜?瀹㈡埛绔姹傚悕 / 涓婃父鍚?/ 璁¤垂妯″紡"涓夊厓缁勫績鏅烘ā鍨嬨€?
-   - 鍚庣 `ModelPricingListItem.BillingBasisHint` 浠庡崟瀛楃涓插崌绾т负缁撴瀯浣?`{ type, related_models }`
-     涓夌 type锛?
-     - `requested_equals_upstream`鈥斺€斿悓鍚嶆槧灏勬垨绾?LiteLLM 妯″瀷锛岃姹傚悕 = 涓婃父鍚?
-     - `upstream_only`鈥斺€旀ā鍨嬫槸鏄犲皠 value锛屽鎴风涓嶇洿鎺ヨ姹傚畠锛況elated_models 鍒楀嚭鎵€鏈夋槧灏勬簮璇锋眰鍚嶏紙鏀寔澶氬涓€锛?
-     - `requested_only`鈥斺€旀ā鍨嬫槸鏄犲皠 key锛岃鏄犲皠鍒板叾浠栧悕瀛楋紱related_models 鍗曞厓绱犱负涓婃父鐩爣
-     浼樺厛绾?`same_name > upstream_only > requested_only`锛泂ameName 鎯呭喌涔熷～ related_models 鎵胯浇"琚皝鏄犲皠鍒版垜"淇℃伅锛岄伩鍏嶄俊鎭涪澶?
-   - 鍓嶇 `ModelPricingTab.vue` 鎶婂師 Model 鍗曞垪鎷嗘垚銆岃姹傛ā鍨嬪悕 / 涓婃父妯″瀷鍚嶃€嶅弻鍒楋紝骞舵柊澧炪€岃璐规ā寮忋€嶅垪锛堝彧璇绘爣绛撅細鎸夎姹?/ 鎸変笂娓?/ 璇锋眰=涓婃父锛?
-     姣忚鏍规嵁 hint 鎺ㄥ涓ゅ垪灞曠ず鍊硷細
-     - `requested_equals_upstream`锛氫袱鍒楃浉鍚?= model 鑷韩锛岃嫢 related_models 闈炵┖灞曠ず `+N` 灏忓窘鏍?+ hover 鍒楀叏
-     - `requested_only`锛氳姹?= model锛屼笂娓?= related_models[0]
-     - `upstream_only`锛氳姹?= related_models[0]锛?N 琛ㄧず澶氬涓€锛夛紝涓婃父 = model
-   - Provider / Channels 鍒楁敼涓?`xl:table-cell`锛? 1280px 闅愯棌锛夛紝鑺傜渷瀹藉害
-   - 璁¤垂妯″紡鍒?*涓嶅彲缂栬緫**锛屽洜涓哄畠涓嶆槸杩欐潯璁板綍鐨勫睘鎬р€斺€斿畠鏄粠鏄犲皠鍏崇郴鑷姩鎺ㄦ柇鐨勫睍绀烘爣绛撅紝瀹為檯璁¤垂鍩哄噯鐢辫姹傛墍灞炴笭閬撶殑 `billing_model_source` 鍐冲畾
-   - banner 鐨勫睍寮€鍐呭閲岃ˉ涓€鏉?`billingBasisColumnNote` 璀﹀憡寮忚鏄庯紝鏄庣‘鍛婄煡鐢ㄦ埛"杩欎竴鍒楀彧璇?+ 瀹為檯鐢辨笭閬撳喅瀹?
+1. **缁涙盯鈧銆庢惔?+ 鐏炲倻楠囩拠瀛樻**閿涙ourceTabs 妞ゅ搫绨弨閫涜礋 `閸忋劑鍎?/ 閺堝绗柆鎾诡洬閻?/ 閺堝鍙忕仦鈧憰鍡欐磰 / 娴?LiteLLM`閿涙奔ource label 閸欏厖鏅堕崝?閳?閸ョ偓鐖ｉ敍瀹ver 閺勫墽銇?娴兼ê鍘涚痪褝绱板〒鐘讳壕 > 閸忋劌鐪?> LiteLLM"tooltip閵?
+2. **瀹割喖绱撴妯瑰瘨**閿涙瓪formatPrice` 闁插秵鐎稉?`computePriceDelta`閿涘矁绻戦崶?`{text, className, tooltip}`閵嗗倷浜?LiteLLM 娑撳搫鐔€閸戝棜顓哥粻妤冩祲鐎靛湱娅ㄩ崚鍡樼槷瀹割喖绱撻敍灞?% 閸愬懓顫嬫担婊呯搼閸氬被鈧倹瀹氭禒?`text-rose-600`閵嗕浇绌兼禒?`text-emerald-600`閵嗕胶鐡戦崥灞惧灗閺冪姴鐔€閸?`text-primary-600`閵嗕胶鍑?LiteLLM 姒涙顓婚悘鑸偓淇che_write/cache_read 娑撯偓楠炶泛鎯庨悽銊ｂ偓鍌涚槨娑擃亝鏆熺€涙ぞ绗?`title` 閺勫墽銇?LiteLLM 閸╁搫鍣?$X 璺?瀹割喖绱?+Y%"閵?
+3. **閹舵ê褰?banner閿涘牐顓哥拹鐟扮唨閸戝棜顕╅弰搴礆**閿涙tats 閸椻€茬瑓閺傜懓濮?`<details>` 閹舵ê褰旈崸妤嬬礉姒涙顓婚弨鎯版崳閵嗗倸鐫嶅鈧憴锝夊櫞 requested/upstream/channel_mapped 娑撳顫掗崺鍝勫櫙閸氼偂绠?+ "濞撶娀浜炬妯款吇 channel_mapped閿涘本妫ゅ〒鐘讳壕鐠侯垰绶炴妯款吇 requested"閵?
+4. **閸愬懓浠?popover 缂傛牞绶?*閿?
+   - 閺傛澘缂?`ModelPricingInlinePopover.vue`閿涙瓖eleport 閸?body 闁灝鍘ょ悰銊︾壐 overflow 鐟佷礁鍨忛敍娌爄xed 鐎规矮缍呴懛顏勫З闁灝绱戠憴鍡楀經鏉堝湱鏅敍鍫滅瑓閺?閳?娑撳﹥鏌熼妴浣稿礁娓?閳?瀹革箑顕鎰剁礆閿? 娑擃亝鐗宠箛鍐х幆閺嶇厧鐡у▓?+ enabled 婢跺秹鈧顢?+ 娣囨繂鐡?閸掔娀娅?鐠囷妇绮忕拋鍓х枂 3 閹稿鎸抽敍娑欑槨娑擃亜鐡у▓闈涚敨 LiteLLM 閸╁搫鍣?placeholder閿涙宝nter 閹绘劒姘?
+   - 鐞涖劍鐗?4 娑擃亙鐜弽?`<td>` 閸?`@click` 鐟欙箑褰?popover + `cursor-pointer hover:bg-primary-50/50`
+   - 娣囨繂鐡ㄩ弮?*娑撳秵鏆ｇ悰?reload**閿涘瞼鍩楃紒鍕 `handleInlineSaved` 鐏忓崬婀撮弴鎸庡床 items 楠炶泛妯婇柌蹇旀纯閺?stats.global_override_count
+   - Popover 娣囨繄鏆€閸?override 閻?provider/notes/image_output_price/per_request_price 缁涘鐡у▓纰夌礄PATCH 瀹割噣鍣洪敍澶涚礉闁灝鍘ゅ〒鍛存祩
+   - `< lg` 閺傤厾鍋?`window.matchMedia('(max-width: 1023px)')` 閸ョ偤鈧偓閸掓澘甯?dialog閿涙硞tub 濡€崇€烽敍鍫ユ付鐟曚線鍘?provider/notes/瀵ら缚顔呮禒鍑ょ礆娑旂喎娲栭柅鈧崚?dialog
+   - 缁涙盯鈧娅掓稉瀣煙閸旂姷浼嗛懝鎻掔毈鐎涙褰佺粈?閻愮懓鍤悰銊︾壐娑擃厾娈戞禒閿嬬壐閺佹澘鐡ч崣顖氭彥闁喓绱潏?
+5. **Antigravity stub 閸欘垶鍘ょ純?+ 瀵ら缚顔呮禒?*閿?
+   - 鐞涖劍鐗搁柧鍛應閸ョ偓鐖ｇ€?stub 鐞?tooltip 閸掑洦宕叉稉?閸掓稑缂撶€规矮鐜?
+   - 閸氬海顏?`ModelPricingDetail` 閸?`SuggestedPrices` / `SuggestedFrom` 鐎涙顔岄敍灞肩矌閸︺劍妫?LiteLLM + 閺?global_override 閺冭泛锝為崗?
+   - 閺?`suggestPricing` 閺傝纭堕幐澶変簰娑撳鎽奸崠褰掑帳閿涙碍妯夊蹇旀Ё鐏忓嫯銆冮敍鍧則ab_flash_lite_preview 閳?gemini-2.5-flash-lite`閵嗕梗gpt-oss-120b-medium 閳?gpt-4o-mini`閿涘鍟?閸撱儳顬?`-high/-low/-medium` 濡楋絼缍呴崥搴ｇ磻 閳?閸撱儳顬?`-thinking` 閳?Gemini 閻楀牊婀伴梽宥囬獓閿?.x 閳?2.5閿?
+   - `ModelPricingDetailDialog.vue` 閸?Global Override section 妞ゅ爼鍎寸仦鏇犮仛"棣冩寱 瀵ら缚顔呮禒鍑ょ礄閺夈儴鍤?xxx閿涘?鎼存梻鏁?鐞涘矉绱濋悙鐟板毊鎼存梻鏁ら幎濠傗偓鐓庯綖閸?form閿涘牓娓剁粻锛勬倞閸涙鈥樼拋銈勭箽鐎涙﹫绱濇稉宥堝殰閸斻劌鍙嗘惔鎿勭礆
+   - 娣囶喖顦叉稉鈧稉顏勫娴ｆ粎鏁?bug閿涙瓪pricingService.GetModelPricing` 鐢附膩缁﹤灏柊宥忕礉鐎?Antigravity 娑撴挻婀?stub 娴兼岸鏁婄拠顖氬爱闁板秴鍩屾稉宥囨祲閸忓磭娈?LiteLLM 濡€崇€锋禒閿嬬壐閵嗗倹鏌婃晶?`isAntigravityStubModel` 濡偓濞村绱檓odel 閸?Antigravity mapping keys 娴ｅ棔绗夐崷?LiteLLM 缁墽鈥樺Ο鈥崇€烽崚妤勩€冮敍澶涚礉鐠囷附鍎忛幒銉ュ經鐎?stub 鐠哄疇绻?LiteLLM 楠炴儼铔?suggestPricing閿涘奔绗岄崚妤勩€冮幒銉ュ經閻ㄥ嫮绨跨涵顔煎爱闁板秷顕㈡稊澶夌閼?
+6. **閸欏苯鍨Ο鈥崇€烽崥?+ 鐠伮ゅ瀭濡€崇础閸?*閿涘牐鍑禒锝堢箖 badge 閺傝顢嶉崥搴ｆ畱閺堚偓缂佸牆鑸伴幀渚婄礆閿?
+   閻劍鍩涢崣宥夘洯鐏?badge 婢额亝濞婄挒鈽呯礉娴滃孩妲搁幎濠佷繆閹垱褰侀崡鍥﹁礋濮濓絽绱＄悰銊︾壐閸掓せ鈧柡鈧梻娲块幒銉ょ秼閻?鐎广垺鍩涚粩顖濐嚞濮瑰倸鎮?/ 娑撳﹥鐖堕崥?/ 鐠伮ゅ瀭濡€崇础"娑撳鍘撶紒鍕妇閺呯儤膩閸ㄥ鈧?
+   - 閸氬海顏?`ModelPricingListItem.BillingBasisHint` 娴犲骸宕熺€涙顑佹稉鎻掑磳缁狙傝礋缂佹挻鐎担?`{ type, related_models }`
+     娑撳顫?type閿?
+     - `requested_equals_upstream`閳ユ柡鈧柨鎮撻崥宥嗘Ё鐏忓嫭鍨ㄧ痪?LiteLLM 濡€崇€烽敍宀冾嚞濮瑰倸鎮?= 娑撳﹥鐖堕崥?
+     - `upstream_only`閳ユ柡鈧梹膩閸ㄥ妲搁弰鐘茬殸 value閿涘苯顓归幋椋庮伂娑撳秶娲块幒銉嚞濮瑰倸鐣犻敍娉乪lated_models 閸掓鍤幍鈧張澶嬫Ё鐏忓嫭绨拠閿嬬湴閸氬稄绱欓弨顖涘瘮婢舵艾顕稉鈧敍?
+     - `requested_only`閳ユ柡鈧梹膩閸ㄥ妲搁弰鐘茬殸 key閿涘矁顫﹂弰鐘茬殸閸掓澘鍙炬禒鏍ф倳鐎涙绱眗elated_models 閸楁洖鍘撶槐鐘辫礋娑撳﹥鐖堕惄顔界垼
+     娴兼ê鍘涚痪?`same_name > upstream_only > requested_only`閿涙硞ameName 閹懎鍠屾稊鐔凤綖 related_models 閹佃儻娴?鐞氼偉鐨濋弰鐘茬殸閸掔増鍨?娣団剝浼呴敍宀勪缉閸忓秳淇婇幁顖欐丢婢?
+   - 閸撳秶顏?`ModelPricingTab.vue` 閹跺﹤甯?Model 閸楁洖鍨幏鍡樺灇閵嗗矁顕Ч鍌浤侀崹瀣倳 / 娑撳﹥鐖跺Ο鈥崇€烽崥宥冣偓宥呭蓟閸掓绱濋獮鑸垫煀婢х偑鈧矁顓哥拹瑙勀佸蹇嬧偓宥呭灙閿涘牆褰х拠缁樼垼缁涙拝绱伴幐澶庮嚞濮?/ 閹稿绗傚〒?/ 鐠囬攱鐪?娑撳﹥鐖堕敍?
+     濮ｅ繗顢戦弽瑙勫祦 hint 閹恒劌顕辨稉銈呭灙鐏炴洜銇氶崐纭风窗
+     - `requested_equals_upstream`閿涙矮琚遍崚妤冩祲閸?= model 閼奉亣闊╅敍宀冨 related_models 闂堢偟鈹栫仦鏇犮仛 `+N` 鐏忓繐绐橀弽?+ hover 閸掓鍙?
+     - `requested_only`閿涙俺顕Ч?= model閿涘奔绗傚〒?= related_models[0]
+     - `upstream_only`閿涙俺顕Ч?= related_models[0]閿?N 鐞涖劎銇氭径姘嚠娑撯偓閿涘绱濇稉濠冪埗 = model
+   - Provider / Channels 閸掓鏁兼稉?`xl:table-cell`閿? 1280px 闂呮劘妫岄敍澶涚礉閼哄倻娓风€硅棄瀹?
+   - 鐠伮ゅ瀭濡€崇础閸?*娑撳秴褰茬紓鏍帆**閿涘苯娲滄稉鍝勭暊娑撳秵妲告潻娆愭蒋鐠佹澘缍嶉惃鍕潣閹€鈧柡鈧柨鐣犻弰顖欑矤閺勭姴鐨犻崗宕囬兇閼奉亜濮╅幒銊︽焽閻ㄥ嫬鐫嶇粈鐑樼垼缁涙拝绱濈€圭偤妾拋陇鍨傞崺鍝勫櫙閻㈣精顕Ч鍌涘鐏炵偞绗柆鎾舵畱 `billing_model_source` 閸愬啿鐣?
+   - banner 閻ㄥ嫬鐫嶅鈧崘鍛啇闁插矁藟娑撯偓閺?`billingBasisColumnNote` 鐠€锕€鎲″蹇氼嚛閺勫函绱濋弰搴ｂ€橀崨濠勭叀閻劍鍩?鏉╂瑤绔撮崚妤€褰х拠?+ 鐎圭偤妾悽杈ㄧ闁挸鍠呯€?
 
-**楠岃瘉**:
-- `pnpm run typecheck` 閫氳繃
-- `go build ./...` 閫氳繃锛宍go vet ./internal/service/` 鏃犲憡璀?
-- 鏈湴 API 瀹炴祴锛?
-  - `provider=antigravity` 杩斿洖 30 鏉★紝鍚?type 鍒嗗竷绗﹀悎棰勬湡锛?
-    - `requested_equals_upstream`锛歚claude-opus-4-6-thinking`锛坮elated_models=[opus-4-5-20251101, opus-4-5-thinking, opus-4-6] 琛ㄧず琚?3 涓姹傛槧灏勫埌锛夈€乣claude-sonnet-4-6`锛堣 haiku-4-5 / haiku-4-5-20251001 鏄犲皠鍒帮級銆乣gemini-3.1-flash-image`锛堣 3 涓?image 妯″瀷鏄犲皠鍒帮級绛?
-    - `requested_only`锛歚claude-haiku-4-5 鈫?claude-sonnet-4-6`銆乣claude-opus-4-6 鈫?claude-opus-4-6-thinking`銆乣gemini-3-pro-preview 鈫?gemini-3-pro-high` 绛?
-    - `upstream_only`锛欰ntigravity 榛樿鏄犲皠鐨?value 鍩烘湰閮芥湁鍚屽悕鑷槧灏勶紝鎵€浠ユ湰绫诲埆鏆傛椂娌℃暟鎹€斺€旇繖鏄鍚堟暟鎹泦鐜扮姸鐨勯鏈?
-  - `GET /admin/model-pricing/gemini-3-pro-high` 鈫?寤鸿浠锋潵鑷?`gemini-2.5-pro`
-  - `GET /admin/model-pricing/tab_flash_lite_preview` 鈫?寤鸿浠锋潵鑷?`gemini-2.5-flash-lite`
-  - `GET /admin/model-pricing/gpt-oss-120b-medium` 鈫?寤鸿浠锋潵鑷?`gpt-4o-mini`锛堜箣鍓嶈 LiteLLM 妯＄硦鍖归厤姹℃煋鎴?`1.25e-6 / 1e-5` 閿欎环锛屽凡淇锛?
-  - `GET /admin/model-pricing/claude-opus-4-6-thinking` 鈫?姝ｅ父杩斿洖 LiteLLM 浠锋牸锛屼笉瑙﹀彂 suggestPricing
+**妤犲矁鐦?*:
+- `pnpm run typecheck` 闁俺绻?
+- `go build ./...` 闁俺绻冮敍瀹峠o vet ./internal/service/` 閺冪姴鎲＄拃?
+- 閺堫剙婀?API 鐎圭偞绁撮敍?
+  - `provider=antigravity` 鏉╂柨娲?30 閺夆槄绱濋崥?type 閸掑棗绔风粭锕€鎮庢０鍕埂閿?
+    - `requested_equals_upstream`閿涙瓪claude-opus-4-6-thinking`閿涘澁elated_models=[opus-4-5-20251101, opus-4-5-thinking, opus-4-6] 鐞涖劎銇氱悮?3 娑擃亣顕Ч鍌涙Ё鐏忓嫬鍩岄敍澶堚偓涔laude-sonnet-4-6`閿涘牐顫?haiku-4-5 / haiku-4-5-20251001 閺勭姴鐨犻崚甯礆閵嗕梗gemini-3.1-flash-image`閿涘牐顫?3 娑?image 濡€崇€烽弰鐘茬殸閸掑府绱氱粵?
+    - `requested_only`閿涙瓪claude-haiku-4-5 閳?claude-sonnet-4-6`閵嗕梗claude-opus-4-6 閳?claude-opus-4-6-thinking`閵嗕梗gemini-3-pro-preview 閳?gemini-3-pro-high` 缁?
+    - `upstream_only`閿涙ntigravity 姒涙顓婚弰鐘茬殸閻?value 閸╃儤婀伴柈鑺ユ箒閸氬苯鎮曢懛顏呮Ё鐏忓嫸绱濋幍鈧禒銉︽拱缁鍩嗛弳鍌涙濞屸剝鏆熼幑顔光偓鏂衡偓鏃囩箹閺勵垳顑侀崥鍫熸殶閹诡噣娉﹂悳鎵Ц閻ㄥ嫰顣╅張?
+  - `GET /admin/model-pricing/gemini-3-pro-high` 閳?瀵ら缚顔呮禒閿嬫降閼?`gemini-2.5-pro`
+  - `GET /admin/model-pricing/tab_flash_lite_preview` 閳?瀵ら缚顔呮禒閿嬫降閼?`gemini-2.5-flash-lite`
+  - `GET /admin/model-pricing/gpt-oss-120b-medium` 閳?瀵ら缚顔呮禒閿嬫降閼?`gpt-4o-mini`閿涘牅绠ｉ崜宥堫潶 LiteLLM 濡紕纭﹂崠褰掑帳濮光剝鐓嬮幋?`1.25e-6 / 1e-5` 闁挎瑤鐜敍灞藉嚒娣囶喖顦查敍?
+  - `GET /admin/model-pricing/claude-opus-4-6-thinking` 閳?濮濓絽鐖舵潻鏂挎礀 LiteLLM 娴犻攱鐗搁敍灞肩瑝鐟欙箑褰?suggestPricing
 
-**宸茬煡闄愬埗**:
-- 鏄惧紡寤鸿浠锋槧灏勮〃 `antigravityProprietarySuggestMap` 闇€瑕佸湪 Google/OpenAI 鍙戞柊妯″瀷鏃剁淮鎶わ紝鐩墠鍙 `tab_flash_lite_preview` / `gpt-oss-120b-medium` 涓ゆ潯
-- Popover 浠呮敮鎸?4 涓牳蹇冧环鏍煎瓧娈碉紱provider/notes/image_output_price/per_request_price/billing_mode 浠嶉渶璧板師 dialog锛堥€氳繃 popover 鐨?璇︾粏璁剧疆鈥?鎸夐挳璺宠浆锛?
-- 鏂规 A 鐨勪繚瀹堥€夋嫨锛氭湭鏉ヨ嫢鍑虹幇"鍚屼竴妯″瀷鍦ㄤ笉鍚?billing_model_source 涓嬮渶瑕佷笉鍚屼环"鐨勫疄闄呬笟鍔″満鏅紝闇€瑕佸崌绾у埌鏂规 B锛堢粰 GlobalModelPricing 鍔?billing_model_source 瀛楁 + 浜岀淮缂撳瓨锛夛紝鏈涓嶉樆濉炶鎵╁睍
+**瀹歌尙鐓￠梽鎰煑**:
+- 閺勬儳绱″楦款唴娴犻攱妲х亸鍕€?`antigravityProprietarySuggestMap` 闂団偓鐟曚礁婀?Google/OpenAI 閸欐垶鏌婂Ο鈥崇€烽弮鍓佹樊閹躲倧绱濋惄顔煎閸欘亜顕?`tab_flash_lite_preview` / `gpt-oss-120b-medium` 娑撱倖娼?
+- Popover 娴犲懏鏁幐?4 娑擃亝鐗宠箛鍐х幆閺嶇厧鐡у▓纰夌幢provider/notes/image_output_price/per_request_price/billing_mode 娴犲秹娓剁挧鏉垮斧 dialog閿涘牓鈧俺绻?popover 閻?鐠囷妇绮忕拋鍓х枂閳?閹稿鎸崇捄瀹犳祮閿?
+- 閺傝顢?A 閻ㄥ嫪绻氱€瑰牓鈧瀚ㄩ敍姘弓閺夈儴瀚㈤崙铏瑰箛"閸氬奔绔村Ο鈥崇€烽崷銊ょ瑝閸?billing_model_source 娑撳娓剁憰浣风瑝閸氬奔鐜?閻ㄥ嫬鐤勯梽鍛瑹閸斺€虫簚閺咁垽绱濋棁鈧憰浣稿磳缁狙冨煂閺傝顢?B閿涘牏绮?GlobalModelPricing 閸?billing_model_source 鐎涙顔?+ 娴滃瞼娣紓鎾崇摠閿涘绱濋張顒侇偧娑撳秹妯嗘繅鐐额嚉閹碘晛鐫?
 
-## [2026-04-15] fix(admin): 妯″瀷瀹氫环椤?Gemini/Antigravity 杩囨护澶辨晥
+## [2026-04-15] fix(admin): 濡€崇€风€规矮鐜い?Gemini/Antigravity 鏉╁洦鎶ゆ径杈ㄦ櫏
 
-**褰卞搷鑼冨洿**:
-- `backend/internal/service/global_model_pricing_service.go`锛坒ilterItems 鍒悕鍖归厤 + Antigravity 妯″瀷琛ュ叏锛?
-- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`锛圙emini 涓嬫媺 value 瀵归綈锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `backend/internal/service/global_model_pricing_service.go`閿涘潚ilterItems 閸掝偄鎮曢崠褰掑帳 + Antigravity 濡€崇€风悰銉ュ弿閿?
+- `frontend/src/components/admin/model-pricing/ModelPricingTab.vue`閿涘湙emini 娑撳濯?value 鐎靛綊缍堥敍?
 
-**涓婃父鍏煎鎬?*: 浣庨闄┿€俙filterItems`/`ListAllModels` 鏄簩寮€ 2026-04-12 鏂板鐨勭粺涓€瀹氫环绠＄悊鐣岄潰锛堣涓嬫枃锛夛紝涓婃父娌℃湁鍚屽悕鍑芥暟锛涘敮涓€鍙兘鍐茬獊鐐规槸 `domain.ResolveAntigravityDefaultMapping` 鐨勫紩鍏ャ€?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈹库偓淇檉ilterItems`/`ListAllModels` 閺勵垯绨╁鈧?2026-04-12 閺傛澘顤冮惃鍕埠娑撯偓鐎规矮鐜粻锛勬倞閻ｅ矂娼伴敍鍫ｎ潌娑撳鏋冮敍澶涚礉娑撳﹥鐖跺▽鈩冩箒閸氬苯鎮曢崙鑺ユ殶閿涙稑鏁稉鈧崣顖濆厴閸愯尙鐛婇悙瑙勬Ц `domain.ResolveAntigravityDefaultMapping` 閻ㄥ嫬绱╅崗銉ｂ偓?
 
-**鑳屾櫙**:
-绠＄悊鍚庡彴銆屾ā鍨嬮厤缃?鈫?妯″瀷瀹氫环銆峊ab 閲岋紝provider 涓嬫媺閫?Gemini 鎴?Antigravity 鏃跺垪琛ㄤ负绌恒€傛牴鍥狅細
+**閼冲本娅?*:
+缁狅紕鎮婇崥搴″酱閵嗗本膩閸ㄥ鍘ょ純?閳?濡€崇€风€规矮鐜妴宄奱b 闁插矉绱漰rovider 娑撳濯洪柅?Gemini 閹?Antigravity 閺冭泛鍨悰銊よ礋缁屾亽鈧倹鐗撮崶鐙呯窗
 
-1. **Gemini**锛氬墠绔笅鎷?value 鏄?`vertex_ai`锛屼絾 LiteLLM JSON 閲?Gemini 瀹舵棌鐨?`litellm_provider` 瀛楁瀹為檯鍊兼槸 `gemini`锛圙oogle AI Studio锛夋垨甯﹀悗缂€鐨?`vertex_ai-language-models` / `vertex_ai-vision-models` / `vertex_ai-embedding-models`锛圴ertex AI锛夛紝`filterItems` 鐨?`strings.ToLower(item.Provider) != providerLower` 涓ユ牸鐩哥瓑鍖归厤涓€涓兘鍛戒笉涓€?
-2. **Antigravity**锛欰ntigravity 鏄簩寮€鑷爺骞冲彴锛孡iteLLM 閲屼笉瀛樺湪浠讳綍 `antigravity` provider 鏉＄洰锛涘悓鏃?`DefaultAntigravityModelMapping` 閲屽畾涔夌殑 Antigravity 鍙敤妯″瀷锛堝 `gemini-3-pro-high`銆乣tab_flash_lite_preview`锛夋牴鏈笉鍦ㄥ垪琛ㄦ灇涓炬潵婧愶紙LiteLLM + 鍏ㄥ眬瑕嗙洊锛夐噷銆?
+1. **Gemini**閿涙艾澧犵粩顖欑瑓閹?value 閺?`vertex_ai`閿涘奔绲?LiteLLM JSON 闁?Gemini 鐎硅埖妫岄惃?`litellm_provider` 鐎涙顔岀€圭偤妾崐鍏兼Ц `gemini`閿涘湙oogle AI Studio閿涘鍨ㄧ敮锕€鎮楃紓鈧惃?`vertex_ai-language-models` / `vertex_ai-vision-models` / `vertex_ai-embedding-models`閿涘湸ertex AI閿涘绱漙filterItems` 閻?`strings.ToLower(item.Provider) != providerLower` 娑撱儲鐗搁惄鍝ョ搼閸栧綊鍘ゆ稉鈧稉顏堝厴閸涙垝绗夋稉顓溾偓?
+2. **Antigravity**閿涙ntigravity 閺勵垯绨╁鈧懛顏嗙埡楠炲啿褰撮敍瀛teLLM 闁插奔绗夌€涙ê婀禒璁崇秿 `antigravity` provider 閺夛紕娲伴敍娑樻倱閺?`DefaultAntigravityModelMapping` 闁插苯鐣炬稊澶屾畱 Antigravity 閸欘垳鏁ゅΟ鈥崇€烽敍鍫濐洤 `gemini-3-pro-high`閵嗕梗tab_flash_lite_preview`閿涘鐗撮張顑跨瑝閸︺劌鍨悰銊︾亣娑撶偓娼靛┃鎰剁礄LiteLLM + 閸忋劌鐪憰鍡欐磰閿涘鍣烽妴?
 
-**鍙樻洿璇︽儏**:
-- 鎶藉嚭 `providerMatches(item, providerLower, antigravityModelSet)` 鎶婁弗鏍肩浉绛夋敼涓哄埆鍚嶆劅鐭ワ細
-  - `gemini` 鈫?鍖归厤 `gemini` 鎴?`vertex_ai` 鍓嶇紑
-  - `openai` 鈫?鍖归厤 `openai` 鎴?`text-completion-openai`
-  - `antigravity` 鈫?鍖归厤 `provider=antigravity` 鎴栨ā鍨嬪悕鍛戒腑 `domain.ResolveAntigravityDefaultMapping()` 鐨?key
-  - 鍏跺畠锛坅nthropic/bedrock 绛夛級鈫?淇濈暀鍘熶弗鏍肩浉绛?
-- `ListAllModels` 鍚堝苟闃舵鏂板涓€杞亶鍘?`ResolveAntigravityDefaultMapping()`锛屽 LiteLLM 鍜屽叏灞€瑕嗙洊閮芥病鏈夌殑妯″瀷鍚嶈ˉ涓€鏉?provider=antigravity 鐨?stub ListItem锛屼繚璇?Antigravity 涓撴湁妯″瀷鍦ㄥ垪琛ㄩ噷鍙鍙銆?
-- 鍓嶇 `ModelPricingTab.vue` 鐨勪笅鎷夋妸 `<option value="vertex_ai">Gemini</option>` 鏀逛负 `value="gemini"`锛屼笌鍚庣鏂板埆鍚嶅榻愩€?
-- `modelSet` 鍚堝苟寰幆鏂板鐨勫啓鍏ョ‘淇?Antigravity stub 鍘婚噸鏃?dedup 鍩哄噯瀹屾暣锛堜箣鍓?all-overrides 寰幆婕忓啓 modelSet锛屽伓鍙戦噸澶嶏紱涓€璧蜂慨鎺夛級銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閹惰棄鍤?`providerMatches(item, providerLower, antigravityModelSet)` 閹跺﹣寮楅弽鑲╂祲缁涘鏁兼稉鍝勫焼閸氬秵鍔呴惌銉窗
+  - `gemini` 閳?閸栧綊鍘?`gemini` 閹?`vertex_ai` 閸撳秶绱?
+  - `openai` 閳?閸栧綊鍘?`openai` 閹?`text-completion-openai`
+  - `antigravity` 閳?閸栧綊鍘?`provider=antigravity` 閹存牗膩閸ㄥ鎮曢崨鎴掕厬 `domain.ResolveAntigravityDefaultMapping()` 閻?key
+  - 閸忚泛鐣犻敍鍧卬thropic/bedrock 缁涘绱氶埆?娣囨繄鏆€閸樼喍寮楅弽鑲╂祲缁?
+- `ListAllModels` 閸氬牆鑻熼梼鑸殿唽閺傛澘顤冩稉鈧潪顕€浜堕崢?`ResolveAntigravityDefaultMapping()`閿涘苯顕?LiteLLM 閸滃苯鍙忕仦鈧憰鍡欐磰闁姤鐥呴張澶屾畱濡€崇€烽崥宥埶夋稉鈧弶?provider=antigravity 閻?stub ListItem閿涘奔绻氱拠?Antigravity 娑撴挻婀佸Ο鈥崇€烽崷銊ュ灙鐞涖劑鍣烽崣顖濐潌閸欘垳顓搁妴?
+- 閸撳秶顏?`ModelPricingTab.vue` 閻ㄥ嫪绗呴幏澶嬪Ω `<option value="vertex_ai">Gemini</option>` 閺€閫涜礋 `value="gemini"`閿涘奔绗岄崥搴ｎ伂閺傛澘鍩嗛崥宥咁嚠姒绘劑鈧?
+- `modelSet` 閸氬牆鑻熷顏嗗箚閺傛澘顤冮惃鍕晸閸忋儳鈥樻穱?Antigravity stub 閸樺鍣搁弮?dedup 閸╁搫鍣€瑰本鏆ｉ敍鍫滅閸?all-overrides 瀵邦亞骞嗗蹇撳晸 modelSet閿涘苯浼撻崣鎴﹀櫢婢跺稄绱辨稉鈧挧铚傛叏閹哄绱氶妴?
 
-**楠岃瘉**:
-- `go build ./internal/service/ ./internal/handler/admin/` 閫氳繃
-- `go vet ./internal/service/` 鏃犲憡璀?
-- `pnpm run typecheck` 鏃犻敊璇?
+**妤犲矁鐦?*:
+- `go build ./internal/service/ ./internal/handler/admin/` 闁俺绻?
+- `go vet ./internal/service/` 閺冪姴鎲＄拃?
+- `pnpm run typecheck` 閺冪娀鏁婄拠?
 
-## [2026-04-15] feat(tools): 鏂板鍥剧墖鐢熸垚 API 鍘嬪姏娴嬭瘯鑴氭湰
+## [2026-04-15] feat(tools): 閺傛澘顤冮崶鍓у閻㈢喐鍨?API 閸樺濮忓ù瀣槸閼存碍婀?
 
-**褰卞搷鑼冨洿**:
-- `tools/image_stress_test.py`锛堟柊澧烇紝鍗曟枃浠?Python 寮傛鍘嬫祴鑴氭湰锛寏580 琛岋級
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `tools/image_stress_test.py`閿涘牊鏌婃晶鐑囩礉閸楁洘鏋冩禒?Python 瀵倹顒為崢瀣ゴ閼存碍婀伴敍瀵?80 鐞涘矉绱?
 
-**涓婃父鍏煎鎬?*: 绾柊澧炲鎴风宸ュ叿锛屼笉瑙︾ backend/frontend/deploy锛屾棤涓婃父鍐茬獊椋庨櫓銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 缁绢垱鏌婃晶鐐差吂閹撮顏銉ュ徔閿涘奔绗夌憴锔绢潾 backend/frontend/deploy閿涘本妫ゆ稉濠冪埗閸愯尙鐛婃搴ㄦ珦閵?
 
-**鑳屾櫙**:
-瀹㈡埛鍙嶉閫氳繃 API 璋冪敤 Gemini 鍥剧墖鐢熸垚妯″瀷锛坄gemini-3-pro-image` / `gemini-2.5-flash-image` 绛夛級鏃堕敊璇巼寰堥珮锛岄渶瑕佷竴涓彲澶嶇幇銆佸彲璇婃柇鐨勫伐鍏峰幓瀹氫綅闂鍒板簳鍑哄湪涓婃父璐﹀彿姹犮€佽皟搴﹀櫒銆佽繕鏄?Anthropic 鍏煎缈昏瘧灞傘€?
+**閼冲本娅?*:
+鐎广垺鍩涢崣宥夘洯闁俺绻?API 鐠嬪啰鏁?Gemini 閸ュ墽澧栭悽鐔稿灇濡€崇€烽敍鍧刧emini-3-pro-image` / `gemini-2.5-flash-image` 缁涘绱氶弮鍫曟晩鐠囶垳宸煎鍫ョ彯閿涘矂娓剁憰浣风娑擃亜褰叉径宥囧箛閵嗕礁褰茬拠濠冩焽閻ㄥ嫬浼愰崗宄板箵鐎规矮缍呴梻顕€顣介崚鏉跨俺閸戝搫婀稉濠冪埗鐠愶箑褰垮Ч鐘偓浣界殶鎼达箑娅掗妴浣界箷閺?Anthropic 閸忕厧顔愮紙鏄忕槯鐏炲倶鈧?
 
-**鍙樻洿璇︽儏**:
-- 鐢?`httpx[http2]` + `asyncio` 瀹炵幇鍙楁帶骞跺彂鍘嬫祴
-- 鏀寔涓ゆ潯鍏ュ彛璺緞鐨勫姣旓細
-  1. `gemini-native`锛歚POST /v1beta/models/{model}:generateContent`
-  2. `anthropic-messages`锛歚POST /v1/messages`锛堣蛋 `GeminiMessagesCompatService` 缈昏瘧灞傦級
-- 涔熸敮鎸?`--stream` 璧?`:streamGenerateContent`锛屽懡涓唬鐮侀噷 `handleGeminiStreamToNonStreaming` 鐨勬祦寮忓垎鏀?
-- 閿欒鍒嗙被瀵归綈鏈嶅姟绔殑澶辫触淇″彿锛歚empty_stream` / `safety_block` / `google_config_error` / `signature_error` / `overloaded_529` / `rate_limit_429` / `gateway_5xx` / `auth_401_403` / `client_4xx` / `timeout` / `network_error`
-- 鐗瑰埆璇嗗埆 "200 OK 浣嗘棤鍥?锛坄candidates[0].content.parts` 閲屾棤 `inlineData`锛屾垨 `finishReason` 灞炰簬 safety 绫伙級鈥斺€?杩欐槸瀹㈡埛鏈€瀹规槗鎶婂畠褰?bug 鎶ョ殑 case
-- 姣忎釜璇锋眰璁板綍 `X-Request-ID`锛宍summary.md` 浼氬垪鍑?top 澶辫触 request_id 渚夸簬 SSH 鍒版湇鍔″櫒鍏宠仈鏃ュ織
-- 杈撳嚭缁撴瀯锛歚output/stress-<timestamp>/{run.json, requests.jsonl, summary.md}`锛宍output/` 宸插湪 `.gitignore`
-- 榛樿鐩爣 `https://zerocode.kaynlab.com`锛孉PI key 浠?`$SUB2API_KEY` 璇诲彇
-- Windows 鍙嬪ソ锛氳嚜鍔ㄦ妸 stdout/stderr 閲嶉厤缃负 UTF-8 閬垮厤 cp936 涔辩爜
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閻?`httpx[http2]` + `asyncio` 鐎圭偟骞囬崣妤佸付楠炶泛褰傞崢瀣ゴ
+- 閺€顖涘瘮娑撱倖娼崗銉ュ經鐠侯垰绶為惃鍕嚠濮ｆ棑绱?
+  1. `gemini-native`閿涙瓪POST /v1beta/models/{model}:generateContent`
+  2. `anthropic-messages`閿涙瓪POST /v1/messages`閿涘牐铔?`GeminiMessagesCompatService` 缂堟槒鐦х仦鍌︾礆
+- 娑旂喐鏁幐?`--stream` 鐠?`:streamGenerateContent`閿涘苯鎳℃稉顓濆敩閻線鍣?`handleGeminiStreamToNonStreaming` 閻ㄥ嫭绁﹀蹇撳瀻閺€?
+- 闁挎瑨顕ら崚鍡欒鐎靛綊缍堥張宥呭缁旑垳娈戞径杈Е娣団€冲娇閿涙瓪empty_stream` / `safety_block` / `google_config_error` / `signature_error` / `overloaded_529` / `rate_limit_429` / `gateway_5xx` / `auth_401_403` / `client_4xx` / `timeout` / `network_error`
+- 閻楃懓鍩嗙拠鍡楀焼 "200 OK 娴ｅ棙妫ら崶?閿涘潉candidates[0].content.parts` 闁插本妫?`inlineData`閿涘本鍨?`finishReason` 鐏炵偘绨?safety 缁紮绱氶垾鏂衡偓?鏉╂瑦妲哥€广垺鍩涢張鈧€硅妲楅幎濠傜暊瑜?bug 閹躲儳娈?case
+- 濮ｅ繋閲滅拠閿嬬湴鐠佹澘缍?`X-Request-ID`閿涘畭summary.md` 娴兼艾鍨崙?top 婢惰精瑙?request_id 娓氬じ绨?SSH 閸掔増婀囬崝鈥虫珤閸忓疇浠堥弮銉ョ箶
+- 鏉堟挸鍤紒鎾寸€敍姝歰utput/stress-<timestamp>/{run.json, requests.jsonl, summary.md}`閿涘畭output/` 瀹告彃婀?`.gitignore`
+- 姒涙顓婚惄顔界垼 `https://zerocode.kaynlab.com`閿涘瓑PI key 娴?`$SUB2API_KEY` 鐠囪褰?
+- Windows 閸欏銈介敍姘冲殰閸斻劍濡?stdout/stderr 闁插秹鍘ょ純顔昏礋 UTF-8 闁灝鍘?cp936 娑旇京鐖?
 
-**浣跨敤**:
+**娴ｈ法鏁?*:
 ```bash
 export SUB2API_KEY=sk-xxx
 python tools/image_stress_test.py --total 50 --concurrency 5 --mode gemini-native
 ```
 
-瀹屾暣鎵ц娴佺▼锛堝啋鐑?鈫?鍩虹嚎 鈫?骞跺彂鎵?鈫?妯″紡瀵规瘮 鈫?妯″瀷瀵规瘮 鈫?娴佸紡锛夎 `tools/image_stress_test.py` 妯″潡娉ㄩ噴椤堕儴銆?
+鐎瑰本鏆ｉ幍褑顢戝ù浣衡柤閿涘牆鍟嬮悜?閳?閸╄櫣鍤?閳?楠炶泛褰傞幍?閳?濡€崇础鐎佃鐦?閳?濡€崇€风€佃鐦?閳?濞翠礁绱￠敍澶庮潌 `tools/image_stress_test.py` 濡€虫健濞夈劑鍣存い鍫曞劥閵?
 
 ---
 
-## [2026-04-15] feat: 鏂板浼佷笟寰俊鏀粯鏂瑰紡
+## [2026-04-15] feat: 閺傛澘顤冩导浣风瑹瀵邦喕淇婇弨顖欑帛閺傜懓绱?
 
-**褰卞搷鑼冨洿**: backend/internal/payment/, frontend/src/views/admin/
-**涓婃父鍏煎鎬?*: 浣庡啿绐侀闄╋紝鏂板鏂囦欢涓轰富
-**鍙樻洿璇︽儏**:
-- 鏂板 payment/provider/wechat_work.go
-- 娣诲姞 WeChatWorkProvider 瀹炵幇 PaymentProvider 鎺ュ彛
-- 鍓嶇绠＄悊椤垫柊澧炰紒涓氬井淇℃敮浠橀厤缃〃鍗?
-- config.yaml 鏂板 payment.wechat_work 閰嶇疆娈?
+**瑜板崬鎼烽懠鍐ㄦ纯**: backend/internal/payment/, frontend/src/views/admin/
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ骸鍟跨粣渚€顥撻梽鈺嬬礉閺傛澘顤冮弬鍥︽娑撹桨瀵?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤?payment/provider/wechat_work.go
+- 濞ｈ濮?WeChatWorkProvider 鐎圭偟骞?PaymentProvider 閹恒儱褰?
+- 閸撳秶顏粻锛勬倞妞ゅ灚鏌婃晶鐐扮磼娑撴艾浜曟穱鈩冩暜娴犳﹢鍘ょ純顔裤€冮崡?
+- config.yaml 閺傛澘顤?payment.wechat_work 闁板秶鐤嗗▓?
 
-**鍏宠仈 Issue/PR**: #12
+**閸忓疇浠?Issue/PR**: #12
 
-## [2026-04-14] chore(deploy): remote_exec.py 澧炲姞 --update 蹇嵎鏂瑰紡閬垮紑 MSYS2 璺緞杞崲
+## [2026-04-14] chore(deploy): remote_exec.py 婢х偛濮?--update 韫囶偅宓庨弬鐟扮础闁灝绱?MSYS2 鐠侯垰绶炴潪顒佸床
 
-**褰卞搷鑼冨洿**:
-- `deploy/remote_exec.py`锛?*鏈?tracked锛屾湰鍦版敼鍔?*锛?gitignore 涓紱鍥犲惈鏄庢枃 SSH 鍑瘉涓嶅叆搴擄級
-- `CLAUDE.md`锛坵orkflow + 鐢熶骇鏈嶅姟鍣ㄧ珷鑺傦級
-- `docs/dev/UPSTREAM_SYNC.md`锛堥儴缃叉寚浠よ寖渚嬶級
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- `deploy/remote_exec.py`閿?*閺?tracked閿涘本婀伴崷鐗堟暭閸?*閿?gitignore 娑擃叏绱遍崶鐘叉儓閺勫孩鏋?SSH 閸戭叀鐦夋稉宥呭弳鎼存搫绱?
+- `CLAUDE.md`閿涘澋orkflow + 閻㈢喍楠囬張宥呭閸ｃ劎鐝烽懞鍌︾礆
+- `docs/dev/UPSTREAM_SYNC.md`閿涘牓鍎寸純鍙夊瘹娴犮倛瀵栨笟瀣剁礆
 
-**涓婃父鍏煎鎬?*: 浠呭奖鍝嶆湰鍦板伐浣滄祦锛屼笉娑夊強浠讳綍涓婃父鏂囦欢銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴犲懎濂栭崫宥嗘拱閸︽澘浼愭担婊勭ウ閿涘奔绗夊☉澶婂挤娴犺缍嶆稉濠冪埗閺傚洣娆㈤妴?
 
-**鑳屾櫙**:
-2026-04-14 v0.1.112 鍚堝苟瀹屾垚鍑嗗閮ㄧ讲鏃讹紝鍦?Git Bash 涓嬫墽琛?
-`python deploy/remote_exec.py "/opt/sub2api/update.sh"` 鎶?
-`bash: line 1: D:/program: No such file or directory` 澶辫触銆?
-瀹氫綅鍚庣‘璁ゆ槸 MSYS2 argv path conversion锛欸it Bash 浼氭妸浠讳綍鐪嬭捣鏉ュ儚
-POSIX 缁濆璺緞鐨?argv 鍙傛暟锛坄/opt/...`锛夋倓鎮勮浆鎴?Windows 璺緞鍚庢墠浜ょ粰
-Python锛屼簬鏄?argv[1] 鍙樻垚浜?`D:\program files\...\opt\sub2api\update.sh`锛?
-SSH 杩滅鏀跺埌涓€涓笉瀛樺湪鐨勮矾寰勮嚜鐒跺け璐ャ€?
+**閼冲本娅?*:
+2026-04-14 v0.1.112 閸氬牆鑻熺€瑰本鍨氶崙鍡楊槵闁劎璁查弮璁圭礉閸?Git Bash 娑撳澧界悰?
+`python deploy/remote_exec.py "/opt/sub2api/update.sh"` 閹?
+`bash: line 1: D:/program: No such file or directory` 婢惰精瑙﹂妴?
+鐎规矮缍呴崥搴ｂ€樼拋銈嗘Ц MSYS2 argv path conversion閿涙it Bash 娴兼碍濡告禒璁崇秿閻鎹ｉ弶銉ュ剼
+POSIX 缂佹繂顕捄顖氱窞閻?argv 閸欏倹鏆熼敍鍧?opt/...`閿涘鍊撻幃鍕祮閹?Windows 鐠侯垰绶為崥搴㈠娴溿倗绮?
+Python閿涘奔绨弰?argv[1] 閸欐ɑ鍨氭禍?`D:\program files\...\opt\sub2api\update.sh`閿?
+SSH 鏉╂粎顏弨璺哄煂娑撯偓娑擃亙绗夌€涙ê婀惃鍕熅瀵板嫯鍤滈悞璺恒亼鐠愩儯鈧?
 
-**鍙樻洿璇︽儏**:
+**閸欐ɑ娲跨拠锔藉剰**:
 - `deploy/remote_exec.py`
-  - 鏂板 `SHORTCUTS` 瀛楀吀 + `--update` 蹇嵎鏂瑰紡锛屽唴閮ㄧ敤 Python 瀛楃涓插瓧闈㈤噺
-    `"bash /opt/sub2api/update.sh"`锛屽畬鍏ㄧ粫杩?MSYS2 argv 杞崲
-  - 鏂板 `--env` 妯″紡浠?`REMOTE_CMD` 鐜鍙橀噺璇诲懡浠わ紙浣嗕粛闇€閰嶅悎
-    `MSYS_NO_PATHCONV=1` 鎵嶈兘璁?Git Bash 涓嶈浆 env 閲岀殑璺緞锛涗綔涓?escape hatch锛?
-  - 鏂板缁撴瀯鍖?docstring 璇存槑 MSYS2 闄烽槺鍜屽洓绉?workaround 浼樺厛绾?
-  - `run()` 榛樿 timeout 浠?300s 鎻愬崌鍒?600s锛岄€傞厤 Docker build 鍦烘櫙
-  - 杈撳嚭 decode 鍔?`errors="replace"`锛岄伩鍏嶄簩杩涘埗姹℃煋鏃?UnicodeDecodeError
+  - 閺傛澘顤?`SHORTCUTS` 鐎涙鍚€ + `--update` 韫囶偅宓庨弬鐟扮础閿涘苯鍞撮柈銊ф暏 Python 鐎涙顑佹稉鎻掔摟闂堛垽鍣?
+    `"bash /opt/sub2api/update.sh"`閿涘苯鐣崗銊х搏鏉?MSYS2 argv 鏉烆剚宕?
+  - 閺傛澘顤?`--env` 濡€崇础娴?`REMOTE_CMD` 閻滎垰顣ㄩ崣姗€鍣虹拠璇叉嚒娴犮倧绱欐担鍡曠矝闂団偓闁板秴鎮?
+    `MSYS_NO_PATHCONV=1` 閹靛秷鍏樼拋?Git Bash 娑撳秷娴?env 闁插瞼娈戠捄顖氱窞閿涙稐缍旀稉?escape hatch閿?
+  - 閺傛澘顤冪紒鎾寸€崠?docstring 鐠囧瓨妲?MSYS2 闂勭兘妲洪崪灞芥磽缁?workaround 娴兼ê鍘涚痪?
+  - `run()` 姒涙顓?timeout 娴?300s 閹绘劕宕岄崚?600s閿涘矂鈧倿鍘?Docker build 閸︾儤娅?
+  - 鏉堟挸鍤?decode 閸?`errors="replace"`閿涘矂浼╅崗宥勭癌鏉╂稑鍩楀Ч鈩冪厠閺?UnicodeDecodeError
 
-- `CLAUDE.md` workflow 姝ラ 4/5 涓庛€岀敓浜ф湇鍔″櫒銆嶇珷鑺?
-  - 閮ㄧ讲鍛戒护鏀逛负 `python deploy/remote_exec.py --update`
-  - 杩藉姞 MSYS2 gotcha 璀﹀憡鍜屾寚鍚?remote_exec.py docstring 鐨勫紩鐢?
-  - 鐢熶骇鏈嶅姟鍣?SSH 瀛楁璇存槑 ad-hoc 鍛戒护浠呴檺涓嶄互 `/` 寮€澶寸殑鍛戒护
+- `CLAUDE.md` workflow 濮濄儵顎?4/5 娑撳簺鈧瞼鏁撴禍褎婀囬崝鈥虫珤閵嗗秶鐝烽懞?
+  - 闁劎璁查崨鎴掓姢閺€閫涜礋 `python deploy/remote_exec.py --update`
+  - 鏉╄棄濮?MSYS2 gotcha 鐠€锕€鎲￠崪灞惧瘹閸?remote_exec.py docstring 閻ㄥ嫬绱╅悽?
+  - 閻㈢喍楠囬張宥呭閸?SSH 鐎涙顔岀拠瀛樻 ad-hoc 閸涙垝鎶ゆ禒鍛存娑撳秳浜?`/` 瀵偓婢跺娈戦崨鎴掓姢
 
 - `docs/dev/UPSTREAM_SYNC.md`
-  - 鏈閮ㄧ讲鏉＄洰杩藉姞宸查儴缃叉爣璁?
-  - 閮ㄧ讲鎸囦护鑼冧緥鏀圭敤 `--update` 骞舵敞鏄庢棫鐢ㄦ硶琚純鐢ㄧ殑鍘熷洜
+  - 閺堫剚顐奸柈銊ц閺夛紕娲版潻钘夊瀹告煡鍎寸純鍙夌垼鐠?
+  - 闁劎璁查幐鍥︽姢閼煎啩绶ラ弨鍦暏 `--update` 楠炶埖鏁為弰搴㈡＋閻劍纭剁悮顐㈢磾閻劎娈戦崢鐔锋礈
 
-**閮ㄧ讲楠岃瘉**:
-- `python deploy/remote_exec.py --update` 绔埌绔窇閫氾細pull锛堝凡 up-to-date锛夆啋
-  docker build 鈫?docker compose up 鈫?health check `{"status":"ok"}` 鈫?ps 鏄剧ず
-  sub2api 瀹瑰櫒 `Up 8 seconds (healthy)`銆?
+**闁劎璁叉宀冪槈**:
+- `python deploy/remote_exec.py --update` 缁旑垰鍩岀粩顖濈獓闁熬绱皃ull閿涘牆鍑?up-to-date閿涘鍟?
+  docker build 閳?docker compose up 閳?health check `{"status":"ok"}` 閳?ps 閺勫墽銇?
+  sub2api 鐎圭懓娅?`Up 8 seconds (healthy)`閵?
 
-**鍏宠仈**: 鏃?issue銆備慨澶嶆簮浜?2026-04-14 v0.1.112 鍚屾閮ㄧ讲杩囩▼涓彂鐜般€?
-
----
-
-## [2026-04-14] fix(billing): 淇鍏ㄥ眬妯″瀷瀹氫环瑕嗙洊鍦?Anthropic 缃戝叧澶辨晥鍙婂澶勮璐规紡娲?
-
-**褰卞搷鑼冨洿**:
-- backend/internal/service/model_pricing_resolver.go锛堟牳蹇冭В鏋愬櫒閲嶅啓锛?
-- backend/internal/service/global_model_pricing.go锛堝垹闄ゆ湁 bug 鐨?ToModelPricing锛?
-- backend/internal/service/global_model_pricing_cache.go锛堟柊澧烇級
-- backend/internal/service/global_model_pricing_service.go锛堟敞鍏ョ紦瀛樺苟鍦?CUD 鏃跺け鏁堬級
-- backend/internal/service/gateway_service.go锛坮esolveChannelPricing 鍚屾椂鎺ュ彈 Global 鏉ユ簮锛?
-- backend/internal/service/wire.go锛圥rovider set 杩藉姞 NewGlobalPricingCache锛?
-- backend/cmd/server/wire_gen.go锛堟墜鍔ㄥ悓姝?DI 鎺ョ嚎锛?
-- backend/internal/handler/admin/model_pricing_handler.go锛圲pdateOverride 宸噺鏇存柊锛?
-- backend/internal/service/model_pricing_resolver_test.go锛堟柊澧?5 涓洖褰掓祴璇曪級
-
-**涓婃父鍏煎鎬?*: 楂樺害鍙兘浜х敓鍐茬獊 鈥斺€?瑙﹀強涓婃父 resolver 涓?gateway_service 鐨勬牳蹇?
-璁¤垂璺緞锛屼互鍙?wire_gen.go銆傚悎骞朵笂娓告椂濡傛灉瀹樻柟閲嶆瀯浜?ModelPricingResolver 鎴?
-GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
-
-**鑳屾櫙**:
-瀹¤绠＄悊鍚庡彴"妯″瀷閰嶇疆 鈫?Pricing"椤甸潰鐨勩€屽叏灞€瑕嗙洊銆嶅姛鑳芥槸鍚︾鍒扮鐢熸晥锛?
-鍙戠幇瀹冨湪澶氭潯璺緞涓婅闈欓粯缁曡繃鎴栦涪澶卞瓧娈碉紝璇﹁鏈 commit 璇存槑銆?
-
-**鍙樻洿璇︽儏**锛堟寜 bug 瀵瑰簲淇锛?
-
-- **Bug A 鈥?Anthropic 缃戝叧鐑矾寰勭粫杩囧叏灞€瑕嗙洊**
-  `gateway_service.go:resolveChannelPricing` 鍘熸湰鍙湪 `Source==Channel` 鏃惰繑鍥?
-  resolved锛屽鑷淬€屽彧閰嶄簡鍏ㄥ眬瑕嗙洊銆佹病閰嶆笭閬撱€嶇殑鎯呭舰浼氬洖钀藉埌 `CalculateCost` 鏃?
-  璺緞銆傛棫璺緞瀹屽叏涓嶆煡 GlobalPricingRepository锛屽叏灞€瑕嗙洊 鈫?闈欓粯澶辨晥銆備慨澶嶏細
-  鏀惧鏉′欢涓?`Source==Channel || Source==Global`锛屽悓鏃朵繚鐣欏嚱鏁板悕浠ュ噺灏?diff銆?
-
-- **Bug B 鈥?ResolvedPricing.Mode 蹇界暐鍏ㄥ眬瑕嗙洊鐨?BillingMode**
-  鍘?`Resolve` 鎶?`Mode` 纭紪鐮佷负 `BillingModeToken`锛屽彧鍦ㄦ笭閬撳彔鍔犲垎鏀噷鏀广€?
-  鍚庢灉锛氱鐞嗗憳鍦ㄥ叏灞€瑕嗙洊閲岄€?`per_request` / `image` 鈫?鍚庣浠嶆寜 token 璁¤垂 鈫?
-  鍗曚环鍏ㄤ负 0 鈫?鐢ㄦ埛鍏嶈垂銆備慨澶嶏細`resolveBasePricing` 杩斿洖 `(pricing, mode,
-  defaultPerRequestPrice, source)` 鍥涘厓缁勶紝`Resolve` 鍘熸牱濉炶繘 `ResolvedPricing`銆?
-
-- **Bug C 鈥?ToModelPricing 涓㈠け Priority/闀夸笂涓嬫枃/缂撳瓨鍒嗙骇瀛楁**
-  鍘?`GlobalModelPricing.ToModelPricing()` 鍙 5 涓瓧娈碉紝瀵艰嚧 Priority tier 鍗曚环
-  褰掗浂銆丟PT-5.4 闀夸笂涓嬫枃鍙屽€嶈垂涓㈠け銆佺紦瀛?5m/1h 鍒嗙骇澶辨晥绛夈€備慨澶嶏細
-  1. 鍒犻櫎璇ユ柟娉?
-  2. `resolveBasePricing` 鍏堜粠 `BillingService.GetModelPricing` 鎷垮畬鏁村熀纭€瀹氫环
-     锛堝惈 LiteLLM 鐨勬墍鏈夊瓧娈碉級锛屽啀鐢?`applyGlobalPricingOverride` 鎶婂叏灞€瑕嗙洊鐨?
-     闈?nil 瀛楁鍙犲姞涓婂幓锛涜涔変笌 `applyTokenOverrides`锛堟笭閬撹鐩栵級瀹屽叏瀵归綈锛?
-     鍖呮嫭 Priority 瀛楁涓庤鐩栦环鍚屾銆乣CacheWritePrice` 鍚屾椂鍐欏叆 5m/1h銆?
-  3. 鏈瑕嗙洊鐨勫瓧娈碉紙Priority 鍗曚环宸€侀暱涓婁笅鏂囧€嶇巼绛夛級缁ф壙鑷?LiteLLM 鍩虹銆?
-
-- **Bug D 鈥?姣忎釜璇锋眰涓€娆?SQL 鏃犵紦瀛?*
-  鍘熷疄鐜板湪鐑矾寰勫 `global_model_pricing` 琛ㄦ瘡璇锋眰涓€娆?`SELECT`銆備慨澶嶏細鏂板
-  `GlobalPricingCache`锛坰ync.RWMutex + 鎯版€у姞杞斤級锛岄娆¤闂椂涓€娆℃€ц鍏ユ墍鏈?
-  `enabled=true` 鏉＄洰鍒板唴瀛?map锛屽悗缁?O(1) 鏌ヨ锛涚鐞嗗悗鍙板湪 Create/Update/
-  Delete 鍚庤皟鐢?`Invalidate()` 娓呯┖缂撳瓨銆?
-
-- **Bug E 鈥?resolveBasePricing 浣跨敤 context.Background**
-  鍘熷疄鐜颁涪寮冭皟鐢ㄨ€?ctx 瀵艰嚧璇锋眰瓒呮椂鏃犳硶浼犻€掋€備慨澶嶏細缂撳瓨鍖栦箣鍚庣儹璺緞涓嶅啀杩?DB锛?
-  ctx 闂鑷劧娑堝け锛涗粎鍦ㄧ紦瀛橀娆″姞杞芥椂鐢?background ctx 鎵ц涓€娆℃€у叏閲忔煡璇€?
-
-- **Bug F 鈥?UpdateOverride 鎶婃墍鏈夋湭鎻愪緵瀛楁娓呴浂**
-  鍘?handler 瀵?`InputPrice` 绛夋寚閽堝瓧娈垫棤鏉′欢璧嬪€硷紝PATCH 婕忓甫浠讳綍涓€涓瓧娈甸兘浼?
-  鎶婂凡鏈変环鏍艰鐩栨垚 nil銆備慨澶嶏細缁熶竴鏀逛负"闈?nil 鎵嶈鐩?鐨勫樊閲忔洿鏂帮紙涓?
-  `Model` / `Provider` / `Enabled` 瀛楁鐨勫鐞嗗榻愶級銆傝娓呴櫎鏌愪釜浠锋牸璇?
-  delete 瑕嗙洊鍚庨噸寤恒€?
-
-**鍥炲綊娴嬭瘯**锛坄model_pricing_resolver_test.go` 鏂板锛?
-1. `TestResolve_GlobalOverride_PreservesPriorityAndLongContext` 鈥?瑕嗙洊 input/output
-   鍚庨獙璇?Priority 鍚屾銆侀暱涓婁笅鏂囬槇鍊?鍊嶇巼/缂撳瓨 5m/1h 浠?LiteLLM 缁ф壙
-2. `TestResolve_GlobalOverride_CacheWriteSyncsAllCacheFields` 鈥?瑕嗙洊 CacheWritePrice
-   鍚?Creation/5m/1h 涓夊瓧娈靛叏閮ㄥ悓姝?
-3. `TestResolve_GlobalOverride_DisabledIsIgnored` 鈥?enabled=false 涓嶇敓鏁?
-4. `TestResolve_GlobalOverride_BillingModeRespected` 鈥?per_request 妯″紡姝ｇ‘浼犻€?
-   BillingMode 鍜?DefaultPerRequestPrice
-5. `TestResolve_ChannelOverride_BeatsGlobalOverride` 鈥?浼樺厛绾?Channel > Global
-
-鎵€鏈夋柊娴嬭瘯閫氳繃锛涙棦鏈?`./internal/service/...` 鍗曞厓娴嬭瘯濂椾欢鍏ㄧ豢锛?6 绉掞級锛?
-`go build ./...` 閫氳繃銆?
-
-**鍏宠仈 Issue/PR**: 鏃狅紙鏈湴瀹¤鍙戠幇锛?
+**閸忓疇浠?*: 閺?issue閵嗗倷鎱ㄦ径宥嗙爱娴?2026-04-14 v0.1.112 閸氬本顒為柈銊ц鏉╁洨鈻兼稉顓炲絺閻滆埇鈧?
 
 ---
 
-## [2026-04-14] feat(frontend): 浠ｇ悊鎵归噺瀵煎叆鏀寔 host:port:user:pass 绛夌畝鍐欐牸寮?
+## [2026-04-14] fix(billing): 娣囶喖顦查崗銊ョ湰濡€崇€风€规矮鐜憰鍡欐磰閸?Anthropic 缂冩垵鍙ф径杈ㄦ櫏閸欏﹤顦挎径鍕吀鐠愯绱″ú?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
+- backend/internal/service/model_pricing_resolver.go閿涘牊鐗宠箛鍐掗弸鎰珤闁插秴鍟撻敍?
+- backend/internal/service/global_model_pricing.go閿涘牆鍨归梽銈嗘箒 bug 閻?ToModelPricing閿?
+- backend/internal/service/global_model_pricing_cache.go閿涘牊鏌婃晶鐑囩礆
+- backend/internal/service/global_model_pricing_service.go閿涘牊鏁為崗銉х处鐎涙ê鑻熼崷?CUD 閺冭泛銇戦弫鍫礆
+- backend/internal/service/gateway_service.go閿涘澁esolveChannelPricing 閸氬本妞傞幒銉ュ綀 Global 閺夈儲绨敍?
+- backend/internal/service/wire.go閿涘湧rovider set 鏉╄棄濮?NewGlobalPricingCache閿?
+- backend/cmd/server/wire_gen.go閿涘牊澧滈崝銊ユ倱濮?DI 閹恒儳鍤庨敍?
+- backend/internal/handler/admin/model_pricing_handler.go閿涘湶pdateOverride 瀹割噣鍣洪弴瀛樻煀閿?
+- backend/internal/service/model_pricing_resolver_test.go閿涘牊鏌婃晶?5 娑擃亜娲栬ぐ鎺撶ゴ鐠囨洩绱?
+
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 妤傛ê瀹抽崣顖濆厴娴溠呮晸閸愯尙鐛?閳ユ柡鈧?鐟欙箑寮锋稉濠冪埗 resolver 娑?gateway_service 閻ㄥ嫭鐗宠箛?
+鐠伮ゅ瀭鐠侯垰绶為敍灞间簰閸?wire_gen.go閵嗗倸鎮庨獮鏈电瑐濞撳憡妞傛俊鍌涚亯鐎规ɑ鏌熼柌宥嗙€禍?ModelPricingResolver 閹?
+GatewayService.calculateTokenCost 闂団偓鐟曚線鍣搁弬鐗堟殻閸氬牊婀版穱顔碱槻閵?
+
+**閼冲本娅?*:
+鐎孤ゎ吀缁狅紕鎮婇崥搴″酱"濡€崇€烽柊宥囩枂 閳?Pricing"妞ょ敻娼伴惃鍕┾偓灞藉弿鐏炩偓鐟曞棛娲婇妴宥呭閼宠姤妲搁崥锔绢伂閸掓壆顏悽鐔告櫏閿?
+閸欐垹骞囩€瑰啫婀径姘蒋鐠侯垰绶炴稉濠咁潶闂堟瑩绮紒鏇＄箖閹存牔娑径鍗炵摟濞堢绱濈拠锕侇潌閺堫剚顐?commit 鐠囧瓨妲戦妴?
+
+**閸欐ɑ娲跨拠锔藉剰**閿涘牊瀵?bug 鐎电懓绨叉穱顔碱槻閿?
+
+- **Bug A 閳?Anthropic 缂冩垵鍙ч悜顓＄熅瀵板嫮绮潻鍥у弿鐏炩偓鐟曞棛娲?*
+  `gateway_service.go:resolveChannelPricing` 閸樼喐婀伴崣顏勬躬 `Source==Channel` 閺冩儼绻戦崶?
+  resolved閿涘苯顕遍懛娣偓灞藉涧闁板秳绨￠崗銊ョ湰鐟曞棛娲婇妴浣圭梾闁板秵绗柆鎾扁偓宥囨畱閹懎鑸版导姘礀閽€钘夊煂 `CalculateCost` 閺?
+  鐠侯垰绶為妴鍌涙＋鐠侯垰绶炵€瑰苯鍙忔稉宥嗙叀 GlobalPricingRepository閿涘苯鍙忕仦鈧憰鍡欐磰 閳?闂堟瑩绮径杈ㄦ櫏閵嗗倷鎱ㄦ径宥忕窗
+  閺€鎯ь啍閺夆€叉娑?`Source==Channel || Source==Global`閿涘苯鎮撻弮鏈电箽閻ｆ瑥鍤遍弫鏉挎倳娴犮儱鍣虹亸?diff閵?
+
+- **Bug B 閳?ResolvedPricing.Mode 韫囩晫鏆愰崗銊ョ湰鐟曞棛娲婇惃?BillingMode**
+  閸?`Resolve` 閹?`Mode` 绾剛绱惍浣疯礋 `BillingModeToken`閿涘苯褰ч崷銊︾闁挸褰旈崝鐘插瀻閺€顖炲櫡閺€骞库偓?
+  閸氬孩鐏夐敍姘鳖吀閻炲棗鎲抽崷銊ュ弿鐏炩偓鐟曞棛娲婇柌宀勨偓?`per_request` / `image` 閳?閸氬海顏禒宥嗗瘻 token 鐠伮ゅ瀭 閳?
+  閸楁洑鐜崗銊よ礋 0 閳?閻劍鍩涢崗宥堝瀭閵嗗倷鎱ㄦ径宥忕窗`resolveBasePricing` 鏉╂柨娲?`(pricing, mode,
+  defaultPerRequestPrice, source)` 閸ユ稑鍘撶紒鍕剁礉`Resolve` 閸樼喐鐗辨繅鐐剁箻 `ResolvedPricing`閵?
+
+- **Bug C 閳?ToModelPricing 娑撱垹銇?Priority/闂€澶哥瑐娑撳鏋?缂傛挸鐡ㄩ崚鍡欓獓鐎涙顔?*
+  閸?`GlobalModelPricing.ToModelPricing()` 閸欘亣顔?5 娑擃亜鐡у▓纰夌礉鐎佃壈鍤?Priority tier 閸楁洑鐜?
+  瑜版帡娴傞妴涓烶T-5.4 闂€澶哥瑐娑撳鏋冮崣灞解偓宥堝瀭娑撱垹銇戦妴浣虹处鐎?5m/1h 閸掑棛楠囨径杈ㄦ櫏缁涘鈧倷鎱ㄦ径宥忕窗
+  1. 閸掔娀娅庣拠銉︽煙濞?
+  2. `resolveBasePricing` 閸忓牅绮?`BillingService.GetModelPricing` 閹峰灝鐣弫鏉戠唨绾偓鐎规矮鐜?
+     閿涘牆鎯?LiteLLM 閻ㄥ嫭澧嶉張澶婄摟濞堢绱氶敍灞藉晙閻?`applyGlobalPricingOverride` 閹跺﹤鍙忕仦鈧憰鍡欐磰閻?
+     闂?nil 鐎涙顔岄崣鐘插娑撳﹤骞撻敍娑滎嚔娑斿绗?`applyTokenOverrides`閿涘牊绗柆鎾诡洬閻╂牭绱氱€瑰苯鍙忕€靛綊缍堥敍?
+     閸栧懏瀚?Priority 鐎涙顔屾稉搴ゎ洬閻╂牔鐜崥灞绢劄閵嗕梗CacheWritePrice` 閸氬本妞傞崘娆忓弳 5m/1h閵?
+  3. 閺堫亣顫︾憰鍡欐磰閻ㄥ嫬鐡у▓纰夌礄Priority 閸楁洑鐜顔衡偓渚€鏆辨稉濠佺瑓閺傚洤鈧秶宸肩粵澶涚礆缂佈勫閼?LiteLLM 閸╄櫣顢呴妴?
+
+- **Bug D 閳?濮ｅ繋閲滅拠閿嬬湴娑撯偓濞?SQL 閺冪姷绱︾€?*
+  閸樼喎鐤勯悳鏉挎躬閻戭叀鐭惧鍕嚠 `global_model_pricing` 鐞涖劍鐦＄拠閿嬬湴娑撯偓濞?`SELECT`閵嗗倷鎱ㄦ径宥忕窗閺傛澘顤?
+  `GlobalPricingCache`閿涘澃ync.RWMutex + 閹増鈧冨鏉炴枻绱氶敍宀勵浕濞喡ゎ問闂傤喗妞傛稉鈧▎鈩冣偓褑顕伴崗銉﹀閺?
+  `enabled=true` 閺夛紕娲伴崚鏉垮敶鐎?map閿涘苯鎮楃紒?O(1) 閺屻儴顕楅敍娑氼吀閻炲棗鎮楅崣鏉挎躬 Create/Update/
+  Delete 閸氬氦鐨熼悽?`Invalidate()` 濞撳懐鈹栫紓鎾崇摠閵?
+
+- **Bug E 閳?resolveBasePricing 娴ｈ法鏁?context.Background**
+  閸樼喎鐤勯悳棰佹丢瀵啳鐨熼悽銊ㄢ偓?ctx 鐎佃壈鍤х拠閿嬬湴鐡掑懏妞傞弮鐘崇《娴肩娀鈧帇鈧倷鎱ㄦ径宥忕窗缂傛挸鐡ㄩ崠鏍︾閸氬海鍎圭捄顖氱窞娑撳秴鍟€鏉?DB閿?
+  ctx 闂傤噣顣介懛顏嗗姧濞戝牆銇戦敍娑楃矌閸︺劎绱︾€涙﹢顩诲▎鈥冲鏉炶姤妞傞悽?background ctx 閹笛嗩攽娑撯偓濞嗏剝鈧冨弿闁插繑鐓＄拠顫偓?
+
+- **Bug F 閳?UpdateOverride 閹跺﹥澧嶉張澶嬫弓閹绘劒绶电€涙顔屽〒鍛存祩**
+  閸?handler 鐎?`InputPrice` 缁涘瀵氶柦鍫濈摟濞堝灚妫ら弶鈥叉鐠у鈧》绱漃ATCH 濠曞繐鐢禒璁崇秿娑撯偓娑擃亜鐡у▓鐢稿厴娴?
+  閹跺﹤鍑￠張澶夌幆閺嶈壈顩惄鏍ㄥ灇 nil閵嗗倷鎱ㄦ径宥忕窗缂佺喍绔撮弨閫涜礋"闂?nil 閹靛秷顩惄?閻ㄥ嫬妯婇柌蹇旀纯閺傚府绱欐稉?
+  `Model` / `Provider` / `Enabled` 鐎涙顔岄惃鍕槱閻炲棗顕鎰剁礆閵嗗倽顩﹀〒鍛存珟閺屾劒閲滄禒閿嬬壐鐠?
+  delete 鐟曞棛娲婇崥搴ㄥ櫢瀵ゆ亽鈧?
+
+**閸ョ偛缍婂ù瀣槸**閿涘潉model_pricing_resolver_test.go` 閺傛澘顤冮敍?
+1. `TestResolve_GlobalOverride_PreservesPriorityAndLongContext` 閳?鐟曞棛娲?input/output
+   閸氬酣鐛欑拠?Priority 閸氬本顒為妴渚€鏆辨稉濠佺瑓閺傚洭妲囬崐?閸婂秶宸?缂傛挸鐡?5m/1h 娴?LiteLLM 缂佈勫
+2. `TestResolve_GlobalOverride_CacheWriteSyncsAllCacheFields` 閳?鐟曞棛娲?CacheWritePrice
+   閸?Creation/5m/1h 娑撳鐡у▓闈涘弿闁劌鎮撳?
+3. `TestResolve_GlobalOverride_DisabledIsIgnored` 閳?enabled=false 娑撳秶鏁撻弫?
+4. `TestResolve_GlobalOverride_BillingModeRespected` 閳?per_request 濡€崇础濮濓絿鈥樻导鐘烩偓?
+   BillingMode 閸?DefaultPerRequestPrice
+5. `TestResolve_ChannelOverride_BeatsGlobalOverride` 閳?娴兼ê鍘涚痪?Channel > Global
+
+閹碘偓閺堝鏌婂ù瀣槸闁俺绻冮敍娑欐＆閺?`./internal/service/...` 閸楁洖鍘撳ù瀣槸婵傛ぞ娆㈤崗銊ц雹閿?6 缁夋帪绱氶敍?
+`go build ./...` 闁俺绻冮妴?
+
+**閸忓疇浠?Issue/PR**: 閺冪媴绱欓張顒€婀寸€孤ゎ吀閸欐垹骞囬敍?
+
+---
+
+## [2026-04-14] feat(frontend): 娴狅絿鎮婇幍褰掑櫤鐎电厧鍙嗛弨顖涘瘮 host:port:user:pass 缁涘鐣濋崘娆愮壐瀵?
+
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - frontend/src/views/admin/ProxiesView.vue
 - frontend/src/i18n/locales/{zh,en}.ts
 
-**涓婃父鍏煎鎬?*: 绾墠绔敼鍔紝浠呮墿灞曡В鏋愰€昏緫鍜?UI 鏂囨锛涙湭瑙︾鍚庣 API銆傚悎骞朵笂娓歌嫢鏀?`parseProxyUrl` 鎴?`batchInputPlaceholder/Hint` 鍙兘浜х敓鍐茬獊銆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 缁绢垰澧犵粩顖涙暭閸旑煉绱濇禒鍛⒖鐏炴洝袙閺嬫劙鈧槒绶崪?UI 閺傚洦顢嶉敍娑欐弓鐟欙妇顫崥搴ｎ伂 API閵嗗倸鎮庨獮鏈电瑐濞撴瓕瀚㈤弨?`parseProxyUrl` 閹?`batchInputPlaceholder/Hint` 閸欘垵鍏樻禍褏鏁撻崘鑼崐閵?
 
-**鍙樻洿璇︽儏**:
-- `parseProxyUrl` 浠庡崟涓€ URL 姝ｅ垯鎵╁睍涓哄洓娈?fallback 瑙ｆ瀽锛?
-  - A. `protocol://[user:pass@]host:port`锛堝師鏈夛紝鍗忚鏉ヨ嚜琛屽唴锛屼紭鍏堢骇鏈€楂橈級
-  - B. `user:pass@host:port`锛堟柊锛屾棤鍗忚鍓嶇紑锛?
-  - C. `host:port:user:pass`锛堟柊锛孭roxyScrape / 911 绫讳緵搴斿晢甯歌鏍煎紡锛涘瘑鐮佷繚鐣欒灏炬墍鏈夐潪绌虹櫧瀛楃锛?
-  - D. `host:port`锛堟柊锛屾棤璁よ瘉锛?
-  - 鎻愬彇鍑?`buildResult` 杈呭姪鍑芥暟缁熶竴鍋氱鍙?涓绘満鏍￠獙銆?
-- 鍦?蹇嵎娣诲姞"Tab 椤堕儴鏂板"榛樿鍗忚"涓嬫媺锛坄batchDefaultProtocol`锛岄粯璁?`http`锛夛紝绠€鍐欐牸寮?B/C/D 鐨勮浼氬鐢ㄨ繖涓崗璁紱鍒囨崲鏃堕€氳繃 `@update:modelValue` 瑙﹀彂 `parseBatchInput` 閲嶇畻锛屾棤闇€鐢ㄦ埛閲嶆柊缂栬緫鏂囨湰銆?
-- 鍏抽棴寮圭獥鏃跺湪 `closeCreateModal` 閲岄噸缃?`batchDefaultProtocol`銆?
-- i18n锛氭墿鍏?`batchInputPlaceholder`銆乣batchInputHint` 绀轰緥锛涙柊澧?`batchDefaultProtocol`銆乣batchDefaultProtocolHint` 涓ゆ潯 key锛堜腑鑻卞弻璇榻愶級銆?
-- 鍚庣 `BatchCreate` 鎺ュ彛涓嶅彉锛堜粛鎺ユ敹 `{protocol,host,port,username,password}`锛夛紝鏃犻渶杩佺Щ銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+- `parseProxyUrl` 娴犲骸宕熸稉鈧?URL 濮濓絽鍨幍鈺佺潔娑撳搫娲撳▓?fallback 鐟欙絾鐎介敍?
+  - A. `protocol://[user:pass@]host:port`閿涘牆甯張澶涚礉閸楀繗顔呴弶銉ㄥ殰鐞涘苯鍞撮敍灞肩喘閸忓牏楠囬張鈧姗堢礆
+  - B. `user:pass@host:port`閿涘牊鏌婇敍灞炬￥閸楀繗顔呴崜宥囩磻閿?
+  - C. `host:port:user:pass`閿涘牊鏌婇敍瀛璻oxyScrape / 911 缁绶垫惔鏂挎櫌鐢瓕顫嗛弽鐓庣础閿涙稑鐦戦惍浣风箽閻ｆ瑨顢戠亸鐐閺堝娼粚铏规鐎涙顑侀敍?
+  - D. `host:port`閿涘牊鏌婇敍灞炬￥鐠併倛鐦夐敍?
+  - 閹绘劕褰囬崙?`buildResult` 鏉堝懎濮崙鑺ユ殶缂佺喍绔撮崑姘鳖伂閸?娑撶粯婧€閺嶏繝鐛欓妴?
+- 閸?韫囶偅宓庡ǎ璇插"Tab 妞ゅ爼鍎撮弬鏉款杻"姒涙顓婚崡蹇氼唴"娑撳濯洪敍鍧刡atchDefaultProtocol`閿涘矂绮拋?`http`閿涘绱濈粻鈧崘娆愮壐瀵?B/C/D 閻ㄥ嫯顢戞导姘殰閻劏绻栨稉顏勫礂鐠侇噯绱遍崚鍥ㄥ床閺冨爼鈧俺绻?`@update:modelValue` 鐟欙箑褰?`parseBatchInput` 闁插秶鐣婚敍灞炬￥闂団偓閻劍鍩涢柌宥嗘煀缂傛牞绶弬鍥ㄦ拱閵?
+- 閸忔娊妫村鍦崶閺冭泛婀?`closeCreateModal` 闁插矂鍣哥純?`batchDefaultProtocol`閵?
+- i18n閿涙碍澧块崗?`batchInputPlaceholder`閵嗕梗batchInputHint` 缁€杞扮伐閿涙稒鏌婃晶?`batchDefaultProtocol`閵嗕梗batchDefaultProtocolHint` 娑撱倖娼?key閿涘牅鑵戦懟鍗炲蓟鐠囶厼顕鎰剁礆閵?
+- 閸氬海顏?`BatchCreate` 閹恒儱褰涙稉宥呭綁閿涘牅绮涢幒銉︽暪 `{protocol,host,port,username,password}`閿涘绱濋弮鐘绘付鏉╀胶些閵?
 
-**鍏宠仈 Issue/PR**: 鏃?
+**閸忓疇浠?Issue/PR**: 閺?
 
-## [2026-04-13] feat: Gemini Google One 鎵归噺 Refresh Token 瀵煎叆
+## [2026-04-13] feat: Gemini Google One 閹靛綊鍣?Refresh Token 鐎电厧鍙?
 
-**褰卞搷鑼冨洿**:
+**瑜板崬鎼烽懠鍐ㄦ纯**:
 - backend/internal/pkg/geminicli/{constants.go, token_types.go}
 - backend/internal/service/{gemini_oauth.go, gemini_oauth_service.go, gemini_oauth_service_test.go}
 - backend/internal/repository/gemini_oauth_client.go
@@ -7192,109 +7208,109 @@ GatewayService.calculateTokenCost 闇€瑕侀噸鏂版暣鍚堟湰淇銆?
 - frontend/src/components/account/CreateAccountModal.vue
 - frontend/src/i18n/locales/{zh,en}.ts
 
-**涓婃父鍏煎鎬?*: 涓闄?鈥?GeminiOAuthClient 鎺ュ彛鏂板 GetUserInfo锛汣reateAccountModal 澶氬鏉′欢鍚堝苟锛屽悎骞朵笂娓告椂鍙兘鍐茬獊
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃參顥撻梽?閳?GeminiOAuthClient 閹恒儱褰涢弬鏉款杻 GetUserInfo閿涙保reateAccountModal 婢舵艾顦╅弶鈥叉閸氬牆鑻熼敍灞芥値楠炴湹绗傚〒鍛婃閸欘垵鍏橀崘鑼崐
 
-**鍙樻洿璇︽儏**:
-- 鍚庣锛?
-  - `geminicli` 鏂板 `UserInfoURL` 甯搁噺 + `UserInfo` 绫诲瀷锛堝鐢?Google userinfo 绔偣锛?
-  - `GeminiOAuthClient` 鎺ュ彛鏂板 `GetUserInfo(ctx, accessToken, proxyURL)`锛沗geminiOAuthClient` 瀹炵幇 + 娴嬭瘯 mock 鍚屾鏇存柊
-  - `GeminiTokenInfo` 鍔?`Email` 瀛楁锛沗BuildAccountCredentials` 鍦?email 闈炵┖鏃跺啓鍏?`credentials.email`锛堜笌 Antigravity 瀵归綈锛屽鐢ㄨ处鍙峰垪琛ㄦ悳绱?`credentials->email` 绱㈠紩锛?
-  - 鏂板 `ValidateGoogleOneRefreshToken` 鏈嶅姟鏂规硶锛歳efresh 鈫?鍥炲～ RT 鈫?`GetUserInfo` 鎷?email锛堝け璐ユ墦 warning 涓嶉樆鏂級鈫?`fetchProjectID`锛堝繀闇€锛夆啋 `FetchGoogleOneTier`锛堝け璐ュ洖钀?free锛?
-  - 鏂板 `POST /admin/gemini/oauth/refresh-token` handler + 璺敱娉ㄥ唽
-- 鍓嶇锛?
-  - `useGeminiOAuth` 鍔?`validateGoogleOneRefreshToken` 鏂规硶锛宍buildCredentials` 閫忎紶 email
-  - `CreateAccountModal`锛歚isEmailAsNameAvailable` 璁＄畻灞炴€х粺涓€ Antigravity / Gemini+google_one 鐨?鐢ㄩ偖绠变綔涓鸿处鍙峰悕"寮€鍏筹紱`handleValidateRefreshToken` 鍔?gemini 鍒嗘敮锛涙柊澧?`handleGeminiGoogleOneValidateRT`锛堝惊鐜?RT 鈫?鍗曚釜鍒涘缓锛?
-  - OAuthAuthorizationFlow 鐨?`show-refresh-token-option` 鎵╁睍瑕嗙洊 `gemini + google_one`
-  - zh/en i18n 琛ラ綈 `admin.accounts.oauth.gemini` 鐨?RT 鎵归噺瀵煎叆鏂囨
-- 闄愬埗锛氫粎鏀寔 `google_one`锛汻T 蹇呴』鐢卞唴缃?Gemini CLI OAuth client 绛惧彂锛堣嚜寤?client 鐨?RT 浼氭姤 `unauthorized_client`锛岄敊璇彁绀哄凡鍖呭惈鐩稿簲璇存槑锛?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閸氬海顏敍?
+  - `geminicli` 閺傛澘顤?`UserInfoURL` 鐢悂鍣?+ `UserInfo` 缁鐎烽敍鍫濐槻閻?Google userinfo 缁旑垳鍋ｉ敍?
+  - `GeminiOAuthClient` 閹恒儱褰涢弬鏉款杻 `GetUserInfo(ctx, accessToken, proxyURL)`閿涙矖geminiOAuthClient` 鐎圭偟骞?+ 濞村鐦?mock 閸氬本顒為弴瀛樻煀
+  - `GeminiTokenInfo` 閸?`Email` 鐎涙顔岄敍娌桞uildAccountCredentials` 閸?email 闂堢偟鈹栭弮璺哄晸閸?`credentials.email`閿涘牅绗?Antigravity 鐎靛綊缍堥敍灞筋槻閻劏澶勯崣宄板灙鐞涖劍鎮崇槐?`credentials->email` 缁便垹绱╅敍?
+  - 閺傛澘顤?`ValidateGoogleOneRefreshToken` 閺堝秴濮熼弬瑙勭《閿涙efresh 閳?閸ョ偛锝?RT 閳?`GetUserInfo` 閹?email閿涘牆銇戠拹銉﹀ⅵ warning 娑撳秹妯嗛弬顓ㄧ礆閳?`fetchProjectID`閿涘牆绻€闂団偓閿涘鍟?`FetchGoogleOneTier`閿涘牆銇戠拹銉ユ礀閽€?free閿?
+  - 閺傛澘顤?`POST /admin/gemini/oauth/refresh-token` handler + 鐠侯垳鏁卞▔銊ュ斀
+- 閸撳秶顏敍?
+  - `useGeminiOAuth` 閸?`validateGoogleOneRefreshToken` 閺傝纭堕敍瀹峛uildCredentials` 闁繋绱?email
+  - `CreateAccountModal`閿涙瓪isEmailAsNameAvailable` 鐠侊紕鐣荤仦鐐粹偓褏绮烘稉鈧?Antigravity / Gemini+google_one 閻?閻劑鍋栫粻鍙樼稊娑撻缚澶勯崣宄版倳"瀵偓閸忕绱盽handleValidateRefreshToken` 閸?gemini 閸掑棙鏁敍娑欐煀婢?`handleGeminiGoogleOneValidateRT`閿涘牆鎯婇悳?RT 閳?閸楁洑閲滈崚娑樼紦閿?
+  - OAuthAuthorizationFlow 閻?`show-refresh-token-option` 閹碘晛鐫嶇憰鍡欐磰 `gemini + google_one`
+  - zh/en i18n 鐞涖儵缍?`admin.accounts.oauth.gemini` 閻?RT 閹靛綊鍣虹€电厧鍙嗛弬鍥攳
+- 闂勬劕鍩楅敍姘矌閺€顖涘瘮 `google_one`閿涙被T 韫囧懘銆忛悽鍗炲敶缂?Gemini CLI OAuth client 缁涙儳褰傞敍鍫ｅ殰瀵?client 閻?RT 娴兼碍濮?`unauthorized_client`閿涘矂鏁婄拠顖涘絹缁€鍝勫嚒閸栧懎鎯堥惄绋跨安鐠囧瓨妲戦敍?
 
-## [2026-04-12] feat: 缁熶竴妯″瀷瀹氫环绠＄悊鐣岄潰
+## [2026-04-12] feat: 缂佺喍绔村Ο鈥崇€风€规矮鐜粻锛勬倞閻ｅ矂娼?
 
-**褰卞搷鑼冨洿**: backend(migrations, service, repository, handler, routes, wire), frontend(views, components, api, i18n)
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝鏂板鍔熻兘锛屼笉淇敼鐜版湁璁¤垂閫昏緫
-**鍙樻洿璇︽儏**:
-- 鏂板 `global_model_pricing` 鏁版嵁搴撹〃锛屾敮鎸佺鐞嗗憳璁剧疆鍏ㄥ眬妯″瀷瀹氫环瑕嗙洊
-- 瀹氫环瑙ｆ瀽閾炬墿灞曚负锛欳hannel 鈫?Global 鈫?LiteLLM 鈫?Fallback锛堝悜涓嬪吋瀹癸紝琛ㄤ负绌烘椂琛屼负涓嶅彉锛?
-- 鍚庣鏂板 GlobalModelPricingRepository銆丟lobalModelPricingService銆丮odelPricingHandler
-- 鏂板 API 绔偣 GET/POST/PUT/DELETE /admin/model-pricing锛屽惈璐圭巼涔樻暟姒傝
-- PricingService 鏂板 GetAllModels() 鏂规硶渚涚鐞嗗悗鍙板睍绀烘墍鏈?LiteLLM 妯″瀷
-- 鍓嶇妯″瀷閰嶇疆椤垫敼涓?Tab 甯冨眬锛氭ā鍨嬪畾浠凤紙鏂板锛墊 妯″瀷鏄犲皠锛堢幇鏈夛級| 璐圭巼姒傝锛堟柊澧烇級
-- 妯″瀷瀹氫环 Tab锛氬叏妯″瀷鍒楄〃 + 鎼滅储/绛涢€?+ 鍏ㄥ眬瑕嗙洊缂栬緫寮圭獥 + 娓犻亾瑕嗙洊灞曠ず
-- 璐圭巼姒傝 Tab锛氬彧璇诲睍绀哄悇鍒嗙粍璐圭巼涔樻暟锛岄摼鎺ュ埌鍒嗙粍绠＄悊椤?
-- 涓嫳鏂?i18n 缈昏瘧瀹屾暣
+**瑜板崬鎼烽懠鍐ㄦ纯**: backend(migrations, service, repository, handler, routes, wire), frontend(views, components, api, i18n)
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉閺傛澘顤冮崝鐔诲厴閿涘奔绗夋穱顔芥暭閻滅増婀佺拋陇鍨傞柅鏄忕帆
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤?`global_model_pricing` 閺佺増宓佹惔鎾广€冮敍灞炬暜閹镐胶顓搁悶鍡楁喅鐠佸墽鐤嗛崗銊ョ湰濡€崇€风€规矮鐜憰鍡欐磰
+- 鐎规矮鐜憴锝嗙€介柧鐐⒖鐏炴洑璐熼敍娆砲annel 閳?Global 閳?LiteLLM 閳?Fallback閿涘牆鎮滄稉瀣悑鐎圭櫢绱濈悰銊よ礋缁岀儤妞傜悰灞艰礋娑撳秴褰夐敍?
+- 閸氬海顏弬鏉款杻 GlobalModelPricingRepository閵嗕笩lobalModelPricingService閵嗕府odelPricingHandler
+- 閺傛澘顤?API 缁旑垳鍋?GET/POST/PUT/DELETE /admin/model-pricing閿涘苯鎯堢拹鍦芳娑旀ɑ鏆熷鍌濐潔
+- PricingService 閺傛澘顤?GetAllModels() 閺傝纭舵笟娑氼吀閻炲棗鎮楅崣鏉跨潔缁€鐑樺閺?LiteLLM 濡€崇€?
+- 閸撳秶顏Ο鈥崇€烽柊宥囩枂妞ゅ灚鏁兼稉?Tab 鐢啫鐪敍姘侀崹瀣暰娴犲嚖绱欓弬鏉款杻閿涘 濡€崇€烽弰鐘茬殸閿涘牏骞囬張澶涚礆| 鐠愬湱宸煎鍌濐潔閿涘牊鏌婃晶鐑囩礆
+- 濡€崇€风€规矮鐜?Tab閿涙艾鍙忓Ο鈥崇€烽崚妤勩€?+ 閹兼粎鍌?缁涙盯鈧?+ 閸忋劌鐪憰鍡欐磰缂傛牞绶鍦崶 + 濞撶娀浜剧憰鍡欐磰鐏炴洜銇?
+- 鐠愬湱宸煎鍌濐潔 Tab閿涙艾褰х拠璇茬潔缁€鍝勬倗閸掑棛绮嶇拹鍦芳娑旀ɑ鏆熼敍宀勬懠閹恒儱鍩岄崚鍡欑矋缁狅紕鎮婃い?
+- 娑擃叀瀚抽弬?i18n 缂堟槒鐦х€瑰本鏆?
 
-## [2026-04-12] feat: 妯″瀷閰嶇疆椤甸潰娣诲姞妯″瀷娴嬭瘯鍔熻兘
+## [2026-04-12] feat: 濡€崇€烽柊宥囩枂妞ょ敻娼板ǎ璇插濡€崇€峰ù瀣槸閸旂喕鍏?
 
-**褰卞搷鑼冨洿**: frontend/src/views/admin/ModelConfigView.vue, i18n
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝浠呭墠绔敼鍔?
-**鍙樻洿璇︽儏**:
-- ModelConfigView 鏀逛负宸﹀彸甯冨眬锛氬乏渚ф槧灏勯厤缃紝鍙充晶妯″瀷娴嬭瘯
-- 娴嬭瘯鍖哄煙锛氳处鍙烽€夋嫨锛堣嚜鍔ㄩ€夌涓€涓彲鐢紝鍙墜鍔ㄥ垏鎹級銆佹ā鍨嬩笅鎷夈€佹彁绀鸿瘝杈撳叆
-- 澶嶇敤 POST /admin/accounts/:id/test API锛孲SE 娴佸紡灞曠ず涓婃父鍝嶅簲
-- 缁堢椋庢牸杈撳嚭鍖哄煙锛岃壊褰╁尯鍒嗭紙cyan=淇℃伅, green=鍐呭, red=閿欒, emerald=鎴愬姛锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**: frontend/src/views/admin/ModelConfigView.vue, i18n
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉娴犲懎澧犵粩顖涙暭閸?
+**閸欐ɑ娲跨拠锔藉剰**:
+- ModelConfigView 閺€閫涜礋瀹革箑褰哥敮鍐ㄧ湰閿涙艾涔忔笟褎妲х亸鍕帳缂冾噯绱濋崣鍏呮櫠濡€崇€峰ù瀣槸
+- 濞村鐦崠鍝勭厵閿涙俺澶勯崣鐑解偓澶嬪閿涘牐鍤滈崝銊┾偓澶岊儑娑撯偓娑擃亜褰查悽顭掔礉閸欘垱澧滈崝銊ュ瀼閹诡澁绱氶妴浣鼓侀崹瀣╃瑓閹峰鈧焦褰佺粈楦跨槤鏉堟挸鍙?
+- 婢跺秶鏁?POST /admin/accounts/:id/test API閿涘SE 濞翠礁绱＄仦鏇犮仛娑撳﹥鐖堕崫宥呯安
+- 缂佸牏顏搴㈢壐鏉堟挸鍤崠鍝勭厵閿涘矁澹婅ぐ鈺佸隘閸掑棴绱檆yan=娣団剝浼? green=閸愬懎顔? red=闁挎瑨顕? emerald=閹存劕濮涢敍?
 
-## [2026-04-12] feat: 鐙珛"妯″瀷閰嶇疆"绠＄悊椤甸潰 鈥?Antigravity 鍏ㄥ眬榛樿鏄犲皠
+## [2026-04-12] feat: 閻欘剛鐝?濡€崇€烽柊宥囩枂"缁狅紕鎮婃い鐢告桨 閳?Antigravity 閸忋劌鐪妯款吇閺勭姴鐨?
 
-**褰卞搷鑼冨洿**: 鍓嶅悗绔鏂囦欢
-**涓婃父鍏煎鎬?*: 涓闄╋紝鏂板鏂囦欢涓轰富锛屼絾淇敼浜?account.go 鐨勯粯璁ゆ槧灏勫洖閫€閫昏緫鍜?wire_gen.go
-**鍙樻洿璇︽儏**:
-- 鍚庣: 鏂板 setting key `antigravity_default_model_mapping`锛屽瓨鍌ㄥ湪 settings 琛?
-- 鍚庣: SettingService 鏂板 Get/Set 鏂规硶
-- 鍚庣: AccountHandler 鏂板 PUT API锛屼慨鏀?GET API 浼樺厛璇?settings
-- 鍚庣: domain.constants.go 鏂板 `GetAntigravityDefaultMappingOverride` 鍑芥暟鍙橀噺
-- 鍚庣: account.go 涓?`resolveModelMapping` 鏀逛负璋冪敤 `domain.ResolveAntigravityDefaultMapping()`
-- 鍚庣: wire_gen.go 娉ㄥ叆 override 鍑芥暟 + settingService 浼犲叆 AccountHandler
-- 鍓嶇: 鏂板缓 ModelConfigView.vue锛堢嫭绔嬮〉闈紝绠＄悊鍛樺彲瑙侊級
-- 鍓嶇: 鏂板璺敱 `/admin/model-config`銆佷晶杈规爮鑿滃崟椤?
-- 鍓嶇: accounts API 鏂板 `updateAntigravityDefaultModelMapping`
-- 鍓嶇: zh.ts/en.ts 鏂板 modelConfig i18n 鏂囨湰
-- 浼樺厛绾? 鍗曡处鍙疯嚜瀹氫箟鏄犲皠 > 鍏ㄥ眬鏄犲皠锛坰ettings锛? 鍐呯疆榛樿锛坈onstants.go锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**: 閸撳秴鎮楃粩顖氼樋閺傚洣娆?
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃參顥撻梽鈺嬬礉閺傛澘顤冮弬鍥︽娑撹桨瀵岄敍灞肩稻娣囶喗鏁兼禍?account.go 閻ㄥ嫰绮拋銈嗘Ё鐏忓嫬娲栭柅鈧柅鏄忕帆閸?wire_gen.go
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閸氬海顏? 閺傛澘顤?setting key `antigravity_default_model_mapping`閿涘苯鐡ㄩ崒銊ユ躬 settings 鐞?
+- 閸氬海顏? SettingService 閺傛澘顤?Get/Set 閺傝纭?
+- 閸氬海顏? AccountHandler 閺傛澘顤?PUT API閿涘奔鎱ㄩ弨?GET API 娴兼ê鍘涚拠?settings
+- 閸氬海顏? domain.constants.go 閺傛澘顤?`GetAntigravityDefaultMappingOverride` 閸戣姤鏆熼崣姗€鍣?
+- 閸氬海顏? account.go 娑?`resolveModelMapping` 閺€閫涜礋鐠嬪啰鏁?`domain.ResolveAntigravityDefaultMapping()`
+- 閸氬海顏? wire_gen.go 濞夈劌鍙?override 閸戣姤鏆?+ settingService 娴肩姴鍙?AccountHandler
+- 閸撳秶顏? 閺傛澘缂?ModelConfigView.vue閿涘牏瀚粩瀣€夐棃顫礉缁狅紕鎮婇崨妯哄讲鐟欎緤绱?
+- 閸撳秶顏? 閺傛澘顤冪捄顖滄暠 `/admin/model-config`閵嗕椒鏅舵潏瑙勭埉閼挎粌宕熸い?
+- 閸撳秶顏? accounts API 閺傛澘顤?`updateAntigravityDefaultModelMapping`
+- 閸撳秶顏? zh.ts/en.ts 閺傛澘顤?modelConfig i18n 閺傚洦婀?
+- 娴兼ê鍘涚痪? 閸楁洝澶勯崣鐤殰鐎规矮绠熼弰鐘茬殸 > 閸忋劌鐪弰鐘茬殸閿涘澃ettings閿? 閸愬懐鐤嗘妯款吇閿涘潏onstants.go閿?
 
-## [2026-04-12] fix: Antigravity 鎵归噺鍒涘缓璐﹀彿 allow_overages 鏈敓鏁?
+## [2026-04-12] fix: Antigravity 閹靛綊鍣洪崚娑樼紦鐠愶箑褰?allow_overages 閺堫亞鏁撻弫?
 
-**褰卞搷鑼冨洿**: frontend/src/components/account/CreateAccountModal.vue
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝鍗曡淇敼
-**鍙樻洿璇︽儏**:
-- 鎵归噺鍒涘缓鏃?`extra` 纭紪鐮佷负 `{}`锛屾敼涓鸿皟鐢?`buildAntigravityExtra()`锛屾纭紶閫?`allow_overages` 鍜?`mixed_scheduling`
+**瑜板崬鎼烽懠鍐ㄦ纯**: frontend/src/components/account/CreateAccountModal.vue
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉閸楁洝顢戞穱顔芥暭
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閹靛綊鍣洪崚娑樼紦閺?`extra` 绾剛绱惍浣疯礋 `{}`閿涘本鏁兼稉楦跨殶閻?`buildAntigravityExtra()`閿涘本顒滅涵顔荤炊闁?`allow_overages` 閸?`mixed_scheduling`
 
-## [2026-04-12] fix: TypeScript 绫诲瀷閿欒 ApiResponse 鏂█
+## [2026-04-12] fix: TypeScript 缁鐎烽柨娆掝嚖 ApiResponse 閺傤叀鈻?
 
-**褰卞搷鑼冨洿**: frontend/src/api/client.ts
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝绫诲瀷鏂█淇
-**鍙樻洿璇︽儏**:
-- `as Record<string, unknown>` 鏀逛负 `as unknown as Record<string, unknown>`锛屾秷闄?TS2352 缂栬瘧閿欒
+**瑜板崬鎼烽懠鍐ㄦ纯**: frontend/src/api/client.ts
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉缁鐎烽弬顓♀枅娣囶喖顦?
+**閸欐ɑ娲跨拠锔藉剰**:
+- `as Record<string, unknown>` 閺€閫涜礋 `as unknown as Record<string, unknown>`閿涘本绉烽梽?TS2352 缂傛牞鐦ч柨娆掝嚖
 
-## [2026-04-12] feat: 璐﹀彿鍒楄〃鏄剧ず閭 + AI Credits 姹囨€?
+## [2026-04-12] feat: 鐠愶箑褰块崚妤勩€冮弰鍓с仛闁喚顔?+ AI Credits 濮瑰洦鈧?
 
-**褰卞搷鑼冨洿**: frontend/src/views/admin/AccountsView.vue
-**涓婃父鍏煎鎬?*: 涓闄╋紝AccountsView 鏀瑰姩杈冨锛屽悎骞舵椂娉ㄦ剰
-**鍙樻洿璇︽儏**:
-- 璐﹀彿鍚嶇О涓嬫柟鏄剧ず閭锛屽吋瀹?`credentials.email`锛圓ntigravity锛夊拰 `extra.email_address`锛圓nthropic锛?
-- 绛涢€夋爮鍙充晶鏂板 AI Credits 姹囨€绘爣绛撅紝寮傛鑾峰彇骞舵寜閭鍘婚噸
-- `load()` 鍜?`reload()` 鍧囪Е鍙戞眹鎬诲埛鏂?
+**瑜板崬鎼烽懠鍐ㄦ纯**: frontend/src/views/admin/AccountsView.vue
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娑擃參顥撻梽鈺嬬礉AccountsView 閺€鐟板З鏉堝啫顦块敍灞芥値楠炶埖妞傚▔銊﹀壈
+**閸欐ɑ娲跨拠锔藉剰**:
+- 鐠愶箑褰块崥宥囆炴稉瀣煙閺勫墽銇氶柇顔绢唸閿涘苯鍚嬬€?`credentials.email`閿涘湏ntigravity閿涘鎷?`extra.email_address`閿涘湏nthropic閿?
+- 缁涙盯鈧鐖崣鍏呮櫠閺傛澘顤?AI Credits 濮瑰洦鈧粯鐖ｇ粵鎾呯礉瀵倹顒為懢宄板絿楠炶埖瀵滈柇顔绢唸閸樺鍣?
+- `load()` 閸?`reload()` 閸у洩袝閸欐垶鐪归幀璇插煕閺?
 
-## [2026-04-12] feat: 鎼滅储鏀寔鎸夐偖绠辨煡鎵捐处鍙?
+## [2026-04-12] feat: 閹兼粎鍌ㄩ弨顖涘瘮閹稿鍋栫粻杈ㄧ叀閹垫崘澶勯崣?
 
-**褰卞搷鑼冨洿**: backend/internal/repository/account_repo.go
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝鎼滅储鏉′欢鎵╁睍
-**鍙樻洿璇︽儏**:
-- 璐﹀彿鎼滅储浠庝粎鍖归厤 `name` 鎵╁睍涓哄悓鏃跺尮閰?`credentials.email` 鍜?`extra.email_address`锛堜娇鐢?sqljson.StringContains锛?
+**瑜板崬鎼烽懠鍐ㄦ纯**: backend/internal/repository/account_repo.go
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉閹兼粎鍌ㄩ弶鈥叉閹碘晛鐫?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 鐠愶箑褰块幖婊呭偍娴犲簼绮庨崠褰掑帳 `name` 閹碘晛鐫嶆稉鍝勬倱閺冭泛灏柊?`credentials.email` 閸?`extra.email_address`閿涘牅濞囬悽?sqljson.StringContains閿?
 
-## [2026-04-12] fix: Antigravity refresh_token 鏈繚瀛樺鑷磋处鍙蜂笉鍙皟搴?
+## [2026-04-12] fix: Antigravity refresh_token 閺堫亙绻氱€涙ê顕遍懛纾嬪閸欒渹绗夐崣顖濈殶鎼?
 
-**褰卞搷鑼冨洿**: backend/internal/service/antigravity_oauth_service.go
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝鍥炲～閫昏緫
-**鍙樻洿璇︽儏**:
-- `ValidateRefreshToken` 鍒锋柊鍚?Google 涓嶈繑鍥炴柊 refresh_token锛屽鑷村瓨鍏?credentials 涓虹┖
-- 鏂板鍥炲～閫昏緫锛氬鏋滃埛鏂板搷搴斾腑 refresh_token 涓虹┖锛屼娇鐢ㄧ敤鎴蜂紶鍏ョ殑鍘熷鍊?
+**瑜板崬鎼烽懠鍐ㄦ纯**: backend/internal/service/antigravity_oauth_service.go
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉閸ョ偛锝為柅鏄忕帆
+**閸欐ɑ娲跨拠锔藉剰**:
+- `ValidateRefreshToken` 閸掗攱鏌婇崥?Google 娑撳秷绻戦崶鐐存煀 refresh_token閿涘苯顕遍懛鏉戠摠閸?credentials 娑撹櫣鈹?
+- 閺傛澘顤冮崶鐐诧綖闁槒绶敍姘洤閺嬫粌鍩涢弬鏉挎惙鎼存柧鑵?refresh_token 娑撹櫣鈹栭敍灞煎▏閻劎鏁ら幋铚傜炊閸忋儳娈戦崢鐔奉潗閸?
 
-## [2026-04-12] feat: 鎵归噺瀵煎叆鏀寔浣跨敤閭浣滀负璐﹀彿鍚嶇О
+## [2026-04-12] feat: 閹靛綊鍣虹€电厧鍙嗛弨顖涘瘮娴ｈ法鏁ら柇顔绢唸娴ｆ粈璐熺拹锕€褰块崥宥囆?
 
-**褰卞搷鑼冨洿**: frontend/src/components/account/CreateAccountModal.vue, frontend/src/i18n/locales/zh.ts, en.ts
-**涓婃父鍏煎鎬?*: 浣庨闄╋紝鏂板 UI 閫夐」
-**鍙樻洿璇︽儏**:
-- 鏂板 `useEmailAsName` 閫夐」锛屼粎 Antigravity 骞冲彴鍙
-- 鍕鹃€夊悗闅愯棌鍚嶇О杈撳叆妗嗭紝鎵归噺鍜屽崟涓?OAuth 鍒涘缓鍧囦娇鐢ㄩ偖绠变綔涓哄悕绉?
+**瑜板崬鎼烽懠鍐ㄦ纯**: frontend/src/components/account/CreateAccountModal.vue, frontend/src/i18n/locales/zh.ts, en.ts
+**娑撳﹥鐖堕崗鐓庮啇閹?*: 娴ｅ酣顥撻梽鈺嬬礉閺傛澘顤?UI 闁銆?
+**閸欐ɑ娲跨拠锔藉剰**:
+- 閺傛澘顤?`useEmailAsName` 闁銆嶉敍灞肩矌 Antigravity 楠炲啿褰撮崣顖濐潌
+- 閸曢箖鈧鎮楅梾鎰閸氬秶袨鏉堟挸鍙嗗鍡礉閹靛綊鍣洪崪灞藉礋娑?OAuth 閸掓稑缂撻崸鍥﹀▏閻劑鍋栫粻鍙樼稊娑撳搫鎮曠粔?
 ## [2026-07-06] fix: Preserve explicit OpenAI Images response_format
 
 **Affected files**: `backend/internal/service/openai_images.go`, `backend/internal/service/openai_images_test.go`
@@ -7761,6 +7777,7 @@ route, setting, push, or deployment change.
 - Scope is limited to Anthropic OAuth/Setup Token. API Key, non-Anthropic, OpenAI Claude-GPT bridge, Images, Batch Image, scheduler/failover, billing/display-token accounting, real cache-read quantities, and stored `actual_cost` are unchanged.
 - Added a default-true admin Settings KV toggle with bilingual UI. The setting is not public and adds no route.
 - Verified focused Go packages, admin/API settings contracts, 20 frontend settings/i18n tests, typecheck, and `git diff --check`.
+
 
 
 
