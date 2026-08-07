@@ -1,4 +1,38 @@
-﻿## 2026-08-07 - release: v0.1.200 admin recharge history manage (hotfix on 0.1.198)
+## 2026-08-07 - feat(admin): clear account concurrency button + stream debug logs
+
+### What
+- Admin account menu: one-click **Clear concurrency slots** (`POST /api/v1/admin/accounts/:id/clear-concurrency`).
+- Clears Redis account concurrency slots + wait counters only; does **not** change schedulable/status and does **not** touch sticky/session-limit or scheduling escape logic.
+- Debug logs: `account_slot_acquired` / `account_slot_released`, OpenAI `stream_debug` (headers / first_client_output / completed) with header_ms vs first_token_ms vs duration_ms.
+
+### Why
+Ops need a safe manual unblock when account concurrency piles up without reintroducing v0.1.199 sticky-escape scheduling changes. Stream timing logs help reconcile upstream TTFT vs Sub2API metrics.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestCleanupStaleProcessSlots -count=1`
+- `go build ./internal/handler/admin ./cmd/server`
+
+### Affected files
+`backend/internal/repository/concurrency_cache.go`, `concurrency_service.go`, `handler/admin/account_handler.go`, `server/routes/admin.go`, `openai_gateway_service.go`, stubs/tests, FE accounts API/menu/i18n, VERSION `0.1.201`, this changelog.
+
+## 2026-08-07 - fix(admin): align error-request filters with usage-record search UX
+
+### What
+- Rewrite 使用记录 → 错误请求 filters: user/API key/account use focus dropdown + search-by-name; group/model use searchable Select (by name, not raw numeric ID).
+- Keep error-only filters: platform, bridge, upstream model, keyword, multi-select status codes.
+- Query builder now sends `user_id` / `api_key_id` / `group_id` / `account_id` resolved from name pickers.
+
+### Why
+Error tab used plain text ID fields with no auto-dropdown/match, which was unusable for operators who only know group/account names.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/ErrorRequestFilters.spec.ts`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsageView.spec.ts`
+
+### Affected files
+`frontend/src/components/admin/usage/ErrorRequestFilters.vue`, `frontend/src/views/admin/UsageView.vue`, `frontend/src/components/admin/usage/__tests__/ErrorRequestFilters.spec.ts`, i18n zh/en, this changelog.
+
+## 2026-08-07 - release: v0.1.200 admin recharge history manage (hotfix on 0.1.198)
 
 ### What
 - Hotfix release based on production baseline `v0.1.198` (does not re-introduce `v0.1.199` sticky/concurrency changes).

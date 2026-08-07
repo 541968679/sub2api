@@ -583,6 +583,22 @@ func (c *concurrencyCache) GetUsersLoadBatch(ctx context.Context, users []servic
 	return loadMap, nil
 }
 
+// ClearAccountSlots removes all in-flight concurrency slots and account wait counters.
+// Ops-only cleanup: does not change DB schedulable/status or sticky session bindings.
+func (c *concurrencyCache) ClearAccountSlots(ctx context.Context, accountID int64) error {
+	if accountID <= 0 {
+		return nil
+	}
+	pipe := c.rdb.Pipeline()
+	pipe.Del(ctx, accountSlotKey(accountID))
+	pipe.Del(ctx, accountWaitKey(accountID))
+	_, err := pipe.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		return err
+	}
+	return nil
+}
+
 func (c *concurrencyCache) CleanupExpiredAccountSlots(ctx context.Context, accountID int64) error {
 	key := accountSlotKey(accountID)
 	now := time.Now().Unix()

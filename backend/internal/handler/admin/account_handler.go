@@ -2364,6 +2364,51 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
+// AccountClearConcurrencyResult is returned by ClearConcurrency.
+type AccountClearConcurrencyResult struct {
+	AccountID          int64 `json:"account_id"`
+	SlotsBefore        int   `json:"slots_before"`
+	ConcurrencyCleared bool  `json:"concurrency_cleared"`
+}
+
+// ClearConcurrency clears Redis concurrency slots and wait counters for one account.
+// Does not change DB schedulable/status and does not touch sticky session bindings.
+// POST /api/v1/admin/accounts/:id/clear-concurrency
+func (h *AccountHandler) ClearConcurrency(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	result := &AccountClearConcurrencyResult{AccountID: accountID}
+	if h.concurrencyService != nil {
+		if slots, slotErr := h.concurrencyService.GetAccountConcurrency(c.Request.Context(), accountID); slotErr != nil {
+			slog.Warn("account_clear_concurrency_count_failed", "account_id", accountID, "error", slotErr)
+		} else {
+			result.SlotsBefore = slots
+		}
+		if clearErr := h.concurrencyService.ClearAccountSlots(c.Request.Context(), accountID); clearErr != nil {
+			response.ErrorFrom(c, clearErr)
+			return
+		}
+		result.ConcurrencyCleared = true
+	}
+
+	slog.Info("account_clear_concurrency",
+		"account_id", accountID,
+		"account_name", account.Name,
+		"slots_before", result.SlotsBefore,
+		"concurrency_cleared", result.ConcurrencyCleared,
+	)
+	response.Success(c, result)
+}
+
 // GetAvailableModels handles getting available models for an account
 // GET /api/v1/admin/accounts/:id/models
 //

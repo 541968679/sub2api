@@ -537,6 +537,23 @@ export async function setSchedulable(id: number, schedulable: boolean): Promise<
   return data
 }
 
+export interface ClearConcurrencyResult {
+  account_id: number
+  slots_before: number
+  concurrency_cleared: boolean
+}
+
+/**
+ * Clear stuck Redis concurrency slots for an account (slots + wait counters only).
+ * Does not change DB schedulable/status or sticky bindings.
+ */
+export async function clearConcurrency(id: number): Promise<ClearConcurrencyResult> {
+  const { data } = await apiClient.post<ClearConcurrencyResult>(
+    `/admin/accounts/${id}/clear-concurrency`
+  )
+  return data
+}
+
 /**
  * Get available models for an account
  * @param id - Account ID
@@ -1030,6 +1047,7 @@ export const accountsAPI = {
   getTempUnschedulableStatus,
   resetTempUnschedulable,
   setSchedulable,
+  clearConcurrency,
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamModelsPreview,

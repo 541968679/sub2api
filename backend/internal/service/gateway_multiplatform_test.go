@@ -1994,6 +1994,9 @@ func (m *mockConcurrencyCache) CleanupExpiredAccountSlots(ctx context.Context, a
 func (m *mockConcurrencyCache) CleanupExpiredAccountSlotKeys(ctx context.Context) error {
 	return nil
 }
+func (m *mockConcurrencyCache) ClearAccountSlots(ctx context.Context, accountID int64) error {
+	return nil
+}
 
 func (m *mockConcurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error {
 	return nil

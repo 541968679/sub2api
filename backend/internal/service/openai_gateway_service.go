@@ -3143,10 +3143,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+openAIResponsesRequestPathSuffix(c))
 		upstreamStart := time.Now()
 		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+		headerMs := time.Since(upstreamStart).Milliseconds()
+		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
 		if err != nil {
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 		}
+		logger.LegacyPrintf("service.openai_gateway",
+			"[OpenAI stream_debug] headers_received account_id=%d account_name=%s status=%d header_ms=%d stream=%v since_forward_ms=%d",
+			account.ID, account.Name, resp.StatusCode, headerMs, reqStream, time.Since(startTime).Milliseconds(),
+		)
 
 		// Handle error response
 		if resp.StatusCode >= 400 {
@@ -3240,6 +3245,19 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		serviceTier := extractOpenAIServiceTierFromBody(body)
 		releaseOpenAIParsedRequestBody(c)
 
+		duration := time.Since(startTime)
+		ftMs := 0
+		if firstTokenMs != nil {
+			ftMs = *firstTokenMs
+		}
+		// Diagnostic: compare our first_token_ms (from Forward start → first non-preamble SSE)
+		// against upstream dashboard TTFT; header_ms is Do() until response headers only.
+		logger.LegacyPrintf("service.openai_gateway",
+			"[OpenAI stream_debug] completed account_id=%d account_name=%s model=%s stream=%v duration_ms=%d first_token_ms=%d header_ms=%d upstream_request_id=%s response_id=%s input_tokens=%d output_tokens=%d",
+			account.ID, account.Name, originalModel, reqStream, duration.Milliseconds(), ftMs, headerMs,
+			resp.Header.Get("x-request-id"), responseID, usage.InputTokens, usage.OutputTokens,
+		)
+
 		return &OpenAIForwardResult{
 			RequestID:       resp.Header.Get("x-request-id"),
 			ResponseID:      responseID,
@@ -3251,7 +3269,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			ReasoningEffort: reasoningEffort,
 			Stream:          reqStream,
 			OpenAIWSMode:    false,
-			Duration:        time.Since(startTime),
+			Duration:        duration,
 			FirstTokenMs:    firstTokenMs,
 		}, nil
 	}
@@ -3391,11 +3409,16 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 
 	upstreamStart := time.Now()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+	headerMs := time.Since(upstreamStart).Milliseconds()
+	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
 	if err != nil {
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	logger.LegacyPrintf("service.openai_gateway",
+		"[OpenAI stream_debug] headers_received_passthrough account_id=%d account_name=%s status=%d header_ms=%d stream=%v since_forward_ms=%d",
+		account.ID, account.Name, resp.StatusCode, headerMs, reqStream, time.Since(startTime).Milliseconds(),
+	)
 
 	if resp.StatusCode >= 400 {
 		// 透传模式默认保持原样代理；但 429/529 属于网关必须兜底的
@@ -3435,6 +3458,17 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		usage = &OpenAIUsage{}
 	}
 
+	duration := time.Since(startTime)
+	ftMs := 0
+	if firstTokenMs != nil {
+		ftMs = *firstTokenMs
+	}
+	logger.LegacyPrintf("service.openai_gateway",
+		"[OpenAI stream_debug] completed_passthrough account_id=%d account_name=%s model=%s stream=%v duration_ms=%d first_token_ms=%d header_ms=%d upstream_request_id=%s response_id=%s input_tokens=%d output_tokens=%d",
+		account.ID, account.Name, reqModel, reqStream, duration.Milliseconds(), ftMs, headerMs,
+		resp.Header.Get("x-request-id"), responseID, usage.InputTokens, usage.OutputTokens,
+	)
+
 	return &OpenAIForwardResult{
 		RequestID:       resp.Header.Get("x-request-id"),
 		ResponseID:      responseID,
@@ -3445,7 +3479,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		ReasoningEffort: reasoningEffort,
 		Stream:          reqStream,
 		OpenAIWSMode:    false,
-		Duration:        time.Since(startTime),
+		Duration:        duration,
 		FirstTokenMs:    firstTokenMs,
 	}, nil
 }
@@ -4214,6 +4248,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if firstTokenMs == nil && lineStartsClientOutput && trimmedData != "[DONE]" {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+				logger.LegacyPrintf("service.openai_gateway",
+					"[OpenAI stream_debug] first_client_output_passthrough account_id=%d first_token_ms=%d event_type=%s",
+					account.ID, ms, eventType,
+				)
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)
 			if mult := getDisplayTokenMultipliers(c); mult != nil {
@@ -5206,6 +5244,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if firstTokenMs == nil && startsClientOutput {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+				logger.LegacyPrintf("service.openai_gateway",
+					"[OpenAI stream_debug] first_client_output account_id=%d first_token_ms=%d event_type=%s",
+					account.ID, ms, eventType,
+				)
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)
 			return

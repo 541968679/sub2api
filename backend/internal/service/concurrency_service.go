@@ -45,6 +45,9 @@ type ConcurrencyCache interface {
 	CleanupExpiredAccountSlots(ctx context.Context, accountID int64) error
 	CleanupExpiredAccountSlotKeys(ctx context.Context) error
 
+	// ClearAccountSlots 删除账号全部并发槽与账号级等待计数（运维清理卡住请求）
+	ClearAccountSlots(ctx context.Context, accountID int64) error
+
 	// 启动时清理旧进程遗留槽位与等待计数
 	CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error
 }
@@ -85,6 +88,23 @@ func (s *ConcurrencyService) CleanupStaleProcessSlots(ctx context.Context) error
 		return nil
 	}
 	return s.cache.CleanupStaleProcessSlots(ctx, RequestIDPrefix())
+}
+
+// ClearAccountSlots drops all concurrency slots and wait counters for an account.
+// Does not touch sticky sessions or account schedulable/status.
+func (s *ConcurrencyService) ClearAccountSlots(ctx context.Context, accountID int64) error {
+	if s == nil || s.cache == nil || accountID <= 0 {
+		return nil
+	}
+	return s.cache.ClearAccountSlots(ctx, accountID)
+}
+
+// GetAccountConcurrency returns the current in-flight slot count for an account.
+func (s *ConcurrencyService) GetAccountConcurrency(ctx context.Context, accountID int64) (int, error) {
+	if s == nil || s.cache == nil || accountID <= 0 {
+		return 0, nil
+	}
+	return s.cache.GetAccountConcurrency(ctx, accountID)
 }
 
 const (
@@ -155,6 +175,7 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 	}
 
 	if acquired {
+		logger.LegacyPrintf("service.concurrency", "account_slot_acquired account_id=%d request_id=%s max_concurrency=%d", accountID, requestID, maxConcurrency)
 		return &AcquireResult{
 			Acquired: true,
 			ReleaseFunc: func() {
@@ -162,7 +183,9 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 				defer cancel()
 				if err := s.cache.ReleaseAccountSlot(bgCtx, accountID, requestID); err != nil {
 					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", accountID, requestID, err)
+					return
 				}
+				logger.LegacyPrintf("service.concurrency", "account_slot_released account_id=%d request_id=%s", accountID, requestID)
 			},
 		}, nil
 	}
