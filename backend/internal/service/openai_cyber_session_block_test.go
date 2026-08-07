@@ -133,6 +133,9 @@ func (c *comboCacheAndStore) RefreshSessionTTL(_ context.Context, _ int64, _ str
 func (c *comboCacheAndStore) DeleteSessionAccountID(_ context.Context, _ int64, _ string) error {
 	return nil
 }
+func (c *comboCacheAndStore) DeleteSessionBindingsForAccount(_ context.Context, _ int64) (int64, error) {
+	return 0, nil
+}
 func (c *comboCacheAndStore) SetCyberSessionBlocked(ctx context.Context, key string, ttl time.Duration) error {
 	return c.store.SetCyberSessionBlocked(ctx, key, ttl)
 }

@@ -47,6 +47,9 @@ type ConcurrencyCache interface {
 
 	// 启动时清理旧进程遗留槽位与等待计数
 	CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error
+
+	// ClearAccountSlots 删除账号全部并发槽与账号级等待计数（运维清理卡住请求）
+	ClearAccountSlots(ctx context.Context, accountID int64) error
 }
 
 // APIKeyConcurrencyCache is an optional stats-only capability. API-key slots
@@ -85,6 +88,14 @@ func (s *ConcurrencyService) CleanupStaleProcessSlots(ctx context.Context) error
 		return nil
 	}
 	return s.cache.CleanupStaleProcessSlots(ctx, RequestIDPrefix())
+}
+
+// ClearAccountSlots drops all concurrency slots and wait counters for an account.
+func (s *ConcurrencyService) ClearAccountSlots(ctx context.Context, accountID int64) error {
+	if s == nil || s.cache == nil || accountID <= 0 {
+		return nil
+	}
+	return s.cache.ClearAccountSlots(ctx, accountID)
 }
 
 const (

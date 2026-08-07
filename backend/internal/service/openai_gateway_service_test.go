@@ -389,6 +389,9 @@ func (c *stubGatewayCache) DeleteSessionAccountID(ctx context.Context, groupID i
 	delete(c.sessionBindings, sessionHash)
 	return nil
 }
+func (c *stubGatewayCache) DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error) {
+	return 0, nil
+}
 
 func TestOpenAISelectAccountWithLoadAwareness_FiltersUnschedulable(t *testing.T) {
 	now := time.Now()

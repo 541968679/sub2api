@@ -414,6 +414,9 @@ type GatewayCache interface {
 	// DeleteSessionAccountID 删除粘性会话绑定，用于账号不可用时主动清理
 	// Delete sticky session binding, used to proactively clean up when account becomes unavailable
 	DeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string) error
+	// DeleteSessionBindingsForAccount 删除所有绑定到指定账号的粘性会话（跨分组）。
+	// 用于停调度或手动清理卡住会话，返回删除条数。
+	DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error)
 }
 
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil

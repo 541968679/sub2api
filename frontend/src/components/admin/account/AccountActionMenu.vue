@@ -61,6 +61,15 @@
               <Icon name="refresh" size="sm" />
               {{ t('admin.accounts.resetQuota') }}
             </button>
+            <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+            <button
+              @click="$emit('clear-stuck-runtime', account); $emit('close')"
+              class="flex w-full items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-gray-100 dark:text-amber-400 dark:hover:bg-dark-700"
+              data-testid="account-clear-stuck-runtime"
+            >
+              <Icon name="x" size="sm" />
+              {{ t('admin.accounts.clearStuckRuntime') }}
+            </button>
           </template>
         </div>
       </div>
@@ -75,7 +84,7 @@ import { Icon } from '@/components/icons'
 import type { Account } from '@/types'
 
 const props = defineProps<{ show: boolean; account: Account | null; position: { top: number; left: number } | null }>()
-const emit = defineEmits(['close', 'test', 'move-to-top', 'stats', 'schedule', 'reauth', 'refresh-token', 'update-refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'export-codex', 'create-spark-shadow'])
+const emit = defineEmits(['close', 'test', 'move-to-top', 'stats', 'schedule', 'reauth', 'refresh-token', 'update-refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'export-codex', 'create-spark-shadow', 'clear-stuck-runtime'])
 const { t } = useI18n()
 const isRateLimited = computed(() => {
   if (props.account?.rate_limit_reset_at && new Date(props.account.rate_limit_reset_at) > new Date()) {

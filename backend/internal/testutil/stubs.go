@@ -76,6 +76,9 @@ func (c StubConcurrencyCache) GetAccountConcurrencyBatch(_ context.Context, acco
 func (c StubConcurrencyCache) CleanupExpiredAccountSlots(_ context.Context, _ int64) error {
 	return nil
 }
+func (c StubConcurrencyCache) ClearAccountSlots(_ context.Context, _ int64) error {
+	return nil
+}
 func (c StubConcurrencyCache) CleanupExpiredAccountSlotKeys(_ context.Context) error {
 	return nil
 }
@@ -103,6 +106,9 @@ func (c StubGatewayCache) RefreshSessionTTL(_ context.Context, _ int64, _ string
 func (c StubGatewayCache) DeleteSessionAccountID(_ context.Context, _ int64, _ string) error {
 	return nil
 }
+func (c StubGatewayCache) DeleteSessionBindingsForAccount(_ context.Context, _ int64) (int64, error) {
+	return 0, nil
+}
 
 // ============================================================
 // StubSessionLimitCache — service.SessionLimitCache 的空实现
@@ -126,6 +132,9 @@ func (c StubSessionLimitCache) GetActiveSessionCountBatch(_ context.Context, _ [
 }
 func (c StubSessionLimitCache) IsSessionActive(_ context.Context, _ int64, _ string) (bool, error) {
 	return false, nil
+}
+func (c StubSessionLimitCache) ClearAccountSessions(_ context.Context, _ int64) error {
+	return nil
 }
 func (c StubSessionLimitCache) GetWindowCost(_ context.Context, _ int64) (float64, bool, error) {
 	return 0, false, nil

@@ -346,7 +346,8 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			return selection, decision, nil
 		}
 		if escapedSticky {
-			req.PreserveStickyBinding = true
+			// Sticky was deleted on escape; allow rebinding to the replacement account.
+			req.PreserveStickyBinding = false
 		}
 	}
 
@@ -424,11 +425,15 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	}
 	escapeCfg := s.service.openAIStickyEscapeConfig()
 	if reason, errorRate, ttft, shouldEscape := s.shouldEscapeStickyAccount(accountID, escapeCfg); shouldEscape {
+		// Delete sticky so subsequent turns rebind to a healthy account instead of
+		// repeatedly hitting the degraded sticky target (escape used to preserve binding).
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", reason, "error_rate", errorRate, "ttft", ttft)
 		return nil, true, nil
 	}
 	// Fallback-only sticky must not pin traffic while primary peers are available.
 	if account.IsFallbackOnly() && s.hasPrimaryOpenAIPeer(ctx, req, accountID) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "fallback_only_primary_available")
 		return nil, true, nil
 	}
@@ -448,6 +453,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	if s.service.concurrencyService != nil {
 		if escapeCfg.enabled && acquireErr == nil && result != nil && !result.Acquired {
 			errorRate, ttft, _ := s.stats.snapshot(accountID)
+			_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 			slog.Info("sticky_escape_triggered", "account_id", accountID, "reason", "concurrency_full", "error_rate", errorRate, "ttft", ttft)
 			return nil, true, nil
 		}

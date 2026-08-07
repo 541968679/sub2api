@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -50,6 +51,46 @@ func (c *gatewayCache) RefreshSessionTTL(ctx context.Context, groupID int64, ses
 func (c *gatewayCache) DeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string) error {
 	key := buildSessionKey(groupID, sessionHash)
 	return c.rdb.Del(ctx, key).Err()
+}
+
+// DeleteSessionBindingsForAccount scans sticky_session:* keys and deletes those whose
+// value equals accountID. Uses SCAN (not KEYS) to avoid blocking Redis under load.
+func (c *gatewayCache) DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error) {
+	if c == nil || c.rdb == nil || accountID <= 0 {
+		return 0, nil
+	}
+	target := strconv.FormatInt(accountID, 10)
+	var (
+		cursor  uint64
+		deleted int64
+	)
+	for {
+		keys, next, err := c.rdb.Scan(ctx, cursor, stickySessionPrefix+"*", 200).Result()
+		if err != nil {
+			return deleted, err
+		}
+		for _, key := range keys {
+			val, err := c.rdb.Get(ctx, key).Result()
+			if err == redis.Nil {
+				continue
+			}
+			if err != nil {
+				return deleted, err
+			}
+			if val != target {
+				continue
+			}
+			if err := c.rdb.Del(ctx, key).Err(); err != nil {
+				return deleted, err
+			}
+			deleted++
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	return deleted, nil
 }
 
 // Compile-time assertion: gatewayCache must implement CyberSessionBlockStore.

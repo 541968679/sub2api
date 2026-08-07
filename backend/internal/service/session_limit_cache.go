@@ -33,6 +33,9 @@ type SessionLimitCache interface {
 	// 用于活跃会话保持活动状态
 	RefreshSession(ctx context.Context, accountID int64, sessionUUID string, idleTimeout time.Duration) error
 
+	// ClearAccountSessions 删除账号的会话限制集合（运维清理）
+	ClearAccountSessions(ctx context.Context, accountID int64) error
+
 	// GetActiveSessionCount 获取当前活跃会话数
 	// 返回未过期的会话数量
 	GetActiveSessionCount(ctx context.Context, accountID int64) (int, error)

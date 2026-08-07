@@ -173,6 +173,20 @@ func (c *schedulerTestGatewayCache) DeleteSessionAccountID(ctx context.Context, 
 	return nil
 }
 
+func (c *schedulerTestGatewayCache) DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error) {
+	if c.sessionBindings == nil || accountID <= 0 {
+		return 0, nil
+	}
+	var n int64
+	for k, v := range c.sessionBindings {
+		if v == accountID {
+			delete(c.sessionBindings, k)
+			n++
+		}
+	}
+	return n, nil
+}
+
 func newSchedulerTestOpenAIWSV2Config() *config.Config {
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.Enabled = true
@@ -778,7 +792,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SubscriptionPriorityAnd
 	require.Equal(t, int64(37202), selectAccount(map[int64]bool{37201: false, 37202: true}).Account.ID)
 }
 
-func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyEscapePreservesBinding(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyEscapeDeletesBinding(t *testing.T) {
 	groupID := int64(101076)
 	accounts := []Account{
 		{ID: 37301, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}},
@@ -800,7 +814,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyEscapePreservesBi
 	require.NoError(t, err)
 	require.Equal(t, int64(37302), selection.Account.ID)
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
-	require.Equal(t, int64(37301), cache.sessionBindings["openai:escape"])
+	// Escape must drop the degraded sticky binding and allow rebinding to the healthy account.
+	require.Equal(t, 1, cache.deletedSessions["openai:escape"])
+	require.Equal(t, int64(37302), cache.sessionBindings["openai:escape"], "replacement account should take sticky binding")
 }
 
 func TestOpenAIGatewayService_OpenAIAccountSchedulerMetrics_DisabledNoOp(t *testing.T) {

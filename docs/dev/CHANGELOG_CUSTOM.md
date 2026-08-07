@@ -1,3 +1,20 @@
+## 2026-08-06 - feat(admin): auto/manual clear stuck sticky and concurrency
+
+### What
+- Sticky escape now deletes the degraded sticky binding and allows rebinding to the replacement account (no longer preserves a bad pin).
+- Disabling schedulable (single or bulk) clears that account's sticky bindings, concurrency slots, and session-limit set.
+- Admin API `POST /api/v1/admin/accounts/:id/clear-stuck-runtime` + account action menu "Clear stuck sessions/concurrency".
+
+### Why
+Upstream slowdowns (e.g. boluomi) left thousands of sticky pins and dozens of concurrency slots hanging after schedulable was turned off, requiring manual Redis cleanup.
+
+### Verification
+- `go test -tags=unit ./internal/service -run TestOpenAIGatewayService_SelectAccountWithScheduler_StickyEscapeDeletesBinding -count=1`
+- `go build ./internal/handler/admin ./cmd/server`
+
+### Affected files
+`backend/internal/service/gateway_service.go`, `openai_account_scheduler.go`, `concurrency_service.go`, `session_limit_cache.go`, `repository/gateway_cache.go`, `repository/concurrency_cache.go`, `repository/session_limit_cache.go`, `handler/admin/account_handler.go`, `server/routes/admin.go`, frontend accounts API/menu/i18n, this changelog.
+
 ## 2026-08-06 - feat(admin): account list column order and resize
 
 ### What

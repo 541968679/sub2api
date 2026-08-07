@@ -143,6 +143,9 @@ func (s *stickyGatewayCacheHotpathStub) RefreshSessionTTL(ctx context.Context, g
 func (s *stickyGatewayCacheHotpathStub) DeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string) error {
 	return nil
 }
+func (s *stickyGatewayCacheHotpathStub) DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error) {
+	return 0, nil
+}
 
 func (s *modelsListAccountRepoStub) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]Account, error) {
 	s.listByGroupCalls.Add(1)

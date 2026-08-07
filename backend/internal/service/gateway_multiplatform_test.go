@@ -240,6 +240,9 @@ func (m *mockGatewayCacheForPlatform) DeleteSessionAccountID(ctx context.Context
 	delete(m.sessionBindings, sessionHash)
 	return nil
 }
+func (m *mockGatewayCacheForPlatform) DeleteSessionBindingsForAccount(ctx context.Context, accountID int64) (int64, error) {
+	return 0, nil
+}
 
 type mockGroupRepoForGateway struct {
 	groups           map[int64]*Group
@@ -1989,6 +1992,9 @@ func (m *mockConcurrencyCache) GetAccountsLoadBatch(ctx context.Context, account
 }
 
 func (m *mockConcurrencyCache) CleanupExpiredAccountSlots(ctx context.Context, accountID int64) error {
+	return nil
+}
+func (m *mockConcurrencyCache) ClearAccountSlots(ctx context.Context, accountID int64) error {
 	return nil
 }
 func (m *mockConcurrencyCache) CleanupExpiredAccountSlotKeys(ctx context.Context) error {

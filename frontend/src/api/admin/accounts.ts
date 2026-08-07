@@ -537,6 +537,24 @@ export async function setSchedulable(id: number, schedulable: boolean): Promise<
   return data
 }
 
+export interface ClearStuckRuntimeResult {
+  account_id: number
+  sticky_deleted: number
+  concurrency_cleared: boolean
+  session_limit_cleared: boolean
+}
+
+/**
+ * Clear stuck Redis runtime for an account: sticky bindings, concurrency slots, session limits.
+ * Does not change DB schedulable/status.
+ */
+export async function clearStuckRuntime(id: number): Promise<ClearStuckRuntimeResult> {
+  const { data } = await apiClient.post<ClearStuckRuntimeResult>(
+    `/admin/accounts/${id}/clear-stuck-runtime`
+  )
+  return data
+}
+
 /**
  * Get available models for an account
  * @param id - Account ID
@@ -1030,6 +1048,7 @@ export const accountsAPI = {
   getTempUnschedulableStatus,
   resetTempUnschedulable,
   setSchedulable,
+  clearStuckRuntime,
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamModelsPreview,

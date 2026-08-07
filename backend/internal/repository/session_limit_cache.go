@@ -192,6 +192,14 @@ func sessionLimitKey(accountID int64) string {
 	return fmt.Sprintf("%s%d", sessionLimitKeyPrefix, accountID)
 }
 
+// ClearAccountSessions removes the account session-limit sorted set.
+func (c *sessionLimitCache) ClearAccountSessions(ctx context.Context, accountID int64) error {
+	if c == nil || c.rdb == nil || accountID <= 0 {
+		return nil
+	}
+	return c.rdb.Del(ctx, sessionLimitKey(accountID)).Err()
+}
+
 // windowCostKey 生成窗口费用缓存的 Redis 键
 func windowCostKey(accountID int64) string {
 	return fmt.Sprintf("%s%d", windowCostKeyPrefix, accountID)

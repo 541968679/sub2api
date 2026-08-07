@@ -59,6 +59,7 @@ type AccountHandler struct {
 	concurrencyService      *service.ConcurrencyService
 	crsSyncService          *service.CRSSyncService
 	sessionLimitCache       service.SessionLimitCache
+	gatewayCache            service.GatewayCache
 	rpmCache                service.RPMCache
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	settingService          *service.SettingService
@@ -77,6 +78,7 @@ func NewAccountHandler(
 	concurrencyService *service.ConcurrencyService,
 	crsSyncService *service.CRSSyncService,
 	sessionLimitCache service.SessionLimitCache,
+	gatewayCache service.GatewayCache,
 	rpmCache service.RPMCache,
 	tokenCacheInvalidator service.TokenCacheInvalidator,
 	settingService *service.SettingService,
@@ -93,6 +95,7 @@ func NewAccountHandler(
 		concurrencyService:      concurrencyService,
 		crsSyncService:          crsSyncService,
 		sessionLimitCache:       sessionLimitCache,
+		gatewayCache:            gatewayCache,
 		rpmCache:                rpmCache,
 		tokenCacheInvalidator:   tokenCacheInvalidator,
 		settingService:          settingService,
@@ -1900,6 +1903,14 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		return
 	}
 
+	if req.Schedulable != nil && !*req.Schedulable {
+		for _, id := range result.SuccessIDs {
+			if _, cleanErr := h.clearAccountStuckRuntime(c.Request.Context(), id); cleanErr != nil {
+				slog.Warn("bulk_disable_runtime_cleanup_failed", "account_id", id, "error", cleanErr)
+			}
+		}
+	}
+
 	response.Success(c, result)
 }
 
@@ -2361,7 +2372,77 @@ func (h *AccountHandler) SetSchedulable(c *gin.Context) {
 		return
 	}
 
+	// When taking an account out of schedule, drop sticky bindings and stuck
+	// concurrency so clients rebind on next request and slots free immediately.
+	if !req.Schedulable {
+		if cleaned, cleanErr := h.clearAccountStuckRuntime(c.Request.Context(), accountID); cleanErr != nil {
+			slog.Warn("account_disable_runtime_cleanup_failed", "account_id", accountID, "error", cleanErr)
+		} else {
+			slog.Info("account_disable_runtime_cleanup",
+				"account_id", accountID,
+				"sticky_deleted", cleaned.StickyDeleted,
+				"concurrency_cleared", cleaned.ConcurrencyCleared,
+			)
+		}
+	}
+
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
+}
+
+// AccountStuckRuntimeCleanupResult is returned by ClearStuckRuntime.
+type AccountStuckRuntimeCleanupResult struct {
+	AccountID           int64 `json:"account_id"`
+	StickyDeleted       int64 `json:"sticky_deleted"`
+	ConcurrencyCleared  bool  `json:"concurrency_cleared"`
+	SessionLimitCleared bool  `json:"session_limit_cleared"`
+}
+
+// ClearStuckRuntime clears Redis sticky bindings, concurrency slots, and session-limit
+// state for one account. Does not change DB schedulable/status.
+// POST /api/v1/admin/accounts/:id/clear-stuck-runtime
+func (h *AccountHandler) ClearStuckRuntime(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if _, err := h.adminService.GetAccount(c.Request.Context(), accountID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	result, err := h.clearAccountStuckRuntime(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
+func (h *AccountHandler) clearAccountStuckRuntime(ctx context.Context, accountID int64) (*AccountStuckRuntimeCleanupResult, error) {
+	result := &AccountStuckRuntimeCleanupResult{AccountID: accountID}
+	if accountID <= 0 {
+		return result, nil
+	}
+	if h.gatewayCache != nil {
+		n, err := h.gatewayCache.DeleteSessionBindingsForAccount(ctx, accountID)
+		if err != nil {
+			return result, err
+		}
+		result.StickyDeleted = n
+	}
+	if h.concurrencyService != nil {
+		if err := h.concurrencyService.ClearAccountSlots(ctx, accountID); err != nil {
+			return result, err
+		}
+		result.ConcurrencyCleared = true
+	}
+	if h.sessionLimitCache != nil {
+		if err := h.sessionLimitCache.ClearAccountSessions(ctx, accountID); err != nil {
+			return result, err
+		}
+		result.SessionLimitCleared = true
+	}
+	return result, nil
 }
 
 // GetAvailableModels handles getting available models for an account
