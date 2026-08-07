@@ -1,3 +1,9 @@
+## 2026-08-12 - restore: keep stream_debug from local clear-concurrency commit
+
+### What
+- While replaying local-main onto origin/main, OpenAI `stream_debug` timing logs from `c733bea81` are retained.
+- Admin one-click `clear-concurrency` is not replayed; origin already has broader `clear-stuck-runtime`.
+
 ## 2026-08-12 - deploy: production v0.1.213
 
 ### What

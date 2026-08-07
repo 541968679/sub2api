@@ -82,6 +82,9 @@ func (c StubConcurrencyCache) ClearAccountSlots(_ context.Context, _ int64) erro
 func (c StubConcurrencyCache) CleanupExpiredAccountSlotKeys(_ context.Context) error {
 	return nil
 }
+func (c StubConcurrencyCache) ClearAccountSlots(_ context.Context, _ int64) error {
+	return nil
+}
 func (c StubConcurrencyCache) CleanupStaleProcessSlots(_ context.Context, _ string) error {
 	return nil
 }
