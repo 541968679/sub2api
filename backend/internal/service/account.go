@@ -20,6 +20,10 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
+// AccountExtraModelMappingStrictScheduling is accounts.extra key for per-account
+// strict model_mapping scheduling. Default missing/false = legacy fallback.
+const AccountExtraModelMappingStrictScheduling = "model_mapping_strict_scheduling"
+
 type Account struct {
 	ID          int64
 	Name        string
@@ -874,8 +878,19 @@ func resolvePlatformDefaultMappedModelDetailed(platform, requestedModel string) 
 	return result
 }
 
+// IsModelMappingStrictScheduling reports whether this account treats non-empty
+// credentials.model_mapping as a strict scheduling allowlist.
+// Default false (missing extra key) preserves legacy platform-default / DefaultModels fallback.
+func (a *Account) IsModelMappingStrictScheduling() bool {
+	return a != nil && a.getExtraBool(AccountExtraModelMappingStrictScheduling)
+}
+
 // IsModelSupported 检查模型是否在 model_mapping 中（支持通配符）
 // 如果未配置 mapping，返回 true（允许所有模型）
+//
+// 已配置非空 model_mapping 时：
+//   - 账号 extra.model_mapping_strict_scheduling=true：未命中即 false（严格白名单）
+//   - 默认 false：保留旧兜底——平台默认映射 / OpenAI DefaultModels 仍可调度
 func (a *Account) IsModelSupported(requestedModel string) bool {
 	mapping := a.GetModelMapping()
 	if isCodexSparkModel(requestedModel) {
@@ -894,6 +909,11 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 	if normalized != requestedModel && mappingSupportsRequestedModel(mapping, normalized) {
 		return true
 	}
+	// Per-account strict mode: non-empty mapping is a real allowlist.
+	if a.IsModelMappingStrictScheduling() {
+		return false
+	}
+	// Legacy fallbacks (default / switch off).
 	if a.Platform != PlatformAntigravity {
 		if _, matched := resolvePlatformDefaultMappedModel(a.Platform, requestedModel); matched {
 			return true

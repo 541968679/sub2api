@@ -118,6 +118,10 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
+| 2026-08-07 | `v0.1.201` | `c733bea81` | `ghcr.io/541968679/sub2api:0.1.201` (override pin) | `0.1.201` | running, healthy, internal `/health` OK; clear-concurrency menu + stream debug logs on 200 baseline; **still skips banned v0.1.199** sticky-escape scheduling changes |
+| 2026-08-07 | `v0.1.200` | `97dba0a1a` | `ghcr.io/541968679/sub2api:0.1.200` (override pin) | `0.1.200` | superseded by `v0.1.201`; 198 baseline + admin recharge-history manage/delete; **skips banned v0.1.199** sticky/concurrency scheduling changes |
+| 2026-08-07 | `v0.1.198` | (rollback pin) | `ghcr.io/541968679/sub2api:0.1.198` | `0.1.198` | emergency rollback from v0.1.199; superseded by `v0.1.200` |
+| 2026-08-03 | `v0.1.197` | `734787d60` | `ghcr.io/541968679/sub2api:latest` | `0.1.197` | running, healthy, digest `sha256:ceb2c59c869e7bcfb07c0ea9e9dd5485030fa41ff9ec558ec3395a099c8581fd`, internal `/health` OK; account move-to-top + mobile user columns + concurrency sort; includes New API balance (`v0.1.196`) |
 | 2026-08-12 | `v0.1.213` | `37cbeaa96` | `ghcr.io/541968679/sub2api:0.1.213` | `0.1.213` | running, healthy, digest `sha256:4bfdbbcf7a59e6fdfe0935fa61b4dec74f7956f57bb30b4d6dc85515f76e3dbb`, internal `/health` OK; usage heavy-user aggregates + gateway first_token_ms + admin token columns |
 | 2026-08-07 | `v0.1.199` | `b0187a7f0` | `ghcr.io/541968679/sub2api:latest` | `0.1.199` | running, healthy, digest `sha256:67f8172cc6126659521b2fc4eb9735ae7bf51841f2de9e1ef9cb9963fe0e3420`, internal `/health` OK; sticky escape deletes binding; disable/bulk-disable clears sticky+concurrency; admin clear-stuck-runtime menu |
 | 2026-08-06 | `v0.1.198` | `6b0263cee` | `ghcr.io/541968679/sub2api:latest` | `0.1.198` | superseded by `v0.1.199`; account edit group-checkbox fix + account column order/resize + users list auto-refresh |

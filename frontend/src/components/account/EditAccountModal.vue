@@ -406,6 +406,36 @@
             data-testid="edit-account-zone-other-body"
           >
             <!-- Priority top: model restriction -->
+        <!-- Per-account strict scheduling (non-Antigravity; Antigravity is already strict) -->
+        <div
+          v-if="account.platform !== 'antigravity'"
+          class="flex items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-dark-600"
+          data-testid="model-mapping-strict-scheduling"
+        >
+          <div class="min-w-0">
+            <label class="input-label mb-0">{{ t('admin.accounts.modelMappingStrictScheduling') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.modelMappingStrictSchedulingHint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="model-mapping-strict-scheduling-toggle"
+            @click="modelMappingStrictScheduling = !modelMappingStrictScheduling"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              modelMappingStrictScheduling ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                modelMappingStrictScheduling ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+
         <!-- Model Restriction Section (不适用于 Antigravity) -->
         <div v-if="account.type === 'apikey' && account.platform !== 'antigravity'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
           <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -2704,6 +2734,7 @@ import {
   getPresetMappingsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
+  normalizeModelMappingRecord,
   isValidWildcardPattern,
   applyOpenAIClaudeGPTBridgeTemplateToMappings,
   loadOpenAIClaudeGPTBridgeTemplate,
@@ -2761,7 +2792,8 @@ const submitting = ref(false)
 /** Zone 2 (groups): open by default; collapsible on mobile only */
 const zone2Expanded = ref(true)
 /** Zone 3 (other features): collapsed by default on all breakpoints */
-const zone3Expanded = ref(false)
+/** Zone 3 (other features): expanded by default so model restriction is visible */
+const zone3Expanded = ref(true)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
 // Bedrock credentials
@@ -2872,6 +2904,8 @@ const customBaseUrl = ref('')
 
 // OpenAI 自动透传开关（OAuth/API Key）
 const openaiPassthroughEnabled = ref(false)
+/** Per-account: strict model_mapping scheduling (extra.model_mapping_strict_scheduling) */
+const modelMappingStrictScheduling = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const grokOpenAIGroupAccessEnabled = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
@@ -3165,6 +3199,30 @@ const normalizePoolModeRetryCount = (value: number) => {
 // those intermediate writes would strip legitimate group checkboxes on open.
 let isSyncingFormFromAccount = false
 
+/** Apply credentials.model_mapping into whitelist/mapping form state. */
+const applyModelRestrictionFromCredentials = (credentials?: Record<string, unknown> | null) => {
+  const existingMappings = normalizeModelMappingRecord(credentials?.model_mapping)
+  if (!existingMappings) {
+    modelRestrictionMode.value = 'whitelist'
+    modelMappings.value = []
+    allowedModels.value = []
+    return false
+  }
+
+  const entries = Object.entries(existingMappings)
+  const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
+  if (isWhitelistMode) {
+    modelRestrictionMode.value = 'whitelist'
+    allowedModels.value = entries.map(([from]) => from)
+    modelMappings.value = []
+  } else {
+    modelRestrictionMode.value = 'mapping'
+    modelMappings.value = entries.map(([from, to]) => ({ from, to }))
+    allowedModels.value = []
+  }
+  return true
+}
+
 const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
@@ -3215,6 +3273,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   // Load OpenAI passthrough toggle (OpenAI OAuth/API Key)
   openaiPassthroughEnabled.value = false
+  modelMappingStrictScheduling.value = extra?.model_mapping_strict_scheduling === true
   openaiClaudeGPTBridgeEnabled.value = false
   grokOpenAIGroupAccessEnabled.value = false
   openAICompactMode.value = 'auto'
@@ -3383,30 +3442,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
 
     // Load model mappings and detect mode
-    const existingMappings = credentials.model_mapping as Record<string, string> | undefined
-    if (existingMappings && typeof existingMappings === 'object') {
-      const entries = Object.entries(existingMappings)
-
-      // Detect if this is whitelist mode (all from === to) or mapping mode
-      const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-
-      if (isWhitelistMode) {
-        // Whitelist mode: populate allowedModels
-        modelRestrictionMode.value = 'whitelist'
-        allowedModels.value = entries.map(([from]) => from)
-        modelMappings.value = []
-      } else {
-        // Mapping mode: populate modelMappings
-        modelRestrictionMode.value = 'mapping'
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        allowedModels.value = []
-      }
-    } else {
-      // No mappings: default to whitelist mode with empty selection (allow all)
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
-    }
+    applyModelRestrictionFromCredentials(credentials)
 
     // Load pool mode
     poolModeEnabled.value = credentials.pool_mode === true
@@ -3458,24 +3494,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     loadQuotaNotifyFromExtra(bedrockExtra)
 
     // Load model mappings for bedrock
-    const existingMappings = bedrockCreds.model_mapping as Record<string, string> | undefined
-    if (existingMappings && typeof existingMappings === 'object') {
-      const entries = Object.entries(existingMappings)
-      const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-      if (isWhitelistMode) {
-        modelRestrictionMode.value = 'whitelist'
-        allowedModels.value = entries.map(([from]) => from)
-        modelMappings.value = []
-      } else {
-        modelRestrictionMode.value = 'mapping'
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        allowedModels.value = []
-      }
-    } else {
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
-    }
+    applyModelRestrictionFromCredentials(bedrockCreds)
   } else if (newAccount.type === 'upstream' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
     editBaseUrl.value = (credentials.base_url as string) || ''
@@ -3486,24 +3505,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editVertexLocation.value = (credentials.location as string) || (credentials.vertex_location as string) || 'us-central1'
 
     // Load model mappings for service_account
-    const existingMappings = credentials.model_mapping as Record<string, string> | undefined
-    if (existingMappings && typeof existingMappings === 'object') {
-      const entries = Object.entries(existingMappings)
-      const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-      if (isWhitelistMode) {
-        modelRestrictionMode.value = 'whitelist'
-        allowedModels.value = entries.map(([from]) => from)
-        modelMappings.value = []
-      } else {
-        modelRestrictionMode.value = 'mapping'
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        allowedModels.value = []
-      }
-    } else {
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
-    }
+    applyModelRestrictionFromCredentials(credentials)
   } else {
     const platformDefaultUrl =
       newAccount.platform === 'openai'
@@ -3515,29 +3517,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
     // Load model mappings for OpenAI/Grok OAuth accounts
     if ((newAccount.platform === 'openai' || newAccount.platform === 'grok') && newAccount.credentials) {
-      const oauthCredentials = newAccount.credentials as Record<string, unknown>
-      const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
-      if (existingMappings && typeof existingMappings === 'object') {
-        const entries = Object.entries(existingMappings)
-        const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-        if (isWhitelistMode) {
-          modelRestrictionMode.value = 'whitelist'
-          allowedModels.value = entries.map(([from]) => from)
-          modelMappings.value = []
-        } else {
-          modelRestrictionMode.value = 'mapping'
-          modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-          allowedModels.value = []
-        }
-      } else {
-        modelRestrictionMode.value = 'whitelist'
-        modelMappings.value = []
-        allowedModels.value = []
-      }
+      applyModelRestrictionFromCredentials(newAccount.credentials as Record<string, unknown>)
     } else {
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
+      applyModelRestrictionFromCredentials(null)
     }
     poolModeEnabled.value = false
     poolModeRetryCount.value = DEFAULT_POOL_MODE_RETRY_COUNT
@@ -3549,6 +3531,16 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // After flags + group_ids are hydrated, drop invalid bridge-only groups.
   // Must run here (not only in watchers) so same-platform account switches still clean up.
   applyBridgeGroupSelectionRules(newAccount.platform)
+
+  // Model restriction lives in the collapsed "other" zone. Auto-expand when the
+  // account already has a mapping so reopen doesn't look empty/hidden.
+  if (
+    (modelRestrictionMode.value === 'mapping' && modelMappings.value.length > 0) ||
+    (modelRestrictionMode.value === 'whitelist' && allowedModels.value.length > 0) ||
+    antigravityModelMappings.value.length > 0
+  ) {
+    zone3Expanded.value = true
+  }
   } finally {
     isSyncingFormFromAccount = false
   }
@@ -3586,7 +3578,7 @@ watch(
     const accountIdChanged = !previousAccount || previousAccount.id !== newAccount.id
     if (openedNow || accountIdChanged) {
       zone2Expanded.value = true
-      zone3Expanded.value = false
+      zone3Expanded.value = true
       syncFormFromAccount(newAccount)
       loadTLSProfiles()
     }
@@ -4134,9 +4126,25 @@ const submitUpdateAccount = async (accountID: number, updatePayload: Record<stri
     const submittedGroupIds = Array.isArray(updatePayload.group_ids)
       ? (updatePayload.group_ids as number[])
       : undefined
-    const accountForList: Account = submittedGroupIds
-      ? { ...updatedAccount, group_ids: [...submittedGroupIds] }
-      : updatedAccount
+    // Prefer submitted credentials (esp. model_mapping) when the response is
+    // incomplete; reopening the editor reads from the list-row account object.
+    const submittedCredentials =
+      updatePayload.credentials && typeof updatePayload.credentials === 'object'
+        ? (updatePayload.credentials as Record<string, unknown>)
+        : undefined
+    const accountForList: Account = {
+      ...updatedAccount,
+      ...(submittedGroupIds ? { group_ids: [...submittedGroupIds] } : {}),
+      ...(submittedCredentials
+        ? {
+            credentials: {
+              ...((props.account?.credentials as Record<string, unknown> | undefined) || {}),
+              ...((updatedAccount.credentials as Record<string, unknown> | undefined) || {}),
+              ...submittedCredentials
+            }
+          }
+        : {})
+    }
     appStore.showSuccess(t('admin.accounts.accountUpdated'))
     emit('updated', accountForList)
     handleClose()
@@ -4736,6 +4744,21 @@ const handleSubmit = async () => {
         newExtra.fallback_only = true
       } else {
         delete newExtra.fallback_only
+      }
+      updatePayload.extra = newExtra
+    }
+
+    // Per-account strict model_mapping scheduling (all platforms; Antigravity ignores via already-strict map)
+    {
+      const currentExtra =
+        (updatePayload.extra as Record<string, unknown>) ||
+        (props.account.extra as Record<string, unknown>) ||
+        {}
+      const newExtra: Record<string, unknown> = { ...currentExtra }
+      if (modelMappingStrictScheduling.value) {
+        newExtra.model_mapping_strict_scheduling = true
+      } else {
+        delete newExtra.model_mapping_strict_scheduling
       }
       updatePayload.extra = newExtra
     }

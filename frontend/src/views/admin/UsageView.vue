@@ -151,6 +151,8 @@
       <template v-else>
         <ErrorRequestFilters
           v-model="errorFilters"
+          :start-date="startDate"
+          :end-date="endDate"
           @change="onErrorFiltersChange"
           @refresh="reloadErrorTab"
           @reset="resetErrorFilters"
@@ -323,13 +325,14 @@ const errorPageSize = ref(getPersistedPageSize())
 const showErrorDetailModal = ref(false)
 const selectedErrorId = ref<number | null>(null)
 const errorFilters = ref<ErrorRequestFilterState>({
+  user_id: undefined,
+  api_key_id: undefined,
+  model: null,
+  account_id: undefined,
+  group_id: null,
   platform: '',
   bridge: 'all',
-  user_query: '',
-  model: '',
   upstream_model: '',
-  group_id: '',
-  account_id: '',
   q: '',
   status_codes: []
 })
@@ -348,16 +351,15 @@ function buildErrorQueryParams(includePagination: boolean): Record<string, any> 
     params.page = errorPage.value
     params.page_size = errorPageSize.value
   }
+  if (f.user_id) params.user_id = f.user_id
+  if (f.api_key_id) params.api_key_id = f.api_key_id
+  if (f.model) params.model = f.model
+  if (f.account_id) params.account_id = f.account_id
+  if (f.group_id) params.group_id = f.group_id
   if (f.platform) params.platform = f.platform
   if (f.bridge && f.bridge !== 'all') params.bridge = f.bridge
-  if (f.user_query.trim()) params.user_query = f.user_query.trim()
-  if (f.model.trim()) params.model = f.model.trim()
   if (f.upstream_model.trim()) params.upstream_model = f.upstream_model.trim()
   if (f.q.trim()) params.q = f.q.trim()
-  const gid = Number(f.group_id)
-  if (Number.isFinite(gid) && gid > 0) params.group_id = gid
-  const aid = Number(f.account_id)
-  if (Number.isFinite(aid) && aid > 0) params.account_id = aid
   if (f.status_codes.length > 0) params.status_codes = f.status_codes.join(',')
   return params
 }
@@ -402,13 +404,14 @@ const onErrorFiltersChange = () => {
 
 const resetErrorFilters = () => {
   errorFilters.value = {
+    user_id: undefined,
+    api_key_id: undefined,
+    model: null,
+    account_id: undefined,
+    group_id: null,
     platform: '',
     bridge: 'all',
-    user_query: '',
-    model: '',
     upstream_model: '',
-    group_id: '',
-    account_id: '',
     q: '',
     status_codes: []
   }
@@ -473,6 +476,7 @@ const applyRouteQueryFilters = () => {
   const queryEndDate = getSingleQueryValue(route.query.end_date)
   const queryUserId = getNumericQueryValue(route.query.user_id)
   const queryAccountId = getNumericQueryValue(route.query.account_id)
+  const queryTab = getSingleQueryValue(route.query.tab)
 
   if (queryStartDate) {
     startDate.value = queryStartDate
@@ -488,7 +492,18 @@ const applyRouteQueryFilters = () => {
     start_date: startDate.value,
     end_date: endDate.value
   }
+  // Seed error-request filters from the same deep-link params (account/user).
+  errorFilters.value = {
+    ...errorFilters.value,
+    user_id: queryUserId,
+    account_id: queryAccountId
+  }
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
+
+  if (queryTab === 'errors') {
+    activeTab.value = 'errors'
+    errorsMounted.value = true
+  }
 }
 
 const onDateRangeChange = (range: { startDate: string; endDate: string; preset: string | null }) => {
@@ -836,6 +851,9 @@ const handleColumnClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   applyRouteQueryFilters()
+  if (activeTab.value === 'errors') {
+    reloadErrorTab()
+  }
   loadLogs()
   loadStats()
   loadModelStats(modelDistributionSource.value, true)

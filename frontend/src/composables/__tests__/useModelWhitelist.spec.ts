@@ -6,6 +6,7 @@ vi.mock('@/api/admin/accounts', () => ({
 
 import {
   buildModelMappingObject,
+  normalizeModelMappingRecord,
   applyOpenAIClaudeGPTBridgeTemplateToMappings,
   getDefaultOpenAIClaudeGPTBridgeTemplate,
   mergeModelMappingWithClaudeGPTBridgeTemplate,
@@ -158,5 +159,30 @@ describe('useModelWhitelist', () => {
       { from: '', to: 'ignored' }
     ])
     expect(resolved).toEqual([{ from: 'claude-opus-4-8', to: 'gpt-5.5' }])
+  })
+
+  it('buildModelMappingObject falls back to mapping rows when whitelist mode is empty', () => {
+    const mapping = buildModelMappingObject(
+      'whitelist',
+      [],
+      [{ from: 'gpt-5.6-luna', to: 'gpt-5.6-luna' }]
+    )
+    expect(mapping).toEqual({ 'gpt-5.6-luna': 'gpt-5.6-luna' })
+  })
+
+  it('buildModelMappingObject falls back to whitelist when mapping rows are empty', () => {
+    const mapping = buildModelMappingObject('mapping', ['gpt-5.5'], [])
+    expect(mapping).toEqual({ 'gpt-5.5': 'gpt-5.5' })
+  })
+
+  it('normalizeModelMappingRecord accepts object and JSON string forms', () => {
+    expect(normalizeModelMappingRecord({ 'gpt-5.5': 'gpt-5.5' })).toEqual({
+      'gpt-5.5': 'gpt-5.5'
+    })
+    expect(normalizeModelMappingRecord('{"gpt-5.6-terra":"gpt-5.6-terra"}')).toEqual({
+      'gpt-5.6-terra': 'gpt-5.6-terra'
+    })
+    expect(normalizeModelMappingRecord(null)).toBeNull()
+    expect(normalizeModelMappingRecord({})).toBeNull()
   })
 })

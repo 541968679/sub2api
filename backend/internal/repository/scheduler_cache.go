@@ -549,6 +549,9 @@ func filterSchedulerExtra(extra map[string]any) map[string]any {
 		"openai_claude_gpt_bridge_enabled",
 		// Hard last-resort tier for load-balance; must survive slim scheduler snapshots.
 		"fallback_only",
+		// Per-account strict model_mapping allowlist for scheduling.
+		// Without this, IsModelSupported always sees legacy fallback from snapshots.
+		"model_mapping_strict_scheduling",
 		// Grok accounts bound to OpenAI groups need this flag in the scheduler
 		// snapshot; without it OpenAI-group keys cannot select Grok capacity.
 		"grok_openai_group_access_enabled",
