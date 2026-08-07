@@ -261,6 +261,66 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('emits submitted model_mapping even when update response omits credentials', async () => {
+    const account = buildAccount()
+    account.credentials = {
+      api_key: 'sk-test',
+      base_url: 'https://api.openai.com'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    // Simulate a buggy/partial API response without credentials.model_mapping.
+    updateAccountMock.mockResolvedValue({
+      ...account,
+      credentials: { api_key: 'sk-test', base_url: 'https://api.openai.com' }
+    })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="rewrite-to-snapshot"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      'gpt-5.2-2025-12-11': 'gpt-5.2-2025-12-11'
+    })
+
+    const emitted = wrapper.emitted('updated')
+    expect(emitted).toBeTruthy()
+    const patched = emitted?.[0]?.[0] as any
+    expect(patched?.credentials?.model_mapping).toEqual({
+      'gpt-5.2-2025-12-11': 'gpt-5.2-2025-12-11'
+    })
+
+    // Reopen with the patched list-row account: mapping must rehydrate.
+    await wrapper.setProps({ show: false, account: null })
+    await wrapper.setProps({ show: true, account: patched })
+    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe('gpt-5.2-2025-12-11')
+  })
+
+  it('rehydrates OpenAI OAuth mapping mode from credentials.model_mapping', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.credentials = {
+      access_token: 'at',
+      refresh_token: 'rt',
+      model_mapping: {
+        'gpt-5.6-luna': 'gpt-5.5'
+      }
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    // Mapping mode is selected when from !== to; inputs should carry values.
+    const fromInput = wrapper.findAll('input').find((input) => (input.element as HTMLInputElement).value === 'gpt-5.6-luna')
+    const toInput = wrapper.findAll('input').find((input) => (input.element as HTMLInputElement).value === 'gpt-5.5')
+    expect(fromInput).toBeTruthy()
+    expect(toInput).toBeTruthy()
+  })
+
   it('preserves Grok OAuth credentials and model mapping when edited', async () => {
     const account = buildAccount()
     account.name = 'Grok OAuth'

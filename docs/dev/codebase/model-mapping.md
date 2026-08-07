@@ -300,4 +300,5 @@ account.ResolveMappedModel():
 - **Antigravity 默认映射更新滞后**：上游新增模型时，`DefaultAntigravityModelMapping` 可能未及时更新，需手动添加映射
 - **迁移编号分叉**：合并上游模型回填迁移时，先检查本 fork 最新 migration 编号；如上游编号已被二开占用，保留 SQL 逻辑并改用本地下一编号。
 - **白名单 vs 映射混淆**：白名单模式本质是映射到自身，前端 `buildModelMappingObject` 统一输出为映射格式
+- **账号级严格调度开关 (2026-08-07)**：`accounts.extra.model_mapping_strict_scheduling`（默认缺失/false）。关：非空 `model_mapping` 未命中时仍可走平台默认映射 / OpenAI DefaultModels 兜底。开：该账号非空 mapping 为严格调度白名单。空 mapping 始终允许全部。在账号编辑「其他功能」中按账号切换；`Account.IsModelSupported` 读取 `IsModelMappingStrictScheduling()`。
 - **通配符贪婪匹配**：`claude-*` 会匹配所有 claude 开头的模型，可能匹配到不期望的模型

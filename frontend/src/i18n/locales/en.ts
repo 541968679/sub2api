@@ -4203,6 +4203,8 @@ const enBase = {
       failedToToggleSchedulable: 'Failed to toggle scheduling status',
       viewUsage: 'View usage records',
       viewUsageShort: 'Usage',
+      viewErrorRequests: 'View error request records',
+      viewErrorRequestsShort: 'Errors',
       groupCountTotal: '{count} groups total',
       platforms: {
         anthropic: 'Anthropic',
@@ -4631,6 +4633,9 @@ const enBase = {
         webSearchDisabled: 'Disabled',
       },
       modelRestriction: 'Model Restriction (Optional)',
+      modelMappingStrictScheduling: 'Strict whitelist/mapping scheduling',
+      modelMappingStrictSchedulingHint:
+        'Off by default: when this account has a whitelist/mapping, unlisted models may still be scheduled here via platform defaults or OpenAI DefaultModels (legacy). On: only request models listed in this account mapping can be scheduled to this account. Empty mapping still allows all.',
       modelWhitelist: 'Model Whitelist',
       modelMapping: 'Model Mapping',
       selectAllowedModels: 'Select allowed models. Leave empty to support all models.',

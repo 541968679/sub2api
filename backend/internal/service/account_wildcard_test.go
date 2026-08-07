@@ -208,6 +208,43 @@ func TestAccountIsModelSupported(t *testing.T) {
 			requestedModel: "gemini-3-flash",
 			expected:       false,
 		},
+
+		// OpenAI 显式白名单 + 严格开关关闭：DefaultModels 兜底（旧行为）
+		{
+			name:     "openai whitelist legacy allows default model luna when strict off",
+			platform: PlatformOpenAI,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"gpt-5.5":       "gpt-5.5",
+					"gpt-5.6-sol":   "gpt-5.6-sol",
+					"gpt-5.6-terra": "gpt-5.6-terra",
+				},
+			},
+			requestedModel: "gpt-5.6-luna",
+			expected:       true, // strict off default
+		},
+		{
+			name:     "openai whitelist still allows listed terra",
+			platform: PlatformOpenAI,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"gpt-5.5":       "gpt-5.5",
+					"gpt-5.6-sol":   "gpt-5.6-sol",
+					"gpt-5.6-terra": "gpt-5.6-terra",
+				},
+			},
+			requestedModel: "gpt-5.6-terra",
+			expected:       true,
+		},
+		{
+			name:     "openai empty mapping still allows any model",
+			platform: PlatformOpenAI,
+			credentials: map[string]any{
+				"api_key": "sk-test",
+			},
+			requestedModel: "gpt-5.6-luna",
+			expected:       true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -221,6 +258,45 @@ func TestAccountIsModelSupported(t *testing.T) {
 				t.Errorf("IsModelSupported(%q) = %v, want %v", tt.requestedModel, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestAccountIsModelSupported_PerAccountStrictScheduling(t *testing.T) {
+	account := &Account{
+		Platform: PlatformOpenAI,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				"gpt-5.5":       "gpt-5.5",
+				"gpt-5.6-sol":   "gpt-5.6-sol",
+				"gpt-5.6-terra": "gpt-5.6-terra",
+			},
+		},
+	}
+
+	// Default / missing extra: legacy fallback allows DefaultModels (luna).
+	if !account.IsModelSupported("gpt-5.6-luna") {
+		t.Fatalf("strict=off: default model luna must remain schedulable (legacy fallback)")
+	}
+	if !account.IsModelSupported("gpt-5.6-terra") {
+		t.Fatalf("strict=off: listed terra must remain schedulable")
+	}
+
+	account.Extra = map[string]any{AccountExtraModelMappingStrictScheduling: true}
+	if account.IsModelSupported("gpt-5.6-luna") {
+		t.Fatalf("strict=on: luna not in mapping must be rejected")
+	}
+	if !account.IsModelSupported("gpt-5.6-terra") {
+		t.Fatalf("strict=on: listed terra must remain schedulable")
+	}
+
+	// Empty mapping always allows all, regardless of switch.
+	empty := &Account{
+		Platform:    PlatformOpenAI,
+		Credentials: map[string]any{"api_key": "sk"},
+		Extra:       map[string]any{AccountExtraModelMappingStrictScheduling: true},
+	}
+	if !empty.IsModelSupported("gpt-5.6-luna") {
+		t.Fatalf("empty mapping must allow all even when strict=on")
 	}
 }
 

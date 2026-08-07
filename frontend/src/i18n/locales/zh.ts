@@ -3832,6 +3832,8 @@ const zhBase = {
       failedToToggleSchedulable: '切换调度状态失败',
       viewUsage: '查看使用记录',
       viewUsageShort: '用量',
+      viewErrorRequests: '查看错误请求记录',
+      viewErrorRequestsShort: '错误',
       groupCountTotal: '共 {count} 个分组',
       columns: {
         name: '名称',
@@ -4362,6 +4364,9 @@ const zhBase = {
         webSearchDisabled: '关闭',
       },
       modelRestriction: '模型限制（可选）',
+      modelMappingStrictScheduling: '严格按白名单/映射调度',
+      modelMappingStrictSchedulingHint:
+        '默认关闭：账号已配置白名单/映射时，未列出的模型仍可能按平台默认或 OpenAI 默认模型集被调度到本账号。开启后：仅白名单/映射中的请求模型可调度到本账号；空映射仍表示允许全部。',
       modelWhitelist: '模型白名单',
       modelMapping: '模型映射',
       selectAllowedModels: '选择允许的模型。留空则支持所有模型。',

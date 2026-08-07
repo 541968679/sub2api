@@ -589,6 +589,79 @@ export function isValidWildcardPattern(pattern: string): boolean {
   return starIndex === pattern.length - 1 && pattern.lastIndexOf('*') === starIndex
 }
 
+function appendWhitelistModels(mapping: Record<string, string>, allowedModels: string[]) {
+  for (const model of allowedModels) {
+    const name = String(model ?? '').trim()
+    // whitelist 模式的本意是"精确模型列表"，如果用户输入了通配符（如 claude-*），
+    // 写入 model_mapping 会导致 GetMappedModel() 把真实模型映射成 "claude-*"，从而转发失败。
+    // 因此这里跳过包含通配符的条目。
+    if (!name || name.includes('*')) continue
+    mapping[name] = name
+  }
+}
+
+function appendMappingRows(
+  mapping: Record<string, string>,
+  modelMappings: { from: string; to: string }[]
+) {
+  for (const m of modelMappings) {
+    const from = String(m?.from ?? '').trim()
+    const to = String(m?.to ?? '').trim()
+    if (!from || !to) continue
+    // 校验通配符格式：* 只能放在末尾
+    if (!isValidWildcardPattern(from)) {
+      console.warn(`[buildModelMappingObject] 无效的通配符格式，跳过: ${from}`)
+      continue
+    }
+    // to 不允许包含通配符
+    if (to.includes('*')) {
+      console.warn(`[buildModelMappingObject] 目标模型不能包含通配符，跳过: ${from} -> ${to}`)
+      continue
+    }
+    mapping[from] = to
+  }
+}
+
+/**
+ * Normalize credentials.model_mapping from API/DB into a string record.
+ * Handles nested objects and accidental JSON-string encoding.
+ */
+export function normalizeModelMappingRecord(raw: unknown): Record<string, string> | null {
+  if (raw == null) return null
+
+  let value: unknown = raw
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    try {
+      value = JSON.parse(trimmed)
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return null
+  }
+
+  const mapping: Record<string, string> = {}
+  for (const [key, rawTarget] of Object.entries(value as Record<string, unknown>)) {
+    const from = String(key ?? '').trim()
+    if (!from) continue
+    if (typeof rawTarget === 'string') {
+      const to = rawTarget.trim()
+      if (to) mapping[from] = to
+      continue
+    }
+    if (rawTarget != null && typeof rawTarget !== 'object') {
+      const to = String(rawTarget).trim()
+      if (to) mapping[from] = to
+    }
+  }
+
+  return Object.keys(mapping).length > 0 ? mapping : null
+}
+
 export function buildModelMappingObject(
   mode: 'whitelist' | 'mapping',
   allowedModels: string[],
@@ -597,30 +670,17 @@ export function buildModelMappingObject(
   const mapping: Record<string, string> = {}
 
   if (mode === 'whitelist') {
-    for (const model of allowedModels) {
-      // whitelist 模式的本意是"精确模型列表"，如果用户输入了通配符（如 claude-*），
-      // 写入 model_mapping 会导致 GetMappedModel() 把真实模型映射成 "claude-*"，从而转发失败。
-      // 因此这里跳过包含通配符的条目。
-      if (!model.includes('*')) {
-        mapping[model] = model
-      }
+    appendWhitelistModels(mapping, allowedModels)
+    // Mode-tab mismatch safety: if whitelist is empty but mapping rows were filled,
+    // still persist the mapping rows instead of silently deleting model_mapping.
+    if (Object.keys(mapping).length === 0) {
+      appendMappingRows(mapping, modelMappings)
     }
   } else {
-    for (const m of modelMappings) {
-      const from = m.from.trim()
-      const to = m.to.trim()
-      if (!from || !to) continue
-      // 校验通配符格式：* 只能放在末尾
-      if (!isValidWildcardPattern(from)) {
-        console.warn(`[buildModelMappingObject] 无效的通配符格式，跳过: ${from}`)
-        continue
-      }
-      // to 不允许包含通配符
-      if (to.includes('*')) {
-        console.warn(`[buildModelMappingObject] 目标模型不能包含通配符，跳过: ${from} -> ${to}`)
-        continue
-      }
-      mapping[from] = to
+    appendMappingRows(mapping, modelMappings)
+    // Symmetric fallback for the opposite mismatch.
+    if (Object.keys(mapping).length === 0) {
+      appendWhitelistModels(mapping, allowedModels)
     }
   }
 

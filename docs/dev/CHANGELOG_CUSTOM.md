@@ -1,3 +1,51 @@
+## 2026-08-07 - feat(account): per-account model_mapping strict scheduling toggle
+
+### What
+- Per-account switch stored in `accounts.extra.model_mapping_strict_scheduling` (default **false** / missing).
+- **Off**: non-empty `model_mapping` still allows legacy fallbacks (platform default mapping / OpenAI DefaultModels) for unlisted request models.
+- **On**: non-empty `model_mapping` is a strict scheduling allowlist for that account only.
+- Empty mapping still allows all. Admin global setting was **not** used (account-scoped only).
+- Edit dialog: toggle under 「其他功能」; zone defaults to expanded.
+
+### Why
+Strict whitelist is needed for accounts like zerocode/xiaoyao without changing behavior for every other account that relies on DefaultModels fallback.
+
+### Verification
+- `go test -tags=unit ./internal/service -run 'TestAccountIsModelSupported|TestAccountIsModelSupported_PerAccountStrictScheduling' -count=1`
+
+### Affected files
+`backend/internal/service/account.go`, `account_wildcard_test.go`, `backend/internal/repository/scheduler_cache.go` (snapshot Extra must keep `model_mapping_strict_scheduling`), `EditAccountModal.vue`, i18n zh/en, this changelog.
+
+## 2026-08-07 - fix(admin): account model mapping not persisting in edit dialog
+
+### What
+- After saving account model whitelist/mapping, the list-row account used for reopen now keeps the **submitted** `credentials.model_mapping` even if the update API response omits it.
+- `buildModelMappingObject` falls back across whitelist/mapping tab state so a mode-tab mismatch no longer silently deletes mapping.
+- `normalizeModelMappingRecord` hardens reload of `credentials.model_mapping` (object or JSON string).
+- Edit dialog auto-expands the "other" zone when a mapping already exists so reopen does not look empty/hidden.
+
+### Why
+Operators reported adding model mapping, clicking update, then reopening the account editor with an empty mapping UI. The editor hydrates only from the list-row account object; partial update responses and mode-tab mismatches could drop `model_mapping` on the next open.
+
+### Verification
+- `pnpm exec vitest run src/composables/__tests__/useModelWhitelist.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`frontend/src/composables/useModelWhitelist.ts`, `frontend/src/components/account/EditAccountModal.vue`, related unit tests, this changelog.
+
+## 2026-08-07 - feat(admin): account row button to open error requests
+
+### What
+- Account list actions: next to Usage, add **Errors** button opening `/admin/usage?tab=errors&account_id=…` in a new tab.
+- Usage page deep-link: `tab=errors` switches to error-requests tab and seeds `account_id` / `user_id` into error filters.
+- Error request account filter prefers `account_name` query for instant label display.
+
+### Why
+Operators need one-click drill-down from a stuck/degraded account into its error request history without manual filter picking.
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`, `UsageView.vue`, `ErrorRequestFilters.vue`, i18n zh/en, this changelog.
+
 ## 2026-08-07 - feat(admin): clear account concurrency button + stream debug logs
 
 ### What
