@@ -136,6 +136,7 @@ const mountUsersView = () =>
         UserPlatformQuotaModal: true,
         UserBalanceModal: true,
         UserBalanceHistoryModal: true,
+        UserBalanceHistoryManageModal: true,
         GroupReplaceModal: true,
         Icon: true,
         Teleport: true
