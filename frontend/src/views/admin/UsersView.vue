@@ -669,6 +669,15 @@
                 {{ t('admin.users.balanceHistory') }}
               </button>
 
+              <!-- Balance History Manage (delete records) -->
+              <button
+                @click="handleBalanceHistoryManage(user); closeActionMenu()"
+                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+              >
+                <Icon name="trash" size="sm" class="text-gray-400" :stroke-width="2" />
+                {{ t('admin.users.balanceHistoryManage') }}
+              </button>
+
               <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
 
               <!-- Delete (not for admin) -->
@@ -695,6 +704,7 @@
     <UserPlatformQuotaModal :show="showPlatformQuotaModal" :user="platformQuotaUser" @close="closePlatformQuotaModal" @success="loadUsers" />
     <UserBalanceModal :show="showBalanceModal" :user="balanceUser" :operation="balanceOperation" @close="closeBalanceModal" @success="loadUsers" />
     <UserBalanceHistoryModal :show="showBalanceHistoryModal" :user="balanceHistoryUser" @close="closeBalanceHistoryModal" @deposit="handleDepositFromHistory" @withdraw="handleWithdrawFromHistory" />
+    <UserBalanceHistoryManageModal :show="showBalanceHistoryManageModal" :user="balanceHistoryManageUser" @close="closeBalanceHistoryManageModal" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
   </AppLayout>
@@ -734,6 +744,7 @@ import UserModelPricingModal from '@/components/admin/user/UserModelPricingModal
 import UserPlatformQuotaModal from '@/components/admin/user/UserPlatformQuotaModal.vue'
 import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
+import UserBalanceHistoryManageModal from '@/components/admin/user/UserBalanceHistoryManageModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
 
 const appStore = useAppStore()
@@ -1351,6 +1362,10 @@ const balanceOperation = ref<'add' | 'subtract'>('add')
 const showBalanceHistoryModal = ref(false)
 const balanceHistoryUser = ref<AdminUser | null>(null)
 
+// Balance History Manage modal state (delete records)
+const showBalanceHistoryManageModal = ref(false)
+const balanceHistoryManageUser = ref<AdminUser | null>(null)
+
 const isAnyModalOpen = computed(
   () =>
     showCreateModal.value ||
@@ -1363,6 +1378,7 @@ const isAnyModalOpen = computed(
     showPlatformQuotaModal.value ||
     showBalanceModal.value ||
     showBalanceHistoryModal.value ||
+    showBalanceHistoryManageModal.value ||
     showGroupReplaceModal.value
 )
 
@@ -1433,6 +1449,7 @@ const syncUserRefs = (nextUser: AdminUser) => {
   if (platformQuotaUser.value?.id === nextUser.id) platformQuotaUser.value = nextUser
   if (balanceUser.value?.id === nextUser.id) balanceUser.value = nextUser
   if (balanceHistoryUser.value?.id === nextUser.id) balanceHistoryUser.value = nextUser
+  if (balanceHistoryManageUser.value?.id === nextUser.id) balanceHistoryManageUser.value = nextUser
   if (groupReplaceUser.value?.id === nextUser.id) groupReplaceUser.value = nextUser
 }
 
@@ -1785,6 +1802,16 @@ const handleBalanceHistory = (user: AdminUser) => {
 const closeBalanceHistoryModal = () => {
   showBalanceHistoryModal.value = false
   balanceHistoryUser.value = null
+}
+
+const handleBalanceHistoryManage = (user: AdminUser) => {
+  balanceHistoryManageUser.value = user
+  showBalanceHistoryManageModal.value = true
+}
+
+const closeBalanceHistoryManageModal = () => {
+  showBalanceHistoryManageModal.value = false
+  balanceHistoryManageUser.value = null
 }
 
 // Handle deposit from balance history modal
