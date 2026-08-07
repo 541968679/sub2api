@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-07 | `v0.1.201` | `c733bea81` | `ghcr.io/541968679/sub2api:0.1.201` (override pin) | `0.1.201` | running, healthy, internal `/health` OK; clear-concurrency menu + stream debug logs on 200 baseline; **still skips banned v0.1.199** sticky-escape scheduling changes |
+| 2026-08-07 | `v0.1.202` | `c79442f0c` | `ghcr.io/541968679/sub2api:0.1.202` (override pin) | `0.1.202` | running, healthy, internal `/health` OK; per-account `model_mapping_strict_scheduling` + scheduler snapshot keep flag + admin usage error deep-link UX; **still skips banned v0.1.199** sticky-escape scheduling changes |
+| 2026-08-07 | `v0.1.201` | `c733bea81` | `ghcr.io/541968679/sub2api:0.1.201` (override pin) | `0.1.201` | superseded by `v0.1.202`; clear-concurrency menu + stream debug logs on 200 baseline; **still skips banned v0.1.199** sticky-escape scheduling changes |
 | 2026-08-07 | `v0.1.200` | `97dba0a1a` | `ghcr.io/541968679/sub2api:0.1.200` (override pin) | `0.1.200` | superseded by `v0.1.201`; 198 baseline + admin recharge-history manage/delete; **skips banned v0.1.199** sticky/concurrency scheduling changes |
 | 2026-08-07 | `v0.1.198` | (rollback pin) | `ghcr.io/541968679/sub2api:0.1.198` | `0.1.198` | emergency rollback from v0.1.199; superseded by `v0.1.200` |
 | 2026-08-03 | `v0.1.197` | `734787d60` | `ghcr.io/541968679/sub2api:latest` | `0.1.197` | running, healthy, digest `sha256:ceb2c59c869e7bcfb07c0ea9e9dd5485030fa41ff9ec558ec3395a099c8581fd`, internal `/health` OK; account move-to-top + mobile user columns + concurrency sort; includes New API balance (`v0.1.196`) |
