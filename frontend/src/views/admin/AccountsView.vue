@@ -362,13 +362,13 @@
               />
               <button
                 type="button"
-                class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-700 dark:text-sky-400 dark:hover:bg-sky-900/30 dark:hover:text-sky-300"
+                class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary-600 text-white shadow-sm transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 dark:bg-primary-500 dark:text-white dark:hover:bg-primary-400 dark:focus:ring-offset-dark-800"
                 :title="t('admin.accounts.moveToTop')"
                 :aria-label="t('admin.accounts.moveToTop')"
                 data-testid="account-move-to-top"
                 @click.stop="handleMoveToTop(row)"
               >
-                <Icon name="arrowUp" size="sm" :stroke-width="2" />
+                <Icon name="arrowUp" size="sm" :stroke-width="2.5" class="text-white" />
               </button>
             </div>
           </template>
