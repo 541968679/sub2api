@@ -575,32 +575,27 @@
         <div class="h-3 w-24 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
       </div>
       <div v-else class="space-y-1">
-        <div
-          v-if="usageInfo?.balance_unlimited"
-          class="text-sm font-semibold text-emerald-700 dark:text-emerald-300"
-          :title="balanceTitle"
-        >
-          {{ t('admin.accounts.usageWindow.balanceUnlimited') }}
-        </div>
-        <div
-          v-else-if="usageInfo?.balance_usd != null"
-          class="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-50"
-          :title="balanceTitle"
-        >
-          ${{ formatBalanceUSD(usageInfo.balance_usd) }}
-        </div>
-        <div
-          v-else-if="usageInfo?.balance_error"
-          class="text-xs text-amber-600 dark:text-amber-400 truncate max-w-[180px]"
-          :title="usageInfo.balance_error"
-        >
-          {{ t('admin.accounts.usageWindow.balanceUnavailable') }}
-        </div>
-        <div
-          v-else
-          class="text-xs text-gray-400"
-        >
-          {{ t('admin.accounts.usageWindow.balancePending') }}
+        <div class="flex items-center gap-1 min-w-0">
+          <button
+            type="button"
+            class="text-left text-sm font-semibold tabular-nums truncate hover:underline decoration-dotted underline-offset-2"
+            :class="balanceHeroClass"
+            :title="balanceTitle || t('admin.accounts.usageWindow.editDisplayBalance')"
+            data-testid="account-balance-display"
+            @click.stop="openDisplayBalanceEditor"
+          >
+            {{ balanceHeroText }}
+          </button>
+          <button
+            type="button"
+            class="shrink-0 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700"
+            :title="t('admin.accounts.usageWindow.refreshBalance')"
+            :disabled="balanceRefreshLoading"
+            data-testid="account-balance-refresh"
+            @click.stop="refreshBalanceFromUpstream"
+          >
+            <Icon name="refresh" size="sm" :class="balanceRefreshLoading ? 'animate-spin' : ''" />
+          </button>
         </div>
 
         <div
@@ -615,6 +610,54 @@
           class="text-[9px] text-gray-400 dark:text-gray-500"
         >
           {{ t('admin.accounts.usageWindow.burnInsufficient') }}
+        </div>
+
+        <!-- Display-only balance editor -->
+        <div
+          v-if="showBalanceEditor"
+          class="mt-1 space-y-1.5 rounded-md border border-gray-200 bg-white p-2 shadow-sm dark:border-dark-600 dark:bg-dark-800"
+          @click.stop
+        >
+          <div class="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.usageWindow.editDisplayBalanceHint') }}
+          </div>
+          <div class="flex items-center gap-1">
+            <label class="w-10 shrink-0 text-[10px] text-gray-500">{{ t('admin.accounts.usageWindow.usedLabel') }}</label>
+            <input
+              v-model="editUsedInput"
+              type="number"
+              min="0"
+              step="0.01"
+              class="input h-7 flex-1 px-1.5 text-xs"
+              data-testid="account-balance-used-input"
+            />
+          </div>
+          <div class="flex items-center gap-1">
+            <label class="w-10 shrink-0 text-[10px] text-gray-500">{{ t('admin.accounts.usageWindow.totalLabel') }}</label>
+            <input
+              v-model="editTotalInput"
+              type="number"
+              min="0"
+              step="0.01"
+              class="input h-7 flex-1 px-1.5 text-xs"
+              :placeholder="t('admin.accounts.usageWindow.totalOptional')"
+              data-testid="account-balance-total-input"
+            />
+          </div>
+          <div class="flex items-center justify-end gap-1 pt-0.5">
+            <button type="button" class="btn btn-secondary h-6 px-2 text-[10px]" @click="showBalanceEditor = false">
+              {{ t('common.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary h-6 px-2 text-[10px]"
+              :disabled="balanceSaveLoading"
+              data-testid="account-balance-save"
+              @click="saveDisplayBalance"
+            >
+              {{ t('common.save') }}
+            </button>
+          </div>
         </div>
 
         <!-- Weakened today stats -->
@@ -771,6 +814,7 @@ import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
+import { Icon } from '@/components/icons'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
 import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
@@ -1625,6 +1669,146 @@ function formatBalanceUSD(value: number): string {
   return value.toFixed(2)
 }
 
+const showBalanceEditor = ref(false)
+const editUsedInput = ref('')
+const editTotalInput = ref('')
+const balanceSaveLoading = ref(false)
+const balanceRefreshLoading = ref(false)
+
+/** Effective used amount: probe/manual used field. */
+const effectiveUsedUSD = computed((): number | null => {
+  const u = usageInfo.value?.balance_used_usd
+  if (u != null && Number.isFinite(u)) return u
+  // Fall back to account.extra if usage payload not yet hydrated.
+  const extra = props.account.extra as Record<string, unknown> | undefined
+  const fromExtra = extra?.upstream_balance_used_usd ?? extra?.display_balance_used_usd
+  if (typeof fromExtra === 'number' && Number.isFinite(fromExtra)) return fromExtra
+  if (typeof fromExtra === 'string' && fromExtra !== '' && Number.isFinite(Number(fromExtra))) {
+    return Number(fromExtra)
+  }
+  return null
+})
+
+const effectiveTotalUSD = computed((): number | null => {
+  const t = usageInfo.value?.display_balance_total_usd
+  if (t != null && Number.isFinite(t) && t > 0) return t
+  const extra = props.account.extra as Record<string, unknown> | undefined
+  const fromExtra = extra?.display_balance_total_usd
+  if (typeof fromExtra === 'number' && Number.isFinite(fromExtra) && fromExtra > 0) return fromExtra
+  if (typeof fromExtra === 'string' && fromExtra !== '' && Number.isFinite(Number(fromExtra))) {
+    const n = Number(fromExtra)
+    return n > 0 ? n : null
+  }
+  return null
+})
+
+const balanceHeroText = computed(() => {
+  const info = usageInfo.value
+  const used = effectiveUsedUSD.value
+  const total = effectiveTotalUSD.value
+
+  // Preferred: used / total (display-only prepaid package).
+  if (used != null && total != null) {
+    return `$${formatBalanceUSD(used)} / $${formatBalanceUSD(total)}`
+  }
+  // Unlimited upstream: never show "无限" alone — fall back to used.
+  if (info?.balance_unlimited) {
+    if (used != null) {
+      return t('admin.accounts.usageWindow.balanceUsedOnly', { used: formatBalanceUSD(used) })
+    }
+    return t('admin.accounts.usageWindow.balanceUnlimitedNoUsed')
+  }
+  // Finite remaining balance.
+  if (info?.balance_usd != null) {
+    if (used != null && total == null) {
+      // Optional: show remaining with used hint in title only.
+      return `$${formatBalanceUSD(info.balance_usd)}`
+    }
+    return `$${formatBalanceUSD(info.balance_usd)}`
+  }
+  if (used != null) {
+    return t('admin.accounts.usageWindow.balanceUsedOnly', { used: formatBalanceUSD(used) })
+  }
+  if (info?.balance_error) {
+    return t('admin.accounts.usageWindow.balanceUnavailable')
+  }
+  return t('admin.accounts.usageWindow.balancePending')
+})
+
+const balanceHeroClass = computed(() => {
+  const info = usageInfo.value
+  if (info?.balance_error && effectiveUsedUSD.value == null && effectiveTotalUSD.value == null) {
+    return 'text-amber-600 dark:text-amber-400'
+  }
+  if (info?.balance_unlimited && effectiveTotalUSD.value == null) {
+    return 'text-sky-700 dark:text-sky-300'
+  }
+  return 'text-gray-900 dark:text-gray-50'
+})
+
+const openDisplayBalanceEditor = () => {
+  const used = effectiveUsedUSD.value
+  const total = effectiveTotalUSD.value
+  editUsedInput.value = used != null ? String(used) : ''
+  editTotalInput.value = total != null ? String(total) : ''
+  showBalanceEditor.value = true
+}
+
+const saveDisplayBalance = async () => {
+  balanceSaveLoading.value = true
+  try {
+    const payload: {
+      used_usd?: number
+      total_usd?: number
+      clear_used?: boolean
+      clear_total?: boolean
+    } = {}
+    const usedRaw = editUsedInput.value.trim()
+    const totalRaw = editTotalInput.value.trim()
+    if (usedRaw === '') {
+      payload.clear_used = true
+    } else {
+      const used = Number(usedRaw)
+      if (!Number.isFinite(used) || used < 0) {
+        throw new Error(t('admin.accounts.usageWindow.invalidBalanceNumber'))
+      }
+      payload.used_usd = used
+    }
+    if (totalRaw === '') {
+      payload.clear_total = true
+    } else {
+      const total = Number(totalRaw)
+      if (!Number.isFinite(total) || total < 0) {
+        throw new Error(t('admin.accounts.usageWindow.invalidBalanceNumber'))
+      }
+      payload.total_usd = total
+    }
+    await adminAPI.accounts.setDisplayBalance(props.account.id, payload)
+    // Refresh usage cell so hero text updates immediately.
+    const next = await adminAPI.accounts.getUsage(props.account.id, 'active')
+    usageInfo.value = next
+    _usageCache.set(props.account.id, { data: next, ts: Date.now() })
+    showBalanceEditor.value = false
+  } catch (e: any) {
+    console.error('Failed to save display balance:', e)
+  } finally {
+    balanceSaveLoading.value = false
+  }
+}
+
+const refreshBalanceFromUpstream = async () => {
+  balanceRefreshLoading.value = true
+  try {
+    const next = await adminAPI.accounts.getUsage(props.account.id, 'active')
+    usageInfo.value = next
+    _usageCache.set(props.account.id, { data: next, ts: Date.now() })
+  } catch (e: any) {
+    console.error('Failed to refresh balance:', e)
+  } finally {
+    balanceRefreshLoading.value = false
+  }
+}
+
 function formatBurnDuration(seconds: number | null | undefined): string {
   if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return ''
   if (seconds >= 30 * 24 * 3600) return '>30d'
@@ -1670,11 +1854,21 @@ const burnRateLine = computed(() => {
 
 const balanceTitle = computed(() => {
   const info = usageInfo.value
-  if (!info) return ''
-  const parts: string[] = []
+  if (!info) return t('admin.accounts.usageWindow.editDisplayBalance')
+  const parts: string[] = [t('admin.accounts.usageWindow.editDisplayBalance')]
   if (info.balance_source) parts.push(info.balance_source)
   if (info.balance_updated_at) {
     parts.push(formatRelativeTime(info.balance_updated_at))
+  }
+  if (info.balance_unlimited) {
+    parts.push(t('admin.accounts.usageWindow.balanceUnlimitedHint'))
+  }
+  const used = effectiveUsedUSD.value
+  const total = effectiveTotalUSD.value
+  if (used != null) parts.push(`${t('admin.accounts.usageWindow.usedLabel')}=$${formatBalanceUSD(used)}`)
+  if (total != null) parts.push(`${t('admin.accounts.usageWindow.totalLabel')}=$${formatBalanceUSD(total)}`)
+  if (info.balance_usd != null && !info.balance_unlimited) {
+    parts.push(`${t('admin.accounts.usageWindow.remainingLabel')}=$${formatBalanceUSD(info.balance_usd)}`)
   }
   if (info.balance_error) parts.push(info.balance_error)
   return parts.join(' · ')

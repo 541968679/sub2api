@@ -1245,6 +1245,10 @@ export interface AccountUsageInfo {
   balance_error?: string
   /** New API unlimited_quota tokens */
   balance_unlimited?: boolean
+  /** Spent amount (auto from upstream and/or last manual edit). Display only. */
+  balance_used_usd?: number | null
+  /** Manual prepaid total for display only (e.g. 125 in 25/125). Never affects scheduling. */
+  display_balance_total_usd?: number | null
 
   /** Burn-rate / remaining-time prediction. */
   burn_rate_per_hour?: number | null

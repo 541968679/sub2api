@@ -2076,7 +2076,8 @@ func (h *AccountHandler) GetUsage(c *gin.Context) {
 	if source == "passive" {
 		usage, err = h.accountUsageService.GetPassiveUsage(c.Request.Context(), accountID)
 	} else {
-		usage, err = h.accountUsageService.GetUsage(c.Request.Context(), accountID)
+		// active = force upstream balance re-probe when supported (display refresh button).
+		usage, err = h.accountUsageService.GetUsage(c.Request.Context(), accountID, true)
 	}
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -2369,6 +2370,100 @@ type AccountClearConcurrencyResult struct {
 	AccountID          int64 `json:"account_id"`
 	SlotsBefore        int   `json:"slots_before"`
 	ConcurrencyCleared bool  `json:"concurrency_cleared"`
+}
+
+// SetDisplayBalanceRequest updates display-only balance fields on an account.
+// These values never affect scheduling, admission, or billing enforcement.
+type SetDisplayBalanceRequest struct {
+	// UsedUSD is the displayed spent amount (manual override; auto-refresh will overwrite).
+	UsedUSD *float64 `json:"used_usd"`
+	// TotalUSD is the displayed prepaid total (manual only).
+	TotalUSD *float64 `json:"total_usd"`
+	// ClearTotal when true removes display_balance_total_usd.
+	ClearTotal bool `json:"clear_total"`
+	// ClearUsed when true removes display used fields (next probe will re-fill).
+	ClearUsed bool `json:"clear_used"`
+}
+
+// Display-only balance keys (must match service/burn_rate.go constants; display-only).
+const (
+	extraDisplayBalanceTotalUSD  = "display_balance_total_usd"
+	extraDisplayBalanceUsedUSD   = "display_balance_used_usd"
+	extraUpstreamBalanceUsedUSD  = "upstream_balance_used_usd"
+)
+
+// SetDisplayBalance updates display-only used/total balance for account list UI.
+// POST /api/v1/admin/accounts/:id/display-balance
+func (h *AccountHandler) SetDisplayBalance(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	var req SetDisplayBalanceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	extra := map[string]any{}
+	if account.Extra != nil {
+		for k, v := range account.Extra {
+			extra[k] = v
+		}
+	}
+
+	changed := false
+	if req.ClearUsed {
+		delete(extra, extraDisplayBalanceUsedUSD)
+		delete(extra, extraUpstreamBalanceUsedUSD)
+		changed = true
+	} else if req.UsedUSD != nil {
+		if *req.UsedUSD < 0 {
+			response.BadRequest(c, "used_usd must be >= 0")
+			return
+		}
+		// Manual edit stamps both keys; next successful probe overwrites both.
+		extra[extraDisplayBalanceUsedUSD] = *req.UsedUSD
+		extra[extraUpstreamBalanceUsedUSD] = *req.UsedUSD
+		changed = true
+	}
+	if req.ClearTotal {
+		delete(extra, extraDisplayBalanceTotalUSD)
+		changed = true
+	} else if req.TotalUSD != nil {
+		if *req.TotalUSD < 0 {
+			response.BadRequest(c, "total_usd must be >= 0")
+			return
+		}
+		extra[extraDisplayBalanceTotalUSD] = *req.TotalUSD
+		changed = true
+	}
+	if !changed {
+		response.BadRequest(c, "No balance fields to update")
+		return
+	}
+
+	updated, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
+		Extra: extra,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	slog.Info("account_display_balance_updated",
+		"account_id", accountID,
+		"used_set", req.UsedUSD != nil,
+		"total_set", req.TotalUSD != nil,
+		"clear_used", req.ClearUsed,
+		"clear_total", req.ClearTotal,
+	)
+	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), updated))
 }
 
 // ClearConcurrency clears Redis concurrency slots and wait counters for one account.

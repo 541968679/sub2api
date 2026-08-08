@@ -554,6 +554,25 @@ export async function clearConcurrency(id: number): Promise<ClearConcurrencyResu
   return data
 }
 
+export interface SetDisplayBalancePayload {
+  used_usd?: number
+  total_usd?: number
+  clear_used?: boolean
+  clear_total?: boolean
+}
+
+/**
+ * Update display-only balance used/total for an account.
+ * Does not affect scheduling, admission, or billing.
+ */
+export async function setDisplayBalance(
+  id: number,
+  payload: SetDisplayBalancePayload
+): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/display-balance`, payload)
+  return data
+}
+
 /**
  * Get available models for an account
  * @param id - Account ID
@@ -1048,6 +1067,7 @@ export const accountsAPI = {
   resetTempUnschedulable,
   setSchedulable,
   clearConcurrency,
+  setDisplayBalance,
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamModelsPreview,
