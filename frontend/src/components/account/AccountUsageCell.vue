@@ -625,23 +625,25 @@
             <label class="w-10 shrink-0 text-[10px] text-gray-500">{{ t('admin.accounts.usageWindow.usedLabel') }}</label>
             <input
               v-model="editUsedInput"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
               class="input h-7 flex-1 px-1.5 text-xs"
               data-testid="account-balance-used-input"
+              @keydown.enter.prevent="saveDisplayBalance"
             />
           </div>
           <div class="flex items-center gap-1">
             <label class="w-10 shrink-0 text-[10px] text-gray-500">{{ t('admin.accounts.usageWindow.totalLabel') }}</label>
             <input
               v-model="editTotalInput"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
               class="input h-7 flex-1 px-1.5 text-xs"
               :placeholder="t('admin.accounts.usageWindow.totalOptional')"
               data-testid="account-balance-total-input"
+              @keydown.enter.prevent="saveDisplayBalance"
             />
           </div>
           <div class="flex items-center justify-end gap-1 pt-0.5">
@@ -814,6 +816,7 @@ import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber, formatRelativeTime } from '@/utils/format'
+import { useAppStore } from '@/stores/app'
 import { Icon } from '@/components/icons'
 import UsageProgressBar from './UsageProgressBar.vue'
 import AccountQuotaInfo from './AccountQuotaInfo.vue'
@@ -825,6 +828,13 @@ const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
 const USAGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 // xAI Free billing exposes a window without usage_percent, so estimate it from local tokens.
 const GROK_FREE_TOKEN_LIMIT = 2_000_000
+
+const emit = defineEmits<{
+  'account-updated': [account: Account]
+}>()
+
+const appStore = useAppStore()
+const { t } = useI18n()
 
 const props = withDefaults(
   defineProps<{
@@ -840,7 +850,6 @@ const props = withDefaults(
   }
 )
 
-const { t } = useI18n()
 const desktopViewportQuery = '(min-width: 768px)'
 
 const unmounted = ref(false)
@@ -1754,7 +1763,55 @@ const openDisplayBalanceEditor = () => {
   showBalanceEditor.value = true
 }
 
+/** Parse display-balance input safely (type=text; also tolerates number/null from older bindings). */
+function parseBalanceInput(raw: unknown): { empty: boolean; value?: number; invalid?: boolean } {
+  const text = String(raw ?? '').trim()
+  if (text === '') return { empty: true }
+  const n = Number(text)
+  if (!Number.isFinite(n) || n < 0) return { empty: false, invalid: true }
+  return { empty: false, value: n }
+}
+
+function applyDisplayBalanceToUsage(
+  prev: AccountUsageInfo | null,
+  payload: {
+    used_usd?: number
+    total_usd?: number
+    clear_used?: boolean
+    clear_total?: boolean
+  },
+  updated?: Account | null
+): AccountUsageInfo {
+  const next: AccountUsageInfo = { ...(prev || {}) }
+  const extra = (updated?.extra || {}) as Record<string, unknown>
+
+  if (payload.clear_used) {
+    next.balance_used_usd = null
+  } else if (payload.used_usd != null) {
+    next.balance_used_usd = payload.used_usd
+  } else if (extra.upstream_balance_used_usd != null || extra.display_balance_used_usd != null) {
+    const raw = extra.upstream_balance_used_usd ?? extra.display_balance_used_usd
+    const n = typeof raw === 'number' ? raw : Number(raw)
+    if (Number.isFinite(n)) next.balance_used_usd = n
+  }
+
+  if (payload.clear_total) {
+    next.display_balance_total_usd = null
+  } else if (payload.total_usd != null) {
+    next.display_balance_total_usd = payload.total_usd
+  } else if (extra.display_balance_total_usd != null) {
+    const n =
+      typeof extra.display_balance_total_usd === 'number'
+        ? extra.display_balance_total_usd
+        : Number(extra.display_balance_total_usd)
+    if (Number.isFinite(n) && n > 0) next.display_balance_total_usd = n
+  }
+
+  return next
+}
+
 const saveDisplayBalance = async () => {
+  if (balanceSaveLoading.value) return
   balanceSaveLoading.value = true
   try {
     const payload: {
@@ -1763,34 +1820,36 @@ const saveDisplayBalance = async () => {
       clear_used?: boolean
       clear_total?: boolean
     } = {}
-    const usedRaw = editUsedInput.value.trim()
-    const totalRaw = editTotalInput.value.trim()
-    if (usedRaw === '') {
+    const usedParsed = parseBalanceInput(editUsedInput.value)
+    const totalParsed = parseBalanceInput(editTotalInput.value)
+    if (usedParsed.invalid || totalParsed.invalid) {
+      throw new Error(t('admin.accounts.usageWindow.invalidBalanceNumber'))
+    }
+    if (usedParsed.empty) {
       payload.clear_used = true
     } else {
-      const used = Number(usedRaw)
-      if (!Number.isFinite(used) || used < 0) {
-        throw new Error(t('admin.accounts.usageWindow.invalidBalanceNumber'))
-      }
-      payload.used_usd = used
+      payload.used_usd = usedParsed.value
     }
-    if (totalRaw === '') {
+    if (totalParsed.empty) {
       payload.clear_total = true
     } else {
-      const total = Number(totalRaw)
-      if (!Number.isFinite(total) || total < 0) {
-        throw new Error(t('admin.accounts.usageWindow.invalidBalanceNumber'))
-      }
-      payload.total_usd = total
+      payload.total_usd = totalParsed.value
     }
-    await adminAPI.accounts.setDisplayBalance(props.account.id, payload)
-    // Refresh usage cell so hero text updates immediately.
-    const next = await adminAPI.accounts.getUsage(props.account.id, 'active')
+
+    // Persist only. Do NOT force upstream probe here — probe timeouts previously
+    // made a successful save look like failure (editor stayed open, silent catch).
+    const updated = await adminAPI.accounts.setDisplayBalance(props.account.id, payload)
+    const next = applyDisplayBalanceToUsage(usageInfo.value, payload, updated)
     usageInfo.value = next
     _usageCache.set(props.account.id, { data: next, ts: Date.now() })
+    emit('account-updated', updated)
     showBalanceEditor.value = false
+    appStore.showSuccess(t('admin.accounts.usageWindow.displayBalanceSaved'))
   } catch (e: any) {
     console.error('Failed to save display balance:', e)
+    appStore.showError(
+      e?.message || e?.response?.data?.message || t('admin.accounts.usageWindow.displayBalanceSaveFailed')
+    )
   } finally {
     balanceSaveLoading.value = false
   }
@@ -1804,6 +1863,9 @@ const refreshBalanceFromUpstream = async () => {
     _usageCache.set(props.account.id, { data: next, ts: Date.now() })
   } catch (e: any) {
     console.error('Failed to refresh balance:', e)
+    appStore.showError(
+      e?.message || e?.response?.data?.message || t('admin.accounts.usageWindow.refreshBalanceFailed')
+    )
   } finally {
     balanceRefreshLoading.value = false
   }
