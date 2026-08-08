@@ -4451,7 +4451,10 @@ const enBase = {
         selectFilteredSuccess: 'Selected {count} account(s)',
         selectFilteredFailed: 'Failed to select all filtered accounts',
         clear: 'Clear selection',
-        edit: 'Bulk Edit',
+        /** @deprecated use editSelected / editFiltered — same BulkEdit modal, different scope */
+        edit: 'Edit selected',
+        editSelected: 'Edit selected',
+        editFiltered: 'Edit by filters',
         delete: 'Bulk Delete',
         enableScheduling: 'Enable Scheduling',
         disableScheduling: 'Disable Scheduling',
@@ -4468,13 +4471,17 @@ const enBase = {
         title: 'Bulk Edit Accounts',
         selectionInfo:
           '{count} account(s) selected. Only checked or filled fields will be updated; others stay unchanged.',
+        selectionInfoFiltered:
+          'About {count} account(s) matching current filters will be updated. Only checked or filled fields change; others stay unchanged.',
+        layoutHint:
+          'Layout matches Edit Account: config (left), groups (middle), other features (right). Only fields with the enable checkbox are written.',
         baseUrlPlaceholder: 'https://api.anthropic.com or https://api.openai.com',
         baseUrlNotice: 'Applies to API Key accounts only; leave empty to keep existing value',
-        submit: 'Update Accounts',
+        submit: 'Apply changes',
         updating: 'Updating...',
         success: 'Updated {count} account(s)',
         partialSuccess: 'Partially updated: {success} succeeded, {failed} failed',
-        failed: 'Bulk update failed',
+        failed: 'Bulk edit failed',
         noSelection: 'Please select accounts to edit',
         noFieldsSelected: 'Select at least one field to update',
         mixedPlatformWarning: 'Selected accounts span multiple platforms ({platforms}). Model mapping presets shown are combined — ensure mappings are appropriate for each platform.'
