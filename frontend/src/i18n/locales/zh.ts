@@ -4211,6 +4211,9 @@ const zhBase = {
         disableScheduling: '批量停止调度',
         resetStatus: '批量重置状态',
         refreshToken: '批量刷新令牌',
+        autoAssignProxy: '自动分配代理',
+        autoAssignProxyConfirm: '为选中的 {count} 个账号自动分配代理池中的代理？（已有代理的账号会跳过）',
+        autoAssignProxyResult: '自动分配完成：{assigned} 个已分配，{skipped} 个已跳过',
         resetStatusSuccess: '已成功重置 {count} 个账号状态',
         refreshTokenSuccess: '已成功刷新 {count} 个账号令牌',
         partialSuccess: '操作部分完成：{success} 成功，{failed} 失败'
