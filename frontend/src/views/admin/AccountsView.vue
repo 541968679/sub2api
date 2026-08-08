@@ -353,7 +353,24 @@
             />
           </template>
           <template #cell-select="{ row }">
-            <input type="checkbox" :checked="isSelected(row.id)" @change="toggleAccountSelection(row)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <div class="flex items-center gap-1">
+              <input
+                type="checkbox"
+                :checked="isSelected(row.id)"
+                @change="toggleAccountSelection(row)"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <button
+                type="button"
+                class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-700 dark:text-sky-400 dark:hover:bg-sky-900/30 dark:hover:text-sky-300"
+                :title="t('admin.accounts.moveToTop')"
+                :aria-label="t('admin.accounts.moveToTop')"
+                data-testid="account-move-to-top"
+                @click.stop="handleMoveToTop(row)"
+              >
+                <Icon name="arrowUp" size="sm" :stroke-width="2" />
+              </button>
+            </div>
           </template>
           <template #cell-name="{ row, value }">
             <div class="flex flex-col">
@@ -628,7 +645,7 @@
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @move-to-top="handleMoveToTop" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" @clear-concurrency="handleClearConcurrency" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" @clear-concurrency="handleClearConcurrency" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <CodexSessionImportModal
@@ -890,7 +907,8 @@ const HIDDEN_COLUMNS_CURRENT_VERSION = 'inline-concurrency-priority-fallback-v1'
 const columnOrder = ref<string[]>([])
 const columnWidths = ref<Record<string, number>>({})
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
-  select: 48,
+  // Checkbox + inline move-to-top control sit in this column.
+  select: 72,
   name: 180,
   platform_type: 140,
   capacity: 120,
