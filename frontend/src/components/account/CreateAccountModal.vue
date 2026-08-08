@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.createAccount')"
-    width="wide"
+    width="extra-wide"
     @close="handleClose"
   >
     <!-- Step Indicator for OAuth accounts -->
@@ -49,6 +49,23 @@
       @submit.prevent="handleSubmit"
       class="space-y-5"
     >
+      <div
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        data-testid="create-account-layout"
+      >
+        <!-- Zone 1: Account config -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="create-account-zone-config"
+        >
+          <div class="mb-3 flex items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-dark-600">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.config') }}
+            </h3>
+          </div>
+
+          <div class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+
       <div v-if="!(isEmailAsNameAvailable && useEmailAsName)">
         <label class="input-label">{{ t('admin.accounts.accountName') }}</label>
         <input
@@ -946,6 +963,153 @@
         </div>
       </div>
 
+
+      <div>
+        <label class="input-label">{{ t('admin.accounts.proxy') }}</label>
+        <ProxySelector v-model="form.proxy_id" :proxies="proxies" :disabled="form.auto_assign_proxy" />
+        <label class="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <input
+            type="checkbox"
+            v-model="form.auto_assign_proxy"
+            class="rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
+            @change="form.auto_assign_proxy && (form.proxy_id = null)"
+          />
+          {{ t('admin.accounts.autoAssignProxy') }}
+          <span class="text-xs text-gray-400">{{ t('admin.accounts.autoAssignProxyHint') }}</span>
+        </label>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
+          <input v-model.number="form.concurrency" type="number" min="1" class="input"
+            @input="form.concurrency = Math.max(1, form.concurrency || 1)" />
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.loadFactor') }}</label>
+          <input v-model.number="form.load_factor" type="number" min="1"
+            class="input" :placeholder="String(form.concurrency || 1)"
+            @input="form.load_factor = (form.load_factor &amp;&amp; form.load_factor >= 1) ? form.load_factor : null" />
+          <p class="input-hint">{{ t('admin.accounts.loadFactorHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.priority') }}</label>
+          <input
+            v-model.number="form.priority"
+            type="number"
+            min="1"
+            class="input"
+            data-tour="account-form-priority"
+          />
+          <p class="input-hint">{{ t('admin.accounts.priorityHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
+          <input v-model.number="form.rate_multiplier" type="number" min="0" step="0.001" class="input" />
+          <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
+        </div>
+      </div>
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.fallbackOnly') }}</label>
+            <p class="input-hint mb-0">{{ t('admin.accounts.fallbackOnlyHint') }}</p>
+          </div>
+          <button
+            type="button"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+            :class="fallbackOnly ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'"
+            role="switch"
+            :aria-checked="fallbackOnly"
+            data-testid="account-form-fallback-only"
+            @click="fallbackOnly = !fallbackOnly"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="fallbackOnly ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.fallbackOnlyInfo') }}</p>
+      </div>
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
+        <input v-model="expiresAtInput" type="datetime-local" class="input" />
+        <p class="input-hint">{{ t('admin.accounts.expiresAtHint') }}</p>
+      </div>
+
+          </div>
+        </section>
+
+        <!-- Zone 2: Groups -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="create-account-zone-groups"
+        >
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600"
+            data-testid="create-account-zone-groups-toggle"
+            @click="zone2Expanded = !zone2Expanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.groups') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ zone2Expanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
+              <Icon :name="zone2Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+
+          <div
+            class="min-h-0 flex-1 flex-col lg:flex lg:overflow-y-auto lg:pr-1"
+            :class="zone2Expanded ? 'flex' : 'hidden lg:flex'"
+            data-testid="create-account-zone-groups-body"
+          >
+            <!-- Group Selection - 仅标准模式显示 -->
+            <GroupSelector
+              v-if="!authStore.isSimpleMode"
+              v-model="form.group_ids"
+              :groups="groups"
+              :platform="form.platform"
+              :mixed-scheduling="mixedScheduling"
+              :extra-platforms="extraGroupPlatforms"
+              show-toggle-all
+              show-quick-filters
+              variant="panel"
+              data-tour="account-form-groups"
+            />
+            <p v-if="authStore.isSimpleMode" class="text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.editZones.groupsSimpleMode') }}
+            </p>
+          </div>
+        </section>
+
+        <!-- Zone 3: Other features -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="create-account-zone-other"
+        >
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600"
+            data-testid="create-account-zone-other-toggle"
+            @click="zone3Expanded = !zone3Expanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.other') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ zone3Expanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
+              <Icon :name="zone3Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+
+          <div
+            v-show="zone3Expanded"
+            class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+            data-testid="create-account-zone-other-body"
+          >
       <!-- Antigravity model restriction (applies to OAuth + Upstream) -->
       <!-- Antigravity 只支持模型映射模式，不支持白名单模式 -->
       <div v-if="form.platform === 'antigravity'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -2637,79 +2801,7 @@
         </div>
       </div>
 
-      <div>
-        <label class="input-label">{{ t('admin.accounts.proxy') }}</label>
-        <ProxySelector v-model="form.proxy_id" :proxies="proxies" :disabled="form.auto_assign_proxy" />
-        <label class="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-          <input
-            type="checkbox"
-            v-model="form.auto_assign_proxy"
-            class="rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-800"
-            @change="form.auto_assign_proxy && (form.proxy_id = null)"
-          />
-          {{ t('admin.accounts.autoAssignProxy') }}
-          <span class="text-xs text-gray-400">{{ t('admin.accounts.autoAssignProxyHint') }}</span>
-        </label>
-      </div>
 
-      <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div>
-          <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
-          <input v-model.number="form.concurrency" type="number" min="1" class="input"
-            @input="form.concurrency = Math.max(1, form.concurrency || 1)" />
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.accounts.loadFactor') }}</label>
-          <input v-model.number="form.load_factor" type="number" min="1"
-            class="input" :placeholder="String(form.concurrency || 1)"
-            @input="form.load_factor = (form.load_factor &amp;&amp; form.load_factor >= 1) ? form.load_factor : null" />
-          <p class="input-hint">{{ t('admin.accounts.loadFactorHint') }}</p>
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.accounts.priority') }}</label>
-          <input
-            v-model.number="form.priority"
-            type="number"
-            min="1"
-            class="input"
-            data-tour="account-form-priority"
-          />
-          <p class="input-hint">{{ t('admin.accounts.priorityHint') }}</p>
-        </div>
-        <div>
-          <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
-          <input v-model.number="form.rate_multiplier" type="number" min="0" step="0.001" class="input" />
-          <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
-        </div>
-      </div>
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.fallbackOnly') }}</label>
-            <p class="input-hint mb-0">{{ t('admin.accounts.fallbackOnlyHint') }}</p>
-          </div>
-          <button
-            type="button"
-            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
-            :class="fallbackOnly ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'"
-            role="switch"
-            :aria-checked="fallbackOnly"
-            data-testid="account-form-fallback-only"
-            @click="fallbackOnly = !fallbackOnly"
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-              :class="fallbackOnly ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </button>
-        </div>
-        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.fallbackOnlyInfo') }}</p>
-      </div>
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
-        <input v-model="expiresAtInput" type="datetime-local" class="input" />
-        <p class="input-hint">{{ t('admin.accounts.expiresAtHint') }}</p>
-      </div>
 
       <!-- OpenAI 自动透传开关（OAuth/API Key） -->
       <div
@@ -3194,20 +3286,11 @@
             </span>
           </label>
         </div>
-
-        <!-- Group Selection - 仅标准模式显示 -->
-        <GroupSelector
-          v-if="!authStore.isSimpleMode"
-          v-model="form.group_ids"
-          :groups="groups"
-          :platform="form.platform"
-          :mixed-scheduling="mixedScheduling"
-          :extra-platforms="extraGroupPlatforms"
-          show-toggle-all
-          data-tour="account-form-groups"
-        />
       </div>
 
+          </div>
+        </section>
+      </div>
     </form>
 
     <!-- Step 2: OAuth Authorization -->
@@ -3737,6 +3820,8 @@ interface TempUnschedRuleForm {
 
 // State
 const step = ref(1)
+const zone2Expanded = ref(true)
+const zone3Expanded = ref(false)
 const submitting = ref(false)
 const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'

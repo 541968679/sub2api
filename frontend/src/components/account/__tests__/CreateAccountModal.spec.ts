@@ -230,6 +230,15 @@ describe('CreateAccountModal', () => {
     window.localStorage.clear()
   })
 
+  it('step-1 使用与编辑账号一致的三区布局', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+    expect(wrapper.find('[data-testid="create-account-layout"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-account-zone-config"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-account-zone-groups"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-account-zone-other"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="create-account-zone-other-body"]').isVisible()).toBe(false)
+  })
+
   it('can force a new OpenAI API key account to use the native Responses endpoint', async () => {
     const wrapper = await mountOpenAIAPIKeyModal()
 
