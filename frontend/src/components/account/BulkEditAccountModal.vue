@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.bulkEdit.title')"
-    width="wide"
+    width="extra-wide"
     @close="handleClose"
   >
     <form id="bulk-edit-account-form" class="space-y-5" @submit.prevent="() => handleSubmit()">
@@ -17,11 +17,17 @@
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          {{ t('admin.accounts.bulkEdit.selectionInfo', { count: targetMode === 'filtered' ? targetPreviewCount : accountIds.length }) }}
+          {{ targetMode === 'filtered'
+            ? t('admin.accounts.bulkEdit.selectionInfoFiltered', { count: targetPreviewCount })
+            : t('admin.accounts.bulkEdit.selectionInfo', { count: accountIds.length }) }}
+        </p>
+        <p class="mt-2 text-xs text-blue-600/90 dark:text-blue-300/90">
+          {{ t('admin.accounts.bulkEdit.layoutHint') }}
         </p>
       </div>
 
-      <!-- Mixed platform warning -->
+      
+<!-- Mixed platform warning -->
       <div v-if="isMixedPlatform" class="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
         <p class="text-sm text-amber-700 dark:text-amber-400">
           <svg class="mr-1.5 inline h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -31,303 +37,25 @@
         </p>
       </div>
 
-      <!-- OpenAI passthrough -->
-      <div
-        v-if="allOpenAIPassthroughCapable"
-        class="border-t border-gray-200 pt-4 dark:border-dark-600"
-      >
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-openai-passthrough-label"
-              class="input-label mb-0"
-              for="bulk-edit-openai-passthrough-enabled"
-            >
-              {{ t('admin.accounts.openai.oauthPassthrough') }}
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.oauthPassthroughDesc') }}
-            </p>
-          </div>
-          <input
-            v-model="enableOpenAIPassthrough"
-            id="bulk-edit-openai-passthrough-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-passthrough-body"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-passthrough-body"
-          :class="!enableOpenAIPassthrough && 'pointer-events-none opacity-50'"
-          role="group"
-          aria-labelledby="bulk-edit-openai-passthrough-label"
-        >
-          <button
-            id="bulk-edit-openai-passthrough-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openaiPassthroughEnabled = !openaiPassthroughEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
-          <label v-if="codexCLIOnlyEnabled" class="ml-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-            <input v-model="codexCLIOnlyAllowAppServer" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-            {{ t('admin.accounts.openai.codexCLIOnlyAllowAppServer') }}
-          </label>
-        </div>
-      </div>
+      
 
       <div
-        v-if="allOpenAIPassthroughCapable"
-        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        data-testid="bulk-edit-account-layout"
       >
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-openai-claude-gpt-bridge-label"
-              class="input-label mb-0"
-              for="bulk-edit-openai-claude-gpt-bridge-enabled"
-            >
-              {{ t('admin.accounts.openai.claudeGPTBridge') }}
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.claudeGPTBridgeDesc') }}
-            </p>
-          </div>
-          <input
-            v-model="enableOpenAIClaudeGPTBridge"
-            id="bulk-edit-openai-claude-gpt-bridge-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-claude-gpt-bridge-body"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-claude-gpt-bridge-body"
-          :class="!enableOpenAIClaudeGPTBridge && 'pointer-events-none opacity-50'"
-          role="group"
-          aria-labelledby="bulk-edit-openai-claude-gpt-bridge-label"
+        <!-- Zone 1: Account config (mirrors EditAccountModal) -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="bulk-edit-zone-config"
         >
-          <button
-            id="bulk-edit-openai-claude-gpt-bridge-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openaiClaudeGPTBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openaiClaudeGPTBridgeEnabled = !openaiClaudeGPTBridgeEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openaiClaudeGPTBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
-
-          <div
-            v-if="openaiClaudeGPTBridgeEnabled"
-            class="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20"
-          >
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p class="text-xs text-green-700 dark:text-green-300">
-                {{ t('admin.accounts.openai.claudeGPTBridgeTemplateHint') }}
-              </p>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  data-testid="bulk-edit-openai-claude-gpt-bridge-template"
-                  class="inline-flex items-center justify-center rounded-lg border border-green-300 px-3 py-2 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30"
-                  @click="toggleOpenAIClaudeGPTBridgeTemplateEditor"
-                >
-                  <Icon name="edit" size="sm" class="mr-1.5" :stroke-width="2" />
-                  {{ t('admin.accounts.openai.editClaudeGPTBridgeTemplate') }}
-                </button>
-                <button
-                  type="button"
-                  data-testid="bulk-apply-openai-claude-gpt-bridge-template"
-                  :disabled="applyingClaudeGPTBridgeTemplate"
-                  class="inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  @click="applyOpenAIClaudeGPTBridgeTemplateToSelected"
-                >
-                  <Icon name="sparkles" size="sm" class="mr-1.5" :stroke-width="2" />
-                  {{
-                    applyingClaudeGPTBridgeTemplate
-                      ? t('admin.accounts.openai.applyingClaudeGPTBridgeTemplate')
-                      : t('admin.accounts.openai.applyClaudeGPTBridgeTemplate')
-                  }}
-                </button>
-              </div>
-            </div>
-            <div v-if="showOpenAIClaudeGPTBridgeTemplateEditor" class="mt-3 space-y-2">
-              <div
-                v-for="(mapping, index) in openAIClaudeGPTBridgeTemplateDraft"
-                :key="index"
-                class="flex items-center gap-2"
-              >
-                <input
-                  v-model="mapping.from"
-                  type="text"
-                  class="input flex-1 text-xs"
-                  :data-testid="`bulk-openai-claude-gpt-bridge-template-from-${index}`"
-                  :placeholder="t('admin.accounts.requestModel')"
-                />
-                <input
-                  v-model="mapping.to"
-                  type="text"
-                  class="input flex-1 text-xs"
-                  :data-testid="`bulk-openai-claude-gpt-bridge-template-to-${index}`"
-                  :placeholder="t('admin.accounts.actualModel')"
-                />
-                <button
-                  type="button"
-                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                  @click="removeOpenAIClaudeGPTBridgeTemplateMapping(index)"
-                >
-                  <Icon name="trash" size="sm" :stroke-width="2" />
-                </button>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  class="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30"
-                  @click="addOpenAIClaudeGPTBridgeTemplateMapping"
-                >
-                  {{ t('admin.accounts.addMapping') }}
-                </button>
-                <button
-                  type="button"
-                  class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-dark-500 dark:text-gray-300 dark:hover:bg-dark-600"
-                  @click="restoreDefaultOpenAIClaudeGPTBridgeTemplate"
-                >
-                  {{ t('admin.accounts.openai.restoreDefaultClaudeGPTBridgeTemplate') }}
-                </button>
-                <button
-                  type="button"
-                  data-testid="bulk-save-openai-claude-gpt-bridge-template"
-                  class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
-                  @click="saveOpenAIClaudeGPTBridgeTemplateDraft"
-                >
-                  {{ t('common.save') }}
-                </button>
-              </div>
-            </div>
+          <div class="mb-3 flex items-center justify-between gap-2 border-b border-gray-100 pb-2 dark:border-dark-600">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.config') }}
+            </h3>
           </div>
-        </div>
-      </div>
 
-      <!-- OpenAI image endpoint scheduling -->
-      <div
-        v-if="allOpenAIPassthroughCapable"
-        class="border-t border-gray-200 pt-4 dark:border-dark-600"
-      >
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-openai-images-endpoint-label"
-              class="input-label mb-0"
-              for="bulk-edit-openai-images-endpoint-enabled"
-            >
-              {{ t('admin.accounts.openai.imagesEndpointScheduling') }}
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.imagesEndpointSchedulingDesc') }}
-            </p>
-          </div>
-          <input
-            v-model="enableOpenAIImagesEndpoint"
-            id="bulk-edit-openai-images-endpoint-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-images-endpoint-body"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-images-endpoint-body"
-          :class="!enableOpenAIImagesEndpoint && 'pointer-events-none opacity-50'"
-          role="group"
-          aria-labelledby="bulk-edit-openai-images-endpoint-label"
-        >
-          <button
-            id="bulk-edit-openai-images-endpoint-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              openAIImagesEndpointEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="openAIImagesEndpointEnabled = !openAIImagesEndpointEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                openAIImagesEndpointEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
-        </div>
-      </div>
-
-      <!-- Codex image generation tool bridge -->
-      <div
-        v-if="allOpenAIPassthroughCapable"
-        class="border-t border-gray-200 pt-4 dark:border-dark-600"
-      >
-        <div class="mb-3 flex items-center justify-between">
-          <div class="flex-1 pr-4">
-            <label
-              id="bulk-edit-openai-codex-image-bridge-label"
-              class="input-label mb-0"
-              for="bulk-edit-openai-codex-image-bridge-enabled"
-            >
-              {{ t('admin.accounts.openai.codexImageGenerationBridge') }}
-            </label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.codexImageGenerationBridgeDesc') }}
-            </p>
-          </div>
-          <input
-            v-model="enableCodexImageGenerationBridge"
-            id="bulk-edit-openai-codex-image-bridge-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-openai-codex-image-bridge-body"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div
-          id="bulk-edit-openai-codex-image-bridge-body"
-          :class="!enableCodexImageGenerationBridge && 'pointer-events-none opacity-50'"
-          role="group"
-          aria-labelledby="bulk-edit-openai-codex-image-bridge-label"
-        >
-          <button
-            id="bulk-edit-openai-codex-image-bridge-toggle"
-            type="button"
-            :class="[
-              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-              codexImageGenerationBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-            ]"
-            @click="codexImageGenerationBridgeEnabled = !codexImageGenerationBridgeEnabled"
-          >
-            <span
-              :class="[
-                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                codexImageGenerationBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
-              ]"
-            />
-          </button>
-        </div>
-      </div>
-
-      <!-- Base URL (API Key only) -->
+          <div class="space-y-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+<!-- Base URL (API Key only) -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
@@ -360,7 +88,375 @@
         </p>
       </div>
 
-      <!-- Model restriction -->
+      
+<!-- Proxy -->
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label
+            id="bulk-edit-proxy-label"
+            class="input-label mb-0"
+            for="bulk-edit-proxy-enabled"
+          >
+            {{ t('admin.accounts.proxy') }}
+          </label>
+          <input
+            v-model="enableProxy"
+            id="bulk-edit-proxy-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-proxy-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div id="bulk-edit-proxy-body" :class="!enableProxy && 'pointer-events-none opacity-50'">
+          <ProxySelector
+            v-model="proxyId"
+            :proxies="proxies"
+            aria-labelledby="bulk-edit-proxy-label"
+          />
+        </div>
+      </div>
+
+      
+<!-- Concurrency & Priority -->
+      <div class="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4 dark:border-dark-600 lg:grid-cols-4">
+        <div>
+          <div class="mb-3 flex items-center justify-between">
+            <label
+              id="bulk-edit-concurrency-label"
+              class="input-label mb-0"
+              for="bulk-edit-concurrency-enabled"
+            >
+              {{ t('admin.accounts.concurrency') }}
+            </label>
+            <input
+              v-model="enableConcurrency"
+              id="bulk-edit-concurrency-enabled"
+              type="checkbox"
+              aria-controls="bulk-edit-concurrency"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </div>
+          <input
+            v-model.number="concurrency"
+            id="bulk-edit-concurrency"
+            type="number"
+            min="1"
+            :disabled="!enableConcurrency"
+            class="input"
+            :class="!enableConcurrency && 'cursor-not-allowed opacity-50'"
+            aria-labelledby="bulk-edit-concurrency-label"
+            @input="concurrency = Math.max(1, concurrency || 1)"
+          />
+        </div>
+        <div>
+          <div class="mb-3 flex items-center justify-between">
+            <label
+              id="bulk-edit-load-factor-label"
+              class="input-label mb-0"
+              for="bulk-edit-load-factor-enabled"
+            >
+              {{ t('admin.accounts.loadFactor') }}
+            </label>
+            <input
+              v-model="enableLoadFactor"
+              id="bulk-edit-load-factor-enabled"
+              type="checkbox"
+              aria-controls="bulk-edit-load-factor"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </div>
+          <input
+            v-model.number="loadFactor"
+            id="bulk-edit-load-factor"
+            type="number"
+            min="1"
+            :disabled="!enableLoadFactor"
+            class="input"
+            :class="!enableLoadFactor && 'cursor-not-allowed opacity-50'"
+            aria-labelledby="bulk-edit-load-factor-label"
+            @input="loadFactor = (loadFactor &amp;&amp; loadFactor >= 1) ? loadFactor : null"
+          />
+          <p class="input-hint">{{ t('admin.accounts.loadFactorHint') }}</p>
+        </div>
+        <div>
+          <div class="mb-3 flex items-center justify-between">
+            <label
+              id="bulk-edit-priority-label"
+              class="input-label mb-0"
+              for="bulk-edit-priority-enabled"
+            >
+              {{ t('admin.accounts.priority') }}
+            </label>
+            <input
+              v-model="enablePriority"
+              id="bulk-edit-priority-enabled"
+              type="checkbox"
+              aria-controls="bulk-edit-priority"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </div>
+          <input
+            v-model.number="priority"
+            id="bulk-edit-priority"
+            type="number"
+            min="1"
+            :disabled="!enablePriority"
+            class="input"
+            :class="!enablePriority && 'cursor-not-allowed opacity-50'"
+            aria-labelledby="bulk-edit-priority-label"
+          />
+        </div>
+        <div>
+          <div class="mb-3 flex items-center justify-between">
+            <label
+              id="bulk-edit-rate-multiplier-label"
+              class="input-label mb-0"
+              for="bulk-edit-rate-multiplier-enabled"
+            >
+              {{ t('admin.accounts.billingRateMultiplier') }}
+            </label>
+            <input
+              v-model="enableRateMultiplier"
+              id="bulk-edit-rate-multiplier-enabled"
+              type="checkbox"
+              aria-controls="bulk-edit-rate-multiplier"
+              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+          </div>
+          <input
+            v-model.number="rateMultiplier"
+            id="bulk-edit-rate-multiplier"
+            type="number"
+            min="0"
+            step="0.01"
+            :disabled="!enableRateMultiplier"
+            class="input"
+            :class="!enableRateMultiplier && 'cursor-not-allowed opacity-50'"
+            aria-labelledby="bulk-edit-rate-multiplier-label"
+          />
+          <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
+        </div>
+      </div>
+
+      
+
+      <!-- Fallback-only scheduling -->
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-fallback-only-label"
+              class="input-label mb-0"
+              for="bulk-edit-fallback-only-enabled"
+            >
+              {{ t('admin.accounts.fallbackOnly') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.fallbackOnlyHint') }}
+            </p>
+          </div>
+          <input
+            v-model="enableFallbackOnly"
+            id="bulk-edit-fallback-only-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-fallback-only-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            data-testid="bulk-edit-fallback-only-enabled"
+          />
+        </div>
+        <div
+          id="bulk-edit-fallback-only-body"
+          :class="!enableFallbackOnly && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-fallback-only-label"
+        >
+          <button
+            type="button"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            :class="fallbackOnly ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'"
+            role="switch"
+            :aria-checked="fallbackOnly"
+            data-testid="bulk-edit-fallback-only-toggle"
+            @click="fallbackOnly = !fallbackOnly"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="fallbackOnly ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+          <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.fallbackOnlyInfo') }}</p>
+        </div>
+      </div>
+
+<!-- Status -->
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label
+            id="bulk-edit-status-label"
+            class="input-label mb-0"
+            for="bulk-edit-status-enabled"
+          >
+            {{ t('common.status') }}
+          </label>
+          <input
+            v-model="enableStatus"
+            id="bulk-edit-status-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-status"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div id="bulk-edit-status" :class="!enableStatus && 'pointer-events-none opacity-50'">
+          <Select
+            v-model="status"
+            :options="statusOptions"
+            aria-labelledby="bulk-edit-status-label"
+          />
+        </div>
+      </div>
+
+      
+          </div>
+        </section>
+
+        <!-- Zone 2: Groups -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="bulk-edit-zone-groups"
+        >
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600"
+            data-testid="bulk-edit-zone-groups-toggle"
+            @click="zone2Expanded = !zone2Expanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.groups') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ zone2Expanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
+              <Icon :name="zone2Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+
+          <div
+            class="min-h-0 flex-1 flex-col lg:flex lg:overflow-y-auto lg:pr-1"
+            :class="zone2Expanded ? 'flex' : 'hidden lg:flex'"
+            data-testid="bulk-edit-zone-groups-body"
+          >
+<!-- Groups -->
+      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label
+            id="bulk-edit-groups-label"
+            class="input-label mb-0"
+            for="bulk-edit-groups-enabled"
+          >
+            {{ t('nav.groups') }}
+          </label>
+          <input
+            v-model="enableGroups"
+            id="bulk-edit-groups-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-groups"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div id="bulk-edit-groups" :class="!enableGroups && 'pointer-events-none opacity-50'">
+          <GroupSelector
+            v-model="groupIds"
+            :groups="groups"
+            :platform="bulkGroupSelectorPlatform"
+            :extra-platforms="openAIClaudeGPTBridgeGroupPlatforms"
+            show-toggle-all
+            show-quick-filters
+            variant="panel"
+            aria-labelledby="bulk-edit-groups-label"
+          />
+        </div>
+      </div>
+    
+          </div>
+        </section>
+
+        <!-- Zone 3: Other features -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="bulk-edit-zone-other"
+        >
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600"
+            data-testid="bulk-edit-zone-other-toggle"
+            @click="zone3Expanded = !zone3Expanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.other') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ zone3Expanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
+              <Icon :name="zone3Expanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+
+          <div
+            v-show="zone3Expanded"
+            class="space-y-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
+            data-testid="bulk-edit-zone-other-body"
+          >
+
+      <!-- Model mapping strict scheduling -->
+      <div
+        v-if="!allAntigravity"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        data-testid="bulk-model-mapping-strict-scheduling"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-model-mapping-strict-label"
+              class="input-label mb-0"
+              for="bulk-edit-model-mapping-strict-enabled"
+            >
+              {{ t('admin.accounts.modelMappingStrictScheduling') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.modelMappingStrictSchedulingHint') }}
+            </p>
+          </div>
+          <input
+            v-model="enableModelMappingStrictScheduling"
+            id="bulk-edit-model-mapping-strict-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-model-mapping-strict-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            data-testid="bulk-edit-model-mapping-strict-enabled"
+          />
+        </div>
+        <div
+          id="bulk-edit-model-mapping-strict-body"
+          :class="!enableModelMappingStrictScheduling && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-model-mapping-strict-label"
+        >
+          <button
+            type="button"
+            class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            :class="modelMappingStrictScheduling ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'"
+            role="switch"
+            :aria-checked="modelMappingStrictScheduling"
+            data-testid="bulk-edit-model-mapping-strict-toggle"
+            @click="modelMappingStrictScheduling = !modelMappingStrictScheduling"
+          >
+            <span
+              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="modelMappingStrictScheduling ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </button>
+        </div>
+      </div>
+
+<!-- Model restriction -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <label
@@ -591,7 +687,308 @@
         </div>
       </div>
 
-      <!-- Custom error codes -->
+      
+<!-- OpenAI passthrough -->
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-passthrough-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-passthrough-enabled"
+            >
+              {{ t('admin.accounts.openai.oauthPassthrough') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.oauthPassthroughDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIPassthrough"
+            id="bulk-edit-openai-passthrough-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-passthrough-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-passthrough-body"
+          :class="!enableOpenAIPassthrough && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-passthrough-label"
+        >
+          <button
+            id="bulk-edit-openai-passthrough-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openaiPassthroughEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="openaiPassthroughEnabled = !openaiPassthroughEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openaiPassthroughEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+          <label v-if="codexCLIOnlyEnabled" class="ml-4 inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input v-model="codexCLIOnlyAllowAppServer" type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            {{ t('admin.accounts.openai.codexCLIOnlyAllowAppServer') }}
+          </label>
+        </div>
+      </div>
+
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          
+<div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-claude-gpt-bridge-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-claude-gpt-bridge-enabled"
+            >
+              {{ t('admin.accounts.openai.claudeGPTBridge') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.claudeGPTBridgeDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIClaudeGPTBridge"
+            id="bulk-edit-openai-claude-gpt-bridge-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-claude-gpt-bridge-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-claude-gpt-bridge-body"
+          :class="!enableOpenAIClaudeGPTBridge && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-claude-gpt-bridge-label"
+        >
+          <button
+            id="bulk-edit-openai-claude-gpt-bridge-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openaiClaudeGPTBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="openaiClaudeGPTBridgeEnabled = !openaiClaudeGPTBridgeEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openaiClaudeGPTBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+
+          <div
+            v-if="openaiClaudeGPTBridgeEnabled"
+            class="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-800 dark:bg-green-900/20"
+          >
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p class="text-xs text-green-700 dark:text-green-300">
+                {{ t('admin.accounts.openai.claudeGPTBridgeTemplateHint') }}
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  data-testid="bulk-edit-openai-claude-gpt-bridge-template"
+                  class="inline-flex items-center justify-center rounded-lg border border-green-300 px-3 py-2 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30"
+                  @click="toggleOpenAIClaudeGPTBridgeTemplateEditor"
+                >
+                  <Icon name="edit" size="sm" class="mr-1.5" :stroke-width="2" />
+                  {{ t('admin.accounts.openai.editClaudeGPTBridgeTemplate') }}
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-apply-openai-claude-gpt-bridge-template"
+                  :disabled="applyingClaudeGPTBridgeTemplate"
+                  class="inline-flex items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  @click="applyOpenAIClaudeGPTBridgeTemplateToSelected"
+                >
+                  <Icon name="sparkles" size="sm" class="mr-1.5" :stroke-width="2" />
+                  {{
+                    applyingClaudeGPTBridgeTemplate
+                      ? t('admin.accounts.openai.applyingClaudeGPTBridgeTemplate')
+                      : t('admin.accounts.openai.applyClaudeGPTBridgeTemplate')
+                  }}
+                </button>
+              </div>
+            </div>
+            <div v-if="showOpenAIClaudeGPTBridgeTemplateEditor" class="mt-3 space-y-2">
+              <div
+                v-for="(mapping, index) in openAIClaudeGPTBridgeTemplateDraft"
+                :key="index"
+                class="flex items-center gap-2"
+              >
+                <input
+                  v-model="mapping.from"
+                  type="text"
+                  class="input flex-1 text-xs"
+                  :data-testid="`bulk-openai-claude-gpt-bridge-template-from-${index}`"
+                  :placeholder="t('admin.accounts.requestModel')"
+                />
+                <input
+                  v-model="mapping.to"
+                  type="text"
+                  class="input flex-1 text-xs"
+                  :data-testid="`bulk-openai-claude-gpt-bridge-template-to-${index}`"
+                  :placeholder="t('admin.accounts.actualModel')"
+                />
+                <button
+                  type="button"
+                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  @click="removeOpenAIClaudeGPTBridgeTemplateMapping(index)"
+                >
+                  <Icon name="trash" size="sm" :stroke-width="2" />
+                </button>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg border border-green-300 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/30"
+                  @click="addOpenAIClaudeGPTBridgeTemplateMapping"
+                >
+                  {{ t('admin.accounts.addMapping') }}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:border-dark-500 dark:text-gray-300 dark:hover:bg-dark-600"
+                  @click="restoreDefaultOpenAIClaudeGPTBridgeTemplate"
+                >
+                  {{ t('admin.accounts.openai.restoreDefaultClaudeGPTBridgeTemplate') }}
+                </button>
+                <button
+                  type="button"
+                  data-testid="bulk-save-openai-claude-gpt-bridge-template"
+                  class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                  @click="saveOpenAIClaudeGPTBridgeTemplateDraft"
+                >
+                  {{ t('common.save') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+<!-- OpenAI image endpoint scheduling -->
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-images-endpoint-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-images-endpoint-enabled"
+            >
+              {{ t('admin.accounts.openai.imagesEndpointScheduling') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.imagesEndpointSchedulingDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableOpenAIImagesEndpoint"
+            id="bulk-edit-openai-images-endpoint-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-images-endpoint-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-images-endpoint-body"
+          :class="!enableOpenAIImagesEndpoint && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-images-endpoint-label"
+        >
+          <button
+            id="bulk-edit-openai-images-endpoint-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              openAIImagesEndpointEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="openAIImagesEndpointEnabled = !openAIImagesEndpointEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                openAIImagesEndpointEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
+      
+<!-- Codex image generation tool bridge -->
+      <div
+        v-if="allOpenAIPassthroughCapable"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div class="flex-1 pr-4">
+            <label
+              id="bulk-edit-openai-codex-image-bridge-label"
+              class="input-label mb-0"
+              for="bulk-edit-openai-codex-image-bridge-enabled"
+            >
+              {{ t('admin.accounts.openai.codexImageGenerationBridge') }}
+            </label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.openai.codexImageGenerationBridgeDesc') }}
+            </p>
+          </div>
+          <input
+            v-model="enableCodexImageGenerationBridge"
+            id="bulk-edit-openai-codex-image-bridge-enabled"
+            type="checkbox"
+            aria-controls="bulk-edit-openai-codex-image-bridge-body"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div
+          id="bulk-edit-openai-codex-image-bridge-body"
+          :class="!enableCodexImageGenerationBridge && 'pointer-events-none opacity-50'"
+          role="group"
+          aria-labelledby="bulk-edit-openai-codex-image-bridge-label"
+        >
+          <button
+            id="bulk-edit-openai-codex-image-bridge-toggle"
+            type="button"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              codexImageGenerationBridgeEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+            @click="codexImageGenerationBridgeEnabled = !codexImageGenerationBridgeEnabled"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                codexImageGenerationBridgeEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+      </div>
+
+      
+<!-- Custom error codes -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <div>
@@ -689,7 +1086,8 @@
         </div>
       </div>
 
-      <!-- Intercept warmup requests (Anthropic only) -->
+      
+<!-- Intercept warmup requests (Anthropic only) -->
       <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
@@ -731,7 +1129,8 @@
         </div>
       </div>
 
-      <!-- Header Override (anthropic/openai apikey only) -->
+      
+<!-- Header Override (anthropic/openai apikey only) -->
       <div v-if="allHeaderOverrideCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="flex items-center justify-between">
           <div class="flex-1 pr-4">
@@ -851,181 +1250,6 @@
           <p v-else class="text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.accounts.headerOverride.bulkDisableHint') }}
           </p>
-        </div>
-      </div>
-
-      <!-- Proxy -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <label
-            id="bulk-edit-proxy-label"
-            class="input-label mb-0"
-            for="bulk-edit-proxy-enabled"
-          >
-            {{ t('admin.accounts.proxy') }}
-          </label>
-          <input
-            v-model="enableProxy"
-            id="bulk-edit-proxy-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-proxy-body"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div id="bulk-edit-proxy-body" :class="!enableProxy && 'pointer-events-none opacity-50'">
-          <ProxySelector
-            v-model="proxyId"
-            :proxies="proxies"
-            aria-labelledby="bulk-edit-proxy-label"
-          />
-        </div>
-      </div>
-
-      <!-- Concurrency & Priority -->
-      <div class="grid grid-cols-2 gap-4 border-t border-gray-200 pt-4 dark:border-dark-600 lg:grid-cols-4">
-        <div>
-          <div class="mb-3 flex items-center justify-between">
-            <label
-              id="bulk-edit-concurrency-label"
-              class="input-label mb-0"
-              for="bulk-edit-concurrency-enabled"
-            >
-              {{ t('admin.accounts.concurrency') }}
-            </label>
-            <input
-              v-model="enableConcurrency"
-              id="bulk-edit-concurrency-enabled"
-              type="checkbox"
-              aria-controls="bulk-edit-concurrency"
-              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-          </div>
-          <input
-            v-model.number="concurrency"
-            id="bulk-edit-concurrency"
-            type="number"
-            min="1"
-            :disabled="!enableConcurrency"
-            class="input"
-            :class="!enableConcurrency && 'cursor-not-allowed opacity-50'"
-            aria-labelledby="bulk-edit-concurrency-label"
-            @input="concurrency = Math.max(1, concurrency || 1)"
-          />
-        </div>
-        <div>
-          <div class="mb-3 flex items-center justify-between">
-            <label
-              id="bulk-edit-load-factor-label"
-              class="input-label mb-0"
-              for="bulk-edit-load-factor-enabled"
-            >
-              {{ t('admin.accounts.loadFactor') }}
-            </label>
-            <input
-              v-model="enableLoadFactor"
-              id="bulk-edit-load-factor-enabled"
-              type="checkbox"
-              aria-controls="bulk-edit-load-factor"
-              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-          </div>
-          <input
-            v-model.number="loadFactor"
-            id="bulk-edit-load-factor"
-            type="number"
-            min="1"
-            :disabled="!enableLoadFactor"
-            class="input"
-            :class="!enableLoadFactor && 'cursor-not-allowed opacity-50'"
-            aria-labelledby="bulk-edit-load-factor-label"
-            @input="loadFactor = (loadFactor &amp;&amp; loadFactor >= 1) ? loadFactor : null"
-          />
-          <p class="input-hint">{{ t('admin.accounts.loadFactorHint') }}</p>
-        </div>
-        <div>
-          <div class="mb-3 flex items-center justify-between">
-            <label
-              id="bulk-edit-priority-label"
-              class="input-label mb-0"
-              for="bulk-edit-priority-enabled"
-            >
-              {{ t('admin.accounts.priority') }}
-            </label>
-            <input
-              v-model="enablePriority"
-              id="bulk-edit-priority-enabled"
-              type="checkbox"
-              aria-controls="bulk-edit-priority"
-              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-          </div>
-          <input
-            v-model.number="priority"
-            id="bulk-edit-priority"
-            type="number"
-            min="1"
-            :disabled="!enablePriority"
-            class="input"
-            :class="!enablePriority && 'cursor-not-allowed opacity-50'"
-            aria-labelledby="bulk-edit-priority-label"
-          />
-        </div>
-        <div>
-          <div class="mb-3 flex items-center justify-between">
-            <label
-              id="bulk-edit-rate-multiplier-label"
-              class="input-label mb-0"
-              for="bulk-edit-rate-multiplier-enabled"
-            >
-              {{ t('admin.accounts.billingRateMultiplier') }}
-            </label>
-            <input
-              v-model="enableRateMultiplier"
-              id="bulk-edit-rate-multiplier-enabled"
-              type="checkbox"
-              aria-controls="bulk-edit-rate-multiplier"
-              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-          </div>
-          <input
-            v-model.number="rateMultiplier"
-            id="bulk-edit-rate-multiplier"
-            type="number"
-            min="0"
-            step="0.01"
-            :disabled="!enableRateMultiplier"
-            class="input"
-            :class="!enableRateMultiplier && 'cursor-not-allowed opacity-50'"
-            aria-labelledby="bulk-edit-rate-multiplier-label"
-          />
-          <p class="input-hint">{{ t('admin.accounts.billingRateMultiplierHint') }}</p>
-        </div>
-      </div>
-
-      <!-- Status -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <label
-            id="bulk-edit-status-label"
-            class="input-label mb-0"
-            for="bulk-edit-status-enabled"
-          >
-            {{ t('common.status') }}
-          </label>
-          <input
-            v-model="enableStatus"
-            id="bulk-edit-status-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-status"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div id="bulk-edit-status" :class="!enableStatus && 'pointer-events-none opacity-50'">
-          <Select
-            v-model="status"
-            :options="statusOptions"
-            aria-labelledby="bulk-edit-status-label"
-          />
         </div>
       </div>
 
@@ -1273,36 +1497,11 @@
         </div>
       </div>
 
-      <!-- Groups -->
-      <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-        <div class="mb-3 flex items-center justify-between">
-          <label
-            id="bulk-edit-groups-label"
-            class="input-label mb-0"
-            for="bulk-edit-groups-enabled"
-          >
-            {{ t('nav.groups') }}
-          </label>
-          <input
-            v-model="enableGroups"
-            id="bulk-edit-groups-enabled"
-            type="checkbox"
-            aria-controls="bulk-edit-groups"
-            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-          />
-        </div>
-        <div id="bulk-edit-groups" :class="!enableGroups && 'pointer-events-none opacity-50'">
-          <GroupSelector
-            v-model="groupIds"
-            :groups="groups"
-            :platform="bulkGroupSelectorPlatform"
-            :extra-platforms="openAIClaudeGPTBridgeGroupPlatforms"
-            show-toggle-all
-            aria-labelledby="bulk-edit-groups-label"
-          />
-        </div>
+      
+          </div>
+        </section>
       </div>
-    </form>
+</form>
 
     <template #footer>
       <div class="flex justify-end gap-3">
@@ -1436,6 +1635,12 @@ const targetSelectedPlatforms = computed(() => props.target?.selectedPlatforms ?
 const targetSelectedTypes = computed(() => props.target?.selectedTypes ?? props.selectedTypes)
 const isMixedPlatform = computed(() => targetSelectedPlatforms.value.length > 1)
 
+const allAntigravity = computed(
+  () =>
+    targetSelectedPlatforms.value.length > 0 &&
+    targetSelectedPlatforms.value.every((p) => p === 'antigravity')
+)
+
 const allOpenAIPassthroughCapable = computed(() => {
   return (
     targetSelectedPlatforms.value.length === 1 &&
@@ -1516,6 +1721,8 @@ const enableLoadFactor = ref(false)
 const enablePriority = ref(false)
 const enableRateMultiplier = ref(false)
 const enableStatus = ref(false)
+const enableFallbackOnly = ref(false)
+const enableModelMappingStrictScheduling = ref(false)
 const enableGroups = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIClaudeGPTBridge = ref(false)
@@ -1527,6 +1734,8 @@ const enableCodexCLIOnly = ref(false)
 const enableRpmLimit = ref(false)
 
 // State - field values
+const zone2Expanded = ref(true)
+const zone3Expanded = ref(false)
 const submitting = ref(false)
 const showMixedChannelWarning = ref(false)
 const mixedChannelWarningMessage = ref('')
@@ -1577,6 +1786,8 @@ const loadFactor = ref<number | null>(null)
 const priority = ref(1)
 const rateMultiplier = ref(1)
 const status = ref<'active' | 'inactive'>('active')
+const fallbackOnly = ref(false)
+const modelMappingStrictScheduling = ref(false)
 const groupIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
@@ -1930,6 +2141,16 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     updates.status = status.value
   }
 
+  if (enableFallbackOnly.value) {
+    const extra = ensureExtra()
+    extra.fallback_only = fallbackOnly.value
+  }
+
+  if (enableModelMappingStrictScheduling.value) {
+    const extra = ensureExtra()
+    extra.model_mapping_strict_scheduling = modelMappingStrictScheduling.value
+  }
+
   if (enableGroups.value) {
     updates.group_ids = groupIds.value
   }
@@ -2126,6 +2347,8 @@ const handleSubmit = async () => {
     enablePriority.value ||
     enableRateMultiplier.value ||
     enableStatus.value ||
+    enableFallbackOnly.value ||
+    enableModelMappingStrictScheduling.value ||
     enableGroups.value ||
     enableOpenAIWSMode.value ||
     enableOpenAIAPIKeyWSMode.value ||
@@ -2249,7 +2472,11 @@ watch(
       enablePriority.value = false
       enableRateMultiplier.value = false
       enableStatus.value = false
+      enableFallbackOnly.value = false
+      enableModelMappingStrictScheduling.value = false
       enableGroups.value = false
+      zone2Expanded.value = true
+      zone3Expanded.value = false
       enableOpenAIPassthrough.value = false
       enableOpenAIClaudeGPTBridge.value = false
       enableOpenAIImagesEndpoint.value = false
@@ -2282,6 +2509,8 @@ watch(
       priority.value = 1
       rateMultiplier.value = 1
       status.value = 'active'
+      fallbackOnly.value = false
+      modelMappingStrictScheduling.value = false
       groupIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF

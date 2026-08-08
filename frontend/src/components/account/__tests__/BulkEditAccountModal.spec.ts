@@ -93,6 +93,46 @@ describe('BulkEditAccountModal', () => {
     vi.mocked(adminAPI.accounts.update).mockResolvedValue({} as any)
   })
 
+  it('布局与编辑账号一致：三区 config/groups/other', () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey']
+    })
+    expect(wrapper.find('[data-testid="bulk-edit-account-layout"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-edit-zone-config"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-edit-zone-groups"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-edit-zone-other"]').exists()).toBe(true)
+    // other zone collapsed by default (v-show=false still in DOM)
+    expect(wrapper.find('[data-testid="bulk-edit-zone-other-body"]').isVisible()).toBe(false)
+  })
+
+  it('可批量写入 fallback_only 与 model_mapping_strict_scheduling', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey']
+    })
+    // expand other zone for strict scheduling control
+    await wrapper.get('[data-testid="bulk-edit-zone-other-toggle"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.get('[data-testid="bulk-edit-fallback-only-enabled"]').setValue(true)
+    await wrapper.get('[data-testid="bulk-edit-fallback-only-toggle"]').trigger('click')
+
+    await wrapper.get('[data-testid="bulk-edit-model-mapping-strict-enabled"]').setValue(true)
+    await wrapper.get('[data-testid="bulk-edit-model-mapping-strict-toggle"]').trigger('click')
+
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        fallback_only: true,
+        model_mapping_strict_scheduling: true
+      }
+    })
+  })
+
   it('antigravity 白名单包含 Gemini 图片模型且过滤掉普通 GPT 模型', async () => {
     const wrapper = mountModal()
     const selector = wrapper.findComponent(ModelWhitelistSelector)

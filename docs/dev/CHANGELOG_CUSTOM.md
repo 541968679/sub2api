@@ -1,3 +1,20 @@
+## 2026-08-08 - fix(admin): unify bulk edit entry + sync 3-zone layout
+
+### What
+- Account bulk actions bar: **编辑已选账号** / **按筛选批量编辑** both open the same `BulkEditAccountModal` (scope differs); removed the confusing “批量更新” primary that looked like a second feature.
+- `BulkEditAccountModal` layout aligned with `EditAccountModal`: **extra-wide** dialog + 3 zones (账号配置 / 分组 / 其他功能), other zone collapsed by default.
+- Added bulk fields already present in single edit: `fallback_only`, `model_mapping_strict_scheduling`.
+- Group selector uses `variant="panel"` + quick filters like single edit.
+
+### Why
+Operators saw two bulk buttons that felt like different features, and bulk edit UI had drifted from the redesigned single-account editor.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/BulkEditAccountModal.spec.ts src/views/admin/__tests__/AccountsView.bulkEdit.spec.ts`
+
+### Affected files
+`AccountBulkActionsBar.vue`, `BulkEditAccountModal.vue`, bulk-edit specs, i18n zh/en, this changelog.
+
 ## 2026-08-08 - fix(admin): display-balance used/total save appears stuck
 
 ### What
