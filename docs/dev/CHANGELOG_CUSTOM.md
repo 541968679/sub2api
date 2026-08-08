@@ -1,3 +1,20 @@
+## 2026-08-08 - fix(admin): display-balance used/total save appears stuck
+
+### What
+- Account usage cell **已用 / 总额** save no longer force-calls `getUsage(source=active)` after `POST .../display-balance`.
+- Force probe timeouts previously caused a successful DB write to look like a failed save (editor stayed open, error only in console).
+- Save now optimistically updates the usage hero from the API response, emits `account-updated` so the list row keeps `extra`, and shows success/error toasts.
+- Inputs use text + `inputmode=decimal` with safe parsing (avoids number-input/`trim` edge cases).
+
+### Why
+Operators could not reliably save display used/total on API-key accounts when upstream balance probe was slow or failed.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUsageCell.spec.ts -t "display-balance"`
+
+### Affected files
+`frontend/src/components/account/AccountUsageCell.vue`, `AccountsView.vue`, i18n zh/en, `AccountUsageCell.spec.ts`, this changelog.
+
 ## 2026-08-07 - feat(account): per-account model_mapping strict scheduling toggle
 
 ### What

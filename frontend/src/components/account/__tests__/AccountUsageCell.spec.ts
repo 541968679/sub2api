@@ -3,16 +3,27 @@ import { flushPromises, mount } from '@vue/test-utils'
 import AccountUsageCell from '../AccountUsageCell.vue'
 import type { Account } from '@/types'
 
-const { getUsage } = vi.hoisted(() => ({
-  getUsage: vi.fn()
+const { getUsage, setDisplayBalance, showSuccess, showError } = vi.hoisted(() => ({
+  getUsage: vi.fn(),
+  setDisplayBalance: vi.fn(),
+  showSuccess: vi.fn(),
+  showError: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
-      getUsage
+      getUsage,
+      setDisplayBalance
     }
   }
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({
+    showSuccess,
+    showError
+  })
 }))
 
 vi.mock('vue-i18n', async () => {
@@ -57,6 +68,9 @@ function makeAccount(overrides: Partial<Account>): Account {
 describe('AccountUsageCell', () => {
   beforeEach(() => {
     getUsage.mockReset()
+    setDisplayBalance.mockReset()
+    showSuccess.mockReset()
+    showError.mockReset()
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation(() => ({
@@ -1264,5 +1278,106 @@ describe('AccountUsageCell', () => {
     expect(wrapper.text()).toContain('7d|56')
     expect(wrapper.text()).not.toContain('7d S')
     expect(wrapper.text()).not.toContain('7d F')
+  })
+
+  it('display-balance save persists without force getUsage and updates hero text', async () => {
+    getUsage.mockResolvedValue({
+      balance_usd: 100,
+      balance_unlimited: false,
+      balance_used_usd: 10,
+      display_balance_total_usd: null
+    })
+    setDisplayBalance.mockResolvedValue({
+      id: 9001,
+      extra: {
+        upstream_balance_used_usd: 25.5,
+        display_balance_used_usd: 25.5,
+        display_balance_total_usd: 125
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9001,
+          platform: 'openai',
+          type: 'apikey',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-testid="account-balance-display"]').trigger('click')
+    await wrapper.get('[data-testid="account-balance-used-input"]').setValue('25.5')
+    await wrapper.get('[data-testid="account-balance-total-input"]').setValue('125')
+    await wrapper.get('[data-testid="account-balance-save"]').trigger('click')
+    await flushPromises()
+
+    expect(setDisplayBalance).toHaveBeenCalledWith(9001, {
+      used_usd: 25.5,
+      total_usd: 125
+    })
+    // Save must not force a probe refresh; that previously blocked UI close on timeout.
+    expect(getUsage).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('25.5')
+    expect(wrapper.text()).toContain('125')
+    expect(showSuccess).toHaveBeenCalled()
+    expect(wrapper.emitted('account-updated')?.length).toBe(1)
+  })
+
+  it('display-balance save does not depend on getUsage succeeding', async () => {
+    getUsage.mockResolvedValue({
+      balance_usd: null,
+      balance_unlimited: true,
+      balance_used_usd: 1
+    })
+    setDisplayBalance.mockResolvedValue({
+      id: 9002,
+      extra: {
+        display_balance_used_usd: 3,
+        display_balance_total_usd: 50,
+        upstream_balance_used_usd: 3
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 9002,
+          platform: 'anthropic',
+          type: 'apikey',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    // Even if later getUsage would fail, save path must not call it.
+    getUsage.mockRejectedValueOnce(new Error('probe timeout'))
+    await wrapper.get('[data-testid="account-balance-display"]').trigger('click')
+    await wrapper.get('[data-testid="account-balance-used-input"]').setValue('3')
+    await wrapper.get('[data-testid="account-balance-total-input"]').setValue('50')
+    await wrapper.get('[data-testid="account-balance-save"]').trigger('click')
+    await flushPromises()
+
+    expect(setDisplayBalance).toHaveBeenCalled()
+    expect(showError).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="account-balance-save"]').exists()).toBe(false)
   })
 })
