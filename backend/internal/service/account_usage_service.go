@@ -254,6 +254,11 @@ type UsageInfo struct {
 	BalanceError     string     `json:"balance_error,omitempty"`
 	// BalanceUnlimited is true for New API tokens with unlimited_quota.
 	BalanceUnlimited bool `json:"balance_unlimited,omitempty"`
+	// BalanceUsedUSD is spent amount (auto from upstream and/or last display value).
+	BalanceUsedUSD *float64 `json:"balance_used_usd,omitempty"`
+	// DisplayBalanceTotalUSD is an optional manual total for display only (e.g. 125 in 25/125).
+	// Never used for scheduling, admission, or billing enforcement.
+	DisplayBalanceTotalUSD *float64 `json:"display_balance_total_usd,omitempty"`
 
 	// Burn-rate / remaining-time prediction (mixed units: usd | percent | fleet_units).
 	BurnRatePerHour  *float64 `json:"burn_rate_per_hour,omitempty"`
@@ -726,11 +731,23 @@ func hydrateBalanceFromExtra(account *Account, usage *UsageInfo) {
 			usage.BalanceUnlimited = t == "true" || t == "1"
 		}
 	}
+	// Used: prefer auto probe value, fall back to last display used (manual or previous auto).
+	if _, ok := account.Extra[extraKeyUpstreamBalanceUsedUSD]; ok {
+		used := parseExtraFloat64(account.Extra[extraKeyUpstreamBalanceUsedUSD])
+		usage.BalanceUsedUSD = &used
+	} else if _, ok := account.Extra[extraKeyDisplayBalanceUsedUSD]; ok {
+		used := parseExtraFloat64(account.Extra[extraKeyDisplayBalanceUsedUSD])
+		usage.BalanceUsedUSD = &used
+	}
+	if _, ok := account.Extra[extraKeyDisplayBalanceTotalUSD]; ok {
+		total := parseExtraFloat64(account.Extra[extraKeyDisplayBalanceTotalUSD])
+		usage.DisplayBalanceTotalUSD = &total
+	}
 }
 
 func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now time.Time) map[string]any {
 	updates := map[string]any{}
-	if probe.Error != "" && probe.Source == "" && !probe.Unlimited {
+	if probe.Error != "" && probe.Source == "" && !probe.Unlimited && !probe.HasUsed {
 		updates[extraKeyUpstreamBalanceErr] = probe.Error
 		// Keep previous balance; only stamp error.
 		return updates
@@ -740,6 +757,11 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 	updates[extraKeyUpstreamBalanceSrc] = probe.Source
 	updates[extraKeyUpstreamBalanceErr] = ""
 	updates[extraKeyUpstreamBalanceUnlimited] = probe.Unlimited
+	if probe.HasUsed {
+		// Auto-refresh used amount for display; also mirrors into display_balance_used_usd.
+		updates[extraKeyUpstreamBalanceUsedUSD] = probe.UsedUSD
+		updates[extraKeyDisplayBalanceUsedUSD] = probe.UsedUSD
+	}
 	if account != nil {
 		if account.Extra == nil {
 			account.Extra = map[string]any{}
@@ -749,6 +771,10 @@ func applyBalanceProbeToExtra(account *Account, probe UpstreamBalanceResult, now
 		account.Extra[extraKeyUpstreamBalanceSrc] = probe.Source
 		account.Extra[extraKeyUpstreamBalanceErr] = ""
 		account.Extra[extraKeyUpstreamBalanceUnlimited] = probe.Unlimited
+		if probe.HasUsed {
+			account.Extra[extraKeyUpstreamBalanceUsedUSD] = probe.UsedUSD
+			account.Extra[extraKeyDisplayBalanceUsedUSD] = probe.UsedUSD
+		}
 	}
 	return updates
 }
@@ -757,7 +783,7 @@ func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
 	if usage == nil {
 		return
 	}
-	if probe.Source != "" || probe.Unlimited || probe.Error == "" {
+	if probe.Source != "" || probe.Unlimited || probe.HasUsed || probe.Error == "" {
 		bal := probe.BalanceUSD
 		usage.BalanceUSD = &bal
 		t := probe.FetchedAt
@@ -765,6 +791,10 @@ func applyBalanceResultToUsage(usage *UsageInfo, probe UpstreamBalanceResult) {
 		usage.BalanceSource = probe.Source
 		usage.BalanceUnlimited = probe.Unlimited
 		usage.BalanceError = ""
+		if probe.HasUsed {
+			used := probe.UsedUSD
+			usage.BalanceUsedUSD = &used
+		}
 		return
 	}
 	usage.BalanceError = probe.Error

@@ -23,6 +23,10 @@ const (
 	extraKeyUpstreamBalanceAt   = "upstream_balance_at"
 	extraKeyUpstreamBalanceErr  = "upstream_balance_error"
 	extraKeyUpstreamBalanceSrc  = "upstream_balance_source"
+	// Display-only fields (never affect scheduling / admission).
+	extraKeyUpstreamBalanceUsedUSD  = "upstream_balance_used_usd"
+	extraKeyDisplayBalanceTotalUSD  = "display_balance_total_usd"
+	extraKeyDisplayBalanceUsedUSD   = "display_balance_used_usd" // last manual/auto used shown
 )
 
 // BurnSample is one time-series point used for burn-rate regression.

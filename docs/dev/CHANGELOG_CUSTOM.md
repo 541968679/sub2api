@@ -33,6 +33,20 @@ Operators reported adding model mapping, clicking update, then reopening the acc
 ### Affected files
 `frontend/src/composables/useModelWhitelist.ts`, `frontend/src/components/account/EditAccountModal.vue`, related unit tests, this changelog.
 
+## 2026-08-07 - feat(admin): display-only account balance used/total
+
+### What
+- Upstream balance probe stores **used USD** (New API `total_used`, credit_grants, subscription usage).
+- Unlimited upstream no longer shows bare "无限": falls back to **已用 $X**; with manual total shows **$used / $total**.
+- Admin can **edit used + total** (display only) via account usage cell; **refresh** force-probes upstream and overwrites used.
+- API: `POST /admin/accounts/:id/display-balance` (`used_usd`, `total_usd`, clear flags). No scheduling/admission/billing impact even when over total.
+
+### Why
+Third-party New API tokens often return `unlimited_quota=true` with real spend in `total_used`; operators need honest used display and optional prepaid package total (e.g. 25/125).
+
+### Affected files
+`upstream_balance_probe.go`, `account_usage_service.go`, `burn_rate.go`, `account_handler.go`, `routes/admin.go`, FE `AccountUsageCell.vue`, accounts API, types, i18n, this changelog.
+
 ## 2026-08-07 - feat(admin): account row button to open error requests
 
 ### What

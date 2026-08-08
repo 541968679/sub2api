@@ -30,7 +30,12 @@ const (
 
 // UpstreamBalanceResult is a successful or failed balance probe outcome.
 type UpstreamBalanceResult struct {
+	// BalanceUSD is remaining/available prepaid balance when known (may be 0 when unlimited).
 	BalanceUSD float64
+	// UsedUSD is spent amount when the upstream reports it (e.g. New API total_used).
+	UsedUSD float64
+	// HasUsed is true when UsedUSD was provided by the upstream probe.
+	HasUsed bool
 	// Unlimited is true when the upstream token has unlimited quota (New API).
 	Unlimited bool
 	Source    string
@@ -207,8 +212,10 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		} else {
 			appendErr(probeErr)
 		}
-		if bal, unlimited, ok, probeErr := fetchNewAPITokenUsageBalance(ctx, client, account, apiKey, baseURL); ok {
+		if bal, used, hasUsed, unlimited, ok, probeErr := fetchNewAPITokenUsageBalance(ctx, client, account, apiKey, baseURL); ok {
 			result.BalanceUSD = bal
+			result.UsedUSD = used
+			result.HasUsed = hasUsed
 			result.Unlimited = unlimited
 			result.Source = balanceSourceNewAPITokenUsage
 			result.Error = ""
@@ -219,8 +226,10 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 	}
 
 	// 3) OpenAI-shape credit_grants
-	if bal, ok, probeErr := fetchCreditGrantsBalance(ctx, client, account, apiKey, baseURL); ok {
+	if bal, used, hasUsed, ok, probeErr := fetchCreditGrantsBalance(ctx, client, account, apiKey, baseURL); ok {
 		result.BalanceUSD = bal
+		result.UsedUSD = used
+		result.HasUsed = hasUsed
 		result.Source = balanceSourceCreditGrants
 		result.Error = ""
 		return result
@@ -229,8 +238,10 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 	}
 
 	// 4) subscription + usage
-	if bal, ok, probeErr := fetchSubscriptionUsageBalance(ctx, client, account, apiKey, baseURL); ok {
+	if bal, used, hasUsed, ok, probeErr := fetchSubscriptionUsageBalance(ctx, client, account, apiKey, baseURL); ok {
 		result.BalanceUSD = bal
+		result.UsedUSD = used
+		result.HasUsed = hasUsed
 		result.Source = balanceSourceSubscriptionUsage
 		result.Error = ""
 		return result
@@ -248,8 +259,10 @@ func ProbeUpstreamBalance(ctx context.Context, account *Account) UpstreamBalance
 		} else {
 			appendErr(probeErr)
 		}
-		if bal, unlimited, ok, probeErr := fetchNewAPITokenUsageBalance(ctx, client, account, apiKey, baseURL); ok {
+		if bal, used, hasUsed, unlimited, ok, probeErr := fetchNewAPITokenUsageBalance(ctx, client, account, apiKey, baseURL); ok {
 			result.BalanceUSD = bal
+			result.UsedUSD = used
+			result.HasUsed = hasUsed
 			result.Unlimited = unlimited
 			result.Source = balanceSourceNewAPITokenUsage
 			result.Error = ""
@@ -280,10 +293,10 @@ type newAPITokenUsageResponse struct {
 	} `json:"data"`
 }
 
-func fetchNewAPITokenUsageBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (balance float64, unlimited bool, ok bool, errMsg string) {
+func fetchNewAPITokenUsageBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (balance, used float64, hasUsed, unlimited, ok bool, errMsg string) {
 	origin := originFromBaseURL(baseURL)
 	if origin == "" {
-		return 0, false, false, "newapi: empty origin"
+		return 0, 0, false, false, false, "newapi: empty origin"
 	}
 	// Prefer no trailing slash first (token-bits returns 200); then with slash.
 	urls := []string{
@@ -332,9 +345,13 @@ func fetchNewAPITokenUsageBalance(ctx context.Context, client *http.Client, acco
 		if balanceUSD < 0 {
 			balanceUSD = 0
 		}
-		return balanceUSD, unlimited, true, ""
+		usedUSD := resp.Data.TotalUsed / unit
+		if usedUSD < 0 {
+			usedUSD = 0
+		}
+		return balanceUSD, usedUSD, true, unlimited, true, ""
 	}
-	return 0, false, false, lastErr
+	return 0, 0, false, false, false, lastErr
 }
 
 func newAPICodeOK(code any) bool {
@@ -426,45 +443,47 @@ func looksLikeHTML(body []byte) bool {
 	return strings.HasPrefix(s, "<!doctype") || strings.HasPrefix(s, "<html")
 }
 
-func fetchCreditGrantsBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (float64, bool, string) {
+func fetchCreditGrantsBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (balance, used float64, hasUsed, ok bool, errMsg string) {
 	url := JoinOpenAIBillingURL(baseURL, "/v1/dashboard/billing/credit_grants")
 	body, status, err := doBalanceGET(ctx, client, account, apiKey, url)
 	if err != nil {
-		return 0, false, err.Error()
+		return 0, 0, false, false, err.Error()
 	}
 	if status != http.StatusOK {
-		return 0, false, fmt.Sprintf("credit_grants status %d: %s", status, truncateForErr(body, 200))
+		return 0, 0, false, false, fmt.Sprintf("credit_grants status %d: %s", status, truncateForErr(body, 200))
 	}
 	if looksLikeHTML(body) {
-		return 0, false, "credit_grants returned HTML (not JSON)"
+		return 0, 0, false, false, "credit_grants returned HTML (not JSON)"
 	}
 	var resp openAICreditGrantsResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return 0, false, fmt.Sprintf("credit_grants decode: %v", err)
+		return 0, 0, false, false, fmt.Sprintf("credit_grants decode: %v", err)
 	}
+	usedUSD := resp.TotalUsed
+	hasUsedUSD := resp.TotalUsed > 0 || resp.TotalGranted > 0 || resp.TotalAvailable > 0
 	// Prefer total_available; some gateways use total_remaining.
 	if resp.TotalAvailable > 0 || resp.TotalGranted > 0 || resp.TotalUsed > 0 {
-		return resp.TotalAvailable, true, ""
+		return resp.TotalAvailable, usedUSD, hasUsedUSD, true, ""
 	}
 	if resp.TotalRemaining > 0 {
-		return resp.TotalRemaining, true, ""
+		return resp.TotalRemaining, usedUSD, hasUsedUSD, true, ""
 	}
 	// Zero available is still a valid reading when object decoded.
-	return resp.TotalAvailable, true, ""
+	return resp.TotalAvailable, usedUSD, hasUsedUSD, true, ""
 }
 
-func fetchSubscriptionUsageBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (float64, bool, string) {
+func fetchSubscriptionUsageBalance(ctx context.Context, client *http.Client, account *Account, apiKey, baseURL string) (balance, used float64, hasUsed, ok bool, errMsg string) {
 	subURL := JoinOpenAIBillingURL(baseURL, "/v1/dashboard/billing/subscription")
 	body, status, err := doBalanceGET(ctx, client, account, apiKey, subURL)
 	if err != nil {
-		return 0, false, err.Error()
+		return 0, 0, false, false, err.Error()
 	}
 	if status != http.StatusOK {
-		return 0, false, fmt.Sprintf("subscription status %d: %s", status, truncateForErr(body, 200))
+		return 0, 0, false, false, fmt.Sprintf("subscription status %d: %s", status, truncateForErr(body, 200))
 	}
 	var sub openAISubscriptionResponse
 	if err := json.Unmarshal(body, &sub); err != nil {
-		return 0, false, fmt.Sprintf("subscription decode: %v", err)
+		return 0, 0, false, false, fmt.Sprintf("subscription decode: %v", err)
 	}
 	hardLimit := sub.HardLimitUSD
 	if hardLimit <= 0 {
@@ -490,18 +509,22 @@ func fetchSubscriptionUsageBalance(ctx context.Context, client *http.Client, acc
 
 	body, status, err = doBalanceGET(ctx, client, account, apiKey, usageURL)
 	if err != nil {
-		return 0, false, err.Error()
+		return 0, 0, false, false, err.Error()
 	}
 	if status != http.StatusOK {
-		return 0, false, fmt.Sprintf("usage status %d: %s", status, truncateForErr(body, 200))
+		return 0, 0, false, false, fmt.Sprintf("usage status %d: %s", status, truncateForErr(body, 200))
 	}
 	var usage openAIUsageResponse
 	if err := json.Unmarshal(body, &usage); err != nil {
-		return 0, false, fmt.Sprintf("usage decode: %v", err)
+		return 0, 0, false, false, fmt.Sprintf("usage decode: %v", err)
 	}
 	// TotalUsage is in cents (0.01 USD).
-	balance := hardLimit - usage.TotalUsage/100
-	return balance, true, ""
+	used = usage.TotalUsage / 100
+	if used < 0 {
+		used = 0
+	}
+	balance = hardLimit - used
+	return balance, used, true, true, ""
 }
 
 func doBalanceGET(ctx context.Context, client *http.Client, account *Account, apiKey, url string) ([]byte, int, error) {

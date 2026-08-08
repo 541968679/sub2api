@@ -548,6 +548,20 @@ export interface ClearStuckRuntimeResult {
  * Clear stuck Redis runtime for an account: sticky bindings, concurrency slots, session limits.
  * Does not change DB schedulable/status.
  */
+export interface SetDisplayBalancePayload {
+  used_usd?: number
+  total_usd?: number
+  clear_used?: boolean
+  clear_total?: boolean
+}
+export async function setDisplayBalance(
+  id: number,
+  payload: SetDisplayBalancePayload
+): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/display-balance`, payload)
+  return data
+}
+
 export async function clearStuckRuntime(id: number): Promise<ClearStuckRuntimeResult> {
   const { data } = await apiClient.post<ClearStuckRuntimeResult>(
     `/admin/accounts/${id}/clear-stuck-runtime`
@@ -1049,6 +1063,7 @@ export const accountsAPI = {
   resetTempUnschedulable,
   setSchedulable,
   clearStuckRuntime,
+  setDisplayBalance,
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamModelsPreview,
