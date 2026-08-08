@@ -2725,6 +2725,15 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		Status:      StatusActive,
 		Schedulable: true,
 	}
+	// Pin new accounts to the top of the admin list (same key as MoveAccountToTop).
+	// Without this, list_order DESC keeps previously "moved to top" accounts above
+	// brand-new ones even when sorting by created_at desc.
+	if account.Extra == nil {
+		account.Extra = map[string]any{}
+	}
+	if _, hasListOrder := account.Extra[AccountListOrderExtraKey]; !hasListOrder {
+		account.Extra[AccountListOrderExtraKey] = time.Now().UnixMilli()
+	}
 	// 预计算固定时间重置的下次重置时间
 	if account.Extra != nil {
 		if err := ValidateQuotaResetConfig(account.Extra); err != nil {

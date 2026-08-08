@@ -1,3 +1,20 @@
+## 2026-08-08 - fix(admin): create-account 3-zone layout + pin new accounts to top
+
+### What
+- `CreateAccountModal` step-1 form uses the same **extra-wide 3-zone layout** as Edit/Bulk: 账号配置 / 分组 / 其他功能 (other collapsed by default).
+- Group selector uses `variant="panel"` + quick filters.
+- **Bugfix**: new accounts now write `extra.list_order = UnixMilli()` on create (same pin key as “移到顶部”), so they appear at the top of the admin list instead of sinking below previously pinned rows.
+
+### Why
+Create UI had drifted from the redesigned edit layout. List sorting always prepends `list_order DESC`, so accounts without a pin rank fell below every “moved to top” account even when sorting by `created_at desc`.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/CreateAccountModal.spec.ts`
+- `go test -tags=unit ./internal/service -run 'TestMoveAccountToTop|TestCreateAccount_Pins' -count=1`
+
+### Affected files
+`CreateAccountModal.vue`, `admin_service.go`, `admin_service_move_to_top_test.go`, this changelog.
+
 ## 2026-08-08 - fix(admin): unify bulk edit entry + sync 3-zone layout
 
 ### What
