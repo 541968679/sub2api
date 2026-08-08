@@ -1,3 +1,16 @@
+## 2026-08-08 - fix(admin): surface move-to-top next to account checkbox
+
+### What
+- Account list: **移到顶部** is a direct icon button on the select cell (right of checkbox, left of name), not buried under “更多”.
+- Removed the duplicate entry from `AccountActionMenu`.
+- Default select column width 48 → 72 to fit checkbox + button.
+
+### Why
+Operators pin accounts frequently; hiding the control in the overflow menu slowed list reordering.
+
+### Affected files
+`AccountsView.vue`, `AccountActionMenu.vue`, this changelog.
+
 ## 2026-08-08 - fix(admin): create-account 3-zone layout + pin new accounts to top
 
 ### What
