@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.createAccount')"
-    width="extra-wide"
+    width="full"
     @close="handleClose"
   >
     <!-- Step Indicator for OAuth accounts -->
@@ -50,7 +50,7 @@
       class="space-y-5"
     >
       <div
-        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        class="flex flex-col gap-3 sm:gap-4 xl:grid xl:max-h-[min(82vh,920px)] xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] xl:items-stretch xl:gap-4"
         data-testid="create-account-layout"
       >
         <!-- Zone 1: Account config -->
@@ -91,25 +91,28 @@
       <!-- Platform Selection - Segmented Control Style -->
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
-        <div class="mt-2 flex flex-wrap rounded-lg bg-gray-100 p-1 dark:bg-dark-700" data-tour="account-form-platform">
+        <div
+          class="mt-2 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700 sm:grid-cols-3 lg:grid-cols-5"
+          data-tour="account-form-platform"
+        >
           <button
             type="button"
             @click="form.platform = 'anthropic'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
               form.platform === 'anthropic'
                 ? 'bg-white text-orange-600 shadow-sm dark:bg-dark-600 dark:text-orange-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
-            <Icon name="sparkles" size="sm" />
-            Anthropic
+            <Icon name="sparkles" size="sm" class="shrink-0" />
+            <span class="truncate">Anthropic</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'openai'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
               form.platform === 'openai'
                 ? 'bg-white text-green-600 shadow-sm dark:bg-dark-600 dark:text-green-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -128,13 +131,13 @@
                 d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"
               />
             </svg>
-            OpenAI
+            <span class="truncate">OpenAI</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'gemini'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
               form.platform === 'gemini'
                 ? 'bg-white text-blue-600 shadow-sm dark:bg-dark-600 dark:text-blue-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -153,33 +156,33 @@
                 d="M12 2l1.5 6.5L20 10l-6.5 1.5L12 18l-1.5-6.5L4 10l6.5-1.5L12 2z"
               />
             </svg>
-            Gemini
+            <span class="truncate">Gemini</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'antigravity'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
               form.platform === 'antigravity'
                 ? 'bg-white text-purple-600 shadow-sm dark:bg-dark-600 dark:text-purple-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <Icon name="cloud" size="sm" />
-            Antigravity
+            <span class="truncate">Antigravity</span>
           </button>
           <button
             type="button"
             @click="form.platform = 'grok'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-sm font-medium transition-all',
               form.platform === 'grok'
                 ? 'bg-white text-zinc-700 shadow-sm dark:bg-dark-600 dark:text-zinc-200'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
             ]"
           >
             <PlatformIcon platform="grok" size="sm" />
-            Grok
+            <span class="truncate">Grok</span>
           </button>
         </div>
       </div>
@@ -187,12 +190,12 @@
       <!-- Account Type Selection (Anthropic) -->
       <div v-if="form.platform === 'anthropic'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div class="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'oauth-based'
                 ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                 : 'border-gray-200 hover:border-orange-300 dark:border-dark-600 dark:hover:border-orange-700'
@@ -200,7 +203,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'oauth-based'
                   ? 'bg-orange-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -208,11 +211,11 @@
             >
               <Icon name="sparkles" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">{{
                 t('admin.accounts.claudeCode')
               }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{
                 t('admin.accounts.oauthSetupToken')
               }}</span>
             </div>
@@ -222,7 +225,7 @@
             type="button"
             @click="accountCategory = 'apikey'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'apikey'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                 : 'border-gray-200 hover:border-purple-300 dark:border-dark-600 dark:hover:border-purple-700'
@@ -230,7 +233,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'apikey'
                   ? 'bg-purple-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -238,11 +241,11 @@
             >
               <Icon name="key" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">{{
                 t('admin.accounts.claudeConsole')
               }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{
                 t('admin.accounts.apiKey')
               }}</span>
             </div>
@@ -252,7 +255,7 @@
             type="button"
             @click="accountCategory = 'bedrock'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'bedrock'
                 ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20'
                 : 'border-gray-200 hover:border-amber-300 dark:border-dark-600 dark:hover:border-amber-700'
@@ -260,7 +263,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'bedrock'
                   ? 'bg-amber-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -268,11 +271,11 @@
             >
               <Icon name="cloud" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">{{
                 t('admin.accounts.bedrockLabel')
               }}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{
                 t('admin.accounts.bedrockDesc')
               }}</span>
             </div>
@@ -282,7 +285,7 @@
             type="button"
             @click="accountCategory = 'service_account'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'service_account'
                 ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20'
                 : 'border-gray-200 hover:border-sky-300 dark:border-dark-600 dark:hover:border-sky-700'
@@ -290,7 +293,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'service_account'
                   ? 'bg-sky-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -298,9 +301,9 @@
             >
               <Icon name="cloud" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">Vertex</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">Service Account</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">Vertex</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">Service Account</span>
             </div>
           </button>
 
@@ -317,12 +320,12 @@
       <!-- Account Type Selection (OpenAI) -->
       <div v-if="form.platform === 'openai'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div class="mt-2 grid grid-cols-2 gap-3" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'oauth-based'
                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                 : 'border-gray-200 hover:border-green-300 dark:border-dark-600 dark:hover:border-green-700'
@@ -330,7 +333,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'oauth-based'
                   ? 'bg-green-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -338,9 +341,9 @@
             >
               <Icon name="key" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">OAuth</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.chatgptOauth') }}</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">OAuth</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{ t('admin.accounts.types.chatgptOauth') }}</span>
             </div>
           </button>
 
@@ -348,7 +351,7 @@
             type="button"
             @click="accountCategory = 'apikey'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'apikey'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                 : 'border-gray-200 hover:border-purple-300 dark:border-dark-600 dark:hover:border-purple-700'
@@ -356,7 +359,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'apikey'
                   ? 'bg-purple-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -364,9 +367,9 @@
             >
               <Icon name="key" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.responsesApi') }}</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">API Key</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{ t('admin.accounts.types.responsesApi') }}</span>
             </div>
           </button>
 
@@ -375,21 +378,21 @@
 
       <div v-if="form.platform === 'grok'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div class="mt-2 grid grid-cols-2 gap-3" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'oauth-based'
                 ? 'border-zinc-600 bg-zinc-50 dark:bg-zinc-900/20'
                 : 'border-gray-200 hover:border-zinc-400 dark:border-dark-600 dark:hover:border-zinc-600'
             ]"
           >
             <PlatformIcon platform="grok" size="sm" />
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">OAuth</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.grokOauth') }}</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">OAuth</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{ t('admin.accounts.types.grokOauth') }}</span>
             </div>
           </button>
           <button
@@ -397,16 +400,16 @@
             data-testid="grok-account-type-api-key"
             @click="accountCategory = 'apikey'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'apikey'
                 ? 'border-cyan-600 bg-cyan-50 dark:bg-cyan-900/20'
                 : 'border-gray-200 hover:border-cyan-400 dark:border-dark-600 dark:hover:border-cyan-700'
             ]"
           >
             <Icon name="key" size="sm" />
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.grokApiKey') }}</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">API Key</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{ t('admin.accounts.types.grokApiKey') }}</span>
             </div>
           </button>
         </div>
@@ -427,12 +430,12 @@
             {{ t('admin.accounts.gemini.helpButton') }}
           </button>
         </div>
-        <div class="mt-2 grid grid-cols-3 gap-3" data-tour="account-form-type">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3" data-tour="account-form-type">
           <button
             type="button"
             @click="accountCategory = 'oauth-based'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'oauth-based'
                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                 : 'border-gray-200 hover:border-blue-300 dark:border-dark-600 dark:hover:border-blue-700'
@@ -440,7 +443,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'oauth-based'
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -448,11 +451,11 @@
             >
               <Icon name="key" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">
                 {{ t('admin.accounts.gemini.accountType.oauthTitle') }}
               </span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">
                 {{ t('admin.accounts.gemini.accountType.oauthDesc') }}
               </span>
             </div>
@@ -462,7 +465,7 @@
             type="button"
             @click="accountCategory = 'apikey'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'apikey'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                 : 'border-gray-200 hover:border-purple-300 dark:border-dark-600 dark:hover:border-purple-700'
@@ -470,7 +473,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'apikey'
                   ? 'bg-purple-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -490,11 +493,11 @@
                 />
               </svg>
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">
                 {{ t('admin.accounts.gemini.accountType.apiKeyTitle') }}
               </span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">
                 {{ t('admin.accounts.gemini.accountType.apiKeyDesc') }}
               </span>
             </div>
@@ -504,7 +507,7 @@
             type="button"
             @click="accountCategory = 'service_account'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               accountCategory === 'service_account'
                 ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20'
                 : 'border-gray-200 hover:border-sky-300 dark:border-dark-600 dark:hover:border-sky-700'
@@ -512,7 +515,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 accountCategory === 'service_account'
                   ? 'bg-sky-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -520,11 +523,11 @@
             >
               <Icon name="cloud" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">
                 Vertex
               </span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">
                 Service Account
               </span>
             </div>
@@ -564,7 +567,7 @@
               type="button"
               @click="handleSelectGeminiOAuthType('google_one')"
               :class="[
-                'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+                'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
                 geminiOAuthType === 'google_one'
                   ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                   : 'border-gray-200 hover:border-purple-300 dark:border-dark-600 dark:hover:border-purple-700'
@@ -572,7 +575,7 @@
             >
               <div
                 :class="[
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                   geminiOAuthType === 'google_one'
                     ? 'bg-purple-500 text-white'
                     : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -581,10 +584,10 @@
                 <Icon name="user" size="sm" />
               </div>
               <div class="min-w-0">
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">
                   Google One
                 </span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
+                <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">
                   个人账号，享受 Google One 订阅配额
                 </span>
                 <div class="mt-2 flex flex-wrap gap-1">
@@ -607,7 +610,7 @@
               type="button"
               @click="handleSelectGeminiOAuthType('code_assist')"
               :class="[
-                'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+                'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
                 geminiOAuthType === 'code_assist'
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                   : 'border-gray-200 hover:border-blue-300 dark:border-dark-600 dark:hover:border-blue-700'
@@ -615,7 +618,7 @@
             >
               <div
                 :class="[
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                   geminiOAuthType === 'code_assist'
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -624,10 +627,10 @@
                 <Icon name="cloud" size="sm" />
               </div>
               <div class="min-w-0">
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">
                   GCP Code Assist
                 </span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
+                <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">
                   企业级，需要 GCP 项目
                 </span>
                 <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -693,7 +696,7 @@
             >
               <div
                 :class="[
-                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                   geminiOAuthType === 'ai_studio'
                     ? 'bg-amber-500 text-white'
                     : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -714,10 +717,10 @@
                 </svg>
               </div>
               <div class="min-w-0">
-                <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">
                   {{ t('admin.accounts.gemini.oauthType.customTitle') }}
                 </span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">
+                <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">
                   {{ t('admin.accounts.gemini.oauthType.customDesc') }}
                 </span>
                 <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -792,12 +795,12 @@
       <!-- Account Type Selection (Antigravity - OAuth or Upstream) -->
       <div v-if="form.platform === 'antigravity'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
-        <div class="mt-2 grid grid-cols-2 gap-3">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button
             type="button"
             @click="antigravityAccountType = 'oauth'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               antigravityAccountType === 'oauth'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                 : 'border-gray-200 hover:border-purple-300 dark:border-dark-600 dark:hover:border-purple-700'
@@ -805,7 +808,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 antigravityAccountType === 'oauth'
                   ? 'bg-purple-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -813,9 +816,9 @@
             >
               <Icon name="key" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">OAuth</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.antigravityOauth') }}</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">OAuth</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{ t('admin.accounts.types.antigravityOauth') }}</span>
             </div>
           </button>
 
@@ -823,7 +826,7 @@
             type="button"
             @click="antigravityAccountType = 'upstream'"
             :class="[
-              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              'flex w-full min-w-0 items-start gap-3 rounded-lg border-2 p-3 text-left transition-all',
               antigravityAccountType === 'upstream'
                 ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                 : 'border-gray-200 hover:border-purple-300 dark:border-dark-600 dark:hover:border-purple-700'
@@ -831,7 +834,7 @@
           >
             <div
               :class="[
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
                 antigravityAccountType === 'upstream'
                   ? 'bg-purple-500 text-white'
                   : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
@@ -839,9 +842,9 @@
             >
               <Icon name="cloud" size="sm" />
             </div>
-            <div>
-              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.types.antigravityApikey') }}</span>
+            <div class="min-w-0 flex-1">
+              <span class="block min-w-0 text-sm font-semibold leading-snug text-gray-900 break-words dark:text-white">API Key</span>
+              <span class="mt-0.5 block min-w-0 text-xs leading-snug text-gray-500 break-words dark:text-gray-400">{{ t('admin.accounts.types.antigravityApikey') }}</span>
             </div>
           </button>
         </div>

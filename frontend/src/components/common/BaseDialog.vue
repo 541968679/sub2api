@@ -90,8 +90,9 @@ const widthClasses = computed(() => {
     narrow: 'max-w-md',
     normal: 'max-w-lg',
     wide: 'w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl',
-    'extra-wide': 'w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl',
-    full: 'w-full sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl'
+    // Create/edit account multi-zone forms need real desktop width.
+    'extra-wide': 'w-[min(96vw,80rem)] max-w-none',
+    full: 'w-[min(98vw,96rem)] max-w-none'
   }
   return widths[props.width]
 })
