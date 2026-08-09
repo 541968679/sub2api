@@ -102,8 +102,8 @@ describe('BulkEditAccountModal', () => {
     expect(wrapper.find('[data-testid="bulk-edit-zone-config"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="bulk-edit-zone-groups"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="bulk-edit-zone-other"]').exists()).toBe(true)
-    // other zone collapsed by default (v-show=false still in DOM)
-    expect(wrapper.find('[data-testid="bulk-edit-zone-other-body"]').isVisible()).toBe(false)
+    // other zone expanded by default so advanced options are immediately visible
+    expect(wrapper.find('[data-testid="bulk-edit-zone-other-body"]').isVisible()).toBe(true)
   })
 
   it('可批量写入 fallback_only 与 model_mapping_strict_scheduling', async () => {
