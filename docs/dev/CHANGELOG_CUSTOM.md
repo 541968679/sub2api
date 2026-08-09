@@ -1,3 +1,19 @@
+## 2026-08-09 - fix(admin): create-account type cards readable + wider dialog
+
+### What
+- Create Account dialog uses `full` width (~96vw / 96rem) so multi-zone form is no longer squeezed.
+- BaseDialog `extra-wide` / `full` max widths raised for multi-column account editors.
+- Platform picker and **账号类型** cards: 1–2 column responsive grid, `min-w-0` + `break-words`, larger touch targets — stops garbled/wrapping text in the left zone.
+
+### Why
+After 3-zone layout, account-type chips were forced into a narrow column (`sm:grid-cols-4`), so Chinese labels wrapped into unreadable fragments.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/CreateAccountModal.spec.ts`
+
+### Affected files
+`BaseDialog.vue`, `CreateAccountModal.vue`, this changelog.
+
 ## 2026-08-08 - fix(admin): surface move-to-top next to account checkbox
 
 ### What
