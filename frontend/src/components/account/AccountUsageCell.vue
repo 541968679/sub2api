@@ -1782,7 +1782,14 @@ function applyDisplayBalanceToUsage(
   },
   updated?: Account | null
 ): AccountUsageInfo {
-  const next: AccountUsageInfo = { ...(prev || {}) }
+  // Provide required fields when usage payload is not hydrated yet (vue-tsc strict).
+  const next: AccountUsageInfo = {
+    updated_at: null,
+    five_hour: null,
+    seven_day: null,
+    seven_day_sonnet: null,
+    ...(prev || {})
+  }
   const extra = (updated?.extra || {}) as Record<string, unknown>
 
   if (payload.clear_used) {
