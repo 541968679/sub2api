@@ -236,7 +236,7 @@ describe('CreateAccountModal', () => {
     expect(wrapper.find('[data-testid="create-account-zone-config"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-account-zone-groups"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="create-account-zone-other"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="create-account-zone-other-body"]').isVisible()).toBe(false)
+    expect(wrapper.find('[data-testid="create-account-zone-other-body"]').isVisible()).toBe(true)
   })
 
   it('can force a new OpenAI API key account to use the native Responses endpoint', async () => {

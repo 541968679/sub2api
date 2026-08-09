@@ -2791,8 +2791,7 @@ interface TempUnschedRuleForm {
 const submitting = ref(false)
 /** Zone 2 (groups): open by default; collapsible on mobile only */
 const zone2Expanded = ref(true)
-/** Zone 3 (other features): collapsed by default on all breakpoints */
-/** Zone 3 (other features): expanded by default so model restriction is visible */
+/** Zone 3 (other features): expanded by default (create / edit / bulk aligned) */
 const zone3Expanded = ref(true)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')

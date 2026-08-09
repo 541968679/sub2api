@@ -3824,7 +3824,7 @@ interface TempUnschedRuleForm {
 // State
 const step = ref(1)
 const zone2Expanded = ref(true)
-const zone3Expanded = ref(false)
+const zone3Expanded = ref(true)
 const submitting = ref(false)
 const accountCategory = ref<'oauth-based' | 'apikey' | 'bedrock' | 'service_account'>('oauth-based') // UI selection for account category
 const addMethod = ref<AddMethod>('oauth') // For oauth-based: 'oauth' or 'setup-token'

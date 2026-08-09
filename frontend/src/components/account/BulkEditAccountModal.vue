@@ -1735,7 +1735,7 @@ const enableRpmLimit = ref(false)
 
 // State - field values
 const zone2Expanded = ref(true)
-const zone3Expanded = ref(false)
+const zone3Expanded = ref(true)
 const submitting = ref(false)
 const showMixedChannelWarning = ref(false)
 const mixedChannelWarningMessage = ref('')
@@ -2476,7 +2476,7 @@ watch(
       enableModelMappingStrictScheduling.value = false
       enableGroups.value = false
       zone2Expanded.value = true
-      zone3Expanded.value = false
+      zone3Expanded.value = true
       enableOpenAIPassthrough.value = false
       enableOpenAIClaudeGPTBridge.value = false
       enableOpenAIImagesEndpoint.value = false
