@@ -493,6 +493,34 @@ var criticalSignatures = []criticalSignature{
 		},
 	},
 	{
+		Name: "codex image rendering fallback",
+		Path: "backend/internal/service/codex_image_generation_bridge.go",
+		Contains: []string{
+			"openAICodexImageGenerationBridgeResponseEnabledKey",
+			"setOpenAICodexImageGenerationBridgeResponseEnabled",
+			"isOpenAICodexImageGenerationBridgeResponseEnabled",
+		},
+	},
+	{
+		Name: "codex image rendering fallback",
+		Path: "backend/internal/service/openai_gateway_service.go",
+		Contains: []string{
+			"appendCodexImageAssistantMessages",
+			"collectCodexImageBridgeOutputsFromSSE",
+			"buildResponsesOutputItemDoneEvent",
+			"inferImageMIMEFromBase64",
+		},
+	},
+	{
+		Name: "codex image rendering fallback",
+		Path: "backend/internal/service/openai_gateway_service_test.go",
+		Contains: []string{
+			"TestOpenAINonStreamingCodexImageBridgeAppendsRenderableAssistantMessage",
+			"TestOpenAIStreamingCodexImageBridgeEmitsRenderableMessageBeforeTerminalEvent",
+			"TestHandleSSEToJSON_CodexImageBridgeMergesImageWithExistingTerminalOutput",
+		},
+	},
+	{
 		Name: "usage long context schema",
 		Path: "backend/ent/schema/usage_log.go",
 		Contains: []string{
