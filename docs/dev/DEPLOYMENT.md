@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-09 | `v0.1.204` | `841b80ad7` | `ghcr.io/541968679/sub2api:0.1.204` (override pin) | `0.1.204` | running, healthy, internal `/health` OK; display-balance save fix, create/edit/bulk 3-zone layout, list pin on create, move-to-top beside checkbox, wider dialogs; **still skips banned v0.1.199** |
+| 2026-08-10 | `v0.1.205` | `0bf08d3f4` | `ghcr.io/541968679/sub2api:0.1.205` (override pin) | `0.1.205` | running, healthy, internal `/health` OK; page-local account drag reorder + Codex image generation rendering + upstream-sync-guard protection; **still skips banned v0.1.199** |
+| 2026-08-09 | `v0.1.204` | `841b80ad7` | `ghcr.io/541968679/sub2api:0.1.204` (override pin) | `0.1.204` | superseded by `v0.1.205`; display-balance save fix, create/edit/bulk 3-zone layout, list pin on create, move-to-top beside checkbox, wider dialogs; **still skips banned v0.1.199** |
 | 2026-08-08 | `v0.1.203` | `4cc392a43` | `ghcr.io/541968679/sub2api:0.1.203` (override pin) | `0.1.203` | superseded by `v0.1.204`; display-only balance used/total + auto refresh; **still skips banned v0.1.199** |
 | 2026-08-07 | `v0.1.202` | `c79442f0c` | `ghcr.io/541968679/sub2api:0.1.202` (override pin) | `0.1.202` | superseded by `v0.1.203`; per-account `model_mapping_strict_scheduling` + admin usage error deep-link UX; **still skips banned v0.1.199** |
 | 2026-08-07 | `v0.1.201` | `c733bea81` | `ghcr.io/541968679/sub2api:0.1.201` (override pin) | `0.1.201` | superseded by `v0.1.202`; clear-concurrency menu + stream debug logs on 200 baseline; **still skips banned v0.1.199** sticky-escape scheduling changes |

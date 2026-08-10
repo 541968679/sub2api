@@ -1,3 +1,16 @@
+## 2026-08-10 - deploy: production v0.1.205
+
+### What
+- Released and deployed `v0.1.205` (`0bf08d3f4`) to production as `ghcr.io/541968679/sub2api:0.1.205`.
+- Includes page-local account drag reorder, Codex image generation rendering fallback, and upstream-sync-guard critical signatures.
+
+### Verification
+- GitHub Actions Release `31361301241` success
+- Production health OK; image pin `0.1.205`; container healthy
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-09 - feat(admin): page-local drag reorder for accounts
 
 ### What
@@ -7982,6 +7995,17 @@ route, setting, push, or deployment change.
 - Streaming emits the synthetic `response.output_item.done` message before the successful terminal event, uses valid SSE blank-line framing, and includes the same item in terminal `response.output`.
 - SSE-to-JSON conversion merges image items into an already non-empty terminal output before creating the fallback message. Existing data URIs are deduplicated; failed, empty, unknown-format, and generic Responses outputs remain unchanged.
 - Focused Codex image bridge and existing image-status regression tests pass. The full `internal/service` unit package remains blocked by pre-existing AuthService SQLite fixtures missing `users.display_cache_token_max_mult`; the failure is outside the affected OpenAI gateway files.
+
+## [2026-08-10] chore: Protect Codex image rendering fallback during upstream sync
+
+**Affected files**: `backend/tools/upstream-sync-guard/{main.go,main_test.go}`, `docs/dev/UPSTREAM_SYNC.md`, `docs/dev/codebase/gateway.md`, and `docs/dev/CHANGELOG_CUSTOM.md`.
+
+**Compatibility**: Guard and documentation only. No image response implementation, route, setting, schema, migration, billing, scheduler, native Images, WebSocket, push, or deployment change.
+
+**Details**:
+- Recorded the real Codex Desktop failure mode, local RED/GREEN commits (`c95b45a97`, `2167a9e65`), and the user's successful 2026-08-10 client verification as an authoritative fork-local contract.
+- Defined an explicit upstream replacement gate covering visible client rendering, streaming, non-streaming, SSE-to-JSON, existing-text merge, deduplication, supported image formats, and failure/unknown-format boundaries.
+- Added the guard regression in `21e50fa7b` and the matching critical-signature catalog in `0bf08d3f4`, protecting the image-bridge response context, assistant-message synthesis and MIME helpers, and representative tests from silent removal during future syncs.
 
 
 
