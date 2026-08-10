@@ -559,6 +559,14 @@ func (s *DashboardService) GetBatchUserUsageStats(ctx context.Context, userIDs [
 	return stats, nil
 }
 
+func (s *DashboardService) GetBatchUserBurnRateStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error) {
+	stats, err := s.usageRepo.GetBatchUserBurnRateStats(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("get batch user burn rate stats: %w", err)
+	}
+	return stats, nil
+}
+
 func (s *DashboardService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
 	stats, err := s.usageRepo.GetBatchAPIKeyUsageStats(ctx, apiKeyIDs, startTime, endTime)
 	if err != nil {

@@ -362,11 +362,30 @@ type DisplayAggregateGroup struct {
 	DurationSum int64
 }
 
+// UserBurnRateWindow is the trailing window used for admin user balance burn-rate.
+const UserBurnRateWindow = 5 * time.Minute
+
+// UserBurnRatePerHour converts a trailing-window actual_cost sum into USD/hour.
+// Default window is 5 minutes → multiplier 12.
+func UserBurnRatePerHour(recentWindowActualCost float64) float64 {
+	return recentWindowActualCost * (time.Hour.Seconds() / UserBurnRateWindow.Seconds())
+}
+
 // BatchUserUsageStats represents usage stats for a single user
 type BatchUserUsageStats struct {
 	UserID          int64   `json:"user_id"`
 	TodayActualCost float64 `json:"today_actual_cost"`
 	TotalActualCost float64 `json:"total_actual_cost"`
+}
+
+// BatchUserBurnRateStats is a lightweight trailing-window burn rate for admin user list.
+// Computed only from recent usage_logs rows (not the 30d usage batch).
+type BatchUserBurnRateStats struct {
+	UserID             int64   `json:"user_id"`
+	Recent5mActualCost float64 `json:"recent_5m_actual_cost"`
+	BurnRatePerHour    float64 `json:"burn_rate_per_hour"`
+	// WindowSeconds documents the aggregation window (always 300 for current product).
+	WindowSeconds int `json:"window_seconds"`
 }
 
 // BatchAPIKeyUsageStats represents usage stats for a single API key

@@ -2234,6 +2234,8 @@ const enBase = {
         groups: 'Groups',
         subscriptions: 'Subscriptions',
         balance: 'Balance',
+        burnRate: 'Burn rate',
+        burnRateWithUnit: 'Burn rate ({unit})',
         usage: 'Usage',
         concurrency: 'Concurrency',
         status: 'Status',
@@ -2242,6 +2244,17 @@ const enBase = {
         created: 'Created',
         actions: 'Actions'
       },
+      burnRateOff: 'Burn rate',
+      burnRateOn: 'Burn rate · On',
+      burnRateToggleTip:
+        'Off by default. When enabled, burn rate is computed from last 5 minutes of actual_cost (2 decimals like balance) and refreshed about every 15s. Switch between $/h and $/min. Disabled: no request and no column.',
+      burnRateCellTip:
+        'From last 5 minutes actual_cost: $/h = sum×12, $/min = sum÷5. Display precision matches balance (2 decimals); updates ~every 15s',
+      burnRateUnitLabel: 'Burn rate unit',
+      burnRateUnitHour: '$/h',
+      burnRateUnitMinute: '$/min',
+      burnRateUnitHourTip: 'Show burn rate per hour',
+      burnRateUnitMinuteTip: 'Show burn rate per minute',
       today: 'Today',
       total: 'Last 30d',
       noSubscription: 'No subscription',

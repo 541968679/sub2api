@@ -3299,6 +3299,61 @@ func (r *usageLogRepository) GetBatchUserUsageStats(ctx context.Context, userIDs
 	return result, nil
 }
 
+// GetBatchUserBurnRateStats sums actual_cost over the trailing 5 minutes only.
+// Intended for frequent admin polling; does not scan the 30d usage batch window.
+func (r *usageLogRepository) GetBatchUserBurnRateStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error) {
+	result := make(map[int64]*usagestats.BatchUserBurnRateStats)
+	normalizedUserIDs := normalizePositiveInt64IDs(userIDs)
+	windowSeconds := int(usagestats.UserBurnRateWindow.Seconds())
+	if len(normalizedUserIDs) == 0 {
+		return result, nil
+	}
+
+	now := time.Now()
+	windowStart := now.Add(-usagestats.UserBurnRateWindow)
+
+	for _, id := range normalizedUserIDs {
+		result[id] = &usagestats.BatchUserBurnRateStats{
+			UserID:        id,
+			WindowSeconds: windowSeconds,
+		}
+	}
+
+	query := `
+		SELECT
+			user_id,
+			COALESCE(SUM(actual_cost), 0) as recent_cost
+		FROM usage_logs
+		WHERE user_id = ANY($1)
+		  AND created_at >= $2
+		GROUP BY user_id
+	`
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(normalizedUserIDs), windowStart)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var userID int64
+		var recent float64
+		if err := rows.Scan(&userID, &recent); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		if stats, ok := result[userID]; ok {
+			stats.Recent5mActualCost = recent
+			stats.BurnRatePerHour = usagestats.UserBurnRatePerHour(recent)
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats = usagestats.BatchAPIKeyUsageStats
 
