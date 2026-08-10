@@ -264,7 +264,7 @@ func TestOpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto(t *test
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_img","output":[{"id":"ig_1","type":"image_generation_call","status":"completed","result":"aGVsbG8=","output_format":"png"}],"usage":{"input_tokens":1,"output_tokens":2}}`)),
 		},
 	}
 	cfg := &config.Config{}
@@ -298,6 +298,9 @@ func TestOpenAIGatewayService_Forward_CodexImageBridgeSetsToolChoiceAuto(t *test
 	require.Equal(t, "image_generation", gjson.GetBytes(upstream.lastBody, "tools.0.type").String())
 	require.Equal(t, "auto", gjson.GetBytes(upstream.lastBody, "tool_choice").String())
 	require.Contains(t, gjson.GetBytes(upstream.lastBody, "instructions").String(), codexImageGenerationBridgeMarker)
+	require.True(t, isOpenAICodexImageGenerationBridgeResponseEnabled(c))
+	require.Equal(t, "message", gjson.Get(rec.Body.String(), "output.1.type").String())
+	require.Equal(t, "![Generated image](data:image/png;base64,aGVsbG8=)", gjson.Get(rec.Body.String(), "output.1.content.0.text").String())
 }
 
 func TestOpenAIGatewayService_Forward_CodexImageBridgePreservesClientNamespace(t *testing.T) {
