@@ -118,3 +118,101 @@ func TestCreateAccount_PinsNewAccountToListTop(t *testing.T) {
 	require.True(t, ok)
 	require.GreaterOrEqual(t, order, before)
 }
+
+type reorderAccountRepo struct {
+	mockAccountRepoForGemini
+	byID    map[int64]*Account
+	updates map[int64]map[string]any
+}
+
+func (r *reorderAccountRepo) GetByIDs(_ context.Context, ids []int64) ([]*Account, error) {
+	out := make([]*Account, 0, len(ids))
+	for _, id := range ids {
+		acc, ok := r.byID[id]
+		if !ok {
+			continue
+		}
+		cp := *acc
+		if acc.Extra != nil {
+			cp.Extra = make(map[string]any, len(acc.Extra))
+			for k, v := range acc.Extra {
+				cp.Extra[k] = v
+			}
+		}
+		out = append(out, &cp)
+	}
+	return out, nil
+}
+
+func (r *reorderAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {
+	acc, ok := r.byID[id]
+	if !ok {
+		return ErrAccountNotFound
+	}
+	if r.updates == nil {
+		r.updates = map[int64]map[string]any{}
+	}
+	r.updates[id] = updates
+	if acc.Extra == nil {
+		acc.Extra = map[string]any{}
+	}
+	for k, v := range updates {
+		acc.Extra[k] = v
+	}
+	return nil
+}
+
+func TestReorderAccounts_PreservesRankMultiset(t *testing.T) {
+	t.Parallel()
+	repo := &reorderAccountRepo{
+		byID: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{AccountListOrderExtraKey: int64(100)}},
+			2: {ID: 2, Extra: map[string]any{AccountListOrderExtraKey: int64(90)}},
+			3: {ID: 3, Extra: map[string]any{AccountListOrderExtraKey: int64(80)}},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	// New top-to-bottom: 2, 1, 3 → slots [100, 90, 80]
+	err := svc.ReorderAccounts(context.Background(), []int64{2, 1, 3})
+	require.NoError(t, err)
+	require.Equal(t, int64(100), repo.updates[2][AccountListOrderExtraKey])
+	require.Equal(t, int64(90), repo.updates[1][AccountListOrderExtraKey])
+	require.Equal(t, int64(80), repo.updates[3][AccountListOrderExtraKey])
+}
+
+func TestReorderAccounts_AllZeroUsesTimestampBase(t *testing.T) {
+	t.Parallel()
+	repo := &reorderAccountRepo{
+		byID: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{}},
+			2: {ID: 2, Extra: map[string]any{}},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+
+	before := time.Now().UnixMilli()
+	err := svc.ReorderAccounts(context.Background(), []int64{2, 1})
+	require.NoError(t, err)
+	top, ok := repo.updates[2][AccountListOrderExtraKey].(int64)
+	require.True(t, ok)
+	second, ok := repo.updates[1][AccountListOrderExtraKey].(int64)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, top, before)
+	require.Equal(t, top-1, second)
+}
+
+func TestComputeAccountListOrderSlots(t *testing.T) {
+	t.Parallel()
+	// Keep unique positive multiset.
+	got := computeAccountListOrderSlots([]int64{100, 90, 80}, 999)
+	require.Equal(t, []int64{100, 90, 80}, got)
+
+	// Respread when zeros present under a positive max.
+	got = computeAccountListOrderSlots([]int64{100, 0, 0}, 999)
+	require.Equal(t, []int64{100, 99, 98}, got)
+
+	// All zero → base down.
+	got = computeAccountListOrderSlots([]int64{0, 0}, 5000)
+	require.Equal(t, []int64{5000, 4999}, got)
+}

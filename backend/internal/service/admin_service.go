@@ -130,6 +130,9 @@ type AdminService interface {
 	ResetAccountQuota(ctx context.Context, id int64) error
 	// MoveAccountToTop pins an account to the top of the admin list via extra.list_order.
 	MoveAccountToTop(ctx context.Context, id int64) (*Account, error)
+	// ReorderAccounts applies page-local admin list order via extra.list_order.
+	// ids is top-to-bottom display order for the current page (length >= 2).
+	ReorderAccounts(ctx context.Context, ids []int64) error
 	BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error)
 }
 
@@ -4206,6 +4209,9 @@ func (s *adminServiceImpl) ResetAccountQuota(ctx context.Context, id int64) erro
 // Higher values appear first; move-to-top writes Unix milliseconds.
 const AccountListOrderExtraKey = "list_order"
 
+// maxAccountReorderIDs caps a single page-local reorder payload.
+const maxAccountReorderIDs = 500
+
 // MoveAccountToTop sets extra.list_order so the account floats to the top of
 // the admin accounts list (all sorts prepend list_order DESC).
 func (s *adminServiceImpl) MoveAccountToTop(ctx context.Context, id int64) (*Account, error) {
@@ -4226,6 +4232,138 @@ func (s *adminServiceImpl) MoveAccountToTop(ctx context.Context, id int64) (*Acc
 	account.Extra[AccountListOrderExtraKey] = order
 	// Reload for consistent DTO (updated_at etc.).
 	return s.accountRepo.GetByID(ctx, id)
+}
+
+// ReorderAccounts rewrites extra.list_order for the given account IDs so the
+// admin list matches ids top-to-bottom. Rank slots are derived from the current
+// multiset of list_order values on that page (preserving position vs off-page
+// pins when possible). Unpinned / duplicate ranks are re-spread from max down.
+func (s *adminServiceImpl) ReorderAccounts(ctx context.Context, ids []int64) error {
+	if len(ids) < 2 {
+		return infraerrors.BadRequest("INVALID_REORDER", "at least 2 account ids are required")
+	}
+	if len(ids) > maxAccountReorderIDs {
+		return infraerrors.BadRequest("INVALID_REORDER", fmt.Sprintf("at most %d account ids allowed", maxAccountReorderIDs))
+	}
+
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return infraerrors.BadRequest("INVALID_REORDER", "account ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			return infraerrors.BadRequest("INVALID_REORDER", "duplicate account ids are not allowed")
+		}
+		seen[id] = struct{}{}
+	}
+
+	accounts, err := s.accountRepo.GetByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	if len(accounts) != len(ids) {
+		return ErrAccountNotFound
+	}
+
+	byID := make(map[int64]*Account, len(accounts))
+	for _, acc := range accounts {
+		if acc == nil {
+			return ErrAccountNotFound
+		}
+		byID[acc.ID] = acc
+	}
+	for _, id := range ids {
+		if _, ok := byID[id]; !ok {
+			return ErrAccountNotFound
+		}
+	}
+
+	slots := make([]int64, len(ids))
+	for i, id := range ids {
+		slots[i] = accountListOrderFromExtra(byID[id].Extra)
+	}
+	slots = computeAccountListOrderSlots(slots, time.Now().UnixMilli())
+
+	for i, id := range ids {
+		if err := s.accountRepo.UpdateExtra(ctx, id, map[string]any{
+			AccountListOrderExtraKey: slots[i],
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// computeAccountListOrderSlots maps current rank values to a strictly decreasing
+// top-to-bottom sequence for page-local reorder. baseNowMs is used when the page
+// has no positive pins yet (all zeros).
+func computeAccountListOrderSlots(current []int64, baseNowMs int64) []int64 {
+	n := len(current)
+	if n == 0 {
+		return nil
+	}
+	slots := make([]int64, n)
+	copy(slots, current)
+	sort.Slice(slots, func(i, j int) bool { return slots[i] > slots[j] })
+
+	needRespread := slots[0] <= 0
+	if !needRespread {
+		for i := 1; i < n; i++ {
+			if slots[i] <= 0 || slots[i] >= slots[i-1] {
+				needRespread = true
+				break
+			}
+		}
+	}
+	if needRespread {
+		max := slots[0]
+		if max <= 0 {
+			max = baseNowMs
+			if max <= 0 {
+				max = 1
+			}
+		}
+		for i := 0; i < n; i++ {
+			slots[i] = max - int64(i)
+		}
+	}
+	return slots
+}
+
+func accountListOrderFromExtra(extra map[string]any) int64 {
+	if extra == nil {
+		return 0
+	}
+	raw, ok := extra[AccountListOrderExtraKey]
+	if !ok || raw == nil {
+		return 0
+	}
+	switch v := raw.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case float32:
+		return int64(v)
+	case json.Number:
+		parsed, err := v.Int64()
+		if err != nil {
+			return 0
+		}
+		return parsed
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
 }
 
 // EnsureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，

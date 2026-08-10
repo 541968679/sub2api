@@ -1,3 +1,20 @@
+## 2026-08-09 - feat(admin): page-local drag reorder for accounts
+
+### What
+- Admin account list: drag handle on the select cell (left of checkbox) reorders **current page** rows.
+- Backend `PUT /api/v1/admin/accounts/reorder` rewrites `extra.list_order` from the submitted top-to-bottom id list (rank multiset preserved when possible).
+- Keep existing **移到顶部** button; `list_order` marked scheduler-neutral so pin/reorder does not rebuild scheduler buckets.
+
+### Why
+Repeated “move to top” is clumsy for arbitrary mid-list swaps; page-local drag is the minimal useful reorder without full-list UX complexity.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestMoveAccountToTop|TestReorderAccounts|TestComputeAccountListOrderSlots|TestCreateAccount_PinsNewAccountToListTop" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/accountListOrder.spec.ts`
+
+### Affected files
+`admin_service.go`, `account_handler.go`, `admin.go` routes, `account_repo.go`, `accounts.ts`, `AccountsView.vue`, `accountListOrder.ts`, i18n zh/en, this changelog.
+
 ## 2026-08-09 - fix(admin): create-account type cards readable + wider dialog
 
 ### What

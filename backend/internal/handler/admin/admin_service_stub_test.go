@@ -704,6 +704,10 @@ func (s *stubAdminService) MoveAccountToTop(ctx context.Context, id int64) (*ser
 	return &service.Account{ID: id}, nil
 }
 
+func (s *stubAdminService) ReorderAccounts(ctx context.Context, ids []int64) error {
+	return nil
+}
+
 func (s *stubAdminService) BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*service.BatchAutoAssignProxyResult, error) {
 	return &service.BatchAutoAssignProxyResult{}, nil
 }

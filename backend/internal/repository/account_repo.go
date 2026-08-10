@@ -63,6 +63,8 @@ var schedulerNeutralExtraKeys = map[string]struct{}{
 	"codex_usage_updated_at":     {},
 	"grok_billing_snapshot":      {},
 	"session_window_utilization": {},
+	// Admin list pin rank only; does not affect gateway scheduling.
+	"list_order": {},
 }
 
 // NewAccountRepository 创建账户仓储实例。
