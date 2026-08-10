@@ -75,6 +75,46 @@ func TestBridgeCountTokensSignaturesBecomeMandatoryAfterFeatureCommit(t *testing
 	}
 }
 
+func TestCodexImageRenderingFallbackSignaturesAreProtected(t *testing.T) {
+	want := map[string][]string{
+		"backend/internal/service/codex_image_generation_bridge.go": {
+			"openAICodexImageGenerationBridgeResponseEnabledKey",
+			"setOpenAICodexImageGenerationBridgeResponseEnabled",
+			"isOpenAICodexImageGenerationBridgeResponseEnabled",
+		},
+		"backend/internal/service/openai_gateway_service.go": {
+			"appendCodexImageAssistantMessages",
+			"collectCodexImageBridgeOutputsFromSSE",
+			"buildResponsesOutputItemDoneEvent",
+			"inferImageMIMEFromBase64",
+		},
+		"backend/internal/service/openai_gateway_service_test.go": {
+			"TestOpenAINonStreamingCodexImageBridgeAppendsRenderableAssistantMessage",
+			"TestOpenAIStreamingCodexImageBridgeEmitsRenderableMessageBeforeTerminalEvent",
+			"TestHandleSSEToJSON_CodexImageBridgeMergesImageWithExistingTerminalOutput",
+		},
+	}
+
+	for path, needles := range want {
+		var matched *criticalSignature
+		for i := range criticalSignatures {
+			if criticalSignatures[i].Path == path && criticalSignatures[i].Name == "codex image rendering fallback" {
+				matched = &criticalSignatures[i]
+				break
+			}
+		}
+		if matched == nil {
+			t.Errorf("missing Codex image rendering fallback signature catalog entry: %s", path)
+			continue
+		}
+		for _, needle := range needles {
+			if !containsString(matched.Contains, needle) {
+				t.Errorf("Codex image rendering fallback signature %s missing %q", path, needle)
+			}
+		}
+	}
+}
+
 func containsString(values []string, needle string) bool {
 	for _, value := range values {
 		if value == needle {
