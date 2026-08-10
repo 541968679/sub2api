@@ -171,6 +171,57 @@
                   </div>
                 </div>
               </div>
+              <!-- Burn rate calculation toggle (default off; 5m window, 15s poll) + unit switch -->
+              <div class="flex items-center gap-1">
+                <button
+                  @click="setBurnRateEnabled(!burnRateEnabled)"
+                  class="btn btn-secondary px-2 md:px-3"
+                  :class="burnRateEnabled ? 'ring-1 ring-primary-400 text-primary-700 dark:text-primary-300' : ''"
+                  :title="t('admin.users.burnRateToggleTip')"
+                >
+                  <Icon name="chart" size="sm" :class="burnRateEnabled ? 'text-primary-500' : ''" />
+                  <span class="hidden md:inline">
+                    {{
+                      burnRateEnabled
+                        ? t('admin.users.burnRateOn')
+                        : t('admin.users.burnRateOff')
+                    }}
+                  </span>
+                </button>
+                <div
+                  v-if="burnRateEnabled"
+                  class="inline-flex overflow-hidden rounded-md border border-gray-200 dark:border-gray-600"
+                  role="group"
+                  :aria-label="t('admin.users.burnRateUnitLabel')"
+                >
+                  <button
+                    type="button"
+                    class="px-2 py-1.5 text-xs font-medium transition-colors"
+                    :class="
+                      burnRateUnit === 'hour'
+                        ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                    "
+                    :title="t('admin.users.burnRateUnitHourTip')"
+                    @click="setBurnRateUnit('hour')"
+                  >
+                    {{ t('admin.users.burnRateUnitHour') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="border-l border-gray-200 px-2 py-1.5 text-xs font-medium transition-colors dark:border-gray-600"
+                    :class="
+                      burnRateUnit === 'minute'
+                        ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                    "
+                    :title="t('admin.users.burnRateUnitMinuteTip')"
+                    @click="setBurnRateUnit('minute')"
+                  >
+                    {{ t('admin.users.burnRateUnitMinute') }}
+                  </button>
+                </div>
+              </div>
               <!-- Filter Settings Dropdown -->
               <div class="relative" ref="filterDropdownRef">
                 <button
@@ -467,6 +518,25 @@
             </div>
           </template>
 
+          <template #cell-burn_rate="{ row }">
+            <div class="group relative">
+              <span
+                class="font-mono text-sm tabular-nums"
+                :class="
+                  formatBurnRateAmount(row.id) > 0
+                    ? 'font-medium text-amber-700 dark:text-amber-300'
+                    : 'text-gray-500 dark:text-dark-400'
+                "
+              >
+                {{ formatBurnRateDisplay(row.id) }}
+              </span>
+              <div class="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
+                {{ t('admin.users.burnRateCellTip') }}
+                <div class="absolute left-3 top-full border-4 border-transparent border-t-gray-900 dark:border-t-dark-600"></div>
+              </div>
+            </div>
+          </template>
+
           <template #cell-usage="{ row }">
             <div class="text-sm">
               <div class="flex items-center gap-1.5">
@@ -724,7 +794,7 @@ const { t } = useI18n()
 const router = useRouter()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
-import type { BatchUserUsageStats } from '@/api/admin/dashboard'
+import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -857,6 +927,18 @@ const allColumns = computed<Column[]>(() => [
   { key: 'groups', label: t('admin.users.columns.groups'), sortable: false },
   { key: 'subscriptions', label: t('admin.users.columns.subscriptions'), sortable: false },
   { key: 'balance', label: t('admin.users.columns.balance'), sortable: true },
+  // Only listed when calculation toggle is on (see columns computed filter).
+  ...(burnRateEnabled.value
+    ? [
+        {
+          key: 'burn_rate',
+          label: t('admin.users.columns.burnRateWithUnit', {
+            unit: burnRateUnitSuffix.value
+          }),
+          sortable: false
+        } as Column
+      ]
+    : []),
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
   { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
   { key: 'status', label: t('admin.users.columns.status'), sortable: true },
@@ -866,9 +948,11 @@ const allColumns = computed<Column[]>(() => [
   { key: 'actions', label: t('admin.users.columns.actions'), sortable: false }
 ])
 
-// Columns that can be toggled (exclude email and actions which are always visible)
+// Columns that can be toggled (exclude email/actions; burn_rate is gated by calculation switch only)
 const toggleableColumns = computed(() =>
-  allColumns.value.filter(col => col.key !== 'email' && col.key !== 'actions')
+  allColumns.value.filter(
+    col => col.key !== 'email' && col.key !== 'actions' && col.key !== 'burn_rate'
+  )
 )
 
 // Hidden columns (stored in Set - columns NOT in this set are visible)
@@ -1111,6 +1195,100 @@ const setAutoRefreshInterval = (seconds: (typeof autoRefreshIntervals)[number]) 
   }
 }
 
+// Balance burn-rate: opt-in calculation (default off). Window=5m, poll=15s.
+// Backend always returns $/h; UI can display $/h or $/min without re-fetch.
+const BURN_RATE_ENABLED_KEY = 'user-burn-rate-enabled'
+const BURN_RATE_UNIT_KEY = 'user-burn-rate-unit'
+const BURN_RATE_POLL_MS = 15_000
+type BurnRateUnit = 'hour' | 'minute'
+const burnRateEnabled = ref(false)
+const burnRateUnit = ref<BurnRateUnit>('hour')
+const burnRateStats = ref<Record<string, BatchUserBurnRateStats>>({})
+const burnRateFetching = ref(false)
+
+const burnRateUnitSuffix = computed(() =>
+  burnRateUnit.value === 'minute' ? t('admin.users.burnRateUnitMinute') : t('admin.users.burnRateUnitHour')
+)
+
+/** Convert backend $/h into the selected display unit; 2 decimals match balance. */
+const formatBurnRateAmount = (userId: number): number => {
+  const perHour = burnRateStats.value[userId]?.burn_rate_per_hour ?? 0
+  return burnRateUnit.value === 'minute' ? perHour / 60 : perHour
+}
+
+const formatBurnRateDisplay = (userId: number): string => {
+  const amount = formatBurnRateAmount(userId)
+  const suffix = burnRateUnit.value === 'minute' ? '/min' : '/h'
+  return `$${amount.toFixed(2)}${suffix}`
+}
+
+const loadSavedBurnRate = () => {
+  try {
+    burnRateEnabled.value = localStorage.getItem(BURN_RATE_ENABLED_KEY) === '1'
+    const unit = localStorage.getItem(BURN_RATE_UNIT_KEY)
+    if (unit === 'minute' || unit === 'hour') {
+      burnRateUnit.value = unit
+    }
+  } catch (e) {
+    console.error('Failed to load burn rate preference:', e)
+  }
+}
+
+const saveBurnRateEnabledToStorage = () => {
+  try {
+    localStorage.setItem(BURN_RATE_ENABLED_KEY, burnRateEnabled.value ? '1' : '0')
+  } catch (e) {
+    console.error('Failed to save burn rate enabled preference:', e)
+  }
+}
+
+const saveBurnRateUnitToStorage = () => {
+  try {
+    localStorage.setItem(BURN_RATE_UNIT_KEY, burnRateUnit.value)
+  } catch (e) {
+    console.error('Failed to save burn rate unit preference:', e)
+  }
+}
+
+const loadBurnRateStats = async (userIds: number[], expectedSeq?: number) => {
+  if (!burnRateEnabled.value || userIds.length === 0) return
+  if (burnRateFetching.value) return
+  burnRateFetching.value = true
+  try {
+    const response = await adminAPI.dashboard.getBatchUsersBurnRate(userIds)
+    if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+    burnRateStats.value = response.stats ?? {}
+  } catch (e) {
+    console.error('Failed to load burn rate stats:', e)
+  } finally {
+    burnRateFetching.value = false
+  }
+}
+
+const setBurnRateEnabled = (enabled: boolean) => {
+  burnRateEnabled.value = enabled
+  saveBurnRateEnabledToStorage()
+  if (!enabled) {
+    burnRateStats.value = {}
+    pauseBurnRatePoll()
+    return
+  }
+  // Column visibility is owned by the calculation switch, not column settings.
+  hiddenColumns.delete('burn_rate')
+  saveColumnsToStorage()
+  const userIds = users.value.map((u) => u.id)
+  if (userIds.length > 0) {
+    void loadBurnRateStats(userIds)
+  }
+  resumeBurnRatePoll()
+}
+
+const setBurnRateUnit = (unit: BurnRateUnit) => {
+  if (burnRateUnit.value === unit) return
+  burnRateUnit.value = unit
+  saveBurnRateUnitToStorage()
+}
+
 // localStorage keys
 const FILTER_VALUES_KEY = 'user-filter-values'
 const VISIBLE_FILTERS_KEY = 'user-visible-filters'
@@ -1217,6 +1395,15 @@ const loadUsersSecondaryData = async (
           if (signal?.aborted) return
           console.error('Failed to load usage stats:', e)
         }
+      })()
+    )
+  }
+
+  if (burnRateEnabled.value) {
+    tasks.push(
+      (async () => {
+        if (signal?.aborted) return
+        await loadBurnRateStats(userIds, expectedSeq)
       })()
     )
   }
@@ -1506,6 +1693,7 @@ const loadUsers = async () => {
     pagination.total = response.total
     pagination.pages = response.pages
     usageStats.value = {}
+    burnRateStats.value = {}
     userAttributeValues.value = {}
 
     // Defer heavy secondary data so table can render first.
@@ -1555,6 +1743,7 @@ const refreshUsersIncrementally = async () => {
         void loadUsersSecondaryData(userIds, undefined, seq)
       } else {
         usageStats.value = {}
+        burnRateStats.value = {}
         userAttributeValues.value = {}
       }
     }
@@ -1586,6 +1775,20 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
     autoRefreshCountdown.value -= 1
   },
   1000,
+  { immediate: false }
+)
+
+// Fixed 15s poll for burn-rate only (independent of list auto-refresh).
+const { pause: pauseBurnRatePoll, resume: resumeBurnRatePoll } = useIntervalFn(
+  async () => {
+    if (!burnRateEnabled.value) return
+    if (document.hidden) return
+    if (loading.value || burnRateFetching.value) return
+    const userIds = users.value.map((u) => u.id)
+    if (userIds.length === 0) return
+    await loadBurnRateStats(userIds)
+  },
+  BURN_RATE_POLL_MS,
   { immediate: false }
 )
 
@@ -1835,6 +2038,7 @@ const handleScroll = () => {
 
 onMounted(async () => {
   loadSavedAutoRefresh()
+  loadSavedBurnRate()
   await loadAttributeDefinitions()
   loadSavedFilters()
   loadSavedColumns()
@@ -1851,10 +2055,17 @@ onMounted(async () => {
   } else {
     pauseAutoRefresh()
   }
+
+  if (burnRateEnabled.value) {
+    resumeBurnRatePoll()
+  } else {
+    pauseBurnRatePoll()
+  }
 })
 
 onUnmounted(() => {
   pauseAutoRefresh()
+  pauseBurnRatePoll()
   document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('scroll', handleScroll, true)
   clearTimeout(searchTimeout)

@@ -56,6 +56,8 @@ type UsageLogRepository interface {
 	GetUserUsageTrend(ctx context.Context, startTime, endTime time.Time, granularity string, limit int) ([]usagestats.UserUsageTrendPoint, error)
 	GetUserSpendingRanking(ctx context.Context, startTime, endTime time.Time, limit int) (*usagestats.UserSpendingRankingResponse, error)
 	GetBatchUserUsageStats(ctx context.Context, userIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchUserUsageStats, error)
+	// GetBatchUserBurnRateStats sums actual_cost over the trailing 5 minutes only (lightweight).
+	GetBatchUserBurnRateStats(ctx context.Context, userIDs []int64) (map[int64]*usagestats.BatchUserBurnRateStats, error)
 	GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error)
 
 	// User dashboard stats

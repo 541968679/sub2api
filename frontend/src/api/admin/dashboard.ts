@@ -345,6 +345,34 @@ export async function getBatchUsersUsage(userIds: number[]): Promise<BatchUsersU
   return data
 }
 
+/** Trailing 5-minute balance burn-rate (lightweight; admin users list). */
+export interface BatchUserBurnRateStats {
+  user_id: number
+  recent_5m_actual_cost: number
+  burn_rate_per_hour: number
+  window_seconds: number
+}
+
+export interface BatchUsersBurnRateResponse {
+  stats: Record<string, BatchUserBurnRateStats>
+}
+
+/**
+ * Get batch burn-rate for multiple users (last 5 minutes actual_cost → $/h).
+ * Prefer this over users-usage when only burn-rate is needed (much cheaper).
+ */
+export async function getBatchUsersBurnRate(
+  userIds: number[]
+): Promise<BatchUsersBurnRateResponse> {
+  const { data } = await apiClient.post<BatchUsersBurnRateResponse>(
+    '/admin/dashboard/users-burn-rate',
+    {
+      user_ids: userIds
+    }
+  )
+  return data
+}
+
 export interface BatchApiKeyUsageStats {
   api_key_id: number
   today_actual_cost: number
@@ -384,6 +412,7 @@ export const dashboardAPI = {
   getUserUsageTrend,
   getUserSpendingRanking,
   getBatchUsersUsage,
+  getBatchUsersBurnRate,
   getBatchApiKeysUsage
 }
 

@@ -2084,6 +2084,8 @@ const zhBase = {
         groups: '分组',
         subscriptions: '订阅分组',
         balance: '余额',
+        burnRate: '消耗速度',
+        burnRateWithUnit: '消耗速度 ({unit})',
         usage: '用量',
         concurrency: '并发数',
         status: '状态',
@@ -2092,6 +2094,17 @@ const zhBase = {
         created: '创建时间',
         actions: '操作'
       },
+      burnRateOff: '消耗速度',
+      burnRateOn: '消耗速度 · 开',
+      burnRateToggleTip:
+        '默认关闭。开启后基于近 5 分钟实际扣费计算消耗速度（两位小数与余额一致），约每 15 秒刷新；可在 $/h 与 $/min 间切换；关闭则不请求、不展示。',
+      burnRateCellTip:
+        '基于近 5 分钟实际扣费：$/h = 合计×12，$/min = 合计÷5。展示精度与余额相同（两位小数）；约 15 秒更新',
+      burnRateUnitLabel: '消耗速度单位',
+      burnRateUnitHour: '$/h',
+      burnRateUnitMinute: '$/min',
+      burnRateUnitHourTip: '按小时显示消耗速度',
+      burnRateUnitMinuteTip: '按分钟显示消耗速度',
       today: '今日',
       total: '近30天',
       noSubscription: '暂无订阅',

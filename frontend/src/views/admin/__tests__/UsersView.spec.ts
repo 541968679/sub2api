@@ -8,12 +8,14 @@ const {
   listUsers,
   getAllGroups,
   getBatchUsersUsage,
+  getBatchUsersBurnRate,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
   listUsers: vi.fn(),
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
+  getBatchUsersBurnRate: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn()
 }))
@@ -29,7 +31,8 @@ vi.mock('@/api/admin', () => ({
       getAll: getAllGroups
     },
     dashboard: {
-      getBatchUsersUsage
+      getBatchUsersUsage,
+      getBatchUsersBurnRate
     },
     userAttributes: {
       listEnabledDefinitions,
@@ -96,6 +99,7 @@ describe('admin UsersView', () => {
     listUsers.mockReset()
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
+    getBatchUsersBurnRate.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
 
@@ -108,6 +112,7 @@ describe('admin UsersView', () => {
     })
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
+    getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
@@ -194,5 +199,55 @@ const mountUsersView = () =>
     }
     expect(saved.enabled).toBe(true)
     expect(saved.interval_seconds).toBe(5)
+  })
+
+  it('keeps burn-rate off by default and only fetches when enabled', async () => {
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    expect(getBatchUsersBurnRate).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('burn_rate')
+
+    const burnRateButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.attributes('title') === 'admin.users.burnRateToggleTip')
+    expect(burnRateButton).toBeTruthy()
+    await burnRateButton!.trigger('click')
+    await flushPromises()
+
+    expect(localStorage.getItem('user-burn-rate-enabled')).toBe('1')
+    expect(getBatchUsersBurnRate).toHaveBeenCalled()
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('burn_rate')
+  })
+
+  it('switches burn-rate unit between hour and minute without re-fetch', async () => {
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    const burnRateButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.attributes('title') === 'admin.users.burnRateToggleTip')
+    await burnRateButton!.trigger('click')
+    await flushPromises()
+
+    const callsAfterEnable = getBatchUsersBurnRate.mock.calls.length
+
+    const minuteButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.attributes('title') === 'admin.users.burnRateUnitMinuteTip')
+    expect(minuteButton).toBeTruthy()
+    await minuteButton!.trigger('click')
+    await flushPromises()
+
+    expect(localStorage.getItem('user-burn-rate-unit')).toBe('minute')
+    expect(getBatchUsersBurnRate.mock.calls.length).toBe(callsAfterEnable)
+
+    const hourButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.attributes('title') === 'admin.users.burnRateUnitHourTip')
+    await hourButton!.trigger('click')
+    await flushPromises()
+
+    expect(localStorage.getItem('user-burn-rate-unit')).toBe('hour')
   })
 })

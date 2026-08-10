@@ -1,3 +1,21 @@
+## 2026-08-10 - feat(admin): user balance burn-rate column (opt-in)
+
+### What
+- Admin users list: optional **消耗速度** column from trailing **5 minutes** `usage_logs.actual_cost`.
+- **Default off** toolbar toggle; only when enabled does the UI request/display and poll every **15s**.
+- Display unit switchable **$/h** ↔ **$/min** (frontend conversion; 2 decimals like balance).
+- New lightweight API `POST /api/v1/admin/dashboard/users-burn-rate` (5m window only; does not re-scan 30d users-usage batch).
+
+### Why
+Operators want a quick signal of who is burning balance right now without always-on cost of scanning long usage windows.
+
+### Verification
+- `go test -tags=unit ./internal/pkg/usagestats -run TestUserBurnRatePerHour -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`usagestats` types + test, `usage_log_repo.go`, `dashboard_service.go`, `dashboard_handler.go`, `routes/admin.go`, `api_contract_test.go` stub, `frontend/src/api/admin/dashboard.ts`, `UsersView.vue`, i18n zh/en, this changelog.
+
 ## 2026-08-10 - deploy: production v0.1.205
 
 ### What
