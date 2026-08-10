@@ -344,6 +344,14 @@ export async function moveAccountToTop(id: number): Promise<Account> {
 }
 
 /**
+ * Page-local reorder of admin account list (extra.list_order).
+ * @param ids - Top-to-bottom account IDs for the current page
+ */
+export async function reorderAccounts(ids: number[]): Promise<void> {
+  await apiClient.put('/admin/accounts/reorder', { ids })
+}
+
+/**
  * Get temporary unschedulable status
  * @param id - Account ID
  * @returns Status with detail state if active
@@ -1059,6 +1067,7 @@ export const accountsAPI = {
   recoverState,
   resetAccountQuota,
   moveAccountToTop,
+  reorderAccounts,
   getTempUnschedulableStatus,
   resetTempUnschedulable,
   setSchedulable,

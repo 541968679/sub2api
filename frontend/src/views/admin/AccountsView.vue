@@ -353,7 +353,30 @@
             />
           </template>
           <template #cell-select="{ row }">
-            <div class="flex items-center gap-1">
+            <div
+              class="flex items-center gap-1"
+              :class="{
+                'opacity-60': dragFromId === row.id,
+                'ring-2 ring-primary-400 ring-offset-1 dark:ring-offset-dark-900 rounded-md': dragOverId === row.id && dragFromId !== row.id
+              }"
+              @dragover.prevent="onAccountDragOver(row, $event)"
+              @drop.prevent="onAccountDrop(row, $event)"
+              @dragleave="onAccountDragLeave(row)"
+            >
+              <span
+                class="inline-flex h-6 w-5 shrink-0 cursor-grab items-center justify-center text-gray-400 hover:text-gray-600 active:cursor-grabbing dark:text-dark-500 dark:hover:text-dark-300"
+                draggable="true"
+                :title="t('admin.accounts.dragReorder')"
+                :aria-label="t('admin.accounts.dragReorder')"
+                data-testid="account-drag-handle"
+                @dragstart.stop="onAccountDragStart(row, $event)"
+                @dragend="onAccountDragEnd"
+                @click.stop
+              >
+                <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path d="M7 2a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm6 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM7 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm6 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM7 15a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm6 0a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" />
+                </svg>
+              </span>
               <input
                 type="checkbox"
                 :checked="isSelected(row.id)"
@@ -753,6 +776,7 @@ import {
   moveAccountColumnOrder,
   parseAccountColumnLayout
 } from './accountColumnLayout'
+import { moveAccountInPageList } from './accountListOrder'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal } from '@/components/account'
@@ -907,8 +931,8 @@ const HIDDEN_COLUMNS_CURRENT_VERSION = 'inline-concurrency-priority-fallback-v1'
 const columnOrder = ref<string[]>([])
 const columnWidths = ref<Record<string, number>>({})
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
-  // Checkbox + inline move-to-top control sit in this column.
-  select: 72,
+  // Drag handle + checkbox + move-to-top sit in this column.
+  select: 100,
   name: 180,
   platform_type: 140,
   capacity: 120,
@@ -2757,6 +2781,72 @@ const handleMoveToTop = async (a: Account) => {
   } catch (error: any) {
     console.error('Failed to move account to top:', error)
     appStore.showError(error?.message || t('admin.accounts.moveToTopFailed'))
+  }
+}
+
+// Page-local HTML5 drag reorder (current page only; virtual rows stay data-driven).
+const dragFromId = ref<number | null>(null)
+const dragOverId = ref<number | null>(null)
+const reorderingList = ref(false)
+
+const onAccountDragStart = (row: Account, event: DragEvent) => {
+  if (reorderingList.value || accounts.value.length < 2) {
+    event.preventDefault()
+    return
+  }
+  dragFromId.value = row.id
+  dragOverId.value = null
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(row.id))
+  }
+}
+
+const onAccountDragOver = (row: Account, event: DragEvent) => {
+  if (dragFromId.value == null || dragFromId.value === row.id) return
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  dragOverId.value = row.id
+}
+
+const onAccountDragLeave = (row: Account) => {
+  if (dragOverId.value === row.id) {
+    dragOverId.value = null
+  }
+}
+
+const onAccountDragEnd = () => {
+  dragFromId.value = null
+  dragOverId.value = null
+}
+
+const onAccountDrop = async (target: Account, _event: DragEvent) => {
+  const fromId = dragFromId.value
+  dragFromId.value = null
+  dragOverId.value = null
+  if (fromId == null || fromId === target.id || reorderingList.value) {
+    return
+  }
+
+  const previous = accounts.value.slice()
+  const next = moveAccountInPageList(previous, fromId, target.id)
+  if (next === previous) {
+    return
+  }
+
+  accounts.value = next
+  reorderingList.value = true
+  enterAutoRefreshSilentWindow()
+  try {
+    await adminAPI.accounts.reorderAccounts(next.map((a) => a.id))
+    appStore.showSuccess(t('admin.accounts.reorderSuccess'))
+  } catch (error: any) {
+    console.error('Failed to reorder accounts:', error)
+    accounts.value = previous
+    appStore.showError(error?.message || t('admin.accounts.reorderFailed'))
+  } finally {
+    reorderingList.value = false
   }
 }
 const handleSetPrivacy = async (a: Account) => {

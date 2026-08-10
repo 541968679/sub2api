@@ -2178,6 +2178,27 @@ func (h *AccountHandler) MoveToTop(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
+// ReorderAccountsRequest is the body for page-local admin list reorder.
+type ReorderAccountsRequest struct {
+	// IDs is top-to-bottom display order for the current page.
+	IDs []int64 `json:"ids" binding:"required"`
+}
+
+// Reorder rewrites admin list pin ranks (extra.list_order) for the given order.
+// PUT /api/v1/admin/accounts/reorder
+func (h *AccountHandler) Reorder(c *gin.Context) {
+	var req ReorderAccountsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := h.adminService.ReorderAccounts(c.Request.Context(), req.IDs); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "Reorder successful"})
+}
+
 // GetTempUnschedulable handles getting temporary unschedulable status
 // GET /api/v1/admin/accounts/:id/temp-unschedulable
 func (h *AccountHandler) GetTempUnschedulable(c *gin.Context) {

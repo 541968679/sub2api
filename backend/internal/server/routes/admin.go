@@ -363,6 +363,8 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
 		accounts.POST("/:id/models/sync-upstream", h.Admin.Account.SyncUpstreamModels)
 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
+		// Static path (must not be under /:id).
+		accounts.PUT("/reorder", h.Admin.Account.Reorder)
 		accounts.POST("/batch-auto-assign-proxy", h.Admin.Account.BatchAutoAssignProxy)
 		accounts.GET("/data", h.Admin.Account.ExportData)
 		accounts.POST("/data", h.Admin.Account.ImportData)
