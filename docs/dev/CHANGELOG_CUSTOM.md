@@ -7954,6 +7954,18 @@ route, setting, push, or deployment change.
 - Added a default-true admin Settings KV toggle with bilingual UI. The setting is not public and adds no route.
 - Verified focused Go packages, admin/API settings contracts, 20 frontend settings/i18n tests, typecheck, and `git diff --check`.
 
+## [2026-08-10] fix: Render completed Codex image results without saved paths
+
+**Affected files**: Codex image bridge context, OpenAI Responses streaming/non-streaming handling, focused gateway tests, and gateway documentation.
+
+**Compatibility**: Response-side fallback only for Codex requests with the image bridge enabled. No route, setting, schema, migration, billing, scheduler, native Images, or WebSocket change.
+
+**Details**:
+- Preserve the upstream `image_generation_call` and add an assistant `output_text` message containing a Markdown image data URI when a completed result has supported PNG, WebP, or JPEG bytes but no equivalent renderable message.
+- Streaming emits the synthetic `response.output_item.done` message before the successful terminal event, uses valid SSE blank-line framing, and includes the same item in terminal `response.output`.
+- SSE-to-JSON conversion merges image items into an already non-empty terminal output before creating the fallback message. Existing data URIs are deduplicated; failed, empty, unknown-format, and generic Responses outputs remain unchanged.
+- Focused Codex image bridge and existing image-status regression tests pass. The full `internal/service` unit package remains blocked by pre-existing AuthService SQLite fixtures missing `users.display_cache_token_max_mult`; the failure is outside the affected OpenAI gateway files.
+
 
 
 

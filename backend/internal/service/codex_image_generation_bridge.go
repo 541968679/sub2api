@@ -1,7 +1,10 @@
 package service
 
+import "github.com/gin-gonic/gin"
+
 const featureKeyCodexImageGenerationBridge = "codex_image_generation_bridge"
 const featureKeyOpenAIImagesEndpointEnabled = "openai_images_endpoint_enabled"
+const openAICodexImageGenerationBridgeResponseEnabledKey = "openai_codex_image_generation_bridge_response_enabled"
 
 func boolOverridePtr(v bool) *bool {
 	return &v
@@ -49,4 +52,22 @@ func (s *OpenAIGatewayService) isCodexImageGenerationBridgeEnabled(account *Acco
 		return *override
 	}
 	return s != nil && s.cfg != nil && s.cfg.Gateway.CodexImageGenerationBridgeEnabled
+}
+
+func setOpenAICodexImageGenerationBridgeResponseEnabled(c *gin.Context, enabled bool) {
+	if c != nil {
+		c.Set(openAICodexImageGenerationBridgeResponseEnabledKey, enabled)
+	}
+}
+
+func isOpenAICodexImageGenerationBridgeResponseEnabled(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	value, exists := c.Get(openAICodexImageGenerationBridgeResponseEnabledKey)
+	if !exists {
+		return false
+	}
+	enabled, _ := value.(bool)
+	return enabled
 }

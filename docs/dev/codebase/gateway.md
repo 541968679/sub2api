@@ -632,6 +632,20 @@ status to `completed`. Reconstructed SSE-to-JSON output uses the same rule so
 Codex clients render the image instead of leaving the call in a generating
 state. Explicit failure states and result-less items remain unchanged.
 
+For Codex Responses requests with the image bridge enabled, a completed
+`image_generation_call` that contains base64 image bytes also gets a compatible
+assistant `message` with an `output_text` Markdown data URI. The original image
+call remains in `output`; the message is an additive rendering fallback for
+clients that receive valid bytes but no extension-owned `saved_path` or native
+image UI item. Streaming responses emit a synthetic
+`response.output_item.done` message before the successful terminal event and
+include the same message in terminal `response.output`. SSE-to-JSON conversion
+merges image items even when the terminal output already contains ordinary
+text. PNG, WebP, and JPEG are supported; a missing format is accepted only when
+the decoded file signature identifies one of those formats. Existing matching
+data URIs, failed/empty results, unknown formats, non-Codex Responses requests,
+native `/v1/images/*`, and WebSocket transport remain unchanged.
+
 | Mechanism | Notes |
 |-----------|-------|
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
@@ -679,6 +693,10 @@ state. Explicit failure states and result-less items remain unchanged.
   The session then contains valid base64 but no extension-owned `saved_path`,
   so the desktop UI does not display or persist the image. Preserve the client
   namespace and reserve legacy injection for clients without that declaration.
+  If an already-bridged response nevertheless ends with a completed hosted
+  `image_generation_call` and no renderable message, the response-side fallback
+  may expose the bytes as an inline Markdown data URI; this restores display but
+  does not create the extension-owned file or native image card.
 - **OpenAI Images 400s are usually client input**: Invalid image size, unsupported image options, and similar upstream 400s should remain visible to the client on `/v1/images/*`. Do not require `OPENAI_IMAGE_TRACE_LOG` for this behavior.
 - **OpenAI image timeout is not account failover**: The first version treats long generation timeout as a client-facing 504 instead of switching accounts, because previous sampling showed the elapsed time is dominated by upstream generation rather than Sub2API scheduling. Revisit only with evidence that account switching materially improves completion probability.
 - **Embeddings fixture has two gates**: scheduler selection requires both endpoint capability and model support. If `/v1/embeddings` returns 503 `no available accounts`, check `credentials.model_mapping` for the requested embedding model before debugging the forwarder. If it returns upstream 404, check the account base URL and upstream service support for `/v1/embeddings`.

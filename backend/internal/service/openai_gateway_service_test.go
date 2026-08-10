@@ -1760,7 +1760,7 @@ func TestOpenAINonStreamingCodexImageBridgeAppendsRenderableAssistantMessage(t *
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	c.Set("openai_codex_image_generation_bridge_response_enabled", true)
+	setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
 
 	body := []byte(`{"id":"resp_img","output":[{"id":"ig_1","type":"image_generation_call","status":"generating","result":"aGVsbG8=","output_format":"webp"}],"usage":{"input_tokens":1,"output_tokens":2}}`)
 	resp := &http.Response{
@@ -1803,7 +1803,7 @@ func TestOpenAINonStreamingCodexImageBridgeNormalizesMIMEAndSkipsInvalidResults(
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			c.Set("openai_codex_image_generation_bridge_response_enabled", true)
+			setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
 
 			body := []byte(`{"id":"resp_img","output":[` + tt.imageItem + `],"usage":{"input_tokens":1,"output_tokens":2}}`)
 			resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(body)), Header: http.Header{"Content-Type": []string{"application/json"}}}
@@ -1840,7 +1840,7 @@ func TestOpenAINonStreamingCodexImageBridgeDoesNotDuplicateOrAffectGenericRespon
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 			if tt.bridge {
-				c.Set("openai_codex_image_generation_bridge_response_enabled", true)
+				setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
 			}
 
 			body := []byte(`{"id":"resp_img","output":[` + tt.output + `],"usage":{"input_tokens":1,"output_tokens":2}}`)
@@ -2017,7 +2017,7 @@ func TestOpenAIStreamingCodexImageBridgeEmitsRenderableMessageBeforeTerminalEven
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	c.Set("openai_codex_image_generation_bridge_response_enabled", true)
+	setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -2033,9 +2033,10 @@ func TestOpenAIStreamingCodexImageBridgeEmitsRenderableMessageBeforeTerminalEven
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	body := rec.Body.String()
-	messageEvent := `"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"![Generated image](data:image/png;base64,aGVsbG8=)"}]}`
+	messageEvent := `"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"![Generated image](data:image/png;base64,aGVsbG8=)"}]}}`
 	require.Contains(t, body, messageEvent)
 	require.Less(t, strings.Index(body, messageEvent), strings.Index(body, `"type":"response.completed"`))
+	require.Contains(t, body, messageEvent+"\n\ndata: ")
 
 	terminalLine := ""
 	for _, line := range strings.Split(body, "\n") {
@@ -2066,7 +2067,7 @@ func TestOpenAIStreamingCodexImageBridgeDoesNotDuplicateExistingRenderableMessag
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	c.Set("openai_codex_image_generation_bridge_response_enabled", true)
+	setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -2082,7 +2083,14 @@ func TestOpenAIStreamingCodexImageBridgeDoesNotDuplicateExistingRenderableMessag
 	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, time.Now(), "gpt-5.4", "gpt-5.4")
 	require.NoError(t, err)
 	body := rec.Body.String()
-	require.Equal(t, 1, strings.Count(body, `"text":"![Generated image](data:image/png;base64,aGVsbG8=)"}`))
+	messageDoneEvents := 0
+	for _, line := range strings.Split(body, "\n") {
+		data, ok := extractOpenAISSEDataLine(line)
+		if ok && gjson.Get(data, "type").String() == "response.output_item.done" && gjson.Get(data, "item.type").String() == "message" {
+			messageDoneEvents++
+		}
+	}
+	require.Equal(t, 1, messageDoneEvents)
 
 	terminalLine := ""
 	for _, line := range strings.Split(body, "\n") {
@@ -2884,7 +2892,7 @@ func TestHandleSSEToJSON_CodexImageBridgeAppendsRenderableAssistantMessage(t *te
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	c.Set("openai_codex_image_generation_bridge_response_enabled", true)
+	setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
 
 	svc := &OpenAIGatewayService{cfg: &config.Config{}}
 	resp := &http.Response{
@@ -2903,6 +2911,33 @@ func TestHandleSSEToJSON_CodexImageBridgeAppendsRenderableAssistantMessage(t *te
 	require.Equal(t, "image_generation_call", gjson.Get(rec.Body.String(), "output.0.type").String())
 	require.Equal(t, "message", gjson.Get(rec.Body.String(), "output.1.type").String())
 	require.Equal(t, "![Generated image](data:image/png;base64,aGVsbG8=)", gjson.Get(rec.Body.String(), "output.1.content.0.text").String())
+}
+
+func TestHandleSSEToJSON_CodexImageBridgeMergesImageWithExistingTerminalOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	setOpenAICodexImageGenerationBridgeResponseEnabled(c, true)
+
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+	body := []byte(strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"id":"ig_123","type":"image_generation_call","status":"completed","result":"aGVsbG8=","output_format":"png"}}`,
+		`data: {"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"![Generated image](data:image/png;base64,aGVsbG8=)"}]}}`,
+		`data: {"type":"response.completed","response":{"id":"resp_img","model":"gpt-5.4","output":[{"id":"msg_1","type":"message","role":"assistant","content":[{"type":"output_text","text":"Image generated."}]},{ "role": "assistant", "content": [{"text": "![Generated image](data:image/png;base64,aGVsbG8=)", "type": "output_text"}], "type": "message" }],"usage":{"input_tokens":7,"output_tokens":9}}}`,
+		`data: [DONE]`,
+	}, "\n"))
+
+	_, err := svc.handleSSEToJSON(resp, c, body, "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.Len(t, gjson.Get(rec.Body.String(), "output").Array(), 3)
+	require.Len(t, gjson.Get(rec.Body.String(), `output.#(type=="image_generation_call")#`).Array(), 1)
+	require.Len(t, gjson.Get(rec.Body.String(), `output.#(type=="message")#`).Array(), 2)
+	require.Contains(t, rec.Body.String(), "![Generated image](data:image/png;base64,aGVsbG8=)")
 }
 
 func TestNormalizeCompletedImageGenerationOutputItemDone(t *testing.T) {

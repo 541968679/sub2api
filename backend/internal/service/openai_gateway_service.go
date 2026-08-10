@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -2601,6 +2602,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 
 	codexImageGenerationBridgeEnabled := isCodexCLI && s.isCodexImageGenerationBridgeEnabled(account)
+	setOpenAICodexImageGenerationBridgeResponseEnabled(c, codexImageGenerationBridgeEnabled)
 	if codexImageGenerationBridgeEnabled && ensureOpenAIResponsesImageGenerationTool(reqBody) {
 		bodyModified = true
 		disablePatch()
@@ -5062,6 +5064,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	streamOutputAccumulator := apicompat.NewBufferedResponseAccumulator()
 	streamImageOutputs := make([]json.RawMessage, 0, 1)
 	streamSeenImages := make(map[string]struct{})
+	streamRenderableImageMessages := make([]json.RawMessage, 0, 1)
+	streamSeenRenderableImageMessages := make(map[string]struct{})
+	codexImageBridgeResponseEnabled := isOpenAICodexImageGenerationBridgeResponseEnabled(c)
 	resultWithUsage := func() *openaiStreamingResult {
 		return &openaiStreamingResult{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}
 	}
@@ -5188,17 +5193,39 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if imageOutput, ok := extractImageGenerationOutputFromSSEData(dataBytes, streamSeenImages); ok {
 				streamImageOutputs = append(streamImageOutputs, imageOutput)
 			}
+			if codexImageBridgeResponseEnabled {
+				if messageOutput, ok := extractRenderableImageAssistantMessageFromSSEData(dataBytes, streamSeenRenderableImageMessages); ok {
+					streamRenderableImageMessages = append(streamRenderableImageMessages, messageOutput)
+				}
+			}
 			if responsesStreamEventMayContributeToOutput(eventType) {
 				var streamEvent apicompat.ResponsesStreamEvent
 				if err := json.Unmarshal(dataBytes, &streamEvent); err == nil {
 					streamOutputAccumulator.ProcessEvent(&streamEvent)
 				}
 			}
-			if normalizedData, normalized := normalizeResponsesStreamingTerminalOutput(dataBytes, streamOutputAccumulator, streamImageOutputs); normalized {
+			streamSupplementalOutputs := streamImageOutputs
+			if codexImageBridgeResponseEnabled && len(streamRenderableImageMessages) > 0 {
+				streamSupplementalOutputs = append(append([]json.RawMessage(nil), streamImageOutputs...), streamRenderableImageMessages...)
+			}
+			if normalizedData, normalized := normalizeResponsesStreamingTerminalOutput(dataBytes, streamOutputAccumulator, streamSupplementalOutputs, codexImageBridgeResponseEnabled); normalized {
 				dataBytes = normalizedData
 				data = string(normalizedData)
 				line = "data: " + data
 				eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
+			}
+			var injectedImageMessageLines []string
+			if codexImageBridgeResponseEnabled && isOpenAIResponsesSuccessfulTerminalEvent(eventType) {
+				if updatedData, addedMessages, changed := appendCodexImageAssistantMessages(dataBytes, "response.output"); changed {
+					dataBytes = updatedData
+					data = string(updatedData)
+					line = "data: " + data
+					for _, message := range addedMessages {
+						if eventData, ok := buildResponsesOutputItemDoneEvent(message); ok {
+							injectedImageMessageLines = append(injectedImageMessageLines, "data: "+string(eventData))
+						}
+					}
+				}
 			}
 			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(dataBytes, eventType); sanitized {
 				dataBytes = sanitizedData
@@ -5223,7 +5250,16 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					// 保证首个 token 事件尽快出站，避免影响 TTFT。
 					shouldFlush = true
 				}
-				if _, err := bufferedWriter.WriteString(lineForDownstream); err != nil {
+				for _, injectedLine := range injectedImageMessageLines {
+					if _, err := bufferedWriter.WriteString(injectedLine + "\n\n"); err != nil {
+						clientDisconnected = true
+						logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
+						break
+					}
+				}
+				if clientDisconnected {
+					// The terminal event is still parsed below so usage accounting remains intact.
+				} else if _, err := bufferedWriter.WriteString(lineForDownstream); err != nil {
 					clientDisconnected = true
 					logger.LegacyPrintf("service.openai_gateway", "Client disconnected during streaming, continuing to drain upstream for billing")
 				} else if _, err := bufferedWriter.WriteString("\n"); err != nil {
@@ -5739,6 +5775,11 @@ func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, r
 	if normalized, changed := normalizeCompletedImageGenerationOutputStatuses(body, "output"); changed {
 		body = normalized
 	}
+	if isOpenAICodexImageGenerationBridgeResponseEnabled(c) {
+		if updated, _, changed := appendCodexImageAssistantMessages(body, "output"); changed {
+			body = updated
+		}
+	}
 
 	// Replace model in response if needed
 	if originalModel != mappedModel {
@@ -5791,6 +5832,16 @@ func (s *OpenAIGatewayService) handleSSEToJSON(resp *http.Response, c *gin.Conte
 				if patched, err := sjson.SetRawBytes(finalResponse, "output", outputJSON); err == nil {
 					finalResponse = patched
 				}
+			}
+		}
+		if isOpenAICodexImageGenerationBridgeResponseEnabled(c) {
+			if supplementalOutputs := collectCodexImageBridgeOutputsFromSSE(bodyText); len(supplementalOutputs) > 0 {
+				if updated, changed := appendResponsesOutputItemsIfMissing(finalResponse, "output", supplementalOutputs); changed {
+					finalResponse = updated
+				}
+			}
+			if updated, _, changed := appendCodexImageAssistantMessages(finalResponse, "output"); changed {
+				finalResponse = updated
 			}
 		}
 		body = finalResponse
@@ -5966,7 +6017,28 @@ func reconstructResponseOutputFromSSE(bodyText string) ([]byte, bool) {
 	return buildResponsesOutputJSON(acc, imageOutputs)
 }
 
-func normalizeResponsesStreamingTerminalOutput(data []byte, acc *apicompat.BufferedResponseAccumulator, imageOutputs []json.RawMessage) ([]byte, bool) {
+func collectCodexImageBridgeOutputsFromSSE(bodyText string) []json.RawMessage {
+	imageOutputs := make([]json.RawMessage, 0, 1)
+	renderableMessages := make([]json.RawMessage, 0, 1)
+	seenImages := make(map[string]struct{})
+	seenMessages := make(map[string]struct{})
+	for _, line := range strings.Split(bodyText, "\n") {
+		data, ok := extractOpenAISSEDataLine(line)
+		if !ok || data == "" || data == "[DONE]" {
+			continue
+		}
+		dataBytes := []byte(data)
+		if imageOutput, ok := extractImageGenerationOutputFromSSEData(dataBytes, seenImages); ok {
+			imageOutputs = append(imageOutputs, imageOutput)
+		}
+		if messageOutput, ok := extractRenderableImageAssistantMessageFromSSEData(dataBytes, seenMessages); ok {
+			renderableMessages = append(renderableMessages, messageOutput)
+		}
+	}
+	return append(imageOutputs, renderableMessages...)
+}
+
+func normalizeResponsesStreamingTerminalOutput(data []byte, acc *apicompat.BufferedResponseAccumulator, supplementalOutputs []json.RawMessage, mergeIntoNonEmptyOutput ...bool) ([]byte, bool) {
 	eventType := strings.TrimSpace(gjson.GetBytes(data, "type").String())
 	switch eventType {
 	case "response.completed", "response.done", "response.incomplete", "response.cancelled", "response.canceled":
@@ -5980,15 +6052,23 @@ func normalizeResponsesStreamingTerminalOutput(data []byte, acc *apicompat.Buffe
 	}
 
 	output := gjson.GetBytes(data, "response.output")
-	hasAccumulatedOutput := (acc != nil && acc.HasContent()) || len(imageOutputs) > 0
+	hasAccumulatedOutput := (acc != nil && acc.HasContent()) || len(supplementalOutputs) > 0
 	if output.Exists() && output.IsArray() {
-		if len(output.Array()) > 0 || !hasAccumulatedOutput {
+		if len(output.Array()) > 0 {
+			if len(mergeIntoNonEmptyOutput) > 0 && mergeIntoNonEmptyOutput[0] {
+				if updated, changed := appendResponsesOutputItemsIfMissing(data, "response.output", supplementalOutputs); changed {
+					return updated, true
+				}
+			}
+			return data, statusNormalized
+		}
+		if !hasAccumulatedOutput {
 			return data, statusNormalized
 		}
 	}
 
 	outputJSON := []byte("[]")
-	if reconstructed, ok := buildResponsesOutputJSON(acc, imageOutputs); ok {
+	if reconstructed, ok := buildResponsesOutputJSON(acc, supplementalOutputs); ok {
 		outputJSON = reconstructed
 	}
 	updated, err := sjson.SetRawBytes(data, "response.output", outputJSON)
@@ -6010,8 +6090,8 @@ func responsesStreamEventMayContributeToOutput(eventType string) bool {
 	}
 }
 
-func buildResponsesOutputJSON(acc *apicompat.BufferedResponseAccumulator, imageOutputs []json.RawMessage) ([]byte, bool) {
-	if (acc == nil || !acc.HasContent()) && len(imageOutputs) == 0 {
+func buildResponsesOutputJSON(acc *apicompat.BufferedResponseAccumulator, supplementalOutputs []json.RawMessage) ([]byte, bool) {
+	if (acc == nil || !acc.HasContent()) && len(supplementalOutputs) == 0 {
 		return nil, false
 	}
 	var output []json.RawMessage
@@ -6021,7 +6101,7 @@ func buildResponsesOutputJSON(acc *apicompat.BufferedResponseAccumulator, imageO
 			_ = json.Unmarshal(outputJSON, &output)
 		}
 	}
-	output = append(output, imageOutputs...)
+	output = append(output, supplementalOutputs...)
 	if len(output) == 0 {
 		return nil, false
 	}
@@ -6061,6 +6141,281 @@ func extractImageGenerationOutputFromSSEData(data []byte, seen map[string]struct
 		seen[key] = struct{}{}
 	}
 	return json.RawMessage(item.Raw), true
+}
+
+func extractRenderableImageAssistantMessageFromSSEData(data []byte, seen map[string]struct{}) (json.RawMessage, bool) {
+	if len(data) == 0 || !gjson.ValidBytes(data) || gjson.GetBytes(data, "type").String() != "response.output_item.done" {
+		return nil, false
+	}
+	item := gjson.GetBytes(data, "item")
+	if !assistantMessageContainsRenderableImage(item, "") {
+		return nil, false
+	}
+	key := item.Raw
+	if seen != nil {
+		if _, exists := seen[key]; exists {
+			return nil, false
+		}
+		seen[key] = struct{}{}
+	}
+	return json.RawMessage(item.Raw), true
+}
+
+func appendResponsesOutputItemsIfMissing(payload []byte, outputPath string, items []json.RawMessage) ([]byte, bool) {
+	if len(items) == 0 || len(payload) == 0 || !gjson.ValidBytes(payload) {
+		return payload, false
+	}
+	output := gjson.GetBytes(payload, outputPath)
+	if !output.Exists() || !output.IsArray() {
+		return payload, false
+	}
+
+	outputItems := output.Array()
+	existing := make(map[string]struct{}, len(outputItems))
+	merged := make([]json.RawMessage, 0, len(outputItems)+len(items))
+	for _, item := range outputItems {
+		merged = append(merged, json.RawMessage(item.Raw))
+		existing[responsesOutputItemKey(item)] = struct{}{}
+	}
+	changed := false
+	for _, raw := range items {
+		item := gjson.ParseBytes(raw)
+		key := responsesOutputItemKey(item)
+		if _, exists := existing[key]; exists {
+			continue
+		}
+		merged = append(merged, raw)
+		existing[key] = struct{}{}
+		changed = true
+	}
+	if !changed {
+		return payload, false
+	}
+	encoded, err := json.Marshal(merged)
+	if err != nil {
+		return payload, false
+	}
+	updated, err := sjson.SetRawBytes(payload, outputPath, encoded)
+	if err != nil {
+		return payload, false
+	}
+	return updated, true
+}
+
+func responsesOutputItemKey(item gjson.Result) string {
+	if id := strings.TrimSpace(item.Get("id").String()); id != "" {
+		return "id:" + id
+	}
+	if item.Get("type").String() == "message" && item.Get("role").String() == "assistant" {
+		var dataURLs []string
+		for _, content := range item.Get("content").Array() {
+			if content.Get("type").String() == "output_text" {
+				dataURLs = append(dataURLs, extractImageDataURLs(content.Get("text").String())...)
+			}
+		}
+		if len(dataURLs) > 0 {
+			sum := sha256.Sum256([]byte(strings.Join(dataURLs, "\x00")))
+			return "assistant-image:" + hex.EncodeToString(sum[:])
+		}
+	}
+	return "raw:" + item.Raw
+}
+
+func appendCodexImageAssistantMessages(payload []byte, outputPath string) ([]byte, []json.RawMessage, bool) {
+	if len(payload) == 0 || !gjson.ValidBytes(payload) || strings.TrimSpace(outputPath) == "" {
+		return payload, nil, false
+	}
+	output := gjson.GetBytes(payload, outputPath)
+	if !output.Exists() || !output.IsArray() {
+		return payload, nil, false
+	}
+
+	outputItems := output.Array()
+	merged := make([]json.RawMessage, 0, len(outputItems)+1)
+	for _, item := range outputItems {
+		merged = append(merged, json.RawMessage(item.Raw))
+	}
+
+	var added []json.RawMessage
+	seenDataURLs := make(map[string]struct{})
+	for _, item := range outputItems {
+		if item.Get("type").String() != "message" || item.Get("role").String() != "assistant" {
+			continue
+		}
+		for _, content := range item.Get("content").Array() {
+			if content.Get("type").String() != "output_text" {
+				continue
+			}
+			for _, dataURL := range extractImageDataURLs(content.Get("text").String()) {
+				seenDataURLs[dataURL] = struct{}{}
+			}
+		}
+	}
+	for _, item := range outputItems {
+		dataURL, markdown, ok := codexImageDataURLAndMarkdown(item)
+		if !ok {
+			continue
+		}
+		if _, exists := seenDataURLs[dataURL]; exists {
+			continue
+		}
+		message := struct {
+			Type    string `json:"type"`
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		}{Type: "message", Role: "assistant"}
+		message.Content = append(message.Content, struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}{Type: "output_text", Text: markdown})
+		raw, err := json.Marshal(message)
+		if err != nil {
+			continue
+		}
+		merged = append(merged, json.RawMessage(raw))
+		added = append(added, json.RawMessage(raw))
+		seenDataURLs[dataURL] = struct{}{}
+	}
+	if len(added) == 0 {
+		return payload, nil, false
+	}
+	encoded, err := json.Marshal(merged)
+	if err != nil {
+		return payload, nil, false
+	}
+	updated, err := sjson.SetRawBytes(payload, outputPath, encoded)
+	if err != nil {
+		return payload, nil, false
+	}
+	return updated, added, true
+}
+
+func extractImageDataURLs(text string) []string {
+	lower := strings.ToLower(text)
+	var urls []string
+	for offset := 0; offset < len(text); {
+		start := strings.Index(lower[offset:], "data:image/")
+		if start < 0 {
+			break
+		}
+		start += offset
+		end := start
+		for end < len(text) {
+			switch text[end] {
+			case ')', ']', '}', '"', '\'', ' ', '\t', '\r', '\n':
+				goto found
+			default:
+				end++
+			}
+		}
+	found:
+		if end > start {
+			urls = append(urls, text[start:end])
+		}
+		offset = end
+		if offset == start {
+			offset++
+		}
+	}
+	return urls
+}
+
+func codexImageDataURLAndMarkdown(item gjson.Result) (string, string, bool) {
+	if !item.Exists() || !item.IsObject() || item.Get("type").String() != "image_generation_call" {
+		return "", "", false
+	}
+	if strings.ToLower(strings.TrimSpace(item.Get("status").String())) != "completed" {
+		return "", "", false
+	}
+	result := strings.TrimSpace(item.Get("result").String())
+	if result == "" {
+		return "", "", false
+	}
+	mime := codexImageMIME(strings.TrimSpace(item.Get("output_format").String()), result)
+	if mime == "" {
+		return "", "", false
+	}
+	dataURL := "data:" + mime + ";base64," + result
+	return dataURL, "![Generated image](" + dataURL + ")", true
+}
+
+func codexImageMIME(outputFormat, result string) string {
+	switch strings.ToLower(strings.TrimSpace(outputFormat)) {
+	case "png", "image/png":
+		return "image/png"
+	case "webp", "image/webp":
+		return "image/webp"
+	case "jpg", "jpeg", "image/jpg", "image/jpeg":
+		return "image/jpeg"
+	case "":
+		return inferImageMIMEFromBase64(result)
+	default:
+		return ""
+	}
+}
+
+func inferImageMIMEFromBase64(result string) string {
+	decoder := base64.NewDecoder(base64.StdEncoding, strings.NewReader(result))
+	header := make([]byte, 12)
+	n, _ := io.ReadFull(decoder, header)
+	header = header[:n]
+	switch {
+	case len(header) >= 8 && bytes.Equal(header[:8], []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}):
+		return "image/png"
+	case len(header) >= 3 && header[0] == 0xff && header[1] == 0xd8 && header[2] == 0xff:
+		return "image/jpeg"
+	case len(header) >= 12 && string(header[:4]) == "RIFF" && string(header[8:12]) == "WEBP":
+		return "image/webp"
+	default:
+		return ""
+	}
+}
+
+func assistantMessageContainsRenderableImage(item gjson.Result, dataURL string) bool {
+	if !item.Exists() || !item.IsObject() || item.Get("type").String() != "message" || item.Get("role").String() != "assistant" {
+		return false
+	}
+	for _, content := range item.Get("content").Array() {
+		if content.Get("type").String() != "output_text" {
+			continue
+		}
+		text := content.Get("text").String()
+		if dataURL != "" {
+			if strings.Contains(text, dataURL) {
+				return true
+			}
+			continue
+		}
+		lower := strings.ToLower(text)
+		if strings.Contains(lower, "data:image/") && strings.Contains(lower, ";base64,") {
+			return true
+		}
+	}
+	return false
+}
+
+func buildResponsesOutputItemDoneEvent(item json.RawMessage) ([]byte, bool) {
+	if len(item) == 0 || !gjson.ValidBytes(item) {
+		return nil, false
+	}
+	event := struct {
+		Type string          `json:"type"`
+		Item json.RawMessage `json:"item"`
+	}{Type: "response.output_item.done", Item: item}
+	payload, err := json.Marshal(event)
+	return payload, err == nil
+}
+
+func isOpenAIResponsesSuccessfulTerminalEvent(eventType string) bool {
+	switch eventType {
+	case "response.completed", "response.done":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeCompletedImageGenerationOutputItemDone(payload []byte) ([]byte, bool) {
