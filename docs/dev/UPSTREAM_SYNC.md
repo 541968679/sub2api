@@ -2,6 +2,17 @@
 
 > 记录每次从上游 (Wei-Shaw/sub2api) 合并更新的情况，便于追踪同步状态和解决冲突。
 
+## 2026-08-10 - Fork-local Codex image rendering fallback protection
+
+- **Verified incident**: Codex Desktop reported image generation as complete, but displayed no image even though the upstream Responses payload contained valid base64 bytes in `image_generation_call.result`. The response had neither an extension-owned `saved_path` nor another renderable assistant image item.
+- **Local commits**: `c95b45a97` added the RED regressions and `2167a9e65` implemented the response-side fallback. The user verified the fix in a real Codex Desktop conversation on 2026-08-10: the generated image is now displayed.
+- **Authoritative fork contract**: for Codex Responses requests with the image bridge enabled, retain the original completed `image_generation_call` and append a deduplicated assistant `message` whose `output_text` contains a Markdown data URI. Streaming must emit the synthetic message before a successful terminal event with valid blank-line SSE framing. Non-streaming and SSE-to-JSON must preserve existing terminal text while merging the image call and renderable message.
+- **Format and scope boundaries**: accept PNG, WebP, and JPEG; infer a missing MIME type only from a matching decoded file signature. Leave failures, empty results, unknown formats, ordinary non-Codex Responses traffic, native `/v1/images/*`, WebSocket transport, billing, scheduling, and usage accounting unchanged.
+- **Sync rule**: do not wholesale-replace `codex_image_generation_bridge.go`, the affected Responses handling in `openai_gateway_service.go`, or the focused regressions in `openai_gateway_service_test.go`. Every OpenAI/Codex upstream sync must compare the behavior above explicitly, even if upstream later changes image output item shapes or introduces its own fix.
+- **Replacement gate**: an upstream-native implementation may replace this fallback only after a real Codex Desktop test proves an extension-owned `saved_path`, native image card, or equivalent visible result, and focused coverage confirms streaming, non-streaming, SSE-to-JSON, existing-text merge, deduplication, supported-format inference, and failure/unknown-format boundaries. Until then, the fork fallback remains authoritative.
+- **Machine enforcement**: RED commit `21e50fa7b` and GREEN commit `0bf08d3f4` make `backend/tools/upstream-sync-guard` protect the bridge context hooks, response synthesis helpers, MIME inference, and representative rendering regressions. Removing or renaming those signatures during a sync must fail the guard and trigger an intentional contract review.
+- **Pushed/deployed**: yes — included in `v0.1.205` (`0bf08d3f4`) on `release/0.1.203-display-balance`; production pin `ghcr.io/541968679/sub2api:0.1.205` healthy on 2026-08-10.
+
 ## 2026-07-27 - Selective sync of Responses item-ID sanitization
 
 - **Local baseline**: `b39f5fe01`.

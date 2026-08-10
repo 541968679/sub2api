@@ -646,6 +646,11 @@ the decoded file signature identifies one of those formats. Existing matching
 data URIs, failed/empty results, unknown formats, non-Codex Responses requests,
 native `/v1/images/*`, and WebSocket transport remain unchanged.
 
+This response-side rendering fallback is an authoritative fork-local sync
+contract. Future OpenAI/Codex alignments must follow the verification and
+replacement gate recorded in
+[`../UPSTREAM_SYNC.md`](../UPSTREAM_SYNC.md#2026-08-10---fork-local-codex-image-rendering-fallback-protection).
+
 | Mechanism | Notes |
 |-----------|-------|
 | Mixed scheduling | Anthropic/Gemini groups may include Antigravity accounts with `mixed_scheduling=true`, but only entry points with an Antigravity conversion branch should use them. |
