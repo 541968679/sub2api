@@ -1,3 +1,37 @@
+## 2026-08-11 - fix(admin): persist OpenAI advanced scheduler weight overrides
+
+### What
+- Settings save payload now includes OpenAI advanced scheduler sticky-weighted /
+  subscription-priority toggles, top-k override, and all score weight overrides
+  that were already editable and loadable in System Settings.
+- Added a frontend regression test asserting the save payload carries these
+  fields after load.
+
+### Why
+`saveSettings()` only submitted `openai_advanced_scheduler_enabled`. Weight and
+related override edits looked successful in the UI but were never sent to the
+backend, so reopening settings always showed empty/default values.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "submits OpenAI advanced scheduler weight overrides"`
+
+### Affected files
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`, this changelog.
+
+## 2026-08-10 - deploy: production v0.1.206
+
+### What
+- Released and deployed `v0.1.206` (`2b4fa84a0`) to production as `ghcr.io/541968679/sub2api:0.1.206`.
+- Includes admin user balance burn-rate (opt-in, 5m window, 15s poll, $/h|/min unit switch).
+
+### Verification
+- GitHub Actions Release `31378438136` success
+- Production health OK; image pin `0.1.206`; container healthy
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-10 - feat(admin): user balance burn-rate column (opt-in)
 
 ### What
