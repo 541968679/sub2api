@@ -1,3 +1,26 @@
+## 2026-08-11 - feat(bridge): INFO lifecycle logs for prompt-too-long vs Claude Code compact
+
+### What
+- Added production-visible INFO/WARN lifecycle logs so operators can distinguish:
+  - generation overflow (`claude_gpt_bridge.prompt_too_long`)
+  - recognized Claude Code compact requests (`claude_gpt_bridge.compact_detected`)
+  - near-miss compact prompts (`claude_gpt_bridge.compact_unrecognized`)
+  - compact success/failure (`claude_gpt_bridge.compact_succeeded` / `compact_failed`)
+- Correlation fields: `api_key_id`, `user_id`, `session_key_sha256`, models, body/message counts, `recovery_used`, failure `reason`.
+
+### Why
+Production had many 413 Prompt-is-too-long events but successful client compact was silent at INFO, so we could not tell "client never sent compact" from "compact failed".
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestLogClaudeGPTBridge|TestForwardAsAnthropic_CompactDetected|TestForwardAsAnthropic_CompactTransport|TestForwardAsAnthropic_PromptTooLongLogs|TestMaybeLogClaudeGPTBridge|TestClassifyClaudeGPTBridge|TestClaudeGPTBridge|TestForwardAsAnthropic_CompactHTTP" -count=1`
+
+### Affected files
+`backend/internal/service/openai_claude_gpt_bridge_compact_obs.go`,
+`backend/internal/service/openai_claude_gpt_bridge_compact_obs_test.go`,
+`backend/internal/service/openai_gateway_messages.go`,
+`backend/internal/service/openai_gateway_messages_compact.go`,
+this changelog.
+
 ## 2026-08-11 - deploy: production v0.1.207
 
 ### What

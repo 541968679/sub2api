@@ -276,6 +276,7 @@ func (s *OpenAIGatewayService) handleAnthropicCompactStreamingResponse(
 			zap.String("upstream_model", upstreamModel),
 			zap.Strings("fallback_upstream_models", compactFallbackUpstreamModels),
 		)
+		markClaudeGPTBridgeCompactRecoveryUsed(c)
 		return s.runAnthropicCompactRecoveryWithModelFallbacks(
 			ctx, c, account, fullAnthropicReq, token, bridgeMode, originalModel,
 			compactFallbackUpstreamModels, startTime, usage, clientStream, requestID,
@@ -296,6 +297,7 @@ func (s *OpenAIGatewayService) handleAnthropicCompactStreamingResponse(
 			zap.Int("initial_output_tokens", usage.OutputTokens),
 			zap.Int("full_message_count", len(fullAnthropicReq.Messages)),
 		)
+		markClaudeGPTBridgeCompactRecoveryUsed(c)
 		candidates := append([]string{upstreamModel}, compactFallbackUpstreamModels...)
 		return s.runAnthropicCompactRecoveryWithModelFallbacks(
 			ctx, c, account, fullAnthropicReq, token, bridgeMode, originalModel,
