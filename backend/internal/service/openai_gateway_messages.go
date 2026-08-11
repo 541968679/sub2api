@@ -353,6 +353,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	SetOpsUpstreamModel(c, upstreamModel)
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	apiKeyID := getAPIKeyIDFromContext(c)
+	requestPath := ""
+	userAgent := ""
+	if c != nil && c.Request != nil {
+		requestPath = c.Request.URL.Path
+		userAgent = c.Request.UserAgent()
+	}
 	anthropicDigestChain := ""
 	anthropicMatchedDigestChain := ""
 	compatPromptCacheInjected := false
@@ -392,6 +398,26 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// Active suffix must match the final Anthropic messages used for conversion
 	// (after normalize + optional replay-guard trim) so compact keeps the current turn.
 	activeSuffixItems := anthropicBridgeActiveSuffixItemCount(&anthropicReq)
+
+	// Request-scoped correlation for prompt-too-long / Claude Code compact lifecycle logs.
+	setClaudeGPTBridgeObs(c, claudeGPTBridgeObs{
+		SessionKey:    promptCacheKey,
+		OriginalModel: originalModel,
+		BillingModel:  billingModel,
+		UpstreamModel: upstreamModel,
+		BodyBytes:     len(body),
+		MessageCount:  len(anthropicCompactReq.Messages),
+		ClientStream:  clientStream,
+		BridgeMode:    bridgeMode,
+		CompactMapped: anthropicCompactModelMapped,
+		RequestPath:   requestPath,
+		UserAgent:     userAgent,
+	})
+	if anthropicCompactRequest {
+		logClaudeGPTBridgeCompactDetected(c, account)
+	} else {
+		maybeLogClaudeGPTBridgeCompactUnrecognized(c, account, anthropicCompactReq)
+	}
 
 	// 3. Convert Anthropic → Responses after compatibility-only replay guard.
 	responsesReq, err := apicompat.AnthropicToResponses(&anthropicReq)
@@ -654,9 +680,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		}
 		safeErr := sanitizeUpstreamErrorMessage(err.Error())
 		if anthropicCompactRequest {
-			return nil, s.newOpenAIStreamFailoverError(
+			compactErr := s.newOpenAIStreamFailoverError(
 				c, account, false, "", nil, "Upstream compact request failed: "+safeErr,
 			)
+			emitClaudeGPTBridgeCompactOutcome(c, account, nil, compactErr, startTime)
+			return nil, compactErr
 		}
 		setOpsUpstreamError(c, 0, safeErr, "")
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
@@ -681,7 +709,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
 		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 		if bridgeMode && !anthropicCompactRequest && isOpenAIMessagesContextWindowError(nil, respBody, upstreamMsg) {
-			clientErr := s.newClaudeCodePromptTooLongError(c, account, resp.Header.Get("x-request-id"))
+			clientErr := s.newClaudeCodePromptTooLongError(c, account, resp.Header.Get("x-request-id"), "http_error")
 			writeAnthropicError(c, clientErr.StatusCode, "invalid_request_error", claudeCodePromptTooLongClientMessage)
 			return nil, clientErr
 		}
@@ -699,6 +727,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				zap.Int("upstream_status", resp.StatusCode),
 				zap.String("upstream_request_id", resp.Header.Get("x-request-id")),
 			)
+			markClaudeGPTBridgeCompactRecoveryUsed(c)
 			result, recoveryErr := s.runAnthropicCompactRecoveryWithModelFallbacks(
 				ctx, c, account, anthropicCompactReq, token, bridgeMode, originalModel,
 				candidates, startTime, initialUsage, clientStream, resp.Header.Get("x-request-id"),
@@ -706,6 +735,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			if recoveryErr == nil && result != nil && result.SkipContinuationBinding {
 				s.deleteOpenAICompatSessionContinuation(ctx, c, account, promptCacheKey)
 			}
+			emitClaudeGPTBridgeCompactOutcome(c, account, result, recoveryErr, startTime)
 			return result, recoveryErr
 		}
 		if anthropicCompactRequest && len(anthropicCompactFallbackUpstreamModels) > 0 &&
@@ -718,6 +748,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				zap.Int("upstream_status", resp.StatusCode),
 				zap.String("upstream_request_id", resp.Header.Get("x-request-id")),
 			)
+			markClaudeGPTBridgeCompactRecoveryUsed(c)
 			result, recoveryErr := s.runAnthropicCompactRecoveryWithModelFallbacks(
 				ctx, c, account, anthropicCompactReq, token, bridgeMode, originalModel,
 				anthropicCompactFallbackUpstreamModels, startTime, OpenAIUsage{}, clientStream,
@@ -726,6 +757,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			if recoveryErr == nil && result != nil && result.SkipContinuationBinding {
 				s.deleteOpenAICompatSessionContinuation(ctx, c, account, promptCacheKey)
 			}
+			emitClaudeGPTBridgeCompactOutcome(c, account, result, recoveryErr, startTime)
 			return result, recoveryErr
 		}
 		if previousResponseID != "" && (isOpenAICompatPreviousResponseNotFound(resp.StatusCode, upstreamMsg, respBody) || isOpenAICompatPreviousResponseUnsupported(resp.StatusCode, upstreamMsg, respBody)) {
@@ -799,6 +831,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	// cyber_policy：标记已设、error 已按 Anthropic 格式发给客户端。丢弃 result、返回哨兵，
 	// 使 handler 落入 tokens=0 免费用量行（对齐 /v1/responses），不计费、不 failover。
 	if GetOpsCyberPolicy(c) != nil {
+		if anthropicCompactRequest {
+			emitClaudeGPTBridgeCompactOutcome(c, account, nil, errOpenAICyberPolicyForwarded, startTime)
+		}
 		return nil, errOpenAICyberPolicyForwarded
 	}
 
@@ -837,6 +872,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
 			s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
 		}
+	}
+
+	if anthropicCompactRequest {
+		emitClaudeGPTBridgeCompactOutcome(c, account, result, handleErr, startTime)
 	}
 
 	return result, handleErr
@@ -922,7 +961,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 		}
 		message := extractOpenAISSEErrorMessage(payload)
 		if isOpenAIClaudeGPTBridgeForward(c) && isOpenAIMessagesContextWindowError(finalResponse, payload, message) {
-			return nil, s.newClaudeCodePromptTooLongError(c, account, requestID)
+			return nil, s.newClaudeCodePromptTooLongError(c, account, requestID, "buffered_failed")
 		}
 		if openAIStreamFailedEventShouldFailover(payload, message) {
 			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, message)
@@ -1015,7 +1054,7 @@ func (s *OpenAIGatewayService) openAIMessagesTerminalFailureError(
 	}
 	if allowPromptTooLong && isOpenAIClaudeGPTBridgeForward(c) &&
 		isOpenAIMessagesContextWindowError(response, payload, message) {
-		return s.newClaudeCodePromptTooLongError(c, account, requestID)
+		return s.newClaudeCodePromptTooLongError(c, account, requestID, "sse_failed")
 	}
 	if isOpenAIMessagesContextWindowError(response, payload, message) {
 		return s.newOpenAIStreamClientError(c, account, requestID, http.StatusBadRequest,
@@ -1065,7 +1104,12 @@ func (s *OpenAIGatewayService) newClaudeCodePromptTooLongError(
 	c *gin.Context,
 	account *Account,
 	requestID string,
+	source string,
 ) *UpstreamFailoverError {
+	if strings.TrimSpace(source) == "" {
+		source = "unknown"
+	}
+	logClaudeGPTBridgePromptTooLong(c, account, requestID, source)
 	return s.newOpenAIStreamClientError(
 		c,
 		account,
