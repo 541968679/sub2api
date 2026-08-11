@@ -1,3 +1,16 @@
+## 2026-08-11 - deploy: production v0.1.207
+
+### What
+- Released and deployed `v0.1.207` (`098dbaefa`) to production as `ghcr.io/541968679/sub2api:0.1.207`.
+- Includes admin OpenAI advanced scheduler weight/toggle save persistence fix.
+
+### Verification
+- GitHub Actions Release `31469771373` success
+- Production health OK; image pin `0.1.207`; container healthy; `/health` `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-11 - fix(admin): persist OpenAI advanced scheduler weight overrides
 
 ### What
