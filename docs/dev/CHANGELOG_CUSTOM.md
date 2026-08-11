@@ -1,3 +1,16 @@
+## 2026-08-11 - deploy: production v0.1.209
+
+### What
+- Released and deployed `v0.1.209` (`cc261b5d5`) to production as `ghcr.io/541968679/sub2api:0.1.209`.
+- Includes ops upstream endpoint logging fix for Claude-GPT bridge.
+
+### Verification
+- GitHub Actions Release `31496948038` success
+- Production health OK; image pin `0.1.209`; container healthy; `/health` `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-11 - fix(ops): record real OpenAI upstream endpoint for Claude-GPT bridge
 
 ### What
