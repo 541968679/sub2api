@@ -56,6 +56,25 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 	}
 }
 
+func TestGetUpstreamEndpoint_PrefersActualOpenAIEndpointForAntigravityGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	// Client-facing Claude path under an antigravity group, but runtime
+	// already recorded the real OpenAI Responses forward surface.
+	c.Request = httptest.NewRequest(http.MethodPost, "/antigravity/v1/messages", nil)
+	c.Set(ctxKeyInboundEndpoint, EndpointMessages)
+
+	// Without runtime marker, antigravity derives /v1/messages.
+	require.Equal(t, EndpointMessages, GetUpstreamEndpoint(c, service.PlatformAntigravity))
+
+	service.SetActualOpenAIUpstreamEndpoint(c, EndpointResponses)
+	// Ops must report the actual OpenAI upstream, not the antigravity inbound.
+	require.Equal(t, EndpointResponses, GetUpstreamEndpoint(c, service.PlatformAntigravity))
+	// Other platforms still honor the runtime marker when present.
+	require.Equal(t, EndpointResponses, GetUpstreamEndpoint(c, service.PlatformOpenAI))
+}
+
 func TestResolveOpenAIUpstreamEndpoint_APIKeyChatOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
