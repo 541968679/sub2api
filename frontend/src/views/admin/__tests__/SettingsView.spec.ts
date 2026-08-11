@@ -765,6 +765,49 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(wrapper.text()).not.toContain("OpenAI 高级调度器");
   });
 
+  it("submits OpenAI advanced scheduler weight overrides and related toggles", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_advanced_scheduler_enabled: true,
+      openai_advanced_scheduler_sticky_weighted_enabled: true,
+      openai_advanced_scheduler_subscription_priority_enabled: true,
+      openai_advanced_scheduler_lb_top_k: "5",
+      openai_advanced_scheduler_weight_priority: "2.5",
+      openai_advanced_scheduler_weight_load: "1.2",
+      openai_advanced_scheduler_weight_queue: "0.9",
+      openai_advanced_scheduler_weight_error_rate: "0.6",
+      openai_advanced_scheduler_weight_ttft: "0.4",
+      openai_advanced_scheduler_weight_reset: "0.1",
+      openai_advanced_scheduler_weight_quota_headroom: "0.3",
+      openai_advanced_scheduler_weight_previous_response: "8",
+      openai_advanced_scheduler_weight_session_sticky: "4",
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_advanced_scheduler_enabled: true,
+        openai_advanced_scheduler_sticky_weighted_enabled: true,
+        openai_advanced_scheduler_subscription_priority_enabled: true,
+        openai_advanced_scheduler_lb_top_k: "5",
+        openai_advanced_scheduler_weight_priority: "2.5",
+        openai_advanced_scheduler_weight_load: "1.2",
+        openai_advanced_scheduler_weight_queue: "0.9",
+        openai_advanced_scheduler_weight_error_rate: "0.6",
+        openai_advanced_scheduler_weight_ttft: "0.4",
+        openai_advanced_scheduler_weight_reset: "0.1",
+        openai_advanced_scheduler_weight_quota_headroom: "0.3",
+        openai_advanced_scheduler_weight_previous_response: "8",
+        openai_advanced_scheduler_weight_session_sticky: "4",
+      }),
+    );
+  });
+
   it("passes translated upload and remove labels to the payment help image uploader", async () => {
     const wrapper = mountView();
 
