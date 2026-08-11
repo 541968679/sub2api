@@ -230,6 +230,18 @@ func TestSetOpsEndpointContext_NilContext(t *testing.T) {
 	})
 }
 
+func TestResolveOpsUpstreamEndpoint_PrefersActualOpenAIEndpointOverAntigravityPlatform(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/antigravity/v1/messages", nil)
+	c.Set(ctxKeyInboundEndpoint, EndpointMessages)
+
+	// Claude-GPT bridge: group platform is antigravity, runtime forward is OpenAI Responses.
+	service.SetActualOpenAIUpstreamEndpoint(c, EndpointResponses)
+	require.Equal(t, EndpointResponses, resolveOpsUpstreamEndpoint(c, service.PlatformAntigravity, nil))
+}
+
 func TestResolveOpsUpstreamEndpoint_PrefersLastErrorAttempt(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

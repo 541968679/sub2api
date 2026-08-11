@@ -1,3 +1,37 @@
+## 2026-08-11 - fix(ops): record real OpenAI upstream endpoint for Claude-GPT bridge
+
+### What
+- `GetUpstreamEndpoint` now prefers `SetActualOpenAIUpstreamEndpoint` for ops/logging even when the API key group platform is antigravity/other.
+- `buildUpstreamRequest` records logical `/v1/responses` (plus compact suffix) for ops without changing the request URL.
+- Prevents ops_error_logs from mislabeling Claude→GPT bridge upstream as `/v1/messages`.
+
+### Why
+Bridge traffic under antigravity groups was logged as `upstream_endpoint=/v1/messages` while the real forward target is OpenAI Responses (`/v1/responses` or Codex responses URL).
+
+### Verification
+- `go test -tags=unit ./internal/handler -run "TestGetUpstreamEndpoint_PrefersActual|TestResolveOpsUpstreamEndpoint_PrefersActual|TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint|TestResolveOpsUpstreamEndpoint_PrefersLast|TestDeriveUpstreamEndpoint" -count=1`
+- `go test -tags=unit ./internal/service -run "TestForwardAsAnthropic_PromptTooLongLogs|TestClaudeGPTBridgeDirectHTTP" -count=1`
+
+### Affected files
+`backend/internal/handler/endpoint.go`,
+`backend/internal/handler/openai_gateway_endpoint_normalization_test.go`,
+`backend/internal/handler/ops_error_logger_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+this changelog.
+
+## 2026-08-11 - deploy: production v0.1.208
+
+### What
+- Released and deployed `v0.1.208` (`07d72e113`) to production as `ghcr.io/541968679/sub2api:0.1.208`.
+- Includes Claude→GPT bridge prompt-too-long / Claude Code compact INFO lifecycle logs.
+
+### Verification
+- GitHub Actions Release `31492176636` success
+- Production health OK; image pin `0.1.208`; container healthy; `/health` `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-11 - feat(bridge): INFO lifecycle logs for prompt-too-long vs Claude Code compact
 
 ### What

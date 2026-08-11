@@ -4527,7 +4527,14 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	default:
 		targetURL = openaiPlatformAPIURL
 	}
-	targetURL = appendOpenAIResponsesRequestPathSuffix(targetURL, openAIResponsesRequestPathSuffix(c))
+	pathSuffix := openAIResponsesRequestPathSuffix(c)
+	targetURL = appendOpenAIResponsesRequestPathSuffix(targetURL, pathSuffix)
+
+	// Ops/logging only: record the logical upstream surface. Request URL is
+	// already final above and is not rewritten by this marker.
+	// Claude→GPT bridge often runs under antigravity groups while forwarding
+	// to OpenAI Responses; without this, ops would mislabel upstream as /v1/messages.
+	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+pathSuffix)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(body))
 	if err != nil {

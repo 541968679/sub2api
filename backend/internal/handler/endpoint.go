@@ -178,11 +178,14 @@ func GetInboundEndpoint(c *gin.Context) string {
 // GetUpstreamEndpoint derives the upstream endpoint from the context
 // and the account platform. Handlers call this after scheduling an
 // account, passing account.Platform.
+//
+// When the runtime recorded an actual OpenAI-family upstream path (via
+// service.SetActualOpenAIUpstreamEndpoint), prefer that for ops/logging
+// even if the API key's group platform is not openai (e.g. Claude→GPT
+// bridge under an antigravity group). This does not change request routing.
 func GetUpstreamEndpoint(c *gin.Context, platform string) string {
-	if platform == service.PlatformOpenAI || platform == service.PlatformGrok {
-		if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
-			return endpoint
-		}
+	if endpoint := service.GetActualOpenAIUpstreamEndpoint(c); endpoint != "" {
+		return endpoint
 	}
 	inbound := GetInboundEndpoint(c)
 	rawPath := ""
