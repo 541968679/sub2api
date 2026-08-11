@@ -1,3 +1,16 @@
+## 2026-08-11 - deploy: production v0.1.208
+
+### What
+- Released and deployed `v0.1.208` (`07d72e113`) to production as `ghcr.io/541968679/sub2api:0.1.208`.
+- Includes Claude→GPT bridge prompt-too-long / Claude Code compact INFO lifecycle logs.
+
+### Verification
+- GitHub Actions Release `31492176636` success
+- Production health OK; image pin `0.1.208`; container healthy; `/health` `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-11 - feat(bridge): INFO lifecycle logs for prompt-too-long vs Claude Code compact
 
 ### What
