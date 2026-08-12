@@ -10,6 +10,8 @@ const messages: Record<string, string> = {
   'admin.usage.outputCost': 'Output Cost',
   'admin.usage.cacheCreationCost': 'Cache Creation Cost',
   'admin.usage.cacheReadCost': 'Cache Read Cost',
+  'admin.usage.cacheShare': '缓存占比：{share}',
+  'admin.usage.cacheShareHint': 'cache share hint',
   'usage.inputTokenPrice': 'Input price',
   'usage.outputTokenPrice': 'Output price',
   'usage.perMillionTokens': '/ 1M tokens',
@@ -30,7 +32,14 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, string | number>) => {
+        const template = messages[key] ?? key
+        if (!params) return template
+        return Object.entries(params).reduce(
+          (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+          template,
+        )
+      },
     }),
   }
 })
@@ -217,6 +226,58 @@ describe('admin UsageTable tooltip', () => {
     // formatCacheTokens: 1200 -> "1.2K", 500 stays "500"
     expect(text).toContain('1.2K')
     expect(text).toContain('500')
+  })
+
+  it('shows cache share separately in token and TOKEN columns', () => {
+    const row = {
+      request_id: 'req-admin-cache-share-1',
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      // real: 20 / (40+10+20+30) = 20%
+      input_tokens: 40,
+      output_tokens: 10,
+      cache_read_tokens: 20,
+      cache_creation_tokens: 30,
+      display_fields: {
+        // display: 120 / (80+20+120+180) = 30%
+        display_input_tokens: 80,
+        display_output_tokens: 20,
+        display_cache_read_tokens: 120,
+        display_cache_creation_tokens: 180,
+        display_input_cost: 0,
+        display_output_cost: 0,
+        display_cache_read_cost: 0,
+        display_total_cost: 0,
+      },
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain('缓存占比：20.0%')
+    expect(text).toContain('缓存占比：30.0%')
+    expect(text).not.toContain('真实')
+    expect(text).not.toContain('展示')
   })
 
   it('shows dash when display_fields is missing', () => {

@@ -1,3 +1,21 @@
+## 2026-08-12 - fix(admin-usage): restore token/TOKEN headers and per-column cache share
+
+### What
+- Restored admin usage table headers to `token` / `TOKEN` with `preserveHeaderCase` (regressed after local-main restore replayed an older UsageView column list).
+- Restored per-column cache-share labels under billing and display token cells using `admin.usage.cacheShare` (the combined `cacheShareRealOnly`/`cacheShareBoth` keys were already removed, so the merged label was broken).
+
+### Why
+Afternoon UI clarification (`0b6267de6`) was overwritten by later restore/feature-replay commits; headers and cache-share display appeared fully reverted.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageTable.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts`,
+this changelog.
+
 ## 2026-08-12 - feat(gateway): restore OpenAI stream stage timing (0.1.215 prep)
 
 ### What
