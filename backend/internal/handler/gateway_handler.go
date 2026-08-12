@@ -1280,11 +1280,12 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	// Best-effort: 获取用量统计（按当前 API Key 过滤，展示值），失败不影响基础响应
 	usageData := h.buildUsageData(ctx, apiKey, displayMap, userDisplayRates)
 
-	// Best-effort: 获取模型统计（展示值）
+	// Best-effort: 获取模型统计（展示值）via SQL groups — avoid paging every row.
 	var modelStats any
 	if h.usageService != nil {
-		if records, err := loadDisplayedUsageRecords(ctx, h.usageService, displayMap, userDisplayRates, h.pricingResolver, nil, apiKey.UserID, apiKey.ID, startTime, endTime); err == nil && len(records) > 0 {
-			modelStats = aggregateDisplayedModelStats(records)
+		start, end := startTime, endTime
+		if groups, err := h.usageService.GetUserDisplayAggregateGroups(ctx, apiKey.UserID, apiKey.ID, &start, &end); err == nil && len(groups) > 0 {
+			modelStats = aggregateDisplayedModelStatsFromGroups(groups, displayMap, userDisplayRates)
 		}
 	}
 

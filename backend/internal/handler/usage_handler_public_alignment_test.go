@@ -85,6 +85,99 @@ func (r *publicUsageAlignmentRepo) GetAPIKeyStatsAggregated(_ context.Context, a
 	return &stats, nil
 }
 
+func (r *publicUsageAlignmentRepo) GetUserDisplayAggregateGroups(_ context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) ([]usagestats.DisplayAggregateGroup, error) {
+	return r.aggregateDisplayGroups(userID, apiKeyID, startTime, endTime, "")
+}
+
+func (r *publicUsageAlignmentRepo) GetUserDisplayAggregateGroupsByBucket(_ context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error) {
+	return r.aggregateDisplayGroups(userID, apiKeyID, startTime, endTime, granularity)
+}
+
+func (r *publicUsageAlignmentRepo) aggregateDisplayGroups(userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error) {
+	type key struct {
+		model     string
+		groupID   int64
+		hasGroup  bool
+		rate      float64
+		lcApplied bool
+		lcIn      float64
+		lcOut     float64
+		bucket    string
+	}
+	acc := make(map[key]*usagestats.DisplayAggregateGroup)
+	order := make([]key, 0)
+	for _, log := range r.logs {
+		if userID > 0 && log.UserID != userID {
+			continue
+		}
+		if apiKeyID > 0 && log.APIKeyID != apiKeyID {
+			continue
+		}
+		if startTime != nil && log.CreatedAt.Before(*startTime) {
+			continue
+		}
+		if endTime != nil && !log.CreatedAt.Before(*endTime) {
+			continue
+		}
+		k := key{
+			model:     log.Model,
+			rate:      log.RateMultiplier,
+			lcApplied: log.LongContextApplied,
+			lcIn:      log.LongContextInputMultiplier,
+			lcOut:     log.LongContextOutputMultiplier,
+		}
+		if log.GroupID != nil {
+			k.hasGroup = true
+			k.groupID = *log.GroupID
+		}
+		if granularity != "" {
+			k.bucket = publicUsageTrendBucketLabel(log.CreatedAt, granularity)
+		}
+		g := acc[k]
+		if g == nil {
+			g = &usagestats.DisplayAggregateGroup{
+				Model:              log.Model,
+				RateMultiplier:     log.RateMultiplier,
+				LongContextApplied: log.LongContextApplied,
+				Bucket:             k.bucket,
+			}
+			if k.hasGroup {
+				gid := k.groupID
+				g.GroupID = &gid
+			}
+			if log.LongContextInputMultiplier != 0 {
+				v := log.LongContextInputMultiplier
+				g.LongContextInputMultiplier = &v
+			}
+			if log.LongContextOutputMultiplier != 0 {
+				v := log.LongContextOutputMultiplier
+				g.LongContextOutputMultiplier = &v
+			}
+			acc[k] = g
+			order = append(order, k)
+		}
+		g.Requests++
+		g.InputTokens += int64(log.InputTokens)
+		g.OutputTokens += int64(log.OutputTokens)
+		g.CacheCreationTokens += int64(log.CacheCreationTokens)
+		g.CacheReadTokens += int64(log.CacheReadTokens)
+		g.InputCost += log.InputCost
+		g.OutputCost += log.OutputCost
+		g.CacheCreationCost += log.CacheCreationCost
+		g.CacheReadCost += log.CacheReadCost
+		g.TotalCost += log.TotalCost
+		g.ActualCost += log.ActualCost
+		if log.DurationMs != nil {
+			g.DurationSum += int64(*log.DurationMs)
+		}
+	}
+	out := make([]usagestats.DisplayAggregateGroup, 0, len(order))
+	for _, k := range order {
+		out = append(out, *acc[k])
+	}
+	return out, nil
+}
+
 func (r *publicUsageAlignmentRepo) GetUsageTrendWithFilters(
 	_ context.Context,
 	startTime, endTime time.Time,

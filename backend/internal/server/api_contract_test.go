@@ -2368,6 +2368,10 @@ func (r *stubUsageLogRepo) GetUserDisplayAggregateGroups(ctx context.Context, us
 	return nil, errors.New("not implemented")
 }
 
+func (r *stubUsageLogRepo) GetUserDisplayAggregateGroupsByBucket(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (r *stubUsageLogRepo) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.TrendDataPoint, error) {
 	return nil, errors.New("not implemented")
 }

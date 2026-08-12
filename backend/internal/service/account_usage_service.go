@@ -64,6 +64,7 @@ type UsageLogRepository interface {
 	GetUserUsageTrendByUserID(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error)
 	GetUserModelStats(ctx context.Context, userID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error)
 	GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) ([]usagestats.DisplayAggregateGroup, error)
+	GetUserDisplayAggregateGroupsByBucket(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error)
 
 	// Admin usage listing/stats
 	ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]UsageLog, *pagination.PaginationResult, error)

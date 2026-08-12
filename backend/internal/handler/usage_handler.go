@@ -384,12 +384,12 @@ func (h *UsageHandler) PublicStats(c *gin.Context) {
 		return
 	}
 
-	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKey.ID, startTime, endTime)
+	stats, err := h.displayedUsageStats(c, subject.UserID, apiKey.ID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, aggregateDisplayedPublicUsageStats(records))
+	response.Success(c, stats)
 }
 
 // PublicTrend returns selected-range usage trend data for the API key used to authenticate the request.
@@ -413,12 +413,11 @@ func (h *UsageHandler) PublicTrend(c *gin.Context) {
 	}
 	granularity := c.DefaultQuery("granularity", "day")
 
-	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKey.ID, startTime, endTime)
+	trend, err := h.displayedUsageTrend(c, subject.UserID, apiKey.ID, startTime, endTime, granularity)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	trend := aggregateDisplayedPublicUsageTrend(records, granularity)
 
 	response.Success(c, gin.H{
 		"trend":       trend,
@@ -532,16 +531,15 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		endTime = now
 	}
 
-	// Aggregate from the same display-transformed records the user sees in the records
-	// list, so the stat cards show display values (never real tokens/prices) and reconcile
-	// exactly with the records table for the selected range.
-	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKeyID, startTime, endTime)
+	// Aggregate via SQL display-invariant groups (same transform as records list) so
+	// heavy users do not time out loading every row in the selected range.
+	stats, err := h.displayedUsageStats(c, subject.UserID, apiKeyID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
 
-	response.Success(c, aggregateDisplayedPublicUsageStats(records))
+	response.Success(c, stats)
 }
 
 // parseUserTimeRange parses start_date, end_date query parameters for user dashboard
@@ -694,14 +692,13 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 		apiKeyID = id
 	}
 
-	// Bucket the same display-transformed records the user sees, so trend tokens/cost are
-	// display values consistent with the stat cards and records list.
-	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, apiKeyID, startTime, endTime)
+	// Bucket via SQL display-invariant groups so trend tokens/cost stay display values
+	// without paging every row (heavy users previously hit the 30s client timeout).
+	trend, err := h.displayedUsageTrend(c, subject.UserID, apiKeyID, startTime, endTime, granularity)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	trend := aggregateDisplayedPublicUsageTrend(records, granularity)
 
 	response.Success(c, gin.H{
 		"trend":       trend,
@@ -722,14 +719,12 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 
 	startTime, endTime := parseUserTimeRange(c)
 
-	// Group the same display-transformed records the user sees, so per-model tokens/cost
-	// are display values (never real tokens/prices).
-	records, err := h.loadAllDisplayedPublicUsageRecords(c, subject.UserID, 0, startTime, endTime)
+	// Per-model display stats from SQL groups (never expose real tokens/prices).
+	stats, err := h.displayedUsageModelStats(c, subject.UserID, 0, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	stats := aggregateDisplayedModelStats(records)
 
 	response.Success(c, gin.H{
 		"models":     stats,
@@ -1120,6 +1115,143 @@ func (h *UsageHandler) userDashboardDisplayTotals(c *gin.Context, userID int64, 
 		return displayUsageTotals{}, err
 	}
 	return aggregateDisplayedGroups(groups, displayMap, userDisplayRates), nil
+}
+
+// displayedUsageStats returns selected-range display UsageStats via SQL group aggregates.
+func (h *UsageHandler) displayedUsageStats(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time) (*service.UsageStats, error) {
+	displayMap := h.loadDisplayPricingMapForUser(c, userID)
+	userDisplayRates := h.loadUserDisplayRates(c, userID)
+	start, end := startTime, endTime
+	groups, err := h.usageService.GetUserDisplayAggregateGroups(c.Request.Context(), userID, apiKeyID, &start, &end)
+	if err != nil {
+		return nil, err
+	}
+	totals := aggregateDisplayedGroups(groups, displayMap, userDisplayRates)
+	return &service.UsageStats{
+		TotalRequests:     totals.Requests,
+		TotalInputTokens:  totals.InputTokens,
+		TotalOutputTokens: totals.OutputTokens,
+		TotalCacheTokens:  totals.CacheCreationTokens + totals.CacheReadTokens,
+		TotalTokens:       totals.totalTokens(),
+		TotalCost:         totals.TotalCost,
+		TotalActualCost:   totals.ActualCost,
+		AverageDurationMs: totals.averageDurationMs(),
+	}, nil
+}
+
+// displayedUsageTrend returns selected-range display trend points via bucketed SQL groups.
+func (h *UsageHandler) displayedUsageTrend(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error) {
+	displayMap := h.loadDisplayPricingMapForUser(c, userID)
+	userDisplayRates := h.loadUserDisplayRates(c, userID)
+	start, end := startTime, endTime
+	groups, err := h.usageService.GetUserDisplayAggregateGroupsByBucket(c.Request.Context(), userID, apiKeyID, &start, &end, granularity)
+	if err != nil {
+		return nil, err
+	}
+	return aggregateDisplayedTrendFromGroups(groups, displayMap, userDisplayRates), nil
+}
+
+// displayedUsageModelStats returns selected-range per-model display stats via SQL groups.
+func (h *UsageHandler) displayedUsageModelStats(c *gin.Context, userID, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
+	displayMap := h.loadDisplayPricingMapForUser(c, userID)
+	userDisplayRates := h.loadUserDisplayRates(c, userID)
+	start, end := startTime, endTime
+	groups, err := h.usageService.GetUserDisplayAggregateGroups(c.Request.Context(), userID, apiKeyID, &start, &end)
+	if err != nil {
+		return nil, err
+	}
+	return aggregateDisplayedModelStatsFromGroups(groups, displayMap, userDisplayRates), nil
+}
+
+// aggregateDisplayedTrendFromGroups applies the display transform once per bucketed group
+// and merges groups that share the same Bucket label into TrendDataPoint rows.
+func aggregateDisplayedTrendFromGroups(groups []usagestats.DisplayAggregateGroup, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) []usagestats.TrendDataPoint {
+	buckets := make(map[string]*usagestats.TrendDataPoint)
+	for i := range groups {
+		g := &groups[i]
+		label := g.Bucket
+		if label == "" {
+			continue
+		}
+		u := displayUsageRecordForUser(context.Background(), groupToServiceUsageLog(g), displayMap, userDisplayRates, nil)
+		point := buckets[label]
+		if point == nil {
+			point = &usagestats.TrendDataPoint{Date: label}
+			buckets[label] = point
+		}
+		point.Requests += g.Requests
+		point.InputTokens += int64(u.InputTokens)
+		point.OutputTokens += int64(u.OutputTokens)
+		point.CacheCreationTokens += int64(u.CacheCreationTokens)
+		point.CacheReadTokens += int64(u.CacheReadTokens)
+		point.TotalTokens += int64(u.InputTokens + u.OutputTokens + u.CacheCreationTokens + u.CacheReadTokens)
+		point.Cost += u.TotalCost
+		point.ActualCost += u.ActualCost
+	}
+	labels := make([]string, 0, len(buckets))
+	for label := range buckets {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	out := make([]usagestats.TrendDataPoint, 0, len(labels))
+	for _, label := range labels {
+		out = append(out, *buckets[label])
+	}
+	return out
+}
+
+// aggregateDisplayedModelStatsFromGroups applies the display transform once per group and
+// folds results by model into ModelStat rows.
+func aggregateDisplayedModelStatsFromGroups(groups []usagestats.DisplayAggregateGroup, displayMap dto.DisplayPricingMap, userDisplayRates map[int64]service.UserGroupRateData) []usagestats.ModelStat {
+	type acc struct {
+		requests   int64
+		input      int64
+		output     int64
+		cacheCreat int64
+		cacheRead  int64
+		cost       float64
+		actualCost float64
+	}
+	byModel := make(map[string]*acc)
+	order := make([]string, 0)
+	for i := range groups {
+		g := &groups[i]
+		u := displayUsageRecordForUser(context.Background(), groupToServiceUsageLog(g), displayMap, userDisplayRates, nil)
+		model := u.Model
+		if model == "" {
+			model = g.Model
+		}
+		a := byModel[model]
+		if a == nil {
+			a = &acc{}
+			byModel[model] = a
+			order = append(order, model)
+		}
+		a.requests += g.Requests
+		a.input += int64(u.InputTokens)
+		a.output += int64(u.OutputTokens)
+		a.cacheCreat += int64(u.CacheCreationTokens)
+		a.cacheRead += int64(u.CacheReadTokens)
+		a.cost += u.TotalCost
+		a.actualCost += u.ActualCost
+	}
+	out := make([]usagestats.ModelStat, 0, len(order))
+	for _, model := range order {
+		a := byModel[model]
+		out = append(out, usagestats.ModelStat{
+			Model:               model,
+			Requests:            a.requests,
+			InputTokens:         a.input,
+			OutputTokens:        a.output,
+			CacheCreationTokens: a.cacheCreat,
+			CacheReadTokens:     a.cacheRead,
+			TotalTokens:         a.input + a.output + a.cacheCreat + a.cacheRead,
+			Cost:                a.cost,
+			ActualCost:          a.actualCost,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].TotalTokens > out[j].TotalTokens })
+	return out
 }
 
 // aggregateDisplayedModelStats groups already-display-transformed usage records by model.

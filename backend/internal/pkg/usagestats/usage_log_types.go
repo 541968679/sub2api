@@ -344,6 +344,9 @@ type DisplayAggregateGroup struct {
 	LongContextApplied          bool
 	LongContextInputMultiplier  *float64
 	LongContextOutputMultiplier *float64
+	// Bucket is a trend time-bucket label (e.g. YYYY-MM-DD or YYYY-MM-DD HH:00).
+	// Empty when the query is not time-bucketed (stats / models / all-time totals).
+	Bucket string
 
 	Requests            int64
 	InputTokens         int64

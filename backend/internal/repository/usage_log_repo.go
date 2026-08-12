@@ -2984,7 +2984,35 @@ func (r *usageLogRepository) GetUserModelStats(ctx context.Context, userID int64
 // sums for a user, so callers can apply the user-facing display transform once per group
 // and sum the results. apiKeyID > 0 narrows to one key; nil start/end means unbounded
 // (used for the all-time dashboard totals, where loading every row is infeasible).
-func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) (groups []usagestats.DisplayAggregateGroup, err error) {
+func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) ([]usagestats.DisplayAggregateGroup, error) {
+	return r.getUserDisplayAggregateGroups(ctx, userID, apiKeyID, startTime, endTime, "")
+}
+
+// GetUserDisplayAggregateGroupsByBucket is like GetUserDisplayAggregateGroups but also
+// groups by a time-bucket label matching publicUsageTrendBucketLabel (day/hour/week/month).
+func (r *usageLogRepository) GetUserDisplayAggregateGroupsByBucket(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error) {
+	return r.getUserDisplayAggregateGroups(ctx, userID, apiKeyID, startTime, endTime, granularity)
+}
+
+// displayAggregateBucketSQL returns a PostgreSQL expression whose text form matches
+// handler.publicUsageTrendBucketLabel for the given granularity.
+func displayAggregateBucketSQL(granularity string) string {
+	switch granularity {
+	case "hour":
+		return "to_char(date_trunc('hour', created_at), 'YYYY-MM-DD HH24:00')"
+	case "week":
+		return "to_char(created_at, 'IYYY-IW')"
+	case "month":
+		return "to_char(date_trunc('month', created_at), 'YYYY-MM')"
+	default:
+		return "to_char(date_trunc('day', created_at), 'YYYY-MM-DD')"
+	}
+}
+
+func (r *usageLogRepository) getUserDisplayAggregateGroups(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) (groups []usagestats.DisplayAggregateGroup, err error) {
+	withBucket := granularity != ""
+	bucketExpr := displayAggregateBucketSQL(granularity)
+
 	var sb strings.Builder
 	_, _ = sb.WriteString(`
 		SELECT
@@ -2993,7 +3021,11 @@ func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, 
 			COALESCE(rate_multiplier, 1) AS rate_multiplier,
 			COALESCE(long_context_applied, false) AS long_context_applied,
 			long_context_input_multiplier,
-			long_context_output_multiplier,
+			long_context_output_multiplier,`)
+	if withBucket {
+		_, _ = sb.WriteString("\n\t\t\t" + bucketExpr + " AS bucket,")
+	}
+	_, _ = sb.WriteString(`
 			COUNT(*) AS requests,
 			COALESCE(SUM(input_tokens), 0),
 			COALESCE(SUM(output_tokens), 0),
@@ -3024,6 +3056,9 @@ func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, 
 	_, _ = sb.WriteString(`
 		GROUP BY model, group_id, rate_multiplier, long_context_applied,
 			long_context_input_multiplier, long_context_output_multiplier`)
+	if withBucket {
+		_, _ = sb.WriteString(", " + bucketExpr)
+	}
 
 	rows, err := r.sql.QueryContext(ctx, sb.String(), args...)
 	if err != nil {
@@ -3040,26 +3075,52 @@ func (r *usageLogRepository) GetUserDisplayAggregateGroups(ctx context.Context, 
 		var g usagestats.DisplayAggregateGroup
 		var groupID sql.NullInt64
 		var lcIn, lcOut sql.NullFloat64
-		if scanErr := rows.Scan(
-			&g.Model,
-			&groupID,
-			&g.RateMultiplier,
-			&g.LongContextApplied,
-			&lcIn,
-			&lcOut,
-			&g.Requests,
-			&g.InputTokens,
-			&g.OutputTokens,
-			&g.CacheCreationTokens,
-			&g.CacheReadTokens,
-			&g.InputCost,
-			&g.OutputCost,
-			&g.CacheCreationCost,
-			&g.CacheReadCost,
-			&g.TotalCost,
-			&g.ActualCost,
-			&g.DurationSum,
-		); scanErr != nil {
+		var scanErr error
+		if withBucket {
+			scanErr = rows.Scan(
+				&g.Model,
+				&groupID,
+				&g.RateMultiplier,
+				&g.LongContextApplied,
+				&lcIn,
+				&lcOut,
+				&g.Bucket,
+				&g.Requests,
+				&g.InputTokens,
+				&g.OutputTokens,
+				&g.CacheCreationTokens,
+				&g.CacheReadTokens,
+				&g.InputCost,
+				&g.OutputCost,
+				&g.CacheCreationCost,
+				&g.CacheReadCost,
+				&g.TotalCost,
+				&g.ActualCost,
+				&g.DurationSum,
+			)
+		} else {
+			scanErr = rows.Scan(
+				&g.Model,
+				&groupID,
+				&g.RateMultiplier,
+				&g.LongContextApplied,
+				&lcIn,
+				&lcOut,
+				&g.Requests,
+				&g.InputTokens,
+				&g.OutputTokens,
+				&g.CacheCreationTokens,
+				&g.CacheReadTokens,
+				&g.InputCost,
+				&g.OutputCost,
+				&g.CacheCreationCost,
+				&g.CacheReadCost,
+				&g.TotalCost,
+				&g.ActualCost,
+				&g.DurationSum,
+			)
+		}
+		if scanErr != nil {
 			return nil, scanErr
 		}
 		if groupID.Valid {

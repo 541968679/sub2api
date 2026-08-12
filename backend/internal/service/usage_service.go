@@ -335,6 +335,16 @@ func (s *UsageService) GetUserDisplayAggregateGroups(ctx context.Context, userID
 	return groups, nil
 }
 
+// GetUserDisplayAggregateGroupsByBucket returns display-invariant aggregates also grouped
+// by a trend time-bucket label (day/hour/week/month).
+func (s *UsageService) GetUserDisplayAggregateGroupsByBucket(ctx context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error) {
+	groups, err := s.usageRepo.GetUserDisplayAggregateGroupsByBucket(ctx, userID, apiKeyID, startTime, endTime, granularity)
+	if err != nil {
+		return nil, fmt.Errorf("get user display aggregate groups by bucket: %w", err)
+	}
+	return groups, nil
+}
+
 // GetAPIKeyModelStats returns per-model usage stats for a specific API Key.
 func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, 0, apiKeyID, 0, 0, nil, nil, nil)

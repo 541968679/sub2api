@@ -22,6 +22,9 @@ type userUsageRepoCapture struct {
 	trendUserID      int64
 	trendAPIKeyID    int64
 	trendGranularity string
+	aggUserID        int64
+	aggAPIKeyID      int64
+	aggGranularity   string
 }
 
 func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
@@ -33,6 +36,23 @@ func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagin
 		PageSize: params.PageSize,
 		Pages:    0,
 	}, nil
+}
+
+func (s *userUsageRepoCapture) GetUserDisplayAggregateGroups(_ context.Context, userID, apiKeyID int64, startTime, endTime *time.Time) ([]usagestats.DisplayAggregateGroup, error) {
+	s.aggUserID = userID
+	s.aggAPIKeyID = apiKeyID
+	s.aggGranularity = ""
+	return []usagestats.DisplayAggregateGroup{}, nil
+}
+
+func (s *userUsageRepoCapture) GetUserDisplayAggregateGroupsByBucket(_ context.Context, userID, apiKeyID int64, startTime, endTime *time.Time, granularity string) ([]usagestats.DisplayAggregateGroup, error) {
+	s.aggUserID = userID
+	s.aggAPIKeyID = apiKeyID
+	s.aggGranularity = granularity
+	s.trendUserID = userID
+	s.trendAPIKeyID = apiKeyID
+	s.trendGranularity = granularity
+	return []usagestats.DisplayAggregateGroup{}, nil
 }
 
 func (s *userUsageRepoCapture) GetUserUsageTrendByUserID(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error) {
@@ -134,10 +154,10 @@ func TestUserUsageDashboardTrendFiltersByAPIKey(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	// The dashboard trend now aggregates from display-transformed usage records, so it
-	// filters via ListWithFilters (user + selected API key) rather than the raw trend query.
-	require.Equal(t, int64(42), repo.listFilters.UserID)
-	require.Equal(t, int64(7), repo.listFilters.APIKeyID)
+	// Dashboard trend aggregates via SQL display groups filtered by user + selected API key.
+	require.Equal(t, int64(42), repo.aggUserID)
+	require.Equal(t, int64(7), repo.aggAPIKeyID)
+	require.Equal(t, "hour", repo.aggGranularity)
 }
 
 func TestUserUsageDashboardTrendInvalidAPIKeyID(t *testing.T) {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
@@ -117,4 +118,104 @@ func TestAggregateDisplayedGroups_NoDisplayConfig(t *testing.T) {
 	require.Equal(t, int64(1000), groupAgg.InputTokens)
 	require.Equal(t, int64(200), groupAgg.OutputTokens)
 	require.Equal(t, int64(100000), groupAgg.CacheReadTokens)
+}
+
+func TestAggregateDisplayedModelStatsFromGroups_ReconcilesWithPerRow(t *testing.T) {
+	displayMap := dto.DisplayPricingMap{
+		"m1": &dto.DisplayPricingConfig{
+			DisplayInputPrice:     floatPtr(5e-6),
+			DisplayOutputPrice:    floatPtr(30e-6),
+			DisplayCacheReadPrice: floatPtr(0.5e-6),
+		},
+	}
+	rows := []service.UsageLog{
+		makeDisplayAggTestRow("m1", 1000, 200, 0, 100000),
+		makeDisplayAggTestRow("m1", 2000, 100, 0, 50000),
+	}
+	var rowRecords []dto.UsageLog
+	for i := range rows {
+		rowRecords = append(rowRecords, *displayUsageRecordForUser(t.Context(), &rows[i], displayMap, nil, nil))
+	}
+	fromRows := aggregateDisplayedModelStats(rowRecords)
+	fromGroups := aggregateDisplayedModelStatsFromGroups(
+		[]usagestats.DisplayAggregateGroup{groupFromDisplayAggTestRows(rows)}, displayMap, nil)
+	require.Len(t, fromGroups, 1)
+	require.Equal(t, fromRows[0].Model, fromGroups[0].Model)
+	require.Equal(t, fromRows[0].Requests, fromGroups[0].Requests)
+	require.Equal(t, fromRows[0].InputTokens, fromGroups[0].InputTokens)
+	require.Equal(t, fromRows[0].OutputTokens, fromGroups[0].OutputTokens)
+	require.Equal(t, fromRows[0].CacheReadTokens, fromGroups[0].CacheReadTokens)
+	require.InDelta(t, fromRows[0].Cost, fromGroups[0].Cost, 1e-9)
+	require.InDelta(t, fromRows[0].ActualCost, fromGroups[0].ActualCost, 1e-9)
+}
+
+func TestAggregateDisplayedTrendFromGroups_HourBuckets(t *testing.T) {
+	displayMap := dto.DisplayPricingMap{}
+	t1 := time.Date(2026, 8, 12, 10, 15, 0, 0, time.UTC)
+	t2 := time.Date(2026, 8, 12, 10, 45, 0, 0, time.UTC)
+	t3 := time.Date(2026, 8, 12, 11, 5, 0, 0, time.UTC)
+	rows := []service.UsageLog{
+		{Model: "m", InputTokens: 10, OutputTokens: 1, TotalCost: 0.01, ActualCost: 0.01, CreatedAt: t1, RateMultiplier: 1},
+		{Model: "m", InputTokens: 20, OutputTokens: 2, TotalCost: 0.02, ActualCost: 0.02, CreatedAt: t2, RateMultiplier: 1},
+		{Model: "m", InputTokens: 30, OutputTokens: 3, TotalCost: 0.03, ActualCost: 0.03, CreatedAt: t3, RateMultiplier: 1},
+	}
+	groups := []usagestats.DisplayAggregateGroup{
+		{Model: "m", RateMultiplier: 1, Bucket: publicUsageTrendBucketLabel(t1, "hour"), Requests: 2, InputTokens: 30, OutputTokens: 3, TotalCost: 0.03, ActualCost: 0.03},
+		{Model: "m", RateMultiplier: 1, Bucket: publicUsageTrendBucketLabel(t3, "hour"), Requests: 1, InputTokens: 30, OutputTokens: 3, TotalCost: 0.03, ActualCost: 0.03},
+	}
+	var displayed []dto.UsageLog
+	for i := range rows {
+		displayed = append(displayed, *displayUsageRecordForUser(t.Context(), &rows[i], displayMap, nil, nil))
+	}
+	fromRows := aggregateDisplayedPublicUsageTrend(displayed, "hour")
+	fromGroups := aggregateDisplayedTrendFromGroups(groups, displayMap, nil)
+	require.Equal(t, len(fromRows), len(fromGroups))
+	require.Equal(t, fromRows[0].Date, fromGroups[0].Date)
+	require.Equal(t, "2026-08-12 10:00", fromGroups[0].Date)
+	require.Equal(t, fromRows[0].Requests, fromGroups[0].Requests)
+	require.Equal(t, fromRows[0].InputTokens, fromGroups[0].InputTokens)
+	require.InDelta(t, fromRows[0].Cost, fromGroups[0].Cost, 1e-9)
+	require.InDelta(t, fromRows[0].ActualCost, fromGroups[0].ActualCost, 1e-9)
+	require.InDelta(t, 0.03, fromGroups[0].ActualCost, 1e-9)
+	require.Equal(t, fromRows[1].Date, fromGroups[1].Date)
+	require.InDelta(t, fromRows[1].ActualCost, fromGroups[1].ActualCost, 1e-9)
+}
+
+func TestAggregateDisplayedTrendFromGroups_DayBuckets(t *testing.T) {
+	displayMap := dto.DisplayPricingMap{}
+	d1 := time.Date(2026, 8, 11, 23, 30, 0, 0, time.UTC)
+	d2 := time.Date(2026, 8, 12, 1, 0, 0, 0, time.UTC)
+	d3 := time.Date(2026, 8, 12, 18, 0, 0, 0, time.UTC)
+	rows := []service.UsageLog{
+		{Model: "m", InputTokens: 5, OutputTokens: 1, TotalCost: 0.005, ActualCost: 0.005, CreatedAt: d1, RateMultiplier: 1},
+		{Model: "m", InputTokens: 7, OutputTokens: 2, TotalCost: 0.007, ActualCost: 0.007, CreatedAt: d2, RateMultiplier: 1},
+		{Model: "m", InputTokens: 9, OutputTokens: 3, TotalCost: 0.009, ActualCost: 0.009, CreatedAt: d3, RateMultiplier: 1},
+	}
+	groups := []usagestats.DisplayAggregateGroup{
+		{Model: "m", RateMultiplier: 1, Bucket: publicUsageTrendBucketLabel(d1, "day"), Requests: 1, InputTokens: 5, OutputTokens: 1, TotalCost: 0.005, ActualCost: 0.005},
+		{Model: "m", RateMultiplier: 1, Bucket: publicUsageTrendBucketLabel(d2, "day"), Requests: 2, InputTokens: 16, OutputTokens: 5, TotalCost: 0.016, ActualCost: 0.016},
+	}
+	var displayed []dto.UsageLog
+	for i := range rows {
+		displayed = append(displayed, *displayUsageRecordForUser(t.Context(), &rows[i], displayMap, nil, nil))
+	}
+	fromRows := aggregateDisplayedPublicUsageTrend(displayed, "day")
+	fromGroups := aggregateDisplayedTrendFromGroups(groups, displayMap, nil)
+	require.Equal(t, len(fromRows), len(fromGroups))
+	require.Equal(t, "2026-08-11", fromGroups[0].Date)
+	require.Equal(t, "2026-08-12", fromGroups[1].Date)
+	require.Equal(t, fromRows[0].Requests, fromGroups[0].Requests)
+	require.Equal(t, fromRows[1].Requests, fromGroups[1].Requests)
+	require.Equal(t, fromRows[1].InputTokens, fromGroups[1].InputTokens)
+	require.InDelta(t, fromRows[0].ActualCost, fromGroups[0].ActualCost, 1e-9)
+	require.InDelta(t, fromRows[1].ActualCost, fromGroups[1].ActualCost, 1e-9)
+}
+
+func TestPublicUsageTrendBucketLabel_Formats(t *testing.T) {
+	ts := time.Date(2026, 8, 12, 10, 45, 0, 0, time.UTC)
+	require.Equal(t, "2026-08-12 10:00", publicUsageTrendBucketLabel(ts, "hour"))
+	require.Equal(t, "2026-08-12", publicUsageTrendBucketLabel(ts, "day"))
+	require.Equal(t, "2026-08", publicUsageTrendBucketLabel(ts, "month"))
+	year, week := ts.ISOWeek()
+	require.Equal(t, fmt.Sprintf("%04d-%02d", year, week), publicUsageTrendBucketLabel(ts, "week"))
 }
