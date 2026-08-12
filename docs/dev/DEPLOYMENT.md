@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-11 | `v0.1.209` | `cc261b5d5` | `ghcr.io/541968679/sub2api:0.1.209` (override pin) | `0.1.209` | running, healthy, internal `/health` OK; ops logs real OpenAI `/v1/responses` for Claude-GPT bridge; **still skips banned v0.1.199** |
+| 2026-08-12 | `v0.1.210` | `1a1786cb5` | `ghcr.io/541968679/sub2api:0.1.210` (override pin) | `0.1.210` | running, healthy, internal `/health` OK; admin usage display tokens column; **still skips banned v0.1.199** |
+| 2026-08-11 | `v0.1.209` | `cc261b5d5` | `ghcr.io/541968679/sub2api:0.1.209` (override pin) | `0.1.209` | superseded by `v0.1.210`; ops logs real OpenAI `/v1/responses` for Claude-GPT bridge; **still skips banned v0.1.199** |
 | 2026-08-11 | `v0.1.208` | `07d72e113` | `ghcr.io/541968679/sub2api:0.1.208` (override pin) | `0.1.208` | superseded by `v0.1.209`; Claude→GPT bridge PTL/compact lifecycle INFO logs; **still skips banned v0.1.199** |
 | 2026-08-11 | `v0.1.207` | `098dbaefa` | `ghcr.io/541968679/sub2api:0.1.207` (override pin) | `0.1.207` | superseded by `v0.1.208`; admin OpenAI advanced scheduler weight override save persistence; **still skips banned v0.1.199** |
 | 2026-08-10 | `v0.1.206` | `2b4fa84a0` | `ghcr.io/541968679/sub2api:0.1.206` (override pin) | `0.1.206` | superseded by `v0.1.207`; admin user balance burn-rate column (opt-in, 5m window, 15s poll, $/h|/min); **still skips banned v0.1.199** |

@@ -1,3 +1,16 @@
+## 2026-08-12 - deploy: production v0.1.210
+
+### What
+- Released and deployed `v0.1.210` (`1a1786cb5`) to production as `ghcr.io/541968679/sub2api:0.1.210`.
+- Includes admin usage **展示 Token / Display Tokens** column next to Token.
+
+### Verification
+- GitHub Actions Release `31558167444` success
+- Production health OK; image pin `0.1.210`; container healthy; `/health` `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-12 - feat(admin-usage): show display tokens column next to tokens
 
 ### What
