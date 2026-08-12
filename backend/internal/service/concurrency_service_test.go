@@ -100,10 +100,6 @@ func (c *stubConcurrencyCacheForTest) CleanupExpiredAccountSlotKeys(_ context.Co
 	return c.cleanupErr
 }
 
-func (c *stubConcurrencyCacheForTest) ClearAccountSlots(_ context.Context, _ int64) error {
-	return c.cleanupErr
-}
-
 func (c *stubConcurrencyCacheForTest) CleanupStaleProcessSlots(_ context.Context, _ string) error {
 	return c.cleanupErr
 }
