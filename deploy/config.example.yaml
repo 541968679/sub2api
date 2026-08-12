@@ -162,6 +162,15 @@ gateway:
   # Enable Gemini upstream response header debug logs (default: false)
   # 是否开启 Gemini 上游响应头调试日志（默认 false）
   gemini_debug_response_headers: false
+  # Client-true TTFT stage timing (default off). When enabled, sampled streams emit one
+  # `[OpenAI stream_stage] completed` line with pre_do_ms / do_wait_ms / first_sse_ms /
+  # first_useful_upstream_ms / first_client_flush_ms. Env: GATEWAY_STREAM_STAGE_TIMING_ENABLED,
+  # GATEWAY_STREAM_STAGE_TIMING_SAMPLE_RATE. Account IDs via YAML preferred.
+  # 客户端真实首有效输出分段计时（默认关闭）。开启后按采样打一条 completed 日志。
+  stream_stage_timing_enabled: false
+  stream_stage_timing_sample_rate: 0.02
+  # stream_stage_timing_account_ids: [1689]
+  # 客户端真实首有效输出分段计时采样率（0~1）与可选账号白名单（空=全量按采样率）
   # Sora max request body size in bytes (0=use max_body_size)
   # Sora 请求体最大字节数（0=使用 max_body_size）
   sora_max_body_size: 268435456

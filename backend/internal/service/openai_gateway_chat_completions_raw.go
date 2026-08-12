@@ -190,10 +190,17 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	var stageClk *openAIStreamStageClock
+	if clientStream {
+		stageClk = s.beginOpenAIStreamStageTiming(c, account, originalModel, "chat_raw", startTime)
+	}
+	stageClk.MarkDoStart()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
+		stageClk.Complete(c)
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 	}
+	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 	defer func() { _ = resp.Body.Close() }()
 
 	// 7. Handle error response with failover
@@ -229,12 +236,14 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 			if s.rateLimitService != nil {
 				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
+			stageClk.Complete(c)
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 			}
 		}
+		stageClk.Complete(c)
 		return s.handleChatCompletionsErrorResponse(resp, c, account)
 	}
 	if account.Platform == PlatformGrok {
@@ -248,6 +257,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	} else {
 		result, err = s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
+	stageClk.Complete(c)
 	if result != nil {
 		addGrokOpenAIUsage(&result.Usage, bridgeUsage)
 		if account.Platform == PlatformGrok {
@@ -286,6 +296,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 	clientOutputStarted := false
 	pendingLines := make([]string, 0, 8)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
+	stageClk := getOpenAIStreamStageClock(c)
 
 	writeStreamHeaders := func() {
 		if s.responseHeaderFilter != nil {
@@ -323,11 +334,23 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 		return true
 	}
+	maybeMarkClientFlush := func() {
+		if clientDisconnected || !clientOutputStarted {
+			return
+		}
+		c.Writer.Flush()
+		// Client-true flush is the first successful Flush after useful upstream was seen
+		// (includes silent-refusal pending release that finally delivers useful content).
+		if stageClk != nil && !stageClk.firstUsefulUpstreamAt.IsZero() {
+			stageClk.MarkFirstClientFlush()
+		}
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		refusalDetector.ObserveSSELine(line)
 		if payload, ok := extractOpenAISSEDataLine(line); ok {
+			stageClk.MarkFirstSSE()
 			trimmedPayload := strings.TrimSpace(payload)
 			if trimmedPayload != "[DONE]" {
 				usageOnlyChunk := isOpenAIChatUsageOnlyStreamChunk(payload)
@@ -337,6 +360,9 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 				if firstTokenMs == nil && !usageOnlyChunk {
 					elapsed := int(time.Since(startTime).Milliseconds())
 					firstTokenMs = &elapsed
+				}
+				if openAIChatPayloadStartsUsefulOutput(payload) {
+					stageClk.MarkFirstUsefulUpstream()
 				}
 			}
 		}
@@ -354,12 +380,12 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 		if line == "" {
 			if !clientDisconnected && clientOutputStarted {
-				c.Writer.Flush()
+				maybeMarkClientFlush()
 			}
 			continue
 		}
 		if !clientDisconnected && clientOutputStarted {
-			c.Writer.Flush()
+			maybeMarkClientFlush()
 		}
 	}
 
@@ -382,7 +408,7 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 		}
 		pendingLines = pendingLines[:0]
 		if !clientDisconnected && clientOutputStarted {
-			c.Writer.Flush()
+			maybeMarkClientFlush()
 		}
 	}
 

@@ -718,6 +718,16 @@ type GatewayConfig struct {
 	// 是否记录 Antigravity 请求的缓存诊断信息（用于排查上游隐式缓存失效问题）
 	LogCacheDiagnostics bool `mapstructure:"log_cache_diagnostics"`
 
+	// StreamStageTimingEnabled: default-off sampled stage timing for client-true TTFT
+	// (pre_do / do_wait / first_sse / first_useful_upstream / first_client_flush).
+	// Does not change first_token_ms keepalive/preamble classification.
+	StreamStageTimingEnabled bool `mapstructure:"stream_stage_timing_enabled"`
+	// StreamStageTimingSampleRate: sampling rate in [0,1] when enabled (default 0.02).
+	StreamStageTimingSampleRate float64 `mapstructure:"stream_stage_timing_sample_rate"`
+	// StreamStageTimingAccountIDs: optional account allowlist; empty = all accounts
+	// are subject to the sample rate.
+	StreamStageTimingAccountIDs []int64 `mapstructure:"stream_stage_timing_account_ids"`
+
 	// API-key 账号在客户端未提供 anthropic-beta 时，是否按需自动补齐（默认关闭以保持兼容）
 	InjectBetaForAPIKey bool `mapstructure:"inject_beta_for_apikey"`
 
@@ -1797,6 +1807,8 @@ func setDefaults() {
 	viper.SetDefault("gateway.log_upstream_error_body", true)
 	viper.SetDefault("gateway.log_upstream_error_body_max_bytes", 2048)
 	viper.SetDefault("gateway.log_cache_diagnostics", false)
+	viper.SetDefault("gateway.stream_stage_timing_enabled", false)
+	viper.SetDefault("gateway.stream_stage_timing_sample_rate", 0.02)
 	viper.SetDefault("gateway.inject_beta_for_apikey", false)
 	viper.SetDefault("gateway.failover_on_400", false)
 	viper.SetDefault("gateway.max_account_switches", 10)
@@ -2526,6 +2538,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.StreamKeepaliveInterval < 0 {
 		return fmt.Errorf("gateway.stream_keepalive_interval must be non-negative")
+	}
+	if c.Gateway.StreamStageTimingSampleRate < 0 || c.Gateway.StreamStageTimingSampleRate > 1 {
+		return fmt.Errorf("gateway.stream_stage_timing_sample_rate must be within [0,1]")
 	}
 	if c.Gateway.StreamKeepaliveInterval != 0 &&
 		(c.Gateway.StreamKeepaliveInterval < 5 || c.Gateway.StreamKeepaliveInterval > 30) {

@@ -1,3 +1,32 @@
+## 2026-08-12 - feat(gateway): restore OpenAI stream stage timing (0.1.215 prep)
+
+### What
+- Restored Phase 1 default-off / sampled client-true TTFT stage timing onto current main (was set aside under `.run/aside-stream-timing/` and never shipped in 0.1.214).
+- Adds `gateway.stream_stage_timing_enabled` (default false), `stream_stage_timing_sample_rate` (default 0.02), optional `stream_stage_timing_account_ids`.
+- Emits one secret-free `[OpenAI stream_stage] completed` line with `pre_do_ms` / `do_wait_ms` / `first_sse_ms` / `first_useful_upstream_ms` / `first_client_flush_ms`.
+- Wired native Responses HTTP/passthrough, Responses→Chat fallback, and raw Chat (silent-refusal pending release counts for `first_client_flush_ms`).
+- Sampling begins only for stream requests; `invalid_encrypted_content` same-request retry reuses the clock and resets Do/body stamps.
+- Did not change `first_token_ms` keepalive/preamble classification. No VERSION bump in this change.
+
+### Why
+Production 0.1.214 lacked stage buckets needed to classify near-dur into header wait vs body gap vs client holdback before any behavior fix.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "Stage|StreamStage|SilentRefusal|ChatFallback|RawChat|ForwardResponses" -count=1`
+- `go test -tags=unit ./internal/config -run "Gateway|StreamStage" -count=1`
+
+### Affected files
+`backend/internal/service/openai_stream_stage_timing.go`,
+`backend/internal/service/openai_stream_stage_timing_test.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_gateway_responses_chat_fallback.go`,
+`backend/internal/service/openai_gateway_chat_completions_raw.go`,
+`backend/internal/config/config.go`,
+`backend/internal/config/stream_stage_timing_test.go`,
+`deploy/config.example.yaml`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-12 - deploy: production v0.1.213
 
 ### What

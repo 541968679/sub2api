@@ -3143,13 +3143,20 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 		// Send request
 		SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+openAIResponsesRequestPathSuffix(c))
+		var stageClk *openAIStreamStageClock
+		if reqStream {
+			stageClk = s.beginOpenAIStreamStageTiming(c, account, originalModel, "responses_http", startTime)
+		}
+		stageClk.MarkDoStart()
 		upstreamStart := time.Now()
 		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 		headerMs := time.Since(upstreamStart).Milliseconds()
 		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
 		if err != nil {
+			stageClk.Complete(c)
 			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 		}
+		stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 		logger.LegacyPrintf("service.openai_gateway",
 			"[OpenAI stream_debug] headers_received account_id=%d account_name=%s status=%d header_ms=%d stream=%v since_forward_ms=%d",
 			account.ID, account.Name, resp.StatusCode, headerMs, reqStream, time.Since(startTime).Milliseconds(),
@@ -3168,11 +3175,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				if trimOpenAIEncryptedReasoningItems(reqBody) {
 					body, err = marshalOpenAIUpstreamJSON(reqBody)
 					if err != nil {
+						stageClk.Complete(c)
 						return nil, fmt.Errorf("serialize invalid_encrypted_content retry body: %w", err)
 					}
 					CacheOpenAIParsedRequestBody(c, body, reqBody)
 					setOpsUpstreamRequestBody(c, body)
 					httpInvalidEncryptedContentRetryTried = true
+					stageClk.ResetForUpstreamRetry()
 					logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying non-WSv2 request once after invalid_encrypted_content (account: %s)", account.Name)
 					continue
 				}
@@ -3200,12 +3209,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 				s.handleFailoverSideEffects(ctx, resp, account)
 				releaseOpenAIParsedRequestBody(c)
+				stageClk.Complete(c)
 				return nil, &UpstreamFailoverError{
 					StatusCode:             resp.StatusCode,
 					ResponseBody:           respBody,
 					RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 				}
 			}
+			stageClk.Complete(c)
 			return s.handleErrorResponse(ctx, resp, c, account, body)
 		}
 		defer func() { _ = resp.Body.Close() }()
@@ -3216,6 +3227,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		responseID := ""
 		if reqStream {
 			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
+			stageClk.Complete(c)
 			if err != nil {
 				return nil, err
 			}
@@ -3224,6 +3236,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			responseID = strings.TrimSpace(streamResult.responseID)
 		} else {
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
+			stageClk.Complete(c)
 			if err != nil {
 				return nil, err
 			}
@@ -3409,13 +3422,20 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses"+openAIResponsesRequestPathSuffix(c))
 
+	var stageClk *openAIStreamStageClock
+	if reqStream {
+		stageClk = s.beginOpenAIStreamStageTiming(c, account, reqModel, "responses_passthrough", startTime)
+	}
+	stageClk.MarkDoStart()
 	upstreamStart := time.Now()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	headerMs := time.Since(upstreamStart).Milliseconds()
 	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, headerMs)
 	if err != nil {
+		stageClk.Complete(c)
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
 	}
+	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 	defer func() { _ = resp.Body.Close() }()
 	logger.LegacyPrintf("service.openai_gateway",
 		"[OpenAI stream_debug] headers_received_passthrough account_id=%d account_name=%s status=%d header_ms=%d stream=%v since_forward_ms=%d",
@@ -3425,6 +3445,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	if resp.StatusCode >= 400 {
 		// 透传模式默认保持原样代理；但 429/529 属于网关必须兜底的
 		// 上游容量类错误，应先触发多账号 failover 以维持基础 SLA。
+		stageClk.Complete(c)
 		if shouldFailoverOpenAIPassthroughResponse(resp.StatusCode) {
 			return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body)
 		}
@@ -3436,6 +3457,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	responseID := ""
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
+		stageClk.Complete(c)
 		if err != nil {
 			return nil, err
 		}
@@ -3444,6 +3466,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		responseID = strings.TrimSpace(result.responseID)
 	} else {
 		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
+		stageClk.Complete(c)
 		if err != nil {
 			return nil, err
 		}
@@ -4185,12 +4208,14 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	defer putSSEScannerBuf64K(scanBuf)
 
 	needModelReplace := strings.TrimSpace(originalModel) != "" && strings.TrimSpace(mappedModel) != "" && strings.TrimSpace(originalModel) != strings.TrimSpace(mappedModel)
+	stageClk := getOpenAIStreamStageClock(c)
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		lineStartsClientOutput := false
 		forceFlushFailedEvent := false
 		if data, ok := extractOpenAISSEDataLine(line); ok {
+			stageClk.MarkFirstSSE()
 			dataBytes := []byte(data)
 			trimmedData := strings.TrimSpace(data)
 			if needModelReplace && strings.Contains(data, mappedModel) {
@@ -4247,6 +4272,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				line = "data: " + string(sanitizedData)
 			}
 			lineStartsClientOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
+			if lineStartsClientOutput && trimmedData != "[DONE]" {
+				stageClk.MarkFirstUsefulUpstream()
+			}
 			if firstTokenMs == nil && lineStartsClientOutput && trimmedData != "[DONE]" {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
@@ -4277,6 +4305,9 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			} else {
 				clientOutputStarted = true
 				flusher.Flush()
+				if lineStartsClientOutput {
+					stageClk.MarkFirstClientFlush()
+				}
 			}
 		}
 	}
@@ -5074,6 +5105,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	streamRenderableImageMessages := make([]json.RawMessage, 0, 1)
 	streamSeenRenderableImageMessages := make(map[string]struct{})
 	codexImageBridgeResponseEnabled := isOpenAICodexImageGenerationBridgeResponseEnabled(c)
+	stageClk := getOpenAIStreamStageClock(c)
 	resultWithUsage := func() *openaiStreamingResult {
 		return &openaiStreamingResult{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}
 	}
@@ -5147,6 +5179,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 		}
 		// Extract data from SSE line (supports both "data: " and "data:" formats)
 		if data, ok := extractOpenAISSEDataLine(line); ok {
+			stageClk.MarkFirstSSE()
 			dataBytes := []byte(data)
 			if openAIStreamEventIsTerminal(data) {
 				sawTerminalEvent = true
@@ -5245,6 +5278,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			if startsClientOutput {
+				stageClk.MarkFirstUsefulUpstream()
+			}
 			lineForDownstream := line
 			if mult := getDisplayTokenMultipliers(c); mult != nil {
 				lineForDownstream = rewriteOpenAIResponsesSSEUsageTokens(lineForDownstream, mult)
@@ -5279,6 +5315,9 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					} else {
 						clientOutputStarted = true
 						lastDownstreamWriteAt = time.Now()
+						if startsClientOutput {
+							stageClk.MarkFirstClientFlush()
+						}
 					}
 				}
 			}

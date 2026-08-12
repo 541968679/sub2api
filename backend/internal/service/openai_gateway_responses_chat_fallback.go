@@ -147,10 +147,17 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	if account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
+	var stageClk *openAIStreamStageClock
+	if clientStream {
+		stageClk = s.beginOpenAIStreamStageTiming(c, account, originalModel, "responses_chat_fallback", startTime)
+	}
+	stageClk.MarkDoStart()
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
+		stageClk.Complete(c)
 		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 	}
+	stageClk.MarkHeaders(resp.Header.Get("x-request-id"))
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
@@ -182,19 +189,25 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 			if s.rateLimitService != nil {
 				s.rateLimitService.HandleUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
 			}
+			stageClk.Complete(c)
 			return nil, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				RetryableOnSameAccount: account.IsPoolMode() && (isPoolModeRetryableStatus(resp.StatusCode) || isOpenAITransientProcessingError(resp.StatusCode, upstreamMsg, respBody)),
 			}
 		}
+		stageClk.Complete(c)
 		return s.handleErrorResponse(ctx, resp, c, account, chatBody)
 	}
 
 	if clientStream {
-		return s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		result, streamErr := s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		stageClk.Complete(c)
+		return result, streamErr
 	}
-	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	result, bufErr := s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+	stageClk.Complete(c)
+	return result, bufErr
 }
 
 func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
@@ -297,10 +310,11 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	var firstTokenMs *int
 	clientDisconnected := false
 	sawDone := false
+	stageClk := getOpenAIStreamStageClock(c)
 
-	writeEvents := func(events []apicompat.ResponsesStreamEvent) {
+	writeEvents := func(events []apicompat.ResponsesStreamEvent) bool {
 		if clientDisconnected || len(events) == 0 {
-			return
+			return false
 		}
 		writeStreamHeaders()
 		for _, event := range events {
@@ -318,10 +332,11 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 					zap.Error(err),
 					zap.String("request_id", requestID),
 				)
-				return
+				return false
 			}
 		}
 		c.Writer.Flush()
+		return !clientDisconnected
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -337,6 +352,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 		if !ok {
 			continue
 		}
+		stageClk.MarkFirstSSE()
 		payload = strings.TrimSpace(payload)
 		if payload == "" {
 			continue
@@ -358,11 +374,17 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 			)
 			continue
 		}
-		if firstTokenMs == nil && !isOpenAIChatUsageOnlyStreamChunk(payload) && chatChunkStartsResponsesOutput(&chunk) {
+		useful := !isOpenAIChatUsageOnlyStreamChunk(payload) && chatChunkStartsResponsesOutput(&chunk)
+		if useful {
+			stageClk.MarkFirstUsefulUpstream()
+		}
+		if firstTokenMs == nil && useful {
 			ms := int(time.Since(startTime).Milliseconds())
 			firstTokenMs = &ms
 		}
-		writeEvents(apicompat.ChatCompletionsChunkToResponsesEvents(&chunk, state))
+		if writeEvents(apicompat.ChatCompletionsChunkToResponsesEvents(&chunk, state)) && useful {
+			stageClk.MarkFirstClientFlush()
+		}
 	}
 
 	if err := scanner.Err(); err != nil {

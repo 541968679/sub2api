@@ -53,6 +53,37 @@ Claude-GPT bridge routing, native Images, or Ops/public settings.
 | Service | `backend/internal/service/openai_image_trace.go` | Temporary `OPENAI_IMAGE_TRACE_LOG` diagnostics for `gpt-image-2` generations. |
 | Service | `backend/internal/service/antigravity_gateway_service.go` | Antigravity native request/response conversion and forwarding. |
 | Service | `backend/internal/service/ratelimit_service.go` | Maps upstream errors to account state, temporary unschedulable windows, and rate limits. |
+| Service | `backend/internal/service/openai_stream_stage_timing.go` | Default-off sampled client-true TTFT stage clock (`first_client_flush_ms` vs `first_token_ms`). |
+
+## OpenAI first_token_ms vs client-true TTFT
+
+`first_token_ms` for OpenAI Responses streaming is measured from Forward start until the first SSE event that `openAIStreamDataStartsClientOutput` accepts. Preamble (`response.created` / `response.in_progress`) and `response.failed` do not count; other non-preamble events (including upstream keepalive) follow the same rule as upstream Sub2API and are intentionally left unchanged for usage/parity.
+
+Responses→Chat fallback records `first_token_ms` when an upstream Chat Completions chunk would produce the first **non-preamble** Responses client output after `ChatCompletionsChunkToResponsesEvents`: non-empty `delta.content`, non-empty `delta.reasoning_content` / `delta.reasoning`, or any `delta.tool_calls` (`chatChunkStartsResponsesOutput`). Role-only / empty preamble deltas and usage-only chunks do not count.
+
+Success KPI for perceived stream start is **not** `first_token_ms`. It is the first successful downstream write of a useful event plus `Flush` (`first_client_flush_ms`), which can lag `first_token_ms` when silent-refusal pending holdback, write buffering, or edge buffering delays client delivery.
+
+Default-off sampled instrumentation (config/env only in Phase 1; no Settings KV UI):
+
+| Key | Default | Env |
+|-----|---------|-----|
+| `gateway.stream_stage_timing_enabled` | `false` | `GATEWAY_STREAM_STAGE_TIMING_ENABLED` |
+| `gateway.stream_stage_timing_sample_rate` | `0.02` | `GATEWAY_STREAM_STAGE_TIMING_SAMPLE_RATE` |
+| `gateway.stream_stage_timing_account_ids` | empty (all accounts) | YAML list preferred |
+
+When a request is sampled, one completed line is emitted:
+
+`[OpenAI stream_stage] completed account_id=… path=… model=… inbound_endpoint=… upstream_endpoint=… upstream_request_id=… pre_do_ms=… do_wait_ms=… first_sse_ms=… first_useful_upstream_ms=… first_client_flush_ms=… duration_ms=…`
+
+| Field | Meaning |
+|-------|---------|
+| `pre_do_ms` | Forward start → immediately before `httpUpstream.Do` |
+| `do_wait_ms` | Do start → response headers (`header_ms` equivalent) |
+| `first_sse_ms` | Forward start → first upstream SSE `data:` line |
+| `first_useful_upstream_ms` | Forward start → first useful upstream event (Responses: `openAIStreamDataStartsClientOutput`; Chat/fallback: non-empty content / reasoning / tool_calls) |
+| `first_client_flush_ms` | Forward start → first successful useful write + Flush (raw Chat: pending release under silent-refusal) |
+
+Covered paths: native Responses HTTP (`responses_http` / `responses_passthrough`), Responses→Chat fallback (`responses_chat_fallback`), raw Chat (`chat_raw`). Sampling begins only for stream requests; `invalid_encrypted_content` same-request retry reuses the clock and resets Do/body stamps. No bodies/secrets in logs.
 
 ## Core Flow
 
