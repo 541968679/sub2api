@@ -1,3 +1,14 @@
+## 2026-08-12 - fix(release): restore UsageView types for v0.1.213
+
+### What
+- Rebased admin UsageView column labels (token / TOKEN) onto current origin/main UsageView so Release frontend typecheck passes.
+
+### Why
+v0.1.212 Release failed: cherry-pick --theirs overwrote newer typed filters in UsageView.vue.
+
+### Affected files
+rontend/src/views/admin/UsageView.vue, this changelog.
+
 ﻿## 2026-08-12 - fix(gateway): Responses→Chat fallback first_token_ms on first non-preamble chat delta
 
 ### What
