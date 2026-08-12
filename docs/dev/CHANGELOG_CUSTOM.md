@@ -1,3 +1,13 @@
+## 2026-08-12 - deploy: production v0.1.213
+
+### What
+- Production Sub2API updated to `ghcr.io/541968679/sub2api:0.1.213` (commit `37cbeaa96`).
+- Includes heavy-user usage SQL display-group aggregates, Responses-Chat `first_token_ms` alignment, and admin usage token/TOKEN column labels (UsageView type-safe rebase).
+
+### Verification
+- Release workflow success; image digest `sha256:4bfdbbcf7a59e6fdfe0935fa61b4dec74f7956f57bb30b4d6dc85515f76e3dbb`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+
 ## 2026-08-12 - fix(release): restore UsageView types for v0.1.213
 
 ### What
