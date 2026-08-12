@@ -1,3 +1,30 @@
+## 2026-08-12 - fix(usage): heavy-user stats/trend/models via SQL display groups
+
+### What
+- User `/api/v1/usage/stats`, `/dashboard/trend`, `/dashboard/models`, public `/v1/usage/stats|/trend`, and gateway usage `model_stats` no longer page every usage row for display aggregates.
+- They reuse/extend `GetUserDisplayAggregateGroups` (plus bucketed day/hour/week/month groups for trend) and apply the existing per-group display transform.
+
+### Why
+Production user with ~30k same-day rows hit the 30s axios timeout on stats/trend (`context canceled` / blank Usage page cards) while paginated records and dashboard/stats (already grouped) stayed healthy.
+
+### Verification
+```
+go test -tags=unit ./internal/handler -run "DisplayAggregate|PublicUsage|UserUsageDashboardTrend|UserUsageList" -count=1
+```
+
+### Affected files
+`backend/internal/pkg/usagestats/usage_log_types.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/usage_service.go`,
+`backend/internal/handler/usage_handler.go`,
+`backend/internal/handler/gateway_handler.go`,
+`backend/internal/handler/usage_handler_display_aggregate_test.go`,
+`backend/internal/handler/usage_handler_public_alignment_test.go`,
+`backend/internal/handler/usage_handler_request_type_test.go`,
+`backend/internal/server/api_contract_test.go`,
+this changelog.
+
 ## 2026-08-06 - feat(admin): auto/manual clear stuck sticky and concurrency
 
 ### What
