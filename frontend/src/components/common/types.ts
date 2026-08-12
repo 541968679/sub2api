@@ -17,4 +17,9 @@ export interface Column {
    * Defaults to true for data columns; select/actions typically set false.
    */
   resizable?: boolean
+  /**
+   * Keep header label casing as provided (skip DataTable's default uppercase).
+   * Useful when labels intentionally differ only by case (e.g. token vs TOKEN).
+   */
+  preserveHeaderCase?: boolean
 }

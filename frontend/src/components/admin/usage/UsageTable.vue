@@ -130,11 +130,11 @@
                 </div>
               </div>
               <div
-                v-if="cacheShareLabel(row)"
+                v-if="realCacheShareLabel(row)"
                 class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400"
                 :title="t('admin.usage.cacheShareHint')"
               >
-                {{ cacheShareLabel(row) }}
+                {{ realCacheShareLabel(row) }}
               </div>
             </div>
             <!-- Token Detail Tooltip -->
@@ -142,6 +142,56 @@
               class="group relative"
               @mouseenter="showTokenTooltip($event, row)"
               @mouseleave="hideTokenTooltip"
+            >
+              <div class="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-blue-100 dark:bg-gray-700 dark:group-hover:bg-blue-900/50">
+                <Icon name="infoCircle" size="xs" class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400" />
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template #cell-display_tokens="{ row }">
+          <!-- 无展示字段时：与 Token 列结构对齐，显示 "-" -->
+          <span v-if="!row.display_fields" class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          <!-- 有展示字段：字段与 Token 列一致（输入/输出/缓存读/缓存写） -->
+          <div v-else class="flex items-center gap-1.5">
+            <div class="space-y-1 text-sm">
+              <div class="flex items-center gap-2">
+                <div class="inline-flex items-center gap-1">
+                  <Icon name="arrowDown" size="sm" class="h-3.5 w-3.5 text-emerald-500" />
+                  <span class="font-medium text-gray-900 dark:text-white">{{ (row.display_fields.display_input_tokens ?? 0).toLocaleString() }}</span>
+                </div>
+                <div class="inline-flex items-center gap-1">
+                  <Icon name="arrowUp" size="sm" class="h-3.5 w-3.5 text-violet-500" />
+                  <span class="font-medium text-gray-900 dark:text-white">{{ (row.display_fields.display_output_tokens ?? 0).toLocaleString() }}</span>
+                </div>
+              </div>
+              <div
+                v-if="(row.display_fields.display_cache_read_tokens ?? 0) > 0 || (row.display_fields.display_cache_creation_tokens ?? 0) > 0"
+                class="flex items-center gap-2"
+              >
+                <div v-if="(row.display_fields.display_cache_read_tokens ?? 0) > 0" class="inline-flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                  <span class="font-medium text-sky-600 dark:text-sky-400">{{ formatCacheTokens(row.display_fields.display_cache_read_tokens) }}</span>
+                </div>
+                <div v-if="(row.display_fields.display_cache_creation_tokens ?? 0) > 0" class="inline-flex items-center gap-1">
+                  <svg class="h-3.5 w-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  <span class="font-medium text-amber-600 dark:text-amber-400">{{ formatCacheTokens(row.display_fields.display_cache_creation_tokens) }}</span>
+                </div>
+              </div>
+              <div
+                v-if="displayCacheShareLabel(row)"
+                class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400"
+                :title="t('admin.usage.cacheShareHint')"
+              >
+                {{ displayCacheShareLabel(row) }}
+              </div>
+            </div>
+            <!-- Display Token Detail Tooltip -->
+            <div
+              class="group relative"
+              @mouseenter="showDisplayTokenTooltip($event, row)"
+              @mouseleave="hideDisplayTokenTooltip"
             >
               <div class="flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-gray-100 transition-colors group-hover:bg-blue-100 dark:bg-gray-700 dark:group-hover:bg-blue-900/50">
                 <Icon name="infoCircle" size="xs" class="text-gray-400 group-hover:text-blue-500 dark:text-gray-500 dark:group-hover:text-blue-400" />
@@ -285,6 +335,52 @@
           <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
             <span class="text-gray-400">{{ t('usage.totalTokens') }}</span>
             <span class="font-semibold text-blue-400">{{ ((tokenTooltipData?.input_tokens || 0) + (tokenTooltipData?.output_tokens || 0) + (tokenTooltipData?.cache_creation_tokens || 0) + (tokenTooltipData?.cache_read_tokens || 0)).toLocaleString() }}</span>
+          </div>
+        </div>
+        <div class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"></div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- Display Token Tooltip Portal -->
+  <Teleport to="body">
+    <div
+      v-if="displayTokenTooltipVisible"
+      class="fixed z-[9999] pointer-events-none -translate-y-1/2"
+      :style="{
+        left: displayTokenTooltipPosition.x + 'px',
+        top: displayTokenTooltipPosition.y + 'px'
+      }"
+    >
+      <div class="whitespace-nowrap rounded-lg border border-gray-700 bg-gray-900 px-3 py-2.5 text-xs text-white shadow-xl dark:border-gray-600 dark:bg-gray-800">
+        <div class="space-y-1.5">
+          <div>
+            <div class="text-xs font-semibold text-amber-300 mb-1">{{ t('usage.displayTokens') }}</div>
+            <div v-if="displayTokenTooltipData && displayTokenTooltipData.display_input_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.inputTokens') }}</span>
+              <span class="font-medium text-white">{{ displayTokenTooltipData.display_input_tokens.toLocaleString() }}</span>
+            </div>
+            <div v-if="displayTokenTooltipData && displayTokenTooltipData.display_output_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.outputTokens') }}</span>
+              <span class="font-medium text-white">{{ displayTokenTooltipData.display_output_tokens.toLocaleString() }}</span>
+            </div>
+            <div v-if="displayTokenTooltipData && displayTokenTooltipData.display_cache_creation_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheCreationTokens') }}</span>
+              <span class="font-medium text-white">{{ displayTokenTooltipData.display_cache_creation_tokens.toLocaleString() }}</span>
+            </div>
+            <div v-if="displayTokenTooltipData && displayTokenTooltipData.display_cache_read_tokens > 0" class="flex items-center justify-between gap-4">
+              <span class="text-gray-400">{{ t('admin.usage.cacheReadTokens') }}</span>
+              <span class="font-medium text-white">{{ displayTokenTooltipData.display_cache_read_tokens.toLocaleString() }}</span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
+            <span class="text-gray-400">{{ t('usage.totalTokens') }}</span>
+            <span class="font-semibold text-blue-400">{{ (
+              (displayTokenTooltipData?.display_input_tokens || 0)
+              + (displayTokenTooltipData?.display_output_tokens || 0)
+              + (displayTokenTooltipData?.display_cache_creation_tokens || 0)
+              + (displayTokenTooltipData?.display_cache_read_tokens || 0)
+            ).toLocaleString() }}</span>
           </div>
         </div>
         <div class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"></div>
@@ -453,7 +549,7 @@ function formatShare(pct: number | null): string {
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
-import type { AdminUsageLog } from '@/types'
+import type { AdminUsageLog, DisplayUsageFields } from '@/types'
 import type { Column } from '@/components/common/types'
 import { hasImageOutputTokens, textOutputTokens } from '@/utils/imageUsage'
 
@@ -479,31 +575,35 @@ defineEmits<{
 }>()
 const { t } = useI18n()
 
-function cacheShareLabel(row: AdminUsageLog): string {
-  const real = cacheSharePercent(
+function formatCacheShareLabel(
+  input: number,
+  output: number,
+  cacheRead: number,
+  cacheCreate: number,
+): string {
+  const pct = cacheSharePercent(input, output, cacheRead, cacheCreate)
+  if (pct == null) return ''
+  return t('admin.usage.cacheShare', { share: formatShare(pct) })
+}
+
+function realCacheShareLabel(row: AdminUsageLog): string {
+  return formatCacheShareLabel(
     row.input_tokens ?? 0,
     textOutputTokens(row) + (row.image_output_tokens ?? 0),
     row.cache_read_tokens ?? 0,
     row.cache_creation_tokens ?? 0,
   )
+}
+
+function displayCacheShareLabel(row: AdminUsageLog): string {
   const df = row.display_fields
-  let display: number | null = null
-  if (df) {
-    display = cacheSharePercent(
-      df.display_input_tokens ?? 0,
-      df.display_output_tokens ?? 0,
-      df.display_cache_read_tokens ?? 0,
-      df.display_cache_creation_tokens ?? 0,
-    )
-  }
-  if (real == null && display == null) return ''
-  if (display == null) {
-    return t('admin.usage.cacheShareRealOnly', { real: formatShare(real) })
-  }
-  return t('admin.usage.cacheShareBoth', {
-    real: formatShare(real),
-    display: formatShare(display),
-  })
+  if (!df) return ''
+  return formatCacheShareLabel(
+    df.display_input_tokens ?? 0,
+    df.display_output_tokens ?? 0,
+    df.display_cache_read_tokens ?? 0,
+    df.display_cache_creation_tokens ?? 0,
+  )
 }
 
 // Tooltip state - cost
@@ -515,6 +615,11 @@ const tooltipData = ref<AdminUsageLog | null>(null)
 const tokenTooltipVisible = ref(false)
 const tokenTooltipPosition = ref({ x: 0, y: 0 })
 const tokenTooltipData = ref<AdminUsageLog | null>(null)
+
+// Tooltip state - display token
+const displayTokenTooltipVisible = ref(false)
+const displayTokenTooltipPosition = ref({ x: 0, y: 0 })
+const displayTokenTooltipData = ref<DisplayUsageFields | null>(null)
 
 const getRequestTypeLabel = (row: AdminUsageLog): string => {
   const requestType = resolveUsageRequestType(row)
@@ -577,5 +682,21 @@ const showTokenTooltip = (event: MouseEvent, row: AdminUsageLog) => {
 const hideTokenTooltip = () => {
   tokenTooltipVisible.value = false
   tokenTooltipData.value = null
+}
+
+// Display token tooltip functions
+const showDisplayTokenTooltip = (event: MouseEvent, row: AdminUsageLog) => {
+  if (!row.display_fields) return
+  const target = event.currentTarget as HTMLElement
+  const rect = target.getBoundingClientRect()
+  displayTokenTooltipData.value = row.display_fields
+  displayTokenTooltipPosition.value.x = rect.right + 8
+  displayTokenTooltipPosition.value.y = rect.top + rect.height / 2
+  displayTokenTooltipVisible.value = true
+}
+
+const hideDisplayTokenTooltip = () => {
+  displayTokenTooltipVisible.value = false
+  displayTokenTooltipData.value = null
 }
 </script>

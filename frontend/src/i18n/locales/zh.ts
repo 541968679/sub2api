@@ -8953,9 +8953,10 @@ const v117ZhPatch = {
     usage: {
       actions: '操作',
       viewUserPerspective: '查看用户视角',
+      tokenColumn: 'token',
+      displayTokenColumn: 'TOKEN',
       cacheShareHint: '缓存占比 = cache_read / (input+output+cache_read+cache_creation)，非命中率',
-      cacheShareRealOnly: '缓存占比 真实 {real}',
-      cacheShareBoth: '缓存占比 真实 {real} · 展示 {display}',
+      cacheShare: '缓存占比：{share}',
       userViewCompareTitle: '用户视角费用对比',
       userViewConfigHint: '以下展示值可能包含用户侧展示覆盖和分组倍率。',
       userViewConfigUsed: '已使用配置',

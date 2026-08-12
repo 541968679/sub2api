@@ -43,7 +43,10 @@
             :key="column.key"
             class="flex items-start justify-between gap-4"
           >
-            <span class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400">
+            <span
+              class="text-xs font-medium tracking-wider text-gray-500 dark:text-dark-400"
+              :class="column.preserveHeaderCase ? 'normal-case' : 'uppercase'"
+            >
               {{ column.label }}
             </span>
             <div class="text-right text-sm text-gray-900 dark:text-gray-100">
@@ -83,7 +86,8 @@
             scope="col"
             :style="getColumnStyle(column)"
             :class="[
-              'sticky-header-cell relative py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
+              'sticky-header-cell relative py-3 text-left text-xs font-medium tracking-wider text-gray-500 dark:text-dark-400',
+              column.preserveHeaderCase ? 'normal-case' : 'uppercase',
               getAdaptivePaddingClass(),
               { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
               getStickyColumnClass(column, index),
