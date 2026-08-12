@@ -668,7 +668,7 @@
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" @clear-concurrency="handleClearConcurrency" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @update-refresh-token="handleUpdateRefreshToken" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @export-codex="handleExportCodexAuth" @create-spark-shadow="handleCreateSparkShadow" @clear-stuck-runtime="handleClearStuckRuntime" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <CodexSessionImportModal
@@ -2757,18 +2757,18 @@ const handleResetQuota = async (a: Account) => {
     console.error('Failed to reset quota:', error)
   }
 }
-const handleClearConcurrency = async (a: Account) => {
+const handleClearStuckRuntime = async (a: Account) => {
   try {
-    const result = await adminAPI.accounts.clearConcurrency(a.id)
+    const result = await adminAPI.accounts.clearStuckRuntime(a.id)
     appStore.showSuccess(
-      t('admin.accounts.clearConcurrencySuccess', {
-        slots: result.slots_before ?? 0
+      t('admin.accounts.clearStuckRuntimeSuccess', {
+        sticky: result.sticky_deleted ?? 0
       })
     )
     enterAutoRefreshSilentWindow()
   } catch (error: any) {
-    console.error('Failed to clear concurrency:', error)
-    appStore.showError(error?.message || t('admin.accounts.clearConcurrencyFailed'))
+    console.error('Failed to clear stuck runtime:', error)
+    appStore.showError(error?.message || t('admin.accounts.clearStuckRuntimeFailed'))
   }
 }
 const handleMoveToTop = async (a: Account) => {

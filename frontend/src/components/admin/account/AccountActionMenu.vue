@@ -59,12 +59,12 @@
             </button>
             <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
             <button
-              @click="$emit('clear-concurrency', account); $emit('close')"
+              @click="$emit('clear-stuck-runtime', account); $emit('close')"
               class="flex w-full items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-gray-100 dark:text-amber-400 dark:hover:bg-dark-700"
-              data-testid="account-clear-concurrency"
+              data-testid="account-clear-stuck-runtime"
             >
               <Icon name="x" size="sm" />
-              {{ t('admin.accounts.clearConcurrency') }}
+              {{ t('admin.accounts.clearStuckRuntime') }}
             </button>
           </template>
         </div>
@@ -81,7 +81,7 @@ import type { Account } from '@/types'
 
 const props = defineProps<{ show: boolean; account: Account | null; position: { top: number; left: number } | null }>()
 // move-to-top lives on the account list select cell (checkbox right / name left), not in this menu.
-const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'reauth', 'refresh-token', 'update-refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'export-codex', 'create-spark-shadow', 'clear-concurrency'])
+const emit = defineEmits(['close', 'test', 'stats', 'schedule', 'reauth', 'refresh-token', 'update-refresh-token', 'recover-state', 'reset-quota', 'set-privacy', 'export-codex', 'create-spark-shadow', 'clear-stuck-runtime'])
 const { t } = useI18n()
 const isRateLimited = computed(() => {
   if (props.account?.rate_limit_reset_at && new Date(props.account.rate_limit_reset_at) > new Date()) {

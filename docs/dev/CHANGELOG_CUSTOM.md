@@ -1,3 +1,13 @@
+## 2026-08-12 - restore: unify local-main features onto origin/main
+
+### What
+- Cherry-picked local-only product commits onto origin/main (strict scheduling, display balance, account UX, recharge history, burn-rate, Codex image render, bridge/ops logs, etc.).
+- Kept origin clear-stuck-runtime (supersedes local clear-concurrency) while restoring stream_debug logs and other local features.
+- Wired AccountsView menu to clearStuckRuntime after restore merge.
+
+### Why
+v0.1.213 was cut from drifted origin/main and dropped local-lineage features; production rolled back to v0.1.211. This restores feature parity for a unified local=remote=prod release.
+
 ﻿## 2026-08-12 - deploy: production v0.1.210
 
 ### What
