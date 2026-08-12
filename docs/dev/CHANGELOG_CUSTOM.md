@@ -8284,3 +8284,11 @@ route, setting, push, or deployment change.
 - Local Codex CLI continuous-session verification (`admin@sub2api.local`, group rates 0.18/0.07, M=1.3): admin `display_fields` ≡ user-view ≡ user `/usage`; `disp_cr = real_cr × 1.3`; `display_total × 0.07 ≈ actual_cost`.
 - Release target: `v0.1.211`.
 
+## [2026-08-12] docs(deploy): record v0.1.211 production deploy
+
+**Affected files**: `docs/dev/DEPLOYMENT.md`, `docs/dev/CHANGELOG_CUSTOM.md`.
+
+**Details**:
+- Production pin `ghcr.io/541968679/sub2api:0.1.211` (revision `60f971b8a`), healthy, internal `/health` OK.
+- Ships admin usage L1+L2 display_fields parity and B1 cache_read amplify under billing-real × M.
+

@@ -118,6 +118,17 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
+| 2026-08-12 | `v0.1.211` | `60f971b8a` | `ghcr.io/541968679/sub2api:0.1.211` (override pin) | `0.1.211` | running, healthy, internal `/health` OK; admin display_fields L1+L2 + B1 cache amplify under M; **still skips banned v0.1.199** |
+| 2026-08-12 | `v0.1.210` | `1a1786cb5` | `ghcr.io/541968679/sub2api:0.1.210` (override pin) | `0.1.210` | superseded by `v0.1.211`; admin usage display tokens column; **still skips banned v0.1.199** |
+| 2026-08-11 | `v0.1.209` | `cc261b5d5` | `ghcr.io/541968679/sub2api:0.1.209` (override pin) | `0.1.209` | superseded by `v0.1.210`; ops logs real OpenAI `/v1/responses` for Claude-GPT bridge; **still skips banned v0.1.199** |
+| 2026-08-11 | `v0.1.208` | `07d72e113` | `ghcr.io/541968679/sub2api:0.1.208` (override pin) | `0.1.208` | superseded by `v0.1.209`; Claude→GPT bridge PTL/compact lifecycle INFO logs; **still skips banned v0.1.199** |
+| 2026-08-11 | `v0.1.207` | `098dbaefa` | `ghcr.io/541968679/sub2api:0.1.207` (override pin) | `0.1.207` | superseded by `v0.1.208`; admin OpenAI advanced scheduler weight override save persistence; **still skips banned v0.1.199** |
+| 2026-08-10 | `v0.1.206` | `2b4fa84a0` | `ghcr.io/541968679/sub2api:0.1.206` (override pin) | `0.1.206` | superseded by `v0.1.207`; admin user balance burn-rate column (opt-in, 5m window, 15s poll, $/h|/min); **still skips banned v0.1.199** |
+| 2026-08-10 | `v0.1.205` | `0bf08d3f4` | `ghcr.io/541968679/sub2api:0.1.205` (override pin) | `0.1.205` | superseded by `v0.1.206`; page-local account drag reorder + Codex image generation rendering + upstream-sync-guard protection; **still skips banned v0.1.199** |
+| 2026-08-09 | `v0.1.204` | `841b80ad7` | `ghcr.io/541968679/sub2api:0.1.204` (override pin) | `0.1.204` | superseded by `v0.1.205`; display-balance save fix, create/edit/bulk 3-zone layout, list pin on create, move-to-top beside checkbox, wider dialogs; **still skips banned v0.1.199** |
+| 2026-08-08 | `v0.1.203` | `4cc392a43` | `ghcr.io/541968679/sub2api:0.1.203` (override pin) | `0.1.203` | superseded by `v0.1.204`; display-only balance used/total + auto refresh; **still skips banned v0.1.199** |
+| 2026-08-07 | `v0.1.202` | `c79442f0c` | `ghcr.io/541968679/sub2api:0.1.202` (override pin) | `0.1.202` | superseded by `v0.1.203`; per-account `model_mapping_strict_scheduling` + admin usage error deep-link UX; **still skips banned v0.1.199** |
+| 2026-08-07 | `v0.1.201` | `c733bea81` | `ghcr.io/541968679/sub2api:0.1.201` (override pin) | `0.1.201` | superseded by `v0.1.202`; clear-concurrency menu + stream debug logs on 200 baseline; **still skips banned v0.1.199** sticky-escape scheduling changes |
 | 2026-08-07 | `v0.1.201` | `c733bea81` | `ghcr.io/541968679/sub2api:0.1.201` (override pin) | `0.1.201` | running, healthy, internal `/health` OK; clear-concurrency menu + stream debug logs on 200 baseline; **still skips banned v0.1.199** sticky-escape scheduling changes |
 | 2026-08-07 | `v0.1.200` | `97dba0a1a` | `ghcr.io/541968679/sub2api:0.1.200` (override pin) | `0.1.200` | superseded by `v0.1.201`; 198 baseline + admin recharge-history manage/delete; **skips banned v0.1.199** sticky/concurrency scheduling changes |
 | 2026-08-07 | `v0.1.198` | (rollback pin) | `ghcr.io/541968679/sub2api:0.1.198` | `0.1.198` | emergency rollback from v0.1.199; superseded by `v0.1.200` |
