@@ -334,9 +334,8 @@ type UsageStats struct {
 // group of usage_logs rows. Rows are grouped by every field the user-facing display
 // transform branches on (model, group, rate multiplier, long-context snapshot), so the
 // transform can be applied once per group and summed — equivalent to transforming every
-// row and summing, but at O(groups) instead of O(rows). Used to compute display-value
-// statistics for unbounded ranges (e.g. the all-time dashboard totals) without loading
-// every row into memory.
+// row and summing, but at O(groups) instead of O(rows). Used for user-facing stats,
+// trend, models, and unbounded dashboard totals without loading every row into memory.
 type DisplayAggregateGroup struct {
 	Model                       string
 	GroupID                     *int64

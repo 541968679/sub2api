@@ -1,4 +1,4 @@
-## 2026-08-12 - fix(gateway): Responses→Chat fallback first_token_ms on first non-preamble chat delta
+﻿## 2026-08-12 - fix(gateway): Responses→Chat fallback first_token_ms on first non-preamble chat delta
 
 ### What
 - Responses→Chat streaming fallback now sets `first_token_ms` on the first upstream Chat chunk that maps to non-preamble Responses output (non-empty content / `reasoning_content` / wire `reasoning` / tool_calls), not on role-only or empty preamble deltas.
@@ -43,18 +43,44 @@ Client-perceived streaming latency can be inflated by edge buffering; ingress fl
 production `/etc/caddy/Caddyfile` (ops),
 this changelog.
 
+## 2026-08-12 - ui(admin-usage): rename token columns and split cache-share labels
+
+### What
+- Admin usage table column headers: billing tokens → `token`, display tokens → `TOKEN`.
+- Cache share is shown under each column as `缓存占比：{pct}` / `Cache share: {pct}` instead of a combined real/display line in the real-token cell.
+- DataTable supports `preserveHeaderCase` so these labels are not forced to CSS `uppercase` (which made both headers look like `TOKEN`).
+
+### Why
+Make the two token columns easier to scan and keep cache-share percentages next to the numbers they describe.
+
+### Verification
+```
+pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageTable.spec.ts
+```
+
+### Affected files
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/components/common/DataTable.vue`,
+`frontend/src/components/common/types.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts`,
+this changelog.
+
 ## 2026-08-12 - fix(usage): heavy-user stats/trend/models via SQL display groups
 
 ### What
 - User `/api/v1/usage/stats`, `/dashboard/trend`, `/dashboard/models`, public `/v1/usage/stats|/trend`, and gateway usage `model_stats` no longer page every usage row for display aggregates.
 - They reuse/extend `GetUserDisplayAggregateGroups` (plus bucketed day/hour/week/month groups for trend) and apply the existing per-group display transform.
+- Check pass: extended day/hour trend reconcile + `actual_cost` assertions; refreshed `docs/dev/codebase/billing.md` aggregate-path notes.
 
 ### Why
 Production user with ~30k same-day rows hit the 30s axios timeout on stats/trend (`context canceled` / blank Usage page cards) while paginated records and dashboard/stats (already grouped) stayed healthy.
 
 ### Verification
 ```
-go test -tags=unit ./internal/handler -run "DisplayAggregate|PublicUsage|UserUsageDashboardTrend|UserUsageList" -count=1
+go test -tags=unit ./internal/handler -run "DisplayAggregate|PublicUsage|UserUsageDashboardTrend|UserUsageList|PublicUsageTrendBucketLabel" -count=1
 ```
 
 ### Affected files
@@ -68,6 +94,7 @@ go test -tags=unit ./internal/handler -run "DisplayAggregate|PublicUsage|UserUsa
 `backend/internal/handler/usage_handler_public_alignment_test.go`,
 `backend/internal/handler/usage_handler_request_type_test.go`,
 `backend/internal/server/api_contract_test.go`,
+`docs/dev/codebase/billing.md`,
 this changelog.
 
 ## 2026-08-06 - feat(admin): auto/manual clear stuck sticky and concurrency

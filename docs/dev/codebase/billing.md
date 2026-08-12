@@ -600,27 +600,27 @@ token counts or real unit prices. Admin surfaces keep showing real values.
 
 This previously held only for the per-row records list. The aggregate endpoints
 `GET /api/v1/usage/stats`, `/usage/dashboard/stats`, `/usage/dashboard/trend`,
-`/usage/dashboard/models` summed raw columns and leaked real tokens. They now derive
-display values:
+`/usage/dashboard/models` (and public `/v1/usage/stats|trend`, gateway usage
+`model_stats`) now derive display values via SQL group aggregates:
 
-- Bounded ranges aggregate from the same display-transformed records the user sees
-  (`loadAllDisplayedPublicUsageRecords` → `aggregateDisplayedPublicUsageStats` /
-  `aggregateDisplayedPublicUsageTrend` / `aggregateDisplayedModelStats`), so the cards
-  reconcile exactly with the records list.
-- The unbounded all-time dashboard totals use `GetUserDisplayAggregateGroups`
-  (`usage_log_repo.go`): SQL groups by every field the transform branches on (model,
-  group_id, rate_multiplier, long-context snapshot), then the handler applies the
-  transform once per group and sums (`aggregateDisplayedGroups`). This avoids loading
-  every row (heaviest user ~247k) and matches per-row summation within rounding.
+- Selected-range stats/models use `GetUserDisplayAggregateGroups`; trend uses
+  `GetUserDisplayAggregateGroupsByBucket` (day/hour/week/month labels aligned with
+  `publicUsageTrendBucketLabel`). The handler applies `displayUsageRecordForUser`
+  once per group and folds into `UsageStats` / `TrendDataPoint` / `ModelStat`
+  (`aggregateDisplayedGroups`, `aggregateDisplayedTrendFromGroups`,
+  `aggregateDisplayedModelStatsFromGroups`). This stays O(groups) so heavy users
+  (~tens of thousands of rows/day) do not hit the client timeout from paging every row.
+- Unbounded all-time dashboard totals use the same group path without a time bucket.
+- Group totals must reconcile with per-row display transforms within integer-token
+  rounding; `actual_cost` remains the sum of stored billing-real costs.
 
 `actual_cost` is never changed by the transform, so endpoints that only return
 `actual_cost` (e.g. `POST /usage/dashboard/api-keys-usage`, the green "消费额度" the
 user pays) are already display-correct and were left as-is.
 
-Not yet converted: `GET /v1/usage` (API-key dashboard, `GatewayHandler.Usage` →
-`buildUsageData`/`GetAPIKeyModelStats`) still returns raw tokens even though its
-siblings `/v1/usage/stats|trend|records` are display values — `GatewayHandler` lacks
-the pricing/display services (would need Wire DI or service-layer display aggregation).
+Gateway `GET /v1/usage` totals and `model_stats` use the same display group path
+(best-effort on `model_stats` errors). Paginated `/usage` and `/v1/usage/records`
+lists still transform per returned page.
 ### User x Platform USD Quotas (2026-07-11)
 
 Data model: `user_platform_quotas` stores nullable daily/weekly/monthly USD limits and window usage for `(user_id, platform)`. Migration `162_user_platform_quotas.sql` owns the table; migration `180_allow_grok_user_platform_quota.sql` additively extends the platform CHECK to `grok`.
