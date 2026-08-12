@@ -1118,6 +1118,7 @@ const enBase = {
     upstreamEndpoint: 'Upstream Endpoint',
     type: 'Type',
     tokens: 'Tokens',
+    displayTokens: 'Display Tokens',
     cost: 'Cost',
     firstToken: 'First Token',
     duration: 'Duration',

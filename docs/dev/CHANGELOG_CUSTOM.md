@@ -1,3 +1,37 @@
+## 2026-08-12 - feat(admin-usage): show display tokens column next to tokens
+
+### What
+- Admin usage records table adds a **展示 Token / Display Tokens** column immediately after the Token column.
+- Renders `display_fields` (input / output / cache_read / cache_creation) with the same layout as the Token column; shows `-` when no display transform is configured.
+- Includes a hover detail tooltip for display token breakdown.
+
+### Why
+Admins need to compare real vs user-facing display tokens side-by-side without opening cost tooltips.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageTable.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/components/admin/usage/__tests__/UsageTable.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-08-11 - deploy: production v0.1.209
+
+### What
+- Released and deployed `v0.1.209` (`cc261b5d5`) to production as `ghcr.io/541968679/sub2api:0.1.209`.
+- Includes ops upstream endpoint logging fix for Claude-GPT bridge.
+
+### Verification
+- GitHub Actions Release `31496948038` success
+- Production health OK; image pin `0.1.209`; container healthy; `/health` `{"status":"ok"}`
+
+### Affected files
+`docs/dev/DEPLOYMENT.md`, this changelog.
+
 ## 2026-08-11 - fix(ops): record real OpenAI upstream endpoint for Claude-GPT bridge
 
 ### What

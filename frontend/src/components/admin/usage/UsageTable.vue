@@ -130,11 +130,11 @@
                 </div>
               </div>
               <div
-                v-if="realCacheShareLabel(row)"
+                v-if="cacheShareLabel(row)"
                 class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400"
                 :title="t('admin.usage.cacheShareHint')"
               >
-                {{ realCacheShareLabel(row) }}
+                {{ cacheShareLabel(row) }}
               </div>
             </div>
             <!-- Token Detail Tooltip -->
@@ -178,13 +178,6 @@
                   <svg class="h-3.5 w-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   <span class="font-medium text-amber-600 dark:text-amber-400">{{ formatCacheTokens(row.display_fields.display_cache_creation_tokens) }}</span>
                 </div>
-              </div>
-              <div
-                v-if="displayCacheShareLabel(row)"
-                class="text-[11px] tabular-nums text-gray-500 dark:text-gray-400"
-                :title="t('admin.usage.cacheShareHint')"
-              >
-                {{ displayCacheShareLabel(row) }}
               </div>
             </div>
             <!-- Display Token Detail Tooltip -->
@@ -575,35 +568,31 @@ defineEmits<{
 }>()
 const { t } = useI18n()
 
-function formatCacheShareLabel(
-  input: number,
-  output: number,
-  cacheRead: number,
-  cacheCreate: number,
-): string {
-  const pct = cacheSharePercent(input, output, cacheRead, cacheCreate)
-  if (pct == null) return ''
-  return t('admin.usage.cacheShare', { share: formatShare(pct) })
-}
-
-function realCacheShareLabel(row: AdminUsageLog): string {
-  return formatCacheShareLabel(
+function cacheShareLabel(row: AdminUsageLog): string {
+  const real = cacheSharePercent(
     row.input_tokens ?? 0,
     textOutputTokens(row) + (row.image_output_tokens ?? 0),
     row.cache_read_tokens ?? 0,
     row.cache_creation_tokens ?? 0,
   )
-}
-
-function displayCacheShareLabel(row: AdminUsageLog): string {
   const df = row.display_fields
-  if (!df) return ''
-  return formatCacheShareLabel(
-    df.display_input_tokens ?? 0,
-    df.display_output_tokens ?? 0,
-    df.display_cache_read_tokens ?? 0,
-    df.display_cache_creation_tokens ?? 0,
-  )
+  let display: number | null = null
+  if (df) {
+    display = cacheSharePercent(
+      df.display_input_tokens ?? 0,
+      df.display_output_tokens ?? 0,
+      df.display_cache_read_tokens ?? 0,
+      df.display_cache_creation_tokens ?? 0,
+    )
+  }
+  if (real == null && display == null) return ''
+  if (display == null) {
+    return t('admin.usage.cacheShareRealOnly', { real: formatShare(real) })
+  }
+  return t('admin.usage.cacheShareBoth', {
+    real: formatShare(real),
+    display: formatShare(display),
+  })
 }
 
 // Tooltip state - cost
