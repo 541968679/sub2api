@@ -1,3 +1,14 @@
+## 2026-08-12 - deploy: production v0.1.216
+
+### What
+- Released and deployed `v0.1.216` (`761dd8cf9`) to production as `ghcr.io/541968679/sub2api:0.1.216`.
+- Restores admin usage `token` / `TOKEN` column headers and per-column cache-share labels after local-main restore regression.
+
+### Verification
+- Release workflow success; image digest `sha256:ed28a4d553e8b972a0a6796d7fb3bfc620d09c97d77d5704809d830357cd88b7`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `761dd8cf9`, version label `0.1.216`
+
 ## 2026-08-12 - fix(admin-usage): restore token/TOKEN headers and per-column cache share
 
 ### What
