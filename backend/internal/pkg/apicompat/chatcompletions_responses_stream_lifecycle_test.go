@@ -21,6 +21,35 @@ func collectStreamEvents(t *testing.T, chunks []string) []ResponsesStreamEvent {
 	return events
 }
 
+func TestStream_ReasoningWireFieldEmitsReasoningDelta(t *testing.T) {
+	events := collectStreamEvents(t, []string{
+		`{"choices":[{"index":0,"delta":{"role":"assistant"}}]}`,
+		`{"choices":[{"index":0,"delta":{"reasoning":"alt wire"}}]}`,
+		`{"choices":[{"index":0,"delta":{"content":"hi"}}]}`,
+		`{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+	})
+
+	var sawReasoningDelta bool
+	for _, e := range events {
+		if e.Type == "response.reasoning_summary_text.delta" {
+			sawReasoningDelta = true
+			require.Equal(t, "alt wire", e.Delta)
+		}
+	}
+	require.True(t, sawReasoningDelta, "delta.reasoning must convert like reasoning_content")
+}
+
+func TestChatDeltaReasoningText_PrefersReasoningContent(t *testing.T) {
+	t.Parallel()
+	rc := "from_rc"
+	alt := "from_reasoning"
+	require.Equal(t, "from_rc", ChatDeltaReasoningText(ChatDelta{ReasoningContent: &rc, Reasoning: &alt}))
+	require.Equal(t, "from_reasoning", ChatDeltaReasoningText(ChatDelta{Reasoning: &alt}))
+	empty := ""
+	require.Equal(t, "from_reasoning", ChatDeltaReasoningText(ChatDelta{ReasoningContent: &empty, Reasoning: &alt}))
+	require.Equal(t, "", ChatDeltaReasoningText(ChatDelta{Role: "assistant"}))
+}
+
 // TestStream_ReasoningOpensItemBeforeDelta guards the bug where a strict client
 // (Codex) drops reasoning deltas that reference an item not yet opened.
 func TestStream_ReasoningOpensItemBeforeDelta(t *testing.T) {

@@ -1100,13 +1100,14 @@ func ChatCompletionsChunkToResponsesEvents(
 		// (output_item.added + reasoning_summary_part.added) before the first
 		// delta, otherwise a strict client discards the delta. The leading
 		// empty-string reasoning delta upstreams send is filtered out.
-		if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+		// Accept both wire fields: reasoning_content (common) and reasoning.
+		if reasoning := ChatDeltaReasoningText(choice.Delta); reasoning != "" {
 			events = append(events, ensureChatReasoningItem(state)...)
-			_, _ = state.Reasoning.WriteString(*choice.Delta.ReasoningContent)
+			_, _ = state.Reasoning.WriteString(reasoning)
 			events = append(events, chatToResponsesEvent(state, "response.reasoning_summary_text.delta", &ResponsesStreamEvent{
 				OutputIndex:  state.ReasoningIndex,
 				SummaryIndex: 0,
-				Delta:        *choice.Delta.ReasoningContent,
+				Delta:        reasoning,
 				ItemID:       state.ReasoningItemID,
 			}))
 		}

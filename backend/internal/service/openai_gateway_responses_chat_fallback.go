@@ -416,12 +416,23 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	}, nil
 }
 
+// chatChunkStartsResponsesOutput reports whether a Chat Completions stream
+// chunk would produce the first non-preamble Responses client output after
+// ChatCompletionsChunkToResponsesEvents (response.created / in_progress alone
+// do not count). Empty role-only / empty-string preamble deltas are ignored;
+// non-empty content, reasoning_content, reasoning, or any tool_calls count.
 func chatChunkStartsResponsesOutput(chunk *apicompat.ChatCompletionsChunk) bool {
 	if chunk == nil {
 		return false
 	}
 	for _, choice := range chunk.Choices {
-		if choice.Delta.Content != nil || choice.Delta.ReasoningContent != nil || len(choice.Delta.ToolCalls) > 0 {
+		if choice.Delta.Content != nil && *choice.Delta.Content != "" {
+			return true
+		}
+		if apicompat.ChatDeltaReasoningText(choice.Delta) != "" {
+			return true
+		}
+		if len(choice.Delta.ToolCalls) > 0 {
 			return true
 		}
 	}

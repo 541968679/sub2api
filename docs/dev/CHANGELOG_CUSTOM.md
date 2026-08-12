@@ -1,3 +1,48 @@
+## 2026-08-12 - fix(gateway): Responses→Chat fallback first_token_ms on first non-preamble chat delta
+
+### What
+- Responses→Chat streaming fallback now sets `first_token_ms` on the first upstream Chat chunk that maps to non-preamble Responses output (non-empty content / `reasoning_content` / wire `reasoning` / tool_calls), not on role-only or empty preamble deltas.
+- Chat→Responses stream conversion accepts alternate wire field `delta.reasoning` alongside `reasoning_content`.
+
+### Why
+Account path `/v1/responses -> /v1/chat/completions` showed elevated TTFT≈duration vs raw chat on the same upstream when reasoning arrived under `delta.reasoning` or when empty preamble deltas were mishandled relative to native Responses first-output semantics.
+
+### Verification
+```
+cd backend
+go test -tags=unit ./internal/service -run "TestForwardResponses_.*Chat|TestChatChunkStarts|Fallback" -count=1
+go test -tags=unit ./internal/pkg/apicompat -run "Reasoning|ChatCompletionsChunk" -count=1
+```
+
+### Affected files
+`backend/internal/pkg/apicompat/types.go`,
+`backend/internal/pkg/apicompat/chatcompletions_responses_bridge.go`,
+`backend/internal/pkg/apicompat/chatcompletions_responses_stream_lifecycle_test.go`,
+`backend/internal/service/openai_gateway_responses_chat_fallback.go`,
+`backend/internal/service/openai_gateway_responses_chat_fallback_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-12 - fix(ops): Caddy SSE flush_interval for zerocode (TTFT metric left aligned with upstream)
+
+### What
+- Production Caddy `zerocode.kaynlab.com` `reverse_proxy` now uses `flush_interval -1` (same pattern as a2/invokeai) so SSE is not buffered at the edge.
+- OpenAI `first_token_ms` / keepalive classification is **not** changed; keep parity with upstream Sub2API official behavior.
+
+### Why
+Client-perceived streaming latency can be inflated by edge buffering; ingress flush is an ops fix independent of the Responses→Chat first_token measurement bug.
+
+### Verification
+- Caddyfile validated and reloaded on production; backup under `/etc/caddy/Caddyfile.bak-ttft-flush-*`.
+
+### Rollback
+- Restore `/etc/caddy/Caddyfile.bak-ttft-flush-*` and `systemctl reload caddy`.
+
+### Affected files
+`docs/dev/codebase/gateway.md`,
+production `/etc/caddy/Caddyfile` (ops),
+this changelog.
+
 ## 2026-08-12 - fix(usage): heavy-user stats/trend/models via SQL display groups
 
 ### What

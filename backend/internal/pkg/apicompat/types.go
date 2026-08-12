@@ -720,7 +720,22 @@ type ChatDelta struct {
 	Role             string         `json:"role,omitempty"`
 	Content          *string        `json:"content,omitempty"` // pointer: omit when not present, null vs "" matters
 	ReasoningContent *string        `json:"reasoning_content,omitempty"`
-	ToolCalls        []ChatToolCall `json:"tool_calls,omitempty"`
+	// Reasoning is an alternate wire field used by some OpenAI-compatible
+	// upstreams for the same incremental reasoning text as reasoning_content.
+	Reasoning *string        `json:"reasoning,omitempty"`
+	ToolCalls []ChatToolCall `json:"tool_calls,omitempty"`
+}
+
+// ChatDeltaReasoningText returns the first non-empty reasoning delta text from
+// either reasoning_content or reasoning (in that preference order).
+func ChatDeltaReasoningText(delta ChatDelta) string {
+	if delta.ReasoningContent != nil && *delta.ReasoningContent != "" {
+		return *delta.ReasoningContent
+	}
+	if delta.Reasoning != nil && *delta.Reasoning != "" {
+		return *delta.Reasoning
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------

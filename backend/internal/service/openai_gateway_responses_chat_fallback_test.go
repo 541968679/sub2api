@@ -5,6 +5,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -82,6 +84,194 @@ func TestForwardResponses_ChatCompletionsErrorKeepsActualUpstreamEndpoint(t *tes
 	require.Nil(t, result)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Equal(t, "/v1/chat/completions", GetActualOpenAIUpstreamEndpoint(c))
+}
+
+func TestChatChunkStartsResponsesOutput_RequiresNonPreambleDelta(t *testing.T) {
+	t.Parallel()
+
+	mustChunk := func(payload string) *apicompat.ChatCompletionsChunk {
+		t.Helper()
+		var chunk apicompat.ChatCompletionsChunk
+		require.NoError(t, json.Unmarshal([]byte(payload), &chunk))
+		return &chunk
+	}
+
+	require.False(t, chatChunkStartsResponsesOutput(nil))
+	require.False(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+	)))
+	require.False(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"finish_reason":null}]}`,
+	)))
+	require.False(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"content":""},"finish_reason":null}]}`,
+	)))
+	require.False(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"reasoning":""},"finish_reason":null}]}`,
+	)))
+
+	require.True(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":null}]}`,
+	)))
+	require.True(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"reasoning_content":"plan"},"finish_reason":null}]}`,
+	)))
+	require.True(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"reasoning":"alt plan"},"finish_reason":null}]}`,
+	)))
+	require.True(t, chatChunkStartsResponsesOutput(mustChunk(
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"run","arguments":"{}"}}]},"finish_reason":null}]}`,
+	)))
+}
+
+func TestForwardResponses_ChatFallbackFirstTokenIgnoresRoleOnlyAndEmptyPreamble(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","input":"hello","stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_ft","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_ft","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_ft","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"content":"he"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_ft","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+		"",
+		`data: {"id":"chatcmpl_ft","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.FirstTokenMs)
+	require.Contains(t, rec.Body.String(), `"delta":"he"`)
+}
+
+func TestForwardResponses_ChatFallbackFirstTokenOnReasoningWireField(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","input":"hello","stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	// role-only + long alternate reasoning field, then late content. First token
+	// must land on the first non-empty reasoning delta, not stream end.
+	upstreamBody := &delayedSSEBody{chunks: []delayedSSEChunk{
+		{line: `data: {"id":"chatcmpl_reason","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`},
+		{line: `data: {"id":"chatcmpl_reason","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"reasoning":"early plan"},"finish_reason":null}]}`},
+		{line: `data: {"id":"chatcmpl_reason","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"reasoning":" continues"},"finish_reason":null}]}`, delay: 80 * time.Millisecond},
+		{line: `data: {"id":"chatcmpl_reason","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"content":"final"},"finish_reason":null}]}`, delay: 80 * time.Millisecond},
+		{line: `data: {"id":"chatcmpl_reason","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`},
+		{line: `data: {"id":"chatcmpl_reason","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"prompt_tokens":2,"completion_tokens":4,"total_tokens":6}}`},
+		{line: `data: [DONE]`},
+	}}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(upstreamBody),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.FirstTokenMs)
+	require.Less(t, *result.FirstTokenMs, 80, "first_token should mark first reasoning delta, not delayed content")
+	require.GreaterOrEqual(t, int(result.Duration.Milliseconds()), 140)
+	require.Contains(t, rec.Body.String(), "event: response.reasoning_summary_text.delta")
+	require.Contains(t, rec.Body.String(), `"delta":"early plan"`)
+	require.Contains(t, rec.Body.String(), `"delta":"final"`)
+}
+
+func TestForwardResponses_ChatFallbackFirstTokenOnReasoningContent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"deepseek-reasoner","input":"hello","stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := &delayedSSEBody{chunks: []delayedSSEChunk{
+		{line: `data: {"id":"chatcmpl_rc","object":"chat.completion.chunk","model":"deepseek-reasoner","choices":[{"index":0,"delta":{"role":"assistant","content":null,"reasoning_content":""},"finish_reason":null}]}`},
+		{line: `data: {"id":"chatcmpl_rc","object":"chat.completion.chunk","model":"deepseek-reasoner","choices":[{"index":0,"delta":{"reasoning_content":"visible"},"finish_reason":null}]}`},
+		{line: `data: {"id":"chatcmpl_rc","object":"chat.completion.chunk","model":"deepseek-reasoner","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":null}]}`, delay: 80 * time.Millisecond},
+		{line: `data: {"id":"chatcmpl_rc","object":"chat.completion.chunk","model":"deepseek-reasoner","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`},
+		{line: `data: [DONE]`},
+	}}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(upstreamBody),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.FirstTokenMs)
+	require.Less(t, *result.FirstTokenMs, 80)
+	require.Contains(t, rec.Body.String(), `"delta":"visible"`)
+}
+
+func TestForwardResponses_ChatFallbackFirstTokenOnToolCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","input":"hello","stream":true,"tools":[{"type":"function","name":"run","parameters":{"type":"object"}}]}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_tool","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_tool","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"run","arguments":"{\"x\":1}"}}]},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_tool","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.FirstTokenMs)
 }
 
 func TestForwardResponses_ForceChatCompletionsRoutesStreamingToChatCompletions(t *testing.T) {
@@ -349,6 +539,36 @@ func (w *rawChatFailingWriter) Write(_ []byte) (int, error) {
 
 func (w *rawChatFailingWriter) WriteString(_ string) (int, error) {
 	return 0, errors.New("client disconnected")
+}
+
+type delayedSSEChunk struct {
+	line  string
+	delay time.Duration
+}
+
+// delayedSSEBody emits SSE lines with optional delays so first_token_ms can be
+// distinguished from stream-end duration in unit tests.
+type delayedSSEBody struct {
+	chunks []delayedSSEChunk
+	buf    bytes.Buffer
+	idx    int
+}
+
+func (b *delayedSSEBody) Read(p []byte) (int, error) {
+	for b.buf.Len() == 0 {
+		if b.idx >= len(b.chunks) {
+			return 0, io.EOF
+		}
+		chunk := b.chunks[b.idx]
+		b.idx++
+		if chunk.delay > 0 {
+			time.Sleep(chunk.delay)
+		}
+		b.buf.WriteString(chunk.line)
+		b.buf.WriteByte('\n')
+		b.buf.WriteByte('\n')
+	}
+	return b.buf.Read(p)
 }
 
 func forceChatResponsesFallbackAccount() *Account {
