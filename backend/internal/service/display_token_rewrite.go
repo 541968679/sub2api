@@ -1004,7 +1004,26 @@ func computeSeparatedDisplayUsage(inputTokens int, outputTokens int, cacheReadTo
 		displayInput = roundDisplayTokenCount(displayInput, rateScale)
 		displayOutput = roundDisplayTokenCount(displayOutput, rateScale)
 		displayCacheCreate = roundDisplayTokenCount(displayCacheCreate, rateScale)
-		// cache_read is not rate-scaled (same as usage ApplyUserDisplayRate).
+		// B1: rate-scale cache_read, hard-cap at billing-real × M_eff (cacheReadTokens
+		// is the pre-transform real quantity). Uncovered ideal tokens fold into input
+		// so total token mass stays aligned with usage-DTO residual absorption.
+		idealCache := roundDisplayTokenCount(displayCacheRead, rateScale)
+		if idealCache < 0 {
+			idealCache = 0
+		}
+		mEff := effectiveCacheTokenMaxMult(mult.CacheTokenMaxMult)
+		cap := int(math.Round(float64(cacheReadTokens) * mEff))
+		if cacheReadTokens < 0 {
+			cap = 0
+		}
+		cappedCache := idealCache
+		if cappedCache > cap {
+			cappedCache = cap
+		}
+		if uncovered := idealCache - cappedCache; uncovered > 0 {
+			displayInput += uncovered
+		}
+		displayCacheRead = cappedCache
 	}
 
 	return displayInput, displayOutput, displayCacheRead, displayCacheCreate

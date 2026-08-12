@@ -215,19 +215,22 @@ display rates, cache token rewriting, or admin/user usage previews.
   Frontend code must not derive displayed model prices from `cost / tokens`.
 - Display transforms may change user-visible tokens and component costs, but
   must never change stored billing, quota deduction, or `actual_cost`.
-- `cache_read_tokens` and downstream `cache_read_input_tokens` must remain the
-  real cache-read quantity. Do not multiply cache-read token counts for display
-  pricing or display-rate changes.
-- When cache-read display price is configured, `cache_read_cost` must remain
-  explainable as `cache_read_tokens * display_cache_read_price`. Cache-read
-  premium or user display-rate delta is folded into input display tokens/cost
-  instead of fabricating cache-read tokens.
+- Display `cache_read` may amplify under model display prices (L1) and/or group
+  display rate (L2), but must stay within
+  `display_cache_read <= billing_real_cache_read * M_eff`
+  (`display_cache_token_max_mult`, default 1.3). Cap is relative to **billing-real**
+  DB tokens. Cost/token mass that cannot sit on cache under that cap folds into
+  output (alpha) then input - do not invent unbounded cache tokens.
+- When cache-read display price is configured, displayed `cache_read_cost` must
+  remain explainable as
+  `display_cache_read_tokens * display_cache_read_price`.
 - The displayed bill must stay explainable from displayed tokens, displayed unit
   prices, and the displayed rate multiplier:
   `display_total_cost * display_rate_multiplier ~= actual_cost`, allowing only
   small integer-token rounding tolerance.
-- Admin "user perspective" previews must use the same display transform and
-  effective unit-price resolution path as the real user usage endpoints.
+- Admin list `display_fields`, admin `user-view`, and user `/usage` must share the
+  same L1+L2 transform and unit-price resolution path (including rate-only rows
+  with no per-model display override).
 
 ### Data And Generated Code
 

@@ -321,7 +321,7 @@ func TestDisplayToken_OpenAIUsageRewriteClampsCachedTokensAboveInput(t *testing.
 	require.Equal(t, int64(240), gjson.GetBytes(rewritten, "usage.total_tokens").Int())
 }
 
-func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRateKeepsCacheReadReal(t *testing.T) {
+func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRateB1CacheCap(t *testing.T) {
 	line := `data: {"type":"message_start","message":{"usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":5}}}`
 	mult := &DisplayTokenMultipliers{
 		InputMult:          2,
@@ -331,13 +331,33 @@ func TestDisplayToken_ClaudeUsageRewriteBalancesCachePremiumAndDisplayRateKeepsC
 		CacheReadInputMult: 4,
 		RateScale:          2,
 		RateScaleSet:       true,
+		CacheTokenMaxMult:  1.3,
 	}
 
 	rewritten := RewriteSSEUsageTokens(line, mult)
-	require.Equal(t, int64(560), gjson.Get(rewritten[len("data: "):], "message.usage.input_tokens").Int())
+	// L1: input=100*2+20*4=280, out=30, cache=20; L2 scale=2:
+	// cache ideal=40, cap=26 → 26; uncovered 14 folds into input → 560+14=574
+	require.Equal(t, int64(574), gjson.Get(rewritten[len("data: "):], "message.usage.input_tokens").Int())
 	require.Equal(t, int64(60), gjson.Get(rewritten[len("data: "):], "message.usage.output_tokens").Int())
-	require.Equal(t, int64(20), gjson.Get(rewritten[len("data: "):], "message.usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(26), gjson.Get(rewritten[len("data: "):], "message.usage.cache_read_input_tokens").Int())
 	require.Equal(t, int64(10), gjson.Get(rewritten[len("data: "):], "message.usage.cache_creation_input_tokens").Int())
+}
+
+func TestDisplayToken_RateScaleCacheAlignedWithDTOCap(t *testing.T) {
+	// Downstream RateScale path must mirror dto B1: scale=2, M=1.3, real cache=200.
+	in, out, cache, create := computeSeparatedDisplayUsage(1000, 500, 200, 0, &DisplayTokenMultipliers{
+		InputMult:         1,
+		OutputMult:        1,
+		CacheReadMult:     1,
+		CacheCreateMult:   1,
+		RateScale:         2,
+		RateScaleSet:      true,
+		CacheTokenMaxMult: 1.3,
+	})
+	require.Equal(t, 2000+140, in) // scaled input + uncovered cache (400-260)
+	require.Equal(t, 1000, out)
+	require.Equal(t, 260, cache)
+	require.Equal(t, 0, create)
 }
 
 func TestDisplayToken_UsageMapRewriteBalancesCachePremium(t *testing.T) {

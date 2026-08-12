@@ -849,16 +849,14 @@ func displayUsageRecordForUserWithSettings(
 	settingService *service.SettingService,
 	userCacheMaxMult *float64,
 ) *dto.UsageLog {
-	u := dto.UsageLogFromServiceWithDisplayConfig(record, displayConfigForUsageRecord(ctx, record, displayMap, pricingResolver, settingService, userCacheMaxMult))
-	if u == nil {
-		return nil
-	}
+	cfg := displayConfigForUsageRecord(ctx, record, displayMap, pricingResolver, settingService, userCacheMaxMult)
+	var displayRate *float64
 	if userDisplayRates != nil && record.GroupID != nil {
 		if dr, ok := userDisplayRates[*record.GroupID]; ok && dr.DisplayRateMultiplier != nil {
-			dto.ApplyUserDisplayRate(u, *dr.DisplayRateMultiplier)
+			displayRate = dr.DisplayRateMultiplier
 		}
 	}
-	return u
+	return dto.UsageLogFromServiceUserVisible(record, cfg, displayRate)
 }
 
 func displayConfigForUsageRecord(

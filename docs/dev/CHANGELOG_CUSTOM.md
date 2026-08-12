@@ -1,4 +1,4 @@
-## 2026-08-12 - deploy: production v0.1.210
+﻿## 2026-08-12 - deploy: production v0.1.210
 
 ### What
 - Released and deployed `v0.1.210` (`1a1786cb5`) to production as `ghcr.io/541968679/sub2api:0.1.210`.
@@ -8176,11 +8176,17 @@ route, setting, push, or deployment change.
 - Defined an explicit upstream replacement gate covering visible client rendering, streaming, non-streaming, SSE-to-JSON, existing-text merge, deduplication, supported image formats, and failure/unknown-format boundaries.
 - Added the guard regression in `21e50fa7b` and the matching critical-signature catalog in `0bf08d3f4`, protecting the image-bridge response context, assistant-message synthesis and MIME helpers, and representative tests from silent removal during future syncs.
 
+## [2026-08-12] fix: Admin display_fields full L1+L2 pipeline + B1 cache rate amplify
 
+**Affected files**: `backend/internal/handler/dto/{display_pricing.go,display_pricing_test.go,mappers.go}`, `backend/internal/handler/{usage_handler.go,admin/usage_handler.go}`, `backend/internal/service/{api_key_service.go,display_token_rewrite.go,display_token_rewrite_test.go}`, `AGENTS.md`, `backend/cmd/server/VERSION`, `docs/dev/CHANGELOG_CUSTOM.md`.
 
+**Compatibility**: Display-layer only. `actual_cost`, billing write path, and stored tokens are unchanged. Behavior change is intentional: L2 now rate-scales cache_read under billing-real × M (B1), and admin list `display_fields` match user `/usage` / user-view.
 
-
-
-
-
+**Details**:
+- Shared `BuildUserVisibleUsage` / `UsageLogFromServiceUserVisible` runs L1 `ApplyDisplayTransform` then L2 `ApplyUserDisplayRateWithCap` with billing-real cache captured before L1.
+- Admin usage list batch-loads per-user group display rates, applies the same resolved unit prices as user-view, and emits `display_fields` for rate-only rows (no `HasDisplayOverride` required).
+- `computeSeparatedDisplayUsage` RateScale path mirrors B1 cache cap; uncovered ideal tokens fold into input.
+- Unit tests updated/added for B1 math, admin == user-view alignment, and downstream rewrite parity.
+- Local Codex CLI continuous-session verification (`admin@sub2api.local`, group rates 0.18/0.07, M=1.3): admin `display_fields` ≡ user-view ≡ user `/usage`; `disp_cr = real_cr × 1.3`; `display_total × 0.07 ≈ actual_cost`.
+- Release target: `v0.1.211`.
 
