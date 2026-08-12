@@ -689,6 +689,13 @@ func UsageLogFromService(l *service.UsageLog, displayMap DisplayPricingMap) *Usa
 // UsageLogFromServiceWithDisplayConfig converts a service UsageLog to DTO and
 // applies the exact display config prepared for this row.
 func UsageLogFromServiceWithDisplayConfig(l *service.UsageLog, cfg *DisplayPricingConfig) *UsageLog {
+	return UsageLogFromServiceUserVisible(l, cfg, nil)
+}
+
+// UsageLogFromServiceUserVisible converts a service UsageLog to the user-visible
+// DTO by running L1 (display prices) then L2 (group display rate) through the
+// shared builder so B1 cache caps stay relative to billing-real tokens.
+func UsageLogFromServiceUserVisible(l *service.UsageLog, cfg *DisplayPricingConfig, displayRate *float64) *UsageLog {
 	if l == nil {
 		return nil
 	}
@@ -696,8 +703,8 @@ func UsageLogFromServiceWithDisplayConfig(l *service.UsageLog, cfg *DisplayPrici
 	if cfg != nil {
 		cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
 		cfg = EffectiveDisplayPricingForUsageLog(&u, cfg)
-		ApplyDisplayTransform(&u, cfg)
 	}
+	BuildUserVisibleUsage(&u, cfg, displayRate)
 	return &u
 }
 
@@ -715,12 +722,15 @@ func usageLogDisplayModel(l *service.UsageLog) string {
 // It includes minimal Account info (ID, Name only) and IP address.
 // Display fields are computed for dual-column comparison but real values are preserved.
 func UsageLogFromServiceAdmin(l *service.UsageLog, displayMap DisplayPricingMap) *AdminUsageLog {
-	return UsageLogFromServiceAdminWithAlloc(l, displayMap, 0, 0, false)
+	return UsageLogFromServiceAdminWithAlloc(l, displayMap, 0, 0, false, nil)
 }
 
 // UsageLogFromServiceAdminWithAlloc is like UsageLogFromServiceAdmin but applies
-// display alloc controls (M / α). When allocSet is false, service defaults are used.
-func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPricingMap, m, alpha float64, allocSet bool) *AdminUsageLog {
+// display alloc controls (M / α) and optional group display rate (L2).
+// When allocSet is false, service defaults are used for M/α.
+// displayRate nil skips L2; when rates differ, display_fields are emitted even
+// without HasDisplayOverride (rate-only rows).
+func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPricingMap, m, alpha float64, allocSet bool, displayRate *float64) *AdminUsageLog {
 	if l == nil {
 		return nil
 	}
@@ -736,20 +746,30 @@ func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPr
 		IPAddress:             l.IPAddress,
 		Account:               AccountSummaryFromService(l.Account),
 	}
+	var cfg *DisplayPricingConfig
 	if displayMap != nil {
-		if cfg := displayMap[toLowerModel(base.Model)]; cfg != nil {
-			cfg = stripCacheTransferIfChannel(cfg, l.ChannelID)
+		if c := displayMap[toLowerModel(base.Model)]; c != nil {
+			cfg = stripCacheTransferIfChannel(c, l.ChannelID)
 			cfg = EffectiveDisplayPricingForUsageLog(&base, cfg)
-			if cfg != nil {
-				if allocSet {
-					cfg.CacheTokenMaxMult = m
-					a := alpha
-					cfg.OutputResidualGrowthRatio = &a
-				}
-			}
-			admin.DisplayFields = ComputeDisplayFields(&base, cfg)
 		}
 	}
+	needsL2 := displayRate != nil && *displayRate > 0 && *displayRate != base.RateMultiplier
+	if cfg == nil && !needsL2 {
+		return admin
+	}
+	if cfg == nil {
+		cfg = &DisplayPricingConfig{}
+	} else {
+		// Clone so per-row M/α does not mutate the shared displayMap entry.
+		clone := *cfg
+		cfg = &clone
+	}
+	if allocSet {
+		cfg.CacheTokenMaxMult = m
+		a := alpha
+		cfg.OutputResidualGrowthRatio = &a
+	}
+	admin.DisplayFields = ComputeDisplayFields(&base, cfg, displayRate)
 	return admin
 }
 

@@ -313,16 +313,15 @@ func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmp
 	}
 
 	alpha0 := 0.0
-	out := UsageLogFromService(log, DisplayPricingMap{
-		"gpt-5.5": &DisplayPricingConfig{
-			DisplayInputPrice:         &displayInput,
-			DisplayOutputPrice:        &displayOutput,
-			DisplayCacheReadPrice:     &displayCacheRead,
-			CacheTokenMaxMult:         1.0,
-			OutputResidualGrowthRatio: &alpha0,
-		},
-	})
-	ApplyUserDisplayRate(out, 1.0)
+	displayRate := 1.0
+	out := UsageLogFromServiceUserVisible(log, &DisplayPricingConfig{
+		DisplayInputPrice:         &displayInput,
+		DisplayOutputPrice:        &displayOutput,
+		DisplayCacheReadPrice:     &displayCacheRead,
+		CacheTokenMaxMult:         1.0, // M=1: L2 must not amplify cache past billing-real
+		OutputResidualGrowthRatio: &alpha0,
+		HasDisplayOverride:        true,
+	}, &displayRate)
 
 	if out.InputTokens != 4600 {
 		t.Fatalf("input tokens should absorb cache read rate delta, got %d", out.InputTokens)
@@ -331,7 +330,7 @@ func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmp
 		t.Fatalf("output tokens should only include model display ratio and display-rate scaling, got %d", out.OutputTokens)
 	}
 	if out.CacheReadTokens != 2000 {
-		t.Fatalf("cache read tokens should stay real after display-rate scaling, got %d", out.CacheReadTokens)
+		t.Fatalf("cache read tokens should stay ≤ real×M (M=1) after display-rate scaling, got %d", out.CacheReadTokens)
 	}
 	assertPtrClose(t, "display_input_price", out.DisplayInputPrice, 10e-6)
 	assertPtrClose(t, "display_output_price", out.DisplayOutputPrice, 45e-6)
@@ -347,7 +346,8 @@ func TestUsageLogFromService_LongContextDisplayPriceThenDisplayRateKeepsTokenAmp
 	assertClose(t, "display formula cost", displayCost, out.TotalCost)
 }
 
-func TestApplyUserDisplayRate_FoldsCacheReadRateDeltaIntoInput(t *testing.T) {
+func TestApplyUserDisplayRate_B1AmplifiesCacheWithinM(t *testing.T) {
+	// scale=2, M=1.3 → cache amplifies to 1.3×real; uncovered intended cost → input.
 	inputPrice := 3e-6
 	outputPrice := 15e-6
 	cacheReadPrice := 3e-6
@@ -367,23 +367,81 @@ func TestApplyUserDisplayRate_FoldsCacheReadRateDeltaIntoInput(t *testing.T) {
 	}
 	savedActual := log.ActualCost
 
-	ApplyUserDisplayRate(&log, 1.0)
+	ApplyUserDisplayRateWithCap(&log, 1.0, 200, 1.3)
 
 	assertClose(t, "actual_cost", log.ActualCost, savedActual)
 	if log.RateMultiplier != 1.0 {
 		t.Fatalf("rate_multiplier should be 1.0, got %.2f", log.RateMultiplier)
 	}
-	if log.InputTokens != 2200 || log.OutputTokens != 1000 {
-		t.Fatalf("input should absorb cache read rate delta, got input=%d output=%d", log.InputTokens, log.OutputTokens)
+	if log.CacheReadTokens != 260 {
+		t.Fatalf("cache read should amplify to real×M=260, got %d", log.CacheReadTokens)
 	}
-	if log.CacheReadTokens != 200 {
-		t.Fatalf("cache read tokens should stay real, got %d", log.CacheReadTokens)
+	assertClose(t, "cache_read_cost", log.CacheReadCost, 0.00078)
+	if log.OutputTokens != 1000 {
+		t.Fatalf("output should scale by 2, got %d", log.OutputTokens)
 	}
-	assertClose(t, "cache_read_cost", log.CacheReadCost, 0.0006)
+	if log.InputTokens != 2140 {
+		t.Fatalf("input should absorb capped cache residual, got %d", log.InputTokens)
+	}
 	displayCost := float64(log.InputTokens)*inputPrice +
 		float64(log.OutputTokens)*outputPrice +
 		float64(log.CacheReadTokens)*cacheReadPrice
 	assertClose(t, "display formula cost", displayCost, log.TotalCost)
+	assertClose(t, "total_cost*rate", log.TotalCost*log.RateMultiplier, savedActual)
+}
+
+func TestApplyUserDisplayRate_B1ScaleBelowMAmplifiesFully(t *testing.T) {
+	// scale=1.1, M=1.3 → cache = 1.1×real (no cap hit).
+	log := UsageLog{
+		InputTokens:     1000,
+		OutputTokens:    500,
+		CacheReadTokens: 200,
+		InputCost:       0.003,
+		OutputCost:      0.0075,
+		CacheReadCost:   0.0006,
+		TotalCost:       0.0111,
+		ActualCost:      0.01221,
+		RateMultiplier:  1.1,
+	}
+	ApplyUserDisplayRateWithCap(&log, 1.0, 200, 1.3)
+	if log.CacheReadTokens != 220 {
+		t.Fatalf("cache should scale fully to 220, got %d", log.CacheReadTokens)
+	}
+	assertClose(t, "actual_cost", log.ActualCost, 0.01221)
+	assertClose(t, "total_cost*rate", log.TotalCost*log.RateMultiplier, log.ActualCost)
+}
+
+func TestApplyUserDisplayRate_M1FoldsCacheRateDeltaIntoInput(t *testing.T) {
+	// M=1: cache tokens stay ≤ real; rate delta on cache budget folds to input (legacy shape).
+	inputPrice := 3e-6
+	outputPrice := 15e-6
+	cacheReadPrice := 3e-6
+	log := UsageLog{
+		InputTokens:           1000,
+		OutputTokens:          500,
+		CacheReadTokens:       200,
+		InputCost:             0.003,
+		OutputCost:            0.0075,
+		CacheReadCost:         0.0006,
+		TotalCost:             0.0111,
+		ActualCost:            0.0222,
+		RateMultiplier:        2.0,
+		DisplayInputPrice:     &inputPrice,
+		DisplayOutputPrice:    &outputPrice,
+		DisplayCacheReadPrice: &cacheReadPrice,
+	}
+	savedActual := log.ActualCost
+
+	ApplyUserDisplayRateWithCap(&log, 1.0, 200, 1.0)
+
+	assertClose(t, "actual_cost", log.ActualCost, savedActual)
+	if log.InputTokens != 2200 || log.OutputTokens != 1000 {
+		t.Fatalf("input should absorb cache read rate delta, got input=%d output=%d", log.InputTokens, log.OutputTokens)
+	}
+	if log.CacheReadTokens != 200 {
+		t.Fatalf("cache read tokens should stay ≤ real×M (M=1), got %d", log.CacheReadTokens)
+	}
+	assertClose(t, "cache_read_cost", log.CacheReadCost, 0.0006)
 	assertClose(t, "total_cost*rate", log.TotalCost*log.RateMultiplier, savedActual)
 }
 
@@ -441,29 +499,31 @@ func TestUsageLogFromService_DisplayRateKeepsConfiguredUnitPriceForSmallTokenRow
 		RateMultiplier:  2.0,
 	}
 
-	out := UsageLogFromService(log, DisplayPricingMap{
-		"claude-fable-5": &DisplayPricingConfig{
-			DisplayInputPrice:     &displayInput,
-			DisplayOutputPrice:    &displayOutput,
-			DisplayCacheReadPrice: &displayCacheRead,
-		},
-	})
-	ApplyUserDisplayRate(out, 1.6)
+	displayRate := 1.6
+	m := 1.3
+	out := UsageLogFromServiceUserVisible(log, &DisplayPricingConfig{
+		DisplayInputPrice:     &displayInput,
+		DisplayOutputPrice:    &displayOutput,
+		DisplayCacheReadPrice: &displayCacheRead,
+		CacheTokenMaxMult:     m,
+		HasDisplayOverride:    true,
+	}, &displayRate)
 
-	if out.InputTokens != 701 {
-		t.Fatalf("input tokens should absorb cache read display-rate delta, got %d", out.InputTokens)
-	}
-	assertClose(t, "input_cost", out.InputCost, 0.007010)
 	assertPtrClose(t, "display_input_price", out.DisplayInputPrice, 10e-6)
-	if out.CacheReadTokens != 28041 {
-		t.Fatalf("cache read tokens should stay real, got %d", out.CacheReadTokens)
+	cap := int(math.Round(float64(log.CacheReadTokens) * m))
+	if out.CacheReadTokens > cap {
+		t.Fatalf("cache read %d exceeds billing-real×M cap %d", out.CacheReadTokens, cap)
 	}
-	assertClose(t, "cache_read_cost", out.CacheReadCost, 0.028041)
+	if out.CacheReadTokens <= log.CacheReadTokens {
+		t.Fatalf("scale=1.25 < M=1.3 should amplify cache_read above real, got %d", out.CacheReadTokens)
+	}
+	assertClose(t, "cache_read_cost", out.CacheReadCost, float64(out.CacheReadTokens)*displayCacheRead)
 	displayCost := float64(out.InputTokens)*(*out.DisplayInputPrice) +
 		float64(out.OutputTokens)*(*out.DisplayOutputPrice) +
 		float64(out.CacheReadTokens)*(*out.DisplayCacheReadPrice)
 	assertClose(t, "display formula cost", displayCost, out.TotalCost)
 	assertCloseWithin(t, "total_cost*rate", out.TotalCost*out.RateMultiplier, out.ActualCost, 1e-6)
+	assertClose(t, "actual_cost", out.ActualCost, log.ActualCost)
 }
 
 func TestUsageLogFromService_RealConfiguredPriceFeedsUnitPriceWithoutDisplayOverride(t *testing.T) {
@@ -676,7 +736,7 @@ func TestComputeDisplayFields_IncludesCacheCreation(t *testing.T) {
 	fields := ComputeDisplayFields(&log, &DisplayPricingConfig{
 		DisplayCacheCreationPrice: &dispCreate,
 		HasDisplayOverride:        true,
-	})
+	}, nil)
 
 	if fields == nil {
 		t.Fatal("display fields expected")
@@ -701,9 +761,128 @@ func TestComputeDisplayFields_RealPriceOnlyDoesNotCreateAdminDisplayFields(t *te
 		RateMultiplier: 1.0,
 	}
 
-	fields := ComputeDisplayFields(&log, &DisplayPricingConfig{UnitInputPrice: &inputPrice})
+	fields := ComputeDisplayFields(&log, &DisplayPricingConfig{UnitInputPrice: &inputPrice}, nil)
 	if fields != nil {
 		t.Fatal("real-price-only config should not create admin display fields")
+	}
+}
+
+func TestComputeDisplayFields_RateOnlyEmitsFields(t *testing.T) {
+	log := UsageLog{
+		InputTokens:     1000,
+		OutputTokens:    500,
+		CacheReadTokens: 200,
+		InputCost:       0.003,
+		OutputCost:      0.0075,
+		CacheReadCost:   0.0006,
+		TotalCost:       0.0111,
+		ActualCost:      0.0222,
+		RateMultiplier:  2.0,
+	}
+	displayRate := 1.0
+	fields := ComputeDisplayFields(&log, &DisplayPricingConfig{CacheTokenMaxMult: 1.3}, &displayRate)
+	if fields == nil {
+		t.Fatal("rate-only rows must emit display_fields")
+	}
+	if fields.CacheReadTokens != 260 {
+		t.Fatalf("B1 rate-only cache want 260, got %d", fields.CacheReadTokens)
+	}
+	if log.CacheReadTokens != 200 {
+		t.Fatal("real DTO must stay real")
+	}
+	assertClose(t, "actual_cost unchanged", log.ActualCost, 0.0222)
+}
+
+func TestComputeDisplayFields_AdminMatchesUserVisibleBuilder(t *testing.T) {
+	dispIn := 1.5e-6
+	dispOut := 7.5e-6
+	dispCache := 0.3e-6
+	svcLog := &service.UsageLog{
+		Model:           "claude-align",
+		InputTokens:     1000,
+		OutputTokens:    500,
+		CacheReadTokens: 5000,
+		InputCost:       0.003,
+		OutputCost:      0.0075,
+		CacheReadCost:   0.0045,
+		TotalCost:       0.015,
+		ActualCost:      0.03,
+		RateMultiplier:  2.0,
+	}
+	cfg := &DisplayPricingConfig{
+		DisplayInputPrice:     &dispIn,
+		DisplayOutputPrice:    &dispOut,
+		DisplayCacheReadPrice: &dispCache,
+		CacheTokenMaxMult:     1.3,
+		HasDisplayOverride:    true,
+	}
+	displayRate := 1.0
+
+	userView := UsageLogFromServiceUserVisible(svcLog, cfg, &displayRate)
+	admin := UsageLogFromServiceAdminWithAlloc(svcLog, DisplayPricingMap{
+		"claude-align": cfg,
+	}, 1.3, service.DefaultDisplayOutputResidualGrowthRatio, true, &displayRate)
+
+	if admin.DisplayFields == nil {
+		t.Fatal("admin display_fields required")
+	}
+	if admin.DisplayFields.InputTokens != userView.InputTokens ||
+		admin.DisplayFields.OutputTokens != userView.OutputTokens ||
+		admin.DisplayFields.CacheReadTokens != userView.CacheReadTokens {
+		t.Fatalf("admin display_fields tokens %#v != user-view in=%d out=%d cache=%d",
+			admin.DisplayFields, userView.InputTokens, userView.OutputTokens, userView.CacheReadTokens)
+	}
+	assertClose(t, "admin display total", admin.DisplayFields.TotalCost, userView.TotalCost)
+	assertClose(t, "actual_cost", userView.ActualCost, svcLog.ActualCost)
+	cap := int(math.Round(float64(svcLog.CacheReadTokens) * 1.3))
+	if userView.CacheReadTokens > cap {
+		t.Fatalf("user-view cache %d exceeds M cap %d", userView.CacheReadTokens, cap)
+	}
+}
+
+func TestComputeDisplayFields_RateOnlyWithResolvedUnitPricesMatchesUserView(t *testing.T) {
+	// Admin list must apply the same resolved unit prices as user-view so L2
+	// price-labeled token rounding stays aligned on rate-only rows.
+	unitIn := 3e-6
+	unitOut := 15e-6
+	unitCache := 3e-6
+	svcLog := &service.UsageLog{
+		Model:           "claude-rate-only",
+		InputTokens:     1000,
+		OutputTokens:    500,
+		CacheReadTokens: 200,
+		InputCost:       0.003,
+		OutputCost:      0.0075,
+		CacheReadCost:   0.0006,
+		TotalCost:       0.0111,
+		ActualCost:      0.0222,
+		RateMultiplier:  2.0,
+	}
+	cfg := ApplyResolvedUnitPrices(&DisplayPricingConfig{CacheTokenMaxMult: 1.3}, unitIn, unitOut, unitCache)
+	if cfg == nil || cfg.HasDisplayOverride {
+		t.Fatal("expected unit-price-only config without display override")
+	}
+	displayRate := 1.0
+
+	userView := UsageLogFromServiceUserVisible(svcLog, cfg, &displayRate)
+	admin := UsageLogFromServiceAdminWithAlloc(svcLog, DisplayPricingMap{
+		"claude-rate-only": cfg,
+	}, 1.3, service.DefaultDisplayOutputResidualGrowthRatio, true, &displayRate)
+
+	if admin.DisplayFields == nil {
+		t.Fatal("rate-only + unit prices must emit display_fields")
+	}
+	if admin.DisplayFields.InputTokens != userView.InputTokens ||
+		admin.DisplayFields.OutputTokens != userView.OutputTokens ||
+		admin.DisplayFields.CacheReadTokens != userView.CacheReadTokens {
+		t.Fatalf("admin %#v != user-view in=%d out=%d cache=%d",
+			admin.DisplayFields, userView.InputTokens, userView.OutputTokens, userView.CacheReadTokens)
+	}
+	assertClose(t, "admin display total", admin.DisplayFields.TotalCost, userView.TotalCost)
+	assertClose(t, "actual_cost", userView.ActualCost, svcLog.ActualCost)
+	assertClose(t, "total_cost*rate", userView.TotalCost*userView.RateMultiplier, userView.ActualCost)
+	if userView.CacheReadTokens != 260 {
+		t.Fatalf("B1 cache want 260, got %d", userView.CacheReadTokens)
 	}
 }
 

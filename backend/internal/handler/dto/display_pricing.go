@@ -291,27 +291,6 @@ func rescaleCacheCreationBreakdown(d *UsageLog, realTokens int) {
 	d.CacheCreation1hTokens = d.CacheCreationTokens - scaled5m
 }
 
-// ComputeDisplayFields computes display values for admin DTO (for dual-column comparison).
-// Returns nil if no display override is configured for this model.
-func ComputeDisplayFields(d *UsageLog, cfg *DisplayPricingConfig) *DisplayUsageFields {
-	if cfg == nil || !cfg.HasDisplayOverride {
-		return nil
-	}
-	clone := *d
-	ApplyDisplayTransform(&clone, cfg)
-	return &DisplayUsageFields{
-		InputTokens:         clone.InputTokens,
-		OutputTokens:        clone.OutputTokens,
-		CacheReadTokens:     clone.CacheReadTokens,
-		CacheCreationTokens: clone.CacheCreationTokens,
-		InputCost:           clone.InputCost,
-		OutputCost:          clone.OutputCost,
-		CacheReadCost:       clone.CacheReadCost,
-		CacheCreationCost:   clone.CacheCreationCost,
-		TotalCost:           clone.TotalCost,
-	}
-}
-
 // DisplayUsageFields holds the user-visible values for admin dual-column display.
 type DisplayUsageFields struct {
 	InputTokens         int     `json:"display_input_tokens"`
@@ -325,10 +304,73 @@ type DisplayUsageFields struct {
 	TotalCost           float64 `json:"display_total_cost"`
 }
 
+// BuildUserVisibleUsage applies the full user-visible pipeline in-place:
+// L1 ApplyDisplayTransform (when cfg is non-nil) then L2 ApplyUserDisplayRate
+// (when displayRate is set and differs). The M cap for L2 cache_read uses the
+// billing-real cache_read tokens captured before L1. actual_cost is never changed.
+func BuildUserVisibleUsage(d *UsageLog, cfg *DisplayPricingConfig, displayRate *float64) {
+	if d == nil {
+		return
+	}
+	billingRealCache := d.CacheReadTokens
+	m := 0.0
+	if cfg != nil {
+		m = cfg.CacheTokenMaxMult
+		ApplyDisplayTransform(d, cfg)
+	}
+	if displayRate != nil {
+		ApplyUserDisplayRateWithCap(d, *displayRate, billingRealCache, m)
+	}
+}
+
+// ComputeDisplayFields computes display values for admin DTO (for dual-column comparison).
+// Emits fields when L1 has a display override and/or L2 applies a different display rate.
+// Rate-only rows (no HasDisplayOverride) still produce fields when rates differ.
+func ComputeDisplayFields(d *UsageLog, cfg *DisplayPricingConfig, displayRate *float64) *DisplayUsageFields {
+	if d == nil {
+		return nil
+	}
+	needsL1 := cfg != nil && cfg.HasDisplayOverride
+	needsL2 := displayRate != nil && *displayRate > 0 && *displayRate != d.RateMultiplier
+	if !needsL1 && !needsL2 {
+		return nil
+	}
+	clone := *d
+	BuildUserVisibleUsage(&clone, cfg, displayRate)
+	return &DisplayUsageFields{
+		InputTokens:         clone.InputTokens,
+		OutputTokens:        clone.OutputTokens,
+		CacheReadTokens:     clone.CacheReadTokens,
+		CacheCreationTokens: clone.CacheCreationTokens,
+		InputCost:           clone.InputCost,
+		OutputCost:          clone.OutputCost,
+		CacheReadCost:       clone.CacheReadCost,
+		CacheCreationCost:   clone.CacheCreationCost,
+		TotalCost:           clone.TotalCost,
+	}
+}
+
 // ApplyUserDisplayRate applies a user-group level display rate multiplier transform.
 // This is the only place where the displayed rate_multiplier is changed.
 // actual_cost is never changed.
+//
+// Cache_read uses billing-real tokens from d.CacheReadTokens as the M-cap baseline
+// (correct for rate-only rows, or when L1 did not rewrite cache). After L1 amplify,
+// callers that already rewrote cache_read must use ApplyUserDisplayRateWithCap /
+// BuildUserVisibleUsage so the cap stays relative to billing-real tokens.
 func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
+	if d == nil {
+		return
+	}
+	ApplyUserDisplayRateWithCap(d, displayRate, d.CacheReadTokens, 0)
+}
+
+// ApplyUserDisplayRateWithCap is L2 with an explicit billing-real cache_read baseline
+// and cache amplify cap M (B1). cacheTokenMaxMult <= 0 uses the service default M.
+func ApplyUserDisplayRateWithCap(d *UsageLog, displayRate float64, billingRealCacheRead int, cacheTokenMaxMult float64) {
+	if d == nil {
+		return
+	}
 	currentRate := d.RateMultiplier
 	if displayRate <= 0 || displayRate == currentRate {
 		return
@@ -347,8 +389,8 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 	if d.OutputTokens > 0 || d.OutputCost > 0 {
 		d.OutputTokens, d.OutputCost = scaleDisplayedTokenComponent(d.OutputTokens, d.OutputCost, scale, d.DisplayOutputPrice)
 	}
-	if d.CacheReadTokens > 0 && d.DisplayCacheReadPrice != nil && *d.DisplayCacheReadPrice > 0 {
-		d.CacheReadCost = float64(d.CacheReadTokens) * *d.DisplayCacheReadPrice
+	if d.CacheReadTokens > 0 || d.CacheReadCost > 0 {
+		applyUserDisplayRateCacheRead(d, scale, billingRealCacheRead, cacheTokenMaxMult)
 	}
 	if d.CacheCreationTokens > 0 {
 		realTokens := d.CacheCreationTokens
@@ -376,6 +418,44 @@ func ApplyUserDisplayRate(d *UsageLog, displayRate float64) {
 
 	d.TotalCost = scaledOtherCost + usageLogComponentSum(d)
 	d.RateMultiplier = displayRate
+}
+
+// applyUserDisplayRateCacheRead implements B1: scale cache_read by rate, then hard-cap
+// at billing_real_cache_read × M_eff. Uncovered intended cost folds into the caller's
+// existing input residual path via the reduced CacheReadCost.
+func applyUserDisplayRateCacheRead(d *UsageLog, scale float64, billingRealCacheRead int, cacheTokenMaxMult float64) {
+	mEff := service.ResolveDisplayCacheTokenMaxMult(nil, cacheTokenMaxMult)
+	postL1Cache := d.CacheReadTokens
+	if postL1Cache < 0 {
+		postL1Cache = 0
+	}
+	ideal := int(math.Round(float64(postL1Cache) * scale))
+	if ideal < 0 {
+		ideal = 0
+	}
+	realCache := billingRealCacheRead
+	if realCache < 0 {
+		realCache = 0
+	}
+	cap := int(math.Round(float64(realCache) * mEff))
+	displayCache := ideal
+	if displayCache > cap {
+		displayCache = cap
+	}
+
+	intendedCacheCost := d.CacheReadCost * scale
+	var displayCacheCost float64
+	if d.DisplayCacheReadPrice != nil && *d.DisplayCacheReadPrice > 0 {
+		displayCacheCost = float64(displayCache) * *d.DisplayCacheReadPrice
+	} else if ideal > 0 {
+		displayCacheCost = intendedCacheCost * float64(displayCache) / float64(ideal)
+	}
+	if displayCacheCost < 0 {
+		displayCacheCost = 0
+	}
+
+	d.CacheReadTokens = displayCache
+	d.CacheReadCost = displayCacheCost
 }
 
 func scaleDisplayedTokenComponent(tokens int, cost float64, scale float64, price *float64) (int, float64) {

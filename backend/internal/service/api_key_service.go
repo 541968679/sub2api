@@ -997,6 +997,32 @@ func (s *APIKeyService) GetUserGroupRatesFull(ctx context.Context, userID int64)
 	return rates, nil
 }
 
+// GetUserGroupRatesFullByUserIDs batch-loads full group rate data (incl. display rates)
+// for many users. Uses GetFullByUserIDs when available; otherwise falls back per-user.
+func (s *APIKeyService) GetUserGroupRatesFullByUserIDs(ctx context.Context, userIDs []int64) (map[int64]map[int64]UserGroupRateData, error) {
+	if s.userGroupRateRepo == nil || len(userIDs) == 0 {
+		return nil, nil
+	}
+	if batch, ok := s.userGroupRateRepo.(UserGroupRateFullBatchReader); ok {
+		rates, err := batch.GetFullByUserIDs(ctx, userIDs)
+		if err != nil {
+			return nil, fmt.Errorf("get user group rates full by user ids: %w", err)
+		}
+		return rates, nil
+	}
+	result := make(map[int64]map[int64]UserGroupRateData, len(userIDs))
+	for _, userID := range userIDs {
+		rates, err := s.userGroupRateRepo.GetFullByUserID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("get user group rates full: user_id=%d: %w", userID, err)
+		}
+		if len(rates) > 0 {
+			result[userID] = rates
+		}
+	}
+	return result, nil
+}
+
 // CheckAPIKeyQuotaAndExpiry checks if the API key is valid for use (not expired, quota not exhausted)
 // Returns nil if valid, error if invalid
 func (s *APIKeyService) CheckAPIKeyQuotaAndExpiry(apiKey *APIKey) error {

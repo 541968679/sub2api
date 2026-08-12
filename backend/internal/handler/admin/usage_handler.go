@@ -206,19 +206,38 @@ func (h *UsageHandler) List(c *gin.Context) {
 
 	globalDisplayMap := h.loadDisplayPricingMap(c)
 	userDisplayMaps := h.loadUserDisplayPricingMaps(c, records, globalDisplayMap)
+	userGroupRates := h.loadUserGroupRatesForRecords(c, records)
 	out := make([]dto.AdminUsageLog, 0, len(records))
+	ctx := c.Request.Context()
 	for i := range records {
 		displayMap := globalDisplayMap
 		if userMap, ok := userDisplayMaps[records[i].UserID]; ok {
 			displayMap = userMap
 		}
+		// Same unit-price resolution as user /usage and admin user-view so L2
+		// price-labeled rounding cannot diverge on rate-only rows.
+		if cfg := h.displayConfigForUsageLog(ctx, &records[i], displayMap); cfg != nil {
+			model := records[i].RequestedModel
+			if model == "" {
+				model = records[i].Model
+			}
+			displayMap = dto.DisplayPricingMap{strings.ToLower(model): cfg}
+		}
 		m, alpha := service.DefaultDisplayCacheTokenMaxMult, service.DefaultDisplayOutputResidualGrowthRatio
 		allocSet := false
 		if h.pricingResolver != nil {
-			m, alpha = h.pricingResolver.ResolveDisplayAllocControls(c.Request.Context(), records[i].UserID)
+			m, alpha = h.pricingResolver.ResolveDisplayAllocControls(ctx, records[i].UserID)
 			allocSet = true
 		}
-		out = append(out, *dto.UsageLogFromServiceAdminWithAlloc(&records[i], displayMap, m, alpha, allocSet))
+		var displayRate *float64
+		if records[i].GroupID != nil {
+			if byGroup, ok := userGroupRates[records[i].UserID]; ok {
+				if dr, ok := byGroup[*records[i].GroupID]; ok && dr.DisplayRateMultiplier != nil {
+					displayRate = dr.DisplayRateMultiplier
+				}
+			}
+		}
+		out = append(out, *dto.UsageLogFromServiceAdminWithAlloc(&records[i], displayMap, m, alpha, allocSet, displayRate))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -759,6 +778,29 @@ func (h *UsageHandler) loadUserDisplayPricingMaps(c *gin.Context, records []serv
 	return result
 }
 
+// loadUserGroupRatesForRecords batch-loads per-user group display rates for admin list rows.
+func (h *UsageHandler) loadUserGroupRatesForRecords(c *gin.Context, records []service.UsageLog) map[int64]map[int64]service.UserGroupRateData {
+	if h.apiKeyService == nil || len(records) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(records))
+	userIDs := make([]int64, 0, len(records))
+	for i := range records {
+		uid := records[i].UserID
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		userIDs = append(userIDs, uid)
+	}
+	rates, err := h.apiKeyService.GetUserGroupRatesFullByUserIDs(c.Request.Context(), userIDs)
+	if err != nil {
+		logger.LegacyPrintf("handler.admin.usage", "failed to load user group rates for usage list: %v", err)
+		return nil
+	}
+	return rates
+}
+
 // UserViewSnapshot is one column of the side-by-side comparison.
 type UserViewSnapshot struct {
 	InputTokens                 int      `json:"input_tokens"`
@@ -845,18 +887,25 @@ func (h *UsageHandler) GetUserViewPreview(c *gin.Context) {
 
 	// Real column: no displayMap → no transform
 	realDTO := dto.UsageLogFromService(log, nil)
-	// User view column: apply global+user override (in-place on a fresh DTO),
-	// then layer the user group display rate if present.
+	// User view column: full L1+L2 pipeline (same builder as user /usage and admin display_fields).
 	displayCfg := h.displayConfigForUsageLog(ctx, log, userMap)
-	userDTO := dto.UsageLogFromServiceWithDisplayConfig(log, displayCfg)
-	effectiveDisplayCfg := dto.EffectiveDisplayPricingForUsageLog(userDTO, displayCfg)
+	if h.pricingResolver != nil {
+		m, alpha := h.pricingResolver.ResolveDisplayAllocControls(ctx, log.UserID)
+		if displayCfg == nil {
+			displayCfg = &dto.DisplayPricingConfig{}
+		}
+		displayCfg.CacheTokenMaxMult = m
+		a := alpha
+		displayCfg.OutputResidualGrowthRatio = &a
+	}
 	var groupDisplayRate *float64
 	if log.GroupID != nil && groupRates != nil {
 		if dr, ok := groupRates[*log.GroupID]; ok && dr.DisplayRateMultiplier != nil {
-			dto.ApplyUserDisplayRate(userDTO, *dr.DisplayRateMultiplier)
 			groupDisplayRate = dr.DisplayRateMultiplier
 		}
 	}
+	userDTO := dto.UsageLogFromServiceUserVisible(log, displayCfg, groupDisplayRate)
+	effectiveDisplayCfg := dto.EffectiveDisplayPricingForUsageLog(realDTO, displayCfg)
 
 	hasUserOverride := false
 	overrideModel := log.RequestedModel
