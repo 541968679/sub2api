@@ -1073,6 +1073,7 @@ const zhBase = {
     upstreamEndpoint: '上游端点',
     type: '类型',
     tokens: 'Token',
+    displayTokens: '展示 Token',
     cost: '费用',
     firstToken: '首 Token',
     duration: '耗时',

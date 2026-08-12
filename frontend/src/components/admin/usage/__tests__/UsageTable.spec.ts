@@ -41,6 +41,8 @@ const DataTableStub = {
     <div>
       <div v-for="row in data" :key="row.request_id">
         <slot name="cell-model" :row="row" :value="row.model" />
+        <slot name="cell-tokens" :row="row" />
+        <slot name="cell-display_tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
       </div>
     </div>
@@ -94,7 +96,9 @@ describe('admin UsageTable tooltip', () => {
       },
     })
 
-    await wrapper.find('.group.relative').trigger('mouseenter')
+    // Cost tooltip is the last .group.relative (tokens/display_tokens tooltips come first)
+    const groups = wrapper.findAll('.group.relative')
+    await groups[groups.length - 1].trigger('mouseenter')
     await nextTick()
 
     const text = wrapper.text()
@@ -151,7 +155,9 @@ describe('admin UsageTable tooltip', () => {
       },
     })
 
-    await wrapper.find('.group.relative').trigger('mouseenter')
+    // Cost tooltip is the last .group.relative (tokens + display_tokens tooltips precede it)
+    const groups = wrapper.findAll('.group.relative')
+    await groups[groups.length - 1].trigger('mouseenter')
     await nextTick()
 
     const text = wrapper.text()
@@ -160,6 +166,91 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('$0.2000 / 1M tokens')
     expect(text).toContain('$0.0100 / 1M tokens')
     expect(text).toContain('$0.0200 / 1M tokens')
+  })
+
+  it('renders display tokens column from display_fields', () => {
+    const row = {
+      request_id: 'req-admin-display-tokens-1',
+      actual_cost: 0.0000476,
+      total_cost: 0.0000476,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0.0000408,
+      output_cost: 0.0000068,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 408,
+      output_tokens: 34,
+      cache_read_tokens: 0,
+      cache_creation_tokens: 0,
+      display_fields: {
+        display_input_tokens: 4080,
+        display_output_tokens: 340,
+        display_cache_read_tokens: 1200,
+        display_cache_creation_tokens: 500,
+        display_input_cost: 0.0000408,
+        display_output_cost: 0.0000068,
+        display_cache_read_cost: 0,
+        display_total_cost: 0.0000476,
+      },
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    const text = wrapper.text()
+    expect(text).toContain('4,080')
+    expect(text).toContain('340')
+    // formatCacheTokens: 1200 -> "1.2K", 500 stays "500"
+    expect(text).toContain('1.2K')
+    expect(text).toContain('500')
+  })
+
+  it('shows dash when display_fields is missing', () => {
+    const row = {
+      request_id: 'req-admin-no-display-1',
+      actual_cost: 0,
+      total_cost: 0,
+      account_rate_multiplier: 1,
+      rate_multiplier: 1,
+      input_cost: 0,
+      output_cost: 0,
+      cache_creation_cost: 0,
+      cache_read_cost: 0,
+      input_tokens: 10,
+      output_tokens: 5,
+    }
+
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('-')
   })
 
   it('shows requested and upstream models separately for admin rows', () => {
