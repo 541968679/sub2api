@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-12 | `v0.1.216` | `761dd8cf9` | `ghcr.io/541968679/sub2api:0.1.216` | `0.1.216` | running, healthy, digest `sha256:ed28a4d553e8b972a0a6796d7fb3bfc620d09c97d77d5704809d830357cd88b7`, internal `/health` OK; restore admin usage `token`/`TOKEN` headers + per-column cache share |
+| 2026-08-13 | `v0.1.217` | `824421852` | `ghcr.io/541968679/sub2api:0.1.217` | `0.1.217` | running, healthy, digest `sha256:05a09cea918942c81b7b2167bd81fa818260acfe52e7223193f4b17625c13d61`, internal `/health` OK; native Responses first_token_ms on first SSE + admin `openai_responses_flush_preamble` (default off) |
+| 2026-08-12 | `v0.1.216` | `761dd8cf9` | `ghcr.io/541968679/sub2api:0.1.216` | `0.1.216` | superseded by `v0.1.217`; restore admin usage `token`/`TOKEN` headers + per-column cache share |
 | 2026-08-12 | `v0.1.211` | `60f971b8a` | `ghcr.io/541968679/sub2api:0.1.211` (override pin) | `0.1.211` | running, healthy, internal `/health` OK; admin display_fields L1+L2 + B1 cache amplify under M; **still skips banned v0.1.199** |
 | 2026-08-12 | `v0.1.210` | `1a1786cb5` | `ghcr.io/541968679/sub2api:0.1.210` (override pin) | `0.1.210` | superseded by `v0.1.211`; admin usage display tokens column; **still skips banned v0.1.199** |
 | 2026-08-11 | `v0.1.209` | `cc261b5d5` | `ghcr.io/541968679/sub2api:0.1.209` (override pin) | `0.1.209` | superseded by `v0.1.210`; ops logs real OpenAI `/v1/responses` for Claude-GPT bridge; **still skips banned v0.1.199** |

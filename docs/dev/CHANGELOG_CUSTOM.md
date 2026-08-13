@@ -1,3 +1,14 @@
+## 2026-08-13 - deploy: production v0.1.217
+
+### What
+- Released and deployed `v0.1.217` (`824421852`) to production as `ghcr.io/541968679/sub2api:0.1.217`.
+- Native `/v1/responses` stamps `first_token_ms` on the first SSE frame; admin toggle `openai_responses_flush_preamble` defaults **off** (preamble still buffered until turned on).
+
+### Verification
+- Release workflow success; image digest `sha256:05a09cea918942c81b7b2167bd81fa818260acfe52e7223193f4b17625c13d61`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `824421852`, version label `0.1.217`
+
 ## 2026-08-13 - feat(gateway): admin toggle to flush native Responses preamble
 
 ### What
@@ -50,7 +61,7 @@ Local experiment: see whether the website first-token charts align with bridge a
 `backend/internal/service/openai_stream_stage_timing_test.go`,
 this changelog.
 
-
+## 2026-08-12 - deploy: production v0.1.216
 
 ### What
 - Released and deployed `v0.1.216` (`761dd8cf9`) to production as `ghcr.io/541968679/sub2api:0.1.216`.
