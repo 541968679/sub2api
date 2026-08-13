@@ -446,6 +446,33 @@ func (_u *UserUpdate) SetNillableDownstreamUsageTokenMode(v *string) *UserUpdate
 	return _u
 }
 
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (_u *UserUpdate) SetDisplayCacheTokenMaxMult(v float64) *UserUpdate {
+	_u.mutation.ResetDisplayCacheTokenMaxMult()
+	_u.mutation.SetDisplayCacheTokenMaxMult(v)
+	return _u
+}
+
+// SetNillableDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableDisplayCacheTokenMaxMult(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetDisplayCacheTokenMaxMult(*v)
+	}
+	return _u
+}
+
+// AddDisplayCacheTokenMaxMult adds value to the "display_cache_token_max_mult" field.
+func (_u *UserUpdate) AddDisplayCacheTokenMaxMult(v float64) *UserUpdate {
+	_u.mutation.AddDisplayCacheTokenMaxMult(v)
+	return _u
+}
+
+// ClearDisplayCacheTokenMaxMult clears the value of the "display_cache_token_max_mult" field.
+func (_u *UserUpdate) ClearDisplayCacheTokenMaxMult() *UserUpdate {
+	_u.mutation.ClearDisplayCacheTokenMaxMult()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdate) AddAPIKeyIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1120,6 +1147,15 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.DownstreamUsageTokenMode(); ok {
 		_spec.SetField(user.FieldDownstreamUsageTokenMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayCacheTokenMaxMult(); ok {
+		_spec.SetField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDisplayCacheTokenMaxMult(); ok {
+		_spec.AddField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64, value)
+	}
+	if _u.mutation.DisplayCacheTokenMaxMultCleared() {
+		_spec.ClearField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2144,6 +2180,33 @@ func (_u *UserUpdateOne) SetNillableDownstreamUsageTokenMode(v *string) *UserUpd
 	return _u
 }
 
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (_u *UserUpdateOne) SetDisplayCacheTokenMaxMult(v float64) *UserUpdateOne {
+	_u.mutation.ResetDisplayCacheTokenMaxMult()
+	_u.mutation.SetDisplayCacheTokenMaxMult(v)
+	return _u
+}
+
+// SetNillableDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableDisplayCacheTokenMaxMult(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetDisplayCacheTokenMaxMult(*v)
+	}
+	return _u
+}
+
+// AddDisplayCacheTokenMaxMult adds value to the "display_cache_token_max_mult" field.
+func (_u *UserUpdateOne) AddDisplayCacheTokenMaxMult(v float64) *UserUpdateOne {
+	_u.mutation.AddDisplayCacheTokenMaxMult(v)
+	return _u
+}
+
+// ClearDisplayCacheTokenMaxMult clears the value of the "display_cache_token_max_mult" field.
+func (_u *UserUpdateOne) ClearDisplayCacheTokenMaxMult() *UserUpdateOne {
+	_u.mutation.ClearDisplayCacheTokenMaxMult()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdateOne) AddAPIKeyIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2848,6 +2911,15 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.DownstreamUsageTokenMode(); ok {
 		_spec.SetField(user.FieldDownstreamUsageTokenMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayCacheTokenMaxMult(); ok {
+		_spec.SetField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedDisplayCacheTokenMaxMult(); ok {
+		_spec.AddField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64, value)
+	}
+	if _u.mutation.DisplayCacheTokenMaxMultCleared() {
+		_spec.ClearField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

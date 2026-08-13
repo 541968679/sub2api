@@ -55,15 +55,23 @@ Claude-GPT bridge routing, native Images, or Ops/public settings.
 | Service | `backend/internal/service/ratelimit_service.go` | Maps upstream errors to account state, temporary unschedulable windows, and rate limits. |
 | Service | `backend/internal/service/openai_stream_stage_timing.go` | Default-off sampled client-true TTFT stage clock (`first_client_flush_ms` vs `first_token_ms`). |
 
-## OpenAI first_token_ms vs client-true TTFT
+## OpenAI first_token_ms vs true_first_token_ms
 
-Native `/v1/responses` `usage_logs.first_token_ms` is measured from Forward start until the first non-empty SSE `data:` frame (typically `response.created`), matching Claude-GPT bridge `firstChunk`. `[DONE]` does not count.
+Native `/v1/responses` stores two TTFTs:
 
-Downstream flush is separate and gated by admin setting `openai_responses_flush_preamble` (default **false**, not a public setting):
+| Field | Meaning | Used by |
+|-------|---------|---------|
+| `usage_logs.first_token_ms` | Display first-token: Forward start until the first non-empty SSE `data:` frame (typically `response.created`), matching Claude-GPT bridge `firstChunk`. `[DONE]` does not count. | User usage records; admin usage existing 首字 column |
+| `usage_logs.true_first_token_ms` | True first-token: first useful/non-preamble event (`openAIStreamDataStartsClientOutput`, typically `output_item.added`). This is the pre-0.1.217 native Responses stamp. | Account scheduler `ReportResult`, account-list quality TTFT, ops TTFT aggregations. `COALESCE(true_first_token_ms, first_token_ms)` for historical rows. |
+
+Admin usage latency cell shows both. User usage shows only display `first_token_ms`.
+
+Downstream flush is separate and gated by admin settings `openai_responses_flush_preamble` (default **false**, not public) plus optional `openai_responses_flush_preamble_user_ids` (JSON int64 array). Enable if the global toggle is on **or** the authenticated API-key user is in the allowlist. User ID comes from `ctxkey.UserID` set by API-key middleware.
 
 | Switch | Downstream flush | Silent failover after first SSE |
 |--------|------------------|----------------------------------|
-| Off (default) | Buffer `response.created` / `response.in_progress` until a non-preamble event (`output_item.added`, etc.) | Still possible: HTTP 200 is not committed to the client yet, so JSON error rewrite / account failover can still run |
+| Off (default) and user not in allowlist | Buffer `response.created` / `response.in_progress` until a non-preamble event (`output_item.added`, etc.) | Still possible: HTTP 200 is not committed to the client yet, so JSON error rewrite / account failover can still run |
+| Off, user in `openai_responses_flush_preamble_user_ids` | Same as On, but only for that user | Closed for that user only |
 | On | Flush preamble immediately so downstream (e.g. new-api `frt`) can stamp first-token on the first `data:` line | Closed: first SSE commits the response |
 
 `response.failed` is never treated as a preamble commit. Claude-GPT visible-output buffering is unchanged.
@@ -719,9 +727,9 @@ native `/v1/images/*`, and WebSocket transport remain unchanged.
 
 ## OpenAI first_token_ms semantics
 
-`first_token_ms` for OpenAI Responses streaming is measured from Forward start until the first SSE event that `openAIStreamDataStartsClientOutput` accepts. Preamble (`response.created` / `response.in_progress`) and `response.failed` do not count; other non-preamble events (including upstream keepalive) follow the same rule as upstream Sub2API and are intentionally left unchanged. Production ingress Caddy for `zerocode.kaynlab.com` uses `flush_interval -1` on `reverse_proxy` so client-perceived SSE is not buffered at the edge.
+`first_token_ms` (display) for OpenAI Responses streaming is measured from Forward start until the first non-empty SSE `data:` frame. `true_first_token_ms` (scheduling/account quality) is measured until the first SSE event that `openAIStreamDataStartsClientOutput` accepts. Preamble (`response.created` / `response.in_progress`) and `response.failed` do not count as true first-token; other non-preamble events (including upstream keepalive) follow the same rule as upstream Sub2API and are intentionally left unchanged. Production ingress Caddy for `zerocode.kaynlab.com` uses `flush_interval -1` on `reverse_proxy` so client-perceived SSE is not buffered at the edge.
 
-Responses→Chat fallback (`force_chat_completions` / unsupported native Responses) records `first_token_ms` when an upstream Chat Completions chunk would produce the first **non-preamble** Responses client output after `ChatCompletionsChunkToResponsesEvents`: non-empty `delta.content`, non-empty `delta.reasoning_content` or alternate wire field `delta.reasoning`, or any `delta.tool_calls`. Role-only / empty preamble deltas and usage-only chunks do not count. This keeps fallback TTFT aligned with native Responses semantics rather than waiting until late visible content after a long reasoning phase.
+Responses→Chat fallback (`force_chat_completions` / unsupported native Responses) records `first_token_ms` when an upstream Chat Completions chunk would produce the first **non-preamble** Responses client output after `ChatCompletionsChunkToResponsesEvents`: non-empty `delta.content`, non-empty `delta.reasoning_content` or alternate wire field `delta.reasoning`, or any `delta.tool_calls`. Role-only / empty preamble deltas and usage-only chunks do not count. Fallback does not currently split display vs true; both remain the useful-output stamp.
 
 ## Known Pitfalls
 

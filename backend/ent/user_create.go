@@ -368,6 +368,20 @@ func (_c *UserCreate) SetNillableDownstreamUsageTokenMode(v *string) *UserCreate
 	return _c
 }
 
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (_c *UserCreate) SetDisplayCacheTokenMaxMult(v float64) *UserCreate {
+	_c.mutation.SetDisplayCacheTokenMaxMult(v)
+	return _c
+}
+
+// SetNillableDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field if the given value is not nil.
+func (_c *UserCreate) SetNillableDisplayCacheTokenMaxMult(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetDisplayCacheTokenMaxMult(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -897,6 +911,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DownstreamUsageTokenMode(); ok {
 		_spec.SetField(user.FieldDownstreamUsageTokenMode, field.TypeString, value)
 		_node.DownstreamUsageTokenMode = value
+	}
+	if value, ok := _c.mutation.DisplayCacheTokenMaxMult(); ok {
+		_spec.SetField(user.FieldDisplayCacheTokenMaxMult, field.TypeFloat64, value)
+		_node.DisplayCacheTokenMaxMult = &value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1522,6 +1540,30 @@ func (u *UserUpsert) UpdateDownstreamUsageTokenMode() *UserUpsert {
 	return u
 }
 
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (u *UserUpsert) SetDisplayCacheTokenMaxMult(v float64) *UserUpsert {
+	u.Set(user.FieldDisplayCacheTokenMaxMult, v)
+	return u
+}
+
+// UpdateDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field to the value that was provided on create.
+func (u *UserUpsert) UpdateDisplayCacheTokenMaxMult() *UserUpsert {
+	u.SetExcluded(user.FieldDisplayCacheTokenMaxMult)
+	return u
+}
+
+// AddDisplayCacheTokenMaxMult adds v to the "display_cache_token_max_mult" field.
+func (u *UserUpsert) AddDisplayCacheTokenMaxMult(v float64) *UserUpsert {
+	u.Add(user.FieldDisplayCacheTokenMaxMult, v)
+	return u
+}
+
+// ClearDisplayCacheTokenMaxMult clears the value of the "display_cache_token_max_mult" field.
+func (u *UserUpsert) ClearDisplayCacheTokenMaxMult() *UserUpsert {
+	u.SetNull(user.FieldDisplayCacheTokenMaxMult)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1984,6 +2026,34 @@ func (u *UserUpsertOne) SetDownstreamUsageTokenMode(v string) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateDownstreamUsageTokenMode() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateDownstreamUsageTokenMode()
+	})
+}
+
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (u *UserUpsertOne) SetDisplayCacheTokenMaxMult(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDisplayCacheTokenMaxMult(v)
+	})
+}
+
+// AddDisplayCacheTokenMaxMult adds v to the "display_cache_token_max_mult" field.
+func (u *UserUpsertOne) AddDisplayCacheTokenMaxMult(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddDisplayCacheTokenMaxMult(v)
+	})
+}
+
+// UpdateDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateDisplayCacheTokenMaxMult() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDisplayCacheTokenMaxMult()
+	})
+}
+
+// ClearDisplayCacheTokenMaxMult clears the value of the "display_cache_token_max_mult" field.
+func (u *UserUpsertOne) ClearDisplayCacheTokenMaxMult() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDisplayCacheTokenMaxMult()
 	})
 }
 
@@ -2615,6 +2685,34 @@ func (u *UserUpsertBulk) SetDownstreamUsageTokenMode(v string) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateDownstreamUsageTokenMode() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateDownstreamUsageTokenMode()
+	})
+}
+
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (u *UserUpsertBulk) SetDisplayCacheTokenMaxMult(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetDisplayCacheTokenMaxMult(v)
+	})
+}
+
+// AddDisplayCacheTokenMaxMult adds v to the "display_cache_token_max_mult" field.
+func (u *UserUpsertBulk) AddDisplayCacheTokenMaxMult(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddDisplayCacheTokenMaxMult(v)
+	})
+}
+
+// UpdateDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateDisplayCacheTokenMaxMult() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateDisplayCacheTokenMaxMult()
+	})
+}
+
+// ClearDisplayCacheTokenMaxMult clears the value of the "display_cache_token_max_mult" field.
+func (u *UserUpsertBulk) ClearDisplayCacheTokenMaxMult() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearDisplayCacheTokenMaxMult()
 	})
 }
 

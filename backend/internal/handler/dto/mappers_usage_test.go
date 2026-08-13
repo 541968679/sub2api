@@ -148,6 +148,34 @@ func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *
 	require.Equal(t, "claude-3", adminDTO.Model)
 }
 
+func TestUsageLogFromServiceAdmin_IncludesTrueFirstTokenMs(t *testing.T) {
+	t.Parallel()
+
+	display := 80
+	trueMs := 2400
+	log := &service.UsageLog{
+		RequestID:        "req_ttft",
+		Model:            "gpt-5.4",
+		FirstTokenMs:     &display,
+		TrueFirstTokenMs: &trueMs,
+	}
+
+	userDTO := UsageLogFromService(log, nil)
+	adminDTO := UsageLogFromServiceAdmin(log, nil)
+
+	require.Equal(t, 80, *userDTO.FirstTokenMs)
+	require.Equal(t, 80, *adminDTO.FirstTokenMs)
+	require.Equal(t, 2400, *adminDTO.TrueFirstTokenMs)
+
+	userJSON, err := json.Marshal(userDTO)
+	require.NoError(t, err)
+	require.NotContains(t, string(userJSON), "true_first_token_ms")
+
+	adminJSON, err := json.Marshal(adminDTO)
+	require.NoError(t, err)
+	require.Contains(t, string(adminJSON), `"true_first_token_ms":2400`)
+}
+
 func f64Ptr(value float64) *float64 {
 	return &value
 }

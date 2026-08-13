@@ -1121,9 +1121,11 @@ const enBase = {
     displayTokens: 'Display Tokens',
     cost: 'Cost',
     firstToken: 'First Token',
+    trueFirstToken: 'True first token',
     duration: 'Duration',
     latency: 'Latency',
     latencyFirstToken: 'First token',
+    latencyTrueFirstToken: 'True first token',
     latencyDuration: 'Total',
     time: 'Time',
     ws: 'WS',
@@ -4295,7 +4297,7 @@ const enBase = {
       },
       quality: {
         ttftHint:
-          'TTFT over the last 15 minutes. Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
+          'True first-token latency over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
           'Request success rate over the last 15 minutes: successes / (successes + failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens). Shows — when empty.',
         tooltip: 'Last {windowMinutes} min · success {success} · fail {error} · TTFT samples {ttftSamples}',
@@ -7092,6 +7094,8 @@ const enBase = {
         clientDatelineNormalizationHint: 'Canonicalizes only system datelines in Anthropic OAuth/Setup Token requests to remove client steganographic variants. API keys, user prose, and the Claude-GPT bridge are unaffected.',
         flushPreamble: 'Flush Responses preamble immediately',
         flushPreambleHint: 'When enabled, native /v1/responses sends the first response.created / in_progress frames to downstream immediately so clients such as new-api can stamp first-token on them. After that, silent account failover is no longer possible. Default off keeps the current buffer-for-failover behavior.',
+        flushPreambleUserIds: 'Enable only for these users',
+        flushPreambleUserIdsHint: 'While the site-wide toggle is off, only listed users flush Responses preamble immediately. Turning the site-wide toggle on applies it to everyone. Add your admin user here for a controlled test without enabling it globally.',
         networkRetryMax: 'Maximum upstream network retries',
         networkRetryMaxHint: 'Retries only connection failures, timeouts, EOF, and similar network errors before any HTTP response is received. Use 0 to disable. Default 2, maximum 10.',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT Bridge Cache Display',

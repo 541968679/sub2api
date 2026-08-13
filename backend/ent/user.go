@@ -627,6 +627,11 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("downstream_usage_token_mode=")
 	builder.WriteString(_m.DownstreamUsageTokenMode)
+	builder.WriteString(", ")
+	if v := _m.DisplayCacheTokenMaxMult; v != nil {
+		builder.WriteString("display_cache_token_max_mult=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

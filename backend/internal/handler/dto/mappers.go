@@ -744,6 +744,7 @@ func UsageLogFromServiceAdminWithAlloc(l *service.UsageLog, displayMap DisplayPr
 		AccountRateMultiplier: l.AccountRateMultiplier,
 		AccountStatsCost:      l.AccountStatsCost,
 		IPAddress:             l.IPAddress,
+		TrueFirstTokenMs:      l.TrueFirstTokenMs,
 		Account:               AccountSummaryFromService(l.Account),
 	}
 	var cfg *DisplayPricingConfig

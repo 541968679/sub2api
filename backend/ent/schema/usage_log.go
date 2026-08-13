@@ -131,6 +131,12 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int("first_token_ms").
 			Optional().
 			Nillable(),
+		// true_first_token_ms is the scheduling/account-quality TTFT:
+		// first useful/non-preamble output. first_token_ms remains the
+		// user-facing display stamp (first SSE frame on native Responses).
+		field.Int("true_first_token_ms").
+			Optional().
+			Nillable(),
 		field.String("user_agent").
 			MaxLen(512).
 			Optional().

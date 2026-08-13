@@ -230,6 +230,11 @@ func FirstTokenMs(v int) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldFirstTokenMs, v))
 }
 
+// TrueFirstTokenMs applies equality check predicate on the "true_first_token_ms" field. It's identical to TrueFirstTokenMsEQ.
+func TrueFirstTokenMs(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTrueFirstTokenMs, v))
+}
+
 // UserAgent applies equality check predicate on the "user_agent" field. It's identical to UserAgentEQ.
 func UserAgent(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldUserAgent, v))
@@ -1848,6 +1853,56 @@ func FirstTokenMsIsNil() predicate.UsageLog {
 // FirstTokenMsNotNil applies the NotNil predicate on the "first_token_ms" field.
 func FirstTokenMsNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldFirstTokenMs))
+}
+
+// TrueFirstTokenMsEQ applies the EQ predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTrueFirstTokenMs, v))
+}
+
+// TrueFirstTokenMsNEQ applies the NEQ predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsNEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldTrueFirstTokenMs, v))
+}
+
+// TrueFirstTokenMsIn applies the In predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldTrueFirstTokenMs, vs...))
+}
+
+// TrueFirstTokenMsNotIn applies the NotIn predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsNotIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldTrueFirstTokenMs, vs...))
+}
+
+// TrueFirstTokenMsGT applies the GT predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsGT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldTrueFirstTokenMs, v))
+}
+
+// TrueFirstTokenMsGTE applies the GTE predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsGTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldTrueFirstTokenMs, v))
+}
+
+// TrueFirstTokenMsLT applies the LT predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsLT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldTrueFirstTokenMs, v))
+}
+
+// TrueFirstTokenMsLTE applies the LTE predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsLTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldTrueFirstTokenMs, v))
+}
+
+// TrueFirstTokenMsIsNil applies the IsNil predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldTrueFirstTokenMs))
+}
+
+// TrueFirstTokenMsNotNil applies the NotNil predicate on the "true_first_token_ms" field.
+func TrueFirstTokenMsNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldTrueFirstTokenMs))
 }
 
 // UserAgentEQ applies the EQ predicate on the "user_agent" field.

@@ -18,6 +18,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/imroc/req/v3"
@@ -127,6 +128,7 @@ type cachedGatewayForwardingSettings struct {
 	anthropicCacheTTL1hInjection bool
 	clientDatelineNormalization  bool
 	flushPreamble                bool
+	flushPreambleUserIDs         []int64
 	networkRetryMax              int
 	expiresAt                    int64 // unix nano
 }
@@ -1545,6 +1547,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyEnableAnthropicCacheTTL1hInjection] = strconv.FormatBool(settings.EnableAnthropicCacheTTL1hInjection)
 	updates[SettingKeyEnableClientDatelineNormalization] = strconv.FormatBool(settings.EnableClientDatelineNormalization)
 	updates[SettingKeyOpenAIResponsesFlushPreamble] = strconv.FormatBool(settings.OpenAIResponsesFlushPreamble)
+	settings.OpenAIResponsesFlushPreambleUserIDs = normalizeOpenAIResponsesFlushPreambleUserIDs(settings.OpenAIResponsesFlushPreambleUserIDs)
+	userIDsJSON, err := json.Marshal(settings.OpenAIResponsesFlushPreambleUserIDs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal openai responses flush preamble user ids: %w", err)
+	}
+	updates[SettingKeyOpenAIResponsesFlushPreambleUserIDs] = string(userIDsJSON)
 	settings.GatewayNetworkRetryMax = ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax)
 	updates[SettingKeyGatewayNetworkRetryMax] = strconv.Itoa(settings.GatewayNetworkRetryMax)
 	settings.DisplayCacheTokenMaxMult = ResolveDisplayCacheTokenMaxMult(nil, settings.DisplayCacheTokenMaxMult)
@@ -1678,6 +1686,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		anthropicCacheTTL1hInjection: settings.EnableAnthropicCacheTTL1hInjection,
 		clientDatelineNormalization:  settings.EnableClientDatelineNormalization,
 		flushPreamble:                settings.OpenAIResponsesFlushPreamble,
+		flushPreambleUserIDs:         append([]int64(nil), settings.OpenAIResponsesFlushPreambleUserIDs...),
 		networkRetryMax:              ClampGatewayNetworkRetryMax(settings.GatewayNetworkRetryMax),
 		expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 	})
@@ -1811,6 +1820,7 @@ func (s *SettingService) IsBackendModeEnabled(ctx context.Context) bool {
 
 type gatewayForwardingSettingsResult struct {
 	fp, mp, cch, cacheTTL1h, normalizeDateline, flushPreamble bool
+	flushPreambleUserIDs                                      []int64
 	networkRetryMax                                           int
 }
 
@@ -1819,13 +1829,14 @@ func gatewayForwardingSettingsFromCache(cached *cachedGatewayForwardingSettings)
 		return gatewayForwardingSettingsResult{fp: true, normalizeDateline: true, networkRetryMax: GatewayNetworkRetryMaxDefault}
 	}
 	return gatewayForwardingSettingsResult{
-		fp:                cached.fingerprintUnification,
-		mp:                cached.metadataPassthrough,
-		cch:               cached.cchSigning,
-		cacheTTL1h:        cached.anthropicCacheTTL1hInjection,
-		normalizeDateline: cached.clientDatelineNormalization,
-		flushPreamble:     cached.flushPreamble,
-		networkRetryMax:   cached.networkRetryMax,
+		fp:                   cached.fingerprintUnification,
+		mp:                   cached.metadataPassthrough,
+		cch:                  cached.cchSigning,
+		cacheTTL1h:           cached.anthropicCacheTTL1hInjection,
+		normalizeDateline:    cached.clientDatelineNormalization,
+		flushPreamble:        cached.flushPreamble,
+		flushPreambleUserIDs: append([]int64(nil), cached.flushPreambleUserIDs...),
+		networkRetryMax:      cached.networkRetryMax,
 	}
 }
 
@@ -1850,6 +1861,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			SettingKeyEnableAnthropicCacheTTL1hInjection,
 			SettingKeyEnableClientDatelineNormalization,
 			SettingKeyOpenAIResponsesFlushPreamble,
+			SettingKeyOpenAIResponsesFlushPreambleUserIDs,
 			SettingKeyGatewayNetworkRetryMax,
 		})
 		if err != nil {
@@ -1875,6 +1887,7 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 		cacheTTL1h := values[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
 		normalizeDateline := values[SettingKeyEnableClientDatelineNormalization] != "false"
 		flushPreamble := values[SettingKeyOpenAIResponsesFlushPreamble] == "true"
+		flushPreambleUserIDs := parseOpenAIResponsesFlushPreambleUserIDs(values[SettingKeyOpenAIResponsesFlushPreambleUserIDs])
 		networkRetryMax := ParseGatewayNetworkRetryMax(values[SettingKeyGatewayNetworkRetryMax])
 		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
 			fingerprintUnification:       fp,
@@ -1883,10 +1896,11 @@ func (s *SettingService) getGatewayForwardingSettingsCached(ctx context.Context)
 			anthropicCacheTTL1hInjection: cacheTTL1h,
 			clientDatelineNormalization:  normalizeDateline,
 			flushPreamble:                flushPreamble,
+			flushPreambleUserIDs:         flushPreambleUserIDs,
 			networkRetryMax:              networkRetryMax,
 			expiresAt:                    time.Now().Add(gatewayForwardingCacheTTL).UnixNano(),
 		})
-		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, flushPreamble: flushPreamble, networkRetryMax: networkRetryMax}, nil
+		return gatewayForwardingSettingsResult{fp: fp, mp: mp, cch: cch, cacheTTL1h: cacheTTL1h, normalizeDateline: normalizeDateline, flushPreamble: flushPreamble, flushPreambleUserIDs: append([]int64(nil), flushPreambleUserIDs...), networkRetryMax: networkRetryMax}, nil
 	})
 	if r, ok := val.(gatewayForwardingSettingsResult); ok {
 		return r
@@ -1917,11 +1931,60 @@ func (s *SettingService) GetGatewayNetworkRetryMax(ctx context.Context) int {
 
 // IsOpenAIResponsesFlushPreambleEnabled reports whether native Responses SSE
 // preamble should be flushed to downstream immediately. Default false.
+// Global true enables everyone; otherwise only openai_responses_flush_preamble_user_ids.
 func (s *SettingService) IsOpenAIResponsesFlushPreambleEnabled(ctx context.Context) bool {
 	if s == nil {
 		return false
 	}
-	return s.getGatewayForwardingSettingsCached(ctx).flushPreamble
+	cached := s.getGatewayForwardingSettingsCached(ctx)
+	if cached.flushPreamble {
+		return true
+	}
+	userID, _ := ctx.Value(ctxkey.UserID).(int64)
+	return openAIResponsesFlushPreambleUserMatches(cached.flushPreambleUserIDs, userID)
+}
+
+func parseOpenAIResponsesFlushPreambleUserIDs(raw string) []int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	var ids []int64
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return nil
+	}
+	return normalizeOpenAIResponsesFlushPreambleUserIDs(ids)
+}
+
+func normalizeOpenAIResponsesFlushPreambleUserIDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return []int64{}
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func openAIResponsesFlushPreambleUserMatches(ids []int64, userID int64) bool {
+	if userID <= 0 {
+		return false
+	}
+	for _, id := range ids {
+		if id == userID {
+			return true
+		}
+	}
+	return false
 }
 
 // IsEmailVerifyEnabled 检查是否开启邮件验证
@@ -2373,6 +2436,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyEnableAnthropicCacheTTL1hInjection:        "false",
 		SettingKeyEnableClientDatelineNormalization:         "true",
 		SettingKeyOpenAIResponsesFlushPreamble:              "false",
+		SettingKeyOpenAIResponsesFlushPreambleUserIDs:       "[]",
 		SettingPaymentVisibleMethodAlipaySource:             "",
 		SettingPaymentVisibleMethodWxpaySource:              "",
 		SettingPaymentVisibleMethodAlipayEnabled:            "false",
@@ -2745,6 +2809,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	result.EnableAnthropicCacheTTL1hInjection = settings[SettingKeyEnableAnthropicCacheTTL1hInjection] == "true"
 	result.EnableClientDatelineNormalization = settings[SettingKeyEnableClientDatelineNormalization] != "false"
 	result.OpenAIResponsesFlushPreamble = settings[SettingKeyOpenAIResponsesFlushPreamble] == "true"
+	result.OpenAIResponsesFlushPreambleUserIDs = parseOpenAIResponsesFlushPreambleUserIDs(settings[SettingKeyOpenAIResponsesFlushPreambleUserIDs])
 	result.GatewayNetworkRetryMax = ParseGatewayNetworkRetryMax(settings[SettingKeyGatewayNetworkRetryMax])
 	result.DisplayCacheTokenMaxMult = ParseDisplayCacheTokenMaxMult(settings[SettingKeyDisplayCacheTokenMaxMult])
 	result.DisplayOutputResidualGrowthRatio = ParseDisplayOutputResidualGrowthRatio(settings[SettingKeyDisplayOutputResidualGrowthRatio])

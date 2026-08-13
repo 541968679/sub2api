@@ -3430,16 +3430,30 @@
               </div>
 
               <!-- OpenAI Responses preamble flush (new-api first-token) -->
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t("admin.settings.gatewayForwarding.flushPreamble") }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.gatewayForwarding.flushPreambleHint") }}
-                  </p>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t("admin.settings.gatewayForwarding.flushPreamble") }}
+                    </label>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.gatewayForwarding.flushPreambleHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="form.openai_responses_flush_preamble" />
                 </div>
-                <Toggle v-model="form.openai_responses_flush_preamble" />
+                <div>
+                  <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.flushPreambleUserIds") }}
+                  </label>
+                  <p class="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                    {{ t("admin.settings.gatewayForwarding.flushPreambleUserIdsHint") }}
+                  </p>
+                  <OpenAIFastPolicyUserSelector
+                    :model-value="form.openai_responses_flush_preamble_user_ids || []"
+                    @update:model-value="form.openai_responses_flush_preamble_user_ids = $event"
+                  />
+                </div>
               </div>
 
               <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px] sm:items-center">
@@ -6526,6 +6540,7 @@ const form = reactive<SettingsForm>({
   enable_anthropic_cache_ttl_1h_injection: false,
   enable_client_dateline_normalization: true,
   openai_responses_flush_preamble: false,
+  openai_responses_flush_preamble_user_ids: [] as number[],
   gateway_network_retry_max: 2,
   openai_claude_gpt_bridge_cache_display_settings: {
     enabled: false,
@@ -7153,6 +7168,9 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    if (!Array.isArray(form.openai_responses_flush_preamble_user_ids)) {
+      form.openai_responses_flush_preamble_user_ids = [];
+    }
     form.legal_consent = {
       ...DEFAULT_LEGAL_CONSENT_SETTINGS,
       ...(settings.legal_consent || {}),
@@ -7614,6 +7632,8 @@ async function saveSettings() {
       enable_client_dateline_normalization:
         form.enable_client_dateline_normalization,
       openai_responses_flush_preamble: form.openai_responses_flush_preamble,
+      openai_responses_flush_preamble_user_ids:
+        form.openai_responses_flush_preamble_user_ids || [],
       gateway_network_retry_max: Math.max(
         0,
         Math.min(10, Math.floor(Number(form.gateway_network_retry_max) || 0)),

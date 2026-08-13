@@ -247,6 +247,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableAnthropicCacheTTL1hInjection:                     settings.EnableAnthropicCacheTTL1hInjection,
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		OpenAIResponsesFlushPreamble:                           settings.OpenAIResponsesFlushPreamble,
+		OpenAIResponsesFlushPreambleUserIDs:                    settings.OpenAIResponsesFlushPreambleUserIDs,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:                       settings.PaymentVisibleMethodAlipaySource,
@@ -572,13 +573,14 @@ type UpdateSettingsRequest struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification       *bool `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough          *bool `json:"enable_metadata_passthrough"`
-	EnableCCHSigning                   *bool `json:"enable_cch_signing"`
-	EnableAnthropicCacheTTL1hInjection *bool `json:"enable_anthropic_cache_ttl_1h_injection"`
-	EnableClientDatelineNormalization  *bool `json:"enable_client_dateline_normalization"`
-	OpenAIResponsesFlushPreamble       *bool `json:"openai_responses_flush_preamble"`
-	GatewayNetworkRetryMax             *int  `json:"gateway_network_retry_max"`
+	EnableFingerprintUnification        *bool    `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough           *bool    `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                    *bool    `json:"enable_cch_signing"`
+	EnableAnthropicCacheTTL1hInjection  *bool    `json:"enable_anthropic_cache_ttl_1h_injection"`
+	EnableClientDatelineNormalization   *bool    `json:"enable_client_dateline_normalization"`
+	OpenAIResponsesFlushPreamble        *bool    `json:"openai_responses_flush_preamble"`
+	OpenAIResponsesFlushPreambleUserIDs *[]int64 `json:"openai_responses_flush_preamble_user_ids"`
+	GatewayNetworkRetryMax              *int     `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
 	PaymentVisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
@@ -1521,6 +1523,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAIResponsesFlushPreamble
 		}(),
+		OpenAIResponsesFlushPreambleUserIDs: func() []int64 {
+			if req.OpenAIResponsesFlushPreambleUserIDs != nil {
+				return *req.OpenAIResponsesFlushPreambleUserIDs
+			}
+			return previousSettings.OpenAIResponsesFlushPreambleUserIDs
+		}(),
 		GatewayNetworkRetryMax: func() int {
 			if req.GatewayNetworkRetryMax != nil {
 				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
@@ -1902,6 +1910,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
 		OpenAIResponsesFlushPreamble:                           updatedSettings.OpenAIResponsesFlushPreamble,
+		OpenAIResponsesFlushPreambleUserIDs:                    updatedSettings.OpenAIResponsesFlushPreambleUserIDs,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
@@ -2344,6 +2353,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.OpenAIResponsesFlushPreamble != after.OpenAIResponsesFlushPreamble {
 		changed = append(changed, "openai_responses_flush_preamble")
 	}
+	if !equalInt64Slice(before.OpenAIResponsesFlushPreambleUserIDs, after.OpenAIResponsesFlushPreambleUserIDs) {
+		changed = append(changed, "openai_responses_flush_preamble_user_ids")
+	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")
 	}
@@ -2649,6 +2661,18 @@ func equalDefaultSubscriptions(a, b []service.DefaultSubscriptionSetting) bool {
 }
 
 func equalIntSlice(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalInt64Slice(a, b []int64) bool {
 	if len(a) != len(b) {
 		return false
 	}

@@ -172,7 +172,8 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiExperimentalScheduler.quotaHeadroomWeight": "额度余量",
     "admin.settings.openaiExperimentalScheduler.previousResponseWeight": "previous_response 粘性",
     "admin.settings.openaiExperimentalScheduler.sessionStickyWeight": "session_hash 粘性",
-    "admin.settings.site.uploadImage": "上传图片",
+    "admin.settings.gatewayForwarding.flushPreamble": "立即下发 Responses 开场事件",
+    "admin.settings.gatewayForwarding.flushPreambleUserIds": "仅这些用户开启",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
     "admin.settings.platformQuota.daily": "日限额 (USD)",
@@ -400,6 +401,7 @@ const baseSettingsResponse = {
   enable_anthropic_cache_ttl_1h_injection: false,
   enable_client_dateline_normalization: true,
   openai_responses_flush_preamble: false,
+  openai_responses_flush_preamble_user_ids: [],
   payment_enabled: true,
   payment_min_amount: 1,
   payment_max_amount: 10000,
@@ -478,6 +480,7 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
+        OpenAIFastPolicyUserSelector: true,
       },
     },
   });
@@ -695,6 +698,7 @@ describe("admin SettingsView payment visible method controls", () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       openai_responses_flush_preamble: true,
+      openai_responses_flush_preamble_user_ids: [42],
     });
 
     const wrapper = mountView();
@@ -705,6 +709,7 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         openai_responses_flush_preamble: true,
+        openai_responses_flush_preamble_user_ids: [42],
       }),
     );
   });

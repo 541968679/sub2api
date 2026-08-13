@@ -84,6 +84,8 @@ const (
 	FieldDurationMs = "duration_ms"
 	// FieldFirstTokenMs holds the string denoting the first_token_ms field in the database.
 	FieldFirstTokenMs = "first_token_ms"
+	// FieldTrueFirstTokenMs holds the string denoting the true_first_token_ms field in the database.
+	FieldTrueFirstTokenMs = "true_first_token_ms"
 	// FieldUserAgent holds the string denoting the user_agent field in the database.
 	FieldUserAgent = "user_agent"
 	// FieldIPAddress holds the string denoting the ip_address field in the database.
@@ -199,6 +201,7 @@ var Columns = []string{
 	FieldStream,
 	FieldDurationMs,
 	FieldFirstTokenMs,
+	FieldTrueFirstTokenMs,
 	FieldUserAgent,
 	FieldIPAddress,
 	FieldImageCount,
@@ -479,6 +482,11 @@ func ByDurationMs(opts ...sql.OrderTermOption) OrderOption {
 // ByFirstTokenMs orders the results by the first_token_ms field.
 func ByFirstTokenMs(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFirstTokenMs, opts...).ToFunc()
+}
+
+// ByTrueFirstTokenMs orders the results by the true_first_token_ms field.
+func ByTrueFirstTokenMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTrueFirstTokenMs, opts...).ToFunc()
 }
 
 // ByUserAgent orders the results by the user_agent field.

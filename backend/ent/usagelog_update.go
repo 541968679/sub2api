@@ -753,6 +753,33 @@ func (_u *UsageLogUpdate) ClearFirstTokenMs() *UsageLogUpdate {
 	return _u
 }
 
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (_u *UsageLogUpdate) SetTrueFirstTokenMs(v int) *UsageLogUpdate {
+	_u.mutation.ResetTrueFirstTokenMs()
+	_u.mutation.SetTrueFirstTokenMs(v)
+	return _u
+}
+
+// SetNillableTrueFirstTokenMs sets the "true_first_token_ms" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableTrueFirstTokenMs(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetTrueFirstTokenMs(*v)
+	}
+	return _u
+}
+
+// AddTrueFirstTokenMs adds value to the "true_first_token_ms" field.
+func (_u *UsageLogUpdate) AddTrueFirstTokenMs(v int) *UsageLogUpdate {
+	_u.mutation.AddTrueFirstTokenMs(v)
+	return _u
+}
+
+// ClearTrueFirstTokenMs clears the value of the "true_first_token_ms" field.
+func (_u *UsageLogUpdate) ClearTrueFirstTokenMs() *UsageLogUpdate {
+	_u.mutation.ClearTrueFirstTokenMs()
+	return _u
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (_u *UsageLogUpdate) SetUserAgent(v string) *UsageLogUpdate {
 	_u.mutation.SetUserAgent(v)
@@ -1384,6 +1411,15 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.FirstTokenMsCleared() {
 		_spec.ClearField(usagelog.FieldFirstTokenMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.TrueFirstTokenMs(); ok {
+		_spec.SetField(usagelog.FieldTrueFirstTokenMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTrueFirstTokenMs(); ok {
+		_spec.AddField(usagelog.FieldTrueFirstTokenMs, field.TypeInt, value)
+	}
+	if _u.mutation.TrueFirstTokenMsCleared() {
+		_spec.ClearField(usagelog.FieldTrueFirstTokenMs, field.TypeInt)
 	}
 	if value, ok := _u.mutation.UserAgent(); ok {
 		_spec.SetField(usagelog.FieldUserAgent, field.TypeString, value)
@@ -2349,6 +2385,33 @@ func (_u *UsageLogUpdateOne) ClearFirstTokenMs() *UsageLogUpdateOne {
 	return _u
 }
 
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (_u *UsageLogUpdateOne) SetTrueFirstTokenMs(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetTrueFirstTokenMs()
+	_u.mutation.SetTrueFirstTokenMs(v)
+	return _u
+}
+
+// SetNillableTrueFirstTokenMs sets the "true_first_token_ms" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableTrueFirstTokenMs(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetTrueFirstTokenMs(*v)
+	}
+	return _u
+}
+
+// AddTrueFirstTokenMs adds value to the "true_first_token_ms" field.
+func (_u *UsageLogUpdateOne) AddTrueFirstTokenMs(v int) *UsageLogUpdateOne {
+	_u.mutation.AddTrueFirstTokenMs(v)
+	return _u
+}
+
+// ClearTrueFirstTokenMs clears the value of the "true_first_token_ms" field.
+func (_u *UsageLogUpdateOne) ClearTrueFirstTokenMs() *UsageLogUpdateOne {
+	_u.mutation.ClearTrueFirstTokenMs()
+	return _u
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (_u *UsageLogUpdateOne) SetUserAgent(v string) *UsageLogUpdateOne {
 	_u.mutation.SetUserAgent(v)
@@ -3010,6 +3073,15 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.FirstTokenMsCleared() {
 		_spec.ClearField(usagelog.FieldFirstTokenMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.TrueFirstTokenMs(); ok {
+		_spec.SetField(usagelog.FieldTrueFirstTokenMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedTrueFirstTokenMs(); ok {
+		_spec.AddField(usagelog.FieldTrueFirstTokenMs, field.TypeInt, value)
+	}
+	if _u.mutation.TrueFirstTokenMsCleared() {
+		_spec.ClearField(usagelog.FieldTrueFirstTokenMs, field.TypeInt)
 	}
 	if value, ok := _u.mutation.UserAgent(); ok {
 		_spec.SetField(usagelog.FieldUserAgent, field.TypeString, value)

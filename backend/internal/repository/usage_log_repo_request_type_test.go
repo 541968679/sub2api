@@ -72,6 +72,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			true,
 			sqlmock.AnyArg(), // duration_ms
 			sqlmock.AnyArg(), // first_token_ms
+			sqlmock.AnyArg(), // true_first_token_ms
 			sqlmock.AnyArg(), // user_agent
 			sqlmock.AnyArg(), // ip_address
 			log.ImageCount,
@@ -157,6 +158,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			int16(service.RequestTypeSync),
 			false,
 			false,
+			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
@@ -262,10 +264,10 @@ func TestPrepareUsageLogInsert_LongContextSnapshot(t *testing.T) {
 	})
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, true, prepared.args[48])
-	require.Equal(t, 272000, prepared.args[49])
-	require.Equal(t, 2.0, prepared.args[50])
-	require.Equal(t, 1.5, prepared.args[51])
+	require.Equal(t, true, prepared.args[49])
+	require.Equal(t, 272000, prepared.args[50])
+	require.Equal(t, 2.0, prepared.args[51])
+	require.Equal(t, 1.5, prepared.args[52])
 }
 
 func TestCoalesceTrimmedString(t *testing.T) {

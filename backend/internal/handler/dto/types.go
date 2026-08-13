@@ -576,6 +576,10 @@ type AdminUsageLog struct {
 	// IPAddress 用户请求 IP（仅管理员可见）
 	IPAddress *string `json:"ip_address,omitempty"`
 
+	// TrueFirstTokenMs is first useful/non-preamble output used by scheduling
+	// and account quality. Distinct from UsageLog.FirstTokenMs (display).
+	TrueFirstTokenMs *int `json:"true_first_token_ms,omitempty"`
+
 	// Account 最小账号信息（避免泄露敏感字段）
 	Account *AccountSummary `json:"account,omitempty"`
 
@@ -665,9 +669,9 @@ type AdminUserSubscription struct {
 	UserRateMultiplier        *float64 `json:"user_rate_multiplier,omitempty"`
 	UserDisplayRateMultiplier *float64 `json:"user_display_rate_multiplier,omitempty"`
 	// Current-term usage stats for admin list columns ([starts_at, expires_at)).
-	TotalConsumedUSD float64  `json:"total_consumed_usd"`
-	ActiveDays       int      `json:"active_days"`
-	AvgDailyUsageUSD float64  `json:"avg_daily_usage_usd"`
+	TotalConsumedUSD float64 `json:"total_consumed_usd"`
+	ActiveDays       int     `json:"active_days"`
+	AvgDailyUsageUSD float64 `json:"avg_daily_usage_usd"`
 	// Capped to [0, 1] when set.
 	DailyUsageRate *float64 `json:"daily_usage_rate,omitempty"`
 }

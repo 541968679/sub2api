@@ -435,6 +435,11 @@ func ByDownstreamUsageTokenMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDownstreamUsageTokenMode, opts...).ToFunc()
 }
 
+// ByDisplayCacheTokenMaxMult orders the results by the display_cache_token_max_mult field.
+func ByDisplayCacheTokenMaxMult(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisplayCacheTokenMaxMult, opts...).ToFunc()
+}
+
 // ByAPIKeysCount orders the results by api_keys count.
 func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {

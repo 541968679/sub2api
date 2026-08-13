@@ -47526,6 +47526,8 @@ type UsageLogMutation struct {
 	addduration_ms                    *int
 	first_token_ms                    *int
 	addfirst_token_ms                 *int
+	true_first_token_ms               *int
+	addtrue_first_token_ms            *int
 	user_agent                        *string
 	ip_address                        *string
 	image_count                       *int
@@ -49526,6 +49528,76 @@ func (m *UsageLogMutation) ResetFirstTokenMs() {
 	delete(m.clearedFields, usagelog.FieldFirstTokenMs)
 }
 
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (m *UsageLogMutation) SetTrueFirstTokenMs(i int) {
+	m.true_first_token_ms = &i
+	m.addtrue_first_token_ms = nil
+}
+
+// TrueFirstTokenMs returns the value of the "true_first_token_ms" field in the mutation.
+func (m *UsageLogMutation) TrueFirstTokenMs() (r int, exists bool) {
+	v := m.true_first_token_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTrueFirstTokenMs returns the old "true_first_token_ms" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldTrueFirstTokenMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTrueFirstTokenMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTrueFirstTokenMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTrueFirstTokenMs: %w", err)
+	}
+	return oldValue.TrueFirstTokenMs, nil
+}
+
+// AddTrueFirstTokenMs adds i to the "true_first_token_ms" field.
+func (m *UsageLogMutation) AddTrueFirstTokenMs(i int) {
+	if m.addtrue_first_token_ms != nil {
+		*m.addtrue_first_token_ms += i
+	} else {
+		m.addtrue_first_token_ms = &i
+	}
+}
+
+// AddedTrueFirstTokenMs returns the value that was added to the "true_first_token_ms" field in this mutation.
+func (m *UsageLogMutation) AddedTrueFirstTokenMs() (r int, exists bool) {
+	v := m.addtrue_first_token_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearTrueFirstTokenMs clears the value of the "true_first_token_ms" field.
+func (m *UsageLogMutation) ClearTrueFirstTokenMs() {
+	m.true_first_token_ms = nil
+	m.addtrue_first_token_ms = nil
+	m.clearedFields[usagelog.FieldTrueFirstTokenMs] = struct{}{}
+}
+
+// TrueFirstTokenMsCleared returns if the "true_first_token_ms" field was cleared in this mutation.
+func (m *UsageLogMutation) TrueFirstTokenMsCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldTrueFirstTokenMs]
+	return ok
+}
+
+// ResetTrueFirstTokenMs resets all changes to the "true_first_token_ms" field.
+func (m *UsageLogMutation) ResetTrueFirstTokenMs() {
+	m.true_first_token_ms = nil
+	m.addtrue_first_token_ms = nil
+	delete(m.clearedFields, usagelog.FieldTrueFirstTokenMs)
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (m *UsageLogMutation) SetUserAgent(s string) {
 	m.user_agent = &s
@@ -50390,7 +50462,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 49)
+	fields := make([]string, 0, 50)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -50495,6 +50567,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.first_token_ms != nil {
 		fields = append(fields, usagelog.FieldFirstTokenMs)
+	}
+	if m.true_first_token_ms != nil {
+		fields = append(fields, usagelog.FieldTrueFirstTokenMs)
 	}
 	if m.user_agent != nil {
 		fields = append(fields, usagelog.FieldUserAgent)
@@ -50616,6 +50691,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.DurationMs()
 	case usagelog.FieldFirstTokenMs:
 		return m.FirstTokenMs()
+	case usagelog.FieldTrueFirstTokenMs:
+		return m.TrueFirstTokenMs()
 	case usagelog.FieldUserAgent:
 		return m.UserAgent()
 	case usagelog.FieldIPAddress:
@@ -50723,6 +50800,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldDurationMs(ctx)
 	case usagelog.FieldFirstTokenMs:
 		return m.OldFirstTokenMs(ctx)
+	case usagelog.FieldTrueFirstTokenMs:
+		return m.OldTrueFirstTokenMs(ctx)
 	case usagelog.FieldUserAgent:
 		return m.OldUserAgent(ctx)
 	case usagelog.FieldIPAddress:
@@ -51005,6 +51084,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetFirstTokenMs(v)
 		return nil
+	case usagelog.FieldTrueFirstTokenMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTrueFirstTokenMs(v)
+		return nil
 	case usagelog.FieldUserAgent:
 		v, ok := value.(string)
 		if !ok {
@@ -51174,6 +51260,9 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addfirst_token_ms != nil {
 		fields = append(fields, usagelog.FieldFirstTokenMs)
 	}
+	if m.addtrue_first_token_ms != nil {
+		fields = append(fields, usagelog.FieldTrueFirstTokenMs)
+	}
 	if m.addimage_count != nil {
 		fields = append(fields, usagelog.FieldImageCount)
 	}
@@ -51233,6 +51322,8 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedDurationMs()
 	case usagelog.FieldFirstTokenMs:
 		return m.AddedFirstTokenMs()
+	case usagelog.FieldTrueFirstTokenMs:
+		return m.AddedTrueFirstTokenMs()
 	case usagelog.FieldImageCount:
 		return m.AddedImageCount()
 	case usagelog.FieldVideoCount:
@@ -51395,6 +51486,13 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddFirstTokenMs(v)
 		return nil
+	case usagelog.FieldTrueFirstTokenMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTrueFirstTokenMs(v)
+		return nil
 	case usagelog.FieldImageCount:
 		v, ok := value.(int)
 		if !ok {
@@ -51465,6 +51563,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(usagelog.FieldFirstTokenMs) {
 		fields = append(fields, usagelog.FieldFirstTokenMs)
+	}
+	if m.FieldCleared(usagelog.FieldTrueFirstTokenMs) {
+		fields = append(fields, usagelog.FieldTrueFirstTokenMs)
 	}
 	if m.FieldCleared(usagelog.FieldUserAgent) {
 		fields = append(fields, usagelog.FieldUserAgent)
@@ -51551,6 +51652,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldFirstTokenMs:
 		m.ClearFirstTokenMs()
+		return nil
+	case usagelog.FieldTrueFirstTokenMs:
+		m.ClearTrueFirstTokenMs()
 		return nil
 	case usagelog.FieldUserAgent:
 		m.ClearUserAgent()
@@ -51694,6 +51798,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldFirstTokenMs:
 		m.ResetFirstTokenMs()
+		return nil
+	case usagelog.FieldTrueFirstTokenMs:
+		m.ResetTrueFirstTokenMs()
 		return nil
 	case usagelog.FieldUserAgent:
 		m.ResetUserAgent()
@@ -51890,83 +51997,85 @@ func (m *UsageLogMutation) ResetEdge(name string) error {
 // UserMutation represents an operation that mutates the User nodes in the graph.
 type UserMutation struct {
 	config
-	op                            Op
-	typ                           string
-	id                            *int64
-	created_at                    *time.Time
-	updated_at                    *time.Time
-	deleted_at                    *time.Time
-	email                         *string
-	password_hash                 *string
-	role                          *string
-	balance                       *float64
-	addbalance                    *float64
-	frozen_balance                *float64
-	addfrozen_balance             *float64
-	concurrency                   *int
-	addconcurrency                *int
-	status                        *string
-	username                      *string
-	notes                         *string
-	totp_secret_encrypted         *string
-	totp_enabled                  *bool
-	totp_enabled_at               *time.Time
-	signup_source                 *string
-	last_login_at                 *time.Time
-	last_active_at                *time.Time
-	balance_notify_enabled        *bool
-	balance_notify_threshold_type *string
-	balance_notify_threshold      *float64
-	addbalance_notify_threshold   *float64
-	balance_notify_extra_emails   *string
-	total_recharged               *float64
-	addtotal_recharged            *float64
-	rpm_limit                     *int
-	addrpm_limit                  *int
-	downstream_usage_token_mode   *string
-	clearedFields                 map[string]struct{}
-	api_keys                      map[int64]struct{}
-	removedapi_keys               map[int64]struct{}
-	clearedapi_keys               bool
-	redeem_codes                  map[int64]struct{}
-	removedredeem_codes           map[int64]struct{}
-	clearedredeem_codes           bool
-	subscriptions                 map[int64]struct{}
-	removedsubscriptions          map[int64]struct{}
-	clearedsubscriptions          bool
-	assigned_subscriptions        map[int64]struct{}
-	removedassigned_subscriptions map[int64]struct{}
-	clearedassigned_subscriptions bool
-	announcement_reads            map[int64]struct{}
-	removedannouncement_reads     map[int64]struct{}
-	clearedannouncement_reads     bool
-	allowed_groups                map[int64]struct{}
-	removedallowed_groups         map[int64]struct{}
-	clearedallowed_groups         bool
-	usage_logs                    map[int64]struct{}
-	removedusage_logs             map[int64]struct{}
-	clearedusage_logs             bool
-	attribute_values              map[int64]struct{}
-	removedattribute_values       map[int64]struct{}
-	clearedattribute_values       bool
-	promo_code_usages             map[int64]struct{}
-	removedpromo_code_usages      map[int64]struct{}
-	clearedpromo_code_usages      bool
-	payment_orders                map[int64]struct{}
-	removedpayment_orders         map[int64]struct{}
-	clearedpayment_orders         bool
-	auth_identities               map[int64]struct{}
-	removedauth_identities        map[int64]struct{}
-	clearedauth_identities        bool
-	pending_auth_sessions         map[int64]struct{}
-	removedpending_auth_sessions  map[int64]struct{}
-	clearedpending_auth_sessions  bool
-	platform_quotas               map[int64]struct{}
-	removedplatform_quotas        map[int64]struct{}
-	clearedplatform_quotas        bool
-	done                          bool
-	oldValue                      func(context.Context) (*User, error)
-	predicates                    []predicate.User
+	op                              Op
+	typ                             string
+	id                              *int64
+	created_at                      *time.Time
+	updated_at                      *time.Time
+	deleted_at                      *time.Time
+	email                           *string
+	password_hash                   *string
+	role                            *string
+	balance                         *float64
+	addbalance                      *float64
+	frozen_balance                  *float64
+	addfrozen_balance               *float64
+	concurrency                     *int
+	addconcurrency                  *int
+	status                          *string
+	username                        *string
+	notes                           *string
+	totp_secret_encrypted           *string
+	totp_enabled                    *bool
+	totp_enabled_at                 *time.Time
+	signup_source                   *string
+	last_login_at                   *time.Time
+	last_active_at                  *time.Time
+	balance_notify_enabled          *bool
+	balance_notify_threshold_type   *string
+	balance_notify_threshold        *float64
+	addbalance_notify_threshold     *float64
+	balance_notify_extra_emails     *string
+	total_recharged                 *float64
+	addtotal_recharged              *float64
+	rpm_limit                       *int
+	addrpm_limit                    *int
+	downstream_usage_token_mode     *string
+	display_cache_token_max_mult    *float64
+	adddisplay_cache_token_max_mult *float64
+	clearedFields                   map[string]struct{}
+	api_keys                        map[int64]struct{}
+	removedapi_keys                 map[int64]struct{}
+	clearedapi_keys                 bool
+	redeem_codes                    map[int64]struct{}
+	removedredeem_codes             map[int64]struct{}
+	clearedredeem_codes             bool
+	subscriptions                   map[int64]struct{}
+	removedsubscriptions            map[int64]struct{}
+	clearedsubscriptions            bool
+	assigned_subscriptions          map[int64]struct{}
+	removedassigned_subscriptions   map[int64]struct{}
+	clearedassigned_subscriptions   bool
+	announcement_reads              map[int64]struct{}
+	removedannouncement_reads       map[int64]struct{}
+	clearedannouncement_reads       bool
+	allowed_groups                  map[int64]struct{}
+	removedallowed_groups           map[int64]struct{}
+	clearedallowed_groups           bool
+	usage_logs                      map[int64]struct{}
+	removedusage_logs               map[int64]struct{}
+	clearedusage_logs               bool
+	attribute_values                map[int64]struct{}
+	removedattribute_values         map[int64]struct{}
+	clearedattribute_values         bool
+	promo_code_usages               map[int64]struct{}
+	removedpromo_code_usages        map[int64]struct{}
+	clearedpromo_code_usages        bool
+	payment_orders                  map[int64]struct{}
+	removedpayment_orders           map[int64]struct{}
+	clearedpayment_orders           bool
+	auth_identities                 map[int64]struct{}
+	removedauth_identities          map[int64]struct{}
+	clearedauth_identities          bool
+	pending_auth_sessions           map[int64]struct{}
+	removedpending_auth_sessions    map[int64]struct{}
+	clearedpending_auth_sessions    bool
+	platform_quotas                 map[int64]struct{}
+	removedplatform_quotas          map[int64]struct{}
+	clearedplatform_quotas          bool
+	done                            bool
+	oldValue                        func(context.Context) (*User, error)
+	predicates                      []predicate.User
 }
 
 var _ ent.Mutation = (*UserMutation)(nil)
@@ -53166,6 +53275,76 @@ func (m *UserMutation) ResetDownstreamUsageTokenMode() {
 	m.downstream_usage_token_mode = nil
 }
 
+// SetDisplayCacheTokenMaxMult sets the "display_cache_token_max_mult" field.
+func (m *UserMutation) SetDisplayCacheTokenMaxMult(f float64) {
+	m.display_cache_token_max_mult = &f
+	m.adddisplay_cache_token_max_mult = nil
+}
+
+// DisplayCacheTokenMaxMult returns the value of the "display_cache_token_max_mult" field in the mutation.
+func (m *UserMutation) DisplayCacheTokenMaxMult() (r float64, exists bool) {
+	v := m.display_cache_token_max_mult
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayCacheTokenMaxMult returns the old "display_cache_token_max_mult" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldDisplayCacheTokenMaxMult(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayCacheTokenMaxMult is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayCacheTokenMaxMult requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayCacheTokenMaxMult: %w", err)
+	}
+	return oldValue.DisplayCacheTokenMaxMult, nil
+}
+
+// AddDisplayCacheTokenMaxMult adds f to the "display_cache_token_max_mult" field.
+func (m *UserMutation) AddDisplayCacheTokenMaxMult(f float64) {
+	if m.adddisplay_cache_token_max_mult != nil {
+		*m.adddisplay_cache_token_max_mult += f
+	} else {
+		m.adddisplay_cache_token_max_mult = &f
+	}
+}
+
+// AddedDisplayCacheTokenMaxMult returns the value that was added to the "display_cache_token_max_mult" field in this mutation.
+func (m *UserMutation) AddedDisplayCacheTokenMaxMult() (r float64, exists bool) {
+	v := m.adddisplay_cache_token_max_mult
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearDisplayCacheTokenMaxMult clears the value of the "display_cache_token_max_mult" field.
+func (m *UserMutation) ClearDisplayCacheTokenMaxMult() {
+	m.display_cache_token_max_mult = nil
+	m.adddisplay_cache_token_max_mult = nil
+	m.clearedFields[user.FieldDisplayCacheTokenMaxMult] = struct{}{}
+}
+
+// DisplayCacheTokenMaxMultCleared returns if the "display_cache_token_max_mult" field was cleared in this mutation.
+func (m *UserMutation) DisplayCacheTokenMaxMultCleared() bool {
+	_, ok := m.clearedFields[user.FieldDisplayCacheTokenMaxMult]
+	return ok
+}
+
+// ResetDisplayCacheTokenMaxMult resets all changes to the "display_cache_token_max_mult" field.
+func (m *UserMutation) ResetDisplayCacheTokenMaxMult() {
+	m.display_cache_token_max_mult = nil
+	m.adddisplay_cache_token_max_mult = nil
+	delete(m.clearedFields, user.FieldDisplayCacheTokenMaxMult)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
 func (m *UserMutation) AddAPIKeyIDs(ids ...int64) {
 	if m.api_keys == nil {
@@ -53902,7 +54081,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 26)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -53978,6 +54157,9 @@ func (m *UserMutation) Fields() []string {
 	if m.downstream_usage_token_mode != nil {
 		fields = append(fields, user.FieldDownstreamUsageTokenMode)
 	}
+	if m.display_cache_token_max_mult != nil {
+		fields = append(fields, user.FieldDisplayCacheTokenMaxMult)
+	}
 	return fields
 }
 
@@ -54036,6 +54218,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.RpmLimit()
 	case user.FieldDownstreamUsageTokenMode:
 		return m.DownstreamUsageTokenMode()
+	case user.FieldDisplayCacheTokenMaxMult:
+		return m.DisplayCacheTokenMaxMult()
 	}
 	return nil, false
 }
@@ -54095,6 +54279,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldRpmLimit(ctx)
 	case user.FieldDownstreamUsageTokenMode:
 		return m.OldDownstreamUsageTokenMode(ctx)
+	case user.FieldDisplayCacheTokenMaxMult:
+		return m.OldDisplayCacheTokenMaxMult(ctx)
 	}
 	return nil, fmt.Errorf("unknown User field %s", name)
 }
@@ -54279,6 +54465,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetDownstreamUsageTokenMode(v)
 		return nil
+	case user.FieldDisplayCacheTokenMaxMult:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayCacheTokenMaxMult(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)
 }
@@ -54305,6 +54498,9 @@ func (m *UserMutation) AddedFields() []string {
 	if m.addrpm_limit != nil {
 		fields = append(fields, user.FieldRpmLimit)
 	}
+	if m.adddisplay_cache_token_max_mult != nil {
+		fields = append(fields, user.FieldDisplayCacheTokenMaxMult)
+	}
 	return fields
 }
 
@@ -54325,6 +54521,8 @@ func (m *UserMutation) AddedField(name string) (ent.Value, bool) {
 		return m.AddedTotalRecharged()
 	case user.FieldRpmLimit:
 		return m.AddedRpmLimit()
+	case user.FieldDisplayCacheTokenMaxMult:
+		return m.AddedDisplayCacheTokenMaxMult()
 	}
 	return nil, false
 }
@@ -54376,6 +54574,13 @@ func (m *UserMutation) AddField(name string, value ent.Value) error {
 		}
 		m.AddRpmLimit(v)
 		return nil
+	case user.FieldDisplayCacheTokenMaxMult:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddDisplayCacheTokenMaxMult(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User numeric field %s", name)
 }
@@ -54401,6 +54606,9 @@ func (m *UserMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(user.FieldBalanceNotifyThreshold) {
 		fields = append(fields, user.FieldBalanceNotifyThreshold)
+	}
+	if m.FieldCleared(user.FieldDisplayCacheTokenMaxMult) {
+		fields = append(fields, user.FieldDisplayCacheTokenMaxMult)
 	}
 	return fields
 }
@@ -54433,6 +54641,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldBalanceNotifyThreshold:
 		m.ClearBalanceNotifyThreshold()
+		return nil
+	case user.FieldDisplayCacheTokenMaxMult:
+		m.ClearDisplayCacheTokenMaxMult()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -54516,6 +54727,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldDownstreamUsageTokenMode:
 		m.ResetDownstreamUsageTokenMode()
+		return nil
+	case user.FieldDisplayCacheTokenMaxMult:
+		m.ResetDisplayCacheTokenMaxMult()
 		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)

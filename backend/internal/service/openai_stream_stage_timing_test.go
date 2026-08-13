@@ -3,6 +3,7 @@
 package service
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -150,6 +152,8 @@ func TestStreamStageTiming_ResponsesHTTP_DelayedUsefulAndFlushLag(t *testing.T) 
 	// Claude-GPT bridge — not the delayed output_item.added used for client flush.
 	require.Less(t, *result.firstTokenMs, firstUseful)
 	require.LessOrEqual(t, *result.firstTokenMs, firstSSE+15)
+	require.NotNil(t, result.trueFirstTokenMs)
+	require.GreaterOrEqual(t, *result.trueFirstTokenMs, firstUseful-15)
 }
 
 func TestStreamStageTiming_ChatFallback_DelayedUseful(t *testing.T) {
@@ -298,7 +302,7 @@ func TestOpenAIStreamShouldCommitDownstream_PreambleToggle(t *testing.T) {
 	require.False(t, openAIStreamShouldCommitDownstream(failed, "response.failed", true), "failed must stay uncommitted so pre-output failover can still rewrite JSON")
 }
 
-func storeGatewayFlushPreambleCache(t *testing.T, enabled bool) {
+func storeGatewayFlushPreambleCache(t *testing.T, enabled bool, userIDs ...int64) {
 	t.Helper()
 	prev := gatewayForwardingCache.Load()
 	t.Cleanup(func() {
@@ -309,8 +313,9 @@ func storeGatewayFlushPreambleCache(t *testing.T, enabled bool) {
 		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	})
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
-		flushPreamble: enabled,
-		expiresAt:     time.Now().Add(time.Hour).UnixNano(),
+		flushPreamble:        enabled,
+		flushPreambleUserIDs: append([]int64(nil), userIDs...),
+		expiresAt:            time.Now().Add(time.Hour).UnixNano(),
 	})
 }
 
@@ -357,6 +362,8 @@ func TestStreamStageTiming_ResponsesHTTP_FlushPreambleOn_FirstFlushBeforeUseful(
 	require.Less(t, firstFlush, firstUseful, "preamble flush should reach downstream before delayed output_item.added")
 	require.Contains(t, rec.Body.String(), `"type":"response.created"`)
 	require.LessOrEqual(t, *result.firstTokenMs, firstSSE+15)
+	require.NotNil(t, result.trueFirstTokenMs)
+	require.GreaterOrEqual(t, *result.trueFirstTokenMs, firstUseful-15)
 }
 
 func TestStreamStageTiming_ResponsesPassthrough_FlushPreambleOn_FirstFlushBeforeUseful(t *testing.T) {
@@ -399,4 +406,64 @@ func TestStreamStageTiming_ResponsesPassthrough_FlushPreambleOn_FirstFlushBefore
 	require.GreaterOrEqual(t, firstUseful, firstSSE)
 	require.Less(t, firstFlush, firstUseful, "passthrough preamble should flush before delayed output_item.added")
 	require.Contains(t, rec.Body.String(), `"type":"response.created"`)
+	require.NotNil(t, result.trueFirstTokenMs)
+	require.GreaterOrEqual(t, *result.trueFirstTokenMs, firstUseful-15)
+}
+
+func TestStreamStageTiming_ResponsesHTTP_FlushPreambleUserAllowlist_FirstFlushBeforeUseful(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storeGatewayFlushPreambleCache(t, false, 7)
+
+	start := time.Now()
+	body := &delayedSSEBody{chunks: []delayedSSEChunk{
+		{line: `data: {"type":"response.created","response":{"id":"r1"}}`},
+		{line: `data: {"type":"response.in_progress","response":{"id":"r1"}}`},
+		{line: `data: {"type":"response.output_item.added","item":{"type":"message"}}`, delay: 40 * time.Millisecond},
+		{line: `data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":1,"output_tokens":1}}}`},
+	}}
+	rec := &delayedFlushRecorder{ResponseRecorder: httptest.NewRecorder()}
+	c, _ := gin.CreateTestContext(rec)
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	req = req.WithContext(context.WithValue(req.Context(), ctxkey.UserID, int64(7)))
+	c.Request = req
+
+	clk := &openAIStreamStageClock{start: start, accountID: 1, path: "responses_http", model: "gpt-5.4"}
+	clk.MarkDoStart()
+	clk.MarkHeaders("rid_flush_preamble_user")
+	c.Set(openAIStreamStageClockCtxKey, clk)
+
+	svc := &OpenAIGatewayService{
+		cfg: rawChatCompletionsTestConfig(),
+		settingService: NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
+			SettingKeyOpenAIResponsesFlushPreamble:        "false",
+			SettingKeyOpenAIResponsesFlushPreambleUserIDs: "[7]",
+		}}, &config.Config{}),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"x-request-id": []string{"rid_flush_preamble_user"}},
+		Body:       io.NopCloser(body),
+	}
+	result, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, start, "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.firstTokenMs)
+
+	_, _, firstSSE, firstUseful, firstFlush, _ := clk.stageSnapshot()
+	require.GreaterOrEqual(t, firstSSE, 0)
+	require.GreaterOrEqual(t, firstUseful, firstSSE)
+	require.GreaterOrEqual(t, firstFlush, firstSSE)
+	require.Less(t, firstFlush, firstUseful, "allowlisted user should flush preamble before delayed output_item.added")
+	require.Contains(t, rec.Body.String(), `"type":"response.created"`)
+	require.NotNil(t, result.trueFirstTokenMs)
+	require.GreaterOrEqual(t, *result.trueFirstTokenMs, firstUseful-15)
+}
+
+func TestOpenAIForwardResult_ScheduleFirstTokenMs(t *testing.T) {
+	t.Parallel()
+	display := 80
+	trueMs := 2400
+	require.Nil(t, (*OpenAIForwardResult)(nil).ScheduleFirstTokenMs())
+	require.Equal(t, 80, *(&OpenAIForwardResult{FirstTokenMs: &display}).ScheduleFirstTokenMs())
+	require.Equal(t, 2400, *(&OpenAIForwardResult{FirstTokenMs: &display, TrueFirstTokenMs: &trueMs}).ScheduleFirstTokenMs())
 }

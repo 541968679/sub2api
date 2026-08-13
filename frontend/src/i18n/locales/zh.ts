@@ -1076,9 +1076,11 @@ const zhBase = {
     displayTokens: '展示 Token',
     cost: '费用',
     firstToken: '首 Token',
+    trueFirstToken: '真首字',
     duration: '耗时',
     latency: '延迟',
     latencyFirstToken: '首字',
+    latencyTrueFirstToken: '真首字',
     latencyDuration: '总耗时',
     time: '时间',
     ws: 'WS',
@@ -3883,7 +3885,7 @@ const zhBase = {
       },
       quality: {
         ttftHint:
-          '最近 15 分钟首字延迟（TTFT）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
+          '最近 15 分钟真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:
           '最近 15 分钟内该账号请求成功率 = 成功次数 / (成功 + 失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens）。无样本显示 —。',
         tooltip: '最近 {windowMinutes} 分钟 · 成功 {success} · 失败 {error} · 首字样本 {ttftSamples}',
@@ -6739,6 +6741,8 @@ const zhBase = {
         clientDatelineNormalizationHint: '仅规范化 Anthropic OAuth/Setup Token 请求中的系统日期行，移除客户端隐写差异；API Key、用户正文与 Claude-GPT 桥接不受影响。',
         flushPreamble: '立即下发 Responses 开场事件',
         flushPreambleHint: '开启后，原生 /v1/responses 的第一帧 response.created / in_progress 会立刻发给下游（new-api 可用其作为首字时间）。开启后流一旦开始就不能再无感换号。默认关闭，保持现有缓冲与故障转移窗口。',
+        flushPreambleUserIds: '仅这些用户开启',
+        flushPreambleUserIdsHint: '全站开关关闭时，只有名单内用户会立刻下发 Responses 开场事件；打开全站后所有人生效。灰度时把管理员账号加进名单即可，不必打开全站开关。',
         networkRetryMax: '上游网络错误最大重试次数',
         networkRetryMaxHint: '仅在连接失败、超时、EOF 等未收到 HTTP 响应的网络错误时重试；0 表示关闭，默认 2，最大 10。',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT 桥接缓存展示',

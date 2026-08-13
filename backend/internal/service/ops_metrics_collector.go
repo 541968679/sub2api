@@ -487,15 +487,15 @@ WHERE created_at >= $1 AND created_at < $2
 	{
 		q := `
 SELECT
-  percentile_cont(0.50) WITHIN GROUP (ORDER BY first_token_ms) AS p50,
-  percentile_cont(0.90) WITHIN GROUP (ORDER BY first_token_ms) AS p90,
-  percentile_cont(0.95) WITHIN GROUP (ORDER BY first_token_ms) AS p95,
-  percentile_cont(0.99) WITHIN GROUP (ORDER BY first_token_ms) AS p99,
-  AVG(first_token_ms) AS avg_ms,
-  MAX(first_token_ms) AS max_ms
+  percentile_cont(0.50) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) AS p50,
+  percentile_cont(0.90) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) AS p90,
+  percentile_cont(0.95) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) AS p95,
+  percentile_cont(0.99) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) AS p99,
+  AVG(COALESCE(true_first_token_ms, first_token_ms)) AS avg_ms,
+  MAX(COALESCE(true_first_token_ms, first_token_ms)) AS max_ms
 FROM usage_logs
 WHERE created_at >= $1 AND created_at < $2
-  AND first_token_ms IS NOT NULL`
+  AND COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL`
 
 		var p50, p90, p95, p99 sql.NullFloat64
 		var avg sql.NullFloat64

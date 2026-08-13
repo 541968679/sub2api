@@ -1641,6 +1641,7 @@ export interface AdminUsageLog extends UsageLog {
 
   // 用户请求 IP（仅管理员可见）
   ip_address?: string | null
+  true_first_token_ms?: number | null
   display_fields?: DisplayUsageFields | null
 
   // 最小账号信息（仅管理员接口返回）

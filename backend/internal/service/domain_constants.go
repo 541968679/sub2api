@@ -453,6 +453,9 @@ const (
 	// SSE preamble (response.created / in_progress) to downstream immediately.
 	// Default false preserves pre-output failover by buffering those frames.
 	SettingKeyOpenAIResponsesFlushPreamble = "openai_responses_flush_preamble"
+	// SettingKeyOpenAIResponsesFlushPreambleUserIDs is a JSON int64 array.
+	// When the global switch is off, only these users get preamble flush.
+	SettingKeyOpenAIResponsesFlushPreambleUserIDs = "openai_responses_flush_preamble_user_ids"
 
 	// Balance Low Notification
 	SettingKeyBalanceLowNotifyEnabled     = "balance_low_notify_enabled"      // 全局开关

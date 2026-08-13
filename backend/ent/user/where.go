@@ -180,6 +180,11 @@ func DownstreamUsageTokenMode(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldDownstreamUsageTokenMode, v))
 }
 
+// DisplayCacheTokenMaxMult applies equality check predicate on the "display_cache_token_max_mult" field. It's identical to DisplayCacheTokenMaxMultEQ.
+func DisplayCacheTokenMaxMult(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDisplayCacheTokenMaxMult, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1453,6 +1458,56 @@ func DownstreamUsageTokenModeEqualFold(v string) predicate.User {
 // DownstreamUsageTokenModeContainsFold applies the ContainsFold predicate on the "downstream_usage_token_mode" field.
 func DownstreamUsageTokenModeContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldDownstreamUsageTokenMode, v))
+}
+
+// DisplayCacheTokenMaxMultEQ applies the EQ predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDisplayCacheTokenMaxMult, v))
+}
+
+// DisplayCacheTokenMaxMultNEQ applies the NEQ predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultNEQ(v float64) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDisplayCacheTokenMaxMult, v))
+}
+
+// DisplayCacheTokenMaxMultIn applies the In predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldIn(FieldDisplayCacheTokenMaxMult, vs...))
+}
+
+// DisplayCacheTokenMaxMultNotIn applies the NotIn predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultNotIn(vs ...float64) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldDisplayCacheTokenMaxMult, vs...))
+}
+
+// DisplayCacheTokenMaxMultGT applies the GT predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultGT(v float64) predicate.User {
+	return predicate.User(sql.FieldGT(FieldDisplayCacheTokenMaxMult, v))
+}
+
+// DisplayCacheTokenMaxMultGTE applies the GTE predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultGTE(v float64) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldDisplayCacheTokenMaxMult, v))
+}
+
+// DisplayCacheTokenMaxMultLT applies the LT predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultLT(v float64) predicate.User {
+	return predicate.User(sql.FieldLT(FieldDisplayCacheTokenMaxMult, v))
+}
+
+// DisplayCacheTokenMaxMultLTE applies the LTE predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultLTE(v float64) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldDisplayCacheTokenMaxMult, v))
+}
+
+// DisplayCacheTokenMaxMultIsNil applies the IsNil predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldDisplayCacheTokenMaxMult))
+}
+
+// DisplayCacheTokenMaxMultNotNil applies the NotNil predicate on the "display_cache_token_max_mult" field.
+func DisplayCacheTokenMaxMultNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldDisplayCacheTokenMaxMult))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.

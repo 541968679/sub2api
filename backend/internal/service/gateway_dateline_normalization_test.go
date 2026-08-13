@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,9 +81,25 @@ func TestOpenAIResponsesFlushPreambleSettingDefaultOff(t *testing.T) {
 	settings, err := svc.GetAllSettings(ctx)
 	require.NoError(t, err)
 	require.False(t, settings.OpenAIResponsesFlushPreamble)
+	require.Empty(t, settings.OpenAIResponsesFlushPreambleUserIDs)
 	require.False(t, (*SettingService)(nil).IsOpenAIResponsesFlushPreambleEnabled(ctx))
 
 	repo.data[SettingKeyOpenAIResponsesFlushPreamble] = "true"
 	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	require.True(t, svc.IsOpenAIResponsesFlushPreambleEnabled(ctx))
+	require.True(t, svc.IsOpenAIResponsesFlushPreambleEnabled(context.WithValue(ctx, ctxkey.UserID, int64(99))))
+
+	repo.data[SettingKeyOpenAIResponsesFlushPreamble] = "false"
+	repo.data[SettingKeyOpenAIResponsesFlushPreambleUserIDs] = "[42,42,-1,0]"
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	require.True(t, svc.IsOpenAIResponsesFlushPreambleEnabled(context.WithValue(ctx, ctxkey.UserID, int64(42))))
+	require.False(t, svc.IsOpenAIResponsesFlushPreambleEnabled(context.WithValue(ctx, ctxkey.UserID, int64(43))))
+	require.False(t, svc.IsOpenAIResponsesFlushPreambleEnabled(ctx))
+
+	settings, err = svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, settings.OpenAIResponsesFlushPreamble)
+	require.Equal(t, []int64{42}, settings.OpenAIResponsesFlushPreambleUserIDs)
+	require.Equal(t, []int64{1, 2}, normalizeOpenAIResponsesFlushPreambleUserIDs([]int64{1, 1, 0, -3, 2}))
+	require.False(t, openAIResponsesFlushPreambleUserMatches(nil, 1))
 }

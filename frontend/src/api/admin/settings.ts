@@ -532,6 +532,7 @@ export interface SystemSettings {
   enable_anthropic_cache_ttl_1h_injection: boolean;
   enable_client_dateline_normalization: boolean;
   openai_responses_flush_preamble: boolean;
+  openai_responses_flush_preamble_user_ids: number[];
   gateway_network_retry_max: number;
   web_search_emulation_enabled?: boolean;
 
@@ -760,6 +761,7 @@ export interface UpdateSettingsRequest {
   enable_anthropic_cache_ttl_1h_injection?: boolean;
   enable_client_dateline_normalization?: boolean;
   openai_responses_flush_preamble?: boolean;
+  openai_responses_flush_preamble_user_ids?: number[];
   gateway_network_retry_max?: number;
   // Payment configuration
   payment_enabled?: boolean;
@@ -956,6 +958,8 @@ export function systemSettingsToUpdateRequest(s: SystemSettings): UpdateSettings
     enable_client_dateline_normalization:
       s.enable_client_dateline_normalization,
     openai_responses_flush_preamble: s.openai_responses_flush_preamble,
+    openai_responses_flush_preamble_user_ids:
+      s.openai_responses_flush_preamble_user_ids || [],
     gateway_network_retry_max: s.gateway_network_retry_max,
     openai_claude_gpt_bridge_cache_display_settings:
       s.openai_claude_gpt_bridge_cache_display_settings,

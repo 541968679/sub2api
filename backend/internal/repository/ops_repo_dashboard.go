@@ -804,12 +804,12 @@ SELECT
   percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS duration_p99,
   AVG(duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS duration_avg,
   MAX(duration_ms) AS duration_max,
-  percentile_cont(0.50) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_p50,
-  percentile_cont(0.90) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_p90,
-  percentile_cont(0.95) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_p95,
-  percentile_cont(0.99) WITHIN GROUP (ORDER BY first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_p99,
-  AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS ttft_avg,
-  MAX(first_token_ms) AS ttft_max
+  percentile_cont(0.50) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS ttft_p50,
+  percentile_cont(0.90) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS ttft_p90,
+  percentile_cont(0.95) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS ttft_p95,
+  percentile_cont(0.99) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS ttft_p99,
+  AVG(COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS ttft_avg,
+  MAX(COALESCE(true_first_token_ms, first_token_ms)) AS ttft_max
 FROM usage_logs ul
 ` + join + `
 ` + where

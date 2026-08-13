@@ -238,12 +238,15 @@ type OpenAIForwardResult struct {
 	ServiceTier *string
 	// ReasoningEffort is extracted from request body (reasoning.effort) or derived from model suffix.
 	// Stored for usage records display; nil means not provided / not applicable.
-	ReasoningEffort     *string
-	Stream              bool
-	OpenAIWSMode        bool
-	ResponseHeaders     http.Header
-	Duration            time.Duration
-	FirstTokenMs        *int
+	ReasoningEffort *string
+	Stream          bool
+	OpenAIWSMode    bool
+	ResponseHeaders http.Header
+	Duration        time.Duration
+	FirstTokenMs    *int
+	// TrueFirstTokenMs is first useful/non-preamble output (pre-0.1.217 native
+	// Responses semantics). Nil means callers should fall back to FirstTokenMs.
+	TrueFirstTokenMs    *int
 	ClientDisconnect    bool
 	ClientOutputStarted bool
 	// SkipContinuationBinding is set for locally recovered store=false responses.
@@ -286,6 +289,18 @@ func GetActualOpenAIUpstreamEndpoint(c *gin.Context) string {
 	}
 	endpoint, _ := value.(string)
 	return strings.TrimSpace(endpoint)
+}
+
+// ScheduleFirstTokenMs is the TTFT used by account scheduling and ops/account
+// quality. Prefer true (useful-output) first token; fall back to display.
+func (r *OpenAIForwardResult) ScheduleFirstTokenMs() *int {
+	if r == nil {
+		return nil
+	}
+	if r.TrueFirstTokenMs != nil {
+		return r.TrueFirstTokenMs
+	}
+	return r.FirstTokenMs
 }
 
 type OpenAIWSRetryMetricsSnapshot struct {
@@ -3224,6 +3239,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		// Handle normal response
 		var usage *OpenAIUsage
 		var firstTokenMs *int
+		var trueFirstTokenMs *int
 		responseID := ""
 		if reqStream {
 			streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, upstreamModel)
@@ -3233,6 +3249,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 			usage = streamResult.usage
 			firstTokenMs = streamResult.firstTokenMs
+			trueFirstTokenMs = streamResult.trueFirstTokenMs
 			responseID = strings.TrimSpace(streamResult.responseID)
 		} else {
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
@@ -3274,18 +3291,19 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		)
 
 		return &OpenAIForwardResult{
-			RequestID:       resp.Header.Get("x-request-id"),
-			ResponseID:      responseID,
-			Usage:           *usage,
-			Model:           originalModel,
-			BillingModel:    billingModel,
-			UpstreamModel:   upstreamModel,
-			ServiceTier:     serviceTier,
-			ReasoningEffort: reasoningEffort,
-			Stream:          reqStream,
-			OpenAIWSMode:    false,
-			Duration:        duration,
-			FirstTokenMs:    firstTokenMs,
+			RequestID:        resp.Header.Get("x-request-id"),
+			ResponseID:       responseID,
+			Usage:            *usage,
+			Model:            originalModel,
+			BillingModel:     billingModel,
+			UpstreamModel:    upstreamModel,
+			ServiceTier:      serviceTier,
+			ReasoningEffort:  reasoningEffort,
+			Stream:           reqStream,
+			OpenAIWSMode:     false,
+			Duration:         duration,
+			FirstTokenMs:     firstTokenMs,
+			TrueFirstTokenMs: trueFirstTokenMs,
 		}, nil
 	}
 }
@@ -3454,6 +3472,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 
 	var usage *OpenAIUsage
 	var firstTokenMs *int
+	var trueFirstTokenMs *int
 	responseID := ""
 	if reqStream {
 		result, err := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
@@ -3463,6 +3482,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		}
 		usage = result.usage
 		firstTokenMs = result.firstTokenMs
+		trueFirstTokenMs = result.trueFirstTokenMs
 		responseID = strings.TrimSpace(result.responseID)
 	} else {
 		result, err := s.handleNonStreamingResponsePassthrough(ctx, resp, c, reqModel, upstreamPassthroughModel)
@@ -3495,17 +3515,18 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	)
 
 	return &OpenAIForwardResult{
-		RequestID:       resp.Header.Get("x-request-id"),
-		ResponseID:      responseID,
-		Usage:           *usage,
-		Model:           reqModel,
-		UpstreamModel:   upstreamPassthroughModel,
-		ServiceTier:     extractOpenAIServiceTierFromBody(body),
-		ReasoningEffort: reasoningEffort,
-		Stream:          reqStream,
-		OpenAIWSMode:    false,
-		Duration:        duration,
-		FirstTokenMs:    firstTokenMs,
+		RequestID:        resp.Header.Get("x-request-id"),
+		ResponseID:       responseID,
+		Usage:            *usage,
+		Model:            reqModel,
+		UpstreamModel:    upstreamPassthroughModel,
+		ServiceTier:      extractOpenAIServiceTierFromBody(body),
+		ReasoningEffort:  reasoningEffort,
+		Stream:           reqStream,
+		OpenAIWSMode:     false,
+		Duration:         duration,
+		FirstTokenMs:     firstTokenMs,
+		TrueFirstTokenMs: trueFirstTokenMs,
 	}, nil
 }
 
@@ -3811,9 +3832,10 @@ func collectOpenAIPassthroughTimeoutHeaders(h http.Header) []string {
 }
 
 type openaiStreamingResultPassthrough struct {
-	usage        *OpenAIUsage
-	firstTokenMs *int
-	responseID   string
+	usage            *OpenAIUsage
+	firstTokenMs     *int
+	trueFirstTokenMs *int
+	responseID       string
 }
 
 type openaiNonStreamingResultPassthrough struct {
@@ -3850,10 +3872,11 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 }
 
 // openAIStreamDataMarksFirstToken reports whether this SSE payload should stamp
-// usage_logs.first_token_ms. Native Responses matches Claude-GPT bridge:
-// the first non-empty data frame (typically response.created). Downstream flush
-// still uses openAIStreamShouldCommitDownstream (preamble buffered unless the
-// admin openai_responses_flush_preamble switch is on).
+// usage_logs.first_token_ms (display first-token). Native Responses matches
+// Claude-GPT bridge: the first non-empty data frame (typically response.created).
+// Scheduling/account quality uses true_first_token_ms via
+// openAIStreamDataStartsClientOutput. Downstream flush still uses
+// openAIStreamShouldCommitDownstream.
 func openAIStreamDataMarksFirstToken(data string) bool {
 	trimmed := strings.TrimSpace(data)
 	return trimmed != "" && trimmed != "[DONE]"
@@ -4212,6 +4235,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	var trueFirstTokenMs *int
 	loggedFirstClientOutput := false
 	responseID := ""
 	clientDisconnected := false
@@ -4282,11 +4306,11 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 							MarkResponseCommitted(c)
 							c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 							c.JSON(status, gin.H{"error": gin.H{"type": errType, "message": errMsg}})
-							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID},
 								fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
 						}
 						if openAIStreamFailedEventShouldFailover(dataBytes, failedMessage) {
-							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+							return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID},
 								s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, dataBytes, failedMessage)
 						}
 					}
@@ -4313,6 +4337,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if firstTokenMs == nil && openAIStreamDataMarksFirstToken(trimmedData) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+			}
+			if trueFirstTokenMs == nil && openAIStreamDataStartsClientOutput(trimmedData, eventType) {
+				ms := int(time.Since(startTime).Milliseconds())
+				trueFirstTokenMs = &ms
 			}
 			if lineStartsClientOutput && trimmedData != "[DONE]" {
 				stageClk.MarkFirstUsefulUpstream()
@@ -4354,28 +4382,28 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	}
 	if err := scanner.Err(); err != nil {
 		if sawTerminalEvent && !sawFailedEvent {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, nil
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, nil
 		}
 		if sawFailedEvent {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, fmt.Errorf("upstream response failed: %s", failedMessage)
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("upstream response failed: %s", failedMessage)
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, fmt.Errorf("stream usage incomplete: %w", err)
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("stream usage incomplete: %w", err)
 		}
 		if errors.Is(err, bufio.ErrTooLong) {
 			logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, err)
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, err
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, err
 		}
 		if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
 			msg := "OpenAI stream disconnected before completion"
 			if errText := strings.TrimSpace(err.Error()); errText != "" {
 				msg += ": " + errText
 			}
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID},
 				s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, nil, msg)
 		}
 		if clientDisconnected {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, fmt.Errorf("stream usage incomplete after disconnect: %w", err)
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("stream usage incomplete after disconnect: %w", err)
 		}
 		logger.LegacyPrintf("service.openai_gateway",
 			"[OpenAI passthrough] 流读取异常中断: account=%d request_id=%s err=%v",
@@ -4383,10 +4411,10 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			upstreamRequestID,
 			err,
 		)
-		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, fmt.Errorf("stream read error: %w", err)
+		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("stream read error: %w", err)
 	}
 	if sawFailedEvent {
-		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, fmt.Errorf("upstream response failed: %s", failedMessage)
+		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, fmt.Errorf("upstream response failed: %s", failedMessage)
 	}
 	if !clientDisconnected && !sawDone && !sawTerminalEvent && ctx.Err() == nil {
 		logger.FromContext(ctx).With(
@@ -4395,13 +4423,13 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			zap.String("upstream_request_id", upstreamRequestID),
 		).Info("OpenAI passthrough 上游流在未收到 [DONE] 时结束，疑似断流")
 		if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
-			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID},
+			return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID},
 				s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, nil, "OpenAI stream ended before a terminal event")
 		}
-		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, errors.New("stream usage incomplete: missing terminal event")
+		return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, errors.New("stream usage incomplete: missing terminal event")
 	}
 
-	return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}, nil
+	return &openaiStreamingResultPassthrough{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}, nil
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
@@ -5020,9 +5048,10 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 
 // openaiStreamingResult streaming response result
 type openaiStreamingResult struct {
-	usage        *OpenAIUsage
-	firstTokenMs *int
-	responseID   string
+	usage            *OpenAIUsage
+	firstTokenMs     *int
+	trueFirstTokenMs *int
+	responseID       string
 }
 
 type openaiNonStreamingResult struct {
@@ -5064,6 +5093,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	var trueFirstTokenMs *int
 	loggedFirstClientOutput := false
 	responseID := ""
 	scanner := bufio.NewScanner(resp.Body)
@@ -5150,7 +5180,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	codexImageBridgeResponseEnabled := isOpenAICodexImageGenerationBridgeResponseEnabled(c)
 	stageClk := getOpenAIStreamStageClock(c)
 	resultWithUsage := func() *openaiStreamingResult {
-		return &openaiStreamingResult{usage: usage, firstTokenMs: firstTokenMs, responseID: responseID}
+		return &openaiStreamingResult{usage: usage, firstTokenMs: firstTokenMs, trueFirstTokenMs: trueFirstTokenMs, responseID: responseID}
 	}
 	finalizeStream := func() (*openaiStreamingResult, error) {
 		if !sawTerminalEvent {
@@ -5323,6 +5353,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if firstTokenMs == nil && openAIStreamDataMarksFirstToken(data) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
+			}
+			if trueFirstTokenMs == nil && openAIStreamDataStartsClientOutput(data, eventType) {
+				ms := int(time.Since(startTime).Milliseconds())
+				trueFirstTokenMs = &ms
 			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
 			commitDownstream := forceFlushFailedEvent || openAIStreamShouldCommitDownstream(data, eventType, flushPreamble)
@@ -7024,6 +7058,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	usageLog.OpenAIWSMode = result.OpenAIWSMode
 	usageLog.DurationMs = &durationMs
 	usageLog.FirstTokenMs = result.FirstTokenMs
+	usageLog.TrueFirstTokenMs = result.TrueFirstTokenMs
 	usageLog.CreatedAt = time.Now()
 	// 设置渠道信息
 	usageLog.ChannelID = optionalInt64Ptr(input.ChannelID)

@@ -477,6 +477,20 @@ func (_c *UsageLogCreate) SetNillableFirstTokenMs(v *int) *UsageLogCreate {
 	return _c
 }
 
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (_c *UsageLogCreate) SetTrueFirstTokenMs(v int) *UsageLogCreate {
+	_c.mutation.SetTrueFirstTokenMs(v)
+	return _c
+}
+
+// SetNillableTrueFirstTokenMs sets the "true_first_token_ms" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableTrueFirstTokenMs(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetTrueFirstTokenMs(*v)
+	}
+	return _c
+}
+
 // SetUserAgent sets the "user_agent" field.
 func (_c *UsageLogCreate) SetUserAgent(v string) *UsageLogCreate {
 	_c.mutation.SetUserAgent(v)
@@ -1114,6 +1128,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.FirstTokenMs(); ok {
 		_spec.SetField(usagelog.FieldFirstTokenMs, field.TypeInt, value)
 		_node.FirstTokenMs = &value
+	}
+	if value, ok := _c.mutation.TrueFirstTokenMs(); ok {
+		_spec.SetField(usagelog.FieldTrueFirstTokenMs, field.TypeInt, value)
+		_node.TrueFirstTokenMs = &value
 	}
 	if value, ok := _c.mutation.UserAgent(); ok {
 		_spec.SetField(usagelog.FieldUserAgent, field.TypeString, value)
@@ -1935,6 +1953,30 @@ func (u *UsageLogUpsert) AddFirstTokenMs(v int) *UsageLogUpsert {
 // ClearFirstTokenMs clears the value of the "first_token_ms" field.
 func (u *UsageLogUpsert) ClearFirstTokenMs() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldFirstTokenMs)
+	return u
+}
+
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (u *UsageLogUpsert) SetTrueFirstTokenMs(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldTrueFirstTokenMs, v)
+	return u
+}
+
+// UpdateTrueFirstTokenMs sets the "true_first_token_ms" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateTrueFirstTokenMs() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldTrueFirstTokenMs)
+	return u
+}
+
+// AddTrueFirstTokenMs adds v to the "true_first_token_ms" field.
+func (u *UsageLogUpsert) AddTrueFirstTokenMs(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldTrueFirstTokenMs, v)
+	return u
+}
+
+// ClearTrueFirstTokenMs clears the value of the "true_first_token_ms" field.
+func (u *UsageLogUpsert) ClearTrueFirstTokenMs() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldTrueFirstTokenMs)
 	return u
 }
 
@@ -2949,6 +2991,34 @@ func (u *UsageLogUpsertOne) UpdateFirstTokenMs() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearFirstTokenMs() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearFirstTokenMs()
+	})
+}
+
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (u *UsageLogUpsertOne) SetTrueFirstTokenMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTrueFirstTokenMs(v)
+	})
+}
+
+// AddTrueFirstTokenMs adds v to the "true_first_token_ms" field.
+func (u *UsageLogUpsertOne) AddTrueFirstTokenMs(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddTrueFirstTokenMs(v)
+	})
+}
+
+// UpdateTrueFirstTokenMs sets the "true_first_token_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateTrueFirstTokenMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTrueFirstTokenMs()
+	})
+}
+
+// ClearTrueFirstTokenMs clears the value of the "true_first_token_ms" field.
+func (u *UsageLogUpsertOne) ClearTrueFirstTokenMs() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTrueFirstTokenMs()
 	})
 }
 
@@ -4168,6 +4238,34 @@ func (u *UsageLogUpsertBulk) UpdateFirstTokenMs() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearFirstTokenMs() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearFirstTokenMs()
+	})
+}
+
+// SetTrueFirstTokenMs sets the "true_first_token_ms" field.
+func (u *UsageLogUpsertBulk) SetTrueFirstTokenMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTrueFirstTokenMs(v)
+	})
+}
+
+// AddTrueFirstTokenMs adds v to the "true_first_token_ms" field.
+func (u *UsageLogUpsertBulk) AddTrueFirstTokenMs(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddTrueFirstTokenMs(v)
+	})
+}
+
+// UpdateTrueFirstTokenMs sets the "true_first_token_ms" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateTrueFirstTokenMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTrueFirstTokenMs()
+	})
+}
+
+// ClearTrueFirstTokenMs clears the value of the "true_first_token_ms" field.
+func (u *UsageLogUpsertBulk) ClearTrueFirstTokenMs() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTrueFirstTokenMs()
 	})
 }
 

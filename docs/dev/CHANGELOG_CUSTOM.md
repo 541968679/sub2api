@@ -1,3 +1,74 @@
+## 2026-08-13 - feat(gateway): split display vs true first-token
+
+### What
+- Native `/v1/responses` now stores two TTFTs:
+  - `first_token_ms` remains the user-facing display stamp (first SSE frame).
+  - New `true_first_token_ms` restores the pre-0.1.217 useful-output stamp (`output_item.added` / non-preamble).
+- Account scheduler, account-list quality TTFT, and ops TTFT aggregations use `COALESCE(true_first_token_ms, first_token_ms)`.
+- Admin usage latency cell and export add 真首字 / true first token. User usage is unchanged.
+
+### Why
+Display-first-token on `response.created` made website/user charts look faster, but feeding that into scheduling would treat preamble as real TTFT and distort account selection.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestStreamStageTiming_|TestOpenAIForwardResult_ScheduleFirstTokenMs" -count=1`
+- `go test -tags=unit ./internal/repository -run "TestPrepareUsageLogInsert_|TestUsageLogRepositoryCreate" -count=1`
+
+### Affected files
+`backend/ent/schema/usage_log.go`,
+`backend/migrations/196_usage_log_true_first_token_ms.sql`,
+`backend/internal/service/usage_log.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_stream_stage_timing_test.go`,
+`backend/internal/service/ops_metrics_collector.go`,
+`backend/internal/handler/openai_gateway_handler.go`,
+`backend/internal/handler/openai_chat_completions.go`,
+`backend/internal/handler/openai_images.go`,
+`backend/internal/handler/dto/types.go`,
+`backend/internal/handler/dto/mappers.go`,
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/ops_repo_preagg.go`,
+`backend/internal/repository/ops_repo_dashboard.go`,
+`backend/internal/repository/ops_repo_openai_token_stats.go`,
+`frontend/src/types/index.ts`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-13 - feat(gateway): user allowlist for Responses preamble flush
+
+### What
+- Added admin Settings KV `openai_responses_flush_preamble_user_ids` (JSON int64 array, default `[]`, not public).
+- Native `/v1/responses` flushes preamble immediately if the global toggle is on **or** the API-key owner is in that allowlist. Global toggle stays default **off**.
+- Admin UI: 请求转发行为 now has「仅这些用户开启」using the existing user selector.
+
+### Why
+Let an admin test new-api first-token behavior on their own account without enabling silent-failover-off for every user.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestOpenAIResponsesFlushPreambleSettingDefaultOff|TestStreamStageTiming_ResponsesHTTP_FlushPreamble" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "preamble flush"`
+
+### Affected files
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/settings_view.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/gateway_dateline_normalization_test.go`,
+`backend/internal/service/openai_stream_stage_timing_test.go`,
+`backend/internal/handler/dto/settings.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-13 - deploy: production v0.1.217
 
 ### What
