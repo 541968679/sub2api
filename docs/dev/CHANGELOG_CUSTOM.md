@@ -1,3 +1,15 @@
+## 2026-08-13 - deploy: production v0.1.218
+
+### What
+- Released and deployed `v0.1.218` (`80f801fd9`) to production as `ghcr.io/541968679/sub2api:0.1.218`.
+- Splits display `first_token_ms` (user usage) from `true_first_token_ms` (scheduler / account quality / admin extra column).
+- Adds `openai_responses_flush_preamble_user_ids` allowlist; global preamble flush stays **off**.
+
+### Verification
+- Release workflow success; image digest `sha256:d19c17f61a7f2560c6ddd552de0a198d7c9c66b66792515312e9db481c17af1f`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `80f801fd9`, version label `0.1.218`
+
 ## 2026-08-13 - feat(gateway): split display vs true first-token
 
 ### What
