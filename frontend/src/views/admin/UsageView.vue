@@ -788,6 +788,7 @@ const allColumns = computed(() => [
   { key: 'display_tokens', label: t('admin.usage.displayTokenColumn'), sortable: false, preserveHeaderCase: true },
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'latency', label: t('usage.latency'), sortable: false },
+  { key: 'true_first_token', label: t('usage.trueFirstToken'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },
   { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
   { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false },

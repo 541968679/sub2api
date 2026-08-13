@@ -64,7 +64,7 @@ Native `/v1/responses` stores two TTFTs:
 | `usage_logs.first_token_ms` | Display first-token: Forward start until the first non-empty SSE `data:` frame (typically `response.created`), matching Claude-GPT bridge `firstChunk`. `[DONE]` does not count. | User usage records; admin usage existing 首字 column |
 | `usage_logs.true_first_token_ms` | True first-token: first useful/non-preamble event (`openAIStreamDataStartsClientOutput`, typically `output_item.added`). This is the pre-0.1.217 native Responses stamp. | Account scheduler `ReportResult`, account-list quality TTFT, ops TTFT aggregations. `COALESCE(true_first_token_ms, first_token_ms)` for historical rows. |
 
-Admin usage latency cell shows both. User usage shows only display `first_token_ms`.
+Admin usage keeps display 首字 in the latency cell and shows 真首字 as its own table column. User usage shows only display `first_token_ms`.
 
 Downstream flush is separate and gated by admin settings `openai_responses_flush_preamble` (default **false**, not public) plus optional `openai_responses_flush_preamble_user_ids` (JSON int64 array). Enable if the global toggle is on **or** the authenticated API-key user is in the allowlist. User ID comes from `ctxkey.UserID` set by API-key middleware.
 

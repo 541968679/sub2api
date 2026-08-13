@@ -1,3 +1,18 @@
+## 2026-08-13 - fix(admin-usage): show true first-token as its own column
+
+### What
+- Admin usage table now has a dedicated 真首字 / True first token column next to 延迟.
+- Latency cell is back to 首字 + 总耗时 only. User usage is unchanged.
+
+### Why
+The previous layout nested true first-token inside the latency cell; it needs to be a real extra column.
+
+### Affected files
+`frontend/src/views/admin/UsageView.vue`,
+`frontend/src/components/admin/usage/UsageTable.vue`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-13 - deploy: production v0.1.218
 
 ### What
@@ -17,7 +32,7 @@
   - `first_token_ms` remains the user-facing display stamp (first SSE frame).
   - New `true_first_token_ms` restores the pre-0.1.217 useful-output stamp (`output_item.added` / non-preamble).
 - Account scheduler, account-list quality TTFT, and ops TTFT aggregations use `COALESCE(true_first_token_ms, first_token_ms)`.
-- Admin usage latency cell and export add 真首字 / true first token. User usage is unchanged.
+- Admin usage adds a dedicated 真首字 column (plus export). User usage is unchanged.
 
 ### Why
 Display-first-token on `response.created` made website/user charts look faster, but feeding that into scheduling would treat preamble as real TTFT and distort account selection.

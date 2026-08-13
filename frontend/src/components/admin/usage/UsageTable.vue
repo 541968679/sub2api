@@ -234,13 +234,15 @@
               <span class="text-gray-400">{{ t('usage.latencyFirstToken') }}</span>
               <span v-if="row.first_token_ms != null" class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.first_token_ms)]">{{ formatDuration(row.first_token_ms) }}</span>
               <span v-else class="text-gray-400">-</span>
-              <span class="text-gray-400">{{ t('usage.latencyTrueFirstToken') }}</span>
-              <span v-if="row.true_first_token_ms != null" class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.true_first_token_ms)]">{{ formatDuration(row.true_first_token_ms) }}</span>
-              <span v-else class="text-gray-400">-</span>
               <span class="text-gray-400">{{ t('usage.latencyDuration') }}</span>
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
             </div>
           </div>
+        </template>
+
+        <template #cell-true_first_token="{ row }">
+          <span v-if="row.true_first_token_ms != null" class="text-sm font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[firstTokenSeverity(row.true_first_token_ms)]">{{ formatDuration(row.true_first_token_ms) }}</span>
+          <span v-else class="text-sm text-gray-400">-</span>
         </template>
 
         <template #cell-created_at="{ value }">
