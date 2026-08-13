@@ -366,4 +366,24 @@ describe('CreateAccountModal', () => {
       to: 'gpt-custom'
     })
   })
+
+  it('creates an API key account with strict whitelist/mapping scheduling when enabled', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+
+    expect(wrapper.find('[data-testid="model-mapping-strict-scheduling"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="model-mapping-strict-scheduling-toggle"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.model_mapping_strict_scheduling).toBe(true)
+  })
+
+  it('omits strict whitelist/mapping scheduling by default and hides it for Antigravity', async () => {
+    const wrapper = await mountOpenAIAPIKeyModal()
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    expect(createAccountMock.mock.calls[0]?.[0]?.extra?.model_mapping_strict_scheduling).toBeUndefined()
+
+    await wrapper.findAll('button').find((button) => button.text().includes('Antigravity'))!.trigger('click')
+    expect(wrapper.find('[data-testid="model-mapping-strict-scheduling"]').exists()).toBe(false)
+  })
 })

@@ -1,3 +1,20 @@
+## 2026-08-13 - fix(admin-accounts): set strict mapping scheduling when creating an account
+
+### What
+- Create Account now has the same “strict whitelist/mapping scheduling” toggle as Edit Account (hidden for Antigravity).
+- The flag is written to `extra.model_mapping_strict_scheduling` on create, including OAuth/API key paths that funnel through shared extra helpers.
+
+### Why
+The toggle only existed on edit/bulk-edit, so a newly added account always started in the legacy fallback scheduling mode until someone opened edit.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/CreateAccountModal.spec.ts`
+
+### Affected files
+`frontend/src/components/account/CreateAccountModal.vue`,
+`frontend/src/components/account/__tests__/CreateAccountModal.spec.ts`,
+this changelog.
+
 ## 2026-08-13 - feat(admin): account/user usage and error inspect dialog
 
 ### What

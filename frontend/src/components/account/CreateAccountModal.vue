@@ -1113,6 +1113,36 @@
             class="space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
             data-testid="create-account-zone-other-body"
           >
+        <!-- Per-account strict scheduling (non-Antigravity; Antigravity is already strict) -->
+        <div
+          v-if="form.platform !== 'antigravity'"
+          class="flex items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-dark-600"
+          data-testid="model-mapping-strict-scheduling"
+        >
+          <div class="min-w-0">
+            <label class="input-label mb-0">{{ t('admin.accounts.modelMappingStrictScheduling') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.modelMappingStrictSchedulingHint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="model-mapping-strict-scheduling-toggle"
+            @click="modelMappingStrictScheduling = !modelMappingStrictScheduling"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              modelMappingStrictScheduling ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                modelMappingStrictScheduling ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+
       <!-- Antigravity model restriction (applies to OAuth + Upstream) -->
       <!-- Antigravity 只支持模型映射模式，不支持白名单模式 -->
       <div v-if="form.platform === 'antigravity'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -3921,6 +3951,7 @@ loadQuotaNotifyGlobal()
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false)
 const fallbackOnly = ref(false) // For antigravity accounts: enable AI Credits overages
+const modelMappingStrictScheduling = ref(false)
 const useEmailAsName = ref(false) // For antigravity batch import: use email as account name
 const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigravity: oauth or upstream
 const upstreamBaseUrl = ref('') // For upstream type: base URL
@@ -4012,6 +4043,11 @@ function applyFallbackOnlyToExtra(extra?: Record<string, unknown>): Record<strin
     next.fallback_only = true
   } else {
     delete next.fallback_only
+  }
+  if (form.platform !== 'antigravity' && modelMappingStrictScheduling.value) {
+    next.model_mapping_strict_scheduling = true
+  } else {
+    delete next.model_mapping_strict_scheduling
   }
   return Object.keys(next).length > 0 ? next : undefined
 }
@@ -4877,6 +4913,7 @@ const ensureAntigravityMixedChannelConfirmed = async (onConfirm: () => Promise<v
 const submitCreateAccount = async (payload: CreateAccountRequest) => {
   submitting.value = true
   try {
+    payload.extra = applyFallbackOnlyToExtra(payload.extra as Record<string, unknown> | undefined)
     await adminAPI.accounts.create(withAntigravityConfirmFlag(payload))
     appStore.showSuccess(t('admin.accounts.accountCreated'))
     emit('created')
@@ -4931,6 +4968,7 @@ const resetForm = () => {
   openAICompactModelMappings.value = []
   modelRestrictionMode.value = 'whitelist'
   allowedModels.value = [...claudeModels] // Default fill related models
+  modelMappingStrictScheduling.value = false
 
   antigravityModelRestrictionMode.value = 'mapping'
   antigravityWhitelistModels.value = []
@@ -6001,7 +6039,7 @@ const handleGeminiGoogleOneValidateRT = async (refreshTokenInput: string) => {
         }
 
         const credentials = geminiOAuth.buildCredentials(tokenInfo)
-        const extra = geminiOAuth.buildExtraInfo(tokenInfo)
+        const extra = applyFallbackOnlyToExtra(geminiOAuth.buildExtraInfo(tokenInfo))
 
         // Naming: prefer email when toggle enabled; otherwise fall back to form.name (append #i for batch).
         const accountName = useEmailAsName.value && tokenInfo.email
@@ -6364,7 +6402,7 @@ const handleCookieAuth = async (sessionKey: string) => {
           platform: form.platform,
           type: addMethod.value, // Use addMethod as type: 'oauth' or 'setup-token'
           credentials,
-          extra,
+          extra: applyFallbackOnlyToExtra(extra),
           proxy_id: form.proxy_id,
     auto_assign_proxy: form.auto_assign_proxy,
           concurrency: form.concurrency,
