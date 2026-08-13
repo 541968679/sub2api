@@ -1,3 +1,36 @@
+## 2026-08-13 - feat(admin-users): 15-minute TTFT and success-rate columns
+
+### What
+- Admin user list now shows the same 15-minute TTFT (p50/p95) and success-rate columns as account management, aggregated by `user_id`.
+- New `POST /api/v1/admin/users/quality-stats/batch`; loaded with other user-list secondary data; skipped when both columns are hidden.
+
+### Why
+Operators needed per-user quality (first-token latency and success rate) on the user list without changing account metrics or billing.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run "TestUsageLogRepository_Get(Account|User)QualityStatsBatch" -count=1`
+- `go test -tags=unit ./internal/service -run "QualityStats" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "UserHandler.*Quality|GetBatchQualityStats" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`backend/internal/repository/usage_log_repo.go`,
+`backend/internal/repository/usage_log_repo_quality_stats_test.go`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_usage_service.go`,
+`backend/internal/service/account_usage_quality_stats_test.go`,
+`backend/internal/handler/admin/user_handler.go`,
+`backend/internal/handler/admin/user_handler_quality_stats_test.go`,
+`backend/internal/handler/admin/account_today_stats_cache.go`,
+`backend/internal/server/routes/admin.go`,
+`backend/cmd/server/wire_gen.go`,
+`frontend/src/api/admin/users.ts`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/admin/__tests__/UsersView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-08-13 - fix(admin-accounts): set strict mapping scheduling when creating an account
 
 ### What

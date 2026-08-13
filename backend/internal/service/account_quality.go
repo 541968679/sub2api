@@ -49,6 +49,11 @@ type AccountQualityStatsBatchReader interface {
 	GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*AccountQualityStats, error)
 }
 
+// UserQualityStatsBatchReader provides the same aggregates grouped by user_id.
+type UserQualityStatsBatchReader interface {
+	GetUserQualityStatsBatch(ctx context.Context, userIDs []int64, startTime time.Time) (map[int64]*AccountQualityStats, error)
+}
+
 // BuildAccountQualityStats merges raw success/error/ttft aggregates into the API DTO.
 func BuildAccountQualityStats(successCount, errorCount int64, ttft TTFTAggregate) *AccountQualityStats {
 	stats := &AccountQualityStats{

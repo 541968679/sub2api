@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import type { AdminUser } from '@/types'
 import UsersView from '../UsersView.vue'
@@ -9,6 +9,7 @@ const {
   getAllGroups,
   getBatchUsersUsage,
   getBatchUsersBurnRate,
+  getBatchQualityStats,
   listEnabledDefinitions,
   getBatchUserAttributes
 } = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ const {
   getAllGroups: vi.fn(),
   getBatchUsersUsage: vi.fn(),
   getBatchUsersBurnRate: vi.fn(),
+  getBatchQualityStats: vi.fn(),
   listEnabledDefinitions: vi.fn(),
   getBatchUserAttributes: vi.fn()
 }))
@@ -25,7 +27,8 @@ vi.mock('@/api/admin', () => ({
     users: {
       list: listUsers,
       toggleStatus: vi.fn(),
-      delete: vi.fn()
+      delete: vi.fn(),
+      getBatchQualityStats
     },
     groups: {
       getAll: getAllGroups
@@ -94,6 +97,8 @@ const DataTableStub = {
 }
 
 describe('admin UsersView', () => {
+  const mountedWrappers: VueWrapper[] = []
+
   beforeEach(() => {
     localStorage.clear()
 
@@ -101,6 +106,7 @@ describe('admin UsersView', () => {
     getAllGroups.mockReset()
     getBatchUsersUsage.mockReset()
     getBatchUsersBurnRate.mockReset()
+    getBatchQualityStats.mockReset()
     listEnabledDefinitions.mockReset()
     getBatchUserAttributes.mockReset()
 
@@ -114,12 +120,19 @@ describe('admin UsersView', () => {
     getAllGroups.mockResolvedValue([])
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     getBatchUsersBurnRate.mockResolvedValue({ stats: {} })
+    getBatchQualityStats.mockResolvedValue({ stats: {} })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
   })
 
-const mountUsersView = () =>
-  mount(UsersView, {
+  afterEach(() => {
+    while (mountedWrappers.length > 0) {
+      mountedWrappers.pop()?.unmount()
+    }
+  })
+
+const mountUsersView = () => {
+  const wrapper = mount(UsersView, {
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
@@ -134,6 +147,8 @@ const mountUsersView = () =>
         Select: true,
         UserAttributesConfigModal: true,
         UserConcurrencyCell: true,
+        AccountQualityCell: true,
+        HelpTooltip: true,
         UserCreateModal: true,
         UserEditModal: true,
         UserApiKeysModal: true,
@@ -150,6 +165,9 @@ const mountUsersView = () =>
       }
     }
   })
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
 
   it('shows active, used, and created activity columns in order and requests last_used_at sort', async () => {
     const wrapper = mountUsersView()
@@ -160,6 +178,10 @@ const mountUsersView = () =>
     const visibleColumns = columns.split(',')
     expect(visibleColumns.slice(-4, -1)).toEqual(['last_active_at', 'last_used_at', 'created_at'])
     expect(visibleColumns).not.toContain('last_login_at')
+    const concurrencyIdx = visibleColumns.indexOf('concurrency')
+    expect(concurrencyIdx).toBeGreaterThanOrEqual(0)
+    expect(visibleColumns[concurrencyIdx + 1]).toBe('quality_ttft')
+    expect(visibleColumns[concurrencyIdx + 2]).toBe('quality_success_rate')
 
     await wrapper.get('[data-test="sort-last-used"]').trigger('click')
     await flushPromises()
@@ -251,6 +273,62 @@ const mountUsersView = () =>
     await flushPromises()
 
     expect(localStorage.getItem('user-burn-rate-unit')).toBe('hour')
+  })
+
+  const waitForDeferredSecondaryLoad = async () => {
+    // loadUsers defers secondary fetches by 50ms so the table can paint first.
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    await flushPromises()
+  }
+
+  it('fetches quality stats by default and skips when both quality columns are hidden', async () => {
+    const wrapper = mountUsersView()
+    await flushPromises()
+    await vi.waitFor(() => {
+      expect(getBatchQualityStats).toHaveBeenCalledWith([42])
+    })
+
+    const columnButton = wrapper
+      .findAll('button')
+      .find((btn) => btn.attributes('title') === 'admin.users.columnSettings')
+    expect(columnButton).toBeTruthy()
+    await columnButton!.trigger('click')
+    await flushPromises()
+
+    const ttftToggle = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('admin.users.columns.qualityTtft'))
+    const successToggle = wrapper
+      .findAll('button')
+      .find((btn) => btn.text().includes('admin.users.columns.qualitySuccessRate'))
+    expect(ttftToggle).toBeTruthy()
+    expect(successToggle).toBeTruthy()
+    await ttftToggle!.trigger('click')
+    await successToggle!.trigger('click')
+    await flushPromises()
+
+    const callsAfterHide = getBatchQualityStats.mock.calls.length
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('quality_ttft')
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).not.toContain('quality_success_rate')
+
+    await ttftToggle!.trigger('click')
+    await flushPromises()
+    await vi.waitFor(() => {
+      expect(getBatchQualityStats.mock.calls.length).toBeGreaterThan(callsAfterHide)
+    })
+    expect(wrapper.get('[data-test="columns"]').text().split(',')).toContain('quality_ttft')
+  })
+
+  it('does not fetch quality stats when both columns start hidden', async () => {
+    localStorage.setItem(
+      'user-hidden-columns',
+      JSON.stringify(['notes', 'groups', 'subscriptions', 'usage', 'quality_ttft', 'quality_success_rate'])
+    )
+    mountUsersView()
+    await flushPromises()
+    await waitForDeferredSecondaryLoad()
+
+    expect(getBatchQualityStats).not.toHaveBeenCalled()
   })
 
   it('opens the inspect dialog instead of a new tab for usage and errors', async () => {

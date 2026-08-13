@@ -5,6 +5,7 @@
 
 import { apiClient } from '../client'
 import type { AdminUser, UpdateUserRequest, PaginatedResponse, ApiKey, DownstreamUsageTokenMode, UserStatus } from '@/types'
+import type { BatchQualityStatsResponse } from './accounts'
 
 export interface AdminBindAuthIdentityChannelRequest {
   channel: string
@@ -373,6 +374,16 @@ export async function resetPlatformQuotaWindow(
   return data
 }
 
+/**
+ * Batch fetch user quality metrics (last 15 minutes rolling window).
+ */
+export async function getBatchQualityStats(userIds: number[]): Promise<BatchQualityStatsResponse> {
+  const { data } = await apiClient.post<BatchQualityStatsResponse>('/admin/users/quality-stats/batch', {
+    user_ids: userIds
+  })
+  return data
+}
+
 export const usersAPI = {
   list,
   getById,
@@ -390,6 +401,7 @@ export const usersAPI = {
   getPlatformQuotas,
   updatePlatformQuotas,
   resetPlatformQuotaWindow,
+  getBatchQualityStats,
 }
 
 export default usersAPI

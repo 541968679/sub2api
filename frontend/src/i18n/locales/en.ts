@@ -2243,11 +2243,19 @@ const enBase = {
         burnRateWithUnit: 'Burn rate ({unit})',
         usage: 'Usage',
         concurrency: 'Concurrency',
+        qualityTtft: 'TTFT',
+        qualitySuccessRate: 'Success Rate',
         status: 'Status',
         lastActive: 'Last Active',
         lastUsed: 'Last Used',
         created: 'Created',
         actions: 'Actions'
+      },
+      quality: {
+        ttftHint:
+          'True first-token latency for this user over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
+        successRateHint:
+          'Request success rate for this user over the last 15 minutes: successes / (successes + failures). Successes come from usage_logs; failures from ops error logs (includes 429/529, excludes count_tokens). Shows — when empty.'
       },
       burnRateOff: 'Burn rate',
       burnRateOn: 'Burn rate · On',

@@ -2341,13 +2341,42 @@ func (r *usageLogRepository) GetAccountWindowStatsBatch(ctx context.Context, acc
 	return result, nil
 }
 
+const (
+	qualityStatsIDColumnAccount = "account_id"
+	qualityStatsIDColumnUser    = "user_id"
+)
+
+func allowlistedQualityStatsIDColumn(column string) (string, error) {
+	switch column {
+	case qualityStatsIDColumnAccount, qualityStatsIDColumnUser:
+		return column, nil
+	default:
+		return "", fmt.Errorf("unsupported quality stats id column %q", column)
+	}
+}
+
 // GetAccountQualityStatsBatch aggregates recent success counts, error counts, and average TTFT
 // for account list quality columns. Success comes from usage_logs; errors from ops_error_logs
 // (status_code >= 400, excluding count_tokens probes). Missing accounts get zero-sample stats.
 func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
-	result := make(map[int64]*service.AccountQualityStats, len(accountIDs))
-	if len(accountIDs) == 0 {
+	return r.getQualityStatsBatch(ctx, accountIDs, startTime, qualityStatsIDColumnAccount)
+}
+
+// GetUserQualityStatsBatch is the user-dimension counterpart of GetAccountQualityStatsBatch.
+// Error rows with NULL user_id are excluded (cannot attribute them to a user).
+func (r *usageLogRepository) GetUserQualityStatsBatch(ctx context.Context, userIDs []int64, startTime time.Time) (map[int64]*service.AccountQualityStats, error) {
+	return r.getQualityStatsBatch(ctx, userIDs, startTime, qualityStatsIDColumnUser)
+}
+
+func (r *usageLogRepository) getQualityStatsBatch(ctx context.Context, ids []int64, startTime time.Time, idColumn string) (map[int64]*service.AccountQualityStats, error) {
+	result := make(map[int64]*service.AccountQualityStats, len(ids))
+	if len(ids) == 0 {
 		return result, nil
+	}
+
+	idColumn, err := allowlistedQualityStatsIDColumn(idColumn)
+	if err != nil {
+		return nil, err
 	}
 
 	type rawAgg struct {
@@ -2359,16 +2388,16 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 		p95TTFT      sql.NullFloat64
 		maxTTFT      sql.NullFloat64
 	}
-	aggs := make(map[int64]*rawAgg, len(accountIDs))
-	for _, accountID := range accountIDs {
-		aggs[accountID] = &rawAgg{}
+	aggs := make(map[int64]*rawAgg, len(ids))
+	for _, id := range ids {
+		aggs[id] = &rawAgg{}
 	}
 
 	// Percentiles resist single-pathological outliers better than AVG alone.
 	// p50 = typical latency; p95 = tail; avg/max kept for context.
-	usageQuery := `
+	usageQuery := fmt.Sprintf(`
 		SELECT
-			account_id,
+			%s,
 			COUNT(*) AS success_count,
 			COUNT(COALESCE(true_first_token_ms, first_token_ms)) AS ttft_samples,
 			AVG(COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS avg_ttft_ms,
@@ -2376,26 +2405,26 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 			PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS p95_ttft_ms,
 			MAX(COALESCE(true_first_token_ms, first_token_ms)) FILTER (WHERE COALESCE(true_first_token_ms, first_token_ms) IS NOT NULL) AS max_ttft_ms
 		FROM usage_logs
-		WHERE account_id = ANY($1) AND created_at >= $2
-		GROUP BY account_id
-	`
-	usageRows, err := r.sql.QueryContext(ctx, usageQuery, pq.Array(accountIDs), startTime)
+		WHERE %s = ANY($1) AND created_at >= $2
+		GROUP BY %s
+	`, idColumn, idColumn, idColumn)
+	usageRows, err := r.sql.QueryContext(ctx, usageQuery, pq.Array(ids), startTime)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = usageRows.Close() }()
 
 	for usageRows.Next() {
-		var accountID int64
+		var id int64
 		var successCount, ttftSamples int64
 		var avgTTFT, p50TTFT, p95TTFT, maxTTFT sql.NullFloat64
-		if err := usageRows.Scan(&accountID, &successCount, &ttftSamples, &avgTTFT, &p50TTFT, &p95TTFT, &maxTTFT); err != nil {
+		if err := usageRows.Scan(&id, &successCount, &ttftSamples, &avgTTFT, &p50TTFT, &p95TTFT, &maxTTFT); err != nil {
 			return nil, err
 		}
-		agg := aggs[accountID]
+		agg := aggs[id]
 		if agg == nil {
 			agg = &rawAgg{}
-			aggs[accountID] = agg
+			aggs[id] = agg
 		}
 		agg.successCount = successCount
 		agg.ttftSamples = ttftSamples
@@ -2408,33 +2437,37 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 		return nil, err
 	}
 
-	errorQuery := `
+	errorNullGuard := ""
+	if idColumn == qualityStatsIDColumnUser {
+		errorNullGuard = fmt.Sprintf("\n\t\t  AND %s IS NOT NULL", idColumn)
+	}
+	errorQuery := fmt.Sprintf(`
 		SELECT
-			account_id,
+			%s,
 			COUNT(*) AS error_count
 		FROM ops_error_logs
-		WHERE account_id = ANY($1)
+		WHERE %s = ANY($1)
 		  AND created_at >= $2
 		  AND COALESCE(status_code, 0) >= 400
-		  AND is_count_tokens = FALSE
-		GROUP BY account_id
-	`
-	errorRows, err := r.sql.QueryContext(ctx, errorQuery, pq.Array(accountIDs), startTime)
+		  AND is_count_tokens = FALSE%s
+		GROUP BY %s
+	`, idColumn, idColumn, errorNullGuard, idColumn)
+	errorRows, err := r.sql.QueryContext(ctx, errorQuery, pq.Array(ids), startTime)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = errorRows.Close() }()
 
 	for errorRows.Next() {
-		var accountID int64
+		var id int64
 		var errorCount int64
-		if err := errorRows.Scan(&accountID, &errorCount); err != nil {
+		if err := errorRows.Scan(&id, &errorCount); err != nil {
 			return nil, err
 		}
-		agg := aggs[accountID]
+		agg := aggs[id]
 		if agg == nil {
 			agg = &rawAgg{}
-			aggs[accountID] = agg
+			aggs[id] = agg
 		}
 		agg.errorCount = errorCount
 	}
@@ -2450,13 +2483,13 @@ func (r *usageLogRepository) GetAccountQualityStatsBatch(ctx context.Context, ac
 		return &v
 	}
 
-	for _, accountID := range accountIDs {
-		agg := aggs[accountID]
+	for _, id := range ids {
+		agg := aggs[id]
 		if agg == nil {
-			result[accountID] = service.BuildAccountQualityStats(0, 0, service.TTFTAggregate{})
+			result[id] = service.BuildAccountQualityStats(0, 0, service.TTFTAggregate{})
 			continue
 		}
-		result[accountID] = service.BuildAccountQualityStats(agg.successCount, agg.errorCount, service.TTFTAggregate{
+		result[id] = service.BuildAccountQualityStats(agg.successCount, agg.errorCount, service.TTFTAggregate{
 			Samples: agg.ttftSamples,
 			Avg:     nullF(agg.avgTTFT),
 			P50:     nullF(agg.p50TTFT),

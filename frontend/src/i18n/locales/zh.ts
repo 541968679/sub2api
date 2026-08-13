@@ -2093,11 +2093,19 @@ const zhBase = {
         burnRateWithUnit: '消耗速度 ({unit})',
         usage: '用量',
         concurrency: '并发数',
+        qualityTtft: '首字',
+        qualitySuccessRate: '成功率',
         status: '状态',
         lastActive: '最后活跃时间',
         lastUsed: '最后使用时间',
         created: '创建时间',
         actions: '操作'
+      },
+      quality: {
+        ttftHint:
+          '最近 15 分钟内该用户真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
+        successRateHint:
+          '最近 15 分钟内该用户请求成功率 = 成功次数 / (成功 + 失败)。成功来自 usage_logs，失败来自 ops 错误日志（含 429/529，排除 count_tokens）。无样本显示 —。'
       },
       burnRateOff: '消耗速度',
       burnRateOn: '消耗速度 · 开',

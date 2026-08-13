@@ -277,6 +277,7 @@ func registerUserManagementRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	users := admin.Group("/users")
 	{
 		users.GET("", h.Admin.User.List)
+		users.POST("/quality-stats/batch", h.Admin.User.GetBatchQualityStats)
 		users.GET("/:id", h.Admin.User.GetByID)
 		users.POST("/:id/auth-identities", h.Admin.User.BindAuthIdentity)
 		users.POST("", h.Admin.User.Create)

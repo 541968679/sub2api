@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,23 +30,31 @@ type UserHandler struct {
 	concurrencyService    *service.ConcurrencyService
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository
 	billingCache          service.BillingCache
+	accountUsageService   *service.AccountUsageService
 }
 
-// NewUserHandler creates a new admin user handler
+// NewUserHandler creates a new admin user handler.
+// Optional deps are type-switched from quotaDeps so existing two-arg tests keep compiling.
 func NewUserHandler(adminService service.AdminService, concurrencyService *service.ConcurrencyService, quotaDeps ...any) *UserHandler {
 	var userPlatformQuotaRepo service.UserPlatformQuotaRepository
 	var billingCache service.BillingCache
-	if len(quotaDeps) > 0 {
-		userPlatformQuotaRepo, _ = quotaDeps[0].(service.UserPlatformQuotaRepository)
-	}
-	if len(quotaDeps) > 1 {
-		billingCache, _ = quotaDeps[1].(service.BillingCache)
+	var accountUsageService *service.AccountUsageService
+	for _, dep := range quotaDeps {
+		switch v := dep.(type) {
+		case service.UserPlatformQuotaRepository:
+			userPlatformQuotaRepo = v
+		case service.BillingCache:
+			billingCache = v
+		case *service.AccountUsageService:
+			accountUsageService = v
+		}
 	}
 	return &UserHandler{
 		adminService:          adminService,
 		concurrencyService:    concurrencyService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 		billingCache:          billingCache,
+		accountUsageService:   accountUsageService,
 	}
 }
 
@@ -605,4 +614,60 @@ func (h *UserHandler) GetUserRPMStatus(c *gin.Context) {
 	}
 
 	response.Success(c, status)
+}
+
+// BatchUserQualityStatsRequest is the body for batch user quality stats.
+type BatchUserQualityStatsRequest struct {
+	UserIDs []int64 `json:"user_ids" binding:"required"`
+}
+
+// GetBatchQualityStats returns rolling-window TTFT and success-rate for user list columns.
+// POST /api/v1/admin/users/quality-stats/batch
+func (h *UserHandler) GetBatchQualityStats(c *gin.Context) {
+	var req BatchUserQualityStatsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	userIDs := normalizeInt64IDList(req.UserIDs)
+	if len(userIDs) == 0 {
+		response.Success(c, gin.H{"stats": map[string]any{}})
+		return
+	}
+
+	cacheKey := buildUserQualityStatsBatchCacheKey(userIDs)
+	if cached, ok := userQualityStatsBatchCache.Get(cacheKey); ok {
+		if cached.ETag != "" {
+			c.Header("ETag", cached.ETag)
+			c.Header("Vary", "If-None-Match")
+			if ifNoneMatchMatched(c.GetHeader("If-None-Match"), cached.ETag) {
+				c.Status(http.StatusNotModified)
+				return
+			}
+		}
+		c.Header("X-Snapshot-Cache", "hit")
+		response.Success(c, cached.Payload)
+		return
+	}
+
+	if h.accountUsageService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account usage service unavailable")
+		return
+	}
+
+	stats, err := h.accountUsageService.GetUserQualityStatsBatch(c.Request.Context(), userIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	payload := gin.H{"stats": stats}
+	cached := userQualityStatsBatchCache.Set(cacheKey, payload)
+	if cached.ETag != "" {
+		c.Header("ETag", cached.ETag)
+		c.Header("Vary", "If-None-Match")
+	}
+	c.Header("X-Snapshot-Cache", "miss")
+	response.Success(c, payload)
 }

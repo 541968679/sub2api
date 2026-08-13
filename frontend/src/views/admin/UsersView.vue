@@ -561,6 +561,35 @@
             />
           </template>
 
+          <template #header-quality_ttft="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.users.quality.ttftHint')" width-class="w-72" />
+            </div>
+          </template>
+          <template #cell-quality_ttft="{ row }">
+            <AccountQualityCell
+              mode="ttft"
+              :stats="qualityStatsByUserId[String(row.id)] ?? null"
+              :loading="qualityStatsLoading"
+              :error="qualityStatsError"
+            />
+          </template>
+          <template #header-quality_success_rate="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.users.quality.successRateHint')" width-class="w-80" />
+            </div>
+          </template>
+          <template #cell-quality_success_rate="{ row }">
+            <AccountQualityCell
+              mode="success_rate"
+              :stats="qualityStatsByUserId[String(row.id)] ?? null"
+              :loading="qualityStatsLoading"
+              :error="qualityStatsError"
+            />
+          </template>
+
           <template #cell-status="{ value }">
             <div class="flex items-center gap-1.5">
               <span
@@ -814,6 +843,7 @@ const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
 import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
+import type { AccountQualityStats } from '@/api/admin/accounts'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -825,6 +855,8 @@ import GroupBadge from '@/components/common/GroupBadge.vue'
 import Select from '@/components/common/Select.vue'
 import UserAttributesConfigModal from '@/components/user/UserAttributesConfigModal.vue'
 import UserConcurrencyCell from '@/components/user/UserConcurrencyCell.vue'
+import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import UserCreateModal from '@/components/admin/user/UserCreateModal.vue'
 import UserEditModal from '@/components/admin/user/UserEditModal.vue'
 import UserApiKeysModal from '@/components/admin/user/UserApiKeysModal.vue'
@@ -961,6 +993,12 @@ const allColumns = computed<Column[]>(() => [
     : []),
   { key: 'usage', label: t('admin.users.columns.usage'), sortable: false },
   { key: 'concurrency', label: t('admin.users.columns.concurrency'), sortable: true },
+  { key: 'quality_ttft', label: t('admin.users.columns.qualityTtft'), sortable: false },
+  {
+    key: 'quality_success_rate',
+    label: t('admin.users.columns.qualitySuccessRate'),
+    sortable: false
+  },
   { key: 'status', label: t('admin.users.columns.status'), sortable: true },
   { key: 'last_active_at', label: t('admin.users.columns.lastActive'), sortable: true },
   { key: 'last_used_at', label: t('admin.users.columns.lastUsed'), sortable: true },
@@ -1028,7 +1066,7 @@ const toggleColumn = (key: string) => {
     hiddenColumns.add(key)
   }
   saveColumnsToStorage()
-  if (wasHidden && (key === 'usage' || key.startsWith('attr_'))) {
+  if (wasHidden && (key === 'usage' || key === 'quality_ttft' || key === 'quality_success_rate' || key.startsWith('attr_'))) {
     refreshCurrentPageSecondaryData()
   }
   if (key === 'subscriptions') {
@@ -1042,6 +1080,9 @@ const toggleColumn = (key: string) => {
 // Check if column is visible (not in hidden set)
 const isColumnVisible = (key: string) => !hiddenColumns.has(key)
 const hasVisibleUsageColumn = computed(() => !hiddenColumns.has('usage'))
+const hasVisibleQualityColumns = computed(
+  () => !hiddenColumns.has('quality_ttft') || !hiddenColumns.has('quality_success_rate')
+)
 const hasVisibleSubscriptionsColumn = computed(() => !hiddenColumns.has('subscriptions'))
 const hasVisibleGroupsColumn = computed(() => !hiddenColumns.has('groups'))
 const hasVisibleAttributeColumns = computed(() =>
@@ -1373,6 +1414,9 @@ const getAttributeDefinition = (attrId: number): UserAttributeDefinition | undef
   return attributeDefinitions.value.find(d => d.id === attrId)
 }
 const usageStats = ref<Record<string, BatchUserUsageStats>>({})
+const qualityStatsByUserId = ref<Record<string, AccountQualityStats>>({})
+const qualityStatsLoading = ref(false)
+const qualityStatsError = ref<string | null>(null)
 // User attribute definitions and values
 const attributeDefinitions = ref<UserAttributeDefinition[]>([])
 const userAttributeValues = ref<Record<number, Record<number, string>>>({})
@@ -1414,6 +1458,37 @@ const loadUsersSecondaryData = async (
         } catch (e) {
           if (signal?.aborted) return
           console.error('Failed to load usage stats:', e)
+        }
+      })()
+    )
+  }
+
+  if (hasVisibleQualityColumns.value) {
+    tasks.push(
+      (async () => {
+        qualityStatsLoading.value = true
+        qualityStatsError.value = null
+        try {
+          const qualityResponse = await adminAPI.users.getBatchQualityStats(userIds)
+          if (signal?.aborted) return
+          if (typeof expectedSeq === 'number' && expectedSeq !== secondaryDataSeq) return
+          const serverStats = qualityResponse.stats ?? {}
+          const nextStats: Record<string, AccountQualityStats> = {}
+          for (const userId of userIds) {
+            const key = String(userId)
+            if (serverStats[key]) {
+              nextStats[key] = serverStats[key]
+            }
+          }
+          qualityStatsByUserId.value = nextStats
+        } catch (e) {
+          if (signal?.aborted) return
+          qualityStatsError.value = 'Failed'
+          console.error('Failed to load user quality stats:', e)
+        } finally {
+          if (typeof expectedSeq !== 'number' || expectedSeq === secondaryDataSeq) {
+            qualityStatsLoading.value = false
+          }
         }
       })()
     )
@@ -1713,6 +1788,8 @@ const loadUsers = async () => {
     pagination.total = response.total
     pagination.pages = response.pages
     usageStats.value = {}
+    qualityStatsByUserId.value = {}
+    qualityStatsError.value = null
     burnRateStats.value = {}
     userAttributeValues.value = {}
 
@@ -1763,6 +1840,8 @@ const refreshUsersIncrementally = async () => {
         void loadUsersSecondaryData(userIds, undefined, seq)
       } else {
         usageStats.value = {}
+        qualityStatsByUserId.value = {}
+        qualityStatsError.value = null
         burnRateStats.value = {}
         userAttributeValues.value = {}
       }
