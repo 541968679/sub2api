@@ -88,10 +88,16 @@ services:
 
   new-api:
     label: new-api
-    role: monitor
+    role: managed
     runtime: process
     lifecycle: ephemeral
+    cwd: .
+    depends_on: [postgres, redis]
+    command: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev-stack.ps1 run -Component new-api -StartupTimeoutSeconds 300
+    env:
+      TZ: Asia/Shanghai
     ports: [${ports.new_api}]
+    health: http://${network.host}:${ports.new_api}/api/status
     open_url: http://${network.host}:${ports.new_api}
     reload: false
 

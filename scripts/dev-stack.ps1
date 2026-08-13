@@ -2,7 +2,7 @@ param(
     [ValidateSet("start", "restart", "stop", "status", "run")]
     [string]$Action = "restart",
 
-    [ValidateSet("backend", "frontend")]
+    [ValidateSet("backend", "frontend", "new-api")]
     [string]$Component,
 
     [string]$AIClientPath = "",
@@ -110,8 +110,15 @@ function Get-PortProcessIds {
 }
 
 function Stop-ManagedProcesses {
+    param([string]$Name)
+
     $state = Read-State
+    $kept = @()
     foreach ($entry in $state) {
+        if ($Name -and $entry.Name -ne $Name) {
+            $kept += $entry
+            continue
+        }
         if ($entry.Kind -eq "compose") {
             Stop-ComposeService -Service $entry
         }
@@ -120,7 +127,7 @@ function Stop-ManagedProcesses {
             Stop-ProcessTree -ProcessId ([int]$entry.PID)
         }
     }
-    Save-State -Processes @()
+    Save-State -Processes $kept
 }
 
 function Stop-PortProcesses {
@@ -216,7 +223,17 @@ function Invoke-ServiceForeground {
     param([object]$Service)
 
     if ($Service.Kind -eq "compose") {
-        throw "Foreground mode does not support compose service $($Service.Name)."
+        Start-ComposeService -Service $Service
+        Write-Step "$($Service.Name) is up on http://127.0.0.1:$($Service.Port); runner waiting until stopped"
+        try {
+            while ($true) {
+                Start-Sleep -Seconds 5
+            }
+        }
+        finally {
+            Stop-ComposeService -Service $Service
+        }
+        return
     }
     if (-not (Test-Path $Service.WorkingDirectory)) {
         throw "$($Service.Name) working directory does not exist: $($Service.WorkingDirectory)"
@@ -248,12 +265,35 @@ function Invoke-Compose {
         [string]$LogFile
     )
 
-    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        throw "Docker CLI is required to manage $($Service.Name)."
+    $composeExe = Get-Command docker-compose -ErrorAction SilentlyContinue
+    $usePlugin = $false
+    if (-not $composeExe) {
+        if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+            throw "Docker CLI is required to manage $($Service.Name)."
+        }
+        & docker compose version 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            $usePlugin = $true
+        }
+        else {
+            throw "Docker Compose is required to manage $($Service.Name). Install the compose plugin or docker-compose."
+        }
     }
 
-    $output = & docker compose -p $Service.ComposeProject -f $Service.ComposeFile @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if ($usePlugin) {
+            $output = & docker compose -p $Service.ComposeProject -f $Service.ComposeFile @Arguments 2>&1
+        }
+        else {
+            $output = & docker-compose -p $Service.ComposeProject -f $Service.ComposeFile @Arguments 2>&1
+        }
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $prevEap
+    }
     if ($output) {
         $output | Tee-Object -FilePath $LogFile -Append | Out-Host
     }
@@ -436,7 +476,7 @@ if (-not $SkipAIClient) {
     }
 }
 
-if ($IncludeNewAPI) {
+if ($IncludeNewAPI -or $Component -eq "new-api") {
     $services += [pscustomobject]@{
         Kind = "compose"
         Name = "new-api"
@@ -448,9 +488,16 @@ if ($IncludeNewAPI) {
     }
 }
 
+if (-not [string]::IsNullOrWhiteSpace($Component) -and $Action -ne "status") {
+    $services = @($services | Where-Object { $_.Name -eq $Component })
+    if ($services.Count -eq 0) {
+        throw "Unknown component: $Component"
+    }
+}
+
 if ($Action -eq "run") {
     if ([string]::IsNullOrWhiteSpace($Component)) {
-        throw "-Component backend or -Component frontend is required with the run action."
+        throw "-Component backend, frontend, or new-api is required with the run action."
     }
 
     $selectedService = $services | Where-Object { $_.Name -eq $Component } | Select-Object -First 1
@@ -477,14 +524,14 @@ switch ($Action) {
         break
     }
     "stop" {
-        Stop-ManagedProcesses
+        Stop-ManagedProcesses -Name $Component
         Stop-ComposeServices -Services $services
         Stop-PortProcesses -Services $services
         Show-Status
         break
     }
     "restart" {
-        Stop-ManagedProcesses
+        Stop-ManagedProcesses -Name $Component
         Stop-ComposeServices -Services $services
         Stop-PortProcesses -Services $services
     }
@@ -514,17 +561,23 @@ if ($Action -in @("start", "restart")) {
                 -Ports $service.Ports
         }
     }
-    Save-State -Processes $started
+    if (-not [string]::IsNullOrWhiteSpace($Component)) {
+        $kept = @(Read-State | Where-Object { $_.Name -ne $Component })
+        Save-State -Processes (@($kept) + @($started))
+    }
+    else {
+        Save-State -Processes $started
+    }
 
     Wait-ServicePorts -Services $services
     Show-Status
     Write-Step "Logs are under $LogDir"
     Write-Step "Frontend: http://127.0.0.1:15174"
     Write-Step "Backend:  http://127.0.0.1:18081"
-    if (-not $SkipAIClient) {
+    if (-not $SkipAIClient -and [string]::IsNullOrWhiteSpace($Component)) {
         Write-Step "AIClient2API: http://127.0.0.1:3000"
     }
-    if ($IncludeNewAPI) {
+    if ($IncludeNewAPI -or $Component -eq "new-api") {
         Write-Step "new-api: http://127.0.0.1:$NewAPIPort"
     }
 }

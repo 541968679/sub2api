@@ -1,3 +1,20 @@
+## 2026-08-13 - chore(dev-stack): manage optional new-api from dev-console
+
+### What
+- `dev-services.yml` runs optional new-api as a managed sidecar via `dev-stack.ps1 run -Component new-api`.
+- `dev-stack.ps1` can start/stop a single component without wiping the rest of the stack, supports `docker-compose` as well as `docker compose`, and can wait in the foreground for the new-api compose service.
+
+### Why
+Dev-console could only monitor new-api before; component-scoped restart/stop is required to host it like backend/frontend.
+
+### Verification
+- Confirm `scripts/dev-stack.ps1` has no host proxy env (`HTTP_PROXY` / `10808`).
+
+### Affected files
+`scripts/dev-stack.ps1`,
+`dev-services.yml`,
+this changelog.
+
 ## 2026-08-13 - feat(admin-users): 15-minute TTFT and success-rate columns
 
 ### What
