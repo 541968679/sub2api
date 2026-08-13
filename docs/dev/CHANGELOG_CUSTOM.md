@@ -15,6 +15,17 @@ Dev-console could only monitor new-api before; component-scoped restart/stop is 
 `dev-services.yml`,
 this changelog.
 
+## 2026-08-13 - deploy: production v0.1.219
+
+### What
+- Released and deployed `v0.1.219` (`9f006ade4`) to production as `ghcr.io/541968679/sub2api:0.1.219`.
+- Admin user list 15-minute TTFT / success-rate columns; per-account user allow/deny scheduling; create-account strict mapping toggle; usage/error inspect dialog; dedicated true first-token column.
+
+### Verification
+- Release workflow success; image digest `sha256:40027d6d55718ebf6584f4bad9a7d1abdbd49a94c828dbeeade8a656dd20df92`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `9f006ade4`, version label `0.1.219`
+
 ## 2026-08-13 - feat(admin-users): 15-minute TTFT and success-rate columns
 
 ### What
