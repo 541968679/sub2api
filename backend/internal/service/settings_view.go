@@ -169,6 +169,7 @@ type SystemSettings struct {
 	EnableCCHSigning                   bool // 是否对 billing header cch 进行签名（默认 false）
 	EnableAnthropicCacheTTL1hInjection bool // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
 	EnableClientDatelineNormalization  bool // 是否归一化 Anthropic OAuth/SetupToken 请求中的客户端 dateline 指纹（默认 true）
+	OpenAIResponsesFlushPreamble       bool // 是否立即向下游 flush Responses preamble（默认 false，保留换号窗口）
 
 	GatewayNetworkRetryMax int // network transport error retry count (0 disables, default 2)
 

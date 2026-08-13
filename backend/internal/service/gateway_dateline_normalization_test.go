@@ -60,3 +60,29 @@ func TestSystemSettingsClientDatelineNormalizationDefaultsOn(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, settings.EnableClientDatelineNormalization)
 }
+
+func TestOpenAIResponsesFlushPreambleSettingDefaultOff(t *testing.T) {
+	prev := gatewayForwardingCache.Load()
+	t.Cleanup(func() {
+		if prev != nil {
+			gatewayForwardingCache.Store(prev)
+			return
+		}
+		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	})
+
+	repo := &gatewayTTLSettingRepo{data: map[string]string{}}
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc := NewSettingService(repo, &config.Config{})
+	ctx := context.Background()
+
+	require.False(t, svc.IsOpenAIResponsesFlushPreambleEnabled(ctx))
+	settings, err := svc.GetAllSettings(ctx)
+	require.NoError(t, err)
+	require.False(t, settings.OpenAIResponsesFlushPreamble)
+	require.False(t, (*SettingService)(nil).IsOpenAIResponsesFlushPreambleEnabled(ctx))
+
+	repo.data[SettingKeyOpenAIResponsesFlushPreamble] = "true"
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	require.True(t, svc.IsOpenAIResponsesFlushPreambleEnabled(ctx))
+}

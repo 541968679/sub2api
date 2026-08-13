@@ -145,6 +145,11 @@ func TestStreamStageTiming_ResponsesHTTP_DelayedUsefulAndFlushLag(t *testing.T) 
 	require.GreaterOrEqual(t, firstUseful-doWait, 25, "body_gap: useful should lag headers")
 	require.GreaterOrEqual(t, firstFlush-firstUseful, 20, "flush can lag useful-upstream via delayed Flush")
 	_ = preDo
+
+	// usage first_token_ms follows the first SSE frame (response.created), matching
+	// Claude-GPT bridge — not the delayed output_item.added used for client flush.
+	require.Less(t, *result.firstTokenMs, firstUseful)
+	require.LessOrEqual(t, *result.firstTokenMs, firstSSE+15)
 }
 
 func TestStreamStageTiming_ChatFallback_DelayedUseful(t *testing.T) {
@@ -265,4 +270,133 @@ func TestOpenAIChatPayloadStartsUsefulOutput(t *testing.T) {
 	require.True(t, openAIChatPayloadStartsUsefulOutput(`{"choices":[{"delta":{"content":"x"}}]}`))
 	require.True(t, openAIChatPayloadStartsUsefulOutput(`{"choices":[{"delta":{"reasoning_content":"r"}}]}`))
 	require.True(t, openAIChatPayloadStartsUsefulOutput(`{"choices":[{"delta":{"tool_calls":[{"index":0}]}}]}`))
+}
+
+func TestOpenAIStreamDataMarksFirstToken_MatchesBridgeFirstFrame(t *testing.T) {
+	t.Parallel()
+	require.False(t, openAIStreamDataMarksFirstToken(""))
+	require.False(t, openAIStreamDataMarksFirstToken("   "))
+	require.False(t, openAIStreamDataMarksFirstToken("[DONE]"))
+	require.True(t, openAIStreamDataMarksFirstToken(`{"type":"response.created","response":{"id":"r1"}}`))
+	require.True(t, openAIStreamDataMarksFirstToken(`{"type":"response.in_progress"}`))
+	require.True(t, openAIStreamDataMarksFirstToken(`{"type":"response.output_item.added"}`))
+	require.False(t, openAIStreamDataStartsClientOutput(`{"type":"response.created"}`, "response.created"))
+	require.True(t, openAIStreamDataStartsClientOutput(`{"type":"response.output_item.added"}`, "response.output_item.added"))
+}
+
+func TestOpenAIStreamShouldCommitDownstream_PreambleToggle(t *testing.T) {
+	t.Parallel()
+	created := `{"type":"response.created","response":{"id":"r1"}}`
+	useful := `{"type":"response.output_item.added","item":{"type":"message"}}`
+	failed := `{"type":"response.failed"}`
+
+	require.False(t, openAIStreamShouldCommitDownstream(created, "response.created", false))
+	require.True(t, openAIStreamShouldCommitDownstream(created, "response.created", true))
+	require.True(t, openAIStreamShouldCommitDownstream(useful, "response.output_item.added", false))
+	require.True(t, openAIStreamShouldCommitDownstream(useful, "response.output_item.added", true))
+	require.False(t, openAIStreamShouldCommitDownstream(failed, "response.failed", false))
+	require.False(t, openAIStreamShouldCommitDownstream(failed, "response.failed", true), "failed must stay uncommitted so pre-output failover can still rewrite JSON")
+}
+
+func storeGatewayFlushPreambleCache(t *testing.T, enabled bool) {
+	t.Helper()
+	prev := gatewayForwardingCache.Load()
+	t.Cleanup(func() {
+		if prev != nil {
+			gatewayForwardingCache.Store(prev)
+			return
+		}
+		gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	})
+	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{
+		flushPreamble: enabled,
+		expiresAt:     time.Now().Add(time.Hour).UnixNano(),
+	})
+}
+
+func TestStreamStageTiming_ResponsesHTTP_FlushPreambleOn_FirstFlushBeforeUseful(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storeGatewayFlushPreambleCache(t, true)
+
+	start := time.Now()
+	body := &delayedSSEBody{chunks: []delayedSSEChunk{
+		{line: `data: {"type":"response.created","response":{"id":"r1"}}`},
+		{line: `data: {"type":"response.in_progress","response":{"id":"r1"}}`},
+		{line: `data: {"type":"response.output_item.added","item":{"type":"message"}}`, delay: 40 * time.Millisecond},
+		{line: `data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":1,"output_tokens":1}}}`},
+	}}
+	rec := &delayedFlushRecorder{ResponseRecorder: httptest.NewRecorder()}
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	clk := &openAIStreamStageClock{start: start, accountID: 1, path: "responses_http", model: "gpt-5.4"}
+	clk.MarkDoStart()
+	clk.MarkHeaders("rid_flush_preamble")
+	c.Set(openAIStreamStageClockCtxKey, clk)
+
+	svc := &OpenAIGatewayService{
+		cfg: rawChatCompletionsTestConfig(),
+		settingService: NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
+			SettingKeyOpenAIResponsesFlushPreamble: "true",
+		}}, &config.Config{}),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"x-request-id": []string{"rid_flush_preamble"}},
+		Body:       io.NopCloser(body),
+	}
+	result, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1}, start, "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.firstTokenMs)
+
+	_, _, firstSSE, firstUseful, firstFlush, _ := clk.stageSnapshot()
+	require.GreaterOrEqual(t, firstSSE, 0)
+	require.GreaterOrEqual(t, firstUseful, firstSSE)
+	require.GreaterOrEqual(t, firstFlush, firstSSE)
+	require.Less(t, firstFlush, firstUseful, "preamble flush should reach downstream before delayed output_item.added")
+	require.Contains(t, rec.Body.String(), `"type":"response.created"`)
+	require.LessOrEqual(t, *result.firstTokenMs, firstSSE+15)
+}
+
+func TestStreamStageTiming_ResponsesPassthrough_FlushPreambleOn_FirstFlushBeforeUseful(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	storeGatewayFlushPreambleCache(t, true)
+
+	start := time.Now()
+	body := &delayedSSEBody{chunks: []delayedSSEChunk{
+		{line: `data: {"type":"response.created","response":{"id":"r1"}}`},
+		{line: `data: {"type":"response.in_progress","response":{"id":"r1"}}`},
+		{line: `data: {"type":"response.output_item.added","item":{"type":"message"}}`, delay: 40 * time.Millisecond},
+		{line: `data: {"type":"response.completed","response":{"id":"r1","usage":{"input_tokens":1,"output_tokens":1}}}`},
+	}}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	clk := &openAIStreamStageClock{start: start, accountID: 1, path: "responses_passthrough", model: "gpt-5.4"}
+	clk.MarkDoStart()
+	clk.MarkHeaders("rid_flush_preamble_pt")
+	c.Set(openAIStreamStageClockCtxKey, clk)
+
+	svc := &OpenAIGatewayService{
+		cfg: rawChatCompletionsTestConfig(),
+		settingService: NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
+			SettingKeyOpenAIResponsesFlushPreamble: "true",
+		}}, &config.Config{}),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"x-request-id": []string{"rid_flush_preamble_pt"}},
+		Body:       io.NopCloser(body),
+	}
+	result, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1}, start, "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.firstTokenMs)
+
+	_, _, firstSSE, firstUseful, firstFlush, _ := clk.stageSnapshot()
+	require.GreaterOrEqual(t, firstUseful, firstSSE)
+	require.Less(t, firstFlush, firstUseful, "passthrough preamble should flush before delayed output_item.added")
+	require.Contains(t, rec.Body.String(), `"type":"response.created"`)
 }

@@ -57,13 +57,22 @@ Claude-GPT bridge routing, native Images, or Ops/public settings.
 
 ## OpenAI first_token_ms vs client-true TTFT
 
-`first_token_ms` for OpenAI Responses streaming is measured from Forward start until the first SSE event that `openAIStreamDataStartsClientOutput` accepts. Preamble (`response.created` / `response.in_progress`) and `response.failed` do not count; other non-preamble events (including upstream keepalive) follow the same rule as upstream Sub2API and are intentionally left unchanged for usage/parity.
+Native `/v1/responses` `usage_logs.first_token_ms` is measured from Forward start until the first non-empty SSE `data:` frame (typically `response.created`), matching Claude-GPT bridge `firstChunk`. `[DONE]` does not count.
+
+Downstream flush is separate and gated by admin setting `openai_responses_flush_preamble` (default **false**, not a public setting):
+
+| Switch | Downstream flush | Silent failover after first SSE |
+|--------|------------------|----------------------------------|
+| Off (default) | Buffer `response.created` / `response.in_progress` until a non-preamble event (`output_item.added`, etc.) | Still possible: HTTP 200 is not committed to the client yet, so JSON error rewrite / account failover can still run |
+| On | Flush preamble immediately so downstream (e.g. new-api `frt`) can stamp first-token on the first `data:` line | Closed: first SSE commits the response |
+
+`response.failed` is never treated as a preamble commit. Claude-GPT visible-output buffering is unchanged.
 
 Responses→Chat fallback records `first_token_ms` when an upstream Chat Completions chunk would produce the first **non-preamble** Responses client output after `ChatCompletionsChunkToResponsesEvents`: non-empty `delta.content`, non-empty `delta.reasoning_content` / `delta.reasoning`, or any `delta.tool_calls` (`chatChunkStartsResponsesOutput`). Role-only / empty preamble deltas and usage-only chunks do not count.
 
-Success KPI for perceived stream start is **not** `first_token_ms`. It is the first successful downstream write of a useful event plus `Flush` (`first_client_flush_ms`), which can lag `first_token_ms` when silent-refusal pending holdback, write buffering, or edge buffering delays client delivery.
+Success KPI for perceived stream start at the **client** is still the first successful downstream write plus `Flush` (`first_client_flush_ms`). With the preamble switch off this can lag `first_token_ms` (website charts) because preamble is held; with the switch on, `first_client_flush_ms` can land on `response.created`.
 
-Default-off sampled instrumentation (config/env only in Phase 1; no Settings KV UI):
+Default-off sampled instrumentation (config/env only in Phase 1; no Settings KV UI for the sampler itself):
 
 | Key | Default | Env |
 |-----|---------|-----|
@@ -81,7 +90,7 @@ When a request is sampled, one completed line is emitted:
 | `do_wait_ms` | Do start → response headers (`header_ms` equivalent) |
 | `first_sse_ms` | Forward start → first upstream SSE `data:` line |
 | `first_useful_upstream_ms` | Forward start → first useful upstream event (Responses: `openAIStreamDataStartsClientOutput`; Chat/fallback: non-empty content / reasoning / tool_calls) |
-| `first_client_flush_ms` | Forward start → first successful useful write + Flush (raw Chat: pending release under silent-refusal) |
+| `first_client_flush_ms` | Forward start → first successful committed write + Flush. Default: first useful/non-preamble event. If `openai_responses_flush_preamble` is on: first flushed preamble frame. Raw Chat: pending release under silent-refusal |
 
 Covered paths: native Responses HTTP (`responses_http` / `responses_passthrough`), Responses→Chat fallback (`responses_chat_fallback`), raw Chat (`chat_raw`). Sampling begins only for stream requests; `invalid_encrypted_content` same-request retry reuses the clock and resets Do/body stamps. No bodies/secrets in logs.
 

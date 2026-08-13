@@ -246,6 +246,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableCCHSigning:                                       settings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:                     settings.EnableAnthropicCacheTTL1hInjection,
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
+		OpenAIResponsesFlushPreamble:                           settings.OpenAIResponsesFlushPreamble,
 		GatewayNetworkRetryMax:                                 settings.GatewayNetworkRetryMax,
 		WebSearchEmulationEnabled:                              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:                       settings.PaymentVisibleMethodAlipaySource,
@@ -275,8 +276,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		OpenAIAdvancedSchedulerEffectiveWeightQuotaHeadroom:    settings.OpenAIAdvancedSchedulerEffectiveWeightQuotaHeadroom,
 		OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse: settings.OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse,
 		OpenAIAdvancedSchedulerEffectiveWeightSessionSticky:    settings.OpenAIAdvancedSchedulerEffectiveWeightSessionSticky,
-		DisplayCacheTokenMaxMult:         settings.DisplayCacheTokenMaxMult,
-		DisplayOutputResidualGrowthRatio: settings.DisplayOutputResidualGrowthRatio,
+		DisplayCacheTokenMaxMult:                               settings.DisplayCacheTokenMaxMult,
+		DisplayOutputResidualGrowthRatio:                       settings.DisplayOutputResidualGrowthRatio,
 		OpenAIClaudeGPTBridgeCacheDisplaySettings: openAIClaudeGPTBridgeCacheDisplaySettingsToDTO(
 			settings.OpenAIClaudeGPTBridgeCacheDisplaySettings,
 		),
@@ -576,6 +577,7 @@ type UpdateSettingsRequest struct {
 	EnableCCHSigning                   *bool `json:"enable_cch_signing"`
 	EnableAnthropicCacheTTL1hInjection *bool `json:"enable_anthropic_cache_ttl_1h_injection"`
 	EnableClientDatelineNormalization  *bool `json:"enable_client_dateline_normalization"`
+	OpenAIResponsesFlushPreamble       *bool `json:"openai_responses_flush_preamble"`
 	GatewayNetworkRetryMax             *int  `json:"gateway_network_retry_max"`
 
 	// Payment visible method routing
@@ -1513,6 +1515,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableClientDatelineNormalization
 		}(),
+		OpenAIResponsesFlushPreamble: func() bool {
+			if req.OpenAIResponsesFlushPreamble != nil {
+				return *req.OpenAIResponsesFlushPreamble
+			}
+			return previousSettings.OpenAIResponsesFlushPreamble
+		}(),
 		GatewayNetworkRetryMax: func() int {
 			if req.GatewayNetworkRetryMax != nil {
 				return service.ClampGatewayNetworkRetryMax(*req.GatewayNetworkRetryMax)
@@ -1893,6 +1901,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableCCHSigning:                                       updatedSettings.EnableCCHSigning,
 		EnableAnthropicCacheTTL1hInjection:                     updatedSettings.EnableAnthropicCacheTTL1hInjection,
 		EnableClientDatelineNormalization:                      updatedSettings.EnableClientDatelineNormalization,
+		OpenAIResponsesFlushPreamble:                           updatedSettings.OpenAIResponsesFlushPreamble,
 		GatewayNetworkRetryMax:                                 updatedSettings.GatewayNetworkRetryMax,
 		DisplayCacheTokenMaxMult:                               updatedSettings.DisplayCacheTokenMaxMult,
 		DisplayOutputResidualGrowthRatio:                       updatedSettings.DisplayOutputResidualGrowthRatio,
@@ -2331,6 +2340,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.EnableClientDatelineNormalization != after.EnableClientDatelineNormalization {
 		changed = append(changed, "enable_client_dateline_normalization")
+	}
+	if before.OpenAIResponsesFlushPreamble != after.OpenAIResponsesFlushPreamble {
+		changed = append(changed, "openai_responses_flush_preamble")
 	}
 	if before.GatewayNetworkRetryMax != after.GatewayNetworkRetryMax {
 		changed = append(changed, "gateway_network_retry_max")

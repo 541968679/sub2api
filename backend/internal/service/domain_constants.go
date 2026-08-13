@@ -449,6 +449,10 @@ const (
 	SettingKeyDisplayOutputResidualGrowthRatio = "display_output_residual_growth_ratio"
 	// SettingKeyGatewayNetworkRetryMax controls retry count for upstream transport/network errors.
 	SettingKeyGatewayNetworkRetryMax = "gateway_network_retry_max"
+	// SettingKeyOpenAIResponsesFlushPreamble, when true, flushes native Responses
+	// SSE preamble (response.created / in_progress) to downstream immediately.
+	// Default false preserves pre-output failover by buffering those frames.
+	SettingKeyOpenAIResponsesFlushPreamble = "openai_responses_flush_preamble"
 
 	// Balance Low Notification
 	SettingKeyBalanceLowNotifyEnabled     = "balance_low_notify_enabled"      // 全局开关

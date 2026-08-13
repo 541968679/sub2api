@@ -6737,6 +6737,8 @@ const zhBase = {
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
         clientDatelineNormalization: 'Anthropic 客户端日期指纹归一化',
         clientDatelineNormalizationHint: '仅规范化 Anthropic OAuth/Setup Token 请求中的系统日期行，移除客户端隐写差异；API Key、用户正文与 Claude-GPT 桥接不受影响。',
+        flushPreamble: '立即下发 Responses 开场事件',
+        flushPreambleHint: '开启后，原生 /v1/responses 的第一帧 response.created / in_progress 会立刻发给下游（new-api 可用其作为首字时间）。开启后流一旦开始就不能再无感换号。默认关闭，保持现有缓冲与故障转移窗口。',
         networkRetryMax: '上游网络错误最大重试次数',
         networkRetryMaxHint: '仅在连接失败、超时、EOF 等未收到 HTTP 响应的网络错误时重试；0 表示关闭，默认 2，最大 10。',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT 桥接缓存展示',

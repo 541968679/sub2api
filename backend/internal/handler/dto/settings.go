@@ -158,6 +158,7 @@ type SystemSettings struct {
 	EnableCCHSigning                   bool `json:"enable_cch_signing"`
 	EnableAnthropicCacheTTL1hInjection bool `json:"enable_anthropic_cache_ttl_1h_injection"`
 	EnableClientDatelineNormalization  bool `json:"enable_client_dateline_normalization"`
+	OpenAIResponsesFlushPreamble       bool `json:"openai_responses_flush_preamble"`
 	GatewayNetworkRetryMax             int  `json:"gateway_network_retry_max"`
 
 	// Web Search Emulation

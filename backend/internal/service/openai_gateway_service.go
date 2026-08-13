@@ -3849,6 +3849,40 @@ func openAIStreamDataStartsClientOutput(data, eventType string) bool {
 	return !openAIStreamEventIsPreamble(eventType)
 }
 
+// openAIStreamDataMarksFirstToken reports whether this SSE payload should stamp
+// usage_logs.first_token_ms. Native Responses matches Claude-GPT bridge:
+// the first non-empty data frame (typically response.created). Downstream flush
+// still uses openAIStreamShouldCommitDownstream (preamble buffered unless the
+// admin openai_responses_flush_preamble switch is on).
+func openAIStreamDataMarksFirstToken(data string) bool {
+	trimmed := strings.TrimSpace(data)
+	return trimmed != "" && trimmed != "[DONE]"
+}
+
+// openAIStreamShouldCommitDownstream is the outbound flush/commit gate.
+// When flushPreamble is false, preamble stays buffered so pre-output failover
+// can still return JSON. When true, response.created / in_progress are flushed
+// immediately so downstream (e.g. new-api) can stamp first-token on them.
+func openAIStreamShouldCommitDownstream(data, eventType string, flushPreamble bool) bool {
+	if openAIStreamDataStartsClientOutput(data, eventType) {
+		return true
+	}
+	if !flushPreamble {
+		return false
+	}
+	if strings.TrimSpace(eventType) == "response.failed" {
+		return false
+	}
+	return openAIStreamDataMarksFirstToken(data)
+}
+
+func (s *OpenAIGatewayService) isOpenAIResponsesFlushPreambleEnabled(ctx context.Context) bool {
+	if s == nil || s.settingService == nil {
+		return false
+	}
+	return s.settingService.IsOpenAIResponsesFlushPreambleEnabled(ctx)
+}
+
 func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
 	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
 	if code == "" {
@@ -4159,6 +4193,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	mappedModel string,
 ) (*openaiStreamingResultPassthrough, error) {
 	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+	flushPreamble := s.isOpenAIResponsesFlushPreambleEnabled(ctx)
 
 	// SSE headers
 	c.Header("Content-Type", "text/event-stream")
@@ -4177,6 +4212,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	loggedFirstClientOutput := false
 	responseID := ""
 	clientDisconnected := false
 	sawDone := false
@@ -4213,6 +4249,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	for scanner.Scan() {
 		line := scanner.Text()
 		lineStartsClientOutput := false
+		commitDownstream := false
 		forceFlushFailedEvent := false
 		if data, ok := extractOpenAISSEDataLine(line); ok {
 			stageClk.MarkFirstSSE()
@@ -4272,16 +4309,20 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 				line = "data: " + string(sanitizedData)
 			}
 			lineStartsClientOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
-			if lineStartsClientOutput && trimmedData != "[DONE]" {
-				stageClk.MarkFirstUsefulUpstream()
-			}
-			if firstTokenMs == nil && lineStartsClientOutput && trimmedData != "[DONE]" {
+			commitDownstream = forceFlushFailedEvent || openAIStreamShouldCommitDownstream(trimmedData, eventType, flushPreamble)
+			if firstTokenMs == nil && openAIStreamDataMarksFirstToken(trimmedData) {
 				ms := int(time.Since(startTime).Milliseconds())
 				firstTokenMs = &ms
-				logger.LegacyPrintf("service.openai_gateway",
-					"[OpenAI stream_debug] first_client_output_passthrough account_id=%d first_token_ms=%d event_type=%s",
-					account.ID, ms, eventType,
-				)
+			}
+			if lineStartsClientOutput && trimmedData != "[DONE]" {
+				stageClk.MarkFirstUsefulUpstream()
+				if !loggedFirstClientOutput {
+					loggedFirstClientOutput = true
+					logger.LegacyPrintf("service.openai_gateway",
+						"[OpenAI stream_debug] first_client_output_passthrough account_id=%d first_token_ms=%d event_type=%s",
+						account.ID, int(time.Since(startTime).Milliseconds()), eventType,
+					)
+				}
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)
 			if mult := getDisplayTokenMultipliers(c); mult != nil {
@@ -4290,7 +4331,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 		}
 
 		if !clientDisconnected {
-			if !clientOutputStarted && !lineStartsClientOutput {
+			if !clientOutputStarted && !commitDownstream {
 				pendingLines = append(pendingLines, line)
 				continue
 			}
@@ -4305,7 +4346,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			} else {
 				clientOutputStarted = true
 				flusher.Flush()
-				if lineStartsClientOutput {
+				if commitDownstream {
 					stageClk.MarkFirstClientFlush()
 				}
 			}
@@ -5005,6 +5046,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 	if v := resp.Header.Get("x-request-id"); v != "" {
 		c.Header("x-request-id", v)
 	}
+	flushPreamble := s.isOpenAIResponsesFlushPreambleEnabled(ctx)
 
 	w := c.Writer
 	flusher, ok := w.(http.Flusher)
@@ -5022,6 +5064,7 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 	usage := &OpenAIUsage{}
 	var firstTokenMs *int
+	loggedFirstClientOutput := false
 	responseID := ""
 	scanner := bufio.NewScanner(resp.Body)
 	maxLineSize := defaultMaxLineSize
@@ -5277,7 +5320,12 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 			if needModelReplace && mappedModel != "" && strings.Contains(line, mappedModel) {
 				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
 			}
+			if firstTokenMs == nil && openAIStreamDataMarksFirstToken(data) {
+				ms := int(time.Since(startTime).Milliseconds())
+				firstTokenMs = &ms
+			}
 			startsClientOutput := forceFlushFailedEvent || openAIStreamDataStartsClientOutput(data, eventType)
+			commitDownstream := forceFlushFailedEvent || openAIStreamShouldCommitDownstream(data, eventType, flushPreamble)
 			if startsClientOutput {
 				stageClk.MarkFirstUsefulUpstream()
 			}
@@ -5288,9 +5336,10 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 
 			// 写入客户端（客户端断开后继续 drain 上游）
 			if !clientDisconnected {
-				shouldFlush := queueDrained && (clientOutputStarted || startsClientOutput)
-				if firstTokenMs == nil && startsClientOutput {
-					// 保证首个 token 事件尽快出站，避免影响 TTFT。
+				shouldFlush := queueDrained && (clientOutputStarted || commitDownstream)
+				if commitDownstream {
+					// 默认仍等非 preamble；开关开启时 response.created 也会立刻出站。
+					// first_token_ms 可能已在 created 打点，不能再用它当 flush 闸门。
 					shouldFlush = true
 				}
 				for _, injectedLine := range injectedImageMessageLines {
@@ -5315,20 +5364,18 @@ func (s *OpenAIGatewayService) handleStreamingResponse(ctx context.Context, resp
 					} else {
 						clientOutputStarted = true
 						lastDownstreamWriteAt = time.Now()
-						if startsClientOutput {
+						if commitDownstream {
 							stageClk.MarkFirstClientFlush()
 						}
 					}
 				}
 			}
 
-			// Record first token time
-			if firstTokenMs == nil && startsClientOutput {
-				ms := int(time.Since(startTime).Milliseconds())
-				firstTokenMs = &ms
+			if startsClientOutput && !loggedFirstClientOutput {
+				loggedFirstClientOutput = true
 				logger.LegacyPrintf("service.openai_gateway",
 					"[OpenAI stream_debug] first_client_output account_id=%d first_token_ms=%d event_type=%s",
-					account.ID, ms, eventType,
+					account.ID, int(time.Since(startTime).Milliseconds()), eventType,
 				)
 			}
 			s.parseSSEUsageBytes(dataBytes, usage)

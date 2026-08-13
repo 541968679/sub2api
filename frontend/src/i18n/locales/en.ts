@@ -7090,6 +7090,8 @@ const enBase = {
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
         clientDatelineNormalization: 'Anthropic Client Dateline Normalization',
         clientDatelineNormalizationHint: 'Canonicalizes only system datelines in Anthropic OAuth/Setup Token requests to remove client steganographic variants. API keys, user prose, and the Claude-GPT bridge are unaffected.',
+        flushPreamble: 'Flush Responses preamble immediately',
+        flushPreambleHint: 'When enabled, native /v1/responses sends the first response.created / in_progress frames to downstream immediately so clients such as new-api can stamp first-token on them. After that, silent account failover is no longer possible. Default off keeps the current buffer-for-failover behavior.',
         networkRetryMax: 'Maximum upstream network retries',
         networkRetryMaxHint: 'Retries only connection failures, timeouts, EOF, and similar network errors before any HTTP response is received. Use 0 to disable. Default 2, maximum 10.',
         claudeGPTBridgeCacheDisplay: 'Claude-GPT Bridge Cache Display',

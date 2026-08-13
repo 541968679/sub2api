@@ -399,6 +399,7 @@ const baseSettingsResponse = {
   enable_cch_signing: false,
   enable_anthropic_cache_ttl_1h_injection: false,
   enable_client_dateline_normalization: true,
+  openai_responses_flush_preamble: false,
   payment_enabled: true,
   payment_min_amount: 1,
   payment_max_amount: 10000,
@@ -686,6 +687,24 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         enable_client_dateline_normalization: false,
+      }),
+    );
+  });
+
+  it("submits OpenAI Responses preamble flush setting", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_responses_flush_preamble: true,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_responses_flush_preamble: true,
       }),
     );
   });

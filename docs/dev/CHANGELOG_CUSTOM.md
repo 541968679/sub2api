@@ -1,4 +1,56 @@
-## 2026-08-12 - deploy: production v0.1.216
+## 2026-08-13 - feat(gateway): admin toggle to flush native Responses preamble
+
+### What
+- Native OpenAI `/v1/responses` (HTTP + OAuth passthrough) stamps `usage_logs.first_token_ms` on the first non-empty SSE `data:` frame (typically `response.created`), same as Claude-GPT bridge `firstChunk`.
+- Added admin Settings KV `openai_responses_flush_preamble` (default **false**, 60s gateway-forwarding cache, not public):
+  - Off: keep buffering `response.created` / `in_progress` so silent account failover / JSON error rewrite still works after headers.
+  - On: flush those preamble frames immediately so downstream (new-api `frt`) can stamp first-token on the first `data:` line. Failover window closes after that flush.
+- `response.failed` is never a preamble commit. Claude-GPT visible-output buffering is unchanged.
+- Admin UI: 请求转发行为 / Request Forwarding toggle with failover warning.
+
+### Why
+Website first-token can follow the first SSE without changing production failover. Downstream new-api first-token stays on the old path until the switch is turned on.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestStreamStageTiming_|TestOpenAIStreamDataMarksFirstToken|TestOpenAIStreamShouldCommitDownstream|TestOpenAIResponsesFlushPreambleSettingDefaultOff" -count=1`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "preamble flush"`
+
+### Affected files
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/settings_view.go`,
+`backend/internal/service/setting_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_stream_stage_timing_test.go`,
+`backend/internal/service/gateway_dateline_normalization_test.go`,
+`backend/internal/handler/dto/settings.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/views/admin/__tests__/SettingsView.spec.ts`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-13 - experiment(gateway): native Responses first_token_ms matches Claude-GPT first SSE frame
+
+### What
+- Native OpenAI `/v1/responses` (HTTP + OAuth passthrough) now stamps `usage_logs.first_token_ms` on the first non-empty SSE `data:` frame (typically `response.created`), same as Claude-GPT bridge `firstChunk`.
+- Downstream flush / failover / `stream_stage` `first_useful` / `first_client_flush` are unchanged: still wait for non-preamble events such as `output_item.added`.
+- `first_client_output` debug logs still fire on the first non-preamble event so client-true timing remains greppable.
+
+### Why
+Local experiment: see whether the website first-token charts align with bridge and stop classifying sol think-then-dump as near-dur. This does not make new-api or Codex see text earlier.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "TestStreamStageTiming_|TestOpenAIGatewayService_OAuthPassthrough_Stream|TestOpenAIStreamDataMarksFirstToken" -count=1`
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_stream_stage_timing_test.go`,
+this changelog.
+
+
 
 ### What
 - Released and deployed `v0.1.216` (`761dd8cf9`) to production as `ghcr.io/541968679/sub2api:0.1.216`.
