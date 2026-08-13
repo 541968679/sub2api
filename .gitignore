@@ -142,6 +142,10 @@ docs/*
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 .serena/
 .codex/
+.cursor/
+.trellis/
+.run/
+mcps/
 frontend/coverage/
 aicodex
 output/
