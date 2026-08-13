@@ -1417,6 +1417,7 @@ func (s *GatewayService) SelectAccountForModel(ctx context.Context, groupID *int
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+	ctx = withScheduleUserID(ctx, 0)
 	// 优先检查 context 中的强制平台（/antigravity 路由）
 	var platform string
 	forcePlatform, hasForcePlatform := ctx.Value(ctxkey.ForcePlatform).(string)
@@ -1475,6 +1476,7 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 // metadataUserID: 用于客户端亲和调度，从中提取客户端 ID
 // sub2apiUserID: 系统用户 ID，用于二维亲和调度
 func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, metadataUserID string, sub2apiUserID int64) (*AccountSelectionResult, error) {
+	ctx = withScheduleUserID(ctx, sub2apiUserID)
 	// 调试日志：记录调度入口参数
 	excludedIDsList := make([]int64, 0, len(excludedIDs))
 	for id := range excludedIDs {
@@ -1653,7 +1655,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				continue
 			}
 			account, ok := accountByID[routingAccountID]
-			if !ok || !s.isAccountSchedulableForSelection(account) {
+			if !ok || !s.isAccountSchedulableForSelection(ctx, account) {
 				if !ok {
 					filteredMissing++
 				} else {
@@ -1714,8 +1716,11 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					// 粘性账号在路由列表中，优先使用
 					if stickyAccount, ok := accountByID[stickyAccountID]; ok {
 						var stickyCacheMissReason string
+						if s.clearStickyIfUserScheduleDenied(ctx, stickyAccount) && s.cache != nil && sessionHash != "" {
+							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
+						}
 
-						gatePass := s.isAccountSchedulableForSelection(stickyAccount) &&
+						gatePass := s.isAccountSchedulableForSelection(ctx, stickyAccount) &&
 							s.isAccountAllowedForPlatform(stickyAccount, platform, useMixed) &&
 							(requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, stickyAccount, requestedModel)) &&
 							s.isAccountSchedulableForModelSelection(ctx, stickyAccount, requestedModel) &&
@@ -1883,7 +1888,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			account, ok := accountByID[accountID]
 			if ok {
 				// 检查账户是否需要清理粘性会话绑定
-				clearSticky := shouldClearStickySession(account, requestedModel)
+				clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 				if clearSticky {
 					slog.Debug("sticky.layer1_5_no_routing_clear",
 						"account_id", accountID,
@@ -1902,7 +1907,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				quotaOK := s.isAccountSchedulableForQuota(account)
 				windowCostOK := s.isAccountSchedulableForWindowCost(ctx, account, true)
 				rpmOK := s.isAccountSchedulableForRPM(ctx, account, true)
-				schedulable := s.isAccountSchedulableForSelection(account)
+				schedulable := s.isAccountSchedulableForSelection(ctx, account)
 
 				slog.Debug("sticky.layer1_5_no_routing_checks",
 					"account_id", accountID,
@@ -2010,7 +2015,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		// Scheduler snapshots can be temporarily stale (bucket rebuild is throttled);
 		// re-check schedulability here so recently rate-limited/overloaded accounts
 		// are not selected again before the bucket is rebuilt.
-		if !s.isAccountSchedulableForSelection(acc) {
+		if !s.isAccountSchedulableForSelection(ctx, acc) {
 			continue
 		}
 		if !s.isAccountAllowedForPlatform(acc, platform, useMixed) {
@@ -2415,11 +2420,21 @@ func (s *GatewayService) isAccountAllowedForPlatform(account *Account, platform 
 	return account.Platform == platform
 }
 
-func (s *GatewayService) isAccountSchedulableForSelection(account *Account) bool {
+func (s *GatewayService) isAccountSchedulableForSelection(ctx context.Context, account *Account) bool {
 	if account == nil {
 		return false
 	}
-	return account.IsSchedulable()
+	if !account.IsSchedulable() {
+		return false
+	}
+	return account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0))
+}
+
+// clearStickyIfUserScheduleDenied reports whether the sticky binding must be
+// dropped because this account is not allowed for the current user. Callers
+// own the actual cache delete so sticky is cleared once per miss.
+func (s *GatewayService) clearStickyIfUserScheduleDenied(ctx context.Context, account *Account) bool {
+	return account != nil && !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0))
 }
 
 func (s *GatewayService) isAccountSchedulableForModelSelection(ctx context.Context, account *Account, requestedModel string) bool {
@@ -3092,7 +3107,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 					account, err := s.getSchedulableAccount(ctx, accountID)
 					// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 					if err == nil {
-						clearSticky := shouldClearStickySession(account, requestedModel)
+						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
@@ -3141,7 +3156,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 			}
 			// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 			// avoid selecting accounts that were recently rate-limited/overloaded.
-			if !s.isAccountSchedulableForSelection(acc) {
+			if !s.isAccountSchedulableForSelection(ctx, acc) {
 				continue
 			}
 			// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
@@ -3211,7 +3226,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 				account, err := s.getSchedulableAccount(ctx, accountID)
 				// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 				if err == nil {
-					clearSticky := shouldClearStickySession(account, requestedModel)
+					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
@@ -3252,7 +3267,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 		}
 		// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 		// avoid selecting accounts that were recently rate-limited/overloaded.
-		if !s.isAccountSchedulableForSelection(acc) {
+		if !s.isAccountSchedulableForSelection(ctx, acc) {
 			continue
 		}
 		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
@@ -3350,7 +3365,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					account, err := s.getSchedulableAccount(ctx, accountID)
 					// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 					if err == nil {
-						clearSticky := shouldClearStickySession(account, requestedModel)
+						clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
@@ -3397,7 +3412,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 			}
 			// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 			// avoid selecting accounts that were recently rate-limited/overloaded.
-			if !s.isAccountSchedulableForSelection(acc) {
+			if !s.isAccountSchedulableForSelection(ctx, acc) {
 				continue
 			}
 			// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
@@ -3471,7 +3486,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 				account, err := s.getSchedulableAccount(ctx, accountID)
 				// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 				if err == nil {
-					clearSticky := shouldClearStickySession(account, requestedModel)
+					clearSticky := shouldClearStickySession(account, requestedModel) || s.clearStickyIfUserScheduleDenied(ctx, account)
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
@@ -3509,7 +3524,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 		}
 		// Scheduler snapshots can be temporarily stale; re-check schedulability here to
 		// avoid selecting accounts that were recently rate-limited/overloaded.
-		if !s.isAccountSchedulableForSelection(acc) {
+		if !s.isAccountSchedulableForSelection(ctx, acc) {
 			continue
 		}
 		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
@@ -3684,7 +3699,7 @@ func (s *GatewayService) diagnoseSelectionFailure(
 	if _, excluded := excludedIDs[acc.ID]; excluded {
 		return selectionFailureDiagnosis{Category: "excluded"}
 	}
-	if !s.isAccountSchedulableForSelection(acc) {
+			if !s.isAccountSchedulableForSelection(ctx, acc) {
 		return selectionFailureDiagnosis{Category: "unschedulable", Detail: "generic_unschedulable"}
 	}
 	if isPlatformFilteredForSelection(acc, platform, allowMixedScheduling) {

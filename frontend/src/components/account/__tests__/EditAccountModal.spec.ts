@@ -164,7 +164,12 @@ function mountModal(account = buildAccount(), groups: any[] = []) {
         Icon: true,
         ProxySelector: true,
         GroupSelector: true,
-        ModelWhitelistSelector: ModelWhitelistSelectorStub
+        ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        OpenAIFastPolicyUserSelector: {
+          props: ['modelValue', 'knownUsers'],
+          emits: ['update:modelValue'],
+          template: '<div data-testid="user-schedule-selector-stub" />'
+        }
       }
     }
   })
@@ -700,5 +705,43 @@ describe('EditAccountModal', () => {
     expect(
       updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_image_generation_bridge_enabled
     ).toBeUndefined()
+  })
+
+  it('uses a four-zone layout with user schedule last after other features', () => {
+    const wrapper = mountModal()
+    const layout = wrapper.get('[data-testid="edit-account-layout"]')
+    expect(layout.classes().join(' ')).toContain('xl:grid-cols-4')
+    expect(layout.classes().join(' ')).toContain('lg:grid-cols-2')
+    expect(wrapper.find('[data-testid="edit-account-zone-config"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-account-zone-groups"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-account-zone-user-schedule"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-account-zone-other"]').exists()).toBe(true)
+    const html = wrapper.html()
+    expect(html.indexOf('edit-account-zone-groups')).toBeLessThan(
+      html.indexOf('edit-account-zone-other')
+    )
+    expect(html.indexOf('edit-account-zone-other')).toBeLessThan(
+      html.indexOf('edit-account-zone-user-schedule')
+    )
+    expect(wrapper.get('[data-testid="edit-account-zone-user-schedule-body"]').classes().join(' ')).toContain('hidden')
+    expect(wrapper.get('[data-testid="edit-account-zone-user-schedule-body"]').classes().join(' ')).toContain('lg:flex')
+  })
+
+  it('restores unrestricted user schedule and submits empty ids', async () => {
+    const account = buildAccount()
+    account.user_schedule_mode = 'allow'
+    account.schedule_users = [{ id: 16, email: 'a@x.com', deleted: false }]
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="user-schedule-restore-default"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_schedule_mode).toBe('unrestricted')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.schedule_user_ids).toEqual([])
   })
 })

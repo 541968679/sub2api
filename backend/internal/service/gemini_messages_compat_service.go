@@ -91,6 +91,7 @@ func (s *GeminiMessagesCompatService) SelectAccountForModel(ctx context.Context,
 }
 
 func (s *GeminiMessagesCompatService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+	ctx = withScheduleUserID(ctx, 0)
 	// 1. 确定目标平台和调度模式
 	// Determine target platform and scheduling mode
 	platform, useMixedScheduling, hasForcePlatform, err := s.resolvePlatformAndSchedulingMode(ctx, groupID)
@@ -204,7 +205,7 @@ func (s *GeminiMessagesCompatService) tryStickySessionHit(
 
 	// 检查账号是否需要清理粘性会话
 	// Check if sticky session should be cleared
-	if shouldClearStickySession(account, requestedModel) {
+	if shouldClearStickySession(account, requestedModel) || !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
 		return nil
 	}
@@ -328,6 +329,9 @@ func (s *GeminiMessagesCompatService) selectBestGeminiAccount(
 
 		// 检查账号是否可用于当前请求
 		if !s.isAccountUsableForRequestWithPrecheck(ctx, acc, requestedModel, platform, useMixedScheduling, precheckResult) {
+			continue
+		}
+		if !acc.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 			continue
 		}
 

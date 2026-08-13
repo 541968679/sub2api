@@ -143,3 +143,21 @@ func TestBuildSchedulerMetadataAccount_KeepsSlimGroupMembership(t *testing.T) {
 	require.Equal(t, int64(11), got.AccountGroups[1].GroupID)
 	require.Nil(t, got.Groups)
 }
+
+func TestBuildSchedulerMetadataAccount_KeepsUserScheduleFields(t *testing.T) {
+	account := service.Account{
+		ID:               42,
+		Platform:         service.PlatformAnthropic,
+		UserScheduleMode: service.UserScheduleModeAllow,
+		ScheduleUserIDs:  []int64{16, 0, 42, 16},
+		ScheduleUsers: []service.ScheduleUserRef{
+			{ID: 16, Email: "drop-from-metadata@example.com"},
+		},
+	}
+
+	got := buildSchedulerMetadataAccount(account)
+
+	require.Equal(t, service.UserScheduleModeAllow, got.UserScheduleMode)
+	require.Equal(t, []int64{16, 42}, got.ScheduleUserIDs)
+	require.Nil(t, got.ScheduleUsers)
+}

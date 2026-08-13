@@ -63,6 +63,14 @@ type Account struct {
 	ParentAccountID *int64 // non-nil → 影子账号（不持凭据，透传母账号凭据）
 	QuotaDimension  string // 用量维度："" / "global" / "spark"
 
+	// UserScheduleMode is unrestricted|allow|deny. Empty unmarshals as unrestricted.
+	UserScheduleMode string
+	// ScheduleUserIDs is the allow/deny membership list loaded with the account
+	// and copied onto the Redis scheduler snapshot.
+	ScheduleUserIDs []int64
+	// ScheduleUsers is admin-list hydration (email + deleted). Not on Redis snapshot.
+	ScheduleUsers []ScheduleUserRef
+
 	Proxy         *Proxy
 	AccountGroups []AccountGroup
 	GroupIDs      []int64

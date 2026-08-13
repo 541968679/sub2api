@@ -92,9 +92,15 @@ import { adminAPI } from "@/api/admin";
 import type { SimpleUser } from "@/api/admin/usage";
 import Icon from "@/components/icons/Icon.vue";
 
-const props = defineProps<{
-  modelValue: number[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: number[];
+    knownUsers?: SimpleUser[];
+  }>(),
+  {
+    knownUsers: () => [],
+  },
+);
 
 const emit = defineEmits<{
   "update:modelValue": [value: number[]];
@@ -221,6 +227,21 @@ function handleDocumentClick(event: MouseEvent): void {
     showDropdown.value = false;
   }
 }
+
+watch(
+  () => props.knownUsers,
+  (users) => {
+    if (!users?.length) return;
+    const next = { ...selectedUsers.value };
+    for (const user of users) {
+      if (user && Number.isInteger(user.id) && user.id > 0) {
+        next[user.id] = user;
+      }
+    }
+    selectedUsers.value = next;
+  },
+  { immediate: true, deep: true },
+);
 
 watch(
   selectedUserIds,

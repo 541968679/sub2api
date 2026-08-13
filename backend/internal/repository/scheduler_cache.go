@@ -449,6 +449,8 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		SessionWindowStart:      account.SessionWindowStart,
 		SessionWindowEnd:        account.SessionWindowEnd,
 		SessionWindowStatus:     account.SessionWindowStatus,
+		UserScheduleMode:        account.UserScheduleMode,
+		ScheduleUserIDs:         copyScheduleUserIDs(account.ScheduleUserIDs),
 		AccountGroups:           filterSchedulerAccountGroups(account.AccountGroups),
 		GroupIDs:                filterSchedulerGroupIDs(account.GroupIDs, account.AccountGroups),
 		Credentials:             filterSchedulerCredentials(account.Credentials),
@@ -510,6 +512,28 @@ func filterSchedulerGroupIDs(groupIDs []int64, accountGroups []service.AccountGr
 		return nil
 	}
 	return filtered
+}
+
+func copyScheduleUserIDs(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func filterSchedulerCredentials(credentials map[string]any) map[string]any {

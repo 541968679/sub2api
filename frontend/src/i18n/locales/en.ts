@@ -4184,6 +4184,7 @@ const enBase = {
       editZones: {
         config: 'Account Config',
         groups: 'Group Config',
+        userSchedule: 'User Schedule',
         other: 'Other Features',
         expand: 'Expand',
         collapse: 'Collapse',
@@ -4218,6 +4219,19 @@ const enBase = {
       schedulableHint: 'Enable to include this account in API request scheduling',
       schedulableEnabled: 'Scheduling enabled',
       schedulableDisabled: 'Scheduling disabled',
+      userSchedule: {
+        modeUnrestricted: 'Unrestricted',
+        modeAllow: 'Allow only',
+        modeDeny: 'Deny',
+        hint: 'Limit which users can schedule this account. Unrestricted keeps current behavior for every user.',
+        usersRequired: 'Allow/deny mode requires at least one user',
+        restoreDefault: 'Restore default',
+        restoreDefaultHint: 'Reset to unrestricted and clear the user list',
+        enableWrite: 'Write user schedule',
+        overwriteHint: 'When checked, overwrites the selected accounts’ user-schedule lists (does not merge)',
+        deleted: 'Deleted',
+        userCountTotal: '{count} users'
+      },
       failedToToggleSchedulable: 'Failed to toggle scheduling status',
       viewUsage: 'View usage records',
       viewUsageShort: 'Usage',
@@ -4280,6 +4294,7 @@ const enBase = {
         schedulerScore: 'Scheduler Score',
         status: 'Status',
         schedulable: 'Schedulable',
+        userSchedule: 'User schedule',
         fallbackOnly: 'Fallback only',
         todayStats: 'Today Stats',
         qualityTtft: 'TTFT',
@@ -4495,7 +4510,7 @@ const enBase = {
         selectionInfoFiltered:
           'About {count} account(s) matching current filters will be updated. Only checked or filled fields change; others stay unchanged.',
         layoutHint:
-          'Layout matches Edit Account: config (left), groups (middle), other features (right). Only fields with the enable checkbox are written.',
+          'Layout matches Edit Account: config, groups, other features, user schedule. Only fields with the enable checkbox are written.',
         baseUrlPlaceholder: 'https://api.anthropic.com or https://api.openai.com',
         baseUrlNotice: 'Applies to API Key accounts only; leave empty to keep existing value',
         submit: 'Apply changes',

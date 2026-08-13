@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
@@ -563,6 +564,21 @@ func (_u *UserUpdate) AddAllowedGroups(v ...*Group) *UserUpdate {
 	return _u.AddAllowedGroupIDs(ids...)
 }
 
+// AddScheduledAccountIDs adds the "scheduled_accounts" edge to the Account entity by IDs.
+func (_u *UserUpdate) AddScheduledAccountIDs(ids ...int64) *UserUpdate {
+	_u.mutation.AddScheduledAccountIDs(ids...)
+	return _u
+}
+
+// AddScheduledAccounts adds the "scheduled_accounts" edges to the Account entity.
+func (_u *UserUpdate) AddScheduledAccounts(v ...*Account) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddScheduledAccountIDs(ids...)
+}
+
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_u *UserUpdate) AddUsageLogIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddUsageLogIDs(ids...)
@@ -797,6 +813,27 @@ func (_u *UserUpdate) RemoveAllowedGroups(v ...*Group) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAllowedGroupIDs(ids...)
+}
+
+// ClearScheduledAccounts clears all "scheduled_accounts" edges to the Account entity.
+func (_u *UserUpdate) ClearScheduledAccounts() *UserUpdate {
+	_u.mutation.ClearScheduledAccounts()
+	return _u
+}
+
+// RemoveScheduledAccountIDs removes the "scheduled_accounts" edge to Account entities by IDs.
+func (_u *UserUpdate) RemoveScheduledAccountIDs(ids ...int64) *UserUpdate {
+	_u.mutation.RemoveScheduledAccountIDs(ids...)
+	return _u
+}
+
+// RemoveScheduledAccounts removes "scheduled_accounts" edges to Account entities.
+func (_u *UserUpdate) RemoveScheduledAccounts(v ...*Account) *UserUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveScheduledAccountIDs(ids...)
 }
 
 // ClearUsageLogs clears all "usage_logs" edges to the UsageLog entity.
@@ -1434,6 +1471,63 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &UserAllowedGroupCreate{config: _u.config, mutation: newUserAllowedGroupMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ScheduledAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ScheduledAccountsTable,
+			Columns: user.ScheduledAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedScheduledAccountsIDs(); len(nodes) > 0 && !_u.mutation.ScheduledAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ScheduledAccountsTable,
+			Columns: user.ScheduledAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ScheduledAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ScheduledAccountsTable,
+			Columns: user.ScheduledAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
@@ -2297,6 +2391,21 @@ func (_u *UserUpdateOne) AddAllowedGroups(v ...*Group) *UserUpdateOne {
 	return _u.AddAllowedGroupIDs(ids...)
 }
 
+// AddScheduledAccountIDs adds the "scheduled_accounts" edge to the Account entity by IDs.
+func (_u *UserUpdateOne) AddScheduledAccountIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.AddScheduledAccountIDs(ids...)
+	return _u
+}
+
+// AddScheduledAccounts adds the "scheduled_accounts" edges to the Account entity.
+func (_u *UserUpdateOne) AddScheduledAccounts(v ...*Account) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddScheduledAccountIDs(ids...)
+}
+
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_u *UserUpdateOne) AddUsageLogIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddUsageLogIDs(ids...)
@@ -2531,6 +2640,27 @@ func (_u *UserUpdateOne) RemoveAllowedGroups(v ...*Group) *UserUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAllowedGroupIDs(ids...)
+}
+
+// ClearScheduledAccounts clears all "scheduled_accounts" edges to the Account entity.
+func (_u *UserUpdateOne) ClearScheduledAccounts() *UserUpdateOne {
+	_u.mutation.ClearScheduledAccounts()
+	return _u
+}
+
+// RemoveScheduledAccountIDs removes the "scheduled_accounts" edge to Account entities by IDs.
+func (_u *UserUpdateOne) RemoveScheduledAccountIDs(ids ...int64) *UserUpdateOne {
+	_u.mutation.RemoveScheduledAccountIDs(ids...)
+	return _u
+}
+
+// RemoveScheduledAccounts removes "scheduled_accounts" edges to Account entities.
+func (_u *UserUpdateOne) RemoveScheduledAccounts(v ...*Account) *UserUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveScheduledAccountIDs(ids...)
 }
 
 // ClearUsageLogs clears all "usage_logs" edges to the UsageLog entity.
@@ -3198,6 +3328,63 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &UserAllowedGroupCreate{config: _u.config, mutation: newUserAllowedGroupMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ScheduledAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ScheduledAccountsTable,
+			Columns: user.ScheduledAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedScheduledAccountsIDs(); len(nodes) > 0 && !_u.mutation.ScheduledAccountsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ScheduledAccountsTable,
+			Columns: user.ScheduledAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ScheduledAccountsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   user.ScheduledAccountsTable,
+			Columns: user.ScheduledAccountsPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(account.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields

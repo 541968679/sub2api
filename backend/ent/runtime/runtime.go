@@ -7,6 +7,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
@@ -272,6 +273,26 @@ func init() {
 	accountDescSessionWindowStatus := accountFields[24].Descriptor()
 	// account.SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	account.SessionWindowStatusValidator = accountDescSessionWindowStatus.Validators[0].(func(string) error)
+	// accountDescUserScheduleMode is the schema descriptor for user_schedule_mode field.
+	accountDescUserScheduleMode := accountFields[27].Descriptor()
+	// account.DefaultUserScheduleMode holds the default value on creation for the user_schedule_mode field.
+	account.DefaultUserScheduleMode = accountDescUserScheduleMode.Default.(string)
+	// account.UserScheduleModeValidator is a validator for the "user_schedule_mode" field. It is called by the builders before save.
+	account.UserScheduleModeValidator = func() func(string) error {
+		validators := accountDescUserScheduleMode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(user_schedule_mode string) error {
+			for _, fn := range fns {
+				if err := fn(user_schedule_mode); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	accountgroupFields := schema.AccountGroup{}.Fields()
 	_ = accountgroupFields
 	// accountgroupDescPriority is the schema descriptor for priority field.
@@ -282,6 +303,12 @@ func init() {
 	accountgroupDescCreatedAt := accountgroupFields[3].Descriptor()
 	// accountgroup.DefaultCreatedAt holds the default value on creation for the created_at field.
 	accountgroup.DefaultCreatedAt = accountgroupDescCreatedAt.Default.(func() time.Time)
+	accountscheduleuserFields := schema.AccountScheduleUser{}.Fields()
+	_ = accountscheduleuserFields
+	// accountscheduleuserDescCreatedAt is the schema descriptor for created_at field.
+	accountscheduleuserDescCreatedAt := accountscheduleuserFields[2].Descriptor()
+	// accountscheduleuser.DefaultCreatedAt holds the default value on creation for the created_at field.
+	accountscheduleuser.DefaultCreatedAt = accountscheduleuserDescCreatedAt.Default.(func() time.Time)
 	announcementFields := schema.Announcement{}.Fields()
 	_ = announcementFields
 	// announcementDescTitle is the schema descriptor for title field.

@@ -190,6 +190,11 @@ func ParentAccountID(v int64) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldParentAccountID, v))
 }
 
+// UserScheduleMode applies equality check predicate on the "user_schedule_mode" field. It's identical to UserScheduleModeEQ.
+func UserScheduleMode(v string) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldUserScheduleMode, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Account {
 	return predicate.Account(sql.FieldEQ(FieldCreatedAt, v))
@@ -1550,6 +1555,71 @@ func QuotaDimensionNotIn(vs ...QuotaDimension) predicate.Account {
 	return predicate.Account(sql.FieldNotIn(FieldQuotaDimension, vs...))
 }
 
+// UserScheduleModeEQ applies the EQ predicate on the "user_schedule_mode" field.
+func UserScheduleModeEQ(v string) predicate.Account {
+	return predicate.Account(sql.FieldEQ(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeNEQ applies the NEQ predicate on the "user_schedule_mode" field.
+func UserScheduleModeNEQ(v string) predicate.Account {
+	return predicate.Account(sql.FieldNEQ(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeIn applies the In predicate on the "user_schedule_mode" field.
+func UserScheduleModeIn(vs ...string) predicate.Account {
+	return predicate.Account(sql.FieldIn(FieldUserScheduleMode, vs...))
+}
+
+// UserScheduleModeNotIn applies the NotIn predicate on the "user_schedule_mode" field.
+func UserScheduleModeNotIn(vs ...string) predicate.Account {
+	return predicate.Account(sql.FieldNotIn(FieldUserScheduleMode, vs...))
+}
+
+// UserScheduleModeGT applies the GT predicate on the "user_schedule_mode" field.
+func UserScheduleModeGT(v string) predicate.Account {
+	return predicate.Account(sql.FieldGT(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeGTE applies the GTE predicate on the "user_schedule_mode" field.
+func UserScheduleModeGTE(v string) predicate.Account {
+	return predicate.Account(sql.FieldGTE(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeLT applies the LT predicate on the "user_schedule_mode" field.
+func UserScheduleModeLT(v string) predicate.Account {
+	return predicate.Account(sql.FieldLT(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeLTE applies the LTE predicate on the "user_schedule_mode" field.
+func UserScheduleModeLTE(v string) predicate.Account {
+	return predicate.Account(sql.FieldLTE(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeContains applies the Contains predicate on the "user_schedule_mode" field.
+func UserScheduleModeContains(v string) predicate.Account {
+	return predicate.Account(sql.FieldContains(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeHasPrefix applies the HasPrefix predicate on the "user_schedule_mode" field.
+func UserScheduleModeHasPrefix(v string) predicate.Account {
+	return predicate.Account(sql.FieldHasPrefix(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeHasSuffix applies the HasSuffix predicate on the "user_schedule_mode" field.
+func UserScheduleModeHasSuffix(v string) predicate.Account {
+	return predicate.Account(sql.FieldHasSuffix(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeEqualFold applies the EqualFold predicate on the "user_schedule_mode" field.
+func UserScheduleModeEqualFold(v string) predicate.Account {
+	return predicate.Account(sql.FieldEqualFold(FieldUserScheduleMode, v))
+}
+
+// UserScheduleModeContainsFold applies the ContainsFold predicate on the "user_schedule_mode" field.
+func UserScheduleModeContainsFold(v string) predicate.Account {
+	return predicate.Account(sql.FieldContainsFold(FieldUserScheduleMode, v))
+}
+
 // HasGroups applies the HasEdge predicate on the "groups" edge.
 func HasGroups() predicate.Account {
 	return predicate.Account(func(s *sql.Selector) {
@@ -1565,6 +1635,29 @@ func HasGroups() predicate.Account {
 func HasGroupsWith(preds ...predicate.Group) predicate.Account {
 	return predicate.Account(func(s *sql.Selector) {
 		step := newGroupsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasScheduleUsers applies the HasEdge predicate on the "schedule_users" edge.
+func HasScheduleUsers() predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, ScheduleUsersTable, ScheduleUsersPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasScheduleUsersWith applies the HasEdge predicate on the "schedule_users" edge with a given conditions (other predicates).
+func HasScheduleUsersWith(preds ...predicate.User) predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := newScheduleUsersStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)
@@ -1680,6 +1773,29 @@ func HasAccountGroups() predicate.Account {
 func HasAccountGroupsWith(preds ...predicate.AccountGroup) predicate.Account {
 	return predicate.Account(func(s *sql.Selector) {
 		step := newAccountGroupsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasAccountScheduleUsers applies the HasEdge predicate on the "account_schedule_users" edge.
+func HasAccountScheduleUsers() predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, AccountScheduleUsersTable, AccountScheduleUsersColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAccountScheduleUsersWith applies the HasEdge predicate on the "account_schedule_users" edge with a given conditions (other predicates).
+func HasAccountScheduleUsersWith(preds ...predicate.AccountScheduleUser) predicate.Account {
+	return predicate.Account(func(s *sql.Selector) {
+		step := newAccountScheduleUsersStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

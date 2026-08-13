@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.bulkEdit.title')"
-    width="extra-wide"
+    width="full"
     @close="handleClose"
   >
     <form id="bulk-edit-account-form" class="space-y-5" @submit.prevent="() => handleSubmit()">
@@ -40,7 +40,7 @@
       
 
       <div
-        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-2 lg:items-stretch lg:gap-4 xl:grid-cols-4"
         data-testid="bulk-edit-account-layout"
       >
         <!-- Zone 1: Account config (mirrors EditAccountModal) -->
@@ -1500,6 +1500,82 @@
       
           </div>
         </section>
+
+        <!-- Zone 4: User schedule (last; collapsed by default below lg) -->
+        <section
+          class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden"
+          data-testid="bulk-edit-zone-user-schedule"
+        >
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600 lg:cursor-default"
+            data-testid="bulk-edit-zone-user-schedule-toggle"
+            @click="zoneScheduleExpanded = !zoneScheduleExpanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.userSchedule') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 lg:hidden">
+              {{ zoneScheduleExpanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
+              <Icon :name="zoneScheduleExpanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+
+          <div
+            class="min-h-0 flex-1 flex-col space-y-4 lg:flex lg:overflow-y-auto lg:pr-1"
+            :class="zoneScheduleExpanded ? 'flex' : 'hidden lg:flex'"
+            data-testid="bulk-edit-zone-user-schedule-body"
+          >
+            <div class="flex items-center justify-between">
+              <label
+                id="bulk-edit-user-schedule-label"
+                class="input-label mb-0"
+                for="bulk-edit-user-schedule-enabled"
+              >
+                {{ t('admin.accounts.userSchedule.enableWrite') }}
+              </label>
+              <input
+                v-model="enableUserSchedule"
+                id="bulk-edit-user-schedule-enabled"
+                type="checkbox"
+                data-testid="bulk-edit-user-schedule-enabled"
+                aria-controls="bulk-edit-user-schedule"
+                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.userSchedule.overwriteHint') }}
+            </p>
+            <div id="bulk-edit-user-schedule" :class="!enableUserSchedule && 'pointer-events-none opacity-50'">
+              <div class="flex flex-col gap-2" data-testid="bulk-edit-user-schedule-mode">
+                <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+                  <input v-model="userScheduleMode" type="radio" value="unrestricted" class="text-primary-600 focus:ring-primary-500" data-testid="bulk-user-schedule-mode-unrestricted" />
+                  {{ t('admin.accounts.userSchedule.modeUnrestricted') }}
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+                  <input v-model="userScheduleMode" type="radio" value="allow" class="text-primary-600 focus:ring-primary-500" data-testid="bulk-user-schedule-mode-allow" />
+                  {{ t('admin.accounts.userSchedule.modeAllow') }}
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+                  <input v-model="userScheduleMode" type="radio" value="deny" class="text-primary-600 focus:ring-primary-500" data-testid="bulk-user-schedule-mode-deny" />
+                  {{ t('admin.accounts.userSchedule.modeDeny') }}
+                </label>
+              </div>
+              <div v-if="userScheduleMode !== 'unrestricted'" class="mt-3" data-testid="bulk-edit-user-schedule-picker">
+                <OpenAIFastPolicyUserSelector v-model="scheduleUserIds" />
+              </div>
+              <button
+                type="button"
+                class="mt-3 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                data-testid="bulk-user-schedule-restore-default"
+                :title="t('admin.accounts.userSchedule.restoreDefaultHint')"
+                @click="restoreBulkUserScheduleDefault"
+              >
+                {{ t('admin.accounts.userSchedule.restoreDefault') }}
+              </button>
+            </div>
+          </div>
+        </section>
       </div>
 </form>
 
@@ -1573,6 +1649,7 @@ import Select from '@/components/common/Select.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import OpenAIFastPolicyUserSelector from '@/views/admin/settings/OpenAIFastPolicyUserSelector.vue'
 import Icon from '@/components/icons/Icon.vue'
 import {
   buildModelMappingObject as buildModelMappingPayload,
@@ -1724,6 +1801,7 @@ const enableStatus = ref(false)
 const enableFallbackOnly = ref(false)
 const enableModelMappingStrictScheduling = ref(false)
 const enableGroups = ref(false)
+const enableUserSchedule = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIClaudeGPTBridge = ref(false)
 const enableOpenAIImagesEndpoint = ref(false)
@@ -1736,6 +1814,7 @@ const enableRpmLimit = ref(false)
 // State - field values
 const zone2Expanded = ref(true)
 const zone3Expanded = ref(true)
+const zoneScheduleExpanded = ref(false)
 const submitting = ref(false)
 const showMixedChannelWarning = ref(false)
 const mixedChannelWarningMessage = ref('')
@@ -1789,6 +1868,8 @@ const status = ref<'active' | 'inactive'>('active')
 const fallbackOnly = ref(false)
 const modelMappingStrictScheduling = ref(false)
 const groupIds = ref<number[]>([])
+const userScheduleMode = ref<'unrestricted' | 'allow' | 'deny'>('unrestricted')
+const scheduleUserIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const openAIImagesEndpointEnabled = ref(true)
@@ -2155,6 +2236,12 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     updates.group_ids = groupIds.value
   }
 
+  if (enableUserSchedule.value) {
+    updates.user_schedule_mode = userScheduleMode.value
+    updates.schedule_user_ids =
+      userScheduleMode.value === 'unrestricted' ? [] : [...scheduleUserIds.value]
+  }
+
   if (enableBaseUrl.value) {
     const baseUrlValue = baseUrl.value.trim()
     if (baseUrlValue) {
@@ -2285,6 +2372,11 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   return Object.keys(updates).length > 0 ? updates : null
 }
 
+const restoreBulkUserScheduleDefault = () => {
+  userScheduleMode.value = 'unrestricted'
+  scheduleUserIds.value = []
+}
+
 const mixedChannelConfirmed = ref(false)
 
 // 是否需要预检查：改了分组 + 全是单一的 antigravity 或 anthropic 平台
@@ -2350,6 +2442,7 @@ const handleSubmit = async () => {
     enableFallbackOnly.value ||
     enableModelMappingStrictScheduling.value ||
     enableGroups.value ||
+    enableUserSchedule.value ||
     enableOpenAIWSMode.value ||
     enableOpenAIAPIKeyWSMode.value ||
     enableCodexCLIOnly.value ||
@@ -2358,6 +2451,15 @@ const handleSubmit = async () => {
 
   if (!hasAnyFieldEnabled) {
     appStore.showError(t('admin.accounts.bulkEdit.noFieldsSelected'))
+    return
+  }
+
+  if (
+    enableUserSchedule.value &&
+    (userScheduleMode.value === 'allow' || userScheduleMode.value === 'deny') &&
+    scheduleUserIds.value.length === 0
+  ) {
+    appStore.showError(t('admin.accounts.userSchedule.usersRequired'))
     return
   }
 
@@ -2475,7 +2577,9 @@ watch(
       enableFallbackOnly.value = false
       enableModelMappingStrictScheduling.value = false
       enableGroups.value = false
+      enableUserSchedule.value = false
       zone2Expanded.value = true
+      zoneScheduleExpanded.value = false
       zone3Expanded.value = true
       enableOpenAIPassthrough.value = false
       enableOpenAIClaudeGPTBridge.value = false
@@ -2512,6 +2616,8 @@ watch(
       fallbackOnly.value = false
       modelMappingStrictScheduling.value = false
       groupIds.value = []
+      userScheduleMode.value = 'unrestricted'
+      scheduleUserIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false

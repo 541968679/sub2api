@@ -462,6 +462,9 @@
               <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
             </button>
           </template>
+          <template #cell-user_schedule="{ row }">
+            <AccountUserScheduleCell :account="row" />
+          </template>
           <template #header-fallback_only="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
@@ -804,6 +807,7 @@ import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
+import AccountUserScheduleCell from '@/components/account/AccountUserScheduleCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
 import AccountInlineNumberCell from '@/components/account/AccountInlineNumberCell.vue'
 import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
@@ -946,6 +950,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   concurrency: 110,
   status: 120,
   schedulable: 100,
+  user_schedule: 160,
   priority: 100,
   actions: 120
 }
@@ -2010,6 +2015,7 @@ const allColumns = computed(() => {
     { key: 'concurrency', label: t('admin.accounts.columns.concurrency'), sortable: true },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
+    { key: 'user_schedule', label: t('admin.accounts.columns.userSchedule'), sortable: false },
     { key: 'fallback_only', label: t('admin.accounts.columns.fallbackOnly'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
     { key: 'quality_ttft', label: t('admin.accounts.columns.qualityTtft'), sortable: false },

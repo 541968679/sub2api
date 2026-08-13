@@ -150,6 +150,7 @@ var (
 		{Name: "session_window_end", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "session_window_status", Type: field.TypeString, Nullable: true, Size: 20},
 		{Name: "quota_dimension", Type: field.TypeEnum, Enums: []string{"global", "spark"}, Default: "global"},
+		{Name: "user_schedule_mode", Type: field.TypeString, Size: 16, Default: "unrestricted"},
 		{Name: "proxy_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "parent_account_id", Type: field.TypeInt64, Nullable: true},
 	}
@@ -161,13 +162,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "accounts_proxies_proxy",
-				Columns:    []*schema.Column{AccountsColumns[29]},
+				Columns:    []*schema.Column{AccountsColumns[30]},
 				RefColumns: []*schema.Column{ProxiesColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "accounts_accounts_children",
-				Columns:    []*schema.Column{AccountsColumns[30]},
+				Columns:    []*schema.Column{AccountsColumns[31]},
 				RefColumns: []*schema.Column{AccountsColumns[0]},
 				OnDelete:   schema.Restrict,
 			},
@@ -191,7 +192,7 @@ var (
 			{
 				Name:    "account_proxy_id",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[29]},
+				Columns: []*schema.Column{AccountsColumns[30]},
 			},
 			{
 				Name:    "account_priority",
@@ -241,7 +242,7 @@ var (
 			{
 				Name:    "account_parent_account_id",
 				Unique:  false,
-				Columns: []*schema.Column{AccountsColumns[30]},
+				Columns: []*schema.Column{AccountsColumns[31]},
 			},
 		},
 	}
@@ -281,6 +282,39 @@ var (
 				Name:    "accountgroup_priority",
 				Unique:  false,
 				Columns: []*schema.Column{AccountGroupsColumns[0]},
+			},
+		},
+	}
+	// AccountScheduleUsersColumns holds the columns for the "account_schedule_users" table.
+	AccountScheduleUsersColumns = []*schema.Column{
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "user_id", Type: field.TypeInt64},
+	}
+	// AccountScheduleUsersTable holds the schema information for the "account_schedule_users" table.
+	AccountScheduleUsersTable = &schema.Table{
+		Name:       "account_schedule_users",
+		Columns:    AccountScheduleUsersColumns,
+		PrimaryKey: []*schema.Column{AccountScheduleUsersColumns[1], AccountScheduleUsersColumns[2]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "account_schedule_users_accounts_account",
+				Columns:    []*schema.Column{AccountScheduleUsersColumns[1]},
+				RefColumns: []*schema.Column{AccountsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "account_schedule_users_users_user",
+				Columns:    []*schema.Column{AccountScheduleUsersColumns[2]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "accountscheduleuser_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{AccountScheduleUsersColumns[2]},
 			},
 		},
 	}
@@ -2125,6 +2159,7 @@ var (
 		APIKeysTable,
 		AccountsTable,
 		AccountGroupsTable,
+		AccountScheduleUsersTable,
 		AnnouncementsTable,
 		AnnouncementReadsTable,
 		AuthIdentitiesTable,
@@ -2183,6 +2218,11 @@ func init() {
 	AccountGroupsTable.ForeignKeys[1].RefTable = GroupsTable
 	AccountGroupsTable.Annotation = &entsql.Annotation{
 		Table: "account_groups",
+	}
+	AccountScheduleUsersTable.ForeignKeys[0].RefTable = AccountsTable
+	AccountScheduleUsersTable.ForeignKeys[1].RefTable = UsersTable
+	AccountScheduleUsersTable.Annotation = &entsql.Annotation{
+		Table: "account_schedule_users",
 	}
 	AnnouncementsTable.Annotation = &entsql.Annotation{
 		Table: "announcements",

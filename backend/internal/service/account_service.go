@@ -52,6 +52,10 @@ type AccountRepository interface {
 	SetSchedulable(ctx context.Context, id int64, schedulable bool) error
 	AutoPauseExpiredAccounts(ctx context.Context, now time.Time) (int64, error)
 	BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error
+	// SyncScheduleUsers replaces account_schedule_users rows and enqueues account_changed.
+	SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error
+	// ListScheduleUserRefs loads id/email/deleted for the given user IDs, including soft-deleted users.
+	ListScheduleUserRefs(ctx context.Context, userIDs []int64) ([]ScheduleUserRef, error)
 
 	ListSchedulable(ctx context.Context) ([]Account, error)
 	ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]Account, error)
@@ -105,6 +109,7 @@ type AccountBulkUpdate struct {
 	Schedulable    *bool
 	Credentials    map[string]any
 	Extra          map[string]any
+	UserScheduleMode *string
 }
 
 // CreateAccountRequest 创建账号请求

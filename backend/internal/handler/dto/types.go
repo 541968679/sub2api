@@ -292,6 +292,15 @@ type Account struct {
 
 	GroupIDs []int64  `json:"group_ids,omitempty"`
 	Groups   []*Group `json:"groups,omitempty"`
+
+	UserScheduleMode string         `json:"user_schedule_mode,omitempty"`
+	ScheduleUsers    []ScheduleUser `json:"schedule_users,omitempty"`
+}
+
+type ScheduleUser struct {
+	ID      int64  `json:"id"`
+	Email   string `json:"email"`
+	Deleted bool   `json:"deleted"`
 }
 
 type AccountGroup struct {

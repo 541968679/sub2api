@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -27,10 +28,14 @@ type accountRepoStubForBulkUpdate struct {
 	getByIDCalled    []int64
 	listByGroupData  map[int64][]Account
 	listByGroupErr   map[int64]error
-	listData         []Account
-	listResult       *pagination.PaginationResult
-	listErr          error
-	listCalled       bool
+	listData           []Account
+	listResult         *pagination.PaginationResult
+	listErr            error
+	listCalled         bool
+	syncScheduleCalls  map[int64][]int64
+	lastBulkUpdates    AccountBulkUpdate
+	lastUpdated        *Account
+	existingUserIDs    map[int64]bool
 	lastListParams   pagination.PaginationParams
 	lastListFilters  struct {
 		platform    string
@@ -42,12 +47,26 @@ type accountRepoStubForBulkUpdate struct {
 	}
 }
 
-func (s *accountRepoStubForBulkUpdate) BulkUpdate(_ context.Context, ids []int64, _ AccountBulkUpdate) (int64, error) {
+func (s *accountRepoStubForBulkUpdate) BulkUpdate(_ context.Context, ids []int64, updates AccountBulkUpdate) (int64, error) {
 	s.bulkUpdateIDs = append([]int64{}, ids...)
+	s.lastBulkUpdates = updates
 	if s.bulkUpdateErr != nil {
 		return 0, s.bulkUpdateErr
 	}
 	return int64(len(ids)), nil
+}
+
+func (s *accountRepoStubForBulkUpdate) Update(_ context.Context, account *Account) error {
+	s.lastUpdated = account
+	if s.getByIDAccounts == nil {
+		s.getByIDAccounts = map[int64]*Account{}
+	}
+	copied := *account
+	if account.ScheduleUserIDs != nil {
+		copied.ScheduleUserIDs = append([]int64(nil), account.ScheduleUserIDs...)
+	}
+	s.getByIDAccounts[account.ID] = &copied
+	return nil
 }
 
 func (s *accountRepoStubForBulkUpdate) BindGroups(_ context.Context, accountID int64, _ []int64) error {
@@ -56,6 +75,32 @@ func (s *accountRepoStubForBulkUpdate) BindGroups(_ context.Context, accountID i
 		return err
 	}
 	return nil
+}
+
+func (s *accountRepoStubForBulkUpdate) SyncScheduleUsers(_ context.Context, accountID int64, userIDs []int64) error {
+	if s.syncScheduleCalls == nil {
+		s.syncScheduleCalls = map[int64][]int64{}
+	}
+	copied := make([]int64, len(userIDs))
+	copy(copied, userIDs)
+	s.syncScheduleCalls[accountID] = copied
+	return nil
+}
+
+func (s *accountRepoStubForBulkUpdate) ListScheduleUserRefs(_ context.Context, userIDs []int64) ([]ScheduleUserRef, error) {
+	out := make([]ScheduleUserRef, 0, len(userIDs))
+	for _, id := range userIDs {
+		if id <= 0 {
+			continue
+		}
+		if s.existingUserIDs != nil {
+			if !s.existingUserIDs[id] {
+				continue
+			}
+		}
+		out = append(out, ScheduleUserRef{ID: id, Email: fmt.Sprintf("user-%d@example.com", id)})
+	}
+	return out, nil
 }
 
 func (s *accountRepoStubForBulkUpdate) GetByIDs(_ context.Context, ids []int64) ([]*Account, error) {

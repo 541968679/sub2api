@@ -79,6 +79,8 @@ const (
 	EdgeAnnouncementReads = "announcement_reads"
 	// EdgeAllowedGroups holds the string denoting the allowed_groups edge name in mutations.
 	EdgeAllowedGroups = "allowed_groups"
+	// EdgeScheduledAccounts holds the string denoting the scheduled_accounts edge name in mutations.
+	EdgeScheduledAccounts = "scheduled_accounts"
 	// EdgeUsageLogs holds the string denoting the usage_logs edge name in mutations.
 	EdgeUsageLogs = "usage_logs"
 	// EdgeAttributeValues holds the string denoting the attribute_values edge name in mutations.
@@ -95,6 +97,8 @@ const (
 	EdgePlatformQuotas = "platform_quotas"
 	// EdgeUserAllowedGroups holds the string denoting the user_allowed_groups edge name in mutations.
 	EdgeUserAllowedGroups = "user_allowed_groups"
+	// EdgeAccountScheduleUsers holds the string denoting the account_schedule_users edge name in mutations.
+	EdgeAccountScheduleUsers = "account_schedule_users"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// APIKeysTable is the table that holds the api_keys relation/edge.
@@ -137,6 +141,11 @@ const (
 	// AllowedGroupsInverseTable is the table name for the Group entity.
 	// It exists in this package in order to avoid circular dependency with the "group" package.
 	AllowedGroupsInverseTable = "groups"
+	// ScheduledAccountsTable is the table that holds the scheduled_accounts relation/edge. The primary key declared below.
+	ScheduledAccountsTable = "account_schedule_users"
+	// ScheduledAccountsInverseTable is the table name for the Account entity.
+	// It exists in this package in order to avoid circular dependency with the "account" package.
+	ScheduledAccountsInverseTable = "accounts"
 	// UsageLogsTable is the table that holds the usage_logs relation/edge.
 	UsageLogsTable = "usage_logs"
 	// UsageLogsInverseTable is the table name for the UsageLog entity.
@@ -193,6 +202,13 @@ const (
 	UserAllowedGroupsInverseTable = "user_allowed_groups"
 	// UserAllowedGroupsColumn is the table column denoting the user_allowed_groups relation/edge.
 	UserAllowedGroupsColumn = "user_id"
+	// AccountScheduleUsersTable is the table that holds the account_schedule_users relation/edge.
+	AccountScheduleUsersTable = "account_schedule_users"
+	// AccountScheduleUsersInverseTable is the table name for the AccountScheduleUser entity.
+	// It exists in this package in order to avoid circular dependency with the "accountscheduleuser" package.
+	AccountScheduleUsersInverseTable = "account_schedule_users"
+	// AccountScheduleUsersColumn is the table column denoting the account_schedule_users relation/edge.
+	AccountScheduleUsersColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -230,6 +246,9 @@ var (
 	// AllowedGroupsPrimaryKey and AllowedGroupsColumn2 are the table columns denoting the
 	// primary key for the allowed_groups relation (M2M).
 	AllowedGroupsPrimaryKey = []string{"user_id", "group_id"}
+	// ScheduledAccountsPrimaryKey and ScheduledAccountsColumn2 are the table columns denoting the
+	// primary key for the scheduled_accounts relation (M2M).
+	ScheduledAccountsPrimaryKey = []string{"account_id", "user_id"}
 )
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -524,6 +543,20 @@ func ByAllowedGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	}
 }
 
+// ByScheduledAccountsCount orders the results by scheduled_accounts count.
+func ByScheduledAccountsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newScheduledAccountsStep(), opts...)
+	}
+}
+
+// ByScheduledAccounts orders the results by scheduled_accounts terms.
+func ByScheduledAccounts(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newScheduledAccountsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUsageLogsCount orders the results by usage_logs count.
 func ByUsageLogsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -635,6 +668,20 @@ func ByUserAllowedGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption
 		sqlgraph.OrderByNeighborTerms(s, newUserAllowedGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByAccountScheduleUsersCount orders the results by account_schedule_users count.
+func ByAccountScheduleUsersCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAccountScheduleUsersStep(), opts...)
+	}
+}
+
+// ByAccountScheduleUsers orders the results by account_schedule_users terms.
+func ByAccountScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAccountScheduleUsersStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newAPIKeysStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -675,6 +722,13 @@ func newAllowedGroupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AllowedGroupsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2M, false, AllowedGroupsTable, AllowedGroupsPrimaryKey...),
+	)
+}
+func newScheduledAccountsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ScheduledAccountsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, true, ScheduledAccountsTable, ScheduledAccountsPrimaryKey...),
 	)
 }
 func newUsageLogsStep() *sqlgraph.Step {
@@ -731,5 +785,12 @@ func newUserAllowedGroupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(UserAllowedGroupsInverseTable, UserAllowedGroupsColumn),
 		sqlgraph.Edge(sqlgraph.O2M, true, UserAllowedGroupsTable, UserAllowedGroupsColumn),
+	)
+}
+func newAccountScheduleUsersStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AccountScheduleUsersInverseTable, AccountScheduleUsersColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, AccountScheduleUsersTable, AccountScheduleUsersColumn),
 	)
 }

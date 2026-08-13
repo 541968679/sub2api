@@ -1036,6 +1036,12 @@ export interface TempUnschedulableStatus {
   state?: TempUnschedulableState
 }
 
+export interface AccountScheduleUser {
+  id: number
+  email: string
+  deleted: boolean
+}
+
 export interface Account {
   id: number
   name: string
@@ -1075,6 +1081,9 @@ export interface Account {
 
   /** When true, only selected after all non-fallback peers are unavailable. */
   fallback_only?: boolean
+
+  user_schedule_mode?: 'unrestricted' | 'allow' | 'deny'
+  schedule_users?: AccountScheduleUser[]
 
   // Rate limit & scheduling fields
   schedulable: boolean
@@ -1366,6 +1375,8 @@ export interface UpdateAccountRequest {
   expires_at?: number | null
   auto_pause_on_expired?: boolean
   confirm_mixed_channel_risk?: boolean
+  user_schedule_mode?: 'unrestricted' | 'allow' | 'deny'
+  schedule_user_ids?: number[]
 }
 
 export interface CheckMixedChannelRequest {

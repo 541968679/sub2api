@@ -2,6 +2,12 @@
 
 > 管理 AI 平台账号（Antigravity/Anthropic/OpenAI/Gemini/Grok），包括 OAuth 导入、批量创建、状态监控、AI Credits 和配额追踪。
 
+## Per-account user schedule
+
+Admins can set each account to `unrestricted` (default), `allow`, or `deny` without creating exclusive groups. Membership lives in `account_schedule_users`; mode is `accounts.user_schedule_mode`. Create-account stays unrestricted. Spark shadows do not inherit the parent list.
+
+Admin edit/bulk use a last-column user-schedule zone (config / groups / other / user schedule) and reuse `OpenAIFastPolicyUserSelector`. The account list `user_schedule` column is default-visible: unrestricted shows `—`; allow/deny show a short tag plus email chips (`#id` fallback, `+N` overflow). Saving `allow`/`deny` requires at least one user ID; restore-default writes `unrestricted` and clears the join rows. Scheduler evaluation is documented in [gateway.md](./gateway.md#account-user-schedule-filter).
+
 ## Grok account routing and quota state
 
 Grok has two credential modes with different default upstreams:

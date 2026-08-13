@@ -1648,6 +1648,29 @@ func HasAllowedGroupsWith(preds ...predicate.Group) predicate.User {
 	})
 }
 
+// HasScheduledAccounts applies the HasEdge predicate on the "scheduled_accounts" edge.
+func HasScheduledAccounts() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, ScheduledAccountsTable, ScheduledAccountsPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasScheduledAccountsWith applies the HasEdge predicate on the "scheduled_accounts" edge with a given conditions (other predicates).
+func HasScheduledAccountsWith(preds ...predicate.Account) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newScheduledAccountsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasUsageLogs applies the HasEdge predicate on the "usage_logs" edge.
 func HasUsageLogs() predicate.User {
 	return predicate.User(func(s *sql.Selector) {
@@ -1824,6 +1847,29 @@ func HasUserAllowedGroups() predicate.User {
 func HasUserAllowedGroupsWith(preds ...predicate.UserAllowedGroup) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newUserAllowedGroupsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasAccountScheduleUsers applies the HasEdge predicate on the "account_schedule_users" edge.
+func HasAccountScheduleUsers() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, AccountScheduleUsersTable, AccountScheduleUsersColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAccountScheduleUsersWith applies the HasEdge predicate on the "account_schedule_users" edge with a given conditions (other predicates).
+func HasAccountScheduleUsersWith(preds ...predicate.AccountScheduleUser) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newAccountScheduleUsersStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

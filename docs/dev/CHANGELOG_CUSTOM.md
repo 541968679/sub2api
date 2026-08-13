@@ -15,6 +15,63 @@ The toggle only existed on edit/bulk-edit, so a newly added account always start
 `frontend/src/components/account/__tests__/CreateAccountModal.spec.ts`,
 this changelog.
 
+## 2026-08-13 - fix(scheduler): apply user deny/allow on OpenAI load-awareness fallback
+
+### What
+- OpenAI account selection now applies `AllowsScheduleUser` on the load-awareness fallback used when the advanced scheduler is off (local default), including sticky hits and the post-DB recheck.
+
+### Why
+A live local Codex/`/v1/responses` probe still scheduled the only OpenAI account after the admin user was added to that account's deny list, because the filter lived only on the advanced-scheduler path.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "UserScheduleDenyFiltersWhenAdvancedSchedulerDisabled|UserScheduleDenyOnlyAccountWhenAdvancedSchedulerDisabled|UserScheduleDenyStickyClearedWhenAdvancedSchedulerDisabled" -count=1`
+- Repeat the local admin-key `/v1/responses` probe after air reload; expect no new `usage_logs` row on the denied account.
+
+### Affected files
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/account_user_schedule_select_test.go`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-13 - feat(scheduler): account-user allow/deny scheduling
+
+### What
+- Admins can set per-account user scheduling to unrestricted, allow-list, or deny-list.
+- Gateway and OpenAI schedulers skip accounts that the current user is not allowed to use, including sticky/previous_response pins.
+- Account edit and bulk edit add a last-column “user schedule” zone (after other features); the account list shows a mode tag plus user chips.
+
+### Why
+Reserving or excluding a specific account for a specific user previously required a dedicated group.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "AllowsScheduleUser|UserSchedule|Sticky.*UserSchedule|SelectAccount.*UserSchedule" -count=1`
+- `go test -tags=unit ./internal/repository -run "BuildSchedulerMetadataAccount|AccountSchedule" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "AccountHandler.*(Update|Bulk|UserSchedule)" -count=1`
+- `go test -tags=unit ./internal/service -run "OpenAISelectAccountForModelWithExclusions_Sticky|UserScheduleUnrestrictedStickyStillHits" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/BulkEditAccountModal.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/views/admin/__tests__/AccountsView.schedulerScore.spec.ts`
+
+### Affected files
+`backend/migrations/197_account_user_schedule.sql`,
+`backend/ent/schema/account.go`,
+`backend/ent/schema/account_schedule_user.go`,
+`backend/ent/schema/user.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/admin_account_user_schedule.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/repository/account_repo.go`,
+`backend/internal/repository/scheduler_cache.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/handler/dto/types.go`,
+`backend/internal/handler/dto/mappers.go`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/BulkEditAccountModal.vue`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-08-13 - feat(admin): account/user usage and error inspect dialog
 
 ### What

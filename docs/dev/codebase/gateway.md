@@ -11,6 +11,17 @@ tokens or building ChatGPT/FedRAMP headers. HTTP and WebSocket paths keep the
 shadow ID for connection ownership, usage snapshots, and Spark rate limits;
 the parent supplies authentication identity and the inherited proxy.
 
+## Account user-schedule filter
+
+After group/platform/`IsSchedulable` filters, selection calls `Account.AllowsScheduleUser(userID)`:
+
+1. Explicit `sub2apiUserID` if `> 0`, else `ctxkey.UserID`, else `0`.
+2. `unrestricted` (empty mode) always matches. `allow` is an allow-list; `deny` is a block-list.
+3. `userID=0` fail-closes for `allow`/`deny`. Runtime dirty data: empty `allow` matches nobody; empty `deny` matches everyone.
+4. Sticky / previous_response pins that fail the filter are dropped once, then a compliant account is selected.
+5. Spark shadows keep their own mode/list; new shadows default to `unrestricted`.
+6. OpenAI applies the same filter on the advanced scheduler **and** the load-awareness fallback used when `openai_advanced_scheduler_enabled` is false. DB recheck must re-evaluate after hydrating `ScheduleUserIDs`, so a sticky/snapshot copy that omitted the list cannot keep a denied account.
+
 Spark eligibility requires an explicit Spark mapping and rejects default-model
 fallback. Global OAuth quota/429 headers do not consume the Spark lane, while
 Spark 429 state is not written to the parent. Parent invalidity, expiry, and
@@ -25,6 +36,7 @@ Claude-GPT bridge routing, native Images, or Ops/public settings.
 | Group.platform | `backend/internal/service/group.go` | Native platform for the group and default scheduling scope. |
 | Group.blocked_models / allowed_models | `backend/internal/service/group.go` | Group-level model access control evaluated before account scheduling. |
 | Account.platform/type/status | `backend/internal/service/account.go` | Core inputs for scheduling and upstream token lookup. |
+| Account.UserScheduleMode / ScheduleUserIDs | `backend/internal/service/account.go` | Per-account user filter (`unrestricted` / `allow` / `deny`) plus join-table IDs. Copied onto Redis scheduler snapshot meta; not folded into `IsSchedulable()`. |
 | Account.extra.mixed_scheduling | `backend/internal/service/account.go` | Whether an Antigravity account may join Anthropic/Gemini mixed scheduling. |
 | Account.extra.openai_claude_gpt_bridge_enabled | `backend/internal/service/account.go` | Whether an OpenAI account may serve Claude-GPT bridge requests for bound Antigravity groups. |
 | Account.credentials.openai_capabilities | `backend/internal/service/account.go` | Optional OpenAI API-key endpoint capability list, currently used by chat completions and embeddings scheduling. |
@@ -705,7 +717,7 @@ native `/v1/images/*`, and WebSocket transport remain unchanged.
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
 | Optional Gin context | Internal Anthropic forwarding helpers can be called without a Gin context. User-Agent inspection, identity metadata, and tool-rewrite context storage must be guarded; normal HTTP paths retain their existing behavior. |
 | Frontend session/payment state | Refresh requests use a finite timeout, logout clears local credentials even when server revocation fails, and payment/risk-control route guards load public settings before deciding. Payment status, QR, and Stripe popup polling must remain single-flight; Stripe polling reads the canonical `auth_token` key and popup initialization cancels its fallback timeout. |
-| Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, cost-window, and group-membership checks. Local response-id account bindings are namespaced by group to avoid cross-group previous-response reuse. |
+| Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, cost-window, group-membership, and `AllowsScheduleUser` checks. Local response-id account bindings are namespaced by group to avoid cross-group previous-response reuse. |
 | Codex WS continuation mobility | A Responses WebSocket request may move away from its `previous_response_id` account only when every tool-output `call_id` is covered by an in-band tool-call context item or matching `item_reference`. Partial coverage keeps hard affinity so upstream can resolve the missing call from the response chain. |
 | Scheduler quota headroom | `gateway.openai_ws.scheduler_score_weights.quota_headroom` is opt-in (`0` by default). Fresh Codex 7d/5h snapshots influence advanced-scheduler scores; missing or older-than-8h snapshots are neutral, and a 5h window below 10% remaining reduces the factor. This changes account selection only, never billing or quota deduction. |
 | Advanced scheduler rollback | `openai_advanced_scheduler_enabled=false` disables both submodes and all DB TopK/weight overrides. It does not disable the base scheduler configured under `gateway.openai_ws`. |

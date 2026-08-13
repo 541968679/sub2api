@@ -277,6 +277,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
+	ctx = withScheduleUserID(ctx, 0)
 	decision := OpenAIAccountScheduleDecision{}
 	start := time.Now()
 	defer func() {
@@ -307,6 +308,12 @@ func (s *defaultOpenAIAccountScheduler) Select(
 				}
 				selection = nil
 			}
+		}
+		if selection != nil && selection.Account != nil && !selection.Account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			selection = nil
 		}
 		// Fallback-only accounts must not keep multi-turn sticky traffic while any
 		// primary peer is available. Prefer re-selecting a primary over pinning.
@@ -404,6 +411,10 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	if shouldClearStickySession(account, req.RequestedModel) || !account.IsOpenAICompatible() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || !account.IsSchedulable() || s.service.isOpenAIAccountRuntimeBlocked(account) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
+	}
+	if !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, true, nil
 	}
 	if !s.isAccountRequestCompatible(ctx, account, req) {
 		return nil, false, nil
@@ -824,6 +835,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			}
 		}
 		if !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || s.service.isOpenAIAccountRuntimeBlocked(account) {
+			continue
+		}
+		if !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 			continue
 		}
 		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常

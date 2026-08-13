@@ -69,7 +69,12 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
         },
         ProxySelector: true,
         GroupSelector: true,
-        Icon: true
+        Icon: true,
+        OpenAIFastPolicyUserSelector: {
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template: '<div data-testid="bulk-user-schedule-selector-stub" />'
+        }
       }
     }
   })
@@ -93,15 +98,24 @@ describe('BulkEditAccountModal', () => {
     vi.mocked(adminAPI.accounts.update).mockResolvedValue({} as any)
   })
 
-  it('布局与编辑账号一致：三区 config/groups/other', () => {
+  it('布局与编辑账号一致：四区 config/groups/other/user-schedule', () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
       selectedTypes: ['apikey']
     })
     expect(wrapper.find('[data-testid="bulk-edit-account-layout"]').exists()).toBe(true)
+    const layout = wrapper.get('[data-testid="bulk-edit-account-layout"]')
+    expect(layout.classes().join(' ')).toContain('xl:grid-cols-4')
     expect(wrapper.find('[data-testid="bulk-edit-zone-config"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="bulk-edit-zone-groups"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-edit-zone-user-schedule"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="bulk-edit-zone-other"]').exists()).toBe(true)
+    const html = wrapper.html()
+    expect(html.indexOf('bulk-edit-zone-other')).toBeLessThan(
+      html.indexOf('bulk-edit-zone-user-schedule')
+    )
+    expect(wrapper.get('[data-testid="bulk-edit-zone-user-schedule-body"]').classes().join(' ')).toContain('hidden')
+    expect(wrapper.get('[data-testid="bulk-edit-zone-user-schedule-body"]').classes().join(' ')).toContain('lg:flex')
     // other zone expanded by default so advanced options are immediately visible
     expect(wrapper.find('[data-testid="bulk-edit-zone-other-body"]').isVisible()).toBe(true)
   })

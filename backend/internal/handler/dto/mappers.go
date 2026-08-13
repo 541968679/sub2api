@@ -253,6 +253,13 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		GroupIDs:                a.GroupIDs,
 		ParentAccountID:         a.ParentAccountID,
 		QuotaDimension:          a.QuotaDimension,
+		UserScheduleMode:        service.NormalizeUserScheduleMode(a.UserScheduleMode),
+	}
+	if len(a.ScheduleUsers) > 0 {
+		out.ScheduleUsers = make([]ScheduleUser, 0, len(a.ScheduleUsers))
+		for _, u := range a.ScheduleUsers {
+			out.ScheduleUsers = append(out.ScheduleUsers, ScheduleUser{ID: u.ID, Email: u.Email, Deleted: u.Deleted})
+		}
 	}
 
 	// 提取 5h 窗口费用控制和会话数量控制配置（仅 Anthropic OAuth/SetupToken 账号有效）

@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
@@ -70,6 +71,7 @@ const (
 	TypeAPIKey                        = "APIKey"
 	TypeAccount                       = "Account"
 	TypeAccountGroup                  = "AccountGroup"
+	TypeAccountScheduleUser           = "AccountScheduleUser"
 	TypeAnnouncement                  = "Announcement"
 	TypeAnnouncementRead              = "AnnouncementRead"
 	TypeAuthIdentity                  = "AuthIdentity"
@@ -2845,10 +2847,14 @@ type AccountMutation struct {
 	session_window_end        *time.Time
 	session_window_status     *string
 	quota_dimension           *account.QuotaDimension
+	user_schedule_mode        *string
 	clearedFields             map[string]struct{}
 	groups                    map[int64]struct{}
 	removedgroups             map[int64]struct{}
 	clearedgroups             bool
+	schedule_users            map[int64]struct{}
+	removedschedule_users     map[int64]struct{}
+	clearedschedule_users     bool
 	proxy                     *int64
 	clearedproxy              bool
 	parent                    *int64
@@ -4331,6 +4337,42 @@ func (m *AccountMutation) ResetQuotaDimension() {
 	m.quota_dimension = nil
 }
 
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (m *AccountMutation) SetUserScheduleMode(s string) {
+	m.user_schedule_mode = &s
+}
+
+// UserScheduleMode returns the value of the "user_schedule_mode" field in the mutation.
+func (m *AccountMutation) UserScheduleMode() (r string, exists bool) {
+	v := m.user_schedule_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserScheduleMode returns the old "user_schedule_mode" field's value of the Account entity.
+// If the Account object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountMutation) OldUserScheduleMode(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserScheduleMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserScheduleMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserScheduleMode: %w", err)
+	}
+	return oldValue.UserScheduleMode, nil
+}
+
+// ResetUserScheduleMode resets all changes to the "user_schedule_mode" field.
+func (m *AccountMutation) ResetUserScheduleMode() {
+	m.user_schedule_mode = nil
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by ids.
 func (m *AccountMutation) AddGroupIDs(ids ...int64) {
 	if m.groups == nil {
@@ -4383,6 +4425,60 @@ func (m *AccountMutation) ResetGroups() {
 	m.groups = nil
 	m.clearedgroups = false
 	m.removedgroups = nil
+}
+
+// AddScheduleUserIDs adds the "schedule_users" edge to the User entity by ids.
+func (m *AccountMutation) AddScheduleUserIDs(ids ...int64) {
+	if m.schedule_users == nil {
+		m.schedule_users = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.schedule_users[ids[i]] = struct{}{}
+	}
+}
+
+// ClearScheduleUsers clears the "schedule_users" edge to the User entity.
+func (m *AccountMutation) ClearScheduleUsers() {
+	m.clearedschedule_users = true
+}
+
+// ScheduleUsersCleared reports if the "schedule_users" edge to the User entity was cleared.
+func (m *AccountMutation) ScheduleUsersCleared() bool {
+	return m.clearedschedule_users
+}
+
+// RemoveScheduleUserIDs removes the "schedule_users" edge to the User entity by IDs.
+func (m *AccountMutation) RemoveScheduleUserIDs(ids ...int64) {
+	if m.removedschedule_users == nil {
+		m.removedschedule_users = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.schedule_users, ids[i])
+		m.removedschedule_users[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedScheduleUsers returns the removed IDs of the "schedule_users" edge to the User entity.
+func (m *AccountMutation) RemovedScheduleUsersIDs() (ids []int64) {
+	for id := range m.removedschedule_users {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ScheduleUsersIDs returns the "schedule_users" edge IDs in the mutation.
+func (m *AccountMutation) ScheduleUsersIDs() (ids []int64) {
+	for id := range m.schedule_users {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetScheduleUsers resets all changes to the "schedule_users" edge.
+func (m *AccountMutation) ResetScheduleUsers() {
+	m.schedule_users = nil
+	m.clearedschedule_users = false
+	m.removedschedule_users = nil
 }
 
 // ClearProxy clears the "proxy" edge to the Proxy entity.
@@ -4594,7 +4690,7 @@ func (m *AccountMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountMutation) Fields() []string {
-	fields := make([]string, 0, 30)
+	fields := make([]string, 0, 31)
 	if m.created_at != nil {
 		fields = append(fields, account.FieldCreatedAt)
 	}
@@ -4685,6 +4781,9 @@ func (m *AccountMutation) Fields() []string {
 	if m.quota_dimension != nil {
 		fields = append(fields, account.FieldQuotaDimension)
 	}
+	if m.user_schedule_mode != nil {
+		fields = append(fields, account.FieldUserScheduleMode)
+	}
 	return fields
 }
 
@@ -4753,6 +4852,8 @@ func (m *AccountMutation) Field(name string) (ent.Value, bool) {
 		return m.ParentAccountID()
 	case account.FieldQuotaDimension:
 		return m.QuotaDimension()
+	case account.FieldUserScheduleMode:
+		return m.UserScheduleMode()
 	}
 	return nil, false
 }
@@ -4822,6 +4923,8 @@ func (m *AccountMutation) OldField(ctx context.Context, name string) (ent.Value,
 		return m.OldParentAccountID(ctx)
 	case account.FieldQuotaDimension:
 		return m.OldQuotaDimension(ctx)
+	case account.FieldUserScheduleMode:
+		return m.OldUserScheduleMode(ctx)
 	}
 	return nil, fmt.Errorf("unknown Account field %s", name)
 }
@@ -5040,6 +5143,13 @@ func (m *AccountMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetQuotaDimension(v)
+		return nil
+	case account.FieldUserScheduleMode:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserScheduleMode(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Account field %s", name)
@@ -5330,15 +5440,21 @@ func (m *AccountMutation) ResetField(name string) error {
 	case account.FieldQuotaDimension:
 		m.ResetQuotaDimension()
 		return nil
+	case account.FieldUserScheduleMode:
+		m.ResetUserScheduleMode()
+		return nil
 	}
 	return fmt.Errorf("unknown Account field %s", name)
 }
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *AccountMutation) AddedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.groups != nil {
 		edges = append(edges, account.EdgeGroups)
+	}
+	if m.schedule_users != nil {
+		edges = append(edges, account.EdgeScheduleUsers)
 	}
 	if m.proxy != nil {
 		edges = append(edges, account.EdgeProxy)
@@ -5362,6 +5478,12 @@ func (m *AccountMutation) AddedIDs(name string) []ent.Value {
 	case account.EdgeGroups:
 		ids := make([]ent.Value, 0, len(m.groups))
 		for id := range m.groups {
+			ids = append(ids, id)
+		}
+		return ids
+	case account.EdgeScheduleUsers:
+		ids := make([]ent.Value, 0, len(m.schedule_users))
+		for id := range m.schedule_users {
 			ids = append(ids, id)
 		}
 		return ids
@@ -5391,9 +5513,12 @@ func (m *AccountMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *AccountMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.removedgroups != nil {
 		edges = append(edges, account.EdgeGroups)
+	}
+	if m.removedschedule_users != nil {
+		edges = append(edges, account.EdgeScheduleUsers)
 	}
 	if m.removedchildren != nil {
 		edges = append(edges, account.EdgeChildren)
@@ -5411,6 +5536,12 @@ func (m *AccountMutation) RemovedIDs(name string) []ent.Value {
 	case account.EdgeGroups:
 		ids := make([]ent.Value, 0, len(m.removedgroups))
 		for id := range m.removedgroups {
+			ids = append(ids, id)
+		}
+		return ids
+	case account.EdgeScheduleUsers:
+		ids := make([]ent.Value, 0, len(m.removedschedule_users))
+		for id := range m.removedschedule_users {
 			ids = append(ids, id)
 		}
 		return ids
@@ -5432,9 +5563,12 @@ func (m *AccountMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *AccountMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 6)
 	if m.clearedgroups {
 		edges = append(edges, account.EdgeGroups)
+	}
+	if m.clearedschedule_users {
+		edges = append(edges, account.EdgeScheduleUsers)
 	}
 	if m.clearedproxy {
 		edges = append(edges, account.EdgeProxy)
@@ -5457,6 +5591,8 @@ func (m *AccountMutation) EdgeCleared(name string) bool {
 	switch name {
 	case account.EdgeGroups:
 		return m.clearedgroups
+	case account.EdgeScheduleUsers:
+		return m.clearedschedule_users
 	case account.EdgeProxy:
 		return m.clearedproxy
 	case account.EdgeParent:
@@ -5489,6 +5625,9 @@ func (m *AccountMutation) ResetEdge(name string) error {
 	switch name {
 	case account.EdgeGroups:
 		m.ResetGroups()
+		return nil
+	case account.EdgeScheduleUsers:
+		m.ResetScheduleUsers()
 		return nil
 	case account.EdgeProxy:
 		m.ResetProxy()
@@ -5989,6 +6128,423 @@ func (m *AccountGroupMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown AccountGroup edge %s", name)
+}
+
+// AccountScheduleUserMutation represents an operation that mutates the AccountScheduleUser nodes in the graph.
+type AccountScheduleUserMutation struct {
+	config
+	op             Op
+	typ            string
+	created_at     *time.Time
+	clearedFields  map[string]struct{}
+	account        *int64
+	clearedaccount bool
+	user           *int64
+	cleareduser    bool
+	done           bool
+	oldValue       func(context.Context) (*AccountScheduleUser, error)
+	predicates     []predicate.AccountScheduleUser
+}
+
+var _ ent.Mutation = (*AccountScheduleUserMutation)(nil)
+
+// accountscheduleuserOption allows management of the mutation configuration using functional options.
+type accountscheduleuserOption func(*AccountScheduleUserMutation)
+
+// newAccountScheduleUserMutation creates new mutation for the AccountScheduleUser entity.
+func newAccountScheduleUserMutation(c config, op Op, opts ...accountscheduleuserOption) *AccountScheduleUserMutation {
+	m := &AccountScheduleUserMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAccountScheduleUser,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AccountScheduleUserMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AccountScheduleUserMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *AccountScheduleUserMutation) SetAccountID(i int64) {
+	m.account = &i
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *AccountScheduleUserMutation) AccountID() (r int64, exists bool) {
+	v := m.account
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *AccountScheduleUserMutation) ResetAccountID() {
+	m.account = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *AccountScheduleUserMutation) SetUserID(i int64) {
+	m.user = &i
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *AccountScheduleUserMutation) UserID() (r int64, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *AccountScheduleUserMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *AccountScheduleUserMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *AccountScheduleUserMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *AccountScheduleUserMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// ClearAccount clears the "account" edge to the Account entity.
+func (m *AccountScheduleUserMutation) ClearAccount() {
+	m.clearedaccount = true
+	m.clearedFields[accountscheduleuser.FieldAccountID] = struct{}{}
+}
+
+// AccountCleared reports if the "account" edge to the Account entity was cleared.
+func (m *AccountScheduleUserMutation) AccountCleared() bool {
+	return m.clearedaccount
+}
+
+// AccountIDs returns the "account" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// AccountID instead. It exists only for internal usage by the builders.
+func (m *AccountScheduleUserMutation) AccountIDs() (ids []int64) {
+	if id := m.account; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAccount resets all changes to the "account" edge.
+func (m *AccountScheduleUserMutation) ResetAccount() {
+	m.account = nil
+	m.clearedaccount = false
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *AccountScheduleUserMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[accountscheduleuser.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *AccountScheduleUserMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *AccountScheduleUserMutation) UserIDs() (ids []int64) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *AccountScheduleUserMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the AccountScheduleUserMutation builder.
+func (m *AccountScheduleUserMutation) Where(ps ...predicate.AccountScheduleUser) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AccountScheduleUserMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AccountScheduleUserMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AccountScheduleUser, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AccountScheduleUserMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AccountScheduleUserMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AccountScheduleUser).
+func (m *AccountScheduleUserMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AccountScheduleUserMutation) Fields() []string {
+	fields := make([]string, 0, 3)
+	if m.account != nil {
+		fields = append(fields, accountscheduleuser.FieldAccountID)
+	}
+	if m.user != nil {
+		fields = append(fields, accountscheduleuser.FieldUserID)
+	}
+	if m.created_at != nil {
+		fields = append(fields, accountscheduleuser.FieldCreatedAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AccountScheduleUserMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case accountscheduleuser.FieldAccountID:
+		return m.AccountID()
+	case accountscheduleuser.FieldUserID:
+		return m.UserID()
+	case accountscheduleuser.FieldCreatedAt:
+		return m.CreatedAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AccountScheduleUserMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	return nil, errors.New("edge schema AccountScheduleUser does not support getting old values")
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AccountScheduleUserMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case accountscheduleuser.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case accountscheduleuser.FieldUserID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case accountscheduleuser.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AccountScheduleUser field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AccountScheduleUserMutation) AddedFields() []string {
+	var fields []string
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AccountScheduleUserMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AccountScheduleUserMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown AccountScheduleUser numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AccountScheduleUserMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AccountScheduleUserMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AccountScheduleUserMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown AccountScheduleUser nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AccountScheduleUserMutation) ResetField(name string) error {
+	switch name {
+	case accountscheduleuser.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case accountscheduleuser.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case accountscheduleuser.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	}
+	return fmt.Errorf("unknown AccountScheduleUser field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AccountScheduleUserMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.account != nil {
+		edges = append(edges, accountscheduleuser.EdgeAccount)
+	}
+	if m.user != nil {
+		edges = append(edges, accountscheduleuser.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AccountScheduleUserMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case accountscheduleuser.EdgeAccount:
+		if id := m.account; id != nil {
+			return []ent.Value{*id}
+		}
+	case accountscheduleuser.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AccountScheduleUserMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AccountScheduleUserMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AccountScheduleUserMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedaccount {
+		edges = append(edges, accountscheduleuser.EdgeAccount)
+	}
+	if m.cleareduser {
+		edges = append(edges, accountscheduleuser.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AccountScheduleUserMutation) EdgeCleared(name string) bool {
+	switch name {
+	case accountscheduleuser.EdgeAccount:
+		return m.clearedaccount
+	case accountscheduleuser.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AccountScheduleUserMutation) ClearEdge(name string) error {
+	switch name {
+	case accountscheduleuser.EdgeAccount:
+		m.ClearAccount()
+		return nil
+	case accountscheduleuser.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown AccountScheduleUser unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AccountScheduleUserMutation) ResetEdge(name string) error {
+	switch name {
+	case accountscheduleuser.EdgeAccount:
+		m.ResetAccount()
+		return nil
+	case accountscheduleuser.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown AccountScheduleUser edge %s", name)
 }
 
 // AnnouncementMutation represents an operation that mutates the Announcement nodes in the graph.
@@ -52052,6 +52608,9 @@ type UserMutation struct {
 	allowed_groups                  map[int64]struct{}
 	removedallowed_groups           map[int64]struct{}
 	clearedallowed_groups           bool
+	scheduled_accounts              map[int64]struct{}
+	removedscheduled_accounts       map[int64]struct{}
+	clearedscheduled_accounts       bool
 	usage_logs                      map[int64]struct{}
 	removedusage_logs               map[int64]struct{}
 	clearedusage_logs               bool
@@ -53669,6 +54228,60 @@ func (m *UserMutation) ResetAllowedGroups() {
 	m.removedallowed_groups = nil
 }
 
+// AddScheduledAccountIDs adds the "scheduled_accounts" edge to the Account entity by ids.
+func (m *UserMutation) AddScheduledAccountIDs(ids ...int64) {
+	if m.scheduled_accounts == nil {
+		m.scheduled_accounts = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.scheduled_accounts[ids[i]] = struct{}{}
+	}
+}
+
+// ClearScheduledAccounts clears the "scheduled_accounts" edge to the Account entity.
+func (m *UserMutation) ClearScheduledAccounts() {
+	m.clearedscheduled_accounts = true
+}
+
+// ScheduledAccountsCleared reports if the "scheduled_accounts" edge to the Account entity was cleared.
+func (m *UserMutation) ScheduledAccountsCleared() bool {
+	return m.clearedscheduled_accounts
+}
+
+// RemoveScheduledAccountIDs removes the "scheduled_accounts" edge to the Account entity by IDs.
+func (m *UserMutation) RemoveScheduledAccountIDs(ids ...int64) {
+	if m.removedscheduled_accounts == nil {
+		m.removedscheduled_accounts = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.scheduled_accounts, ids[i])
+		m.removedscheduled_accounts[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedScheduledAccounts returns the removed IDs of the "scheduled_accounts" edge to the Account entity.
+func (m *UserMutation) RemovedScheduledAccountsIDs() (ids []int64) {
+	for id := range m.removedscheduled_accounts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ScheduledAccountsIDs returns the "scheduled_accounts" edge IDs in the mutation.
+func (m *UserMutation) ScheduledAccountsIDs() (ids []int64) {
+	for id := range m.scheduled_accounts {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetScheduledAccounts resets all changes to the "scheduled_accounts" edge.
+func (m *UserMutation) ResetScheduledAccounts() {
+	m.scheduled_accounts = nil
+	m.clearedscheduled_accounts = false
+	m.removedscheduled_accounts = nil
+}
+
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by ids.
 func (m *UserMutation) AddUsageLogIDs(ids ...int64) {
 	if m.usage_logs == nil {
@@ -54737,7 +55350,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 13)
+	edges := make([]string, 0, 14)
 	if m.api_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -54755,6 +55368,9 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.allowed_groups != nil {
 		edges = append(edges, user.EdgeAllowedGroups)
+	}
+	if m.scheduled_accounts != nil {
+		edges = append(edges, user.EdgeScheduledAccounts)
 	}
 	if m.usage_logs != nil {
 		edges = append(edges, user.EdgeUsageLogs)
@@ -54820,6 +55436,12 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeScheduledAccounts:
+		ids := make([]ent.Value, 0, len(m.scheduled_accounts))
+		for id := range m.scheduled_accounts {
+			ids = append(ids, id)
+		}
+		return ids
 	case user.EdgeUsageLogs:
 		ids := make([]ent.Value, 0, len(m.usage_logs))
 		for id := range m.usage_logs {
@@ -54868,7 +55490,7 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 13)
+	edges := make([]string, 0, 14)
 	if m.removedapi_keys != nil {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -54886,6 +55508,9 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedallowed_groups != nil {
 		edges = append(edges, user.EdgeAllowedGroups)
+	}
+	if m.removedscheduled_accounts != nil {
+		edges = append(edges, user.EdgeScheduledAccounts)
 	}
 	if m.removedusage_logs != nil {
 		edges = append(edges, user.EdgeUsageLogs)
@@ -54951,6 +55576,12 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeScheduledAccounts:
+		ids := make([]ent.Value, 0, len(m.removedscheduled_accounts))
+		for id := range m.removedscheduled_accounts {
+			ids = append(ids, id)
+		}
+		return ids
 	case user.EdgeUsageLogs:
 		ids := make([]ent.Value, 0, len(m.removedusage_logs))
 		for id := range m.removedusage_logs {
@@ -54999,7 +55630,7 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 13)
+	edges := make([]string, 0, 14)
 	if m.clearedapi_keys {
 		edges = append(edges, user.EdgeAPIKeys)
 	}
@@ -55017,6 +55648,9 @@ func (m *UserMutation) ClearedEdges() []string {
 	}
 	if m.clearedallowed_groups {
 		edges = append(edges, user.EdgeAllowedGroups)
+	}
+	if m.clearedscheduled_accounts {
+		edges = append(edges, user.EdgeScheduledAccounts)
 	}
 	if m.clearedusage_logs {
 		edges = append(edges, user.EdgeUsageLogs)
@@ -55058,6 +55692,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearedannouncement_reads
 	case user.EdgeAllowedGroups:
 		return m.clearedallowed_groups
+	case user.EdgeScheduledAccounts:
+		return m.clearedscheduled_accounts
 	case user.EdgeUsageLogs:
 		return m.clearedusage_logs
 	case user.EdgeAttributeValues:
@@ -55105,6 +55741,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeAllowedGroups:
 		m.ResetAllowedGroups()
+		return nil
+	case user.EdgeScheduledAccounts:
+		m.ResetScheduledAccounts()
 		return nil
 	case user.EdgeUsageLogs:
 		m.ResetUsageLogs()

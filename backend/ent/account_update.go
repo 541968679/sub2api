@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
+	"github.com/Wei-Shaw/sub2api/ent/user"
 )
 
 // AccountUpdate is the builder for updating Account entities.
@@ -537,6 +538,20 @@ func (_u *AccountUpdate) SetNillableQuotaDimension(v *account.QuotaDimension) *A
 	return _u
 }
 
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (_u *AccountUpdate) SetUserScheduleMode(v string) *AccountUpdate {
+	_u.mutation.SetUserScheduleMode(v)
+	return _u
+}
+
+// SetNillableUserScheduleMode sets the "user_schedule_mode" field if the given value is not nil.
+func (_u *AccountUpdate) SetNillableUserScheduleMode(v *string) *AccountUpdate {
+	if v != nil {
+		_u.SetUserScheduleMode(*v)
+	}
+	return _u
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_u *AccountUpdate) AddGroupIDs(ids ...int64) *AccountUpdate {
 	_u.mutation.AddGroupIDs(ids...)
@@ -550,6 +565,21 @@ func (_u *AccountUpdate) AddGroups(v ...*Group) *AccountUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddGroupIDs(ids...)
+}
+
+// AddScheduleUserIDs adds the "schedule_users" edge to the User entity by IDs.
+func (_u *AccountUpdate) AddScheduleUserIDs(ids ...int64) *AccountUpdate {
+	_u.mutation.AddScheduleUserIDs(ids...)
+	return _u
+}
+
+// AddScheduleUsers adds the "schedule_users" edges to the User entity.
+func (_u *AccountUpdate) AddScheduleUsers(v ...*User) *AccountUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddScheduleUserIDs(ids...)
 }
 
 // SetProxy sets the "proxy" edge to the Proxy entity.
@@ -630,6 +660,27 @@ func (_u *AccountUpdate) RemoveGroups(v ...*Group) *AccountUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveGroupIDs(ids...)
+}
+
+// ClearScheduleUsers clears all "schedule_users" edges to the User entity.
+func (_u *AccountUpdate) ClearScheduleUsers() *AccountUpdate {
+	_u.mutation.ClearScheduleUsers()
+	return _u
+}
+
+// RemoveScheduleUserIDs removes the "schedule_users" edge to User entities by IDs.
+func (_u *AccountUpdate) RemoveScheduleUserIDs(ids ...int64) *AccountUpdate {
+	_u.mutation.RemoveScheduleUserIDs(ids...)
+	return _u
+}
+
+// RemoveScheduleUsers removes "schedule_users" edges to User entities.
+func (_u *AccountUpdate) RemoveScheduleUsers(v ...*User) *AccountUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveScheduleUserIDs(ids...)
 }
 
 // ClearProxy clears the "proxy" edge to the Proxy entity.
@@ -758,6 +809,11 @@ func (_u *AccountUpdate) check() error {
 	if v, ok := _u.mutation.QuotaDimension(); ok {
 		if err := account.QuotaDimensionValidator(v); err != nil {
 			return &ValidationError{Name: "quota_dimension", err: fmt.Errorf(`ent: validator failed for field "Account.quota_dimension": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.UserScheduleMode(); ok {
+		if err := account.UserScheduleModeValidator(v); err != nil {
+			return &ValidationError{Name: "user_schedule_mode", err: fmt.Errorf(`ent: validator failed for field "Account.user_schedule_mode": %w`, err)}
 		}
 	}
 	return nil
@@ -910,6 +966,9 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.QuotaDimension(); ok {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
 	}
+	if value, ok := _u.mutation.UserScheduleMode(); ok {
+		_spec.SetField(account.FieldUserScheduleMode, field.TypeString, value)
+	}
 	if _u.mutation.GroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2M,
@@ -962,6 +1021,63 @@ func (_u *AccountUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &AccountGroupCreate{config: _u.config, mutation: newAccountGroupMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedScheduleUsersIDs(); len(nodes) > 0 && !_u.mutation.ScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ScheduleUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
@@ -1641,6 +1757,20 @@ func (_u *AccountUpdateOne) SetNillableQuotaDimension(v *account.QuotaDimension)
 	return _u
 }
 
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (_u *AccountUpdateOne) SetUserScheduleMode(v string) *AccountUpdateOne {
+	_u.mutation.SetUserScheduleMode(v)
+	return _u
+}
+
+// SetNillableUserScheduleMode sets the "user_schedule_mode" field if the given value is not nil.
+func (_u *AccountUpdateOne) SetNillableUserScheduleMode(v *string) *AccountUpdateOne {
+	if v != nil {
+		_u.SetUserScheduleMode(*v)
+	}
+	return _u
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_u *AccountUpdateOne) AddGroupIDs(ids ...int64) *AccountUpdateOne {
 	_u.mutation.AddGroupIDs(ids...)
@@ -1654,6 +1784,21 @@ func (_u *AccountUpdateOne) AddGroups(v ...*Group) *AccountUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddGroupIDs(ids...)
+}
+
+// AddScheduleUserIDs adds the "schedule_users" edge to the User entity by IDs.
+func (_u *AccountUpdateOne) AddScheduleUserIDs(ids ...int64) *AccountUpdateOne {
+	_u.mutation.AddScheduleUserIDs(ids...)
+	return _u
+}
+
+// AddScheduleUsers adds the "schedule_users" edges to the User entity.
+func (_u *AccountUpdateOne) AddScheduleUsers(v ...*User) *AccountUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddScheduleUserIDs(ids...)
 }
 
 // SetProxy sets the "proxy" edge to the Proxy entity.
@@ -1734,6 +1879,27 @@ func (_u *AccountUpdateOne) RemoveGroups(v ...*Group) *AccountUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveGroupIDs(ids...)
+}
+
+// ClearScheduleUsers clears all "schedule_users" edges to the User entity.
+func (_u *AccountUpdateOne) ClearScheduleUsers() *AccountUpdateOne {
+	_u.mutation.ClearScheduleUsers()
+	return _u
+}
+
+// RemoveScheduleUserIDs removes the "schedule_users" edge to User entities by IDs.
+func (_u *AccountUpdateOne) RemoveScheduleUserIDs(ids ...int64) *AccountUpdateOne {
+	_u.mutation.RemoveScheduleUserIDs(ids...)
+	return _u
+}
+
+// RemoveScheduleUsers removes "schedule_users" edges to User entities.
+func (_u *AccountUpdateOne) RemoveScheduleUsers(v ...*User) *AccountUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveScheduleUserIDs(ids...)
 }
 
 // ClearProxy clears the "proxy" edge to the Proxy entity.
@@ -1875,6 +2041,11 @@ func (_u *AccountUpdateOne) check() error {
 	if v, ok := _u.mutation.QuotaDimension(); ok {
 		if err := account.QuotaDimensionValidator(v); err != nil {
 			return &ValidationError{Name: "quota_dimension", err: fmt.Errorf(`ent: validator failed for field "Account.quota_dimension": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.UserScheduleMode(); ok {
+		if err := account.UserScheduleModeValidator(v); err != nil {
+			return &ValidationError{Name: "user_schedule_mode", err: fmt.Errorf(`ent: validator failed for field "Account.user_schedule_mode": %w`, err)}
 		}
 	}
 	return nil
@@ -2044,6 +2215,9 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 	if value, ok := _u.mutation.QuotaDimension(); ok {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
 	}
+	if value, ok := _u.mutation.UserScheduleMode(); ok {
+		_spec.SetField(account.FieldUserScheduleMode, field.TypeString, value)
+	}
 	if _u.mutation.GroupsCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2M,
@@ -2096,6 +2270,63 @@ func (_u *AccountUpdateOne) sqlSave(ctx context.Context) (_node *Account, err er
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &AccountGroupCreate{config: _u.config, mutation: newAccountGroupMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedScheduleUsersIDs(); len(nodes) > 0 && !_u.mutation.ScheduleUsersCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ScheduleUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _u.config, mutation: newAccountScheduleUserMutation(_u.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields

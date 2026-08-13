@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
+	"github.com/Wei-Shaw/sub2api/ent/user"
 )
 
 // AccountCreate is the builder for creating a Account entity.
@@ -405,6 +406,20 @@ func (_c *AccountCreate) SetNillableQuotaDimension(v *account.QuotaDimension) *A
 	return _c
 }
 
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (_c *AccountCreate) SetUserScheduleMode(v string) *AccountCreate {
+	_c.mutation.SetUserScheduleMode(v)
+	return _c
+}
+
+// SetNillableUserScheduleMode sets the "user_schedule_mode" field if the given value is not nil.
+func (_c *AccountCreate) SetNillableUserScheduleMode(v *string) *AccountCreate {
+	if v != nil {
+		_c.SetUserScheduleMode(*v)
+	}
+	return _c
+}
+
 // AddGroupIDs adds the "groups" edge to the Group entity by IDs.
 func (_c *AccountCreate) AddGroupIDs(ids ...int64) *AccountCreate {
 	_c.mutation.AddGroupIDs(ids...)
@@ -418,6 +433,21 @@ func (_c *AccountCreate) AddGroups(v ...*Group) *AccountCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddGroupIDs(ids...)
+}
+
+// AddScheduleUserIDs adds the "schedule_users" edge to the User entity by IDs.
+func (_c *AccountCreate) AddScheduleUserIDs(ids ...int64) *AccountCreate {
+	_c.mutation.AddScheduleUserIDs(ids...)
+	return _c
+}
+
+// AddScheduleUsers adds the "schedule_users" edges to the User entity.
+func (_c *AccountCreate) AddScheduleUsers(v ...*User) *AccountCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddScheduleUserIDs(ids...)
 }
 
 // SetProxy sets the "proxy" edge to the Proxy entity.
@@ -567,6 +597,10 @@ func (_c *AccountCreate) defaults() error {
 		v := account.DefaultQuotaDimension
 		_c.mutation.SetQuotaDimension(v)
 	}
+	if _, ok := _c.mutation.UserScheduleMode(); !ok {
+		v := account.DefaultUserScheduleMode
+		_c.mutation.SetUserScheduleMode(v)
+	}
 	return nil
 }
 
@@ -642,6 +676,14 @@ func (_c *AccountCreate) check() error {
 	if v, ok := _c.mutation.QuotaDimension(); ok {
 		if err := account.QuotaDimensionValidator(v); err != nil {
 			return &ValidationError{Name: "quota_dimension", err: fmt.Errorf(`ent: validator failed for field "Account.quota_dimension": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.UserScheduleMode(); !ok {
+		return &ValidationError{Name: "user_schedule_mode", err: errors.New(`ent: missing required field "Account.user_schedule_mode"`)}
+	}
+	if v, ok := _c.mutation.UserScheduleMode(); ok {
+		if err := account.UserScheduleModeValidator(v); err != nil {
+			return &ValidationError{Name: "user_schedule_mode", err: fmt.Errorf(`ent: validator failed for field "Account.user_schedule_mode": %w`, err)}
 		}
 	}
 	return nil
@@ -783,6 +825,10 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 		_spec.SetField(account.FieldQuotaDimension, field.TypeEnum, value)
 		_node.QuotaDimension = value
 	}
+	if value, ok := _c.mutation.UserScheduleMode(); ok {
+		_spec.SetField(account.FieldUserScheduleMode, field.TypeString, value)
+		_node.UserScheduleMode = value
+	}
 	if nodes := _c.mutation.GroupsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.M2M,
@@ -798,6 +844,26 @@ func (_c *AccountCreate) createSpec() (*Account, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		createE := &AccountGroupCreate{config: _c.config, mutation: newAccountGroupMutation(_c.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ScheduleUsersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: false,
+			Table:   account.ScheduleUsersTable,
+			Columns: account.ScheduleUsersPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(user.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &AccountScheduleUserCreate{config: _c.config, mutation: newAccountScheduleUserMutation(_c.config, OpCreate)}
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
@@ -1389,6 +1455,18 @@ func (u *AccountUpsert) UpdateQuotaDimension() *AccountUpsert {
 	return u
 }
 
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (u *AccountUpsert) SetUserScheduleMode(v string) *AccountUpsert {
+	u.Set(account.FieldUserScheduleMode, v)
+	return u
+}
+
+// UpdateUserScheduleMode sets the "user_schedule_mode" field to the value that was provided on create.
+func (u *AccountUpsert) UpdateUserScheduleMode() *AccountUpsert {
+	u.SetExcluded(account.FieldUserScheduleMode)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1977,6 +2055,20 @@ func (u *AccountUpsertOne) SetQuotaDimension(v account.QuotaDimension) *AccountU
 func (u *AccountUpsertOne) UpdateQuotaDimension() *AccountUpsertOne {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateQuotaDimension()
+	})
+}
+
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (u *AccountUpsertOne) SetUserScheduleMode(v string) *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetUserScheduleMode(v)
+	})
+}
+
+// UpdateUserScheduleMode sets the "user_schedule_mode" field to the value that was provided on create.
+func (u *AccountUpsertOne) UpdateUserScheduleMode() *AccountUpsertOne {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateUserScheduleMode()
 	})
 }
 
@@ -2734,6 +2826,20 @@ func (u *AccountUpsertBulk) SetQuotaDimension(v account.QuotaDimension) *Account
 func (u *AccountUpsertBulk) UpdateQuotaDimension() *AccountUpsertBulk {
 	return u.Update(func(s *AccountUpsert) {
 		s.UpdateQuotaDimension()
+	})
+}
+
+// SetUserScheduleMode sets the "user_schedule_mode" field.
+func (u *AccountUpsertBulk) SetUserScheduleMode(v string) *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.SetUserScheduleMode(v)
+	})
+}
+
+// UpdateUserScheduleMode sets the "user_schedule_mode" field to the value that was provided on create.
+func (u *AccountUpsertBulk) UpdateUserScheduleMode() *AccountUpsertBulk {
+	return u.Update(func(s *AccountUpsert) {
+		s.UpdateUserScheduleMode()
 	})
 }
 

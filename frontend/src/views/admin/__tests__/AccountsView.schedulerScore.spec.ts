@@ -70,6 +70,7 @@ const DataTableStub = {
   props: ['columns', 'data'],
   template: `
     <div data-test="data-table">
+      <div data-test="column-keys">{{ (columns || []).map(c => c.key).join(',') }}</div>
       <div v-for="row in data" :key="row.id" :data-test="'scheduler-score-' + row.id">
         <slot name="cell-scheduler_score" :row="row" />
       </div>
@@ -110,6 +111,7 @@ function mountView() {
         AccountStatusIndicator: true,
         AccountTodayStatsCell: true,
         AccountGroupsCell: true,
+        AccountUserScheduleCell: true,
         AccountUsageCell: true,
         Icon: true
       }
@@ -255,5 +257,15 @@ describe('admin AccountsView scheduler score column', () => {
     const emptyCell = wrapper.find('[data-test="scheduler-score-3"]')
     expect(emptyCell.exists()).toBe(true)
     expect(emptyCell.text()).toBe('-')
+  })
+
+  it('includes a default-visible user_schedule column after schedulable', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const keys = wrapper.get('[data-test="column-keys"]').text().split(',')
+    expect(keys).toContain('user_schedule')
+    expect(keys.indexOf('user_schedule')).toBe(keys.indexOf('schedulable') + 1)
+    expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).not.toContain('user_schedule')
   })
 })

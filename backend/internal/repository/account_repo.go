@@ -22,6 +22,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	dbaccount "github.com/Wei-Shaw/sub2api/ent/account"
 	dbaccountgroup "github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	dbaccountscheduleuser "github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	dbgroup "github.com/Wei-Shaw/sub2api/ent/group"
 	dbpredicate "github.com/Wei-Shaw/sub2api/ent/predicate"
 	dbproxy "github.com/Wei-Shaw/sub2api/ent/proxy"
@@ -136,6 +137,9 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 	if account.ParentAccountID != nil {
 		builder.SetParentAccountID(*account.ParentAccountID)
 	}
+	if mode := service.NormalizeUserScheduleMode(account.UserScheduleMode); mode != "" {
+		builder.SetUserScheduleMode(mode)
+	}
 
 	created, err := builder.Save(ctx)
 	if err != nil {
@@ -212,6 +216,10 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 	if err != nil {
 		return nil, err
 	}
+	scheduleUserIDsByAccount, err := r.loadScheduleUserIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	outByID := make(map[int64]*service.Account, len(entAccounts))
 	for _, entAcc := range entAccounts {
@@ -233,6 +241,9 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 		}
 		if ags, ok := accountGroupsByAccount[entAcc.ID]; ok {
 			out.AccountGroups = ags
+		}
+		if ids, ok := scheduleUserIDsByAccount[entAcc.ID]; ok {
+			out.ScheduleUserIDs = ids
 		}
 		outByID[entAcc.ID] = out
 	}
@@ -400,6 +411,7 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 	}
 	builder.SetQuotaDimension(dbaccount.QuotaDimension(account.QuotaDimensionOrDefault()))
 	builder.SetNillableParentAccountID(account.ParentAccountID)
+	builder.SetUserScheduleMode(service.NormalizeUserScheduleMode(account.UserScheduleMode))
 
 	updated, err := builder.Save(ctx)
 	if err != nil {
@@ -1029,6 +1041,113 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 	return nil
 }
 
+func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error {
+	tx, err := r.client.Tx(ctx)
+	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
+		return err
+	}
+
+	var txClient *dbent.Client
+	if err == nil {
+		defer func() { _ = tx.Rollback() }()
+		txClient = tx.Client()
+	} else {
+		txClient = r.client
+	}
+
+	if _, err := txClient.AccountScheduleUser.Delete().Where(dbaccountscheduleuser.AccountIDEQ(accountID)).Exec(ctx); err != nil {
+		return err
+	}
+
+	unique := make(map[int64]struct{}, len(userIDs))
+	ordered := make([]int64, 0, len(userIDs))
+	for _, id := range userIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := unique[id]; ok {
+			continue
+		}
+		unique[id] = struct{}{}
+		ordered = append(ordered, id)
+	}
+
+	if len(ordered) > 0 {
+		builders := make([]*dbent.AccountScheduleUserCreate, 0, len(ordered))
+		for _, userID := range ordered {
+			builders = append(builders, txClient.AccountScheduleUser.Create().
+				SetAccountID(accountID).
+				SetUserID(userID),
+			)
+		}
+		if _, err := txClient.AccountScheduleUser.CreateBulk(builders...).Save(ctx); err != nil {
+			return err
+		}
+	}
+
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountChanged, &accountID, nil, nil); err != nil {
+		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue schedule users failed: account=%d err=%v", accountID, err)
+	}
+	r.syncSchedulerAccountSnapshot(ctx, accountID)
+	return nil
+}
+
+func (r *accountRepository) ListScheduleUserRefs(ctx context.Context, userIDs []int64) ([]service.ScheduleUserRef, error) {
+	if len(userIDs) == 0 {
+		return nil, nil
+	}
+	unique := make([]int64, 0, len(userIDs))
+	seen := make(map[int64]struct{}, len(userIDs))
+	for _, id := range userIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return nil, nil
+	}
+
+	rows, err := r.sql.QueryContext(ctx, `
+		SELECT id, email, deleted_at IS NOT NULL
+		FROM users
+		WHERE id = ANY($1)
+	`, pq.Array(unique))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	byID := make(map[int64]service.ScheduleUserRef, len(unique))
+	for rows.Next() {
+		var ref service.ScheduleUserRef
+		if err := rows.Scan(&ref.ID, &ref.Email, &ref.Deleted); err != nil {
+			return nil, err
+		}
+		byID[ref.ID] = ref
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]service.ScheduleUserRef, 0, len(unique))
+	for _, id := range unique {
+		if ref, ok := byID[id]; ok {
+			out = append(out, ref)
+		}
+	}
+	return out, nil
+}
+
 func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Account, error) {
 	now := time.Now()
 	accounts, err := r.client.Account.Query().
@@ -1641,6 +1760,11 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		args = append(args, *updates.Schedulable)
 		idx++
 	}
+	if updates.UserScheduleMode != nil {
+		setClauses = append(setClauses, "user_schedule_mode = $"+itoa(idx))
+		args = append(args, service.NormalizeUserScheduleMode(*updates.UserScheduleMode))
+		idx++
+	}
 	// JSONB 需要合并而非覆盖，使用 raw SQL 保持旧行为。
 	if len(updates.Credentials) > 0 {
 		payload, err := json.Marshal(updates.Credentials)
@@ -1787,6 +1911,10 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 	if err != nil {
 		return nil, err
 	}
+	scheduleUserIDsByAccount, err := r.loadScheduleUserIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	outAccounts := make([]service.Account, 0, len(accounts))
 	for _, acc := range accounts {
@@ -1807,6 +1935,9 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 		}
 		if ags, ok := accountGroupsByAccount[acc.ID]; ok {
 			out.AccountGroups = ags
+		}
+		if ids, ok := scheduleUserIDsByAccount[acc.ID]; ok {
+			out.ScheduleUserIDs = ids
 		}
 		outAccounts = append(outAccounts, *out)
 	}
@@ -1884,6 +2015,27 @@ func (r *accountRepository) loadAccountGroups(ctx context.Context, accountIDs []
 	}
 
 	return groupsByAccount, groupIDsByAccount, accountGroupsByAccount, nil
+}
+
+func (r *accountRepository) loadScheduleUserIDs(ctx context.Context, accountIDs []int64) (map[int64][]int64, error) {
+	out := make(map[int64][]int64)
+	if len(accountIDs) == 0 {
+		return out, nil
+	}
+	entries, err := r.client.AccountScheduleUser.Query().
+		Where(dbaccountscheduleuser.AccountIDIn(accountIDs...)).
+		Order(dbaccountscheduleuser.ByAccountID(), dbaccountscheduleuser.ByUserID()).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.UserID <= 0 {
+			continue
+		}
+		out[entry.AccountID] = append(out[entry.AccountID], entry.UserID)
+	}
+	return out, nil
 }
 
 func (r *accountRepository) loadAccountGroupIDs(ctx context.Context, accountID int64) ([]int64, error) {
@@ -1976,6 +2128,7 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		SessionWindowStatus:     derefString(m.SessionWindowStatus),
 		ParentAccountID:         m.ParentAccountID,
 		QuotaDimension:          string(m.QuotaDimension),
+		UserScheduleMode:        service.NormalizeUserScheduleMode(m.UserScheduleMode),
 	}
 }
 

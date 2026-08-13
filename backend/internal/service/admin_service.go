@@ -383,6 +383,8 @@ type UpdateAccountInput struct {
 	ExpiresAt             *int64
 	AutoPauseOnExpired    *bool
 	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
+	UserScheduleMode      *string
+	ScheduleUserIDs       *[]int64
 }
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
@@ -403,6 +405,8 @@ type BulkUpdateAccountsInput struct {
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
 	// This should only be set when the caller has explicitly confirmed the risk.
 	SkipMixedChannelCheck bool
+	UserScheduleMode      *string
+	ScheduleUserIDs       *[]int64
 }
 
 type BulkUpdateAccountFilters struct {
@@ -2601,6 +2605,7 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 	if err != nil {
 		return nil, 0, err
 	}
+	s.hydrateAccountScheduleUsers(ctx, accounts)
 	return accounts, result.Total, nil
 }
 
@@ -2622,7 +2627,12 @@ func (s *adminServiceImpl) ListOpenAISchedulableAccountsForSchedulerScore(ctx co
 }
 
 func (s *adminServiceImpl) GetAccount(ctx context.Context, id int64) (*Account, error) {
-	return s.accountRepo.GetByID(ctx, id)
+	account, err := s.accountRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.hydrateAccountScheduleUser(ctx, account)
+	return account, nil
 }
 
 func (s *adminServiceImpl) GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
@@ -2910,6 +2920,26 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
 	}
 
+	var syncScheduleUsers bool
+	var scheduleUserIDs []int64
+	if input.UserScheduleMode != nil || input.ScheduleUserIDs != nil {
+		mode := account.UserScheduleMode
+		ids := account.ScheduleUserIDs
+		if input.UserScheduleMode != nil {
+			mode = *input.UserScheduleMode
+		}
+		if input.ScheduleUserIDs != nil {
+			ids = *input.ScheduleUserIDs
+		}
+		normalized, normalizedIDs, err := s.validateUserScheduleWrite(ctx, mode, ids)
+		if err != nil {
+			return nil, err
+		}
+		account.UserScheduleMode = normalized
+		scheduleUserIDs = normalizedIDs
+		syncScheduleUsers = true
+	}
+
 	// 先验证分组是否存在（在任何写操作之前）
 	if input.GroupIDs != nil {
 		var groupValidationErr error
@@ -2945,12 +2975,18 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 			return nil, err
 		}
 	}
+	if syncScheduleUsers {
+		if err := s.accountRepo.SyncScheduleUsers(ctx, account.ID, scheduleUserIDs); err != nil {
+			return nil, err
+		}
+	}
 
 	// 重新查询以确保返回完整数据（包括正确的 Proxy 关联对象）
 	updated, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	s.hydrateAccountScheduleUser(ctx, updated)
 	return updated, nil
 }
 
@@ -3086,6 +3122,25 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		repoUpdates.Schedulable = input.Schedulable
 	}
 
+	var scheduleUserIDs []int64
+	writeSchedule := false
+	if input.UserScheduleMode != nil || input.ScheduleUserIDs != nil {
+		if input.UserScheduleMode == nil {
+			return nil, infraerrors.BadRequest("USER_SCHEDULE_MODE_REQUIRED", "user_schedule_mode is required when schedule_user_ids is set")
+		}
+		ids := []int64(nil)
+		if input.ScheduleUserIDs != nil {
+			ids = *input.ScheduleUserIDs
+		}
+		normalized, normalizedIDs, err := s.validateUserScheduleWrite(ctx, *input.UserScheduleMode, ids)
+		if err != nil {
+			return nil, err
+		}
+		repoUpdates.UserScheduleMode = &normalized
+		scheduleUserIDs = normalizedIDs
+		writeSchedule = true
+	}
+
 	// Run bulk update for column/jsonb fields first.
 	if _, err := s.accountRepo.BulkUpdate(ctx, input.AccountIDs, repoUpdates); err != nil {
 		return nil, err
@@ -3106,6 +3161,16 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 		if input.GroupIDs != nil {
 			if err := s.accountRepo.BindGroups(ctx, accountID, *input.GroupIDs); err != nil {
+				entry.Success = false
+				entry.Error = err.Error()
+				result.Failed++
+				result.FailedIDs = append(result.FailedIDs, accountID)
+				result.Results = append(result.Results, entry)
+				continue
+			}
+		}
+		if writeSchedule {
+			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, scheduleUserIDs); err != nil {
 				entry.Success = false
 				entry.Error = err.Error()
 				result.Failed++

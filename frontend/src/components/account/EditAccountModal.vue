@@ -2,7 +2,7 @@
   <BaseDialog
     :show="show"
     :title="t('admin.accounts.editAccount')"
-    width="extra-wide"
+    width="full"
     @close="handleClose"
   >
     <form
@@ -12,7 +12,7 @@
       class="space-y-5"
     >
       <div
-        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-3 lg:items-stretch lg:gap-4"
+        class="flex flex-col gap-3 sm:gap-4 lg:grid lg:max-h-[min(80vh,880px)] lg:grid-cols-2 lg:items-stretch lg:gap-4 xl:grid-cols-4"
         data-testid="edit-account-layout"
       >
         <!-- Zone 1: Account config -->
@@ -384,7 +384,7 @@
           </div>
         </section>
 
-        <!-- Zone 3: Other features (collapsed by default; accordion on all breakpoints) -->
+        <!-- Zone 3: Other features -->
         <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="edit-account-zone-other">
           <button
             type="button"
@@ -2625,6 +2625,62 @@
       </div>
           </div>
         </section>
+
+        <!-- Zone 4: User schedule (last; collapsed by default below lg) -->
+        <section class="rounded-xl border border-gray-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-800/40 sm:p-4 lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden" data-testid="edit-account-zone-user-schedule">
+          <button
+            type="button"
+            class="mb-3 flex w-full items-center justify-between gap-2 border-b border-gray-100 pb-2 text-left dark:border-dark-600 lg:cursor-default"
+            data-testid="edit-account-zone-user-schedule-toggle"
+            @click="zoneScheduleExpanded = !zoneScheduleExpanded"
+          >
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.accounts.editZones.userSchedule') }}
+            </h3>
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400 lg:hidden">
+              {{ zoneScheduleExpanded ? t('admin.accounts.editZones.collapse') : t('admin.accounts.editZones.expand') }}
+              <Icon :name="zoneScheduleExpanded ? 'chevronUp' : 'chevronDown'" size="sm" :stroke-width="2" />
+            </span>
+          </button>
+          <div
+            class="min-h-0 flex-1 flex-col space-y-4 lg:flex lg:overflow-y-auto lg:pr-1"
+            :class="zoneScheduleExpanded ? 'flex' : 'hidden lg:flex'"
+            data-testid="edit-account-zone-user-schedule-body"
+          >
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.userSchedule.hint') }}
+            </p>
+            <div class="flex flex-col gap-2" data-testid="edit-account-user-schedule-mode">
+              <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+                <input v-model="form.user_schedule_mode" type="radio" value="unrestricted" class="text-primary-600 focus:ring-primary-500" data-testid="user-schedule-mode-unrestricted" />
+                {{ t('admin.accounts.userSchedule.modeUnrestricted') }}
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+                <input v-model="form.user_schedule_mode" type="radio" value="allow" class="text-primary-600 focus:ring-primary-500" data-testid="user-schedule-mode-allow" />
+                {{ t('admin.accounts.userSchedule.modeAllow') }}
+              </label>
+              <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
+                <input v-model="form.user_schedule_mode" type="radio" value="deny" class="text-primary-600 focus:ring-primary-500" data-testid="user-schedule-mode-deny" />
+                {{ t('admin.accounts.userSchedule.modeDeny') }}
+              </label>
+            </div>
+            <div v-if="form.user_schedule_mode !== 'unrestricted'" data-testid="edit-account-user-schedule-picker">
+              <OpenAIFastPolicyUserSelector
+                v-model="form.schedule_user_ids"
+                :known-users="scheduleKnownUsers"
+              />
+            </div>
+            <button
+              type="button"
+              class="self-start text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+              data-testid="user-schedule-restore-default"
+              :title="t('admin.accounts.userSchedule.restoreDefaultHint')"
+              @click="restoreUserScheduleDefault"
+            >
+              {{ t('admin.accounts.userSchedule.restoreDefault') }}
+            </button>
+          </div>
+        </section>
       </div>
 
     </form>
@@ -2703,6 +2759,7 @@ import Icon from '@/components/icons/Icon.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
+import OpenAIFastPolicyUserSelector from '@/views/admin/settings/OpenAIFastPolicyUserSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
   applyAnthropicAPIKeyAuthScheme,
@@ -2793,6 +2850,8 @@ const submitting = ref(false)
 const zone2Expanded = ref(true)
 /** Zone 3 (other features): expanded by default (create / edit / bulk aligned) */
 const zone3Expanded = ref(true)
+/** Zone 4 (user schedule, last): collapsed by default below lg */
+const zoneScheduleExpanded = ref(false)
 const editBaseUrl = ref('https://api.anthropic.com')
 const editApiKey = ref('')
 // Bedrock credentials
@@ -3157,7 +3216,9 @@ const form = reactive({
   rate_multiplier: 1,
   status: 'active' as 'active' | 'inactive' | 'error',
   group_ids: [] as number[],
-  expires_at: null as number | null
+  expires_at: null as number | null,
+  user_schedule_mode: 'unrestricted' as 'unrestricted' | 'allow' | 'deny',
+  schedule_user_ids: [] as number[]
 })
 
 const statusOptions = computed(() => {
@@ -3177,6 +3238,19 @@ const expiresAtInput = computed({
     form.expires_at = parseDateTimeLocal(value)
   }
 })
+
+const scheduleKnownUsers = computed(() =>
+  (props.account?.schedule_users ?? []).map((user) => ({
+    id: user.id,
+    email: user.email,
+    deleted: Boolean(user.deleted)
+  }))
+)
+
+const restoreUserScheduleDefault = () => {
+  form.user_schedule_mode = 'unrestricted'
+  form.schedule_user_ids = []
+}
 
 // Watchers
 const normalizePoolModeRetryCount = (value: number) => {
@@ -3249,6 +3323,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     ...(newAccount.group_ids ?? newAccount.groups?.map((group) => group.id) ?? [])
   ]
   form.expires_at = newAccount.expires_at ?? null
+  form.user_schedule_mode =
+    newAccount.user_schedule_mode === 'allow' || newAccount.user_schedule_mode === 'deny'
+      ? newAccount.user_schedule_mode
+      : 'unrestricted'
+  form.schedule_user_ids = (newAccount.schedule_users ?? []).map((user) => user.id)
 
   // Load intercept warmup requests setting (applies to all account types)
   const credentials = newAccount.credentials as Record<string, unknown> | undefined
@@ -4172,6 +4251,13 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
     return
   }
+  if (
+    (form.user_schedule_mode === 'allow' || form.user_schedule_mode === 'deny') &&
+    form.schedule_user_ids.length === 0
+  ) {
+    appStore.showError(t('admin.accounts.userSchedule.usersRequired'))
+    return
+  }
 
   const updatePayload: Record<string, unknown> = { ...form }
   try {
@@ -4188,6 +4274,9 @@ const handleSubmit = async () => {
       updatePayload.load_factor = 0
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
+    if (form.user_schedule_mode === 'unrestricted') {
+      updatePayload.schedule_user_ids = []
+    }
 
     // For apikey type, handle credentials update
     if (props.account.type === 'apikey') {

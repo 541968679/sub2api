@@ -69,6 +69,14 @@ func (s *sparkShadowRepoStub) BindGroups(_ context.Context, accountID int64, gro
 	return nil
 }
 
+func (s *sparkShadowRepoStub) SyncScheduleUsers(_ context.Context, _ int64, _ []int64) error {
+	return nil
+}
+
+func (s *sparkShadowRepoStub) ListScheduleUserRefs(_ context.Context, _ []int64) ([]ScheduleUserRef, error) {
+	return nil, nil
+}
+
 func (s *sparkShadowRepoStub) ListSchedulableByGroupID(_ context.Context, groupID int64) ([]Account, error) {
 	var result []Account
 	for accID, groups := range s.groupsOf {

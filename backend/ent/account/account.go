@@ -76,8 +76,12 @@ const (
 	FieldParentAccountID = "parent_account_id"
 	// FieldQuotaDimension holds the string denoting the quota_dimension field in the database.
 	FieldQuotaDimension = "quota_dimension"
+	// FieldUserScheduleMode holds the string denoting the user_schedule_mode field in the database.
+	FieldUserScheduleMode = "user_schedule_mode"
 	// EdgeGroups holds the string denoting the groups edge name in mutations.
 	EdgeGroups = "groups"
+	// EdgeScheduleUsers holds the string denoting the schedule_users edge name in mutations.
+	EdgeScheduleUsers = "schedule_users"
 	// EdgeProxy holds the string denoting the proxy edge name in mutations.
 	EdgeProxy = "proxy"
 	// EdgeParent holds the string denoting the parent edge name in mutations.
@@ -88,6 +92,8 @@ const (
 	EdgeUsageLogs = "usage_logs"
 	// EdgeAccountGroups holds the string denoting the account_groups edge name in mutations.
 	EdgeAccountGroups = "account_groups"
+	// EdgeAccountScheduleUsers holds the string denoting the account_schedule_users edge name in mutations.
+	EdgeAccountScheduleUsers = "account_schedule_users"
 	// Table holds the table name of the account in the database.
 	Table = "accounts"
 	// GroupsTable is the table that holds the groups relation/edge. The primary key declared below.
@@ -95,6 +101,11 @@ const (
 	// GroupsInverseTable is the table name for the Group entity.
 	// It exists in this package in order to avoid circular dependency with the "group" package.
 	GroupsInverseTable = "groups"
+	// ScheduleUsersTable is the table that holds the schedule_users relation/edge. The primary key declared below.
+	ScheduleUsersTable = "account_schedule_users"
+	// ScheduleUsersInverseTable is the table name for the User entity.
+	// It exists in this package in order to avoid circular dependency with the "user" package.
+	ScheduleUsersInverseTable = "users"
 	// ProxyTable is the table that holds the proxy relation/edge.
 	ProxyTable = "accounts"
 	// ProxyInverseTable is the table name for the Proxy entity.
@@ -124,6 +135,13 @@ const (
 	AccountGroupsInverseTable = "account_groups"
 	// AccountGroupsColumn is the table column denoting the account_groups relation/edge.
 	AccountGroupsColumn = "account_id"
+	// AccountScheduleUsersTable is the table that holds the account_schedule_users relation/edge.
+	AccountScheduleUsersTable = "account_schedule_users"
+	// AccountScheduleUsersInverseTable is the table name for the AccountScheduleUser entity.
+	// It exists in this package in order to avoid circular dependency with the "accountscheduleuser" package.
+	AccountScheduleUsersInverseTable = "account_schedule_users"
+	// AccountScheduleUsersColumn is the table column denoting the account_schedule_users relation/edge.
+	AccountScheduleUsersColumn = "account_id"
 )
 
 // Columns holds all SQL columns for account fields.
@@ -159,12 +177,16 @@ var Columns = []string{
 	FieldSessionWindowStatus,
 	FieldParentAccountID,
 	FieldQuotaDimension,
+	FieldUserScheduleMode,
 }
 
 var (
 	// GroupsPrimaryKey and GroupsColumn2 are the table columns denoting the
 	// primary key for the groups relation (M2M).
 	GroupsPrimaryKey = []string{"account_id", "group_id"}
+	// ScheduleUsersPrimaryKey and ScheduleUsersColumn2 are the table columns denoting the
+	// primary key for the schedule_users relation (M2M).
+	ScheduleUsersPrimaryKey = []string{"account_id", "user_id"}
 )
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -217,6 +239,10 @@ var (
 	DefaultSchedulable bool
 	// SessionWindowStatusValidator is a validator for the "session_window_status" field. It is called by the builders before save.
 	SessionWindowStatusValidator func(string) error
+	// DefaultUserScheduleMode holds the default value on creation for the "user_schedule_mode" field.
+	DefaultUserScheduleMode string
+	// UserScheduleModeValidator is a validator for the "user_schedule_mode" field. It is called by the builders before save.
+	UserScheduleModeValidator func(string) error
 )
 
 // QuotaDimension defines the type for the "quota_dimension" enum field.
@@ -393,6 +419,11 @@ func ByQuotaDimension(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQuotaDimension, opts...).ToFunc()
 }
 
+// ByUserScheduleMode orders the results by the user_schedule_mode field.
+func ByUserScheduleMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUserScheduleMode, opts...).ToFunc()
+}
+
 // ByGroupsCount orders the results by groups count.
 func ByGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -404,6 +435,20 @@ func ByGroupsCount(opts ...sql.OrderTermOption) OrderOption {
 func ByGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByScheduleUsersCount orders the results by schedule_users count.
+func ByScheduleUsersCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newScheduleUsersStep(), opts...)
+	}
+}
+
+// ByScheduleUsers orders the results by schedule_users terms.
+func ByScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newScheduleUsersStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 
@@ -462,11 +507,32 @@ func ByAccountGroups(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newAccountGroupsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByAccountScheduleUsersCount orders the results by account_schedule_users count.
+func ByAccountScheduleUsersCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAccountScheduleUsersStep(), opts...)
+	}
+}
+
+// ByAccountScheduleUsers orders the results by account_schedule_users terms.
+func ByAccountScheduleUsers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAccountScheduleUsersStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newGroupsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(GroupsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2M, false, GroupsTable, GroupsPrimaryKey...),
+	)
+}
+func newScheduleUsersStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ScheduleUsersInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2M, false, ScheduleUsersTable, ScheduleUsersPrimaryKey...),
 	)
 }
 func newProxyStep() *sqlgraph.Step {
@@ -502,5 +568,12 @@ func newAccountGroupsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(AccountGroupsInverseTable, AccountGroupsColumn),
 		sqlgraph.Edge(sqlgraph.O2M, true, AccountGroupsTable, AccountGroupsColumn),
+	)
+}
+func newAccountScheduleUsersStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(AccountScheduleUsersInverseTable, AccountScheduleUsersColumn),
+		sqlgraph.Edge(sqlgraph.O2M, true, AccountScheduleUsersTable, AccountScheduleUsersColumn),
 	)
 }

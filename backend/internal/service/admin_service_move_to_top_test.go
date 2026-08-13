@@ -90,6 +90,14 @@ func (r *createAccountPinRepo) BindGroups(_ context.Context, _ int64, _ []int64)
 	return nil
 }
 
+func (r *createAccountPinRepo) SyncScheduleUsers(_ context.Context, _ int64, _ []int64) error {
+	return nil
+}
+
+func (r *createAccountPinRepo) ListScheduleUserRefs(_ context.Context, _ []int64) ([]ScheduleUserRef, error) {
+	return nil, nil
+}
+
 func TestCreateAccount_PinsNewAccountToListTop(t *testing.T) {
 	t.Parallel()
 	repo := &createAccountPinRepo{}

@@ -1755,7 +1755,7 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 
 	// 检查账号是否需要清理粘性会话
 	// Check if sticky session should be cleared
-	if shouldClearStickySession(account, requestedModel) {
+	if shouldClearStickySession(account, requestedModel) || !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
@@ -1823,6 +1823,9 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 		}
 		fresh = s.recheckSelectedOpenAIAccountFromDBForSchedule(ctx, fresh, poolEligibility)
 		if fresh == nil {
+			continue
+		}
+		if !fresh.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 			continue
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, eligibility.RequireCompact) {
@@ -1977,7 +1980,8 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		if accountID > 0 && !isExcluded(accountID) {
 			account, err := s.getSchedulableAccount(ctx, accountID)
 			if err == nil {
-				clearSticky := shouldClearStickySession(account, requestedModel)
+				clearSticky := shouldClearStickySession(account, requestedModel) ||
+					!account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0))
 				if clearSticky {
 					_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 				}
@@ -2034,6 +2038,9 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			}
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, candidate, requestedModel, eligibility.RequireCompact) {
+			continue
+		}
+		if !candidate.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 			continue
 		}
 		baseCandidateCount++
@@ -2274,6 +2281,9 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 		if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
 			return nil
 		}
+		if !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+			return nil
+		}
 		return account
 	}
 
@@ -2285,6 +2295,9 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 		return nil
 	}
 	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, latest); paused {
+		return nil
+	}
+	if !latest.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
 		return nil
 	}
 	return latest

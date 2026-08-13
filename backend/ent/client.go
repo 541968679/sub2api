@@ -17,6 +17,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
@@ -73,6 +74,8 @@ type Client struct {
 	Account *AccountClient
 	// AccountGroup is the client for interacting with the AccountGroup builders.
 	AccountGroup *AccountGroupClient
+	// AccountScheduleUser is the client for interacting with the AccountScheduleUser builders.
+	AccountScheduleUser *AccountScheduleUserClient
 	// Announcement is the client for interacting with the Announcement builders.
 	Announcement *AnnouncementClient
 	// AnnouncementRead is the client for interacting with the AnnouncementRead builders.
@@ -162,6 +165,7 @@ func (c *Client) init() {
 	c.APIKey = NewAPIKeyClient(c.config)
 	c.Account = NewAccountClient(c.config)
 	c.AccountGroup = NewAccountGroupClient(c.config)
+	c.AccountScheduleUser = NewAccountScheduleUserClient(c.config)
 	c.Announcement = NewAnnouncementClient(c.config)
 	c.AnnouncementRead = NewAnnouncementReadClient(c.config)
 	c.AuthIdentity = NewAuthIdentityClient(c.config)
@@ -295,6 +299,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		APIKey:                        NewAPIKeyClient(cfg),
 		Account:                       NewAccountClient(cfg),
 		AccountGroup:                  NewAccountGroupClient(cfg),
+		AccountScheduleUser:           NewAccountScheduleUserClient(cfg),
 		Announcement:                  NewAnnouncementClient(cfg),
 		AnnouncementRead:              NewAnnouncementReadClient(cfg),
 		AuthIdentity:                  NewAuthIdentityClient(cfg),
@@ -355,6 +360,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		APIKey:                        NewAPIKeyClient(cfg),
 		Account:                       NewAccountClient(cfg),
 		AccountGroup:                  NewAccountGroupClient(cfg),
+		AccountScheduleUser:           NewAccountScheduleUserClient(cfg),
 		Announcement:                  NewAnnouncementClient(cfg),
 		AnnouncementRead:              NewAnnouncementReadClient(cfg),
 		AuthIdentity:                  NewAuthIdentityClient(cfg),
@@ -421,9 +427,9 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup, c.Announcement,
-		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
-		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
+		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup, c.AccountScheduleUser,
+		c.Announcement, c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel,
+		c.BatchImageEvent, c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.ImageChannelMonitor,
@@ -442,9 +448,9 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup, c.Announcement,
-		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
-		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
+		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup, c.AccountScheduleUser,
+		c.Announcement, c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel,
+		c.BatchImageEvent, c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.ImageChannelMonitor,
@@ -470,6 +476,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Account.mutate(ctx, m)
 	case *AccountGroupMutation:
 		return c.AccountGroup.mutate(ctx, m)
+	case *AccountScheduleUserMutation:
+		return c.AccountScheduleUser.mutate(ctx, m)
 	case *AnnouncementMutation:
 		return c.Announcement.mutate(ctx, m)
 	case *AnnouncementReadMutation:
@@ -989,6 +997,22 @@ func (c *AccountClient) QueryGroups(_m *Account) *GroupQuery {
 	return query
 }
 
+// QueryScheduleUsers queries the schedule_users edge of a Account.
+func (c *AccountClient) QueryScheduleUsers(_m *Account) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(account.Table, account.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, account.ScheduleUsersTable, account.ScheduleUsersPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryProxy queries the proxy edge of a Account.
 func (c *AccountClient) QueryProxy(_m *Account) *ProxyQuery {
 	query := (&ProxyClient{config: c.config}).Query()
@@ -1062,6 +1086,22 @@ func (c *AccountClient) QueryAccountGroups(_m *Account) *AccountGroupQuery {
 			sqlgraph.From(account.Table, account.FieldID, id),
 			sqlgraph.To(accountgroup.Table, accountgroup.AccountColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, account.AccountGroupsTable, account.AccountGroupsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAccountScheduleUsers queries the account_schedule_users edge of a Account.
+func (c *AccountClient) QueryAccountScheduleUsers(_m *Account) *AccountScheduleUserQuery {
+	query := (&AccountScheduleUserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(account.Table, account.FieldID, id),
+			sqlgraph.To(accountscheduleuser.Table, accountscheduleuser.AccountColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, account.AccountScheduleUsersTable, account.AccountScheduleUsersColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -1209,6 +1249,122 @@ func (c *AccountGroupClient) mutate(ctx context.Context, m *AccountGroupMutation
 		return (&AccountGroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AccountGroup mutation op: %q", m.Op())
+	}
+}
+
+// AccountScheduleUserClient is a client for the AccountScheduleUser schema.
+type AccountScheduleUserClient struct {
+	config
+}
+
+// NewAccountScheduleUserClient returns a client for the AccountScheduleUser from the given config.
+func NewAccountScheduleUserClient(c config) *AccountScheduleUserClient {
+	return &AccountScheduleUserClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `accountscheduleuser.Hooks(f(g(h())))`.
+func (c *AccountScheduleUserClient) Use(hooks ...Hook) {
+	c.hooks.AccountScheduleUser = append(c.hooks.AccountScheduleUser, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `accountscheduleuser.Intercept(f(g(h())))`.
+func (c *AccountScheduleUserClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AccountScheduleUser = append(c.inters.AccountScheduleUser, interceptors...)
+}
+
+// Create returns a builder for creating a AccountScheduleUser entity.
+func (c *AccountScheduleUserClient) Create() *AccountScheduleUserCreate {
+	mutation := newAccountScheduleUserMutation(c.config, OpCreate)
+	return &AccountScheduleUserCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AccountScheduleUser entities.
+func (c *AccountScheduleUserClient) CreateBulk(builders ...*AccountScheduleUserCreate) *AccountScheduleUserCreateBulk {
+	return &AccountScheduleUserCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AccountScheduleUserClient) MapCreateBulk(slice any, setFunc func(*AccountScheduleUserCreate, int)) *AccountScheduleUserCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AccountScheduleUserCreateBulk{err: fmt.Errorf("calling to AccountScheduleUserClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AccountScheduleUserCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AccountScheduleUserCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AccountScheduleUser.
+func (c *AccountScheduleUserClient) Update() *AccountScheduleUserUpdate {
+	mutation := newAccountScheduleUserMutation(c.config, OpUpdate)
+	return &AccountScheduleUserUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AccountScheduleUserClient) UpdateOne(_m *AccountScheduleUser) *AccountScheduleUserUpdateOne {
+	mutation := newAccountScheduleUserMutation(c.config, OpUpdateOne)
+	mutation.account = &_m.AccountID
+	mutation.user = &_m.UserID
+	return &AccountScheduleUserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AccountScheduleUser.
+func (c *AccountScheduleUserClient) Delete() *AccountScheduleUserDelete {
+	mutation := newAccountScheduleUserMutation(c.config, OpDelete)
+	return &AccountScheduleUserDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Query returns a query builder for AccountScheduleUser.
+func (c *AccountScheduleUserClient) Query() *AccountScheduleUserQuery {
+	return &AccountScheduleUserQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAccountScheduleUser},
+		inters: c.Interceptors(),
+	}
+}
+
+// QueryAccount queries the account edge of a AccountScheduleUser.
+func (c *AccountScheduleUserClient) QueryAccount(_m *AccountScheduleUser) *AccountQuery {
+	return c.Query().
+		Where(accountscheduleuser.AccountID(_m.AccountID), accountscheduleuser.UserID(_m.UserID)).
+		QueryAccount()
+}
+
+// QueryUser queries the user edge of a AccountScheduleUser.
+func (c *AccountScheduleUserClient) QueryUser(_m *AccountScheduleUser) *UserQuery {
+	return c.Query().
+		Where(accountscheduleuser.AccountID(_m.AccountID), accountscheduleuser.UserID(_m.UserID)).
+		QueryUser()
+}
+
+// Hooks returns the client hooks.
+func (c *AccountScheduleUserClient) Hooks() []Hook {
+	return c.hooks.AccountScheduleUser
+}
+
+// Interceptors returns the client interceptors.
+func (c *AccountScheduleUserClient) Interceptors() []Interceptor {
+	return c.inters.AccountScheduleUser
+}
+
+func (c *AccountScheduleUserClient) mutate(ctx context.Context, m *AccountScheduleUserMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AccountScheduleUserCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AccountScheduleUserUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AccountScheduleUserUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AccountScheduleUserDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AccountScheduleUser mutation op: %q", m.Op())
 	}
 }
 
@@ -6167,6 +6323,22 @@ func (c *UserClient) QueryAllowedGroups(_m *User) *GroupQuery {
 	return query
 }
 
+// QueryScheduledAccounts queries the scheduled_accounts edge of a User.
+func (c *UserClient) QueryScheduledAccounts(_m *User) *AccountQuery {
+	query := (&AccountClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(account.Table, account.FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, true, user.ScheduledAccountsTable, user.ScheduledAccountsPrimaryKey...),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // QueryUsageLogs queries the usage_logs edge of a User.
 func (c *UserClient) QueryUsageLogs(_m *User) *UsageLogQuery {
 	query := (&UsageLogClient{config: c.config}).Query()
@@ -6288,6 +6460,22 @@ func (c *UserClient) QueryUserAllowedGroups(_m *User) *UserAllowedGroupQuery {
 			sqlgraph.From(user.Table, user.FieldID, id),
 			sqlgraph.To(userallowedgroup.Table, userallowedgroup.UserColumn),
 			sqlgraph.Edge(sqlgraph.O2M, true, user.UserAllowedGroupsTable, user.UserAllowedGroupsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAccountScheduleUsers queries the account_schedule_users edge of a User.
+func (c *UserClient) QueryAccountScheduleUsers(_m *User) *AccountScheduleUserQuery {
+	query := (&AccountScheduleUserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(accountscheduleuser.Table, accountscheduleuser.UserColumn),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.AccountScheduleUsersTable, user.AccountScheduleUsersColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -7107,28 +7295,30 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AICreditSnapshot, APIKey, Account, AccountGroup, Announcement, AnnouncementRead,
-		AuthIdentity, AuthIdentityChannel, BatchImageEvent, BatchImageItem,
-		BatchImageJob, ChannelMonitor, ChannelMonitorDailyRollup,
-		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, ImageChannelMonitor,
-		ImageChannelMonitorHistory, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Hook
+		AICreditSnapshot, APIKey, Account, AccountGroup, AccountScheduleUser,
+		Announcement, AnnouncementRead, AuthIdentity, AuthIdentityChannel,
+		BatchImageEvent, BatchImageItem, BatchImageJob, ChannelMonitor,
+		ChannelMonitorDailyRollup, ChannelMonitorHistory,
+		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
+		IdentityAdoptionDecision, ImageChannelMonitor, ImageChannelMonitorHistory,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
-		AICreditSnapshot, APIKey, Account, AccountGroup, Announcement, AnnouncementRead,
-		AuthIdentity, AuthIdentityChannel, BatchImageEvent, BatchImageItem,
-		BatchImageJob, ChannelMonitor, ChannelMonitorDailyRollup,
-		ChannelMonitorHistory, ChannelMonitorRequestTemplate, ErrorPassthroughRule,
-		Group, IdempotencyRecord, IdentityAdoptionDecision, ImageChannelMonitor,
-		ImageChannelMonitorHistory, PaymentAuditLog, PaymentOrder,
-		PaymentProviderInstance, PendingAuthSession, PromoCode, PromoCodeUsage, Proxy,
-		RedeemCode, SecuritySecret, Setting, SubscriptionPlan, TLSFingerprintProfile,
-		UsageCleanupTask, UsageLog, User, UserAllowedGroup, UserAttributeDefinition,
-		UserAttributeValue, UserPlatformQuota, UserSubscription []ent.Interceptor
+		AICreditSnapshot, APIKey, Account, AccountGroup, AccountScheduleUser,
+		Announcement, AnnouncementRead, AuthIdentity, AuthIdentityChannel,
+		BatchImageEvent, BatchImageItem, BatchImageJob, ChannelMonitor,
+		ChannelMonitorDailyRollup, ChannelMonitorHistory,
+		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
+		IdentityAdoptionDecision, ImageChannelMonitor, ImageChannelMonitorHistory,
+		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
+		PromoCode, PromoCodeUsage, Proxy, RedeemCode, SecuritySecret, Setting,
+		SubscriptionPlan, TLSFingerprintProfile, UsageCleanupTask, UsageLog, User,
+		UserAllowedGroup, UserAttributeDefinition, UserAttributeValue,
+		UserPlatformQuota, UserSubscription []ent.Interceptor
 	}
 )
 

@@ -35,6 +35,9 @@ type stubAdminService struct {
 	createSparkShadowErr                error
 	updateAccountErr                    error
 	bulkUpdateAccountErr                error
+	lastUpdateAccountID                 int64
+	lastUpdateAccountInput              *service.UpdateAccountInput
+	lastBulkUpdateInput                 *service.BulkUpdateAccountsInput
 	checkMixedErr                       error
 	lastMixedCheck                      struct {
 		accountID int64
@@ -421,10 +424,18 @@ func (s *stubAdminService) CreateAccount(ctx context.Context, input *service.Cre
 }
 
 func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
+	s.lastUpdateAccountID = id
+	s.lastUpdateAccountInput = input
 	if s.updateAccountErr != nil {
 		return nil, s.updateAccountErr
 	}
 	account := service.Account{ID: id, Name: input.Name, Status: service.StatusActive}
+	if input != nil && input.UserScheduleMode != nil {
+		account.UserScheduleMode = *input.UserScheduleMode
+	}
+	if input != nil && input.ScheduleUserIDs != nil {
+		account.ScheduleUserIDs = append([]int64(nil), (*input.ScheduleUserIDs)...)
+	}
 	return &account, nil
 }
 
@@ -458,6 +469,7 @@ func (s *stubAdminService) SetAccountSchedulable(ctx context.Context, id int64, 
 }
 
 func (s *stubAdminService) BulkUpdateAccounts(ctx context.Context, input *service.BulkUpdateAccountsInput) (*service.BulkUpdateAccountsResult, error) {
+	s.lastBulkUpdateInput = input
 	if s.bulkUpdateAccountErr != nil {
 		return nil, s.bulkUpdateAccountErr
 	}
