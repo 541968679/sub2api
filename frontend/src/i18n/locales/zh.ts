@@ -2046,6 +2046,8 @@ const zhBase = {
       autoRefreshCountdown: '自动刷新：{seconds}s',
       viewUsage: '查看使用记录',
       viewUsageShort: '查看使用',
+      viewErrorRequests: '查看错误请求记录',
+      viewErrorRequestsShort: '错误',
       editUser: '编辑用户',
       deleteUser: '删除用户',
       deleteConfirmMessage: "确定要删除用户 '{email}' 吗？此操作无法撤销。",
@@ -9010,6 +9012,9 @@ const v117ZhPatch = {
     },
     usage: {
       actions: '操作',
+      inspectTitle: '用量与错误',
+      inspectViewFull: '查看完整',
+      inspectLockedHint: '当前对象已锁定，不可切换',
       viewUserPerspective: '查看用户视角',
       tokenColumn: 'token',
       displayTokenColumn: 'TOKEN',

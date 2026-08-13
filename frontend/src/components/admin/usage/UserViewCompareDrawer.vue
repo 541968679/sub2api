@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :show="open" :title="t('admin.usage.userViewCompareTitle')" width="extra-wide" close-on-click-outside @close="$emit('close')">
+  <BaseDialog :show="open" :title="t('admin.usage.userViewCompareTitle')" width="extra-wide" close-on-click-outside :z-index="zIndex" @close="$emit('close')">
     <div v-if="loading" class="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
       {{ t('common.loading') }}
     </div>
@@ -156,9 +156,12 @@ import { adminUsageAPI, type UserViewPreview, type UserViewSnapshot } from '@/ap
 interface Props {
   logId: number | null
   open: boolean
+  zIndex?: number
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  zIndex: 50
+})
 defineEmits<{ close: [] }>()
 
 const { t } = useI18n()

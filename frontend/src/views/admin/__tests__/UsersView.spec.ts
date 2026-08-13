@@ -87,6 +87,7 @@ const DataTableStub = {
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
+        <slot name="cell-actions" :row="row" />
       </div>
     </div>
   `
@@ -143,6 +144,7 @@ const mountUsersView = () =>
         UserBalanceHistoryModal: true,
         UserBalanceHistoryManageModal: true,
         GroupReplaceModal: true,
+        UsageErrorInspectDialog: true,
         Icon: true,
         Teleport: true
       }
@@ -249,5 +251,26 @@ const mountUsersView = () =>
     await flushPromises()
 
     expect(localStorage.getItem('user-burn-rate-unit')).toBe('hour')
+  })
+
+  it('opens the inspect dialog instead of a new tab for usage and errors', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const wrapper = mountUsersView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="user-view-error-requests"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="user-view-usage"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="user-view-usage"]').trigger('click')
+    expect((wrapper.vm as any).inspectOpen).toBe(true)
+    expect((wrapper.vm as any).inspectTab).toBe('usage')
+    expect((wrapper.vm as any).inspectSubjectId).toBe(42)
+    expect(openSpy).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="user-view-error-requests"]').trigger('click')
+    expect((wrapper.vm as any).inspectOpen).toBe(true)
+    expect((wrapper.vm as any).inspectTab).toBe('errors')
+    expect(openSpy).not.toHaveBeenCalled()
+    openSpy.mockRestore()
   })
 })

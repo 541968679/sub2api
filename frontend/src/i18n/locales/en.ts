@@ -2189,6 +2189,8 @@ const enBase = {
       autoRefreshCountdown: 'Auto refresh: {seconds}s',
       viewUsage: 'View usage records',
       viewUsageShort: 'View usage',
+      viewErrorRequests: 'View error request records',
+      viewErrorRequestsShort: 'Errors',
       editUser: 'Edit User',
       deleteUser: 'Delete User',
       searchUsers: 'Search by email, username, notes, or API key...',
@@ -5953,6 +5955,9 @@ const enBase = {
         }
       },
       actions: 'Actions',
+      inspectTitle: 'Usage and errors',
+      inspectViewFull: 'View full page',
+      inspectLockedHint: 'This subject is locked and cannot be changed',
       viewUserPerspective: 'View user perspective',
       tokenColumn: 'token',
       displayTokenColumn: 'TOKEN',

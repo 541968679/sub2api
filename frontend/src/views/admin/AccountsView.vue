@@ -750,6 +750,14 @@
     </ConfirmDialog>
     <ErrorPassthroughRulesModal :show="showErrorPassthrough" @close="showErrorPassthrough = false" />
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
+    <UsageErrorInspectDialog
+      :show="inspectOpen"
+      scope="account"
+      :subject-id="inspectSubjectId"
+      :subject-label="inspectSubjectLabel"
+      :initial-tab="inspectTab"
+      @close="inspectOpen = false"
+    />
   </AppLayout>
 </template>
 
@@ -757,7 +765,6 @@
 import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
@@ -804,12 +811,12 @@ import Icon from '@/components/icons/Icon.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
+import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateTime, formatRelativeTime } from '@/utils/format'
 import type { Account, AccountPlatform, AccountType, AccountSchedulerGroupScore, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
-const router = useRouter()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 
@@ -2078,30 +2085,21 @@ if (typeof window !== 'undefined') {
 
 const handleEdit = (a: Account) => { edAcc.value = a; showEdit.value = true }
 
-/** Open admin usage page filtered to this account (new browser tab). */
-const handleViewUsage = (a: Account) => {
-  const resolved = router.resolve({
-    path: '/admin/usage',
-    query: {
-      account_id: String(a.id),
-      account_name: a.name || undefined
-    }
-  })
-  window.open(resolved.href, '_blank', 'noopener,noreferrer')
+const inspectOpen = ref(false)
+const inspectSubjectId = ref<number | null>(null)
+const inspectSubjectLabel = ref('')
+const inspectTab = ref<'usage' | 'errors'>('usage')
+
+const openUsageErrorInspect = (a: Account, tab: 'usage' | 'errors') => {
+  inspectSubjectId.value = a.id
+  inspectSubjectLabel.value = a.name || ''
+  inspectTab.value = tab
+  inspectOpen.value = true
 }
 
-/** Open admin usage → error requests tab filtered to this account (new browser tab). */
-const handleViewErrorRequests = (a: Account) => {
-  const resolved = router.resolve({
-    path: '/admin/usage',
-    query: {
-      tab: 'errors',
-      account_id: String(a.id),
-      account_name: a.name || undefined
-    }
-  })
-  window.open(resolved.href, '_blank', 'noopener,noreferrer')
-}
+/** Open usage/error inspect dialog for this account. */
+const handleViewUsage = (a: Account) => openUsageErrorInspect(a, 'usage')
+const handleViewErrorRequests = (a: Account) => openUsageErrorInspect(a, 'errors')
 const openMenu = (a: Account, e: MouseEvent) => {
   menu.acc = a
 

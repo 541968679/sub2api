@@ -605,12 +605,25 @@
               <!-- View Usage Button -->
               <button
                 type="button"
+                data-testid="user-view-usage"
                 @click="handleViewUsage(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
                 :title="t('admin.users.viewUsage')"
               >
                 <Icon name="chartBar" size="sm" />
                 <span class="text-xs">{{ t('admin.users.viewUsageShort') }}</span>
+              </button>
+
+              <!-- View Error Requests Button -->
+              <button
+                type="button"
+                data-testid="user-view-error-requests"
+                @click="handleViewErrorRequests(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                :title="t('admin.users.viewErrorRequests')"
+              >
+                <Icon name="exclamationTriangle" size="sm" />
+                <span class="text-xs">{{ t('admin.users.viewErrorRequestsShort') }}</span>
               </button>
 
               <!-- Toggle Status Button (not for admin) -->
@@ -777,13 +790,20 @@
     <UserBalanceHistoryManageModal :show="showBalanceHistoryManageModal" :user="balanceHistoryManageUser" @close="closeBalanceHistoryManageModal" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
+    <UsageErrorInspectDialog
+      :show="inspectOpen"
+      scope="user"
+      :subject-id="inspectSubjectId"
+      :subject-label="inspectSubjectLabel"
+      :initial-tab="inspectTab"
+      @close="inspectOpen = false"
+    />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 import { useIntervalFn } from '@vueuse/core'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -791,7 +811,6 @@ import { formatDateTime } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
-const router = useRouter()
 import { adminAPI } from '@/api/admin'
 import type { AdminUser, AdminGroup, UserAttributeDefinition, UserStatus } from '@/types'
 import type { BatchUserBurnRateStats, BatchUserUsageStats } from '@/api/admin/dashboard'
@@ -816,6 +835,7 @@ import UserBalanceModal from '@/components/admin/user/UserBalanceModal.vue'
 import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryModal.vue'
 import UserBalanceHistoryManageModal from '@/components/admin/user/UserBalanceHistoryManageModal.vue'
 import GroupReplaceModal from '@/components/admin/user/GroupReplaceModal.vue'
+import UsageErrorInspectDialog from '@/components/admin/usage/UsageErrorInspectDialog.vue'
 
 const appStore = useAppStore()
 
@@ -1868,17 +1888,20 @@ const applyFilter = () => {
   loadUsers()
 }
 
-/** Open admin usage page filtered to this user (new browser tab). */
-const handleViewUsage = (user: AdminUser) => {
-  const resolved = router.resolve({
-    path: '/admin/usage',
-    query: {
-      user_id: String(user.id),
-      user_email: user.email || undefined
-    }
-  })
-  window.open(resolved.href, '_blank', 'noopener,noreferrer')
+const inspectOpen = ref(false)
+const inspectSubjectId = ref<number | null>(null)
+const inspectSubjectLabel = ref('')
+const inspectTab = ref<'usage' | 'errors'>('usage')
+
+const openUsageErrorInspect = (user: AdminUser, tab: 'usage' | 'errors') => {
+  inspectSubjectId.value = user.id
+  inspectSubjectLabel.value = user.email || user.username || ''
+  inspectTab.value = tab
+  inspectOpen.value = true
 }
+
+const handleViewUsage = (user: AdminUser) => openUsageErrorInspect(user, 'usage')
+const handleViewErrorRequests = (user: AdminUser) => openUsageErrorInspect(user, 'errors')
 
 const handleEdit = (user: AdminUser) => {
   editingUser.value = user

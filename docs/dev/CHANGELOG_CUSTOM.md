@@ -1,3 +1,21 @@
+## 2026-08-13 - feat(admin): account/user usage and error inspect dialog
+
+### What
+- Account and user lists open a same-page dialog for usage logs and error requests (tabs), instead of immediately opening the full /admin/usage page.
+- Dialog reuses the admin usage/error tables and filters, without stats cards, charts, ranking, export, or cleanup. Entry identity (account or user) is locked. View-full opens the full page in a new tab.
+- User list now has a matching error-requests button.
+- Closing the dialog dismisses nested overlays and treats Axios `CanceledError` as a normal abort (no false load-failure toast). Nested overlays disable the outer Escape / click-outside close.
+
+### Why
+Jumping to the full usage page was slow and piled up browser tabs during routine account/user checks.
+
+### Verification
+- pnpm --dir frontend exec vitest run src/components/admin/usage/__tests__/UsageErrorInspectDialog.spec.ts src/components/admin/usage/__tests__/ErrorRequestFilters.spec.ts src/components/admin/usage/__tests__/UsageFilters.spec.ts src/components/admin/usage/__tests__/UsageTable.spec.ts src/views/admin/__tests__/UsageView.spec.ts src/views/admin/__tests__/UsersView.spec.ts
+- pnpm --dir frontend run typecheck
+
+### Affected files
+frontend/src/components/admin/usage/UsageErrorInspectDialog.vue, usageTableColumns.ts, UsageFilters.vue, ErrorRequestFilters.vue, frontend/src/views/admin/UsageView.vue, AccountsView.vue, UsersView.vue, frontend/src/i18n/locales/zh.ts, en.ts, this changelog.
+
 ## 2026-08-13 - fix(admin-usage): show true first-token as its own column
 
 ### What

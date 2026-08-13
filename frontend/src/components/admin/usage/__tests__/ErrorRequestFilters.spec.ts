@@ -189,4 +189,46 @@ describe('ErrorRequestFilters', () => {
     expect(listGroups).toHaveBeenCalled()
     expect(getModelStats).toHaveBeenCalled()
   })
+
+  it('renders a locked user chip and hides the searchable user input', async () => {
+    const wrapper = mount(ErrorRequestFilters, {
+      props: {
+        modelValue: { ...emptyFilters(), user_id: 1 },
+        startDate: '2026-08-01',
+        endDate: '2026-08-07',
+        lockedUserId: 1,
+        lockedUserLabel: 'alice@example.com'
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="locked-user-filter"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="locked-user-filter"]').text()).toContain('alice@example.com')
+    const userInput = wrapper
+      .findAll('input')
+      .find((i) => i.attributes('placeholder') === 'admin.usage.searchUserPlaceholder')
+    expect(userInput).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('renders a locked account chip and hides the searchable account input', async () => {
+    const wrapper = mount(ErrorRequestFilters, {
+      props: {
+        modelValue: { ...emptyFilters(), account_id: 10 },
+        startDate: '2026-08-01',
+        endDate: '2026-08-07',
+        lockedAccountId: 10,
+        lockedAccountLabel: 'acct-alpha'
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="locked-account-filter"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="locked-account-filter"]').text()).toContain('acct-alpha')
+    const accountInput = wrapper
+      .findAll('input')
+      .find((i) => i.attributes('placeholder') === 'admin.usage.searchAccountPlaceholder')
+    expect(accountInput).toBeUndefined()
+    wrapper.unmount()
+  })
 })

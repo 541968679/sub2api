@@ -224,7 +224,12 @@ import UserBalanceHistoryModal from '@/components/admin/user/UserBalanceHistoryM
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { migrateLatencyHiddenColumns } from '@/utils/latencyHealth'
+import {
+  ALWAYS_VISIBLE_USAGE_COLUMNS,
+  buildAdminUsageTableColumns,
+  loadHiddenUsageColumns,
+  saveHiddenUsageColumns
+} from '@/components/admin/usage/usageTableColumns'
 import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'
 import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
 
@@ -769,31 +774,9 @@ const exportToExcel = async () => {
   finally { if(exportAbortController === c) { exportAbortController = null; exporting.value = false; exportProgress.show = false } }
 }
 
-// Column visibility
-const ALWAYS_VISIBLE = ['user', 'created_at', 'actions']
-const DEFAULT_HIDDEN_COLUMNS = ['reasoning_effort', 'user_agent']
-const HIDDEN_COLUMNS_KEY = 'usage-hidden-columns'
+const ALWAYS_VISIBLE: readonly string[] = ALWAYS_VISIBLE_USAGE_COLUMNS
 
-const allColumns = computed(() => [
-  { key: 'user', label: t('admin.usage.user'), sortable: false },
-  { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
-  { key: 'account', label: t('admin.usage.account'), sortable: false },
-  { key: 'model', label: t('usage.model'), sortable: true },
-  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
-  { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
-  { key: 'group', label: t('admin.usage.group'), sortable: false },
-  { key: 'stream', label: t('usage.type'), sortable: false },
-  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
-  { key: 'tokens', label: t('admin.usage.tokenColumn'), sortable: false, preserveHeaderCase: true },
-  { key: 'display_tokens', label: t('admin.usage.displayTokenColumn'), sortable: false, preserveHeaderCase: true },
-  { key: 'cost', label: t('usage.cost'), sortable: false },
-  { key: 'latency', label: t('usage.latency'), sortable: false },
-  { key: 'true_first_token', label: t('usage.trueFirstToken'), sortable: false },
-  { key: 'created_at', label: t('usage.time'), sortable: true },
-  { key: 'user_agent', label: t('usage.userAgent'), sortable: false },
-  { key: 'ip_address', label: t('admin.usage.ipAddress'), sortable: false },
-  { key: 'actions', label: t('admin.usage.actions'), sortable: false }
-])
+const allColumns = computed(() => buildAdminUsageTableColumns(t))
 
 const hiddenColumns = reactive<Set<string>>(new Set())
 
@@ -815,30 +798,13 @@ const toggleColumn = (key: string) => {
   } else {
     hiddenColumns.add(key)
   }
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-  } catch (e) {
-    console.error('Failed to save columns:', e)
-  }
+  saveHiddenUsageColumns([...hiddenColumns])
 }
 
 const loadSavedColumns = () => {
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      migrateLatencyHiddenColumns(JSON.parse(saved) as string[]).forEach((key) => {
-        hiddenColumns.add(key)
-      })
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-        hiddenColumns.add(key)
-      })
-    }
-  } catch {
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => {
-      hiddenColumns.add(key)
-    })
-  }
+  loadHiddenUsageColumns().forEach((key) => {
+    hiddenColumns.add(key)
+  })
 }
 
 const showColumnDropdown = ref(false)

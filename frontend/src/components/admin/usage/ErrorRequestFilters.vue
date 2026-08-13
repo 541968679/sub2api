@@ -5,6 +5,15 @@
         <!-- User Search -->
         <div ref="userSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[240px]">
           <label class="input-label">{{ t('admin.usage.userFilter') }}</label>
+          <div
+            v-if="isUserLocked"
+            data-testid="locked-user-filter"
+            class="input flex cursor-not-allowed items-center bg-gray-50 pr-3 text-sm text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+            :title="t('admin.usage.inspectLockedHint')"
+          >
+            <span class="truncate">{{ lockedUserDisplay }}</span>
+          </div>
+          <template v-else>
           <input
             v-model="userKeyword"
             type="text"
@@ -86,6 +95,7 @@
               </template>
             </div>
           </Teleport>
+          </template>
         </div>
 
         <!-- API Key Search -->
@@ -145,6 +155,15 @@
         <!-- Account Search by name -->
         <div ref="accountSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[220px]">
           <label class="input-label">{{ t('admin.usage.account') }}</label>
+          <div
+            v-if="isAccountLocked"
+            data-testid="locked-account-filter"
+            class="input flex cursor-not-allowed items-center bg-gray-50 pr-3 text-sm text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+            :title="t('admin.usage.inspectLockedHint')"
+          >
+            <span class="truncate">{{ lockedAccountDisplay }}</span>
+          </div>
+          <template v-else>
           <input
             v-model="accountKeyword"
             type="text"
@@ -234,6 +253,7 @@
               </template>
             </div>
           </Teleport>
+          </template>
         </div>
 
         <!-- Group by name -->
@@ -355,11 +375,15 @@ export type ErrorRequestFilterState = {
   status_codes: number[]
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: ErrorRequestFilterState
   startDate: string
   endDate: string
-}>()
+  lockedUserId?: number
+  lockedAccountId?: number
+  lockedUserLabel?: string
+  lockedAccountLabel?: string
+}>(), {})
 
 const emit = defineEmits<{
   'update:modelValue': [ErrorRequestFilterState]
@@ -370,6 +394,19 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const route = useRoute()
+
+const isUserLocked = computed(() => Number(props.lockedUserId) > 0)
+const isAccountLocked = computed(() => Number(props.lockedAccountId) > 0)
+const lockedUserDisplay = computed(() => {
+  const id = Number(props.lockedUserId)
+  const label = props.lockedUserLabel?.trim()
+  return label ? `${label} #${id}` : `#${id}`
+})
+const lockedAccountDisplay = computed(() => {
+  const id = Number(props.lockedAccountId)
+  const label = props.lockedAccountLabel?.trim()
+  return label ? `${label} #${id}` : `#${id}`
+})
 
 const RECENT_USERS_KEY = 'admin-usage-recent-users'
 const RECENT_ACCOUNTS_KEY = 'admin-usage-recent-accounts'
@@ -684,6 +721,7 @@ const selectUser = async (u: SimpleUser) => {
 }
 
 const clearUser = () => {
+  if (isUserLocked.value) return
   userKeyword.value = ''
   userResults.value = []
   showUserDropdown.value = false
@@ -794,6 +832,7 @@ const selectAccount = (a: SimpleAccount) => {
 }
 
 const clearAccount = () => {
+  if (isAccountLocked.value) return
   accountKeyword.value = ''
   accountResults.value = []
   showAccountDropdown.value = false
@@ -857,7 +896,7 @@ async function resolveAccountLabel(accountId: number | undefined) {
     return
   }
   // Prefer account name from deep-link query (account management → error requests).
-  const queryName = route.query.account_name
+  const queryName = route?.query?.account_name
   const nameFromQuery = Array.isArray(queryName)
     ? queryName.find((v): v is string => typeof v === 'string' && v.length > 0)
     : typeof queryName === 'string' && queryName.length > 0

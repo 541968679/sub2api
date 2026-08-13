@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :show="show" :title="t('admin.users.balanceHistoryTitle')" width="wide" :close-on-click-outside="true" :z-index="40" @close="$emit('close')">
+  <BaseDialog :show="show" :title="t('admin.users.balanceHistoryTitle')" width="wide" :close-on-click-outside="true" :z-index="zIndex" @close="$emit('close')">
     <div v-if="user" class="space-y-4">
       <!-- User header: two-row layout with full user info -->
       <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
@@ -178,7 +178,9 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 
-const props = defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean }>()
+const props = withDefaults(defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean; zIndex?: number }>(), {
+  zIndex: 40
+})
 const emit = defineEmits(['close', 'deposit', 'withdraw'])
 const { t } = useI18n()
 

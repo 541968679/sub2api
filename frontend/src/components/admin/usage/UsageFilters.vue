@@ -7,6 +7,15 @@
         <!-- User Search -->
         <div ref="userSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[240px]">
           <label class="input-label">{{ t('admin.usage.userFilter') }}</label>
+          <div
+            v-if="isUserLocked"
+            data-testid="locked-user-filter"
+            class="input flex cursor-not-allowed items-center bg-gray-50 pr-3 text-sm text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+            :title="t('admin.usage.inspectLockedHint')"
+          >
+            <span class="truncate">{{ lockedUserDisplay }}</span>
+          </div>
+          <template v-else>
           <input
             v-model="userKeyword"
             type="text"
@@ -93,6 +102,7 @@
               </template>
             </div>
           </Teleport>
+          </template>
         </div>
 
         <!-- API Key Search -->
@@ -147,6 +157,15 @@
         <!-- Account Filter -->
         <div ref="accountSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[220px]">
           <label class="input-label">{{ t('admin.usage.account') }}</label>
+          <div
+            v-if="isAccountLocked"
+            data-testid="locked-account-filter"
+            class="input flex cursor-not-allowed items-center bg-gray-50 pr-3 text-sm text-gray-700 dark:bg-dark-700 dark:text-gray-200"
+            :title="t('admin.usage.inspectLockedHint')"
+          >
+            <span class="truncate">{{ lockedAccountDisplay }}</span>
+          </div>
+          <template v-else>
           <input
             v-model="accountKeyword"
             type="text"
@@ -237,6 +256,7 @@
               </template>
             </div>
           </Teleport>
+          </template>
         </div>
 
         <!-- Request Type Filter -->
@@ -273,10 +293,10 @@
           {{ t('common.reset') }}
         </button>
         <slot name="after-reset" />
-        <button type="button" @click="$emit('cleanup')" class="btn btn-danger">
+        <button v-if="showCleanup" type="button" @click="$emit('cleanup')" class="btn btn-danger">
           {{ t('admin.usage.cleanup.button') }}
         </button>
-        <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
+        <button v-if="showExport" type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
           {{ t('usage.exportExcel') }}
         </button>
       </div>
@@ -301,10 +321,18 @@ interface Props {
   startDate: string
   endDate: string
   showActions?: boolean
+  showExport?: boolean
+  showCleanup?: boolean
+  lockedUserId?: number
+  lockedAccountId?: number
+  lockedUserLabel?: string
+  lockedAccountLabel?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showActions: true
+  showActions: true,
+  showExport: true,
+  showCleanup: true
 })
 const emit = defineEmits([
   'update:modelValue',
@@ -318,6 +346,19 @@ const emit = defineEmits([
 const { t } = useI18n()
 const route = useRoute()
 const filters = toRef(props, 'modelValue')
+
+const isUserLocked = computed(() => Number(props.lockedUserId) > 0)
+const isAccountLocked = computed(() => Number(props.lockedAccountId) > 0)
+const lockedUserDisplay = computed(() => {
+  const id = Number(props.lockedUserId)
+  const label = props.lockedUserLabel?.trim()
+  return label ? `${label} #${id}` : `#${id}`
+})
+const lockedAccountDisplay = computed(() => {
+  const id = Number(props.lockedAccountId)
+  const label = props.lockedAccountLabel?.trim()
+  return label ? `${label} #${id}` : `#${id}`
+})
 
 const RECENT_USERS_KEY = 'admin-usage-recent-users'
 const RECENT_ACCOUNTS_KEY = 'admin-usage-recent-accounts'
@@ -601,6 +642,7 @@ const selectUser = async (u: SimpleUser) => {
 }
 
 const clearUser = () => {
+  if (isUserLocked.value) return
   userKeyword.value = ''
   userResults.value = []
   showUserDropdown.value = false
@@ -712,6 +754,7 @@ const selectAccount = (a: SimpleAccount) => {
 }
 
 const clearAccount = () => {
+  if (isAccountLocked.value) return
   accountKeyword.value = ''
   accountResults.value = []
   showAccountDropdown.value = false
@@ -780,7 +823,7 @@ async function resolveAccountLabel(accountId: number | string | undefined | null
     accountResults.value = []
     return
   }
-  const queryName = route.query.account_name
+  const queryName = route?.query?.account_name
   const nameFromQuery = Array.isArray(queryName)
     ? queryName.find((v): v is string => typeof v === 'string' && v.length > 0)
     : typeof queryName === 'string' && queryName.length > 0
@@ -812,7 +855,7 @@ async function resolveUserLabel(userId: number | string | undefined | null) {
   }
   if (userKeyword.value) return
   // Prefer email from query (deep-link from user management)
-  const queryEmail = route.query.user_email
+  const queryEmail = route?.query?.user_email
   const emailFromQuery = Array.isArray(queryEmail)
     ? queryEmail.find((v): v is string => typeof v === 'string' && v.length > 0)
     : typeof queryEmail === 'string' && queryEmail.length > 0
