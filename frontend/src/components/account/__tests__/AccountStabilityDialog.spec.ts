@@ -8,12 +8,18 @@ const {
   getQualityHistory,
   getQualityHardClose,
   updateQualityHardClose,
+  recoverState,
+  getQualityHardCloseSettings,
+  updateQualityHardCloseSettings,
   showSuccess,
   showError
 } = vi.hoisted(() => ({
   getQualityHistory: vi.fn(),
   getQualityHardClose: vi.fn(),
   updateQualityHardClose: vi.fn(),
+  recoverState: vi.fn(),
+  getQualityHardCloseSettings: vi.fn(),
+  updateQualityHardCloseSettings: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn()
 }))
@@ -23,7 +29,12 @@ vi.mock('@/api/admin', () => ({
     accounts: {
       getQualityHistory,
       getQualityHardClose,
-      updateQualityHardClose
+      updateQualityHardClose,
+      recoverState
+    },
+    settings: {
+      getQualityHardCloseSettings,
+      updateQualityHardCloseSettings
     }
   }
 }))
@@ -179,13 +190,34 @@ describe('AccountStabilityDialog', () => {
     getQualityHistory.mockReset()
     getQualityHardClose.mockReset()
     updateQualityHardClose.mockReset()
+    recoverState.mockReset()
+    getQualityHardCloseSettings.mockReset()
+    updateQualityHardCloseSettings.mockReset()
     showSuccess.mockReset()
     showError.mockReset()
     getQualityHistory.mockResolvedValue({ items: [], from: '2026-08-13T00:00:00Z', to: '2026-08-14T00:00:00Z' })
     getQualityHardClose.mockResolvedValue({ ...defaultHardClose })
     updateQualityHardClose.mockResolvedValue({
       ...defaultHardClose,
-      overlay: { ...defaultHardClose.overlay, enabled: true }
+      overlay: { ...defaultHardClose.overlay, enabled: true, use_global: false }
+    })
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: 'or'
+    })
+    updateQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 2500,
+      min_success_rate: 0.85,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: 'or'
     })
   })
 
@@ -264,7 +296,7 @@ describe('AccountStabilityDialog', () => {
     await flushPromises()
 
     const toggles = wrapper.findAll('.toggle-stub')
-    expect(toggles.length).toBeGreaterThanOrEqual(2)
+    expect(toggles.length).toBe(1)
     await toggles[0].setValue(true)
 
     const percentInput = wrapper.find('input[type="number"][step="0.1"]')
@@ -299,5 +331,96 @@ describe('AccountStabilityDialog', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-test="quality-pause-banner"]').text()).toContain('paused:')
+    expect(wrapper.get('[data-test="stability-resume-now"]').exists()).toBe(true)
+  })
+
+  it('resumes a quality pause immediately without waiting for the timer', async () => {
+    const paused = makeAccount({
+      temp_unschedulable_until: '2099-08-14T16:30:00Z',
+      temp_unschedulable_reason: 'quality_hard_close:p50=3200,success=0.82'
+    })
+    const recovered = makeAccount({
+      temp_unschedulable_until: null,
+      temp_unschedulable_reason: null
+    })
+    recoverState.mockResolvedValue(recovered)
+
+    const wrapper = mountDialog(paused)
+    await flushPromises()
+    await wrapper.get('[data-test="stability-resume-now"]').trigger('click')
+    await flushPromises()
+
+    expect(recoverState).toHaveBeenCalledWith(12)
+    expect(wrapper.emitted('recovered')?.[0]?.[0]).toEqual(recovered)
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.resumeSuccess')
+  })
+
+  it('applies the shared template into the form without saving the account', async () => {
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: true,
+      max_p50_ttft_ms: 1800,
+      min_success_rate: 0.95,
+      pause_minutes: 15,
+      min_success_samples: 8,
+      min_ttft_samples: 6,
+      condition: 'and'
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    await wrapper.get('[data-test="stability-apply-template"]').trigger('click')
+    await flushPromises()
+
+    expect(getQualityHardCloseSettings).toHaveBeenCalled()
+    expect(updateQualityHardClose).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.applyTemplateSuccess')
+
+    await wrapper.get('[data-test="stability-save"]').trigger('click')
+    await flushPromises()
+    expect(updateQualityHardClose.mock.calls[0][1]).toEqual({
+      enabled: false,
+      use_global: false,
+      max_p50_ttft_ms: 1800,
+      min_success_rate: 0.95,
+      pause_minutes: 15,
+      min_success_samples: 8,
+      min_ttft_samples: 6,
+      condition: 'and'
+    })
+  })
+
+  it('saves the current form as the only shared template without flipping the master switch', async () => {
+    getQualityHardClose.mockResolvedValue({
+      ...defaultHardClose,
+      overlay: {
+        ...defaultHardClose.overlay,
+        use_global: false,
+        max_p50_ttft_ms: 2500,
+        min_success_rate: 0.85,
+        pause_minutes: 40,
+        min_success_samples: 12,
+        min_ttft_samples: 9,
+        condition: 'or'
+      }
+    })
+
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    await wrapper.get('[data-test="stability-save-template"]').trigger('click')
+    await flushPromises()
+
+    expect(updateQualityHardCloseSettings).toHaveBeenCalledWith({
+      enabled: false,
+      max_p50_ttft_ms: 2500,
+      min_success_rate: 0.85,
+      pause_minutes: 40,
+      min_success_samples: 12,
+      min_ttft_samples: 9,
+      condition: 'or'
+    })
+    expect(updateQualityHardClose).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.saveTemplateSuccess')
   })
 })

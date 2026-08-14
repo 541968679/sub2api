@@ -607,6 +607,18 @@ type GatewayService struct {
 	tlsFPProfileService   *TLSFingerprintProfileService
 	balanceNotifyService  *BalanceNotifyService
 	antigravitySampler    *AntigravityCreditSampler
+	qualityLiveCache      AccountQualityLiveCache
+}
+
+func (s *GatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
+	if s == nil {
+		return
+	}
+	s.qualityLiveCache = cache
+}
+
+func (s *GatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
+	return admitsScheduleUser(ctx, account, s.qualityLiveCache)
 }
 
 // NewGatewayService creates a new GatewayService
@@ -2478,14 +2490,14 @@ func (s *GatewayService) isAccountSchedulableForSelection(ctx context.Context, a
 	if !account.IsSchedulable() {
 		return false
 	}
-	return account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0))
+	return s.admitsScheduleUser(ctx, account)
 }
 
 // clearStickyIfUserScheduleDenied reports whether the sticky binding must be
 // dropped because this account is not allowed for the current user. Callers
 // own the actual cache delete so sticky is cleared once per miss.
 func (s *GatewayService) clearStickyIfUserScheduleDenied(ctx context.Context, account *Account) bool {
-	return account != nil && !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0))
+	return account != nil && !s.admitsScheduleUser(ctx, account)
 }
 
 func (s *GatewayService) isAccountSchedulableForModelSelection(ctx context.Context, account *Account, requestedModel string) bool {

@@ -79,6 +79,9 @@ const DataTableStub = {
         <div data-test="quality-success">
           <slot name="cell-quality_success_rate" :row="row" />
         </div>
+        <div data-test="actions">
+          <slot name="cell-actions" :row="row" />
+        </div>
       </div>
     </div>
   `
@@ -188,6 +191,15 @@ describe('admin AccountsView stability window', () => {
     expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
 
     await buttons[1].trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
+  })
+
+  it('opens the stability dialog from the row action button', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="account-open-stability"]').trigger('click')
     await flushPromises()
     expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
   })

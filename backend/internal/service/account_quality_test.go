@@ -53,6 +53,24 @@ func TestBuildAccountQualityStats_ErrorsOnly(t *testing.T) {
 	require.Nil(t, stats.P50TTFTMs)
 }
 
+func TestQualityResumeHelpers(t *testing.T) {
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	fresh := &AccountQualityStats{SuccessCount: 2}
+	old := &AccountQualityStats{}
+	SetUserQualityResume(old, 16, now.Add(AccountQualityWindow))
+	SetAccountQualityResume(old, now.Add(5*time.Minute))
+
+	MergeQualityResume(fresh, old, now)
+	require.True(t, UserQualityResumeActive(fresh, 16, now))
+	require.True(t, AccountQualityResumeActive(fresh, now))
+	require.True(t, HasActiveQualityResume(fresh, now))
+
+	MergeQualityResume(fresh, old, now.Add(20*time.Minute))
+	require.False(t, UserQualityResumeActive(fresh, 16, now.Add(20*time.Minute)))
+	require.False(t, AccountQualityResumeActive(fresh, now.Add(20*time.Minute)))
+	require.False(t, HasActiveQualityResume(fresh, now.Add(20*time.Minute)))
+}
+
 func TestHasAccountQualitySamples(t *testing.T) {
 	require.False(t, HasAccountQualitySamples(nil))
 	require.False(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 0, TTFTAggregate{})))

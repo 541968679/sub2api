@@ -72,6 +72,7 @@ func (s *accountRepoStubForBulkUpdate) Update(_ context.Context, account *Accoun
 		copied.DenyUserIDs = append([]int64(nil), account.DenyUserIDs...)
 	}
 	copied.UserConcurrency = copyUserConcurrencyMap(account.UserConcurrency)
+	copied.UserQualityGates = copyUserQualityGates(account.UserQualityGates)
 	s.getByIDAccounts[account.ID] = &copied
 	return nil
 }
@@ -89,9 +90,10 @@ func (s *accountRepoStubForBulkUpdate) SyncScheduleUsers(_ context.Context, acco
 		s.syncScheduleCalls = map[int64]AccountUserScheduleWrite{}
 	}
 	s.syncScheduleCalls[accountID] = AccountUserScheduleWrite{
-		AllowUserIDs:    append([]int64(nil), write.AllowUserIDs...),
-		DenyUserIDs:     append([]int64(nil), write.DenyUserIDs...),
-		UserConcurrency: copyUserConcurrencyMap(write.UserConcurrency),
+		AllowUserIDs:     append([]int64(nil), write.AllowUserIDs...),
+		DenyUserIDs:      append([]int64(nil), write.DenyUserIDs...),
+		UserConcurrency:  copyUserConcurrencyMap(write.UserConcurrency),
+		UserQualityGates: copyUserQualityGates(write.UserQualityGates),
 	}
 	return nil
 }

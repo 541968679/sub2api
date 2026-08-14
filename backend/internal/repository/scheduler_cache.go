@@ -454,6 +454,7 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		AllowUserIDs:            copyScheduleUserIDs(account.AllowUserIDs),
 		DenyUserIDs:             copyScheduleUserIDs(account.DenyUserIDs),
 		UserConcurrency:         copyUserConcurrencyMap(account.UserConcurrency),
+		UserQualityGates:        copyUserQualityGates(account.UserQualityGates),
 		AccountGroups:           filterSchedulerAccountGroups(account.AccountGroups),
 		GroupIDs:                filterSchedulerGroupIDs(account.GroupIDs, account.AccountGroups),
 		Credentials:             filterSchedulerCredentials(account.Credentials),
@@ -549,6 +550,23 @@ func copyUserConcurrencyMap(in map[int64]int) map[int64]int {
 			continue
 		}
 		out[userID] = n
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func copyUserQualityGates(in map[int64]service.QualityHardCloseSettings) map[int64]service.QualityHardCloseSettings {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[int64]service.QualityHardCloseSettings, len(in))
+	for userID, gate := range in {
+		if userID <= 0 || (gate.MaxP50TTFTMs == nil && gate.MinSuccessRate == nil) {
+			continue
+		}
+		out[userID] = gate
 	}
 	if len(out) == 0 {
 		return nil

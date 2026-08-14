@@ -13,8 +13,9 @@ import (
 )
 
 // AccountScheduleUser holds the edge schema for account_schedule_users.
-// A row exists when the user is on the allow list, deny list, and/or has a
-// pair-level max concurrency for this account. The three attributes are independent.
+// A row exists when the user is on the allow list, deny list, has a
+// pair-level max concurrency, and/or has a quality gate for this account.
+// The four attributes are independent.
 type AccountScheduleUser struct {
 	ent.Schema
 }
@@ -41,6 +42,22 @@ func (AccountScheduleUser) Fields() []ent.Field {
 		field.Int("max_concurrency").
 			Optional().
 			Nillable(),
+		field.Int("quality_max_p50_ttft_ms").
+			Optional().
+			Nillable(),
+		field.Float("quality_min_success_rate").
+			Optional().
+			Nillable(),
+		field.Int("quality_min_success_samples").
+			Optional().
+			Nillable(),
+		field.Int("quality_min_ttft_samples").
+			Optional().
+			Nillable(),
+		field.String("quality_condition").
+			Optional().
+			Nillable().
+			MaxLen(8),
 	}
 }
 

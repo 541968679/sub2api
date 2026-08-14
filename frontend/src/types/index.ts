@@ -1043,6 +1043,29 @@ export interface AccountScheduleUser {
   allow?: boolean
   deny?: boolean
   max_concurrency?: number | null
+  quality_max_p50_ttft_ms?: number | null
+  quality_min_success_rate?: number | null
+  quality_min_success_samples?: number | null
+  quality_min_ttft_samples?: number | null
+  quality_condition?: 'or' | 'and' | null
+}
+
+export interface UserQualityGateEntry {
+  user_id: number
+  quality_max_p50_ttft_ms?: number | null
+  quality_min_success_rate?: number | null
+  quality_min_success_samples?: number | null
+  quality_min_ttft_samples?: number | null
+  quality_condition?: 'or' | 'and' | null
+}
+
+export interface UserQualityGatePatch {
+  user_id: number
+  quality_max_p50_ttft_ms?: number | null
+  quality_min_success_rate?: number | null
+  quality_min_success_samples?: number | null
+  quality_min_ttft_samples?: number | null
+  quality_condition?: 'or' | 'and' | null
 }
 
 export interface UserConcurrencyEntry {
@@ -1394,6 +1417,8 @@ export interface UpdateAccountRequest {
   deny_user_ids?: number[]
   user_concurrencies?: UserConcurrencyEntry[]
   user_concurrency_patch?: UserConcurrencyPatch
+  user_quality_gates?: UserQualityGateEntry[]
+  user_quality_gate_patch?: UserQualityGatePatch
 }
 
 export interface CheckMixedChannelRequest {

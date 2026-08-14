@@ -309,7 +309,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 				selection = nil
 			}
 		}
-		if selection != nil && selection.Account != nil && !selection.Account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		if selection != nil && selection.Account != nil && !s.service.admitsScheduleUser(ctx, selection.Account) {
 			if selection.ReleaseFunc != nil {
 				selection.ReleaseFunc()
 			}
@@ -412,7 +412,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, false, nil
 	}
-	if !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+	if !s.service.admitsScheduleUser(ctx, account) {
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, true, nil
 	}
@@ -841,7 +841,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		if !account.IsSchedulable() || !account.IsOpenAICompatible() || account.Platform != normalizeOpenAICompatiblePlatform(req.Platform) || s.service.isOpenAIAccountRuntimeBlocked(account) {
 			continue
 		}
-		if !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		if !s.service.admitsScheduleUser(ctx, account) {
 			continue
 		}
 		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常

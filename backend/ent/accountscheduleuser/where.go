@@ -40,6 +40,31 @@ func MaxConcurrency(v int) predicate.AccountScheduleUser {
 	return predicate.AccountScheduleUser(sql.FieldEQ(FieldMaxConcurrency, v))
 }
 
+// QualityMaxP50TtftMs applies equality check predicate on the "quality_max_p50_ttft_ms" field. It's identical to QualityMaxP50TtftMsEQ.
+func QualityMaxP50TtftMs(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMinSuccessRate applies equality check predicate on the "quality_min_success_rate" field. It's identical to QualityMinSuccessRateEQ.
+func QualityMinSuccessRate(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessSamples applies equality check predicate on the "quality_min_success_samples" field. It's identical to QualityMinSuccessSamplesEQ.
+func QualityMinSuccessSamples(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinTtftSamples applies equality check predicate on the "quality_min_ttft_samples" field. It's identical to QualityMinTtftSamplesEQ.
+func QualityMinTtftSamples(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMinTtftSamples, v))
+}
+
+// QualityCondition applies equality check predicate on the "quality_condition" field. It's identical to QualityConditionEQ.
+func QualityCondition(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityCondition, v))
+}
+
 // AccountIDEQ applies the EQ predicate on the "account_id" field.
 func AccountIDEQ(v int64) predicate.AccountScheduleUser {
 	return predicate.AccountScheduleUser(sql.FieldEQ(FieldAccountID, v))
@@ -188,6 +213,281 @@ func MaxConcurrencyIsNil() predicate.AccountScheduleUser {
 // MaxConcurrencyNotNil applies the NotNil predicate on the "max_concurrency" field.
 func MaxConcurrencyNotNil() predicate.AccountScheduleUser {
 	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldMaxConcurrency))
+}
+
+// QualityMaxP50TtftMsEQ applies the EQ predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMaxP50TtftMsNEQ applies the NEQ predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsNEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMaxP50TtftMsIn applies the In predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIn(FieldQualityMaxP50TtftMs, vs...))
+}
+
+// QualityMaxP50TtftMsNotIn applies the NotIn predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsNotIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotIn(FieldQualityMaxP50TtftMs, vs...))
+}
+
+// QualityMaxP50TtftMsGT applies the GT predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsGT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGT(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMaxP50TtftMsGTE applies the GTE predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsGTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGTE(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMaxP50TtftMsLT applies the LT predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsLT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLT(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMaxP50TtftMsLTE applies the LTE predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsLTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLTE(FieldQualityMaxP50TtftMs, v))
+}
+
+// QualityMaxP50TtftMsIsNil applies the IsNil predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsIsNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIsNull(FieldQualityMaxP50TtftMs))
+}
+
+// QualityMaxP50TtftMsNotNil applies the NotNil predicate on the "quality_max_p50_ttft_ms" field.
+func QualityMaxP50TtftMsNotNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldQualityMaxP50TtftMs))
+}
+
+// QualityMinSuccessRateEQ applies the EQ predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateEQ(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessRateNEQ applies the NEQ predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateNEQ(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessRateIn applies the In predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateIn(vs ...float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIn(FieldQualityMinSuccessRate, vs...))
+}
+
+// QualityMinSuccessRateNotIn applies the NotIn predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateNotIn(vs ...float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotIn(FieldQualityMinSuccessRate, vs...))
+}
+
+// QualityMinSuccessRateGT applies the GT predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateGT(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGT(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessRateGTE applies the GTE predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateGTE(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGTE(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessRateLT applies the LT predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateLT(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLT(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessRateLTE applies the LTE predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateLTE(v float64) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLTE(FieldQualityMinSuccessRate, v))
+}
+
+// QualityMinSuccessRateIsNil applies the IsNil predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateIsNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIsNull(FieldQualityMinSuccessRate))
+}
+
+// QualityMinSuccessRateNotNil applies the NotNil predicate on the "quality_min_success_rate" field.
+func QualityMinSuccessRateNotNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldQualityMinSuccessRate))
+}
+
+// QualityMinSuccessSamplesEQ applies the EQ predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinSuccessSamplesNEQ applies the NEQ predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesNEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinSuccessSamplesIn applies the In predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIn(FieldQualityMinSuccessSamples, vs...))
+}
+
+// QualityMinSuccessSamplesNotIn applies the NotIn predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesNotIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotIn(FieldQualityMinSuccessSamples, vs...))
+}
+
+// QualityMinSuccessSamplesGT applies the GT predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesGT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGT(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinSuccessSamplesGTE applies the GTE predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesGTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGTE(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinSuccessSamplesLT applies the LT predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesLT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLT(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinSuccessSamplesLTE applies the LTE predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesLTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLTE(FieldQualityMinSuccessSamples, v))
+}
+
+// QualityMinSuccessSamplesIsNil applies the IsNil predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesIsNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIsNull(FieldQualityMinSuccessSamples))
+}
+
+// QualityMinSuccessSamplesNotNil applies the NotNil predicate on the "quality_min_success_samples" field.
+func QualityMinSuccessSamplesNotNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldQualityMinSuccessSamples))
+}
+
+// QualityMinTtftSamplesEQ applies the EQ predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityMinTtftSamples, v))
+}
+
+// QualityMinTtftSamplesNEQ applies the NEQ predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesNEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldQualityMinTtftSamples, v))
+}
+
+// QualityMinTtftSamplesIn applies the In predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIn(FieldQualityMinTtftSamples, vs...))
+}
+
+// QualityMinTtftSamplesNotIn applies the NotIn predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesNotIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotIn(FieldQualityMinTtftSamples, vs...))
+}
+
+// QualityMinTtftSamplesGT applies the GT predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesGT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGT(FieldQualityMinTtftSamples, v))
+}
+
+// QualityMinTtftSamplesGTE applies the GTE predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesGTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGTE(FieldQualityMinTtftSamples, v))
+}
+
+// QualityMinTtftSamplesLT applies the LT predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesLT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLT(FieldQualityMinTtftSamples, v))
+}
+
+// QualityMinTtftSamplesLTE applies the LTE predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesLTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLTE(FieldQualityMinTtftSamples, v))
+}
+
+// QualityMinTtftSamplesIsNil applies the IsNil predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesIsNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIsNull(FieldQualityMinTtftSamples))
+}
+
+// QualityMinTtftSamplesNotNil applies the NotNil predicate on the "quality_min_ttft_samples" field.
+func QualityMinTtftSamplesNotNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldQualityMinTtftSamples))
+}
+
+// QualityConditionEQ applies the EQ predicate on the "quality_condition" field.
+func QualityConditionEQ(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldQualityCondition, v))
+}
+
+// QualityConditionNEQ applies the NEQ predicate on the "quality_condition" field.
+func QualityConditionNEQ(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldQualityCondition, v))
+}
+
+// QualityConditionIn applies the In predicate on the "quality_condition" field.
+func QualityConditionIn(vs ...string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIn(FieldQualityCondition, vs...))
+}
+
+// QualityConditionNotIn applies the NotIn predicate on the "quality_condition" field.
+func QualityConditionNotIn(vs ...string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotIn(FieldQualityCondition, vs...))
+}
+
+// QualityConditionGT applies the GT predicate on the "quality_condition" field.
+func QualityConditionGT(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGT(FieldQualityCondition, v))
+}
+
+// QualityConditionGTE applies the GTE predicate on the "quality_condition" field.
+func QualityConditionGTE(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGTE(FieldQualityCondition, v))
+}
+
+// QualityConditionLT applies the LT predicate on the "quality_condition" field.
+func QualityConditionLT(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLT(FieldQualityCondition, v))
+}
+
+// QualityConditionLTE applies the LTE predicate on the "quality_condition" field.
+func QualityConditionLTE(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLTE(FieldQualityCondition, v))
+}
+
+// QualityConditionContains applies the Contains predicate on the "quality_condition" field.
+func QualityConditionContains(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldContains(FieldQualityCondition, v))
+}
+
+// QualityConditionHasPrefix applies the HasPrefix predicate on the "quality_condition" field.
+func QualityConditionHasPrefix(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldHasPrefix(FieldQualityCondition, v))
+}
+
+// QualityConditionHasSuffix applies the HasSuffix predicate on the "quality_condition" field.
+func QualityConditionHasSuffix(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldHasSuffix(FieldQualityCondition, v))
+}
+
+// QualityConditionIsNil applies the IsNil predicate on the "quality_condition" field.
+func QualityConditionIsNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIsNull(FieldQualityCondition))
+}
+
+// QualityConditionNotNil applies the NotNil predicate on the "quality_condition" field.
+func QualityConditionNotNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldQualityCondition))
+}
+
+// QualityConditionEqualFold applies the EqualFold predicate on the "quality_condition" field.
+func QualityConditionEqualFold(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEqualFold(FieldQualityCondition, v))
+}
+
+// QualityConditionContainsFold applies the ContainsFold predicate on the "quality_condition" field.
+func QualityConditionContainsFold(v string) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldContainsFold(FieldQualityCondition, v))
 }
 
 // HasAccount applies the HasEdge predicate on the "account" edge.

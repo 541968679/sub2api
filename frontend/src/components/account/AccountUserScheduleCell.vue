@@ -4,9 +4,12 @@
       <div
         v-for="user in displayUsers"
         :key="user.id"
-        class="flex items-center gap-1.5"
-        :title="userChipTitle(user)"
+        class="flex flex-col gap-1"
       >
+        <div
+          class="flex items-center gap-1.5"
+          :title="userChipTitle(user)"
+        >
         <span
           v-if="user.allow"
           class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
@@ -19,6 +22,13 @@
         >
           {{ t('admin.accounts.userSchedule.modeDeny') }}
         </span>
+        <span
+          v-if="scheduleUserHasQualityGate(user)"
+          class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+          data-testid="user-schedule-quality-chip"
+        >
+          {{ t('admin.accounts.userSchedule.qualityGateChip') }}
+        </span>
         <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
           {{ user.email || `#${user.id}` }}
         </span>
@@ -30,6 +40,101 @@
           :hint="t('admin.accounts.userSchedule.concurrencyHint')"
           @save="(value) => emitSave(user.id, value)"
         />
+        <button
+          type="button"
+          class="shrink-0 rounded px-1 text-[10px] font-medium text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/30"
+          :data-testid="`user-schedule-quality-edit-${user.id}`"
+          :disabled="disabled"
+          @click.stop="toggleQualityEditor(user.id)"
+        >
+          {{ t('admin.accounts.userSchedule.qualityGateChip') }}
+        </button>
+        </div>
+      <div
+        v-if="editingQualityUserId === user.id"
+        class="ml-1 grid grid-cols-2 gap-1 rounded border border-amber-200 p-2 dark:border-amber-900/50"
+        :data-testid="`user-schedule-quality-editor-${user.id}`"
+      >
+        <label class="space-y-0.5">
+          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMaxP50') }}</span>
+          <input
+            v-model="qualityDraft.maxP50"
+            type="number"
+            min="1"
+            class="input input-sm w-full"
+            data-testid="user-schedule-quality-p50"
+          />
+        </label>
+        <label class="space-y-0.5">
+          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinSuccess') }}</span>
+          <input
+            v-model="qualityDraft.successPercent"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            class="input input-sm w-full"
+            data-testid="user-schedule-quality-success"
+          />
+        </label>
+        <label class="space-y-0.5">
+          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinSuccessSamples') }}</span>
+          <input
+            v-model="qualityDraft.minSuccessSamples"
+            type="number"
+            min="1"
+            class="input input-sm w-full"
+            data-testid="user-schedule-quality-success-samples"
+          />
+        </label>
+        <label class="space-y-0.5">
+          <span class="block text-[10px] text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.qualityMinTtftSamples') }}</span>
+          <input
+            v-model="qualityDraft.minTtftSamples"
+            type="number"
+            min="1"
+            class="input input-sm w-full"
+            data-testid="user-schedule-quality-ttft-samples"
+          />
+        </label>
+        <select v-model="qualityDraft.condition" class="input input-sm col-span-2">
+          <option value="or">{{ t('admin.accounts.userSchedule.qualityConditionOr') }}</option>
+          <option value="and">{{ t('admin.accounts.userSchedule.qualityConditionAnd') }}</option>
+        </select>
+        <button
+          type="button"
+          class="btn btn-secondary btn-xs"
+          data-testid="user-schedule-quality-apply-template"
+          :disabled="qualityTemplateBusy || disabled"
+          @click.stop="applyUserQualityTemplate"
+        >
+          {{ t('admin.accounts.stability.applyTemplate') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary btn-xs"
+          data-testid="user-schedule-quality-save-template"
+          :disabled="qualityTemplateBusy || disabled"
+          @click.stop="saveUserQualityTemplate"
+        >
+          {{ t('admin.accounts.stability.saveTemplate') }}
+        </button>
+        <button
+          type="button"
+          class="btn btn-secondary btn-xs"
+          data-testid="user-schedule-quality-resume"
+          :disabled="disabled"
+          @click.stop="emitQualityResume(user.id)"
+        >
+          {{ t('admin.accounts.userSchedule.qualityResume') }}
+        </button>
+        <button type="button" class="btn btn-secondary btn-xs" data-testid="user-schedule-quality-clear" @click="emitQualityClear(user.id)">
+          {{ t('admin.accounts.userSchedule.qualityClear') }}
+        </button>
+        <button type="button" class="btn btn-primary btn-xs" data-testid="user-schedule-quality-save" @click="emitQualitySave(user.id)">
+          {{ t('admin.accounts.userSchedule.qualitySave') }}
+        </button>
+      </div>
       </div>
       <button
         v-if="hiddenCount > 0"
@@ -90,6 +195,13 @@
               >
                 {{ t('admin.accounts.userSchedule.modeDeny') }}
               </span>
+              <span
+                v-if="scheduleUserHasQualityGate(user)"
+                class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                data-testid="user-schedule-quality-chip"
+              >
+                {{ t('admin.accounts.userSchedule.qualityGateChip') }}
+              </span>
               <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
                 {{ user.email || `#${user.id}` }}
               </span>
@@ -101,6 +213,14 @@
                 :hint="t('admin.accounts.userSchedule.concurrencyHint')"
                 @save="(value) => emitSave(user.id, value)"
               />
+              <button
+                type="button"
+                class="shrink-0 rounded px-1 text-[10px] font-medium text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                :disabled="disabled"
+                @click.stop="toggleQualityEditor(user.id)"
+              >
+                {{ t('admin.accounts.userSchedule.qualityGateChip') }}
+              </button>
             </div>
           </div>
         </div>
@@ -117,10 +237,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { Account, AccountScheduleUser } from '@/types'
+import type { Account, AccountScheduleUser, UserQualityGatePatch } from '@/types'
 import AccountInlineNumberCell from './AccountInlineNumberCell.vue'
+import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTemplate'
+import {
+  applyQualityGateFormToDraft,
+  optionalNumber,
+  percentToSuccessRate,
+  qualityGateFormFromDraft,
+  scheduleUserHasQualityGate,
+  successRateToPercent
+} from '@/utils/accountQualityHardClose'
 
 const props = withDefaults(defineProps<{
   account: Account
@@ -133,9 +262,16 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   save: [payload: { userId: number; maxConcurrency: number | null }]
+  saveQuality: [payload: UserQualityGatePatch]
+  resumeQuality: [userId: number]
 }>()
 
 const { t } = useI18n()
+const {
+  templateBusy: qualityTemplateBusy,
+  applyQualityTemplate,
+  saveQualityTemplate
+} = useQualityThresholdTemplate()
 const moreButtonRef = ref<HTMLElement | null>(null)
 const popoverRef = ref<HTMLElement | null>(null)
 const showPopover = ref(false)
@@ -180,6 +316,73 @@ function emitSave(userId: number, value: number) {
     userId,
     maxConcurrency: value >= 1 ? Math.trunc(value) : null
   })
+}
+
+const editingQualityUserId = ref<number | null>(null)
+const qualityDraft = reactive({
+  maxP50: '' as string | number,
+  successPercent: '' as string | number,
+  minSuccessSamples: '' as string | number,
+  minTtftSamples: '' as string | number,
+  condition: 'or' as 'or' | 'and'
+})
+
+function toggleQualityEditor(userId: number) {
+  if (editingQualityUserId.value === userId) {
+    editingQualityUserId.value = null
+    return
+  }
+  const user = users.value.find((item) => item.id === userId)
+  qualityDraft.maxP50 = user?.quality_max_p50_ttft_ms ?? ''
+  qualityDraft.successPercent = successRateToPercent(user?.quality_min_success_rate) ?? ''
+  qualityDraft.minSuccessSamples = user?.quality_min_success_samples ?? ''
+  qualityDraft.minTtftSamples = user?.quality_min_ttft_samples ?? ''
+  qualityDraft.condition = user?.quality_condition === 'and' ? 'and' : 'or'
+  editingQualityUserId.value = userId
+}
+
+function emitQualitySave(userId: number) {
+  const maxP50 = optionalNumber(qualityDraft.maxP50)
+  const minSuccessRate = percentToSuccessRate(qualityDraft.successPercent)
+  if (maxP50 == null && minSuccessRate == null) {
+    emitQualityClear(userId)
+    return
+  }
+  emit('saveQuality', {
+    user_id: userId,
+    quality_max_p50_ttft_ms: maxP50,
+    quality_min_success_rate: minSuccessRate,
+    quality_min_success_samples: optionalNumber(qualityDraft.minSuccessSamples),
+    quality_min_ttft_samples: optionalNumber(qualityDraft.minTtftSamples),
+    quality_condition: qualityDraft.condition
+  })
+  editingQualityUserId.value = null
+}
+
+function emitQualityResume(userId: number) {
+  emit('resumeQuality', userId)
+}
+
+function applyUserQualityTemplate() {
+  void applyQualityTemplate((fields) => {
+    applyQualityGateFormToDraft(qualityDraft, fields)
+  })
+}
+
+function saveUserQualityTemplate() {
+  void saveQualityTemplate(qualityGateFormFromDraft(qualityDraft))
+}
+
+function emitQualityClear(userId: number) {
+  emit('saveQuality', {
+    user_id: userId,
+    quality_max_p50_ttft_ms: null,
+    quality_min_success_rate: null,
+    quality_min_success_samples: null,
+    quality_min_ttft_samples: null,
+    quality_condition: null
+  })
+  editingQualityUserId.value = null
 }
 
 const handleKeydown = (e: KeyboardEvent) => {

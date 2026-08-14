@@ -5,8 +5,6 @@ package runtime
 import (
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/ent/schema"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
 	"github.com/Wei-Shaw/sub2api/ent/accountqualitysnapshot"
@@ -38,6 +36,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
+	"github.com/Wei-Shaw/sub2api/ent/schema"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
@@ -50,6 +49,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -336,6 +336,10 @@ func init() {
 	accountscheduleuserDescDeny := accountscheduleuserFields[4].Descriptor()
 	// accountscheduleuser.DefaultDeny holds the default value on creation for the deny field.
 	accountscheduleuser.DefaultDeny = accountscheduleuserDescDeny.Default.(bool)
+	// accountscheduleuserDescQualityCondition is the schema descriptor for quality_condition field.
+	accountscheduleuserDescQualityCondition := accountscheduleuserFields[10].Descriptor()
+	// accountscheduleuser.QualityConditionValidator is a validator for the "quality_condition" field. It is called by the builders before save.
+	accountscheduleuser.QualityConditionValidator = accountscheduleuserDescQualityCondition.Validators[0].(func(string) error)
 	announcementFields := schema.Announcement{}.Fields()
 	_ = announcementFields
 	// announcementDescTitle is the schema descriptor for title field.

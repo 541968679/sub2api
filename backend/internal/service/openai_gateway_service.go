@@ -422,6 +422,18 @@ type OpenAIGatewayService struct {
 	codexSnapshotThrottle               *accountWriteThrottle
 	openaiCompatSessionResponses        sync.Map
 	openaiCompatAnthropicDigestSessions sync.Map
+	qualityLiveCache                    AccountQualityLiveCache
+}
+
+func (s *OpenAIGatewayService) SetQualityLiveCache(cache AccountQualityLiveCache) {
+	if s == nil {
+		return
+	}
+	s.qualityLiveCache = cache
+}
+
+func (s *OpenAIGatewayService) admitsScheduleUser(ctx context.Context, account *Account) bool {
+	return admitsScheduleUser(ctx, account, s.qualityLiveCache)
 }
 
 func (s *OpenAIGatewayService) SetOpenAIAccountSchedulerForTest(scheduler OpenAIAccountScheduler) {
@@ -1755,7 +1767,7 @@ func (s *OpenAIGatewayService) tryStickySessionHitForSchedule(ctx context.Contex
 
 	// 检查账号是否需要清理粘性会话
 	// Check if sticky session should be cleared
-	if shouldClearStickySession(account, requestedModel) || !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+	if shouldClearStickySession(account, requestedModel) || !s.admitsScheduleUser(ctx, account) {
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
@@ -1825,7 +1837,7 @@ func (s *OpenAIGatewayService) selectBestAccountForSchedule(ctx context.Context,
 		if fresh == nil {
 			continue
 		}
-		if !fresh.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		if !s.admitsScheduleUser(ctx, fresh) {
 			continue
 		}
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, eligibility.RequireCompact) {
@@ -1991,7 +2003,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 			account, err := s.getSchedulableAccount(ctx, accountID)
 			if err == nil {
 				clearSticky := shouldClearStickySession(account, requestedModel) ||
-					!account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0))
+					!s.admitsScheduleUser(ctx, account)
 				if clearSticky {
 					_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 				}
@@ -2052,7 +2064,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessInternal(ctx contex
 		if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, candidate, requestedModel, eligibility.RequireCompact) {
 			continue
 		}
-		if !candidate.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		if !s.admitsScheduleUser(ctx, candidate) {
 			continue
 		}
 		baseCandidateCount++
@@ -2311,7 +2323,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 		if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
 			return nil
 		}
-		if !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		if !s.admitsScheduleUser(ctx, account) {
 			return nil
 		}
 		return account
@@ -2327,7 +2339,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDBForSchedule(ctx
 	if paused, _ := shouldAutoPauseOpenAIAccountByQuota(ctx, latest); paused {
 		return nil
 	}
-	if !latest.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+	if !s.admitsScheduleUser(ctx, latest) {
 		return nil
 	}
 	return latest

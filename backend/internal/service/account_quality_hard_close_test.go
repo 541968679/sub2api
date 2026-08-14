@@ -378,6 +378,20 @@ func TestAccountQualityHardCloseEvaluator_AccountOffNoPause(t *testing.T) {
 	require.Empty(t, repo.pauses)
 }
 
+func TestAccountQualityHardCloseEvaluator_ManualResumeSkipsSetTempUnschedulable(t *testing.T) {
+	global := qualityHardCloseCfg(nil)
+	repo := &hardCloseAccountRepoStub{
+		accounts: map[int64]*Account{
+			1: {ID: 1, Extra: map[string]any{AccountExtraQualityHardClose: map[string]any{"enabled": true}}},
+		},
+	}
+	eval := newHardCloseEval(t, repo, global)
+	stats := qualityStats(1, 20, 20, 9000, 0.05)
+	SetAccountQualityResume(stats, time.Date(2026, 8, 14, 12, 10, 0, 0, time.UTC))
+	eval.EvaluateHardClose(context.Background(), map[int64]*AccountQualityStats{1: stats})
+	require.Empty(t, repo.pauses)
+}
+
 func TestAccountQualityHardCloseEvaluator_CooldownOnceSkipsSetTempUnschedulable(t *testing.T) {
 	until := time.Date(2026, 8, 14, 12, 20, 0, 0, time.UTC)
 	global := qualityHardCloseCfg(nil)

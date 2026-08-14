@@ -45,6 +45,7 @@ describe('AccountQualityCell', () => {
     const button = wrapper.get('[data-test="account-quality-cell-button"]')
     expect(button.element.tagName).toBe('BUTTON')
     expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).toContain('admin.accounts.stability.openShort')
     await button.trigger('click')
     expect(wrapper.emitted('click')).toHaveLength(1)
   })

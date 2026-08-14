@@ -259,12 +259,17 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 		out.ScheduleUsers = make([]ScheduleUser, 0, len(a.ScheduleUsers))
 		for _, u := range a.ScheduleUsers {
 			out.ScheduleUsers = append(out.ScheduleUsers, ScheduleUser{
-				ID:             u.ID,
-				Email:          u.Email,
-				Deleted:        u.Deleted,
-				Allow:          u.Allow,
-				Deny:           u.Deny,
-				MaxConcurrency: u.MaxConcurrency,
+				ID:                       u.ID,
+				Email:                    u.Email,
+				Deleted:                  u.Deleted,
+				Allow:                    u.Allow,
+				Deny:                     u.Deny,
+				MaxConcurrency:           u.MaxConcurrency,
+				QualityMaxP50TTFTMs:      u.QualityMaxP50TTFTMs,
+				QualityMinSuccessRate:    u.QualityMinSuccessRate,
+				QualityMinSuccessSamples: u.QualityMinSuccessSamples,
+				QualityMinTTFTSamples:    u.QualityMinTTFTSamples,
+				QualityCondition:         u.QualityCondition,
 			})
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/google/uuid"
 )
@@ -33,6 +34,7 @@ type AccountQualityMaintenanceService struct {
 	db          *sql.DB
 	instanceID  string
 	hardClose   AccountQualityHardCloseEvaluator
+	liveCache   AccountQualityLiveCache
 	running     int32
 	stopped     int32
 }
@@ -65,6 +67,30 @@ func (s *AccountQualityMaintenanceService) SetHardCloseEvaluator(eval AccountQua
 		return
 	}
 	s.hardClose = eval
+}
+
+// SetLiveQualityCache attaches the Redis live-stats writer used by selection.
+func (s *AccountQualityMaintenanceService) SetLiveQualityCache(cache AccountQualityLiveCache) {
+	if s == nil {
+		return
+	}
+	s.liveCache = cache
+}
+
+// ResumeUserQuality force-admits one pair for one quality window without changing the gate.
+func (s *AccountQualityMaintenanceService) ResumeUserQuality(ctx context.Context, accountID, userID int64) error {
+	if s == nil || s.liveCache == nil {
+		return infraerrors.ServiceUnavailable("QUALITY_RESUME_UNAVAILABLE", "quality live cache unavailable")
+	}
+	return s.liveCache.MarkUserResume(ctx, accountID, userID)
+}
+
+// ResumeAccountQuality prevents hard-close from re-pausing for one quality window.
+func (s *AccountQualityMaintenanceService) ResumeAccountQuality(ctx context.Context, accountID int64) error {
+	if s == nil || s.liveCache == nil {
+		return infraerrors.ServiceUnavailable("QUALITY_RESUME_UNAVAILABLE", "quality live cache unavailable")
+	}
+	return s.liveCache.MarkAccountResume(ctx, accountID)
 }
 
 // EvaluateHardClose is a no-op unless SetHardCloseEvaluator was called.
@@ -173,6 +199,12 @@ func (s *AccountQualityMaintenanceService) RunTick(ctx context.Context, now time
 		}
 		if deleted == 0 {
 			break
+		}
+	}
+
+	if s.liveCache != nil {
+		if err := s.liveCache.Replace(ctx, allStats); err != nil {
+			slog.Warn("account_quality_live: persist failed", "err", err)
 		}
 	}
 

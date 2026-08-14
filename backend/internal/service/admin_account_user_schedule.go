@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -109,6 +110,78 @@ func (s *adminServiceImpl) applyUserConcurrencyPatch(ctx context.Context, curren
 	return out, nil
 }
 
+func (s *adminServiceImpl) validateUserQualityGateEntries(ctx context.Context, entries []UserQualityGateEntry) (map[int64]QualityHardCloseSettings, error) {
+	gates := make(map[int64]QualityHardCloseSettings, len(entries))
+	ids := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		if entry.UserID <= 0 {
+			return nil, infraerrors.BadRequest("USER_QUALITY_GATE_UNKNOWN_USER", fmt.Sprintf("unknown user id: %d", entry.UserID))
+		}
+		if err := validateUserQualityGateFields(entry.MaxP50TTFTMs, entry.MinSuccessRate, entry.MinSuccessSamples, entry.MinTTFTSamples, entry.Condition); err != nil {
+			return nil, err
+		}
+		gate, ok := userQualityGateFromFields(entry.MaxP50TTFTMs, entry.MinSuccessRate, entry.MinSuccessSamples, entry.MinTTFTSamples, entry.Condition)
+		if !ok {
+			continue
+		}
+		gates[entry.UserID] = gate
+		ids = append(ids, entry.UserID)
+	}
+	if err := s.validateKnownUserIDs(ctx, ids); err != nil {
+		return nil, err
+	}
+	return copyUserQualityGates(gates), nil
+}
+
+func (s *adminServiceImpl) applyUserQualityGatePatch(ctx context.Context, current map[int64]QualityHardCloseSettings, patch UserQualityGatePatch) (map[int64]QualityHardCloseSettings, error) {
+	if patch.UserID <= 0 {
+		return nil, infraerrors.BadRequest("USER_QUALITY_GATE_UNKNOWN_USER", fmt.Sprintf("unknown user id: %d", patch.UserID))
+	}
+	if err := s.validateKnownUserIDs(ctx, []int64{patch.UserID}); err != nil {
+		return nil, err
+	}
+	if err := validateUserQualityGateFields(patch.MaxP50TTFTMs, patch.MinSuccessRate, patch.MinSuccessSamples, patch.MinTTFTSamples, patch.Condition); err != nil {
+		return nil, err
+	}
+	out := copyUserQualityGates(current)
+	if out == nil {
+		out = map[int64]QualityHardCloseSettings{}
+	}
+	if qualityGateClears(patch.MaxP50TTFTMs, patch.MinSuccessRate, patch.MinSuccessSamples, patch.MinTTFTSamples, patch.Condition) {
+		delete(out, patch.UserID)
+		return copyUserQualityGates(out), nil
+	}
+	gate, ok := userQualityGateFromFields(patch.MaxP50TTFTMs, patch.MinSuccessRate, patch.MinSuccessSamples, patch.MinTTFTSamples, patch.Condition)
+	if !ok {
+		delete(out, patch.UserID)
+		return copyUserQualityGates(out), nil
+	}
+	out[patch.UserID] = gate
+	return out, nil
+}
+
+func validateUserQualityGateFields(p50 *int, rate *float64, minSuccess, minTTFT *int, condition *string) error {
+	if p50 != nil && *p50 < 1 {
+		return infraerrors.BadRequest("USER_QUALITY_GATE_INVALID", "quality_max_p50_ttft_ms must be >= 1")
+	}
+	if rate != nil && (*rate <= 0 || *rate > 1) {
+		return infraerrors.BadRequest("USER_QUALITY_GATE_INVALID", "quality_min_success_rate must be in (0,1]")
+	}
+	if minSuccess != nil && *minSuccess < 1 {
+		return infraerrors.BadRequest("USER_QUALITY_GATE_INVALID", "quality_min_success_samples must be >= 1")
+	}
+	if minTTFT != nil && *minTTFT < 1 {
+		return infraerrors.BadRequest("USER_QUALITY_GATE_INVALID", "quality_min_ttft_samples must be >= 1")
+	}
+	if condition != nil && strings.TrimSpace(*condition) != "" {
+		cond := strings.ToLower(strings.TrimSpace(*condition))
+		if cond != QualityHardCloseConditionOr && cond != QualityHardCloseConditionAnd {
+			return infraerrors.BadRequest("USER_QUALITY_GATE_INVALID", "quality_condition must be \"or\" or \"and\"")
+		}
+	}
+	return nil
+}
+
 func applyLegacyUserScheduleLists(mode string, ids []int64) ([]int64, []int64) {
 	switch NormalizeUserScheduleMode(mode) {
 	case UserScheduleModeAllow:
@@ -121,7 +194,7 @@ func applyLegacyUserScheduleLists(mode string, ids []int64) ([]int64, []int64) {
 }
 
 func scheduleUserUnionIDs(account Account) []int64 {
-	return unionScheduleUserIDs(account.AllowUserIDs, account.DenyUserIDs, concurrencyUserIDs(account.UserConcurrency), account.ScheduleUserIDs)
+	return unionScheduleUserIDs(account.AllowUserIDs, account.DenyUserIDs, concurrencyUserIDs(account.UserConcurrency), qualityGateUserIDs(account.UserQualityGates), account.ScheduleUserIDs)
 }
 
 func stampScheduleUserFlags(account Account, ref ScheduleUserRef) ScheduleUserRef {
@@ -132,6 +205,8 @@ func stampScheduleUserFlags(account Account, ref ScheduleUserRef) ScheduleUserRe
 	} else {
 		ref.MaxConcurrency = nil
 	}
+	gate, ok := account.UserQualityGates[ref.ID]
+	stampScheduleUserQuality(&ref, gate, ok)
 	return ref
 }
 
@@ -187,6 +262,7 @@ func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, 
 	allow := append([]int64(nil), current.AllowUserIDs...)
 	deny := append([]int64(nil), current.DenyUserIDs...)
 	caps := copyUserConcurrencyMap(current.UserConcurrency)
+	gates := copyUserQualityGates(current.UserQualityGates)
 	changed := false
 
 	if input.AllowUserIDs != nil {
@@ -222,6 +298,25 @@ func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, 
 		caps = next
 		changed = true
 	}
+	if input.UserQualityGates != nil && input.UserQualityGatePatch != nil {
+		return AccountUserScheduleWrite{}, false, infraerrors.BadRequest("USER_QUALITY_GATE_CONFLICT", "user_quality_gates and user_quality_gate_patch cannot be set together")
+	}
+	if input.UserQualityGates != nil {
+		next, err := s.validateUserQualityGateEntries(ctx, *input.UserQualityGates)
+		if err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		gates = next
+		changed = true
+	}
+	if input.UserQualityGatePatch != nil {
+		next, err := s.applyUserQualityGatePatch(ctx, gates, *input.UserQualityGatePatch)
+		if err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		gates = next
+		changed = true
+	}
 
 	useLegacy := (input.UserScheduleMode != nil || input.ScheduleUserIDs != nil) &&
 		input.AllowUserIDs == nil && input.DenyUserIDs == nil
@@ -245,7 +340,7 @@ func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, 
 	if !changed {
 		return AccountUserScheduleWrite{}, false, nil
 	}
-	return buildAccountUserScheduleWrite(allow, deny, caps), true, nil
+	return buildAccountUserScheduleWrite(allow, deny, caps, gates), true, nil
 }
 
 func applyAccountUserScheduleWrite(account *Account, write AccountUserScheduleWrite) {
@@ -255,5 +350,6 @@ func applyAccountUserScheduleWrite(account *Account, write AccountUserScheduleWr
 	account.AllowUserIDs = append([]int64(nil), write.AllowUserIDs...)
 	account.DenyUserIDs = append([]int64(nil), write.DenyUserIDs...)
 	account.UserConcurrency = copyUserConcurrencyMap(write.UserConcurrency)
+	account.UserQualityGates = copyUserQualityGates(write.UserQualityGates)
 	account.DeriveLegacyUserSchedule()
 }

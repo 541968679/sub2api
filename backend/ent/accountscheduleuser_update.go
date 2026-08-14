@@ -112,6 +112,134 @@ func (_u *AccountScheduleUserUpdate) ClearMaxConcurrency() *AccountScheduleUserU
 	return _u
 }
 
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (_u *AccountScheduleUserUpdate) SetQualityMaxP50TtftMs(v int) *AccountScheduleUserUpdate {
+	_u.mutation.ResetQualityMaxP50TtftMs()
+	_u.mutation.SetQualityMaxP50TtftMs(v)
+	return _u
+}
+
+// SetNillableQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableQualityMaxP50TtftMs(v *int) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetQualityMaxP50TtftMs(*v)
+	}
+	return _u
+}
+
+// AddQualityMaxP50TtftMs adds value to the "quality_max_p50_ttft_ms" field.
+func (_u *AccountScheduleUserUpdate) AddQualityMaxP50TtftMs(v int) *AccountScheduleUserUpdate {
+	_u.mutation.AddQualityMaxP50TtftMs(v)
+	return _u
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (_u *AccountScheduleUserUpdate) ClearQualityMaxP50TtftMs() *AccountScheduleUserUpdate {
+	_u.mutation.ClearQualityMaxP50TtftMs()
+	return _u
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (_u *AccountScheduleUserUpdate) SetQualityMinSuccessRate(v float64) *AccountScheduleUserUpdate {
+	_u.mutation.ResetQualityMinSuccessRate()
+	_u.mutation.SetQualityMinSuccessRate(v)
+	return _u
+}
+
+// SetNillableQualityMinSuccessRate sets the "quality_min_success_rate" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableQualityMinSuccessRate(v *float64) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetQualityMinSuccessRate(*v)
+	}
+	return _u
+}
+
+// AddQualityMinSuccessRate adds value to the "quality_min_success_rate" field.
+func (_u *AccountScheduleUserUpdate) AddQualityMinSuccessRate(v float64) *AccountScheduleUserUpdate {
+	_u.mutation.AddQualityMinSuccessRate(v)
+	return _u
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (_u *AccountScheduleUserUpdate) ClearQualityMinSuccessRate() *AccountScheduleUserUpdate {
+	_u.mutation.ClearQualityMinSuccessRate()
+	return _u
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (_u *AccountScheduleUserUpdate) SetQualityMinSuccessSamples(v int) *AccountScheduleUserUpdate {
+	_u.mutation.ResetQualityMinSuccessSamples()
+	_u.mutation.SetQualityMinSuccessSamples(v)
+	return _u
+}
+
+// SetNillableQualityMinSuccessSamples sets the "quality_min_success_samples" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableQualityMinSuccessSamples(v *int) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetQualityMinSuccessSamples(*v)
+	}
+	return _u
+}
+
+// AddQualityMinSuccessSamples adds value to the "quality_min_success_samples" field.
+func (_u *AccountScheduleUserUpdate) AddQualityMinSuccessSamples(v int) *AccountScheduleUserUpdate {
+	_u.mutation.AddQualityMinSuccessSamples(v)
+	return _u
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (_u *AccountScheduleUserUpdate) ClearQualityMinSuccessSamples() *AccountScheduleUserUpdate {
+	_u.mutation.ClearQualityMinSuccessSamples()
+	return _u
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (_u *AccountScheduleUserUpdate) SetQualityMinTtftSamples(v int) *AccountScheduleUserUpdate {
+	_u.mutation.ResetQualityMinTtftSamples()
+	_u.mutation.SetQualityMinTtftSamples(v)
+	return _u
+}
+
+// SetNillableQualityMinTtftSamples sets the "quality_min_ttft_samples" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableQualityMinTtftSamples(v *int) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetQualityMinTtftSamples(*v)
+	}
+	return _u
+}
+
+// AddQualityMinTtftSamples adds value to the "quality_min_ttft_samples" field.
+func (_u *AccountScheduleUserUpdate) AddQualityMinTtftSamples(v int) *AccountScheduleUserUpdate {
+	_u.mutation.AddQualityMinTtftSamples(v)
+	return _u
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (_u *AccountScheduleUserUpdate) ClearQualityMinTtftSamples() *AccountScheduleUserUpdate {
+	_u.mutation.ClearQualityMinTtftSamples()
+	return _u
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (_u *AccountScheduleUserUpdate) SetQualityCondition(v string) *AccountScheduleUserUpdate {
+	_u.mutation.SetQualityCondition(v)
+	return _u
+}
+
+// SetNillableQualityCondition sets the "quality_condition" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableQualityCondition(v *string) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetQualityCondition(*v)
+	}
+	return _u
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (_u *AccountScheduleUserUpdate) ClearQualityCondition() *AccountScheduleUserUpdate {
+	_u.mutation.ClearQualityCondition()
+	return _u
+}
+
 // SetAccount sets the "account" edge to the Account entity.
 func (_u *AccountScheduleUserUpdate) SetAccount(v *Account) *AccountScheduleUserUpdate {
 	return _u.SetAccountID(v.ID)
@@ -168,6 +296,11 @@ func (_u *AccountScheduleUserUpdate) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *AccountScheduleUserUpdate) check() error {
+	if v, ok := _u.mutation.QualityCondition(); ok {
+		if err := accountscheduleuser.QualityConditionValidator(v); err != nil {
+			return &ValidationError{Name: "quality_condition", err: fmt.Errorf(`ent: validator failed for field "AccountScheduleUser.quality_condition": %w`, err)}
+		}
+	}
 	if _u.mutation.AccountCleared() && len(_u.mutation.AccountIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "AccountScheduleUser.account"`)
 	}
@@ -203,6 +336,48 @@ func (_u *AccountScheduleUserUpdate) sqlSave(ctx context.Context) (_node int, er
 	}
 	if _u.mutation.MaxConcurrencyCleared() {
 		_spec.ClearField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityMaxP50TtftMs(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMaxP50TtftMs(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt, value)
+	}
+	if _u.mutation.QualityMaxP50TtftMsCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityMinSuccessRate(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMinSuccessRate(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.QualityMinSuccessRateCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.QualityMinSuccessSamples(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMinSuccessSamples(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt, value)
+	}
+	if _u.mutation.QualityMinSuccessSamplesCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityMinTtftSamples(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMinTtftSamples(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt, value)
+	}
+	if _u.mutation.QualityMinTtftSamplesCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityCondition(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityCondition, field.TypeString, value)
+	}
+	if _u.mutation.QualityConditionCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityCondition, field.TypeString)
 	}
 	if _u.mutation.AccountCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -365,6 +540,134 @@ func (_u *AccountScheduleUserUpdateOne) ClearMaxConcurrency() *AccountScheduleUs
 	return _u
 }
 
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (_u *AccountScheduleUserUpdateOne) SetQualityMaxP50TtftMs(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.ResetQualityMaxP50TtftMs()
+	_u.mutation.SetQualityMaxP50TtftMs(v)
+	return _u
+}
+
+// SetNillableQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableQualityMaxP50TtftMs(v *int) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetQualityMaxP50TtftMs(*v)
+	}
+	return _u
+}
+
+// AddQualityMaxP50TtftMs adds value to the "quality_max_p50_ttft_ms" field.
+func (_u *AccountScheduleUserUpdateOne) AddQualityMaxP50TtftMs(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.AddQualityMaxP50TtftMs(v)
+	return _u
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (_u *AccountScheduleUserUpdateOne) ClearQualityMaxP50TtftMs() *AccountScheduleUserUpdateOne {
+	_u.mutation.ClearQualityMaxP50TtftMs()
+	return _u
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (_u *AccountScheduleUserUpdateOne) SetQualityMinSuccessRate(v float64) *AccountScheduleUserUpdateOne {
+	_u.mutation.ResetQualityMinSuccessRate()
+	_u.mutation.SetQualityMinSuccessRate(v)
+	return _u
+}
+
+// SetNillableQualityMinSuccessRate sets the "quality_min_success_rate" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableQualityMinSuccessRate(v *float64) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetQualityMinSuccessRate(*v)
+	}
+	return _u
+}
+
+// AddQualityMinSuccessRate adds value to the "quality_min_success_rate" field.
+func (_u *AccountScheduleUserUpdateOne) AddQualityMinSuccessRate(v float64) *AccountScheduleUserUpdateOne {
+	_u.mutation.AddQualityMinSuccessRate(v)
+	return _u
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (_u *AccountScheduleUserUpdateOne) ClearQualityMinSuccessRate() *AccountScheduleUserUpdateOne {
+	_u.mutation.ClearQualityMinSuccessRate()
+	return _u
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (_u *AccountScheduleUserUpdateOne) SetQualityMinSuccessSamples(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.ResetQualityMinSuccessSamples()
+	_u.mutation.SetQualityMinSuccessSamples(v)
+	return _u
+}
+
+// SetNillableQualityMinSuccessSamples sets the "quality_min_success_samples" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableQualityMinSuccessSamples(v *int) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetQualityMinSuccessSamples(*v)
+	}
+	return _u
+}
+
+// AddQualityMinSuccessSamples adds value to the "quality_min_success_samples" field.
+func (_u *AccountScheduleUserUpdateOne) AddQualityMinSuccessSamples(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.AddQualityMinSuccessSamples(v)
+	return _u
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (_u *AccountScheduleUserUpdateOne) ClearQualityMinSuccessSamples() *AccountScheduleUserUpdateOne {
+	_u.mutation.ClearQualityMinSuccessSamples()
+	return _u
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (_u *AccountScheduleUserUpdateOne) SetQualityMinTtftSamples(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.ResetQualityMinTtftSamples()
+	_u.mutation.SetQualityMinTtftSamples(v)
+	return _u
+}
+
+// SetNillableQualityMinTtftSamples sets the "quality_min_ttft_samples" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableQualityMinTtftSamples(v *int) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetQualityMinTtftSamples(*v)
+	}
+	return _u
+}
+
+// AddQualityMinTtftSamples adds value to the "quality_min_ttft_samples" field.
+func (_u *AccountScheduleUserUpdateOne) AddQualityMinTtftSamples(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.AddQualityMinTtftSamples(v)
+	return _u
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (_u *AccountScheduleUserUpdateOne) ClearQualityMinTtftSamples() *AccountScheduleUserUpdateOne {
+	_u.mutation.ClearQualityMinTtftSamples()
+	return _u
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (_u *AccountScheduleUserUpdateOne) SetQualityCondition(v string) *AccountScheduleUserUpdateOne {
+	_u.mutation.SetQualityCondition(v)
+	return _u
+}
+
+// SetNillableQualityCondition sets the "quality_condition" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableQualityCondition(v *string) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetQualityCondition(*v)
+	}
+	return _u
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (_u *AccountScheduleUserUpdateOne) ClearQualityCondition() *AccountScheduleUserUpdateOne {
+	_u.mutation.ClearQualityCondition()
+	return _u
+}
+
 // SetAccount sets the "account" edge to the Account entity.
 func (_u *AccountScheduleUserUpdateOne) SetAccount(v *Account) *AccountScheduleUserUpdateOne {
 	return _u.SetAccountID(v.ID)
@@ -434,6 +737,11 @@ func (_u *AccountScheduleUserUpdateOne) ExecX(ctx context.Context) {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *AccountScheduleUserUpdateOne) check() error {
+	if v, ok := _u.mutation.QualityCondition(); ok {
+		if err := accountscheduleuser.QualityConditionValidator(v); err != nil {
+			return &ValidationError{Name: "quality_condition", err: fmt.Errorf(`ent: validator failed for field "AccountScheduleUser.quality_condition": %w`, err)}
+		}
+	}
 	if _u.mutation.AccountCleared() && len(_u.mutation.AccountIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "AccountScheduleUser.account"`)
 	}
@@ -488,6 +796,48 @@ func (_u *AccountScheduleUserUpdateOne) sqlSave(ctx context.Context) (_node *Acc
 	}
 	if _u.mutation.MaxConcurrencyCleared() {
 		_spec.ClearField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityMaxP50TtftMs(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMaxP50TtftMs(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt, value)
+	}
+	if _u.mutation.QualityMaxP50TtftMsCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityMinSuccessRate(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMinSuccessRate(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64, value)
+	}
+	if _u.mutation.QualityMinSuccessRateCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.QualityMinSuccessSamples(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMinSuccessSamples(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt, value)
+	}
+	if _u.mutation.QualityMinSuccessSamplesCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityMinTtftSamples(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedQualityMinTtftSamples(); ok {
+		_spec.AddField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt, value)
+	}
+	if _u.mutation.QualityMinTtftSamplesCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt)
+	}
+	if value, ok := _u.mutation.QualityCondition(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityCondition, field.TypeString, value)
+	}
+	if _u.mutation.QualityConditionCleared() {
+		_spec.ClearField(accountscheduleuser.FieldQualityCondition, field.TypeString)
 	}
 	if _u.mutation.AccountCleared() {
 		edge := &sqlgraph.EdgeSpec{

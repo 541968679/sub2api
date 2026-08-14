@@ -209,11 +209,107 @@ func ProvideAccountQualityMaintenanceService(
 	db *sql.DB,
 	accountRepo AccountRepository,
 	settings *SettingService,
+	liveCache AccountQualityLiveCache,
 ) *AccountQualityMaintenanceService {
 	svc := NewAccountQualityMaintenanceService(repo, usageLogs, timingWheel)
 	svc.SetLeaderLock(lockCache, db)
 	svc.SetHardCloseEvaluator(NewAccountQualityHardCloseEvaluator(accountRepo, settings))
+	svc.SetLiveQualityCache(liveCache)
 	svc.Start()
+	return svc
+}
+
+func ProvideGatewayService(
+	accountRepo AccountRepository,
+	groupRepo GroupRepository,
+	usageLogRepo UsageLogRepository,
+	usageBillingRepo UsageBillingRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	cache GatewayCache,
+	cfg *config.Config,
+	schedulerSnapshot *SchedulerSnapshotService,
+	concurrencyService *ConcurrencyService,
+	billingService *BillingService,
+	rateLimitService *RateLimitService,
+	billingCacheService *BillingCacheService,
+	identityService *IdentityService,
+	httpUpstream HTTPUpstream,
+	deferredService *DeferredService,
+	claudeTokenProvider *ClaudeTokenProvider,
+	sessionLimitCache SessionLimitCache,
+	rpmCache RPMCache,
+	digestStore *DigestSessionStore,
+	settingService *SettingService,
+	tlsFPProfileService *TLSFingerprintProfileService,
+	channelService *ChannelService,
+	resolver *ModelPricingResolver,
+	balanceNotifyService *BalanceNotifyService,
+	antigravitySampler *AntigravityCreditSampler,
+	liveCache AccountQualityLiveCache,
+) *GatewayService {
+	svc := NewGatewayService(
+		accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
+		cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService,
+		identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache,
+		digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, antigravitySampler,
+	)
+	svc.SetQualityLiveCache(liveCache)
+	return svc
+}
+
+func ProvideOpenAIGatewayService(
+	accountRepo AccountRepository,
+	usageLogRepo UsageLogRepository,
+	usageBillingRepo UsageBillingRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	cache GatewayCache,
+	cfg *config.Config,
+	schedulerSnapshot *SchedulerSnapshotService,
+	concurrencyService *ConcurrencyService,
+	billingService *BillingService,
+	rateLimitService *RateLimitService,
+	billingCacheService *BillingCacheService,
+	httpUpstream HTTPUpstream,
+	deferredService *DeferredService,
+	openAITokenProvider *OpenAITokenProvider,
+	grokTokenProvider *GrokTokenProvider,
+	resolver *ModelPricingResolver,
+	channelService *ChannelService,
+	balanceNotifyService *BalanceNotifyService,
+	settingService *SettingService,
+	liveCache AccountQualityLiveCache,
+) *OpenAIGatewayService {
+	svc := NewOpenAIGatewayService(
+		accountRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo,
+		cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService,
+		httpUpstream, deferredService, openAITokenProvider, grokTokenProvider, resolver, channelService,
+		balanceNotifyService, settingService,
+	)
+	svc.SetQualityLiveCache(liveCache)
+	return svc
+}
+
+func ProvideGeminiMessagesCompatService(
+	accountRepo AccountRepository,
+	groupRepo GroupRepository,
+	cache GatewayCache,
+	schedulerSnapshot *SchedulerSnapshotService,
+	tokenProvider *GeminiTokenProvider,
+	rateLimitService *RateLimitService,
+	httpUpstream HTTPUpstream,
+	antigravityGatewayService *AntigravityGatewayService,
+	cfg *config.Config,
+	liveCache AccountQualityLiveCache,
+) *GeminiMessagesCompatService {
+	svc := NewGeminiMessagesCompatService(
+		accountRepo, groupRepo, cache, schedulerSnapshot, tokenProvider, rateLimitService,
+		httpUpstream, antigravityGatewayService, cfg,
+	)
+	svc.SetQualityLiveCache(liveCache)
 	return svc
 }
 
@@ -586,8 +682,8 @@ var ProviderSet = wire.NewSet(
 	ProvideBillingCacheService,
 	NewAnnouncementService,
 	NewAdminService,
-	NewGatewayService,
-	NewOpenAIGatewayService,
+	ProvideGatewayService,
+	ProvideOpenAIGatewayService,
 	NewOAuthService,
 	NewOpenAIOAuthService,
 	NewGrokOAuthService,
@@ -598,7 +694,7 @@ var ProviderSet = wire.NewSet(
 	NewAntigravityOAuthService,
 	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
-	NewGeminiMessagesCompatService,
+	ProvideGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
 	ProvideOpenAITokenProvider,
 	ProvideGrokTokenProvider,

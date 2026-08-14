@@ -298,12 +298,17 @@ type Account struct {
 }
 
 type ScheduleUser struct {
-	ID             int64  `json:"id"`
-	Email          string `json:"email"`
-	Deleted        bool   `json:"deleted"`
-	Allow          bool   `json:"allow"`
-	Deny           bool   `json:"deny"`
-	MaxConcurrency *int   `json:"max_concurrency,omitempty"`
+	ID                       int64    `json:"id"`
+	Email                    string   `json:"email"`
+	Deleted                  bool     `json:"deleted"`
+	Allow                    bool     `json:"allow"`
+	Deny                     bool     `json:"deny"`
+	MaxConcurrency           *int     `json:"max_concurrency,omitempty"`
+	QualityMaxP50TTFTMs      *int     `json:"quality_max_p50_ttft_ms,omitempty"`
+	QualityMinSuccessRate    *float64 `json:"quality_min_success_rate,omitempty"`
+	QualityMinSuccessSamples *int     `json:"quality_min_success_samples,omitempty"`
+	QualityMinTTFTSamples    *int     `json:"quality_min_ttft_samples,omitempty"`
+	QualityCondition         *string  `json:"quality_condition,omitempty"`
 }
 
 type AccountGroup struct {

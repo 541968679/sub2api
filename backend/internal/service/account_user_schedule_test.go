@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,8 @@ func TestAccount_AllowsScheduleUser(t *testing.T) {
 		require.False(t, (&Account{AllowUserIDs: []int64{16}}).AllowsScheduleUser(0))
 		require.False(t, (&Account{DenyUserIDs: []int64{16}}).AllowsScheduleUser(0))
 		require.False(t, (&Account{UserConcurrency: map[int64]int{16: 5}}).AllowsScheduleUser(0))
+		p50 := 1500
+		require.False(t, (&Account{UserQualityGates: map[int64]QualityHardCloseSettings{16: {MaxP50TTFTMs: &p50}}}).AllowsScheduleUser(0))
 	})
 
 	t.Run("empty allow is not a whitelist", func(t *testing.T) {
@@ -107,4 +110,224 @@ func TestUserScheduleIDFromContext(t *testing.T) {
 	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
 	require.Equal(t, int64(16), scheduleUserIDFromContext(ctx, 0))
 	require.Equal(t, int64(42), scheduleUserIDFromContext(ctx, 42))
+}
+
+func qualityGateAccount(userID int64, gate QualityHardCloseSettings) *Account {
+	return &Account{
+		ID:               1,
+		UserQualityGates: map[int64]QualityHardCloseSettings{userID: fillUserQualityGateDefaults(gate)},
+	}
+}
+
+func liveQualityStats(p50 int, ttftSamples, success, errors int64, rate float64) *AccountQualityStats {
+	return &AccountQualityStats{
+		P50TTFTMs:    &p50,
+		TTFTSamples:  ttftSamples,
+		SuccessCount: success,
+		ErrorCount:   errors,
+		SuccessRate:  &rate,
+	}
+}
+
+type liveQualityCacheStub struct {
+	byID map[int64]*AccountQualityStats
+	err  error
+}
+
+func (s *liveQualityCacheStub) Get(_ context.Context, accountID int64) (*AccountQualityStats, error) {
+	if s == nil {
+		return nil, nil
+	}
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.byID == nil {
+		return nil, nil
+	}
+	return s.byID[accountID], nil
+}
+
+func (s *liveQualityCacheStub) Replace(_ context.Context, stats map[int64]*AccountQualityStats) error {
+	if s == nil {
+		return nil
+	}
+	s.byID = stats
+	return nil
+}
+
+func (s *liveQualityCacheStub) MarkUserResume(_ context.Context, accountID, userID int64) error {
+	if s == nil {
+		return nil
+	}
+	if s.byID == nil {
+		s.byID = map[int64]*AccountQualityStats{}
+	}
+	st := s.byID[accountID]
+	if st == nil {
+		st = &AccountQualityStats{}
+		s.byID[accountID] = st
+	}
+	SetUserQualityResume(st, userID, time.Now().UTC().Add(AccountQualityWindow))
+	return nil
+}
+
+func (s *liveQualityCacheStub) MarkAccountResume(_ context.Context, accountID int64) error {
+	if s == nil {
+		return nil
+	}
+	if s.byID == nil {
+		s.byID = map[int64]*AccountQualityStats{}
+	}
+	st := s.byID[accountID]
+	if st == nil {
+		st = &AccountQualityStats{}
+		s.byID[accountID] = st
+	}
+	SetAccountQualityResume(st, time.Now().UTC().Add(AccountQualityWindow))
+	return nil
+}
+
+func TestAccount_QualityGateBlocksUserAndAdmitsScheduleUser(t *testing.T) {
+	t.Parallel()
+
+	p50 := 1000
+	rate := 0.9
+	p50Gate := QualityHardCloseSettings{MaxP50TTFTMs: &p50, MinTTFTSamples: 10, Condition: QualityHardCloseConditionOr}
+	bothGate := QualityHardCloseSettings{
+		MaxP50TTFTMs:      &p50,
+		MinSuccessRate:    &rate,
+		MinSuccessSamples: 20,
+		MinTTFTSamples:    10,
+	}
+
+	t.Run("breach blocks only that user", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		breached := liveQualityStats(2000, 10, 20, 0, 1)
+		require.True(t, acc.QualityGateBlocksUser(16, breached))
+		require.False(t, acc.AdmitsScheduleUser(16, breached))
+		require.False(t, acc.QualityGateBlocksUser(7, breached))
+		require.True(t, acc.AdmitsScheduleUser(7, breached))
+		require.Nil(t, acc.TempUnschedulableUntil)
+	})
+
+	t.Run("manual resume admits despite a still-breaching window", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		breached := liveQualityStats(2000, 10, 20, 0, 1)
+		SetUserQualityResume(breached, 16, time.Now().UTC().Add(AccountQualityWindow))
+		require.False(t, acc.QualityGateBlocksUser(16, breached))
+		require.True(t, acc.AdmitsScheduleUser(16, breached))
+	})
+
+	t.Run("under-sampled metric is not judged", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		under := liveQualityStats(5000, 9, 20, 0, 1)
+		require.False(t, acc.QualityGateBlocksUser(16, under))
+		require.True(t, acc.AdmitsScheduleUser(16, under))
+	})
+
+	t.Run("nil stats and cache miss fail open", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		require.False(t, acc.QualityGateBlocksUser(16, nil))
+		require.True(t, acc.AdmitsScheduleUser(16, nil))
+		ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+		require.True(t, admitsScheduleUser(ctx, acc, nil))
+		require.True(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{}))
+		require.True(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{err: context.DeadlineExceeded}))
+	})
+
+	t.Run("no gate never blocks", func(t *testing.T) {
+		t.Parallel()
+		acc := &Account{ID: 1}
+		breached := liveQualityStats(9000, 20, 1, 20, 0.05)
+		require.False(t, acc.QualityGateBlocksUser(16, breached))
+		require.True(t, acc.AdmitsScheduleUser(16, breached))
+	})
+
+	t.Run("unconfigured metric is ignored", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		goodP50BadSuccess := liveQualityStats(400, 12, 1, 20, 0.04)
+		require.False(t, acc.QualityGateBlocksUser(16, goodP50BadSuccess))
+		require.True(t, acc.AdmitsScheduleUser(16, goodP50BadSuccess))
+	})
+
+	t.Run("zero samples use defaults 20/10", func(t *testing.T) {
+		t.Parallel()
+		acc := &Account{
+			ID: 1,
+			UserQualityGates: map[int64]QualityHardCloseSettings{
+				16: {MaxP50TTFTMs: &p50, MinSuccessSamples: 0, MinTTFTSamples: 0},
+			},
+		}
+		underDefault := liveQualityStats(5000, 9, 19, 0, 1)
+		require.False(t, acc.QualityGateBlocksUser(16, underDefault))
+		require.True(t, acc.AdmitsScheduleUser(16, underDefault))
+		atDefault := liveQualityStats(5000, 10, 20, 0, 1)
+		require.True(t, acc.QualityGateBlocksUser(16, atDefault))
+		require.False(t, acc.AdmitsScheduleUser(16, atDefault))
+	})
+
+	t.Run("condition-only is not a gate", func(t *testing.T) {
+		t.Parallel()
+		cond := QualityHardCloseConditionOr
+		copied := copyUserQualityGates(map[int64]QualityHardCloseSettings{
+			16: {Condition: QualityHardCloseConditionOr},
+		})
+		require.Empty(t, copied)
+		gate, ok := userQualityGateFromFields(nil, nil, nil, nil, &cond)
+		require.False(t, ok)
+		require.Equal(t, QualityHardCloseSettings{}, gate)
+	})
+
+	t.Run("or vs and", func(t *testing.T) {
+		t.Parallel()
+		p50OnlyBad := liveQualityStats(2000, 10, 20, 0, 0.95)
+		bothBad := liveQualityStats(2000, 10, 10, 10, 0.5)
+		orAcc := qualityGateAccount(16, bothGate)
+		orAcc.UserQualityGates[16] = fillUserQualityGateDefaults(QualityHardCloseSettings{
+			MaxP50TTFTMs:      &p50,
+			MinSuccessRate:    &rate,
+			MinSuccessSamples: 20,
+			MinTTFTSamples:    10,
+			Condition:         QualityHardCloseConditionOr,
+		})
+		andAcc := qualityGateAccount(16, bothGate)
+		andAcc.UserQualityGates[16] = fillUserQualityGateDefaults(QualityHardCloseSettings{
+			MaxP50TTFTMs:      &p50,
+			MinSuccessRate:    &rate,
+			MinSuccessSamples: 20,
+			MinTTFTSamples:    10,
+			Condition:         QualityHardCloseConditionAnd,
+		})
+		require.True(t, orAcc.QualityGateBlocksUser(16, p50OnlyBad))
+		require.False(t, andAcc.QualityGateBlocksUser(16, p50OnlyBad))
+		require.True(t, orAcc.QualityGateBlocksUser(16, bothBad))
+		require.True(t, andAcc.QualityGateBlocksUser(16, bothBad))
+	})
+
+	t.Run("quality-gate-only userID zero fail closed", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		ok := liveQualityStats(100, 20, 20, 0, 1)
+		require.False(t, acc.AllowsScheduleUser(0))
+		require.False(t, acc.AdmitsScheduleUser(0, ok))
+		require.False(t, acc.QualityGateBlocksUser(0, liveQualityStats(9000, 20, 1, 20, 0.01)))
+		ctx := context.Background()
+		require.False(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{1: ok},
+		}))
+	})
+
+	t.Run("live cache breach blocks admission", func(t *testing.T) {
+		t.Parallel()
+		acc := qualityGateAccount(16, p50Gate)
+		ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+		require.False(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{1: liveQualityStats(4000, 12, 20, 0, 1)},
+		}))
+	})
 }

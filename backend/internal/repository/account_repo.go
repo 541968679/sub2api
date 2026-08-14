@@ -1065,6 +1065,7 @@ func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int
 		allow bool
 		deny  bool
 		max   *int
+		gate  *service.QualityHardCloseSettings
 	}
 	rows := map[int64]*rowSpec{}
 	order := make([]int64, 0)
@@ -1099,12 +1100,23 @@ func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int
 			spec.max = &max
 		}
 	}
+	for userID, gate := range write.UserQualityGates {
+		if userID <= 0 {
+			continue
+		}
+		filled := gate
+		filled.Enabled = true
+		if spec := addUser(userID); spec != nil {
+			copied := filled
+			spec.gate = &copied
+		}
+	}
 
 	if len(order) > 0 {
 		builders := make([]*dbent.AccountScheduleUserCreate, 0, len(order))
 		for _, userID := range order {
 			spec := rows[userID]
-			if spec == nil || (!spec.allow && !spec.deny && spec.max == nil) {
+			if spec == nil || (!spec.allow && !spec.deny && spec.max == nil && spec.gate == nil) {
 				continue
 			}
 			builder := txClient.AccountScheduleUser.Create().
@@ -1114,6 +1126,19 @@ func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int
 				SetDeny(spec.deny)
 			if spec.max != nil {
 				builder.SetMaxConcurrency(*spec.max)
+			}
+			if spec.gate != nil {
+				builder.SetNillableQualityMaxP50TtftMs(spec.gate.MaxP50TTFTMs)
+				builder.SetNillableQualityMinSuccessRate(spec.gate.MinSuccessRate)
+				if spec.gate.MinSuccessSamples >= 1 {
+					builder.SetQualityMinSuccessSamples(spec.gate.MinSuccessSamples)
+				}
+				if spec.gate.MinTTFTSamples >= 1 {
+					builder.SetQualityMinTtftSamples(spec.gate.MinTTFTSamples)
+				}
+				if spec.gate.Condition != "" {
+					builder.SetQualityCondition(spec.gate.Condition)
+				}
 			}
 			builders = append(builders, builder)
 		}
@@ -2085,6 +2110,12 @@ func (r *accountRepository) loadAccountUserSchedules(ctx context.Context, accoun
 			}
 			spec.UserConcurrency[entry.UserID] = *entry.MaxConcurrency
 		}
+		if gate, ok := userQualityGateFromEntry(entry); ok {
+			if spec.UserQualityGates == nil {
+				spec.UserQualityGates = map[int64]service.QualityHardCloseSettings{}
+			}
+			spec.UserQualityGates[entry.UserID] = gate
+		}
 		out[entry.AccountID] = spec
 	}
 	return out, nil
@@ -2097,7 +2128,38 @@ func applyAccountUserSchedule(account *service.Account, spec service.AccountUser
 	account.AllowUserIDs = spec.AllowUserIDs
 	account.DenyUserIDs = spec.DenyUserIDs
 	account.UserConcurrency = spec.UserConcurrency
+	account.UserQualityGates = spec.UserQualityGates
 	account.DeriveLegacyUserSchedule()
+}
+
+func userQualityGateFromEntry(entry *dbent.AccountScheduleUser) (service.QualityHardCloseSettings, bool) {
+	if entry == nil {
+		return service.QualityHardCloseSettings{}, false
+	}
+	if entry.QualityMaxP50TtftMs == nil && entry.QualityMinSuccessRate == nil {
+		return service.QualityHardCloseSettings{}, false
+	}
+	gate := service.QualityHardCloseSettings{
+		Enabled:           true,
+		MaxP50TTFTMs:      entry.QualityMaxP50TtftMs,
+		MinSuccessRate:    entry.QualityMinSuccessRate,
+		MinSuccessSamples: service.DefaultQualityHardCloseMinSuccessSamples,
+		MinTTFTSamples:    service.DefaultQualityHardCloseMinTTFTSamples,
+		Condition:         service.QualityHardCloseConditionOr,
+	}
+	if entry.QualityMinSuccessSamples != nil && *entry.QualityMinSuccessSamples >= 1 {
+		gate.MinSuccessSamples = *entry.QualityMinSuccessSamples
+	}
+	if entry.QualityMinTtftSamples != nil && *entry.QualityMinTtftSamples >= 1 {
+		gate.MinTTFTSamples = *entry.QualityMinTtftSamples
+	}
+	if entry.QualityCondition != nil {
+		cond := *entry.QualityCondition
+		if cond == service.QualityHardCloseConditionAnd || cond == service.QualityHardCloseConditionOr {
+			gate.Condition = cond
+		}
+	}
+	return gate, true
 }
 
 func (r *accountRepository) loadAccountGroupIDs(ctx context.Context, accountID int64) ([]int64, error) {

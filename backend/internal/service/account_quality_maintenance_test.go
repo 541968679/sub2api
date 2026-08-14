@@ -221,3 +221,70 @@ func TestAccountQualityMaintenance_HardCloseHookReceivesLiveStats(t *testing.T) 
 	require.True(t, hook.called)
 	require.Equal(t, int64(3), hook.stats[1].SuccessCount)
 }
+
+type liveQualityCacheCapture struct {
+	calls int
+	last  map[int64]*AccountQualityStats
+}
+
+func (s *liveQualityCacheCapture) Get(_ context.Context, accountID int64) (*AccountQualityStats, error) {
+	if s == nil || s.last == nil {
+		return nil, nil
+	}
+	return s.last[accountID], nil
+}
+
+func (s *liveQualityCacheCapture) Replace(_ context.Context, stats map[int64]*AccountQualityStats) error {
+	s.calls++
+	s.last = stats
+	return nil
+}
+
+func (s *liveQualityCacheCapture) MarkUserResume(_ context.Context, accountID, userID int64) error {
+	if s.last == nil {
+		s.last = map[int64]*AccountQualityStats{}
+	}
+	st := s.last[accountID]
+	if st == nil {
+		st = &AccountQualityStats{}
+		s.last[accountID] = st
+	}
+	SetUserQualityResume(st, userID, time.Now().UTC().Add(AccountQualityWindow))
+	return nil
+}
+
+func (s *liveQualityCacheCapture) MarkAccountResume(_ context.Context, accountID int64) error {
+	if s.last == nil {
+		s.last = map[int64]*AccountQualityStats{}
+	}
+	st := s.last[accountID]
+	if st == nil {
+		st = &AccountQualityStats{}
+		s.last[accountID] = st
+	}
+	SetAccountQualityResume(st, time.Now().UTC().Add(AccountQualityWindow))
+	return nil
+}
+
+func TestAccountQualityMaintenance_WritesLiveQualityCache(t *testing.T) {
+	rate := 1.0
+	ttft := 120
+	repo := &qualitySnapshotRepoStub{candidates: []int64{1, 2}}
+	statsRepo := &qualityStatsBatchRepoStub{
+		result: map[int64]*AccountQualityStats{
+			1: {WindowSeconds: AccountQualityWindowSeconds, SuccessCount: 2, SuccessRate: &rate, AvgTTFTMs: &ttft, P50TTFTMs: &ttft, TTFTSamples: 2},
+			2: {WindowSeconds: AccountQualityWindowSeconds},
+		},
+	}
+	live := &liveQualityCacheCapture{}
+	svc := NewAccountQualityMaintenanceService(repo, statsRepo, nil)
+	svc.SetLiveQualityCache(live)
+
+	require.NoError(t, svc.RunTick(context.Background(), time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)))
+	require.Equal(t, 1, live.calls)
+	require.NotNil(t, live.last[1])
+	require.Equal(t, int64(2), live.last[1].SuccessCount)
+	require.True(t, HasAccountQualitySamples(live.last[1]))
+	require.NotNil(t, live.last[2])
+	require.False(t, HasAccountQualitySamples(live.last[2]))
+}

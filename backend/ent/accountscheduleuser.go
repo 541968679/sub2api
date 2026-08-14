@@ -29,6 +29,16 @@ type AccountScheduleUser struct {
 	Deny bool `json:"deny,omitempty"`
 	// MaxConcurrency holds the value of the "max_concurrency" field.
 	MaxConcurrency *int `json:"max_concurrency,omitempty"`
+	// QualityMaxP50TtftMs holds the value of the "quality_max_p50_ttft_ms" field.
+	QualityMaxP50TtftMs *int `json:"quality_max_p50_ttft_ms,omitempty"`
+	// QualityMinSuccessRate holds the value of the "quality_min_success_rate" field.
+	QualityMinSuccessRate *float64 `json:"quality_min_success_rate,omitempty"`
+	// QualityMinSuccessSamples holds the value of the "quality_min_success_samples" field.
+	QualityMinSuccessSamples *int `json:"quality_min_success_samples,omitempty"`
+	// QualityMinTtftSamples holds the value of the "quality_min_ttft_samples" field.
+	QualityMinTtftSamples *int `json:"quality_min_ttft_samples,omitempty"`
+	// QualityCondition holds the value of the "quality_condition" field.
+	QualityCondition *string `json:"quality_condition,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the AccountScheduleUserQuery when eager-loading is set.
 	Edges        AccountScheduleUserEdges `json:"edges"`
@@ -75,8 +85,12 @@ func (*AccountScheduleUser) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case accountscheduleuser.FieldAllow, accountscheduleuser.FieldDeny:
 			values[i] = new(sql.NullBool)
-		case accountscheduleuser.FieldAccountID, accountscheduleuser.FieldUserID, accountscheduleuser.FieldMaxConcurrency:
+		case accountscheduleuser.FieldQualityMinSuccessRate:
+			values[i] = new(sql.NullFloat64)
+		case accountscheduleuser.FieldAccountID, accountscheduleuser.FieldUserID, accountscheduleuser.FieldMaxConcurrency, accountscheduleuser.FieldQualityMaxP50TtftMs, accountscheduleuser.FieldQualityMinSuccessSamples, accountscheduleuser.FieldQualityMinTtftSamples:
 			values[i] = new(sql.NullInt64)
+		case accountscheduleuser.FieldQualityCondition:
+			values[i] = new(sql.NullString)
 		case accountscheduleuser.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		default:
@@ -130,6 +144,41 @@ func (_m *AccountScheduleUser) assignValues(columns []string, values []any) erro
 			} else if value.Valid {
 				_m.MaxConcurrency = new(int)
 				*_m.MaxConcurrency = int(value.Int64)
+			}
+		case accountscheduleuser.FieldQualityMaxP50TtftMs:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field quality_max_p50_ttft_ms", values[i])
+			} else if value.Valid {
+				_m.QualityMaxP50TtftMs = new(int)
+				*_m.QualityMaxP50TtftMs = int(value.Int64)
+			}
+		case accountscheduleuser.FieldQualityMinSuccessRate:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field quality_min_success_rate", values[i])
+			} else if value.Valid {
+				_m.QualityMinSuccessRate = new(float64)
+				*_m.QualityMinSuccessRate = value.Float64
+			}
+		case accountscheduleuser.FieldQualityMinSuccessSamples:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field quality_min_success_samples", values[i])
+			} else if value.Valid {
+				_m.QualityMinSuccessSamples = new(int)
+				*_m.QualityMinSuccessSamples = int(value.Int64)
+			}
+		case accountscheduleuser.FieldQualityMinTtftSamples:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field quality_min_ttft_samples", values[i])
+			} else if value.Valid {
+				_m.QualityMinTtftSamples = new(int)
+				*_m.QualityMinTtftSamples = int(value.Int64)
+			}
+		case accountscheduleuser.FieldQualityCondition:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field quality_condition", values[i])
+			} else if value.Valid {
+				_m.QualityCondition = new(string)
+				*_m.QualityCondition = value.String
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -194,6 +243,31 @@ func (_m *AccountScheduleUser) String() string {
 	if v := _m.MaxConcurrency; v != nil {
 		builder.WriteString("max_concurrency=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.QualityMaxP50TtftMs; v != nil {
+		builder.WriteString("quality_max_p50_ttft_ms=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.QualityMinSuccessRate; v != nil {
+		builder.WriteString("quality_min_success_rate=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.QualityMinSuccessSamples; v != nil {
+		builder.WriteString("quality_min_success_samples=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.QualityMinTtftSamples; v != nil {
+		builder.WriteString("quality_min_ttft_samples=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.QualityCondition; v != nil {
+		builder.WriteString("quality_condition=")
+		builder.WriteString(*v)
 	}
 	builder.WriteByte(')')
 	return builder.String()

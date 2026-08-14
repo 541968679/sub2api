@@ -13,9 +13,23 @@
       <div
         v-if="showPauseBanner"
         data-test="quality-pause-banner"
-        class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+        class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
       >
-        {{ t('admin.accounts.stability.pauseBanner', { time: pauseResumeTime }) }}
+        <div class="min-w-0 space-y-1">
+          <p>{{ t('admin.accounts.stability.pauseBanner', { time: pauseResumeTime }) }}</p>
+          <p class="text-xs text-amber-700 dark:text-amber-300">
+            {{ t('admin.accounts.stability.resumeHint') }}
+          </p>
+        </div>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm shrink-0"
+          data-test="stability-resume-now"
+          :disabled="resumeBusy || !account"
+          @click="resumeNow"
+        >
+          {{ t('admin.accounts.stability.resumeNow') }}
+        </button>
       </div>
 
       <p
@@ -51,9 +65,36 @@
       </section>
 
       <section class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700">
-        <h4 class="text-sm font-medium text-gray-900 dark:text-white">
-          {{ t('admin.accounts.stability.formTitle') }}
-        </h4>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h4 class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('admin.accounts.stability.formTitle') }}
+            </h4>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.stability.templateHint') }}
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              data-test="stability-apply-template"
+              :disabled="templateBusy || !account"
+              @click="applyTemplate"
+            >
+              {{ t('admin.accounts.stability.applyTemplate') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              data-test="stability-save-template"
+              :disabled="templateBusy || !account"
+              @click="saveTemplate"
+            >
+              {{ t('admin.accounts.stability.saveTemplate') }}
+            </button>
+          </div>
+        </div>
 
         <div class="flex items-center justify-between">
           <div>
@@ -67,20 +108,7 @@
           <Toggle v-model="form.enabled" />
         </div>
 
-        <div class="flex items-center justify-between">
-          <div>
-            <label class="font-medium text-gray-900 dark:text-white">
-              {{ t('admin.accounts.stability.useGlobal') }}
-            </label>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.stability.useGlobalHint') }}
-            </p>
-          </div>
-          <Toggle v-model="form.use_global" />
-        </div>
-
         <div
-          v-if="!form.use_global"
           data-test="stability-override-fields"
           class="grid gap-4 sm:grid-cols-2"
         >
@@ -155,7 +183,6 @@
               {{ t('admin.accounts.stability.condition') }}
             </label>
             <select v-model="form.condition" class="input w-full">
-              <option value="">{{ t('admin.accounts.stability.conditionInherit') }}</option>
               <option value="or">{{ t('admin.accounts.stability.conditionOr') }}</option>
               <option value="and">{{ t('admin.accounts.stability.conditionAnd') }}</option>
             </select>
@@ -202,6 +229,7 @@ import type {
   AccountQualityHistoryItem,
   QualityHardCloseCondition
 } from '@/api/admin/accounts'
+import type { QualityHardCloseSettings } from '@/api/admin/settings'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -226,6 +254,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'recovered', account: Account): void
 }>()
 
 const { t } = useI18n()
@@ -233,19 +262,20 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const saving = ref(false)
+const templateBusy = ref(false)
+const resumeBusy = ref(false)
 const historyItems = ref<AccountQualityHistoryItem[]>([])
 const globalEnabled = ref<boolean | null>(null)
 const resolved = ref<AccountQualityHardCloseResolved | null>(null)
 
 const form = reactive({
   enabled: false,
-  use_global: true,
   max_p50_ttft_ms: '' as number | string,
   min_success_rate_percent: '' as number | string,
   pause_minutes: '' as number | string,
   min_success_samples: '' as number | string,
   min_ttft_samples: '' as number | string,
-  condition: '' as QualityHardCloseCondition | ''
+  condition: 'or' as QualityHardCloseCondition
 })
 
 const dialogTitle = computed(() =>
@@ -396,40 +426,56 @@ function resolvedPercentPlaceholder(rate: number | null | undefined): string {
 
 function resetForm() {
   form.enabled = false
-  form.use_global = true
   form.max_p50_ttft_ms = ''
   form.min_success_rate_percent = ''
   form.pause_minutes = ''
   form.min_success_samples = ''
   form.min_ttft_samples = ''
-  form.condition = ''
+  form.condition = 'or'
 }
 
-function applyOverlay(overlay: AccountQualityHardCloseOverlay) {
+function overlayHasOwnThresholds(overlay: AccountQualityHardCloseOverlay): boolean {
+  return !overlay.use_global
+    || overlay.max_p50_ttft_ms != null
+    || overlay.min_success_rate != null
+    || overlay.pause_minutes != null
+    || overlay.min_success_samples != null
+    || overlay.min_ttft_samples != null
+    || overlay.condition != null
+}
+
+function applyThresholds(source: {
+  max_p50_ttft_ms?: number | null
+  min_success_rate?: number | null
+  pause_minutes?: number | null
+  min_success_samples?: number | null
+  min_ttft_samples?: number | null
+  condition?: QualityHardCloseCondition | string | null
+}) {
+  form.max_p50_ttft_ms = source.max_p50_ttft_ms ?? ''
+  form.min_success_rate_percent = successRateToPercent(source.min_success_rate) ?? ''
+  form.pause_minutes = source.pause_minutes ?? ''
+  form.min_success_samples = source.min_success_samples ?? ''
+  form.min_ttft_samples = source.min_ttft_samples ?? ''
+  form.condition = source.condition === 'and' ? 'and' : 'or'
+}
+
+function applyOverlay(overlay: AccountQualityHardCloseOverlay, resolvedView: AccountQualityHardCloseResolved | null) {
   form.enabled = overlay.enabled
-  form.use_global = overlay.use_global
-  form.max_p50_ttft_ms = overlay.max_p50_ttft_ms ?? ''
-  form.min_success_rate_percent = successRateToPercent(overlay.min_success_rate) ?? ''
-  form.pause_minutes = overlay.pause_minutes ?? ''
-  form.min_success_samples = overlay.min_success_samples ?? ''
-  form.min_ttft_samples = overlay.min_ttft_samples ?? ''
-  form.condition = overlay.condition ?? ''
+  if (overlayHasOwnThresholds(overlay)) {
+    applyThresholds(overlay)
+    return
+  }
+  if (resolvedView) {
+    applyThresholds(resolvedView)
+    return
+  }
+  resetForm()
+  form.enabled = overlay.enabled
 }
 
 function buildOverlayPayload(): AccountQualityHardCloseOverlay {
-  if (form.use_global) {
-    return {
-      enabled: form.enabled,
-      use_global: true,
-      max_p50_ttft_ms: null,
-      min_success_rate: null,
-      pause_minutes: null,
-      min_success_samples: null,
-      min_ttft_samples: null,
-      condition: null
-    }
-  }
-  const condition = form.condition === 'or' || form.condition === 'and' ? form.condition : null
+  const condition = form.condition === 'and' ? 'and' : 'or'
   return {
     enabled: form.enabled,
     use_global: false,
@@ -439,6 +485,18 @@ function buildOverlayPayload(): AccountQualityHardCloseOverlay {
     min_success_samples: optionalNumber(form.min_success_samples),
     min_ttft_samples: optionalNumber(form.min_ttft_samples),
     condition
+  }
+}
+
+function buildTemplatePayload(current: QualityHardCloseSettings): QualityHardCloseSettings {
+  return {
+    enabled: current.enabled,
+    max_p50_ttft_ms: optionalNumber(form.max_p50_ttft_ms),
+    min_success_rate: percentToSuccessRate(form.min_success_rate_percent),
+    pause_minutes: optionalNumber(form.pause_minutes) ?? current.pause_minutes,
+    min_success_samples: optionalNumber(form.min_success_samples) ?? current.min_success_samples,
+    min_ttft_samples: optionalNumber(form.min_ttft_samples) ?? current.min_ttft_samples,
+    condition: form.condition === 'and' ? 'and' : 'or'
   }
 }
 
@@ -457,7 +515,7 @@ async function load() {
     historyItems.value = history.items ?? []
     globalEnabled.value = hardClose.global_enabled
     resolved.value = hardClose.resolved
-    applyOverlay(hardClose.overlay)
+    applyOverlay(hardClose.overlay, hardClose.resolved)
   } catch (error: unknown) {
     appStore.showError(extractApiErrorMessage(error, t('admin.accounts.stability.loadFailed')))
   } finally {
@@ -472,12 +530,52 @@ async function save() {
     const updated = await adminAPI.accounts.updateQualityHardClose(props.account.id, buildOverlayPayload())
     globalEnabled.value = updated.global_enabled
     resolved.value = updated.resolved
-    applyOverlay(updated.overlay)
+    applyOverlay(updated.overlay, updated.resolved)
     appStore.showSuccess(t('admin.accounts.stability.saveSuccess'))
   } catch (error: unknown) {
     appStore.showError(extractApiErrorMessage(error, t('admin.accounts.stability.saveFailed')))
   } finally {
     saving.value = false
+  }
+}
+
+async function applyTemplate() {
+  templateBusy.value = true
+  try {
+    const template = await adminAPI.settings.getQualityHardCloseSettings()
+    applyThresholds(template)
+    appStore.showSuccess(t('admin.accounts.stability.applyTemplateSuccess'))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.stability.applyTemplateFailed')))
+  } finally {
+    templateBusy.value = false
+  }
+}
+
+async function resumeNow() {
+  if (!props.account) return
+  resumeBusy.value = true
+  try {
+    const updated = await adminAPI.accounts.recoverState(props.account.id)
+    emit('recovered', updated)
+    appStore.showSuccess(t('admin.accounts.stability.resumeSuccess'))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.stability.resumeFailed')))
+  } finally {
+    resumeBusy.value = false
+  }
+}
+
+async function saveTemplate() {
+  templateBusy.value = true
+  try {
+    const current = await adminAPI.settings.getQualityHardCloseSettings()
+    await adminAPI.settings.updateQualityHardCloseSettings(buildTemplatePayload(current))
+    appStore.showSuccess(t('admin.accounts.stability.saveTemplateSuccess'))
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.accounts.stability.saveTemplateFailed')))
+  } finally {
+    templateBusy.value = false
   }
 }
 

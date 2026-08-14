@@ -92,6 +92,76 @@ func (_c *AccountScheduleUserCreate) SetNillableMaxConcurrency(v *int) *AccountS
 	return _c
 }
 
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (_c *AccountScheduleUserCreate) SetQualityMaxP50TtftMs(v int) *AccountScheduleUserCreate {
+	_c.mutation.SetQualityMaxP50TtftMs(v)
+	return _c
+}
+
+// SetNillableQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableQualityMaxP50TtftMs(v *int) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetQualityMaxP50TtftMs(*v)
+	}
+	return _c
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (_c *AccountScheduleUserCreate) SetQualityMinSuccessRate(v float64) *AccountScheduleUserCreate {
+	_c.mutation.SetQualityMinSuccessRate(v)
+	return _c
+}
+
+// SetNillableQualityMinSuccessRate sets the "quality_min_success_rate" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableQualityMinSuccessRate(v *float64) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetQualityMinSuccessRate(*v)
+	}
+	return _c
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (_c *AccountScheduleUserCreate) SetQualityMinSuccessSamples(v int) *AccountScheduleUserCreate {
+	_c.mutation.SetQualityMinSuccessSamples(v)
+	return _c
+}
+
+// SetNillableQualityMinSuccessSamples sets the "quality_min_success_samples" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableQualityMinSuccessSamples(v *int) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetQualityMinSuccessSamples(*v)
+	}
+	return _c
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (_c *AccountScheduleUserCreate) SetQualityMinTtftSamples(v int) *AccountScheduleUserCreate {
+	_c.mutation.SetQualityMinTtftSamples(v)
+	return _c
+}
+
+// SetNillableQualityMinTtftSamples sets the "quality_min_ttft_samples" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableQualityMinTtftSamples(v *int) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetQualityMinTtftSamples(*v)
+	}
+	return _c
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (_c *AccountScheduleUserCreate) SetQualityCondition(v string) *AccountScheduleUserCreate {
+	_c.mutation.SetQualityCondition(v)
+	return _c
+}
+
+// SetNillableQualityCondition sets the "quality_condition" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableQualityCondition(v *string) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetQualityCondition(*v)
+	}
+	return _c
+}
+
 // SetAccount sets the "account" edge to the Account entity.
 func (_c *AccountScheduleUserCreate) SetAccount(v *Account) *AccountScheduleUserCreate {
 	return _c.SetAccountID(v.ID)
@@ -168,6 +238,11 @@ func (_c *AccountScheduleUserCreate) check() error {
 	if _, ok := _c.mutation.Deny(); !ok {
 		return &ValidationError{Name: "deny", err: errors.New(`ent: missing required field "AccountScheduleUser.deny"`)}
 	}
+	if v, ok := _c.mutation.QualityCondition(); ok {
+		if err := accountscheduleuser.QualityConditionValidator(v); err != nil {
+			return &ValidationError{Name: "quality_condition", err: fmt.Errorf(`ent: validator failed for field "AccountScheduleUser.quality_condition": %w`, err)}
+		}
+	}
 	if len(_c.mutation.AccountIDs()) == 0 {
 		return &ValidationError{Name: "account", err: errors.New(`ent: missing required edge "AccountScheduleUser.account"`)}
 	}
@@ -212,6 +287,26 @@ func (_c *AccountScheduleUserCreate) createSpec() (*AccountScheduleUser, *sqlgra
 	if value, ok := _c.mutation.MaxConcurrency(); ok {
 		_spec.SetField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt, value)
 		_node.MaxConcurrency = &value
+	}
+	if value, ok := _c.mutation.QualityMaxP50TtftMs(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMaxP50TtftMs, field.TypeInt, value)
+		_node.QualityMaxP50TtftMs = &value
+	}
+	if value, ok := _c.mutation.QualityMinSuccessRate(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinSuccessRate, field.TypeFloat64, value)
+		_node.QualityMinSuccessRate = &value
+	}
+	if value, ok := _c.mutation.QualityMinSuccessSamples(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinSuccessSamples, field.TypeInt, value)
+		_node.QualityMinSuccessSamples = &value
+	}
+	if value, ok := _c.mutation.QualityMinTtftSamples(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityMinTtftSamples, field.TypeInt, value)
+		_node.QualityMinTtftSamples = &value
+	}
+	if value, ok := _c.mutation.QualityCondition(); ok {
+		_spec.SetField(accountscheduleuser.FieldQualityCondition, field.TypeString, value)
+		_node.QualityCondition = &value
 	}
 	if nodes := _c.mutation.AccountIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -371,6 +466,120 @@ func (u *AccountScheduleUserUpsert) ClearMaxConcurrency() *AccountScheduleUserUp
 	return u
 }
 
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsert) SetQualityMaxP50TtftMs(v int) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldQualityMaxP50TtftMs, v)
+	return u
+}
+
+// UpdateQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateQualityMaxP50TtftMs() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldQualityMaxP50TtftMs)
+	return u
+}
+
+// AddQualityMaxP50TtftMs adds v to the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsert) AddQualityMaxP50TtftMs(v int) *AccountScheduleUserUpsert {
+	u.Add(accountscheduleuser.FieldQualityMaxP50TtftMs, v)
+	return u
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsert) ClearQualityMaxP50TtftMs() *AccountScheduleUserUpsert {
+	u.SetNull(accountscheduleuser.FieldQualityMaxP50TtftMs)
+	return u
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsert) SetQualityMinSuccessRate(v float64) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldQualityMinSuccessRate, v)
+	return u
+}
+
+// UpdateQualityMinSuccessRate sets the "quality_min_success_rate" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateQualityMinSuccessRate() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldQualityMinSuccessRate)
+	return u
+}
+
+// AddQualityMinSuccessRate adds v to the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsert) AddQualityMinSuccessRate(v float64) *AccountScheduleUserUpsert {
+	u.Add(accountscheduleuser.FieldQualityMinSuccessRate, v)
+	return u
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsert) ClearQualityMinSuccessRate() *AccountScheduleUserUpsert {
+	u.SetNull(accountscheduleuser.FieldQualityMinSuccessRate)
+	return u
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsert) SetQualityMinSuccessSamples(v int) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldQualityMinSuccessSamples, v)
+	return u
+}
+
+// UpdateQualityMinSuccessSamples sets the "quality_min_success_samples" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateQualityMinSuccessSamples() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldQualityMinSuccessSamples)
+	return u
+}
+
+// AddQualityMinSuccessSamples adds v to the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsert) AddQualityMinSuccessSamples(v int) *AccountScheduleUserUpsert {
+	u.Add(accountscheduleuser.FieldQualityMinSuccessSamples, v)
+	return u
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsert) ClearQualityMinSuccessSamples() *AccountScheduleUserUpsert {
+	u.SetNull(accountscheduleuser.FieldQualityMinSuccessSamples)
+	return u
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsert) SetQualityMinTtftSamples(v int) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldQualityMinTtftSamples, v)
+	return u
+}
+
+// UpdateQualityMinTtftSamples sets the "quality_min_ttft_samples" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateQualityMinTtftSamples() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldQualityMinTtftSamples)
+	return u
+}
+
+// AddQualityMinTtftSamples adds v to the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsert) AddQualityMinTtftSamples(v int) *AccountScheduleUserUpsert {
+	u.Add(accountscheduleuser.FieldQualityMinTtftSamples, v)
+	return u
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsert) ClearQualityMinTtftSamples() *AccountScheduleUserUpsert {
+	u.SetNull(accountscheduleuser.FieldQualityMinTtftSamples)
+	return u
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (u *AccountScheduleUserUpsert) SetQualityCondition(v string) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldQualityCondition, v)
+	return u
+}
+
+// UpdateQualityCondition sets the "quality_condition" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateQualityCondition() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldQualityCondition)
+	return u
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (u *AccountScheduleUserUpsert) ClearQualityCondition() *AccountScheduleUserUpsert {
+	u.SetNull(accountscheduleuser.FieldQualityCondition)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -497,6 +706,139 @@ func (u *AccountScheduleUserUpsertOne) UpdateMaxConcurrency() *AccountScheduleUs
 func (u *AccountScheduleUserUpsertOne) ClearMaxConcurrency() *AccountScheduleUserUpsertOne {
 	return u.Update(func(s *AccountScheduleUserUpsert) {
 		s.ClearMaxConcurrency()
+	})
+}
+
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsertOne) SetQualityMaxP50TtftMs(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMaxP50TtftMs(v)
+	})
+}
+
+// AddQualityMaxP50TtftMs adds v to the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsertOne) AddQualityMaxP50TtftMs(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMaxP50TtftMs(v)
+	})
+}
+
+// UpdateQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateQualityMaxP50TtftMs() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMaxP50TtftMs()
+	})
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsertOne) ClearQualityMaxP50TtftMs() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMaxP50TtftMs()
+	})
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsertOne) SetQualityMinSuccessRate(v float64) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMinSuccessRate(v)
+	})
+}
+
+// AddQualityMinSuccessRate adds v to the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsertOne) AddQualityMinSuccessRate(v float64) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMinSuccessRate(v)
+	})
+}
+
+// UpdateQualityMinSuccessRate sets the "quality_min_success_rate" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateQualityMinSuccessRate() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMinSuccessRate()
+	})
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsertOne) ClearQualityMinSuccessRate() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMinSuccessRate()
+	})
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsertOne) SetQualityMinSuccessSamples(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMinSuccessSamples(v)
+	})
+}
+
+// AddQualityMinSuccessSamples adds v to the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsertOne) AddQualityMinSuccessSamples(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMinSuccessSamples(v)
+	})
+}
+
+// UpdateQualityMinSuccessSamples sets the "quality_min_success_samples" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateQualityMinSuccessSamples() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMinSuccessSamples()
+	})
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsertOne) ClearQualityMinSuccessSamples() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMinSuccessSamples()
+	})
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsertOne) SetQualityMinTtftSamples(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMinTtftSamples(v)
+	})
+}
+
+// AddQualityMinTtftSamples adds v to the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsertOne) AddQualityMinTtftSamples(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMinTtftSamples(v)
+	})
+}
+
+// UpdateQualityMinTtftSamples sets the "quality_min_ttft_samples" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateQualityMinTtftSamples() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMinTtftSamples()
+	})
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsertOne) ClearQualityMinTtftSamples() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMinTtftSamples()
+	})
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (u *AccountScheduleUserUpsertOne) SetQualityCondition(v string) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityCondition(v)
+	})
+}
+
+// UpdateQualityCondition sets the "quality_condition" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateQualityCondition() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityCondition()
+	})
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (u *AccountScheduleUserUpsertOne) ClearQualityCondition() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityCondition()
 	})
 }
 
@@ -769,6 +1111,139 @@ func (u *AccountScheduleUserUpsertBulk) UpdateMaxConcurrency() *AccountScheduleU
 func (u *AccountScheduleUserUpsertBulk) ClearMaxConcurrency() *AccountScheduleUserUpsertBulk {
 	return u.Update(func(s *AccountScheduleUserUpsert) {
 		s.ClearMaxConcurrency()
+	})
+}
+
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsertBulk) SetQualityMaxP50TtftMs(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMaxP50TtftMs(v)
+	})
+}
+
+// AddQualityMaxP50TtftMs adds v to the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsertBulk) AddQualityMaxP50TtftMs(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMaxP50TtftMs(v)
+	})
+}
+
+// UpdateQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateQualityMaxP50TtftMs() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMaxP50TtftMs()
+	})
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (u *AccountScheduleUserUpsertBulk) ClearQualityMaxP50TtftMs() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMaxP50TtftMs()
+	})
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsertBulk) SetQualityMinSuccessRate(v float64) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMinSuccessRate(v)
+	})
+}
+
+// AddQualityMinSuccessRate adds v to the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsertBulk) AddQualityMinSuccessRate(v float64) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMinSuccessRate(v)
+	})
+}
+
+// UpdateQualityMinSuccessRate sets the "quality_min_success_rate" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateQualityMinSuccessRate() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMinSuccessRate()
+	})
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (u *AccountScheduleUserUpsertBulk) ClearQualityMinSuccessRate() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMinSuccessRate()
+	})
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsertBulk) SetQualityMinSuccessSamples(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMinSuccessSamples(v)
+	})
+}
+
+// AddQualityMinSuccessSamples adds v to the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsertBulk) AddQualityMinSuccessSamples(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMinSuccessSamples(v)
+	})
+}
+
+// UpdateQualityMinSuccessSamples sets the "quality_min_success_samples" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateQualityMinSuccessSamples() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMinSuccessSamples()
+	})
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (u *AccountScheduleUserUpsertBulk) ClearQualityMinSuccessSamples() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMinSuccessSamples()
+	})
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsertBulk) SetQualityMinTtftSamples(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityMinTtftSamples(v)
+	})
+}
+
+// AddQualityMinTtftSamples adds v to the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsertBulk) AddQualityMinTtftSamples(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddQualityMinTtftSamples(v)
+	})
+}
+
+// UpdateQualityMinTtftSamples sets the "quality_min_ttft_samples" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateQualityMinTtftSamples() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityMinTtftSamples()
+	})
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (u *AccountScheduleUserUpsertBulk) ClearQualityMinTtftSamples() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityMinTtftSamples()
+	})
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (u *AccountScheduleUserUpsertBulk) SetQualityCondition(v string) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetQualityCondition(v)
+	})
+}
+
+// UpdateQualityCondition sets the "quality_condition" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateQualityCondition() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateQualityCondition()
+	})
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (u *AccountScheduleUserUpsertBulk) ClearQualityCondition() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearQualityCondition()
 	})
 }
 

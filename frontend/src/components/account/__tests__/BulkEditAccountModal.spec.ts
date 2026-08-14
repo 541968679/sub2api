@@ -140,6 +140,8 @@ describe('BulkEditAccountModal', () => {
     expect(payload.deny_user_ids).toBeUndefined()
     expect(payload.user_concurrencies).toBeUndefined()
     expect(payload.user_concurrency_patch).toBeUndefined()
+    expect(payload.user_quality_gates).toBeUndefined()
+    expect(payload.user_quality_gate_patch).toBeUndefined()
   })
 
   it('可批量写入 fallback_only 与 model_mapping_strict_scheduling', async () => {

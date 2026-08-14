@@ -1,16 +1,27 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
-const { updateAccountMock, checkMixedChannelRiskMock } = vi.hoisted(() => ({
+const {
+  updateAccountMock,
+  checkMixedChannelRiskMock,
+  getQualityHardCloseSettings,
+  updateQualityHardCloseSettings,
+  resumeUserQuality,
+  showSuccess
+} = vi.hoisted(() => ({
   updateAccountMock: vi.fn(),
-  checkMixedChannelRiskMock: vi.fn()
+  checkMixedChannelRiskMock: vi.fn(),
+  getQualityHardCloseSettings: vi.fn(),
+  updateQualityHardCloseSettings: vi.fn(),
+  resumeUserQuality: vi.fn(),
+  showSuccess: vi.fn()
 }))
 
 vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     showError: vi.fn(),
-    showSuccess: vi.fn(),
+    showSuccess,
     showInfo: vi.fn()
   })
 }))
@@ -25,11 +36,14 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       update: updateAccountMock,
-      checkMixedChannelRisk: checkMixedChannelRiskMock
+      checkMixedChannelRisk: checkMixedChannelRiskMock,
+      resumeUserQuality
     },
     settings: {
       getWebSearchEmulationConfig: vi.fn().mockResolvedValue({ enabled: false, providers: [] }),
-      getSettings: vi.fn().mockResolvedValue({})
+      getSettings: vi.fn().mockResolvedValue({}),
+      getQualityHardCloseSettings,
+      updateQualityHardCloseSettings
     },
     tlsFingerprintProfiles: {
       list: vi.fn().mockResolvedValue([])
@@ -744,6 +758,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.allow_user_ids).toEqual([])
     expect(updateAccountMock.mock.calls[0]?.[1]?.deny_user_ids).toEqual([])
     expect(updateAccountMock.mock.calls[0]?.[1]?.user_concurrencies).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_quality_gates).toEqual([])
   })
 
   it('submits independent allow/deny lists and pair caps', async () => {
@@ -775,6 +790,136 @@ describe('EditAccountModal', () => {
       { user_id: 7, max_concurrency: 3 }
     ])
     expect(updateAccountMock.mock.calls[0]?.[1]?.user_schedule_mode).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_quality_gates).toEqual([])
+  })
+
+  it('edits and submits user quality gates, restore-default clears them', async () => {
+    const account = buildAccount()
+    account.schedule_users = [{
+      id: 16,
+      email: 'a@x.com',
+      deleted: false,
+      allow: true,
+      quality_max_p50_ttft_ms: 2000,
+      quality_min_success_rate: 0.9,
+      quality_min_success_samples: 20,
+      quality_min_ttft_samples: 10,
+      quality_condition: 'or'
+    }]
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    expect(wrapper.find('[data-testid="edit-account-user-schedule-quality"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="user-schedule-quality-p50-16"]').setValue('1500')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_quality_gates).toEqual([{
+      user_id: 16,
+      quality_max_p50_ttft_ms: 1500,
+      quality_min_success_rate: 0.9,
+      quality_min_success_samples: 20,
+      quality_min_ttft_samples: 10,
+      quality_condition: 'or'
+    }])
+
+    updateAccountMock.mockClear()
+    await wrapper.get('[data-testid="user-schedule-restore-default"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_quality_gates).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.allow_user_ids).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.deny_user_ids).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_concurrencies).toEqual([])
+  })
+
+  it('applies and saves the shared quality template without binding a user or saving the account', async () => {
+    const account = buildAccount()
+    account.schedule_users = [{
+      id: 16,
+      email: 'a@x.com',
+      deleted: false,
+      allow: true,
+      quality_max_p50_ttft_ms: 2000,
+      quality_min_success_rate: 0.9,
+      quality_min_success_samples: 20,
+      quality_min_ttft_samples: 10,
+      quality_condition: 'or'
+    }]
+    getQualityHardCloseSettings.mockReset()
+    updateQualityHardCloseSettings.mockReset()
+    updateAccountMock.mockReset()
+    showSuccess.mockReset()
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: true,
+      max_p50_ttft_ms: 1800,
+      min_success_rate: 0.95,
+      pause_minutes: 15,
+      min_success_samples: 8,
+      min_ttft_samples: 6,
+      condition: 'and'
+    })
+    updateQualityHardCloseSettings.mockResolvedValue({
+      enabled: true,
+      max_p50_ttft_ms: 1800,
+      min_success_rate: 0.95,
+      pause_minutes: 15,
+      min_success_samples: 8,
+      min_ttft_samples: 6,
+      condition: 'and'
+    })
+
+    const wrapper = mountModal(account)
+    expect(wrapper.find('[data-testid="user-schedule-quality-template-hint"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="user-schedule-quality-no-pause-hint"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="user-schedule-quality-apply-template-16"]').trigger('click')
+    await flushPromises()
+    expect(getQualityHardCloseSettings).toHaveBeenCalled()
+    expect(updateAccountMock).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.applyTemplateSuccess')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="user-schedule-quality-p50-16"]').element.value).toBe('1800')
+
+    await wrapper.get('[data-testid="user-schedule-quality-save-template-16"]').trigger('click')
+    await flushPromises()
+    expect(updateQualityHardCloseSettings).toHaveBeenCalledWith({
+      enabled: true,
+      max_p50_ttft_ms: 1800,
+      min_success_rate: 0.95,
+      pause_minutes: 15,
+      min_success_samples: 8,
+      min_ttft_samples: 6,
+      condition: 'and'
+    })
+    expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty('user_id')
+    expect(updateAccountMock).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.saveTemplateSuccess')
+  })
+
+  it('resumes a user quality gate without saving the account', async () => {
+    const account = buildAccount()
+    account.schedule_users = [{
+      id: 16,
+      email: 'a@x.com',
+      deleted: false,
+      allow: true,
+      quality_max_p50_ttft_ms: 2000,
+      quality_min_success_rate: 0.9
+    }]
+    resumeUserQuality.mockReset()
+    updateAccountMock.mockReset()
+    showSuccess.mockReset()
+    resumeUserQuality.mockResolvedValue({ account_id: 1, user_id: 16 })
+
+    const wrapper = mountModal(account)
+    await wrapper.get('[data-testid="user-schedule-quality-resume-16"]').trigger('click')
+    await flushPromises()
+
+    expect(resumeUserQuality).toHaveBeenCalledWith(1, 16)
+    expect(updateAccountMock).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.userSchedule.qualityResumeSuccess')
   })
 
   it('submits a newly typed pair cap for a deny-list user', async () => {

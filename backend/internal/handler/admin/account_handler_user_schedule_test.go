@@ -248,4 +248,76 @@ func TestAccountHandler_BulkUpdate_AllowDenyForwardNoCaps(t *testing.T) {
 	require.Equal(t, []int64{42}, *adminSvc.lastBulkUpdateInput.DenyUserIDs)
 	require.Nil(t, adminSvc.lastBulkUpdateInput.UserConcurrencies)
 	require.Nil(t, adminSvc.lastBulkUpdateInput.UserConcurrencyPatch)
+	require.Nil(t, adminSvc.lastBulkUpdateInput.UserQualityGates)
+	require.Nil(t, adminSvc.lastBulkUpdateInput.UserQualityGatePatch)
+}
+
+func TestAccountHandler_Update_UserQualityGatesForward(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminSvc := newStubAdminService()
+	handler := newAccountHandlerForUserScheduleTest(adminSvc)
+	router := gin.New()
+	router.PUT("/api/v1/admin/accounts/:id", handler.Update)
+
+	body := map[string]any{
+		"user_quality_gates": []map[string]any{
+			{
+				"user_id":                      16,
+				"quality_max_p50_ttft_ms":      1500,
+				"quality_min_success_rate":     0.9,
+				"quality_min_success_samples":  20,
+				"quality_min_ttft_samples":     10,
+				"quality_condition":            "or",
+			},
+		},
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/accounts/9", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, adminSvc.lastUpdateAccountInput.UserQualityGates)
+	require.Len(t, *adminSvc.lastUpdateAccountInput.UserQualityGates, 1)
+	gate := (*adminSvc.lastUpdateAccountInput.UserQualityGates)[0]
+	require.Equal(t, int64(16), gate.UserID)
+	require.NotNil(t, gate.MaxP50TTFTMs)
+	require.Equal(t, 1500, *gate.MaxP50TTFTMs)
+	require.NotNil(t, gate.MinSuccessRate)
+	require.InDelta(t, 0.9, *gate.MinSuccessRate, 0.0001)
+	require.NotNil(t, gate.Condition)
+	require.Equal(t, "or", *gate.Condition)
+}
+
+func TestAccountHandler_Update_UserQualityGatePatchForward(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminSvc := newStubAdminService()
+	handler := newAccountHandlerForUserScheduleTest(adminSvc)
+	router := gin.New()
+	router.PUT("/api/v1/admin/accounts/:id", handler.Update)
+
+	body := map[string]any{
+		"user_quality_gate_patch": map[string]any{
+			"user_id":                 16,
+			"quality_max_p50_ttft_ms": 1800,
+		},
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/accounts/4", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, adminSvc.lastUpdateAccountInput.UserQualityGatePatch)
+	require.Equal(t, int64(16), adminSvc.lastUpdateAccountInput.UserQualityGatePatch.UserID)
+	require.NotNil(t, adminSvc.lastUpdateAccountInput.UserQualityGatePatch.MaxP50TTFTMs)
+	require.Equal(t, 1800, *adminSvc.lastUpdateAccountInput.UserQualityGatePatch.MaxP50TTFTMs)
 }

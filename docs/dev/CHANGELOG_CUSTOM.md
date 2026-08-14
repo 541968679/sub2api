@@ -1,3 +1,159 @@
+## 2026-08-14 - fix(account): keep quality resume across live-cache Replace
+
+### What
+- Manual quality resume now lives in Redis HASH `account-quality:resume:{accountID}`, not inside the live stats JSON.
+- `Replace` still DELs stale/empty live keys (including an empty candidate set) but merges and preserves the resume HASH. Legacy live-JSON resume fields are migrated with `HSETNX`.
+- `ResumeUserQuality` / `ResumeAccountQuality` return 503 when the live cache is not attached, instead of reporting success with no write.
+
+### Why
+The 5-minute tick only rebuilds live keys for accounts with recent 15-minute traffic, then SCAN-deleted every other `account-quality:live:*` key. A just-clicked 立即恢复 on a quiet account (or during a quiet tick) was erased; the next sampled window blocked the same pair / re-paused hard-close. Get-then-Set on the same live key could also overwrite a concurrent resume.
+
+### Verification
+- `go test -tags=unit ./internal/repository -run LiveCache -count=1`
+- `go test -tags=unit ./internal/service -run "QualityGate|QualityResume|ManualResume|HardCloseEvaluator|HasAccountQuality" -count=1`
+
+### Affected files
+`backend/internal/repository/account_quality_live_cache.go`,
+`backend/internal/repository/account_quality_live_cache_test.go`,
+`backend/internal/service/account_quality_maintenance.go`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`.trellis/spec/backend/account-quality-snapshots.md`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
+## 2026-08-14 - feat(account): one-click quality resume without clearing gates
+
+### What
+- User-schedule quality editors have **立即恢复**. It does not change thresholds. The pair is admitted for one 15-minute window via live-cache `resume_users`.
+- Account hard-close recover also sets `account_resume_until`, so the next maintenance tick does not immediately re-pause on the same stale window.
+
+### Why
+Clearing or loosening a gate just to let one user through was too blunt, and a raw recover would trip again on the current 15-minute stats.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "QualityGate|QualityResume|ManualResume|HardCloseEvaluator" -count=1`
+- `go test -tags=unit ./internal/repository -run "LiveCache" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_quality_hard_close.go`,
+`backend/internal/repository/account_quality_live_cache.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+this changelog.
+
+## 2026-08-14 - feat(account): resume quality pause and clarify user-gate samples
+
+### What
+- Stability dialog pause banner now has **立即恢复调度** (`recoverState`), so a hard-close pause can be cleared without waiting for `pause_minutes`.
+- User-schedule quality editors keep the two sample floors visible with labels, and state that there is no per-user pause timer (live admit/exclude).
+
+### Why
+Hard-close already had recover via the action menu / temp-unsched modal, but testers looked in the stability window. User gates were mistaken for missing sample fields because the list editor only used placeholders.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountStabilityDialog.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
+## 2026-08-14 - feat(account): share quality template with user-schedule gates
+
+### What
+- User-schedule quality-gate forms (edit modal + list inline) now have the same **保存模板 / 应用模板** actions as account hard-close.
+- They read/write the single Settings KV `quality_hard_close_settings` threshold fields. Save keeps the master switch and pause minutes. Apply fills only the current user’s form. The payload has no `user_id`.
+
+### Why
+Admins need one reusable threshold preset for any user’s gate, not a per-user or per-account template.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountQualityHardClose.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`frontend/src/utils/accountQualityHardClose.ts`,
+`frontend/src/composables/useQualityThresholdTemplate.ts`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`.trellis/spec/frontend/account-stability-window.md`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-14 - fix(account): quality-gate fail-open and live-cache stale keys
+
+### What
+- Hot-path `QualityGateBlocksUser` now fills default samples 20/10 before evaluate, so a snapshot with zero samples does not judge at min=1.
+- A gate map entry requires p50 or success rate. Condition-only / samples-only no longer create a rule that fail-closes `userID<=0` without ever blocking.
+- Live quality `Replace` deletes Redis keys for accounts that left the 15-minute candidate set, not only empty-sample rows in the current map.
+- List-cell empty save clears the gate instead of writing `quality_condition=or`.
+
+### Why
+Redis jitter and leftover condition-only rows must fail open; stale live keys after traffic stops would keep blocking a recovered window.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "UserSchedule|QualityGate|AdmitsSchedule|WritesLiveQualityCache" -count=1`
+- `go test -tags=unit ./internal/repository -run "SchedulerMetadata|ScheduleUser|LiveCache" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/BulkEditAccountModal.spec.ts`
+
+### Affected files
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/repository/account_quality_live_cache.go`,
+`backend/internal/repository/account_repo.go`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`frontend/src/utils/accountQualityHardClose.ts`,
+`.trellis/spec/backend/account-user-schedule.md`,
+this changelog.
+
+## 2026-08-14 - feat(account): per-user quality schedule gate
+
+### What
+- Optional account×user quality gate on `account_schedule_users`: when the account's live 15-minute p50 TTFT / success rate misses that user's thresholds, only that pair is excluded from scheduling.
+- Hot path uses `AdmitsScheduleUser` + Redis `account-quality:live:{accountID}` (maintenance tick writes, selection reads). Cache miss / under-sampled / unconfigured metrics fail open. `userID<=0` with any user-schedule rule (including gate-only) fails closed.
+- Admin replace/patch fields `user_quality_gates` / `user_quality_gate_patch`. Bulk cannot write gates. Snapshot meta copies `UserQualityGates`. Edit modal and list chip/inline patch included; stability dialog stays account-level hard-close only.
+
+### Why
+VIP / named users need a quality floor on a specific account without pausing the account for everyone or adding a fourth scheduling stack.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "UserSchedule|QualityGate|AdmitsSchedule|WritesLiveQualityCache" -count=1`
+- `go test -tags=unit ./internal/repository -run "SchedulerMetadata|ScheduleUser" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "UserSchedule|QualityGate" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`backend/migrations/200_account_user_quality_gates.sql`,
+`backend/ent/schema/account_schedule_user.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/admin_account_user_schedule.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/service/openai_ws_forwarder.go`,
+`backend/internal/service/gemini_messages_compat_service.go`,
+`backend/internal/service/account_quality_maintenance.go`,
+`backend/internal/repository/account_quality_live_cache.go`,
+`backend/internal/repository/scheduler_cache.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`.trellis/spec/backend/account-user-schedule.md`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-14 - feat(account): stability window UI
 
 ### What

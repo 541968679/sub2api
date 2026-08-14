@@ -467,6 +467,8 @@
               :account="row"
               :disabled="inlineSavingId === row.id"
               @save="(payload) => handleInlineUserConcurrency(row, payload)"
+              @save-quality="(payload) => handleInlineUserQualityGate(row, payload)"
+              @resume-quality="(userId) => handleInlineUserQualityResume(row, userId)"
             />
           </template>
           <template #header-fallback_only="{ column }">
@@ -636,6 +638,18 @@
               </button>
               <button
                 type="button"
+                data-testid="account-open-stability"
+                @click="openStabilityDialog(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20 dark:hover:text-amber-400"
+                :title="t('admin.accounts.viewStability')"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h.01M9.75 8.625c0-.621.504-1.125 1.125-1.125h.01M16.5 4.125c0-.621.504-1.125 1.125-1.125h.01M3 19.875v-6.75M9.75 19.875V8.625M16.5 19.875V4.125M21 19.875H3" />
+                </svg>
+                <span class="text-xs">{{ t('admin.accounts.viewStabilityShort') }}</span>
+              </button>
+              <button
+                type="button"
                 @click="handleViewUsage(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
                 :title="t('admin.accounts.viewUsage')"
@@ -700,7 +714,7 @@
       @close="showBulkEdit = false"
       @updated="handleBulkUpdated"
     />
-    <AccountStabilityDialog :show="showStability" :account="stabilityAcc" @close="showStability = false" />
+    <AccountStabilityDialog :show="showStability" :account="stabilityAcc" @close="showStability = false" @recovered="handleStabilityRecovered" />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <ConfirmDialog :show="showSparkShadowDialog" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: sparkShadowParent?.name || '' })" :confirm-text="t('common.confirm')" :cancel-text="t('common.cancel')" @confirm="confirmCreateSparkShadow" @cancel="cancelCreateSparkShadow" />
@@ -950,7 +964,7 @@ const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'scheduler_score', 'rate
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
 // One-time migration: hide scheduler score; unhide priority for inline edit; ensure new columns visible.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
-const HIDDEN_COLUMNS_CURRENT_VERSION = 'inline-concurrency-priority-fallback-v1'
+const HIDDEN_COLUMNS_CURRENT_VERSION = 'quality-stability-entry-v1'
 const columnOrder = ref<string[]>([])
 const columnWidths = ref<Record<string, number>>({})
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -1389,6 +1403,8 @@ const loadSavedColumns = () => {
         hiddenColumns.delete('priority')
         hiddenColumns.delete('concurrency')
         hiddenColumns.delete('fallback_only')
+        hiddenColumns.delete('quality_ttft')
+        hiddenColumns.delete('quality_success_rate')
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
       }
@@ -2958,6 +2974,37 @@ const overlayScheduleUserCap = (
   )
 }
 
+const overlayScheduleUserQuality = (
+  users: Account['schedule_users'],
+  patch: {
+    user_id: number
+    quality_max_p50_ttft_ms?: number | null
+    quality_min_success_rate?: number | null
+    quality_min_success_samples?: number | null
+    quality_min_ttft_samples?: number | null
+    quality_condition?: 'or' | 'and' | null
+  }
+) => {
+  const list = (users ?? []).map((user) => ({ ...user }))
+  const hasGate = patch.quality_max_p50_ttft_ms != null
+    || patch.quality_min_success_rate != null
+    || patch.quality_min_success_samples != null
+    || patch.quality_min_ttft_samples != null
+    || Boolean(patch.quality_condition)
+  return list.map((user) =>
+    user.id === patch.user_id
+      ? {
+          ...user,
+          quality_max_p50_ttft_ms: hasGate ? patch.quality_max_p50_ttft_ms ?? null : null,
+          quality_min_success_rate: hasGate ? patch.quality_min_success_rate ?? null : null,
+          quality_min_success_samples: hasGate ? patch.quality_min_success_samples ?? null : null,
+          quality_min_ttft_samples: hasGate ? patch.quality_min_ttft_samples ?? null : null,
+          quality_condition: hasGate ? patch.quality_condition ?? 'or' : null
+        }
+      : user
+  )
+}
+
 const handleInlineUserConcurrency = async (
   a: Account,
   payload: { userId: number; maxConcurrency: number | null }
@@ -2985,6 +3032,53 @@ const handleInlineUserConcurrency = async (
     enterAutoRefreshSilentWindow()
   } catch (error) {
     console.error('Failed to update user pair concurrency:', error)
+    patchAccountInList({ ...a, schedule_users: previousUsers })
+    appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
+  } finally {
+    inlineSavingId.value = null
+  }
+}
+
+const handleInlineUserQualityResume = async (a: Account, userId: number) => {
+  try {
+    await adminAPI.accounts.resumeUserQuality(a.id, userId)
+    appStore.showSuccess(t('admin.accounts.userSchedule.qualityResumeSuccess'))
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : ''
+    appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))
+  }
+}
+
+const handleInlineUserQualityGate = async (
+  a: Account,
+  payload: {
+    user_id: number
+    quality_max_p50_ttft_ms?: number | null
+    quality_min_success_rate?: number | null
+    quality_min_success_samples?: number | null
+    quality_min_ttft_samples?: number | null
+    quality_condition?: 'or' | 'and' | null
+  }
+) => {
+  inlineSavingId.value = a.id
+  const previousUsers = (a.schedule_users ?? []).map((user) => ({ ...user }))
+  const nextUsers = overlayScheduleUserQuality(previousUsers, payload)
+  try {
+    patchAccountInList({ ...a, schedule_users: nextUsers })
+    const updated = await adminAPI.accounts.update(a.id, {
+      user_quality_gate_patch: payload
+    })
+    const merged = mergeRuntimeFields(a, updated)
+    patchAccountInList({
+      ...merged,
+      schedule_users: overlayScheduleUserQuality(
+        merged.schedule_users ?? nextUsers,
+        payload
+      )
+    })
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to update user quality gate:', error)
     patchAccountInList({ ...a, schedule_users: previousUsers })
     appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
   } finally {
@@ -3038,6 +3132,11 @@ const handleTempUnschedReset = async (updated: Account) => {
   showTempUnsched.value = false
   tempUnschedAcc.value = null
   patchAccountInList(updated)
+  enterAutoRefreshSilentWindow()
+}
+const handleStabilityRecovered = (updated: Account) => {
+  patchAccountInList(updated)
+  stabilityAcc.value = updated
   enterAutoRefreshSilentWindow()
 }
 const formatExpiresAt = (value: number | null) => {

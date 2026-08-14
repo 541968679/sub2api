@@ -54,6 +54,18 @@ type GeminiMessagesCompatService struct {
 	antigravityGatewayService *AntigravityGatewayService
 	cfg                       *config.Config
 	responseHeaderFilter      *responseheaders.CompiledHeaderFilter
+	qualityLiveCache          AccountQualityLiveCache
+}
+
+func (s *GeminiMessagesCompatService) SetQualityLiveCache(cache AccountQualityLiveCache) {
+	if s == nil {
+		return
+	}
+	s.qualityLiveCache = cache
+}
+
+func (s *GeminiMessagesCompatService) admitsScheduleUser(ctx context.Context, account *Account) bool {
+	return admitsScheduleUser(ctx, account, s.qualityLiveCache)
 }
 
 func NewGeminiMessagesCompatService(
@@ -205,7 +217,7 @@ func (s *GeminiMessagesCompatService) tryStickySessionHit(
 
 	// 检查账号是否需要清理粘性会话
 	// Check if sticky session should be cleared
-	if shouldClearStickySession(account, requestedModel) || !account.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+	if shouldClearStickySession(account, requestedModel) || !s.admitsScheduleUser(ctx, account) {
 		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
 		return nil
 	}
@@ -331,7 +343,7 @@ func (s *GeminiMessagesCompatService) selectBestGeminiAccount(
 		if !s.isAccountUsableForRequestWithPrecheck(ctx, acc, requestedModel, platform, useMixedScheduling, precheckResult) {
 			continue
 		}
-		if !acc.AllowsScheduleUser(scheduleUserIDFromContext(ctx, 0)) {
+		if !s.admitsScheduleUser(ctx, acc) {
 			continue
 		}
 

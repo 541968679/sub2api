@@ -33,7 +33,15 @@
     >
       {{ displayText }}
     </div>
-    <div v-else class="text-sm text-gray-400 dark:text-dark-500">—</div>
+    <div v-else class="flex flex-col items-start gap-0.5">
+      <span class="text-sm text-gray-400 dark:text-dark-500">—</span>
+      <span
+        v-if="clickable"
+        class="text-[10px] font-medium text-primary-600 dark:text-primary-400"
+      >
+        {{ t('admin.accounts.stability.openShort') }}
+      </span>
+    </div>
   </component>
 </template>
 

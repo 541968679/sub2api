@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 )
@@ -15,12 +16,17 @@ const (
 
 // ScheduleUserRef is the admin-facing hydration of a schedule-list user.
 type ScheduleUserRef struct {
-	ID             int64  `json:"id"`
-	Email          string `json:"email"`
-	Deleted        bool   `json:"deleted"`
-	Allow          bool   `json:"allow"`
-	Deny           bool   `json:"deny"`
-	MaxConcurrency *int   `json:"max_concurrency,omitempty"`
+	ID                       int64    `json:"id"`
+	Email                    string   `json:"email"`
+	Deleted                  bool     `json:"deleted"`
+	Allow                    bool     `json:"allow"`
+	Deny                     bool     `json:"deny"`
+	MaxConcurrency           *int     `json:"max_concurrency,omitempty"`
+	QualityMaxP50TTFTMs      *int     `json:"quality_max_p50_ttft_ms,omitempty"`
+	QualityMinSuccessRate    *float64 `json:"quality_min_success_rate,omitempty"`
+	QualityMinSuccessSamples *int     `json:"quality_min_success_samples,omitempty"`
+	QualityMinTTFTSamples    *int     `json:"quality_min_ttft_samples,omitempty"`
+	QualityCondition         *string  `json:"quality_condition,omitempty"`
 }
 
 // UserConcurrencyEntry is one replace-all pair-cap row on account update.
@@ -36,11 +42,33 @@ type UserConcurrencyPatch struct {
 	MaxConcurrency *int  `json:"max_concurrency"`
 }
 
+// UserQualityGateEntry is one replace-all quality-gate row on account update.
+type UserQualityGateEntry struct {
+	UserID              int64    `json:"user_id"`
+	MaxP50TTFTMs        *int     `json:"quality_max_p50_ttft_ms"`
+	MinSuccessRate      *float64 `json:"quality_min_success_rate"`
+	MinSuccessSamples   *int     `json:"quality_min_success_samples"`
+	MinTTFTSamples      *int     `json:"quality_min_ttft_samples"`
+	Condition           *string  `json:"quality_condition"`
+}
+
+// UserQualityGatePatch merges one user's quality gate without rewriting lists.
+// All quality fields null/omitted deletes that user's gate.
+type UserQualityGatePatch struct {
+	UserID            int64    `json:"user_id"`
+	MaxP50TTFTMs      *int     `json:"quality_max_p50_ttft_ms"`
+	MinSuccessRate    *float64 `json:"quality_min_success_rate"`
+	MinSuccessSamples *int     `json:"quality_min_success_samples"`
+	MinTTFTSamples    *int     `json:"quality_min_ttft_samples"`
+	Condition         *string  `json:"quality_condition"`
+}
+
 // AccountUserScheduleWrite is the full join-table replacement for one account.
 type AccountUserScheduleWrite struct {
-	AllowUserIDs    []int64
-	DenyUserIDs     []int64
-	UserConcurrency map[int64]int
+	AllowUserIDs     []int64
+	DenyUserIDs      []int64
+	UserConcurrency  map[int64]int
+	UserQualityGates map[int64]QualityHardCloseSettings
 }
 
 func NormalizeUserScheduleMode(mode string) string {
@@ -76,7 +104,7 @@ func (a *Account) hasUserScheduleRules() bool {
 	if a == nil {
 		return false
 	}
-	return len(a.AllowUserIDs) > 0 || len(a.DenyUserIDs) > 0 || len(a.UserConcurrency) > 0
+	return len(a.AllowUserIDs) > 0 || len(a.DenyUserIDs) > 0 || len(a.UserConcurrency) > 0 || len(a.UserQualityGates) > 0
 }
 
 // DeriveLegacyUserSchedule fills leftover exclusive-mode fields from the
@@ -92,6 +120,7 @@ func (a *Account) DeriveLegacyUserSchedule() {
 	a.AllowUserIDs = allow
 	a.DenyUserIDs = deny
 	a.UserConcurrency = normalizeUserConcurrencyMap(a.UserConcurrency)
+	a.UserQualityGates = copyUserQualityGates(a.UserQualityGates)
 	switch {
 	case len(allow) > 0 && len(deny) == 0:
 		a.UserScheduleMode = UserScheduleModeAllow
@@ -101,14 +130,14 @@ func (a *Account) DeriveLegacyUserSchedule() {
 		a.ScheduleUserIDs = append([]int64(nil), deny...)
 	default:
 		a.UserScheduleMode = UserScheduleModeUnrestricted
-		a.ScheduleUserIDs = unionScheduleUserIDs(allow, deny, concurrencyUserIDs(a.UserConcurrency))
+		a.ScheduleUserIDs = unionScheduleUserIDs(allow, deny, concurrencyUserIDs(a.UserConcurrency), qualityGateUserIDs(a.UserQualityGates))
 	}
 }
 
 // AllowsScheduleUser reports whether this account may be scheduled for userID.
 //
 // Priority:
-//  1. userID<=0 and any allow/deny/pair-cap rule exists → false (fail closed)
+//  1. userID<=0 and any allow/deny/pair-cap/quality-gate rule exists → false (fail closed)
 //  2. deny list hit → false (cap ignored)
 //  3. allow list nonempty and miss → false (cap ignored)
 //  4. else true
@@ -140,6 +169,57 @@ func (a *Account) PairMaxConcurrency(userID int64) int {
 		return 0
 	}
 	return n
+}
+
+// QualityGateBlocksUser reports whether this account's live 15-minute quality
+// breaches the optional per-user gate. No gate, nil stats, or zero judged
+// metrics do not block (fail open). Result is pair exclude, not temp-unschedulable.
+func (a *Account) QualityGateBlocksUser(userID int64, stats *AccountQualityStats) bool {
+	if a == nil || userID <= 0 || len(a.UserQualityGates) == 0 {
+		return false
+	}
+	gate, ok := a.UserQualityGates[userID]
+	if !ok || !qualityGateHasMetric(gate) {
+		return false
+	}
+	if UserQualityResumeActive(stats, userID, time.Now().UTC()) {
+		return false
+	}
+	gate = fillUserQualityGateDefaults(gate)
+	blocked, _ := EvaluateAccountQualityHardClose(stats, gate, false)
+	return blocked
+}
+
+// AdmitsScheduleUser is identity allow plus the optional quality gate.
+func (a *Account) AdmitsScheduleUser(userID int64, stats *AccountQualityStats) bool {
+	return a.AllowsScheduleUser(userID) && !a.QualityGateBlocksUser(userID, stats)
+}
+
+// AccountQualityLiveCache is the Redis live 15-minute quality window used on
+// the hot path. Cache miss / nil stats must not block admission.
+type AccountQualityLiveCache interface {
+	Get(ctx context.Context, accountID int64) (*AccountQualityStats, error)
+	Replace(ctx context.Context, stats map[int64]*AccountQualityStats) error
+	MarkUserResume(ctx context.Context, accountID, userID int64) error
+	MarkAccountResume(ctx context.Context, accountID int64) error
+}
+
+func loadLiveQualityForAdmission(ctx context.Context, cache AccountQualityLiveCache, account *Account) *AccountQualityStats {
+	if account == nil || len(account.UserQualityGates) == 0 || cache == nil {
+		return nil
+	}
+	stats, err := cache.Get(ctx, account.ID)
+	if err != nil {
+		return nil
+	}
+	return stats
+}
+
+func admitsScheduleUser(ctx context.Context, account *Account, cache AccountQualityLiveCache) bool {
+	if account == nil {
+		return false
+	}
+	return account.AdmitsScheduleUser(scheduleUserIDFromContext(ctx, 0), loadLiveQualityForAdmission(ctx, cache, account))
 }
 
 func containsScheduleUserID(ids []int64, userID int64) bool {
@@ -202,12 +282,126 @@ func copyUserConcurrencyMap(in map[int64]int) map[int64]int {
 	return out
 }
 
-func buildAccountUserScheduleWrite(allow, deny []int64, caps map[int64]int) AccountUserScheduleWrite {
+func buildAccountUserScheduleWrite(allow, deny []int64, caps map[int64]int, gates map[int64]QualityHardCloseSettings) AccountUserScheduleWrite {
 	return AccountUserScheduleWrite{
-		AllowUserIDs:    normalizeScheduleUserIDs(allow),
-		DenyUserIDs:     normalizeScheduleUserIDs(deny),
-		UserConcurrency: copyUserConcurrencyMap(caps),
+		AllowUserIDs:     normalizeScheduleUserIDs(allow),
+		DenyUserIDs:      normalizeScheduleUserIDs(deny),
+		UserConcurrency:  copyUserConcurrencyMap(caps),
+		UserQualityGates: copyUserQualityGates(gates),
 	}
+}
+
+func qualityGateHasMetric(gate QualityHardCloseSettings) bool {
+	return gate.MaxP50TTFTMs != nil || gate.MinSuccessRate != nil
+}
+
+func qualityGateHasConfiguredColumn(p50 *int, rate *float64, _ *int, _ *int, _ *string) bool {
+	// A gate is enabled only when at least one judged metric is set.
+	// Samples/condition are modifiers; condition-only or samples-only must not
+	// create a map entry (that would fail-close userID<=0 without ever blocking).
+	return p50 != nil || rate != nil
+}
+
+func fillUserQualityGateDefaults(gate QualityHardCloseSettings) QualityHardCloseSettings {
+	if gate.MinSuccessSamples < 1 {
+		gate.MinSuccessSamples = DefaultQualityHardCloseMinSuccessSamples
+	}
+	if gate.MinTTFTSamples < 1 {
+		gate.MinTTFTSamples = DefaultQualityHardCloseMinTTFTSamples
+	}
+	cond := strings.ToLower(strings.TrimSpace(gate.Condition))
+	if cond != QualityHardCloseConditionAnd {
+		gate.Condition = QualityHardCloseConditionOr
+	} else {
+		gate.Condition = cond
+	}
+	gate.Enabled = true
+	return gate
+}
+
+func userQualityGateFromFields(p50 *int, rate *float64, minSuccess, minTTFT *int, condition *string) (QualityHardCloseSettings, bool) {
+	if !qualityGateHasConfiguredColumn(p50, rate, minSuccess, minTTFT, condition) {
+		return QualityHardCloseSettings{}, false
+	}
+	return fillUserQualityGateDefaults(QualityHardCloseSettings{
+		MaxP50TTFTMs:      p50,
+		MinSuccessRate:    rate,
+		MinSuccessSamples: derefPositiveOrZero(minSuccess),
+		MinTTFTSamples:    derefPositiveOrZero(minTTFT),
+		Condition:         derefString(condition),
+	}), true
+}
+
+func derefPositiveOrZero(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func derefString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func qualityGateClears(p50 *int, rate *float64, minSuccess, minTTFT *int, condition *string) bool {
+	return !qualityGateHasConfiguredColumn(p50, rate, minSuccess, minTTFT, condition)
+}
+
+func qualityGateUserIDs(in map[int64]QualityHardCloseSettings) []int64 {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]int64, 0, len(in))
+	for userID := range in {
+		if userID <= 0 {
+			continue
+		}
+		out = append(out, userID)
+	}
+	return out
+}
+
+func copyUserQualityGates(in map[int64]QualityHardCloseSettings) map[int64]QualityHardCloseSettings {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[int64]QualityHardCloseSettings, len(in))
+	for userID, gate := range in {
+		if userID <= 0 || !qualityGateHasMetric(gate) {
+			continue
+		}
+		out[userID] = fillUserQualityGateDefaults(gate)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func stampScheduleUserQuality(ref *ScheduleUserRef, gate QualityHardCloseSettings, ok bool) {
+	if ref == nil {
+		return
+	}
+	if !ok {
+		ref.QualityMaxP50TTFTMs = nil
+		ref.QualityMinSuccessRate = nil
+		ref.QualityMinSuccessSamples = nil
+		ref.QualityMinTTFTSamples = nil
+		ref.QualityCondition = nil
+		return
+	}
+	gate = fillUserQualityGateDefaults(gate)
+	ref.QualityMaxP50TTFTMs = gate.MaxP50TTFTMs
+	ref.QualityMinSuccessRate = gate.MinSuccessRate
+	minSuccess := gate.MinSuccessSamples
+	minTTFT := gate.MinTTFTSamples
+	cond := gate.Condition
+	ref.QualityMinSuccessSamples = &minSuccess
+	ref.QualityMinTTFTSamples = &minTTFT
+	ref.QualityCondition = &cond
 }
 
 // scheduleUserIDFromContext prefers an explicit positive user ID, then ctxkey.UserID.

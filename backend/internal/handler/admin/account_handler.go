@@ -149,6 +149,8 @@ type UpdateAccountRequest struct {
 	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
 	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
 	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
+	UserQualityGates        *[]service.UserQualityGateEntry `json:"user_quality_gates"`
+	UserQualityGatePatch    *service.UserQualityGatePatch   `json:"user_quality_gate_patch"`
 }
 
 // UpdateRefreshTokenRequest represents a manual refresh-token replacement request.
@@ -181,6 +183,8 @@ type BulkUpdateAccountsRequest struct {
 	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
 	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
 	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
+	UserQualityGates        *[]service.UserQualityGateEntry `json:"user_quality_gates"`
+	UserQualityGatePatch    *service.UserQualityGatePatch   `json:"user_quality_gate_patch"`
 }
 
 type BulkUpdateAccountFilters struct {
@@ -924,6 +928,8 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		DenyUserIDs:           req.DenyUserIDs,
 		UserConcurrencies:     req.UserConcurrencies,
 		UserConcurrencyPatch:  req.UserConcurrencyPatch,
+		UserQualityGates:      req.UserQualityGates,
+		UserQualityGatePatch:  req.UserQualityGatePatch,
 	})
 	if err != nil {
 		// 检查是否为混合渠道错误
@@ -1058,6 +1064,11 @@ func (h *AccountHandler) RecoverState(c *gin.Context) {
 	}); err != nil {
 		response.ErrorFrom(c, err)
 		return
+	}
+	if h.qualityMaintenance != nil {
+		if err := h.qualityMaintenance.ResumeAccountQuality(c.Request.Context(), accountID); err != nil {
+			slog.Warn("quality_resume_account_failed", "account_id", accountID, "error", err)
+		}
 	}
 
 	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
@@ -1888,7 +1899,9 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		req.AllowUserIDs != nil ||
 		req.DenyUserIDs != nil ||
 		req.UserConcurrencies != nil ||
-		req.UserConcurrencyPatch != nil
+		req.UserConcurrencyPatch != nil ||
+		req.UserQualityGates != nil ||
+		req.UserQualityGatePatch != nil
 
 	if !hasUpdates {
 		response.BadRequest(c, "No updates provided")
@@ -1916,6 +1929,8 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		DenyUserIDs:           req.DenyUserIDs,
 		UserConcurrencies:     req.UserConcurrencies,
 		UserConcurrencyPatch:  req.UserConcurrencyPatch,
+		UserQualityGates:      req.UserQualityGates,
+		UserQualityGatePatch:  req.UserQualityGatePatch,
 	})
 	if err != nil {
 		var mixedErr *service.MixedChannelError
@@ -2472,6 +2487,46 @@ func (h *AccountHandler) GetQualityHardClose(c *gin.Context) {
 		return
 	}
 	response.Success(c, service.BuildAccountQualityHardCloseView(global, account.Extra))
+}
+
+type resumeQualityRequest struct {
+	UserID int64 `json:"user_id"`
+}
+
+// ResumeQuality force-admits one user on this account for one quality window.
+// POST /api/v1/admin/accounts/:id/quality-resume
+func (h *AccountHandler) ResumeQuality(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.qualityMaintenance == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Quality resume unavailable")
+		return
+	}
+
+	var req resumeQualityRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.UserID <= 0 {
+		response.BadRequest(c, "user_id is required")
+		return
+	}
+
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	gate, ok := account.UserQualityGates[req.UserID]
+	if !ok || (gate.MaxP50TTFTMs == nil && gate.MinSuccessRate == nil) {
+		response.ErrorFrom(c, infraerrors.BadRequest("QUALITY_RESUME_NO_GATE", "user has no quality gate on this account"))
+		return
+	}
+	if err := h.qualityMaintenance.ResumeUserQuality(c.Request.Context(), accountID, req.UserID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"account_id": accountID, "user_id": req.UserID})
 }
 
 // UpdateQualityHardClose writes only extra.quality_hard_close.

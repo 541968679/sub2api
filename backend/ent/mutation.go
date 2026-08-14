@@ -7437,21 +7437,30 @@ func (m *AccountQualitySnapshotMutation) ResetEdge(name string) error {
 // AccountScheduleUserMutation represents an operation that mutates the AccountScheduleUser nodes in the graph.
 type AccountScheduleUserMutation struct {
 	config
-	op                 Op
-	typ                string
-	created_at         *time.Time
-	allow              *bool
-	deny               *bool
-	max_concurrency    *int
-	addmax_concurrency *int
-	clearedFields      map[string]struct{}
-	account            *int64
-	clearedaccount     bool
-	user               *int64
-	cleareduser        bool
-	done               bool
-	oldValue           func(context.Context) (*AccountScheduleUser, error)
-	predicates         []predicate.AccountScheduleUser
+	op                             Op
+	typ                            string
+	created_at                     *time.Time
+	allow                          *bool
+	deny                           *bool
+	max_concurrency                *int
+	addmax_concurrency             *int
+	quality_max_p50_ttft_ms        *int
+	addquality_max_p50_ttft_ms     *int
+	quality_min_success_rate       *float64
+	addquality_min_success_rate    *float64
+	quality_min_success_samples    *int
+	addquality_min_success_samples *int
+	quality_min_ttft_samples       *int
+	addquality_min_ttft_samples    *int
+	quality_condition              *string
+	clearedFields                  map[string]struct{}
+	account                        *int64
+	clearedaccount                 bool
+	user                           *int64
+	cleareduser                    bool
+	done                           bool
+	oldValue                       func(context.Context) (*AccountScheduleUser, error)
+	predicates                     []predicate.AccountScheduleUser
 }
 
 var _ ent.Mutation = (*AccountScheduleUserMutation)(nil)
@@ -7640,6 +7649,250 @@ func (m *AccountScheduleUserMutation) ResetMaxConcurrency() {
 	delete(m.clearedFields, accountscheduleuser.FieldMaxConcurrency)
 }
 
+// SetQualityMaxP50TtftMs sets the "quality_max_p50_ttft_ms" field.
+func (m *AccountScheduleUserMutation) SetQualityMaxP50TtftMs(i int) {
+	m.quality_max_p50_ttft_ms = &i
+	m.addquality_max_p50_ttft_ms = nil
+}
+
+// QualityMaxP50TtftMs returns the value of the "quality_max_p50_ttft_ms" field in the mutation.
+func (m *AccountScheduleUserMutation) QualityMaxP50TtftMs() (r int, exists bool) {
+	v := m.quality_max_p50_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddQualityMaxP50TtftMs adds i to the "quality_max_p50_ttft_ms" field.
+func (m *AccountScheduleUserMutation) AddQualityMaxP50TtftMs(i int) {
+	if m.addquality_max_p50_ttft_ms != nil {
+		*m.addquality_max_p50_ttft_ms += i
+	} else {
+		m.addquality_max_p50_ttft_ms = &i
+	}
+}
+
+// AddedQualityMaxP50TtftMs returns the value that was added to the "quality_max_p50_ttft_ms" field in this mutation.
+func (m *AccountScheduleUserMutation) AddedQualityMaxP50TtftMs() (r int, exists bool) {
+	v := m.addquality_max_p50_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMaxP50TtftMs clears the value of the "quality_max_p50_ttft_ms" field.
+func (m *AccountScheduleUserMutation) ClearQualityMaxP50TtftMs() {
+	m.quality_max_p50_ttft_ms = nil
+	m.addquality_max_p50_ttft_ms = nil
+	m.clearedFields[accountscheduleuser.FieldQualityMaxP50TtftMs] = struct{}{}
+}
+
+// QualityMaxP50TtftMsCleared returns if the "quality_max_p50_ttft_ms" field was cleared in this mutation.
+func (m *AccountScheduleUserMutation) QualityMaxP50TtftMsCleared() bool {
+	_, ok := m.clearedFields[accountscheduleuser.FieldQualityMaxP50TtftMs]
+	return ok
+}
+
+// ResetQualityMaxP50TtftMs resets all changes to the "quality_max_p50_ttft_ms" field.
+func (m *AccountScheduleUserMutation) ResetQualityMaxP50TtftMs() {
+	m.quality_max_p50_ttft_ms = nil
+	m.addquality_max_p50_ttft_ms = nil
+	delete(m.clearedFields, accountscheduleuser.FieldQualityMaxP50TtftMs)
+}
+
+// SetQualityMinSuccessRate sets the "quality_min_success_rate" field.
+func (m *AccountScheduleUserMutation) SetQualityMinSuccessRate(f float64) {
+	m.quality_min_success_rate = &f
+	m.addquality_min_success_rate = nil
+}
+
+// QualityMinSuccessRate returns the value of the "quality_min_success_rate" field in the mutation.
+func (m *AccountScheduleUserMutation) QualityMinSuccessRate() (r float64, exists bool) {
+	v := m.quality_min_success_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddQualityMinSuccessRate adds f to the "quality_min_success_rate" field.
+func (m *AccountScheduleUserMutation) AddQualityMinSuccessRate(f float64) {
+	if m.addquality_min_success_rate != nil {
+		*m.addquality_min_success_rate += f
+	} else {
+		m.addquality_min_success_rate = &f
+	}
+}
+
+// AddedQualityMinSuccessRate returns the value that was added to the "quality_min_success_rate" field in this mutation.
+func (m *AccountScheduleUserMutation) AddedQualityMinSuccessRate() (r float64, exists bool) {
+	v := m.addquality_min_success_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMinSuccessRate clears the value of the "quality_min_success_rate" field.
+func (m *AccountScheduleUserMutation) ClearQualityMinSuccessRate() {
+	m.quality_min_success_rate = nil
+	m.addquality_min_success_rate = nil
+	m.clearedFields[accountscheduleuser.FieldQualityMinSuccessRate] = struct{}{}
+}
+
+// QualityMinSuccessRateCleared returns if the "quality_min_success_rate" field was cleared in this mutation.
+func (m *AccountScheduleUserMutation) QualityMinSuccessRateCleared() bool {
+	_, ok := m.clearedFields[accountscheduleuser.FieldQualityMinSuccessRate]
+	return ok
+}
+
+// ResetQualityMinSuccessRate resets all changes to the "quality_min_success_rate" field.
+func (m *AccountScheduleUserMutation) ResetQualityMinSuccessRate() {
+	m.quality_min_success_rate = nil
+	m.addquality_min_success_rate = nil
+	delete(m.clearedFields, accountscheduleuser.FieldQualityMinSuccessRate)
+}
+
+// SetQualityMinSuccessSamples sets the "quality_min_success_samples" field.
+func (m *AccountScheduleUserMutation) SetQualityMinSuccessSamples(i int) {
+	m.quality_min_success_samples = &i
+	m.addquality_min_success_samples = nil
+}
+
+// QualityMinSuccessSamples returns the value of the "quality_min_success_samples" field in the mutation.
+func (m *AccountScheduleUserMutation) QualityMinSuccessSamples() (r int, exists bool) {
+	v := m.quality_min_success_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddQualityMinSuccessSamples adds i to the "quality_min_success_samples" field.
+func (m *AccountScheduleUserMutation) AddQualityMinSuccessSamples(i int) {
+	if m.addquality_min_success_samples != nil {
+		*m.addquality_min_success_samples += i
+	} else {
+		m.addquality_min_success_samples = &i
+	}
+}
+
+// AddedQualityMinSuccessSamples returns the value that was added to the "quality_min_success_samples" field in this mutation.
+func (m *AccountScheduleUserMutation) AddedQualityMinSuccessSamples() (r int, exists bool) {
+	v := m.addquality_min_success_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMinSuccessSamples clears the value of the "quality_min_success_samples" field.
+func (m *AccountScheduleUserMutation) ClearQualityMinSuccessSamples() {
+	m.quality_min_success_samples = nil
+	m.addquality_min_success_samples = nil
+	m.clearedFields[accountscheduleuser.FieldQualityMinSuccessSamples] = struct{}{}
+}
+
+// QualityMinSuccessSamplesCleared returns if the "quality_min_success_samples" field was cleared in this mutation.
+func (m *AccountScheduleUserMutation) QualityMinSuccessSamplesCleared() bool {
+	_, ok := m.clearedFields[accountscheduleuser.FieldQualityMinSuccessSamples]
+	return ok
+}
+
+// ResetQualityMinSuccessSamples resets all changes to the "quality_min_success_samples" field.
+func (m *AccountScheduleUserMutation) ResetQualityMinSuccessSamples() {
+	m.quality_min_success_samples = nil
+	m.addquality_min_success_samples = nil
+	delete(m.clearedFields, accountscheduleuser.FieldQualityMinSuccessSamples)
+}
+
+// SetQualityMinTtftSamples sets the "quality_min_ttft_samples" field.
+func (m *AccountScheduleUserMutation) SetQualityMinTtftSamples(i int) {
+	m.quality_min_ttft_samples = &i
+	m.addquality_min_ttft_samples = nil
+}
+
+// QualityMinTtftSamples returns the value of the "quality_min_ttft_samples" field in the mutation.
+func (m *AccountScheduleUserMutation) QualityMinTtftSamples() (r int, exists bool) {
+	v := m.quality_min_ttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddQualityMinTtftSamples adds i to the "quality_min_ttft_samples" field.
+func (m *AccountScheduleUserMutation) AddQualityMinTtftSamples(i int) {
+	if m.addquality_min_ttft_samples != nil {
+		*m.addquality_min_ttft_samples += i
+	} else {
+		m.addquality_min_ttft_samples = &i
+	}
+}
+
+// AddedQualityMinTtftSamples returns the value that was added to the "quality_min_ttft_samples" field in this mutation.
+func (m *AccountScheduleUserMutation) AddedQualityMinTtftSamples() (r int, exists bool) {
+	v := m.addquality_min_ttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityMinTtftSamples clears the value of the "quality_min_ttft_samples" field.
+func (m *AccountScheduleUserMutation) ClearQualityMinTtftSamples() {
+	m.quality_min_ttft_samples = nil
+	m.addquality_min_ttft_samples = nil
+	m.clearedFields[accountscheduleuser.FieldQualityMinTtftSamples] = struct{}{}
+}
+
+// QualityMinTtftSamplesCleared returns if the "quality_min_ttft_samples" field was cleared in this mutation.
+func (m *AccountScheduleUserMutation) QualityMinTtftSamplesCleared() bool {
+	_, ok := m.clearedFields[accountscheduleuser.FieldQualityMinTtftSamples]
+	return ok
+}
+
+// ResetQualityMinTtftSamples resets all changes to the "quality_min_ttft_samples" field.
+func (m *AccountScheduleUserMutation) ResetQualityMinTtftSamples() {
+	m.quality_min_ttft_samples = nil
+	m.addquality_min_ttft_samples = nil
+	delete(m.clearedFields, accountscheduleuser.FieldQualityMinTtftSamples)
+}
+
+// SetQualityCondition sets the "quality_condition" field.
+func (m *AccountScheduleUserMutation) SetQualityCondition(s string) {
+	m.quality_condition = &s
+}
+
+// QualityCondition returns the value of the "quality_condition" field in the mutation.
+func (m *AccountScheduleUserMutation) QualityCondition() (r string, exists bool) {
+	v := m.quality_condition
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearQualityCondition clears the value of the "quality_condition" field.
+func (m *AccountScheduleUserMutation) ClearQualityCondition() {
+	m.quality_condition = nil
+	m.clearedFields[accountscheduleuser.FieldQualityCondition] = struct{}{}
+}
+
+// QualityConditionCleared returns if the "quality_condition" field was cleared in this mutation.
+func (m *AccountScheduleUserMutation) QualityConditionCleared() bool {
+	_, ok := m.clearedFields[accountscheduleuser.FieldQualityCondition]
+	return ok
+}
+
+// ResetQualityCondition resets all changes to the "quality_condition" field.
+func (m *AccountScheduleUserMutation) ResetQualityCondition() {
+	m.quality_condition = nil
+	delete(m.clearedFields, accountscheduleuser.FieldQualityCondition)
+}
+
 // ClearAccount clears the "account" edge to the Account entity.
 func (m *AccountScheduleUserMutation) ClearAccount() {
 	m.clearedaccount = true
@@ -7728,7 +7981,7 @@ func (m *AccountScheduleUserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountScheduleUserMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 11)
 	if m.account != nil {
 		fields = append(fields, accountscheduleuser.FieldAccountID)
 	}
@@ -7746,6 +7999,21 @@ func (m *AccountScheduleUserMutation) Fields() []string {
 	}
 	if m.max_concurrency != nil {
 		fields = append(fields, accountscheduleuser.FieldMaxConcurrency)
+	}
+	if m.quality_max_p50_ttft_ms != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMaxP50TtftMs)
+	}
+	if m.quality_min_success_rate != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMinSuccessRate)
+	}
+	if m.quality_min_success_samples != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMinSuccessSamples)
+	}
+	if m.quality_min_ttft_samples != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMinTtftSamples)
+	}
+	if m.quality_condition != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityCondition)
 	}
 	return fields
 }
@@ -7767,6 +8035,16 @@ func (m *AccountScheduleUserMutation) Field(name string) (ent.Value, bool) {
 		return m.Deny()
 	case accountscheduleuser.FieldMaxConcurrency:
 		return m.MaxConcurrency()
+	case accountscheduleuser.FieldQualityMaxP50TtftMs:
+		return m.QualityMaxP50TtftMs()
+	case accountscheduleuser.FieldQualityMinSuccessRate:
+		return m.QualityMinSuccessRate()
+	case accountscheduleuser.FieldQualityMinSuccessSamples:
+		return m.QualityMinSuccessSamples()
+	case accountscheduleuser.FieldQualityMinTtftSamples:
+		return m.QualityMinTtftSamples()
+	case accountscheduleuser.FieldQualityCondition:
+		return m.QualityCondition()
 	}
 	return nil, false
 }
@@ -7825,6 +8103,41 @@ func (m *AccountScheduleUserMutation) SetField(name string, value ent.Value) err
 		}
 		m.SetMaxConcurrency(v)
 		return nil
+	case accountscheduleuser.FieldQualityMaxP50TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMaxP50TtftMs(v)
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMinSuccessRate(v)
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMinSuccessSamples(v)
+		return nil
+	case accountscheduleuser.FieldQualityMinTtftSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityMinTtftSamples(v)
+		return nil
+	case accountscheduleuser.FieldQualityCondition:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetQualityCondition(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser field %s", name)
 }
@@ -7836,6 +8149,18 @@ func (m *AccountScheduleUserMutation) AddedFields() []string {
 	if m.addmax_concurrency != nil {
 		fields = append(fields, accountscheduleuser.FieldMaxConcurrency)
 	}
+	if m.addquality_max_p50_ttft_ms != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMaxP50TtftMs)
+	}
+	if m.addquality_min_success_rate != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMinSuccessRate)
+	}
+	if m.addquality_min_success_samples != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMinSuccessSamples)
+	}
+	if m.addquality_min_ttft_samples != nil {
+		fields = append(fields, accountscheduleuser.FieldQualityMinTtftSamples)
+	}
 	return fields
 }
 
@@ -7846,6 +8171,14 @@ func (m *AccountScheduleUserMutation) AddedField(name string) (ent.Value, bool) 
 	switch name {
 	case accountscheduleuser.FieldMaxConcurrency:
 		return m.AddedMaxConcurrency()
+	case accountscheduleuser.FieldQualityMaxP50TtftMs:
+		return m.AddedQualityMaxP50TtftMs()
+	case accountscheduleuser.FieldQualityMinSuccessRate:
+		return m.AddedQualityMinSuccessRate()
+	case accountscheduleuser.FieldQualityMinSuccessSamples:
+		return m.AddedQualityMinSuccessSamples()
+	case accountscheduleuser.FieldQualityMinTtftSamples:
+		return m.AddedQualityMinTtftSamples()
 	}
 	return nil, false
 }
@@ -7862,6 +8195,34 @@ func (m *AccountScheduleUserMutation) AddField(name string, value ent.Value) err
 		}
 		m.AddMaxConcurrency(v)
 		return nil
+	case accountscheduleuser.FieldQualityMaxP50TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMaxP50TtftMs(v)
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMinSuccessRate(v)
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMinSuccessSamples(v)
+		return nil
+	case accountscheduleuser.FieldQualityMinTtftSamples:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddQualityMinTtftSamples(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser numeric field %s", name)
 }
@@ -7872,6 +8233,21 @@ func (m *AccountScheduleUserMutation) ClearedFields() []string {
 	var fields []string
 	if m.FieldCleared(accountscheduleuser.FieldMaxConcurrency) {
 		fields = append(fields, accountscheduleuser.FieldMaxConcurrency)
+	}
+	if m.FieldCleared(accountscheduleuser.FieldQualityMaxP50TtftMs) {
+		fields = append(fields, accountscheduleuser.FieldQualityMaxP50TtftMs)
+	}
+	if m.FieldCleared(accountscheduleuser.FieldQualityMinSuccessRate) {
+		fields = append(fields, accountscheduleuser.FieldQualityMinSuccessRate)
+	}
+	if m.FieldCleared(accountscheduleuser.FieldQualityMinSuccessSamples) {
+		fields = append(fields, accountscheduleuser.FieldQualityMinSuccessSamples)
+	}
+	if m.FieldCleared(accountscheduleuser.FieldQualityMinTtftSamples) {
+		fields = append(fields, accountscheduleuser.FieldQualityMinTtftSamples)
+	}
+	if m.FieldCleared(accountscheduleuser.FieldQualityCondition) {
+		fields = append(fields, accountscheduleuser.FieldQualityCondition)
 	}
 	return fields
 }
@@ -7889,6 +8265,21 @@ func (m *AccountScheduleUserMutation) ClearField(name string) error {
 	switch name {
 	case accountscheduleuser.FieldMaxConcurrency:
 		m.ClearMaxConcurrency()
+		return nil
+	case accountscheduleuser.FieldQualityMaxP50TtftMs:
+		m.ClearQualityMaxP50TtftMs()
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessRate:
+		m.ClearQualityMinSuccessRate()
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessSamples:
+		m.ClearQualityMinSuccessSamples()
+		return nil
+	case accountscheduleuser.FieldQualityMinTtftSamples:
+		m.ClearQualityMinTtftSamples()
+		return nil
+	case accountscheduleuser.FieldQualityCondition:
+		m.ClearQualityCondition()
 		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser nullable field %s", name)
@@ -7915,6 +8306,21 @@ func (m *AccountScheduleUserMutation) ResetField(name string) error {
 		return nil
 	case accountscheduleuser.FieldMaxConcurrency:
 		m.ResetMaxConcurrency()
+		return nil
+	case accountscheduleuser.FieldQualityMaxP50TtftMs:
+		m.ResetQualityMaxP50TtftMs()
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessRate:
+		m.ResetQualityMinSuccessRate()
+		return nil
+	case accountscheduleuser.FieldQualityMinSuccessSamples:
+		m.ResetQualityMinSuccessSamples()
+		return nil
+	case accountscheduleuser.FieldQualityMinTtftSamples:
+		m.ResetQualityMinTtftSamples()
+		return nil
+	case accountscheduleuser.FieldQualityCondition:
+		m.ResetQualityCondition()
 		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser field %s", name)

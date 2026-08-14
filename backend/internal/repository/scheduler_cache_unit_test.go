@@ -153,6 +153,10 @@ func TestBuildSchedulerMetadataAccount_KeepsUserScheduleFields(t *testing.T) {
 		AllowUserIDs:     []int64{16, 0, 42, 16},
 		DenyUserIDs:      []int64{7, 7},
 		UserConcurrency:  map[int64]int{16: 5, 0: 2, 99: 0, 8: 3},
+		UserQualityGates: map[int64]service.QualityHardCloseSettings{
+			16: {MaxP50TTFTMs: intPtrForScheduler(1500), MinSuccessSamples: 20, MinTTFTSamples: 10, Condition: service.QualityHardCloseConditionOr},
+			0:  {MinSuccessRate: floatPtrForScheduler(0.9)},
+		},
 		ScheduleUsers: []service.ScheduleUserRef{
 			{ID: 16, Email: "drop-from-metadata@example.com"},
 		},
@@ -165,5 +169,28 @@ func TestBuildSchedulerMetadataAccount_KeepsUserScheduleFields(t *testing.T) {
 	require.Equal(t, []int64{16, 42}, got.AllowUserIDs)
 	require.Equal(t, []int64{7}, got.DenyUserIDs)
 	require.Equal(t, map[int64]int{16: 5, 8: 3}, got.UserConcurrency)
+	require.Len(t, got.UserQualityGates, 1)
+	require.NotNil(t, got.UserQualityGates[16].MaxP50TTFTMs)
+	require.Equal(t, 1500, *got.UserQualityGates[16].MaxP50TTFTMs)
+	require.Equal(t, service.QualityHardCloseConditionOr, got.UserQualityGates[16].Condition)
 	require.Nil(t, got.ScheduleUsers)
 }
+
+func TestDecodeCachedAccount_MissingUserQualityGatesKeepsIdentity(t *testing.T) {
+	account, err := decodeCachedAccount(`{"ID":1,"AllowUserIDs":[16],"DenyUserIDs":[7]}`)
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Empty(t, account.UserQualityGates)
+	require.True(t, account.AllowsScheduleUser(16))
+	require.False(t, account.AllowsScheduleUser(7))
+	p50 := 9000
+	samples := int64(20)
+	rate := 0.01
+	stats := &service.AccountQualityStats{P50TTFTMs: &p50, TTFTSamples: samples, SuccessCount: 1, ErrorCount: 20, SuccessRate: &rate}
+	require.False(t, account.QualityGateBlocksUser(16, stats))
+	require.True(t, account.AdmitsScheduleUser(16, stats))
+}
+
+func intPtrForScheduler(v int) *int { return &v }
+
+func floatPtrForScheduler(v float64) *float64 { return &v }

@@ -329,6 +329,11 @@ var (
 		{Name: "allow", Type: field.TypeBool, Default: false},
 		{Name: "deny", Type: field.TypeBool, Default: false},
 		{Name: "max_concurrency", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_max_p50_ttft_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_min_success_rate", Type: field.TypeFloat64, Nullable: true},
+		{Name: "quality_min_success_samples", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_min_ttft_samples", Type: field.TypeInt, Nullable: true},
+		{Name: "quality_condition", Type: field.TypeString, Nullable: true, Size: 8},
 		{Name: "account_id", Type: field.TypeInt64},
 		{Name: "user_id", Type: field.TypeInt64},
 	}
@@ -336,17 +341,17 @@ var (
 	AccountScheduleUsersTable = &schema.Table{
 		Name:       "account_schedule_users",
 		Columns:    AccountScheduleUsersColumns,
-		PrimaryKey: []*schema.Column{AccountScheduleUsersColumns[4], AccountScheduleUsersColumns[5]},
+		PrimaryKey: []*schema.Column{AccountScheduleUsersColumns[9], AccountScheduleUsersColumns[10]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "account_schedule_users_accounts_account",
-				Columns:    []*schema.Column{AccountScheduleUsersColumns[4]},
+				Columns:    []*schema.Column{AccountScheduleUsersColumns[9]},
 				RefColumns: []*schema.Column{AccountsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "account_schedule_users_users_user",
-				Columns:    []*schema.Column{AccountScheduleUsersColumns[5]},
+				Columns:    []*schema.Column{AccountScheduleUsersColumns[10]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -355,7 +360,7 @@ var (
 			{
 				Name:    "accountscheduleuser_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{AccountScheduleUsersColumns[5]},
+				Columns: []*schema.Column{AccountScheduleUsersColumns[10]},
 			},
 		},
 	}

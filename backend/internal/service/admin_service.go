@@ -391,6 +391,8 @@ type UpdateAccountInput struct {
 	DenyUserIDs           *[]int64
 	UserConcurrencies     *[]UserConcurrencyEntry
 	UserConcurrencyPatch  *UserConcurrencyPatch
+	UserQualityGates      *[]UserQualityGateEntry
+	UserQualityGatePatch  *UserQualityGatePatch
 }
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
@@ -417,6 +419,8 @@ type BulkUpdateAccountsInput struct {
 	DenyUserIDs           *[]int64
 	UserConcurrencies     *[]UserConcurrencyEntry
 	UserConcurrencyPatch  *UserConcurrencyPatch
+	UserQualityGates      *[]UserQualityGateEntry
+	UserQualityGatePatch  *UserQualityGatePatch
 }
 
 type BulkUpdateAccountFilters struct {
@@ -3124,6 +3128,9 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	if input.UserConcurrencies != nil || input.UserConcurrencyPatch != nil {
 		return nil, infraerrors.BadRequest("BULK_USER_CONCURRENCY_FORBIDDEN", "bulk update cannot overwrite per-user concurrency")
 	}
+	if input.UserQualityGates != nil || input.UserQualityGatePatch != nil {
+		return nil, infraerrors.BadRequest("BULK_USER_QUALITY_GATE_FORBIDDEN", "bulk update cannot overwrite per-user quality gates")
+	}
 
 	writeSchedule := input.AllowUserIDs != nil || input.DenyUserIDs != nil || input.UserScheduleMode != nil || input.ScheduleUserIDs != nil
 	useLegacySchedule := (input.UserScheduleMode != nil || input.ScheduleUserIDs != nil) &&
@@ -3204,10 +3211,12 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			allow := []int64(nil)
 			deny := []int64(nil)
 			var caps map[int64]int
+			var gates map[int64]QualityHardCloseSettings
 			if existing != nil {
 				allow = append([]int64(nil), existing.AllowUserIDs...)
 				deny = append([]int64(nil), existing.DenyUserIDs...)
 				caps = copyUserConcurrencyMap(existing.UserConcurrency)
+				gates = copyUserQualityGates(existing.UserQualityGates)
 			}
 			if useLegacySchedule {
 				allow, deny = append([]int64(nil), legacyAllow...), append([]int64(nil), legacyDeny...)
@@ -3218,7 +3227,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			if input.DenyUserIDs != nil {
 				deny = normalizeScheduleUserIDs(*input.DenyUserIDs)
 			}
-			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, buildAccountUserScheduleWrite(allow, deny, caps)); err != nil {
+			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, buildAccountUserScheduleWrite(allow, deny, caps, gates)); err != nil {
 				entry.Success = false
 				entry.Error = err.Error()
 				result.Failed++

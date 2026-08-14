@@ -13,15 +13,16 @@ the parent supplies authentication identity and the inherited proxy.
 
 ## Account user-schedule filter
 
-After group/platform/`IsSchedulable` filters, selection calls `Account.AllowsScheduleUser(userID)` then optional pair-cap checks. Do not fold pair limits into `IsSchedulable()`.
+After group/platform/`IsSchedulable` filters, selection calls `AdmitsScheduleUser` (identity `AllowsScheduleUser` plus optional live quality gate) then optional pair-cap checks. Do not fold pair limits or quality gates into `IsSchedulable()`.
 
 1. Explicit `sub2apiUserID` if `> 0`, else `ctxkey.UserID`, else `0`.
-2. Priority: deny-list hit → cannot schedule (cap ignored); nonempty allow list and miss → cannot schedule (cap ignored); else admitted.
-3. `userID=0` fail-closes when any allow/deny/pair-cap rule exists.
-4. If admitted and `PairMaxConcurrency(userID) >= 1`, skip the candidate when the live Redis pair count is already `>= N`. After the account slot is acquired, acquire `concurrency:account_user:{accountID}:{userID}`; failure releases the account slot, excludes the account, and reselects. Pair-full never emits `WaitPlan` / 429 by itself.
-5. Sticky / previous_response pins that fail admission are dropped once. Pair-full skips this pick only and keeps the pin.
-6. Spark shadows keep their own independent lists/caps; new shadows start empty.
-7. OpenAI applies the same admission + pair-cap path on the advanced scheduler **and** the load-awareness fallback. Snapshot meta must copy `AllowUserIDs` / `DenyUserIDs` / `UserConcurrency`.
+2. Priority: deny-list hit → cannot schedule (cap ignored); nonempty allow list and miss → cannot schedule (cap ignored); else identity-admitted.
+3. `userID=0` fail-closes when any allow/deny/pair-cap/quality-gate rule exists.
+4. If identity-admitted and the account has a quality gate for this user, read Redis `account-quality:live:{accountID}` merged with resume HASH `account-quality:resume:{accountID}`. Breach excludes only this pair (clear sticky, reselect). Cache miss / nil stats / unconfigured or under-sampled metrics fail open. An active resume grace also admits. Quality block is not pair-full and must not emit `WaitPlan`.
+5. If admitted and `PairMaxConcurrency(userID) >= 1`, skip the candidate when the live Redis pair count is already `>= N`. After the account slot is acquired, acquire `concurrency:account_user:{accountID}:{userID}`; failure releases the account slot, excludes the account, and reselects. Pair-full never emits `WaitPlan` / 429 by itself.
+6. Sticky / previous_response pins that fail admission (identity or quality) are dropped once. Pair-full skips this pick only and keeps the pin.
+7. Spark shadows keep their own independent lists/caps/gates; new shadows start empty.
+8. OpenAI applies the same admission + pair-cap path on the advanced scheduler **and** the load-awareness fallback. Snapshot meta must copy `AllowUserIDs` / `DenyUserIDs` / `UserConcurrency` / `UserQualityGates`.
 
 Spark eligibility requires an explicit Spark mapping and rejects default-model
 fallback. Global OAuth quota/429 headers do not consume the Spark lane, while
@@ -37,7 +38,7 @@ Claude-GPT bridge routing, native Images, or Ops/public settings.
 | Group.platform | `backend/internal/service/group.go` | Native platform for the group and default scheduling scope. |
 | Group.blocked_models / allowed_models | `backend/internal/service/group.go` | Group-level model access control evaluated before account scheduling. |
 | Account.platform/type/status | `backend/internal/service/account.go` | Core inputs for scheduling and upstream token lookup. |
-| Account.AllowUserIDs / DenyUserIDs / UserConcurrency | `backend/internal/service/account.go` | Independent allow list, deny list, and pair caps (N≥1). Leftover `UserScheduleMode` / `ScheduleUserIDs` are derived. Copied onto Redis scheduler snapshot meta; not folded into `IsSchedulable()`. |
+| Account.AllowUserIDs / DenyUserIDs / UserConcurrency / UserQualityGates | `backend/internal/service/account.go` | Independent allow list, deny list, pair caps (N≥1), and optional per-user live-quality gates. Leftover `UserScheduleMode` / `ScheduleUserIDs` are derived. Copied onto Redis scheduler snapshot meta; not folded into `IsSchedulable()`. |
 | Account.extra.mixed_scheduling | `backend/internal/service/account.go` | Whether an Antigravity account may join Anthropic/Gemini mixed scheduling. |
 | Account.extra.openai_claude_gpt_bridge_enabled | `backend/internal/service/account.go` | Whether an OpenAI account may serve Claude-GPT bridge requests for bound Antigravity groups. |
 | Account.credentials.openai_capabilities | `backend/internal/service/account.go` | Optional OpenAI API-key endpoint capability list, currently used by chat completions and embeddings scheduling. |
@@ -718,7 +719,7 @@ native `/v1/images/*`, and WebSocket transport remain unchanged.
 | OAuth 401 recovery | OAuth accounts should invalidate token cache, force refresh, and become temporarily unschedulable on 401. They should not go directly to permanent `SetError`. Antigravity OAuth follows the same rule. |
 | Optional Gin context | Internal Anthropic forwarding helpers can be called without a Gin context. User-Agent inspection, identity metadata, and tool-rewrite context storage must be guarded; normal HTTP paths retain their existing behavior. |
 | Frontend session/payment state | Refresh requests use a finite timeout, logout clears local credentials even when server revocation fails, and payment/risk-control route guards load public settings before deciding. Payment status, QR, and Stripe popup polling must remain single-flight; Stripe polling reads the canonical `auth_token` key and popup initialization cancels its fallback timeout. |
-| Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, cost-window, group-membership, and `AllowsScheduleUser` checks. Local response-id account bindings are namespaced by group to avoid cross-group previous-response reuse. |
+| Sticky sessions | Selection may prefer a session-bound account, but the account still has to pass platform, model, rate limit, quota, cost-window, group-membership, and `AdmitsScheduleUser` (identity + live quality gate) checks. Local response-id account bindings are namespaced by group to avoid cross-group previous-response reuse. |
 | Codex WS continuation mobility | A Responses WebSocket request may move away from its `previous_response_id` account only when every tool-output `call_id` is covered by an in-band tool-call context item or matching `item_reference`. Partial coverage keeps hard affinity so upstream can resolve the missing call from the response chain. |
 | Scheduler quota headroom | `gateway.openai_ws.scheduler_score_weights.quota_headroom` is opt-in (`0` by default). Fresh Codex 7d/5h snapshots influence advanced-scheduler scores; missing or older-than-8h snapshots are neutral, and a 5h window below 10% remaining reduces the factor. This changes account selection only, never billing or quota deduction. |
 | Advanced scheduler rollback | `openai_advanced_scheduler_enabled=false` disables both submodes and all DB TopK/weight overrides. It does not disable the base scheduler configured under `gateway.openai_ws`. |

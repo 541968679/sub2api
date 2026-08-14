@@ -24,6 +24,16 @@ const (
 	FieldDeny = "deny"
 	// FieldMaxConcurrency holds the string denoting the max_concurrency field in the database.
 	FieldMaxConcurrency = "max_concurrency"
+	// FieldQualityMaxP50TtftMs holds the string denoting the quality_max_p50_ttft_ms field in the database.
+	FieldQualityMaxP50TtftMs = "quality_max_p50_ttft_ms"
+	// FieldQualityMinSuccessRate holds the string denoting the quality_min_success_rate field in the database.
+	FieldQualityMinSuccessRate = "quality_min_success_rate"
+	// FieldQualityMinSuccessSamples holds the string denoting the quality_min_success_samples field in the database.
+	FieldQualityMinSuccessSamples = "quality_min_success_samples"
+	// FieldQualityMinTtftSamples holds the string denoting the quality_min_ttft_samples field in the database.
+	FieldQualityMinTtftSamples = "quality_min_ttft_samples"
+	// FieldQualityCondition holds the string denoting the quality_condition field in the database.
+	FieldQualityCondition = "quality_condition"
 	// EdgeAccount holds the string denoting the account edge name in mutations.
 	EdgeAccount = "account"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -58,6 +68,11 @@ var Columns = []string{
 	FieldAllow,
 	FieldDeny,
 	FieldMaxConcurrency,
+	FieldQualityMaxP50TtftMs,
+	FieldQualityMinSuccessRate,
+	FieldQualityMinSuccessSamples,
+	FieldQualityMinTtftSamples,
+	FieldQualityCondition,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -77,6 +92,8 @@ var (
 	DefaultAllow bool
 	// DefaultDeny holds the default value on creation for the "deny" field.
 	DefaultDeny bool
+	// QualityConditionValidator is a validator for the "quality_condition" field. It is called by the builders before save.
+	QualityConditionValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the AccountScheduleUser queries.
@@ -110,6 +127,31 @@ func ByDeny(opts ...sql.OrderTermOption) OrderOption {
 // ByMaxConcurrency orders the results by the max_concurrency field.
 func ByMaxConcurrency(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMaxConcurrency, opts...).ToFunc()
+}
+
+// ByQualityMaxP50TtftMs orders the results by the quality_max_p50_ttft_ms field.
+func ByQualityMaxP50TtftMs(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQualityMaxP50TtftMs, opts...).ToFunc()
+}
+
+// ByQualityMinSuccessRate orders the results by the quality_min_success_rate field.
+func ByQualityMinSuccessRate(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQualityMinSuccessRate, opts...).ToFunc()
+}
+
+// ByQualityMinSuccessSamples orders the results by the quality_min_success_samples field.
+func ByQualityMinSuccessSamples(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQualityMinSuccessSamples, opts...).ToFunc()
+}
+
+// ByQualityMinTtftSamples orders the results by the quality_min_ttft_samples field.
+func ByQualityMinTtftSamples(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQualityMinTtftSamples, opts...).ToFunc()
+}
+
+// ByQualityCondition orders the results by the quality_condition field.
+func ByQualityCondition(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldQualityCondition, opts...).ToFunc()
 }
 
 // ByAccountField orders the results by account field.

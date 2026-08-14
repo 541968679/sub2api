@@ -597,7 +597,7 @@ export async function getQualityHardClose(id: number): Promise<AccountQualityHar
 
 /**
  * Write only extra.quality_hard_close. Body is the overlay top-level (not wrapped).
- * use_global omitted on the server defaults to true.
+ * New UI always sends use_global=false with explicit thresholds. Omitted use_global still defaults true on the server for old clients.
  */
 export async function updateQualityHardClose(
   id: number,
@@ -606,6 +606,18 @@ export async function updateQualityHardClose(
   const { data } = await apiClient.put<AccountQualityHardCloseView>(
     `/admin/accounts/${id}/quality-hard-close`,
     overlay
+  )
+  return data
+}
+
+/** Force-admit one user on this account for one 15-minute quality window. Does not change the gate. */
+export async function resumeUserQuality(
+  id: number,
+  userId: number
+): Promise<{ account_id: number; user_id: number }> {
+  const { data } = await apiClient.post<{ account_id: number; user_id: number }>(
+    `/admin/accounts/${id}/quality-resume`,
+    { user_id: userId }
   )
   return data
 }
@@ -1144,6 +1156,7 @@ export const accountsAPI = {
   getQualityHistory,
   getQualityHardClose,
   updateQualityHardClose,
+  resumeUserQuality,
   clearRateLimit,
   recoverState,
   resetAccountQuota,

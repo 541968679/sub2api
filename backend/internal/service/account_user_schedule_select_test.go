@@ -68,6 +68,122 @@ func TestGatewayService_StickyUserScheduleDeniedClearsBinding(t *testing.T) {
 	require.Equal(t, int64(2), cache.sessionBindings["sticky"])
 }
 
+func TestGatewayService_StickyUserQualityGateClearsBinding(t *testing.T) {
+	t.Parallel()
+
+	p50 := 1000
+	blocked := &Account{
+		ID:          1,
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 5,
+		UserQualityGates: map[int64]QualityHardCloseSettings{
+			16: fillUserQualityGateDefaults(QualityHardCloseSettings{MaxP50TTFTMs: &p50, MinTTFTSamples: 10}),
+		},
+	}
+	fallback := &Account{
+		ID:          2,
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 5,
+		Priority:    1,
+	}
+	repo := &mockAccountRepoForPlatform{
+		accounts:     []Account{*blocked, *fallback},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		copied := repo.accounts[i]
+		repo.accountsByID[copied.ID] = &copied
+	}
+	repo.listPlatformFunc = func(ctx context.Context, platform string) ([]Account, error) {
+		return repo.accounts, nil
+	}
+
+	cache := &mockGatewayCacheForPlatform{
+		sessionBindings: map[string]int64{"sticky": 1},
+	}
+	cfg := testConfig()
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+
+	svc := &GatewayService{
+		accountRepo:        repo,
+		cache:              cache,
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{}),
+		qualityLiveCache: &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{
+				1: liveQualityStats(4000, 12, 20, 0, 1),
+			},
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAnthropic)
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sticky", "claude-3-5-sonnet-20241022", nil, "", int64(16))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Account)
+	require.Equal(t, int64(2), result.Account.ID)
+	require.Equal(t, 1, cache.deletedSessions["sticky"])
+	require.Equal(t, int64(2), cache.sessionBindings["sticky"])
+	require.True(t, blocked.Schedulable)
+	require.Nil(t, blocked.TempUnschedulableUntil)
+}
+
+func TestSelectAccount_UserQualityGateFilters(t *testing.T) {
+	t.Parallel()
+
+	p50 := 1000
+	gated := Account{
+		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
+		UserQualityGates: map[int64]QualityHardCloseSettings{
+			16: fillUserQualityGateDefaults(QualityHardCloseSettings{MaxP50TTFTMs: &p50, MinTTFTSamples: 10}),
+		},
+	}
+	open := Account{
+		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
+	}
+	repo := &mockAccountRepoForPlatform{
+		accounts:     []Account{gated, open},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		copied := repo.accounts[i]
+		repo.accountsByID[copied.ID] = &copied
+	}
+
+	svc := &GatewayService{
+		accountRepo: repo,
+		cache:       &mockGatewayCacheForPlatform{},
+		cfg:         testConfig(),
+		qualityLiveCache: &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{
+				1: liveQualityStats(4000, 12, 20, 0, 1),
+			},
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAnthropic)
+	ctx = context.WithValue(ctx, ctxkey.UserID, int64(16))
+	account, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, PlatformAnthropic)
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	require.Equal(t, int64(2), account.ID, "quality-gated user must skip the better-priority gated account")
+	require.True(t, gated.Schedulable)
+	require.Nil(t, gated.TempUnschedulableUntil)
+
+	ctxOther := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAnthropic)
+	ctxOther = context.WithValue(ctxOther, ctxkey.UserID, int64(7))
+	other, err := svc.selectAccountForModelWithPlatform(ctxOther, nil, "", "claude-3-5-sonnet-20241022", nil, PlatformAnthropic)
+	require.NoError(t, err)
+	require.NotNil(t, other)
+	require.Equal(t, int64(1), other.ID, "user without a gate should still take the better-priority gated account")
+}
+
 func TestSelectAccount_UserScheduleAllowFilters(t *testing.T) {
 	t.Parallel()
 
@@ -159,8 +275,15 @@ func TestSelectAccount_UserScheduleUserIDZeroSkipsRestricted(t *testing.T) {
 	unrestricted := Account{
 		ID: 3, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
 	}
+	p50 := 1000
+	gateOnly := Account{
+		ID: 4, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 0,
+		UserQualityGates: map[int64]QualityHardCloseSettings{
+			16: fillUserQualityGateDefaults(QualityHardCloseSettings{MaxP50TTFTMs: &p50}),
+		},
+	}
 	repo := &mockAccountRepoForPlatform{
-		accounts:     []Account{allowOnly, denyListed, unrestricted},
+		accounts:     []Account{allowOnly, denyListed, unrestricted, gateOnly},
 		accountsByID: map[int64]*Account{},
 	}
 	for i := range repo.accounts {
@@ -178,7 +301,7 @@ func TestSelectAccount_UserScheduleUserIDZeroSkipsRestricted(t *testing.T) {
 	account, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(3), account.ID, "userID=0 must skip allow/deny accounts and keep unrestricted")
+	require.Equal(t, int64(3), account.ID, "userID=0 must skip allow/deny/quality-gate-only accounts and keep unrestricted")
 }
 
 func TestOpenAISelectAccount_UserScheduleStickyEscape(t *testing.T) {
@@ -210,6 +333,45 @@ func TestOpenAISelectAccount_UserScheduleStickyEscape(t *testing.T) {
 	require.Equal(t, int64(38102), selection.Account.ID)
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 	require.Equal(t, 1, cache.deletedSessions["openai:user-schedule"])
+}
+
+func TestOpenAISelectAccount_UserQualityGateStickyEscape(t *testing.T) {
+	groupID := int64(101209)
+	p50 := 1000
+	blocked := Account{
+		ID: 38901, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
+		UserQualityGates: map[int64]QualityHardCloseSettings{
+			16: fillUserQualityGateDefaults(QualityHardCloseSettings{MaxP50TTFTMs: &p50, MinTTFTSamples: 10}),
+		},
+	}
+	allowed := Account{
+		ID: 38902, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 1, Priority: 5, GroupIDs: []int64{groupID},
+	}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:quality-gate": 38901}}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{blocked, allowed}},
+		cache:              cache,
+		cfg:                &config.Config{},
+		rateLimitService:   newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		qualityLiveCache: &liveQualityCacheStub{
+			byID: map[int64]*AccountQualityStats{
+				38901: liveQualityStats(4000, 12, 20, 0, 1),
+			},
+		},
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "quality-gate", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, int64(38902), selection.Account.ID)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, 1, cache.deletedSessions["openai:quality-gate"])
+	require.True(t, blocked.Schedulable)
+	require.Nil(t, blocked.TempUnschedulableUntil)
 }
 
 func TestOpenAISelectAccount_UserScheduleUnrestrictedStickyStillHits(t *testing.T) {

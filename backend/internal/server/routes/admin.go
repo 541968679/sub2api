@@ -356,6 +356,7 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.GET("/:id/quality-history", h.Admin.Account.GetQualityHistory)
 		accounts.GET("/:id/quality-hard-close", h.Admin.Account.GetQualityHardClose)
 		accounts.PUT("/:id/quality-hard-close", h.Admin.Account.UpdateQualityHardClose)
+		accounts.POST("/:id/quality-resume", h.Admin.Account.ResumeQuality)
 		accounts.POST("/:id/clear-rate-limit", h.Admin.Account.ClearRateLimit)
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)
 		accounts.POST("/:id/move-to-top", h.Admin.Account.MoveToTop)

@@ -65,7 +65,7 @@ type Account struct {
 
 	// UserScheduleMode is a leftover exclusive-mode field derived from the
 	// independent lists for leftover readers. Hot-path admission uses
-	// AllowUserIDs / DenyUserIDs / UserConcurrency.
+	// AllowUserIDs / DenyUserIDs / UserConcurrency / UserQualityGates.
 	UserScheduleMode string
 	// ScheduleUserIDs is the leftover union of listed users. Not used on the
 	// new hot path.
@@ -76,6 +76,9 @@ type Account struct {
 	DenyUserIDs []int64
 	// UserConcurrency is per-user pair caps for this account. Only entries >= 1.
 	UserConcurrency map[int64]int
+	// UserQualityGates is per-user live-15m quality admission thresholds.
+	// Presence means the gate is enabled for that user. Not folded into IsSchedulable().
+	UserQualityGates map[int64]QualityHardCloseSettings
 	// ScheduleUsers is admin-list hydration (email + deleted + flags). Not on Redis snapshot.
 	ScheduleUsers []ScheduleUserRef
 

@@ -470,7 +470,8 @@ func (s *AccountQualityHardCloseService) EvaluateHardClose(ctx context.Context, 
 			if !resolved.Enabled || !qualityHardCloseHasConfiguredMetric(resolved) {
 				continue
 			}
-			alreadyPaused := account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil)
+			alreadyPaused := (account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil)) ||
+				AccountQualityResumeActive(stats[account.ID], now)
 			shouldPause, reason := EvaluateAccountQualityHardClose(stats[account.ID], resolved, alreadyPaused)
 			if !shouldPause {
 				continue

@@ -1,8 +1,34 @@
 import { describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import AccountUserScheduleCell from '../AccountUserScheduleCell.vue'
 import AccountInlineNumberCell from '../AccountInlineNumberCell.vue'
 import type { Account } from '@/types'
+
+const {
+  getQualityHardCloseSettings,
+  updateQualityHardCloseSettings,
+  showSuccess
+} = vi.hoisted(() => ({
+  getQualityHardCloseSettings: vi.fn(),
+  updateQualityHardCloseSettings: vi.fn(),
+  showSuccess: vi.fn()
+}))
+
+vi.mock('@/api/admin', () => ({
+  adminAPI: {
+    settings: {
+      getQualityHardCloseSettings,
+      updateQualityHardCloseSettings
+    }
+  }
+}))
+
+vi.mock('@/stores/app', () => ({
+  useAppStore: () => ({
+    showSuccess,
+    showError: vi.fn()
+  })
+}))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -126,6 +152,185 @@ describe('AccountUserScheduleCell', () => {
     expect(wrapper.emitted('save')?.[0]?.[0]).toEqual({ userId: 16, maxConcurrency: 5 })
     await cell.vm.$emit('save', 0)
     expect(wrapper.emitted('save')?.[1]?.[0]).toEqual({ userId: 16, maxConcurrency: null })
+  })
+
+  it('有质量门槛时显示 Q chip，保存和清除发出 saveQuality', async () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{
+            id: 16,
+            email: 'vip@x.com',
+            deleted: false,
+            allow: true,
+            quality_max_p50_ttft_ms: 1500,
+            quality_min_success_rate: 0.9,
+            quality_min_success_samples: 20,
+            quality_min_ttft_samples: 10,
+            quality_condition: 'or'
+          }]
+        })
+      }
+    })
+    expect(wrapper.find('[data-testid="user-schedule-quality-chip"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="user-schedule-quality-edit-16"]').trigger('click')
+    expect(wrapper.find('[data-testid="user-schedule-quality-editor-16"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="user-schedule-quality-resume"]').trigger('click')
+    expect(wrapper.emitted('resumeQuality')?.[0]?.[0]).toBe(16)
+    await wrapper.get('[data-testid="user-schedule-quality-p50"]').setValue('1800')
+    await wrapper.get('[data-testid="user-schedule-quality-save"]').trigger('click')
+    expect(wrapper.emitted('saveQuality')?.[0]?.[0]).toEqual({
+      user_id: 16,
+      quality_max_p50_ttft_ms: 1800,
+      quality_min_success_rate: 0.9,
+      quality_min_success_samples: 20,
+      quality_min_ttft_samples: 10,
+      quality_condition: 'or'
+    })
+
+    await wrapper.get('[data-testid="user-schedule-quality-edit-16"]').trigger('click')
+    await wrapper.get('[data-testid="user-schedule-quality-clear"]').trigger('click')
+    expect(wrapper.emitted('saveQuality')?.[1]?.[0]).toEqual({
+      user_id: 16,
+      quality_max_p50_ttft_ms: null,
+      quality_min_success_rate: null,
+      quality_min_success_samples: null,
+      quality_min_ttft_samples: null,
+      quality_condition: null
+    })
+  })
+
+  it('无指标时不显示质量芯片，空保存按清除发出', async () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{
+            id: 16,
+            email: 'vip@x.com',
+            deleted: false,
+            allow: true,
+            quality_condition: 'or'
+          }]
+        })
+      }
+    })
+    expect(wrapper.find('[data-testid="user-schedule-quality-chip"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="user-schedule-quality-edit-16"]').trigger('click')
+    await wrapper.get('[data-testid="user-schedule-quality-save"]').trigger('click')
+    expect(wrapper.emitted('saveQuality')?.[0]?.[0]).toEqual({
+      user_id: 16,
+      quality_max_p50_ttft_ms: null,
+      quality_min_success_rate: null,
+      quality_min_success_samples: null,
+      quality_min_ttft_samples: null,
+      quality_condition: null
+    })
+  })
+
+  it('applies the shared template into the current editor without saving the user gate', async () => {
+    getQualityHardCloseSettings.mockReset()
+    updateQualityHardCloseSettings.mockReset()
+    showSuccess.mockReset()
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: true,
+      max_p50_ttft_ms: 1800,
+      min_success_rate: 0.95,
+      pause_minutes: 15,
+      min_success_samples: 8,
+      min_ttft_samples: 6,
+      condition: 'and'
+    })
+
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{
+            id: 16,
+            email: 'vip@x.com',
+            deleted: false,
+            allow: true,
+            quality_max_p50_ttft_ms: 1500,
+            quality_min_success_rate: 0.9
+          }]
+        })
+      }
+    })
+    await wrapper.get('[data-testid="user-schedule-quality-edit-16"]').trigger('click')
+    await wrapper.get('[data-testid="user-schedule-quality-apply-template"]').trigger('click')
+    await flushPromises()
+
+    expect(getQualityHardCloseSettings).toHaveBeenCalled()
+    expect(wrapper.emitted('saveQuality')).toBeUndefined()
+    expect(wrapper.get<HTMLInputElement>('[data-testid="user-schedule-quality-p50"]').element.value).toBe('1800')
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.applyTemplateSuccess')
+
+    await wrapper.get('[data-testid="user-schedule-quality-save"]').trigger('click')
+    expect(wrapper.emitted('saveQuality')?.[0]?.[0]).toEqual({
+      user_id: 16,
+      quality_max_p50_ttft_ms: 1800,
+      quality_min_success_rate: 0.95,
+      quality_min_success_samples: 8,
+      quality_min_ttft_samples: 6,
+      quality_condition: 'and'
+    })
+  })
+
+  it('saves the current editor as the shared template without a user id', async () => {
+    getQualityHardCloseSettings.mockReset()
+    updateQualityHardCloseSettings.mockReset()
+    showSuccess.mockReset()
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 1200,
+      min_success_rate: 0.8,
+      pause_minutes: 20,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: 'or'
+    })
+    updateQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 1600,
+      min_success_rate: 0.91,
+      pause_minutes: 20,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: 'or'
+    })
+
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{
+            id: 16,
+            email: 'vip@x.com',
+            deleted: false,
+            allow: true,
+            quality_max_p50_ttft_ms: 1600,
+            quality_min_success_rate: 0.91,
+            quality_min_success_samples: 20,
+            quality_min_ttft_samples: 10,
+            quality_condition: 'or'
+          }]
+        })
+      }
+    })
+    await wrapper.get('[data-testid="user-schedule-quality-edit-16"]').trigger('click')
+    await wrapper.get('[data-testid="user-schedule-quality-save-template"]').trigger('click')
+    await flushPromises()
+
+    expect(updateQualityHardCloseSettings).toHaveBeenCalledWith({
+      enabled: false,
+      max_p50_ttft_ms: 1600,
+      min_success_rate: 0.91,
+      pause_minutes: 20,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: 'or'
+    })
+    expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty('user_id')
+    expect(wrapper.emitted('saveQuality')).toBeUndefined()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.stability.saveTemplateSuccess')
   })
 
   it('用户过多时显示 +N', () => {
