@@ -1860,7 +1860,6 @@ const handleManualRefresh = async () => {
 const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
   async () => {
     if (!autoRefreshEnabled.value) return
-    if (document.hidden) return
     if (loading.value || autoRefreshFetching.value) return
     if (isAnyModalOpen.value) return
     if (activeMenuId.value !== null) return
@@ -1881,7 +1880,6 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
 const { pause: pauseBurnRatePoll, resume: resumeBurnRatePoll } = useIntervalFn(
   async () => {
     if (!burnRateEnabled.value) return
-    if (document.hidden) return
     if (loading.value || burnRateFetching.value) return
     const userIds = users.value.map((u) => u.id)
     if (userIds.length === 0) return

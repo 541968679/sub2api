@@ -100,7 +100,7 @@ const autoRefresh = useAutoRefresh({
   intervals: [30, 60, 120] as const,
   defaultInterval: DEFAULT_INTERVAL_SECONDS,
   onRefresh: () => reload(true),
-  shouldPause: () => document.hidden || loading.value,
+  shouldPause: () => loading.value,
 })
 const countdown = autoRefresh.countdown
 

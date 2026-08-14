@@ -62,8 +62,9 @@ const refreshAll = () => { loadStats(); loadCharts(); loadRecent(); loadPlatform
 // Without this, a tab left open across midnight keeps showing the previous day's "今日":
 // the cards are only fetched in onMounted, while the balance is refreshed by a global
 // 60s timer in the auth store — so the balance looks current but the stats are stale.
-// Refetch silently (no full-page spinner) on tab focus/visibility and on a light
-// visible-only interval, which also corrects the day rollover within ~60s.
+// Refetch silently (no full-page spinner) on a 60s interval while the page is mounted,
+// and also on tab focus, so a day rollover is corrected within ~60s even in a
+// background tab.
 const refreshStatsSilently = async () => {
   try { stats.value = await usageAPI.getDashboardStats() } catch (error) { console.error('Failed to refresh dashboard stats:', error) }
 }
@@ -74,7 +75,7 @@ onMounted(() => {
   refreshAll()
   document.addEventListener('visibilitychange', onVisible)
   window.addEventListener('focus', onVisible)
-  statsTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshStatsSilently() }, 60000)
+  statsTimer = setInterval(refreshStatsSilently, 60000)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisible)

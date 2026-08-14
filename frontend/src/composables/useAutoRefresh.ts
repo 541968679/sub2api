@@ -5,7 +5,7 @@ export interface UseAutoRefreshOptions {
   intervals?: readonly number[]
   defaultInterval?: number
   onRefresh: () => Promise<void> | void
-  /** Skip tick when this returns true (e.g. modal open, document hidden). */
+  /** Skip tick when this returns true (e.g. modal open or an in-flight reload). */
   shouldPause?: () => boolean
 }
 

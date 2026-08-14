@@ -402,27 +402,6 @@ function stopRestorePolling() {
   }
 }
 
-function handleVisibilityChange() {
-  if (document.hidden) {
-    stopPolling()
-    stopRestorePolling()
-  } else {
-    // 标签页恢复时刷新列表，检查是否仍有活跃操作
-    loadBackups().then(() => {
-      const running = backups.value.find(r => r.status === 'running')
-      if (running) {
-        creatingBackup.value = true
-        startPolling(running.id)
-      }
-      const restoring = backups.value.find(r => r.restore_status === 'running')
-      if (restoring) {
-        restoringId.value = restoring.id
-        startRestorePolling(restoring.id)
-      }
-    })
-  }
-}
-
 // R2 guide
 const showR2Guide = ref(false)
 const r2ConfigRows = computed(() => [
@@ -604,7 +583,6 @@ function formatDate(value?: string): string {
 }
 
 onMounted(async () => {
-  document.addEventListener('visibilitychange', handleVisibilityChange)
   await Promise.all([loadS3Config(), loadSchedule(), loadBackups()])
 
   // 如果有正在 running 的备份，恢复轮询
@@ -623,7 +601,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   stopPolling()
   stopRestorePolling()
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

@@ -1,3 +1,25 @@
+## 2026-08-14 - fix(frontend): keep page auto-refresh running in background tabs
+
+### What
+- Account list, user list (including burn-rate poll), channel status, backup/restore polling, and user dashboard stats no longer skip or stop their timers when the browser tab is hidden.
+- Dashboard still does an extra silent refresh on tab focus; timers now continue for as long as the page stays mounted.
+
+### Why
+Operators leave these pages open in a background tab and expect the countdown/poll to keep going. The previous `document.hidden` / `visibilityState` gates paused refresh as soon as the tab was unselected.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/views/__tests__/pageAutoRefreshBackground.spec.ts src/views/admin/__tests__/UsersView.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/UsersView.vue`,
+`frontend/src/views/user/ChannelStatusView.vue`,
+`frontend/src/views/admin/BackupView.vue`,
+`frontend/src/views/user/DashboardView.vue`,
+`frontend/src/composables/useAutoRefresh.ts`,
+`frontend/src/views/__tests__/pageAutoRefreshBackground.spec.ts`,
+this changelog.
+
 ## 2026-08-13 - chore(dev-stack): manage optional new-api from dev-console
 
 ### What
