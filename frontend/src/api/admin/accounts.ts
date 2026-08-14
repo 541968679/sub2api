@@ -532,6 +532,84 @@ export async function getBatchQualityStats(accountIds: number[]): Promise<BatchQ
   return data
 }
 
+/** One persisted 15-minute rolling-window snapshot for the stability chart. */
+export interface AccountQualityHistoryItem extends AccountQualityStats {
+  captured_at: string
+}
+
+export interface AccountQualityHistoryResponse {
+  items: AccountQualityHistoryItem[]
+  from: string
+  to: string
+}
+
+export type QualityHardCloseCondition = 'or' | 'and'
+
+export interface AccountQualityHardCloseOverlay {
+  enabled: boolean
+  use_global: boolean
+  max_p50_ttft_ms: number | null
+  min_success_rate: number | null
+  pause_minutes: number | null
+  min_success_samples: number | null
+  min_ttft_samples: number | null
+  condition: QualityHardCloseCondition | null
+}
+
+export interface AccountQualityHardCloseResolved {
+  enabled: boolean
+  max_p50_ttft_ms: number | null
+  min_success_rate: number | null
+  pause_minutes: number
+  min_success_samples: number
+  min_ttft_samples: number
+  condition: QualityHardCloseCondition
+}
+
+export interface AccountQualityHardCloseView {
+  overlay: AccountQualityHardCloseOverlay
+  resolved: AccountQualityHardCloseResolved
+  global_enabled: boolean
+}
+
+/**
+ * Fetch persisted quality snapshots for one account.
+ * Omit from/to to use the server default (last 24 hours).
+ */
+export async function getQualityHistory(
+  id: number,
+  params?: { from?: string; to?: string }
+): Promise<AccountQualityHistoryResponse> {
+  const { data } = await apiClient.get<AccountQualityHistoryResponse>(
+    `/admin/accounts/${id}/quality-history`,
+    { params }
+  )
+  return data
+}
+
+/** Fetch the account hard-close overlay plus the resolved template. */
+export async function getQualityHardClose(id: number): Promise<AccountQualityHardCloseView> {
+  const { data } = await apiClient.get<AccountQualityHardCloseView>(
+    `/admin/accounts/${id}/quality-hard-close`
+  )
+  return data
+}
+
+/**
+ * Write only extra.quality_hard_close. Body is the overlay top-level (not wrapped).
+ * use_global omitted on the server defaults to true.
+ */
+export async function updateQualityHardClose(
+  id: number,
+  overlay: AccountQualityHardCloseOverlay
+): Promise<AccountQualityHardCloseView> {
+  const { data } = await apiClient.put<AccountQualityHardCloseView>(
+    `/admin/accounts/${id}/quality-hard-close`,
+    overlay
+  )
+  return data
+}
+
 /**
  * Set account schedulable status
  * @param id - Account ID
@@ -1063,6 +1141,9 @@ export const accountsAPI = {
   getTodayStats,
   getBatchTodayStats,
   getBatchQualityStats,
+  getQualityHistory,
+  getQualityHardClose,
+  updateQualityHardClose,
   clearRateLimit,
   recoverState,
   resetAccountQuota,

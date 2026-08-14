@@ -285,6 +285,44 @@ var (
 			},
 		},
 	}
+	// AccountQualitySnapshotsColumns holds the columns for the "account_quality_snapshots" table.
+	AccountQualitySnapshotsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "account_id", Type: field.TypeInt64},
+		{Name: "captured_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "window_seconds", Type: field.TypeInt, Default: 900},
+		{Name: "success_count", Type: field.TypeInt64, Default: 0},
+		{Name: "error_count", Type: field.TypeInt64, Default: 0},
+		{Name: "ttft_samples", Type: field.TypeInt64, Default: 0},
+		{Name: "success_rate", Type: field.TypeFloat64, Nullable: true},
+		{Name: "avg_ttft_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "p50_ttft_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "p95_ttft_ms", Type: field.TypeInt, Nullable: true},
+		{Name: "max_ttft_ms", Type: field.TypeInt, Nullable: true},
+	}
+	// AccountQualitySnapshotsTable holds the schema information for the "account_quality_snapshots" table.
+	AccountQualitySnapshotsTable = &schema.Table{
+		Name:       "account_quality_snapshots",
+		Columns:    AccountQualitySnapshotsColumns,
+		PrimaryKey: []*schema.Column{AccountQualitySnapshotsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "accountqualitysnapshot_account_id_captured_at",
+				Unique:  true,
+				Columns: []*schema.Column{AccountQualitySnapshotsColumns[1], AccountQualitySnapshotsColumns[2]},
+			},
+			{
+				Name:    "accountqualitysnapshot_captured_at",
+				Unique:  false,
+				Columns: []*schema.Column{AccountQualitySnapshotsColumns[2]},
+			},
+			{
+				Name:    "accountqualitysnapshot_account_id",
+				Unique:  false,
+				Columns: []*schema.Column{AccountQualitySnapshotsColumns[1]},
+			},
+		},
+	}
 	// AccountScheduleUsersColumns holds the columns for the "account_schedule_users" table.
 	AccountScheduleUsersColumns = []*schema.Column{
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
@@ -2162,6 +2200,7 @@ var (
 		APIKeysTable,
 		AccountsTable,
 		AccountGroupsTable,
+		AccountQualitySnapshotsTable,
 		AccountScheduleUsersTable,
 		AnnouncementsTable,
 		AnnouncementReadsTable,
@@ -2221,6 +2260,9 @@ func init() {
 	AccountGroupsTable.ForeignKeys[1].RefTable = GroupsTable
 	AccountGroupsTable.Annotation = &entsql.Annotation{
 		Table: "account_groups",
+	}
+	AccountQualitySnapshotsTable.Annotation = &entsql.Annotation{
+		Table: "account_quality_snapshots",
 	}
 	AccountScheduleUsersTable.ForeignKeys[0].RefTable = AccountsTable
 	AccountScheduleUsersTable.ForeignKeys[1].RefTable = UsersTable

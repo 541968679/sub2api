@@ -17,6 +17,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/accountqualitysnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
@@ -74,6 +75,8 @@ type Client struct {
 	Account *AccountClient
 	// AccountGroup is the client for interacting with the AccountGroup builders.
 	AccountGroup *AccountGroupClient
+	// AccountQualitySnapshot is the client for interacting with the AccountQualitySnapshot builders.
+	AccountQualitySnapshot *AccountQualitySnapshotClient
 	// AccountScheduleUser is the client for interacting with the AccountScheduleUser builders.
 	AccountScheduleUser *AccountScheduleUserClient
 	// Announcement is the client for interacting with the Announcement builders.
@@ -165,6 +168,7 @@ func (c *Client) init() {
 	c.APIKey = NewAPIKeyClient(c.config)
 	c.Account = NewAccountClient(c.config)
 	c.AccountGroup = NewAccountGroupClient(c.config)
+	c.AccountQualitySnapshot = NewAccountQualitySnapshotClient(c.config)
 	c.AccountScheduleUser = NewAccountScheduleUserClient(c.config)
 	c.Announcement = NewAnnouncementClient(c.config)
 	c.AnnouncementRead = NewAnnouncementReadClient(c.config)
@@ -299,6 +303,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		APIKey:                        NewAPIKeyClient(cfg),
 		Account:                       NewAccountClient(cfg),
 		AccountGroup:                  NewAccountGroupClient(cfg),
+		AccountQualitySnapshot:        NewAccountQualitySnapshotClient(cfg),
 		AccountScheduleUser:           NewAccountScheduleUserClient(cfg),
 		Announcement:                  NewAnnouncementClient(cfg),
 		AnnouncementRead:              NewAnnouncementReadClient(cfg),
@@ -360,6 +365,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		APIKey:                        NewAPIKeyClient(cfg),
 		Account:                       NewAccountClient(cfg),
 		AccountGroup:                  NewAccountGroupClient(cfg),
+		AccountQualitySnapshot:        NewAccountQualitySnapshotClient(cfg),
 		AccountScheduleUser:           NewAccountScheduleUserClient(cfg),
 		Announcement:                  NewAnnouncementClient(cfg),
 		AnnouncementRead:              NewAnnouncementReadClient(cfg),
@@ -427,9 +433,10 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup, c.AccountScheduleUser,
-		c.Announcement, c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel,
-		c.BatchImageEvent, c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
+		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup,
+		c.AccountQualitySnapshot, c.AccountScheduleUser, c.Announcement,
+		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
+		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.ImageChannelMonitor,
@@ -448,9 +455,10 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup, c.AccountScheduleUser,
-		c.Announcement, c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel,
-		c.BatchImageEvent, c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
+		c.AICreditSnapshot, c.APIKey, c.Account, c.AccountGroup,
+		c.AccountQualitySnapshot, c.AccountScheduleUser, c.Announcement,
+		c.AnnouncementRead, c.AuthIdentity, c.AuthIdentityChannel, c.BatchImageEvent,
+		c.BatchImageItem, c.BatchImageJob, c.ChannelMonitor,
 		c.ChannelMonitorDailyRollup, c.ChannelMonitorHistory,
 		c.ChannelMonitorRequestTemplate, c.ErrorPassthroughRule, c.Group,
 		c.IdempotencyRecord, c.IdentityAdoptionDecision, c.ImageChannelMonitor,
@@ -476,6 +484,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Account.mutate(ctx, m)
 	case *AccountGroupMutation:
 		return c.AccountGroup.mutate(ctx, m)
+	case *AccountQualitySnapshotMutation:
+		return c.AccountQualitySnapshot.mutate(ctx, m)
 	case *AccountScheduleUserMutation:
 		return c.AccountScheduleUser.mutate(ctx, m)
 	case *AnnouncementMutation:
@@ -1249,6 +1259,139 @@ func (c *AccountGroupClient) mutate(ctx context.Context, m *AccountGroupMutation
 		return (&AccountGroupDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown AccountGroup mutation op: %q", m.Op())
+	}
+}
+
+// AccountQualitySnapshotClient is a client for the AccountQualitySnapshot schema.
+type AccountQualitySnapshotClient struct {
+	config
+}
+
+// NewAccountQualitySnapshotClient returns a client for the AccountQualitySnapshot from the given config.
+func NewAccountQualitySnapshotClient(c config) *AccountQualitySnapshotClient {
+	return &AccountQualitySnapshotClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `accountqualitysnapshot.Hooks(f(g(h())))`.
+func (c *AccountQualitySnapshotClient) Use(hooks ...Hook) {
+	c.hooks.AccountQualitySnapshot = append(c.hooks.AccountQualitySnapshot, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `accountqualitysnapshot.Intercept(f(g(h())))`.
+func (c *AccountQualitySnapshotClient) Intercept(interceptors ...Interceptor) {
+	c.inters.AccountQualitySnapshot = append(c.inters.AccountQualitySnapshot, interceptors...)
+}
+
+// Create returns a builder for creating a AccountQualitySnapshot entity.
+func (c *AccountQualitySnapshotClient) Create() *AccountQualitySnapshotCreate {
+	mutation := newAccountQualitySnapshotMutation(c.config, OpCreate)
+	return &AccountQualitySnapshotCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of AccountQualitySnapshot entities.
+func (c *AccountQualitySnapshotClient) CreateBulk(builders ...*AccountQualitySnapshotCreate) *AccountQualitySnapshotCreateBulk {
+	return &AccountQualitySnapshotCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *AccountQualitySnapshotClient) MapCreateBulk(slice any, setFunc func(*AccountQualitySnapshotCreate, int)) *AccountQualitySnapshotCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &AccountQualitySnapshotCreateBulk{err: fmt.Errorf("calling to AccountQualitySnapshotClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*AccountQualitySnapshotCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &AccountQualitySnapshotCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for AccountQualitySnapshot.
+func (c *AccountQualitySnapshotClient) Update() *AccountQualitySnapshotUpdate {
+	mutation := newAccountQualitySnapshotMutation(c.config, OpUpdate)
+	return &AccountQualitySnapshotUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *AccountQualitySnapshotClient) UpdateOne(_m *AccountQualitySnapshot) *AccountQualitySnapshotUpdateOne {
+	mutation := newAccountQualitySnapshotMutation(c.config, OpUpdateOne, withAccountQualitySnapshot(_m))
+	return &AccountQualitySnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *AccountQualitySnapshotClient) UpdateOneID(id int64) *AccountQualitySnapshotUpdateOne {
+	mutation := newAccountQualitySnapshotMutation(c.config, OpUpdateOne, withAccountQualitySnapshotID(id))
+	return &AccountQualitySnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for AccountQualitySnapshot.
+func (c *AccountQualitySnapshotClient) Delete() *AccountQualitySnapshotDelete {
+	mutation := newAccountQualitySnapshotMutation(c.config, OpDelete)
+	return &AccountQualitySnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *AccountQualitySnapshotClient) DeleteOne(_m *AccountQualitySnapshot) *AccountQualitySnapshotDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *AccountQualitySnapshotClient) DeleteOneID(id int64) *AccountQualitySnapshotDeleteOne {
+	builder := c.Delete().Where(accountqualitysnapshot.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &AccountQualitySnapshotDeleteOne{builder}
+}
+
+// Query returns a query builder for AccountQualitySnapshot.
+func (c *AccountQualitySnapshotClient) Query() *AccountQualitySnapshotQuery {
+	return &AccountQualitySnapshotQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeAccountQualitySnapshot},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a AccountQualitySnapshot entity by its id.
+func (c *AccountQualitySnapshotClient) Get(ctx context.Context, id int64) (*AccountQualitySnapshot, error) {
+	return c.Query().Where(accountqualitysnapshot.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *AccountQualitySnapshotClient) GetX(ctx context.Context, id int64) *AccountQualitySnapshot {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *AccountQualitySnapshotClient) Hooks() []Hook {
+	return c.hooks.AccountQualitySnapshot
+}
+
+// Interceptors returns the client interceptors.
+func (c *AccountQualitySnapshotClient) Interceptors() []Interceptor {
+	return c.inters.AccountQualitySnapshot
+}
+
+func (c *AccountQualitySnapshotClient) mutate(ctx context.Context, m *AccountQualitySnapshotMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&AccountQualitySnapshotCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&AccountQualitySnapshotUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&AccountQualitySnapshotUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&AccountQualitySnapshotDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown AccountQualitySnapshot mutation op: %q", m.Op())
 	}
 }
 
@@ -7295,10 +7438,10 @@ func (c *UserSubscriptionClient) mutate(ctx context.Context, m *UserSubscription
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		AICreditSnapshot, APIKey, Account, AccountGroup, AccountScheduleUser,
-		Announcement, AnnouncementRead, AuthIdentity, AuthIdentityChannel,
-		BatchImageEvent, BatchImageItem, BatchImageJob, ChannelMonitor,
-		ChannelMonitorDailyRollup, ChannelMonitorHistory,
+		AICreditSnapshot, APIKey, Account, AccountGroup, AccountQualitySnapshot,
+		AccountScheduleUser, Announcement, AnnouncementRead, AuthIdentity,
+		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
+		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
 		IdentityAdoptionDecision, ImageChannelMonitor, ImageChannelMonitorHistory,
 		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,
@@ -7308,10 +7451,10 @@ type (
 		UserPlatformQuota, UserSubscription []ent.Hook
 	}
 	inters struct {
-		AICreditSnapshot, APIKey, Account, AccountGroup, AccountScheduleUser,
-		Announcement, AnnouncementRead, AuthIdentity, AuthIdentityChannel,
-		BatchImageEvent, BatchImageItem, BatchImageJob, ChannelMonitor,
-		ChannelMonitorDailyRollup, ChannelMonitorHistory,
+		AICreditSnapshot, APIKey, Account, AccountGroup, AccountQualitySnapshot,
+		AccountScheduleUser, Announcement, AnnouncementRead, AuthIdentity,
+		AuthIdentityChannel, BatchImageEvent, BatchImageItem, BatchImageJob,
+		ChannelMonitor, ChannelMonitorDailyRollup, ChannelMonitorHistory,
 		ChannelMonitorRequestTemplate, ErrorPassthroughRule, Group, IdempotencyRecord,
 		IdentityAdoptionDecision, ImageChannelMonitor, ImageChannelMonitorHistory,
 		PaymentAuditLog, PaymentOrder, PaymentProviderInstance, PendingAuthSession,

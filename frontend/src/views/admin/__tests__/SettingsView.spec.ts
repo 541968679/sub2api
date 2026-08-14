@@ -11,6 +11,8 @@ const {
   updateWebSearchEmulationConfig,
   getAdminApiKey,
   getOverloadCooldownSettings,
+  getQualityHardCloseSettings,
+  updateQualityHardCloseSettings,
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
@@ -31,6 +33,8 @@ const {
   updateWebSearchEmulationConfig: vi.fn(),
   getAdminApiKey: vi.fn(),
   getOverloadCooldownSettings: vi.fn(),
+  getQualityHardCloseSettings: vi.fn(),
+  updateQualityHardCloseSettings: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
@@ -57,6 +61,8 @@ vi.mock("@/api", () => ({
       updateWebSearchEmulationConfig,
       getAdminApiKey,
       getOverloadCooldownSettings,
+      getQualityHardCloseSettings,
+      updateQualityHardCloseSettings,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -524,6 +530,7 @@ describe("admin SettingsView payment visible method controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -559,6 +566,15 @@ describe("admin SettingsView payment visible method controls", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+    });
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
     });
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
@@ -923,6 +939,7 @@ describe("admin SettingsView wechat connect controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -961,6 +978,15 @@ describe("admin SettingsView wechat connect controls", () => {
     getOverloadCooldownSettings.mockResolvedValue({
       enabled: true,
       cooldown_minutes: 10,
+    });
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
     });
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
@@ -1144,6 +1170,7 @@ describe("admin SettingsView platform quota matrix", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getQualityHardCloseSettings.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -1168,6 +1195,15 @@ describe("admin SettingsView platform quota matrix", () => {
     updateWebSearchEmulationConfig.mockResolvedValue({ enabled: false, providers: [] });
     getAdminApiKey.mockResolvedValue({ exists: false, masked_key: "" });
     getOverloadCooldownSettings.mockResolvedValue({});
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
+    });
     getStreamTimeoutSettings.mockResolvedValue({});
     getRectifierSettings.mockResolvedValue({});
     getBetaPolicySettings.mockResolvedValue({});
@@ -1283,5 +1319,131 @@ describe("admin SettingsView platform quota matrix", () => {
     const quotas = payload["default_platform_quotas"] as Record<string, Record<string, unknown>>;
     // 不管输入是什么，提交值应为 null（而非 "" 或 NaN）
     expect(quotas["anthropic"]?.["daily"]).toBe(null);
+  });
+});
+
+describe("admin SettingsView quality hard-close card", () => {
+  beforeEach(() => {
+    getSettings.mockReset();
+    updateSettings.mockReset();
+    getWebSearchEmulationConfig.mockReset();
+    updateWebSearchEmulationConfig.mockReset();
+    getAdminApiKey.mockReset();
+    getOverloadCooldownSettings.mockReset();
+    getQualityHardCloseSettings.mockReset();
+    updateQualityHardCloseSettings.mockReset();
+    getStreamTimeoutSettings.mockReset();
+    getRectifierSettings.mockReset();
+    getBetaPolicySettings.mockReset();
+    getGroups.mockReset();
+    listProxies.mockReset();
+    getProviders.mockReset();
+    fetchPublicSettings.mockReset();
+    adminSettingsFetch.mockReset();
+    showError.mockReset();
+    showSuccess.mockReset();
+
+    getSettings.mockResolvedValue({ ...baseSettingsResponse });
+    updateSettings.mockImplementation(async (payload) => ({
+      ...baseSettingsResponse,
+      ...payload,
+    }));
+    getWebSearchEmulationConfig.mockResolvedValue({
+      enabled: false,
+      providers: [],
+    });
+    getAdminApiKey.mockResolvedValue({
+      exists: false,
+      masked_key: "",
+    });
+    getOverloadCooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+    });
+    getQualityHardCloseSettings.mockResolvedValue({
+      enabled: false,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.9,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
+    });
+    updateQualityHardCloseSettings.mockResolvedValue({
+      enabled: true,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.85,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
+    });
+    getStreamTimeoutSettings.mockResolvedValue({
+      enabled: true,
+      action: "temp_unsched",
+      temp_unsched_minutes: 5,
+      threshold_count: 3,
+      threshold_window_minutes: 10,
+    });
+    getRectifierSettings.mockResolvedValue({
+      enabled: true,
+      thinking_signature_enabled: true,
+      thinking_budget_enabled: true,
+      apikey_signature_enabled: false,
+      apikey_signature_patterns: [],
+    });
+    getBetaPolicySettings.mockResolvedValue({
+      rules: [],
+    });
+    getGroups.mockResolvedValue([]);
+    listProxies.mockResolvedValue({
+      items: [],
+    });
+    getProviders.mockResolvedValue({ data: [] });
+    fetchPublicSettings.mockResolvedValue({});
+    adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("saves the master switch and template only, converting percent to 0-1", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const card = wrapper.get('[data-test="quality-hard-close-card"]');
+    expect(card.text()).toContain("admin.settings.qualityHardClose.templateHint");
+
+    const toggles = card.findAll(".toggle-stub");
+    expect(toggles.length).toBeGreaterThanOrEqual(1);
+    await toggles[0].setValue(true);
+
+    const percentInput = card.find('input[type="number"][step="0.1"]');
+    await percentInput.setValue("85");
+    await wrapper.get('[data-test="quality-hard-close-save"]').trigger("click");
+    await flushPromises();
+
+    expect(updateQualityHardCloseSettings).toHaveBeenCalledTimes(1);
+    expect(updateQualityHardCloseSettings).toHaveBeenCalledWith({
+      enabled: true,
+      max_p50_ttft_ms: 3000,
+      min_success_rate: 0.85,
+      pause_minutes: 30,
+      min_success_samples: 20,
+      min_ttft_samples: 10,
+      condition: "or",
+    });
+    expect(updateQualityHardCloseSettings.mock.calls[0][0]).not.toHaveProperty(
+      "account_ids",
+    );
+    expect(updateSettings).not.toHaveBeenCalled();
+  });
+
+  it("does not write quality hard-close or enable accounts from the page-level save", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateQualityHardCloseSettings).not.toHaveBeenCalled();
   });
 });

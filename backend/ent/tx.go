@@ -22,6 +22,8 @@ type Tx struct {
 	Account *AccountClient
 	// AccountGroup is the client for interacting with the AccountGroup builders.
 	AccountGroup *AccountGroupClient
+	// AccountQualitySnapshot is the client for interacting with the AccountQualitySnapshot builders.
+	AccountQualitySnapshot *AccountQualitySnapshotClient
 	// AccountScheduleUser is the client for interacting with the AccountScheduleUser builders.
 	AccountScheduleUser *AccountScheduleUserClient
 	// Announcement is the client for interacting with the Announcement builders.
@@ -233,6 +235,7 @@ func (tx *Tx) init() {
 	tx.APIKey = NewAPIKeyClient(tx.config)
 	tx.Account = NewAccountClient(tx.config)
 	tx.AccountGroup = NewAccountGroupClient(tx.config)
+	tx.AccountQualitySnapshot = NewAccountQualitySnapshotClient(tx.config)
 	tx.AccountScheduleUser = NewAccountScheduleUserClient(tx.config)
 	tx.Announcement = NewAnnouncementClient(tx.config)
 	tx.AnnouncementRead = NewAnnouncementReadClient(tx.config)

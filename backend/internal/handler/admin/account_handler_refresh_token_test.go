@@ -45,7 +45,7 @@ func (s *refreshTokenStub) ClearAccountError(ctx context.Context, id int64) (*se
 func setupRefreshTokenHandler(adminSvc service.AdminService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router.POST("/api/v1/admin/accounts/:id/refresh-token", handler.UpdateRefreshToken)
 	return router
 }

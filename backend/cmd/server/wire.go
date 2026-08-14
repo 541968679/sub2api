@@ -102,6 +102,7 @@ func provideCleanup(
 	channelMonitorRunner *service.ChannelMonitorRunner,
 	imageChannelMonitorRunner *service.ImageChannelMonitorRunner,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
+	accountQualityMaintenance *service.AccountQualityMaintenanceService,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -265,6 +266,12 @@ func provideCleanup(
 			{"UserPlatformQuotaUsageFlusher", func() error {
 				if quotaFlusher != nil {
 					quotaFlusher.Stop()
+				}
+				return nil
+			}},
+			{"AccountQualityMaintenanceService", func() error {
+				if accountQualityMaintenance != nil {
+					accountQualityMaintenance.Stop()
 				}
 				return nil
 			}},

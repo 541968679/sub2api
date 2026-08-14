@@ -10,15 +10,17 @@ import (
 
 type qualityStatsBatchRepoStub struct {
 	UsageLogRepository
-	lastIDs   []int64
-	lastStart time.Time
-	result    map[int64]*AccountQualityStats
-	err       error
+	lastIDs    []int64
+	lastStart  time.Time
+	batchCalls [][]int64
+	result     map[int64]*AccountQualityStats
+	err        error
 }
 
 func (s *qualityStatsBatchRepoStub) GetAccountQualityStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*AccountQualityStats, error) {
 	s.lastIDs = append([]int64(nil), accountIDs...)
 	s.lastStart = startTime
+	s.batchCalls = append(s.batchCalls, append([]int64(nil), accountIDs...))
 	if s.err != nil {
 		return nil, s.err
 	}

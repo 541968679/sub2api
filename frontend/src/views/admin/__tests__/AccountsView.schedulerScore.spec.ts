@@ -109,6 +109,7 @@ function mountView() {
         PlatformTypeBadge: true,
         AccountCapacityCell: true,
         AccountStatusIndicator: true,
+        AccountStabilityDialog: true,
         AccountTodayStatsCell: true,
         AccountGroupsCell: true,
         AccountUserScheduleCell: true,

@@ -12,9 +12,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/accountqualitysnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
@@ -56,6 +56,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 const (
@@ -71,6 +72,7 @@ const (
 	TypeAPIKey                        = "APIKey"
 	TypeAccount                       = "Account"
 	TypeAccountGroup                  = "AccountGroup"
+	TypeAccountQualitySnapshot        = "AccountQualitySnapshot"
 	TypeAccountScheduleUser           = "AccountScheduleUser"
 	TypeAnnouncement                  = "Announcement"
 	TypeAnnouncementRead              = "AnnouncementRead"
@@ -6128,6 +6130,1308 @@ func (m *AccountGroupMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown AccountGroup edge %s", name)
+}
+
+// AccountQualitySnapshotMutation represents an operation that mutates the AccountQualitySnapshot nodes in the graph.
+type AccountQualitySnapshotMutation struct {
+	config
+	op                Op
+	typ               string
+	id                *int64
+	account_id        *int64
+	addaccount_id     *int64
+	captured_at       *time.Time
+	window_seconds    *int
+	addwindow_seconds *int
+	success_count     *int64
+	addsuccess_count  *int64
+	error_count       *int64
+	adderror_count    *int64
+	ttft_samples      *int64
+	addttft_samples   *int64
+	success_rate      *float64
+	addsuccess_rate   *float64
+	avg_ttft_ms       *int
+	addavg_ttft_ms    *int
+	p50_ttft_ms       *int
+	addp50_ttft_ms    *int
+	p95_ttft_ms       *int
+	addp95_ttft_ms    *int
+	max_ttft_ms       *int
+	addmax_ttft_ms    *int
+	clearedFields     map[string]struct{}
+	done              bool
+	oldValue          func(context.Context) (*AccountQualitySnapshot, error)
+	predicates        []predicate.AccountQualitySnapshot
+}
+
+var _ ent.Mutation = (*AccountQualitySnapshotMutation)(nil)
+
+// accountqualitysnapshotOption allows management of the mutation configuration using functional options.
+type accountqualitysnapshotOption func(*AccountQualitySnapshotMutation)
+
+// newAccountQualitySnapshotMutation creates new mutation for the AccountQualitySnapshot entity.
+func newAccountQualitySnapshotMutation(c config, op Op, opts ...accountqualitysnapshotOption) *AccountQualitySnapshotMutation {
+	m := &AccountQualitySnapshotMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAccountQualitySnapshot,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAccountQualitySnapshotID sets the ID field of the mutation.
+func withAccountQualitySnapshotID(id int64) accountqualitysnapshotOption {
+	return func(m *AccountQualitySnapshotMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *AccountQualitySnapshot
+		)
+		m.oldValue = func(ctx context.Context) (*AccountQualitySnapshot, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().AccountQualitySnapshot.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAccountQualitySnapshot sets the old AccountQualitySnapshot of the mutation.
+func withAccountQualitySnapshot(node *AccountQualitySnapshot) accountqualitysnapshotOption {
+	return func(m *AccountQualitySnapshotMutation) {
+		m.oldValue = func(context.Context) (*AccountQualitySnapshot, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m AccountQualitySnapshotMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m AccountQualitySnapshotMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *AccountQualitySnapshotMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *AccountQualitySnapshotMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().AccountQualitySnapshot.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAccountID sets the "account_id" field.
+func (m *AccountQualitySnapshotMutation) SetAccountID(i int64) {
+	m.account_id = &i
+	m.addaccount_id = nil
+}
+
+// AccountID returns the value of the "account_id" field in the mutation.
+func (m *AccountQualitySnapshotMutation) AccountID() (r int64, exists bool) {
+	v := m.account_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAccountID returns the old "account_id" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldAccountID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAccountID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAccountID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAccountID: %w", err)
+	}
+	return oldValue.AccountID, nil
+}
+
+// AddAccountID adds i to the "account_id" field.
+func (m *AccountQualitySnapshotMutation) AddAccountID(i int64) {
+	if m.addaccount_id != nil {
+		*m.addaccount_id += i
+	} else {
+		m.addaccount_id = &i
+	}
+}
+
+// AddedAccountID returns the value that was added to the "account_id" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedAccountID() (r int64, exists bool) {
+	v := m.addaccount_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAccountID resets all changes to the "account_id" field.
+func (m *AccountQualitySnapshotMutation) ResetAccountID() {
+	m.account_id = nil
+	m.addaccount_id = nil
+}
+
+// SetCapturedAt sets the "captured_at" field.
+func (m *AccountQualitySnapshotMutation) SetCapturedAt(t time.Time) {
+	m.captured_at = &t
+}
+
+// CapturedAt returns the value of the "captured_at" field in the mutation.
+func (m *AccountQualitySnapshotMutation) CapturedAt() (r time.Time, exists bool) {
+	v := m.captured_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCapturedAt returns the old "captured_at" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldCapturedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCapturedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCapturedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCapturedAt: %w", err)
+	}
+	return oldValue.CapturedAt, nil
+}
+
+// ResetCapturedAt resets all changes to the "captured_at" field.
+func (m *AccountQualitySnapshotMutation) ResetCapturedAt() {
+	m.captured_at = nil
+}
+
+// SetWindowSeconds sets the "window_seconds" field.
+func (m *AccountQualitySnapshotMutation) SetWindowSeconds(i int) {
+	m.window_seconds = &i
+	m.addwindow_seconds = nil
+}
+
+// WindowSeconds returns the value of the "window_seconds" field in the mutation.
+func (m *AccountQualitySnapshotMutation) WindowSeconds() (r int, exists bool) {
+	v := m.window_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWindowSeconds returns the old "window_seconds" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldWindowSeconds(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWindowSeconds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWindowSeconds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWindowSeconds: %w", err)
+	}
+	return oldValue.WindowSeconds, nil
+}
+
+// AddWindowSeconds adds i to the "window_seconds" field.
+func (m *AccountQualitySnapshotMutation) AddWindowSeconds(i int) {
+	if m.addwindow_seconds != nil {
+		*m.addwindow_seconds += i
+	} else {
+		m.addwindow_seconds = &i
+	}
+}
+
+// AddedWindowSeconds returns the value that was added to the "window_seconds" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedWindowSeconds() (r int, exists bool) {
+	v := m.addwindow_seconds
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetWindowSeconds resets all changes to the "window_seconds" field.
+func (m *AccountQualitySnapshotMutation) ResetWindowSeconds() {
+	m.window_seconds = nil
+	m.addwindow_seconds = nil
+}
+
+// SetSuccessCount sets the "success_count" field.
+func (m *AccountQualitySnapshotMutation) SetSuccessCount(i int64) {
+	m.success_count = &i
+	m.addsuccess_count = nil
+}
+
+// SuccessCount returns the value of the "success_count" field in the mutation.
+func (m *AccountQualitySnapshotMutation) SuccessCount() (r int64, exists bool) {
+	v := m.success_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSuccessCount returns the old "success_count" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldSuccessCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSuccessCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSuccessCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSuccessCount: %w", err)
+	}
+	return oldValue.SuccessCount, nil
+}
+
+// AddSuccessCount adds i to the "success_count" field.
+func (m *AccountQualitySnapshotMutation) AddSuccessCount(i int64) {
+	if m.addsuccess_count != nil {
+		*m.addsuccess_count += i
+	} else {
+		m.addsuccess_count = &i
+	}
+}
+
+// AddedSuccessCount returns the value that was added to the "success_count" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedSuccessCount() (r int64, exists bool) {
+	v := m.addsuccess_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetSuccessCount resets all changes to the "success_count" field.
+func (m *AccountQualitySnapshotMutation) ResetSuccessCount() {
+	m.success_count = nil
+	m.addsuccess_count = nil
+}
+
+// SetErrorCount sets the "error_count" field.
+func (m *AccountQualitySnapshotMutation) SetErrorCount(i int64) {
+	m.error_count = &i
+	m.adderror_count = nil
+}
+
+// ErrorCount returns the value of the "error_count" field in the mutation.
+func (m *AccountQualitySnapshotMutation) ErrorCount() (r int64, exists bool) {
+	v := m.error_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldErrorCount returns the old "error_count" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldErrorCount(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldErrorCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldErrorCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldErrorCount: %w", err)
+	}
+	return oldValue.ErrorCount, nil
+}
+
+// AddErrorCount adds i to the "error_count" field.
+func (m *AccountQualitySnapshotMutation) AddErrorCount(i int64) {
+	if m.adderror_count != nil {
+		*m.adderror_count += i
+	} else {
+		m.adderror_count = &i
+	}
+}
+
+// AddedErrorCount returns the value that was added to the "error_count" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedErrorCount() (r int64, exists bool) {
+	v := m.adderror_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetErrorCount resets all changes to the "error_count" field.
+func (m *AccountQualitySnapshotMutation) ResetErrorCount() {
+	m.error_count = nil
+	m.adderror_count = nil
+}
+
+// SetTtftSamples sets the "ttft_samples" field.
+func (m *AccountQualitySnapshotMutation) SetTtftSamples(i int64) {
+	m.ttft_samples = &i
+	m.addttft_samples = nil
+}
+
+// TtftSamples returns the value of the "ttft_samples" field in the mutation.
+func (m *AccountQualitySnapshotMutation) TtftSamples() (r int64, exists bool) {
+	v := m.ttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTtftSamples returns the old "ttft_samples" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldTtftSamples(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTtftSamples is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTtftSamples requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTtftSamples: %w", err)
+	}
+	return oldValue.TtftSamples, nil
+}
+
+// AddTtftSamples adds i to the "ttft_samples" field.
+func (m *AccountQualitySnapshotMutation) AddTtftSamples(i int64) {
+	if m.addttft_samples != nil {
+		*m.addttft_samples += i
+	} else {
+		m.addttft_samples = &i
+	}
+}
+
+// AddedTtftSamples returns the value that was added to the "ttft_samples" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedTtftSamples() (r int64, exists bool) {
+	v := m.addttft_samples
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetTtftSamples resets all changes to the "ttft_samples" field.
+func (m *AccountQualitySnapshotMutation) ResetTtftSamples() {
+	m.ttft_samples = nil
+	m.addttft_samples = nil
+}
+
+// SetSuccessRate sets the "success_rate" field.
+func (m *AccountQualitySnapshotMutation) SetSuccessRate(f float64) {
+	m.success_rate = &f
+	m.addsuccess_rate = nil
+}
+
+// SuccessRate returns the value of the "success_rate" field in the mutation.
+func (m *AccountQualitySnapshotMutation) SuccessRate() (r float64, exists bool) {
+	v := m.success_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSuccessRate returns the old "success_rate" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldSuccessRate(ctx context.Context) (v *float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSuccessRate is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSuccessRate requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSuccessRate: %w", err)
+	}
+	return oldValue.SuccessRate, nil
+}
+
+// AddSuccessRate adds f to the "success_rate" field.
+func (m *AccountQualitySnapshotMutation) AddSuccessRate(f float64) {
+	if m.addsuccess_rate != nil {
+		*m.addsuccess_rate += f
+	} else {
+		m.addsuccess_rate = &f
+	}
+}
+
+// AddedSuccessRate returns the value that was added to the "success_rate" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedSuccessRate() (r float64, exists bool) {
+	v := m.addsuccess_rate
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearSuccessRate clears the value of the "success_rate" field.
+func (m *AccountQualitySnapshotMutation) ClearSuccessRate() {
+	m.success_rate = nil
+	m.addsuccess_rate = nil
+	m.clearedFields[accountqualitysnapshot.FieldSuccessRate] = struct{}{}
+}
+
+// SuccessRateCleared returns if the "success_rate" field was cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) SuccessRateCleared() bool {
+	_, ok := m.clearedFields[accountqualitysnapshot.FieldSuccessRate]
+	return ok
+}
+
+// ResetSuccessRate resets all changes to the "success_rate" field.
+func (m *AccountQualitySnapshotMutation) ResetSuccessRate() {
+	m.success_rate = nil
+	m.addsuccess_rate = nil
+	delete(m.clearedFields, accountqualitysnapshot.FieldSuccessRate)
+}
+
+// SetAvgTtftMs sets the "avg_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) SetAvgTtftMs(i int) {
+	m.avg_ttft_ms = &i
+	m.addavg_ttft_ms = nil
+}
+
+// AvgTtftMs returns the value of the "avg_ttft_ms" field in the mutation.
+func (m *AccountQualitySnapshotMutation) AvgTtftMs() (r int, exists bool) {
+	v := m.avg_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAvgTtftMs returns the old "avg_ttft_ms" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldAvgTtftMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAvgTtftMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAvgTtftMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAvgTtftMs: %w", err)
+	}
+	return oldValue.AvgTtftMs, nil
+}
+
+// AddAvgTtftMs adds i to the "avg_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) AddAvgTtftMs(i int) {
+	if m.addavg_ttft_ms != nil {
+		*m.addavg_ttft_ms += i
+	} else {
+		m.addavg_ttft_ms = &i
+	}
+}
+
+// AddedAvgTtftMs returns the value that was added to the "avg_ttft_ms" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedAvgTtftMs() (r int, exists bool) {
+	v := m.addavg_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAvgTtftMs clears the value of the "avg_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ClearAvgTtftMs() {
+	m.avg_ttft_ms = nil
+	m.addavg_ttft_ms = nil
+	m.clearedFields[accountqualitysnapshot.FieldAvgTtftMs] = struct{}{}
+}
+
+// AvgTtftMsCleared returns if the "avg_ttft_ms" field was cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) AvgTtftMsCleared() bool {
+	_, ok := m.clearedFields[accountqualitysnapshot.FieldAvgTtftMs]
+	return ok
+}
+
+// ResetAvgTtftMs resets all changes to the "avg_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ResetAvgTtftMs() {
+	m.avg_ttft_ms = nil
+	m.addavg_ttft_ms = nil
+	delete(m.clearedFields, accountqualitysnapshot.FieldAvgTtftMs)
+}
+
+// SetP50TtftMs sets the "p50_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) SetP50TtftMs(i int) {
+	m.p50_ttft_ms = &i
+	m.addp50_ttft_ms = nil
+}
+
+// P50TtftMs returns the value of the "p50_ttft_ms" field in the mutation.
+func (m *AccountQualitySnapshotMutation) P50TtftMs() (r int, exists bool) {
+	v := m.p50_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldP50TtftMs returns the old "p50_ttft_ms" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldP50TtftMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldP50TtftMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldP50TtftMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldP50TtftMs: %w", err)
+	}
+	return oldValue.P50TtftMs, nil
+}
+
+// AddP50TtftMs adds i to the "p50_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) AddP50TtftMs(i int) {
+	if m.addp50_ttft_ms != nil {
+		*m.addp50_ttft_ms += i
+	} else {
+		m.addp50_ttft_ms = &i
+	}
+}
+
+// AddedP50TtftMs returns the value that was added to the "p50_ttft_ms" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedP50TtftMs() (r int, exists bool) {
+	v := m.addp50_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearP50TtftMs clears the value of the "p50_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ClearP50TtftMs() {
+	m.p50_ttft_ms = nil
+	m.addp50_ttft_ms = nil
+	m.clearedFields[accountqualitysnapshot.FieldP50TtftMs] = struct{}{}
+}
+
+// P50TtftMsCleared returns if the "p50_ttft_ms" field was cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) P50TtftMsCleared() bool {
+	_, ok := m.clearedFields[accountqualitysnapshot.FieldP50TtftMs]
+	return ok
+}
+
+// ResetP50TtftMs resets all changes to the "p50_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ResetP50TtftMs() {
+	m.p50_ttft_ms = nil
+	m.addp50_ttft_ms = nil
+	delete(m.clearedFields, accountqualitysnapshot.FieldP50TtftMs)
+}
+
+// SetP95TtftMs sets the "p95_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) SetP95TtftMs(i int) {
+	m.p95_ttft_ms = &i
+	m.addp95_ttft_ms = nil
+}
+
+// P95TtftMs returns the value of the "p95_ttft_ms" field in the mutation.
+func (m *AccountQualitySnapshotMutation) P95TtftMs() (r int, exists bool) {
+	v := m.p95_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldP95TtftMs returns the old "p95_ttft_ms" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldP95TtftMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldP95TtftMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldP95TtftMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldP95TtftMs: %w", err)
+	}
+	return oldValue.P95TtftMs, nil
+}
+
+// AddP95TtftMs adds i to the "p95_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) AddP95TtftMs(i int) {
+	if m.addp95_ttft_ms != nil {
+		*m.addp95_ttft_ms += i
+	} else {
+		m.addp95_ttft_ms = &i
+	}
+}
+
+// AddedP95TtftMs returns the value that was added to the "p95_ttft_ms" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedP95TtftMs() (r int, exists bool) {
+	v := m.addp95_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearP95TtftMs clears the value of the "p95_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ClearP95TtftMs() {
+	m.p95_ttft_ms = nil
+	m.addp95_ttft_ms = nil
+	m.clearedFields[accountqualitysnapshot.FieldP95TtftMs] = struct{}{}
+}
+
+// P95TtftMsCleared returns if the "p95_ttft_ms" field was cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) P95TtftMsCleared() bool {
+	_, ok := m.clearedFields[accountqualitysnapshot.FieldP95TtftMs]
+	return ok
+}
+
+// ResetP95TtftMs resets all changes to the "p95_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ResetP95TtftMs() {
+	m.p95_ttft_ms = nil
+	m.addp95_ttft_ms = nil
+	delete(m.clearedFields, accountqualitysnapshot.FieldP95TtftMs)
+}
+
+// SetMaxTtftMs sets the "max_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) SetMaxTtftMs(i int) {
+	m.max_ttft_ms = &i
+	m.addmax_ttft_ms = nil
+}
+
+// MaxTtftMs returns the value of the "max_ttft_ms" field in the mutation.
+func (m *AccountQualitySnapshotMutation) MaxTtftMs() (r int, exists bool) {
+	v := m.max_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMaxTtftMs returns the old "max_ttft_ms" field's value of the AccountQualitySnapshot entity.
+// If the AccountQualitySnapshot object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *AccountQualitySnapshotMutation) OldMaxTtftMs(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMaxTtftMs is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMaxTtftMs requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMaxTtftMs: %w", err)
+	}
+	return oldValue.MaxTtftMs, nil
+}
+
+// AddMaxTtftMs adds i to the "max_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) AddMaxTtftMs(i int) {
+	if m.addmax_ttft_ms != nil {
+		*m.addmax_ttft_ms += i
+	} else {
+		m.addmax_ttft_ms = &i
+	}
+}
+
+// AddedMaxTtftMs returns the value that was added to the "max_ttft_ms" field in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedMaxTtftMs() (r int, exists bool) {
+	v := m.addmax_ttft_ms
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMaxTtftMs clears the value of the "max_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ClearMaxTtftMs() {
+	m.max_ttft_ms = nil
+	m.addmax_ttft_ms = nil
+	m.clearedFields[accountqualitysnapshot.FieldMaxTtftMs] = struct{}{}
+}
+
+// MaxTtftMsCleared returns if the "max_ttft_ms" field was cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) MaxTtftMsCleared() bool {
+	_, ok := m.clearedFields[accountqualitysnapshot.FieldMaxTtftMs]
+	return ok
+}
+
+// ResetMaxTtftMs resets all changes to the "max_ttft_ms" field.
+func (m *AccountQualitySnapshotMutation) ResetMaxTtftMs() {
+	m.max_ttft_ms = nil
+	m.addmax_ttft_ms = nil
+	delete(m.clearedFields, accountqualitysnapshot.FieldMaxTtftMs)
+}
+
+// Where appends a list predicates to the AccountQualitySnapshotMutation builder.
+func (m *AccountQualitySnapshotMutation) Where(ps ...predicate.AccountQualitySnapshot) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the AccountQualitySnapshotMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *AccountQualitySnapshotMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.AccountQualitySnapshot, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *AccountQualitySnapshotMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *AccountQualitySnapshotMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (AccountQualitySnapshot).
+func (m *AccountQualitySnapshotMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *AccountQualitySnapshotMutation) Fields() []string {
+	fields := make([]string, 0, 11)
+	if m.account_id != nil {
+		fields = append(fields, accountqualitysnapshot.FieldAccountID)
+	}
+	if m.captured_at != nil {
+		fields = append(fields, accountqualitysnapshot.FieldCapturedAt)
+	}
+	if m.window_seconds != nil {
+		fields = append(fields, accountqualitysnapshot.FieldWindowSeconds)
+	}
+	if m.success_count != nil {
+		fields = append(fields, accountqualitysnapshot.FieldSuccessCount)
+	}
+	if m.error_count != nil {
+		fields = append(fields, accountqualitysnapshot.FieldErrorCount)
+	}
+	if m.ttft_samples != nil {
+		fields = append(fields, accountqualitysnapshot.FieldTtftSamples)
+	}
+	if m.success_rate != nil {
+		fields = append(fields, accountqualitysnapshot.FieldSuccessRate)
+	}
+	if m.avg_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldAvgTtftMs)
+	}
+	if m.p50_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldP50TtftMs)
+	}
+	if m.p95_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldP95TtftMs)
+	}
+	if m.max_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldMaxTtftMs)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *AccountQualitySnapshotMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case accountqualitysnapshot.FieldAccountID:
+		return m.AccountID()
+	case accountqualitysnapshot.FieldCapturedAt:
+		return m.CapturedAt()
+	case accountqualitysnapshot.FieldWindowSeconds:
+		return m.WindowSeconds()
+	case accountqualitysnapshot.FieldSuccessCount:
+		return m.SuccessCount()
+	case accountqualitysnapshot.FieldErrorCount:
+		return m.ErrorCount()
+	case accountqualitysnapshot.FieldTtftSamples:
+		return m.TtftSamples()
+	case accountqualitysnapshot.FieldSuccessRate:
+		return m.SuccessRate()
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		return m.AvgTtftMs()
+	case accountqualitysnapshot.FieldP50TtftMs:
+		return m.P50TtftMs()
+	case accountqualitysnapshot.FieldP95TtftMs:
+		return m.P95TtftMs()
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		return m.MaxTtftMs()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *AccountQualitySnapshotMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case accountqualitysnapshot.FieldAccountID:
+		return m.OldAccountID(ctx)
+	case accountqualitysnapshot.FieldCapturedAt:
+		return m.OldCapturedAt(ctx)
+	case accountqualitysnapshot.FieldWindowSeconds:
+		return m.OldWindowSeconds(ctx)
+	case accountqualitysnapshot.FieldSuccessCount:
+		return m.OldSuccessCount(ctx)
+	case accountqualitysnapshot.FieldErrorCount:
+		return m.OldErrorCount(ctx)
+	case accountqualitysnapshot.FieldTtftSamples:
+		return m.OldTtftSamples(ctx)
+	case accountqualitysnapshot.FieldSuccessRate:
+		return m.OldSuccessRate(ctx)
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		return m.OldAvgTtftMs(ctx)
+	case accountqualitysnapshot.FieldP50TtftMs:
+		return m.OldP50TtftMs(ctx)
+	case accountqualitysnapshot.FieldP95TtftMs:
+		return m.OldP95TtftMs(ctx)
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		return m.OldMaxTtftMs(ctx)
+	}
+	return nil, fmt.Errorf("unknown AccountQualitySnapshot field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AccountQualitySnapshotMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case accountqualitysnapshot.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAccountID(v)
+		return nil
+	case accountqualitysnapshot.FieldCapturedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCapturedAt(v)
+		return nil
+	case accountqualitysnapshot.FieldWindowSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWindowSeconds(v)
+		return nil
+	case accountqualitysnapshot.FieldSuccessCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSuccessCount(v)
+		return nil
+	case accountqualitysnapshot.FieldErrorCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetErrorCount(v)
+		return nil
+	case accountqualitysnapshot.FieldTtftSamples:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTtftSamples(v)
+		return nil
+	case accountqualitysnapshot.FieldSuccessRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSuccessRate(v)
+		return nil
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAvgTtftMs(v)
+		return nil
+	case accountqualitysnapshot.FieldP50TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetP50TtftMs(v)
+		return nil
+	case accountqualitysnapshot.FieldP95TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetP95TtftMs(v)
+		return nil
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxTtftMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AccountQualitySnapshot field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *AccountQualitySnapshotMutation) AddedFields() []string {
+	var fields []string
+	if m.addaccount_id != nil {
+		fields = append(fields, accountqualitysnapshot.FieldAccountID)
+	}
+	if m.addwindow_seconds != nil {
+		fields = append(fields, accountqualitysnapshot.FieldWindowSeconds)
+	}
+	if m.addsuccess_count != nil {
+		fields = append(fields, accountqualitysnapshot.FieldSuccessCount)
+	}
+	if m.adderror_count != nil {
+		fields = append(fields, accountqualitysnapshot.FieldErrorCount)
+	}
+	if m.addttft_samples != nil {
+		fields = append(fields, accountqualitysnapshot.FieldTtftSamples)
+	}
+	if m.addsuccess_rate != nil {
+		fields = append(fields, accountqualitysnapshot.FieldSuccessRate)
+	}
+	if m.addavg_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldAvgTtftMs)
+	}
+	if m.addp50_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldP50TtftMs)
+	}
+	if m.addp95_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldP95TtftMs)
+	}
+	if m.addmax_ttft_ms != nil {
+		fields = append(fields, accountqualitysnapshot.FieldMaxTtftMs)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *AccountQualitySnapshotMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case accountqualitysnapshot.FieldAccountID:
+		return m.AddedAccountID()
+	case accountqualitysnapshot.FieldWindowSeconds:
+		return m.AddedWindowSeconds()
+	case accountqualitysnapshot.FieldSuccessCount:
+		return m.AddedSuccessCount()
+	case accountqualitysnapshot.FieldErrorCount:
+		return m.AddedErrorCount()
+	case accountqualitysnapshot.FieldTtftSamples:
+		return m.AddedTtftSamples()
+	case accountqualitysnapshot.FieldSuccessRate:
+		return m.AddedSuccessRate()
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		return m.AddedAvgTtftMs()
+	case accountqualitysnapshot.FieldP50TtftMs:
+		return m.AddedP50TtftMs()
+	case accountqualitysnapshot.FieldP95TtftMs:
+		return m.AddedP95TtftMs()
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		return m.AddedMaxTtftMs()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *AccountQualitySnapshotMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case accountqualitysnapshot.FieldAccountID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAccountID(v)
+		return nil
+	case accountqualitysnapshot.FieldWindowSeconds:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddWindowSeconds(v)
+		return nil
+	case accountqualitysnapshot.FieldSuccessCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSuccessCount(v)
+		return nil
+	case accountqualitysnapshot.FieldErrorCount:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddErrorCount(v)
+		return nil
+	case accountqualitysnapshot.FieldTtftSamples:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddTtftSamples(v)
+		return nil
+	case accountqualitysnapshot.FieldSuccessRate:
+		v, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddSuccessRate(v)
+		return nil
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAvgTtftMs(v)
+		return nil
+	case accountqualitysnapshot.FieldP50TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddP50TtftMs(v)
+		return nil
+	case accountqualitysnapshot.FieldP95TtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddP95TtftMs(v)
+		return nil
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxTtftMs(v)
+		return nil
+	}
+	return fmt.Errorf("unknown AccountQualitySnapshot numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *AccountQualitySnapshotMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(accountqualitysnapshot.FieldSuccessRate) {
+		fields = append(fields, accountqualitysnapshot.FieldSuccessRate)
+	}
+	if m.FieldCleared(accountqualitysnapshot.FieldAvgTtftMs) {
+		fields = append(fields, accountqualitysnapshot.FieldAvgTtftMs)
+	}
+	if m.FieldCleared(accountqualitysnapshot.FieldP50TtftMs) {
+		fields = append(fields, accountqualitysnapshot.FieldP50TtftMs)
+	}
+	if m.FieldCleared(accountqualitysnapshot.FieldP95TtftMs) {
+		fields = append(fields, accountqualitysnapshot.FieldP95TtftMs)
+	}
+	if m.FieldCleared(accountqualitysnapshot.FieldMaxTtftMs) {
+		fields = append(fields, accountqualitysnapshot.FieldMaxTtftMs)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *AccountQualitySnapshotMutation) ClearField(name string) error {
+	switch name {
+	case accountqualitysnapshot.FieldSuccessRate:
+		m.ClearSuccessRate()
+		return nil
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		m.ClearAvgTtftMs()
+		return nil
+	case accountqualitysnapshot.FieldP50TtftMs:
+		m.ClearP50TtftMs()
+		return nil
+	case accountqualitysnapshot.FieldP95TtftMs:
+		m.ClearP95TtftMs()
+		return nil
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		m.ClearMaxTtftMs()
+		return nil
+	}
+	return fmt.Errorf("unknown AccountQualitySnapshot nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *AccountQualitySnapshotMutation) ResetField(name string) error {
+	switch name {
+	case accountqualitysnapshot.FieldAccountID:
+		m.ResetAccountID()
+		return nil
+	case accountqualitysnapshot.FieldCapturedAt:
+		m.ResetCapturedAt()
+		return nil
+	case accountqualitysnapshot.FieldWindowSeconds:
+		m.ResetWindowSeconds()
+		return nil
+	case accountqualitysnapshot.FieldSuccessCount:
+		m.ResetSuccessCount()
+		return nil
+	case accountqualitysnapshot.FieldErrorCount:
+		m.ResetErrorCount()
+		return nil
+	case accountqualitysnapshot.FieldTtftSamples:
+		m.ResetTtftSamples()
+		return nil
+	case accountqualitysnapshot.FieldSuccessRate:
+		m.ResetSuccessRate()
+		return nil
+	case accountqualitysnapshot.FieldAvgTtftMs:
+		m.ResetAvgTtftMs()
+		return nil
+	case accountqualitysnapshot.FieldP50TtftMs:
+		m.ResetP50TtftMs()
+		return nil
+	case accountqualitysnapshot.FieldP95TtftMs:
+		m.ResetP95TtftMs()
+		return nil
+	case accountqualitysnapshot.FieldMaxTtftMs:
+		m.ResetMaxTtftMs()
+		return nil
+	}
+	return fmt.Errorf("unknown AccountQualitySnapshot field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *AccountQualitySnapshotMutation) AddedIDs(name string) []ent.Value {
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *AccountQualitySnapshotMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *AccountQualitySnapshotMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 0)
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *AccountQualitySnapshotMutation) EdgeCleared(name string) bool {
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *AccountQualitySnapshotMutation) ClearEdge(name string) error {
+	return fmt.Errorf("unknown AccountQualitySnapshot unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *AccountQualitySnapshotMutation) ResetEdge(name string) error {
+	return fmt.Errorf("unknown AccountQualitySnapshot edge %s", name)
 }
 
 // AccountScheduleUserMutation represents an operation that mutates the AccountScheduleUser nodes in the graph.

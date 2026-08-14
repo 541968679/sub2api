@@ -1,5 +1,14 @@
 <template>
-  <div class="min-w-[5.5rem]">
+  <component
+    :is="clickable ? 'button' : 'div'"
+    :type="clickable ? 'button' : undefined"
+    class="min-w-[5.5rem]"
+    :class="clickable ? 'w-full rounded-md px-0.5 py-0.5 text-left transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 dark:hover:bg-dark-700' : undefined"
+    :data-test="clickable ? 'account-quality-cell-button' : 'account-quality-cell'"
+    :aria-label="clickable ? t('admin.accounts.stability.openAria') : undefined"
+    :title="clickable && !tooltipText ? t('admin.accounts.stability.clickToOpen') : undefined"
+    @click="onClick"
+  >
     <div v-if="loading && !hasStats" class="h-3 w-14 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
     <div v-else-if="error && !hasStats" class="text-xs text-red-500">—</div>
     <div
@@ -25,7 +34,7 @@
       {{ displayText }}
     </div>
     <div v-else class="text-sm text-gray-400 dark:text-dark-500">—</div>
-  </div>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -39,13 +48,19 @@ const props = withDefaults(
     stats?: AccountQualityStats | null
     loading?: boolean
     error?: string | null
+    clickable?: boolean
   }>(),
   {
     stats: null,
     loading: false,
-    error: null
+    error: null,
+    clickable: false
   }
 )
+
+const emit = defineEmits<{
+  (e: 'click'): void
+}>()
 
 const { t } = useI18n()
 
@@ -97,8 +112,10 @@ const successToneClass = computed(() => {
 const tooltipText = computed(() => {
   const stats = props.stats
   if (!stats) return ''
+  const clickHint = props.clickable ? t('admin.accounts.stability.clickToOpen') : ''
+  let base = ''
   if (props.mode === 'ttft') {
-    return t('admin.accounts.quality.ttftTooltip', {
+    base = t('admin.accounts.quality.ttftTooltip', {
       windowMinutes: Math.round((stats.window_seconds || 900) / 60),
       samples: stats.ttft_samples ?? 0,
       p50: stats.p50_ttft_ms ?? '—',
@@ -106,12 +123,20 @@ const tooltipText = computed(() => {
       avg: stats.avg_ttft_ms ?? '—',
       max: stats.max_ttft_ms ?? '—'
     })
+  } else {
+    base = t('admin.accounts.quality.tooltip', {
+      windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+      success: stats.success_count ?? 0,
+      error: stats.error_count ?? 0,
+      ttftSamples: stats.ttft_samples ?? 0
+    })
   }
-  return t('admin.accounts.quality.tooltip', {
-    windowMinutes: Math.round((stats.window_seconds || 900) / 60),
-    success: stats.success_count ?? 0,
-    error: stats.error_count ?? 0,
-    ttftSamples: stats.ttft_samples ?? 0
-  })
+  return clickHint ? `${base}\n${clickHint}` : base
 })
+
+function onClick(event: Event) {
+  if (!props.clickable) return
+  event.stopPropagation()
+  emit('click')
+}
 </script>

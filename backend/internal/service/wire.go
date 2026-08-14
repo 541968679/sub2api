@@ -200,6 +200,23 @@ func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiToke
 	return NewOAuthRefreshAPI(accountRepo, tokenCache)
 }
 
+// ProvideAccountQualityMaintenanceService creates and starts the 5-minute quality snapshot job.
+func ProvideAccountQualityMaintenanceService(
+	repo AccountQualitySnapshotRepository,
+	usageLogs UsageLogRepository,
+	timingWheel *TimingWheelService,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+	accountRepo AccountRepository,
+	settings *SettingService,
+) *AccountQualityMaintenanceService {
+	svc := NewAccountQualityMaintenanceService(repo, usageLogs, timingWheel)
+	svc.SetLeaderLock(lockCache, db)
+	svc.SetHardCloseEvaluator(NewAccountQualityHardCloseEvaluator(accountRepo, settings))
+	svc.Start()
+	return svc
+}
+
 // ProvideDashboardAggregationService 创建并启动仪表盘聚合服务
 func ProvideDashboardAggregationService(repo DashboardAggregationRepository, timingWheel *TimingWheelService, lockCache LeaderLockCache, db *sql.DB, cfg *config.Config) *DashboardAggregationService {
 	svc := NewDashboardAggregationService(repo, timingWheel, cfg)
@@ -621,6 +638,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
+	ProvideAccountQualityMaintenanceService,
 	ProvideUsageCleanupService,
 	ProvideDeferredService,
 	ProvideAntigravityQuotaFetcher,

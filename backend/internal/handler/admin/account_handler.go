@@ -63,6 +63,7 @@ type AccountHandler struct {
 	rpmCache                service.RPMCache
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 	settingService          *service.SettingService
+	qualityMaintenance      *service.AccountQualityMaintenanceService
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -82,6 +83,7 @@ func NewAccountHandler(
 	rpmCache service.RPMCache,
 	tokenCacheInvalidator service.TokenCacheInvalidator,
 	settingService *service.SettingService,
+	qualityMaintenance *service.AccountQualityMaintenanceService,
 ) *AccountHandler {
 	return &AccountHandler{
 		adminService:            adminService,
@@ -99,6 +101,7 @@ func NewAccountHandler(
 		rpmCache:                rpmCache,
 		tokenCacheInvalidator:   tokenCacheInvalidator,
 		settingService:          settingService,
+		qualityMaintenance:      qualityMaintenance,
 	}
 }
 
@@ -125,27 +128,27 @@ type CreateAccountRequest struct {
 // UpdateAccountRequest represents update account request
 // 使用指针类型来区分"未提供"和"设置为0"
 type UpdateAccountRequest struct {
-	Name                    string         `json:"name"`
-	Notes                   *string        `json:"notes"`
-	Type                    string         `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
-	Credentials             map[string]any `json:"credentials"`
-	Extra                   map[string]any `json:"extra"`
-	ProxyID                 *int64         `json:"proxy_id"`
-	Concurrency             *int           `json:"concurrency"`
-	Priority                *int           `json:"priority"`
-	RateMultiplier          *float64       `json:"rate_multiplier"`
-	LoadFactor              *int           `json:"load_factor"`
-	Status                  string         `json:"status" binding:"omitempty,oneof=active inactive error"`
-	GroupIDs                *[]int64       `json:"group_ids"`
-	ExpiresAt               *int64         `json:"expires_at"`
-	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
-	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
-	UserScheduleMode        *string                       `json:"user_schedule_mode"`
-	ScheduleUserIDs         *[]int64                      `json:"schedule_user_ids"`
-	AllowUserIDs            *[]int64                      `json:"allow_user_ids"`
-	DenyUserIDs             *[]int64                      `json:"deny_user_ids"`
+	Name                    string                          `json:"name"`
+	Notes                   *string                         `json:"notes"`
+	Type                    string                          `json:"type" binding:"omitempty,oneof=oauth setup-token apikey upstream bedrock service_account"`
+	Credentials             map[string]any                  `json:"credentials"`
+	Extra                   map[string]any                  `json:"extra"`
+	ProxyID                 *int64                          `json:"proxy_id"`
+	Concurrency             *int                            `json:"concurrency"`
+	Priority                *int                            `json:"priority"`
+	RateMultiplier          *float64                        `json:"rate_multiplier"`
+	LoadFactor              *int                            `json:"load_factor"`
+	Status                  string                          `json:"status" binding:"omitempty,oneof=active inactive error"`
+	GroupIDs                *[]int64                        `json:"group_ids"`
+	ExpiresAt               *int64                          `json:"expires_at"`
+	AutoPauseOnExpired      *bool                           `json:"auto_pause_on_expired"`
+	ConfirmMixedChannelRisk *bool                           `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+	UserScheduleMode        *string                         `json:"user_schedule_mode"`
+	ScheduleUserIDs         *[]int64                        `json:"schedule_user_ids"`
+	AllowUserIDs            *[]int64                        `json:"allow_user_ids"`
+	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
 	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
-	UserConcurrencyPatch    *service.UserConcurrencyPatch `json:"user_concurrency_patch"`
+	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
 }
 
 // UpdateRefreshTokenRequest represents a manual refresh-token replacement request.
@@ -158,26 +161,26 @@ type UpdateRefreshTokenRequest struct {
 
 // BulkUpdateAccountsRequest represents the payload for bulk editing accounts
 type BulkUpdateAccountsRequest struct {
-	AccountIDs              []int64                   `json:"account_ids"`
-	Filters                 *BulkUpdateAccountFilters `json:"filters"`
-	Name                    string                    `json:"name"`
-	ProxyID                 *int64                    `json:"proxy_id"`
-	Concurrency             *int                      `json:"concurrency"`
-	Priority                *int                      `json:"priority"`
-	RateMultiplier          *float64                  `json:"rate_multiplier"`
-	LoadFactor              *int                      `json:"load_factor"`
-	Status                  string                    `json:"status" binding:"omitempty,oneof=active inactive error"`
-	Schedulable             *bool                     `json:"schedulable"`
-	GroupIDs                *[]int64                  `json:"group_ids"`
-	Credentials             map[string]any            `json:"credentials"`
-	Extra                   map[string]any            `json:"extra"`
-	ConfirmMixedChannelRisk *bool                     `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
-	UserScheduleMode        *string                       `json:"user_schedule_mode"`
-	ScheduleUserIDs         *[]int64                      `json:"schedule_user_ids"`
-	AllowUserIDs            *[]int64                      `json:"allow_user_ids"`
-	DenyUserIDs             *[]int64                      `json:"deny_user_ids"`
+	AccountIDs              []int64                         `json:"account_ids"`
+	Filters                 *BulkUpdateAccountFilters       `json:"filters"`
+	Name                    string                          `json:"name"`
+	ProxyID                 *int64                          `json:"proxy_id"`
+	Concurrency             *int                            `json:"concurrency"`
+	Priority                *int                            `json:"priority"`
+	RateMultiplier          *float64                        `json:"rate_multiplier"`
+	LoadFactor              *int                            `json:"load_factor"`
+	Status                  string                          `json:"status" binding:"omitempty,oneof=active inactive error"`
+	Schedulable             *bool                           `json:"schedulable"`
+	GroupIDs                *[]int64                        `json:"group_ids"`
+	Credentials             map[string]any                  `json:"credentials"`
+	Extra                   map[string]any                  `json:"extra"`
+	ConfirmMixedChannelRisk *bool                           `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
+	UserScheduleMode        *string                         `json:"user_schedule_mode"`
+	ScheduleUserIDs         *[]int64                        `json:"schedule_user_ids"`
+	AllowUserIDs            *[]int64                        `json:"allow_user_ids"`
+	DenyUserIDs             *[]int64                        `json:"deny_user_ids"`
 	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
-	UserConcurrencyPatch    *service.UserConcurrencyPatch `json:"user_concurrency_patch"`
+	UserConcurrencyPatch    *service.UserConcurrencyPatch   `json:"user_concurrency_patch"`
 }
 
 type BulkUpdateAccountFilters struct {
@@ -2397,6 +2400,141 @@ func (h *AccountHandler) GetBatchQualityStats(c *gin.Context) {
 	response.Success(c, payload)
 }
 
+// GetQualityHistory returns persisted 15-minute quality snapshots for one account.
+// GET /api/v1/admin/accounts/:id/quality-history?from=&to=
+// Default to=now, from=to-24h. Range must not exceed 7 days.
+func (h *AccountHandler) GetQualityHistory(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	from, err := parseAccountQualityHistoryTime(c.Query("from"))
+	if err != nil {
+		response.BadRequest(c, "Invalid from")
+		return
+	}
+	to, err := parseAccountQualityHistoryTime(c.Query("to"))
+	if err != nil {
+		response.BadRequest(c, "Invalid to")
+		return
+	}
+
+	normalizedFrom, normalizedTo, err := service.NormalizeAccountQualityHistoryRange(from, to, time.Now().UTC())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	if h.qualityMaintenance == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Account quality history unavailable")
+		return
+	}
+
+	items, err := h.qualityMaintenance.ListHistory(c.Request.Context(), accountID, normalizedFrom, normalizedTo)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if items == nil {
+		items = []service.AccountQualityHistoryItem{}
+	}
+
+	response.Success(c, gin.H{
+		"items": items,
+		"from":  normalizedFrom.Format(time.RFC3339),
+		"to":    normalizedTo.Format(time.RFC3339),
+	})
+}
+
+// GetQualityHardClose returns the account overlay plus the resolved template.
+// GET /api/v1/admin/accounts/:id/quality-hard-close
+func (h *AccountHandler) GetQualityHardClose(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.settingService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Quality hard-close settings unavailable")
+		return
+	}
+
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	global, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, service.BuildAccountQualityHardCloseView(global, account.Extra))
+}
+
+// UpdateQualityHardClose writes only extra.quality_hard_close.
+// PUT /api/v1/admin/accounts/:id/quality-hard-close
+func (h *AccountHandler) UpdateQualityHardClose(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	if h.settingService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Quality hard-close settings unavailable")
+		return
+	}
+
+	var overlay service.AccountQualityHardCloseOverlay
+	if err := c.ShouldBindJSON(&overlay); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := service.ValidateAccountQualityHardCloseOverlay(&overlay); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	if _, err := h.adminService.GetAccount(c.Request.Context(), accountID); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := h.adminService.UpdateAccountExtra(c.Request.Context(), accountID, map[string]any{
+		service.AccountExtraQualityHardClose: overlay,
+	}); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	global, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, service.AccountQualityHardCloseView{
+		Overlay:       overlay,
+		Resolved:      service.ResolveAccountQualityHardClose(*global, overlay),
+		GlobalEnabled: global.Enabled,
+	})
+}
+
+func parseAccountQualityHistoryTime(raw string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, nil
+	}
+	if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return t.UTC(), nil
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.UTC(), nil
+}
+
 // SetSchedulableRequest represents the request body for setting schedulable status
 type SetSchedulableRequest struct {
 	Schedulable bool `json:"schedulable"`
@@ -2455,9 +2593,9 @@ type SetDisplayBalanceRequest struct {
 
 // Display-only balance keys (must match service/burn_rate.go constants; display-only).
 const (
-	extraDisplayBalanceTotalUSD  = "display_balance_total_usd"
-	extraDisplayBalanceUsedUSD   = "display_balance_used_usd"
-	extraUpstreamBalanceUsedUSD  = "upstream_balance_used_usd"
+	extraDisplayBalanceTotalUSD = "display_balance_total_usd"
+	extraDisplayBalanceUsedUSD  = "display_balance_used_usd"
+	extraUpstreamBalanceUsedUSD = "upstream_balance_used_usd"
 )
 
 // SetDisplayBalance updates display-only used/total balance for account list UI.

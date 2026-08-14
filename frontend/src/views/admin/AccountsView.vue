@@ -505,10 +505,12 @@
           </template>
           <template #cell-quality_ttft="{ row }">
             <AccountQualityCell
+              clickable
               mode="ttft"
               :stats="qualityStatsByAccountId[String(row.id)] ?? null"
               :loading="qualityStatsLoading"
               :error="qualityStatsError"
+              @click="openStabilityDialog(row)"
             />
           </template>
           <template #header-quality_success_rate="{ column }">
@@ -519,10 +521,12 @@
           </template>
           <template #cell-quality_success_rate="{ row }">
             <AccountQualityCell
+              clickable
               mode="success_rate"
               :stats="qualityStatsByAccountId[String(row.id)] ?? null"
               :loading="qualityStatsLoading"
               :error="qualityStatsError"
+              @click="openStabilityDialog(row)"
             />
           </template>
           <template #cell-groups="{ row }">
@@ -696,6 +700,7 @@
       @close="showBulkEdit = false"
       @updated="handleBulkUpdated"
     />
+    <AccountStabilityDialog :show="showStability" :account="stabilityAcc" @close="showStability = false" />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
     <ConfirmDialog :show="showSparkShadowDialog" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: sparkShadowParent?.name || '' })" :confirm-text="t('common.confirm')" :cancel-text="t('common.cancel')" @confirm="confirmCreateSparkShadow" @cancel="cancelCreateSparkShadow" />
@@ -810,6 +815,7 @@ import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
 import AccountQualityCell from '@/components/account/AccountQualityCell.vue'
+import AccountStabilityDialog from '@/components/account/AccountStabilityDialog.vue'
 import AccountGroupsCell from '@/components/account/AccountGroupsCell.vue'
 import AccountUserScheduleCell from '@/components/account/AccountUserScheduleCell.vue'
 import AccountCapacityCell from '@/components/account/AccountCapacityCell.vue'
@@ -909,6 +915,8 @@ const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const selectingAllFiltered = ref(false)
 const showTempUnsched = ref(false)
+const showStability = ref(false)
+const stabilityAcc = ref<Account | null>(null)
 const showDeleteDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
@@ -1782,6 +1790,7 @@ const isAnyModalOpen = computed(() => {
     showExportDataDialog.value ||
     showBulkEdit.value ||
     showTempUnsched.value ||
+    showStability.value ||
     showDeleteDialog.value ||
     showReAuth.value ||
     showUpdateRt.value ||
@@ -3019,6 +3028,10 @@ const handleToggleFallbackOnly = async (a: Account) => {
   } finally {
     inlineSavingId.value = null
   }
+}
+const openStabilityDialog = (account: Account) => {
+  stabilityAcc.value = account
+  showStability.value = true
 }
 const handleShowTempUnsched = (a: Account) => { tempUnschedAcc.value = a; showTempUnsched.value = true }
 const handleTempUnschedReset = async (updated: Account) => {

@@ -66,6 +66,8 @@ var schedulerNeutralExtraKeys = map[string]struct{}{
 	"session_window_utilization": {},
 	// Admin list pin rank only; does not affect gateway scheduling.
 	"list_order": {},
+	// Quality hard-close overlay is config-only; pause uses SetTempUnschedulable.
+	"quality_hard_close": {},
 }
 
 // NewAccountRepository 创建账户仓储实例。

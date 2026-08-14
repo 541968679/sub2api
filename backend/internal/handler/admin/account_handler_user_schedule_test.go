@@ -31,6 +31,7 @@ func newAccountHandlerForUserScheduleTest(adminSvc *stubAdminService) *AccountHa
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 }
 

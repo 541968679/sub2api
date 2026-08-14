@@ -9,6 +9,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
+	"github.com/Wei-Shaw/sub2api/ent/accountqualitysnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
 	"github.com/Wei-Shaw/sub2api/ent/aicreditsnapshot"
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
@@ -303,6 +304,24 @@ func init() {
 	accountgroupDescCreatedAt := accountgroupFields[3].Descriptor()
 	// accountgroup.DefaultCreatedAt holds the default value on creation for the created_at field.
 	accountgroup.DefaultCreatedAt = accountgroupDescCreatedAt.Default.(func() time.Time)
+	accountqualitysnapshotFields := schema.AccountQualitySnapshot{}.Fields()
+	_ = accountqualitysnapshotFields
+	// accountqualitysnapshotDescWindowSeconds is the schema descriptor for window_seconds field.
+	accountqualitysnapshotDescWindowSeconds := accountqualitysnapshotFields[2].Descriptor()
+	// accountqualitysnapshot.DefaultWindowSeconds holds the default value on creation for the window_seconds field.
+	accountqualitysnapshot.DefaultWindowSeconds = accountqualitysnapshotDescWindowSeconds.Default.(int)
+	// accountqualitysnapshotDescSuccessCount is the schema descriptor for success_count field.
+	accountqualitysnapshotDescSuccessCount := accountqualitysnapshotFields[3].Descriptor()
+	// accountqualitysnapshot.DefaultSuccessCount holds the default value on creation for the success_count field.
+	accountqualitysnapshot.DefaultSuccessCount = accountqualitysnapshotDescSuccessCount.Default.(int64)
+	// accountqualitysnapshotDescErrorCount is the schema descriptor for error_count field.
+	accountqualitysnapshotDescErrorCount := accountqualitysnapshotFields[4].Descriptor()
+	// accountqualitysnapshot.DefaultErrorCount holds the default value on creation for the error_count field.
+	accountqualitysnapshot.DefaultErrorCount = accountqualitysnapshotDescErrorCount.Default.(int64)
+	// accountqualitysnapshotDescTtftSamples is the schema descriptor for ttft_samples field.
+	accountqualitysnapshotDescTtftSamples := accountqualitysnapshotFields[5].Descriptor()
+	// accountqualitysnapshot.DefaultTtftSamples holds the default value on creation for the ttft_samples field.
+	accountqualitysnapshot.DefaultTtftSamples = accountqualitysnapshotDescTtftSamples.Default.(int64)
 	accountscheduleuserFields := schema.AccountScheduleUser{}.Fields()
 	_ = accountscheduleuserFields
 	// accountscheduleuserDescCreatedAt is the schema descriptor for created_at field.

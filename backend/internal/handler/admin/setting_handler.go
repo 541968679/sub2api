@@ -2978,6 +2978,74 @@ func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
 	})
 }
 
+func qualityHardCloseSettingsDTO(settings *service.QualityHardCloseSettings) dto.QualityHardCloseSettings {
+	if settings == nil {
+		settings = service.DefaultQualityHardCloseSettings()
+	}
+	return dto.QualityHardCloseSettings{
+		Enabled:           settings.Enabled,
+		MaxP50TTFTMs:      settings.MaxP50TTFTMs,
+		MinSuccessRate:    settings.MinSuccessRate,
+		PauseMinutes:      settings.PauseMinutes,
+		MinSuccessSamples: settings.MinSuccessSamples,
+		MinTTFTSamples:    settings.MinTTFTSamples,
+		Condition:         settings.Condition,
+	}
+}
+
+// GetQualityHardCloseSettings 获取账号质量硬关闭全局配置
+// GET /api/v1/admin/settings/quality-hard-close
+func (h *SettingHandler) GetQualityHardCloseSettings(c *gin.Context) {
+	settings, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, qualityHardCloseSettingsDTO(settings))
+}
+
+// UpdateQualityHardCloseSettingsRequest 更新账号质量硬关闭全局配置
+type UpdateQualityHardCloseSettingsRequest struct {
+	Enabled           bool     `json:"enabled"`
+	MaxP50TTFTMs      *int     `json:"max_p50_ttft_ms"`
+	MinSuccessRate    *float64 `json:"min_success_rate"`
+	PauseMinutes      int      `json:"pause_minutes"`
+	MinSuccessSamples int      `json:"min_success_samples"`
+	MinTTFTSamples    int      `json:"min_ttft_samples"`
+	Condition         string   `json:"condition"`
+}
+
+// UpdateQualityHardCloseSettings 更新账号质量硬关闭全局配置
+// PUT /api/v1/admin/settings/quality-hard-close
+func (h *SettingHandler) UpdateQualityHardCloseSettings(c *gin.Context) {
+	var req UpdateQualityHardCloseSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	settings := &service.QualityHardCloseSettings{
+		Enabled:           req.Enabled,
+		MaxP50TTFTMs:      req.MaxP50TTFTMs,
+		MinSuccessRate:    req.MinSuccessRate,
+		PauseMinutes:      req.PauseMinutes,
+		MinSuccessSamples: req.MinSuccessSamples,
+		MinTTFTSamples:    req.MinTTFTSamples,
+		Condition:         req.Condition,
+	}
+	if err := h.settingService.SetQualityHardCloseSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetQualityHardCloseSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, qualityHardCloseSettingsDTO(updatedSettings))
+}
+
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {

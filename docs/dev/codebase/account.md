@@ -813,7 +813,9 @@ can be written by the request-path rate-limit/session-window logic.
 | 批量 vs 单创建 | 批量走 handleAntigravityValidateRT()，单创建走 handleAntigravityExchange()，extra 构建需两处一致 | `CreateAccountModal.vue` |
 | 账号分组全选 | 创建、编辑、批量编辑共用 `GroupSelector` 的 `show-toggle-all` 入口；全选/取消全选只作用于当前可选分组，保留平台过滤外的既有 `group_ids` | `GroupSelector.vue`, `CreateAccountModal.vue`, `EditAccountModal.vue`, `BulkEditAccountModal.vue` |
 | 跨页批量删除 | 跨页选择后的删除必须通过 `deleteAccountIdsInBatches` 以 10 个账号为一批执行，并保留失败 ID 供重试 | `AccountsView.vue`, `AccountsView.bulkEdit.spec.ts` |
-| 账号质量列（首字/成功率） | 列表默认显示最近 **15 分钟**滚动窗口的平均 TTFT 与成功率；成功与首字来自 `usage_logs`，失败来自 `ops_error_logs`（status≥400，排除 count_tokens）。列隐藏时不请求；`POST /admin/accounts/quality-stats/batch` + 30s 缓存。不参与调度/熔断 | `account_quality.go`, `usage_log_repo.go`, `AccountsView.vue`, `AccountQualityCell.vue` |
+| 账号质量列（首字/成功率） | 列表默认显示最近 **15 分钟**滚动窗口的平均 TTFT 与成功率；成功与首字来自 `usage_logs`，失败来自 `ops_error_logs`（status≥400，排除 count_tokens）。列隐藏时不请求；`POST /admin/accounts/quality-stats/batch` + 30s 缓存。不参与调度/熔断。账号管理页点击单元格打开 `AccountStabilityDialog`（24h 曲线 + 账号硬关闭表单）；用户页只读 | `account_quality.go`, `usage_log_repo.go`, `AccountsView.vue`, `AccountQualityCell.vue`, `AccountStabilityDialog.vue` |
+| 账号质量历史快照 | 维护任务每 5 分钟把上述同一套 15 分钟滚动窗口落进 `account_quality_snapshots`（有样本才写，保留 7 天，多实例 leader lock）。`GET /admin/accounts/:id/quality-history` 默认最近 24 小时、最大 7 天。硬关闭评估不要改这份 SQL，挂 `AccountQualityMaintenanceService.EvaluateHardClose` / `SetHardCloseEvaluator` | `account_quality_maintenance.go`, `account_quality_snapshot_repo.go`, `migrations/199_account_quality_snapshots.sql` |
+| 账号质量硬关闭 | 默认全关。全局 KV `quality_hard_close_settings` + 账号 `extra.quality_hard_close` 两层都开才评估本轮 live 15 分钟质量；越界则 `SetTempUnschedulable(..., "quality_hard_close:...")`，不改 `schedulable`。已有未过期临时停调度则跳过（冷却一次，也不覆盖 529/401）。不进 public settings | `account_quality_hard_close.go`, `GET/PUT /admin/settings/quality-hard-close`, `GET/PUT /admin/accounts/:id/quality-hard-close` |
 | 仅作兜底调度 (`fallback_only`) | `extra.fallback_only=true` 时账号进入硬兜底层：同池存在任意非兜底候选时永不负载均衡选中；全部 primary 不可用/被排除后才用兜底。与 soft `priority` 解耦。会话粘性若钉在兜底号且 primary 可用会逃逸；`previous_response` 多轮粘性保留 | `account.go` `IsFallbackOnly`, `preferPrimary*`, `openai_account_scheduler.go`, `gateway_service.go` |
 | Gemini RT client 绑定 | Google OAuth 的 refresh_token 绑定签发它的 client_id；google_one 批量导入强制用内置 Gemini CLI client，自建 client 的 RT 报 unauthorized_client | `gemini_oauth_service.go:ValidateGoogleOneRefreshToken` |
 
@@ -823,6 +825,8 @@ can be written by the request-path rate-limit/session-window logic.
 - **批量/单创建分支**：批量导入和单个 OAuth 导入是两个独立代码路径，修改 extra/credentials 构建逻辑时必须两处都改。
 - **AI Credits 不在 WindowStats 中**：`getBatchTodayStats` 返回的是 `WindowStats`（requests/tokens/cost），不含 ai_credits。Credits 需单独调 `getUsage` API。
 - **Credits 消耗冷启动窗**：`ai_credit_snapshots` 需要至少两条相邻采样才能算 delta。新部署或新窗口内无采样时 `GetAntigravityUsageRatio` 返回 `credits_consumed=0` + 比率 null；前端卡片显示"采样不足"。如果窗口内出现负 delta（充值/重置），只跳过该对不报错，但那一段消耗会丢。
+- **质量快照是重叠窗口**：每个点都是当时的 15 分钟滚动窗口，相邻 5 分钟点会重叠；无成功/错误/TTFT 样本的账号不写空行，曲线会有缺口。不要改 `GetAccountQualityStatsBatch` SQL。
+- **质量硬关闭默认全关**：部署后不会自动停号。评估用维护任务同一 tick 的 live stats，不是快照行；账号 overlay 只允许 `UpdateExtra` 合并 `quality_hard_close`，不要用 `Update()` 整表替换 Extra。
 - **临时不可调度**：token 刷新失败时标记 `temp_unschedulable_until`，到期后自动重试。如果 refresh_token 为空则永远失败。
 - **setup-token 401 处理**：`setup-token` 在网关里按 OAuth/Bearer 凭证使用，401 首次命中应走临时不可调度和 token 缓存失效，不应直接标记 `status=error`。
 - **Antigravity usage 401 误判**：账号用量/AI Credits 探测必须和模型测试、真实网关请求一样走 `AntigravityTokenProvider`。如果直接读取 DB 中过期的 `credentials.access_token`，会在 refresh token 正常时偶发 401，并让前端误显示“需要重新授权”。

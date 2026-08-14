@@ -57,6 +57,18 @@ func (f AccountGroupFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountGroupMutation", m)
 }
 
+// The AccountQualitySnapshotFunc type is an adapter to allow the use of ordinary
+// function as AccountQualitySnapshot mutator.
+type AccountQualitySnapshotFunc func(context.Context, *ent.AccountQualitySnapshotMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f AccountQualitySnapshotFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.AccountQualitySnapshotMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AccountQualitySnapshotMutation", m)
+}
+
 // The AccountScheduleUserFunc type is an adapter to allow the use of ordinary
 // function as AccountScheduleUser mutator.
 type AccountScheduleUserFunc func(context.Context, *ent.AccountScheduleUserMutation) (ent.Value, error)

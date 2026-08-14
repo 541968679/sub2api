@@ -30,7 +30,7 @@ func TestAccountHandlerListSkipsSchedulerScoresByDefault(t *testing.T) {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}}
-	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	router := gin.New()
 	router.GET("/api/v1/admin/accounts", handler.List)
 

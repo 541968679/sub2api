@@ -353,6 +353,9 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.GET("/:id/today-stats", h.Admin.Account.GetTodayStats)
 		accounts.POST("/today-stats/batch", h.Admin.Account.GetBatchTodayStats)
 		accounts.POST("/quality-stats/batch", h.Admin.Account.GetBatchQualityStats)
+		accounts.GET("/:id/quality-history", h.Admin.Account.GetQualityHistory)
+		accounts.GET("/:id/quality-hard-close", h.Admin.Account.GetQualityHardClose)
+		accounts.PUT("/:id/quality-hard-close", h.Admin.Account.UpdateQualityHardClose)
 		accounts.POST("/:id/clear-rate-limit", h.Admin.Account.ClearRateLimit)
 		accounts.POST("/:id/reset-quota", h.Admin.Account.ResetQuota)
 		accounts.POST("/:id/move-to-top", h.Admin.Account.MoveToTop)
@@ -524,6 +527,8 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 529过载冷却配置
 		adminSettings.GET("/overload-cooldown", h.Admin.Setting.GetOverloadCooldownSettings)
 		adminSettings.PUT("/overload-cooldown", h.Admin.Setting.UpdateOverloadCooldownSettings)
+		adminSettings.GET("/quality-hard-close", h.Admin.Setting.GetQualityHardCloseSettings)
+		adminSettings.PUT("/quality-hard-close", h.Admin.Setting.UpdateQualityHardCloseSettings)
 		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)

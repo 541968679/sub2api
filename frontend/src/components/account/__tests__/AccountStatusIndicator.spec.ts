@@ -159,4 +159,23 @@ describe('AccountStatusIndicator', () => {
     // AICredits 积分耗尽状态应显示
     expect(wrapper.text()).toContain('admin.accounts.status.creditsExhausted')
   })
+
+  it('quality_hard_close reason shows a distinct quality-pause badge', () => {
+    const wrapper = mount(AccountStatusIndicator, {
+      props: {
+        account: makeAccount({
+          temp_unschedulable_until: '2099-08-14T16:30:00Z',
+          temp_unschedulable_reason: 'quality_hard_close:p50=3200,success=0.82'
+        })
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    expect(wrapper.text()).toContain('admin.accounts.status.qualityPause')
+    expect(wrapper.text()).not.toContain('admin.accounts.status.tempUnschedulable')
+  })
 })

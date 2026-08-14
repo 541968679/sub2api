@@ -133,6 +133,8 @@ type AdminService interface {
 	// ReorderAccounts applies page-local admin list order via extra.list_order.
 	// ids is top-to-bottom display order for the current page (length >= 2).
 	ReorderAccounts(ctx context.Context, ids []int64) error
+	// UpdateAccountExtra merges keys into accounts.extra without replacing the map.
+	UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error
 	BatchAutoAssignProxy(ctx context.Context, accountIDs []int64) (*BatchAutoAssignProxyResult, error)
 }
 
@@ -2854,8 +2856,9 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	// Extra 使用 map：需要区分“未提供(nil)”与“显式清空({})”。
 	// 关闭配额限制时前端会删除 quota_* 键并提交 extra:{}，此时也必须落库。
 	if input.Extra != nil {
-		// 保留配额用量字段，防止编辑账号时意外重置
-		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start"} {
+		// 保留配额用量字段，防止编辑账号时意外重置。
+		// quality_hard_close 由专用 API 维护，编辑账号大表单不得整表替换掉它。
+		for _, key := range []string{"quota_used", "quota_daily_used", "quota_daily_start", "quota_weekly_used", "quota_weekly_start", AccountExtraQualityHardClose} {
 			if v, ok := account.Extra[key]; ok {
 				input.Extra[key] = v
 			}
@@ -4348,6 +4351,13 @@ func (s *adminServiceImpl) MoveAccountToTop(ctx context.Context, id int64) (*Acc
 // admin list matches ids top-to-bottom. Rank slots are derived from the current
 // multiset of list_order values on that page (preserving position vs off-page
 // pins when possible). Unpinned / duplicate ranks are re-spread from max down.
+func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	if id <= 0 {
+		return ErrAccountNotFound
+	}
+	return s.accountRepo.UpdateExtra(ctx, id, updates)
+}
+
 func (s *adminServiceImpl) ReorderAccounts(ctx context.Context, ids []int64) error {
 	if len(ids) < 2 {
 		return infraerrors.BadRequest("INVALID_REORDER", "at least 2 account ids are required")

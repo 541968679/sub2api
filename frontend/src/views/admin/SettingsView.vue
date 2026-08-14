@@ -291,6 +291,185 @@
             </div>
           </div>
 
+          <!-- Quality Hard Close Settings -->
+          <div class="card" data-test="quality-hard-close-card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.qualityHardClose.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.qualityHardClose.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div
+                v-if="qualityHardCloseLoading"
+                class="flex items-center gap-2 text-gray-500"
+              >
+                <div
+                  class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
+                ></div>
+                {{ t("common.loading") }}
+              </div>
+
+              <template v-else>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">{{
+                      t("admin.settings.qualityHardClose.enabled")
+                    }}</label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.qualityHardClose.enabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="qualityHardCloseForm.enabled" />
+                </div>
+
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.qualityHardClose.templateHint") }}
+                </p>
+
+                <div
+                  class="grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-dark-700"
+                >
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.maxP50") }}
+                    </label>
+                    <input
+                      v-model="qualityHardCloseForm.max_p50_ttft_ms"
+                      type="number"
+                      min="1"
+                      class="input w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.minSuccessRate") }}
+                    </label>
+                    <input
+                      v-model="qualityHardCloseForm.min_success_rate_percent"
+                      type="number"
+                      min="0.1"
+                      max="100"
+                      step="0.1"
+                      class="input w-full"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t("admin.settings.qualityHardClose.minSuccessRateHint")
+                      }}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.pauseMinutes") }}
+                    </label>
+                    <input
+                      v-model.number="qualityHardCloseForm.pause_minutes"
+                      type="number"
+                      min="1"
+                      max="1440"
+                      class="input w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{
+                        t("admin.settings.qualityHardClose.minSuccessSamples")
+                      }}
+                    </label>
+                    <input
+                      v-model.number="qualityHardCloseForm.min_success_samples"
+                      type="number"
+                      min="1"
+                      class="input w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.minTtftSamples") }}
+                    </label>
+                    <input
+                      v-model.number="qualityHardCloseForm.min_ttft_samples"
+                      type="number"
+                      min="1"
+                      class="input w-full"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.qualityHardClose.condition") }}
+                    </label>
+                    <select
+                      v-model="qualityHardCloseForm.condition"
+                      class="input w-full"
+                    >
+                      <option value="or">
+                        {{ t("admin.settings.qualityHardClose.conditionOr") }}
+                      </option>
+                      <option value="and">
+                        {{ t("admin.settings.qualityHardClose.conditionAnd") }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div
+                  class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700"
+                >
+                  <button
+                    type="button"
+                    data-test="quality-hard-close-save"
+                    @click="saveQualityHardCloseSettings"
+                    :disabled="qualityHardCloseSaving"
+                    class="btn btn-primary btn-sm"
+                  >
+                    <svg
+                      v-if="qualityHardCloseSaving"
+                      class="mr-1 h-4 w-4 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    {{
+                      qualityHardCloseSaving
+                        ? t("common.saving")
+                        : t("common.save")
+                    }}
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+
           <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -6182,6 +6361,11 @@ import OpenAIFastPolicyUserSelector from "@/views/admin/settings/OpenAIFastPolic
 import { useClipboard } from "@/composables/useClipboard";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
+import {
+  optionalNumber,
+  percentToSuccessRate,
+  successRateToPercent,
+} from "@/utils/accountQualityHardClose";
 import { useAppStore } from "@/stores";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
@@ -6268,6 +6452,18 @@ const overloadCooldownSaving = ref(false);
 const overloadCooldownForm = reactive({
   enabled: true,
   cooldown_minutes: 10,
+});
+
+const qualityHardCloseLoading = ref(true);
+const qualityHardCloseSaving = ref(false);
+const qualityHardCloseForm = reactive({
+  enabled: false,
+  max_p50_ttft_ms: 3000 as number | string,
+  min_success_rate_percent: 90 as number | string,
+  pause_minutes: 30,
+  min_success_samples: 20,
+  min_ttft_samples: 10,
+  condition: "or" as "or" | "and",
 });
 
 // Stream Timeout 状态
@@ -8002,6 +8198,62 @@ async function saveOverloadCooldownSettings() {
   }
 }
 
+async function loadQualityHardCloseSettings() {
+  qualityHardCloseLoading.value = true;
+  try {
+    const settings = await adminAPI.settings.getQualityHardCloseSettings();
+    qualityHardCloseForm.enabled = settings.enabled;
+    qualityHardCloseForm.max_p50_ttft_ms = settings.max_p50_ttft_ms ?? "";
+    qualityHardCloseForm.min_success_rate_percent =
+      successRateToPercent(settings.min_success_rate) ?? "";
+    qualityHardCloseForm.pause_minutes = settings.pause_minutes;
+    qualityHardCloseForm.min_success_samples = settings.min_success_samples;
+    qualityHardCloseForm.min_ttft_samples = settings.min_ttft_samples;
+    qualityHardCloseForm.condition =
+      settings.condition === "and" ? "and" : "or";
+  } catch (_error: unknown) {
+    // Silent fail - settings will use defaults
+  } finally {
+    qualityHardCloseLoading.value = false;
+  }
+}
+
+async function saveQualityHardCloseSettings() {
+  qualityHardCloseSaving.value = true;
+  try {
+    const updated = await adminAPI.settings.updateQualityHardCloseSettings({
+      enabled: qualityHardCloseForm.enabled,
+      max_p50_ttft_ms: optionalNumber(qualityHardCloseForm.max_p50_ttft_ms),
+      min_success_rate: percentToSuccessRate(
+        qualityHardCloseForm.min_success_rate_percent,
+      ),
+      pause_minutes: qualityHardCloseForm.pause_minutes,
+      min_success_samples: qualityHardCloseForm.min_success_samples,
+      min_ttft_samples: qualityHardCloseForm.min_ttft_samples,
+      condition: qualityHardCloseForm.condition,
+    });
+    qualityHardCloseForm.enabled = updated.enabled;
+    qualityHardCloseForm.max_p50_ttft_ms = updated.max_p50_ttft_ms ?? "";
+    qualityHardCloseForm.min_success_rate_percent =
+      successRateToPercent(updated.min_success_rate) ?? "";
+    qualityHardCloseForm.pause_minutes = updated.pause_minutes;
+    qualityHardCloseForm.min_success_samples = updated.min_success_samples;
+    qualityHardCloseForm.min_ttft_samples = updated.min_ttft_samples;
+    qualityHardCloseForm.condition =
+      updated.condition === "and" ? "and" : "or";
+    appStore.showSuccess(t("admin.settings.qualityHardClose.saved"));
+  } catch (error: unknown) {
+    appStore.showError(
+      extractApiErrorMessage(
+        error,
+        t("admin.settings.qualityHardClose.saveFailed"),
+      ),
+    );
+  } finally {
+    qualityHardCloseSaving.value = false;
+  }
+}
+
 // Stream Timeout 方法
 async function loadStreamTimeoutSettings() {
   streamTimeoutLoading.value = true;
@@ -8631,6 +8883,7 @@ onMounted(() => {
   loadSubscriptionGroups();
   loadAdminApiKey();
   loadOverloadCooldownSettings();
+  loadQualityHardCloseSettings();
   loadStreamTimeoutSettings();
   loadRectifierSettings();
   loadBetaPolicySettings();

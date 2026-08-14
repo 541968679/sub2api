@@ -14,8 +14,21 @@
 
     <!-- Main Status Badge (shown when not rate limited/overloaded) -->
     <template v-else>
+      <div v-if="isQualityHardClosePause" class="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          :class="['badge text-xs', statusClass, 'cursor-pointer']"
+          :title="t('admin.accounts.status.viewTempUnschedDetails')"
+          @click="handleTempUnschedClick"
+        >
+          {{ t('admin.accounts.status.qualityPause') }}
+        </button>
+        <span v-if="qualityPauseResumeText" class="text-[11px] text-gray-400 dark:text-gray-500">
+          {{ qualityPauseResumeText }}
+        </span>
+      </div>
       <button
-        v-if="isTempUnschedulable"
+        v-else-if="isTempUnschedulable"
         type="button"
         :class="['badge text-xs', statusClass, 'cursor-pointer']"
         :title="t('admin.accounts.status.viewTempUnschedDetails')"
@@ -159,6 +172,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import type { Account } from '@/types'
+import { isQualityHardClosePaused } from '@/utils/accountQualityHardClose'
 import { formatCountdown, formatDateTime, formatCountdownWithSuffix, formatTime } from '@/utils/format'
 
 const { t } = useI18n()
@@ -281,6 +295,17 @@ const isOverloaded = computed(() => {
 const isTempUnschedulable = computed(() => {
   if (!props.account.temp_unschedulable_until) return false
   return new Date(props.account.temp_unschedulable_until) > new Date()
+})
+
+const isQualityHardClosePause = computed(() =>
+  isQualityHardClosePaused(props.account.temp_unschedulable_until, props.account.temp_unschedulable_reason)
+)
+
+const qualityPauseResumeText = computed(() => {
+  if (!isQualityHardClosePause.value) return ''
+  const countdown = formatCountdownWithSuffix(props.account.temp_unschedulable_until)
+  if (countdown) return t('admin.accounts.status.qualityPauseResume', { time: countdown })
+  return ''
 })
 
 // Computed: has error status

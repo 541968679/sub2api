@@ -1114,6 +1114,38 @@ export async function updateOverloadCooldownSettings(
   return data;
 }
 
+// ==================== Quality Hard-Close Settings ====================
+
+export type QualityHardCloseCondition = "or" | "and";
+
+/** Global master switch + default template. Null metrics are unconfigured. */
+export interface QualityHardCloseSettings {
+  enabled: boolean;
+  max_p50_ttft_ms: number | null;
+  min_success_rate: number | null;
+  pause_minutes: number;
+  min_success_samples: number;
+  min_ttft_samples: number;
+  condition: QualityHardCloseCondition;
+}
+
+export async function getQualityHardCloseSettings(): Promise<QualityHardCloseSettings> {
+  const { data } = await apiClient.get<QualityHardCloseSettings>(
+    "/admin/settings/quality-hard-close",
+  );
+  return data;
+}
+
+export async function updateQualityHardCloseSettings(
+  settings: QualityHardCloseSettings,
+): Promise<QualityHardCloseSettings> {
+  const { data } = await apiClient.put<QualityHardCloseSettings>(
+    "/admin/settings/quality-hard-close",
+    settings,
+  );
+  return data;
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1335,6 +1367,8 @@ export const settingsAPI = {
   deleteAdminApiKey,
   getOverloadCooldownSettings,
   updateOverloadCooldownSettings,
+  getQualityHardCloseSettings,
+  updateQualityHardCloseSettings,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

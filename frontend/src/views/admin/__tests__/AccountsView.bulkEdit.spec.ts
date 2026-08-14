@@ -135,6 +135,7 @@ const mountAccountsView = () => mount(AccountsView, {
       AccountStatusIndicator: true,
       AccountTodayStatsCell: true,
       AccountQualityCell: true,
+      AccountStabilityDialog: true,
       AccountGroupsCell: true,
       AccountUsageCell: true,
       Icon: true

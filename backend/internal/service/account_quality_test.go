@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +51,51 @@ func TestBuildAccountQualityStats_ErrorsOnly(t *testing.T) {
 	require.InDelta(t, 0.0, *stats.SuccessRate, 1e-9)
 	require.Nil(t, stats.AvgTTFTMs)
 	require.Nil(t, stats.P50TTFTMs)
+}
+
+func TestHasAccountQualitySamples(t *testing.T) {
+	require.False(t, HasAccountQualitySamples(nil))
+	require.False(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 0, TTFTAggregate{})))
+	require.True(t, HasAccountQualitySamples(BuildAccountQualityStats(1, 0, TTFTAggregate{})))
+	require.True(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 1, TTFTAggregate{})))
+	require.True(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 0, TTFTAggregate{Samples: 1})))
+}
+
+func TestTruncateToAccountQualitySnapshotTime(t *testing.T) {
+	got := TruncateToAccountQualitySnapshotTime(time.Date(2026, 8, 14, 12, 7, 30, 0, time.UTC))
+	require.Equal(t, time.Date(2026, 8, 14, 12, 5, 0, 0, time.UTC), got)
+
+	cst := time.FixedZone("CST", 8*3600)
+	got = TruncateToAccountQualitySnapshotTime(time.Date(2026, 8, 14, 20, 7, 30, 0, cst))
+	require.Equal(t, time.Date(2026, 8, 14, 12, 5, 0, 0, time.UTC), got)
+}
+
+func TestSnapshotFromAccountQualityStats_MatchesLiveNullsAndTruncates(t *testing.T) {
+	captured := time.Date(2026, 8, 14, 12, 7, 30, 0, time.UTC)
+	errorsOnly := BuildAccountQualityStats(0, 3, TTFTAggregate{})
+	row := SnapshotFromAccountQualityStats(7, captured, errorsOnly)
+
+	require.Equal(t, int64(7), row.AccountID)
+	require.Equal(t, time.Date(2026, 8, 14, 12, 5, 0, 0, time.UTC), row.CapturedAt)
+	require.Equal(t, AccountQualityWindowSeconds, row.WindowSeconds)
+	require.Equal(t, int64(0), row.SuccessCount)
+	require.Equal(t, int64(3), row.ErrorCount)
+	require.NotNil(t, row.SuccessRate)
+	require.InDelta(t, 0.0, *row.SuccessRate, 1e-9)
+	require.Nil(t, row.AvgTTFTMs)
+	require.Nil(t, row.P50TTFTMs)
+	require.Nil(t, row.P95TTFTMs)
+	require.Nil(t, row.MaxTTFTMs)
+	require.Equal(t, int64(0), row.TTFTSamples)
+
+	item := row.ToHistoryItem()
+	require.Equal(t, row.CapturedAt, item.CapturedAt)
+	require.Equal(t, row.WindowSeconds, item.WindowSeconds)
+	require.Equal(t, row.SuccessCount, item.SuccessCount)
+	require.Equal(t, row.ErrorCount, item.ErrorCount)
+	require.Equal(t, row.SuccessRate, item.SuccessRate)
+	require.Nil(t, item.P50TTFTMs)
+	require.Equal(t, row.TTFTSamples, item.TTFTSamples)
 }
 
 func TestBuildAccountQualityStats_TTFTWithoutSamplesIgnored(t *testing.T) {

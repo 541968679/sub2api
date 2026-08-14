@@ -1,3 +1,107 @@
+## 2026-08-14 - feat(account): stability window UI
+
+### What
+- Account list TTFT / success-rate cells are clickable and open `AccountStabilityDialog`: 24h p50/p95/success-rate chart plus the account hard-close overlay form.
+- Settings gateway tab has a quality hard-close card for the master switch and default template. Saving it does not enable any account.
+- Quality-pause reason prefix `quality_hard_close` shows a distinct list badge with resume time.
+
+### Why
+Admins need to inspect overlapping 15-minute quality history and opt in per account without a second form on Edit Account.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/components/account/__tests__/AccountStabilityDialog.spec.ts src/views/admin/__tests__/AccountsView.stability.spec.ts src/views/admin/__tests__/UsersView.stability.spec.ts`
+- `pnpm --dir frontend exec vitest run src/views/admin/__tests__/SettingsView.spec.ts -t "quality hard-close"`
+- `pnpm --dir frontend run typecheck`
+
+### Affected files
+`frontend/src/api/admin/accounts.ts`,
+`frontend/src/api/admin/settings.ts`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/components/account/AccountStabilityDialog.vue`,
+`frontend/src/components/account/AccountStatusIndicator.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/SettingsView.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-14 - fix(account): hard-close evaluate gate and Extra preserve
+
+### What
+- Pure hard-close evaluate now no-ops when resolved `enabled` is false (both layers must be on).
+- `UpdateAccount` keeps `extra.quality_hard_close` when the edit form replaces Extra, matching `quota_used`.
+- Pause minutes are clamped before `SetTempUnschedulable`.
+
+### Why
+A disabled resolved config or an account-edit Extra rewrite could pause or drop overlay config even though hard-close is opt-in and owned by the dedicated API.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "HardClose|QualityHardClose|AccountQuality" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "HardClose|QualityHardClose" -count=1`
+
+### Affected files
+`backend/internal/service/account_quality_hard_close.go`,
+`backend/internal/service/account_quality_hard_close_test.go`,
+`backend/internal/service/admin_service.go`,
+`.trellis/spec/backend/account-quality-snapshots.md`,
+this changelog.
+
+## 2026-08-14 - feat(account): opt-in quality hard-close
+
+### What
+- Added global Settings KV `quality_hard_close_settings` (default off) and per-account `extra.quality_hard_close` overlay. Admin GET/PUT for both; not exposed on public settings.
+- Maintenance tick now attaches `AccountQualityHardCloseEvaluator`: live 15-minute stats + resolved thresholds can `SetTempUnschedulable` with reason prefix `quality_hard_close`. Already-paused accounts are skipped (cooldown-once).
+
+### Why
+Admins need an opt-in way to pause scheduling when recent TTFT/success-rate crosses a template, without a new pause column or changing `schedulable`.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "HardClose|QualityHardClose" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "HardClose|QualityHardClose" -count=1`
+
+### Affected files
+`backend/internal/service/domain_constants.go`,
+`backend/internal/service/account_quality_hard_close.go`,
+`backend/internal/service/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`backend/internal/handler/admin/setting_handler.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`backend/internal/service/admin_service.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
+## 2026-08-14 - feat(account): persist 15-minute quality snapshots
+
+### What
+- Added `account_quality_snapshots` plus a 5-minute leader-locked maintenance job that reuses `GetAccountQualityStatsBatch` and skips empty windows.
+- Admin `GET /api/v1/admin/accounts/:id/quality-history` returns those points (default last 24h, max 7 days). Hard-close evaluation is not implemented; the job calls no-op `EvaluateHardClose`.
+- History handler normalizes `from`/`to` once so the response window matches the query; snapshot writes truncate `captured_at` to 5-minute UTC at the mapping and upsert boundaries.
+
+### Why
+Account list quality columns are live-only. Stability history needs the same 15-minute rolling window persisted so the next child can draw curves and attach hard-close evaluation.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "AccountQuality" -count=1`
+- `go test -tags=unit ./internal/repository -run "AccountQualitySnapshot|QualityStats" -count=1`
+- `go test -tags=unit ./internal/handler/admin -run "QualityHistory" -count=1`
+
+### Affected files
+`backend/ent/schema/account_quality_snapshot.go`,
+`backend/migrations/199_account_quality_snapshots.sql`,
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_quality_maintenance.go`,
+`backend/internal/repository/account_quality_snapshot_repo.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`backend/internal/server/routes/admin.go`,
+`backend/internal/repository/wire.go`,
+`backend/internal/service/wire.go`,
+`backend/cmd/server/wire.go`,
+`backend/cmd/server/wire_gen.go`,
+`docs/dev/codebase/account.md`,
+this changelog.
+
 ## 2026-08-14 - deploy: production v0.1.221
 
 ### What

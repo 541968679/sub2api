@@ -368,6 +368,10 @@ const (
 	// SettingKeyOverloadCooldownSettings stores JSON config for 529 overload cooldown handling.
 	SettingKeyOverloadCooldownSettings = "overload_cooldown_settings"
 
+	// SettingKeyQualityHardCloseSettings stores JSON config for opt-in account
+	// quality hard-close (temp unschedulable). Default is fully off.
+	SettingKeyQualityHardCloseSettings = "quality_hard_close_settings"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================

@@ -80,7 +80,14 @@ type stubAdminService struct {
 		calls     int
 	}
 	lastGenerateRedeemCodes *service.GenerateRedeemCodesInput
+	accountByID             map[int64]*service.Account
+	extraUpdates            []stubAccountExtraUpdate
 	mu                      sync.Mutex
+}
+
+type stubAccountExtraUpdate struct {
+	id      int64
+	updates map[string]any
 }
 
 func (s *stubAdminService) CreateShadow(_ context.Context, parentID int64, opts service.ShadowOptions) (*service.Account, error) {
@@ -391,6 +398,13 @@ func (s *stubAdminService) ListOpenAISchedulableAccountsForSchedulerScore(_ cont
 }
 
 func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.Account, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.accountByID != nil {
+		if account, ok := s.accountByID[id]; ok {
+			return account, nil
+		}
+	}
 	account := service.Account{ID: id, Name: "account", Status: service.StatusActive}
 	return &account, nil
 }
@@ -717,6 +731,23 @@ func (s *stubAdminService) MoveAccountToTop(ctx context.Context, id int64) (*ser
 }
 
 func (s *stubAdminService) ReorderAccounts(ctx context.Context, ids []int64) error {
+	return nil
+}
+
+func (s *stubAdminService) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.extraUpdates = append(s.extraUpdates, stubAccountExtraUpdate{id: id, updates: updates})
+	if s.accountByID != nil {
+		if account, ok := s.accountByID[id]; ok && account != nil {
+			if account.Extra == nil {
+				account.Extra = map[string]any{}
+			}
+			for key, value := range updates {
+				account.Extra[key] = value
+			}
+		}
+	}
 	return nil
 }
 
