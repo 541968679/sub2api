@@ -76,9 +76,6 @@ const DataTableStub = {
         <div data-test="quality-ttft">
           <slot name="cell-quality_ttft" :row="row" />
         </div>
-        <div data-test="quality-success">
-          <slot name="cell-quality_success_rate" :row="row" />
-        </div>
         <div data-test="actions">
           <slot name="cell-actions" :row="row" />
         </div>
@@ -177,20 +174,16 @@ describe('admin AccountsView stability window', () => {
     getAllGroups.mockResolvedValue([])
   })
 
-  it('opens one shared stability dialog from either quality cell', async () => {
+  it('opens the stability dialog from the merged quality cell', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.find('[data-test="stability-dialog"]').exists()).toBe(false)
 
     const buttons = wrapper.findAll('[data-test="account-quality-cell-button"]')
-    expect(buttons).toHaveLength(2)
+    expect(buttons).toHaveLength(1)
 
     await buttons[0].trigger('click')
-    await flushPromises()
-    expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
-
-    await buttons[1].trigger('click')
     await flushPromises()
     expect(wrapper.get('[data-test="stability-dialog"]').text()).toBe('7:stable-acc')
   })

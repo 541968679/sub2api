@@ -12,6 +12,20 @@
     <div v-if="loading && !hasStats" class="h-3 w-14 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
     <div v-else-if="error && !hasStats" class="text-xs text-red-500">—</div>
     <div
+      v-else-if="mode === 'combined' && (hasTtft || hasSuccessRate)"
+      class="flex flex-col gap-0.5 font-mono text-[11px] leading-4"
+      :title="tooltipText"
+    >
+      <div class="flex items-baseline gap-1" :class="p50ToneClass">
+        <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">p50</span>
+        <span class="text-sm font-medium">{{ hasTtft ? formatMs(stats!.p50_ttft_ms ?? stats!.avg_ttft_ms) : '—' }}</span>
+      </div>
+      <div class="flex items-baseline gap-1" :class="successToneClass">
+        <span class="text-[10px] font-sans text-gray-400 dark:text-gray-500">{{ t('admin.accounts.quality.successShort') }}</span>
+        <span class="text-sm font-medium">{{ successDisplay || '—' }}</span>
+      </div>
+    </div>
+    <div
       v-else-if="mode === 'ttft' && hasTtft"
       class="flex flex-col gap-0.5 font-mono text-[11px] leading-4"
       :title="tooltipText"
@@ -52,7 +66,7 @@ import type { AccountQualityStats } from '@/api/admin/accounts'
 
 const props = withDefaults(
   defineProps<{
-    mode: 'ttft' | 'success_rate'
+    mode: 'ttft' | 'success_rate' | 'combined'
     stats?: AccountQualityStats | null
     loading?: boolean
     error?: string | null
@@ -86,11 +100,17 @@ function formatMs(ms: number | null | undefined): string {
   return `${ms}ms`
 }
 
+const hasSuccessRate = computed(() => props.stats?.success_rate != null)
+
+const successDisplay = computed(() => {
+  const rate = props.stats?.success_rate
+  if (rate == null) return ''
+  return `${(rate * 100).toFixed(1)}%`
+})
+
 const displayText = computed(() => {
-  const stats = props.stats
-  if (!stats || props.mode !== 'success_rate') return ''
-  if (stats.success_rate == null) return ''
-  return `${(stats.success_rate * 100).toFixed(1)}%`
+  if (props.mode !== 'success_rate') return ''
+  return successDisplay.value
 })
 
 const p50ToneClass = computed(() => {
@@ -122,7 +142,24 @@ const tooltipText = computed(() => {
   if (!stats) return ''
   const clickHint = props.clickable ? t('admin.accounts.stability.clickToOpen') : ''
   let base = ''
-  if (props.mode === 'ttft') {
+  if (props.mode === 'combined') {
+    base = [
+      t('admin.accounts.quality.ttftTooltip', {
+        windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+        samples: stats.ttft_samples ?? 0,
+        p50: stats.p50_ttft_ms ?? '—',
+        p95: stats.p95_ttft_ms ?? '—',
+        avg: stats.avg_ttft_ms ?? '—',
+        max: stats.max_ttft_ms ?? '—'
+      }),
+      t('admin.accounts.quality.tooltip', {
+        windowMinutes: Math.round((stats.window_seconds || 900) / 60),
+        success: stats.success_count ?? 0,
+        error: stats.error_count ?? 0,
+        ttftSamples: stats.ttft_samples ?? 0
+      })
+    ].join('\n')
+  } else if (props.mode === 'ttft') {
     base = t('admin.accounts.quality.ttftTooltip', {
       windowMinutes: Math.round((stats.window_seconds || 900) / 60),
       samples: stats.ttft_samples ?? 0,

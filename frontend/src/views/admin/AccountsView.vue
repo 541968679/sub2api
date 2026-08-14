@@ -429,13 +429,10 @@
               </span>
             </div>
           </template>
-          <template #cell-capacity="{ row }">
-            <AccountCapacityCell :account="row" />
-          </template>
           <template #header-concurrency="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.inlineEdit.concurrencyHint')" width-class="w-64" />
+              <HelpTooltip :content="t('admin.accounts.inlineEdit.capacityConcurrencyHint')" width-class="w-72" />
             </div>
           </template>
           <template #cell-concurrency="{ row }">
@@ -447,9 +444,7 @@
                 :hint="t('admin.accounts.inlineEdit.concurrencyHint')"
                 @save="(v) => handleInlineConcurrency(row, v)"
               />
-              <span class="pl-1 text-[11px] text-gray-400 dark:text-gray-500">
-                {{ t('admin.accounts.inlineEdit.inUse', { n: row.current_concurrency ?? 0 }) }}
-              </span>
+              <AccountCapacityCell :account="row" />
             </div>
           </template>
           <template #cell-status="{ row }">
@@ -457,10 +452,46 @@
               <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
             </div>
           </template>
+          <template #header-schedulable="{ column }">
+            <div class="flex items-center">
+              <span>{{ column.label }}</span>
+              <HelpTooltip :content="t('admin.accounts.schedulableColumnHint')" width-class="w-72" />
+            </div>
+          </template>
           <template #cell-schedulable="{ row }">
-            <button @click="handleToggleSchedulable(row)" :disabled="togglingSchedulable === row.id" class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800" :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']" :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')">
-              <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
-            </button>
+            <div class="flex flex-col gap-1">
+              <div class="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  @click="handleToggleSchedulable(row)"
+                  :disabled="togglingSchedulable === row.id"
+                  class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
+                  :class="[row.schedulable ? 'bg-primary-500 hover:bg-primary-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']"
+                  :title="row.schedulable ? t('admin.accounts.schedulableEnabled') : t('admin.accounts.schedulableDisabled')"
+                  data-testid="account-schedulable-toggle"
+                >
+                  <span class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" :class="[row.schedulable ? 'translate-x-4' : 'translate-x-0']" />
+                </button>
+                <span class="text-[10px] leading-none text-gray-500 dark:text-gray-400">{{ t('admin.accounts.columns.schedulable') }}</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  @click="handleToggleFallbackOnly(row)"
+                  :disabled="inlineSavingId === row.id"
+                  class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
+                  :class="[isFallbackOnly(row) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']"
+                  :title="isFallbackOnly(row) ? t('admin.accounts.fallbackOnly') : t('admin.accounts.fallbackOnlyHint')"
+                  data-testid="account-fallback-toggle"
+                >
+                  <span
+                    class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+                    :class="[isFallbackOnly(row) ? 'translate-x-4' : 'translate-x-0']"
+                  />
+                </button>
+                <span class="text-[10px] leading-none text-gray-500 dark:text-gray-400">{{ t('admin.accounts.fallbackOnlyShort') }}</span>
+              </div>
+            </div>
           </template>
           <template #cell-user_schedule="{ row }">
             <AccountUserScheduleCell
@@ -473,27 +504,6 @@
               @start-quality-window="(userId) => handleInlineUserQualityStartWindow(row, userId)"
             />
           </template>
-          <template #header-fallback_only="{ column }">
-            <div class="flex items-center">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.fallbackOnlyHint')" width-class="w-72" />
-            </div>
-          </template>
-          <template #cell-fallback_only="{ row }">
-            <button
-              type="button"
-              @click="handleToggleFallbackOnly(row)"
-              :disabled="inlineSavingId === row.id"
-              class="relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-dark-800"
-              :class="[isFallbackOnly(row) ? 'bg-amber-500 hover:bg-amber-600' : 'bg-gray-200 hover:bg-gray-300 dark:bg-dark-600 dark:hover:bg-dark-500']"
-              :title="isFallbackOnly(row) ? t('admin.accounts.fallbackOnly') : t('admin.accounts.fallbackOnlyHint')"
-            >
-              <span
-                class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-                :class="[isFallbackOnly(row) ? 'translate-x-4' : 'translate-x-0']"
-              />
-            </button>
-          </template>
           <template #cell-today_stats="{ row }">
             <AccountTodayStatsCell
               :stats="todayStatsByAccountId[String(row.id)] ?? null"
@@ -504,29 +514,13 @@
           <template #header-quality_ttft="{ column }">
             <div class="flex items-center">
               <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.quality.ttftHint')" width-class="w-72" />
+              <HelpTooltip :content="t('admin.accounts.quality.combinedHint')" width-class="w-80" />
             </div>
           </template>
           <template #cell-quality_ttft="{ row }">
             <AccountQualityCell
               clickable
-              mode="ttft"
-              :stats="qualityStatsByAccountId[String(row.id)] ?? null"
-              :loading="qualityStatsLoading"
-              :error="qualityStatsError"
-              @click="openStabilityDialog(row)"
-            />
-          </template>
-          <template #header-quality_success_rate="{ column }">
-            <div class="flex items-center">
-              <span>{{ column.label }}</span>
-              <HelpTooltip :content="t('admin.accounts.quality.successRateHint')" width-class="w-80" />
-            </div>
-          </template>
-          <template #cell-quality_success_rate="{ row }">
-            <AccountQualityCell
-              clickable
-              mode="success_rate"
+              mode="combined"
               :stats="qualityStatsByAccountId[String(row.id)] ?? null"
               :loading="qualityStatsLoading"
               :error="qualityStatsError"
@@ -962,12 +956,12 @@ const exportingData = ref(false)
 const showColumnDropdown = ref(false)
 const columnDropdownRef = ref<HTMLElement | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
-// priority / concurrency / fallback_only are shown by default for quick inline edits.
+// leftover capacity / fallback_only / quality_success_rate columns were merged away.
 const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'notes', 'scheduler_score', 'rate_multiplier', 'exported_at']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
-// One-time migration: hide scheduler score; unhide priority for inline edit; ensure new columns visible.
 const HIDDEN_COLUMNS_VERSION_KEY = 'account-hidden-columns-version'
-const HIDDEN_COLUMNS_CURRENT_VERSION = 'quality-stability-entry-v1'
+const HIDDEN_COLUMNS_CURRENT_VERSION = 'account-column-merge-v1'
+const MERGED_AWAY_COLUMNS = ['capacity', 'fallback_only', 'quality_success_rate'] as const
 const columnOrder = ref<string[]>([])
 const columnWidths = ref<Record<string, number>>({})
 const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
@@ -975,10 +969,9 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   select: 100,
   name: 180,
   platform_type: 140,
-  capacity: 120,
-  concurrency: 110,
+  concurrency: 130,
   status: 120,
-  schedulable: 100,
+  schedulable: 110,
   user_schedule: 240,
   priority: 100,
   actions: 120
@@ -1281,8 +1274,7 @@ const refreshTodayStatsBatch = async () => {
 }
 
 const refreshQualityStatsBatch = async () => {
-  const qualityHidden =
-    hiddenColumns.has('quality_ttft') && hiddenColumns.has('quality_success_rate')
+  const qualityHidden = hiddenColumns.has('quality_ttft')
   if (qualityHidden) {
     qualityStatsLoading.value = false
     qualityStatsError.value = null
@@ -1405,9 +1397,9 @@ const loadSavedColumns = () => {
         hiddenColumns.add('scheduler_score')
         hiddenColumns.delete('priority')
         hiddenColumns.delete('concurrency')
-        hiddenColumns.delete('fallback_only')
+        hiddenColumns.delete('schedulable')
         hiddenColumns.delete('quality_ttft')
-        hiddenColumns.delete('quality_success_rate')
+        MERGED_AWAY_COLUMNS.forEach((key) => hiddenColumns.delete(key))
         localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
         localStorage.setItem(HIDDEN_COLUMNS_VERSION_KEY, HIDDEN_COLUMNS_CURRENT_VERSION)
       }
@@ -1543,7 +1535,7 @@ const toggleColumn = (key: string) => {
       console.error('Failed to load account today stats after showing column:', error)
     })
   }
-  if ((key === 'quality_ttft' || key === 'quality_success_rate') && wasHidden) {
+  if (key === 'quality_ttft' && wasHidden) {
     refreshQualityStatsBatch().catch((error) => {
       console.error('Failed to load account quality stats after showing column:', error)
     })
@@ -2042,19 +2034,12 @@ const allColumns = computed(() => {
     { key: 'select', label: '', sortable: false },
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: true },
-    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
-    { key: 'concurrency', label: t('admin.accounts.columns.concurrency'), sortable: true },
+    { key: 'concurrency', label: t('admin.accounts.columns.capacity'), sortable: true },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
     { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
     { key: 'user_schedule', label: t('admin.accounts.columns.userSchedule'), sortable: false },
-    { key: 'fallback_only', label: t('admin.accounts.columns.fallbackOnly'), sortable: false },
     { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false },
-    { key: 'quality_ttft', label: t('admin.accounts.columns.qualityTtft'), sortable: false },
-    {
-      key: 'quality_success_rate',
-      label: t('admin.accounts.columns.qualitySuccessRate'),
-      sortable: false
-    }
+    { key: 'quality_ttft', label: t('admin.accounts.columns.quality'), sortable: false }
   ]
   if (!authStore.isSimpleMode) {
     c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })

@@ -3856,6 +3856,8 @@ const zhBase = {
       schedulableHint: '开启后账号参与API请求调度',
       schedulableEnabled: '调度已开启',
       schedulableDisabled: '调度已关闭',
+      schedulableColumnHint: '上：是否参与调度。下：仅作兜底，同组还有主号时不会被选中。',
+      fallbackOnlyShort: '兜底',
       userSchedule: {
         modeUnrestricted: '不限制',
         modeAllow: '允许名单',
@@ -3931,6 +3933,7 @@ const zhBase = {
         userSchedule: '用户调度',
         fallbackOnly: '兜底调度',
         todayStats: '今日统计',
+        quality: '质量',
         qualityTtft: '首字',
         qualitySuccessRate: '成功率',
         groups: '分组',
@@ -3943,10 +3946,14 @@ const zhBase = {
       inlineEdit: {
         hint: '点击修改，回车保存，Esc 取消',
         concurrencyHint: '账号并发上限。下方为当前占用数。',
+        capacityConcurrencyHint: '可改最大并发。彩色徽章是当前占用：打满红、有占用黄、空闲灰。下方还有 5h 费用、会话、RPM 等。',
         inUse: '占用 {n}',
         saveFailed: '保存失败，已恢复原值'
       },
       quality: {
+        combinedHint:
+          '最近 15 分钟账号质量：上行 p50 首字延迟，下行成功率。点击打开稳定性曲线与硬关闭。',
+        successShort: '率',
         ttftHint:
           '最近 15 分钟真首字延迟（首次有用输出，不含 Responses preamble）。主指标 p50（中位数，抗异常值）；副指标 p95（尾延迟）。悬停可看均值/最大值与样本数。无样本显示 —。',
         successRateHint:

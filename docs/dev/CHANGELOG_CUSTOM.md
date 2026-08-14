@@ -1,3 +1,33 @@
+## 2026-08-15 - note: quality window stays hardcoded (deferred)
+
+### What
+- Do not make the 15-minute quality window, 5-minute snapshot interval, or 7-day snapshot retention configurable in this release.
+- If this is picked up later, use one global Settings KV trio (`quality_window_minutes`, `quality_snapshot_interval_minutes`, `quality_snapshot_retention_days`) and derive resume grace, live/resume Redis TTL, and frontend chip timers from it. Keep `pause_minutes` independent. Do not add per-account windows.
+
+### Why
+Operators asked to ship the current chips and column merge first; window configurability is recorded only.
+
+## 2026-08-15 - refactor(admin): merge account list columns
+
+### What
+- Schedulable column now stacks the schedule toggle and the fallback-only toggle. The standalone fallback column is gone.
+- Concurrency column keeps the inline max editor and the colored load badge (red full / yellow in-use / gray idle), plus the rest of the capacity badges. The standalone capacity column is gone.
+- Quality column shows p50 TTFT and success rate together. The standalone success-rate column is gone.
+
+### Why
+The account table was answering the same operator questions in adjacent columns.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountQualityCell.spec.ts src/views/admin/__tests__/AccountsView.stability.spec.ts`
+
+### Affected files
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/components/account/AccountQualityCell.vue`,
+`frontend/src/components/account/AccountCapacityCell.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-08-15 - feat(account): quality chips 已停 / 已恢复 / 质量
 
 ### What

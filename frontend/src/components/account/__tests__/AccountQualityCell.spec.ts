@@ -50,6 +50,17 @@ describe('AccountQualityCell', () => {
     expect(wrapper.emitted('click')).toHaveLength(1)
   })
 
+  it('combined mode stacks p50 and success rate', () => {
+    const wrapper = mount(AccountQualityCell, {
+      props: { mode: 'combined', stats, clickable: true }
+    })
+
+    expect(wrapper.text()).toContain('300ms')
+    expect(wrapper.text()).toContain('91.0%')
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.ttftTooltip')
+    expect(wrapper.get('[title]').attributes('title')).toContain('admin.accounts.quality.tooltip')
+  })
+
   it('clickable keeps the existing tooltip on stats', () => {
     const wrapper = mount(AccountQualityCell, {
       props: { mode: 'success_rate', stats, clickable: true }

@@ -4227,6 +4227,8 @@ const enBase = {
       schedulableHint: 'Enable to include this account in API request scheduling',
       schedulableEnabled: 'Scheduling enabled',
       schedulableDisabled: 'Scheduling disabled',
+      schedulableColumnHint: 'Top: whether this account is scheduled. Bottom: fallback only — not selected while any primary peer remains in the group.',
+      fallbackOnlyShort: 'Fallback',
       userSchedule: {
         modeUnrestricted: 'Unrestricted',
         modeAllow: 'Allow list',
@@ -4345,6 +4347,7 @@ const enBase = {
         userSchedule: 'User schedule',
         fallbackOnly: 'Fallback only',
         todayStats: 'Today Stats',
+        quality: 'Quality',
         qualityTtft: 'TTFT',
         qualitySuccessRate: 'Success Rate',
         groups: 'Groups',
@@ -4357,10 +4360,14 @@ const enBase = {
       inlineEdit: {
         hint: 'Click to edit, Enter to save, Esc to cancel',
         concurrencyHint: 'Max concurrency for this account. Current in-use count is shown below.',
+        capacityConcurrencyHint: 'Edit max concurrency here. The colored badge is current load: red when full, yellow when in use, gray when idle. 5h cost, sessions, and RPM stay underneath.',
         inUse: 'in use {n}',
         saveFailed: 'Save failed; value restored'
       },
       quality: {
+        combinedHint:
+          'Live 15-minute account quality: p50 first-token latency on top, success rate below. Click to open the stability curve and hard-close settings.',
+        successShort: 'ok',
         ttftHint:
           'True first-token latency over the last 15 minutes (first useful output, excluding Responses preamble). Primary: p50 (median, outlier-resistant). Secondary: p95 (tail). Hover for avg/max and sample count. Shows — when empty.',
         successRateHint:
