@@ -1,3 +1,18 @@
+## 2026-08-14 - deploy: production v0.1.222
+
+### What
+- Released and deployed `v0.1.222` (`85c02baee`) to production as `ghcr.io/541968679/sub2api:0.1.222`.
+- Includes account quality history + opt-in hard-close, per-user quality gates, and durable 立即恢复 grace in Redis HASH `account-quality:resume:{accountID}`.
+
+### Verification
+- Release workflow `31811813133` success; image digest `sha256:decd546d573f550dfa29dba941767ae7374452ae88619b5ddba0f0a99668a3fc`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `85c02baee`, version label `0.1.222`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-14 - fix(account): keep quality resume across live-cache Replace
 
 ### What
