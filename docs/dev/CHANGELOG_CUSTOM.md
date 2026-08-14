@@ -1,3 +1,18 @@
+## 2026-08-14 - deploy: production v0.1.221
+
+### What
+- Released and deployed `v0.1.221` (`1fbe4f2c1`) to production as `ghcr.io/541968679/sub2api:0.1.221`.
+- Account user schedule now has independent allow/deny lists plus a per-user pair concurrency cap; admin list and edit dialog can mark the cap.
+
+### Verification
+- Release workflow `31769224634` success; image digest `sha256:af886a82c8e9d52193441629a784c02eca76e71526d68e42b534648161ebaf7f`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `1fbe4f2c1`, version label `0.1.221`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-14 - fix(account): pair-cap save failed because air kept a stale backend
 
 ### What
