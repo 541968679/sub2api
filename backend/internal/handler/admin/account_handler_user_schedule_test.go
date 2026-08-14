@@ -178,6 +178,48 @@ func TestAccountHandler_Update_UserConcurrencyPatchForward(t *testing.T) {
 	require.Equal(t, 3, *adminSvc.lastUpdateAccountInput.UserConcurrencyPatch.MaxConcurrency)
 }
 
+func TestAccountHandler_Update_FullFormPayloadForwardsCaps(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	adminSvc := newStubAdminService()
+	handler := newAccountHandlerForUserScheduleTest(adminSvc)
+	router := gin.New()
+	router.PUT("/api/v1/admin/accounts/:id", handler.Update)
+
+	body := map[string]any{
+		"name":           "acc",
+		"notes":          "",
+		"proxy_id":       0,
+		"concurrency":    1,
+		"load_factor":    0,
+		"priority":       1,
+		"rate_multiplier": 1,
+		"status":         "active",
+		"group_ids":      []int64{},
+		"expires_at":     0,
+		"allow_user_ids": []int64{},
+		"deny_user_ids":  []int64{1},
+		"user_concurrencies": []map[string]any{
+			{"user_id": 1, "max_concurrency": 5},
+		},
+		"auto_pause_on_expired": true,
+	}
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/accounts/3", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, adminSvc.lastUpdateAccountInput)
+	require.Equal(t, []int64{1}, *adminSvc.lastUpdateAccountInput.DenyUserIDs)
+	require.NotNil(t, adminSvc.lastUpdateAccountInput.UserConcurrencies)
+	require.Equal(t, int64(1), (*adminSvc.lastUpdateAccountInput.UserConcurrencies)[0].UserID)
+	require.Equal(t, 5, (*adminSvc.lastUpdateAccountInput.UserConcurrencies)[0].MaxConcurrency)
+}
+
 func TestAccountHandler_BulkUpdate_AllowDenyForwardNoCaps(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

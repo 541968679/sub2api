@@ -762,6 +762,9 @@ describe('EditAccountModal', () => {
     expect(wrapper.find('[data-testid="edit-account-user-schedule-allow"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="edit-account-user-schedule-deny"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="edit-account-user-schedule-caps"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="edit-account-user-schedule-caps"]').text()).toContain('a@x.com')
+    expect(wrapper.get('[data-testid="edit-account-user-schedule-caps"]').text()).not.toContain('#16')
+    expect(wrapper.get('[data-testid="user-schedule-cap-16"]').exists()).toBe(true)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
@@ -772,5 +775,25 @@ describe('EditAccountModal', () => {
       { user_id: 7, max_concurrency: 3 }
     ])
     expect(updateAccountMock.mock.calls[0]?.[1]?.user_schedule_mode).toBeUndefined()
+  })
+
+  it('submits a newly typed pair cap for a deny-list user', async () => {
+    const account = buildAccount()
+    account.schedule_users = [{ id: 1, email: 'admin@x.com', deleted: false, deny: true }]
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const capInput = wrapper.get<HTMLInputElement>('[data-testid="user-schedule-cap-1"]')
+    await capInput.setValue('5')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.deny_user_ids).toEqual([1])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_concurrencies).toEqual([
+      { user_id: 1, max_concurrency: 5 }
+    ])
   })
 })

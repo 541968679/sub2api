@@ -954,7 +954,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   concurrency: 110,
   status: 120,
   schedulable: 100,
-  user_schedule: 160,
+  user_schedule: 240,
   priority: 100,
   actions: 120
 }
@@ -2553,7 +2553,8 @@ const mergeRuntimeFields = (oldAccount: Account, updatedAccount: Account): Accou
   active_sessions: updatedAccount.active_sessions ?? oldAccount.active_sessions,
   // Keep membership when an update/refresh payload omits groups (omitempty / shallow update).
   group_ids: updatedAccount.group_ids ?? oldAccount.group_ids,
-  groups: updatedAccount.groups ?? oldAccount.groups
+  groups: updatedAccount.groups ?? oldAccount.groups,
+  schedule_users: updatedAccount.schedule_users ?? oldAccount.schedule_users
 })
 
 const syncPaginationAfterLocalRemoval = () => {
@@ -2937,15 +2938,24 @@ const handleInlineConcurrency = async (a: Account, value: number) => {
   }
 }
 
+const overlayScheduleUserCap = (
+  users: Account['schedule_users'],
+  userId: number,
+  maxConcurrency: number | null
+) => {
+  const list = (users ?? []).map((user) => ({ ...user }))
+  return list.map((user) =>
+    user.id === userId ? { ...user, max_concurrency: maxConcurrency } : user
+  )
+}
+
 const handleInlineUserConcurrency = async (
   a: Account,
   payload: { userId: number; maxConcurrency: number | null }
 ) => {
   inlineSavingId.value = a.id
   const previousUsers = (a.schedule_users ?? []).map((user) => ({ ...user }))
-  const nextUsers = previousUsers.map((user) =>
-    user.id === payload.userId ? { ...user, max_concurrency: payload.maxConcurrency ?? null } : user
-  )
+  const nextUsers = overlayScheduleUserCap(previousUsers, payload.userId, payload.maxConcurrency)
   try {
     patchAccountInList({ ...a, schedule_users: nextUsers })
     const updated = await adminAPI.accounts.update(a.id, {
@@ -2954,7 +2964,15 @@ const handleInlineUserConcurrency = async (
         max_concurrency: payload.maxConcurrency
       }
     })
-    patchAccountInList(mergeRuntimeFields(a, updated))
+    const merged = mergeRuntimeFields(a, updated)
+    patchAccountInList({
+      ...merged,
+      schedule_users: overlayScheduleUserCap(
+        merged.schedule_users ?? nextUsers,
+        payload.userId,
+        payload.maxConcurrency
+      )
+    })
     enterAutoRefreshSilentWindow()
   } catch (error) {
     console.error('Failed to update user pair concurrency:', error)

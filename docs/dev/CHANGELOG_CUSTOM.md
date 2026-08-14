@@ -1,3 +1,46 @@
+## 2026-08-14 - fix(account): pair-cap save failed because air kept a stale backend
+
+### What
+- Local `18081` was still serving the 10:27 `server.exe` process after air wrote a newer binary at 10:54; `PUT /admin/accounts/:id` returned 200 but ignored `user_concurrencies` / `user_concurrency_patch`.
+- Restarted the backend so the current binary is actually listening. Verified account 3 / user 1 now persists `max_concurrency=5` and the GET payload includes `allow` / `deny` / `max_concurrency`.
+- Added regression tests for typing a new cap in the edit dialog, blur-save in the list cell, and a full-form admin PUT body.
+
+### Why
+Windows air often cannot replace a locked `tmp/server.exe`. The UI was sending the right fields; the old process just did not know them.
+
+### Verification
+- Live `PUT` with `user_concurrency_patch` then `psql` on `account_schedule_users`
+- `go test -tags=unit ./internal/handler/admin -run "TestAccountHandler_Update_FullFormPayloadForwardsCaps|TestAccountHandler_Update_UserConcurrencyPatchForward" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts -t "newly typed|从空值输入"`
+
+### Affected files
+`backend/internal/handler/admin/account_handler_user_schedule_test.go`,
+`frontend/src/components/account/__tests__/EditAccountModal.spec.ts`,
+`frontend/src/components/account/__tests__/AccountUserScheduleCell.spec.ts`,
+this changelog.
+
+## 2026-08-14 - fix(account): user-schedule concurrency editor UX
+
+### What
+- Account list user-schedule column now edits concurrency on a full email+number row instead of a clipped chip, and keeps the saved cap on the row after update merge.
+- Account edit dialog replaces the jargon title and `#id` cap list with “用户并发上限” and one email row plus an input per user.
+
+### Why
+Inline marks were unusable inside an overflow-hidden chip, and the edit form labeled users as `#1` / `#2`.
+
+### Verification
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`frontend/src/components/account/AccountInlineNumberCell.vue`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/views/admin/AccountsView.vue`,
+`frontend/src/views/admin/settings/OpenAIFastPolicyUserSelector.vue`,
+`frontend/src/i18n/locales/zh.ts`,
+`frontend/src/i18n/locales/en.ts`,
+this changelog.
+
 ## 2026-08-14 - feat(account): independent allow/deny lists + pair concurrency
 
 ### What

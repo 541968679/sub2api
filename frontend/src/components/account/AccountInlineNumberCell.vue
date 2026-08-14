@@ -90,7 +90,10 @@ watch(
 
 function startEdit() {
   if (props.disabled) return
-  draft.value = String(props.modelValue ?? 0)
+  draft.value =
+    props.blankWhenZero && (props.modelValue == null || props.modelValue === 0)
+      ? ''
+      : String(props.modelValue ?? 0)
   editing.value = true
   nextTick(() => {
     inputRef.value?.focus()

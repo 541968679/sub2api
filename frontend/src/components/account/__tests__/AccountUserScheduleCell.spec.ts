@@ -97,6 +97,21 @@ describe('AccountUserScheduleCell', () => {
     expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.modeDeny')
   })
 
+  it('从空值输入数字后 blur 发出 save', async () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{ id: 1, email: 'admin@x.com', deleted: false, deny: true }]
+        })
+      }
+    })
+    await wrapper.get('button').trigger('click')
+    const input = wrapper.get('input[type="number"]')
+    await input.setValue('5')
+    await input.trigger('blur')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toEqual({ userId: 1, maxConcurrency: 5 })
+  })
+
   it('标记数字时发出 save，清空数字时传 null', async () => {
     const wrapper = mount(AccountUserScheduleCell, {
       props: {

@@ -104,6 +104,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   "update:modelValue": [value: number[]];
+  select: [user: SimpleUser];
 }>();
 
 const { t } = useI18n();
@@ -178,6 +179,7 @@ function debounceSearch(): void {
 
 function selectUser(user: SimpleUser): void {
   selectedUsers.value = { ...selectedUsers.value, [user.id]: user };
+  emit("select", user);
   emit("update:modelValue", [...selectedUserIds.value, user.id]);
   clearPendingSearch();
   searchQuery.value = "";

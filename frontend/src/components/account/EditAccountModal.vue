@@ -2657,6 +2657,7 @@
                 <OpenAIFastPolicyUserSelector
                   v-model="form.allow_user_ids"
                   :known-users="scheduleKnownUsers"
+                  @select="rememberScheduleUser"
                 />
               </div>
               <div data-testid="edit-account-user-schedule-deny">
@@ -2665,32 +2666,43 @@
                 <OpenAIFastPolicyUserSelector
                   v-model="form.deny_user_ids"
                   :known-users="scheduleKnownUsers"
+                  @select="rememberScheduleUser"
                 />
               </div>
               <div data-testid="edit-account-user-schedule-caps">
-                <label class="input-label">{{ t('admin.accounts.userSchedule.pairCap') }}</label>
+                <label class="input-label">{{ t('admin.accounts.userSchedule.userConcurrency') }}</label>
                 <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.concurrencyHint') }}</p>
-                <div v-if="scheduleConcurrencyUserIds.length" class="mb-2 space-y-1.5">
+                <div
+                  v-if="scheduleConcurrencyUserIds.length"
+                  class="mb-2 divide-y divide-gray-100 rounded-lg border border-gray-200 dark:divide-dark-600 dark:border-dark-600"
+                >
                   <label
                     v-for="userId in scheduleConcurrencyUserIds"
                     :key="userId"
-                    class="flex items-center justify-between gap-2 text-xs text-gray-700 dark:text-gray-300"
+                    class="flex items-center justify-between gap-3 px-3 py-2 text-sm text-gray-800 dark:text-gray-200"
                   >
-                    <span class="truncate">#{{ userId }}</span>
+                    <span class="min-w-0 truncate" :title="scheduleUserLabel(userId)">
+                      {{ scheduleUserLabel(userId) }}
+                    </span>
                     <input
                       :value="form.user_concurrency[userId] ?? ''"
                       type="number"
                       min="1"
-                      class="input input-sm w-20"
+                      class="input input-sm w-24 shrink-0"
+                      :placeholder="t('admin.accounts.userSchedule.concurrencyPlaceholder')"
                       :data-testid="`user-schedule-cap-${userId}`"
                       @input="setUserConcurrency(userId, ($event.target as HTMLInputElement).value)"
                     />
                   </label>
                 </div>
+                <p v-else class="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                  {{ t('admin.accounts.userSchedule.concurrencyEmpty') }}
+                </p>
                 <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.capOnlyHint') }}</p>
                 <OpenAIFastPolicyUserSelector
                   v-model="form.cap_only_user_ids"
                   :known-users="scheduleKnownUsers"
+                  @select="rememberScheduleUser"
                 />
               </div>
             </div>
@@ -3265,13 +3277,36 @@ const expiresAtInput = computed({
   }
 })
 
-const scheduleKnownUsers = computed(() =>
-  (props.account?.schedule_users ?? []).map((user) => ({
+const scheduleUserDirectory = reactive<Record<number, { id: number; email: string; deleted: boolean }>>({})
+
+const rememberScheduleUser = (user: { id: number; email?: string; deleted?: boolean }) => {
+  if (!user || !Number.isInteger(user.id) || user.id <= 0) return
+  scheduleUserDirectory[user.id] = {
     id: user.id,
-    email: user.email,
+    email: user.email || scheduleUserDirectory[user.id]?.email || '',
     deleted: Boolean(user.deleted)
-  }))
-)
+  }
+}
+
+const scheduleKnownUsers = computed(() => {
+  const byID: Record<number, { id: number; email: string; deleted: boolean }> = {
+    ...scheduleUserDirectory
+  }
+  for (const user of props.account?.schedule_users ?? []) {
+    byID[user.id] = {
+      id: user.id,
+      email: user.email || byID[user.id]?.email || '',
+      deleted: Boolean(user.deleted)
+    }
+  }
+  return Object.values(byID)
+})
+
+const scheduleUserLabel = (userId: number) => {
+  const known = scheduleKnownUsers.value.find((user) => user.id === userId)
+  if (known?.email) return known.email
+  return t('admin.settings.openaiFastPolicy.userIdFallback', { id: userId })
+}
 
 const scheduleConcurrencyUserIds = computed(() => {
   const ids = [...form.allow_user_ids, ...form.deny_user_ids, ...form.cap_only_user_ids]
@@ -3298,12 +3333,17 @@ const hydrateUserScheduleForm = (account: {
   user_schedule_mode?: string
   schedule_users?: Array<{
     id: number
+    email?: string
+    deleted?: boolean
     allow?: boolean
     deny?: boolean
     max_concurrency?: number | null
   }>
 }) => {
   const users = account.schedule_users ?? []
+  for (const user of users) {
+    rememberScheduleUser(user)
+  }
   const hasFlags = users.some((user) => user.allow || user.deny || (user.max_concurrency ?? 0) >= 1)
   if (hasFlags) {
     form.allow_user_ids = users.filter((user) => user.allow).map((user) => user.id)

@@ -1,25 +1,27 @@
 <template>
-  <div v-if="hasConfig" class="relative max-w-56">
-    <div class="flex flex-wrap items-center gap-1 max-h-14 overflow-hidden">
-      <span
+  <div v-if="hasConfig" class="relative min-w-[11rem] max-w-64">
+    <div class="flex flex-col gap-1">
+      <div
         v-for="user in displayUsers"
         :key="user.id"
-        class="inline-flex max-w-36 items-center gap-1 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-300"
+        class="flex items-center gap-1.5"
         :title="userChipTitle(user)"
       >
         <span
           v-if="user.allow"
-          class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+          class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
         >
           {{ t('admin.accounts.userSchedule.modeAllow') }}
         </span>
         <span
           v-if="user.deny"
-          class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+          class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
         >
           {{ t('admin.accounts.userSchedule.modeDeny') }}
         </span>
-        <span class="truncate">{{ user.email || `#${user.id}` }}</span>
+        <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
+          {{ user.email || `#${user.id}` }}
+        </span>
         <AccountInlineNumberCell
           :model-value="user.max_concurrency ?? 0"
           :min="0"
@@ -28,12 +30,12 @@
           :hint="t('admin.accounts.userSchedule.concurrencyHint')"
           @save="(value) => emitSave(user.id, value)"
         />
-      </span>
+      </div>
       <button
         v-if="hiddenCount > 0"
         ref="moreButtonRef"
         type="button"
-        class="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500 transition-colors cursor-pointer whitespace-nowrap"
+        class="self-start inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500 transition-colors cursor-pointer whitespace-nowrap"
         @click.stop="showPopover = !showPopover"
       >
         <span>+{{ hiddenCount }}</span>
@@ -52,7 +54,7 @@
         <div
           v-if="showPopover"
           ref="popoverRef"
-          class="fixed z-50 min-w-48 max-w-96 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+          class="fixed z-50 min-w-64 max-w-96 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-dark-600 dark:bg-dark-800"
           :style="popoverStyle"
         >
           <div class="mb-2 flex items-center justify-between">
@@ -69,26 +71,28 @@
               </svg>
             </button>
           </div>
-          <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
-            <span
+          <div class="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+            <div
               v-for="user in users"
               :key="user.id"
-              class="inline-flex max-w-full items-center gap-1 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-300"
+              class="flex items-center gap-1.5"
               :title="userChipTitle(user)"
             >
               <span
                 v-if="user.allow"
-                class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
               >
                 {{ t('admin.accounts.userSchedule.modeAllow') }}
               </span>
               <span
                 v-if="user.deny"
-                class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
               >
                 {{ t('admin.accounts.userSchedule.modeDeny') }}
               </span>
-              <span class="truncate">{{ user.email || `#${user.id}` }}</span>
+              <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
+                {{ user.email || `#${user.id}` }}
+              </span>
               <AccountInlineNumberCell
                 :model-value="user.max_concurrency ?? 0"
                 :min="0"
@@ -97,7 +101,7 @@
                 :hint="t('admin.accounts.userSchedule.concurrencyHint')"
                 @save="(value) => emitSave(user.id, value)"
               />
-            </span>
+            </div>
           </div>
         </div>
       </Transition>
