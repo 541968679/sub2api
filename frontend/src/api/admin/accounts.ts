@@ -613,11 +613,12 @@ export async function updateQualityHardClose(
 /** Force-admit one user on this account for one 15-minute quality window. Does not change the gate. */
 export async function resumeUserQuality(
   id: number,
-  userId: number
-): Promise<{ account_id: number; user_id: number }> {
-  const { data } = await apiClient.post<{ account_id: number; user_id: number }>(
+  userId: number,
+  startWindow = false
+): Promise<{ account_id: number; user_id: number; start_window?: boolean }> {
+  const { data } = await apiClient.post<{ account_id: number; user_id: number; start_window?: boolean }>(
     `/admin/accounts/${id}/quality-resume`,
-    { user_id: userId }
+    { user_id: userId, start_window: startWindow }
   )
   return data
 }

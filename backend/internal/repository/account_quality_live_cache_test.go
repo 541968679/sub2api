@@ -153,6 +153,26 @@ func TestAccountQualityLiveCache_TwoUserResumesDoNotClobber(t *testing.T) {
 	require.True(t, service.UserQualityResumeActive(got, 7, now))
 }
 
+func TestAccountQualityLiveCache_MarkUserQualityWindowDropsResumedChip(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	cache := NewAccountQualityLiveCache(rdb)
+	ctx := context.Background()
+
+	require.NoError(t, cache.MarkUserResume(ctx, 9, 16))
+	before, err := cache.Get(ctx, 9)
+	require.NoError(t, err)
+	now := time.Now().UTC()
+	require.True(t, service.UserQualityResumedChipActive(before, 16, now))
+
+	require.NoError(t, cache.MarkUserQualityWindow(ctx, 9, 16))
+	after, err := cache.Get(ctx, 9)
+	require.NoError(t, err)
+	require.False(t, service.UserQualityResumedChipActive(after, 16, now))
+	require.True(t, service.UserQualityResumeActive(after, 16, now))
+}
+
 func TestAccountQualityLiveCache_ReplaceMergesResumeIntoCallerMap(t *testing.T) {
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})

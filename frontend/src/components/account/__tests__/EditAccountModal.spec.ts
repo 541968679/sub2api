@@ -920,6 +920,13 @@ describe('EditAccountModal', () => {
     expect(resumeUserQuality).toHaveBeenCalledWith(1, 16)
     expect(updateAccountMock).not.toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.userSchedule.qualityResumeSuccess')
+    expect(wrapper.get('[data-testid="user-schedule-quality-resumed-chip"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="user-schedule-quality-resumed-chip"]').trigger('click')
+    await flushPromises()
+    expect(resumeUserQuality).toHaveBeenCalledWith(1, 16, true)
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.userSchedule.qualityWindowStartSuccess')
+    expect(wrapper.find('[data-testid="user-schedule-quality-chip"]').exists()).toBe(true)
   })
 
   it('submits a newly typed pair cap for a deny-list user', async () => {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -241,6 +242,12 @@ func (s *adminServiceImpl) hydrateAccountScheduleUsers(ctx context.Context, acco
 				ref = ScheduleUserRef{ID: id}
 			}
 			users = append(users, stampScheduleUserFlags(accounts[i], ref))
+		}
+		if s.qualityLiveCache != nil && len(accounts[i].UserQualityGates) > 0 {
+			stats, err := s.qualityLiveCache.Get(ctx, accounts[i].ID)
+			if err == nil {
+				stampScheduleUsersQualityRuntime(&accounts[i], users, stats, time.Now().UTC())
+			}
 		}
 		accounts[i].ScheduleUsers = users
 	}

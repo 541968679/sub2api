@@ -270,6 +270,9 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 				QualityMinSuccessSamples: u.QualityMinSuccessSamples,
 				QualityMinTTFTSamples:    u.QualityMinTTFTSamples,
 				QualityCondition:         u.QualityCondition,
+				QualityBlocked:           u.QualityBlocked,
+				QualityResumedUntil:      u.QualityResumedUntil,
+				QualityWindowUntil:       u.QualityWindowUntil,
 			})
 		}
 	}

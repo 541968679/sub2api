@@ -309,6 +309,9 @@ type ScheduleUser struct {
 	QualityMinSuccessSamples *int     `json:"quality_min_success_samples,omitempty"`
 	QualityMinTTFTSamples    *int     `json:"quality_min_ttft_samples,omitempty"`
 	QualityCondition         *string  `json:"quality_condition,omitempty"`
+	QualityBlocked           bool     `json:"quality_blocked,omitempty"`
+	QualityResumedUntil      *int64   `json:"quality_resumed_until,omitempty"`
+	QualityWindowUntil       *int64   `json:"quality_window_until,omitempty"`
 }
 
 type AccountGroup struct {

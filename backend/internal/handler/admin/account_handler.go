@@ -2490,7 +2490,8 @@ func (h *AccountHandler) GetQualityHardClose(c *gin.Context) {
 }
 
 type resumeQualityRequest struct {
-	UserID int64 `json:"user_id"`
+	UserID      int64 `json:"user_id"`
+	StartWindow bool  `json:"start_window"`
 }
 
 // ResumeQuality force-admits one user on this account for one quality window.
@@ -2522,11 +2523,17 @@ func (h *AccountHandler) ResumeQuality(c *gin.Context) {
 		response.ErrorFrom(c, infraerrors.BadRequest("QUALITY_RESUME_NO_GATE", "user has no quality gate on this account"))
 		return
 	}
-	if err := h.qualityMaintenance.ResumeUserQuality(c.Request.Context(), accountID, req.UserID); err != nil {
-		response.ErrorFrom(c, err)
+	var resumeErr error
+	if req.StartWindow {
+		resumeErr = h.qualityMaintenance.StartUserQualityWindow(c.Request.Context(), accountID, req.UserID)
+	} else {
+		resumeErr = h.qualityMaintenance.ResumeUserQuality(c.Request.Context(), accountID, req.UserID)
+	}
+	if resumeErr != nil {
+		response.ErrorFrom(c, resumeErr)
 		return
 	}
-	response.Success(c, gin.H{"account_id": accountID, "user_id": req.UserID})
+	response.Success(c, gin.H{"account_id": accountID, "user_id": req.UserID, "start_window": req.StartWindow})
 }
 
 // UpdateQualityHardClose writes only extra.quality_hard_close.

@@ -1,3 +1,25 @@
+## 2026-08-15 - feat(account): quality chips 已停 / 已恢复 / 质量
+
+### What
+- Account list and edit modal show user-gate runtime chips: **已停**, **已恢复**, **质量**.
+- **立即恢复** goes to 已恢复 and force-admits the pair. Click 已恢复, or wait 15 minutes, to return to 质量 and start a new accumulation window.
+
+### Why
+Operators could not see whether a user gate was currently excluding a pair, and needed a two-step resume that does not immediately re-block on the old 15-minute window.
+
+### Verification
+- `go test -tags=unit ./internal/service -run "StampScheduleUsers|ApplyUserQualityResume|QualityResume" -count=1`
+- `go test -tags=unit ./internal/repository -run LiveCache -count=1`
+- `pnpm --dir frontend exec vitest run src/utils/__tests__/accountQualityHardClose.spec.ts src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts`
+
+### Affected files
+`backend/internal/service/account_quality.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/repository/account_quality_live_cache.go`,
+`frontend/src/components/account/AccountUserQualityChip.vue`,
+`frontend/src/utils/accountQualityHardClose.ts`,
+this changelog.
+
 ## 2026-08-14 - deploy: production v0.1.222
 
 ### What

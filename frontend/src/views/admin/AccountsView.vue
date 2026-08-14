@@ -465,10 +465,12 @@
           <template #cell-user_schedule="{ row }">
             <AccountUserScheduleCell
               :account="row"
+              :quality-stats="qualityStatsByAccountId[String(row.id)] ?? null"
               :disabled="inlineSavingId === row.id"
               @save="(payload) => handleInlineUserConcurrency(row, payload)"
               @save-quality="(payload) => handleInlineUserQualityGate(row, payload)"
               @resume-quality="(userId) => handleInlineUserQualityResume(row, userId)"
+              @start-quality-window="(userId) => handleInlineUserQualityStartWindow(row, userId)"
             />
           </template>
           <template #header-fallback_only="{ column }">
@@ -795,6 +797,7 @@ import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import type { AccountQualityStats, OpenAIOauthFleetUsageSummary } from '@/api/admin/accounts'
+import { ACCOUNT_QUALITY_WINDOW_SECONDS } from '@/utils/accountQualityHardClose'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -2999,7 +3002,10 @@ const overlayScheduleUserQuality = (
           quality_min_success_rate: hasGate ? patch.quality_min_success_rate ?? null : null,
           quality_min_success_samples: hasGate ? patch.quality_min_success_samples ?? null : null,
           quality_min_ttft_samples: hasGate ? patch.quality_min_ttft_samples ?? null : null,
-          quality_condition: hasGate ? patch.quality_condition ?? 'or' : null
+          quality_condition: hasGate ? patch.quality_condition ?? 'or' : null,
+          quality_blocked: hasGate ? user.quality_blocked : false,
+          quality_resumed_until: hasGate ? user.quality_resumed_until : null,
+          quality_window_until: hasGate ? user.quality_window_until : null
         }
       : user
   )
@@ -3039,10 +3045,49 @@ const handleInlineUserConcurrency = async (
   }
 }
 
+const overlayScheduleUserQualityResume = (
+  users: Account['schedule_users'],
+  userId: number,
+  startWindow: boolean,
+  now = Date.now()
+) => {
+  const nowSec = Math.floor(now / 1000)
+  return (users ?? []).map((user) =>
+    user.id === userId
+      ? {
+          ...user,
+          quality_blocked: false,
+          quality_resumed_until: startWindow ? null : nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS,
+          quality_window_until: startWindow
+            ? nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
+            : nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS * 2
+        }
+      : { ...user }
+  )
+}
+
 const handleInlineUserQualityResume = async (a: Account, userId: number) => {
   try {
     await adminAPI.accounts.resumeUserQuality(a.id, userId)
+    patchAccountInList({
+      ...a,
+      schedule_users: overlayScheduleUserQualityResume(a.schedule_users, userId, false)
+    })
     appStore.showSuccess(t('admin.accounts.userSchedule.qualityResumeSuccess'))
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : ''
+    appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))
+  }
+}
+
+const handleInlineUserQualityStartWindow = async (a: Account, userId: number) => {
+  try {
+    await adminAPI.accounts.resumeUserQuality(a.id, userId, true)
+    patchAccountInList({
+      ...a,
+      schedule_users: overlayScheduleUserQualityResume(a.schedule_users, userId, true)
+    })
+    appStore.showSuccess(t('admin.accounts.userSchedule.qualityWindowStartSuccess'))
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : ''
     appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))

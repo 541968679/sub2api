@@ -71,6 +71,24 @@ func TestQualityResumeHelpers(t *testing.T) {
 	require.False(t, HasActiveQualityResume(fresh, now.Add(20*time.Minute)))
 }
 
+func TestApplyUserQualityResumeTwoPhase(t *testing.T) {
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	stats := &AccountQualityStats{}
+	ApplyUserQualityResume(stats, 16, now)
+	require.True(t, UserQualityResumedChipActive(stats, 16, now))
+	require.True(t, UserQualityResumeActive(stats, 16, now))
+
+	afterResume := now.Add(AccountQualityWindow + time.Minute)
+	require.False(t, UserQualityResumedChipActive(stats, 16, afterResume))
+	require.True(t, UserQualityResumeActive(stats, 16, afterResume))
+
+	clickAt := now.Add(2 * time.Minute)
+	ApplyUserQualityWindowStart(stats, 16, clickAt)
+	require.False(t, UserQualityResumedChipActive(stats, 16, clickAt))
+	require.True(t, UserQualityResumeActive(stats, 16, clickAt))
+	require.False(t, UserQualityResumeActive(stats, 16, clickAt.Add(AccountQualityWindow+time.Minute)))
+}
+
 func TestHasAccountQualitySamples(t *testing.T) {
 	require.False(t, HasAccountQualitySamples(nil))
 	require.False(t, HasAccountQualitySamples(BuildAccountQualityStats(0, 0, TTFTAggregate{})))

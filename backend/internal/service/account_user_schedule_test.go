@@ -167,7 +167,23 @@ func (s *liveQualityCacheStub) MarkUserResume(_ context.Context, accountID, user
 		st = &AccountQualityStats{}
 		s.byID[accountID] = st
 	}
-	SetUserQualityResume(st, userID, time.Now().UTC().Add(AccountQualityWindow))
+	ApplyUserQualityResume(st, userID, time.Now().UTC())
+	return nil
+}
+
+func (s *liveQualityCacheStub) MarkUserQualityWindow(_ context.Context, accountID, userID int64) error {
+	if s == nil {
+		return nil
+	}
+	if s.byID == nil {
+		s.byID = map[int64]*AccountQualityStats{}
+	}
+	st := s.byID[accountID]
+	if st == nil {
+		st = &AccountQualityStats{}
+		s.byID[accountID] = st
+	}
+	ApplyUserQualityWindowStart(st, userID, time.Now().UTC())
 	return nil
 }
 
@@ -329,5 +345,76 @@ func TestAccount_QualityGateBlocksUserAndAdmitsScheduleUser(t *testing.T) {
 		require.False(t, admitsScheduleUser(ctx, acc, &liveQualityCacheStub{
 			byID: map[int64]*AccountQualityStats{1: liveQualityStats(4000, 12, 20, 0, 1)},
 		}))
+	})
+}
+
+func TestStampScheduleUsersQualityRuntime(t *testing.T) {
+	t.Parallel()
+
+	p50 := 1000
+	acc := qualityGateAccount(16, QualityHardCloseSettings{MaxP50TTFTMs: &p50, MinTTFTSamples: 10})
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+
+	t.Run("breach stamps blocked", func(t *testing.T) {
+		t.Parallel()
+		users := []ScheduleUserRef{{ID: 16, QualityMaxP50TTFTMs: &p50}}
+		stampScheduleUsersQualityRuntime(acc, users, liveQualityStats(2000, 10, 20, 0, 1), now)
+		require.True(t, users[0].QualityBlocked)
+		require.Nil(t, users[0].QualityResumedUntil)
+	})
+
+	t.Run("resume stamps until and not blocked", func(t *testing.T) {
+		t.Parallel()
+		users := []ScheduleUserRef{{ID: 16, QualityMaxP50TTFTMs: &p50}}
+		stats := liveQualityStats(2000, 10, 20, 0, 1)
+		ApplyUserQualityResume(stats, 16, now)
+		stampScheduleUsersQualityRuntime(acc, users, stats, now)
+		require.False(t, users[0].QualityBlocked)
+		require.NotNil(t, users[0].QualityResumedUntil)
+		require.Equal(t, now.Add(AccountQualityWindow).Unix(), *users[0].QualityResumedUntil)
+		require.NotNil(t, users[0].QualityWindowUntil)
+		require.Equal(t, now.Add(2*AccountQualityWindow).Unix(), *users[0].QualityWindowUntil)
+	})
+
+	t.Run("after 15m auto drops 已恢复 and keeps accumulating", func(t *testing.T) {
+		t.Parallel()
+		users := []ScheduleUserRef{{ID: 16, QualityMaxP50TTFTMs: &p50}}
+		stats := liveQualityStats(2000, 10, 20, 0, 1)
+		ApplyUserQualityResume(stats, 16, now)
+		later := now.Add(AccountQualityWindow + time.Minute)
+		stampScheduleUsersQualityRuntime(acc, users, stats, later)
+		require.False(t, users[0].QualityBlocked)
+		require.Nil(t, users[0].QualityResumedUntil)
+		require.NotNil(t, users[0].QualityWindowUntil)
+	})
+
+	t.Run("click 已恢复 starts window and drops resumed chip", func(t *testing.T) {
+		t.Parallel()
+		users := []ScheduleUserRef{{ID: 16, QualityMaxP50TTFTMs: &p50}}
+		stats := liveQualityStats(2000, 10, 20, 0, 1)
+		ApplyUserQualityResume(stats, 16, now)
+		clickAt := now.Add(2 * time.Minute)
+		ApplyUserQualityWindowStart(stats, 16, clickAt)
+		stampScheduleUsersQualityRuntime(acc, users, stats, clickAt)
+		require.False(t, users[0].QualityBlocked)
+		require.Nil(t, users[0].QualityResumedUntil)
+		require.NotNil(t, users[0].QualityWindowUntil)
+		require.Equal(t, clickAt.Add(AccountQualityWindow).Unix(), *users[0].QualityWindowUntil)
+	})
+
+	t.Run("nil stats fail open", func(t *testing.T) {
+		t.Parallel()
+		users := []ScheduleUserRef{{ID: 16, QualityMaxP50TTFTMs: &p50}}
+		stampScheduleUsersQualityRuntime(acc, users, nil, now)
+		require.False(t, users[0].QualityBlocked)
+		require.Nil(t, users[0].QualityResumedUntil)
+	})
+
+	t.Run("no gate is not stamped", func(t *testing.T) {
+		t.Parallel()
+		users := []ScheduleUserRef{{ID: 16}}
+		stampScheduleUsersQualityRuntime(acc, users, liveQualityStats(2000, 10, 20, 0, 1), now)
+		require.False(t, users[0].QualityBlocked)
+		require.Nil(t, users[0].QualityResumedUntil)
 	})
 }

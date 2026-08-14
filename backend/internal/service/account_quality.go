@@ -51,8 +51,12 @@ type AccountQualityStats struct {
 	MaxTTFTMs   *int  `json:"max_ttft_ms"`
 	TTFTSamples int64 `json:"ttft_samples"`
 	// ResumeUsers is live-cache only: user_id -> unix until. After 立即恢复,
-	// that pair is not judged until this timestamp (one 15-minute window).
+	// the chip stays 已恢复 until this timestamp.
 	ResumeUsers map[string]int64 `json:"resume_users,omitempty"`
+	// ResumeWatchingUsers is live-cache only: user_id -> unix until. After
+	// 已恢复 ends (click or 15-minute auto), a new window accumulates and the
+	// pair stays fail-open until this timestamp.
+	ResumeWatchingUsers map[string]int64 `json:"resume_watching_users,omitempty"`
 	// AccountResumeUntil is live-cache only. After hard-close 立即恢复,
 	// the account is not re-paused until this timestamp.
 	AccountResumeUntil *int64 `json:"account_resume_until,omitempty"`
@@ -115,7 +119,7 @@ func qualityResumeUserKey(userID int64) string {
 	return strconv.FormatInt(userID, 10)
 }
 
-// SetUserQualityResume marks one pair as force-admitted until `until`.
+// SetUserQualityResume marks the 已恢复 chip phase until `until`.
 func SetUserQualityResume(stats *AccountQualityStats, userID int64, until time.Time) {
 	if stats == nil || userID <= 0 || until.IsZero() {
 		return
@@ -124,6 +128,61 @@ func SetUserQualityResume(stats *AccountQualityStats, userID int64, until time.T
 		stats.ResumeUsers = make(map[string]int64, 1)
 	}
 	stats.ResumeUsers[qualityResumeUserKey(userID)] = until.UTC().Unix()
+}
+
+// SetUserQualityWatching marks the post-已恢复 accumulation window until `until`.
+func SetUserQualityWatching(stats *AccountQualityStats, userID int64, until time.Time) {
+	if stats == nil || userID <= 0 || until.IsZero() {
+		return
+	}
+	if stats.ResumeWatchingUsers == nil {
+		stats.ResumeWatchingUsers = make(map[string]int64, 1)
+	}
+	stats.ResumeWatchingUsers[qualityResumeUserKey(userID)] = until.UTC().Unix()
+}
+
+// ApplyUserQualityResume is 立即恢复: 已恢复 for one window, then accumulate
+// another window (fail-open until now+30m).
+func ApplyUserQualityResume(stats *AccountQualityStats, userID int64, now time.Time) {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	SetUserQualityResume(stats, userID, now.Add(AccountQualityWindow))
+	SetUserQualityWatching(stats, userID, now.Add(2*AccountQualityWindow))
+}
+
+// ApplyUserQualityWindowStart is 点已恢复: drop the 已恢复 chip and start a
+// new accumulation window from now.
+func ApplyUserQualityWindowStart(stats *AccountQualityStats, userID int64, now time.Time) {
+	if stats == nil || userID <= 0 {
+		return
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if stats.ResumeUsers != nil {
+		delete(stats.ResumeUsers, qualityResumeUserKey(userID))
+		if len(stats.ResumeUsers) == 0 {
+			stats.ResumeUsers = nil
+		}
+	}
+	SetUserQualityWatching(stats, userID, now.Add(AccountQualityWindow))
+}
+
+func userResumeUntilUnix(stats *AccountQualityStats, userID int64) (int64, bool) {
+	if stats == nil || userID <= 0 || len(stats.ResumeUsers) == 0 {
+		return 0, false
+	}
+	until, ok := stats.ResumeUsers[qualityResumeUserKey(userID)]
+	return until, ok
+}
+
+func userWatchingUntilUnix(stats *AccountQualityStats, userID int64) (int64, bool) {
+	if stats == nil || userID <= 0 || len(stats.ResumeWatchingUsers) == 0 {
+		return 0, false
+	}
+	until, ok := stats.ResumeWatchingUsers[qualityResumeUserKey(userID)]
+	return until, ok
 }
 
 // SetAccountQualityResume marks the account hard-close as not re-pausing until `until`.
@@ -135,12 +194,19 @@ func SetAccountQualityResume(stats *AccountQualityStats, until time.Time) {
 	stats.AccountResumeUntil = &unix
 }
 
-// UserQualityResumeActive reports whether this pair is inside a manual-resume grace.
+// UserQualityResumeActive reports whether this pair is inside 已恢复 or the
+// following accumulation window (fail-open).
 func UserQualityResumeActive(stats *AccountQualityStats, userID int64, now time.Time) bool {
-	if stats == nil || userID <= 0 || len(stats.ResumeUsers) == 0 {
-		return false
+	if until, ok := userWatchingUntilUnix(stats, userID); ok && until > now.Unix() {
+		return true
 	}
-	until, ok := stats.ResumeUsers[qualityResumeUserKey(userID)]
+	until, ok := userResumeUntilUnix(stats, userID)
+	return ok && until > now.Unix()
+}
+
+// UserQualityResumedChipActive is the 已恢复 chip phase only.
+func UserQualityResumedChipActive(stats *AccountQualityStats, userID int64, now time.Time) bool {
+	until, ok := userResumeUntilUnix(stats, userID)
 	return ok && until > now.Unix()
 }
 
@@ -162,6 +228,11 @@ func HasActiveQualityResume(stats *AccountQualityStats, now time.Time) bool {
 			return true
 		}
 	}
+	for _, until := range stats.ResumeWatchingUsers {
+		if until > now.Unix() {
+			return true
+		}
+	}
 	return false
 }
 
@@ -172,20 +243,38 @@ func pruneQualityResume(stats *AccountQualityStats, now time.Time) {
 	if stats.AccountResumeUntil != nil && *stats.AccountResumeUntil <= now.Unix() {
 		stats.AccountResumeUntil = nil
 	}
-	if len(stats.ResumeUsers) == 0 {
-		return
+	stats.ResumeUsers = pruneResumeMap(stats.ResumeUsers, now)
+	stats.ResumeWatchingUsers = pruneResumeMap(stats.ResumeWatchingUsers, now)
+}
+
+func pruneResumeMap(in map[string]int64, now time.Time) map[string]int64 {
+	if len(in) == 0 {
+		return nil
 	}
-	kept := make(map[string]int64, len(stats.ResumeUsers))
-	for key, until := range stats.ResumeUsers {
+	kept := make(map[string]int64, len(in))
+	for key, until := range in {
 		if until > now.Unix() {
 			kept[key] = until
 		}
 	}
 	if len(kept) == 0 {
-		stats.ResumeUsers = nil
+		return nil
+	}
+	return kept
+}
+
+func mergeResumeMap(dst *map[string]int64, src map[string]int64) {
+	if dst == nil || len(src) == 0 {
 		return
 	}
-	stats.ResumeUsers = kept
+	if *dst == nil {
+		*dst = make(map[string]int64, len(src))
+	}
+	for key, until := range src {
+		if existing, ok := (*dst)[key]; !ok || until > existing {
+			(*dst)[key] = until
+		}
+	}
 }
 
 func MergeQualityResume(dst, src *AccountQualityStats, now time.Time) {
@@ -193,16 +282,8 @@ func MergeQualityResume(dst, src *AccountQualityStats, now time.Time) {
 		return
 	}
 	if src != nil {
-		if len(src.ResumeUsers) > 0 {
-			if dst.ResumeUsers == nil {
-				dst.ResumeUsers = make(map[string]int64, len(src.ResumeUsers))
-			}
-			for key, until := range src.ResumeUsers {
-				if existing, ok := dst.ResumeUsers[key]; !ok || until > existing {
-					dst.ResumeUsers[key] = until
-				}
-			}
-		}
+		mergeResumeMap(&dst.ResumeUsers, src.ResumeUsers)
+		mergeResumeMap(&dst.ResumeWatchingUsers, src.ResumeWatchingUsers)
 		if src.AccountResumeUntil != nil && (dst.AccountResumeUntil == nil || *src.AccountResumeUntil > *dst.AccountResumeUntil) {
 			until := *src.AccountResumeUntil
 			dst.AccountResumeUntil = &until

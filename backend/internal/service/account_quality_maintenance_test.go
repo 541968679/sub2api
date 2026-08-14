@@ -249,7 +249,20 @@ func (s *liveQualityCacheCapture) MarkUserResume(_ context.Context, accountID, u
 		st = &AccountQualityStats{}
 		s.last[accountID] = st
 	}
-	SetUserQualityResume(st, userID, time.Now().UTC().Add(AccountQualityWindow))
+	ApplyUserQualityResume(st, userID, time.Now().UTC())
+	return nil
+}
+
+func (s *liveQualityCacheCapture) MarkUserQualityWindow(_ context.Context, accountID, userID int64) error {
+	if s.last == nil {
+		s.last = map[int64]*AccountQualityStats{}
+	}
+	st := s.last[accountID]
+	if st == nil {
+		st = &AccountQualityStats{}
+		s.last[accountID] = st
+	}
+	ApplyUserQualityWindowStart(st, userID, time.Now().UTC())
 	return nil
 }
 

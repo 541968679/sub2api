@@ -44,6 +44,82 @@ export function scheduleUserHasQualityGate(user: {
   return user.quality_max_p50_ttft_ms != null || user.quality_min_success_rate != null
 }
 
+export const ACCOUNT_QUALITY_WINDOW_SECONDS = 900
+export const DEFAULT_USER_QUALITY_MIN_SUCCESS_SAMPLES = 20
+export const DEFAULT_USER_QUALITY_MIN_TTFT_SAMPLES = 10
+
+export type ScheduleUserQualityChipState = 'none' | 'configured' | 'blocked' | 'resumed'
+
+export type ScheduleUserQualityChipInput = {
+  quality_max_p50_ttft_ms?: number | null
+  quality_min_success_rate?: number | null
+  quality_min_success_samples?: number | null
+  quality_min_ttft_samples?: number | null
+  quality_condition?: string | null
+  quality_blocked?: boolean
+  quality_resumed_until?: number | null
+  quality_window_until?: number | null
+}
+
+export type AccountQualityChipStats = {
+  success_count?: number
+  error_count?: number
+  success_rate?: number | null
+  p50_ttft_ms?: number | null
+  ttft_samples?: number
+}
+
+function positiveOrDefault(value: number | null | undefined, fallback: number): number {
+  return value != null && value >= 1 ? value : fallback
+}
+
+/** Same judged-metric rules as backend EvaluateAccountQualityHardClose (user gates always enabled). */
+export function userQualityGateBreached(
+  user: ScheduleUserQualityChipInput,
+  stats: AccountQualityChipStats | null | undefined
+): boolean {
+  if (!scheduleUserHasQualityGate(user) || !stats) return false
+  const minSuccess = positiveOrDefault(user.quality_min_success_samples, DEFAULT_USER_QUALITY_MIN_SUCCESS_SAMPLES)
+  const minTtft = positiveOrDefault(user.quality_min_ttft_samples, DEFAULT_USER_QUALITY_MIN_TTFT_SAMPLES)
+  const judged: boolean[] = []
+  if (user.quality_max_p50_ttft_ms != null && (stats.ttft_samples ?? 0) >= minTtft && stats.p50_ttft_ms != null) {
+    judged.push(stats.p50_ttft_ms > user.quality_max_p50_ttft_ms)
+  }
+  if (user.quality_min_success_rate != null) {
+    const samples = (stats.success_count ?? 0) + (stats.error_count ?? 0)
+    if (samples >= minSuccess) {
+      const rate = stats.success_rate != null && Number.isFinite(stats.success_rate)
+        ? stats.success_rate
+        : samples > 0
+          ? (stats.success_count ?? 0) / samples
+          : 0
+      judged.push(rate < user.quality_min_success_rate)
+    }
+  }
+  if (judged.length === 0) return false
+  if (user.quality_condition === 'and') return judged.every(Boolean)
+  return judged.some(Boolean)
+}
+
+export function scheduleUserQualityChipState(
+  user: ScheduleUserQualityChipInput,
+  stats?: AccountQualityChipStats | null,
+  nowMs = Date.now()
+): ScheduleUserQualityChipState {
+  if (!scheduleUserHasQualityGate(user)) return 'none'
+  if (user.quality_resumed_until != null && user.quality_resumed_until * 1000 > nowMs) {
+    return 'resumed'
+  }
+  // 点已恢复，或已恢复满 15 分钟：芯片回质量，并累计新窗口；窗口内不用旧数据打已停。
+  if (user.quality_window_until != null && user.quality_window_until * 1000 > nowMs) {
+    return 'configured'
+  }
+  if (user.quality_blocked || userQualityGateBreached(user, stats)) {
+    return 'blocked'
+  }
+  return 'configured'
+}
+
 /** Shared threshold form used by user-schedule quality gates. Not bound to a user id. */
 export type QualityGateFormFields = {
   quality_max_p50_ttft_ms: number | null

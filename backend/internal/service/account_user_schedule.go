@@ -27,6 +27,9 @@ type ScheduleUserRef struct {
 	QualityMinSuccessSamples *int     `json:"quality_min_success_samples,omitempty"`
 	QualityMinTTFTSamples    *int     `json:"quality_min_ttft_samples,omitempty"`
 	QualityCondition         *string  `json:"quality_condition,omitempty"`
+	QualityBlocked           bool     `json:"quality_blocked,omitempty"`
+	QualityResumedUntil      *int64   `json:"quality_resumed_until,omitempty"`
+	QualityWindowUntil       *int64   `json:"quality_window_until,omitempty"`
 }
 
 // UserConcurrencyEntry is one replace-all pair-cap row on account update.
@@ -175,6 +178,10 @@ func (a *Account) PairMaxConcurrency(userID int64) int {
 // breaches the optional per-user gate. No gate, nil stats, or zero judged
 // metrics do not block (fail open). Result is pair exclude, not temp-unschedulable.
 func (a *Account) QualityGateBlocksUser(userID int64, stats *AccountQualityStats) bool {
+	return a.qualityGateBlocksUserAt(userID, stats, time.Now().UTC())
+}
+
+func (a *Account) qualityGateBlocksUserAt(userID int64, stats *AccountQualityStats, now time.Time) bool {
 	if a == nil || userID <= 0 || len(a.UserQualityGates) == 0 {
 		return false
 	}
@@ -182,7 +189,7 @@ func (a *Account) QualityGateBlocksUser(userID int64, stats *AccountQualityStats
 	if !ok || !qualityGateHasMetric(gate) {
 		return false
 	}
-	if UserQualityResumeActive(stats, userID, time.Now().UTC()) {
+	if UserQualityResumeActive(stats, userID, now) {
 		return false
 	}
 	gate = fillUserQualityGateDefaults(gate)
@@ -201,6 +208,7 @@ type AccountQualityLiveCache interface {
 	Get(ctx context.Context, accountID int64) (*AccountQualityStats, error)
 	Replace(ctx context.Context, stats map[int64]*AccountQualityStats) error
 	MarkUserResume(ctx context.Context, accountID, userID int64) error
+	MarkUserQualityWindow(ctx context.Context, accountID, userID int64) error
 	MarkAccountResume(ctx context.Context, accountID int64) error
 }
 
@@ -402,6 +410,28 @@ func stampScheduleUserQuality(ref *ScheduleUserRef, gate QualityHardCloseSetting
 	ref.QualityMinSuccessSamples = &minSuccess
 	ref.QualityMinTTFTSamples = &minTTFT
 	ref.QualityCondition = &cond
+}
+
+// stampScheduleUsersQualityRuntime marks list/edit chips from the same live
+// cache the hot path reads. Cache miss / nil stats fail open (no 已停).
+func stampScheduleUsersQualityRuntime(account *Account, users []ScheduleUserRef, stats *AccountQualityStats, now time.Time) {
+	if account == nil || len(users) == 0 {
+		return
+	}
+	for i := range users {
+		if users[i].QualityMaxP50TTFTMs == nil && users[i].QualityMinSuccessRate == nil {
+			continue
+		}
+		if until, ok := userResumeUntilUnix(stats, users[i].ID); ok && until > now.Unix() {
+			copied := until
+			users[i].QualityResumedUntil = &copied
+		}
+		if until, ok := userWatchingUntilUnix(stats, users[i].ID); ok && until > now.Unix() {
+			copied := until
+			users[i].QualityWindowUntil = &copied
+		}
+		users[i].QualityBlocked = account.qualityGateBlocksUserAt(users[i].ID, stats, now)
+	}
 }
 
 // scheduleUserIDFromContext prefers an explicit positive user ID, then ctxkey.UserID.

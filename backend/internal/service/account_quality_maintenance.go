@@ -85,6 +85,14 @@ func (s *AccountQualityMaintenanceService) ResumeUserQuality(ctx context.Context
 	return s.liveCache.MarkUserResume(ctx, accountID, userID)
 }
 
+// StartUserQualityWindow ends the 已恢复 chip and starts a new 15-minute window.
+func (s *AccountQualityMaintenanceService) StartUserQualityWindow(ctx context.Context, accountID, userID int64) error {
+	if s == nil || s.liveCache == nil {
+		return infraerrors.ServiceUnavailable("QUALITY_RESUME_UNAVAILABLE", "quality live cache unavailable")
+	}
+	return s.liveCache.MarkUserQualityWindow(ctx, accountID, userID)
+}
+
 // ResumeAccountQuality prevents hard-close from re-pausing for one quality window.
 func (s *AccountQualityMaintenanceService) ResumeAccountQuality(ctx context.Context, accountID int64) error {
 	if s == nil || s.liveCache == nil {

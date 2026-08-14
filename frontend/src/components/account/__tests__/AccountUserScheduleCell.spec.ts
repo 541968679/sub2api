@@ -200,6 +200,40 @@ describe('AccountUserScheduleCell', () => {
     })
   })
 
+  it('已停芯片在立即恢复后变成已恢复，再点已恢复发出 startQualityWindow', async () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{
+            id: 16,
+            email: 'vip@x.com',
+            deleted: false,
+            allow: true,
+            quality_max_p50_ttft_ms: 1500,
+            quality_blocked: true
+          }]
+        })
+      }
+    })
+    expect(wrapper.find('[data-testid="user-schedule-quality-blocked-chip"]').exists()).toBe(true)
+
+    await wrapper.setProps({
+      account: makeAccount({
+        schedule_users: [{
+          id: 16,
+          email: 'vip@x.com',
+          deleted: false,
+          allow: true,
+          quality_max_p50_ttft_ms: 1500,
+          quality_resumed_until: Math.floor(Date.now() / 1000) + 900,
+          quality_window_until: Math.floor(Date.now() / 1000) + 1800
+        }]
+      })
+    })
+    await wrapper.get('[data-testid="user-schedule-quality-resumed-chip"]').trigger('click')
+    expect(wrapper.emitted('startQualityWindow')?.[0]?.[0]).toBe(16)
+  })
+
   it('无指标时不显示质量芯片，空保存按清除发出', async () => {
     const wrapper = mount(AccountUserScheduleCell, {
       props: {

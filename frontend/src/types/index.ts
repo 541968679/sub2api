@@ -1048,6 +1048,9 @@ export interface AccountScheduleUser {
   quality_min_success_samples?: number | null
   quality_min_ttft_samples?: number | null
   quality_condition?: 'or' | 'and' | null
+  quality_blocked?: boolean
+  quality_resumed_until?: number | null
+  quality_window_until?: number | null
 }
 
 export interface UserQualityGateEntry {

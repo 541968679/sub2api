@@ -640,6 +640,7 @@ type adminServiceImpl struct {
 	defaultSubAssigner   DefaultSubscriptionAssigner
 	userSubRepo          UserSubscriptionRepository
 	privacyClientFactory PrivacyClientFactory
+	qualityLiveCache     AccountQualityLiveCache
 }
 
 // NewAdminService creates a new AdminService
@@ -683,6 +684,63 @@ func NewAdminService(
 		userSubRepo:          userSubRepo,
 		privacyClientFactory: privacyClientFactory,
 	}
+}
+
+// SetQualityLiveCache attaches the Redis live 15-minute window used to stamp
+// schedule_users quality_blocked / quality_resumed_until on admin reads.
+func (s *adminServiceImpl) SetQualityLiveCache(cache AccountQualityLiveCache) {
+	if s == nil {
+		return
+	}
+	s.qualityLiveCache = cache
+}
+
+// ProvideAdminService is the Wire constructor: NewAdminService plus live cache.
+func ProvideAdminService(
+	userRepo UserRepository,
+	groupRepo GroupRepository,
+	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
+	apiKeyRepo APIKeyRepository,
+	redeemCodeRepo RedeemCodeRepository,
+	userGroupRateRepo UserGroupRateRepository,
+	userModelPricingRepo UserModelPricingRepository,
+	userRPMCache UserRPMCache,
+	billingCacheService *BillingCacheService,
+	proxyProber ProxyExitInfoProber,
+	proxyLatencyCache ProxyLatencyCache,
+	authCacheInvalidator APIKeyAuthCacheInvalidator,
+	entClient *dbent.Client,
+	settingService *SettingService,
+	defaultSubAssigner DefaultSubscriptionAssigner,
+	userSubRepo UserSubscriptionRepository,
+	privacyClientFactory PrivacyClientFactory,
+	liveCache AccountQualityLiveCache,
+) AdminService {
+	svc := NewAdminService(
+		userRepo,
+		groupRepo,
+		accountRepo,
+		proxyRepo,
+		apiKeyRepo,
+		redeemCodeRepo,
+		userGroupRateRepo,
+		userModelPricingRepo,
+		userRPMCache,
+		billingCacheService,
+		proxyProber,
+		proxyLatencyCache,
+		authCacheInvalidator,
+		entClient,
+		settingService,
+		defaultSubAssigner,
+		userSubRepo,
+		privacyClientFactory,
+	)
+	if impl, ok := svc.(*adminServiceImpl); ok {
+		impl.SetQualityLiveCache(liveCache)
+	}
+	return svc
 }
 
 // User management implementations

@@ -2723,8 +2723,15 @@
                     :key="userId"
                     class="space-y-2 px-3 py-2 text-sm text-gray-800 dark:text-gray-200"
                   >
-                    <div class="min-w-0 truncate font-medium" :title="scheduleUserLabel(userId)">
-                      {{ scheduleUserLabel(userId) }}
+                    <div class="flex min-w-0 items-center gap-1.5">
+                      <div class="min-w-0 truncate font-medium" :title="scheduleUserLabel(userId)">
+                        {{ scheduleUserLabel(userId) }}
+                      </div>
+                      <AccountUserQualityChip
+                        :user="qualityChipUser(userId)"
+                        :disabled="qualityResumeBusy"
+                        @start-window="startUserQualityWindow(userId)"
+                      />
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                       <label class="space-y-1">
@@ -2920,6 +2927,7 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import OpenAIFastPolicyUserSelector from '@/views/admin/settings/OpenAIFastPolicyUserSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
+import AccountUserQualityChip from '@/components/account/AccountUserQualityChip.vue'
 import {
   applyAnthropicAPIKeyAuthScheme,
   applyHeaderOverride,
@@ -2936,10 +2944,12 @@ import {
 } from '@/components/account/credentialsBuilder'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import {
+  ACCOUNT_QUALITY_WINDOW_SECONDS,
   optionalNumber,
   percentToSuccessRate,
   scheduleUserHasQualityGate,
-  successRateToPercent
+  successRateToPercent,
+  type ScheduleUserQualityChipInput
 } from '@/utils/accountQualityHardClose'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
@@ -3506,13 +3516,68 @@ const saveUserQualityTemplate = (userId: number) => {
 }
 
 const qualityResumeBusy = ref(false)
+const qualityRuntimeOverride = ref<Record<number, {
+  quality_blocked: boolean
+  quality_resumed_until: number | null
+  quality_window_until: number | null
+}>>({})
+
+watch(() => props.account?.id, () => {
+  qualityRuntimeOverride.value = {}
+})
+
+const qualityChipUser = (userId: number): ScheduleUserQualityChipInput => {
+  const user = props.account?.schedule_users?.find((item) => item.id === userId)
+  const gate = form.user_quality_gates[userId]
+  const override = qualityRuntimeOverride.value[userId]
+  return {
+    quality_max_p50_ttft_ms: gate?.quality_max_p50_ttft_ms ?? user?.quality_max_p50_ttft_ms,
+    quality_min_success_rate: user?.quality_min_success_rate ?? percentToSuccessRate(gate?.quality_min_success_rate_percent),
+    quality_min_success_samples: gate?.quality_min_success_samples ?? user?.quality_min_success_samples,
+    quality_min_ttft_samples: gate?.quality_min_ttft_samples ?? user?.quality_min_ttft_samples,
+    quality_condition: gate?.quality_condition ?? user?.quality_condition,
+    quality_blocked: override?.quality_blocked ?? user?.quality_blocked,
+    quality_resumed_until: override?.quality_resumed_until ?? user?.quality_resumed_until ?? null,
+    quality_window_until: override?.quality_window_until ?? user?.quality_window_until ?? null
+  }
+}
+
+const setQualityRuntimeOverride = (userId: number, startWindow: boolean) => {
+  const nowSec = Math.floor(Date.now() / 1000)
+  qualityRuntimeOverride.value = {
+    ...qualityRuntimeOverride.value,
+    [userId]: {
+      quality_blocked: false,
+      quality_resumed_until: startWindow ? null : nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS,
+      quality_window_until: startWindow
+        ? nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS
+        : nowSec + ACCOUNT_QUALITY_WINDOW_SECONDS * 2
+    }
+  }
+}
 
 const resumeUserQualityGate = async (userId: number) => {
   if (!props.account?.id || qualityResumeBusy.value) return
   qualityResumeBusy.value = true
   try {
     await adminAPI.accounts.resumeUserQuality(props.account.id, userId)
+    setQualityRuntimeOverride(userId, false)
     appStore.showSuccess(t('admin.accounts.userSchedule.qualityResumeSuccess'))
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : ''
+    appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))
+  } finally {
+    qualityResumeBusy.value = false
+  }
+}
+
+const startUserQualityWindow = async (userId: number) => {
+  if (!props.account?.id || qualityResumeBusy.value) return
+  qualityResumeBusy.value = true
+  try {
+    await adminAPI.accounts.resumeUserQuality(props.account.id, userId, true)
+    setQualityRuntimeOverride(userId, true)
+    appStore.showSuccess(t('admin.accounts.userSchedule.qualityWindowStartSuccess'))
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : ''
     appStore.showError(message || t('admin.accounts.userSchedule.qualityResumeFailed'))

@@ -22,13 +22,12 @@
         >
           {{ t('admin.accounts.userSchedule.modeDeny') }}
         </span>
-        <span
-          v-if="scheduleUserHasQualityGate(user)"
-          class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-          data-testid="user-schedule-quality-chip"
-        >
-          {{ t('admin.accounts.userSchedule.qualityGateChip') }}
-        </span>
+        <AccountUserQualityChip
+          :user="user"
+          :stats="qualityStats"
+          :disabled="disabled"
+          @start-window="emit('startQualityWindow', user.id)"
+        />
         <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
           {{ user.email || `#${user.id}` }}
         </span>
@@ -195,13 +194,12 @@
               >
                 {{ t('admin.accounts.userSchedule.modeDeny') }}
               </span>
-              <span
-                v-if="scheduleUserHasQualityGate(user)"
-                class="inline-flex shrink-0 items-center rounded px-1 text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-                data-testid="user-schedule-quality-chip"
-              >
-                {{ t('admin.accounts.userSchedule.qualityGateChip') }}
-              </span>
+              <AccountUserQualityChip
+                :user="user"
+                :stats="qualityStats"
+                :disabled="disabled"
+                @start-window="emit('startQualityWindow', user.id)"
+              />
               <span class="min-w-0 flex-1 truncate text-xs text-gray-700 dark:text-gray-300">
                 {{ user.email || `#${user.id}` }}
               </span>
@@ -240,22 +238,25 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account, AccountScheduleUser, UserQualityGatePatch } from '@/types'
+import type { AccountQualityStats } from '@/api/admin/accounts'
 import AccountInlineNumberCell from './AccountInlineNumberCell.vue'
+import AccountUserQualityChip from './AccountUserQualityChip.vue'
 import { useQualityThresholdTemplate } from '@/composables/useQualityThresholdTemplate'
 import {
   applyQualityGateFormToDraft,
   optionalNumber,
   percentToSuccessRate,
   qualityGateFormFromDraft,
-  scheduleUserHasQualityGate,
   successRateToPercent
 } from '@/utils/accountQualityHardClose'
 
 const props = withDefaults(defineProps<{
   account: Account
+  qualityStats?: AccountQualityStats | null
   maxDisplay?: number
   disabled?: boolean
 }>(), {
+  qualityStats: null,
   maxDisplay: 4,
   disabled: false
 })
@@ -264,6 +265,7 @@ const emit = defineEmits<{
   save: [payload: { userId: number; maxConcurrency: number | null }]
   saveQuality: [payload: UserQualityGatePatch]
   resumeQuality: [userId: number]
+  startQualityWindow: [userId: number]
 }>()
 
 const { t } = useI18n()

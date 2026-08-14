@@ -3,7 +3,8 @@ import {
   applyQualityGateFormToDraft,
   mergeQualityTemplateFromGate,
   qualityGateFormFromDraft,
-  qualityGateFormFromTemplate
+  qualityGateFormFromTemplate,
+  scheduleUserQualityChipState
 } from '@/utils/accountQualityHardClose'
 
 const template = {
@@ -69,5 +70,43 @@ describe('accountQualityHardClose template helpers', () => {
       minTtftSamples: 6,
       condition: 'and'
     })
+  })
+})
+
+describe('scheduleUserQualityChipState', () => {
+  const gate = { quality_max_p50_ttft_ms: 1500 }
+  const now = Date.parse('2026-08-14T12:00:00Z')
+  const breached = { p50_ttft_ms: 4000, ttft_samples: 12, success_count: 20, error_count: 0, success_rate: 1 }
+
+  it('shows 已恢复 while the resume chip phase is active', () => {
+    expect(scheduleUserQualityChipState({
+      ...gate,
+      quality_resumed_until: now / 1000 + 900,
+      quality_window_until: now / 1000 + 1800,
+      quality_blocked: true
+    }, breached, now)).toBe('resumed')
+  })
+
+  it('returns to 质量 after 15 minutes and ignores the old breached window', () => {
+    expect(scheduleUserQualityChipState({
+      ...gate,
+      quality_resumed_until: now / 1000 + 900,
+      quality_window_until: now / 1000 + 1800
+    }, breached, now + 901_000)).toBe('configured')
+  })
+
+  it('returns to 质量 immediately after clicking 已恢复', () => {
+    expect(scheduleUserQualityChipState({
+      ...gate,
+      quality_resumed_until: null,
+      quality_window_until: now / 1000 + 900
+    }, breached, now)).toBe('configured')
+  })
+
+  it('shows 已停 when the live window is still blocking', () => {
+    expect(scheduleUserQualityChipState({
+      ...gate,
+      quality_blocked: true
+    }, breached, now)).toBe('blocked')
   })
 })

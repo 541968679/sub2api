@@ -16,9 +16,11 @@ const (
 	accountQualityLiveKeyPrefix         = "account-quality:live:"
 	accountQualityResumeKeyPrefix       = "account-quality:resume:"
 	accountQualityLiveTTL               = 20 * time.Minute
-	accountQualityResumeTTL             = 20 * time.Minute
-	accountQualityResumeAccountField    = "a"
-	accountQualityResumeUserFieldPrefix = "u:"
+	// Resume HASH must outlive 已恢复 (15m) plus the following accumulation window (15m).
+	accountQualityResumeTTL             = 40 * time.Minute
+	accountQualityResumeAccountField       = "a"
+	accountQualityResumeUserFieldPrefix    = "u:"
+	accountQualityResumeWatchingFieldPrefix = "w:"
 )
 
 type accountQualityLiveCache struct {
@@ -40,6 +42,10 @@ func accountQualityResumeKey(accountID int64) string {
 
 func accountQualityResumeUserField(userID int64) string {
 	return accountQualityResumeUserFieldPrefix + strconv.FormatInt(userID, 10)
+}
+
+func accountQualityResumeWatchingField(userID int64) string {
+	return accountQualityResumeWatchingFieldPrefix + strconv.FormatInt(userID, 10)
 }
 
 func accountIDFromLiveKey(key string) (int64, bool) {
@@ -120,6 +126,14 @@ func parseResumeHash(vals map[string]string) *service.AccountQualityStats {
 			st.AccountResumeUntil = &copied
 			continue
 		}
+		if strings.HasPrefix(key, accountQualityResumeWatchingFieldPrefix) {
+			userID, err := strconv.ParseInt(strings.TrimPrefix(key, accountQualityResumeWatchingFieldPrefix), 10, 64)
+			if err != nil || userID <= 0 {
+				continue
+			}
+			service.SetUserQualityWatching(st, userID, time.Unix(until, 0).UTC())
+			continue
+		}
 		if !strings.HasPrefix(key, accountQualityResumeUserFieldPrefix) {
 			continue
 		}
@@ -129,7 +143,7 @@ func parseResumeHash(vals map[string]string) *service.AccountQualityStats {
 		}
 		service.SetUserQualityResume(st, userID, time.Unix(until, 0).UTC())
 	}
-	if st.AccountResumeUntil == nil && len(st.ResumeUsers) == 0 {
+	if st.AccountResumeUntil == nil && len(st.ResumeUsers) == 0 && len(st.ResumeWatchingUsers) == 0 {
 		return nil
 	}
 	return st
@@ -139,7 +153,21 @@ func (c *accountQualityLiveCache) MarkUserResume(ctx context.Context, accountID,
 	if userID <= 0 {
 		return nil
 	}
-	return c.writeResumeField(ctx, accountID, accountQualityResumeUserField(userID), time.Now().UTC().Add(service.AccountQualityWindow).Unix())
+	now := time.Now().UTC()
+	return c.writeResumeFields(ctx, accountID, map[string]any{
+		accountQualityResumeUserField(userID):     now.Add(service.AccountQualityWindow).Unix(),
+		accountQualityResumeWatchingField(userID): now.Add(2 * service.AccountQualityWindow).Unix(),
+	}, nil)
+}
+
+func (c *accountQualityLiveCache) MarkUserQualityWindow(ctx context.Context, accountID, userID int64) error {
+	if userID <= 0 {
+		return nil
+	}
+	now := time.Now().UTC()
+	return c.writeResumeFields(ctx, accountID, map[string]any{
+		accountQualityResumeWatchingField(userID): now.Add(service.AccountQualityWindow).Unix(),
+	}, []string{accountQualityResumeUserField(userID)})
 }
 
 func (c *accountQualityLiveCache) MarkAccountResume(ctx context.Context, accountID int64) error {
@@ -147,12 +175,24 @@ func (c *accountQualityLiveCache) MarkAccountResume(ctx context.Context, account
 }
 
 func (c *accountQualityLiveCache) writeResumeField(ctx context.Context, accountID int64, field string, until int64) error {
-	if c == nil || c.rdb == nil || accountID <= 0 || field == "" || until <= 0 {
+	return c.writeResumeFields(ctx, accountID, map[string]any{field: until}, nil)
+}
+
+func (c *accountQualityLiveCache) writeResumeFields(ctx context.Context, accountID int64, set map[string]any, del []string) error {
+	if c == nil || c.rdb == nil || accountID <= 0 {
+		return nil
+	}
+	if len(set) == 0 && len(del) == 0 {
 		return nil
 	}
 	key := accountQualityResumeKey(accountID)
 	pipe := c.rdb.TxPipeline()
-	pipe.HSet(ctx, key, field, until)
+	if len(set) > 0 {
+		pipe.HSet(ctx, key, set)
+	}
+	if len(del) > 0 {
+		pipe.HDel(ctx, key, del...)
+	}
 	pipe.Expire(ctx, key, accountQualityResumeTTL)
 	_, err := pipe.Exec(ctx)
 	return err
@@ -190,6 +230,7 @@ func statsWithoutResume(st *service.AccountQualityStats) *service.AccountQuality
 	}
 	cp := *st
 	cp.ResumeUsers = nil
+	cp.ResumeWatchingUsers = nil
 	cp.AccountResumeUntil = nil
 	return &cp
 }
