@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-14 | `v0.1.222` | `85c02baee` | `ghcr.io/541968679/sub2api:0.1.222` | `0.1.222` | running, healthy, digest `sha256:decd546d573f550dfa29dba941767ae7374452ae88619b5ddba0f0a99668a3fc`, internal `/health` OK; quality history + opt-in hard-close, per-user quality gates, durable resume HASH |
+| 2026-08-15 | `v0.1.223` | `95d9556a4` | `ghcr.io/541968679/sub2api:0.1.223` | `0.1.223` | running, healthy, digest `sha256:ca137939626aba8f52dbaa999eefefe1146e68a771c7f4c0a45994cf252ffef4`, internal `/health` OK; quality chips + two-step resume, merged schedule/capacity/quality columns |
+| 2026-08-14 | `v0.1.222` | `85c02baee` | `ghcr.io/541968679/sub2api:0.1.222` | `0.1.222` | superseded by `v0.1.223`; quality history + opt-in hard-close, per-user quality gates, durable resume HASH |
 | 2026-08-14 | `v0.1.221` | `1fbe4f2c1` | `ghcr.io/541968679/sub2api:0.1.221` | `0.1.221` | superseded by `v0.1.222`; independent allow/deny lists + per-user pair concurrency |
 | 2026-08-14 | `v0.1.220` | `1baa78ce9` | `ghcr.io/541968679/sub2api:0.1.220` | `0.1.220` | superseded by `v0.1.221`; page auto-refresh keeps polling in background tabs |
 | 2026-08-13 | `v0.1.219` | `9f006ade4` | `ghcr.io/541968679/sub2api:0.1.219` | `0.1.219` | superseded by `v0.1.220`; user-list TTFT/success-rate, account user allow/deny schedule, usage/error inspect dialog |

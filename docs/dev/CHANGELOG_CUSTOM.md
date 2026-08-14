@@ -1,3 +1,18 @@
+## 2026-08-15 - deploy: production v0.1.223
+
+### What
+- Released and deployed `v0.1.223` (`95d9556a4`) to production as `ghcr.io/541968679/sub2api:0.1.223`.
+- Includes quality chips (blocked/resumed/quality) with two-step resume, and the merged account-list schedule/capacity/quality columns.
+
+### Verification
+- Release workflow `31818562639` success; image digest `sha256:ca137939626aba8f52dbaa999eefefe1146e68a771c7f4c0a45994cf252ffef4`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `95d9556a4`, version label `0.1.223`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-15 - note: quality window stays hardcoded (deferred)
 
 ### What
