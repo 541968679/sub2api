@@ -41,12 +41,20 @@ func (s *adminServiceImpl) validateUserScheduleWrite(ctx context.Context, mode s
 	if len(ids) == 0 {
 		return "", nil, infraerrors.BadRequest("USER_SCHEDULE_USERS_REQUIRED", "allow/deny requires at least one user id")
 	}
-	if s.accountRepo == nil {
-		return normalized, ids, nil
+	if err := s.validateKnownUserIDs(ctx, ids); err != nil {
+		return "", nil, err
+	}
+	return normalized, ids, nil
+}
+
+func (s *adminServiceImpl) validateKnownUserIDs(ctx context.Context, ids []int64) error {
+	ids = normalizeScheduleUserIDs(ids)
+	if len(ids) == 0 || s == nil || s.accountRepo == nil {
+		return nil
 	}
 	refs, err := s.accountRepo.ListScheduleUserRefs(ctx, ids)
 	if err != nil {
-		return "", nil, err
+		return err
 	}
 	found := make(map[int64]struct{}, len(refs))
 	for _, ref := range refs {
@@ -54,10 +62,77 @@ func (s *adminServiceImpl) validateUserScheduleWrite(ctx context.Context, mode s
 	}
 	for _, id := range ids {
 		if _, ok := found[id]; !ok {
-			return "", nil, infraerrors.BadRequest("USER_SCHEDULE_UNKNOWN_USER", fmt.Sprintf("unknown user id: %d", id))
+			return infraerrors.BadRequest("USER_SCHEDULE_UNKNOWN_USER", fmt.Sprintf("unknown user id: %d", id))
 		}
 	}
-	return normalized, ids, nil
+	return nil
+}
+
+func (s *adminServiceImpl) validateUserConcurrencyEntries(ctx context.Context, entries []UserConcurrencyEntry) (map[int64]int, error) {
+	caps := make(map[int64]int, len(entries))
+	ids := make([]int64, 0, len(entries))
+	for _, entry := range entries {
+		if entry.UserID <= 0 {
+			return nil, infraerrors.BadRequest("USER_CONCURRENCY_UNKNOWN_USER", fmt.Sprintf("unknown user id: %d", entry.UserID))
+		}
+		if entry.MaxConcurrency < 1 {
+			return nil, infraerrors.BadRequest("USER_CONCURRENCY_MIN", "explicit pair max concurrency must be >= 1")
+		}
+		caps[entry.UserID] = entry.MaxConcurrency
+		ids = append(ids, entry.UserID)
+	}
+	if err := s.validateKnownUserIDs(ctx, ids); err != nil {
+		return nil, err
+	}
+	return normalizeUserConcurrencyMap(caps), nil
+}
+
+func (s *adminServiceImpl) applyUserConcurrencyPatch(ctx context.Context, current map[int64]int, patch UserConcurrencyPatch) (map[int64]int, error) {
+	if patch.UserID <= 0 {
+		return nil, infraerrors.BadRequest("USER_CONCURRENCY_UNKNOWN_USER", fmt.Sprintf("unknown user id: %d", patch.UserID))
+	}
+	if err := s.validateKnownUserIDs(ctx, []int64{patch.UserID}); err != nil {
+		return nil, err
+	}
+	out := copyUserConcurrencyMap(current)
+	if out == nil {
+		out = map[int64]int{}
+	}
+	if patch.MaxConcurrency == nil || *patch.MaxConcurrency == 0 {
+		delete(out, patch.UserID)
+		return normalizeUserConcurrencyMap(out), nil
+	}
+	if *patch.MaxConcurrency < 1 {
+		return nil, infraerrors.BadRequest("USER_CONCURRENCY_MIN", "explicit pair max concurrency must be >= 1")
+	}
+	out[patch.UserID] = *patch.MaxConcurrency
+	return out, nil
+}
+
+func applyLegacyUserScheduleLists(mode string, ids []int64) ([]int64, []int64) {
+	switch NormalizeUserScheduleMode(mode) {
+	case UserScheduleModeAllow:
+		return normalizeScheduleUserIDs(ids), nil
+	case UserScheduleModeDeny:
+		return nil, normalizeScheduleUserIDs(ids)
+	default:
+		return nil, nil
+	}
+}
+
+func scheduleUserUnionIDs(account Account) []int64 {
+	return unionScheduleUserIDs(account.AllowUserIDs, account.DenyUserIDs, concurrencyUserIDs(account.UserConcurrency), account.ScheduleUserIDs)
+}
+
+func stampScheduleUserFlags(account Account, ref ScheduleUserRef) ScheduleUserRef {
+	ref.Allow = containsScheduleUserID(account.AllowUserIDs, ref.ID)
+	ref.Deny = containsScheduleUserID(account.DenyUserIDs, ref.ID)
+	if n := account.PairMaxConcurrency(ref.ID); n >= 1 {
+		ref.MaxConcurrency = &n
+	} else {
+		ref.MaxConcurrency = nil
+	}
+	return ref
 }
 
 func (s *adminServiceImpl) hydrateAccountScheduleUsers(ctx context.Context, accounts []Account) {
@@ -66,7 +141,7 @@ func (s *adminServiceImpl) hydrateAccountScheduleUsers(ctx context.Context, acco
 	}
 	var allIDs []int64
 	for i := range accounts {
-		allIDs = append(allIDs, accounts[i].ScheduleUserIDs...)
+		allIDs = append(allIDs, scheduleUserUnionIDs(accounts[i])...)
 	}
 	if len(allIDs) == 0 {
 		return
@@ -80,17 +155,17 @@ func (s *adminServiceImpl) hydrateAccountScheduleUsers(ctx context.Context, acco
 		byID[ref.ID] = ref
 	}
 	for i := range accounts {
-		ids := accounts[i].ScheduleUserIDs
+		ids := scheduleUserUnionIDs(accounts[i])
 		if len(ids) == 0 {
 			continue
 		}
 		users := make([]ScheduleUserRef, 0, len(ids))
 		for _, id := range ids {
-			if ref, ok := byID[id]; ok {
-				users = append(users, ref)
-				continue
+			ref, ok := byID[id]
+			if !ok {
+				ref = ScheduleUserRef{ID: id}
 			}
-			users = append(users, ScheduleUserRef{ID: id})
+			users = append(users, stampScheduleUserFlags(accounts[i], ref))
 		}
 		accounts[i].ScheduleUsers = users
 	}
@@ -103,4 +178,82 @@ func (s *adminServiceImpl) hydrateAccountScheduleUser(ctx context.Context, accou
 	tmp := []Account{*account}
 	s.hydrateAccountScheduleUsers(ctx, tmp)
 	account.ScheduleUsers = tmp[0].ScheduleUsers
+}
+
+func (s *adminServiceImpl) resolveAccountUserScheduleWrite(ctx context.Context, current *Account, input *UpdateAccountInput) (AccountUserScheduleWrite, bool, error) {
+	if current == nil || input == nil {
+		return AccountUserScheduleWrite{}, false, nil
+	}
+	allow := append([]int64(nil), current.AllowUserIDs...)
+	deny := append([]int64(nil), current.DenyUserIDs...)
+	caps := copyUserConcurrencyMap(current.UserConcurrency)
+	changed := false
+
+	if input.AllowUserIDs != nil {
+		allow = normalizeScheduleUserIDs(*input.AllowUserIDs)
+		if err := s.validateKnownUserIDs(ctx, allow); err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		changed = true
+	}
+	if input.DenyUserIDs != nil {
+		deny = normalizeScheduleUserIDs(*input.DenyUserIDs)
+		if err := s.validateKnownUserIDs(ctx, deny); err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		changed = true
+	}
+	if input.UserConcurrencies != nil && input.UserConcurrencyPatch != nil {
+		return AccountUserScheduleWrite{}, false, infraerrors.BadRequest("USER_CONCURRENCY_CONFLICT", "user_concurrencies and user_concurrency_patch cannot be set together")
+	}
+	if input.UserConcurrencies != nil {
+		next, err := s.validateUserConcurrencyEntries(ctx, *input.UserConcurrencies)
+		if err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		caps = next
+		changed = true
+	}
+	if input.UserConcurrencyPatch != nil {
+		next, err := s.applyUserConcurrencyPatch(ctx, caps, *input.UserConcurrencyPatch)
+		if err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		caps = next
+		changed = true
+	}
+
+	useLegacy := (input.UserScheduleMode != nil || input.ScheduleUserIDs != nil) &&
+		input.AllowUserIDs == nil && input.DenyUserIDs == nil
+	if useLegacy {
+		mode := current.UserScheduleMode
+		ids := current.ScheduleUserIDs
+		if input.UserScheduleMode != nil {
+			mode = *input.UserScheduleMode
+		}
+		if input.ScheduleUserIDs != nil {
+			ids = *input.ScheduleUserIDs
+		}
+		normalized, normalizedIDs, err := s.validateUserScheduleWrite(ctx, mode, ids)
+		if err != nil {
+			return AccountUserScheduleWrite{}, false, err
+		}
+		allow, deny = applyLegacyUserScheduleLists(normalized, normalizedIDs)
+		changed = true
+	}
+
+	if !changed {
+		return AccountUserScheduleWrite{}, false, nil
+	}
+	return buildAccountUserScheduleWrite(allow, deny, caps), true, nil
+}
+
+func applyAccountUserScheduleWrite(account *Account, write AccountUserScheduleWrite) {
+	if account == nil {
+		return
+	}
+	account.AllowUserIDs = append([]int64(nil), write.AllowUserIDs...)
+	account.DenyUserIDs = append([]int64(nil), write.DenyUserIDs...)
+	account.UserConcurrency = copyUserConcurrencyMap(write.UserConcurrency)
+	account.DeriveLegacyUserSchedule()
 }

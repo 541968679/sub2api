@@ -4258,7 +4258,10 @@ func (s *OpenAIGatewayService) SelectAccountByPreviousResponseID(
 		return nil, nil
 	}
 
-	result, acquireErr := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+	result, pairFull, acquireErr := s.tryAcquireAccountAndPairSlot(ctx, account)
+	if pairFull {
+		return nil, nil
+	}
 	if acquireErr == nil && result.Acquired {
 		logOpenAIWSBindResponseAccountWarn(
 			derefGroupID(groupID),

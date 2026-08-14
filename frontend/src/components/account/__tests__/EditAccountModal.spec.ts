@@ -741,7 +741,36 @@ describe('EditAccountModal', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.user_schedule_mode).toBe('unrestricted')
-    expect(updateAccountMock.mock.calls[0]?.[1]?.schedule_user_ids).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.allow_user_ids).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.deny_user_ids).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_concurrencies).toEqual([])
+  })
+
+  it('submits independent allow/deny lists and pair caps', async () => {
+    const account = buildAccount()
+    account.schedule_users = [
+      { id: 16, email: 'a@x.com', deleted: false, allow: true, max_concurrency: 5 },
+      { id: 42, email: 'b@x.com', deleted: false, deny: true },
+      { id: 7, email: 'c@x.com', deleted: false, max_concurrency: 3 }
+    ]
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    expect(wrapper.find('[data-testid="edit-account-user-schedule-allow"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-account-user-schedule-deny"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-account-user-schedule-caps"]').exists()).toBe(true)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.allow_user_ids).toEqual([16])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.deny_user_ids).toEqual([42])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_concurrencies).toEqual([
+      { user_id: 16, max_concurrency: 5 },
+      { user_id: 7, max_concurrency: 3 }
+    ])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.user_schedule_mode).toBeUndefined()
   })
 })

@@ -2650,25 +2650,49 @@
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.userSchedule.hint') }}
             </p>
-            <div class="flex flex-col gap-2" data-testid="edit-account-user-schedule-mode">
-              <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                <input v-model="form.user_schedule_mode" type="radio" value="unrestricted" class="text-primary-600 focus:ring-primary-500" data-testid="user-schedule-mode-unrestricted" />
-                {{ t('admin.accounts.userSchedule.modeUnrestricted') }}
-              </label>
-              <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                <input v-model="form.user_schedule_mode" type="radio" value="allow" class="text-primary-600 focus:ring-primary-500" data-testid="user-schedule-mode-allow" />
-                {{ t('admin.accounts.userSchedule.modeAllow') }}
-              </label>
-              <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                <input v-model="form.user_schedule_mode" type="radio" value="deny" class="text-primary-600 focus:ring-primary-500" data-testid="user-schedule-mode-deny" />
-                {{ t('admin.accounts.userSchedule.modeDeny') }}
-              </label>
-            </div>
-            <div v-if="form.user_schedule_mode !== 'unrestricted'" data-testid="edit-account-user-schedule-picker">
-              <OpenAIFastPolicyUserSelector
-                v-model="form.schedule_user_ids"
-                :known-users="scheduleKnownUsers"
-              />
+            <div class="space-y-3" data-testid="edit-account-user-schedule-lists">
+              <div data-testid="edit-account-user-schedule-allow">
+                <label class="input-label">{{ t('admin.accounts.userSchedule.modeAllow') }}</label>
+                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.allowHint') }}</p>
+                <OpenAIFastPolicyUserSelector
+                  v-model="form.allow_user_ids"
+                  :known-users="scheduleKnownUsers"
+                />
+              </div>
+              <div data-testid="edit-account-user-schedule-deny">
+                <label class="input-label">{{ t('admin.accounts.userSchedule.modeDeny') }}</label>
+                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.denyHint') }}</p>
+                <OpenAIFastPolicyUserSelector
+                  v-model="form.deny_user_ids"
+                  :known-users="scheduleKnownUsers"
+                />
+              </div>
+              <div data-testid="edit-account-user-schedule-caps">
+                <label class="input-label">{{ t('admin.accounts.userSchedule.pairCap') }}</label>
+                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.concurrencyHint') }}</p>
+                <div v-if="scheduleConcurrencyUserIds.length" class="mb-2 space-y-1.5">
+                  <label
+                    v-for="userId in scheduleConcurrencyUserIds"
+                    :key="userId"
+                    class="flex items-center justify-between gap-2 text-xs text-gray-700 dark:text-gray-300"
+                  >
+                    <span class="truncate">#{{ userId }}</span>
+                    <input
+                      :value="form.user_concurrency[userId] ?? ''"
+                      type="number"
+                      min="1"
+                      class="input input-sm w-20"
+                      :data-testid="`user-schedule-cap-${userId}`"
+                      @input="setUserConcurrency(userId, ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </div>
+                <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.userSchedule.capOnlyHint') }}</p>
+                <OpenAIFastPolicyUserSelector
+                  v-model="form.cap_only_user_ids"
+                  :known-users="scheduleKnownUsers"
+                />
+              </div>
             </div>
             <button
               type="button"
@@ -3217,8 +3241,10 @@ const form = reactive({
   status: 'active' as 'active' | 'inactive' | 'error',
   group_ids: [] as number[],
   expires_at: null as number | null,
-  user_schedule_mode: 'unrestricted' as 'unrestricted' | 'allow' | 'deny',
-  schedule_user_ids: [] as number[]
+  allow_user_ids: [] as number[],
+  deny_user_ids: [] as number[],
+  cap_only_user_ids: [] as number[],
+  user_concurrency: {} as Record<number, number | null>
 })
 
 const statusOptions = computed(() => {
@@ -3247,9 +3273,64 @@ const scheduleKnownUsers = computed(() =>
   }))
 )
 
+const scheduleConcurrencyUserIds = computed(() => {
+  const ids = [...form.allow_user_ids, ...form.deny_user_ids, ...form.cap_only_user_ids]
+  return [...new Set(ids.filter((id) => id > 0))]
+})
+
+const setUserConcurrency = (userId: number, raw: string) => {
+  const parsed = Number(raw)
+  if (!raw.trim() || !Number.isFinite(parsed) || parsed < 1) {
+    form.user_concurrency[userId] = null
+    return
+  }
+  form.user_concurrency[userId] = Math.trunc(parsed)
+}
+
 const restoreUserScheduleDefault = () => {
-  form.user_schedule_mode = 'unrestricted'
-  form.schedule_user_ids = []
+  form.allow_user_ids = []
+  form.deny_user_ids = []
+  form.cap_only_user_ids = []
+  form.user_concurrency = {}
+}
+
+const hydrateUserScheduleForm = (account: {
+  user_schedule_mode?: string
+  schedule_users?: Array<{
+    id: number
+    allow?: boolean
+    deny?: boolean
+    max_concurrency?: number | null
+  }>
+}) => {
+  const users = account.schedule_users ?? []
+  const hasFlags = users.some((user) => user.allow || user.deny || (user.max_concurrency ?? 0) >= 1)
+  if (hasFlags) {
+    form.allow_user_ids = users.filter((user) => user.allow).map((user) => user.id)
+    form.deny_user_ids = users.filter((user) => user.deny).map((user) => user.id)
+    form.cap_only_user_ids = users
+      .filter((user) => !user.allow && !user.deny && (user.max_concurrency ?? 0) >= 1)
+      .map((user) => user.id)
+  } else if (account.user_schedule_mode === 'allow') {
+    form.allow_user_ids = users.map((user) => user.id)
+    form.deny_user_ids = []
+    form.cap_only_user_ids = []
+  } else if (account.user_schedule_mode === 'deny') {
+    form.allow_user_ids = []
+    form.deny_user_ids = users.map((user) => user.id)
+    form.cap_only_user_ids = []
+  } else {
+    form.allow_user_ids = []
+    form.deny_user_ids = []
+    form.cap_only_user_ids = []
+  }
+  const nextCaps: Record<number, number | null> = {}
+  for (const user of users) {
+    if ((user.max_concurrency ?? 0) >= 1) {
+      nextCaps[user.id] = user.max_concurrency as number
+    }
+  }
+  form.user_concurrency = nextCaps
 }
 
 // Watchers
@@ -3323,11 +3404,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     ...(newAccount.group_ids ?? newAccount.groups?.map((group) => group.id) ?? [])
   ]
   form.expires_at = newAccount.expires_at ?? null
-  form.user_schedule_mode =
-    newAccount.user_schedule_mode === 'allow' || newAccount.user_schedule_mode === 'deny'
-      ? newAccount.user_schedule_mode
-      : 'unrestricted'
-  form.schedule_user_ids = (newAccount.schedule_users ?? []).map((user) => user.id)
+  hydrateUserScheduleForm(newAccount)
 
   // Load intercept warmup requests setting (applies to all account types)
   const credentials = newAccount.credentials as Record<string, unknown> | undefined
@@ -4251,14 +4328,6 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseSelectStatus'))
     return
   }
-  if (
-    (form.user_schedule_mode === 'allow' || form.user_schedule_mode === 'deny') &&
-    form.schedule_user_ids.length === 0
-  ) {
-    appStore.showError(t('admin.accounts.userSchedule.usersRequired'))
-    return
-  }
-
   const updatePayload: Record<string, unknown> = { ...form }
   try {
     // 后端期望 proxy_id: 0 表示清除代理，而不是 null
@@ -4274,9 +4343,18 @@ const handleSubmit = async () => {
       updatePayload.load_factor = 0
     }
     updatePayload.auto_pause_on_expired = autoPauseOnExpired.value
-    if (form.user_schedule_mode === 'unrestricted') {
-      updatePayload.schedule_user_ids = []
-    }
+    delete updatePayload.user_schedule_mode
+    delete updatePayload.schedule_user_ids
+    delete updatePayload.user_concurrency
+    delete updatePayload.cap_only_user_ids
+    updatePayload.allow_user_ids = [...form.allow_user_ids]
+    updatePayload.deny_user_ids = [...form.deny_user_ids]
+    updatePayload.user_concurrencies = scheduleConcurrencyUserIds.value
+      .map((userId) => ({
+        user_id: userId,
+        max_concurrency: form.user_concurrency[userId]
+      }))
+      .filter((entry) => typeof entry.max_concurrency === 'number' && entry.max_concurrency >= 1)
 
     // For apikey type, handle credentials update
     if (props.account.type === 'apikey') {

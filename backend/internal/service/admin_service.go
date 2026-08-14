@@ -385,6 +385,10 @@ type UpdateAccountInput struct {
 	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
 	UserScheduleMode      *string
 	ScheduleUserIDs       *[]int64
+	AllowUserIDs          *[]int64
+	DenyUserIDs           *[]int64
+	UserConcurrencies     *[]UserConcurrencyEntry
+	UserConcurrencyPatch  *UserConcurrencyPatch
 }
 
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
@@ -407,6 +411,10 @@ type BulkUpdateAccountsInput struct {
 	SkipMixedChannelCheck bool
 	UserScheduleMode      *string
 	ScheduleUserIDs       *[]int64
+	AllowUserIDs          *[]int64
+	DenyUserIDs           *[]int64
+	UserConcurrencies     *[]UserConcurrencyEntry
+	UserConcurrencyPatch  *UserConcurrencyPatch
 }
 
 type BulkUpdateAccountFilters struct {
@@ -2920,24 +2928,12 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		account.AutoPauseOnExpired = *input.AutoPauseOnExpired
 	}
 
-	var syncScheduleUsers bool
-	var scheduleUserIDs []int64
-	if input.UserScheduleMode != nil || input.ScheduleUserIDs != nil {
-		mode := account.UserScheduleMode
-		ids := account.ScheduleUserIDs
-		if input.UserScheduleMode != nil {
-			mode = *input.UserScheduleMode
-		}
-		if input.ScheduleUserIDs != nil {
-			ids = *input.ScheduleUserIDs
-		}
-		normalized, normalizedIDs, err := s.validateUserScheduleWrite(ctx, mode, ids)
-		if err != nil {
-			return nil, err
-		}
-		account.UserScheduleMode = normalized
-		scheduleUserIDs = normalizedIDs
-		syncScheduleUsers = true
+	scheduleWrite, syncScheduleUsers, err := s.resolveAccountUserScheduleWrite(ctx, account, input)
+	if err != nil {
+		return nil, err
+	}
+	if syncScheduleUsers {
+		applyAccountUserScheduleWrite(account, scheduleWrite)
 	}
 
 	// 先验证分组是否存在（在任何写操作之前）
@@ -2976,7 +2972,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		}
 	}
 	if syncScheduleUsers {
-		if err := s.accountRepo.SyncScheduleUsers(ctx, account.ID, scheduleUserIDs); err != nil {
+		if err := s.accountRepo.SyncScheduleUsers(ctx, account.ID, scheduleWrite); err != nil {
 			return nil, err
 		}
 	}
@@ -3122,9 +3118,15 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		repoUpdates.Schedulable = input.Schedulable
 	}
 
-	var scheduleUserIDs []int64
-	writeSchedule := false
-	if input.UserScheduleMode != nil || input.ScheduleUserIDs != nil {
+	if input.UserConcurrencies != nil || input.UserConcurrencyPatch != nil {
+		return nil, infraerrors.BadRequest("BULK_USER_CONCURRENCY_FORBIDDEN", "bulk update cannot overwrite per-user concurrency")
+	}
+
+	writeSchedule := input.AllowUserIDs != nil || input.DenyUserIDs != nil || input.UserScheduleMode != nil || input.ScheduleUserIDs != nil
+	useLegacySchedule := (input.UserScheduleMode != nil || input.ScheduleUserIDs != nil) &&
+		input.AllowUserIDs == nil && input.DenyUserIDs == nil
+	var legacyAllow, legacyDeny []int64
+	if useLegacySchedule {
 		if input.UserScheduleMode == nil {
 			return nil, infraerrors.BadRequest("USER_SCHEDULE_MODE_REQUIRED", "user_schedule_mode is required when schedule_user_ids is set")
 		}
@@ -3137,8 +3139,33 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			return nil, err
 		}
 		repoUpdates.UserScheduleMode = &normalized
-		scheduleUserIDs = normalizedIDs
-		writeSchedule = true
+		legacyAllow, legacyDeny = applyLegacyUserScheduleLists(normalized, normalizedIDs)
+	}
+	if input.AllowUserIDs != nil {
+		if err := s.validateKnownUserIDs(ctx, *input.AllowUserIDs); err != nil {
+			return nil, err
+		}
+	}
+	if input.DenyUserIDs != nil {
+		if err := s.validateKnownUserIDs(ctx, *input.DenyUserIDs); err != nil {
+			return nil, err
+		}
+	}
+
+	scheduleByID := map[int64]*Account{}
+	if writeSchedule {
+		if len(loadedAccounts) == 0 {
+			var loadErr error
+			loadedAccounts, loadErr = s.accountRepo.GetByIDs(ctx, input.AccountIDs)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+		}
+		for _, account := range loadedAccounts {
+			if account != nil {
+				scheduleByID[account.ID] = account
+			}
+		}
 	}
 
 	// Run bulk update for column/jsonb fields first.
@@ -3170,7 +3197,25 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			}
 		}
 		if writeSchedule {
-			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, scheduleUserIDs); err != nil {
+			existing := scheduleByID[accountID]
+			allow := []int64(nil)
+			deny := []int64(nil)
+			var caps map[int64]int
+			if existing != nil {
+				allow = append([]int64(nil), existing.AllowUserIDs...)
+				deny = append([]int64(nil), existing.DenyUserIDs...)
+				caps = copyUserConcurrencyMap(existing.UserConcurrency)
+			}
+			if useLegacySchedule {
+				allow, deny = append([]int64(nil), legacyAllow...), append([]int64(nil), legacyDeny...)
+			}
+			if input.AllowUserIDs != nil {
+				allow = normalizeScheduleUserIDs(*input.AllowUserIDs)
+			}
+			if input.DenyUserIDs != nil {
+				deny = normalizeScheduleUserIDs(*input.DenyUserIDs)
+			}
+			if err := s.accountRepo.SyncScheduleUsers(ctx, accountID, buildAccountUserScheduleWrite(allow, deny, caps)); err != nil {
 				entry.Success = false
 				entry.Error = err.Error()
 				result.Failed++

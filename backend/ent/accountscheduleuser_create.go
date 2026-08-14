@@ -50,6 +50,48 @@ func (_c *AccountScheduleUserCreate) SetNillableCreatedAt(v *time.Time) *Account
 	return _c
 }
 
+// SetAllow sets the "allow" field.
+func (_c *AccountScheduleUserCreate) SetAllow(v bool) *AccountScheduleUserCreate {
+	_c.mutation.SetAllow(v)
+	return _c
+}
+
+// SetNillableAllow sets the "allow" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableAllow(v *bool) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetAllow(*v)
+	}
+	return _c
+}
+
+// SetDeny sets the "deny" field.
+func (_c *AccountScheduleUserCreate) SetDeny(v bool) *AccountScheduleUserCreate {
+	_c.mutation.SetDeny(v)
+	return _c
+}
+
+// SetNillableDeny sets the "deny" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableDeny(v *bool) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetDeny(*v)
+	}
+	return _c
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (_c *AccountScheduleUserCreate) SetMaxConcurrency(v int) *AccountScheduleUserCreate {
+	_c.mutation.SetMaxConcurrency(v)
+	return _c
+}
+
+// SetNillableMaxConcurrency sets the "max_concurrency" field if the given value is not nil.
+func (_c *AccountScheduleUserCreate) SetNillableMaxConcurrency(v *int) *AccountScheduleUserCreate {
+	if v != nil {
+		_c.SetMaxConcurrency(*v)
+	}
+	return _c
+}
+
 // SetAccount sets the "account" edge to the Account entity.
 func (_c *AccountScheduleUserCreate) SetAccount(v *Account) *AccountScheduleUserCreate {
 	return _c.SetAccountID(v.ID)
@@ -99,6 +141,14 @@ func (_c *AccountScheduleUserCreate) defaults() {
 		v := accountscheduleuser.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
 	}
+	if _, ok := _c.mutation.Allow(); !ok {
+		v := accountscheduleuser.DefaultAllow
+		_c.mutation.SetAllow(v)
+	}
+	if _, ok := _c.mutation.Deny(); !ok {
+		v := accountscheduleuser.DefaultDeny
+		_c.mutation.SetDeny(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -111,6 +161,12 @@ func (_c *AccountScheduleUserCreate) check() error {
 	}
 	if _, ok := _c.mutation.CreatedAt(); !ok {
 		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "AccountScheduleUser.created_at"`)}
+	}
+	if _, ok := _c.mutation.Allow(); !ok {
+		return &ValidationError{Name: "allow", err: errors.New(`ent: missing required field "AccountScheduleUser.allow"`)}
+	}
+	if _, ok := _c.mutation.Deny(); !ok {
+		return &ValidationError{Name: "deny", err: errors.New(`ent: missing required field "AccountScheduleUser.deny"`)}
 	}
 	if len(_c.mutation.AccountIDs()) == 0 {
 		return &ValidationError{Name: "account", err: errors.New(`ent: missing required edge "AccountScheduleUser.account"`)}
@@ -144,6 +200,18 @@ func (_c *AccountScheduleUserCreate) createSpec() (*AccountScheduleUser, *sqlgra
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(accountscheduleuser.FieldCreatedAt, field.TypeTime, value)
 		_node.CreatedAt = value
+	}
+	if value, ok := _c.mutation.Allow(); ok {
+		_spec.SetField(accountscheduleuser.FieldAllow, field.TypeBool, value)
+		_node.Allow = value
+	}
+	if value, ok := _c.mutation.Deny(); ok {
+		_spec.SetField(accountscheduleuser.FieldDeny, field.TypeBool, value)
+		_node.Deny = value
+	}
+	if value, ok := _c.mutation.MaxConcurrency(); ok {
+		_spec.SetField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt, value)
+		_node.MaxConcurrency = &value
 	}
 	if nodes := _c.mutation.AccountIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -255,6 +323,54 @@ func (u *AccountScheduleUserUpsert) UpdateUserID() *AccountScheduleUserUpsert {
 	return u
 }
 
+// SetAllow sets the "allow" field.
+func (u *AccountScheduleUserUpsert) SetAllow(v bool) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldAllow, v)
+	return u
+}
+
+// UpdateAllow sets the "allow" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateAllow() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldAllow)
+	return u
+}
+
+// SetDeny sets the "deny" field.
+func (u *AccountScheduleUserUpsert) SetDeny(v bool) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldDeny, v)
+	return u
+}
+
+// UpdateDeny sets the "deny" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateDeny() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldDeny)
+	return u
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (u *AccountScheduleUserUpsert) SetMaxConcurrency(v int) *AccountScheduleUserUpsert {
+	u.Set(accountscheduleuser.FieldMaxConcurrency, v)
+	return u
+}
+
+// UpdateMaxConcurrency sets the "max_concurrency" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsert) UpdateMaxConcurrency() *AccountScheduleUserUpsert {
+	u.SetExcluded(accountscheduleuser.FieldMaxConcurrency)
+	return u
+}
+
+// AddMaxConcurrency adds v to the "max_concurrency" field.
+func (u *AccountScheduleUserUpsert) AddMaxConcurrency(v int) *AccountScheduleUserUpsert {
+	u.Add(accountscheduleuser.FieldMaxConcurrency, v)
+	return u
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (u *AccountScheduleUserUpsert) ClearMaxConcurrency() *AccountScheduleUserUpsert {
+	u.SetNull(accountscheduleuser.FieldMaxConcurrency)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -325,6 +441,62 @@ func (u *AccountScheduleUserUpsertOne) SetUserID(v int64) *AccountScheduleUserUp
 func (u *AccountScheduleUserUpsertOne) UpdateUserID() *AccountScheduleUserUpsertOne {
 	return u.Update(func(s *AccountScheduleUserUpsert) {
 		s.UpdateUserID()
+	})
+}
+
+// SetAllow sets the "allow" field.
+func (u *AccountScheduleUserUpsertOne) SetAllow(v bool) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetAllow(v)
+	})
+}
+
+// UpdateAllow sets the "allow" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateAllow() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateAllow()
+	})
+}
+
+// SetDeny sets the "deny" field.
+func (u *AccountScheduleUserUpsertOne) SetDeny(v bool) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetDeny(v)
+	})
+}
+
+// UpdateDeny sets the "deny" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateDeny() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateDeny()
+	})
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (u *AccountScheduleUserUpsertOne) SetMaxConcurrency(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetMaxConcurrency(v)
+	})
+}
+
+// AddMaxConcurrency adds v to the "max_concurrency" field.
+func (u *AccountScheduleUserUpsertOne) AddMaxConcurrency(v int) *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddMaxConcurrency(v)
+	})
+}
+
+// UpdateMaxConcurrency sets the "max_concurrency" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertOne) UpdateMaxConcurrency() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateMaxConcurrency()
+	})
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (u *AccountScheduleUserUpsertOne) ClearMaxConcurrency() *AccountScheduleUserUpsertOne {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearMaxConcurrency()
 	})
 }
 
@@ -541,6 +713,62 @@ func (u *AccountScheduleUserUpsertBulk) SetUserID(v int64) *AccountScheduleUserU
 func (u *AccountScheduleUserUpsertBulk) UpdateUserID() *AccountScheduleUserUpsertBulk {
 	return u.Update(func(s *AccountScheduleUserUpsert) {
 		s.UpdateUserID()
+	})
+}
+
+// SetAllow sets the "allow" field.
+func (u *AccountScheduleUserUpsertBulk) SetAllow(v bool) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetAllow(v)
+	})
+}
+
+// UpdateAllow sets the "allow" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateAllow() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateAllow()
+	})
+}
+
+// SetDeny sets the "deny" field.
+func (u *AccountScheduleUserUpsertBulk) SetDeny(v bool) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetDeny(v)
+	})
+}
+
+// UpdateDeny sets the "deny" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateDeny() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateDeny()
+	})
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (u *AccountScheduleUserUpsertBulk) SetMaxConcurrency(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.SetMaxConcurrency(v)
+	})
+}
+
+// AddMaxConcurrency adds v to the "max_concurrency" field.
+func (u *AccountScheduleUserUpsertBulk) AddMaxConcurrency(v int) *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.AddMaxConcurrency(v)
+	})
+}
+
+// UpdateMaxConcurrency sets the "max_concurrency" field to the value that was provided on create.
+func (u *AccountScheduleUserUpsertBulk) UpdateMaxConcurrency() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.UpdateMaxConcurrency()
+	})
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (u *AccountScheduleUserUpsertBulk) ClearMaxConcurrency() *AccountScheduleUserUpsertBulk {
+	return u.Update(func(s *AccountScheduleUserUpsert) {
+		s.ClearMaxConcurrency()
 	})
 }
 

@@ -69,7 +69,7 @@ func (s *sparkShadowRepoStub) BindGroups(_ context.Context, accountID int64, gro
 	return nil
 }
 
-func (s *sparkShadowRepoStub) SyncScheduleUsers(_ context.Context, _ int64, _ []int64) error {
+func (s *sparkShadowRepoStub) SyncScheduleUsers(_ context.Context, _ int64, _ AccountUserScheduleWrite) error {
 	return nil
 }
 

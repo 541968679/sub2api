@@ -140,8 +140,12 @@ type UpdateAccountRequest struct {
 	ExpiresAt               *int64         `json:"expires_at"`
 	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
 	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
-	UserScheduleMode        *string        `json:"user_schedule_mode"`
-	ScheduleUserIDs         *[]int64       `json:"schedule_user_ids"`
+	UserScheduleMode        *string                       `json:"user_schedule_mode"`
+	ScheduleUserIDs         *[]int64                      `json:"schedule_user_ids"`
+	AllowUserIDs            *[]int64                      `json:"allow_user_ids"`
+	DenyUserIDs             *[]int64                      `json:"deny_user_ids"`
+	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
+	UserConcurrencyPatch    *service.UserConcurrencyPatch `json:"user_concurrency_patch"`
 }
 
 // UpdateRefreshTokenRequest represents a manual refresh-token replacement request.
@@ -168,8 +172,12 @@ type BulkUpdateAccountsRequest struct {
 	Credentials             map[string]any            `json:"credentials"`
 	Extra                   map[string]any            `json:"extra"`
 	ConfirmMixedChannelRisk *bool                     `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
-	UserScheduleMode        *string                   `json:"user_schedule_mode"`
-	ScheduleUserIDs         *[]int64                  `json:"schedule_user_ids"`
+	UserScheduleMode        *string                       `json:"user_schedule_mode"`
+	ScheduleUserIDs         *[]int64                      `json:"schedule_user_ids"`
+	AllowUserIDs            *[]int64                      `json:"allow_user_ids"`
+	DenyUserIDs             *[]int64                      `json:"deny_user_ids"`
+	UserConcurrencies       *[]service.UserConcurrencyEntry `json:"user_concurrencies"`
+	UserConcurrencyPatch    *service.UserConcurrencyPatch `json:"user_concurrency_patch"`
 }
 
 type BulkUpdateAccountFilters struct {
@@ -909,6 +917,10 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		SkipMixedChannelCheck: skipCheck,
 		UserScheduleMode:      req.UserScheduleMode,
 		ScheduleUserIDs:       req.ScheduleUserIDs,
+		AllowUserIDs:          req.AllowUserIDs,
+		DenyUserIDs:           req.DenyUserIDs,
+		UserConcurrencies:     req.UserConcurrencies,
+		UserConcurrencyPatch:  req.UserConcurrencyPatch,
 	})
 	if err != nil {
 		// 检查是否为混合渠道错误
@@ -1869,7 +1881,11 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		len(req.Credentials) > 0 ||
 		len(req.Extra) > 0 ||
 		req.UserScheduleMode != nil ||
-		req.ScheduleUserIDs != nil
+		req.ScheduleUserIDs != nil ||
+		req.AllowUserIDs != nil ||
+		req.DenyUserIDs != nil ||
+		req.UserConcurrencies != nil ||
+		req.UserConcurrencyPatch != nil
 
 	if !hasUpdates {
 		response.BadRequest(c, "No updates provided")
@@ -1893,6 +1909,10 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		SkipMixedChannelCheck: skipCheck,
 		UserScheduleMode:      req.UserScheduleMode,
 		ScheduleUserIDs:       req.ScheduleUserIDs,
+		AllowUserIDs:          req.AllowUserIDs,
+		DenyUserIDs:           req.DenyUserIDs,
+		UserConcurrencies:     req.UserConcurrencies,
+		UserConcurrencyPatch:  req.UserConcurrencyPatch,
 	})
 	if err != nil {
 		var mixedErr *service.MixedChannelError

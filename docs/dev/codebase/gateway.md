@@ -13,14 +13,15 @@ the parent supplies authentication identity and the inherited proxy.
 
 ## Account user-schedule filter
 
-After group/platform/`IsSchedulable` filters, selection calls `Account.AllowsScheduleUser(userID)`:
+After group/platform/`IsSchedulable` filters, selection calls `Account.AllowsScheduleUser(userID)` then optional pair-cap checks. Do not fold pair limits into `IsSchedulable()`.
 
 1. Explicit `sub2apiUserID` if `> 0`, else `ctxkey.UserID`, else `0`.
-2. `unrestricted` (empty mode) always matches. `allow` is an allow-list; `deny` is a block-list.
-3. `userID=0` fail-closes for `allow`/`deny`. Runtime dirty data: empty `allow` matches nobody; empty `deny` matches everyone.
-4. Sticky / previous_response pins that fail the filter are dropped once, then a compliant account is selected.
-5. Spark shadows keep their own mode/list; new shadows default to `unrestricted`.
-6. OpenAI applies the same filter on the advanced scheduler **and** the load-awareness fallback used when `openai_advanced_scheduler_enabled` is false. DB recheck must re-evaluate after hydrating `ScheduleUserIDs`, so a sticky/snapshot copy that omitted the list cannot keep a denied account.
+2. Priority: deny-list hit → cannot schedule (cap ignored); nonempty allow list and miss → cannot schedule (cap ignored); else admitted.
+3. `userID=0` fail-closes when any allow/deny/pair-cap rule exists.
+4. If admitted and `PairMaxConcurrency(userID) >= 1`, skip the candidate when the live Redis pair count is already `>= N`. After the account slot is acquired, acquire `concurrency:account_user:{accountID}:{userID}`; failure releases the account slot, excludes the account, and reselects. Pair-full never emits `WaitPlan` / 429 by itself.
+5. Sticky / previous_response pins that fail admission are dropped once. Pair-full skips this pick only and keeps the pin.
+6. Spark shadows keep their own independent lists/caps; new shadows start empty.
+7. OpenAI applies the same admission + pair-cap path on the advanced scheduler **and** the load-awareness fallback. Snapshot meta must copy `AllowUserIDs` / `DenyUserIDs` / `UserConcurrency`.
 
 Spark eligibility requires an explicit Spark mapping and rejects default-model
 fallback. Global OAuth quota/429 headers do not consume the Spark lane, while
@@ -36,7 +37,7 @@ Claude-GPT bridge routing, native Images, or Ops/public settings.
 | Group.platform | `backend/internal/service/group.go` | Native platform for the group and default scheduling scope. |
 | Group.blocked_models / allowed_models | `backend/internal/service/group.go` | Group-level model access control evaluated before account scheduling. |
 | Account.platform/type/status | `backend/internal/service/account.go` | Core inputs for scheduling and upstream token lookup. |
-| Account.UserScheduleMode / ScheduleUserIDs | `backend/internal/service/account.go` | Per-account user filter (`unrestricted` / `allow` / `deny`) plus join-table IDs. Copied onto Redis scheduler snapshot meta; not folded into `IsSchedulable()`. |
+| Account.AllowUserIDs / DenyUserIDs / UserConcurrency | `backend/internal/service/account.go` | Independent allow list, deny list, and pair caps (N≥1). Leftover `UserScheduleMode` / `ScheduleUserIDs` are derived. Copied onto Redis scheduler snapshot meta; not folded into `IsSchedulable()`. |
 | Account.extra.mixed_scheduling | `backend/internal/service/account.go` | Whether an Antigravity account may join Anthropic/Gemini mixed scheduling. |
 | Account.extra.openai_claude_gpt_bridge_enabled | `backend/internal/service/account.go` | Whether an OpenAI account may serve Claude-GPT bridge requests for bound Antigravity groups. |
 | Account.credentials.openai_capabilities | `backend/internal/service/account.go` | Optional OpenAI API-key endpoint capability list, currently used by chat completions and embeddings scheduling. |

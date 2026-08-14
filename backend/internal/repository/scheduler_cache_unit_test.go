@@ -150,6 +150,9 @@ func TestBuildSchedulerMetadataAccount_KeepsUserScheduleFields(t *testing.T) {
 		Platform:         service.PlatformAnthropic,
 		UserScheduleMode: service.UserScheduleModeAllow,
 		ScheduleUserIDs:  []int64{16, 0, 42, 16},
+		AllowUserIDs:     []int64{16, 0, 42, 16},
+		DenyUserIDs:      []int64{7, 7},
+		UserConcurrency:  map[int64]int{16: 5, 0: 2, 99: 0, 8: 3},
 		ScheduleUsers: []service.ScheduleUserRef{
 			{ID: 16, Email: "drop-from-metadata@example.com"},
 		},
@@ -159,5 +162,8 @@ func TestBuildSchedulerMetadataAccount_KeepsUserScheduleFields(t *testing.T) {
 
 	require.Equal(t, service.UserScheduleModeAllow, got.UserScheduleMode)
 	require.Equal(t, []int64{16, 42}, got.ScheduleUserIDs)
+	require.Equal(t, []int64{16, 42}, got.AllowUserIDs)
+	require.Equal(t, []int64{7}, got.DenyUserIDs)
+	require.Equal(t, map[int64]int{16: 5, 8: 3}, got.UserConcurrency)
 	require.Nil(t, got.ScheduleUsers)
 }

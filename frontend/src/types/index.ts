@@ -1040,6 +1040,19 @@ export interface AccountScheduleUser {
   id: number
   email: string
   deleted: boolean
+  allow?: boolean
+  deny?: boolean
+  max_concurrency?: number | null
+}
+
+export interface UserConcurrencyEntry {
+  user_id: number
+  max_concurrency: number
+}
+
+export interface UserConcurrencyPatch {
+  user_id: number
+  max_concurrency?: number | null
 }
 
 export interface Account {
@@ -1377,6 +1390,10 @@ export interface UpdateAccountRequest {
   confirm_mixed_channel_risk?: boolean
   user_schedule_mode?: 'unrestricted' | 'allow' | 'deny'
   schedule_user_ids?: number[]
+  allow_user_ids?: number[]
+  deny_user_ids?: number[]
+  user_concurrencies?: UserConcurrencyEntry[]
+  user_concurrency_patch?: UserConcurrencyPatch
 }
 
 export interface CheckMixedChannelRequest {

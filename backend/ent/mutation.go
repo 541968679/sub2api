@@ -12,6 +12,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
 	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
@@ -55,7 +56,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 const (
@@ -6133,17 +6133,21 @@ func (m *AccountGroupMutation) ResetEdge(name string) error {
 // AccountScheduleUserMutation represents an operation that mutates the AccountScheduleUser nodes in the graph.
 type AccountScheduleUserMutation struct {
 	config
-	op             Op
-	typ            string
-	created_at     *time.Time
-	clearedFields  map[string]struct{}
-	account        *int64
-	clearedaccount bool
-	user           *int64
-	cleareduser    bool
-	done           bool
-	oldValue       func(context.Context) (*AccountScheduleUser, error)
-	predicates     []predicate.AccountScheduleUser
+	op                 Op
+	typ                string
+	created_at         *time.Time
+	allow              *bool
+	deny               *bool
+	max_concurrency    *int
+	addmax_concurrency *int
+	clearedFields      map[string]struct{}
+	account            *int64
+	clearedaccount     bool
+	user               *int64
+	cleareduser        bool
+	done               bool
+	oldValue           func(context.Context) (*AccountScheduleUser, error)
+	predicates         []predicate.AccountScheduleUser
 }
 
 var _ ent.Mutation = (*AccountScheduleUserMutation)(nil)
@@ -6241,6 +6245,97 @@ func (m *AccountScheduleUserMutation) ResetCreatedAt() {
 	m.created_at = nil
 }
 
+// SetAllow sets the "allow" field.
+func (m *AccountScheduleUserMutation) SetAllow(b bool) {
+	m.allow = &b
+}
+
+// Allow returns the value of the "allow" field in the mutation.
+func (m *AccountScheduleUserMutation) Allow() (r bool, exists bool) {
+	v := m.allow
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetAllow resets all changes to the "allow" field.
+func (m *AccountScheduleUserMutation) ResetAllow() {
+	m.allow = nil
+}
+
+// SetDeny sets the "deny" field.
+func (m *AccountScheduleUserMutation) SetDeny(b bool) {
+	m.deny = &b
+}
+
+// Deny returns the value of the "deny" field in the mutation.
+func (m *AccountScheduleUserMutation) Deny() (r bool, exists bool) {
+	v := m.deny
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetDeny resets all changes to the "deny" field.
+func (m *AccountScheduleUserMutation) ResetDeny() {
+	m.deny = nil
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (m *AccountScheduleUserMutation) SetMaxConcurrency(i int) {
+	m.max_concurrency = &i
+	m.addmax_concurrency = nil
+}
+
+// MaxConcurrency returns the value of the "max_concurrency" field in the mutation.
+func (m *AccountScheduleUserMutation) MaxConcurrency() (r int, exists bool) {
+	v := m.max_concurrency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// AddMaxConcurrency adds i to the "max_concurrency" field.
+func (m *AccountScheduleUserMutation) AddMaxConcurrency(i int) {
+	if m.addmax_concurrency != nil {
+		*m.addmax_concurrency += i
+	} else {
+		m.addmax_concurrency = &i
+	}
+}
+
+// AddedMaxConcurrency returns the value that was added to the "max_concurrency" field in this mutation.
+func (m *AccountScheduleUserMutation) AddedMaxConcurrency() (r int, exists bool) {
+	v := m.addmax_concurrency
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (m *AccountScheduleUserMutation) ClearMaxConcurrency() {
+	m.max_concurrency = nil
+	m.addmax_concurrency = nil
+	m.clearedFields[accountscheduleuser.FieldMaxConcurrency] = struct{}{}
+}
+
+// MaxConcurrencyCleared returns if the "max_concurrency" field was cleared in this mutation.
+func (m *AccountScheduleUserMutation) MaxConcurrencyCleared() bool {
+	_, ok := m.clearedFields[accountscheduleuser.FieldMaxConcurrency]
+	return ok
+}
+
+// ResetMaxConcurrency resets all changes to the "max_concurrency" field.
+func (m *AccountScheduleUserMutation) ResetMaxConcurrency() {
+	m.max_concurrency = nil
+	m.addmax_concurrency = nil
+	delete(m.clearedFields, accountscheduleuser.FieldMaxConcurrency)
+}
+
 // ClearAccount clears the "account" edge to the Account entity.
 func (m *AccountScheduleUserMutation) ClearAccount() {
 	m.clearedaccount = true
@@ -6329,7 +6424,7 @@ func (m *AccountScheduleUserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *AccountScheduleUserMutation) Fields() []string {
-	fields := make([]string, 0, 3)
+	fields := make([]string, 0, 6)
 	if m.account != nil {
 		fields = append(fields, accountscheduleuser.FieldAccountID)
 	}
@@ -6338,6 +6433,15 @@ func (m *AccountScheduleUserMutation) Fields() []string {
 	}
 	if m.created_at != nil {
 		fields = append(fields, accountscheduleuser.FieldCreatedAt)
+	}
+	if m.allow != nil {
+		fields = append(fields, accountscheduleuser.FieldAllow)
+	}
+	if m.deny != nil {
+		fields = append(fields, accountscheduleuser.FieldDeny)
+	}
+	if m.max_concurrency != nil {
+		fields = append(fields, accountscheduleuser.FieldMaxConcurrency)
 	}
 	return fields
 }
@@ -6353,6 +6457,12 @@ func (m *AccountScheduleUserMutation) Field(name string) (ent.Value, bool) {
 		return m.UserID()
 	case accountscheduleuser.FieldCreatedAt:
 		return m.CreatedAt()
+	case accountscheduleuser.FieldAllow:
+		return m.Allow()
+	case accountscheduleuser.FieldDeny:
+		return m.Deny()
+	case accountscheduleuser.FieldMaxConcurrency:
+		return m.MaxConcurrency()
 	}
 	return nil, false
 }
@@ -6390,6 +6500,27 @@ func (m *AccountScheduleUserMutation) SetField(name string, value ent.Value) err
 		}
 		m.SetCreatedAt(v)
 		return nil
+	case accountscheduleuser.FieldAllow:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAllow(v)
+		return nil
+	case accountscheduleuser.FieldDeny:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDeny(v)
+		return nil
+	case accountscheduleuser.FieldMaxConcurrency:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMaxConcurrency(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser field %s", name)
 }
@@ -6398,6 +6529,9 @@ func (m *AccountScheduleUserMutation) SetField(name string, value ent.Value) err
 // this mutation.
 func (m *AccountScheduleUserMutation) AddedFields() []string {
 	var fields []string
+	if m.addmax_concurrency != nil {
+		fields = append(fields, accountscheduleuser.FieldMaxConcurrency)
+	}
 	return fields
 }
 
@@ -6406,6 +6540,8 @@ func (m *AccountScheduleUserMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *AccountScheduleUserMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case accountscheduleuser.FieldMaxConcurrency:
+		return m.AddedMaxConcurrency()
 	}
 	return nil, false
 }
@@ -6415,6 +6551,13 @@ func (m *AccountScheduleUserMutation) AddedField(name string) (ent.Value, bool) 
 // type.
 func (m *AccountScheduleUserMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case accountscheduleuser.FieldMaxConcurrency:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddMaxConcurrency(v)
+		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser numeric field %s", name)
 }
@@ -6422,7 +6565,11 @@ func (m *AccountScheduleUserMutation) AddField(name string, value ent.Value) err
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *AccountScheduleUserMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(accountscheduleuser.FieldMaxConcurrency) {
+		fields = append(fields, accountscheduleuser.FieldMaxConcurrency)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -6435,6 +6582,11 @@ func (m *AccountScheduleUserMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *AccountScheduleUserMutation) ClearField(name string) error {
+	switch name {
+	case accountscheduleuser.FieldMaxConcurrency:
+		m.ClearMaxConcurrency()
+		return nil
+	}
 	return fmt.Errorf("unknown AccountScheduleUser nullable field %s", name)
 }
 
@@ -6450,6 +6602,15 @@ func (m *AccountScheduleUserMutation) ResetField(name string) error {
 		return nil
 	case accountscheduleuser.FieldCreatedAt:
 		m.ResetCreatedAt()
+		return nil
+	case accountscheduleuser.FieldAllow:
+		m.ResetAllow()
+		return nil
+	case accountscheduleuser.FieldDeny:
+		m.ResetDeny()
+		return nil
+	case accountscheduleuser.FieldMaxConcurrency:
+		m.ResetMaxConcurrency()
 		return nil
 	}
 	return fmt.Errorf("unknown AccountScheduleUser field %s", name)

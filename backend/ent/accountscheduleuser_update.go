@@ -57,6 +57,61 @@ func (_u *AccountScheduleUserUpdate) SetNillableUserID(v *int64) *AccountSchedul
 	return _u
 }
 
+// SetAllow sets the "allow" field.
+func (_u *AccountScheduleUserUpdate) SetAllow(v bool) *AccountScheduleUserUpdate {
+	_u.mutation.SetAllow(v)
+	return _u
+}
+
+// SetNillableAllow sets the "allow" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableAllow(v *bool) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetAllow(*v)
+	}
+	return _u
+}
+
+// SetDeny sets the "deny" field.
+func (_u *AccountScheduleUserUpdate) SetDeny(v bool) *AccountScheduleUserUpdate {
+	_u.mutation.SetDeny(v)
+	return _u
+}
+
+// SetNillableDeny sets the "deny" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableDeny(v *bool) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetDeny(*v)
+	}
+	return _u
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (_u *AccountScheduleUserUpdate) SetMaxConcurrency(v int) *AccountScheduleUserUpdate {
+	_u.mutation.ResetMaxConcurrency()
+	_u.mutation.SetMaxConcurrency(v)
+	return _u
+}
+
+// SetNillableMaxConcurrency sets the "max_concurrency" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdate) SetNillableMaxConcurrency(v *int) *AccountScheduleUserUpdate {
+	if v != nil {
+		_u.SetMaxConcurrency(*v)
+	}
+	return _u
+}
+
+// AddMaxConcurrency adds value to the "max_concurrency" field.
+func (_u *AccountScheduleUserUpdate) AddMaxConcurrency(v int) *AccountScheduleUserUpdate {
+	_u.mutation.AddMaxConcurrency(v)
+	return _u
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (_u *AccountScheduleUserUpdate) ClearMaxConcurrency() *AccountScheduleUserUpdate {
+	_u.mutation.ClearMaxConcurrency()
+	return _u
+}
+
 // SetAccount sets the "account" edge to the Account entity.
 func (_u *AccountScheduleUserUpdate) SetAccount(v *Account) *AccountScheduleUserUpdate {
 	return _u.SetAccountID(v.ID)
@@ -133,6 +188,21 @@ func (_u *AccountScheduleUserUpdate) sqlSave(ctx context.Context) (_node int, er
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.Allow(); ok {
+		_spec.SetField(accountscheduleuser.FieldAllow, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Deny(); ok {
+		_spec.SetField(accountscheduleuser.FieldDeny, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.MaxConcurrency(); ok {
+		_spec.SetField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxConcurrency(); ok {
+		_spec.AddField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt, value)
+	}
+	if _u.mutation.MaxConcurrencyCleared() {
+		_spec.ClearField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt)
 	}
 	if _u.mutation.AccountCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -237,6 +307,61 @@ func (_u *AccountScheduleUserUpdateOne) SetNillableUserID(v *int64) *AccountSche
 	if v != nil {
 		_u.SetUserID(*v)
 	}
+	return _u
+}
+
+// SetAllow sets the "allow" field.
+func (_u *AccountScheduleUserUpdateOne) SetAllow(v bool) *AccountScheduleUserUpdateOne {
+	_u.mutation.SetAllow(v)
+	return _u
+}
+
+// SetNillableAllow sets the "allow" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableAllow(v *bool) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetAllow(*v)
+	}
+	return _u
+}
+
+// SetDeny sets the "deny" field.
+func (_u *AccountScheduleUserUpdateOne) SetDeny(v bool) *AccountScheduleUserUpdateOne {
+	_u.mutation.SetDeny(v)
+	return _u
+}
+
+// SetNillableDeny sets the "deny" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableDeny(v *bool) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetDeny(*v)
+	}
+	return _u
+}
+
+// SetMaxConcurrency sets the "max_concurrency" field.
+func (_u *AccountScheduleUserUpdateOne) SetMaxConcurrency(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.ResetMaxConcurrency()
+	_u.mutation.SetMaxConcurrency(v)
+	return _u
+}
+
+// SetNillableMaxConcurrency sets the "max_concurrency" field if the given value is not nil.
+func (_u *AccountScheduleUserUpdateOne) SetNillableMaxConcurrency(v *int) *AccountScheduleUserUpdateOne {
+	if v != nil {
+		_u.SetMaxConcurrency(*v)
+	}
+	return _u
+}
+
+// AddMaxConcurrency adds value to the "max_concurrency" field.
+func (_u *AccountScheduleUserUpdateOne) AddMaxConcurrency(v int) *AccountScheduleUserUpdateOne {
+	_u.mutation.AddMaxConcurrency(v)
+	return _u
+}
+
+// ClearMaxConcurrency clears the value of the "max_concurrency" field.
+func (_u *AccountScheduleUserUpdateOne) ClearMaxConcurrency() *AccountScheduleUserUpdateOne {
+	_u.mutation.ClearMaxConcurrency()
 	return _u
 }
 
@@ -348,6 +473,21 @@ func (_u *AccountScheduleUserUpdateOne) sqlSave(ctx context.Context) (_node *Acc
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.Allow(); ok {
+		_spec.SetField(accountscheduleuser.FieldAllow, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.Deny(); ok {
+		_spec.SetField(accountscheduleuser.FieldDeny, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.MaxConcurrency(); ok {
+		_spec.SetField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedMaxConcurrency(); ok {
+		_spec.AddField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt, value)
+	}
+	if _u.mutation.MaxConcurrencyCleared() {
+		_spec.ClearField(accountscheduleuser.FieldMaxConcurrency, field.TypeInt)
 	}
 	if _u.mutation.AccountCleared() {
 		edge := &sqlgraph.EdgeSpec{

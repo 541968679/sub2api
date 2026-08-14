@@ -1727,7 +1727,7 @@ func (s *stubAccountRepo) BindGroups(ctx context.Context, accountID int64, group
 	return errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error {
+func (s *stubAccountRepo) SyncScheduleUsers(ctx context.Context, accountID int64, write service.AccountUserScheduleWrite) error {
 	return errors.New("not implemented")
 }
 

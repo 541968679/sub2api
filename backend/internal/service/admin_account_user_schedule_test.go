@@ -53,7 +53,9 @@ func TestAdminService_UpdateAccount_UserScheduleAllowWrites(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, updated)
 	require.Equal(t, UserScheduleModeAllow, updated.UserScheduleMode)
-	require.Equal(t, []int64{16, 42}, repo.syncScheduleCalls[1])
+	require.Equal(t, []int64{16, 42}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].DenyUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].UserConcurrency)
 }
 
 func TestAdminService_BulkUpdateAccounts_UserScheduleOmitDoesNotWrite(t *testing.T) {
@@ -88,8 +90,9 @@ func TestAdminService_BulkUpdateAccounts_UserScheduleOverwrite(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1])
-	require.Equal(t, []int64{16}, repo.syncScheduleCalls[2])
+	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].DenyUserIDs)
+	require.Equal(t, []int64{16}, repo.syncScheduleCalls[2].DenyUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
 	require.NotNil(t, repo.lastBulkUpdates.UserScheduleMode)
 	require.Equal(t, UserScheduleModeDeny, *repo.lastBulkUpdates.UserScheduleMode)
 }
@@ -107,7 +110,159 @@ func TestAdminService_BulkUpdateAccounts_UserScheduleUnrestrictedClearsJoin(t *t
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, repo.syncScheduleCalls[7])
-	require.Empty(t, repo.syncScheduleCalls[7])
+	require.Empty(t, repo.syncScheduleCalls[7].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[7].DenyUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[7].UserConcurrency)
+}
+
+func TestAdminService_UpdateAccount_UserScheduleIndependentListsAndCaps(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountRepoStubForBulkUpdate{
+		getByIDAccounts: map[int64]*Account{
+			1: {ID: 1, Name: "acc", Status: StatusActive, UserConcurrency: map[int64]int{7: 3}},
+		},
+		existingUserIDs: map[int64]bool{16: true, 42: true, 7: true},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	allow := []int64{16}
+	deny := []int64{42}
+	caps := []UserConcurrencyEntry{{UserID: 16, MaxConcurrency: 5}}
+
+	updated, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
+		Name:              "acc",
+		AllowUserIDs:      &allow,
+		DenyUserIDs:       &deny,
+		UserConcurrencies: &caps,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Equal(t, []int64{42}, repo.syncScheduleCalls[1].DenyUserIDs)
+	require.Equal(t, map[int64]int{16: 5}, repo.syncScheduleCalls[1].UserConcurrency)
+}
+
+func TestAdminService_UpdateAccount_UserScheduleLegacyAllowDoesNotClearCaps(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountRepoStubForBulkUpdate{
+		getByIDAccounts: map[int64]*Account{
+			1: {
+				ID: 1, Name: "acc", Status: StatusActive,
+				UserConcurrency: map[int64]int{16: 5},
+			},
+		},
+		existingUserIDs: map[int64]bool{16: true},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	mode := UserScheduleModeAllow
+	ids := []int64{16}
+
+	_, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
+		Name:             "acc",
+		UserScheduleMode: &mode,
+		ScheduleUserIDs:  &ids,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].DenyUserIDs)
+	require.Equal(t, map[int64]int{16: 5}, repo.syncScheduleCalls[1].UserConcurrency)
+}
+
+func TestAdminService_UpdateAccount_UserScheduleRestoreDefaultClearsThree(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountRepoStubForBulkUpdate{
+		getByIDAccounts: map[int64]*Account{
+			1: {
+				ID: 1, Name: "acc", Status: StatusActive,
+				AllowUserIDs:    []int64{16},
+				DenyUserIDs:     []int64{42},
+				UserConcurrency: map[int64]int{16: 5},
+			},
+		},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	emptyIDs := []int64{}
+	emptyCaps := []UserConcurrencyEntry{}
+
+	_, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
+		Name:              "acc",
+		AllowUserIDs:      &emptyIDs,
+		DenyUserIDs:       &emptyIDs,
+		UserConcurrencies: &emptyCaps,
+	})
+	require.NoError(t, err)
+	require.Empty(t, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].DenyUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].UserConcurrency)
+}
+
+func TestAdminService_UpdateAccount_UserScheduleConcurrencyPatch(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountRepoStubForBulkUpdate{
+		getByIDAccounts: map[int64]*Account{
+			1: {
+				ID: 1, Name: "acc", Status: StatusActive,
+				AllowUserIDs:    []int64{16},
+				UserConcurrency: map[int64]int{16: 5},
+			},
+		},
+		existingUserIDs: map[int64]bool{16: true},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	zero := 0
+
+	_, err := svc.UpdateAccount(context.Background(), 1, &UpdateAccountInput{
+		Name: "acc",
+		UserConcurrencyPatch: &UserConcurrencyPatch{UserID: 16, MaxConcurrency: &zero},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Empty(t, repo.syncScheduleCalls[1].UserConcurrency)
+}
+
+func TestAdminService_BulkUpdateAccounts_UserScheduleAllowOverwriteKeepsCaps(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountRepoStubForBulkUpdate{
+		getByIDAccounts: map[int64]*Account{
+			1: {ID: 1, DenyUserIDs: []int64{9}, UserConcurrency: map[int64]int{16: 4}},
+			2: {ID: 2, DenyUserIDs: []int64{8}, UserConcurrency: map[int64]int{7: 2}},
+		},
+		existingUserIDs: map[int64]bool{16: true},
+	}
+	svc := &adminServiceImpl{accountRepo: repo}
+	allow := []int64{16}
+
+	result, err := svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{
+		AccountIDs:   []int64{1, 2},
+		AllowUserIDs: &allow,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, []int64{16}, repo.syncScheduleCalls[1].AllowUserIDs)
+	require.Equal(t, []int64{9}, repo.syncScheduleCalls[1].DenyUserIDs)
+	require.Equal(t, map[int64]int{16: 4}, repo.syncScheduleCalls[1].UserConcurrency)
+	require.Equal(t, []int64{8}, repo.syncScheduleCalls[2].DenyUserIDs)
+	require.Equal(t, map[int64]int{7: 2}, repo.syncScheduleCalls[2].UserConcurrency)
+}
+
+func TestAdminService_BulkUpdateAccounts_UserScheduleRejectsConcurrencyOverwrite(t *testing.T) {
+	t.Parallel()
+
+	repo := &accountRepoStubForBulkUpdate{}
+	svc := &adminServiceImpl{accountRepo: repo}
+	caps := []UserConcurrencyEntry{{UserID: 16, MaxConcurrency: 5}}
+
+	_, err := svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{
+		AccountIDs:        []int64{1},
+		UserConcurrencies: &caps,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot overwrite per-user concurrency")
+	require.Empty(t, repo.syncScheduleCalls)
 }
 
 func TestAdminService_ValidateUserScheduleWrite_UnknownUserRejected(t *testing.T) {

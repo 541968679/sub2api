@@ -23,6 +23,12 @@ type AccountScheduleUser struct {
 	UserID int64 `json:"user_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
+	// Allow holds the value of the "allow" field.
+	Allow bool `json:"allow,omitempty"`
+	// Deny holds the value of the "deny" field.
+	Deny bool `json:"deny,omitempty"`
+	// MaxConcurrency holds the value of the "max_concurrency" field.
+	MaxConcurrency *int `json:"max_concurrency,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the AccountScheduleUserQuery when eager-loading is set.
 	Edges        AccountScheduleUserEdges `json:"edges"`
@@ -67,7 +73,9 @@ func (*AccountScheduleUser) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case accountscheduleuser.FieldAccountID, accountscheduleuser.FieldUserID:
+		case accountscheduleuser.FieldAllow, accountscheduleuser.FieldDeny:
+			values[i] = new(sql.NullBool)
+		case accountscheduleuser.FieldAccountID, accountscheduleuser.FieldUserID, accountscheduleuser.FieldMaxConcurrency:
 			values[i] = new(sql.NullInt64)
 		case accountscheduleuser.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -103,6 +111,25 @@ func (_m *AccountScheduleUser) assignValues(columns []string, values []any) erro
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
+			}
+		case accountscheduleuser.FieldAllow:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field allow", values[i])
+			} else if value.Valid {
+				_m.Allow = value.Bool
+			}
+		case accountscheduleuser.FieldDeny:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field deny", values[i])
+			} else if value.Valid {
+				_m.Deny = value.Bool
+			}
+		case accountscheduleuser.FieldMaxConcurrency:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_concurrency", values[i])
+			} else if value.Valid {
+				_m.MaxConcurrency = new(int)
+				*_m.MaxConcurrency = int(value.Int64)
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -157,6 +184,17 @@ func (_m *AccountScheduleUser) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("allow=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Allow))
+	builder.WriteString(", ")
+	builder.WriteString("deny=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Deny))
+	builder.WriteString(", ")
+	if v := _m.MaxConcurrency; v != nil {
+		builder.WriteString("max_concurrency=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

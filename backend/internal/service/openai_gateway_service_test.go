@@ -125,6 +125,22 @@ func (w *failingGinWriter) Write(p []byte) (int, error) {
 	return w.ResponseWriter.Write(p)
 }
 
+func (c stubConcurrencyCache) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
+	return true, nil
+}
+
+func (c stubConcurrencyCache) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
+	return nil
+}
+
+func (c stubConcurrencyCache) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		result[accountID] = 0
+	}
+	return result, nil
+}
+
 func (c stubConcurrencyCache) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
 	if c.acquireResults != nil {
 		if result, ok := c.acquireResults[accountID]; ok {

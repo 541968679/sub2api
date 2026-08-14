@@ -1,3 +1,42 @@
+## 2026-08-14 - feat(account): independent allow/deny lists + pair concurrency
+
+### What
+- Account user schedule is now three independent configs: allow list, deny list, and per-user pair max concurrency.
+- Runtime priority: deny → allow-whitelist miss → explicit pair cap N≥1 → unrestricted (account + user global only).
+- Pair-full excludes the account and reselects; it never returns 429 / WaitPlan just because that pair is full.
+- Admin edit maintains the three sets; restore-default clears all three. Bulk overwrites only checked allow/deny lists. List column can mark pair caps via `user_concurrency_patch`.
+
+### Why
+Yesterday's exclusive unrestricted/allow/deny could not express overlap (allow+cap, deny+cap, or both lists). Operators also needed a per-account-per-user concurrency cap that does not fail the whole request.
+
+### Verification
+- `go test -tags=unit ./backend/internal/service -run "AllowsScheduleUser|PairMaxConcurrency|UserSchedule|Sticky.*UserSchedule|SelectAccount.*UserSchedule|AccountUserConcurrency" -count=1`
+- `go test -tags=unit ./backend/internal/repository -run "BuildSchedulerMetadataAccount|AccountSchedule|AccountUserConcurrency" -count=1`
+- `go test -tags=unit ./backend/internal/handler/admin -run "AccountHandler.*(Update|Bulk|UserSchedule|Concurrency)" -count=1`
+- `pnpm --dir frontend exec vitest run src/components/account/__tests__/AccountUserScheduleCell.spec.ts src/components/account/__tests__/EditAccountModal.spec.ts src/components/account/__tests__/BulkEditAccountModal.spec.ts`
+
+### Affected files
+`backend/ent/schema/account_schedule_user.go`,
+`backend/migrations/198_account_user_schedule_concurrency.sql`,
+`backend/internal/service/account.go`,
+`backend/internal/service/account_user_schedule.go`,
+`backend/internal/service/account_user_concurrency.go`,
+`backend/internal/service/admin_account_user_schedule.go`,
+`backend/internal/service/admin_service.go`,
+`backend/internal/service/gateway_service.go`,
+`backend/internal/service/openai_gateway_service.go`,
+`backend/internal/service/openai_account_scheduler.go`,
+`backend/internal/repository/account_repo.go`,
+`backend/internal/repository/concurrency_cache.go`,
+`backend/internal/repository/scheduler_cache.go`,
+`backend/internal/handler/admin/account_handler.go`,
+`frontend/src/components/account/EditAccountModal.vue`,
+`frontend/src/components/account/BulkEditAccountModal.vue`,
+`frontend/src/components/account/AccountUserScheduleCell.vue`,
+`docs/dev/codebase/account.md`,
+`docs/dev/codebase/gateway.md`,
+this changelog.
+
 ## 2026-08-14 - deploy: production v0.1.220
 
 ### What

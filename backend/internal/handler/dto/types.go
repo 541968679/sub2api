@@ -298,9 +298,12 @@ type Account struct {
 }
 
 type ScheduleUser struct {
-	ID      int64  `json:"id"`
-	Email   string `json:"email"`
-	Deleted bool   `json:"deleted"`
+	ID             int64  `json:"id"`
+	Email          string `json:"email"`
+	Deleted        bool   `json:"deleted"`
+	Allow          bool   `json:"allow"`
+	Deny           bool   `json:"deny"`
+	MaxConcurrency *int   `json:"max_concurrency,omitempty"`
 }
 
 type AccountGroup struct {

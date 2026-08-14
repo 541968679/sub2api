@@ -63,12 +63,20 @@ type Account struct {
 	ParentAccountID *int64 // non-nil → 影子账号（不持凭据，透传母账号凭据）
 	QuotaDimension  string // 用量维度："" / "global" / "spark"
 
-	// UserScheduleMode is unrestricted|allow|deny. Empty unmarshals as unrestricted.
+	// UserScheduleMode is a leftover exclusive-mode field derived from the
+	// independent lists for leftover readers. Hot-path admission uses
+	// AllowUserIDs / DenyUserIDs / UserConcurrency.
 	UserScheduleMode string
-	// ScheduleUserIDs is the allow/deny membership list loaded with the account
-	// and copied onto the Redis scheduler snapshot.
+	// ScheduleUserIDs is the leftover union of listed users. Not used on the
+	// new hot path.
 	ScheduleUserIDs []int64
-	// ScheduleUsers is admin-list hydration (email + deleted). Not on Redis snapshot.
+	// AllowUserIDs is the independent allow list. Empty means no whitelist.
+	AllowUserIDs []int64
+	// DenyUserIDs is the independent deny list. Empty means nobody is denied.
+	DenyUserIDs []int64
+	// UserConcurrency is per-user pair caps for this account. Only entries >= 1.
+	UserConcurrency map[int64]int
+	// ScheduleUsers is admin-list hydration (email + deleted + flags). Not on Redis snapshot.
 	ScheduleUsers []ScheduleUserRef
 
 	Proxy         *Proxy

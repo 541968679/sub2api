@@ -1552,7 +1552,11 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				return nil, err
 			}
 
-			result, err := s.tryAcquireAccountSlot(ctx, account.ID, account.Concurrency)
+			result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, account)
+			if pairFull {
+				localExcluded[account.ID] = struct{}{}
+				continue
+			}
 			if err == nil && result.Acquired {
 				// 获取槽位后检查会话限制（使用 sessionHash 作为会话标识符）
 				if !s.checkAndRegisterSession(ctx, account, sessionHash) {
@@ -1730,27 +1734,32 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
 
 						if rpmPass { // 粘性会话窗口费用+RPM 检查
-							result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, stickyAccount.Concurrency)
-							if err == nil && result.Acquired {
-								// 会话数量限制检查
-								if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
-									result.ReleaseFunc() // 释放槽位
-									stickyCacheMissReason = "session_limit"
-									// 继续到负载感知选择
-								} else {
-									slog.Debug("sticky.layer1_5_hit",
-										"account_id", stickyAccountID,
-										"session", shortSessionHash(sessionHash),
-										"result", "slot_acquired",
-									)
-									if s.debugModelRoutingEnabled() {
-										logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
+							pairFullSticky := isPairConcurrencyFull(stickyAccount, scheduleUserIDFromContext(ctx, 0), s.pairCountsForSelection(ctx, []*Account{stickyAccount})[stickyAccount.ID])
+							if !pairFullSticky {
+								result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, stickyAccount)
+								if pairFull {
+									pairFullSticky = true
+								} else if err == nil && result.Acquired {
+									// 会话数量限制检查
+									if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
+										result.ReleaseFunc() // 释放槽位
+										stickyCacheMissReason = "session_limit"
+										// 继续到负载感知选择
+									} else {
+										slog.Debug("sticky.layer1_5_hit",
+											"account_id", stickyAccountID,
+											"session", shortSessionHash(sessionHash),
+											"result", "slot_acquired",
+										)
+										if s.debugModelRoutingEnabled() {
+											logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), stickyAccountID)
+										}
+										return s.newSelectionResult(ctx, stickyAccount, true, result.ReleaseFunc, nil)
 									}
-									return s.newSelectionResult(ctx, stickyAccount, true, result.ReleaseFunc, nil)
 								}
 							}
 
-							if stickyCacheMissReason == "" {
+							if !pairFullSticky && stickyCacheMissReason == "" {
 								waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, stickyAccountID)
 								if waitingCount < cfg.StickySessionMaxWaiting {
 									// 会话数量限制检查（等待计划也需要占用会话配额）
@@ -1840,8 +1849,21 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				shuffleWithinSortGroups(routingAvailable)
 
 				// 4. 尝试获取槽位
+				routingPairCounts := s.pairCountsForSelection(ctx, func() []*Account {
+					out := make([]*Account, 0, len(routingAvailable))
+					for _, item := range routingAvailable {
+						out = append(out, item.account)
+					}
+					return out
+				}())
 				for _, item := range routingAvailable {
-					result, err := s.tryAcquireAccountSlot(ctx, item.account.ID, item.account.Concurrency)
+					if isPairConcurrencyFull(item.account, scheduleUserIDFromContext(ctx, 0), routingPairCounts[item.account.ID]) {
+						continue
+					}
+					result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, item.account)
+					if pairFull {
+						continue
+					}
 					if err == nil && result.Acquired {
 						// 会话数量限制检查
 						if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
@@ -1859,8 +1881,11 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				}
 
 				// 5. 所有路由账号槽位满，尝试返回等待计划（选择负载最低的）
-				// 遍历找到第一个满足会话限制的账号
+				// 遍历找到第一个满足会话限制的账号。Pair-full 不能 WaitPlan，交给 Layer 2 改选。
 				for _, item := range routingAvailable {
+					if isPairConcurrencyFull(item.account, scheduleUserIDFromContext(ctx, 0), routingPairCounts[item.account.ID]) {
+						continue
+					}
 					if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
 						continue // 会话限制已满，尝试下一个
 					}
@@ -1923,51 +1948,60 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				)
 
 				if !clearSticky && platformOK && modelSupported && modelSchedulable && quotaOK && windowCostOK && rpmOK && schedulable {
-					result, err := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
-					if err == nil && result.Acquired {
-						// 会话数量限制检查
-						if !s.checkAndRegisterSession(ctx, account, sessionHash) {
-							result.ReleaseFunc() // 释放槽位，继续到 Layer 2
-							slog.Debug("sticky.layer1_5_no_routing_miss",
-								"account_id", accountID,
-								"reason", "session_limit",
-								"session", shortSessionHash(sessionHash),
-							)
-						} else {
-							slog.Debug("sticky.layer1_5_no_routing_hit",
-								"account_id", accountID,
-								"session", shortSessionHash(sessionHash),
-								"result", "slot_acquired",
-							)
-							if s.cache != nil {
-								_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), sessionHash, stickySessionTTL)
+					pairFullSticky := isPairConcurrencyFull(account, scheduleUserIDFromContext(ctx, 0), s.pairCountsForSelection(ctx, []*Account{account})[account.ID])
+					if !pairFullSticky {
+						result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, account)
+						if pairFull {
+							pairFullSticky = true
+						} else if err == nil && result.Acquired {
+							// 会话数量限制检查
+							if !s.checkAndRegisterSession(ctx, account, sessionHash) {
+								result.ReleaseFunc() // 释放槽位，继续到 Layer 2
+								slog.Debug("sticky.layer1_5_no_routing_miss",
+									"account_id", accountID,
+									"reason", "session_limit",
+									"session", shortSessionHash(sessionHash),
+								)
+							} else {
+								slog.Debug("sticky.layer1_5_no_routing_hit",
+									"account_id", accountID,
+									"session", shortSessionHash(sessionHash),
+									"result", "slot_acquired",
+								)
+								if s.cache != nil {
+									_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), sessionHash, stickySessionTTL)
+								}
+								return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
 							}
-							return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
+						} else {
+							slog.Debug("sticky.layer1_5_no_routing_slot_busy",
+								"account_id", accountID,
+								"session", shortSessionHash(sessionHash),
+							)
 						}
-					} else {
-						slog.Debug("sticky.layer1_5_no_routing_slot_busy",
-							"account_id", accountID,
-							"session", shortSessionHash(sessionHash),
-						)
 					}
 
-					waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
-					if waitingCount < cfg.StickySessionMaxWaiting {
-						// 会话数量限制检查（等待计划也需要占用会话配额）
-						if !s.checkAndRegisterSession(ctx, account, sessionHash) {
-							// 会话限制已满，继续到 Layer 2
-						} else {
-							slog.Debug("sticky.layer1_5_no_routing_hit",
-								"account_id", accountID,
-								"session", shortSessionHash(sessionHash),
-								"result", "wait_plan",
-							)
-							return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
-								AccountID:      accountID,
-								MaxConcurrency: account.Concurrency,
-								Timeout:        cfg.StickySessionWaitTimeout,
-								MaxWaiting:     cfg.StickySessionMaxWaiting,
-							})
+					if pairFullSticky {
+						// Pair-full skips this sticky pick only; keep the pin and do not WaitPlan.
+					} else {
+						waitingCount, _ := s.concurrencyService.GetAccountWaitingCount(ctx, accountID)
+						if waitingCount < cfg.StickySessionMaxWaiting {
+							// 会话数量限制检查（等待计划也需要占用会话配额）
+							if !s.checkAndRegisterSession(ctx, account, sessionHash) {
+								// 会话限制已满，继续到 Layer 2
+							} else {
+								slog.Debug("sticky.layer1_5_no_routing_hit",
+									"account_id", accountID,
+									"session", shortSessionHash(sessionHash),
+									"result", "wait_plan",
+								)
+								return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
+									AccountID:      accountID,
+									MaxConcurrency: account.Concurrency,
+									Timeout:        cfg.StickySessionWaitTimeout,
+									MaxWaiting:     cfg.StickySessionMaxWaiting,
+								})
+							}
 						}
 					}
 				} else if !clearSticky {
@@ -2047,6 +2081,18 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	if len(candidates) == 0 {
 		return nil, ErrNoAvailableAccounts
 	}
+	pairCounts := s.pairCountsForSelection(ctx, candidates)
+	filtered := make([]*Account, 0, len(candidates))
+	for _, acc := range candidates {
+		if isPairConcurrencyFull(acc, scheduleUserIDFromContext(ctx, 0), pairCounts[acc.ID]) {
+			continue
+		}
+		filtered = append(filtered, acc)
+	}
+	candidates = filtered
+	if len(candidates) == 0 {
+		return nil, ErrNoAvailableAccounts
+	}
 
 	accountLoads := make([]AccountWithConcurrency, 0, len(candidates))
 	for _, acc := range candidates {
@@ -2090,8 +2136,10 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				break
 			}
 
-			result, err := s.tryAcquireAccountSlot(ctx, selected.account.ID, selected.account.Concurrency)
-			if err == nil && result.Acquired {
+			result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, selected.account)
+			if pairFull {
+				// exclude and retry layered selection
+			} else if err == nil && result.Acquired {
 				// 会话数量限制检查
 				if !s.checkAndRegisterSession(ctx, selected.account, sessionHash) {
 					result.ReleaseFunc() // 释放槽位，继续尝试下一个账号
@@ -2137,7 +2185,10 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 	sortAccountsByPriorityAndLastUsed(ordered, preferOAuth)
 
 	for _, acc := range ordered {
-		result, err := s.tryAcquireAccountSlot(ctx, acc.ID, acc.Concurrency)
+		result, pairFull, err := s.tryAcquireAccountAndPairSlot(ctx, acc)
+		if pairFull {
+			continue
+		}
 		if err == nil && result.Acquired {
 			// 会话数量限制检查
 			if !s.checkAndRegisterSession(ctx, acc, sessionHash) {

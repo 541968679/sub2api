@@ -288,6 +288,9 @@ var (
 	// AccountScheduleUsersColumns holds the columns for the "account_schedule_users" table.
 	AccountScheduleUsersColumns = []*schema.Column{
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "allow", Type: field.TypeBool, Default: false},
+		{Name: "deny", Type: field.TypeBool, Default: false},
+		{Name: "max_concurrency", Type: field.TypeInt, Nullable: true},
 		{Name: "account_id", Type: field.TypeInt64},
 		{Name: "user_id", Type: field.TypeInt64},
 	}
@@ -295,17 +298,17 @@ var (
 	AccountScheduleUsersTable = &schema.Table{
 		Name:       "account_schedule_users",
 		Columns:    AccountScheduleUsersColumns,
-		PrimaryKey: []*schema.Column{AccountScheduleUsersColumns[1], AccountScheduleUsersColumns[2]},
+		PrimaryKey: []*schema.Column{AccountScheduleUsersColumns[4], AccountScheduleUsersColumns[5]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "account_schedule_users_accounts_account",
-				Columns:    []*schema.Column{AccountScheduleUsersColumns[1]},
+				Columns:    []*schema.Column{AccountScheduleUsersColumns[4]},
 				RefColumns: []*schema.Column{AccountsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "account_schedule_users_users_user",
-				Columns:    []*schema.Column{AccountScheduleUsersColumns[2]},
+				Columns:    []*schema.Column{AccountScheduleUsersColumns[5]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -314,7 +317,7 @@ var (
 			{
 				Name:    "accountscheduleuser_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{AccountScheduleUsersColumns[2]},
+				Columns: []*schema.Column{AccountScheduleUsersColumns[5]},
 			},
 		},
 	}

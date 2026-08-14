@@ -258,7 +258,14 @@ func AccountFromServiceShallow(a *service.Account) *Account {
 	if len(a.ScheduleUsers) > 0 {
 		out.ScheduleUsers = make([]ScheduleUser, 0, len(a.ScheduleUsers))
 		for _, u := range a.ScheduleUsers {
-			out.ScheduleUsers = append(out.ScheduleUsers, ScheduleUser{ID: u.ID, Email: u.Email, Deleted: u.Deleted})
+			out.ScheduleUsers = append(out.ScheduleUsers, ScheduleUser{
+				ID:             u.ID,
+				Email:          u.Email,
+				Deleted:        u.Deleted,
+				Allow:          u.Allow,
+				Deny:           u.Deny,
+				MaxConcurrency: u.MaxConcurrency,
+			})
 		}
 	}
 

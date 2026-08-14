@@ -4,9 +4,11 @@
 
 ## Per-account user schedule
 
-Admins can set each account to `unrestricted` (default), `allow`, or `deny` without creating exclusive groups. Membership lives in `account_schedule_users`; mode is `accounts.user_schedule_mode`. Create-account stays unrestricted. Spark shadows do not inherit the parent list.
+Allow list, deny list, and per-user pair concurrency are three independent configs on `account_schedule_users` (`allow`, `deny`, `max_concurrency`). The leftover `accounts.user_schedule_mode` column is no longer the write/hot-path source of truth. Create-account stays empty. Spark shadows do not inherit parent rules; new shadows start empty.
 
-Admin edit/bulk use a last-column user-schedule zone (config / groups / other / user schedule) and reuse `OpenAIFastPolicyUserSelector`. The account list `user_schedule` column is default-visible: unrestricted shows `—`; allow/deny show a short tag plus email chips (`#id` fallback, `+N` overflow). Saving `allow`/`deny` requires at least one user ID; restore-default writes `unrestricted` and clears the join rows. Scheduler evaluation is documented in [gateway.md](./gateway.md#account-user-schedule-filter).
+A user may sit on allow, deny, and a cap at once. Runtime priority is deny → allow-whitelist miss → explicit pair cap N≥1 → default unrestricted (account + user global concurrency only). `0` / null / omit means no pair cap. Restore-default writes three empties. Bulk edit may overwrite allow and/or deny (checkbox per list) and never writes caps.
+
+Admin edit/bulk keep the last-column user-schedule zone and reuse `OpenAIFastPolicyUserSelector`. The account list `user_schedule` column is default-visible: all three empty shows `—`; otherwise union chips with allow/deny tags plus an inline pair-cap mark (`user_concurrency_patch`). Scheduler evaluation is documented in [gateway.md](./gateway.md#account-user-schedule-filter).
 
 ## Grok account routing and quota state
 

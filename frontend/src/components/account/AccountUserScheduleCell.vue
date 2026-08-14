@@ -1,19 +1,33 @@
 <template>
-  <div v-if="isRestricted" class="relative max-w-56">
+  <div v-if="hasConfig" class="relative max-w-56">
     <div class="flex flex-wrap items-center gap-1 max-h-14 overflow-hidden">
-      <span
-        class="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium"
-        :class="modeClass"
-      >
-        {{ modeLabel }}
-      </span>
       <span
         v-for="user in displayUsers"
         :key="user.id"
-        class="inline-flex max-w-24 items-center truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-300"
+        class="inline-flex max-w-36 items-center gap-1 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-300"
         :title="userChipTitle(user)"
       >
-        {{ user.email || `#${user.id}` }}
+        <span
+          v-if="user.allow"
+          class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+        >
+          {{ t('admin.accounts.userSchedule.modeAllow') }}
+        </span>
+        <span
+          v-if="user.deny"
+          class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+        >
+          {{ t('admin.accounts.userSchedule.modeDeny') }}
+        </span>
+        <span class="truncate">{{ user.email || `#${user.id}` }}</span>
+        <AccountInlineNumberCell
+          :model-value="user.max_concurrency ?? 0"
+          :min="0"
+          :blank-when-zero="true"
+          :disabled="disabled"
+          :hint="t('admin.accounts.userSchedule.concurrencyHint')"
+          @save="(value) => emitSave(user.id, value)"
+        />
       </span>
       <button
         v-if="hiddenCount > 0"
@@ -59,10 +73,30 @@
             <span
               v-for="user in users"
               :key="user.id"
-              class="inline-flex max-w-full items-center truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex max-w-full items-center gap-1 truncate rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700 dark:bg-dark-600 dark:text-gray-300"
               :title="userChipTitle(user)"
             >
-              {{ user.email || `#${user.id}` }}
+              <span
+                v-if="user.allow"
+                class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+              >
+                {{ t('admin.accounts.userSchedule.modeAllow') }}
+              </span>
+              <span
+                v-if="user.deny"
+                class="inline-flex items-center rounded px-1 text-[10px] font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+              >
+                {{ t('admin.accounts.userSchedule.modeDeny') }}
+              </span>
+              <span class="truncate">{{ user.email || `#${user.id}` }}</span>
+              <AccountInlineNumberCell
+                :model-value="user.max_concurrency ?? 0"
+                :min="0"
+                :blank-when-zero="true"
+                :disabled="disabled"
+                :hint="t('admin.accounts.userSchedule.concurrencyHint')"
+                @save="(value) => emitSave(user.id, value)"
+              />
             </span>
           </div>
         </div>
@@ -82,41 +116,29 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account, AccountScheduleUser } from '@/types'
+import AccountInlineNumberCell from './AccountInlineNumberCell.vue'
 
 const props = withDefaults(defineProps<{
   account: Account
   maxDisplay?: number
+  disabled?: boolean
 }>(), {
-  maxDisplay: 4
+  maxDisplay: 4,
+  disabled: false
 })
+
+const emit = defineEmits<{
+  save: [payload: { userId: number; maxConcurrency: number | null }]
+}>()
 
 const { t } = useI18n()
 const moreButtonRef = ref<HTMLElement | null>(null)
 const popoverRef = ref<HTMLElement | null>(null)
 const showPopover = ref(false)
 
-const mode = computed(() => {
-  const value = props.account?.user_schedule_mode
-  if (value === 'allow' || value === 'deny') return value
-  return 'unrestricted'
-})
-
-const isRestricted = computed(() => mode.value !== 'unrestricted')
-
 const users = computed<AccountScheduleUser[]>(() => props.account?.schedule_users ?? [])
 
-const modeLabel = computed(() => {
-  if (mode.value === 'allow') return t('admin.accounts.userSchedule.modeAllow')
-  if (mode.value === 'deny') return t('admin.accounts.userSchedule.modeDeny')
-  return t('admin.accounts.userSchedule.modeUnrestricted')
-})
-
-const modeClass = computed(() => {
-  if (mode.value === 'allow') {
-    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-  }
-  return 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
-})
+const hasConfig = computed(() => users.value.length > 0)
 
 const displayUsers = computed(() => {
   if (users.value.length <= props.maxDisplay) return users.value
@@ -147,6 +169,13 @@ const popoverStyle = computed(() => {
 function userChipTitle(user: AccountScheduleUser): string {
   const email = user.email || `#${user.id}`
   return user.deleted ? `${email} (${t('admin.accounts.userSchedule.deleted')})` : email
+}
+
+function emitSave(userId: number, value: number) {
+  emit('save', {
+    userId,
+    maxConcurrency: value >= 1 ? Math.trunc(value) : null
+  })
 }
 
 const handleKeydown = (e: KeyboardEvent) => {

@@ -21,8 +21,7 @@ func TestGatewayService_StickyUserScheduleDeniedClearsBinding(t *testing.T) {
 		Status:           StatusActive,
 		Schedulable:      true,
 		Concurrency:      5,
-		UserScheduleMode: UserScheduleModeAllow,
-		ScheduleUserIDs:  []int64{99},
+		AllowUserIDs: []int64{99},
 	}
 	allowed := &Account{
 		ID:               2,
@@ -32,8 +31,7 @@ func TestGatewayService_StickyUserScheduleDeniedClearsBinding(t *testing.T) {
 		Schedulable:      true,
 		Concurrency:      5,
 		Priority:         1,
-		UserScheduleMode: UserScheduleModeAllow,
-		ScheduleUserIDs:  []int64{16},
+		AllowUserIDs: []int64{16},
 	}
 	repo := &mockAccountRepoForPlatform{
 		accounts:     []Account{*denied, *allowed},
@@ -75,11 +73,11 @@ func TestSelectAccount_UserScheduleAllowFilters(t *testing.T) {
 
 	allowHit := Account{
 		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 2,
-		UserScheduleMode: UserScheduleModeAllow, ScheduleUserIDs: []int64{16},
+		AllowUserIDs: []int64{16},
 	}
 	allowMiss := Account{
 		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
-		UserScheduleMode: UserScheduleModeAllow, ScheduleUserIDs: []int64{99},
+		AllowUserIDs: []int64{99},
 	}
 	unrestricted := Account{
 		ID: 3, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
@@ -112,7 +110,7 @@ func TestSelectAccount_UserScheduleDenyFilters(t *testing.T) {
 
 	denied := Account{
 		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
-		UserScheduleMode: UserScheduleModeDeny, ScheduleUserIDs: []int64{16},
+		DenyUserIDs: []int64{16},
 	}
 	unrestricted := Account{
 		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
@@ -152,11 +150,11 @@ func TestSelectAccount_UserScheduleUserIDZeroSkipsRestricted(t *testing.T) {
 
 	allowOnly := Account{
 		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
-		UserScheduleMode: UserScheduleModeAllow, ScheduleUserIDs: []int64{16},
+		AllowUserIDs: []int64{16},
 	}
 	denyListed := Account{
 		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 2,
-		UserScheduleMode: UserScheduleModeDeny, ScheduleUserIDs: []int64{99},
+		DenyUserIDs: []int64{99},
 	}
 	unrestricted := Account{
 		ID: 3, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
@@ -190,7 +188,7 @@ func TestOpenAISelectAccount_UserScheduleStickyEscape(t *testing.T) {
 	denied := Account{
 		ID: 38101, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
 		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
-		UserScheduleMode: UserScheduleModeDeny, ScheduleUserIDs: []int64{16},
+		DenyUserIDs: []int64{16},
 	}
 	allowed := Account{
 		ID: 38102, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
@@ -250,7 +248,7 @@ func TestOpenAISelectAccount_UserScheduleDenyFiltersWhenAdvancedSchedulerDisable
 	denied := Account{
 		ID: 38301, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
 		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
-		UserScheduleMode: UserScheduleModeDeny, ScheduleUserIDs: []int64{1},
+		DenyUserIDs: []int64{1},
 	}
 	allowed := Account{
 		ID: 38302, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
@@ -279,7 +277,7 @@ func TestOpenAISelectAccount_UserScheduleDenyOnlyAccountWhenAdvancedSchedulerDis
 	denied := Account{
 		ID: 38401, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
 		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
-		UserScheduleMode: UserScheduleModeDeny, ScheduleUserIDs: []int64{1},
+		DenyUserIDs: []int64{1},
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = true
@@ -302,7 +300,7 @@ func TestOpenAISelectAccount_UserScheduleDenyStickyClearedWhenAdvancedSchedulerD
 	denied := Account{
 		ID: 38501, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
 		Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID},
-		UserScheduleMode: UserScheduleModeDeny, ScheduleUserIDs: []int64{1},
+		DenyUserIDs: []int64{1},
 	}
 	allowed := Account{
 		ID: 38502, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
@@ -325,4 +323,232 @@ func TestOpenAISelectAccount_UserScheduleDenyStickyClearedWhenAdvancedSchedulerD
 	require.NotNil(t, selection)
 	require.Equal(t, int64(38502), selection.Account.ID)
 	require.Equal(t, 1, cache.deletedSessions["openai:load-aware-deny"])
+}
+
+func TestSelectAccount_UserSchedulePairConcurrencyFullReselects(t *testing.T) {
+	t.Parallel()
+
+	full := Account{
+		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
+		AllowUserIDs:    []int64{16},
+		UserConcurrency: map[int64]int{16: 1},
+	}
+	other := Account{
+		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
+	}
+	repo := &mockAccountRepoForPlatform{
+		accounts:     []Account{full, other},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		copied := repo.accounts[i]
+		repo.accountsByID[copied.ID] = &copied
+	}
+	cfg := testConfig()
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	svc := &GatewayService{
+		accountRepo: repo,
+		cache:       &mockGatewayCacheForPlatform{},
+		cfg:         cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{
+			pairCounts: map[int64]int{1: 1},
+		}),
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAnthropic)
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(16))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Account)
+	require.Equal(t, int64(2), result.Account.ID)
+	require.Nil(t, result.WaitPlan)
+}
+
+func TestSelectAccount_StickyUserSchedulePairFullKeepsPin(t *testing.T) {
+	t.Parallel()
+
+	full := &Account{
+		ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 5,
+		AllowUserIDs:    []int64{16},
+		UserConcurrency: map[int64]int{16: 1},
+	}
+	other := &Account{
+		ID: 2, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
+		AllowUserIDs: []int64{16},
+	}
+	repo := &mockAccountRepoForPlatform{
+		accounts:     []Account{*full, *other},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		copied := repo.accounts[i]
+		repo.accountsByID[copied.ID] = &copied
+	}
+	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 1}}
+	cfg := testConfig()
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	svc := &GatewayService{
+		accountRepo: repo,
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{
+			pairCounts:         map[int64]int{1: 1},
+			pairAcquireResults: map[int64]bool{1: false},
+		}),
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformAnthropic)
+	result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sticky", "claude-3-5-sonnet-20241022", nil, "", int64(16))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, int64(2), result.Account.ID)
+	require.Nil(t, result.WaitPlan)
+	require.Zero(t, cache.deletedSessions["sticky"])
+}
+
+func TestOpenAISelectAccount_UserSchedulePairConcurrencyFullReselects(t *testing.T) {
+	groupID := int64(101206)
+	full := Account{
+		ID: 38601, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 5, Priority: 0, GroupIDs: []int64{groupID},
+		AllowUserIDs:    []int64{16},
+		UserConcurrency: map[int64]int{16: 1},
+	}
+	other := Account{
+		ID: 38602, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 5, Priority: 5, GroupIDs: []int64{groupID},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []Account{full, other}},
+		cache:            &schedulerTestGatewayCache{},
+		cfg:              &config.Config{},
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
+			pairCounts: map[int64]int{38601: 1},
+		}),
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	selection, _, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, int64(38602), selection.Account.ID)
+	require.Nil(t, selection.WaitPlan)
+}
+
+func TestOpenAISelectAccount_StickyUserSchedulePairFullKeepsPin(t *testing.T) {
+	groupID := int64(101207)
+	full := Account{
+		ID: 38701, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 5, Priority: 0, GroupIDs: []int64{groupID},
+		UserConcurrency: map[int64]int{16: 1},
+	}
+	other := Account{
+		ID: 38702, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 5, Priority: 5, GroupIDs: []int64{groupID},
+	}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:pair-full": 38701}}
+	svc := &OpenAIGatewayService{
+		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []Account{full, other}},
+		cache:            cache,
+		cfg:              &config.Config{},
+		rateLimitService: newOpenAIAdvancedSchedulerRateLimitService("true"),
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
+			pairCounts:         map[int64]int{38701: 1},
+			pairAcquireResults: map[int64]bool{38701: false},
+		}),
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "pair-full", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, int64(38702), selection.Account.ID)
+	require.False(t, decision.StickySessionHit)
+	require.Zero(t, cache.deletedSessions["openai:pair-full"])
+	require.Nil(t, selection.WaitPlan)
+}
+
+func TestSelectAccount_UserScheduleRoutedPairFullFallsThrough(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(88)
+	full := Account{
+		ID: 1, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 1,
+		UserConcurrency: map[int64]int{16: 1},
+	}
+	other := Account{
+		ID: 2, Platform: PlatformAnthropic, Status: StatusActive, Schedulable: true, Concurrency: 5, Priority: 10,
+	}
+	repo := &mockAccountRepoForPlatform{
+		accounts:     []Account{full, other},
+		accountsByID: map[int64]*Account{},
+	}
+	for i := range repo.accounts {
+		copied := repo.accounts[i]
+		repo.accountsByID[copied.ID] = &copied
+	}
+	cfg := testConfig()
+	cfg.Gateway.Scheduling.LoadBatchEnabled = true
+	svc := &GatewayService{
+		accountRepo: repo,
+		groupRepo: &mockGroupRepoForGateway{
+			groups: map[int64]*Group{
+				groupID: {
+					ID:                  groupID,
+					Platform:            PlatformAnthropic,
+					Status:              StatusActive,
+					Hydrated:            true,
+					ModelRoutingEnabled: true,
+					ModelRouting: map[string][]int64{
+						"claude-3-5-sonnet-20241022": {1},
+					},
+				},
+			},
+		},
+		cache: &mockGatewayCacheForPlatform{},
+		cfg:   cfg,
+		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{
+			pairCounts:         map[int64]int{1: 1},
+			pairAcquireResults: map[int64]bool{1: false},
+		}),
+	}
+
+	result, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, "", "claude-3-5-sonnet-20241022", nil, "", int64(16))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Account)
+	require.Equal(t, int64(2), result.Account.ID)
+	require.Nil(t, result.WaitPlan)
+}
+
+func TestOpenAISelectAccount_LoadBatchDisabledPairFullReselects(t *testing.T) {
+	groupID := int64(101208)
+	full := Account{
+		ID: 38801, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 5, Priority: 0, GroupIDs: []int64{groupID},
+		UserConcurrency: map[int64]int{16: 1},
+	}
+	other := Account{
+		ID: 38802, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true,
+		Concurrency: 5, Priority: 5, GroupIDs: []int64{groupID},
+	}
+	cfg := &config.Config{}
+	cfg.Gateway.Scheduling.LoadBatchEnabled = false
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{full, other}},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
+			pairCounts:         map[int64]int{38801: 1},
+			pairAcquireResults: map[int64]bool{38801: false},
+		}),
+	}
+
+	ctx := context.WithValue(context.Background(), ctxkey.UserID, int64(16))
+	selection, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "", "gpt-5.1", nil)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.Equal(t, int64(38802), selection.Account.ID)
+	require.Nil(t, selection.WaitPlan)
 }

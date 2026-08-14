@@ -463,7 +463,11 @@
             </button>
           </template>
           <template #cell-user_schedule="{ row }">
-            <AccountUserScheduleCell :account="row" />
+            <AccountUserScheduleCell
+              :account="row"
+              :disabled="inlineSavingId === row.id"
+              @save="(payload) => handleInlineUserConcurrency(row, payload)"
+            />
           </template>
           <template #header-fallback_only="{ column }">
             <div class="flex items-center">
@@ -2927,6 +2931,34 @@ const handleInlineConcurrency = async (a: Account, value: number) => {
   } catch (error) {
     console.error('Failed to update concurrency:', error)
     patchAccountInList({ ...a, concurrency: previous })
+    appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
+  } finally {
+    inlineSavingId.value = null
+  }
+}
+
+const handleInlineUserConcurrency = async (
+  a: Account,
+  payload: { userId: number; maxConcurrency: number | null }
+) => {
+  inlineSavingId.value = a.id
+  const previousUsers = (a.schedule_users ?? []).map((user) => ({ ...user }))
+  const nextUsers = previousUsers.map((user) =>
+    user.id === payload.userId ? { ...user, max_concurrency: payload.maxConcurrency ?? null } : user
+  )
+  try {
+    patchAccountInList({ ...a, schedule_users: nextUsers })
+    const updated = await adminAPI.accounts.update(a.id, {
+      user_concurrency_patch: {
+        user_id: payload.userId,
+        max_concurrency: payload.maxConcurrency
+      }
+    })
+    patchAccountInList(mergeRuntimeFields(a, updated))
+    enterAutoRefreshSilentWindow()
+  } catch (error) {
+    console.error('Failed to update user pair concurrency:', error)
+    patchAccountInList({ ...a, schedule_users: previousUsers })
     appStore.showError(t('admin.accounts.inlineEdit.saveFailed'))
   } finally {
     inlineSavingId.value = null

@@ -18,6 +18,12 @@ const (
 	FieldUserID = "user_id"
 	// FieldCreatedAt holds the string denoting the created_at field in the database.
 	FieldCreatedAt = "created_at"
+	// FieldAllow holds the string denoting the allow field in the database.
+	FieldAllow = "allow"
+	// FieldDeny holds the string denoting the deny field in the database.
+	FieldDeny = "deny"
+	// FieldMaxConcurrency holds the string denoting the max_concurrency field in the database.
+	FieldMaxConcurrency = "max_concurrency"
 	// EdgeAccount holds the string denoting the account edge name in mutations.
 	EdgeAccount = "account"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -49,6 +55,9 @@ var Columns = []string{
 	FieldAccountID,
 	FieldUserID,
 	FieldCreatedAt,
+	FieldAllow,
+	FieldDeny,
+	FieldMaxConcurrency,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -64,6 +73,10 @@ func ValidColumn(column string) bool {
 var (
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
+	// DefaultAllow holds the default value on creation for the "allow" field.
+	DefaultAllow bool
+	// DefaultDeny holds the default value on creation for the "deny" field.
+	DefaultDeny bool
 )
 
 // OrderOption defines the ordering options for the AccountScheduleUser queries.
@@ -82,6 +95,21 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedAt orders the results by the created_at field.
 func ByCreatedAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedAt, opts...).ToFunc()
+}
+
+// ByAllow orders the results by the allow field.
+func ByAllow(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllow, opts...).ToFunc()
+}
+
+// ByDeny orders the results by the deny field.
+func ByDeny(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeny, opts...).ToFunc()
+}
+
+// ByMaxConcurrency orders the results by the max_concurrency field.
+func ByMaxConcurrency(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxConcurrency, opts...).ToFunc()
 }
 
 // ByAccountField orders the results by account field.

@@ -13,7 +13,8 @@ import (
 )
 
 // AccountScheduleUser holds the edge schema for account_schedule_users.
-// It stores which users an account is allowed or denied for scheduling.
+// A row exists when the user is on the allow list, deny list, and/or has a
+// pair-level max concurrency for this account. The three attributes are independent.
 type AccountScheduleUser struct {
 	ent.Schema
 }
@@ -33,6 +34,13 @@ func (AccountScheduleUser) Fields() []ent.Field {
 			Immutable().
 			Default(time.Now).
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Bool("allow").
+			Default(false),
+		field.Bool("deny").
+			Default(false),
+		field.Int("max_concurrency").
+			Optional().
+			Nillable(),
 	}
 }
 

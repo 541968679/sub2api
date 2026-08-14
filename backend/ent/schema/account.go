@@ -199,8 +199,8 @@ func (Account) Fields() []ent.Field {
 		field.Enum("quota_dimension").Values("global", "spark").Default("global").
 			Comment("'global' (default) or 'spark' (shadow reads codex_bengalfox)."),
 
-		// user_schedule_mode: unrestricted (default) | allow | deny
-		// Membership lives in account_schedule_users; empty allow fails closed at runtime.
+		// user_schedule_mode is a leftover exclusive-mode column. Runtime admission
+		// reads account_schedule_users.allow / .deny / .max_concurrency instead.
 		field.String("user_schedule_mode").
 			MaxLen(16).
 			Default("unrestricted").
@@ -216,7 +216,7 @@ func (Account) Edges() []ent.Edge {
 		// 一个账户可以属于多个分组，一个分组可以包含多个账户
 		edge.To("groups", Group.Type).
 			Through("account_groups", AccountGroup.Type),
-		// schedule_users: 用户级调度名单（allow/deny），通过 account_schedule_users 中间表
+		// schedule_users: independent allow/deny/pair-cap rows via account_schedule_users
 		edge.To("schedule_users", User.Type).
 			Through("account_schedule_users", AccountScheduleUser.Type),
 		// proxy: 账户使用的代理配置（可选的一对一关系）

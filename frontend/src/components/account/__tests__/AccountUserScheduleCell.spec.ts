@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AccountUserScheduleCell from '../AccountUserScheduleCell.vue'
+import AccountInlineNumberCell from '../AccountInlineNumberCell.vue'
 import type { Account } from '@/types'
 
 vi.mock('vue-i18n', async () => {
@@ -48,9 +49,9 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
 }
 
 describe('AccountUserScheduleCell', () => {
-  it('unrestricted 显示 —', () => {
+  it('三套皆空显示 —', () => {
     const wrapper = mount(AccountUserScheduleCell, {
-      props: { account: makeAccount({ user_schedule_mode: 'unrestricted' }) }
+      props: { account: makeAccount({ user_schedule_mode: 'unrestricted', schedule_users: [] }) }
     })
     expect(wrapper.text()).toContain('—')
     expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.modeAllow')
@@ -60,8 +61,7 @@ describe('AccountUserScheduleCell', () => {
     const wrapper = mount(AccountUserScheduleCell, {
       props: {
         account: makeAccount({
-          user_schedule_mode: 'allow',
-          schedule_users: [{ id: 16, email: 'a@x.com', deleted: false }]
+          schedule_users: [{ id: 16, email: 'a@x.com', deleted: false, allow: true }]
         })
       }
     })
@@ -69,17 +69,60 @@ describe('AccountUserScheduleCell', () => {
     expect(wrapper.text()).toContain('a@x.com')
   })
 
+  it('deny+cap 同时显示拒绝标签和数字', () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{ id: 16, email: 'denied@x.com', deleted: false, deny: true, max_concurrency: 5 }]
+        })
+      }
+    })
+    expect(wrapper.text()).toContain('admin.accounts.userSchedule.modeDeny')
+    expect(wrapper.text()).toContain('denied@x.com')
+    expect(wrapper.text()).toContain('5')
+  })
+
+  it('unrestricted + 仅 cap 用户仍显示 chip 和数字', () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          user_schedule_mode: 'unrestricted',
+          schedule_users: [{ id: 7, email: 'cap@x.com', deleted: false, max_concurrency: 3 }]
+        })
+      }
+    })
+    expect(wrapper.text()).toContain('cap@x.com')
+    expect(wrapper.text()).toContain('3')
+    expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.modeAllow')
+    expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.modeDeny')
+  })
+
+  it('标记数字时发出 save，清空数字时传 null', async () => {
+    const wrapper = mount(AccountUserScheduleCell, {
+      props: {
+        account: makeAccount({
+          schedule_users: [{ id: 16, email: 'a@x.com', deleted: false, allow: true, max_concurrency: 2 }]
+        })
+      }
+    })
+    const cell = wrapper.findComponent(AccountInlineNumberCell)
+    expect(cell.exists()).toBe(true)
+    await cell.vm.$emit('save', 5)
+    expect(wrapper.emitted('save')?.[0]?.[0]).toEqual({ userId: 16, maxConcurrency: 5 })
+    await cell.vm.$emit('save', 0)
+    expect(wrapper.emitted('save')?.[1]?.[0]).toEqual({ userId: 16, maxConcurrency: null })
+  })
+
   it('用户过多时显示 +N', () => {
     const wrapper = mount(AccountUserScheduleCell, {
       props: {
         account: makeAccount({
-          user_schedule_mode: 'deny',
           schedule_users: [
-            { id: 1, email: 'a@x.com', deleted: false },
-            { id: 2, email: 'b@x.com', deleted: false },
-            { id: 3, email: 'c@x.com', deleted: false },
-            { id: 4, email: 'd@x.com', deleted: false },
-            { id: 5, email: 'e@x.com', deleted: false }
+            { id: 1, email: 'a@x.com', deleted: false, deny: true },
+            { id: 2, email: 'b@x.com', deleted: false, deny: true },
+            { id: 3, email: 'c@x.com', deleted: false, deny: true },
+            { id: 4, email: 'd@x.com', deleted: false, deny: true },
+            { id: 5, email: 'e@x.com', deleted: false, deny: true }
           ]
         }),
         maxDisplay: 4

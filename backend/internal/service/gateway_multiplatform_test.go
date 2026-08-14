@@ -128,7 +128,7 @@ func (m *mockAccountRepoForPlatform) AutoPauseExpiredAccounts(ctx context.Contex
 func (m *mockAccountRepoForPlatform) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
 	return nil
 }
-func (m *mockAccountRepoForPlatform) SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error {
+func (m *mockAccountRepoForPlatform) SyncScheduleUsers(ctx context.Context, accountID int64, write AccountUserScheduleWrite) error {
 	return nil
 }
 func (m *mockAccountRepoForPlatform) ListScheduleUserRefs(ctx context.Context, userIDs []int64) ([]ScheduleUserRef, error) {
@@ -1897,6 +1897,8 @@ type mockConcurrencyCache struct {
 	acquireAccountCalls int
 	loadBatchCalls      int
 	acquireResults      map[int64]bool
+	pairAcquireResults  map[int64]bool
+	pairCounts          map[int64]int
 	loadBatchErr        error
 	loadMap             map[int64]*AccountLoadInfo
 	waitCounts          map[int64]int
@@ -2009,6 +2011,31 @@ func (m *mockConcurrencyCache) CleanupExpiredAccountSlotKeys(ctx context.Context
 
 func (m *mockConcurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error {
 	return nil
+}
+
+func (m *mockConcurrencyCache) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
+	if m.pairAcquireResults != nil {
+		if result, ok := m.pairAcquireResults[accountID]; ok {
+			return result, nil
+		}
+	}
+	return true, nil
+}
+
+func (m *mockConcurrencyCache) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
+	return nil
+}
+
+func (m *mockConcurrencyCache) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if m.pairCounts != nil {
+			result[accountID] = m.pairCounts[accountID]
+			continue
+		}
+		result[accountID] = 0
+	}
+	return result, nil
 }
 
 func (m *mockConcurrencyCache) GetUsersLoadBatch(ctx context.Context, users []UserWithConcurrency) (map[int64]*UserLoadInfo, error) {

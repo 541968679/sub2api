@@ -127,7 +127,7 @@ func (s *accountRepoStub) BindGroups(ctx context.Context, accountID int64, group
 	panic("unexpected BindGroups call")
 }
 
-func (s *accountRepoStub) SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error {
+func (s *accountRepoStub) SyncScheduleUsers(ctx context.Context, accountID int64, write AccountUserScheduleWrite) error {
 	panic("unexpected SyncScheduleUsers call")
 }
 

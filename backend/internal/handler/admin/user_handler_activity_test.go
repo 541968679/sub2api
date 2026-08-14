@@ -59,6 +59,19 @@ func (s *userConcurrencyCacheStub) DecrementWaitCount(context.Context, int64) er
 func (s *userConcurrencyCacheStub) GetAccountsLoadBatch(context.Context, []service.AccountWithConcurrency) (map[int64]*service.AccountLoadInfo, error) {
 	return map[int64]*service.AccountLoadInfo{}, nil
 }
+func (s *userConcurrencyCacheStub) AcquireAccountUserSlot(context.Context, int64, int64, int, string) (bool, error) {
+	return true, nil
+}
+func (s *userConcurrencyCacheStub) ReleaseAccountUserSlot(context.Context, int64, int64, string) error {
+	return nil
+}
+func (s *userConcurrencyCacheStub) GetAccountUserConcurrencyBatch(_ context.Context, accountIDs []int64, _ int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, id := range accountIDs {
+		result[id] = 0
+	}
+	return result, nil
+}
 func (s *userConcurrencyCacheStub) GetUsersLoadBatch(_ context.Context, users []service.UserWithConcurrency) (map[int64]*service.UserLoadInfo, error) {
 	s.requested = append([]service.UserWithConcurrency(nil), users...)
 	return s.loads, nil

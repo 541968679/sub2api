@@ -22,7 +22,7 @@
       :disabled="disabled"
       @click="startEdit"
     >
-      <span class="font-medium">{{ modelValue }}</span>
+      <span class="font-medium">{{ displayValue }}</span>
       <svg
         class="h-3 w-3 shrink-0 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100"
         fill="none"
@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(
@@ -51,12 +51,14 @@ const props = withDefaults(
     step?: number
     disabled?: boolean
     hint?: string
+    blankWhenZero?: boolean
   }>(),
   {
     min: 0,
     step: 1,
     disabled: false,
-    hint: ''
+    hint: '',
+    blankWhenZero: false
   }
 )
 
@@ -65,6 +67,12 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const displayValue = computed(() => {
+  if (props.blankWhenZero && (props.modelValue == null || props.modelValue === 0)) {
+    return '—'
+  }
+  return props.modelValue
+})
 
 const editing = ref(false)
 const draft = ref(String(props.modelValue ?? 0))

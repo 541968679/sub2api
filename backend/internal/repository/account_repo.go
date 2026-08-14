@@ -216,7 +216,7 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 	if err != nil {
 		return nil, err
 	}
-	scheduleUserIDsByAccount, err := r.loadScheduleUserIDs(ctx, accountIDs)
+	scheduleByAccount, err := r.loadAccountUserSchedules(ctx, accountIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -242,8 +242,8 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 		if ags, ok := accountGroupsByAccount[entAcc.ID]; ok {
 			out.AccountGroups = ags
 		}
-		if ids, ok := scheduleUserIDsByAccount[entAcc.ID]; ok {
-			out.ScheduleUserIDs = ids
+		if spec, ok := scheduleByAccount[entAcc.ID]; ok {
+			applyAccountUserSchedule(out, spec)
 		}
 		outByID[entAcc.ID] = out
 	}
@@ -1041,7 +1041,7 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 	return nil
 }
 
-func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error {
+func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int64, write service.AccountUserScheduleWrite) error {
 	tx, err := r.client.Tx(ctx)
 	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
 		return err
@@ -1059,29 +1059,66 @@ func (r *accountRepository) SyncScheduleUsers(ctx context.Context, accountID int
 		return err
 	}
 
-	unique := make(map[int64]struct{}, len(userIDs))
-	ordered := make([]int64, 0, len(userIDs))
-	for _, id := range userIDs {
-		if id <= 0 {
+	type rowSpec struct {
+		allow bool
+		deny  bool
+		max   *int
+	}
+	rows := map[int64]*rowSpec{}
+	order := make([]int64, 0)
+	addUser := func(userID int64) *rowSpec {
+		if userID <= 0 {
+			return nil
+		}
+		if existing, ok := rows[userID]; ok {
+			return existing
+		}
+		spec := &rowSpec{}
+		rows[userID] = spec
+		order = append(order, userID)
+		return spec
+	}
+	for _, userID := range write.AllowUserIDs {
+		if spec := addUser(userID); spec != nil {
+			spec.allow = true
+		}
+	}
+	for _, userID := range write.DenyUserIDs {
+		if spec := addUser(userID); spec != nil {
+			spec.deny = true
+		}
+	}
+	for userID, n := range write.UserConcurrency {
+		if n < 1 {
 			continue
 		}
-		if _, ok := unique[id]; ok {
-			continue
+		if spec := addUser(userID); spec != nil {
+			max := n
+			spec.max = &max
 		}
-		unique[id] = struct{}{}
-		ordered = append(ordered, id)
 	}
 
-	if len(ordered) > 0 {
-		builders := make([]*dbent.AccountScheduleUserCreate, 0, len(ordered))
-		for _, userID := range ordered {
-			builders = append(builders, txClient.AccountScheduleUser.Create().
+	if len(order) > 0 {
+		builders := make([]*dbent.AccountScheduleUserCreate, 0, len(order))
+		for _, userID := range order {
+			spec := rows[userID]
+			if spec == nil || (!spec.allow && !spec.deny && spec.max == nil) {
+				continue
+			}
+			builder := txClient.AccountScheduleUser.Create().
 				SetAccountID(accountID).
-				SetUserID(userID),
-			)
+				SetUserID(userID).
+				SetAllow(spec.allow).
+				SetDeny(spec.deny)
+			if spec.max != nil {
+				builder.SetMaxConcurrency(*spec.max)
+			}
+			builders = append(builders, builder)
 		}
-		if _, err := txClient.AccountScheduleUser.CreateBulk(builders...).Save(ctx); err != nil {
-			return err
+		if len(builders) > 0 {
+			if _, err := txClient.AccountScheduleUser.CreateBulk(builders...).Save(ctx); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1911,7 +1948,7 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 	if err != nil {
 		return nil, err
 	}
-	scheduleUserIDsByAccount, err := r.loadScheduleUserIDs(ctx, accountIDs)
+	scheduleByAccount, err := r.loadAccountUserSchedules(ctx, accountIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1936,8 +1973,8 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 		if ags, ok := accountGroupsByAccount[acc.ID]; ok {
 			out.AccountGroups = ags
 		}
-		if ids, ok := scheduleUserIDsByAccount[acc.ID]; ok {
-			out.ScheduleUserIDs = ids
+		if spec, ok := scheduleByAccount[acc.ID]; ok {
+			applyAccountUserSchedule(out, spec)
 		}
 		outAccounts = append(outAccounts, *out)
 	}
@@ -2017,8 +2054,8 @@ func (r *accountRepository) loadAccountGroups(ctx context.Context, accountIDs []
 	return groupsByAccount, groupIDsByAccount, accountGroupsByAccount, nil
 }
 
-func (r *accountRepository) loadScheduleUserIDs(ctx context.Context, accountIDs []int64) (map[int64][]int64, error) {
-	out := make(map[int64][]int64)
+func (r *accountRepository) loadAccountUserSchedules(ctx context.Context, accountIDs []int64) (map[int64]service.AccountUserScheduleWrite, error) {
+	out := make(map[int64]service.AccountUserScheduleWrite)
 	if len(accountIDs) == 0 {
 		return out, nil
 	}
@@ -2033,9 +2070,32 @@ func (r *accountRepository) loadScheduleUserIDs(ctx context.Context, accountIDs 
 		if entry.UserID <= 0 {
 			continue
 		}
-		out[entry.AccountID] = append(out[entry.AccountID], entry.UserID)
+		spec := out[entry.AccountID]
+		if entry.Allow {
+			spec.AllowUserIDs = append(spec.AllowUserIDs, entry.UserID)
+		}
+		if entry.Deny {
+			spec.DenyUserIDs = append(spec.DenyUserIDs, entry.UserID)
+		}
+		if entry.MaxConcurrency != nil && *entry.MaxConcurrency >= 1 {
+			if spec.UserConcurrency == nil {
+				spec.UserConcurrency = map[int64]int{}
+			}
+			spec.UserConcurrency[entry.UserID] = *entry.MaxConcurrency
+		}
+		out[entry.AccountID] = spec
 	}
 	return out, nil
+}
+
+func applyAccountUserSchedule(account *service.Account, spec service.AccountUserScheduleWrite) {
+	if account == nil {
+		return
+	}
+	account.AllowUserIDs = spec.AllowUserIDs
+	account.DenyUserIDs = spec.DenyUserIDs
+	account.UserConcurrency = spec.UserConcurrency
+	account.DeriveLegacyUserSchedule()
 }
 
 func (r *accountRepository) loadAccountGroupIDs(ctx context.Context, accountID int64) ([]int64, error) {

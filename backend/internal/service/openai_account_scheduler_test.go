@@ -83,11 +83,13 @@ func (r schedulerGroupAwareOpenAIAccountRepo) ListSchedulableUngroupedByPlatform
 
 type schedulerTestConcurrencyCache struct {
 	ConcurrencyCache
-	loadBatchErr    error
-	loadMap         map[int64]*AccountLoadInfo
-	acquireResults  map[int64]bool
-	waitCounts      map[int64]int
-	skipDefaultLoad bool
+	loadBatchErr       error
+	loadMap            map[int64]*AccountLoadInfo
+	acquireResults     map[int64]bool
+	pairAcquireResults map[int64]bool
+	pairCounts         map[int64]int
+	waitCounts         map[int64]int
+	skipDefaultLoad    bool
 }
 
 func (c schedulerTestConcurrencyCache) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -135,6 +137,31 @@ func (c schedulerTestConcurrencyCache) GetAccountWaitingCount(ctx context.Contex
 		}
 	}
 	return 0, nil
+}
+
+func (c schedulerTestConcurrencyCache) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
+	if c.pairAcquireResults != nil {
+		if result, ok := c.pairAcquireResults[accountID]; ok {
+			return result, nil
+		}
+	}
+	return true, nil
+}
+
+func (c schedulerTestConcurrencyCache) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
+	return nil
+}
+
+func (c schedulerTestConcurrencyCache) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if c.pairCounts != nil {
+			result[accountID] = c.pairCounts[accountID]
+			continue
+		}
+		result[accountID] = 0
+	}
+	return result, nil
 }
 
 type schedulerTestGatewayCache struct {

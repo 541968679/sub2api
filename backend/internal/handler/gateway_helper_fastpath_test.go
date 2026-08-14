@@ -81,6 +81,20 @@ func (m *concurrencyCacheMock) GetAccountsLoadBatch(ctx context.Context, account
 	return map[int64]*service.AccountLoadInfo{}, nil
 }
 
+func (m *concurrencyCacheMock) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
+	return true, nil
+}
+func (m *concurrencyCacheMock) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
+	return nil
+}
+func (m *concurrencyCacheMock) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		result[accountID] = 0
+	}
+	return result, nil
+}
+
 func (m *concurrencyCacheMock) GetUsersLoadBatch(ctx context.Context, users []service.UserWithConcurrency) (map[int64]*service.UserLoadInfo, error) {
 	return map[int64]*service.UserLoadInfo{}, nil
 }

@@ -108,6 +108,20 @@ func (s *helperConcurrencyCacheStub) GetAccountsLoadBatch(ctx context.Context, a
 	return out, nil
 }
 
+func (s *helperConcurrencyCacheStub) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error) {
+	return true, nil
+}
+func (s *helperConcurrencyCacheStub) ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error {
+	return nil
+}
+func (s *helperConcurrencyCacheStub) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {
+	out := make(map[int64]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		out[accountID] = 0
+	}
+	return out, nil
+}
+
 func (s *helperConcurrencyCacheStub) GetUsersLoadBatch(ctx context.Context, users []service.UserWithConcurrency) (map[int64]*service.UserLoadInfo, error) {
 	out := make(map[int64]*service.UserLoadInfo, len(users))
 	for _, user := range users {

@@ -118,6 +118,28 @@ describe('BulkEditAccountModal', () => {
     expect(wrapper.get('[data-testid="bulk-edit-zone-user-schedule-body"]').classes().join(' ')).toContain('lg:flex')
     // other zone expanded by default so advanced options are immediately visible
     expect(wrapper.find('[data-testid="bulk-edit-zone-other-body"]').isVisible()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-edit-user-schedule-allow-enabled"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-edit-user-schedule-deny-enabled"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="bulk-user-schedule-mode-allow"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('admin.accounts.userSchedule.pairCap')
+    expect(wrapper.find('[data-testid="bulk-edit-user-schedule-caps"]').exists()).toBe(false)
+  })
+
+  it('勾选允许名单时只提交 allow_user_ids，不写对级并发', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['openai'],
+      selectedTypes: ['apikey']
+    })
+    await wrapper.get('[data-testid="bulk-edit-user-schedule-allow-enabled"]').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    const payload = vi.mocked(adminAPI.accounts.bulkUpdate).mock.calls[0]?.[1] as Record<string, unknown>
+    expect(payload.allow_user_ids).toEqual([])
+    expect(payload.deny_user_ids).toBeUndefined()
+    expect(payload.user_concurrencies).toBeUndefined()
+    expect(payload.user_concurrency_patch).toBeUndefined()
   })
 
   it('可批量写入 fallback_only 与 model_mapping_strict_scheduling', async () => {

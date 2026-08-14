@@ -449,7 +449,11 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		return nil, true, nil
 	}
 
-	result, acquireErr := s.service.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+	result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, account)
+	if pairFull {
+		// Pair-full skips this sticky pick only; keep the pin and do not WaitPlan.
+		return nil, false, nil
+	}
 	if acquireErr == nil && result != nil && result.Acquired {
 		_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
 		return &AccountSelectionResult{
@@ -870,6 +874,21 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	if len(filtered) == 0 {
 		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
 	}
+	pairCounts := s.service.pairCountsForSelection(ctx, filtered)
+	pairFiltered := make([]*Account, 0, len(filtered))
+	pairLoadReq := make([]AccountWithConcurrency, 0, len(loadReq))
+	for i, candidate := range filtered {
+		if isPairConcurrencyFull(candidate, scheduleUserIDFromContext(ctx, 0), pairCounts[candidate.ID]) {
+			continue
+		}
+		pairFiltered = append(pairFiltered, candidate)
+		pairLoadReq = append(pairLoadReq, loadReq[i])
+	}
+	filtered = pairFiltered
+	loadReq = pairLoadReq
+	if len(filtered) == 0 {
+		return nil, 0, 0, 0, noAvailableOpenAISelectionError(req.RequestedModel, false)
+	}
 
 	loadMap := map[int64]*AccountLoadInfo{}
 	if s.service.concurrencyService != nil {
@@ -1154,9 +1173,12 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			compactBlocked = true
 			continue
 		}
-		result, acquireErr := s.service.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+		result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, fresh)
 		if acquireErr != nil {
 			return nil, candidateCount, topK, loadSkew, acquireErr
+		}
+		if pairFull {
+			continue
 		}
 		if result != nil && result.Acquired {
 			if req.SessionHash != "" && !req.PreserveStickyBinding {
@@ -1208,9 +1230,12 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 			if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 				continue
 			}
-			result, acquireErr := s.service.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+			result, pairFull, acquireErr := s.service.tryAcquireAccountAndPairSlot(ctx, fresh)
 			if acquireErr != nil {
 				return nil, candidateCount, topK, loadSkew, acquireErr
+			}
+			if pairFull {
+				continue
 			}
 			if result != nil && result.Acquired {
 				return &AccountSelectionResult{Account: fresh, Acquired: true, ReleaseFunc: result.ReleaseFunc}, candidateCount, topK, loadSkew, nil
@@ -1245,6 +1270,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
 			compactBlocked = true
+			continue
+		}
+		if isPairConcurrencyFull(fresh, scheduleUserIDFromContext(ctx, 0), s.service.pairCountsForSelection(ctx, []*Account{fresh})[fresh.ID]) {
 			continue
 		}
 		return &AccountSelectionResult{

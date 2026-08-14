@@ -5,6 +5,8 @@ package runtime
 import (
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/ent/schema"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
 	"github.com/Wei-Shaw/sub2api/ent/accountscheduleuser"
@@ -35,7 +37,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/promocodeusage"
 	"github.com/Wei-Shaw/sub2api/ent/proxy"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
-	"github.com/Wei-Shaw/sub2api/ent/schema"
 	"github.com/Wei-Shaw/sub2api/ent/securitysecret"
 	"github.com/Wei-Shaw/sub2api/ent/setting"
 	"github.com/Wei-Shaw/sub2api/ent/subscriptionplan"
@@ -48,7 +49,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/userattributevalue"
 	"github.com/Wei-Shaw/sub2api/ent/userplatformquota"
 	"github.com/Wei-Shaw/sub2api/ent/usersubscription"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -309,6 +309,14 @@ func init() {
 	accountscheduleuserDescCreatedAt := accountscheduleuserFields[2].Descriptor()
 	// accountscheduleuser.DefaultCreatedAt holds the default value on creation for the created_at field.
 	accountscheduleuser.DefaultCreatedAt = accountscheduleuserDescCreatedAt.Default.(func() time.Time)
+	// accountscheduleuserDescAllow is the schema descriptor for allow field.
+	accountscheduleuserDescAllow := accountscheduleuserFields[3].Descriptor()
+	// accountscheduleuser.DefaultAllow holds the default value on creation for the allow field.
+	accountscheduleuser.DefaultAllow = accountscheduleuserDescAllow.Default.(bool)
+	// accountscheduleuserDescDeny is the schema descriptor for deny field.
+	accountscheduleuserDescDeny := accountscheduleuserFields[4].Descriptor()
+	// accountscheduleuser.DefaultDeny holds the default value on creation for the deny field.
+	accountscheduleuser.DefaultDeny = accountscheduleuserDescDeny.Default.(bool)
 	announcementFields := schema.Announcement{}.Fields()
 	_ = announcementFields
 	// announcementDescTitle is the schema descriptor for title field.

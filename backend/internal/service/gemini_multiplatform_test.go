@@ -114,7 +114,7 @@ func (m *mockAccountRepoForGemini) BindGroups(ctx context.Context, accountID int
 	return nil
 }
 
-func (m *mockAccountRepoForGemini) SyncScheduleUsers(ctx context.Context, accountID int64, userIDs []int64) error {
+func (m *mockAccountRepoForGemini) SyncScheduleUsers(ctx context.Context, accountID int64, write AccountUserScheduleWrite) error {
 	return nil
 }
 

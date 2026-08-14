@@ -451,6 +451,9 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		SessionWindowStatus:     account.SessionWindowStatus,
 		UserScheduleMode:        account.UserScheduleMode,
 		ScheduleUserIDs:         copyScheduleUserIDs(account.ScheduleUserIDs),
+		AllowUserIDs:            copyScheduleUserIDs(account.AllowUserIDs),
+		DenyUserIDs:             copyScheduleUserIDs(account.DenyUserIDs),
+		UserConcurrency:         copyUserConcurrencyMap(account.UserConcurrency),
 		AccountGroups:           filterSchedulerAccountGroups(account.AccountGroups),
 		GroupIDs:                filterSchedulerGroupIDs(account.GroupIDs, account.AccountGroups),
 		Credentials:             filterSchedulerCredentials(account.Credentials),
@@ -529,6 +532,23 @@ func copyScheduleUserIDs(ids []int64) []int64 {
 		}
 		seen[id] = struct{}{}
 		out = append(out, id)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func copyUserConcurrencyMap(in map[int64]int) map[int64]int {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[int64]int, len(in))
+	for userID, n := range in {
+		if userID <= 0 || n < 1 {
+			continue
+		}
+		out[userID] = n
 	}
 	if len(out) == 0 {
 		return nil

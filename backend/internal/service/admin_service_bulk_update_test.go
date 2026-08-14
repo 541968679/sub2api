@@ -32,7 +32,7 @@ type accountRepoStubForBulkUpdate struct {
 	listResult         *pagination.PaginationResult
 	listErr            error
 	listCalled         bool
-	syncScheduleCalls  map[int64][]int64
+	syncScheduleCalls  map[int64]AccountUserScheduleWrite
 	lastBulkUpdates    AccountBulkUpdate
 	lastUpdated        *Account
 	existingUserIDs    map[int64]bool
@@ -65,6 +65,13 @@ func (s *accountRepoStubForBulkUpdate) Update(_ context.Context, account *Accoun
 	if account.ScheduleUserIDs != nil {
 		copied.ScheduleUserIDs = append([]int64(nil), account.ScheduleUserIDs...)
 	}
+	if account.AllowUserIDs != nil {
+		copied.AllowUserIDs = append([]int64(nil), account.AllowUserIDs...)
+	}
+	if account.DenyUserIDs != nil {
+		copied.DenyUserIDs = append([]int64(nil), account.DenyUserIDs...)
+	}
+	copied.UserConcurrency = copyUserConcurrencyMap(account.UserConcurrency)
 	s.getByIDAccounts[account.ID] = &copied
 	return nil
 }
@@ -77,13 +84,15 @@ func (s *accountRepoStubForBulkUpdate) BindGroups(_ context.Context, accountID i
 	return nil
 }
 
-func (s *accountRepoStubForBulkUpdate) SyncScheduleUsers(_ context.Context, accountID int64, userIDs []int64) error {
+func (s *accountRepoStubForBulkUpdate) SyncScheduleUsers(_ context.Context, accountID int64, write AccountUserScheduleWrite) error {
 	if s.syncScheduleCalls == nil {
-		s.syncScheduleCalls = map[int64][]int64{}
+		s.syncScheduleCalls = map[int64]AccountUserScheduleWrite{}
 	}
-	copied := make([]int64, len(userIDs))
-	copy(copied, userIDs)
-	s.syncScheduleCalls[accountID] = copied
+	s.syncScheduleCalls[accountID] = AccountUserScheduleWrite{
+		AllowUserIDs:    append([]int64(nil), write.AllowUserIDs...),
+		DenyUserIDs:     append([]int64(nil), write.DenyUserIDs...),
+		UserConcurrency: copyUserConcurrencyMap(write.UserConcurrency),
+	}
 	return nil
 }
 
@@ -109,7 +118,20 @@ func (s *accountRepoStubForBulkUpdate) GetByIDs(_ context.Context, ids []int64) 
 	if s.getByIDsErr != nil {
 		return nil, s.getByIDsErr
 	}
-	return s.getByIDsAccounts, nil
+	if s.getByIDsAccounts != nil {
+		return s.getByIDsAccounts, nil
+	}
+	if s.getByIDAccounts == nil {
+		return nil, nil
+	}
+	out := make([]*Account, 0, len(ids))
+	for _, id := range ids {
+		if acc, ok := s.getByIDAccounts[id]; ok && acc != nil {
+			copied := *acc
+			out = append(out, &copied)
+		}
+	}
+	return out, nil
 }
 
 func (s *accountRepoStubForBulkUpdate) GetByID(_ context.Context, id int64) (*Account, error) {

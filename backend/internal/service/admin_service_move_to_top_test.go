@@ -90,7 +90,7 @@ func (r *createAccountPinRepo) BindGroups(_ context.Context, _ int64, _ []int64)
 	return nil
 }
 
-func (r *createAccountPinRepo) SyncScheduleUsers(_ context.Context, _ int64, _ []int64) error {
+func (r *createAccountPinRepo) SyncScheduleUsers(_ context.Context, _ int64, _ AccountUserScheduleWrite) error {
 	return nil
 }
 

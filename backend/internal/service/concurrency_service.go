@@ -33,6 +33,12 @@ type ConcurrencyCache interface {
 	ReleaseUserSlot(ctx context.Context, userID int64, requestID string) error
 	GetUserConcurrency(ctx context.Context, userID int64) (int, error)
 
+	// 账号-用户对级槽位
+	// 键格式: concurrency:account_user:{accountID}:{userID}
+	AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int, requestID string) (bool, error)
+	ReleaseAccountUserSlot(ctx context.Context, accountID, userID int64, requestID string) error
+	GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error)
+
 	// 等待队列计数（只在首次创建时设置 TTL）
 	IncrementWaitCount(ctx context.Context, userID int64, maxWait int) (bool, error)
 	DecrementWaitCount(ctx context.Context, userID int64) error
@@ -437,4 +443,61 @@ func (s *ConcurrencyService) GetAccountConcurrencyBatch(ctx context.Context, acc
 	defer cancel()
 
 	return s.cache.GetAccountConcurrencyBatch(redisCtx, accountIDs)
+}
+
+// AcquireAccountUserSlot acquires a pair-level slot. maxConcurrency<=0 is unlimited.
+func (s *ConcurrencyService) AcquireAccountUserSlot(ctx context.Context, accountID, userID int64, maxConcurrency int) (*AcquireResult, error) {
+	if maxConcurrency <= 0 || accountID <= 0 || userID <= 0 {
+		return &AcquireResult{
+			Acquired:    true,
+			ReleaseFunc: func() {},
+		}, nil
+	}
+	if s == nil || s.cache == nil {
+		return &AcquireResult{
+			Acquired:    true,
+			ReleaseFunc: func() {},
+		}, nil
+	}
+
+	requestID := generateRequestID()
+	acquired, err := s.cache.AcquireAccountUserSlot(ctx, accountID, userID, maxConcurrency, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if acquired {
+		return &AcquireResult{
+			Acquired: true,
+			ReleaseFunc: func() {
+				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := s.cache.ReleaseAccountUserSlot(bgCtx, accountID, userID, requestID); err != nil {
+					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account-user slot for %d/%d (req=%s): %v", accountID, userID, requestID, err)
+				}
+			},
+		}, nil
+	}
+	return &AcquireResult{Acquired: false, ReleaseFunc: nil}, nil
+}
+
+// GetAccountUserConcurrencyBatch returns live pair counts for one user across accounts.
+func (s *ConcurrencyService) GetAccountUserConcurrencyBatch(ctx context.Context, accountIDs []int64, userID int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(accountIDs))
+	for _, accountID := range accountIDs {
+		result[accountID] = 0
+	}
+	if len(accountIDs) == 0 || userID <= 0 || s == nil || s.cache == nil {
+		return result, nil
+	}
+	redisCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	counts, err := s.cache.GetAccountUserConcurrencyBatch(redisCtx, accountIDs, userID)
+	if err != nil {
+		logger.LegacyPrintf("service.concurrency", "Warning: get account-user concurrency batch failed: %v", err)
+		return result, nil
+	}
+	for _, accountID := range accountIDs {
+		result[accountID] = counts[accountID]
+	}
+	return result, nil
 }

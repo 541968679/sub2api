@@ -1526,47 +1526,47 @@
             :class="zoneScheduleExpanded ? 'flex' : 'hidden lg:flex'"
             data-testid="bulk-edit-zone-user-schedule-body"
           >
-            <div class="flex items-center justify-between">
-              <label
-                id="bulk-edit-user-schedule-label"
-                class="input-label mb-0"
-                for="bulk-edit-user-schedule-enabled"
-              >
-                {{ t('admin.accounts.userSchedule.enableWrite') }}
-              </label>
-              <input
-                v-model="enableUserSchedule"
-                id="bulk-edit-user-schedule-enabled"
-                type="checkbox"
-                data-testid="bulk-edit-user-schedule-enabled"
-                aria-controls="bulk-edit-user-schedule"
-                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              />
-            </div>
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.userSchedule.overwriteHint') }}
             </p>
-            <div id="bulk-edit-user-schedule" :class="!enableUserSchedule && 'pointer-events-none opacity-50'">
-              <div class="flex flex-col gap-2" data-testid="bulk-edit-user-schedule-mode">
-                <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                  <input v-model="userScheduleMode" type="radio" value="unrestricted" class="text-primary-600 focus:ring-primary-500" data-testid="bulk-user-schedule-mode-unrestricted" />
-                  {{ t('admin.accounts.userSchedule.modeUnrestricted') }}
-                </label>
-                <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                  <input v-model="userScheduleMode" type="radio" value="allow" class="text-primary-600 focus:ring-primary-500" data-testid="bulk-user-schedule-mode-allow" />
-                  {{ t('admin.accounts.userSchedule.modeAllow') }}
-                </label>
-                <label class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                  <input v-model="userScheduleMode" type="radio" value="deny" class="text-primary-600 focus:ring-primary-500" data-testid="bulk-user-schedule-mode-deny" />
-                  {{ t('admin.accounts.userSchedule.modeDeny') }}
-                </label>
+            <div class="space-y-4" id="bulk-edit-user-schedule">
+              <div>
+                <div class="mb-2 flex items-center justify-between">
+                  <label class="input-label mb-0" for="bulk-edit-user-schedule-allow-enabled">
+                    {{ t('admin.accounts.userSchedule.enableAllowWrite') }}
+                  </label>
+                  <input
+                    v-model="enableAllowSchedule"
+                    id="bulk-edit-user-schedule-allow-enabled"
+                    type="checkbox"
+                    data-testid="bulk-edit-user-schedule-allow-enabled"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </div>
+                <div :class="!enableAllowSchedule && 'pointer-events-none opacity-50'" data-testid="bulk-edit-user-schedule-allow-picker">
+                  <OpenAIFastPolicyUserSelector v-model="allowUserIds" />
+                </div>
               </div>
-              <div v-if="userScheduleMode !== 'unrestricted'" class="mt-3" data-testid="bulk-edit-user-schedule-picker">
-                <OpenAIFastPolicyUserSelector v-model="scheduleUserIds" />
+              <div>
+                <div class="mb-2 flex items-center justify-between">
+                  <label class="input-label mb-0" for="bulk-edit-user-schedule-deny-enabled">
+                    {{ t('admin.accounts.userSchedule.enableDenyWrite') }}
+                  </label>
+                  <input
+                    v-model="enableDenySchedule"
+                    id="bulk-edit-user-schedule-deny-enabled"
+                    type="checkbox"
+                    data-testid="bulk-edit-user-schedule-deny-enabled"
+                    class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </div>
+                <div :class="!enableDenySchedule && 'pointer-events-none opacity-50'" data-testid="bulk-edit-user-schedule-deny-picker">
+                  <OpenAIFastPolicyUserSelector v-model="denyUserIds" />
+                </div>
               </div>
               <button
                 type="button"
-                class="mt-3 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                class="text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
                 data-testid="bulk-user-schedule-restore-default"
                 :title="t('admin.accounts.userSchedule.restoreDefaultHint')"
                 @click="restoreBulkUserScheduleDefault"
@@ -1801,7 +1801,8 @@ const enableStatus = ref(false)
 const enableFallbackOnly = ref(false)
 const enableModelMappingStrictScheduling = ref(false)
 const enableGroups = ref(false)
-const enableUserSchedule = ref(false)
+const enableAllowSchedule = ref(false)
+const enableDenySchedule = ref(false)
 const enableOpenAIPassthrough = ref(false)
 const enableOpenAIClaudeGPTBridge = ref(false)
 const enableOpenAIImagesEndpoint = ref(false)
@@ -1868,8 +1869,8 @@ const status = ref<'active' | 'inactive'>('active')
 const fallbackOnly = ref(false)
 const modelMappingStrictScheduling = ref(false)
 const groupIds = ref<number[]>([])
-const userScheduleMode = ref<'unrestricted' | 'allow' | 'deny'>('unrestricted')
-const scheduleUserIds = ref<number[]>([])
+const allowUserIds = ref<number[]>([])
+const denyUserIds = ref<number[]>([])
 const openaiPassthroughEnabled = ref(false)
 const openaiClaudeGPTBridgeEnabled = ref(false)
 const openAIImagesEndpointEnabled = ref(true)
@@ -2236,10 +2237,11 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     updates.group_ids = groupIds.value
   }
 
-  if (enableUserSchedule.value) {
-    updates.user_schedule_mode = userScheduleMode.value
-    updates.schedule_user_ids =
-      userScheduleMode.value === 'unrestricted' ? [] : [...scheduleUserIds.value]
+  if (enableAllowSchedule.value) {
+    updates.allow_user_ids = [...allowUserIds.value]
+  }
+  if (enableDenySchedule.value) {
+    updates.deny_user_ids = [...denyUserIds.value]
   }
 
   if (enableBaseUrl.value) {
@@ -2373,8 +2375,10 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
 }
 
 const restoreBulkUserScheduleDefault = () => {
-  userScheduleMode.value = 'unrestricted'
-  scheduleUserIds.value = []
+  enableAllowSchedule.value = true
+  enableDenySchedule.value = true
+  allowUserIds.value = []
+  denyUserIds.value = []
 }
 
 const mixedChannelConfirmed = ref(false)
@@ -2442,7 +2446,8 @@ const handleSubmit = async () => {
     enableFallbackOnly.value ||
     enableModelMappingStrictScheduling.value ||
     enableGroups.value ||
-    enableUserSchedule.value ||
+    enableAllowSchedule.value ||
+    enableDenySchedule.value ||
     enableOpenAIWSMode.value ||
     enableOpenAIAPIKeyWSMode.value ||
     enableCodexCLIOnly.value ||
@@ -2454,14 +2459,6 @@ const handleSubmit = async () => {
     return
   }
 
-  if (
-    enableUserSchedule.value &&
-    (userScheduleMode.value === 'allow' || userScheduleMode.value === 'deny') &&
-    scheduleUserIds.value.length === 0
-  ) {
-    appStore.showError(t('admin.accounts.userSchedule.usersRequired'))
-    return
-  }
 
   if (enableHeaderOverride.value && headerOverrideEnabled.value) {
     // 批量保存对 header_overrides 是整键替换：开启但没有任何有效行会把所选账号的
@@ -2577,7 +2574,8 @@ watch(
       enableFallbackOnly.value = false
       enableModelMappingStrictScheduling.value = false
       enableGroups.value = false
-      enableUserSchedule.value = false
+      enableAllowSchedule.value = false
+      enableDenySchedule.value = false
       zone2Expanded.value = true
       zoneScheduleExpanded.value = false
       zone3Expanded.value = true
@@ -2616,8 +2614,8 @@ watch(
       fallbackOnly.value = false
       modelMappingStrictScheduling.value = false
       groupIds.value = []
-      userScheduleMode.value = 'unrestricted'
-      scheduleUserIds.value = []
+      allowUserIds.value = []
+      denyUserIds.value = []
       openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       openaiAPIKeyResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
       codexCLIOnlyEnabled.value = false

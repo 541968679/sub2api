@@ -25,6 +25,21 @@ func CreatedAt(v time.Time) predicate.AccountScheduleUser {
 	return predicate.AccountScheduleUser(sql.FieldEQ(FieldCreatedAt, v))
 }
 
+// Allow applies equality check predicate on the "allow" field. It's identical to AllowEQ.
+func Allow(v bool) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldAllow, v))
+}
+
+// Deny applies equality check predicate on the "deny" field. It's identical to DenyEQ.
+func Deny(v bool) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldDeny, v))
+}
+
+// MaxConcurrency applies equality check predicate on the "max_concurrency" field. It's identical to MaxConcurrencyEQ.
+func MaxConcurrency(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldMaxConcurrency, v))
+}
+
 // AccountIDEQ applies the EQ predicate on the "account_id" field.
 func AccountIDEQ(v int64) predicate.AccountScheduleUser {
 	return predicate.AccountScheduleUser(sql.FieldEQ(FieldAccountID, v))
@@ -103,6 +118,76 @@ func CreatedAtLT(v time.Time) predicate.AccountScheduleUser {
 // CreatedAtLTE applies the LTE predicate on the "created_at" field.
 func CreatedAtLTE(v time.Time) predicate.AccountScheduleUser {
 	return predicate.AccountScheduleUser(sql.FieldLTE(FieldCreatedAt, v))
+}
+
+// AllowEQ applies the EQ predicate on the "allow" field.
+func AllowEQ(v bool) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldAllow, v))
+}
+
+// AllowNEQ applies the NEQ predicate on the "allow" field.
+func AllowNEQ(v bool) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldAllow, v))
+}
+
+// DenyEQ applies the EQ predicate on the "deny" field.
+func DenyEQ(v bool) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldDeny, v))
+}
+
+// DenyNEQ applies the NEQ predicate on the "deny" field.
+func DenyNEQ(v bool) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldDeny, v))
+}
+
+// MaxConcurrencyEQ applies the EQ predicate on the "max_concurrency" field.
+func MaxConcurrencyEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldEQ(FieldMaxConcurrency, v))
+}
+
+// MaxConcurrencyNEQ applies the NEQ predicate on the "max_concurrency" field.
+func MaxConcurrencyNEQ(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNEQ(FieldMaxConcurrency, v))
+}
+
+// MaxConcurrencyIn applies the In predicate on the "max_concurrency" field.
+func MaxConcurrencyIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIn(FieldMaxConcurrency, vs...))
+}
+
+// MaxConcurrencyNotIn applies the NotIn predicate on the "max_concurrency" field.
+func MaxConcurrencyNotIn(vs ...int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotIn(FieldMaxConcurrency, vs...))
+}
+
+// MaxConcurrencyGT applies the GT predicate on the "max_concurrency" field.
+func MaxConcurrencyGT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGT(FieldMaxConcurrency, v))
+}
+
+// MaxConcurrencyGTE applies the GTE predicate on the "max_concurrency" field.
+func MaxConcurrencyGTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldGTE(FieldMaxConcurrency, v))
+}
+
+// MaxConcurrencyLT applies the LT predicate on the "max_concurrency" field.
+func MaxConcurrencyLT(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLT(FieldMaxConcurrency, v))
+}
+
+// MaxConcurrencyLTE applies the LTE predicate on the "max_concurrency" field.
+func MaxConcurrencyLTE(v int) predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldLTE(FieldMaxConcurrency, v))
+}
+
+// MaxConcurrencyIsNil applies the IsNil predicate on the "max_concurrency" field.
+func MaxConcurrencyIsNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldIsNull(FieldMaxConcurrency))
+}
+
+// MaxConcurrencyNotNil applies the NotNil predicate on the "max_concurrency" field.
+func MaxConcurrencyNotNil() predicate.AccountScheduleUser {
+	return predicate.AccountScheduleUser(sql.FieldNotNull(FieldMaxConcurrency))
 }
 
 // HasAccount applies the HasEdge predicate on the "account" edge.
