@@ -1,3 +1,18 @@
+## 2026-08-14 - deploy: production v0.1.220
+
+### What
+- Released and deployed `v0.1.220` (`1baa78ce9`) to production as `ghcr.io/541968679/sub2api:0.1.220`.
+- Page auto-refresh now keeps running while the tab stays open, even when it is not selected.
+
+### Verification
+- Release workflow success; image digest `sha256:ecf7a60529ffc7d7d15ce01aa731284bf1e3881878c10eeab85fb1e9a7126815`
+- `update.sh --skip-a2 --skip-invokeai` health check passed; `/health` ok
+- Running revision `1baa78ce9`, version label `0.1.220`
+
+### Affected files
+this changelog,
+`docs/dev/DEPLOYMENT.md`.
+
 ## 2026-08-14 - fix(frontend): keep page auto-refresh running in background tabs
 
 ### What

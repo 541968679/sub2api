@@ -118,7 +118,8 @@ $script | ssh -i $HOME\.ssh\id_ed25519_sub2api root@172.245.247.80 'bash -s'
 
 | 日期 | Tag | Revision | Image | Version label | 状态 |
 |------|-----|----------|-------|---------------|------|
-| 2026-08-13 | `v0.1.219` | `9f006ade4` | `ghcr.io/541968679/sub2api:0.1.219` | `0.1.219` | running, healthy, digest `sha256:40027d6d55718ebf6584f4bad9a7d1abdbd49a94c828dbeeade8a656dd20df92`, internal `/health` OK; user-list TTFT/success-rate, account user allow/deny schedule, usage/error inspect dialog |
+| 2026-08-14 | `v0.1.220` | `1baa78ce9` | `ghcr.io/541968679/sub2api:0.1.220` | `0.1.220` | running, healthy, digest `sha256:ecf7a60529ffc7d7d15ce01aa731284bf1e3881878c10eeab85fb1e9a7126815`, internal `/health` OK; page auto-refresh keeps polling in background tabs |
+| 2026-08-13 | `v0.1.219` | `9f006ade4` | `ghcr.io/541968679/sub2api:0.1.219` | `0.1.219` | superseded by `v0.1.220`; user-list TTFT/success-rate, account user allow/deny schedule, usage/error inspect dialog |
 | 2026-08-13 | `v0.1.218` | `80f801fd9` | `ghcr.io/541968679/sub2api:0.1.218` | `0.1.218` | superseded by `v0.1.219`; display vs true first-token + preamble-flush user allowlist (global still off) |
 | 2026-08-13 | `v0.1.217` | `824421852` | `ghcr.io/541968679/sub2api:0.1.217` | `0.1.217` | superseded by `v0.1.218`; native Responses first_token_ms on first SSE + admin `openai_responses_flush_preamble` (default off) |
 | 2026-08-12 | `v0.1.216` | `761dd8cf9` | `ghcr.io/541968679/sub2api:0.1.216` | `0.1.216` | superseded by `v0.1.217`; restore admin usage `token`/`TOKEN` headers + per-column cache share |
